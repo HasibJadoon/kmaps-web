@@ -39,10 +39,11 @@ const SVG = {
     <path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
   </svg>`,
 
-  srs: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" ${S}>
-    <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
-    <path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/>
-    <path d="M12 12l1 2.5h2.5l-2 1.5.8 2.5-2.3-1.6-2.3 1.6.8-2.5-2-1.5H11z"/>
+  // Surah Structures icon: stacked sections (surah → passages → ayahs)
+  structures: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" ${S}>
+    <rect x="3" y="3" width="18" height="5" rx="1"/>
+    <rect x="3" y="10" width="18" height="5" rx="1"/>
+    <rect x="3" y="17" width="11" height="4" rx="1"/>
   </svg>`,
 
 };
@@ -52,8 +53,8 @@ const ACTIONS: ActionIconVm[] = [
   { id: 'study',      label: 'Study',  svgPath: SVG.study,      ariaLabel: 'Study this surah',                 color: '#E8C060' }, // bright gold
   { id: 'notes',      label: 'Notes',  svgPath: SVG.notes,      ariaLabel: 'Notes for this surah',             color: '#4DD9A8' }, // bright teal
   { id: 'worldview',  label: 'World',  svgPath: SVG.worldview,  ariaLabel: 'Worldview for this surah',         color: '#6BBAFF' }, // bright blue
-  { id: 'review',     label: 'Review', svgPath: SVG.review,     ariaLabel: 'Review this surah',                color: '#FF9F6B' }, // bright orange
-  { id: 'srs',        label: 'SRS',    svgPath: SVG.srs,        ariaLabel: 'Spaced repetition for this surah', color: '#FF7BAC' }, // bright rose
+  { id: 'review',     label: 'Review', svgPath: SVG.review,     ariaLabel: 'Review this surah (includes spaced repetition)', color: '#FF9F6B' }, // bright orange
+  { id: 'structures', label: 'Structure', svgPath: SVG.structures, ariaLabel: 'Surah structures',              color: '#FF7BAC' }, // bright rose
 ];
 
 @Component({
@@ -75,7 +76,7 @@ export class SurahActionsComponent {
     const base = ['/quran', 'surahs', String(this.surahId)];
     const suffix: Record<string, string> = {
       study: 'study', notes: 'notes', worldview: 'worldview',
-      vocabulary: 'linguistics', review: 'review', srs: 'srs',
+      vocabulary: 'linguistics', review: 'review', structures: 'surah-structures',
     };
     const seg = suffix[actionId];
     if (seg) this.router.navigate([...base, seg]);
