@@ -9,7 +9,7 @@
     @for (w of words(); track trackId($index, w)) {
       <button type="button" class="unit-card" (click)="open.emit(w)"
               [attr.aria-label]="'Open word ' + w.ar + ' (' + w.surah + ':' + w.ayah + ')'">
-        <span class="unit-card__badge">{{ w.surah }}:{{ w.ayah }}</span>
+        <span class="unit-card__badge">{{ w.occurrences }}×</span>
         <div class="unit-card__head">
           <span class="unit-card__word">{{ w.ar }}</span>
           @if (w.root_display) { <span class="unit-card__root">{{ w.root_display }}</span> }

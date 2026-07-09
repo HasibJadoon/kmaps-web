@@ -2,41 +2,54 @@
   <header class="root-view__head">
     <span class="root-view__eyebrow">Root · Lexicon</span>
     <h1 class="root-view__title">{{ root() }}</h1>
-    @if (profile()?.meaning_core_en) {
-      <p class="root-view__core">{{ profile()!.meaning_core_en }}</p>
+    @if (display()?.meaning_core?.en) {
+      <p class="root-view__core">{{ display()!.meaning_core.en }}</p>
     }
   </header>
 
   @if (loading()) {
-    <div class="rv-state"><div class="rv-state__spinner"></div><p>Loading lexicon spine…</p></div>
+    <div class="rv-state"><div class="rv-state__spinner"></div><p>Loading lexicon…</p></div>
   } @else if (error()) {
     <div class="rv-state rv-state--error"><p>{{ error() }}</p></div>
-  } @else if (profile()) {
-    <!-- Classical lexicon coverage (universal, corpus-agnostic) -->
+  } @else if (display(); as d) {
+
+    @if (d.hook?.en) {
+      <div class="rv-hook">
+        <lucide-icon [name]="sectionIcon('hook')" [size]="16"></lucide-icon>
+        <span>{{ d.hook.en }}</span>
+      </div>
+    }
+
+    <!-- Classical lexicon coverage — icons & labels from data -->
     <div class="rv-lenses">
-      @for (k of lensKeys; track k) {
-        <span class="rv-lens" [class.rv-lens--on]="hasLens(k)">{{ lensLabels[k] }}</span>
+      @for (l of d.lenses; track l.key) {
+        <span class="rv-lens" [class.rv-lens--on]="l.on">
+          <lucide-icon [name]="l.icon" [size]="13"></lucide-icon>{{ l.label }}
+        </span>
       }
-      @if (profile()!.frequency_quran) {
-        <span class="rv-freq">{{ profile()!.frequency_quran }}× in Qurʾān</span>
+      @if (d.frequency_quran) {
+        <span class="rv-freq"><lucide-icon [name]="sectionIcon('freq')" [size]="13"></lucide-icon>{{ d.frequency_quran }}× in Qurʾān</span>
       }
     </div>
 
-    <!-- Derived family — the lemmas under this root (Root → Lemma) -->
-    <h2 class="rv-section">Derived family</h2>
+    <!-- Derived family — Root → Lemma. Each lemma's POS icon comes from data. -->
+    <h2 class="rv-section"><lucide-icon [name]="sectionIcon('family')" [size]="15"></lucide-icon>Derived family</h2>
     <div class="rv-family">
-      @for (f of profile()!.family; track f.lemma_ar) {
+      @for (f of d.family; track f.lemma_ar) {
         <div class="rv-lemma" [class.rv-lemma--quran]="f.is_quran_word">
           <span class="rv-lemma__word">{{ f.lemma_ar }}</span>
-          <span class="rv-lemma__pos">{{ f.pos }}@if (f.verb_form) { · {{ f.verb_form }} }</span>
+          <span class="rv-lemma__pos">
+            <lucide-icon [name]="f.pos_icon" [size]="13"></lucide-icon>
+            {{ f.pos }}@if (f.verb_form) { · {{ f.verb_form }} }
+          </span>
         </div>
       }
     </div>
 
-    @if (profile()!.senses?.length) {
-      <h2 class="rv-section">Senses</h2>
+    @if (d.senses?.length) {
+      <h2 class="rv-section"><lucide-icon [name]="sectionIcon('senses')" [size]="15"></lucide-icon>Senses</h2>
       <ul class="rv-senses">
-        @for (s of profile()!.senses; track s) { <li>{{ s }}</li> }
+        @for (s of d.senses; track s) { <li>{{ s }}</li> }
       </ul>
     }
   }
