@@ -1,0 +1,28 @@
+name = "km-core-worker"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+workers_dev = false   # internal only — accessed via km-backend-worker service binding
+
+[[d1_databases]]
+binding = "DB_CORE"
+database_name = "km_core"
+database_id = "afe84ce7-04dd-45a1-99ac-f42ca53276d2"
+migrations_dir = "migrations"
+
+[vars]
+JWT_EXPIRY_SECONDS = "3600"
+
+# OAuth (optional) — uncomment and fill with REAL values to enable social
+# sign-in. Each provider stays disabled in /core/auth/providers until its
+# vars are present, so the login screen only shows buttons that will work.
+# Client IDs are not secret, so they belong here in [vars] (use a
+# comma-separated list for multiple audiences, e.g. an Apple services-id
+# plus a native bundle-id). Apple also needs a registered redirect URI for
+# the web popup. Values below are PLACEHOLDERS — replace before uncommenting:
+#   GOOGLE_CLIENT_ID   = "REPLACE.apps.googleusercontent.com"
+#   APPLE_CLIENT_ID    = "com.your-domain.web"
+#   APPLE_REDIRECT_URI = "https://app.your-domain.com/login"
+
+# Secrets (set via wrangler secret put):
+#   JWT_SECRET      — shared with km-backend-worker
+#   INTERNAL_SECRET — shared with km-backend-worker

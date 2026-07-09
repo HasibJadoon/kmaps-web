@@ -1,0 +1,165 @@
+@if (!hideShellHeader()) {
+  <ion-header class="qrs-header" [translucent]="true">
+    <ion-toolbar class="qrs-toolbar">
+      <ion-buttons slot="start">
+        <ion-button class="qrs-icon-btn" aria-label="Home" (click)="goHome()">
+          <ion-icon name="grid-outline" slot="icon-only" />
+        </ion-button>
+      </ion-buttons>
+
+      <ion-title>
+        <span class="qrs-title">K-MAPS</span>
+        <span class="qrs-subtitle">Quran Researcher</span>
+      </ion-title>
+
+      <ion-buttons slot="end">
+        <ion-button
+          class="qrs-icon-btn"
+          aria-label="Search and navigate"
+          (click)="togglePanel()"
+        >
+          <ion-icon name="search-outline" slot="icon-only" />
+        </ion-button>
+      </ion-buttons>
+    </ion-toolbar>
+  </ion-header>
+}
+
+<!-- Combined search + navigation bottom sheet -->
+<ion-modal
+  class="qrs-panel-modal"
+  [isOpen]="panelOpen()"
+  [breakpoints]="[0, 0.42]"
+  [initialBreakpoint]="0.42"
+  [handle]="true"
+  [backdropDismiss]="true"
+  (ionModalDidDismiss)="closePanel()"
+  (ionModalDidPresent)="onPanelPresent()"
+>
+  <ng-template>
+    <div class="qrs-modal-body">
+      <ion-searchbar
+        class="qrs-searchbar qrs-modal-searchbar"
+        mode="md"
+        inputmode="search"
+        placeholder="بحث"
+        [debounce]="120"
+        [value]="search.searchTerm()"
+        (ionInput)="setSearch($event.detail.value)"
+      />
+
+      <!-- ── Cross-tab search results panel ────────────────────────── -->
+      @if (search.searchTerm().trim() && search.summary().length > 0) {
+        <div class="qrs-search-results" dir="rtl">
+          <header class="qrs-search-results__head">
+            <span class="qrs-search-results__count">{{ search.totalMatches() }}</span>
+            <span class="qrs-search-results__label">نتيجة في المختبر</span>
+          </header>
+          @for (group of search.summary(); track group.tab) {
+            <section class="qrs-search-group" [attr.data-tab]="group.tab">
+              <header class="qrs-search-group__head">
+                <ion-icon [name]="tabIconFor(group.tab)" aria-hidden="true" />
+                <span class="qrs-search-group__name">{{ group.label }}</span>
+                <span class="qrs-search-group__count">{{ group.count }}</span>
+              </header>
+              <ul class="qrs-search-hits">
+                @for (hit of group.hits; track hit.id) {
+                  <li>
+                    <button class="qrs-search-hit" type="button"
+                            (click)="openHit(group.tab, hit)">
+                      <span class="qrs-search-hit__title">{{ hit.title }}</span>
+                      @if (hit.subtitle) {
+                        <span class="qrs-search-hit__sub">{{ hit.subtitle }}</span>
+                      }
+                    </button>
+                  </li>
+                }
+                @if (group.count > group.hits.length) {
+                  <li>
+                    <button class="qrs-search-hit qrs-search-hit--more"
+                            type="button"
+                            (click)="jumpToTab(group.tab)">
+                      عرض كل النتائج ({{ group.count }})
+                    </button>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+        </div>
+      } @else if (search.searchTerm().trim()) {
+        <p class="qrs-search-empty">لا توجد نتائج.</p>
+      }
+
+      @if (readerHeader.visible() && currentTab() === 'reader') {
+        <div class="qrs-modal-divider"></div>
+        <div class="qrs-reader-controls" aria-label="Quran navigation" dir="rtl">
+          <ion-item class="qrs-reader-control" lines="none">
+            <ion-label position="stacked">سورة</ion-label>
+            <ion-select
+              interface="action-sheet"
+              [interfaceOptions]="{ cssClass: 'qrs-select-sheet', header: 'اختر السورة' }"
+              [disabled]="readerHeader.disabled()"
+              [value]="readerHeader.activeSurah()"
+              (ionChange)="readerHeader.goToSurah($any($event.detail.value))"
+            >
+              @for (surah of readerHeader.surahs(); track surah.surah) {
+                <ion-select-option [value]="surah.surah">
+                  {{ surah.surah }}. {{ surah.name_ar }}
+                </ion-select-option>
+              }
+            </ion-select>
+          </ion-item>
+
+          <ion-item class="qrs-reader-control" lines="none">
+            <ion-label position="stacked">آية</ion-label>
+            <ion-input
+              type="number"
+              inputmode="numeric"
+              min="1"
+              [disabled]="readerHeader.disabled()"
+              [value]="readerHeader.activeVerse()"
+              (ionBlur)="readerHeader.goToVerse($any($event.target).value)"
+              (keydown.enter)="readerHeader.goToVerse($any($event.target).value)"
+            />
+          </ion-item>
+
+          <ion-item class="qrs-reader-control" lines="none">
+            <ion-label position="stacked">صفحة</ion-label>
+            <ion-input
+              type="number"
+              inputmode="numeric"
+              min="1"
+              max="604"
+              [disabled]="readerHeader.disabled()"
+              [value]="readerHeader.activePage()"
+              (ionBlur)="readerHeader.goToPage($any($event.target).value)"
+              (keydown.enter)="readerHeader.goToPage($any($event.target).value)"
+            />
+          </ion-item>
+        </div>
+      }
+    </div>
+  </ng-template>
+</ion-modal>
+
+<ion-tabs class="qrs-tabs-shell"
+          [class.qrs-tabs-shell--immersive]="immersive.hidden()"
+          (ionTabsDidChange)="onTabsDidChange($event)">
+  <ion-tab-bar class="qrs-tab-bar" slot="bottom" dir="rtl"
+               [translucent]="true"
+               [selectedTab]="currentTab()"
+               [class.qrs-tab-bar--hidden]="immersive.hidden()">
+    @for (tab of tabs; track tab.id) {
+      <ion-tab-button
+        class="qrs-tab"
+        [tab]="tab.id"
+        layout="icon-top"
+        (click)="onTabClick(tab, $event)"
+      >
+        <ion-icon [name]="tab.icon" aria-hidden="true" />
+        <ion-label class="qrs-tab__arabic" lang="ar" dir="rtl">{{ tab.labelAr }}</ion-label>
+      </ion-tab-button>
+    }
+  </ion-tab-bar>
+</ion-tabs>

@@ -1,0 +1,51 @@
+<km-quran-page-shell breadcrumb="Surah {{ surahId() }}" title="Morphology" (goBack)="back()">
+
+  <div class="morph-page">
+
+    <header class="mod-header">
+      <h1 class="mod-header__title">Morphology</h1>
+      <p class="mod-header__sub">{{ visible().length }} words · Surah {{ surahId() }}</p>
+    </header>
+
+    @if (!loading() && !error()) {
+      <div class="morph-filters">
+        @for (f of filters; track f.id) {
+          <button
+            class="morph-filter"
+            [class.morph-filter--active]="filter() === f.id"
+            (click)="setFilter(f.id)"
+          >{{ f.label }} <span class="morph-filter__count">{{ count()[f.id] }}</span></button>
+        }
+      </div>
+    }
+
+    @if (loading()) {
+      <div class="qstate"><div class="qstate__spinner"></div><p>Loading morphology…</p></div>
+    }
+    @if (!loading() && error()) {
+      <div class="qstate qstate--error"><p>{{ error() }}</p></div>
+    }
+    @if (!loading() && !error() && visible().length === 0) {
+      <div class="qstate"><p>No words found for this filter.</p></div>
+    }
+
+    @if (!loading() && !error() && visible().length > 0) {
+      @for (g of groups(); track g.ayah) {
+        <section class="morph-ayah">
+          <span class="morph-ayah__ref">{{ g.ref }}</span>
+          <div class="morph-grid">
+            @for (w of g.words; track (w.ayah + ':' + w.word_index)) {
+              <km-morph-word-card
+                [card]="toVm(w)"
+                (open)="open(w)"
+                (openRoot)="openRoot(w.root_ar)"
+              />
+            }
+          </div>
+        </section>
+      }
+    }
+
+  </div>
+
+</km-quran-page-shell>

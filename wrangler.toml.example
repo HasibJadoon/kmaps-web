@@ -1,0 +1,13 @@
+name = "k-maps"
+compatibility_date = "2025-01-01"
+
+# Serve this folder as the site root
+pages_build_output_dir = "apps/k-maps/dist/k-maps/browser"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "knowledgemap"
+# Replace with your D1 database id
+# Example: "ef164d27-6e98-41c5-beca-03903d658976"
+database_id = "<YOUR_D1_DATABASE_ID>"
+migrations_dir = "database/migrations"

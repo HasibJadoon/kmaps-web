@@ -1,0 +1,96 @@
+<section class="study-tab study-tab--passage">
+  <ion-accordion-group class="study-accordion" *ngIf="sections.length; else noPassageSections">
+    <ion-accordion
+      class="study-accordion-item"
+      *ngFor="let section of sections"
+      [value]="section.id"
+      [attr.data-accent]="section.accent"
+    >
+      <ion-item slot="header" class="study-accordion-header">
+        <ion-icon slot="start" [icon]="resolveIcon(section.iconName, section.renderer, section.accent)"></ion-icon>
+        <ion-label>{{ section.title }}</ion-label>
+        <ion-note slot="end">{{ section.badge }}</ion-note>
+      </ion-item>
+
+      <div slot="content" class="study-accordion-content">
+        <p class="study-body-text" *ngIf="section.summary">
+          <ng-container *ngFor="let segment of toSegments(section.summary)">
+            <span [class.arabic]="segment.isArabic">{{ segment.text }}</span>
+          </ng-container>
+        </p>
+
+        <ng-container [ngSwitch]="section.renderer">
+          <ion-list class="study-list" lines="none" *ngSwitchCase="'keyvalue'">
+            <ion-item class="study-item" *ngFor="let row of section.keyValueRows" lines="none">
+              <ion-label class="study-label">
+                <h3 class="study-row-key">{{ row.key }}</h3>
+                <p class="study-body-text" *ngIf="row.text">
+                  <ng-container *ngFor="let segment of toSegments(row.text)">
+                    <span [class.arabic]="segment.isArabic">{{ segment.text }}</span>
+                  </ng-container>
+                </p>
+                <div class="study-chip-cloud" *ngIf="row.chips.length">
+                  <ion-chip class="study-chip" *ngFor="let chip of row.chips">
+                    <ion-label>
+                      <ng-container *ngFor="let segment of toSegments(chip)">
+                        <span [class.arabic]="segment.isArabic">{{ segment.text }}</span>
+                      </ng-container>
+                    </ion-label>
+                  </ion-chip>
+                </div>
+              </ion-label>
+            </ion-item>
+          </ion-list>
+
+          <ion-list class="study-list" lines="none" *ngSwitchCase="'clusters'">
+            <ion-item class="study-item" *ngFor="let cluster of section.clusters" lines="none">
+              <ion-label class="study-label">
+                <h3 class="study-row-key">{{ cluster.title }}</h3>
+                <div class="study-chip-cloud" *ngIf="cluster.items.length">
+                  <ion-chip class="study-chip" [attr.data-accent]="cluster.accent" *ngFor="let item of cluster.items">
+                    <ion-label>
+                      <ng-container *ngFor="let segment of toSegments(item)">
+                        <span [class.arabic]="segment.isArabic">{{ segment.text }}</span>
+                      </ng-container>
+                    </ion-label>
+                  </ion-chip>
+                </div>
+              </ion-label>
+            </ion-item>
+          </ion-list>
+
+          <div class="study-chiasm" *ngSwitchCase="'chiasm'">
+            <ng-container *ngIf="section.chiasm as chiasm; else noChiasm">
+              <div class="study-chiasm-node">{{ chiasm.outerTop }}</div>
+              <div class="study-chiasm-node">{{ chiasm.innerLeft }}</div>
+              <div class="study-chiasm-node">{{ chiasm.innerRight }}</div>
+              <div class="study-chiasm-axis">
+                <strong>{{ chiasm.axis }}</strong>
+              </div>
+              <div class="study-chiasm-node">{{ chiasm.outerBottom }}</div>
+              <p class="study-muted" *ngIf="chiasm.interpretation">{{ chiasm.interpretation }}</p>
+            </ng-container>
+          </div>
+
+          <div class="study-timeline" *ngSwitchCase="'timeline'">
+            <div class="study-timeline-step" *ngFor="let step of section.timeline">
+              <div class="study-timeline-dot" aria-hidden="true"></div>
+              <div class="study-timeline-copy">
+                <h3 class="study-row-key">{{ step.title }}</h3>
+                <p class="study-body-text">{{ step.text }}</p>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+      </div>
+    </ion-accordion>
+  </ion-accordion-group>
+
+  <ng-template #noPassageSections>
+    <p class="study-empty">No passage structure sections available.</p>
+  </ng-template>
+
+  <ng-template #noChiasm>
+    <p class="study-empty">No chiastic pattern found.</p>
+  </ng-template>
+</section>

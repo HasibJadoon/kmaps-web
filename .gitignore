@@ -1,0 +1,86 @@
+# Node / Package managers
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+pnpm-lock.yaml
+# keep yarn.lock if you use Yarn; otherwise ignore lockfiles you don't use
+# yarn.lock
+
+# Build outputs
+dist/
+build/
+.vite/
+.cache/
+.eslintcache
+coverage/
+**/*.js.map
+
+# TypeScript / Angular
+*.tsbuildinfo
+.angular/
+angular-compiler.db
+
+# Cloudflare / Wrangler
+.wrangler/
+.worker/
+*.wrangler/state*/
+# D1 exports/dumps
+*.sqlite
+*.db
+database/ingestion/morphology/sources/qac/*.txt
+km_arabic_linguistic/ingestion/near_synonyms/sources/
+
+# Local-only Arabic linguistic ingestion workspace and source payloads.
+/km_arabic_linguistic/
+# Track curated migrations and worker schema snapshots; keep ad hoc SQL dumps ignored.
+*.sql
+!database/migrations/
+!database/migrations/*.sql
+!database/migrations/**/*.sql
+!database/seeds/
+!database/seeds/*.sql
+!database/seeds/**/*.sql
+# Chunked seed splits are generated; too large for git
+database/seeds/chunks/
+!workers/*/schema.sql
+!workers/*/migrations/
+!workers/*/migrations/*.sql
+
+# Env & secrets
+.env
+.env.*
+.dev.vars
+
+# Local font assets (large binary directories, served from local dev only)
+apps/k-maps/src/assets/fonts/QPC V2 Font.woff2/
+apps/app-k-maps/src/assets/fonts/QPC V2 Font.woff2/
+
+# Editors/OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.claire/
+.claude/worktrees/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+*.js
+# Allow checked-in JS files that ship as static assets (service workers etc.)
+!apps/app-k-maps/src/mushaf-sw.js
+tmp/
+
+# Angular cache
+.angular/
+**/.angular/
+.env
+.env
+.env
+
+# Local import-output artifacts (large generated SQL, not source)
+out/

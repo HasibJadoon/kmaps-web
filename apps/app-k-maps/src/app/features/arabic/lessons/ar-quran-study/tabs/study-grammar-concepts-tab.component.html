@@ -1,0 +1,19 @@
+<section class="study-tab study-tab--grammar">
+  <ion-list class="study-list" lines="none" *ngIf="rows.length; else noGrammarRows">
+    <ion-item class="study-item" *ngFor="let row of rows">
+      <ion-label class="study-label">
+        <h3 class="study-row-key">{{ row.key }}</h3>
+        <p class="study-body-text" *ngIf="row.text">{{ row.text }}</p>
+        <div class="study-chip-cloud" *ngIf="row.chips.length">
+          <ion-chip class="study-chip" *ngFor="let chip of row.chips">
+            <ion-label>{{ chip }}</ion-label>
+          </ion-chip>
+        </div>
+      </ion-label>
+    </ion-item>
+  </ion-list>
+
+  <ng-template #noGrammarRows>
+    <p class="study-empty">No grammar concept payload found for this lesson.</p>
+  </ng-template>
+</section>

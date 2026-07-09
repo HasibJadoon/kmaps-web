@@ -1,0 +1,1029 @@
+// ── Host shell ────────────────────────────────────────────────────────────────
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #080808;
+}
+
+// ── Header title input ────────────────────────────────────────────────────────
+.km-title-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.975rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  width: 100%;
+  font-family: var(--ion-font-family, 'Poppins', sans-serif);
+  letter-spacing: -0.005em;
+  -webkit-tap-highlight-color: transparent;
+
+  &::placeholder { color: rgba(255, 255, 255, 0.22); }
+}
+
+// ── Save state badge ──────────────────────────────────────────────────────────
+.km-save-wrap {
+  display: inline-flex;
+  align-items: center;
+  padding-right: 2px;
+  min-width: 14px;
+}
+
+.km-save {
+  font-size: 0.68rem;
+  font-family: var(--ion-font-family, 'Poppins', sans-serif);
+
+  &--saving { color: rgba(255, 255, 255, 0.3); }
+  &--saved  { color: rgba(100, 200, 120, 0.7); }
+  &--error  { color: rgba(239, 68, 68, 0.8);   }
+}
+
+// ── Loading state ─────────────────────────────────────────────────────────────
+.km-loading {
+  padding: 40px 24px;
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 0.875rem;
+  font-family: 'Poppins', sans-serif;
+}
+
+// ── Editor wrapper inside ion-content ─────────────────────────────────────────
+.km-editor-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding-bottom: calc(var(--km-kb-offset, 0px) + 56px);
+  box-sizing: border-box;
+}
+
+// ── TipTap host element ───────────────────────────────────────────────────────
+.km-editor-el {
+  padding: 20px 22px 0;
+  box-sizing: border-box;
+  touch-action: manipulation;
+  cursor: text;
+}
+
+// ── Tap zone below last block ─────────────────────────────────────────────────
+.km-doc-tail {
+  flex: 1;
+  min-height: calc(180px + var(--km-kb-offset, 0px));
+  cursor: text;
+  touch-action: manipulation;
+}
+
+// ── ProseMirror base ──────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror {
+  outline: none;
+  caret-color: #c9a84c;
+  color: rgba(255, 255, 255, 0.88);
+  font-family: 'Poppins', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 16px;   // ≥16px prevents iOS viewport zoom on focus
+  line-height: 1.8;
+  -webkit-user-select: text;
+  user-select: text;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  touch-action: manipulation;
+
+}
+
+// ── Placeholder ───────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+
+// ── Headings — premium cinematic hierarchy ────────────────────────────────────
+
+// H1: dominant anchor — brand gold, generous spacing
+.km-editor-el .ProseMirror h1 {
+  font-size: 1.85rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 1.6em 0 0.35em;
+  letter-spacing: -0.02em;
+  color: #c9a84c;
+}
+
+// H2: section — warm white, clearly subordinate to H1
+.km-editor-el .ProseMirror h2 {
+  font-size: 1.32rem;
+  font-weight: 650;
+  line-height: 1.3;
+  margin: 1.4em 0 0.28em;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.84);
+}
+
+// H3: sub-section — quiet gold tint, restrained
+.km-editor-el .ProseMirror h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.45;
+  margin: 1.1em 0 0.2em;
+  color: rgba(201, 168, 76, 0.70);
+}
+
+// Allow Color extension overrides on headings
+.km-editor-el .ProseMirror h1 span[style*="color"],
+.km-editor-el .ProseMirror h2 span[style*="color"],
+.km-editor-el .ProseMirror h3 span[style*="color"] {
+  -webkit-text-fill-color: currentColor !important;
+}
+
+// ── Paragraph ─────────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror p {
+  margin: 0 0 0.65em;
+}
+
+// ── Divider — elegant soft glow line ─────────────────────────────────────────
+// Not a harsh HR. A thin centered line with a faint warm glow.
+// The ::before pseudo-element carries the visual; the HR itself is invisible.
+.km-editor-el .ProseMirror hr {
+  border: none;
+  height: 20px;
+  margin: 1.4em 0;
+  position: relative;
+  background: none;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    transform: translateY(-50%);
+    background: linear-gradient(
+      to right,
+      transparent,
+      rgba(201, 168, 76, 0.28) 20%,
+      rgba(201, 168, 76, 0.45) 50%,
+      rgba(201, 168, 76, 0.28) 80%,
+      transparent
+    );
+    // Barely-perceptible warm glow — adds quiet depth
+    box-shadow: 0 0 8px rgba(201, 168, 76, 0.10), 0 0 16px rgba(201, 168, 76, 0.05);
+  }
+}
+
+// Selected state — slightly brighter
+.km-editor-el .ProseMirror hr.ProseMirror-selectednode::before {
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(201, 168, 76, 0.55) 20%,
+    rgba(201, 168, 76, 0.80) 50%,
+    rgba(201, 168, 76, 0.55) 80%,
+    transparent
+  );
+  box-shadow: 0 0 12px rgba(201, 168, 76, 0.22);
+}
+
+// ── Blockquote — minimal and refined ─────────────────────────────────────────
+// Soft left rule, quiet italic. Integrated, never boxed.
+.km-editor-el .ProseMirror blockquote {
+  border-left: 2px solid rgba(201, 168, 76, 0.32);
+  margin: 0.9em 0;
+  padding: 0.2em 0 0.2em 1em;
+  color: rgba(255, 255, 255, 0.62);
+  background: none;
+}
+
+// ── Image ─────────────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror img.km-doc-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.9em 0;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.km-editor-el .ProseMirror img.km-doc-image.ProseMirror-selectednode {
+  outline: 2px solid rgba(201, 168, 76, 0.65);
+  outline-offset: 1px;
+}
+
+// ── Inline code ───────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror code {
+  font-family: 'SFMono-Regular', 'Menlo', 'Consolas', monospace;
+  font-size: 0.84em;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 4px;
+  padding: 0.13em 0.38em;
+  color: rgba(201, 168, 76, 0.85);
+}
+
+// ── Code block ────────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror pre {
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 0.9em 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+
+  code {
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    color: rgba(255, 255, 255, 0.82) !important;
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.82) !important;
+    font-size: 0.875rem;
+    line-height: 1.65;
+  }
+}
+
+// ── Lists ─────────────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror ul,
+.km-editor-el .ProseMirror ol {
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.km-editor-el .ProseMirror li {
+  margin: 0.22em 0;
+  line-height: 1.75;
+}
+
+// ── Task list ─────────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0.2em;
+}
+
+.km-editor-el .ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6em;
+}
+
+.km-editor-el .ProseMirror ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  margin-top: 0.26em;
+
+  input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 17px;
+    height: 17px;
+    border: 1.5px solid rgba(255, 255, 255, 0.28);
+    border-radius: 5px;
+    background: transparent;
+    cursor: pointer;
+    position: relative;
+    display: block;
+    transition: border-color 0.15s, background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+
+    &:checked {
+      background: #c9a84c;
+      border-color: #c9a84c;
+
+      &::after {
+        content: '';
+        position: absolute;
+        left: 4px;
+        top: 1px;
+        width: 5px;
+        height: 9px;
+        border: 2px solid #080808;
+        border-top: none;
+        border-left: none;
+        transform: rotate(45deg);
+      }
+    }
+  }
+}
+
+.km-editor-el .ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.km-editor-el .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  opacity: 0.42;
+  text-decoration: line-through;
+}
+
+// ── Link ──────────────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror a {
+  color: #c9a84c;
+  text-decoration: underline;
+  text-decoration-color: rgba(201, 168, 76, 0.35);
+  text-underline-offset: 2px;
+}
+
+// ── Highlight ─────────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror mark {
+  border-radius: 2px;
+  padding: 0.04em 0.18em;
+  background-color: rgba(201, 168, 76, 0.25);
+  color: inherit;
+}
+
+// ── Color extension — fix WebKit -webkit-text-fill-color override ──────────────
+.km-editor-el .ProseMirror span[style*="color"] {
+  -webkit-text-fill-color: currentColor !important;
+}
+
+// ── Selection ─────────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror ::selection {
+  background: rgba(201, 168, 76, 0.22);
+}
+
+// ── Arabic / RTL text ─────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror [dir="rtl"],
+.km-editor-el .ProseMirror [lang="ar"] {
+  font-family: 'AmiriQuran', 'Noto Naskh Arabic', serif !important;
+  font-size: 1.3em;
+  line-height: 2;
+  direction: rtl;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.92);
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.92);
+}
+
+// ── Ayah embed ────────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror .km-block--ayah .ayah-text,
+.km-editor-el .ProseMirror .ayah-text {
+  font-family: 'Uthmanic Hafs', serif !important;
+  color: rgba(255, 255, 255, 0.93) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.93) !important;
+  direction: rtl;
+  text-align: center;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Keyboard accessory bar — ion-footer
+// ─────────────────────────────────────────────────────────────────────────────
+// Layering contract:
+//   ion-footer (.km-bar)     → transparent host, no backdrop-filter here
+//   ion-toolbar (.km-bar-toolbar) → transparent, strips Ionic chrome
+//   .km-bar-row::before      → glass skin, z-index 0 (behind children)
+//   .km-bar-row flex items   → z-index 1, sit above the glass
+//   .km-b buttons            → z-index 2, fully crisp on top
+//
+// Why: backdrop-filter on a web-component host creates a stacking context
+// that can place Ionic's shadow-DOM background divs above slotted content,
+// making buttons look faded/recessed. Moving the blur into a ::before on
+// our own element keeps it strictly below the flex children.
+
+// Accessory bar — fixed at bottom:0, lifted above keyboard via transform.
+// Using transform (GPU layer) instead of animating `bottom` prevents the
+// scroll-jitter that occurs when a CSS variable controlling `bottom` is
+// updated mid-scroll. will-change:transform pre-composites the layer.
+.km-bar {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9000;
+  will-change: transform;
+  transform: translateY(var(--km-bar-lift, 0px));
+
+  &.km-bar--show { display: block; }
+}
+
+// Content row — glass lives in ::before so flex children are always above it
+.km-bar-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 4px 10px;
+  min-height: 44px;
+
+  &::-webkit-scrollbar { display: none; }
+
+  // Glass skin — strictly behind flex children
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: rgba(12, 12, 14, 0.94);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+}
+
+// Buttons — explicitly above the glass layer
+.km-b {
+  all: unset;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 36px;
+  padding: 0 7px;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+  font-family: 'Poppins', sans-serif;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+
+  svg { display: block; }
+
+  &:active {
+    background: rgba(255, 255, 255, 0.09);
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  &--on {
+    color: #c9a84c;
+    background: rgba(201, 168, 76, 0.13);
+  }
+}
+
+// Separator — also above glass layer
+.km-sep {
+  position: relative;
+  z-index: 2;
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.16);
+  margin: 0 5px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Insert sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+.km-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 200;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: km-fade-in 0.18s ease;
+}
+
+.km-insert-sheet {
+  position: fixed;
+  inset: auto 0 0;
+  padding: 12px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+  background: #111111;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px 18px 0 0;
+  z-index: 201;
+  animation: km-sheet-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+
+  &__handle {
+    width: 36px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    margin: 0 auto 14px;
+  }
+
+  &__title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.28);
+    padding: 0 4px 10px;
+    font-family: 'Poppins', sans-serif;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+}
+
+.km-ins-btn {
+  all: unset;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px 4px;
+  min-height: 62px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.1s, border-color 0.1s;
+
+  &:active {
+    background: rgba(201, 168, 76, 0.12);
+    border-color: rgba(201, 168, 76, 0.22);
+  }
+}
+
+.km-ins-icon {
+  font-size: 1rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.75);
+  font-family: 'Poppins', sans-serif;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+}
+
+.km-ins-label {
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: 'Poppins', sans-serif;
+  text-align: center;
+  line-height: 1.2;
+  font-weight: 500;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Embed blocks — shared base + per-type overrides
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Base card — all custom block nodes extend this
+.km-editor-el .ProseMirror .km-block {
+  display: block;
+  margin: 0.75em 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.78);
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+  position: relative;
+}
+
+// ── Ayah embed ────────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror .km-block--ayah {
+  background: rgba(201, 168, 76, 0.06);
+  border-color: rgba(201, 168, 76, 0.22);
+  padding: 16px 16px 12px;
+  direction: rtl;
+  text-align: center;
+
+  .ayah-text {
+    font-family: 'UthmanicHafs_V22', 'Uthmanic Hafs', serif !important;
+    font-size: 1.15rem;
+    line-height: 1.9;
+    color: rgba(255, 255, 255, 0.93);
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.93);
+    direction: rtl;
+    text-align: justify;
+    text-align-last: right;
+    margin-bottom: 8px;
+  }
+
+  .ayah-translation {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.52);
+    direction: ltr;
+    text-align: justify;
+    text-align-last: left;
+    font-style: italic;
+    margin-bottom: 6px;
+  }
+
+  .ayah-ref {
+    font-size: 0.72rem;
+    color: rgba(201, 168, 76, 0.65);
+    direction: ltr;
+    text-align: left;
+    letter-spacing: 0.04em;
+  }
+}
+
+.km-editor-el .ProseMirror .km-ayah-copy {
+  position: absolute;
+  top: 10px;
+  left: 10px;  // top-left = top-end in RTL
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 5px 7px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+
+  &:active, &--done { color: #c9a84c; background: rgba(201, 168, 76, 0.12); }
+}
+
+// ── Vocab block ───────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror .km-block--vocab {
+  border-color: rgba(100, 160, 255, 0.22);
+  background: rgba(100, 160, 255, 0.05);
+
+  .kb-vocab-word {
+    font-family: 'AmiriQuran', serif !important;
+    font-size: 1.6rem;
+    color: rgba(255, 255, 255, 0.92);
+    direction: rtl;
+    text-align: right;
+    margin-bottom: 4px;
+  }
+
+  .kb-vocab-root {
+    font-size: 0.75rem;
+    color: rgba(100, 160, 255, 0.7);
+    margin-bottom: 2px;
+  }
+
+  .kb-vocab-meanings {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.62);
+  }
+}
+
+// ── Morphology block ──────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror .km-block--morphology {
+  border-color: rgba(100, 200, 150, 0.22);
+  background: rgba(100, 200, 150, 0.05);
+
+  .kb-morph-word {
+    font-family: 'AmiriQuran', serif !important;
+    font-size: 1.4rem;
+    color: rgba(255, 255, 255, 0.92);
+    direction: rtl;
+    text-align: right;
+    margin-bottom: 8px;
+  }
+
+  .kb-morph-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .kb-morph-cell {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.7);
+
+    label {
+      display: block;
+      font-size: 0.62rem;
+      color: rgba(100, 200, 150, 0.65);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 1px;
+    }
+  }
+}
+
+// ── Nahw block ────────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror .km-block--nahw {
+  border-color: rgba(255, 200, 80, 0.22);
+  background: rgba(255, 200, 80, 0.04);
+
+  .kb-nahw-sentence {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    direction: rtl;
+    justify-content: flex-end;
+  }
+
+  .kb-nahw-word {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 2px;
+
+    [dir="rtl"] {
+      font-family: 'AmiriQuran', serif !important;
+      font-size: 1.2rem;
+      color: rgba(255, 255, 255, 0.9);
+    }
+  }
+
+  .kb-nahw-term {
+    font-size: 0.62rem;
+    color: rgba(255, 200, 80, 0.7);
+    font-family: 'AmiriQuran', serif !important;
+    direction: rtl;
+  }
+}
+
+// ── Root analysis block ───────────────────────────────────────────────────────
+.km-editor-el .ProseMirror .km-block--root-analysis {
+  border-color: rgba(180, 120, 255, 0.22);
+  background: rgba(180, 120, 255, 0.04);
+
+  .kb-root-title {
+    font-family: 'AmiriQuran', serif !important;
+    font-size: 1.3rem;
+    color: rgba(180, 120, 255, 0.85);
+    direction: rtl;
+    text-align: right;
+    margin-bottom: 8px;
+  }
+
+  .kb-root-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .kb-root-item {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    padding: 4px 8px;
+  }
+
+  .kb-root-word {
+    font-family: 'AmiriQuran', serif !important;
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .kb-root-meaning {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .kb-root-occ {
+    font-size: 0.65rem;
+    color: rgba(180, 120, 255, 0.6);
+  }
+}
+
+// ── Claim block ───────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror .km-block--claim {
+  border-color: rgba(255, 183, 77, 0.25);
+  background: rgba(255, 183, 77, 0.05);
+
+  .kb-claim-header {
+    margin-bottom: 6px;
+  }
+
+  .kb-claim-badge {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 2px 7px;
+    border-radius: 20px;
+  }
+
+  .kb-claim-text {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.82);
+    line-height: 1.55;
+  }
+}
+
+// ── Evidence block ────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror .km-block--evidence {
+  border-left: 3px solid rgba(201, 168, 76, 0.45);
+  border-radius: 0 8px 8px 0;
+  padding-left: 14px;
+
+  .kb-evidence-quote {
+    font-size: 0.88rem;
+    color: rgba(255, 255, 255, 0.78);
+    font-style: italic;
+    line-height: 1.6;
+    margin-bottom: 5px;
+  }
+
+  .kb-evidence-meta {
+    font-size: 0.72rem;
+    color: rgba(201, 168, 76, 0.6);
+  }
+}
+
+// ── Reflection block ──────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror .km-block--reflection {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border-color: rgba(130, 180, 255, 0.2);
+  background: rgba(130, 180, 255, 0.04);
+
+  .kb-reflection-icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .kb-reflection-content {
+    font-size: 0.88rem;
+    color: rgba(255, 255, 255, 0.72);
+    line-height: 1.6;
+  }
+}
+
+// ── Task block ────────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror .km-block--task {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+
+  .kb-task-check {
+    font-size: 1rem;
+    flex-shrink: 0;
+    color: #c9a84c;
+  }
+
+  .kb-task-title {
+    flex: 1;
+    font-size: 0.88rem;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .kb-task-meta {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.35);
+    white-space: nowrap;
+  }
+}
+
+// ── Scene block ───────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror .km-block--scene {
+  border-color: rgba(255, 100, 100, 0.2);
+  background: rgba(255, 100, 100, 0.04);
+
+  .kb-scene-header {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 4px;
+  }
+
+  .kb-scene-icon { font-size: 1rem; }
+
+  .kb-scene-title {
+    flex: 1;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .kb-scene-dur {
+    font-size: 0.72rem;
+    color: rgba(255, 100, 100, 0.65);
+    background: rgba(255, 100, 100, 0.1);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
+  .kb-scene-notes {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.45);
+    line-height: 1.5;
+    padding-left: 22px;
+  }
+}
+
+// ── Timeline block ────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror .km-block--timeline {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: none;
+  border: none;
+  padding: 4px 0;
+
+  .kb-timeline-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #c9a84c;
+    flex-shrink: 0;
+    margin-top: 5px;
+    box-shadow: 0 0 6px rgba(201, 168, 76, 0.4);
+  }
+
+  .kb-timeline-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .kb-timeline-label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .kb-timeline-date {
+    font-size: 0.72rem;
+    color: rgba(201, 168, 76, 0.6);
+  }
+
+  .kb-timeline-note {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.45);
+    line-height: 1.5;
+  }
+}
+
+// ── Comprehension block ───────────────────────────────────────────────────────
+.km-editor-el .ProseMirror .km-block--comprehension {
+  border-color: rgba(80, 200, 200, 0.2);
+  background: rgba(80, 200, 200, 0.04);
+
+  .kb-comp-q {
+    font-size: 0.88rem;
+    color: rgba(255, 255, 255, 0.82);
+    margin-bottom: 6px;
+
+    strong { color: rgba(80, 200, 200, 0.8); }
+  }
+
+  .kb-comp-a {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.65);
+    line-height: 1.55;
+    transition: filter 0.2s;
+
+    strong { color: rgba(80, 200, 200, 0.6); }
+  }
+}
+
+// ── Children block ────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror .km-block--children {
+  border-color: rgba(255, 160, 80, 0.22);
+  background: rgba(255, 160, 80, 0.05);
+
+  .kb-children-header {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: rgba(255, 160, 80, 0.7);
+    margin-bottom: 6px;
+  }
+
+  .kb-children-content {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.78);
+    line-height: 1.6;
+  }
+}
+
+// ── Passage embed ─────────────────────────────────────────────────────────────
+.km-editor-el .ProseMirror .km-block--passage {
+  border-color: rgba(201, 168, 76, 0.2);
+  background: rgba(201, 168, 76, 0.04);
+  text-align: center;
+
+  .kb-passage-ref {
+    font-size: 0.82rem;
+    color: rgba(201, 168, 76, 0.7);
+    letter-spacing: 0.05em;
+  }
+}
+
+// ── Animations ────────────────────────────────────────────────────────────────
+
+@keyframes km-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes km-sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}

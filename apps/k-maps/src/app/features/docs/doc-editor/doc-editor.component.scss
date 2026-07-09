@@ -1,0 +1,318 @@
+.km-docs-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh; /* iOS: exclude address bar + keyboard */
+  background: var(--km-bg);
+}
+
+.km-doc-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--km-border);
+  flex-shrink: 0;
+  /* iOS safe area for notch */
+  padding-top: calc(12px + env(safe-area-inset-top));
+  @media (max-width: 768px) {
+    padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+    gap: 8px;
+  }
+}
+
+.km-doc-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--km-text);
+  background: transparent;
+  border: none;
+  outline: none;
+  flex: 1;
+  font-family: var(--km-font-body);
+  /* iOS: prevent zoom on focus (must be ≥16px) */
+  @media (max-width: 768px) {
+    font-size: 1rem;
+  }
+}
+
+.km-doc-save-status {
+  font-size: 0.75rem;
+  color: var(--km-text-3);
+}
+
+.km-doc-wordcount {
+  font-size: 0.72rem;
+  color: var(--km-text-3);
+}
+
+.km-doc-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.km-doc-editor-wrap {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: visible;
+  padding: 48px 48px 48px 64px; /* extra left space for drag handle */
+  /* Isolate layout recalculations to this subtree — ProseMirror does many
+     small DOM mutations; containment prevents them from reflowing the shell. */
+  contain: layout style;
+
+  /* iOS: remove contain (blocks touch events on mobile), use momentum scroll */
+  @media (max-width: 768px) {
+    contain: none;
+    padding: 24px 20px 80px; /* bottom pad for iOS home indicator */
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+.km-doc-editor-el {
+  max-width: 720px;
+  margin: 0 auto;
+  position: relative;
+
+  :global(.ProseMirror) {
+    outline: none;
+    min-height: 400px;
+    font-size: 1rem;
+    line-height: 1.8;
+    color: var(--km-text);
+    font-family: var(--km-font-body);
+    /* iOS CRITICAL: allow text selection + editing */
+    -webkit-user-select: text !important;
+    user-select: text !important;
+    /* Remove 300ms tap delay on iOS */
+    touch-action: manipulation;
+    /* iOS: font must be ≥16px to prevent auto-zoom on focus */
+    @media (max-width: 768px) {
+      font-size: 1rem; /* 16px — do NOT go below this on iOS */
+      line-height: 1.7;
+      min-height: 60vh;
+    }
+
+    p.is-editor-empty:first-child::before {
+      content: attr(data-placeholder);
+      color: var(--km-text-3);
+      pointer-events: none;
+      float: left;
+      height: 0;
+    }
+
+    // ── Typography ───────────────────────────────────────────────────────
+    p {
+      margin: 0.25em 0;
+      letter-spacing: 0.01em;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      line-height: 1.18;
+      margin: 1.6em 0 0.45em;
+      letter-spacing: -0.03em;
+      color: rgba(255,255,255,0.96);
+      background: linear-gradient(115deg, #ffffff 38%, rgba(201,168,76,0.9) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    h2 {
+      font-size: 1.45rem;
+      font-weight: 700;
+      line-height: 1.28;
+      margin: 1.55em 0 0.45em;
+      letter-spacing: -0.018em;
+      color: rgba(255,255,255,0.9);
+      padding-bottom: 0.38em;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    h3 {
+      font-size: 1.18rem;
+      font-weight: 600;
+      line-height: 1.38;
+      margin: 1.3em 0 0.3em;
+      letter-spacing: -0.01em;
+      color: rgba(255,255,255,0.76);
+    }
+
+    h4 {
+      font-size: 0.76rem;
+      font-weight: 700;
+      margin: 1.1em 0 0.25em;
+      color: rgba(201,168,76,0.8);
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+
+    // ── Blockquote ──────────────────────────────────────────────────────
+    blockquote {
+      border-left: 4px solid rgba(201,168,76,0.82);
+      padding: 0.7em 1.1em 0.7em 1.25em;
+      margin: 1em 0;
+      color: rgba(255,255,255,0.85);
+      background: rgba(201,168,76,0.05);
+      border-radius: 0 8px 8px 0;
+
+      p { margin: 0; color: inherit; }
+    }
+
+    // ── Code block ──────────────────────────────────────────────────────
+    pre {
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 8px;
+      padding: 1em 1.25em;
+      margin: 0.75em 0;
+      font-size: 0.875rem;
+      line-height: 1.7;
+      overflow-x: auto;
+      position: relative;
+
+      &::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(201,168,76,0.25), transparent);
+      }
+
+      code { background: none; padding: 0; font-size: inherit; }
+    }
+
+    code {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 4px;
+      padding: 0.15em 0.4em;
+      font-size: 0.875em;
+      font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+    }
+
+    // ── Lists ────────────────────────────────────────────────────────────
+    // Override global styles.css `ul, ol { list-style-type: none }`
+    ul, ol {
+      padding-left: 1.75em;
+      margin: 0.5em 0;
+    }
+
+    ul { list-style-type: disc !important; }
+    ol { list-style-type: decimal !important; }
+
+    li {
+      margin: 0.28em 0;
+      line-height: 1.8;
+    }
+
+    ul li::marker {
+      color: rgba(201,168,76,0.75);
+      font-size: 0.85em;
+    }
+
+    ol li::marker {
+      color: rgba(201,168,76,0.7);
+      font-weight: 700;
+    }
+
+    // nested lists — progressively lighter
+    ul ul { list-style-type: circle !important; }
+    ul ul ul { list-style-type: square !important; }
+    ul ul li::marker { color: rgba(201,168,76,0.5); }
+    ul ul ul li::marker { color: rgba(201,168,76,0.32); }
+
+    // ── Horizontal Rule (Divider) — gold gradient line + diamond ornament ───
+    hr {
+      display: block;
+      width: 100%;
+      border: none;
+      margin: 2em 0;
+      height: 20px;
+      position: relative;
+      overflow: visible;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(201,168,76,0.12) 8%,
+        rgba(201,168,76,0.62) 42%,
+        rgba(201,168,76,0.62) 58%,
+        rgba(201,168,76,0.12) 92%,
+        transparent 100%
+      ) center / 100% 1px no-repeat;
+
+      &::after {
+        content: '';
+        display: block;
+        position: absolute;
+        left: 50%; top: 50%;
+        width: 8px; height: 8px;
+        transform: translate(-50%, -50%) rotate(45deg);
+        border: 1.5px solid rgba(201,168,76,0.72);
+        background: var(--km-bg, #0f0f0f);
+        box-shadow: 0 0 0 5px var(--km-bg, #0f0f0f);
+      }
+    }
+
+    // ── Links ────────────────────────────────────────────────────────────
+    a {
+      color: rgba(201,168,76,0.9);
+      text-decoration: underline;
+      text-decoration-color: rgba(201,168,76,0.35);
+      text-underline-offset: 3px;
+      transition: color 0.15s, text-decoration-color 0.15s;
+
+      &:hover {
+        color: rgba(201,168,76,1);
+        text-decoration-color: rgba(201,168,76,0.7);
+      }
+    }
+
+    // ── Inline marks ────────────────────────────────────────────────────
+    mark {
+      border-radius: 3px;
+      padding: 0.05em 0.2em;
+    }
+
+    strong { font-weight: 700; color: rgba(255,255,255,0.95); }
+    em { font-style: italic; color: rgba(255,255,255,0.85); }
+
+    // ── RTL / Arabic ─────────────────────────────────────────────────────
+    [dir="rtl"] {
+      font-family: var(--km-font-arabic-amiri);
+      font-size: 1.3rem;
+      line-height: 2.2;
+      text-align: right;
+    }
+
+    // ── Block hover highlight (Notion-style) ─────────────────────────────
+    // No transition — the class is added/removed on every cursor move so a
+    // transition would create a constant stream of repaints.
+    .km-block--hovered {
+      background: rgba(255, 255, 255, 0.028);
+      border-radius: 4px;
+    }
+
+    // ── Block selected / dragging ────────────────────────────────────────
+    .ProseMirror-selectednode {
+      outline: 2px solid rgba(201, 168, 76, 0.4) !important;
+      border-radius: 4px;
+    }
+
+    // ── Drop cursor (insertion line) ─────────────────────────────────────
+    .ProseMirror-dropcursor {
+      border-color: var(--km-gold) !important;
+      border-width: 2px !important;
+      border-radius: 1px;
+    }
+
+    // ── GSAP entrance — blocks animate in ────────────────────────────────
+    .km-block-enter {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+}

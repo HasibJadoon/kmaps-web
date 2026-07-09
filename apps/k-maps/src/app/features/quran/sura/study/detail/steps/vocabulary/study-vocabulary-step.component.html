@@ -1,0 +1,33 @@
+<div class="vocab-tab" dir="rtl">
+
+  @if (loading()) {
+    <div class="v-status">…جارٍ تحميل كلمات المقطع</div>
+  } @else if (error()) {
+    <div class="v-status v-status--err">{{ error() }}</div>
+  } @else if (words().length === 0) {
+    <div class="v-status">لا توجد كلمات مُعتمَدة لهذا المقطع بعد.</div>
+  } @else {
+
+    <div class="v-toolbar">
+      <button class="v-fbtn" [class.on]="filter() === 'all'" (click)="setFilter('all')">الكل <span class="badge">{{ counts().all }}</span></button>
+      <button class="v-fbtn" [class.on]="filter() === 'noun'" (click)="setFilter('noun')">الأسماء <span class="badge">{{ counts().noun }}</span></button>
+      <button class="v-fbtn" [class.on]="filter() === 'verb'" (click)="setFilter('verb')">الأفعال <span class="badge">{{ counts().verb }}</span></button>
+      <span class="v-hint">الكلمات المفتاحيّة فقط · اضغط للقراءة الكاملة ✦</span>
+    </div>
+
+    @for (g of groups(); track g.ayah) {
+      <div class="v-ayah">
+        <span class="v-aref">{{ lesson.surahId }}:{{ g.ayah }}</span>
+        <div class="v-grid" dir="rtl">
+          @for (w of g.words; track w.id) {
+            <km-morph-word-card
+              [card]="toVm(w)"
+              (open)="open(w)"
+              (openRoot)="openRoot(w.root_ar)"
+            />
+          }
+        </div>
+      </div>
+    }
+  }
+</div>

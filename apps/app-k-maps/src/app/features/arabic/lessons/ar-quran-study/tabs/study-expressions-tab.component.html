@@ -1,0 +1,51 @@
+<section class="study-tab study-tab--expressions">
+  <ion-accordion-group class="study-accordion" *ngIf="cards.length; else noExpressionCards">
+    <ion-accordion
+      class="study-accordion-item"
+      *ngFor="let expression of cards"
+      [value]="expression.id"
+      [attr.data-accent]="expression.accent"
+    >
+      <ion-item slot="header" class="study-accordion-header">
+        <ion-label>{{ expression.label }}</ion-label>
+        <ion-note slot="end">{{ expression.reference || referenceBadge }}</ion-note>
+      </ion-item>
+
+      <div slot="content" class="study-accordion-content">
+        <p class="study-arabic-block" dir="rtl" translate="no" *ngIf="expression.textAr">{{ expression.textAr }}</p>
+        <p class="study-body-text" *ngIf="expression.canonical">{{ expression.canonical }}</p>
+
+        <div class="study-chip-cloud">
+          <ion-chip class="study-chip" *ngIf="expression.category">
+            <ion-label>{{ expression.category }}</ion-label>
+          </ion-chip>
+          <ion-chip class="study-chip" *ngIf="expression.lemma">
+            <ion-label>Lemma: {{ expression.lemma }}</ion-label>
+          </ion-chip>
+        </div>
+
+        <div class="study-chip-cloud" *ngIf="expression.sequence.length">
+          <ion-chip class="study-chip study-chip--token" *ngFor="let token of expression.sequence">
+            <ion-label>
+              <strong>{{ token.text }}</strong>
+              <small *ngIf="token.type">{{ token.type }}</small>
+            </ion-label>
+          </ion-chip>
+        </div>
+
+        <ion-list class="study-list" lines="none" *ngIf="expression.sources.length">
+          <ion-item class="study-item study-item--sub" *ngFor="let source of expression.sources" lines="none">
+            <ion-label>
+              <strong>{{ source.author }}</strong>
+              <p class="study-body-text">{{ source.work }}</p>
+            </ion-label>
+          </ion-item>
+        </ion-list>
+      </div>
+    </ion-accordion>
+  </ion-accordion-group>
+
+  <ng-template #noExpressionCards>
+    <p class="study-empty">No expressions metadata available.</p>
+  </ng-template>
+</section>

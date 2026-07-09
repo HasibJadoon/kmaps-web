@@ -1,0 +1,39 @@
+<div class="quran-landing">
+  <km-home-plane-button />
+
+  <div class="quran-landing__inner">
+    <nav class="top-nav">
+      <button class="back-btn" (click)="back()" type="button">
+        <span class="back-btn__arrow">&#8592;</span>
+        <span class="back-btn__label">Home</span>
+      </button>
+      <span class="breadcrumb">Quran</span>
+    </nav>
+
+    <header class="page-header">
+      <div class="page-header__ornament">بسم الله الرحمن الرحيم</div>
+      <h1 class="page-header__title">Quran</h1>
+      <p class="page-header__subtitle">Choose a Quran workspace</p>
+    </header>
+
+    <main class="quran-cards" #cardsRow>
+      @for (card of cards; track card.id) {
+        <button
+          class="km-module-card"
+          [class.km-module-card--quran]="card.id === 'quran'"
+          [class.km-module-card--surahs]="card.id === 'surahs'"
+          (click)="navigate(card.route)"
+          [attr.aria-label]="'Open ' + card.label"
+          type="button"
+        >
+          <div class="km-module-card__artwork">
+            <span class="km-module-card__glyph">{{ card.glyph }}</span>
+            <div class="km-module-card__shimmer"></div>
+          </div>
+          <div class="km-module-card__bottom-glow"></div>
+          <span class="km-module-card__label">{{ card.label }}</span>
+        </button>
+      }
+    </main>
+  </div>
+</div>

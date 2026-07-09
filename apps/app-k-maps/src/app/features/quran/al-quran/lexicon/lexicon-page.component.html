@@ -1,0 +1,181 @@
+<ion-content class="lx-content" [fullscreen]="false">
+  <section class="lx-page" dir="rtl">
+
+    <!-- ── Continue reading (when last-read lexicon entry exists) ───────── -->
+    @if (lastReadLexicon(); as lr) {
+      <km-continue-reading-card
+        icon="library-outline"
+        [headline]="lr.bookTitleAr || lr.slug"
+        [subtitle]="'جذر ' + lr.root"
+        [target]="lr"
+        (resume)="resumeLastLexicon()" />
+    }
+
+    <!-- ── Two-card hub: Books (catalog) + Root search ──────────────────── -->
+    <div class="lx-hub-grid">
+
+      <!-- Card 1 — open the books catalog -->
+      <button class="lx-hub-card lx-hub-card--books" type="button" (click)="openBooks()">
+        <span class="lx-hub-card__icon" aria-hidden="true">
+          <ion-icon name="library-outline"></ion-icon>
+        </span>
+        <h2 class="lx-hub-card__title">المكتبة</h2>
+        <p class="lx-hub-card__sub">تصفّح المعاجم والقراءات الأكاديمية</p>
+        @if (!sourcesLoading()) {
+          <span class="lx-hub-card__cta">
+            <span>{{ totalSourceCount() }} مصدرًا</span>
+            <ion-icon name="chevron-back-outline" aria-hidden="true"></ion-icon>
+          </span>
+        }
+      </button>
+
+      <!-- Card 2 — root search -->
+      <div class="lx-hub-card lx-hub-card--search">
+        <span class="lx-hub-card__icon" aria-hidden="true">
+          <ion-icon name="search-outline"></ion-icon>
+        </span>
+        <h2 class="lx-hub-card__title">البحث بالجذر</h2>
+        <p class="lx-hub-card__sub">اكتب جذرًا لإضاءة المعاجم التي تحتوي على مدخل</p>
+
+        <label class="lx-search-label" aria-label="ابحث بجذر">
+          <ion-icon class="lx-search-icon" name="search-outline" aria-hidden="true"></ion-icon>
+          <input
+            #searchInput
+            class="lx-search-input"
+            type="search"
+            placeholder="مثل: كتب، علم، بحث"
+            [value]="searchTerm()"
+            (input)="setSearch($any($event.target).value)"
+            dir="rtl"
+            autocomplete="off"
+          />
+          @if (searching()) {
+            <span class="lx-spinner" aria-hidden="true">⟳</span>
+          } @else if (searchTerm()) {
+            <button class="lx-clear" type="button" (click)="clearSearch()" aria-label="Clear search">
+              <!-- Standardised on close-outline across all lexicon surfaces
+                   (matches lane-lexicon-page.html:113). The solid -circle
+                   variant was the only non-outline glyph in the suite. -->
+              <ion-icon name="close-outline"></ion-icon>
+            </button>
+          }
+        </label>
+
+        <div class="lx-quick">
+          @for (root of quickRoots; track root) {
+            <button class="lx-quick-chip" type="button" (click)="tryRoot(root)">{{ root }}</button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Results: lit-up source cards (only those with hits) ──────────── -->
+    @if (rootMeta(); as meta) {
+      <header class="lx-results-head">
+        <span class="lx-results-root">{{ meta.text_ar }}</span>
+        @if (meta.meaning_ar) {
+          <span class="lx-results-meaning">{{ meta.meaning_ar }}</span>
+        }
+        @if (meta.frequency_quran) {
+          <span class="lx-results-quran">{{ meta.frequency_quran }} × في القرآن</span>
+        }
+        <span class="lx-results-stat">{{ hitSources().length }} / {{ sources().length }} معاجم</span>
+      </header>
+
+      @if (hasResults()) {
+        <div class="lx-catalog">
+          @for (src of hitSources(); track src.slug) {
+            @if (hit(src.slug); as h) {
+              <button
+                class="lx-hit-card"
+                [class.lx-hit-card--lane]="src.slug === 'lane_lexicon'"
+                [attr.data-kind]="cardKind(src.slug)"
+                (click)="openSourceAtRoot(src)"
+                type="button"
+              >
+                <header class="lx-hit-card__head">
+                  <!-- Leading kind glyph: distinguishes Lane / Mufradat /
+                       classical at a glance. Decorative — aria-hidden so the
+                       title still reads first to screen readers. -->
+                  <span class="lx-hit-card__kind" [attr.data-kind]="cardKind(src.slug)" aria-hidden="true">
+                    <ion-icon [name]="cardIcon(src.slug)"></ion-icon>
+                  </span>
+                  <h3 class="lx-hit-card__title">{{ src.title_ar }}</h3>
+                  <span class="lx-hit-card__count" aria-label="Number of entries">{{ h.count }}</span>
+                </header>
+                <p class="lx-hit-card__author">{{ src.author }} · {{ src.period }}</p>
+
+                @if (h.samples.length) {
+                  <ul class="lx-hit-card__chips">
+                    @for (s of h.samples; track s) {
+                      <li class="lx-hit-card__chip" dir="rtl" lang="ar">{{ s }}</li>
+                    }
+                  </ul>
+                }
+
+                <span class="lx-hit-card__cta">
+                  <span>افتح المعجم</span>
+                  <ion-icon name="chevron-back-outline" aria-hidden="true"></ion-icon>
+                </span>
+              </button>
+            }
+          }
+        </div>
+      } @else if (!searching()) {
+        <p class="lx-empty">لا توجد نتائج لهذا الجذر في المعاجم المتاحة</p>
+      }
+
+      <!-- ── Academic readings: card per source (clickable) ───────────── -->
+      @if (scholarshipCards().length) {
+        <section class="lx-scholarship">
+          <header class="lx-scholarship__head">
+            <h3 class="lx-scholarship__title">قراءات أكاديمية</h3>
+            <span class="lx-scholarship__sub" dir="ltr">Academic readings</span>
+            <span class="lx-scholarship__count">{{ scholarshipCards().length }}</span>
+          </header>
+
+          <div class="lx-catalog">
+            @for (c of scholarshipCards(); track c.source_id) {
+              <button
+                class="lx-hit-card lx-hit-card--academic"
+                data-kind="academic"
+                [attr.data-genre]="c.genre"
+                (click)="openScholarshipAtRoot(c.source_slug)"
+                type="button"
+              >
+                <header class="lx-hit-card__head">
+                  <span class="lx-hit-card__kind" data-kind="academic" aria-hidden="true">
+                    <ion-icon name="school-outline"></ion-icon>
+                  </span>
+                  <!-- Academic sources are catalogued in English by their
+                       publishers; prefer title_en so the card reads to
+                       Latin-script audiences first. Arabic title falls back
+                       when no English exists. -->
+                  <h3 class="lx-hit-card__title" dir="ltr">{{ c.title_en || c.title_ar }}</h3>
+                  <span class="lx-hit-card__count" aria-label="Number of readings">{{ c.notes.length }}</span>
+                </header>
+                <p class="lx-hit-card__author" dir="ltr">
+                  {{ c.author }}@if (c.year) { · {{ c.year }} } · <span class="lx-hit-card__genre">{{ c.genre_label.en || c.genre_label.ar }}</span>
+                </p>
+
+                @if (c.samples.length) {
+                  <ul class="lx-hit-card__chips">
+                    @for (s of c.samples; track s) {
+                      <li class="lx-hit-card__chip" dir="rtl" lang="ar">{{ s }}</li>
+                    }
+                  </ul>
+                }
+
+                <span class="lx-hit-card__cta">
+                  <span>Open reading</span>
+                  <ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+                </span>
+              </button>
+            }
+          </div>
+        </section>
+      }
+    }
+
+  </section>
+</ion-content>

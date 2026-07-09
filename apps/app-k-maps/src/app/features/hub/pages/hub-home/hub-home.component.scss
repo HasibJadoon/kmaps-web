@@ -1,0 +1,120 @@
+
+    ion-content.hh-content {
+      --background: radial-gradient(ellipse 80% 60% at 50% 30%, #111005 0%, #080808 60%, #000 100%);
+    }
+
+    .hh {
+      position: relative;
+      width: 100%; min-height: 100%;
+      display: flex; flex-direction: column;
+      align-items: center;
+      gap: 0; padding: 1.5rem 1rem 2.5rem;
+    }
+
+    .hh__particles { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+    .hh__particle {
+      position: absolute; width: 2px; height: 2px; border-radius: 50%;
+      background: var(--km-gold); opacity: 0;
+      animation: floatP calc(8s + var(--i,0) * 1.3s) infinite linear;
+      left: calc(var(--i,0) * 7% + 5%); top: 100%;
+      animation-delay: calc(var(--i,0) * 0.6s);
+    }
+    @keyframes floatP {
+      0%   { transform: translateY(0) scale(1); opacity: 0; }
+      10%  { opacity: .6; }
+      80%  { opacity: .15; }
+      100% { transform: translateY(-100vh) scale(.3); opacity: 0; }
+    }
+
+    .hh__header { text-align: center; margin: 1rem 0 1.75rem; position: relative; z-index: 1; }
+
+    .hh__eyebrow {
+      font-family: var(--km-font-body); font-size: .7rem; font-weight: 600;
+      letter-spacing: .22em; text-transform: uppercase;
+      color: var(--km-gold); opacity: .7; margin-bottom: .6rem;
+    }
+
+    .hh__subtitle {
+      font-size: .85rem; color: var(--km-text-2); letter-spacing: .03em; margin-bottom: 1.1rem;
+      max-width: 30rem;
+    }
+
+    .hh__rule {
+      width: 56px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--km-gold), transparent);
+      margin: 0 auto;
+    }
+
+    // Compact ionic-card grid: two columns on phones, more on wider screens.
+    .hh__grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: .9rem;
+      width: 100%;
+      max-width: 920px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hh__card {
+      position: relative;
+      margin: 0;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .25s ease, box-shadow .25s ease, transform .25s ease;
+
+      &:hover {
+        border-color: var(--km-border-gold);
+        box-shadow: 0 0 28px rgba(201, 168, 76, .16),
+                    inset 0 0 1px rgba(201, 168, 76, .4);
+        transform: translateY(-3px);
+
+        .hh__card-title { color: var(--km-gold-bright); }
+      }
+
+      &:active { transform: translateY(-1px); }
+
+      ion-card-header  { padding: 1rem 1rem .3rem; }
+      ion-card-content { padding: 0 1rem 1rem; }
+    }
+
+    .hh__glyph {
+      font-size: 2.4rem;
+      line-height: 1;
+      background: linear-gradient(180deg, #c9a84c 0%, #6b5520 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      filter: drop-shadow(0 0 12px rgba(201,168,76,.3));
+      font-family: var(--km-font-arabic, inherit);
+      margin: 0 auto .35rem;
+    }
+
+    .hh__tag {
+      font-size: .55rem; font-weight: 700; letter-spacing: .2em; text-transform: uppercase;
+      color: var(--km-gold); opacity: .7;
+    }
+
+    .hh__card-title {
+      font-family: var(--km-font-heading); font-size: .95rem; font-weight: 600;
+      letter-spacing: .1em; text-transform: uppercase; color: var(--km-text-2);
+      transition: color .25s;
+    }
+
+    .hh__card-desc {
+      font-size: .72rem; color: var(--km-text-3); line-height: 1.5;
+      margin: 0 0 .45rem;
+      text-align: center;
+    }
+
+    .hh__subtitle-badge {
+      display: inline-block;
+      font-size: .58rem; color: var(--km-gold); opacity: .6;
+      letter-spacing: .1em; font-weight: 600;
+    }
+
+    .hh__footer {
+      margin-top: 2rem;
+      position: relative; z-index: 1;
+      .hh__footer-text {
+        font-size: .6rem; letter-spacing: .28em; color: var(--km-text-3); text-transform: uppercase;
+      }
+    }

@@ -1,0 +1,48 @@
+{
+  "name": "knowledge-map",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "wrangler dev --config workers/backend/wrangler.toml --port 8788",
+    "deploy:pages": "npm run build -w apps/k-maps && npx wrangler pages deploy apps/k-maps/dist/k-maps/browser --project-name k-maps --branch main",
+    "deploy:ionic": "npm run build -w apps/app-k-maps && npx wrangler pages deploy apps/app-k-maps/www --project-name app-k-maps --branch main",
+    "deploy:all": "npm run deploy:pages && npm run deploy:ionic",
+    "lane:download":    "tsx scripts/lane/download-lane-source.ts",
+    "lane:inspect":     "tsx scripts/lane/inspect-lane.ts",
+    "lane:migrate":     "tsx scripts/lane/apply-lane-support-migration.ts",
+    "lane:clean-old":   "tsx scripts/lane/remove-existing-lane.ts",
+    "lane:import":      "tsx scripts/lane/import-lane.ts",
+    "lane:verify":      "tsx scripts/lane/verify-lane-rendering.ts",
+    "lane:fts-rebuild": "tsx scripts/lane/rebuild-lane-fts.ts",
+    "lane:cleanup":     "tsx scripts/lane/cleanup-lane-definitions.ts",
+    "lane:fix-placeholders": "tsx scripts/lane/fix-lane-placeholders.ts",
+    "lane:quality-index": "tsx scripts/lane/rebuild-lane-quality-index.ts",
+    "lane:quality-index:bulk": "tsx scripts/lane/rebuild-lane-quality-index-bulk.ts",
+    "lane:parse-source": "tsx scripts/lane/parse-lane-source-page.ts",
+    "lane:import-root":  "tsx scripts/lane/importLaneFromSqlite.ts",
+    "lane:migrate-legacy": "tsx scripts/lane/migrateLegacyEntriesToRootEntries.ts",
+    "lane:link-qr":      "tsx scripts/lane/linkQuranicResearchHtml.ts"
+  },
+  "dependencies": {
+    "@tiptap/core": "^3.22.1",
+    "@tiptap/extension-placeholder": "^3.22.1",
+    "@tiptap/extension-subscript": "^3.22.3",
+    "@tiptap/extension-superscript": "^3.22.3",
+    "@tiptap/extension-typography": "^3.22.1",
+    "@tiptap/pm": "^3.22.1",
+    "@tiptap/starter-kit": "^3.22.1",
+    "cheerio": "^1.2.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260120.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "adm-zip": "^0.5.16",
+    "better-sqlite3": "^11.9.1",
+    "pdfjs-dist": "^5.4.624",
+    "tsx": "^4.19.4",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.42.2"
+  }
+}

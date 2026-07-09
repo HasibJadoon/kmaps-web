@@ -1,0 +1,156 @@
+<div class="lx-page" dir="rtl">
+
+  <!-- ── Two-card hub: Books (catalog) + Root search ──────────────────── -->
+  <div class="lx-hub-grid">
+
+    <!-- Card 1 — open the books catalog -->
+    <button class="lx-hub-card lx-hub-card--books" type="button" (click)="openBooks()">
+      <div class="lx-hub-card__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="28" height="28">
+          <path d="M4 4h6a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4Z" fill="currentColor" opacity=".85"/>
+          <path d="M14 4h6v14h-6a2 2 0 0 0-2 2V6a2 2 0 0 1 2-2Z" fill="currentColor"/>
+        </svg>
+      </div>
+      <h2 class="lx-hub-card__title">المكتبة</h2>
+      <p class="lx-hub-card__sub">تصفّح المعاجم الكلاسيكية</p>
+      @if (!sourcesLoading()) {
+        <span class="lx-hub-card__cta">
+          <span>{{ sources().length }} معجمًا</span>
+          <span aria-hidden="true">‹</span>
+        </span>
+      }
+    </button>
+
+    <!-- Card 2 — root search -->
+    <div class="lx-hub-card lx-hub-card--search">
+      <div class="lx-hub-card__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="28" height="28">
+          <circle cx="11" cy="11" r="6" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="m20 20-4.5-4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h2 class="lx-hub-card__title">البحث بالجذر</h2>
+      <p class="lx-hub-card__sub">اكتب جذرًا لإضاءة المعاجم التي تحتوي على مدخل</p>
+
+      <label class="lx-search-label" aria-label="ابحث بجذر">
+        <span class="lx-search-icon" aria-hidden="true">⌕</span>
+        <input
+          #searchInput
+          class="lx-search-input"
+          type="search"
+          placeholder="مثل: كتب، علم، بحث"
+          [value]="searchTerm()"
+          (input)="setSearch($any($event.target).value)"
+          dir="rtl"
+          autocomplete="off"
+        />
+        @if (searching()) {
+          <span class="lx-spinner" aria-hidden="true">⟳</span>
+        } @else if (searchTerm()) {
+          <button class="lx-clear" type="button" (click)="clearSearch()" aria-label="مسح">×</button>
+        }
+      </label>
+
+      <div class="lx-quick">
+        @for (root of quickRoots; track root) {
+          <button class="lx-quick-chip" type="button" (click)="tryRoot(root)">{{ root }}</button>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Results: source cards (only those with hits), tafsir.app-style ── -->
+  @if (rootMeta(); as meta) {
+    <header class="lx-results-head">
+      <span class="lx-results-root">{{ meta.text_ar }}</span>
+      @if (meta.meaning_ar) {
+        <span class="lx-results-meaning">{{ meta.meaning_ar }}</span>
+      }
+      @if (meta.frequency_quran) {
+        <span class="lx-results-quran">{{ meta.frequency_quran }} × في القرآن</span>
+      }
+      <span class="lx-results-stat">
+        {{ hitSources().length }} / {{ sources().length }} معاجم
+      </span>
+    </header>
+
+    @if (hasResults()) {
+      <div class="lx-catalog" #catalog>
+        @for (src of hitSources(); track src.slug) {
+          @if (hit(src.slug); as h) {
+            <button
+              class="lx-hit-card"
+              [class.lx-hit-card--lane]="src.slug === 'lane_lexicon'"
+              (click)="openSourceAtRoot(src)"
+              type="button"
+            >
+              <header class="lx-hit-card__head">
+                <h3 class="lx-hit-card__title">{{ src.title_ar }}</h3>
+                <span class="lx-hit-card__count" aria-label="عدد المدخلات">{{ h.count }}</span>
+              </header>
+              <p class="lx-hit-card__author">{{ src.author }} · {{ src.period }}</p>
+
+              @if (h.samples.length) {
+                <ul class="lx-hit-card__chips">
+                  @for (s of h.samples; track s) {
+                    <li class="lx-hit-card__chip" dir="rtl" lang="ar">{{ s }}</li>
+                  }
+                </ul>
+              }
+
+              <span class="lx-hit-card__cta">
+                <span>افتح المعجم</span>
+                <span aria-hidden="true">‹</span>
+              </span>
+            </button>
+          }
+        }
+      </div>
+    } @else if (!searching()) {
+      <p class="lx-empty">لا توجد نتائج لهذا الجذر في المعاجم المتاحة</p>
+    }
+
+    <!-- ── Academic readings: card per source (clickable → shell) ──── -->
+    @if (scholarshipCards().length) {
+      <section class="lx-scholarship">
+        <header class="lx-scholarship__head">
+          <h3 class="lx-scholarship__title">قراءات أكاديمية</h3>
+          <span class="lx-scholarship__sub" dir="ltr">Academic readings</span>
+          <span class="lx-scholarship__count">{{ scholarshipCards().length }}</span>
+        </header>
+
+        <div class="lx-catalog">
+          @for (c of scholarshipCards(); track c.source_id) {
+            <button
+              class="lx-hit-card lx-hit-card--academic"
+              [attr.data-genre]="c.genre"
+              (click)="openScholarshipAtRoot(c.notes[0].source.slug || c.source_id)"
+              type="button"
+            >
+              <header class="lx-hit-card__head">
+                <h3 class="lx-hit-card__title">{{ c.title_ar || c.title_en }}</h3>
+                <span class="lx-hit-card__count" aria-label="عدد الجذور">{{ c.notes.length }}</span>
+              </header>
+              <p class="lx-hit-card__author">
+                {{ c.author }}@if (c.year) { · {{ c.year }} } · <span class="lx-hit-card__genre">{{ c.genre_label.ar }}</span>
+              </p>
+
+              @if (c.samples.length) {
+                <ul class="lx-hit-card__chips">
+                  @for (s of c.samples; track s) {
+                    <li class="lx-hit-card__chip" dir="rtl" lang="ar">{{ s }}</li>
+                  }
+                </ul>
+              }
+
+              <span class="lx-hit-card__cta">
+                <span>افتح القراءة</span>
+                <span aria-hidden="true">‹</span>
+              </span>
+            </button>
+          }
+        </div>
+      </section>
+    }
+  }
+</div>

@@ -1,0 +1,310 @@
+@use 'fonts';
+@use 'tokens';
+@use 'reset';
+@use 'typography';
+@use 'utilities';
+@use 'planner';
+@use 'morph-rich';
+
+// ── Sentence-structure canvas-full: step pills in fixed top bar ────────────
+// ::ng-deep doesn't pierce the step component's encapsulation reliably,
+// so we target .sst__nav here globally within .workspace--canvas-full.
+.workspace--canvas-full {
+  .sst__nav {
+    position:  fixed;
+    top:       0;
+    left:      50%;
+    transform: translateX(-50%);
+    height:    3rem;
+    display:   flex;
+    align-items: center;
+    gap:       0.45rem;
+    z-index:   201;
+    flex-wrap: nowrap;
+    padding:   0;
+  }
+}
+
+html.km-ui-obs-overlay,
+body.km-ui-obs-overlay {
+  background: transparent !important;
+}
+
+body.km-ui-obs-overlay {
+  min-height: 100vh;
+}
+
+body.km-ui-obs-overlay km-root {
+  display: block;
+  min-height: 100vh;
+  background: transparent !important;
+}
+
+// ── ProseMirror (Tiptap doc editor) — global overrides ────────────────────────
+// Angular component SCSS cannot pierce ProseMirror's dynamic DOM, so all
+// ProseMirror content styles must live here.
+.ProseMirror {
+  outline: none;
+
+  // ── Arabic auto-direction — font + metrics for RTL blocks ─────────────────
+  // AutoDirection extension sets dir="rtl" when Arabic dominates the block.
+  // Uses locally-loaded AmiriQuran font (AmiriQuran.woff2) for correct rendering.
+  p[dir="rtl"], li[dir="rtl"],
+  blockquote[dir="rtl"],
+  h1[dir="rtl"], h2[dir="rtl"], h3[dir="rtl"],
+  h4[dir="rtl"], h5[dir="rtl"], h6[dir="rtl"] {
+    font-family: var(--km-font-arabic-amiri, 'AmiriQuran', serif) !important;
+    font-size: 1.4rem;
+    line-height: 2.15;
+    letter-spacing: 0;
+    word-spacing: 0.04em;
+    text-align: right;
+  }
+
+  // ── Lists — restore markers stripped by global reset ─────────────────────
+  ul, ol { padding-left: 1.75em; margin: 0.5em 0; }
+  ul { list-style-type: disc !important; }
+  ol { list-style-type: decimal !important; }
+  ul ul { list-style-type: circle !important; }
+  ul ul ul { list-style-type: square !important; }
+  li { margin: 0.28em 0; line-height: 1.8; }
+  ul li::marker { color: rgba(201, 168, 76, 0.75); font-size: 0.85em; }
+  ol li::marker { color: rgba(201, 168, 76, 0.7); font-weight: 700; }
+  ul ul li::marker { color: rgba(201, 168, 76, 0.5); }
+  ul ul ul li::marker { color: rgba(201, 168, 76, 0.32); }
+
+  // ── Blockquote ─────────────────────────────────────────────────────────────
+  blockquote {
+    border-left: 4px solid rgba(201,168,76,0.82);
+    padding: 0.7em 1.1em 0.7em 1.25em;
+    margin: 1em 0;
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(201,168,76,0.05);
+    border-radius: 0 8px 8px 0;
+
+    p { margin: 0; color: inherit; }
+  }
+
+  // ── Callout block ──────────────────────────────────────────────────────────
+  // Styles live here because the node view renders DOM outside Angular's shadow
+  .km-callout__content {
+    flex: 1;
+    min-width: 0;
+    min-height: 1.5em;
+    color: rgba(255, 255, 255, 0.9);
+
+    p { margin: 0.2em 0; }
+  }
+
+  // ── Horizontal Rule (Divider) — gold gradient line + diamond ornament ───────
+  hr {
+    display: block;
+    width: 100%;
+    border: none;
+    margin: 2em 0;
+    height: 20px;
+    position: relative;
+    overflow: visible;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(201,168,76,0.12) 8%,
+      rgba(201,168,76,0.62) 42%,
+      rgba(201,168,76,0.62) 58%,
+      rgba(201,168,76,0.12) 92%,
+      transparent 100%
+    ) center / 100% 1px no-repeat;
+
+    &::after {
+      content: '';
+      display: block;
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 8px; height: 8px;
+      transform: translate(-50%, -50%) rotate(45deg);
+      border: 1.5px solid rgba(201,168,76,0.72);
+      background: var(--km-bg, #0f0f0f);
+      box-shadow: 0 0 0 5px var(--km-bg, #0f0f0f);
+    }
+  }
+
+  // ── Selected node outline ──────────────────────────────────────────────────
+  .ProseMirror-selectednode {
+    outline: 2px solid rgba(201, 168, 76, 0.4) !important;
+    border-radius: 4px;
+  }
+
+  // ── Drop cursor ────────────────────────────────────────────────────────────
+  .ProseMirror-dropcursor {
+    border-color: #c9a84c !important;
+    border-width: 2px !important;
+    border-radius: 1px;
+  }
+}
+
+// ── Doc Engine — shared block styles ──────────────────────────────────────────
+.km-block {
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 12px 0;
+  user-select: none;
+  cursor: default;
+
+  &--ayah {
+    position: relative;
+    background: var(--km-surface);
+    border-right: 3px solid var(--km-gold);
+
+    .km-ayah-content { direction: rtl; }
+
+    .ayah-text {
+      font-family: var(--km-font-arabic, 'UthmanicHafs', serif); font-size: 1.8rem; line-height: 2.6; color: var(--km-text);
+      user-select: text !important; -webkit-user-select: text !important; cursor: text;
+    }
+    .ayah-translation {
+      font-size: 0.9rem; color: var(--km-text-2); margin-top: 10px; font-style: italic;
+      user-select: text !important; -webkit-user-select: text !important; cursor: text;
+    }
+    .ayah-ref { font-size: 0.75rem; color: var(--km-gold); margin-top: 6px; font-weight: 600; }
+
+    // ── Copy button (appears on hover, top-left physically = end side for RTL) ─
+    .km-ayah-copy {
+      position: absolute;
+      top: 10px; left: 10px;
+      direction: ltr;
+      display: flex; align-items: center; gap: 4px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 6px;
+      padding: 5px 8px;
+      cursor: pointer;
+      color: rgba(255,255,255,0.45);
+      font-size: 0.7rem; line-height: 1;
+      opacity: 0;
+      transition: opacity 0.18s, background 0.14s, color 0.14s, border-color 0.14s;
+      user-select: none; pointer-events: all;
+
+      &::after { content: 'Copy'; margin-left: 2px; }
+
+      &:hover {
+        background: rgba(201,168,76,0.12);
+        border-color: rgba(201,168,76,0.3);
+        color: rgba(201,168,76,0.9);
+      }
+      &--done {
+        color: #c9a84c !important;
+        border-color: rgba(201,168,76,0.5) !important;
+        background: rgba(201,168,76,0.1) !important;
+        &::after { content: 'Copied!'; }
+      }
+    }
+
+    &:hover .km-ayah-copy { opacity: 1; }
+  }
+
+  &--passage {
+    background: var(--km-surface);
+    border-left: 3px solid var(--km-gold);
+    .kb-passage-ref { font-size: 0.9rem; color: var(--km-text-2); font-weight: 600; }
+  }
+
+  &--vocab {
+    background: var(--km-surface);
+    border-left: 3px solid #81c784;
+    .kb-vocab-word { font-family: var(--km-font-arabic-amiri); font-size: 1.6rem; color: var(--km-text); }
+    .kb-vocab-root { font-size: 0.78rem; color: var(--km-text-3); margin-top: 4px; }
+    .kb-vocab-meanings { font-size: 0.85rem; color: var(--km-text-2); margin-top: 6px; }
+  }
+
+  &--morphology {
+    background: var(--km-surface);
+    border-left: 3px solid #4fc3f7;
+    .kb-morph-word { font-family: var(--km-font-arabic-amiri); font-size: 1.4rem; margin-bottom: 10px; }
+    .kb-morph-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .kb-morph-cell {
+      background: var(--km-surface-2); border-radius: 6px; padding: 5px 10px; font-size: 0.78rem;
+      label { display: block; font-size: 0.65rem; color: var(--km-text-3); text-transform: uppercase; margin-bottom: 2px; }
+    }
+  }
+
+  &--nahw {
+    background: var(--km-surface);
+    border-left: 3px solid #ce93d8;
+    .kb-nahw-sentence { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; }
+    .kb-nahw-word { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .kb-nahw-term { font-size: 0.68rem; color: var(--km-gold); font-weight: 700; }
+  }
+
+  &--root-analysis {
+    background: var(--km-surface);
+    border-left: 3px solid #ffb74d;
+    .kb-root-title { font-family: var(--km-font-arabic-amiri); font-size: 1.3rem; margin-bottom: 10px; }
+    .kb-root-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .kb-root-item { background: var(--km-surface-2); border-radius: 6px; padding: 6px 10px; display: flex; align-items: center; gap: 8px; }
+    .kb-root-word { font-family: var(--km-font-arabic-amiri); font-size: 1.1rem; }
+    .kb-root-meaning { font-size: 0.78rem; color: var(--km-text-2); }
+    .kb-root-occ { font-size: 0.68rem; color: var(--km-gold); font-weight: 700; }
+  }
+
+  &--claim {
+    background: var(--km-surface);
+    border-left: 3px solid var(--km-gold);
+    .kb-claim-header { margin-bottom: 8px; }
+    .kb-claim-badge { font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+    .kb-claim-text { font-size: 0.9rem; color: var(--km-text); line-height: 1.6; }
+  }
+
+  &--evidence {
+    background: var(--km-surface);
+    border-left: 3px solid #4db6ac;
+    .kb-evidence-quote { font-style: italic; color: var(--km-text-2); line-height: 1.7; font-size: 0.9rem; }
+    .kb-evidence-meta { font-size: 0.72rem; color: var(--km-text-3); margin-top: 6px; }
+  }
+
+  &--reflection {
+    background: var(--km-surface);
+    display: flex; gap: 12px; align-items: flex-start;
+    .kb-reflection-icon { font-size: 1.2rem; flex-shrink: 0; }
+    .kb-reflection-content { font-size: 0.9rem; color: var(--km-text-2); line-height: 1.7; }
+  }
+
+  &--task {
+    background: var(--km-surface);
+    display: flex; align-items: center; gap: 10px;
+    .kb-task-check { font-size: 1.1rem; }
+    .kb-task-title { flex: 1; font-size: 0.9rem; }
+    .kb-task-meta { font-size: 0.75rem; color: var(--km-text-3); }
+  }
+
+  &--scene {
+    background: var(--km-surface);
+    border-left: 3px solid #f48fb1;
+    .kb-scene-header { display: flex; align-items: center; gap: 8px; }
+    .kb-scene-title { font-weight: 600; font-size: 0.9rem; }
+    .kb-scene-dur { margin-left: auto; font-size: 0.75rem; color: var(--km-text-3); }
+    .kb-scene-notes { font-size: 0.82rem; color: var(--km-text-2); margin-top: 8px; }
+  }
+
+  &--timeline {
+    background: var(--km-surface);
+    display: flex; gap: 12px; align-items: flex-start;
+    .kb-timeline-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--km-gold); margin-top: 5px; flex-shrink: 0; }
+    .kb-timeline-body { display: flex; flex-direction: column; gap: 2px; }
+    .kb-timeline-label { font-weight: 600; font-size: 0.9rem; }
+    .kb-timeline-date { font-size: 0.72rem; color: var(--km-text-3); }
+    .kb-timeline-note { font-size: 0.82rem; color: var(--km-text-2); }
+  }
+
+  &--comprehension {
+    background: var(--km-surface);
+    border-left: 3px solid #80cbc4;
+    .kb-comp-q, .kb-comp-a { font-size: 0.9rem; line-height: 1.6; margin: 4px 0; }
+  }
+
+  &--children {
+    background: var(--km-surface);
+    border-left: 3px solid #fff176;
+    .kb-children-header { font-size: 0.75rem; color: var(--km-text-3); font-weight: 700; margin-bottom: 8px; }
+    .kb-children-content { font-size: 0.9rem; line-height: 1.7; color: var(--km-text-2); }
+  }
+}

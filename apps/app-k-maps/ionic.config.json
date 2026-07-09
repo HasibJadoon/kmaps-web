@@ -1,0 +1,7 @@
+{
+  "name": "app-k-map",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}

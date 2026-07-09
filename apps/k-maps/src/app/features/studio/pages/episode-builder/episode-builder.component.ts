@@ -1,0 +1,488 @@
+import { Component, OnInit, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { StudioApiService } from '../../studio-api.service';
+import {
+  EPISODE_FORMATS, EpisodeAggregate, EpisodeFormat, Participant, Section, TalkingPoint,
+  TemplateStructure,
+} from '../../studio.models';
+
+const SECTION_TYPE_LABELS: Record<string, string> = {
+  intro: 'Intro',
+  main_point: 'Main point',
+  discussion: 'Discussion',
+  conclusion: 'Conclusion',
+  custom: 'Section',
+};
+
+@Component({
+  selector: 'km-studio-episode-builder',
+  standalone: true,
+  imports: [RouterLink],
+  template: `
+    <div class="st-page">
+      <div class="st-wrap">
+        <div class="st-topbar">
+          <a class="st-back" routerLink="/studio">← Studio</a>
+          @if (episode()) {
+            <button type="button" class="st-btn st-btn--gold" (click)="startSession()">
+              ● Go live
+            </button>
+          }
+        </div>
+
+        @if (loading()) {
+          <div class="st-state">Loading episode…</div>
+        } @else if (episode(); as ep) {
+
+          <input class="st-title" [value]="ep.title" placeholder="Untitled Episode"
+                 (blur)="onTitleBlur($event)" />
+
+          <div class="st-row">
+            <label class="st-row-label">Format</label>
+            <select class="st-select" [value]="ep.format" (change)="onFormatChange($event)">
+              @for (f of formats; track f.id) {
+                <option [value]="f.id">{{ f.label }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="st-block-label">Cast</div>
+          <div class="st-cast">
+            @for (p of ep.participants; track p.id) {
+              <span class="st-person">
+                <span class="st-dot" [style.background]="p.color"></span>
+                <button type="button" class="st-person-name" (click)="editPerson(p)">
+                  {{ p.display_name }}
+                </button>
+                @if (p.core_user_ref) {
+                  <span class="st-person-link" title="Linked to an account">🔗</span>
+                }
+                <button type="button" class="st-person-x" (click)="removePerson(p)">×</button>
+              </span>
+            }
+            <button type="button" class="st-person st-person--add" (click)="addPerson()">
+              ＋ Person
+            </button>
+          </div>
+
+          @for (section of ep.sections; track section.id) {
+            <div class="st-sec">
+              <div class="st-sec-head">
+                <input class="st-sec-heading" [value]="section.heading"
+                       placeholder="Section heading"
+                       (blur)="onSectionHeadingBlur(section, $event)" />
+                <button type="button" class="st-icon-btn" (click)="deleteSection(section)"
+                        aria-label="Delete section">🗑</button>
+              </div>
+              <div class="st-sec-type">{{ sectionTypeLabel(section.type) }}</div>
+
+              @for (point of section.points; track point.id) {
+                <div class="st-pt">
+                  <textarea class="st-pt-text" rows="2" placeholder="Talking point…"
+                            [value]="point.text"
+                            (blur)="onPointTextBlur(section, point, $event)"></textarea>
+                  <div class="st-pt-foot">
+                    <select class="st-select st-select--sm"
+                            [value]="point.speaker_ref ?? ''"
+                            (change)="onPointSpeakerChange(section, point, $event)">
+                      <option value="">Anyone</option>
+                      @for (p of ep.participants; track p.id) {
+                        <option [value]="p.id">{{ p.display_name }}</option>
+                      }
+                    </select>
+                    <button type="button" class="st-icon-btn" (click)="deletePoint(section, point)"
+                            aria-label="Delete talking point">×</button>
+                  </div>
+                </div>
+              }
+
+              <button type="button" class="st-add-row" (click)="addPoint(section)">
+                ＋ Talking point
+              </button>
+            </div>
+          }
+
+          <button type="button" class="st-add-section" (click)="addSection()">
+            ＋ Add section
+          </button>
+
+          <div class="st-foot-actions">
+            <button type="button" class="st-btn" (click)="saveAsTemplate()">
+              ＋ Save as template
+            </button>
+            <button type="button" class="st-btn st-btn--danger" (click)="deleteEpisode()">
+              Delete episode
+            </button>
+          </div>
+
+        } @else {
+          <div class="st-state">Episode not found.</div>
+        }
+      </div>
+
+      @if (toast()) { <div class="st-toast">{{ toast() }}</div> }
+    </div>
+  `,
+  styles: [`
+    .st-page {
+      min-height: 100dvh;
+      background: radial-gradient(150% 70% at 50% 0%, #15130d 0%, #080706 55%);
+      color: var(--km-text, rgba(255,255,255,0.92));
+      font-family: var(--km-font-body, system-ui, sans-serif); overflow-y: auto;
+    }
+    .st-wrap { max-width: 720px; margin: 0 auto; padding: 20px 20px 60px; }
+    .st-topbar { display: flex; align-items: center; justify-content: space-between; }
+    .st-back { color: rgba(255,255,255,0.55); text-decoration: none; font-size: 0.85rem; }
+    .st-back:hover { color: var(--km-gold, #c9a84c); }
+    .st-state { padding: 50px 0; text-align: center; color: rgba(255,255,255,0.45); }
+
+    .st-btn {
+      padding: 8px 14px; border-radius: 9px; font-size: 0.82rem; cursor: pointer;
+      background: rgba(255,255,255,0.06); color: var(--km-text, #fff);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .st-btn:hover { border-color: rgba(201,168,76,0.5); }
+    .st-btn--gold {
+      background: var(--km-gold, #c9a84c); color: #14110b; font-weight: 600;
+      border-color: var(--km-gold, #c9a84c);
+    }
+    .st-btn--danger { color: #e0584e; border-color: rgba(224,88,78,0.3); }
+
+    .st-title {
+      width: 100%; margin: 22px 0 8px; padding: 6px 0; background: transparent;
+      border: none; border-bottom: 1px solid rgba(255,255,255,0.1); outline: none;
+      color: var(--km-text, #fff); font-size: 1.5rem; font-weight: 600;
+      font-family: var(--km-font-heading, Georgia, serif);
+    }
+    .st-title:focus { border-bottom-color: var(--km-gold, #c9a84c); }
+
+    .st-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+    .st-row-label { font-size: 0.82rem; color: rgba(255,255,255,0.5); }
+    .st-select {
+      padding: 7px 10px; border-radius: 8px; font-size: 0.84rem;
+      background: var(--km-surface-2, #141414); color: var(--km-text, #fff);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .st-select--sm { font-size: 0.76rem; padding: 5px 8px; max-width: 60%; }
+
+    .st-block-label {
+      margin: 16px 0 8px; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.09em;
+      text-transform: uppercase; color: rgba(255,255,255,0.4);
+    }
+    .st-cast { display: flex; flex-wrap: wrap; gap: 8px; }
+    .st-person {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 9px 6px 11px; border-radius: 16px; font-size: 0.82rem;
+      background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.03));
+      border: 1px solid rgba(255,255,255,0.06); border-top-color: rgba(255,255,255,0.15);
+      box-shadow: 0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+    .st-dot {
+      width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+      box-shadow: 0 0 7px rgba(201,168,76,0.5);
+    }
+    .st-person-link { font-size: 0.72rem; opacity: 0.75; }
+    .st-person-name {
+      background: transparent; border: none; color: var(--km-text, #fff);
+      cursor: pointer; font-size: 0.82rem; padding: 0;
+    }
+    .st-person-x {
+      background: transparent; border: none; color: rgba(255,255,255,0.4);
+      cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 2px;
+    }
+    .st-person-x:hover { color: #e0584e; }
+    .st-person--add {
+      color: var(--km-gold, #c9a84c); border-style: dashed; cursor: pointer;
+      padding: 6px 12px;
+    }
+
+    .st-sec {
+      margin: 16px 0; padding: 12px 14px; border-radius: 14px;
+      background: linear-gradient(180deg, #1c1a13 0%, #100f0c 100%);
+      border: 1px solid rgba(255,255,255,0.05);
+      box-shadow: 0 12px 26px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+    .st-sec-head { display: flex; align-items: center; gap: 8px; }
+    .st-sec-heading {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--km-text, #fff); font-size: 1rem; font-weight: 600;
+    }
+    .st-sec-type {
+      margin: 2px 0 8px; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--km-gold, #c9a84c);
+    }
+    .st-icon-btn {
+      background: transparent; border: none; cursor: pointer; font-size: 0.95rem;
+      color: rgba(255,255,255,0.45); padding: 4px 6px;
+    }
+    .st-icon-btn:hover { color: #e0584e; }
+
+    .st-pt {
+      margin: 8px 0; padding: 9px 10px; border-radius: 10px;
+      background: rgba(0,0,0,0.36); border: 1px solid rgba(0,0,0,0.5);
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.62);
+    }
+    .st-pt-text {
+      width: 100%; resize: vertical; background: transparent; border: none; outline: none;
+      color: var(--km-text, #fff); font-size: 0.9rem; font-family: inherit; line-height: 1.4;
+    }
+    .st-pt-foot {
+      display: flex; align-items: center; justify-content: space-between; margin-top: 4px;
+    }
+
+    .st-add-row {
+      width: 100%; margin-top: 8px; padding: 9px; cursor: pointer;
+      background: rgba(0,0,0,0.22); border: 1px dashed rgba(201,168,76,0.3);
+      border-radius: 9px; color: var(--km-gold, #c9a84c); font-size: 0.8rem;
+      box-shadow: inset 0 1px 5px rgba(0,0,0,0.45);
+    }
+    .st-add-section {
+      width: 100%; margin: 14px 0 4px; padding: 13px; cursor: pointer;
+      background: linear-gradient(180deg, rgba(201,168,76,0.22), rgba(201,168,76,0.06));
+      border: 1px solid rgba(201,168,76,0.25); border-radius: 12px;
+      color: #e8c96a; font-size: 0.88rem; font-weight: 600;
+      box-shadow: 0 6px 15px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12);
+    }
+
+    .st-foot-actions {
+      display: flex; gap: 10px; justify-content: space-between;
+      margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.07);
+    }
+
+    .st-toast {
+      position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+      padding: 10px 18px; border-radius: 10px; font-size: 0.84rem;
+      background: var(--km-surface-2, #141414); color: var(--km-text, #fff);
+      border: 1px solid rgba(201,168,76,0.4);
+    }
+  `],
+})
+export class EpisodeBuilderComponent implements OnInit {
+  private studio = inject(StudioApiService);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+
+  readonly formats = EPISODE_FORMATS;
+
+  episode = signal<EpisodeAggregate | null>(null);
+  loading = signal(true);
+  toast = signal('');
+
+  private episodeId = '';
+
+  ngOnInit(): void {
+    this.episodeId = this.route.snapshot.paramMap.get('episodeId') ?? '';
+    if (this.episodeId) this.reload();
+    else this.loading.set(false);
+  }
+
+  sectionTypeLabel(type: string): string {
+    return SECTION_TYPE_LABELS[type] ?? 'Section';
+  }
+
+  private reload(): void {
+    this.studio.getEpisode(this.episodeId).subscribe({
+      next: (ep) => { this.episode.set(ep); this.loading.set(false); },
+      error: () => this.loading.set(false),
+    });
+  }
+
+  // ── Episode fields ───────────────────────────────────────────────────────────
+
+  onTitleBlur(ev: Event): void {
+    const title = this.val(ev).trim();
+    if (!title) return;
+    this.patchEpisodeLocal({ title });
+    this.studio.updateEpisode(this.episodeId, { title }).subscribe({ error: () => {} });
+  }
+
+  onFormatChange(ev: Event): void {
+    const format = this.val(ev);
+    if (!format) return;
+    this.patchEpisodeLocal({ format: format as EpisodeFormat });
+    this.studio.updateEpisode(this.episodeId, { format }).subscribe({ error: () => {} });
+  }
+
+  // ── Participants ─────────────────────────────────────────────────────────────
+
+  addPerson(): void {
+    const email = (window.prompt(
+      'Account email of the cast member (blank for an unnamed slot):',
+    ) ?? '').trim();
+    let displayName: string | undefined;
+    if (!email) {
+      displayName = (window.prompt('Display name:') ?? '').trim() || undefined;
+      if (!displayName) return;
+    }
+    this.studio.addParticipant(this.episodeId, {
+      email: email || undefined,
+      display_name: displayName,
+    }).subscribe({
+      next: () => this.reload(),
+      error: (err) => this.flash(this.errorMessage(err) || 'Could not add that person.'),
+    });
+  }
+
+  editPerson(person: Participant): void {
+    const name = (window.prompt('Display name:', person.display_name) ?? '').trim();
+    if (!name) return;
+    const email = (window.prompt(
+      person.core_user_ref
+        ? 'New account email to re-link (blank to keep current):'
+        : 'Account email to link this person (blank to skip):',
+    ) ?? '').trim();
+    const patch: { display_name?: string; email?: string } = {};
+    if (name !== person.display_name) patch.display_name = name;
+    if (email) patch.email = email;
+    if (!patch.display_name && !patch.email) return;
+    this.studio.updateParticipant(person.id, patch).subscribe({
+      next: () => this.reload(),
+      error: (err) => this.flash(this.errorMessage(err) || 'Could not update that person.'),
+    });
+  }
+
+  /** Pull a worker validation message (e.g. an unknown email) out of an error. */
+  private errorMessage(err: unknown): string {
+    const detail = (err as { error?: { error?: string; message?: string } } | null)?.error;
+    return detail?.error || detail?.message || '';
+  }
+
+  removePerson(person: Participant): void {
+    if (!window.confirm(`Remove ${person.display_name} from the cast?`)) return;
+    this.studio.deleteParticipant(person.id)
+      .subscribe({ next: () => this.reload(), error: () => {} });
+  }
+
+  // ── Sections ─────────────────────────────────────────────────────────────────
+
+  addSection(): void {
+    this.studio.addSection(this.episodeId, { heading: 'New Section', type: 'custom' })
+      .subscribe({ next: () => this.reload(), error: () => {} });
+  }
+
+  onSectionHeadingBlur(section: Section, ev: Event): void {
+    const heading = this.val(ev).trim();
+    if (!heading) return;
+    this.patchSectionLocal(section.id, { heading });
+    this.studio.updateSection(section.id, { heading }).subscribe({ error: () => {} });
+  }
+
+  deleteSection(section: Section): void {
+    if (!window.confirm(`Delete "${section.heading}" and its talking points?`)) return;
+    this.studio.deleteSection(section.id)
+      .subscribe({ next: () => this.reload(), error: () => {} });
+  }
+
+  // ── Talking points ───────────────────────────────────────────────────────────
+
+  addPoint(section: Section): void {
+    this.studio.addPoint(section.id, { text: '' })
+      .subscribe({ next: () => this.reload(), error: () => {} });
+  }
+
+  onPointTextBlur(section: Section, point: TalkingPoint, ev: Event): void {
+    const text = this.val(ev);
+    this.patchPointLocal(section.id, point.id, { text });
+    this.studio.updatePoint(point.id, { text }).subscribe({ error: () => {} });
+  }
+
+  onPointSpeakerChange(section: Section, point: TalkingPoint, ev: Event): void {
+    const value = this.val(ev);
+    const speakerRef = value ? value : null;
+    this.patchPointLocal(section.id, point.id, { speaker_ref: speakerRef });
+    this.studio.updatePoint(point.id, { speaker_ref: speakerRef }).subscribe({ error: () => {} });
+  }
+
+  deletePoint(section: Section, point: TalkingPoint): void {
+    this.studio.deletePoint(point.id)
+      .subscribe({ next: () => this.reload(), error: () => {} });
+  }
+
+  // ── Episode actions ──────────────────────────────────────────────────────────
+
+  deleteEpisode(): void {
+    if (!window.confirm('Delete this episode and all of its sections and talking points?')) return;
+    this.studio.deleteEpisode(this.episodeId).subscribe({
+      next: () => this.router.navigate(['/studio']),
+      error: () => {},
+    });
+  }
+
+  saveAsTemplate(): void {
+    const ep = this.episode();
+    if (!ep) return;
+    const name = (window.prompt('Template name:', ep.title) ?? '').trim();
+    if (!name) return;
+    this.studio
+      .createTemplate({ name, format: ep.format, structure: this.buildStructure(ep) })
+      .subscribe({
+        next: () => this.flash('Template saved.'),
+        error: () => this.flash('Could not save the template.'),
+      });
+  }
+
+  startSession(): void {
+    this.studio.startSession(this.episodeId).subscribe({
+      next: (session) => this.router.navigate(['/studio/session', session.room_code]),
+      error: () => this.flash('Could not start the live session.'),
+    });
+  }
+
+  /** Convert the loaded episode into a reusable template blueprint. */
+  private buildStructure(ep: EpisodeAggregate): TemplateStructure {
+    const roleByParticipant = new Map<string, string>();
+    const participants = ep.participants.map((p, i) => {
+      const role = i === 0 ? 'host' : `p${i}`;
+      roleByParticipant.set(p.id, role);
+      return { role, display_name: p.display_name };
+    });
+    const sections = ep.sections.map((s) => ({
+      type: s.type,
+      heading: s.heading,
+      points: s.points.map((pt) => ({
+        text: pt.text,
+        speaker_role: pt.speaker_ref ? roleByParticipant.get(pt.speaker_ref) ?? null : null,
+      })),
+    }));
+    return { participants, sections };
+  }
+
+  // ── Local state + helpers ────────────────────────────────────────────────────
+
+  private flash(message: string): void {
+    this.toast.set(message);
+    setTimeout(() => this.toast.set(''), 2200);
+  }
+
+  private patchEpisodeLocal(patch: Partial<EpisodeAggregate>): void {
+    const ep = this.episode();
+    if (ep) this.episode.set({ ...ep, ...patch });
+  }
+
+  private patchSectionLocal(sectionId: string, patch: Partial<Section>): void {
+    const ep = this.episode();
+    if (!ep) return;
+    this.episode.set({
+      ...ep,
+      sections: ep.sections.map((s) => (s.id === sectionId ? { ...s, ...patch } : s)),
+    });
+  }
+
+  private patchPointLocal(sectionId: string, pointId: string, patch: Partial<TalkingPoint>): void {
+    const ep = this.episode();
+    if (!ep) return;
+    this.episode.set({
+      ...ep,
+      sections: ep.sections.map((s) =>
+        s.id !== sectionId
+          ? s
+          : { ...s, points: s.points.map((p) => (p.id === pointId ? { ...p, ...patch } : p)) },
+      ),
+    });
+  }
+
+  private val(ev: Event): string {
+    const target = ev.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
+    return target?.value ?? '';
+  }
+}

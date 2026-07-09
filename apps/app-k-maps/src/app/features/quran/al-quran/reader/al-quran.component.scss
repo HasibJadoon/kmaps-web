@@ -1,0 +1,472 @@
+:host {
+  display: block;
+  height: 100%;
+}
+
+.al-quran-content {
+  --background: #050505;
+  --padding-bottom: 0;
+  --padding-end: 0;
+  --padding-start: 0;
+  --padding-top: 0;
+  height: 100%;
+}
+
+.al-quran-content::part(scroll) {
+  overscroll-behavior-y: contain;
+}
+
+.al-quran-page {
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  background:
+    radial-gradient(ellipse 78% 34% at 50% 0%, rgba(201, 168, 76, 0.08), transparent 64%),
+    #050505;
+  color: #f7f5ee;
+  font-family: var(--km-font-body, var(--ion-font-family, system-ui));
+  // Wider horizontal padding so Arabic diacritics + word negative-margins
+  // don't clip at narrow viewport edges (was 0.45rem).
+  padding:
+    0.55rem
+    max(0.95rem, env(safe-area-inset-right, 0.95rem))
+    2.5rem
+    max(0.95rem, env(safe-area-inset-left, 0.95rem));
+}
+
+.al-quran-page__inner {
+  width: min(100%, 980px);
+  margin: 0 auto;
+}
+
+.reader-controls {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.8rem 4.8rem;
+  gap: 0.55rem;
+  padding: 0.45rem 0 0.85rem;
+  background: linear-gradient(180deg, #050505 74%, rgba(5, 5, 5, 0));
+}
+
+.reader-control {
+  min-width: 0;
+  display: grid;
+  gap: 0.28rem;
+  color: rgba(247, 245, 238, 0.58);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  select,
+  input {
+    width: 100%;
+    height: 38px;
+    appearance: none;
+    background: #0d0c0a;
+    border: 1px solid rgba(201, 168, 76, 0.28);
+    border-radius: 8px;
+    color: #f7f5ee;
+    font: inherit;
+    font-size: 0.78rem;
+    letter-spacing: 0;
+    outline: none;
+  }
+
+  select {
+    padding: 0 0.65rem;
+  }
+
+  input {
+    padding: 0 0.45rem;
+    text-align: center;
+  }
+
+  &:focus-within {
+    color: #d9bd62;
+
+    select,
+    input {
+      border-color: rgba(217, 189, 98, 0.72);
+      box-shadow: 0 0 0 2px rgba(217, 189, 98, 0.08);
+    }
+  }
+}
+
+.mushaf-reader {
+  display: flex;
+  flex-direction: column;
+  gap: 1.05rem;
+  align-items: center;
+}
+
+.mushaf-page {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0.45rem 0.5rem 0.75rem;
+}
+
+.mushaf-page__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+}
+
+.mushaf-page__footer {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: min(76%, 460px);
+  margin: 0.72rem auto 0;
+  color: #c9a84c;
+}
+
+.mushaf-page__divider {
+  height: 1px;
+  flex: 1 1 auto;
+  background: linear-gradient(90deg, transparent, rgba(201, 168, 76, 0.6), transparent);
+}
+
+.mushaf-page__divider:first-child {
+  background: linear-gradient(90deg, transparent, rgba(201, 168, 76, 0.6));
+}
+
+.mushaf-page__divider:last-child {
+  background: linear-gradient(90deg, rgba(201, 168, 76, 0.6), transparent);
+}
+
+.mushaf-page__number {
+  min-width: 2rem;
+  height: 2rem;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(201, 168, 76, 0.48);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201, 168, 76, 0.13), rgba(201, 168, 76, 0.02) 64%, transparent);
+  color: #c9a84c;
+  font-family: var(--km-font-heading, serif);
+  font-size: 0.8rem;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.mushaf-line {
+  font-family: var(--mushaf-font, var(--km-font-arabic), 'UthmanicHafs', 'AmiriQuran', serif);
+  color: #f7f5ee;
+  letter-spacing: 0;
+  text-align: justify;
+  text-align-last: justify;
+  text-justify: inter-word;
+  unicode-bidi: plaintext;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: visible;
+}
+
+// ── Skeleton placeholder ─────────────────────────────────────────────
+// Rendered when a page's QPC font isn't yet loaded. Subtle gold-tinted
+// shimmer bars in the same vertical rhythm as the real mushaf so the
+// swap from skeleton → real text is layout-stable (no flash, no jump).
+.mushaf-page__lines--skeleton {
+  // Match the mushaf reading rhythm so when the real text fades in
+  // there's no perceptible reflow.
+  padding-block: 0.3rem;
+}
+
+.mushaf-line--skel {
+  width: var(--skel-width, 100%);
+  height: 1.4em;             // matches mushaf line-height visually
+  margin: 0 auto 0.55rem;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(201, 168, 76, 0.06) 0%,
+    rgba(201, 168, 76, 0.18) 50%,
+    rgba(201, 168, 76, 0.06) 100%,
+  );
+  background-size: 200% 100%;
+  animation: mushaf-skel-shimmer 1.6s ease-in-out infinite;
+  opacity: 0.85;
+}
+
+@keyframes mushaf-skel-shimmer {
+  0%   { background-position:  100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+// Smooth swap: when the page exits font-loading state, fade the real
+// lines in over 220ms so the transition reads as intentional polish.
+.mushaf-page {
+  &.mushaf-page--font-loading .mushaf-page__lines--skeleton { opacity: 1; }
+  &:not(.mushaf-page--font-loading) .mushaf-page__lines {
+    animation: mushaf-text-fade-in 0.22s ease-out;
+  }
+}
+@keyframes mushaf-text-fade-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mushaf-line--skel { animation: none; }
+  .mushaf-page:not(.mushaf-page--font-loading) .mushaf-page__lines { animation: none; }
+}
+
+.mushaf-line--ayah {
+  font-size: clamp(0.98rem, 3.8vw, 1.55rem);
+  line-height: 1.82;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
+.mushaf-line--centered,
+.mushaf-line--surah,
+.mushaf-line--basmallah {
+  text-align: center;
+  text-align-last: center;
+}
+
+.mushaf-line--surah {
+  font-family: var(--km-font-arabic-amiri, 'AmiriQuran', var(--km-font-arabic), serif);
+  color: #d9bd62;
+  font-size: clamp(1.55rem, 5.8vw, 2.35rem);
+  font-weight: 700;
+  line-height: 1.2;
+  min-height: clamp(3.2rem, 13vw, 5rem);
+  margin: 0 0 0.25rem;
+  padding-top: 0.15rem;
+  text-shadow:
+    0 0 28px rgba(201, 168, 76, 0.18),
+    0 2px 18px rgba(0, 0, 0, 0.28);
+}
+
+.mushaf-line--basmallah {
+  color: #f7f5ee;
+  font-size: clamp(0.95rem, 3.3vw, 1.35rem);
+  line-height: 1.48;
+  margin-bottom: 0.12rem;
+}
+
+.ayah-segment,
+.quran-word {
+  display: inline;
+}
+
+.quran-word::after {
+  content: ' ';
+}
+
+.quran-word {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  border-radius: 4px;
+  padding: 0 1px;
+  transition: background 0.12s, color 0.12s;
+}
+.quran-word:active {
+  color: #d9bd62;
+  background: rgba(217, 189, 98, 0.15);
+}
+@media (hover: hover) {
+  .quran-word:hover {
+    background: rgba(217, 189, 98, 0.08);
+  }
+}
+
+// Word-tap popover — gold-on-black tone matching the shell
+.qrs-word-popover {
+  --background: #0b0a08;
+  --backdrop-opacity: 0.32;
+  --width: min(20rem, 92vw);
+  --offset-y: 6px;
+  &::part(arrow)::after { background: #0b0a08; }
+  &::part(content) {
+    border: 1px solid rgba(232, 201, 106, 0.32);
+    border-radius: 12px;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+  }
+}
+
+.verse-marker {
+  display: inline;
+  font-family: var(--mushaf-font, var(--km-font-arabic), serif);
+  font-size: 0.92em;
+  color: #c9a84c;
+  vertical-align: middle;
+  // Negative right margin absorbs the space character added by quran-word::after
+  // so the marker sits flush against the preceding word
+  margin-right: -0.28em;
+  margin-left: 0.14em;
+  user-select: none;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.reader-end {
+  color: rgba(247, 245, 238, 0.46);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-align: center;
+  text-transform: uppercase;
+  padding: 1rem 0 0.2rem;
+}
+
+.load-page-sentinel {
+  width: 100%;
+  height: 1px;
+}
+
+.state-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 4rem 0;
+  color: rgba(247, 245, 238, 0.58);
+  font-size: 0.88rem;
+}
+
+.state-message--error {
+  color: rgba(255, 120, 120, 0.9);
+}
+
+.state-message--inline {
+  padding: 1rem 0;
+}
+
+.state-message__spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(247, 245, 238, 0.16);
+  border-top-color: #d9bd62;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (min-width: 900px) {
+  .al-quran-page {
+    padding: 1.4rem 1.5rem 3rem;
+  }
+
+  .reader-controls {
+    grid-template-columns: minmax(14rem, 18rem) 5.8rem 5.8rem;
+    justify-content: flex-start;
+  }
+
+  .mushaf-page {
+    width: min(100%, 860px);
+    padding-inline: 1.5rem;
+  }
+
+  .mushaf-line--ayah {
+    font-size: clamp(1.45rem, 3.05vw, 2.35rem);
+    line-height: 1.66;
+  }
+
+  .mushaf-line--surah {
+    font-size: clamp(2.35rem, 4.2vw, 3.5rem);
+  }
+
+  .mushaf-line--basmallah {
+    font-size: clamp(1.2rem, 2.2vw, 1.9rem);
+  }
+}
+
+@media (max-width: 900px) {
+  .al-quran-content::part(scroll) {
+    overscroll-behavior: contain;
+  }
+
+  .al-quran-page {
+    padding:
+      0.55rem
+      max(0.65rem, env(safe-area-inset-right, 0px))
+      3rem
+      max(0.65rem, env(safe-area-inset-left, 0px));
+  }
+
+  .mushaf-page {
+    padding-inline: 0;
+  }
+
+  .mushaf-line--ayah {
+    font-size: clamp(1.1rem, 5.2vw, 1.75rem);
+    line-height: 2.0;
+  }
+
+  .mushaf-line--surah {
+    font-size: clamp(1.5rem, 7.2vw, 2.4rem);
+  }
+
+  .mushaf-line--basmallah {
+    font-size: clamp(1rem, 4.6vw, 1.5rem);
+  }
+}
+
+@media (max-width: 380px) {
+  .mushaf-line--ayah {
+    font-size: clamp(1rem, 4.8vw, 1.55rem);
+  }
+
+  .mushaf-line--surah {
+    font-size: clamp(1.35rem, 6.8vw, 2.1rem);
+  }
+
+  .mushaf-line--basmallah {
+    font-size: clamp(0.95rem, 4.4vw, 1.35rem);
+  }
+}
+
+// ── Landscape / horizontal mode ───────────────────────────────────────────────
+// In landscape, vw-based font sizes already produce larger text (wider viewport).
+// Hide the inline reader controls — navigation lives in the shell bottom sheet.
+@media (orientation: landscape) and (max-height: 520px) {
+  // Respect camera notch / Dynamic Island safe areas on the sides
+  .al-quran-page {
+    padding-top: 0.3rem;
+    padding-bottom: 1.5rem;
+    padding-left: max(0.75rem, var(--ion-safe-area-left, 0px));
+    padding-right: max(0.75rem, var(--ion-safe-area-right, 0px));
+  }
+
+  .al-quran-page__inner {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .reader-controls {
+    display: none;
+  }
+
+  // Constrain page width so justified words don't spread across the full landscape viewport
+  .mushaf-page {
+    width: min(100%, 560px);
+    padding-block: 0.2rem 0.5rem;
+  }
+
+  .mushaf-line--ayah {
+    font-size: clamp(1.5rem, 4.2vw, 2.2rem);
+    line-height: 1.9;
+  }
+
+  .mushaf-line--surah {
+    font-size: clamp(1.85rem, 5.5vw, 2.8rem);
+  }
+
+  .mushaf-line--basmallah {
+    font-size: clamp(1.25rem, 3.6vw, 1.9rem);
+  }
+
+  .mushaf-page__footer {
+    margin-top: 0.4rem;
+  }
+}

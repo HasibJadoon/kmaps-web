@@ -1,0 +1,93 @@
+
+    // The ion-card host already provides background, border, radius and
+    // shadow via the global `ion-card.km-ion-card` rule in global.scss.
+    // We just add layout + the gold-tinted brand accents here.
+    .hc {
+      position: relative;
+      margin: 0;
+      cursor: pointer;
+      text-align: center;
+      transition: border-color .25s ease, box-shadow .25s ease, transform .25s ease;
+
+      &:hover {
+        border-color: var(--km-border-gold);
+        box-shadow: 0 0 28px rgba(201, 168, 76, .14),
+                    inset 0 0 1px rgba(201, 168, 76, .35);
+        transform: translateY(-3px);
+
+        .hc__title { color: var(--km-gold-bright); }
+        .hc__shimmer { opacity: 1; }
+      }
+
+      &:active { transform: translateY(-1px); }
+
+      ion-card-header {
+        padding-bottom: .35rem;
+      }
+
+      ion-card-content {
+        padding-top: 0;
+      }
+    }
+
+    .hc__badge {
+      position: absolute;
+      top: .55rem; right: .55rem;
+      z-index: 3;
+      font-size: .55rem;
+      font-weight: 700;
+      letter-spacing: .12em;
+      padding: .18rem .42rem;
+      border-radius: 4px;
+      background: rgba(201, 168, 76, .2);
+      color: var(--km-gold);
+      border: 1px solid rgba(201, 168, 76, .3);
+    }
+
+    .hc__count {
+      position: absolute;
+      top: .55rem; left: .55rem;
+      z-index: 3;
+      font-size: .7rem;
+      font-weight: 600;
+      color: var(--km-text-3);
+      font-family: var(--km-font-mono, monospace);
+    }
+
+    .hc__glyph {
+      font-size: 2.4rem;
+      line-height: 1;
+      background: linear-gradient(180deg, #c9a84c 0%, #6b5520 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 10px rgba(201, 168, 76, .28));
+      font-family: var(--km-font-arabic, inherit);
+      margin: 0 auto .45rem;
+    }
+
+    .hc__tag {
+      font-size: .56rem;
+      font-weight: 700;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--km-gold);
+      opacity: .7;
+    }
+
+    .hc__title {
+      font-family: var(--km-font-heading);
+      font-size: .92rem;
+      font-weight: 600;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--km-text-2);
+      transition: color .25s;
+    }
+
+    .hc__desc {
+      font-size: .72rem;
+      color: var(--km-text-3);
+      line-height: 1.5;
+      text-align: center;
+    }
