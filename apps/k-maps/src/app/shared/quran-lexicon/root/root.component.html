@@ -1,0 +1,9 @@
+<section class="root-view">
+  <header class="root-view__head">
+    <span class="root-view__eyebrow">Root</span>
+    <h1 class="root-view__title">{{ root() }}</h1>
+    <p class="root-view__sub">Words derived from this root across the Qurʾān</p>
+  </header>
+
+  <km-words-grid scope="root" [root]="root()" (open)="openWord($event)"></km-words-grid>
+</section>

@@ -25,4 +25,11 @@ export const LEXICON_ROUTES: Routes = [
       import('./search/lexicon-search.component').then(m => m.LexiconSearchComponent),
     title: 'المعجم — البحث',
   },
+  {
+    // Root → Words (grid) → Word. Shared quran-lexicon views.
+    path: 'root/:root',
+    loadComponent: () =>
+      import('../../shared/quran-lexicon/root/root.component').then(m => m.RootComponent),
+    title: 'Root — K-MAPS',
+  },
 ];

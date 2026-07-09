@@ -1,0 +1,22 @@
+@if (loading()) {
+  <div class="wg-state"><div class="wg-state__spinner"></div><p>Loading words…</p></div>
+} @else if (error()) {
+  <div class="wg-state wg-state--error"><p>{{ error() }}</p></div>
+} @else if (!words().length) {
+  <div class="wg-state"><p>No words found.</p></div>
+} @else {
+  <div class="wg-grid">
+    @for (w of words(); track trackId($index, w)) {
+      <button type="button" class="unit-card" (click)="open.emit(w)"
+              [attr.aria-label]="'Open word ' + w.ar + ' (' + w.surah + ':' + w.ayah + ')'">
+        <span class="unit-card__badge">{{ w.surah }}:{{ w.ayah }}</span>
+        <div class="unit-card__head">
+          <span class="unit-card__word">{{ w.ar }}</span>
+          @if (w.root_display) { <span class="unit-card__root">{{ w.root_display }}</span> }
+        </div>
+        @if (w.gloss) { <span class="unit-card__label">{{ w.gloss }}</span> }
+        <span class="unit-card__arrow">→</span>
+      </button>
+    }
+  </div>
+}

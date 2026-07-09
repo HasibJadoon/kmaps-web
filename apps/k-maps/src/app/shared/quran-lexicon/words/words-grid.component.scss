@@ -1,0 +1,52 @@
+:host { display: block; }
+
+.wg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.85rem;
+  padding: 0.5rem 0;
+}
+
+/* Passage-card (unit-card) styling — same visual language as the study passage cards. */
+.unit-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  text-align: right;
+  padding: 0.9rem 0.9rem 1.6rem;
+  border: 1px solid rgba(232, 192, 96, 0.22);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+
+  &:hover { border-color: rgba(232, 192, 96, 0.55); background: rgba(232, 192, 96, 0.05); }
+  &:hover .unit-card__arrow { transform: translateX(3px); }
+
+  &__badge {
+    position: absolute; top: 0.6rem; left: 0.75rem;
+    font-size: 0.7rem; letter-spacing: 0.04em;
+    color: rgba(232, 192, 96, 0.8);
+  }
+  &__head { display: flex; align-items: baseline; justify-content: flex-end; gap: 0.5rem; margin-top: 0.6rem; }
+  &__word { font-size: 1.5rem; line-height: 1.3; color: #f4e9cf; font-family: 'UthmanicHafs', 'AmiriQuran', serif; }
+  &__root { font-size: 0.85rem; color: rgba(192, 132, 245, 0.85); letter-spacing: 0.08em; }
+  &__label { text-align: left; font-size: 0.82rem; color: rgba(255, 255, 255, 0.6); }
+  &__arrow {
+    position: absolute; bottom: 0.55rem; right: 0.8rem;
+    font-size: 0.9rem; color: rgba(232, 192, 96, 0.7);
+    transition: transform 0.15s ease;
+  }
+}
+
+.wg-state {
+  padding: 2rem; text-align: center; opacity: 0.6; font-size: 0.9rem;
+  &--error { color: #ff9f6b; }
+  &__spinner {
+    width: 22px; height: 22px; margin: 0 auto 0.6rem;
+    border: 2px solid rgba(232, 192, 96, 0.25); border-top-color: rgba(232, 192, 96, 0.9);
+    border-radius: 50%; animation: wg-spin 0.7s linear infinite;
+  }
+}
+@keyframes wg-spin { to { transform: rotate(360deg); } }
