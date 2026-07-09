@@ -1,7 +1,14 @@
-# K-MAPS Project Guide
+# K-MAPS Web — Project Guide
 
-> Last updated: 2026-04-23
+> Last updated: 2026-07-09
 > Read this at the start of each coding session. This file describes the current repo shape only.
+
+**This repo is the web platform only** (Angular apps + Cloudflare Workers). It was split out
+of the old `knowledge-map` monorepo. Sibling repos hold what used to live alongside:
+- **kmaps-database** — D1 migrations, schema, seeds, DB scripts, ingestion tooling
+- **kmaps-resources** — fonts, icons, brand, design assets
+Don't recreate `database/`, `scripts/`, or `resources/` here; make those changes in the
+sibling repo. See `~/LLM/CLAUDE.md` for the workspace map.
 
 ## Current Shape
 
@@ -11,11 +18,8 @@ Active top-level areas:
 
 - `apps/k-maps/` - Angular web app.
 - `apps/app-k-maps/` - Ionic/Angular app.
-- `workers/` - all backend runtime code.
-- `database/` - curated database assets, migrations, seeds, and ingestion inputs.
+- `workers/` - all backend runtime code (gateway + 8 domain workers + `shared/`).
 - `docs/` - architecture and workflow notes.
-- `scripts/` - local generators, importers, and utility scripts.
-- `resources/` - source learning and lexicon resources.
 
 ## Apps
 
@@ -100,58 +104,13 @@ CORE:<id>
 
 Do not duplicate canonical data across domains. Store typed references instead.
 
-## Database Folder
+## Database & Ingestion (moved)
 
-`database/` is organized as:
-
-- `database/data/` - curated source and generated data.
-- `database/ingestion/` - raw source, staging, and output folders for imports.
-- `database/migrations/` - service-specific D1 schema history.
-- `database/seeds/` - generated seed SQL for `wrangler d1 execute`.
-- `database/exports/` - exported CSV or SQL source data.
-- `database/mockups/` - JSON fixtures for app and UI development.
-- `database/docs/` - parser and data notes.
-- `database/scratch/` - temporary working files kept for reference.
-- `database/snapshots/` - small snapshot notes or placeholders.
-
-Current migration folders:
-
-```text
-database/migrations/km-arabic/
-database/migrations/km-arabic-linguistic/
-database/migrations/km-arabic-linguistics/
-database/migrations/km-content/
-database/migrations/km-core/
-database/migrations/km-lexicon/
-database/migrations/km-planner/
-database/migrations/km-quran/
-database/migrations/km-worldview/
-```
-
-Generated seed files belong in `database/seeds/`, not directly in `database/migrations/`.
-
-## Ingestion
-
-Use `database/ingestion/` for files being prepared for D1 import.
-
-Root ingestion:
-
-- Raw roots: `database/ingestion/roots/sources/tarteel-ai/`
-- Intermediate files: `database/ingestion/roots/staging/`
-- Generated SQL/JSON: `database/ingestion/roots/outputs/`
-
-Morphology ingestion:
-
-- Raw archive: `database/ingestion/morphology/archives/quran-llm-2026-04-23.zip`
-- Manifest: `database/ingestion/morphology/MANIFEST.md`
-- QUL word sources: `database/ingestion/morphology/sources/qul/word/`
-- QUL ayah sources: `database/ingestion/morphology/sources/qul/ayah/`
-- QAC export: `database/ingestion/morphology/sources/qac/`
-- MASAQ source: `database/ingestion/morphology/sources/masaq/`
-- Intermediate files: `database/ingestion/morphology/staging/`
-- Generated SQL/JSON: `database/ingestion/morphology/outputs/`
-
-`.sqlite`, `.db`, and QAC source `.txt` files are local ingestion inputs and are ignored by Git. Keep manifests and raw archives when useful for reproducibility.
+Migrations, seeds, ingestion inputs, and DB scripts now live in the **kmaps-database** repo
+(`~/LLM/_Repositories/kmaps-database`). Do that work there. In *this* repo the only
+database-adjacent files are per-worker `workers/*/schema.sql` (schema snapshots) and
+`workers/*/migrations/` (each worker's own deploy migrations) — keep those in sync with
+kmaps-database when schema changes.
 
 ## D1 Notes
 
