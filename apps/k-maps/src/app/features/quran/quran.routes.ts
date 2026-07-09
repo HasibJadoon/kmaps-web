@@ -123,7 +123,7 @@ export const QURAN_ROUTES: Routes = [
   {
     path: 'surahs/:surahId/passage/:passageIndex',
     loadComponent: () =>
-      import('./surah/passage/quran-passage.component').then((m) => m.QuranPassageComponent),
+      import('./surah/reader/passage/surah-passage.component').then((m) => m.QuranPassageComponent),
     title: 'Passage — K-MAPS',
   },
   {

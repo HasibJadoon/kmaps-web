@@ -1,15 +1,15 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
-import { AyahsSurah, TranslationPassage } from '../../../../shared/models/quran/quran.models';
-import { mapQrPassagesToResponse } from '../../../../shared/services/quran/quran-api.mapper';
-import { QuranApiService } from '../../../../shared/services/quran/quran-api.service';
+import { AyahsSurah, TranslationPassage } from '../../../../../shared/models/quran/quran.models';
+import { mapQrPassagesToResponse } from '../../../../../shared/services/quran/quran-api.mapper';
+import { QuranApiService } from '../../../../../shared/services/quran/quran-api.service';
 
 @Component({
   selector: 'km-quran-passage',
   standalone: true,
   imports: [RouterLink],
-  templateUrl: './quran-passage.component.html',
-  styleUrl: './quran-passage.component.scss',
+  templateUrl: './surah-passage.component.html',
+  styleUrl: './surah-passage.component.scss',
 })
 export class QuranPassageComponent implements OnInit {
   private readonly router = inject(Router);
