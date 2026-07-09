@@ -11,7 +11,7 @@ import { QuranApiService } from '../../../../../shared/services/quran/quran-api.
   templateUrl: './surah-passage.component.html',
   styleUrl: './surah-passage.component.scss',
 })
-export class QuranPassageComponent implements OnInit {
+export class SurahPassageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly qrApi = inject(QuranApiService);

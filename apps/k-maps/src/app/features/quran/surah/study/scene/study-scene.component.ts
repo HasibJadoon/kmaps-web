@@ -218,7 +218,7 @@ const STEPS: StepDef[] = [
   templateUrl: './study-scene.component.html',
   styleUrl: './study-scene.component.scss',
 })
-export class SurahStudyDetailComponent
+export class StudySceneComponent
   implements OnInit, AfterViewInit, OnDestroy
 {
   private readonly route = inject(ActivatedRoute);

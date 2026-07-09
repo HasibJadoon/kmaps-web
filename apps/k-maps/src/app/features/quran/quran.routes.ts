@@ -12,7 +12,7 @@ export const QURAN_ROUTES: Routes = [
   {
     path: 'surahs',
     loadComponent: () =>
-      import('./surah/index/surah-index.component').then((m) => m.QuranSurahsComponent),
+      import('./surah/index/surah-index.component').then((m) => m.SurahIndexComponent),
     title: 'Surahs — K-MAPS',
   },
   {
@@ -31,13 +31,13 @@ export const QURAN_ROUTES: Routes = [
   {
     path: 'surahs/:surahId/study/:passageNo',
     loadComponent: () =>
-      import('./surah/study/scene/study-scene.component').then((m) => m.SurahStudyDetailComponent),
+      import('./surah/study/scene/study-scene.component').then((m) => m.StudySceneComponent),
     title: 'Study — K-MAPS',
   },
   {
     path: 'surahs/:surahId/study',
     loadComponent: () =>
-      import('./surah/study/overview/study-overview.component').then((m) => m.SurahStudyComponent),
+      import('./surah/study/overview/study-overview.component').then((m) => m.StudyOverviewComponent),
     title: 'Study — K-MAPS',
   },
   {
@@ -49,7 +49,7 @@ export const QURAN_ROUTES: Routes = [
   {
     path: 'surahs/:surahId/linguistics',
     loadComponent: () =>
-      import('./surah/linguistics/surah-linguistics.component').then((m) => m.SurahVocabularyComponent),
+      import('./surah/linguistics/surah-linguistics.component').then((m) => m.SurahLinguisticsComponent),
     title: 'Linguistics — K-MAPS',
   },
   { path: 'surahs/:surahId/arabic', redirectTo: 'surahs/:surahId/linguistics', pathMatch: 'full' },
@@ -129,13 +129,13 @@ export const QURAN_ROUTES: Routes = [
   {
     path: 'surahs/:surahId/passage/:passageIndex',
     loadComponent: () =>
-      import('./surah/reader/passage/surah-passage.component').then((m) => m.QuranPassageComponent),
+      import('./surah/reader/passage/surah-passage.component').then((m) => m.SurahPassageComponent),
     title: 'Passage — K-MAPS',
   },
   {
     path: 'surahs/:surahId',
     loadComponent: () =>
-      import('./surah/reader/surah-reader.component').then((m) => m.QuranTextComponent),
+      import('./surah/reader/surah-reader.component').then((m) => m.SurahReaderComponent),
     title: 'Quran — K-MAPS',
   },
   { path: 'browser', redirectTo: 'lexicon', pathMatch: 'full' },

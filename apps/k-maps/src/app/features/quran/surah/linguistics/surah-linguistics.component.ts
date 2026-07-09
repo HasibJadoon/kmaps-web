@@ -15,7 +15,7 @@ import { QuranGsapService } from '../../../../shared/services/quran/quran-gsap.s
   templateUrl: './surah-linguistics.component.html',
   styleUrl: './surah-linguistics.component.scss',
 })
-export class SurahVocabularyComponent implements OnInit, AfterViewInit, OnDestroy {
+export class SurahLinguisticsComponent implements OnInit, AfterViewInit, OnDestroy {
   private route  = inject(ActivatedRoute);
   private router = inject(Router);
   private gsap   = inject(QuranGsapService);

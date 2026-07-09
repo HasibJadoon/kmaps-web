@@ -16,7 +16,7 @@ import { EmptyStateComponent } from '../../../shared/empty-state/empty-state.com
   templateUrl: './study-overview.component.html',
   styleUrl: './study-overview.component.scss',
 })
-export class SurahStudyComponent implements OnInit, AfterViewInit {
+export class StudyOverviewComponent implements OnInit, AfterViewInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private svc = inject(QuranSurahService);

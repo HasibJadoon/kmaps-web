@@ -31,7 +31,7 @@ const BISMILLAH = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَ
   styleUrl: './surah-reader.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class QuranTextComponent implements OnInit, AfterViewInit {
+export class SurahReaderComponent implements OnInit, AfterViewInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly qrApi = inject(QuranApiService);

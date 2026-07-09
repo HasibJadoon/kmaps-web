@@ -24,7 +24,7 @@ import { SurahCardComponent } from '../card/surah-card/surah-card.component';
   templateUrl: './surah-index.component.html',
   styleUrl: './surah-index.component.scss',
 })
-export class QuranSurahsComponent implements OnInit, AfterViewInit {
+export class SurahIndexComponent implements OnInit, AfterViewInit {
   private router = inject(Router);
   readonly quranState = inject(QuranStateService);
 
