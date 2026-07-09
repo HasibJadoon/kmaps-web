@@ -3,18 +3,18 @@ import {
   QueryList, ElementRef, inject, signal, ChangeDetectionStrategy,
 } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
-import { QuranSurahService, StudyUnitCardVm, StudySurahMeta } from '../../../../shared/services/quran/quran-surah.service';
-import { QuranPageShellComponent } from '../../shared/quran-page-shell.component';
-import { QuranGsapService } from '../../../../shared/services/quran/quran-gsap.service';
-import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
+import { QuranSurahService, StudyUnitCardVm, StudySurahMeta } from '../../../../../shared/services/quran/quran-surah.service';
+import { QuranPageShellComponent } from '../../../shared/quran-page-shell.component';
+import { QuranGsapService } from '../../../../../shared/services/quran/quran-gsap.service';
+import { EmptyStateComponent } from '../../../shared/empty-state/empty-state.component';
 
 @Component({
   selector: 'km-surah-study',
   standalone: true,
   imports: [QuranPageShellComponent, EmptyStateComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './surah-study.component.html',
-  styleUrl: './surah-study.component.scss',
+  templateUrl: './study-overview.component.html',
+  styleUrl: './study-overview.component.scss',
 })
 export class SurahStudyComponent implements OnInit, AfterViewInit {
   private route = inject(ActivatedRoute);

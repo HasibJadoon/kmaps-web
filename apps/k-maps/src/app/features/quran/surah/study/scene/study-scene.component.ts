@@ -215,8 +215,8 @@ const STEPS: StepDef[] = [
     StudyPassageStructureStepComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './surah-study-detail.component.html',
-  styleUrl: './surah-study-detail.component.scss',
+  templateUrl: './study-scene.component.html',
+  styleUrl: './study-scene.component.scss',
 })
 export class SurahStudyDetailComponent
   implements OnInit, AfterViewInit, OnDestroy

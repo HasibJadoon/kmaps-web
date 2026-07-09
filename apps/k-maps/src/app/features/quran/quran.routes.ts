@@ -18,26 +18,26 @@ export const QURAN_ROUTES: Routes = [
   {
     path: 'surahs/:surahId/study/:passageNo/word/:ayah/:wordIndex',
     loadComponent: () =>
-      import('./surah/study/detail/steps/vocabulary/morph-word-page/morph-word-page.component').then((m) => m.MorphWordPageComponent),
+      import('./surah/study/scene/steps/vocabulary/morph-word-page/morph-word-page.component').then((m) => m.MorphWordPageComponent),
     title: 'Word — K-MAPS',
   },
   {
     // Passage-agnostic entry from the standalone Morphology grid.
     path: 'surahs/:surahId/morphology/word/:ayah/:wordIndex',
     loadComponent: () =>
-      import('./surah/study/detail/steps/vocabulary/morph-word-page/morph-word-page.component').then((m) => m.MorphWordPageComponent),
+      import('./surah/study/scene/steps/vocabulary/morph-word-page/morph-word-page.component').then((m) => m.MorphWordPageComponent),
     title: 'Word — K-MAPS',
   },
   {
     path: 'surahs/:surahId/study/:passageNo',
     loadComponent: () =>
-      import('./surah/study/detail/surah-study-detail.component').then((m) => m.SurahStudyDetailComponent),
+      import('./surah/study/scene/study-scene.component').then((m) => m.SurahStudyDetailComponent),
     title: 'Study — K-MAPS',
   },
   {
     path: 'surahs/:surahId/study',
     loadComponent: () =>
-      import('./surah/study/surah-study.component').then((m) => m.SurahStudyComponent),
+      import('./surah/study/overview/study-overview.component').then((m) => m.SurahStudyComponent),
     title: 'Study — K-MAPS',
   },
   {
