@@ -76,10 +76,11 @@ export class RootComponent implements OnInit {
 
   sectionIcon(key: string): string { return this.display()?.section_icons?.[key] ?? ''; }
 
-  /** A form-family group's name in the active language (AR name is the wazn, e.g. تَفْعِيل). */
-  familyName(g: FamilyGroupVm): string {
-    const l = this.lang();
-    return (l === 'ar' ? g.arabic_name : l === 'ur' ? (g.urdu_name ?? g.arabic_name) : (g.english_name ?? g.arabic_name)) ?? '';
+  /** The form-family name is the wazn itself — always Arabic (تَفْعِيل), from the master table. */
+  familyName(g: FamilyGroupVm): string { return g.arabic_name ?? ''; }
+  /** English descriptor kept as a gloss beside the wazn (english-primary convention). */
+  familyGloss(g: FamilyGroupVm): string | null {
+    return this.lang() === 'ar' ? null : (g.english_name ?? null);
   }
 
   /** A family lemma → universal-only card VM (no context → the 3D card shows the lemma). */

@@ -44,7 +44,8 @@
       <div class="rv-famgroup">
         <div class="rv-famgroup__head">
           <lucide-icon [name]="g.icon" [size]="14"></lucide-icon>
-          <span class="rv-famgroup__name" [style.font-family]="langFont()" [class.rv-ur]="lang()==='ur'">{{ familyName(g) }}</span>
+          <span class="rv-famgroup__name" dir="rtl" style="font-family:'AmiriQuran','UthmanicHafs',serif">{{ familyName(g) }}</span>
+          @if (familyGloss(g); as gloss) { <span class="rv-famgroup__gloss">{{ gloss }}</span> }
           <span class="rv-famgroup__count">{{ g.lemmas.length }}</span>
         </div>
         <div class="rv-family3d">
