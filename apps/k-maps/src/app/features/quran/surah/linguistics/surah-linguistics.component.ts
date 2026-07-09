@@ -12,8 +12,8 @@ import { QuranGsapService } from '../../../../shared/services/quran/quran-gsap.s
   standalone: true,
   imports: [QuranPageShellComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './surah-vocabulary.component.html',
-  styleUrl: './surah-vocabulary.component.scss',
+  templateUrl: './surah-linguistics.component.html',
+  styleUrl: './surah-linguistics.component.scss',
 })
 export class SurahVocabularyComponent implements OnInit, AfterViewInit, OnDestroy {
   private route  = inject(ActivatedRoute);

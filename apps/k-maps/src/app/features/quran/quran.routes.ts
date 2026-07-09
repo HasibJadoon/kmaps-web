@@ -12,7 +12,7 @@ export const QURAN_ROUTES: Routes = [
   {
     path: 'surahs',
     loadComponent: () =>
-      import('./surah/quran-surahs/quran-surahs.component').then((m) => m.QuranSurahsComponent),
+      import('./surah/index/surah-index.component').then((m) => m.QuranSurahsComponent),
     title: 'Surahs — K-MAPS',
   },
   {
@@ -49,7 +49,7 @@ export const QURAN_ROUTES: Routes = [
   {
     path: 'surahs/:surahId/linguistics',
     loadComponent: () =>
-      import('./surah/vocabulary/surah-vocabulary.component').then((m) => m.SurahVocabularyComponent),
+      import('./surah/linguistics/surah-linguistics.component').then((m) => m.SurahVocabularyComponent),
     title: 'Linguistics — K-MAPS',
   },
   { path: 'surahs/:surahId/arabic', redirectTo: 'surahs/:surahId/linguistics', pathMatch: 'full' },
@@ -129,7 +129,7 @@ export const QURAN_ROUTES: Routes = [
   {
     path: 'surahs/:surahId',
     loadComponent: () =>
-      import('./surah/text/quran-text.component').then((m) => m.QuranTextComponent),
+      import('./surah/reader/surah-reader.component').then((m) => m.QuranTextComponent),
     title: 'Quran — K-MAPS',
   },
   { path: 'browser', redirectTo: 'lexicon', pathMatch: 'full' },

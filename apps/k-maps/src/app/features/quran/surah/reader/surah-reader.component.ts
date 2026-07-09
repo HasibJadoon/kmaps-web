@@ -27,8 +27,8 @@ const BISMILLAH = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَ
   selector: 'km-quran-text',
   standalone: true,
   imports: [RouterLink, NgClass],
-  templateUrl: './quran-text.component.html',
-  styleUrl: './quran-text.component.scss',
+  templateUrl: './surah-reader.component.html',
+  styleUrl: './surah-reader.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class QuranTextComponent implements OnInit, AfterViewInit {

@@ -21,8 +21,8 @@ import { SurahCardComponent } from '../surah-card/surah-card.component';
   selector: 'km-quran-surahs',
   standalone: true,
   imports: [FormsModule, TitleCasePipe, SurahActionsComponent, HomePlaneButtonComponent, SurahCardComponent],
-  templateUrl: './quran-surahs.component.html',
-  styleUrl: './quran-surahs.component.scss',
+  templateUrl: './surah-index.component.html',
+  styleUrl: './surah-index.component.scss',
 })
 export class QuranSurahsComponent implements OnInit, AfterViewInit {
   private router = inject(Router);
