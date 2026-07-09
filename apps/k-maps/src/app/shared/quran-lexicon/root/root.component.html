@@ -38,21 +38,30 @@
       }
     </div>
 
-    <!-- Derived family — grouped by morphological form-family (الوزن); ḥarf excluded -->
+    <!-- Derived family — tiered (الثلاثي المجرّد / المزيد فيه) → form-family (الوزن); ḥarf excluded -->
     <h2 class="rv-section"><lucide-icon [name]="sectionIcon('family')" [size]="15"></lucide-icon>Derived family</h2>
-    @for (g of d.family; track g.key) {
-      <div class="rv-famgroup">
-        <div class="rv-famgroup__head">
-          <lucide-icon [name]="g.icon" [size]="14"></lucide-icon>
-          <span class="rv-famgroup__name" dir="rtl" style="font-family:'AmiriQuran','UthmanicHafs',serif">{{ familyName(g) }}</span>
-          @if (familyGloss(g); as gloss) { <span class="rv-famgroup__gloss">{{ gloss }}</span> }
-          <span class="rv-famgroup__count">{{ g.lemmas.length }}</span>
+    @for (t of d.family; track t.tier) {
+      <div class="rv-tier">
+        <div class="rv-tier__head">
+          <lucide-icon [name]="t.icon" [size]="15"></lucide-icon>
+          <span class="rv-tier__name" dir="rtl" style="font-family:'AmiriQuran','UthmanicHafs',serif">{{ tierName(t) }}</span>
+          @if (tierGloss(t); as tg) { <span class="rv-tier__gloss">{{ tg }}</span> }
         </div>
-        <div class="rv-family3d">
-          @for (f of g.lemmas; track f.lemma_ar) {
-            <km-morph-word-card [card]="famVm(f)"></km-morph-word-card>
-          }
-        </div>
+        @for (g of t.groups; track g.key) {
+          <div class="rv-famgroup">
+            <div class="rv-famgroup__head">
+              <lucide-icon [name]="g.icon" [size]="14"></lucide-icon>
+              <span class="rv-famgroup__name" dir="rtl" style="font-family:'AmiriQuran','UthmanicHafs',serif">{{ familyName(g) }}</span>
+              @if (familyGloss(g); as gloss) { <span class="rv-famgroup__gloss">{{ gloss }}</span> }
+              <span class="rv-famgroup__count">{{ g.lemmas.length }}</span>
+            </div>
+            <div class="rv-family3d">
+              @for (f of g.lemmas; track f.lemma_ar) {
+                <km-morph-word-card [card]="famVm(f)"></km-morph-word-card>
+              }
+            </div>
+          </div>
+        }
       </div>
     }
 
@@ -63,19 +72,32 @@
       </ul>
     }
 
-    <!-- Depth from the classical lexicons — the actual source entries -->
+    <!-- Classical lexicons — a small summary per source; click opens the full reader -->
     <h2 class="rv-section"><lucide-icon [name]="sectionIcon('freq')" [size]="15"></lucide-icon>Classical lexicons</h2>
     <div class="rv-sources">
       @for (l of d.lenses; track l.key) {
-        @if (l.on && l.text) {
-          <article class="rv-src">
-            <header class="rv-src__head">
-              <lucide-icon [name]="l.icon" [size]="14"></lucide-icon>
-              <span class="rv-src__name">{{ l.label }}</span>
-              @if (l.page) { <span class="rv-src__page">p.{{ l.page }}</span> }
-            </header>
-            <p class="rv-src__text" dir="rtl">{{ l.text }}</p>
-          </article>
+        @if (l.on && (l.summary || l.text)) {
+          @if (lensLink(l); as link) {
+            <a class="rv-src rv-src--link" [routerLink]="link" [queryParams]="{ root: l.root }">
+              <header class="rv-src__head">
+                <lucide-icon [name]="l.icon" [size]="14"></lucide-icon>
+                <span class="rv-src__name">{{ l.label }}</span>
+                @if (l.page) { <span class="rv-src__page">p.{{ l.page }}</span> }
+                <lucide-icon class="rv-src__go" name="arrow-right" [size]="14"></lucide-icon>
+              </header>
+              <p class="rv-src__text" dir="rtl">{{ l.summary || l.text }}</p>
+              <span class="rv-src__cta">Read in {{ l.label }} →</span>
+            </a>
+          } @else {
+            <article class="rv-src">
+              <header class="rv-src__head">
+                <lucide-icon [name]="l.icon" [size]="14"></lucide-icon>
+                <span class="rv-src__name">{{ l.label }}</span>
+                @if (l.page) { <span class="rv-src__page">p.{{ l.page }}</span> }
+              </header>
+              <p class="rv-src__text" dir="rtl">{{ l.summary || l.text }}</p>
+            </article>
+          }
         }
       }
     </div>

@@ -1,12 +1,12 @@
 import { Component, inject, signal, ChangeDetectionStrategy, OnInit } from '@angular/core';
-import { Router, ActivatedRoute } from '@angular/router';
+import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import {
   LucideAngularModule, LUCIDE_ICONS, LucideIconProvider,
   ScrollText, BookOpen, Library, BookMarked, Hash, Sparkles, GitFork, ListTree,
-  Box, Zap, Palette, Circle,
+  Box, Zap, Palette, Circle, Layers, ArrowRight,
 } from 'lucide-angular';
 import { LexiconSpineService } from '../lexicon-spine.service';
-import { RootDisplay, Tri, FamilyLemmaVm, FamilyGroupVm } from '../word-grid.types';
+import { RootDisplay, Tri, FamilyLemmaVm, FamilyGroupVm, FamilyTierVm, LensVm } from '../word-grid.types';
 import { MorphWordCardComponent, MorphCardVm } from '../../../features/quran/shared/morph-word-card.component';
 
 type Lang = 'en' | 'ar' | 'ur';
@@ -20,12 +20,12 @@ type Lang = 'en' | 'ar' | 'ur';
 @Component({
   selector: 'km-root',
   standalone: true,
-  imports: [LucideAngularModule, MorphWordCardComponent],
+  imports: [LucideAngularModule, RouterLink, MorphWordCardComponent],
   providers: [{
     provide: LUCIDE_ICONS, multi: true,
     useValue: new LucideIconProvider({
       ScrollText, BookOpen, Library, BookMarked, Hash, Sparkles, GitFork, ListTree,
-      Box, Zap, Palette, Circle,
+      Box, Zap, Palette, Circle, Layers, ArrowRight,
     }),
   }],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -82,6 +82,14 @@ export class RootComponent implements OnInit {
   familyGloss(g: FamilyGroupVm): string | null {
     return this.lang() === 'ar' ? null : (g.english_name ?? null);
   }
+  /** Tier name (الثلاثي المجرّد / المزيد فيه) — Arabic always; gloss in EN/UR. */
+  tierName(t: FamilyTierVm): string { return t.arabic_name ?? ''; }
+  tierGloss(t: FamilyTierVm): string | null {
+    const l = this.lang();
+    return l === 'ar' ? null : l === 'ur' ? (t.urdu_name ?? t.english_name ?? null) : (t.english_name ?? null);
+  }
+  /** Deep-link to the classical book reader for a lens: /lexicon/books/<slug>?root=<root>. */
+  lensLink(l: LensVm): unknown[] | null { return l.slug ? ['/lexicon/books', l.slug] : null; }
 
   /** A family lemma → universal-only card VM (no context → the 3D card shows the lemma). */
   famVm(f: FamilyLemmaVm): MorphCardVm {

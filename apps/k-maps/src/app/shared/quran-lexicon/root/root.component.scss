@@ -55,6 +55,18 @@
   }
 }
 
+.rv-tier {
+  margin: 0 0 1.75rem;
+  &__head {
+    display: flex; align-items: center; gap: 0.5rem; margin: 1.4rem 0 0.9rem;
+    padding-bottom: 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.08);
+    lucide-icon { color: rgba(232, 192, 96, 0.85); }
+  }
+  &__name { font-size: 1.05rem; color: #e8c060; letter-spacing: 0.01em; }
+  &__gloss { font-size: 0.74rem; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.4); }
+  .rv-famgroup { margin-inline-start: 0.4rem; }
+}
+
 .rv-famgroup {
   margin: 0 0 1.4rem;
   &__head {
@@ -89,18 +101,29 @@
 
 .rv-sources { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.85rem; }
 .rv-src {
-  padding: 0.9rem 1rem; border-radius: 0.7rem;
+  display: block; padding: 0.9rem 1rem; border-radius: 0.7rem;
   border: 1px solid rgba(77, 217, 168, 0.2); background: rgba(255,255,255,0.015);
   &__head { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem; }
-  &__name { font-size: 0.82rem; letter-spacing: 0.05em; color: #4dd9a8; }
-  &__page { margin-inline-start: auto; font-size: 0.72rem; color: rgba(255,255,255,0.35); }
+  &__name { font-size: 0.82rem; letter-spacing: 0.05em; color: #4dd9a8; margin-inline-end: auto; }
+  &__page { font-size: 0.72rem; color: rgba(255,255,255,0.35); }
+  &__go { color: rgba(77, 217, 168, 0.6); transition: transform 0.15s; }
   lucide-icon { color: #4dd9a8; }
   &__text {
-    margin: 0; font-size: 1.02rem; line-height: 1.9; color: rgba(244, 233, 207, 0.82);
+    margin: 0; font-size: 1rem; line-height: 1.85; color: rgba(244, 233, 207, 0.82);
     font-family: 'AmiriQuran', 'UthmanicHafs', serif;
-    max-height: 8.5rem; overflow: hidden;
-    -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent);
-    mask-image: linear-gradient(180deg, #000 70%, transparent);
+  }
+  &__cta {
+    display: inline-block; margin-top: 0.6rem; font-size: 0.74rem; letter-spacing: 0.03em;
+    color: rgba(77, 217, 168, 0.85);
+  }
+  &--link {
+    text-decoration: none; cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, transform 0.15s;
+    &:hover {
+      border-color: rgba(77, 217, 168, 0.55); background: rgba(77, 217, 168, 0.06);
+      transform: translateY(-1px);
+      .rv-src__go { transform: translateX(2px); }
+    }
   }
 }
 

@@ -33,13 +33,21 @@ export interface FamilyLemmaVm {
 }
 /** A morphological form-family (الوزن) group — names/icon come from the master table (data). */
 export interface FamilyGroupVm {
-  key: string; order: number; icon: string;
+  key: string; order: number; tier: string; icon: string;
   arabic_name: string | null; english_name: string | null; urdu_name: string | null;
   lemmas: FamilyLemmaVm[];
 }
+/** A tier band (الثلاثي المجرّد / المزيد فيه) holding its form-family groups. */
+export interface FamilyTierVm {
+  tier: string; icon: string;
+  arabic_name: string | null; english_name: string | null; urdu_name: string | null;
+  groups: FamilyGroupVm[];
+}
 export interface LensVm {
   key: string; label: string; icon: string; on: boolean;
-  heading?: string | null; text?: string | null; page?: number | null;  // the source entry (depth)
+  slug?: string | null; root?: string | null;       // deep-link to the book reader
+  heading?: string | null; summary?: string | null; // card summary
+  text?: string | null; page?: number | null;       // full source entry (depth)
 }
 
 export interface RootDisplay {
@@ -49,7 +57,7 @@ export interface RootDisplay {
   frequency_quran: number | null;
   meaning_core: Tri;
   hook: Tri;
-  family: FamilyGroupVm[];
+  family: FamilyTierVm[];
   lenses: LensVm[];
   senses: string[];
   section_icons: Record<string, string>;   // { family, senses, hook, freq } → lucide names
