@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { TitleCasePipe } from '@angular/common';
 import { SurahActionsComponent } from '../surah-actions/surah-actions.component';
-import { QuranSurahListItemDto } from '../../../../shared/models/quran/quran.models';
+import { QuranSurahListItemDto } from '../../../../../shared/models/quran/quran.models';
 
 /**
  * One surah card in the Surahs grid — number ring, Makki/Madani badge, Arabic

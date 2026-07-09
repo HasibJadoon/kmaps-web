@@ -14,8 +14,8 @@ import { TitleCasePipe } from '@angular/common';
 import gsap from 'gsap';
 import { QuranStateService } from '../../../../shared/services/quran/quran-state.service';
 import { HomePlaneButtonComponent } from '../../../../shared/components/home-plane-button/home-plane-button.component';
-import { SurahActionsComponent } from '../surah-actions/surah-actions.component';
-import { SurahCardComponent } from '../surah-card/surah-card.component';
+import { SurahActionsComponent } from '../card/surah-actions/surah-actions.component';
+import { SurahCardComponent } from '../card/surah-card/surah-card.component';
 
 @Component({
   selector: 'km-quran-surahs',

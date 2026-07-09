@@ -81,7 +81,7 @@ export const QURAN_ROUTES: Routes = [
   {
     path: 'surahs/:surahId/srs',
     loadComponent: () =>
-      import('./surah/srs/surah-srs.component').then((m) => m.SurahSrsComponent),
+      import('./surah/review/srs/surah-srs.component').then((m) => m.SurahSrsComponent),
     title: 'SRS — K-MAPS',
   },
   {

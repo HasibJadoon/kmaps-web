@@ -1,9 +1,9 @@
 import { Component, OnInit, AfterViewInit, ViewChildren, QueryList, ElementRef, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { NgClass, TitleCasePipe } from '@angular/common';
-import { QuranSurahService, SrsCardVm } from '../../../../shared/services/quran/quran-surah.service';
-import { QuranPageShellComponent } from '../../shared/quran-page-shell.component';
-import { QuranGsapService } from '../../../../shared/services/quran/quran-gsap.service';
+import { QuranSurahService, SrsCardVm } from '../../../../../shared/services/quran/quran-surah.service';
+import { QuranPageShellComponent } from '../../../shared/quran-page-shell.component';
+import { QuranGsapService } from '../../../../../shared/services/quran/quran-gsap.service';
 
 type SrsFilter = 'due' | 'upcoming' | 'all' | 'suspended';
 
