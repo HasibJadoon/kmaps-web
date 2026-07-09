@@ -52,5 +52,22 @@
         @for (s of d.senses; track s) { <li>{{ s }}</li> }
       </ul>
     }
+
+    <!-- Depth from the classical lexicons — the actual source entries -->
+    <h2 class="rv-section"><lucide-icon [name]="sectionIcon('freq')" [size]="15"></lucide-icon>Classical lexicons</h2>
+    <div class="rv-sources">
+      @for (l of d.lenses; track l.key) {
+        @if (l.on && l.text) {
+          <article class="rv-src">
+            <header class="rv-src__head">
+              <lucide-icon [name]="l.icon" [size]="14"></lucide-icon>
+              <span class="rv-src__name">{{ l.label }}</span>
+              @if (l.page) { <span class="rv-src__page">p.{{ l.page }}</span> }
+            </header>
+            <p class="rv-src__text" dir="rtl">{{ l.text }}</p>
+          </article>
+        }
+      }
+    </div>
   }
 </section>

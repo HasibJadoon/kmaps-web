@@ -31,7 +31,10 @@ export interface Tri { ar: string | null; en: string | null; ur: string | null; 
 export interface FamilyLemmaVm {
   lemma_ar: string; pos: string | null; pos_icon: string; verb_form: string | null; is_quran_word: boolean;
 }
-export interface LensVm { key: string; label: string; icon: string; on: boolean; }
+export interface LensVm {
+  key: string; label: string; icon: string; on: boolean;
+  heading?: string | null; text?: string | null; page?: number | null;  // the source entry (depth)
+}
 
 export interface RootDisplay {
   root: string;
