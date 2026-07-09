@@ -6,8 +6,8 @@ import { MetaphorData } from '../../morph-block.types';
   selector: 'km-mb-metaphor',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './metaphor.block.html',
-  styleUrl: './metaphor.block.scss',
+  templateUrl: './metaphor-block.component.html',
+  styleUrl: './metaphor-block.component.scss',
 })
 export class MetaphorBlock extends MorphBlockBase {
   get d(): MetaphorData { return (this.block.data ?? {}) as MetaphorData; }

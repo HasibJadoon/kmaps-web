@@ -6,8 +6,8 @@ import { LexiconData } from '../../morph-block.types';
   selector: 'km-mb-lexicon',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './lexicon.block.html',
-  styleUrl: './lexicon.block.scss',
+  templateUrl: './lexicon-block.component.html',
+  styleUrl: './lexicon-block.component.scss',
 })
 export class LexiconBlock extends MorphBlockBase {
   get d(): LexiconData { return (this.block.data ?? {}) as LexiconData; }

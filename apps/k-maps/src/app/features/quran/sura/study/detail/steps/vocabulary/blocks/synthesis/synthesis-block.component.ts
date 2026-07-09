@@ -12,8 +12,8 @@ const STRAND_ACCENT: Record<string, string> = {
   standalone: true,
   imports: [LucideAngularModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './synthesis.block.html',
-  styleUrl: './synthesis.block.scss',
+  templateUrl: './synthesis-block.component.html',
+  styleUrl: './synthesis-block.component.scss',
 })
 export class SynthesisBlock extends MorphBlockBase {
   get d(): SynthesisData { return (this.block.data ?? {}) as SynthesisData; }

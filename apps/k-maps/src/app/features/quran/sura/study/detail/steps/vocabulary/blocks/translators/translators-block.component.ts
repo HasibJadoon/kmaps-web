@@ -13,8 +13,8 @@ const READING: Record<string, { fg: string; bd: string }> = {
   selector: 'km-mb-translators',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './translators.block.html',
-  styleUrl: './translators.block.scss',
+  templateUrl: './translators-block.component.html',
+  styleUrl: './translators-block.component.scss',
 })
 export class TranslatorsBlock extends MorphBlockBase {
   get d(): TranslatorsData { return (this.block.data ?? {}) as TranslatorsData; }

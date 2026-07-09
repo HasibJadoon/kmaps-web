@@ -13,8 +13,8 @@ const USAGE_CELL = [
   selector: 'km-mb-usage-map',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './usage-map.block.html',
-  styleUrl: './usage-map.block.scss',
+  templateUrl: './usage-map-block.component.html',
+  styleUrl: './usage-map-block.component.scss',
 })
 export class UsageMapBlock extends MorphBlockBase {
   get d(): UsageMapData { return (this.block.data ?? {}) as UsageMapData; }

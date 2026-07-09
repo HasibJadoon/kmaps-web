@@ -6,8 +6,8 @@ import { SarfData } from '../../morph-block.types';
   selector: 'km-mb-sarf',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './sarf.block.html',
-  styleUrl: './sarf.block.scss',
+  templateUrl: './sarf-block.component.html',
+  styleUrl: './sarf-block.component.scss',
 })
 export class SarfBlock extends MorphBlockBase {
   get d(): SarfData { return (this.block.data ?? {}) as SarfData; }

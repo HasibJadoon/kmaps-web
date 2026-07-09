@@ -8,8 +8,8 @@ import { MasterStoryData } from '../../morph-block.types';
   standalone: true,
   imports: [LucideAngularModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './master-story.block.html',
-  styleUrl: './master-story.block.scss',
+  templateUrl: './master-story-block.component.html',
+  styleUrl: './master-story-block.component.scss',
 })
 export class MasterStoryBlock extends MorphBlockBase {
   get d(): MasterStoryData { return (this.block.data ?? {}) as MasterStoryData; }

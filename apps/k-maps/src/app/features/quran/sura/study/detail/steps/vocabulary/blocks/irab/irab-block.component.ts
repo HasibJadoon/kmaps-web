@@ -6,8 +6,8 @@ import { IrabData } from '../../morph-block.types';
   selector: 'km-mb-irab',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './irab.block.html',
-  styleUrl: './irab.block.scss',
+  templateUrl: './irab-block.component.html',
+  styleUrl: './irab-block.component.scss',
 })
 export class IrabBlock extends MorphBlockBase {
   get d(): IrabData { return (this.block.data ?? {}) as IrabData; }

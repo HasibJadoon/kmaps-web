@@ -6,8 +6,8 @@ import { KindredData } from '../../morph-block.types';
   selector: 'km-mb-kindred',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './kindred.block.html',
-  styleUrl: './kindred.block.scss',
+  templateUrl: './kindred-block.component.html',
+  styleUrl: './kindred-block.component.scss',
 })
 export class KindredBlock extends MorphBlockBase {
   get d(): KindredData { return (this.block.data ?? {}) as KindredData; }

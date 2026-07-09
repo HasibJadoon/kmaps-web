@@ -8,8 +8,8 @@ import { OccurrencesData } from '../../morph-block.types';
   standalone: true,
   imports: [LucideAngularModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './occurrences.block.html',
-  styleUrl: './occurrences.block.scss',
+  templateUrl: './occurrences-block.component.html',
+  styleUrl: './occurrences-block.component.scss',
 })
 export class OccurrencesBlock extends MorphBlockBase {
   get d(): OccurrencesData { return (this.block.data ?? {}) as OccurrencesData; }

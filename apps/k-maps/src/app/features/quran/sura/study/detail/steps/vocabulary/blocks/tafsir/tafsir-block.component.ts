@@ -6,8 +6,8 @@ import { TafsirData } from '../../morph-block.types';
   selector: 'km-mb-tafsir',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './tafsir.block.html',
-  styleUrl: './tafsir.block.scss',
+  templateUrl: './tafsir-block.component.html',
+  styleUrl: './tafsir-block.component.scss',
 })
 export class TafsirBlock extends MorphBlockBase {
   get d(): TafsirData { return (this.block.data ?? {}) as TafsirData; }

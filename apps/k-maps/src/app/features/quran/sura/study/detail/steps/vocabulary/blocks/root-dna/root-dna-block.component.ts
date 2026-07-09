@@ -6,8 +6,8 @@ import { RootDnaData } from '../../morph-block.types';
   selector: 'km-mb-root-dna',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './root-dna.block.html',
-  styleUrl: './root-dna.block.scss',
+  templateUrl: './root-dna-block.component.html',
+  styleUrl: './root-dna-block.component.scss',
 })
 export class RootDnaBlock extends MorphBlockBase {
   get d(): RootDnaData { return (this.block.data ?? {}) as RootDnaData; }

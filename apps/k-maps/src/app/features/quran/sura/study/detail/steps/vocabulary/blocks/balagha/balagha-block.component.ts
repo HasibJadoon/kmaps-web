@@ -6,8 +6,8 @@ import { BalaghaData } from '../../morph-block.types';
   selector: 'km-mb-balagha',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './balagha.block.html',
-  styleUrl: './balagha.block.scss',
+  templateUrl: './balagha-block.component.html',
+  styleUrl: './balagha-block.component.scss',
 })
 export class BalaghaBlock extends MorphBlockBase {
   get d(): BalaghaData { return (this.block.data ?? {}) as BalaghaData; }

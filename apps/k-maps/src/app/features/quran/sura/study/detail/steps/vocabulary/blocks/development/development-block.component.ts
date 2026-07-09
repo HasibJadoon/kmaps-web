@@ -6,8 +6,8 @@ import { DevelopmentData } from '../../morph-block.types';
   selector: 'km-mb-development',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './development.block.html',
-  styleUrl: './development.block.scss',
+  templateUrl: './development-block.component.html',
+  styleUrl: './development-block.component.scss',
 })
 export class DevelopmentBlock extends MorphBlockBase {
   get d(): DevelopmentData { return (this.block.data ?? {}) as DevelopmentData; }

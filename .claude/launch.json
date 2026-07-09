@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "k-maps-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start", "-w", "apps/k-maps"],
+      "port": 4200
+    }
+  ]
+}

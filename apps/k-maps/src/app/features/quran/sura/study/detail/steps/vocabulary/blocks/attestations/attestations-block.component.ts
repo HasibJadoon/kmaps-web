@@ -8,8 +8,8 @@ import { AttestationsData } from '../../morph-block.types';
   standalone: true,
   imports: [LucideAngularModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './attestations.block.html',
-  styleUrl: './attestations.block.scss',
+  templateUrl: './attestations-block.component.html',
+  styleUrl: './attestations-block.component.scss',
 })
 export class AttestationsBlock extends MorphBlockBase {
   get d(): AttestationsData { return (this.block.data ?? {}) as AttestationsData; }

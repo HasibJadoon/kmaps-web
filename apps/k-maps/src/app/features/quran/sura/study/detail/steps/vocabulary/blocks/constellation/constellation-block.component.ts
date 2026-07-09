@@ -10,8 +10,8 @@ const KIND_COLOR: Record<string, string> = {
   selector: 'km-mb-constellation',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './constellation.block.html',
-  styleUrl: './constellation.block.scss',
+  templateUrl: './constellation-block.component.html',
+  styleUrl: './constellation-block.component.scss',
 })
 export class ConstellationBlock extends MorphBlockBase {
   get d(): ConstellationData { return (this.block.data ?? {}) as ConstellationData; }
