@@ -6,19 +6,21 @@ import {
   Box, Zap, Palette, Circle,
 } from 'lucide-angular';
 import { LexiconSpineService } from '../lexicon-spine.service';
-import { RootDisplay } from '../word-grid.types';
+import { RootDisplay, Tri, FamilyLemmaVm, FamilyGroupVm } from '../word-grid.types';
+import { MorphWordCardComponent, MorphCardVm } from '../../../features/quran/shared/morph-word-card.component';
+
+type Lang = 'en' | 'ar' | 'ur';
 
 /**
  * Root view — the UNIVERSAL lexicon spine, rendered VERBATIM from the display layer
- * (qr_morph_display_roots). Every icon is a lucide name carried in the data
- * (lens.icon, family.pos_icon, section_icons.*); this component chooses none.
- * The registered icon set below is a fixed glyph asset (the "typeface") — names come
- * from data and fall back safely if absent.
+ * (qr_morph_display_roots). Trilingual (EN/AR/UR) like the morphology layer; the
+ * derived family renders as the shared 3D km-morph-word-card (universal-only — no
+ * occurrence context). Every icon is a lucide name carried in the data.
  */
 @Component({
   selector: 'km-root',
   standalone: true,
-  imports: [LucideAngularModule],
+  imports: [LucideAngularModule, MorphWordCardComponent],
   providers: [{
     provide: LUCIDE_ICONS, multi: true,
     useValue: new LucideIconProvider({
@@ -40,6 +42,12 @@ export class RootComponent implements OnInit {
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
 
+  readonly lang = signal<Lang>('en');
+  readonly langs: { key: Lang; label: string }[] = [
+    { key: 'en', label: 'EN' }, { key: 'ar', label: 'ع' }, { key: 'ur', label: 'UR' },
+  ];
+  setLang(l: Lang): void { this.lang.set(l); }
+
   ngOnInit(): void {
     const r = this.root();
     if (!r) { this.loading.set(false); return; }
@@ -49,8 +57,43 @@ export class RootComponent implements OnInit {
     });
   }
 
-  /** Section icon name from data (empty → lucide renders nothing harmful). */
-  sectionIcon(key: string): string {
-    return this.display()?.section_icons?.[key] ?? '';
+  /** Pick the active language from a trilingual field (fall back EN → AR). */
+  pick(t: Tri | null | undefined): string | null {
+    if (!t) return null;
+    const l = this.lang();
+    return (l === 'ar' ? (t.ar ?? t.en) : l === 'ur' ? (t.ur ?? t.en) : (t.en ?? t.ar)) ?? null;
+  }
+
+  /** Font stack per active language — same families as the morphology views. */
+  langFont(): string {
+    switch (this.lang()) {
+      case 'ar': return "'AmiriQuran','UthmanicHafs',serif";
+      case 'ur': return "'NotoNastaliqUrdu',serif";
+      default:   return "'Poppins',system-ui,sans-serif";
+    }
+  }
+  get isRtl(): boolean { return this.lang() !== 'en'; }
+
+  sectionIcon(key: string): string { return this.display()?.section_icons?.[key] ?? ''; }
+
+  /** A form-family group's name in the active language (AR name is the wazn, e.g. تَفْعِيل). */
+  familyName(g: FamilyGroupVm): string {
+    const l = this.lang();
+    return (l === 'ar' ? g.arabic_name : l === 'ur' ? (g.urdu_name ?? g.arabic_name) : (g.english_name ?? g.arabic_name)) ?? '';
+  }
+
+  /** A family lemma → universal-only card VM (no context → the 3D card shows the lemma). */
+  famVm(f: FamilyLemmaVm): MorphCardVm {
+    const d = this.display();
+    return {
+      group: (f.pos ?? '').toLowerCase().includes('verb') ? 'verb' : 'noun',
+      posLabel: f.pos ?? '',
+      isAnchor: false,
+      arc: null, rangeText: null, waznAr: null,
+      rootDisplay: d?.root_display ?? null,
+      rootAr: d?.root ?? null,
+      lemmaAr: f.lemma_ar,
+      context: null,
+    };
   }
 }

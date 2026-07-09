@@ -17,26 +17,27 @@ import type { QuranEnv } from '../env';
 
 type Scope = 'root' | 'surah' | 'passage' | 'lexicon';
 
+// One row per UNIQUE base word (lemma), aggregated over its occurrences in scope.
 interface GridRow {
-  surah: number;
-  ayah: number;
-  word_index: number;
-  word_text: string;
+  base_word: string;        // the lemma (group key) — the "base word"
   root: string | null;
-  lemma: string | null;
   d_lemma_ar: string | null;
   d_root_display: string | null;
   d_gloss_en: string | null;
+  occurrences: number;      // how many times this word appears in scope
+  first_key: number;        // packed surah*1e6 + ayah*1e3 + wordIndex of first occurrence
+  surface_any: string;      // a representative surface form
 }
 
 interface GridCard {
-  id: string;               // "surah:ayah:wordIndex"
-  ar: string;               // headline — authored lemma, else lemma, else surface
-  surface_ar: string;       // occurrence form
+  id: string;               // first occurrence "surah:ayah:wordIndex" (opens the detail)
+  ar: string;               // BASE word headline — authored lemma, else lemma
+  surface_ar: string;       // a representative occurrence form
   root: string | null;      // bare root, for navigation
   root_display: string | null;
   gloss: string | null;     // short English gloss (may be null)
-  surah: number;
+  occurrences: number;      // occurrence count in scope (detail lists them all)
+  surah: number;            // first occurrence — for opening the detail
   ayah: number;
   word_index: number;
 }
@@ -90,33 +91,45 @@ export function wordGridRoutes(router: Router<QuranEnv>) {
     }
 
     try {
+      // Base word = lemma. One row per unique lemma; occurrences aggregated.
+      // The detail view (opened from a card) lists every occurrence of that word.
       const rows = await query<GridRow>(
         env.DB_QR,
-        `SELECT w.surah, w.ayah, w.word_index, w.word_text, w.root, w.lemma,
-                d.lemma_ar     AS d_lemma_ar,
-                d.root_display AS d_root_display,
-                d.gloss_en     AS d_gloss_en
+        `SELECT COALESCE(w.lemma, w.word_text) AS base_word,
+                w.root                          AS root,
+                MAX(d.lemma_ar)                 AS d_lemma_ar,
+                MAX(d.root_display)             AS d_root_display,
+                MAX(d.gloss_en)                 AS d_gloss_en,
+                COUNT(*)                        AS occurrences,
+                MIN(w.surah * 1000000 + w.ayah * 1000 + w.word_index) AS first_key,
+                MAX(w.word_text)                AS surface_any
            FROM qr_word_occurrences w
            LEFT JOIN qr_morph_display_words d
              ON d.surah_no = w.surah AND d.ayah_no = w.ayah
             AND d.word_index = w.word_index AND d.status = 'live'
           WHERE ${conditions.join(' AND ')}
-          ORDER BY w.surah, w.ayah, w.word_index
+          GROUP BY COALESCE(w.lemma, w.word_text), w.root
+          ORDER BY occurrences DESC, first_key ASC
           LIMIT 2000`,
         params,
       );
 
-      const words: GridCard[] = rows.map((r) => ({
-        id:           `${r.surah}:${r.ayah}:${r.word_index}`,
-        ar:           clean(r.d_lemma_ar) ?? clean(r.lemma) ?? r.word_text,
-        surface_ar:   r.word_text,
-        root:         clean(r.root),
-        root_display: clean(r.d_root_display) ?? spaceRoot(r.root),
-        gloss:        clean(r.d_gloss_en),
-        surah:        r.surah,
-        ayah:         r.ayah,
-        word_index:   r.word_index,
-      }));
+      const words: GridCard[] = rows.map((r) => {
+        const key = Number(r.first_key) || 0;
+        const surah = Math.floor(key / 1000000);
+        const ayah = Math.floor(key / 1000) % 1000;
+        const wordIndex = key % 1000;
+        return {
+          id:           `${surah}:${ayah}:${wordIndex}`,
+          ar:           clean(r.d_lemma_ar) ?? clean(r.base_word) ?? r.surface_any,
+          surface_ar:   r.surface_any,
+          root:         clean(r.root),
+          root_display: clean(r.d_root_display) ?? spaceRoot(r.root),
+          gloss:        clean(r.d_gloss_en),
+          occurrences:  Number(r.occurrences) || 1,
+          surah, ayah, word_index: wordIndex,
+        };
+      });
 
       return ok({ scope, params: echo, count: words.length, words });
     } catch (err) {

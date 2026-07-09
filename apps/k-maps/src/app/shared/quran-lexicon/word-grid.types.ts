@@ -29,7 +29,13 @@ export interface WordGridResult {
 export interface Tri { ar: string | null; en: string | null; ur: string | null; }
 
 export interface FamilyLemmaVm {
-  lemma_ar: string; pos: string | null; pos_icon: string; verb_form: string | null; is_quran_word: boolean;
+  lemma_ar: string; pos: string | null; pos_icon: string; is_quran_word: boolean;
+}
+/** A morphological form-family (الوزن) group — names/icon come from the master table (data). */
+export interface FamilyGroupVm {
+  key: string; order: number; icon: string;
+  arabic_name: string | null; english_name: string | null; urdu_name: string | null;
+  lemmas: FamilyLemmaVm[];
 }
 export interface LensVm {
   key: string; label: string; icon: string; on: boolean;
@@ -43,7 +49,7 @@ export interface RootDisplay {
   frequency_quran: number | null;
   meaning_core: Tri;
   hook: Tri;
-  family: FamilyLemmaVm[];
+  family: FamilyGroupVm[];
   lenses: LensVm[];
   senses: string[];
   section_icons: Record<string, string>;   // { family, senses, hook, freq } → lucide names
