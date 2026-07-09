@@ -74,16 +74,16 @@ export class StudyVocabularyStepComponent implements OnChanges {
     return {
       group: w.group,
       posLabel: w.pos_ar || (w.group === 'verb' ? 'فعل' : 'اسم'),
-      ref: `${w.surah}:${w.ayah}`,
       isAnchor: w.is_anchor,
-      feats: w.feats ?? [],
-      surfaceAr: w.surface_ar,
       arc: w.sense_arc_en,
       rangeText: w.sense_range_en || w.gloss.en,
       // verbs carry their pattern as the form/family chip → no redundant header wazn
       waznAr: w.group === 'verb' ? null : w.wazn_ar,
       rootDisplay: w.root_display,
       rootAr: w.root_ar,
+      lemmaAr: w.lemma_ar ?? w.surface_ar,
+      // study step = occurrence context → the contextual band
+      context: { ref: `${w.surah}:${w.ayah}`, surfaceAr: w.surface_ar, feats: w.feats ?? [] },
     };
   }
 

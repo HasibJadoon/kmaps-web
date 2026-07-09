@@ -12,18 +12,27 @@ interface ArcPart { t: string; arrow: boolean; }
  * the passage study step) map their own row into this shape, so the card looks
  * and behaves identically everywhere. Pure data — no source logic.
  */
+/** Occurrence/naḥw band — present ONLY when a word is viewed in an ayah (the
+ *  morphology step). Absent in the pure lexicon (universal-only). */
+export interface MorphContextVm {
+  ref: string;                                   // "44:2"
+  surfaceAr: string;                             // the word as it occurs (with case endings)
+  feats: { cat: string; ar: string }[];          // case/definiteness/number/gender · tense/voice
+}
+
 export interface MorphCardVm {
+  // ── universal (ṣarf / lemma-level — always shown) ──────────────────────────
   group: string;                                 // 'noun' | 'verb'
   posLabel: string;                              // "Noun" | "Verb" | "Noun (participle)"
-  ref: string;                                   // "44:2"
   isAnchor: boolean;
-  feats: { cat: string; ar: string }[];          // case/number/gender/type · tense/voice
-  surfaceAr: string;                             // the word as it occurs
   arc: string | null;                            // "separation → clarity"
   rangeText: string | null;                      // compact range of meanings (or gloss)
   waznAr: string | null;
   rootDisplay: string | null;                    // "ب ي ن"
   rootAr: string | null;                         // "بين" (for navigation)
+  lemmaAr: string | null;                        // dictionary form — the headline in the lexicon
+  // ── contextual (naḥw / occurrence — present only in an ayah) ───────────────
+  context?: MorphContextVm | null;
 }
 
 /**
@@ -45,21 +54,21 @@ export interface MorphCardVm {
         <div class="wcard__head" data-depth="0.35">
           <span class="wcard__pos" [class.wcard__pos--ar]="posIsAr()">{{ card().posLabel }}</span>
           @if (card().waznAr) { <span class="wcard__wazn" dir="rtl">{{ card().waznAr }}</span> }
-          <span class="wcard__ref">{{ card().ref }}</span>
+          @if (card().context) { <span class="wcard__ref">{{ card().context!.ref }}</span> }
           @if (card().isAnchor) { <span class="wcard__anchor" title="Root anchor">✦</span> }
         </div>
 
-        <!-- grammatical-feature chips -->
-        @if (card().feats.length) {
+        <!-- grammatical-feature chips — CONTEXTUAL (occurrence only) -->
+        @if (card().context?.feats?.length) {
           <div class="wcard__feats" data-depth="0.6">
-            @for (f of card().feats; track f.cat) {
+            @for (f of card().context!.feats; track f.cat) {
               <span class="feat feat--{{ f.cat }}" dir="rtl">{{ f.ar }}</span>
             }
           </div>
         }
 
-        <!-- the word, as it occurs -->
-        <div class="wcard__word" dir="rtl" data-depth="1">{{ card().surfaceAr }}</div>
+        <!-- the word: surface (in context) or the lemma (in the lexicon) -->
+        <div class="wcard__word" dir="rtl" data-depth="1">{{ card().context?.surfaceAr || card().lemmaAr }}</div>
 
         <!-- compact 360° synopsis: semantic arc + range of meanings -->
         @if (card().arc) {
