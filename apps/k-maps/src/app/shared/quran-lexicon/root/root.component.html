@@ -1,9 +1,43 @@
 <section class="root-view">
   <header class="root-view__head">
-    <span class="root-view__eyebrow">Root</span>
+    <span class="root-view__eyebrow">Root · Lexicon</span>
     <h1 class="root-view__title">{{ root() }}</h1>
-    <p class="root-view__sub">Words derived from this root across the Qurʾān</p>
+    @if (profile()?.meaning_core_en) {
+      <p class="root-view__core">{{ profile()!.meaning_core_en }}</p>
+    }
   </header>
 
-  <km-words-grid scope="root" [root]="root()" (open)="openWord($event)"></km-words-grid>
+  @if (loading()) {
+    <div class="rv-state"><div class="rv-state__spinner"></div><p>Loading lexicon spine…</p></div>
+  } @else if (error()) {
+    <div class="rv-state rv-state--error"><p>{{ error() }}</p></div>
+  } @else if (profile()) {
+    <!-- Classical lexicon coverage (universal, corpus-agnostic) -->
+    <div class="rv-lenses">
+      @for (k of lensKeys; track k) {
+        <span class="rv-lens" [class.rv-lens--on]="hasLens(k)">{{ lensLabels[k] }}</span>
+      }
+      @if (profile()!.frequency_quran) {
+        <span class="rv-freq">{{ profile()!.frequency_quran }}× in Qurʾān</span>
+      }
+    </div>
+
+    <!-- Derived family — the lemmas under this root (Root → Lemma) -->
+    <h2 class="rv-section">Derived family</h2>
+    <div class="rv-family">
+      @for (f of profile()!.family; track f.lemma_ar) {
+        <div class="rv-lemma" [class.rv-lemma--quran]="f.is_quran_word">
+          <span class="rv-lemma__word">{{ f.lemma_ar }}</span>
+          <span class="rv-lemma__pos">{{ f.pos }}@if (f.verb_form) { · {{ f.verb_form }} }</span>
+        </div>
+      }
+    </div>
+
+    @if (profile()!.senses?.length) {
+      <h2 class="rv-section">Senses</h2>
+      <ul class="rv-senses">
+        @for (s of profile()!.senses; track s) { <li>{{ s }}</li> }
+      </ul>
+    }
+  }
 </section>

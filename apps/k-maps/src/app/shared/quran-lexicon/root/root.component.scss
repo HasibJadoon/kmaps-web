@@ -11,9 +11,45 @@
     color: rgba(192, 132, 245, 0.85);
   }
   &__title {
-    margin: 0.2rem 0 0.15rem;
-    font-size: 2.4rem; line-height: 1.2; color: #f4e9cf;
+    margin: 0.2rem 0 0.4rem;
+    font-size: 2.6rem; line-height: 1.2; color: #f4e9cf;
     font-family: 'UthmanicHafs', 'AmiriQuran', serif;
   }
-  &__sub { margin: 0; font-size: 0.9rem; color: rgba(255, 255, 255, 0.55); }
+  &__core { margin: 0; font-size: 1.05rem; color: rgba(244, 233, 207, 0.8); max-width: 60ch; }
 }
+
+.rv-lenses { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.5rem 0 1.75rem; }
+.rv-lens {
+  font-size: 0.75rem; padding: 0.25rem 0.6rem; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.35);
+  &--on { border-color: rgba(77, 217, 168, 0.5); color: #4dd9a8; background: rgba(77,217,168,0.08); }
+}
+.rv-freq { margin-inline-start: auto; font-size: 0.78rem; color: rgba(232, 192, 96, 0.8); }
+
+.rv-section {
+  font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase;
+  color: rgba(255,255,255,0.45); margin: 1.5rem 0 0.75rem;
+}
+
+.rv-family { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.7rem; }
+.rv-lemma {
+  display: flex; flex-direction: column; gap: 0.25rem; text-align: right;
+  padding: 0.8rem 0.9rem; border-radius: 0.7rem;
+  border: 1px solid rgba(232, 192, 96, 0.18); background: rgba(255,255,255,0.02);
+  &--quran { border-color: rgba(232, 192, 96, 0.45); }
+  &__word { font-size: 1.55rem; color: #f4e9cf; font-family: 'UthmanicHafs', 'AmiriQuran', serif; }
+  &__pos { font-size: 0.78rem; color: rgba(192, 132, 245, 0.8); }
+}
+
+.rv-senses { margin: 0; padding-inline-start: 1.1rem; color: rgba(244, 233, 207, 0.8); font-size: 0.92rem; line-height: 1.7; }
+
+.rv-state {
+  padding: 2.5rem; text-align: center; opacity: 0.6; font-size: 0.9rem;
+  &--error { color: #ff9f6b; }
+  &__spinner {
+    width: 22px; height: 22px; margin: 0 auto 0.6rem;
+    border: 2px solid rgba(232, 192, 96, 0.25); border-top-color: rgba(232, 192, 96, 0.9);
+    border-radius: 50%; animation: rv-spin 0.7s linear infinite;
+  }
+}
+@keyframes rv-spin { to { transform: rotate(360deg); } }
