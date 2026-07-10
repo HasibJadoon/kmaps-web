@@ -156,12 +156,18 @@ export function scholarshipRoutes(router: Router<ArLinguisticsEnv>) {
     const slug = (params.slug ?? '').trim();
     if (!slug) return badRequest('slug required');
 
+    // Order by the ARABIC root, alif → yāʾ. Sinai's book is arranged by the English
+    // transliteration alphabet, so page order is not Arabic order. Unicode code points
+    // already run alif..yāʾ; we only fold the hamza/alif and alif-maqṣūra variants so
+    // أ/إ/آ/ٱ group with ا and ى sorts with ي instead of ahead of the whole block.
+    const arabicSort = `replace(replace(replace(replace(replace(root_norm,
+      'أ','ا'),'إ','ا'),'آ','ا'),'ٱ','ا'),'ى','ي')`;
     const rows = (await env.DB_AL.prepare(
       `SELECT root_norm, root_text, page_no, COUNT(*) AS n
        FROM ar_ling_root_scholarship
        WHERE source_slug = ?
        GROUP BY root_norm
-       ORDER BY page_no, root_norm`,
+       ORDER BY ${arabicSort}`,
     ).bind(slug).all<{ root_norm: string; root_text: string | null; page_no: number | null; n: number }>()).results ?? [];
 
     return ok({ slug, rows, total: rows.length });
