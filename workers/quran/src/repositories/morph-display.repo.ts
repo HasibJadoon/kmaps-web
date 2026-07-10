@@ -33,13 +33,17 @@ interface WordRow {
   is_anchor: number; importance: number; difficulty: number | null; frequency_quran: number | null;
   root_meaning_ar: string | null; root_meaning_en: string | null; quran_meanings_json: string | null;
 }
-// Tier-2 (lemma) facts joined from qr_morph_display_lemmas via words.lemma_ref.
+// Tier-2 (lemma) facts joined from qr_morph_display_lemmas via words.lemma_ref,
+// plus the form-family master row (qr_morph_form_families via form_family_id) —
+// the bāb: نَصَرَ … for Form I, the form name (إِفْعَال …) for derived forms.
 // These win over the word-row copies (which are transitional and get nulled).
 interface LemmaTierRow {
   l_wazn_ar: string | null; l_form_roman: string | null; l_form_ar: string | null;
   l_verb_form_ar: string | null;
   l_derived_type_ar: string | null; l_derived_type_en: string | null; l_derived_type_ur: string | null;
   l_gloss_ar: string | null; l_gloss_en: string | null; l_gloss_ur: string | null;
+  f_name_ar: string | null; f_name_en: string | null; f_wazn_ar: string | null;
+  f_model_ar: string | null; f_roman: string | null; f_kind: string | null; f_tier: string | null;
 }
 const LEMMA_TIER_SELECT = `
        l.wazn_ar         AS l_wazn_ar,
@@ -51,7 +55,16 @@ const LEMMA_TIER_SELECT = `
        l.derived_type_ur AS l_derived_type_ur,
        l.gloss_ar        AS l_gloss_ar,
        l.gloss_en        AS l_gloss_en,
-       l.gloss_ur        AS l_gloss_ur`;
+       l.gloss_ur        AS l_gloss_ur,
+       f.arabic_name     AS f_name_ar,
+       f.english_name    AS f_name_en,
+       f.wazn            AS f_wazn_ar,
+       f.example_ar      AS f_model_ar,
+       f.roman           AS f_roman,
+       f.kind            AS f_kind,
+       f.tier            AS f_tier`;
+const FAMILY_JOIN =
+  `LEFT JOIN qr_morph_form_families f ON f.id = l.form_family_id AND f.status = 'live'`;
 interface BlockRow {
   scope_level: string; scope_key: string | null; ayah_key: string | null;
   block_type: string; block_subtype: string | null; display_order: number;
@@ -78,6 +91,7 @@ export class MorphDisplayRepo {
       `SELECT w.*,${LEMMA_TIER_SELECT}
          FROM qr_morph_display_words w
          LEFT JOIN qr_morph_display_lemmas l ON l.id = w.lemma_ref AND l.status = 'live'
+         ${FAMILY_JOIN}
         WHERE w.surah_no = ? AND w.ayah_no = ? AND w.word_index = ? AND w.status = 'live'`,
       [surah, ayah, wordIndex],
     );
@@ -186,8 +200,16 @@ export class MorphDisplayRepo {
         sarf: { derived_ar: w.l_derived_type_ar ?? w.derived_type_ar,
                 derived_en: w.l_derived_type_en ?? w.derived_type_en,
                 derived_ur: w.l_derived_type_ur ?? w.derived_type_ur,
-                wazn_ar: w.l_wazn_ar ?? w.wazn_ar, form_roman: w.l_form_roman ?? w.form_roman,
-                form_ar: w.l_form_ar ?? w.form_ar, features: hydrate(w.features_json) },
+                wazn_ar: w.l_wazn_ar ?? w.wazn_ar,
+                form_roman: w.f_roman ?? w.l_form_roman ?? w.form_roman,
+                // the bāb, always from the master family when linked: باب نَصَرَ
+                // (Form I) · باب إِفْعَال (derived) — the hero chip renders it
+                form_ar: w.f_name_ar ?? w.l_form_ar ?? w.form_ar,
+                features: hydrate(w.features_json) },
+        family: w.f_name_ar ? {
+          name_ar: w.f_name_ar, name_en: w.f_name_en, roman: w.f_roman,
+          wazn_ar: w.f_wazn_ar, model_ar: w.f_model_ar, kind: w.f_kind, tier: w.f_tier,
+        } : null,
         badge_color: w.badge_color, is_anchor: !!w.is_anchor,
         importance: w.importance, difficulty: w.difficulty, frequency_quran: w.frequency_quran,
       },
@@ -220,6 +242,7 @@ export class MorphDisplayRepo {
          LEFT JOIN qr_word_occurrences o
            ON o.surah = d.surah_no AND o.ayah = d.ayah_no AND o.word_index = d.word_index
          LEFT JOIN qr_morph_display_lemmas l ON l.id = d.lemma_ref AND l.status = 'live'
+         ${FAMILY_JOIN}
         WHERE d.surah_no = ? AND d.is_promoted = 1 AND d.status = 'live'
         ORDER BY d.ayah_no, d.word_index`,
       [surah],
@@ -236,11 +259,14 @@ export class MorphDisplayRepo {
         gloss: { ar: w.l_gloss_ar ?? w.gloss_ar, en: w.l_gloss_en ?? w.gloss_en, ur: w.l_gloss_ur ?? w.gloss_ur },
         derived_type_ar: derivedAr, derived_type_en: derivedEn,
         wazn_ar: waznOf(w.l_wazn_ar ?? w.wazn_ar, w.morphology_tag_json, w.lemma_ar, w.root_ar, bucket),
-        form_roman: w.l_form_roman ?? w.form_roman, form_ar: w.l_form_ar ?? w.form_ar,
+        form_roman: w.f_roman ?? w.l_form_roman ?? w.form_roman,
+        form_ar: w.f_name_ar ?? w.l_form_ar ?? w.form_ar,
         root_meaning: { ar: w.root_meaning_ar, en: w.root_meaning_en },
         quran_meanings: meanings,
         badge_color: w.badge_color, is_anchor: !!w.is_anchor, frequency_quran: w.frequency_quran,
-        feats: buildFeats(bucket, w.morphology_tag_json, derivedAr, derivedEn, w.l_verb_form_ar ?? w.verb_form_ar ?? null),
+        feats: buildFeats(bucket, w.morphology_tag_json, derivedAr, derivedEn,
+                          w.f_model_ar ?? w.l_verb_form_ar ?? w.verb_form_ar ?? null,
+                          w.f_name_ar, w.f_roman),
         sense_arc_en: w.sense_arc_en ?? null,
         sense_range_en: rangeOf(w.sense_range_en, meanings),
       };

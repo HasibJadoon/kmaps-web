@@ -22,8 +22,11 @@ const FORM_MODEL_AR: Record<string, string> = {
 
 /**
  * Grammatical-feature chips from the QAC stem, ordered as the card reads them.
- * Nouns: case (iʿrāb) · number · gender · type. Verbs: tense · voice.
- * `typeAr`/`typeEn` are the curated/parsed derived type (اسم فاعل / مصدر …).
+ * Nouns: case (iʿrāb) · number · gender · type · form family. Verbs: tense ·
+ * voice · form family. `typeAr`/`typeEn` are the curated/parsed derived type
+ * (اسم فاعل / مصدر …); `familyAr`/`familyRoman` are the linked form-family
+ * master row (bāb نَصَرَ / form إِفْعَال) — when linked, the family chip
+ * always shows, on derived nominals too.
  *
  * QAC leaves the unmarked defaults implicit, so we restore them: a noun with a
  * gender but no number token is singular (مفرد); a finite verb with no voice
@@ -35,6 +38,8 @@ export function buildFeats(
   typeAr: string | null,
   typeEn: string | null,
   verbFormAr: string | null = null,
+  familyAr: string | null = null,
+  familyRoman: string | null = null,
 ): MorphFeat[] {
   const m = parseQacMorphology(tagJson);
   const out: MorphFeat[] = [];
@@ -47,9 +52,10 @@ export function buildFeats(
     // voice as maʿlūm / majhūl (short Arabic names). Active is unmarked in QAC.
     const voiceAr = m.voice === 'passive' ? 'مجهول' : (m.voice_ar ?? (m.aspect_ar ? 'معلوم' : null));
     push('voice', voiceAr, m.voice ?? (m.aspect_ar ? 'active' : null));
-    // form / family: authored (Form I family) else the augmented model from QAC.
-    const formAr = verbFormAr ?? (m.form && m.form !== 'I' ? (FORM_MODEL_AR[m.form] ?? null) : null);
-    push('form', formAr, m.form ?? null);
+    // form / family: the master-linked model (bāb model verb for Form I, model
+    // pattern for derived), else authored, else the augmented model from QAC.
+    const formAr = verbFormAr ?? (m.form && m.form !== 'I' ? (FORM_MODEL_AR[m.form] ?? null) : null) ?? familyAr;
+    push('form', formAr, m.form ?? familyRoman);
     return out;
   }
 
@@ -68,6 +74,8 @@ export function buildFeats(
   push('number', m.number_ar ?? (m.gender_ar ? 'مفرد' : null), m.number ?? (m.gender_ar ? 'singular' : null));
   push('gender', m.gender_ar, m.gender);
   push('type', typeAr, typeEn);
+  // derived nominals carry their verb family too (اسم فاعل من باب الإفعال)
+  push('form', familyAr, familyRoman ?? m.form ?? null);
   return out;
 }
 

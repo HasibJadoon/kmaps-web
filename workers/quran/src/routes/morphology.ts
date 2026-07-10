@@ -59,6 +59,8 @@ interface JoinedRow {
   d_sense_arc_en: string | null;
   d_sense_range_en: string | null;
   d_verb_form_ar: string | null;
+  f_name_ar: string | null;
+  f_roman: string | null;
   l_wazn_ar: string | null;
 }
 
@@ -207,14 +209,16 @@ export function morphologyRoutes(router: Router<QuranEnv>) {
             COALESCE(dl.derived_type_en, d.derived_type_en)   AS d_derived_type_en,
             COALESCE(dl.derived_type_ar, d.derived_type_ar)   AS d_derived_type_ar,
             COALESCE(dl.wazn_ar, d.wazn_ar)                   AS d_wazn_ar,
-            COALESCE(dl.form_ar, d.form_ar)                   AS d_form_ar,
-            COALESCE(dl.form_roman, d.form_roman)             AS d_form_roman,
+            COALESCE(f.arabic_name, dl.form_ar, d.form_ar)    AS d_form_ar,
+            COALESCE(f.roman, dl.form_roman, d.form_roman)    AS d_form_roman,
             d.quran_meanings_json AS d_quran_meanings_json,
             d.root_meaning_en     AS d_root_meaning_en,
             d.is_anchor           AS d_is_anchor,
             d.sense_arc_en        AS d_sense_arc_en,
             d.sense_range_en      AS d_sense_range_en,
-            COALESCE(dl.verb_form_ar, d.verb_form_ar)         AS d_verb_form_ar,
+            COALESCE(f.example_ar, dl.verb_form_ar, d.verb_form_ar) AS d_verb_form_ar,
+            f.arabic_name         AS f_name_ar,
+            f.roman               AS f_roman,
             ql.wazn_ar            AS l_wazn_ar
           FROM qr_word_occurrences w
           LEFT JOIN qr_morph_display_words d
@@ -223,6 +227,7 @@ export function morphologyRoutes(router: Router<QuranEnv>) {
            AND d.word_index = w.word_index
            AND d.status = 'live'
           LEFT JOIN qr_morph_display_lemmas dl ON dl.id = d.lemma_ref AND dl.status = 'live'
+          LEFT JOIN qr_morph_form_families f ON f.id = dl.form_family_id AND f.status = 'live'
           LEFT JOIN qr_lemmas ql ON ql.lemma_text = w.lemma
           WHERE ${conditions.join(' AND ')}
           ORDER BY w.ayah, w.word_index`,
@@ -265,7 +270,7 @@ export function morphologyRoutes(router: Router<QuranEnv>) {
           quran_meanings:  meanings,
           root_meaning_en: clean(row.d_root_meaning_en),
           is_anchor:       !!row.d_is_anchor,
-          feats:           buildFeats(kind.bucket, row.morphology_tag_json, derivedTypeAr, derivedTypeEn, clean(row.d_verb_form_ar)),
+          feats:           buildFeats(kind.bucket, row.morphology_tag_json, derivedTypeAr, derivedTypeEn, clean(row.d_verb_form_ar), clean(row.f_name_ar), clean(row.f_roman)),
           sense_arc_en:    clean(row.d_sense_arc_en),
           sense_range_en:  rangeOf(clean(row.d_sense_range_en), meanings),
         });
