@@ -108,9 +108,18 @@
   &__page { font-size: 0.72rem; color: rgba(255,255,255,0.35); }
   &__go { color: rgba(77, 217, 168, 0.6); transition: transform 0.15s; }
   lucide-icon { color: #4dd9a8; }
+  &__author {
+    display: block; margin: -0.3rem 0 0.5rem; font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.33);
+  }
   &__text {
     margin: 0; font-size: 1rem; line-height: 1.85; color: rgba(244, 233, 207, 0.82);
     font-family: 'AmiriQuran', 'UthmanicHafs', serif;
+    // Lane and Sinai read left-to-right — the direction arrives in the data.
+    &[dir='ltr'] {
+      font-family: 'Poppins', system-ui, sans-serif;
+      font-size: 0.88rem; line-height: 1.65; text-align: left;
+    }
   }
   &__cta {
     display: inline-block; margin-top: 0.6rem; font-size: 0.74rem; letter-spacing: 0.03em;

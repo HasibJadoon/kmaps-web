@@ -45,9 +45,11 @@ export interface FamilyTierVm {
 }
 export interface LensVm {
   key: string; label: string; icon: string; on: boolean;
+  author?: string | null;                           // "Ibn Fāris", "E. W. Lane" …
   slug?: string | null; root?: string | null;       // deep-link to the book reader
   heading?: string | null; summary?: string | null; // card summary
   text?: string | null; page?: number | null;       // full source entry (depth)
+  dir?: 'rtl' | 'ltr';                              // Lane/Sinai read LTR — direction is data
 }
 
 export interface RootDisplay {

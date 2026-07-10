@@ -4,12 +4,21 @@ import {
   LucideAngularModule, LUCIDE_ICONS, LucideIconProvider,
   ScrollText, BookOpen, Library, BookMarked, Hash, Sparkles, GitFork, ListTree,
   Box, Zap, Palette, Circle, Layers, ArrowRight,
+  Eye, BadgeCheck, Lamp, Waves, Languages, Crown, Droplets, Boxes,
 } from 'lucide-angular';
 import { LexiconSpineService } from '../lexicon-spine.service';
 import { RootDisplay, Tri, FamilyLemmaVm, FamilyGroupVm, FamilyTierVm, LensVm } from '../word-grid.types';
 import { MorphWordCardComponent, MorphCardVm } from '../../../features/quran/shared/morph-word-card.component';
 
 type Lang = 'en' | 'ar' | 'ur';
+
+/** The icon POOL (a fixed asset). Icon NAMES arrive from qr_morph_display_* data. */
+const ROOT_LUCIDE = {
+  ScrollText, BookOpen, Library, BookMarked, Hash, Sparkles, GitFork, ListTree,
+  Box, Zap, Palette, Circle, Layers, ArrowRight,
+  Eye, BadgeCheck, Lamp, Waves, Languages, Crown, Droplets, Boxes,
+};
+const ROOT_ICON_KEYS = new Set(Object.keys(ROOT_LUCIDE).map(k => k.toLowerCase()));
 
 /**
  * Root view — the UNIVERSAL lexicon spine, rendered VERBATIM from the display layer
@@ -23,10 +32,7 @@ type Lang = 'en' | 'ar' | 'ur';
   imports: [LucideAngularModule, RouterLink, MorphWordCardComponent],
   providers: [{
     provide: LUCIDE_ICONS, multi: true,
-    useValue: new LucideIconProvider({
-      ScrollText, BookOpen, Library, BookMarked, Hash, Sparkles, GitFork, ListTree,
-      Box, Zap, Palette, Circle, Layers, ArrowRight,
-    }),
+    useValue: new LucideIconProvider(ROOT_LUCIDE),
   }],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './root.component.html',
@@ -74,7 +80,14 @@ export class RootComponent implements OnInit {
   }
   get isRtl(): boolean { return this.lang() !== 'en'; }
 
-  sectionIcon(key: string): string { return this.display()?.section_icons?.[key] ?? ''; }
+  /** An icon name outside the pool makes lucide-angular THROW mid-render and kills the
+   *  page. Every data-supplied name goes through this clamp. */
+  safeIcon(name: string | null | undefined, fallback = 'circle'): string {
+    const key = String(name ?? '').replace(/[-_\s]/g, '').toLowerCase();
+    return key && ROOT_ICON_KEYS.has(key) ? String(name) : fallback;
+  }
+
+  sectionIcon(key: string): string { return this.safeIcon(this.display()?.section_icons?.[key]); }
 
   /** The form-family name is the wazn itself — always Arabic (تَفْعِيل), from the master table. */
   familyName(g: FamilyGroupVm): string { return g.arabic_name ?? ''; }

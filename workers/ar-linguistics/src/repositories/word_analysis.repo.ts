@@ -33,6 +33,9 @@ export interface RootAnalysis {
   coverage: Record<string, boolean>;
 }
 
+// The four NAMED lenses are a back-compat contract for existing consumers; every
+// other lexicon in ar_ling_lexicon_root_entries surfaces through `lenses.others`.
+// Nothing here decides WHICH lexicons render — qr_morph_display_sources does that.
 const LENS_SLUG = {
   maqayis: 'saaid_maqayis_al_lugha',
   mufradat: 'ketabonline_al_raghib_mufradat',
@@ -64,7 +67,14 @@ function stripMarkup(s: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
-function looksDirty(s: string): boolean { return /<[a-z][^>]*>/i.test(s) || /^\s*[[{]/.test(s); }
+/** A structured payload rather than prose (Sinai's key-term index). Parse to decide —
+ *  al-Ṣiḥāḥ opens its entries with a bracketed headword like `[بين]`, which is prose. */
+function isJsonBlob(s: string): boolean {
+  const t = s.trim();
+  if (t[0] !== '{' && t[0] !== '[') return false;
+  try { return typeof JSON.parse(t) === 'object'; } catch { return false; }
+}
+function looksDirty(s: string): boolean { return /<[a-z][^>]*>/i.test(s) || isJsonBlob(s); }
 
 /** Sinai key-terms are stored as a JSON blob; parse to a clean shape or null. */
 function parseSinai(raw: string | null): SinaiTerms | null {
@@ -104,9 +114,9 @@ export class WordAnalysisRepo {
         this.db, `SELECT root_norm, title, caption_md, palette, svg_inline FROM ar_ling_vocab_illustrations WHERE root_norm IN (${ph})`, uniq).catch(() => []),
       query<{ root_norm: string; diagram_kind: string | null; spec_json: string | null; renderer_key: string | null }>(
         this.db, `SELECT root_norm, diagram_kind, spec_json, renderer_key FROM ar_ling_vocab_diagrams WHERE root_norm IN (${ph})`, uniq).catch(() => []),
-      query<{ root_norm: string; source_slug: string; raw_text: string | null; entry_text_ar: string | null; page_start: number | null }>(
-        this.db, `SELECT root_norm, source_slug, raw_text, entry_text_ar, page_start FROM ar_ling_lexicon_root_entries WHERE root_norm IN (${ph}) AND source_slug IN (?,?,?,?,?)`,
-        [...uniq, LENS_SLUG.maqayis, LENS_SLUG.mufradat, LENS_SLUG.lane, LENS_SLUG.sinai, FIVE_LENS_SLUG]).catch(() => []),
+      query<{ root_norm: string; source_slug: string; raw_text: string | null; entry_text_ar: string | null; entry_text_en: string | null; page_start: number | null }>(
+        this.db, `SELECT root_norm, source_slug, raw_text, entry_text_ar, entry_text_en, page_start FROM ar_ling_lexicon_root_entries WHERE root_norm IN (${ph})`,
+        uniq).catch(() => []),
       query<{ root_norm: string; heading_norm: string | null; text_ar: string | null }>(
         this.db, `SELECT root_norm, heading_norm, text_ar FROM ar_ling_lexicon_entry_sections WHERE root_norm IN (${ph}) AND source_slug = ?`, [...uniq, FIVE_LENS_SLUG]).catch(() => []),
     ]);
@@ -162,10 +172,27 @@ export class WordAnalysisRepo {
       const v = vMap.get(root);
       const d = dMap.get(root);
       const lensList = lensByRoot.get(root) ?? [];
+      type LensRow = (typeof lensList)[number];
+      const entryOf = (e: LensRow): LensEntry => {
+        // Sinai is an English lexicon: its article lives in entry_text_en, while
+        // raw_text holds only the key-term index stub it was first imported as.
+        const raw = e.entry_text_ar || e.entry_text_en || e.raw_text;
+        const dirty = !!raw && looksDirty(raw);
+        // Lane arrives as TEI/XML; a bare index stub has no prose to show and reaches
+        // the caller through `sinai` instead.
+        const text = !raw ? '' : isJsonBlob(raw) ? '' : clip(dirty ? stripMarkup(raw) : raw);
+        return { source: e.source_slug, heading: null, text, page: e.page_start, ...(dirty ? { dirty: true } : {}) };
+      };
       const pick = (slug: string): LensEntry | null => {
         const e = lensList.find(x => x.source_slug === slug);
-        return e ? { source: slug, heading: null, text: clip(e.entry_text_ar || e.raw_text), page: e.page_start } : null;
+        return e ? entryOf(e) : null;
       };
+      const namedSlugs = new Set<string>([...Object.values(LENS_SLUG), FIVE_LENS_SLUG]);
+      const others = lensList
+        .filter(e => !namedSlugs.has(e.source_slug))
+        .map(entryOf)
+        .sort((a, b) => a.source.localeCompare(b.source));
+      const sinaiRaw = lensList.find(x => x.source_slug === LENS_SLUG.sinai)?.raw_text ?? null;
       const fiveRaw = lensList.find(x => x.source_slug === FIVE_LENS_SLUG)?.raw_text ?? null;
       const five = buildFiveLens(fiveByRoot.get(root) ?? [], fiveRaw);
 
@@ -184,7 +211,8 @@ export class WordAnalysisRepo {
         antonyms: (antByRoot.get(root) ?? []).map(a => ({ ar: a.antonym_ar, en: a.antonym_en, root: a.antonym_root })),
         family: famByRoot.get(root) ?? [],
         five_lens: five,
-        lenses: { maqayis: pick(LENS_SLUG.maqayis), mufradat: pick(LENS_SLUG.mufradat), lane: pick(LENS_SLUG.lane), sinai: pick(LENS_SLUG.sinai), others: [] },
+        sinai: parseSinai(sinaiRaw),
+        lenses: { maqayis: pick(LENS_SLUG.maqayis), mufradat: pick(LENS_SLUG.mufradat), lane: pick(LENS_SLUG.lane), sinai: pick(LENS_SLUG.sinai), others },
         gems: jsonArr(d?.nuance_gems_json),
         illustration: illMap.has(root) ? { title: illMap.get(root)!.title, caption_md: illMap.get(root)!.caption_md, palette: illMap.get(root)!.palette, svg_inline: illMap.get(root)!.svg_inline } : null,
         diagram: diaMap.has(root) ? { kind: diaMap.get(root)!.diagram_kind, spec_json: safeJson(diaMap.get(root)!.spec_json), renderer_key: diaMap.get(root)!.renderer_key } : null,

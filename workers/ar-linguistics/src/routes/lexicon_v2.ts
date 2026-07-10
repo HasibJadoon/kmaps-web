@@ -251,9 +251,12 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     const root_norm = (params.root_norm ?? '').trim();
     if (!slug || !root_norm) return badRequest('slug + root_norm required');
 
+    // Bilingual sources (Lane, Sinai) carry their entry in the *_en columns; the
+    // Arabic lexica use the *_ar ones. Serve both and let the reader pick.
     const entry = await env.DB_AL.prepare(
       `SELECT id, source_slug, root_text, root_norm, root_id,
-              raw_text, page_start, page_end, volume_no, source_url,
+              raw_text, entry_text_ar, entry_text_en,
+              page_start, page_end, volume_no, source_url,
               source_native_id, status
        FROM ar_ling_lexicon_root_entries
        WHERE source_slug = ? AND root_norm = ? LIMIT 1`
@@ -262,7 +265,7 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
 
     const sections = (await env.DB_AL.prepare(
       `SELECT id, section_seq, heading_ar, heading_norm, heading_bare,
-              section_type, text_ar, page_no, source_native_section_id
+              section_type, text_ar, text_en, page_no, source_native_section_id
        FROM ar_ling_lexicon_entry_sections
        WHERE source_slug = ? AND root_norm = ?
        ORDER BY section_seq`
@@ -337,9 +340,12 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     // We compute `body.text` (whitespace-collapsed) and `body.paragraphs`
     // (split at Arabic/Latin sentence terminators) so the UI can render
     // flowing prose without re-stitching the fragments.
+    // Bilingual sources (Sinai) carry their prose in text_en; `lang` lets the reader
+    // set the reading direction from data rather than assuming Arabic.
     const sectionsWithBody = sections.map((s: any) => ({
       ...s,
-      body: computeSectionBody(s.text_ar),
+      lang: s.text_ar ? 'ar' : (s.text_en ? 'en' : null),
+      body: computeSectionBody(s.text_ar ?? s.text_en),
     }));
 
     // ── Collect footnote backing text (when ingestion preserved it) ────

@@ -30,7 +30,7 @@
     <div class="rv-lenses">
       @for (l of d.lenses; track l.key) {
         <span class="rv-lens" [class.rv-lens--on]="l.on">
-          <lucide-icon [name]="l.icon" [size]="13"></lucide-icon>{{ l.label }}
+          <lucide-icon [name]="safeIcon(l.icon)" [size]="13"></lucide-icon>{{ l.label }}
         </span>
       }
       @if (d.frequency_quran) {
@@ -43,14 +43,14 @@
     @for (t of d.family; track t.tier) {
       <div class="rv-tier">
         <div class="rv-tier__head">
-          <lucide-icon [name]="t.icon" [size]="15"></lucide-icon>
+          <lucide-icon [name]="safeIcon(t.icon, 'layers')" [size]="15"></lucide-icon>
           <span class="rv-tier__name" dir="rtl" style="font-family:'AmiriQuran','UthmanicHafs',serif">{{ tierName(t) }}</span>
           @if (tierGloss(t); as tg) { <span class="rv-tier__gloss">{{ tg }}</span> }
         </div>
         @for (g of t.groups; track g.key) {
           <div class="rv-famgroup">
             <div class="rv-famgroup__head">
-              <lucide-icon [name]="g.icon" [size]="14"></lucide-icon>
+              <lucide-icon [name]="safeIcon(g.icon, 'git-fork')" [size]="14"></lucide-icon>
               <span class="rv-famgroup__name" dir="rtl" style="font-family:'AmiriQuran','UthmanicHafs',serif">{{ familyName(g) }}</span>
               @if (familyGloss(g); as gloss) { <span class="rv-famgroup__gloss">{{ gloss }}</span> }
               <span class="rv-famgroup__count">{{ g.lemmas.length }}</span>
@@ -80,22 +80,24 @@
           @if (lensLink(l); as link) {
             <a class="rv-src rv-src--link" [routerLink]="link" [queryParams]="{ root: l.root }">
               <header class="rv-src__head">
-                <lucide-icon [name]="l.icon" [size]="14"></lucide-icon>
+                <lucide-icon [name]="safeIcon(l.icon)" [size]="14"></lucide-icon>
                 <span class="rv-src__name">{{ l.label }}</span>
                 @if (l.page) { <span class="rv-src__page">p.{{ l.page }}</span> }
                 <lucide-icon class="rv-src__go" name="arrow-right" [size]="14"></lucide-icon>
               </header>
-              <p class="rv-src__text" dir="rtl">{{ l.summary || l.text }}</p>
+              @if (l.author) { <span class="rv-src__author">{{ l.author }}</span> }
+              <p class="rv-src__text" [dir]="l.dir ?? 'rtl'">{{ l.summary || l.text }}</p>
               <span class="rv-src__cta">Read in {{ l.label }} →</span>
             </a>
           } @else {
             <article class="rv-src">
               <header class="rv-src__head">
-                <lucide-icon [name]="l.icon" [size]="14"></lucide-icon>
+                <lucide-icon [name]="safeIcon(l.icon)" [size]="14"></lucide-icon>
                 <span class="rv-src__name">{{ l.label }}</span>
                 @if (l.page) { <span class="rv-src__page">p.{{ l.page }}</span> }
               </header>
-              <p class="rv-src__text" dir="rtl">{{ l.summary || l.text }}</p>
+              @if (l.author) { <span class="rv-src__author">{{ l.author }}</span> }
+              <p class="rv-src__text" [dir]="l.dir ?? 'rtl'">{{ l.summary || l.text }}</p>
             </article>
           }
         }
