@@ -37,7 +37,7 @@ CREATE TABLE qr_analysis_claims (
   FOREIGN KEY (scope_id) REFERENCES qr_analysis_scopes(id)
 );
 
-CREATE VIRTUAL TABLE qr_analysis_claims_fts USING fts5(scope_id UNINDEXED, claim_type, claim_text, claim_text_ar);
+CREATE VIRTUAL TABLE IF NOT EXISTS qr_analysis_claims_fts USING fts5(scope_id UNINDEXED, claim_type, claim_text, claim_text_ar);
 
 CREATE TABLE qr_analysis_scopes (
   id                   TEXT PRIMARY KEY,
@@ -371,7 +371,7 @@ CREATE TABLE qr_evidence_items (
   updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE VIRTUAL TABLE qr_evidence_items_fts USING fts5(evidence_type, provenance, content_text, content_text_ar);
+CREATE VIRTUAL TABLE IF NOT EXISTS qr_evidence_items_fts USING fts5(evidence_type, provenance, content_text, content_text_ar);
 
 CREATE TABLE qr_historical_context_profiles (
   surah                INTEGER PRIMARY KEY,
@@ -422,7 +422,10 @@ CREATE TABLE qr_lemmas (
   lx_lemma_ref      TEXT,
   total_occurrences INTEGER NOT NULL DEFAULT 0,
   created_at        TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  -- wazn_ar added via ALTER after 0006; the join key into the form register.
+  -- Live D1 (2026-07-10): 4817/4817 non-NULL (Gate 3 / D17 satisfied).
+  wazn_ar           TEXT
 );
 
 CREATE TABLE qr_material_witness_observations (
@@ -544,7 +547,7 @@ CREATE TABLE qr_scholar_positions (
   FOREIGN KEY (work_id)    REFERENCES qr_scholar_works(id)
 );
 
-CREATE VIRTUAL TABLE qr_scholar_positions_fts USING fts5(scholar_id UNINDEXED, surah UNINDEXED, position_type, position_text_ar, position_text_en, position_summary);
+CREATE VIRTUAL TABLE IF NOT EXISTS qr_scholar_positions_fts USING fts5(scholar_id UNINDEXED, surah UNINDEXED, position_type, position_text_ar, position_text_en, position_summary);
 
 CREATE TABLE qr_scholar_profiles (
   id                   TEXT PRIMARY KEY,
@@ -567,7 +570,7 @@ CREATE TABLE qr_scholar_profiles (
   updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE VIRTUAL TABLE qr_scholar_profiles_fts USING fts5(name_ar, name_en, laqab, nisba, biography_md);
+CREATE VIRTUAL TABLE IF NOT EXISTS qr_scholar_profiles_fts USING fts5(name_ar, name_en, laqab, nisba, biography_md);
 
 CREATE TABLE qr_scholar_works (
   id                   TEXT PRIMARY KEY,
@@ -769,7 +772,7 @@ CREATE TABLE qr_ss_scope_nuance (
   updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE VIRTUAL TABLE qr_ss_scope_nuance_fts USING fts5(scope_type UNINDEXED, scope_id UNINDEXED, nuance_type, nuance_text, nuance_text_ar);
+CREATE VIRTUAL TABLE IF NOT EXISTS qr_ss_scope_nuance_fts USING fts5(scope_type UNINDEXED, scope_id UNINDEXED, nuance_type, nuance_text, nuance_text_ar);
 
 CREATE TABLE qr_ss_scope_reading (
   id                   TEXT PRIMARY KEY,
@@ -797,7 +800,7 @@ CREATE TABLE qr_ss_scope_reading_evidence_link (
   FOREIGN KEY (evidence_id) REFERENCES qr_evidence_items(id)
 );
 
-CREATE VIRTUAL TABLE qr_ss_scope_reading_fts USING fts5(scope_type UNINDEXED, scope_id UNINDEXED, reading_type, reading_text, reading_text_ar);
+CREATE VIRTUAL TABLE IF NOT EXISTS qr_ss_scope_reading_fts USING fts5(scope_type UNINDEXED, scope_id UNINDEXED, reading_type, reading_text, reading_text_ar);
 
 CREATE TABLE qr_ss_scope_relations (
   id                   TEXT PRIMARY KEY,
@@ -1660,21 +1663,23 @@ CREATE INDEX idx_qrwvn_type  ON qr_worldview_nodes(node_type);
 -- evidence_items, scholar_profiles, scholar_positions, and the surah-study
 -- scope nuance/reading tables).
 
-CREATE VIRTUAL TABLE qr_analysis_claims_fts USING fts5(
+-- NOTE: qr_analysis_claims_fts is also declared earlier in this snapshot (~line 40).
+-- Live D1 has exactly one. IF NOT EXISTS keeps this snapshot loadable in one pass.
+CREATE VIRTUAL TABLE IF NOT EXISTS qr_analysis_claims_fts USING fts5(
   scope_id UNINDEXED,
   claim_type,
   claim_text,
   claim_text_ar
 );
 
-CREATE VIRTUAL TABLE qr_evidence_items_fts USING fts5(
+CREATE VIRTUAL TABLE IF NOT EXISTS qr_evidence_items_fts USING fts5(
   evidence_type,
   provenance,
   content_text,
   content_text_ar
 );
 
-CREATE VIRTUAL TABLE qr_scholar_positions_fts USING fts5(
+CREATE VIRTUAL TABLE IF NOT EXISTS qr_scholar_positions_fts USING fts5(
   scholar_id UNINDEXED,
   surah UNINDEXED,
   position_type,
@@ -1683,7 +1688,7 @@ CREATE VIRTUAL TABLE qr_scholar_positions_fts USING fts5(
   position_summary
 );
 
-CREATE VIRTUAL TABLE qr_scholar_profiles_fts USING fts5(
+CREATE VIRTUAL TABLE IF NOT EXISTS qr_scholar_profiles_fts USING fts5(
   name_ar,
   name_en,
   laqab,
@@ -1691,7 +1696,7 @@ CREATE VIRTUAL TABLE qr_scholar_profiles_fts USING fts5(
   biography_md
 );
 
-CREATE VIRTUAL TABLE qr_ss_scope_nuance_fts USING fts5(
+CREATE VIRTUAL TABLE IF NOT EXISTS qr_ss_scope_nuance_fts USING fts5(
   scope_type UNINDEXED,
   scope_id UNINDEXED,
   nuance_type,
@@ -1699,10 +1704,174 @@ CREATE VIRTUAL TABLE qr_ss_scope_nuance_fts USING fts5(
   nuance_text_ar
 );
 
-CREATE VIRTUAL TABLE qr_ss_scope_reading_fts USING fts5(
+CREATE VIRTUAL TABLE IF NOT EXISTS qr_ss_scope_reading_fts USING fts5(
   scope_type UNINDEXED,
   scope_id UNINDEXED,
   reading_type,
   reading_text,
   reading_text_ar
 );
+
+-- =============================================================================
+-- MORPHOLOGY & VOCABULARY DISPLAY LAYER — synced from live D1 on 2026-07-10
+-- -----------------------------------------------------------------------------
+-- Render-ready projection of the ar_ling_* canonical truth (km_arabic_linguistic).
+-- Three scopes, built once and reused (master-doc Laws L2/L4):
+--   root    (بين)      → qr_morph_display_roots       + blocks scope_level='root'
+--   lemma   (مُبِين)    → qr_morph_display_lemmas      + blocks scope_level='lemma'
+--   context (44:2 w8) → qr_morph_display_words        + blocks scope_level='context'
+-- Base tables qr_morph_display_sources/_words/_blocks originate in migration 0006;
+-- the ALTER columns below + the roots/lemmas/media/form tables were added after
+-- and are captured verbatim in migration 0007_morphology_vocab_d1_sync.sql.
+-- =============================================================================
+
+-- Base display tables (origin: migration 0006) — included here so this snapshot
+-- is self-contained and matches live D1 verbatim.
+CREATE TABLE IF NOT EXISTS qr_morph_display_sources (
+  id TEXT PRIMARY KEY, source_slug TEXT NOT NULL UNIQUE, kind TEXT NOT NULL,
+  title_ar TEXT, title_en TEXT, author_name_ar TEXT, author_name_en TEXT,
+  death_year_hijri INTEGER, register TEXT, badge_color TEXT, badge_glyph TEXT,
+  display_order INTEGER NOT NULL DEFAULT 0, is_visible INTEGER NOT NULL DEFAULT 1,
+  meta_json JSON, created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  title_ur TEXT, author_name_ur TEXT, icon TEXT
+);
+CREATE TABLE IF NOT EXISTS qr_morph_display_words (
+  id TEXT PRIMARY KEY, word_occ_ref TEXT, surah_no INTEGER NOT NULL, ayah_no INTEGER NOT NULL,
+  word_index INTEGER NOT NULL, ayah_key TEXT, surface_ar TEXT NOT NULL, surface_bare TEXT,
+  lemma_ar TEXT, root_ar TEXT, root_display TEXT, root_ref TEXT, word_group TEXT NOT NULL,
+  pos_ar TEXT, pos_en TEXT, gloss_ar TEXT, gloss_en TEXT, badge_color TEXT,
+  derived_type_ar TEXT, derived_type_en TEXT, wazn_ar TEXT, form_roman TEXT, features_json JSON,
+  is_promoted INTEGER NOT NULL DEFAULT 1, is_content_word INTEGER NOT NULL DEFAULT 1,
+  importance INTEGER NOT NULL DEFAULT 3, difficulty INTEGER, frequency_quran INTEGER,
+  status TEXT NOT NULL DEFAULT 'live', display_order INTEGER NOT NULL DEFAULT 0, meta_json JSON,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  gloss_ur TEXT, derived_type_ur TEXT, pos_ur TEXT, is_anchor INTEGER NOT NULL DEFAULT 0,
+  quran_meanings_json JSON, root_meaning_ar TEXT, root_meaning_en TEXT, form_ar TEXT,
+  sense_arc_en TEXT, sense_range_en TEXT, verb_form_ar TEXT, lemma_ref TEXT,
+  UNIQUE(surah_no, ayah_no, word_index)
+);
+CREATE INDEX IF NOT EXISTS idx_morph_words_passage ON qr_morph_display_words(surah_no, ayah_no, word_index);
+CREATE INDEX IF NOT EXISTS idx_morph_words_grid ON qr_morph_display_words(surah_no, is_promoted, word_group, display_order);
+CREATE INDEX IF NOT EXISTS idx_morph_words_root ON qr_morph_display_words(root_ar);
+CREATE TABLE IF NOT EXISTS qr_morph_display_blocks (
+  id TEXT PRIMARY KEY,
+  scope_level TEXT NOT NULL CHECK (scope_level IN ('root','lemma','context')),
+  scope_key   TEXT NOT NULL,
+  word_occ_ref TEXT, surah_no INTEGER, ayah_no INTEGER, word_index INTEGER,
+  ayah_key TEXT, root_ar TEXT, lemma_ar TEXT,
+  block_type TEXT NOT NULL,
+  block_subtype TEXT NOT NULL DEFAULT '',
+  display_order INTEGER NOT NULL DEFAULT 0,
+  title_ar TEXT, title_en TEXT, title_ur TEXT,
+  text_ar TEXT, text_en TEXT, text_ur TEXT,
+  data_json JSON NOT NULL DEFAULT '{}',
+  source_slug TEXT NOT NULL REFERENCES qr_morph_display_sources(source_slug),
+  source_ref TEXT, source_page TEXT,
+  is_synthesis INTEGER NOT NULL DEFAULT 0, register TEXT,
+  confidence TEXT DEFAULT 'medium', status TEXT NOT NULL DEFAULT 'live', meta_json JSON,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  registers_json JSON, media_r2_key TEXT, media_kind TEXT, media_alt TEXT,
+  UNIQUE(scope_level, scope_key, block_type, block_subtype),
+  CHECK ((is_synthesis = 1 AND source_slug LIKE 'kmaps_%')
+      OR (is_synthesis = 0 AND source_slug NOT LIKE 'kmaps_%' AND source_ref IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_morph_blocks_scope ON qr_morph_display_blocks(scope_level, scope_key, display_order);
+CREATE INDEX IF NOT EXISTS idx_morph_blocks_root  ON qr_morph_display_blocks(root_ar, scope_level);
+CREATE INDEX IF NOT EXISTS idx_morph_blocks_ayah  ON qr_morph_display_blocks(ayah_key, scope_level);
+
+CREATE TABLE IF NOT EXISTS qr_morph_display_roots (
+  id                 TEXT PRIMARY KEY,             -- 'MDR:بين'
+  root_ar            TEXT NOT NULL UNIQUE,
+  root_display       TEXT,                         -- 'ب ي ن'
+  root_type          TEXT,                         -- 'ثلاثي'
+  frequency_quran    INTEGER,
+  meaning_core_ar    TEXT, meaning_core_en TEXT, meaning_core_ur TEXT,
+  hook_ar            TEXT, hook_en TEXT, hook_ur TEXT,
+  family_json        JSON,   -- [{ lemma_ar, pos, pos_icon, verb_form, is_quran_word }]
+  lens_coverage_json JSON,   -- [{ key, label, icon, on }]
+  senses_json        JSON,
+  semantic_field     TEXT,
+  section_icons_json JSON,
+  is_anchor          INTEGER NOT NULL DEFAULT 0,
+  status             TEXT NOT NULL DEFAULT 'live',
+  display_order      INTEGER NOT NULL DEFAULT 0,
+  meta_json          JSON,
+  created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS qr_morph_display_lemmas (
+  id            TEXT PRIMARY KEY,            -- 'MDL:{bare}#{qr_lemmas.id[:8]}'
+  lemma_ref     TEXT NOT NULL UNIQUE,        -- qr_lemmas.id — the real key (D30: bare collides w/ root)
+  lemma_ar      TEXT NOT NULL,
+  lemma_bare    TEXT,
+  root_ar       TEXT,
+  morphology_id TEXT,                        -- ar_ling_morphology bundle id
+  form_family_id TEXT,                       -- qr_morph_form_families.id
+  tier_key      TEXT,                        -- qr_morph_form_tiers.tier_key
+  wazn_ar       TEXT,
+  derived_type_ar TEXT, derived_type_en TEXT, derived_type_ur TEXT,
+  gloss_ar TEXT, gloss_en TEXT, gloss_ur TEXT,
+  total_occurrences INTEGER,
+  first_surah   INTEGER, first_ayah INTEGER,
+  is_anchor     INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'draft',
+  display_order INTEGER NOT NULL DEFAULT 0,
+  meta_json     JSON,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  form_roman    TEXT, form_ar TEXT, verb_form_ar TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_mdl_root ON qr_morph_display_lemmas(root_ar);
+CREATE INDEX IF NOT EXISTS idx_mdl_bare ON qr_morph_display_lemmas(lemma_bare);
+
+CREATE TABLE IF NOT EXISTS qr_morph_display_media (
+  id                 TEXT PRIMARY KEY,               -- 'MDM:بين:root_dna'
+  r2_key             TEXT NOT NULL UNIQUE,
+  bucket             TEXT NOT NULL DEFAULT 'kmaps-media',
+  kind               TEXT NOT NULL,                  -- 'image' | 'animation' | 'audio'
+  mime               TEXT,
+  root_ar            TEXT,
+  surah_no           INTEGER, ayah_no INTEGER, word_index INTEGER,
+  block_type         TEXT,
+  alt_en             TEXT, alt_ar TEXT,
+  source_kind        TEXT,                           -- 'generated' | 'licensed' | 'public_domain'
+  source_url         TEXT, source_attribution TEXT, license TEXT, sha256 TEXT,
+  width_px           INTEGER, height_px INTEGER, duration_ms INTEGER,
+  status             TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'stored' | 'live'
+  meta_json          JSON,
+  created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_morph_media_word ON qr_morph_display_media(surah_no, ayah_no, word_index);
+CREATE INDEX IF NOT EXISTS idx_morph_media_root ON qr_morph_display_media(root_ar, block_type);
+
+CREATE TABLE IF NOT EXISTS qr_morph_form_tiers (
+  tier_key     TEXT PRIMARY KEY,
+  tier_order   INTEGER NOT NULL,
+  arabic_name  TEXT NOT NULL,
+  english_name TEXT, urdu_name TEXT, icon TEXT
+);
+
+CREATE TABLE IF NOT EXISTS qr_morph_form_families (
+  id            TEXT PRIMARY KEY,          -- 'FORM:IV' · 'BAB:nasara'
+  family_order  INTEGER NOT NULL,
+  kind          TEXT NOT NULL,             -- 'form_i_bab' | 'derived_verb' | 'noun'
+  roman         TEXT,
+  verb_form_key TEXT,
+  arabic_name   TEXT NOT NULL,
+  english_name  TEXT, urdu_name TEXT,
+  wazn          TEXT, example_ar TEXT, note_md TEXT, icon TEXT,
+  status        TEXT NOT NULL DEFAULT 'live',
+  tier          TEXT
+);
+
+-- Post-0006 ALTER columns on the base display tables (verbatim live-D1 shape):
+--   qr_morph_display_sources : title_ur, author_name_ur, icon
+--   qr_morph_display_words   : gloss_ur, derived_type_ur, pos_ur, is_anchor,
+--       quran_meanings_json, root_meaning_ar, root_meaning_en, form_ar,
+--       sense_arc_en, sense_range_en, verb_form_ar, lemma_ref
+--   qr_morph_display_blocks  : registers_json, media_r2_key, media_kind, media_alt
+-- See migration 0007 for the exact ALTER statements.

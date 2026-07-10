@@ -1,0 +1,29 @@
+-- 0026_reg_build_layer.sql
+-- Layer-code register (master data): 00 Register · 10 Root · 20 Lemma · 30 Context
+-- · 40 Kindred · 50 Expression · 60 Memlet · 70 Question · 80 Mastery · 90 Media.
+-- Data-driven mining: a fill task reads its layer → knows the tables + the ONLY
+-- source slugs it may cite (L1) + fill order. Additive, non-breaking.
+
+CREATE TABLE IF NOT EXISTS ar_ling_reg_build_layer (
+  layer_code   TEXT PRIMARY KEY,          -- '00' Register · '10' Root · '20' Lemma …
+  layer_key    TEXT NOT NULL UNIQUE,
+  name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
+  cluster      TEXT NOT NULL,             -- reg|morph|syn|expr|learn|display
+  scope_level  TEXT NOT NULL,             -- global|root|lemma|context|user|any
+  fill_order   INTEGER NOT NULL,
+  once_only    INTEGER NOT NULL DEFAULT 1,
+  mode         TEXT NOT NULL,             -- authored|projection|synthesis|generated|ingested|runtime
+  primary_tables_json       TEXT NOT NULL,-- tables filled at this layer
+  allowed_source_slugs_json TEXT NOT NULL,-- L1: the only sources a row here may cite
+  note_en TEXT
+);
+INSERT OR REPLACE INTO ar_ling_reg_build_layer (layer_code,layer_key,name_ar,name_en,name_ur,cluster,scope_level,fill_order,once_only,mode,primary_tables_json,allowed_source_slugs_json) VALUES ('00','register','السِّجِل','Register (master data)','رجسٹر','reg','global',0,1,'authored','["ar_ling_reg_category", "ar_ling_reg_term", "ar_ling_reg_term_relation", "ar_ling_reg_term_example", "ar_ling_reg_term_source", "ar_ling_reg_inflection_rule", "ar_ling_reg_semantic_field"]','["ibn_hisham_shudhur", "qazwini_talkhis", "jurjani_asrar", "QAC-0.4"]');
+INSERT OR REPLACE INTO ar_ling_reg_build_layer (layer_code,layer_key,name_ar,name_en,name_ur,cluster,scope_level,fill_order,once_only,mode,primary_tables_json,allowed_source_slugs_json) VALUES ('10','root','الجَذْر','Root','جڑ','morph','root',1,1,'projection+synthesis','["ar_ling_morph_root", "ar_ling_morph_root_relation", "ar_ling_morph_root_field", "ar_ling_morph_root_variant", "ar_ling_morph_root_antonym", "ar_ling_morph_root_scholarship", "ar_ling_morph_root_sense_axis", "ar_ling_morph_root_dev_stage", "ar_ling_morph_root_vocab", "qr_morph_display_roots"]','["saaid_maqayis_al_lugha", "lisan", "sihah", "qamus", "ayn", "misbah", "mufradat", "lane", "sinai_key_terms"]');
+INSERT OR REPLACE INTO ar_ling_reg_build_layer (layer_code,layer_key,name_ar,name_en,name_ur,cluster,scope_level,fill_order,once_only,mode,primary_tables_json,allowed_source_slugs_json) VALUES ('20','lemma','المُفْرَدَة','Lemma','لفظ','morph','lemma',2,1,'projection+authored','["ar_ling_morph_lemma", "ar_ling_morph_lemma_root_link", "ar_ling_morph_lemma_bundle", "ar_ling_morph_lemma_variant", "ar_ling_morph_lemma_register", "ar_ling_morph_lemma_difficulty", "ar_ling_morph_bundle", "ar_ling_morph_token", "ar_ling_morph_token_lex_link", "ar_ling_morph_wazn_paradigm", "ar_ling_morph_conjugation", "ar_ling_morph_verb_gov", "ar_ling_morph_word_sum", "qr_morph_display_lemmas", "qr_lemmas"]','["qac_morphology", "lisan"]');
+INSERT OR REPLACE INTO ar_ling_reg_build_layer (layer_code,layer_key,name_ar,name_en,name_ur,cluster,scope_level,fill_order,once_only,mode,primary_tables_json,allowed_source_slugs_json) VALUES ('30','context','السِّياق','Context','سیاق','display','context',3,0,'projection','["qr_morph_display_words", "qr_morph_display_blocks"]','["qr_iraab_book_display_blocks", "qr_tafsir_book_display_blocks", "qr_translation_sources", "ar_ling_balagha_examples"]');
+INSERT OR REPLACE INTO ar_ling_reg_build_layer (layer_code,layer_key,name_ar,name_en,name_ur,cluster,scope_level,fill_order,once_only,mode,primary_tables_json,allowed_source_slugs_json) VALUES ('40','kindred','النَّظائر','Kindred (near-synonyms)','نظائر','syn','lemma',4,1,'synthesis','["ar_ling_syn_set", "ar_ling_syn_member", "ar_ling_syn_evidence", "ar_ling_syn_set_source", "ar_ling_syn_member_source", "ar_ling_syn_review_queue"]','["kmaps_furuq", "quran_shawahid"]');
+INSERT OR REPLACE INTO ar_ling_reg_build_layer (layer_code,layer_key,name_ar,name_en,name_ur,cluster,scope_level,fill_order,once_only,mode,primary_tables_json,allowed_source_slugs_json) VALUES ('50','expression','التَّعابير','Expressions / idioms','تعبیرات','expr','lemma',5,0,'ingested','["ar_ling_expr_idiom", "ar_ling_expr_token", "ar_ling_expr_type"]','["islahi", "tafsir_corpus"]');
+INSERT OR REPLACE INTO ar_ling_reg_build_layer (layer_code,layer_key,name_ar,name_en,name_ur,cluster,scope_level,fill_order,once_only,mode,primary_tables_json,allowed_source_slugs_json) VALUES ('60','memlet','المُذَكِّرات','Memlets','میملیٹ','learn','lemma',6,1,'projection','["ar_ling_learn_memlet_kind", "ar_ling_learn_memlet", "ar_ling_learn_memlet_media", "ar_ling_learn_context_passage"]','["block_ref", "kmaps_memlet"]');
+INSERT OR REPLACE INTO ar_ling_reg_build_layer (layer_code,layer_key,name_ar,name_en,name_ur,cluster,scope_level,fill_order,once_only,mode,primary_tables_json,allowed_source_slugs_json) VALUES ('70','question','الأَسْئِلَة','Questions','سوالات','learn','lemma',7,1,'generated','["ar_ling_learn_question_kind", "ar_ling_learn_question_item", "ar_ling_learn_distractor"]','["ar_ling_morph_wazn_paradigm", "ar_ling_syn_member"]');
+INSERT OR REPLACE INTO ar_ling_reg_build_layer (layer_code,layer_key,name_ar,name_en,name_ur,cluster,scope_level,fill_order,once_only,mode,primary_tables_json,allowed_source_slugs_json) VALUES ('80','mastery','الإِتْقان','Mastery & exposure','مہارت','learn','user',8,0,'runtime','["ar_ling_learn_mastery", "ar_ling_learn_exposure"]','["runtime"]');
+INSERT OR REPLACE INTO ar_ling_reg_build_layer (layer_code,layer_key,name_ar,name_en,name_ur,cluster,scope_level,fill_order,once_only,mode,primary_tables_json,allowed_source_slugs_json) VALUES ('90','media','الوَسائط','Media','میڈیا','display','any',9,0,'ingested','["qr_morph_display_media", "ar_ling_learn_memlet_media"]','["r2_kmaps_media"]');

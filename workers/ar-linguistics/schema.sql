@@ -52,25 +52,9 @@ CREATE TABLE ar_ling_balagha_examples (
   FOREIGN KEY (balagha_id) REFERENCES ar_ling_balagha_concepts(id)
 );
 
-CREATE TABLE ar_ling_clause_types (
-  id              TEXT PRIMARY KEY,
-  name_ar         TEXT NOT NULL,
-  name_en         TEXT NOT NULL,
-  clause_function TEXT,
-  description_md  TEXT
-);
 
-CREATE TABLE ar_ling_collocations (
-  id              TEXT PRIMARY KEY,
-  lemma_a_id      TEXT NOT NULL,
-  lemma_b_id      TEXT NOT NULL,
-  collocation_type TEXT NOT NULL DEFAULT 'general',
-  frequency_note  TEXT,
-  note_md         TEXT,
-  UNIQUE (lemma_a_id, lemma_b_id, collocation_type),
-  FOREIGN KEY (lemma_a_id) REFERENCES ar_ling_lemmas(id),
-  FOREIGN KEY (lemma_b_id) REFERENCES ar_ling_lemmas(id)
-);
+
+
 
 CREATE TABLE ar_ling_conjugation_templates (
   id              TEXT PRIMARY KEY,
@@ -80,6 +64,11 @@ CREATE TABLE ar_ling_conjugation_templates (
   voice           TEXT NOT NULL DEFAULT 'active',
   template_form   TEXT NOT NULL,
   note_md         TEXT,
+  -- Re-keying columns (master doc Gate 5, D6): templates should key on the
+  -- (verb_form, root_type, weak_pattern) triple, not on a single root.
+  verb_form       TEXT,
+  root_type       TEXT,
+  weak_pattern    TEXT,
   FOREIGN KEY (paradigm_id) REFERENCES ar_ling_form_paradigms(id)
 );
 
@@ -371,8 +360,17 @@ CREATE TABLE ar_ling_morphology (
   definiteness    TEXT,
   derivation_type TEXT,
   note_md         TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  -- Added after split (master doc Gate 3). A morphology row is a BUNDLE: one row
+  -- per distinct QAC parse, shared by every lemma that parses that way
+  -- (مُبِين / مُنذِر / مُرْسِلِين all share ACT|MP|ACC|PCPL|(IV)). 963 bundles live.
+  verb_form       TEXT,   -- I..XII / quadriliteral
+  root_type       TEXT,   -- sound | ajwaf_ya | naqis_w …
+  qac_flags       TEXT,   -- natural key: sort(flags) ∥ 'MOOD:'+features.MOOD (D33)
+  pos             TEXT,
+  mood            TEXT
 );
+CREATE UNIQUE INDEX IF NOT EXISTS ux_morph_flags ON ar_ling_morphology(qac_flags, pos);
 
 CREATE TABLE ar_ling_nahw_concepts (
   id              TEXT PRIMARY KEY,
@@ -511,13 +509,7 @@ CREATE TABLE ar_ling_near_synonym_review_queue (
   updated_at   TEXT
 );
 
-CREATE TABLE ar_ling_phrase_types (
-  id              TEXT PRIMARY KEY,
-  name_ar         TEXT NOT NULL,
-  name_en         TEXT NOT NULL,
-  phrase_class    TEXT,
-  description_md  TEXT
-);
+
 
 CREATE TABLE ar_ling_projection_cache (
   id              TEXT PRIMARY KEY,
@@ -592,8 +584,15 @@ CREATE TABLE ar_ling_roots (
   meaning_core_ar  TEXT,
   note_md          TEXT,
   created_at       TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  -- Added after split. root_normalized is the join key used everywhere
+  -- (verb_government, word_sums, root_dna). D31 fixed: 563 NULLs backfilled and
+  -- 186 ALR:NS:% duplicates merged; a UNIQUE index now guards it.
+  buckwalter       TEXT,
+  simple_lat       TEXT,
+  root_normalized  TEXT
 );
+CREATE UNIQUE INDEX IF NOT EXISTS ux_roots_norm ON ar_ling_roots(root_normalized);
 
 CREATE VIRTUAL TABLE ar_ling_roots_fts USING fts5(root_text, meaning_core_en, meaning_core_ar);
 
@@ -796,9 +795,7 @@ CREATE INDEX idx_arl_cl_cm     ON ar_ling_content_links(cm_entity_ref);
 
 CREATE INDEX idx_arl_cl_entity ON ar_ling_content_links(al_entity_ref);
 
-CREATE INDEX idx_arl_col_a ON ar_ling_collocations(lemma_a_id);
 
-CREATE INDEX idx_arl_col_b ON ar_ling_collocations(lemma_b_id);
 
 CREATE INDEX idx_arl_ct_paradigm ON ar_ling_conjugation_templates(paradigm_id);
 
@@ -1418,3 +1415,367 @@ CREATE VIRTUAL TABLE IF NOT EXISTS ar_ling_lexicon_entry_sections_fts USING fts5
   section_type, text_ar, text_en,
   content='ar_ling_lexicon_entry_sections', content_rowid='rowid'
 );
+
+-- =============================================================================
+-- VOCABULARY & MORPHOLOGY — synced from live D1 on 2026-07-10
+-- -----------------------------------------------------------------------------
+-- Tables that live in production D1 but were absent from this snapshot. Grouped:
+--   A. GRAMMATICAL REGISTER  (ar_ling_gram_*)   — trilingual term dictionary
+--   B. ROOT SATELLITES       (antonyms, scholarship, sense_axes, dev_stages, vocab)
+--   C. SARF ENGINE           (verb_government, word_sums)
+--   D. MEMLET / QUESTION      (Membean-style learning layer)
+--   E. LEARNER STATE          (context_passages, exposure_log, lemma_difficulty,
+--                              vocab_memory_hooks)
+-- All statements use IF NOT EXISTS so this snapshot is self-sufficient and also
+-- co-exists with the incremental migrations that seeded some of these tables.
+-- The exact ALTER-column top-ups are in 0023_vocab_morphology_d1_sync.sql.
+-- =============================================================================
+
+-- ── A. GRAMMATICAL REGISTER ────────────────────────────────────────────────
+-- Two tables replace ~14 flat concept tables. ~24 categories, ~245 terms,
+-- trilingual (ar/en/ur), each term optionally joined to QAC via qac_flag.
+CREATE TABLE IF NOT EXISTS ar_ling_gram_categories (
+  category_key   TEXT PRIMARY KEY,
+  name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
+  discipline     TEXT NOT NULL,      -- 'sarf'|'nahw'|'balagha'|'dalala'
+  applies_to     TEXT NOT NULL,      -- 'verb'|'noun'|'both'|'root'|'sentence'|'discourse'
+  is_closed      INTEGER NOT NULL DEFAULT 1,
+  display_order  INTEGER NOT NULL DEFAULT 0,
+  icon           TEXT
+);
+CREATE TABLE IF NOT EXISTS ar_ling_gram_terms (
+  id             TEXT PRIMARY KEY,          -- 'GT:voice:passive'
+  category_key   TEXT NOT NULL,
+  term_key       TEXT NOT NULL,
+  qac_flag       TEXT,                      -- join into morphology_tag_json
+  parent_term_id TEXT,                      -- hierarchy (أضرب الخبر …)
+  term_order     INTEGER NOT NULL DEFAULT 0,
+  name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
+  short_ar TEXT, short_en TEXT, short_ur TEXT,
+  definition_ar TEXT, definition_en TEXT, definition_ur TEXT,
+  badge_color TEXT, icon TEXT,
+  version     INTEGER NOT NULL DEFAULT 1,
+  superseded_by TEXT,
+  status      TEXT NOT NULL DEFAULT 'live',
+  UNIQUE (category_key, term_key),
+  UNIQUE (category_key, qac_flag),
+  FOREIGN KEY (category_key)   REFERENCES ar_ling_gram_categories(category_key),
+  FOREIGN KEY (parent_term_id) REFERENCES ar_ling_gram_terms(id)
+);
+CREATE TABLE IF NOT EXISTS ar_ling_gram_term_relations (
+  from_term_id  TEXT NOT NULL,
+  to_term_id    TEXT NOT NULL,
+  relation_kind TEXT NOT NULL,  -- 'contrast'|'subsumes'|'requires'|'confused_with'|'reduplicated_from'|'variant_of'
+  note_ar TEXT, note_en TEXT, note_ur TEXT,
+  PRIMARY KEY (from_term_id, to_term_id, relation_kind)
+);
+CREATE TABLE IF NOT EXISTS ar_ling_gram_term_examples (
+  id            TEXT PRIMARY KEY,
+  term_id       TEXT NOT NULL,
+  example_ar    TEXT NOT NULL,
+  gloss_en TEXT, gloss_ur TEXT,
+  example_kind  TEXT NOT NULL DEFAULT 'quran',  -- 'quran'|'hadith'|'poetry'|'constructed'
+  qr_ref        TEXT, source_ref TEXT,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (term_id) REFERENCES ar_ling_gram_terms(id)
+);
+CREATE TABLE IF NOT EXISTS ar_ling_gram_term_sources (
+  term_id     TEXT NOT NULL,
+  source_slug TEXT NOT NULL,   -- 'ibn_hisham_shudhur'|'qazwini_talkhis'|'QAC-0.4'
+  page_ref    TEXT,
+  PRIMARY KEY (term_id, source_slug)
+);
+
+-- ── B. ROOT SATELLITES ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ar_ling_root_antonyms (
+  id TEXT PRIMARY KEY,
+  root_norm TEXT NOT NULL,
+  antonym_ar TEXT NOT NULL, antonym_root TEXT, antonym_en TEXT,
+  relation_kind TEXT NOT NULL DEFAULT 'antonym',
+  note TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  source_ref TEXT,                 -- a شاهد āyah, never an unsourced opinion
+  status TEXT NOT NULL DEFAULT 'draft',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ar_rant_root ON ar_ling_root_antonyms(root_norm, sort_order);
+
+CREATE TABLE IF NOT EXISTS ar_ling_root_scholarship (
+  id TEXT PRIMARY KEY,
+  source_id TEXT NOT NULL, source_slug TEXT, source_native_id TEXT,
+  root_id TEXT, root_norm TEXT NOT NULL, root_text TEXT,
+  reading_kind TEXT NOT NULL DEFAULT 'general',
+  title_en TEXT, title_ar TEXT,
+  body_md TEXT, body_html TEXT, body_plain TEXT,
+  comparanda_json TEXT, inscriptions_json TEXT, glosses_json TEXT, citations_json TEXT,
+  page_no INTEGER, page_range TEXT, section_label TEXT,
+  parser_version TEXT, import_batch_id TEXT,
+  status TEXT DEFAULT 'raw',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (source_id) REFERENCES ar_ling_sources(id),
+  FOREIGN KEY (root_id)   REFERENCES ar_ling_roots(id)
+);
+CREATE INDEX IF NOT EXISTS idx_root_scholarship_root_norm ON ar_ling_root_scholarship(root_norm);
+CREATE INDEX IF NOT EXISTS idx_root_scholarship_slug_root ON ar_ling_root_scholarship(source_slug, root_norm);
+
+-- D9: upstream core tables for the usage_map & development display blocks.
+CREATE TABLE IF NOT EXISTS ar_ling_root_sense_axes (
+  id          TEXT PRIMARY KEY,               -- 'RSA:نذر:speech_act'
+  root_norm   TEXT NOT NULL,
+  axis_key    TEXT NOT NULL,
+  axis_ar TEXT, axis_en TEXT, axis_ur TEXT,
+  weight      INTEGER NOT NULL DEFAULT 0 CHECK (weight BETWEEN 0 AND 3),
+  basis_json  TEXT CHECK (basis_json IS NULL OR json_valid(basis_json)),   -- the āyāt scored
+  note_en     TEXT,
+  source_slug TEXT NOT NULL DEFAULT 'kmaps_usage_map',
+  status      TEXT NOT NULL DEFAULT 'draft',
+  UNIQUE (root_norm, axis_key)
+);
+CREATE TABLE IF NOT EXISTS ar_ling_root_development_stages (
+  id          TEXT PRIMARY KEY,               -- 'RDS:نذر:1'
+  root_norm   TEXT NOT NULL,
+  stage_no    INTEGER NOT NULL,
+  stage_ar    TEXT NOT NULL, stage_en TEXT, stage_ur TEXT,
+  note_en     TEXT,
+  source_ref  TEXT,                            -- Maqāyīs block id etc. when grounded
+  source_slug TEXT NOT NULL DEFAULT 'kmaps_development',
+  status      TEXT NOT NULL DEFAULT 'draft',
+  UNIQUE (root_norm, stage_no)
+);
+CREATE TABLE IF NOT EXISTS ar_ling_root_vocab (
+  root_norm           TEXT PRIMARY KEY,
+  root_text           TEXT NOT NULL,
+  root_id             TEXT,
+  five_lens_entry_id  TEXT,
+  core_sense_en       TEXT, core_sense_ar TEXT,
+  membean_hook        TEXT, membean_anchors_json TEXT,
+  illustration_key    TEXT, diagram_key TEXT,
+  unique_senses_json  TEXT, examples_json TEXT,
+  status              TEXT NOT NULL DEFAULT 'draft',
+  first_surah         INTEGER, first_ayah INTEGER,
+  created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ── C. SARF ENGINE ─────────────────────────────────────────────────────────
+-- The irreducible authored layer: QAC cannot encode transitivity + حرف.
+CREATE TABLE IF NOT EXISTS ar_ling_verb_government (
+  id TEXT PRIMARY KEY,
+  root_norm TEXT NOT NULL,
+  verb_form TEXT,
+  verb_ar TEXT NOT NULL,
+  transitivity TEXT NOT NULL,          -- intransitive|transitive|transitive_by_harf|ditransitive
+  harf TEXT,                           -- إلى / من / لـ / (هـ) / NULL
+  meaning_en TEXT, meaning_ar TEXT,
+  qr_ref TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  source_ref TEXT,
+  status TEXT NOT NULL DEFAULT 'draft',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  transitivity_term_id TEXT             -- → ar_ling_gram_terms(category='transitivity')
+);
+CREATE INDEX IF NOT EXISTS idx_ar_vgov_root ON ar_ling_verb_government(root_norm, sort_order);
+
+-- Arabic word decomposition: جذر + وزن + زوائد + the iʿlāl that moved the surface.
+CREATE TABLE IF NOT EXISTS ar_ling_word_sums (
+  id              TEXT PRIMARY KEY,      -- 'WS:مبين'
+  lemma_ar        TEXT NOT NULL UNIQUE,
+  root_norm       TEXT NOT NULL,
+  root_letters_json TEXT NOT NULL,       -- ["ب","ي","ن"]
+  wazn_ar         TEXT NOT NULL,         -- 'مُفْعِل'
+  form_family_key TEXT,                  -- → ar_ling_gram_terms ('form_iv')
+  zawaid_json     TEXT,                  -- [{"letter":"م","position":"prefix","function":"اسم فاعل"}]
+  operation_key   TEXT,
+  operation_ar TEXT, operation_en TEXT, operation_ur TEXT,
+  surface_form_ar TEXT NOT NULL,         -- 'مُبِين'
+  underlying_form_ar TEXT,               -- 'مُبْيِن'  ← before iʿlāl
+  inflection_class_key TEXT,             -- 'ilal_naql'
+  rule_ar TEXT, rule_en TEXT, rule_ur TEXT,
+  source_slug TEXT NOT NULL, source_ref TEXT,
+  status TEXT NOT NULL DEFAULT 'draft',
+  FOREIGN KEY (root_norm) REFERENCES ar_ling_roots(root_normalized)
+);
+
+-- ── D. MEMLET / QUESTION LAYER ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ar_ling_memlet_kinds (
+  memlet_key     TEXT PRIMARY KEY,       -- 'context'|'word_sum'|'wazn_operation'|…  (14 rows)
+  name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
+  purpose_ar TEXT, purpose_en TEXT, purpose_ur TEXT,
+  modality       TEXT NOT NULL,          -- 'text'|'image'|'audio'|'video'|'diagram'
+  encoding_axis  TEXT NOT NULL,          -- 'form'|'meaning'|'usage'|'network'|'sound'|'history'
+  scope_level    TEXT NOT NULL,          -- 'root'|'lemma'|'both'
+  block_type     TEXT,                   -- the display block it re-reads, if any
+  is_arabic_only INTEGER NOT NULL DEFAULT 0,
+  display_order  INTEGER NOT NULL DEFAULT 0,
+  icon           TEXT
+);
+CREATE TABLE IF NOT EXISTS ar_ling_memlets (
+  id             TEXT PRIMARY KEY,       -- 'MEM:مبين:context'
+  memlet_key     TEXT NOT NULL,
+  scope_level    TEXT NOT NULL CHECK (scope_level IN ('root','lemma')),
+  scope_key      TEXT NOT NULL,          -- 'مبين' | 'بين'
+  lemma_ar       TEXT, root_norm TEXT NOT NULL,
+  title_ar TEXT, title_en TEXT, title_ur TEXT,
+  body_ar  TEXT, body_en  TEXT, body_ur  TEXT,
+  data_json      TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(data_json)),
+  media_r2_key   TEXT,
+  block_ref      TEXT,                   -- → qr_morph_display_blocks.id (L5: read, don't copy)
+  difficulty     INTEGER NOT NULL DEFAULT 3,
+  is_synthesis   INTEGER NOT NULL DEFAULT 1,
+  source_slug    TEXT NOT NULL, source_ref TEXT,
+  confidence     TEXT DEFAULT 'medium',
+  status         TEXT NOT NULL DEFAULT 'draft',
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (scope_level, scope_key, memlet_key),
+  FOREIGN KEY (memlet_key) REFERENCES ar_ling_memlet_kinds(memlet_key),
+  CHECK ((is_synthesis = 1 AND source_slug LIKE 'kmaps_%')
+      OR (is_synthesis = 0 AND source_ref IS NOT NULL))
+);
+CREATE TABLE IF NOT EXISTS ar_ling_memlet_media (
+  id            TEXT PRIMARY KEY,
+  memlet_id     TEXT NOT NULL,
+  media_kind    TEXT NOT NULL,           -- 'recitation'|'pronunciation'|'video'|'animation'
+  r2_key        TEXT NOT NULL UNIQUE,
+  bucket        TEXT NOT NULL DEFAULT 'kmaps-media',
+  mime TEXT, duration_ms INTEGER, sha256 TEXT,
+  reciter TEXT, qiraa TEXT, qr_ref TEXT,
+  license TEXT, source_attribution TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  FOREIGN KEY (memlet_id) REFERENCES ar_ling_memlets(id)
+);
+CREATE TABLE IF NOT EXISTS ar_ling_memlet_mastery (
+  id             TEXT PRIMARY KEY,
+  core_user_ref  TEXT NOT NULL,
+  lemma_ar       TEXT NOT NULL,
+  memlet_key     TEXT NOT NULL,
+  exposures      INTEGER NOT NULL DEFAULT 0,
+  correct        INTEGER NOT NULL DEFAULT 0,
+  encoding_score REAL NOT NULL DEFAULT 0,   -- 0..1 per axis
+  last_seen_at   TEXT,
+  UNIQUE (core_user_ref, lemma_ar, memlet_key)
+);
+CREATE TABLE IF NOT EXISTS ar_ling_question_kinds (
+  question_key   TEXT PRIMARY KEY,       -- 11 rows (7 Membean + 4 Arabic-only)
+  name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
+  memlet_key     TEXT,
+  response_kind  TEXT NOT NULL,          -- 'mcq'|'multi'|'text'|'cloze'|'match'|'order'
+  cognitive_level TEXT NOT NULL,         -- 'recognition'|'recall'|'discrimination'|'production'
+  difficulty_floor INTEGER NOT NULL DEFAULT 1,
+  is_arabic_only INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (memlet_key) REFERENCES ar_ling_memlet_kinds(memlet_key)
+);
+CREATE TABLE IF NOT EXISTS ar_ling_question_items (
+  id             TEXT PRIMARY KEY,       -- 'Q:مبين:furuq:001'
+  question_key   TEXT NOT NULL,
+  lemma_ar       TEXT NOT NULL, root_norm TEXT NOT NULL,
+  memlet_id      TEXT,
+  prompt_ar TEXT NOT NULL, prompt_en TEXT, prompt_ur TEXT,
+  answer_json    TEXT NOT NULL CHECK (json_valid(answer_json)),
+  explanation_ar TEXT, explanation_en TEXT, explanation_ur TEXT,
+  difficulty     INTEGER NOT NULL DEFAULT 3,
+  discrimination REAL,
+  times_shown    INTEGER NOT NULL DEFAULT 0,
+  times_correct  INTEGER NOT NULL DEFAULT 0,
+  qr_ref         TEXT,
+  source_slug TEXT NOT NULL, source_ref TEXT,
+  is_synthesis   INTEGER NOT NULL DEFAULT 1,
+  status         TEXT NOT NULL DEFAULT 'draft',
+  FOREIGN KEY (question_key) REFERENCES ar_ling_question_kinds(question_key),
+  FOREIGN KEY (memlet_id)    REFERENCES ar_ling_memlets(id)
+);
+CREATE TABLE IF NOT EXISTS ar_ling_question_distractors (
+  id             TEXT PRIMARY KEY,
+  item_id        TEXT NOT NULL,
+  option_ar TEXT NOT NULL, option_en TEXT, option_ur TEXT,
+  is_correct     INTEGER NOT NULL DEFAULT 0,
+  distractor_kind TEXT,   -- 'near_synonym'|'same_root_wrong_form'|'same_wazn_wrong_root'|'antonym'|…
+  why_wrong_ar TEXT, why_wrong_en TEXT, why_wrong_ur TEXT,
+  source_ref     TEXT,    -- e.g. near_synonym_members.id — every wrong answer is a lesson
+  sort_order     INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (item_id) REFERENCES ar_ling_question_items(id)
+);
+
+-- ── E. LEARNER STATE ───────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ar_ling_context_passages (
+  id             TEXT PRIMARY KEY,
+  lemma_ar       TEXT NOT NULL,
+  passage_ar     TEXT NOT NULL,          -- target word masked as {{1}}
+  passage_en TEXT, passage_ur TEXT,
+  blank_index    INTEGER NOT NULL DEFAULT 1,
+  answer_ar      TEXT NOT NULL,
+  clue_kind      TEXT,                   -- 'contrast'|'definition'|'example'|'inference'
+  passage_kind   TEXT NOT NULL DEFAULT 'quran',
+  qr_ref         TEXT,
+  difficulty     INTEGER NOT NULL DEFAULT 3,
+  source_slug TEXT NOT NULL, source_ref TEXT,
+  status TEXT NOT NULL DEFAULT 'draft'
+);
+CREATE TABLE IF NOT EXISTS ar_ling_exposure_log (
+  id             TEXT PRIMARY KEY,
+  core_user_ref  TEXT NOT NULL,
+  lemma_ar       TEXT NOT NULL,
+  memlet_key     TEXT, item_id TEXT,
+  surface        TEXT NOT NULL,          -- 'study'|'quiz'|'reading'|'lesson'|'passive'
+  qr_ref         TEXT,                   -- met while reading 44:2?
+  outcome        TEXT,                   -- 'correct'|'incorrect'|'skipped'|'viewed'
+  latency_ms     INTEGER,
+  shown_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS ar_ling_lemma_difficulty (
+  lemma_ar          TEXT PRIMARY KEY,
+  frequency_quran   INTEGER, frequency_rank INTEGER,
+  morph_opacity     REAL,                -- weak root + iʿlāl ⇒ harder
+  polysemy_count    INTEGER,
+  abstractness      REAL,
+  root_known_first  INTEGER,
+  computed_level    INTEGER NOT NULL DEFAULT 3,   -- 1..5
+  computed_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS ar_ling_vocab_memory_hooks (
+  id TEXT PRIMARY KEY,
+  root_norm TEXT NOT NULL,
+  sense_id TEXT,
+  scope_type TEXT NOT NULL DEFAULT 'root',
+  hook_kind TEXT NOT NULL DEFAULT 'sound',  -- widen: sound|image|etymon|contrast|story|calligraphic
+  hook_md TEXT NOT NULL,
+  anchor_word TEXT,
+  source_ref TEXT,
+  status TEXT NOT NULL DEFAULT 'draft',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  lemma_ar TEXT                          -- D26 re-scope: a learner meets مُبِين, not ب-ي-ن
+);
+
+-- Trilingual (Urdu) top-up columns present in live D1 on older reference tables.
+-- Applied as ALTER in 0023 (can't be expressed as IF NOT EXISTS on a column):
+--   ar_ling_semantic_fields.field_name_ur · ar_ling_sentence_types.name_ur
+--   ar_ling_expression_types.name_ur      · ar_ling_nahw_concepts.concept_name_ur/definition_ur
+--   ar_ling_balagha_concepts.name_ur/definition_ur
+--   ar_ling_near_synonym_sets.canonical_ur
+--   ar_ling_near_synonym_members.{basic_gloss_ur,contrast_note_ur,usage_rule_ur,
+--                                 quran_usage_pattern_ur,nuance_note_ur}
+
+-- ===== LAYER-CODE REGISTRY (master data · 00 Register … 90 Media) =====
+CREATE TABLE IF NOT EXISTS ar_ling_reg_build_layer (
+  layer_code   TEXT PRIMARY KEY,          -- '00' Register · '10' Root · '20' Lemma …
+  layer_key    TEXT NOT NULL UNIQUE,
+  name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
+  cluster      TEXT NOT NULL,             -- reg|morph|syn|expr|learn|display|source|curriculum
+  scope_level  TEXT NOT NULL,             -- global|root|lemma|context|user|any
+  fill_order   INTEGER NOT NULL,
+  once_only    INTEGER NOT NULL DEFAULT 1,
+  mode         TEXT NOT NULL,             -- authored|projection|synthesis|generated|ingested|runtime
+  primary_tables_json       TEXT NOT NULL,
+  allowed_source_slugs_json TEXT NOT NULL,-- L1: the only sources a row at this layer may cite
+  note_en TEXT
+);
+CREATE TABLE IF NOT EXISTS ar_ling_reg_table_map (
+  db          TEXT NOT NULL,              -- km_arabic | km_quran | km_arabic_linguistic
+  table_name  TEXT NOT NULL,
+  cluster     TEXT NOT NULL,
+  layer_code  TEXT,                       -- -> ar_ling_reg_build_layer.layer_code
+  role        TEXT,
+  PRIMARY KEY (db, table_name)
+);
+CREATE INDEX IF NOT EXISTS idx_reg_tmap_layer ON ar_ling_reg_table_map(layer_code, db);
+CREATE INDEX IF NOT EXISTS idx_reg_tmap_cluster ON ar_ling_reg_table_map(cluster);
