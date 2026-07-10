@@ -7,8 +7,9 @@ import { query } from '../../../shared/src/db';
 export interface LensEntry { source: string; heading: string | null; text: string; page: number | null; dirty?: boolean; }
 export interface FiveLens { sarf: string | null; irab: string | null; dalala: string | null; balagha: string | null; tarjama: string | null; }
 export interface FamilyLemma { lemma_ar: string; pos: string | null; verb_form: string | null; is_quran_word: boolean; }
-/** Sinai key-terms, parsed from the stored JSON blob into a clean shape. */
-export interface SinaiTerms { terms: string[]; type: string | null; weak_pattern: string | null; epigraphic: boolean; }
+/** Sinai key-terms, parsed from the stored JSON blob into a clean shape.
+ *  terms_ar maps a transliterated term to its lemma-verified Arabic (may be partial). */
+export interface SinaiTerms { terms: string[]; terms_ar: Record<string, string>; type: string | null; weak_pattern: string | null; epigraphic: boolean; }
 
 export interface RootAnalysis {
   root: string;
@@ -83,8 +84,16 @@ function parseSinai(raw: string | null): SinaiTerms | null {
     const o = JSON.parse(raw) as Record<string, unknown>;
     const terms = Array.isArray(o['terms']) ? o['terms'].filter((x): x is string => typeof x === 'string') : [];
     if (!terms.length) return null;
+    const ta = o['terms_ar'];
+    const terms_ar: Record<string, string> = {};
+    if (ta && typeof ta === 'object') {
+      for (const [k, v] of Object.entries(ta as Record<string, unknown>)) {
+        if (typeof v === 'string' && v) terms_ar[k] = v;
+      }
+    }
     return {
       terms,
+      terms_ar,
       type: typeof o['ty'] === 'string' ? o['ty'] : null,
       weak_pattern: typeof o['wp'] === 'string' ? o['wp'] : null,
       epigraphic: o['epi'] === true,
