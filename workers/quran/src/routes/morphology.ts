@@ -13,10 +13,13 @@
 //     • BASE  — qr_word_occurrences (QAC-0.4). Full coverage: every content
 //               word of every surah. Gives lemma, surface, root, POS, and the
 //               derived type (participle / adjective) parsed from the QAC flags.
-//     • RICH  — qr_morph_display_words (the curated Memlet display layer). A
-//               LEFT JOIN enriches promoted words with an authored gloss, sense
-//               list, wazn/form, and root meaning. Absent → the card gracefully
-//               shows the QAC essentials only.
+//     • RICH  — qr_morph_display_words ⟕ qr_morph_display_lemmas (the curated
+//               Memlet display layer). A LEFT JOIN enriches promoted words with
+//               an authored gloss, sense list, wazn/form, and root meaning.
+//               Tier-2 facts (wazn, derived type, form, gloss) come from the
+//               lemma tier via words.lemma_ref — the word-row copies are
+//               transitional fallbacks slated to be nulled. Absent → the card
+//               gracefully shows the QAC essentials only.
 //
 //   Particles are excluded (content words only), matching the All / Nouns /
 //   Verbs filter.
@@ -200,18 +203,18 @@ export function morphologyRoutes(router: Router<QuranEnv>) {
             d.root_display        AS d_root_display,
             d.word_group          AS d_group,
             d.pos_en              AS d_pos_en,
-            d.gloss_en            AS d_gloss_en,
-            d.derived_type_en     AS d_derived_type_en,
-            d.derived_type_ar     AS d_derived_type_ar,
-            d.wazn_ar             AS d_wazn_ar,
-            d.form_ar             AS d_form_ar,
-            d.form_roman          AS d_form_roman,
+            COALESCE(dl.gloss_en, d.gloss_en)                 AS d_gloss_en,
+            COALESCE(dl.derived_type_en, d.derived_type_en)   AS d_derived_type_en,
+            COALESCE(dl.derived_type_ar, d.derived_type_ar)   AS d_derived_type_ar,
+            COALESCE(dl.wazn_ar, d.wazn_ar)                   AS d_wazn_ar,
+            COALESCE(dl.form_ar, d.form_ar)                   AS d_form_ar,
+            COALESCE(dl.form_roman, d.form_roman)             AS d_form_roman,
             d.quran_meanings_json AS d_quran_meanings_json,
             d.root_meaning_en     AS d_root_meaning_en,
             d.is_anchor           AS d_is_anchor,
             d.sense_arc_en        AS d_sense_arc_en,
             d.sense_range_en      AS d_sense_range_en,
-            d.verb_form_ar        AS d_verb_form_ar,
+            COALESCE(dl.verb_form_ar, d.verb_form_ar)         AS d_verb_form_ar,
             ql.wazn_ar            AS l_wazn_ar
           FROM qr_word_occurrences w
           LEFT JOIN qr_morph_display_words d
@@ -219,6 +222,7 @@ export function morphologyRoutes(router: Router<QuranEnv>) {
            AND d.ayah_no  = w.ayah
            AND d.word_index = w.word_index
            AND d.status = 'live'
+          LEFT JOIN qr_morph_display_lemmas dl ON dl.id = d.lemma_ref AND dl.status = 'live'
           LEFT JOIN qr_lemmas ql ON ql.lemma_text = w.lemma
           WHERE ${conditions.join(' AND ')}
           ORDER BY w.ayah, w.word_index`,
