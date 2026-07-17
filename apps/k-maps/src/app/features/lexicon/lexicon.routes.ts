@@ -14,9 +14,12 @@ export const LEXICON_ROUTES: Routes = [
     title: 'المعجم — الكتب',
   },
   {
+    // Back-compat: old book-in-path URL → root-centric URL.
+    // /lexicon/books/:slug?root=R  →  /lexicon/root/R?book=:slug
     path: 'books/:slug',
     loadComponent: () =>
-      import('./book-reader/lexicon-book-reader.component').then(m => m.LexiconBookReaderComponent),
+      import('./root-reader/lexicon-books-redirect.component')
+        .then(m => m.LexiconBooksRedirectComponent),
     title: 'المعجم — قراءة',
   },
   {
@@ -26,10 +29,20 @@ export const LEXICON_ROUTES: Routes = [
     title: 'المعجم — البحث',
   },
   {
-    // Root → Words (grid) → Word. Shared quran-lexicon views.
+    // K-MAPS cross-source synthesis for a root (placeholder shell for now).
+    path: 'synthesis/:root',
+    loadComponent: () =>
+      import('./synthesis/lexicon-synthesis.component').then(m => m.LexiconSynthesisComponent),
+    title: 'المعجم — الخلاصة',
+  },
+  {
+    // Root-centric reader. Root is the URL path; the book is passed via
+    // ?book=<slug> and switched from the toolbar's book selector. With no
+    // ?book this falls back to the morphology root view (root → words grid).
     path: 'root/:root',
     loadComponent: () =>
-      import('../../shared/quran-lexicon/root/root.component').then(m => m.RootComponent),
+      import('./root-reader/lexicon-root-reader.component')
+        .then(m => m.LexiconRootReaderComponent),
     title: 'Root — K-MAPS',
   },
 ];

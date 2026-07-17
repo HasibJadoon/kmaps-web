@@ -7,42 +7,56 @@
   <!-- ── Toolbar ───────────────────────────────────────────────────────── -->
   <header class="reader__toolbar">
     <a class="back" [routerLink]="['/lexicon/books']" aria-label="رجوع للمكتبة">
-      <svg viewBox="0 0 24 24" width="20" height="20"><path d="M10 6 16 12 10 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span>الكتب</span>
+      <svg viewBox="0 0 24 24" width="17" height="17"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>المكتبة</span>
     </a>
+
+    <span class="tb-div"></span>
 
     @if (view()?.meta; as m) {
       <div class="reader__title-block">
-        <div class="reader__source"><h1>{{ m.title_ar }}</h1></div>
+        <h1>{{ m.title_ar }}</h1>
         <p class="reader__author">{{ m.author }} · {{ m.period }}</p>
       </div>
     } @else {
       <div class="reader__title-block"><h1 class="muted">…</h1></div>
     }
 
-    <div class="reader__controls">
-      <button class="ctrl" (click)="prevRoot()" title="الجذر السابق (→)" aria-label="prev">
-        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M10 6 16 12 10 18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-      </button>
-      <span class="reader__current">
-        @if (currentRoot()) { <span class="ar-display">{{ currentRoot() }}</span> }
-      </span>
-      <button class="ctrl" (click)="nextRoot()" title="الجذر التالي (←)" aria-label="next">
-        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M14 6 8 12 14 18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-      </button>
+    @if (currentRoot()) {
+      <km-book-selector [root]="currentRoot()" [currentBook]="activeSlug()" />
+    }
 
-      <span class="sep"></span>
-      <button class="ctrl" (click)="changeFont(-1)" title="تصغير الخط (-)">A-</button>
-      <button class="ctrl" (click)="changeFont(+1)" title="تكبير الخط (+)">A+</button>
-      <button class="ctrl" (click)="toggleDark()" [class.active]="darkMode()" title="الوضع الداكن (d)">
-        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" fill="currentColor"/></svg>
+    <div class="tb-spacer"></div>
+
+    <div class="root-stepper">
+      <button class="step" (click)="nextRoot()" title="الجذر التالي (←)" aria-label="next">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M14 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <button class="ctrl" (click)="toggleIndex()"     [class.active]="showIndex()"     title="فهرس الجذور ([)">⊞</button>
-      <button class="ctrl" (click)="toggleCitations()" [class.active]="showCitations()" title="هامش الروابط (])">⊟</button>
+      <span class="root-stepper__current">{{ currentRoot() }}</span>
+      <button class="step" (click)="prevRoot()" title="الجذر السابق (→)" aria-label="prev">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M10 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+
+    <span class="tb-div"></span>
+
+    <div class="reader__controls">
+      <button class="ctrl ctrl--az" (click)="changeFont(-1)" title="تصغير الخط (-)">A−</button>
+      <button class="ctrl ctrl--az ctrl--az-plus" (click)="changeFont(+1)" title="تكبير الخط (+)">A+</button>
+      <button class="ctrl" (click)="toggleDark()" [class.active]="!darkMode()" title="الوضع النهاري (d)">
+        <svg viewBox="0 0 24 24" width="17" height="17"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" fill="currentColor"/></svg>
+      </button>
+      <span class="sep"></span>
+      <button class="ctrl" (click)="toggleIndex()" [class.active]="showIndex()" title="فهرس الجذور ([)" aria-label="index">
+        <svg viewBox="0 0 24 24" width="17" height="17"><rect x="4" y="5" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M15 5v14" stroke="currentColor" stroke-width="1.8"/></svg>
+      </button>
+      <button class="ctrl" (click)="toggleCitations()" [class.active]="showCitations()" title="الاستشهادات والحواشي (])" aria-label="citations">
+        <svg viewBox="0 0 24 24" width="17" height="17"><rect x="4" y="5" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 5v14" stroke="currentColor" stroke-width="1.8"/></svg>
+      </button>
     </div>
   </header>
 
-  <!-- ── Body : content + two rails + overlay toggles/resizers ──────────── -->
+  <!-- ── Body ──────────────────────────────────────────────────────────── -->
   <div class="reader__body">
 
     <main #content class="content" tabindex="0">
@@ -58,45 +72,39 @@
       } @else if (view(); as v) {
 
         <div class="entry-head">
-          @if (v.canonical) {
-            <div class="canonical">
-              <span class="canonical__label">جذر</span>
-              <span class="canonical__letters">{{ v.canonical.root_letters }}</span>
-              @if (v.canonical.frequency_quran != null) {
-                <span class="canonical__freq" title="ورد في القرآن">
-                  ﴿ {{ v.canonical.frequency_quran }} ﴾
+          <span class="entry-head__eyebrow">
+            LEXICON ENTRY@if (v.entry.volume_no || v.entry.page_start) {
+              <span> · @if (v.entry.volume_no) {ج{{ v.entry.volume_no }} }@if (v.entry.page_start) {ص{{ v.entry.page_start }}}</span>
+            }
+          </span>
+
+          <div class="entry-head__hero">
+            <h2 class="entry-head__title">{{ entryLetters() }}</h2>
+            <div class="entry-head__facts">
+              @if (v.canonical?.root_type) {
+                <span class="fact-pill">{{ v.canonical?.root_type }}</span>
+              }
+              @if (v.canonical?.frequency_quran != null) {
+                <span class="fact-freq" title="مرّات وروده في القرآن">
+                  <span class="br">﴿</span> {{ v.canonical?.frequency_quran }} موضعًا في القرآن <span class="br">﴾</span>
                 </span>
               }
+              @if (v.canonical?.meaning_core_en) {
+                <span class="fact-gloss">{{ v.canonical?.meaning_core_en }}</span>
+              }
             </div>
-          }
-          <h2 class="entry-head__title">{{ v.entry.root_text }}</h2>
+          </div>
+
           <div class="entry-head__meta">
-            @if (v.entry.volume_no) { <span>المجلد {{ v.entry.volume_no }}</span> }
-            @if (v.entry.page_start) {
-              <span>الصفحات {{ v.entry.page_start }} – {{ v.entry.page_end }}</span>
-            }
-            <span class="dot">·</span>
+            @if (v.entry.volume_no) { <span>المجلّد {{ v.entry.volume_no }}</span><span class="dot">·</span> }
+            @if (v.entry.page_start) { <span>الصفحات {{ v.entry.page_start }} – {{ v.entry.page_end }}</span><span class="dot">·</span> }
             <span>{{ v.stats.paragraphs }} فقرة</span>
             @if (v.stats.quran_citations > 0) {
-              <span class="dot">·</span>
-              <span class="badge badge--quran">{{ v.stats.quran_citations }} استشهاد قرآني</span>
+              <span class="chip chip--quran">{{ v.stats.quran_citations }} استشهاد قرآني</span>
             }
-            @if (v.stats.hadith > 0) {
-              <span class="dot">·</span>
-              <span>{{ v.stats.hadith }} حديث</span>
-            }
-            @if (v.stats.poetry > 0) {
-              <span class="dot">·</span>
-              <span>{{ v.stats.poetry }} شاهد شعري</span>
-            }
-            @if (v.stats.footnotes > 0) {
-              <span class="dot">·</span>
-              <span>{{ v.stats.footnotes }} حاشية</span>
-            }
-            @if (v.stats.authorities > 0) {
-              <span class="dot">·</span>
-              <span>{{ v.stats.authority_total }} إسناد ({{ v.stats.authorities }} عَلَم)</span>
-            }
+            @if (v.stats.hadith > 0) { <span class="chip chip--note">{{ v.stats.hadith }} حديث</span> }
+            @if (v.stats.poetry > 0) { <span class="chip chip--verse">{{ v.stats.poetry }} شاهد شعري</span> }
+            @if (v.stats.footnotes > 0) { <span class="chip chip--note">{{ v.stats.footnotes }} حاشية</span> }
           </div>
         </div>
 
@@ -108,11 +116,10 @@
         />
 
         <footer class="entry-foot">
-          <p class="entry-foot__attribution">{{ v.meta.title_ar }} — {{ v.meta.author }}</p>
+          <p class="entry-foot__attribution">{{ v.meta.title_ar }} · <span class="hi">{{ v.meta.author }}</span>@if (v.meta.period) { · {{ v.meta.period }} }</p>
+          <p class="entry-foot__sub">verbatim classical text (public domain)</p>
           @if (v.entry.source_url) {
-            <a class="entry-foot__url" [href]="v.entry.source_url" target="_blank" rel="noopener">
-              المصدر الأصلي ↗
-            </a>
+            <a class="entry-foot__url" [href]="v.entry.source_url" target="_blank" rel="noopener">المصدر الأصلي ↗</a>
           }
         </footer>
       } @else {
@@ -120,20 +127,20 @@
       }
     </main>
 
-    <!-- Index rail (root index — viewport RIGHT edge in RTL) -->
-    <aside #indexRail
-           class="rail rail--index"
-           [class.collapsed]="!showIndex()"
-           aria-label="فهرس الجذور">
+    <!-- Index rail -->
+    <aside #indexRail class="rail rail--index" [class.collapsed]="!showIndex()" aria-label="فهرس الجذور">
       <div class="rail__head">
         <div class="rail__panel-title">
           <span class="rail__panel-title-dot" aria-hidden="true"></span>
           <h3>فهرس الجذور</h3>
           <span class="rail__panel-title-count">{{ rootList().length | number }}</span>
         </div>
-        <input class="rail__search" type="search"
-          [ngModel]="rootSearch()" (ngModelChange)="rootSearch.set($event)"
-          placeholder="ابحث في الفهرس…" dir="rtl" />
+        <div class="rail__search-wrap">
+          <svg class="rail__search-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <input class="rail__search" type="search"
+            [ngModel]="rootSearch()" (ngModelChange)="rootSearch.set($event)"
+            placeholder="ابحث في الفهرس…" dir="rtl" />
+        </div>
       </div>
       <div class="rail__scroll">
         @if (rootListLoading()) {
@@ -143,7 +150,8 @@
             <details class="rail__letter" [open]="entry[0] === currentRoot()[0]">
               <summary>
                 <span class="rail__letter-ar">{{ entry[0] }}</span>
-                <span class="rail__letter-n">{{ entry[1].length }}</span>
+                <span class="rail__letter-n">{{ entry[1].length }} جذر</span>
+                <svg class="rail__letter-chev" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </summary>
               <ul class="rail__roots">
                 @for (r of entry[1]; track r.id) {
@@ -152,9 +160,7 @@
                             [class.active]="r.root_norm === currentRoot()"
                             (click)="goToRoot(r.root_norm)">
                       <span class="rail__root-ar">{{ r.root_text || r.root_norm }}</span>
-                      @if (r.page_start) {
-                        <span class="rail__root-page">ص {{ r.page_start }}</span>
-                      }
+                      @if (r.page_start) { <span class="rail__root-page">ص {{ r.page_start }}</span> }
                     </button>
                   </li>
                 }
@@ -165,11 +171,8 @@
       </div>
     </aside>
 
-    <!-- Citations rail — FIVE panels (Lisan) -->
-    <aside #citationsRail
-           class="rail rail--citations"
-           [class.collapsed]="!showCitations()"
-           aria-label="الروابط والاستشهادات">
+    <!-- Citations rail — FIVE panels -->
+    <aside #citationsRail class="rail rail--citations" [class.collapsed]="!showCitations()" aria-label="الروابط والاستشهادات">
       <div class="rail__scroll rail__scroll--citations">
         @if (view(); as v) {
 
@@ -180,27 +183,21 @@
               <span>الاستشهادات القرآنية</span>
               <span class="rail__h-count">{{ v.quran_citations.length }}</span>
               <ng-container *ngTemplateOutlet="expandBtnTpl"></ng-container>
-              <svg class="rail__h-chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+              <svg class="rail__h-chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </summary>
             @if (v.quran_citations.length > 0) {
-              <ul class="qref-list">
+              <div class="qref-grid">
                 @for (q of v.quran_citations; track $index) {
-                  <li>
-                    <button class="qref" (click)="openAyah(q.surah, q.ayah)" [title]="q.context_snippet || q.raw">
-                      <span class="qref__ref">﴿{{ q.surah }} : {{ q.ayah }}﴾</span>
-                      @if (q.count > 1) { <span class="qref__count">× {{ q.count }}</span> }
-                      @if (q.context_snippet) {
-                        <span class="qref__snip">{{ q.context_snippet }}</span>
-                      }
-                    </button>
-                  </li>
+                  <button class="qchip" (click)="openAyah(q.surah, q.ayah)" [title]="q.context_snippet || q.raw">
+                    <span class="qchip__br">﴿</span>
+                    <span class="qchip__surah">{{ q.surah }}</span>
+                    <span class="qchip__ayah">{{ q.ayah }}</span>
+                    <span class="qchip__br">﴾</span>
+                    @if (q.count > 1) { <span class="qchip__count">×{{ q.count }}</span> }
+                  </button>
                 }
-              </ul>
-            } @else {
-              <p class="rail__muted">لا يوجد</p>
-            }
+              </div>
+            } @else { <p class="rail__muted">لا يوجد</p> }
           </details>
 
           <!-- 2. Footnotes -->
@@ -210,9 +207,7 @@
               <span>الحواشي</span>
               <span class="rail__h-count">{{ v.footnotes.length }}</span>
               <ng-container *ngTemplateOutlet="expandBtnTpl"></ng-container>
-              <svg class="rail__h-chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+              <svg class="rail__h-chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </summary>
             @if (v.footnotes.length > 0) {
               <ol class="fn-list">
@@ -220,17 +215,13 @@
                   <li class="fn-list__item" [attr.data-fn-num]="fn.num">
                     <span class="fn-list__num">{{ fn.num }}</span>
                     <span class="fn-list__text">
-                      @if (fn.pivot) {
-                        <span class="fn-list__pivot">{{ fn.pivot }}</span>
-                      }
+                      @if (fn.pivot) { <span class="fn-list__pivot">{{ fn.pivot }}</span> }
                       {{ fn.text }}
                     </span>
                   </li>
                 }
               </ol>
-            } @else {
-              <p class="rail__muted">لا توجد حواشٍ.</p>
-            }
+            } @else { <p class="rail__muted">لا توجد حواشٍ.</p> }
           </details>
 
           <!-- 3. Hadith quotes -->
@@ -240,9 +231,7 @@
               <span>الأحاديث الشريفة</span>
               <span class="rail__h-count">{{ v.hadith_quotes.length }}</span>
               <ng-container *ngTemplateOutlet="expandBtnTpl"></ng-container>
-              <svg class="rail__h-chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+              <svg class="rail__h-chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </summary>
             @if (v.hadith_quotes.length > 0) {
               <ul class="hadith-list">
@@ -254,9 +243,7 @@
                   </li>
                 }
               </ul>
-            } @else {
-              <p class="rail__muted">لا توجد أحاديث.</p>
-            }
+            } @else { <p class="rail__muted">لا توجد أحاديث.</p> }
           </details>
 
           <!-- 4. Poetry shawahid -->
@@ -266,29 +253,20 @@
               <span>الشواهد الشعرية</span>
               <span class="rail__h-count">{{ v.poetry_shawahid.length }}</span>
               <ng-container *ngTemplateOutlet="expandBtnTpl"></ng-container>
-              <svg class="rail__h-chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+              <svg class="rail__h-chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </summary>
             @if (v.poetry_shawahid.length > 0) {
               <ul class="poetry-list">
                 @for (p of v.poetry_shawahid; track p.id) {
                   <li class="poetry-list__item">
-                    @if (p.attribution) {
-                      <span class="poetry-list__attribution">— {{ p.attribution }}</span>
-                    } @else if (p.cue) {
-                      <span class="poetry-list__cue">{{ p.cue }}</span>
-                    }
-                    @for (v of p.verses; track $index) {
-                      <div class="poetry-list__verse">{{ v }}</div>
-                    }
+                    @if (p.attribution) { <span class="poetry-list__attribution">— {{ p.attribution }}</span> }
+                    @else if (p.cue) { <span class="poetry-list__cue">{{ p.cue }}</span> }
+                    @for (verse of p.verses; track $index) { <div class="poetry-list__verse">{{ verse }}</div> }
                     @if (p.page) { <span class="poetry-list__page">ص {{ p.page }}</span> }
                   </li>
                 }
               </ul>
-            } @else {
-              <p class="rail__muted">لا توجد شواهد.</p>
-            }
+            } @else { <p class="rail__muted">لا توجد شواهد.</p> }
           </details>
 
           <!-- 5. Authorities -->
@@ -298,25 +276,19 @@
               <span>الأعلام</span>
               <span class="rail__h-count">{{ v.authorities.length }}</span>
               <ng-container *ngTemplateOutlet="expandBtnTpl"></ng-container>
-              <svg class="rail__h-chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+              <svg class="rail__h-chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </summary>
             @if (v.authorities.length > 0) {
               <ul class="auth-list">
                 @for (a of v.authorities; track a.name) {
                   <li class="auth-list__item" [attr.data-auth-name]="a.name">
                     <span class="auth-list__name">{{ a.name_label }}</span>
-                    <span class="auth-list__count">× {{ a.count }}</span>
-                    @if (a.first_page) {
-                      <span class="auth-list__page">ص {{ a.first_page }}</span>
-                    }
+                    <span class="auth-list__count">×{{ a.count }}</span>
+                    @if (a.first_page) { <span class="auth-list__page">ص {{ a.first_page }}</span> }
                   </li>
                 }
               </ul>
-            } @else {
-              <p class="rail__muted">لا توجد إسنادات.</p>
-            }
+            } @else { <p class="rail__muted">لا توجد إسنادات.</p> }
           </details>
         }
       </div>
@@ -324,21 +296,13 @@
 
     <!-- Resize handles -->
     @if (showIndex()) {
-      <button class="rail-resizer rail-resizer--index" type="button"
-              aria-label="تغيير عرض فهرس الجذور"
-              (pointerdown)="startResize('index', $event)">
-        <span class="rail-resizer__grip" aria-hidden="true">
-          <span></span><span></span><span></span><span></span><span></span><span></span>
-        </span>
+      <button class="rail-resizer rail-resizer--index" type="button" aria-label="تغيير عرض فهرس الجذور" (pointerdown)="startResize('index', $event)">
+        <span class="rail-resizer__grip" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></span>
       </button>
     }
     @if (showCitations() && !citationsExpanded()) {
-      <button class="rail-resizer rail-resizer--citations" type="button"
-              aria-label="تغيير عرض هامش الروابط"
-              (pointerdown)="startResize('citations', $event)">
-        <span class="rail-resizer__grip" aria-hidden="true">
-          <span></span><span></span><span></span><span></span><span></span><span></span>
-        </span>
+      <button class="rail-resizer rail-resizer--citations" type="button" aria-label="تغيير عرض هامش الروابط" (pointerdown)="startResize('citations', $event)">
+        <span class="rail-resizer__grip" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></span>
       </button>
     }
 
@@ -347,22 +311,13 @@
             [attr.aria-label]="showIndex() ? 'إخفاء الفهرس' : 'إظهار الفهرس'"
             [title]="(showIndex() ? 'إخفاء' : 'إظهار') + ' فهرس الجذور ([)'"
             (click)="toggleIndex()">
-      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-        <path [attr.d]="showIndex() ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'"
-              fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
+      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path [attr.d]="showIndex() ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
-
     <button class="rail-toggle rail-toggle--citations" type="button"
             [attr.aria-label]="showCitations() ? 'إخفاء الهامش' : 'إظهار الهامش'"
             [title]="(showCitations() ? 'إخفاء' : 'إظهار') + ' هامش الروابط (])'"
             (click)="toggleCitations()">
-      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-        <path [attr.d]="showCitations() ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6'"
-              fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
+      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path [attr.d]="showCitations() ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6'" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
   </div>
 </section>

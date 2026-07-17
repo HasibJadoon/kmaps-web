@@ -86,7 +86,7 @@ interface LexBlockRow {
 const LEX_ORDER = [
   'lane_lexicon',
   'saaid_maqayis_al_lugha',
-  'ketabonline_al_raghib_mufradat',
+  'al_raghib_mufradat',
   'ketabonline_ibn_manzur_lisan_al_arab',
   'ketabonline_al_jawhari_al_sihah',
   'ketabonline_al_fayyumi_misbah_munir',

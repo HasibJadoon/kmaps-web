@@ -104,10 +104,11 @@ export class LaneShellComponent implements AfterViewInit {
     combineLatest([this.route.paramMap, this.route.queryParamMap])
       .pipe(takeUntilDestroyed())
       .subscribe(([params, query]) => {
-        const slug = params.get('slug') ?? '';
-        if (slug !== LANE_SLUG) return;
+        // Root-centric URL: /lexicon/root/:root?book=<slug>.
+        const book = query.get('book') ?? '';
+        if (book !== LANE_SLUG) return;
         if (this.rootList().length === 0) this.loadRoots();
-        const root = query.get('root') ?? '';
+        const root = params.get('root') ?? '';
         if (root) this.loadEntry(root);
         else if (this.rootList().length > 0)
           this.goToRoot(this.rootList()[0].root_norm);
@@ -192,10 +193,8 @@ export class LaneShellComponent implements AfterViewInit {
   }
 
   goToRoot(root_norm: string) {
-    this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { root: root_norm },
-      queryParamsHandling: 'merge',
+    this.router.navigate(['/lexicon/root', root_norm], {
+      queryParams: { book: LANE_SLUG },
     });
   }
   prevRoot() {

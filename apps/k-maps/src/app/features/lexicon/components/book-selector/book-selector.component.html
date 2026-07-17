@@ -1,0 +1,30 @@
+<div class="bs" [class.bs--open]="open()">
+  <button class="bs__btn" type="button" (click)="toggle()"
+          [attr.aria-expanded]="open()" title="اختيار المصدر">
+    <svg class="bs__icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+      <path d="M4 5h13a2 2 0 0 1 2 2v12l-3-2-3 2-3-2-3 2V5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+    </svg>
+    <span class="bs__current">{{ currentTitle() }}</span>
+    <svg class="bs__chev" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+      <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </button>
+
+  @if (open()) {
+    <div class="bs__menu" role="listbox">
+      <div class="bs__menu-head">المصادر التي فيها هذا الجذر</div>
+      @for (o of options(); track o.slug) {
+        <button class="bs__item" type="button"
+                [class.active]="o.slug === currentBook()"
+                (click)="pick(o.slug)">
+          <span class="bs__item-ar">{{ o.title_ar }}</span>
+          <span class="bs__item-author">{{ o.author }}</span>
+          @if (o.sections > 0) { <span class="bs__item-n">{{ o.sections }}</span> }
+        </button>
+      }
+      @if (options().length === 0) {
+        <div class="bs__empty">…</div>
+      }
+    </div>
+  }
+</div>

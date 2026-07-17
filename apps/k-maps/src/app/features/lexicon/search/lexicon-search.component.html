@@ -1,0 +1,170 @@
+<section class="lxs" dir="rtl">
+
+  <!-- Header + search bar -->
+  <header class="lxs__head">
+    <a class="lxs__back" [routerLink]="['/lexicon']">
+      <span class="lxs__back-chevron">‹</span><span>المعجم</span>
+    </a>
+    <div class="lxs__title">
+      <span class="lxs__eyebrow">LEXICON&nbsp;·&nbsp;معجم الجذور</span>
+      <h1>البحث في المعاجم</h1>
+    </div>
+
+    <form class="lxs__form" (submit)="submit(); $event.preventDefault()">
+      <div class="lxs__modes">
+        @for (m of modes; track m.id) {
+          <button type="button" class="lxs__mode" [class.active]="mode() === m.id"
+                  (click)="setMode(m.id)" [title]="m.hint">{{ m.label }}</button>
+        }
+      </div>
+      <div class="lxs__field">
+        <svg class="lxs__field-icon" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input class="lxs__input" type="search" dir="rtl"
+               [ngModel]="draft()" (ngModelChange)="draft.set($event)"
+               name="q" placeholder="ابحث عن جذر أو كلمة…" autocomplete="off" />
+        <button class="lxs__go" type="submit">بحث</button>
+      </div>
+    </form>
+  </header>
+
+  <!-- Body -->
+  <main class="lxs__body">
+
+    @if (loading()) {
+      <div class="lxs__skel">
+        @for (i of [1,2,3,4,5,6]; track i) { <div class="lxs__skel-card"></div> }
+      </div>
+    } @else if (!searched()) {
+      <p class="lxs__hint">اكتب جذرًا (مثل «علم») أو كلمة ثم اضغط بحث.</p>
+    }
+
+    <!-- ── Root mode: canonical hero + 3D card grid ── -->
+    @else if (mode() === 'root') {
+      @if (hero(); as h) {
+        <div class="hero">
+          <div class="hero__glyphcol">
+            <div class="hero__kicker">ROOT&nbsp;·&nbsp;الجذر</div>
+            <div class="hero__root">{{ h.root }}</div>
+            <div class="hero__letters">
+              @for (ltr of h.letters; track $index) {
+                <span class="hero__letter">{{ ltr }}</span>
+              }
+            </div>
+          </div>
+          <div class="hero__data">
+            @if (h.meaning) { <div class="hero__meaning">{{ h.meaning }}</div> }
+            <div class="hero__stats">
+              @if (h.frequency !== null) {
+                <div class="stat">
+                  <div class="stat__n">{{ h.frequency }}</div>
+                  <div class="stat__l">التكرار في القرآن</div>
+                </div>
+              }
+              <div class="stat">
+                <div class="stat__n">{{ h.sourceCount }}</div>
+                <div class="stat__l">المعاجم المطابِقة</div>
+              </div>
+              <div class="stat">
+                <div class="stat__n">{{ h.derivations }}</div>
+                <div class="stat__l">المشتقات</div>
+              </div>
+              <div class="stat">
+                <div class="stat__n stat__n--ar">{{ h.typeLabel }}</div>
+                <div class="stat__l">نوع الجذر</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="lxs__count">
+          <span class="lxs__count-n">{{ total() }}</span> نتيجة لـ
+          <span class="lxs__count-q">«{{ q() }}»</span>
+          <span class="lxs__count-mode">— {{ modeLabel() }}</span>
+        </p>
+
+        <div class="lxs__grid">
+          <!-- K-MAPS synthesis — one prominent, distinctly-coloured card that
+               opens the cross-source synthesis for this root, on its own page. -->
+          <a class="synth"
+             [routerLink]="['/lexicon/synthesis', synthRoot()]"
+             (pointermove)="onTilt($event)" (pointerleave)="onTiltEnd($event)">
+            <span class="synth__glare" aria-hidden="true"></span>
+            <span class="synth__ghost" aria-hidden="true">◆</span>
+            <span class="synth__body">
+              <span class="synth__badge">K-MAPS · خلاصة</span>
+              <span class="synth__title">تحليل المعاني الخمسة</span>
+              <span class="synth__sub">توليفة عبر كل المعاجم — المعنى الجامع، الأقطاب الدلاليّة، ومراحل التطوّر.</span>
+              <span class="synth__cta">
+                افتح الخلاصة
+                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </span>
+          </a>
+
+          @for (c of cards(); track c.source_slug) {
+            <a class="card"
+               [routerLink]="['/lexicon/root', c.root_norm]"
+               [queryParams]="{ book: c.source_slug }"
+               (pointermove)="onTilt($event)" (pointerleave)="onTiltEnd($event)">
+              <span class="card__bar" aria-hidden="true"></span>
+              <span class="card__glare" aria-hidden="true"></span>
+              <span class="card__ghost" aria-hidden="true">{{ c.glyph }}</span>
+              <span class="card__body">
+                <span class="card__top">
+                  <span class="card__titles">
+                    <span class="card__title">{{ c.titleAr }}</span>
+                    <span class="card__byline">{{ c.byline }}</span>
+                  </span>
+                  @if (c.pageLabel) { <span class="card__page">{{ c.pageLabel }}</span> }
+                </span>
+                @if (c.snippet) { <span class="card__snippet">{{ c.snippet }}</span> }
+                <span class="card__chips">
+                  <span class="chip">مشتقات <b>{{ c.derivations }}</b></span>
+                  <span class="chip">شواهد <b>{{ c.citations }}</b></span>
+                  @if (c.bilingual) { <span class="chip chip--bi">ثنائي اللغة</span> }
+                </span>
+              </span>
+            </a>
+          }
+        </div>
+      } @else {
+        <p class="lxs__empty">لا يوجد جذر «{{ q() }}» في المعاجم.</p>
+      }
+    }
+
+    <!-- ── Word / full-text modes: flat result list ── -->
+    @else if (results().length === 0) {
+      <p class="lxs__empty">لا توجد نتائج لـ «{{ q() }}».</p>
+    } @else {
+      <p class="lxs__count">
+        <span class="lxs__count-n">{{ total() }}</span> نتيجة لـ
+        <span class="lxs__count-q">«{{ q() }}»</span>
+        <span class="lxs__count-mode">— {{ modeLabel() }}</span>
+      </p>
+
+      <ul class="lxs__list">
+        @for (h of results(); track $index) {
+          <li>
+            <a class="hit"
+               [routerLink]="['/lexicon/root', h.root_norm]"
+               [queryParams]="{ book: h.source_slug }">
+              <div class="hit__root">{{ h.root_text || h.root_norm }}</div>
+              <div class="hit__main">
+                <div class="hit__source">
+                  <span class="hit__source-ar">{{ h.meta.title_ar }}</span>
+                  @if (h.meta.author) { <span class="hit__source-author">{{ h.meta.author }}</span> }
+                </div>
+                @if (h.heading_ar) { <div class="hit__heading">{{ h.heading_ar }}</div> }
+                @if (snippetOf(h)) { <div class="hit__snippet">{{ snippetOf(h) }}</div> }
+              </div>
+              <div class="hit__meta">
+                @if (pageOf(h)) { <span class="hit__page">ص {{ pageOf(h) }}</span> }
+                <svg class="hit__chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+            </a>
+          </li>
+        }
+      </ul>
+    }
+  </main>
+</section>

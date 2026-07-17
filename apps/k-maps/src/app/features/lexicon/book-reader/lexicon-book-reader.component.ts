@@ -307,6 +307,18 @@ export class LexiconBookReaderComponent {
       .subscribe(([params, query]) => {
         const slug = params.get('slug') ?? '';
         const root = query.get('root') ?? '';
+
+        // The al-Rāghib Mufradāt source dropped its provider prefix
+        // (ketabonline_al_raghib_mufradat → al_raghib_mufradat). Redirect
+        // any bookmarked links on the old slug so they keep working.
+        if (slug === 'ketabonline_al_raghib_mufradat') {
+          this.router.navigate(['/lexicon/books', MUFRADAT_SLUG], {
+            queryParams: root ? { root } : {},
+            replaceUrl: true,
+          });
+          return;
+        }
+
         this.slug.set(slug);
 
         // Load root list for this book once per slug

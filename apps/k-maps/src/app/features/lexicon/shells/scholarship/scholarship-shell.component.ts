@@ -84,19 +84,20 @@ export class ScholarshipShellComponent {
     combineLatest([this.route.paramMap, this.route.queryParamMap])
       .pipe(takeUntilDestroyed())
       .subscribe(([params, query]) => {
-        const slug = params.get('slug') ?? '';
-        if (!slug) return;
+        // Root-centric URL: /lexicon/root/:root?book=<slug>.
+        const book = query.get('book') ?? '';
+        if (!book) return;
         // No allowlist — render whatever academic source the URL points
         // at. The roots-list query returns empty for unknown slugs, so
         // the shell degrades gracefully (left rail is empty, main panel
         // shows "Pick a root").
-        if (slug !== this.slug()) {
-          this.slug.set(slug);
+        if (book !== this.slug()) {
+          this.slug.set(book);
           this.rootList.set([]);
-          this.loadRoots(slug);
+          this.loadRoots(book);
         }
-        const root = query.get('root') ?? '';
-        if (root) this.loadEntry(slug, root);
+        const root = params.get('root') ?? '';
+        if (root) this.loadEntry(book, root);
         else if (this.rootList().length > 0) {
           this.goToRoot(this.rootList()[0].root_norm);
         }
@@ -131,10 +132,8 @@ export class ScholarshipShellComponent {
 
   // ── Navigation
   goToRoot(root_norm: string) {
-    this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { root: root_norm },
-      queryParamsHandling: 'merge',
+    this.router.navigate(['/lexicon/root', root_norm], {
+      queryParams: { book: this.slug() },
     });
   }
   prevRoot() {

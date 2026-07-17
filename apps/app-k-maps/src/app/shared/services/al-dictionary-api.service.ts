@@ -126,7 +126,7 @@ export class AlDictionaryApiService {
   /** Mufradat reader view (al-Raghib). */
   getMufradatRead(root_norm: string): Observable<MufradatReadView> {
     return this.api.getData<MufradatReadView>(
-      'al', ['lex', 'v2', 'read', 'ketabonline_al_raghib_mufradat', root_norm],
+      'al', ['lex', 'v2', 'read', 'al_raghib_mufradat', root_norm],
     );
   }
 

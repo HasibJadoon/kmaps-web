@@ -60,7 +60,7 @@ const CLASSICAL_LEXICON_SLUGS = new Set<string>([
   'ketabonline_ibn_duraid_jamharat_al_lugha',
 ]);
 const LANE_SLUGS = new Set<string>(['lane_lexicon', 'lane_quranic_research_perseus']);
-const MUFRADAT_SLUG = 'ketabonline_al_raghib_mufradat';
+const MUFRADAT_SLUG = 'al_raghib_mufradat';
 
 function sourceKind(slug: string): SourceKind {
   if (LANE_SLUGS.has(slug))             return 'lane';

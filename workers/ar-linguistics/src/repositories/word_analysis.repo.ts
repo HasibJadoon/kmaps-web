@@ -39,7 +39,7 @@ export interface RootAnalysis {
 // Nothing here decides WHICH lexicons render — qr_morph_display_sources does that.
 const LENS_SLUG = {
   maqayis: 'saaid_maqayis_al_lugha',
-  mufradat: 'ketabonline_al_raghib_mufradat',
+  mufradat: 'al_raghib_mufradat',
   lane: 'lane_lexicon',
   sinai: 'sinai_key_terms',
 } as const;

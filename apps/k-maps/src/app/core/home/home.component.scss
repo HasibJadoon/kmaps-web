@@ -194,7 +194,8 @@
   filter: drop-shadow(0 0 12px rgba(201, 168, 76, 0.3));
 }
 
-.km-module-card--arabic .km-module-card__glyph {
+.km-module-card--arabic .km-module-card__glyph,
+.km-module-card--lexicon .km-module-card__glyph {
   font-family: var(--km-font-arabic);
   font-size: 4rem;
 }

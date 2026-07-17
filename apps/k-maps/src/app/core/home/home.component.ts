@@ -206,6 +206,7 @@ export class HomeComponent implements AfterViewInit, OnDestroy {
     { id: 'hub', label: 'Hub', route: '/hub', icon: '◈', glyph: '⬡' },
     { id: 'quran', label: 'Quran', route: '/quran', icon: '◉', glyph: '☽' },
     { id: 'arabic', label: 'Arabic', route: '/arabic', icon: '◆', glyph: 'ع' },
+    { id: 'lexicon', label: 'Lexicon', route: '/lexicon', icon: '◈', glyph: 'م' },
     { id: 'worldview', label: 'Worldview', route: '/worldview', icon: '◎', glyph: '◉' },
     { id: 'planner', label: 'Planner', route: '/planner', icon: '▦', glyph: '⊞' },
     { id: 'srs', label: 'SRS', route: '/srs', icon: '↻', glyph: '↻' },

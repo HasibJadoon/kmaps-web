@@ -1,86 +1,181 @@
 <article class="mfp" dir="rtl">
-  @for (sec of view().sections; track sec.id) {
-    @if (view().sections.length > 1 && sec.heading_ar) {
-      <h2 class="mfp__section-heading">
-        <span class="mfp__section-seq">{{ sec.seq }}</span>
-        <span class="mfp__section-title">{{ sec.heading_ar }}</span>
-        @if (sec.page_no) { <span class="mfp__section-page">ص {{ sec.page_no }}</span> }
-      </h2>
-    }
 
-    @for (p of sec.paragraphs; track $index; let pIdx = $index) {
-      @switch (p.kind) {
+  <!-- ── Family map (study aid) — synthesis layer, authored roots only ──── -->
+  @if (view().family; as fam) {
+    <div class="mfp-family">
+      <div class="mfp-family__head">
+        <span class="mfp-family__chip">study aid</span>
+        <span class="mfp-family__title">الخريطة · the family at a glance</span>
+        <span class="mfp-family__rule"></span>
+      </div>
 
-        @case ('prose') {
-          <p class="mfp__p mfp__p--prose"
-             [class.mfp__p--lede]="$first && pIdx === 0">
-            <ng-container *ngTemplateOutlet="tokens; context: { $implicit: p.tokens }"></ng-container>
-          </p>
-        }
+      <!-- Meaning core -->
+      <div class="mcore">
+        <div class="mcore__label">meaning · المعنى الأساسي</div>
+        <div class="mcore__ar">{{ fam.meaning_core.ar }}</div>
+        @if (fam.meaning_core.en) { <div class="mcore__en">{{ fam.meaning_core.en }}</div> }
+        @if (fam.meaning_core.ur) { <div class="mcore__ur">{{ fam.meaning_core.ur }}</div> }
+      </div>
+      <div class="mcore__stem"></div>
 
-        @case ('poetry') {
-          <aside class="mfp__poetry" aria-label="بيت شعر">
-            @if (p.cue) { <span class="mfp__poetry-cue">{{ p.cue }}</span> }
-            @for (v of p.verses; track $index) {
-              <div class="mfp__poetry-verse">{{ v }}</div>
+      <!-- Poles -->
+      <div class="poles">
+        @for (pole of fam.poles; track $index) {
+          <div class="pole" [attr.data-pole]="pole.key">
+            <div class="pole__head">
+              <div class="pole__title-ar">{{ pole.title_ar }}</div>
+              <div class="pole__title-en">{{ pole.title_en }}</div>
+              <span class="pole__underline"></span>
+            </div>
+            @for (f of pole.forms; track $index) {
+              <div class="form" [class.form--last]="$last">
+                <div class="form__top">
+                  <span class="form__badge">{{ f.badge }}</span>
+                  <span class="form__head" [innerHTML]="f.head_html | safeHtml"></span>
+                </div>
+                @if (f.masdar_html) {
+                  <div class="form__masdar" [innerHTML]="f.masdar_html | safeHtml"></div>
+                }
+                @if (f.gloss_en) {
+                  <div class="form__en" [innerHTML]="f.gloss_en | safeHtml"></div>
+                }
+                @if (f.gloss_ur) {
+                  <div class="form__ur" [innerHTML]="f.gloss_ur | safeHtml"></div>
+                }
+                @if (f.citation_html) {
+                  <div class="form__cite" [innerHTML]="f.citation_html | safeHtml"></div>
+                }
+              </div>
             }
-            @if (p.attribution) { <span class="mfp__poetry-attribution">— {{ p.attribution }}</span> }
-          </aside>
+          </div>
         }
+      </div>
 
-        @case ('hadith') {
-          <aside class="mfp__hadith" aria-label="حديث شريف">
-            <span class="mfp__kind-chip mfp__kind-chip--hadith">حديث</span>
-            <p class="mfp__hadith-text">
+      <!-- Derivation chain (his own words) -->
+      @if (fam.derivation; as der) {
+        <div class="deriv">
+          <div class="deriv__label">his own words — the derivation chain</div>
+          <div class="deriv__quote">{{ der.quote_ar }}</div>
+          @if (der.en_html) { <div class="deriv__en" [innerHTML]="der.en_html | safeHtml"></div> }
+          @if (der.ur_html) { <div class="deriv__ur" [innerHTML]="der.ur_html | safeHtml"></div> }
+
+          @if (der.inferred_en_html || der.inferred_ur_html) {
+            <div class="inferred">
+              <span class="inferred__label">inferred · استنباط</span>
+              @if (der.inferred_en_html) { <div class="inferred__en" [innerHTML]="der.inferred_en_html | safeHtml"></div> }
+              @if (der.inferred_ur_html) { <div class="inferred__ur" [innerHTML]="der.inferred_ur_html | safeHtml"></div> }
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Verbatim divider -->
+    <div class="mfp-band">
+      <span class="mfp-band__chip">verbatim</span>
+      <span class="mfp-band__title">نصُّ الراغب كاملاً مع الترجمة</span>
+      <span class="mfp-band__rule"></span>
+    </div>
+  }
+
+  <!-- ── Verbatim passages ─────────────────────────────────────────────── -->
+  @for (sec of view().sections; track sec.id; let sIdx = $index) {
+    <section class="mfp__section">
+      <div class="mfp__section-head">
+        <span class="mfp__section-seq">{{ sec.seq }}</span>
+        @if (sec.heading_ar) {
+          <span class="mfp__section-title">{{ sec.heading_ar }}</span>
+        } @else {
+          <span class="mfp__section-title mfp__section-title--muted">الفقرة {{ sec.seq }}</span>
+        }
+        @if (sec.page_no) { <span class="mfp__section-page">ص {{ sec.page_no }}</span> }
+        <span class="mfp__section-rule"></span>
+      </div>
+
+      @for (p of sec.paragraphs; track $index; let pIdx = $index) {
+        @switch (p.kind) {
+
+          @case ('prose') {
+            <p class="txt" [class.txt--lede]="sIdx === 0 && pIdx === 0">
               <ng-container *ngTemplateOutlet="tokens; context: { $implicit: p.tokens }"></ng-container>
             </p>
-          </aside>
-        }
+          }
 
-        @case ('qira_variant') {
-          <aside class="mfp__qira" aria-label="قراءة قرآنية">
-            <span class="mfp__kind-chip mfp__kind-chip--qira">قراءة{{ p.reader ? ' — ' + p.reader : '' }}</span>
-            <p class="mfp__qira-text">
+          @case ('poetry') {
+            <div class="mfp-poetry" aria-label="بيت شعر">
+              @if (p.cue) { <span class="mfp-poetry__cue">{{ p.cue }}</span> }
+              @for (v of p.verses; track $index) {
+                <div class="mfp-poetry__verse">{{ v }}</div>
+              }
+              @if (p.attribution) { <span class="mfp-poetry__attr">— {{ p.attribution }}</span> }
+            </div>
+          }
+
+          @case ('hadith') {
+            <p class="txt txt--hadith">
+              <span class="mfp-chip mfp-chip--hadith">حديث</span>
               <ng-container *ngTemplateOutlet="tokens; context: { $implicit: p.tokens }"></ng-container>
             </p>
-          </aside>
-        }
+          }
 
-        @case ('editorial') {
-          <aside class="mfp__editorial" aria-label="حاشية تحريرية">
-            <p class="mfp__editorial-text">
+          @case ('qira_variant') {
+            <p class="txt txt--qira">
+              <span class="mfp-chip mfp-chip--qira">قراءة{{ p.reader ? ' — ' + p.reader : '' }}</span>
               <ng-container *ngTemplateOutlet="tokens; context: { $implicit: p.tokens }"></ng-container>
             </p>
-          </aside>
+          }
+
+          @case ('editorial') {
+            <p class="txt txt--editorial">
+              <ng-container *ngTemplateOutlet="tokens; context: { $implicit: p.tokens }"></ng-container>
+            </p>
+          }
         }
       }
-    }
+
+      <!-- Trilingual synthesis (EN + UR). Hidden in AR-only mode, and
+           omitted entirely when the passage has no authored translation. -->
+      @if (showTrans() && (sec.translation_en || sec.translation_ur)) {
+        <div class="tri">
+          @if (sec.translation_en) {
+            <div>
+              <div class="tri-hh">English — full</div>
+              <div class="tri-en" [innerHTML]="sec.translation_en | safeHtml"></div>
+            </div>
+          }
+          @if (sec.translation_ur) {
+            <div>
+              <div class="tri-hh tri-hh--ur">اردو — مکمل</div>
+              <div class="tri-ur" [innerHTML]="sec.translation_ur | safeHtml"></div>
+            </div>
+          }
+        </div>
+      }
+    </section>
   }
 </article>
 
 <ng-template #tokens let-toks>
   @for (t of toks; track $index) {
     @switch (t.kind) {
-      @case ('text') { <span>{{ t.value }}</span> }
+      @case ('text') {
+        @for (seg of splitQuoted(t.value); track $index) {
+          @if (seg.q) { <span class="qq">{{ seg.t }}</span> }
+          @else { <span>{{ seg.t }}</span> }
+        }
+      }
       @case ('br')   { <br /> }
 
       @case ('quran') {
-        <a class="mfp-qref"
-           [class.mfp-qref--unresolved]="!t.surah_num"
+        <a class="rf"
+           [class.rf--unresolved]="!t.surah_num"
            [title]="t.raw"
-           (click)="onQuranClick(t)">
-          <span class="mfp-qref__bracket">﴿</span>
-          <span class="mfp-qref__surah">{{ t.surah }}</span>
-          <span class="mfp-qref__ayah">
-            {{ t.ayah }}@if (t.ayah_to) {–{{ t.ayah_to }}}
-          </span>
-          <span class="mfp-qref__bracket">﴾</span>
-        </a>
+           (click)="onQuranClick(t)">{{ t.surah }} {{ t.ayah }}@if (t.ayah_to) {–{{ t.ayah_to }}}</a>
       }
 
       @case ('footnote') {
-        <sup class="mfp-fn"
-             [class.mfp-fn--has-text]="t.has_text"
+        <sup class="fx"
+             [class.fx--has-text]="t.has_text"
              [attr.data-fn-num]="t.num"
              [attr.data-fn-page]="t.printed_page"
              [title]="fnTooltip(t)"
@@ -88,7 +183,7 @@
       }
 
       @case ('paren_quote') {
-        <span class="mfp-paren" [title]="'صيغة مدرجة'">{{ t.value }}</span>
+        <span class="kw" [title]="'صيغة مدرجة'">{{ t.value }}</span>
       }
     }
   }

@@ -8,7 +8,7 @@
 // Caller pattern:
 //
 //   const repo  = new SourcesRepo(env.DB_AL);
-//   const src   = await repo.bySlug('ketabonline_al_raghib_mufradat');
+//   const src   = await repo.bySlug('al_raghib_mufradat');
 //   const all   = await repo.inDisplayOrder();
 //   const some  = await repo.bySlugs(['lane_lexicon', 'qomra_al_qamus_al_muhit']);
 //
@@ -27,7 +27,7 @@ import { query, queryOne } from '../../../shared/src/db';
  *  query below. */
 export interface LexiconSource {
   id:                 string;        // D1 primary key (e.g. SRC:KETABONLINE:MUFRADAT)
-  slug:               string;        // TS-side identifier used in URLs (e.g. ketabonline_al_raghib_mufradat)
+  slug:               string;        // TS-side identifier used in URLs (e.g. al_raghib_mufradat)
   title_ar:           string;
   title_en:           string | null;
   author_name:        string | null;
@@ -38,6 +38,8 @@ export interface LexiconSource {
   footnote_source:    string | null; // 'inline_brackets' | 'footnote_blocks' | 'none' | null
   quran_block_shape:  string | null; // 'inline_verse' | 'cue_only_verse_in_braces' | null
   genre:              string | null;
+  author_death_ah:    number | null; // Hijri death year (classical authors)
+  author_death_ce:    number | null; // CE death year (Lane etc.); null for living authors
 }
 
 interface SourceRow {
@@ -53,11 +55,14 @@ interface SourceRow {
   footnote_source:    string | null;
   quran_block_shape:  string | null;
   genre:              string | null;
+  author_death_ah:    number | null;
+  author_death_ce:    number | null;
 }
 
 const SELECT = `
   id, slug, title_ar, title_en, author_name, period_label,
-  origin, bilingual, source_order, footnote_source, quran_block_shape, genre
+  origin, bilingual, source_order, footnote_source, quran_block_shape, genre,
+  author_death_ah, author_death_ce
 FROM ar_ling_sources`;
 
 function toSource(r: SourceRow): LexiconSource {
@@ -74,6 +79,8 @@ function toSource(r: SourceRow): LexiconSource {
     footnote_source:    r.footnote_source,
     quran_block_shape:  r.quran_block_shape,
     genre:              r.genre,
+    author_death_ah:    r.author_death_ah ?? null,
+    author_death_ce:    r.author_death_ce ?? null,
   };
 }
 

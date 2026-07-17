@@ -5,17 +5,24 @@ import { CommonModule } from '@angular/common';
 import type {
   MufradatReadView, MufradatParagraph, MufradatProseToken,
 } from '../../../shared/services/al-dictionary-api.service';
+import { SafeHtmlPipe } from '../../../shared/pipes/safe-html.pipe';
 
 @Component({
   selector: 'km-mufradat-reader',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, SafeHtmlPipe],
   templateUrl: './mufradat-reader.component.html',
   styleUrl: './mufradat-reader.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MufradatReaderComponent {
   view = input.required<MufradatReadView>();
+  // 'both' shows the EN/UR synthesis under each verbatim passage; 'ar'
+  // collapses to Arabic-only. Also collapses automatically when a section
+  // has no authored translations (graceful AR-only fallback).
+  trans = input<'both' | 'ar'>('both');
+
+  readonly showTrans = computed(() => this.trans() === 'both');
 
   @Output() openAyahEvent = new EventEmitter<{ surah: number; ayah: number }>();
   @Output() openFootnoteEvent = new EventEmitter<{
@@ -24,6 +31,23 @@ export class MufradatReaderComponent {
 
   trackParagraph = (i: number, _p: MufradatParagraph) => i;
   trackToken = (i: number, _t: MufradatProseToken) => i;
+
+  // Split a plain-text token on ornate ayah brackets ﴿…﴾ so the quoted verse
+  // runs can be tinted verse-green (`.qq`) inline, matching the design, while
+  // the surrounding exposition stays in the reading ink.
+  splitQuoted(value: string): { q: boolean; t: string }[] {
+    const parts: { q: boolean; t: string }[] = [];
+    const re = /﴿[^﴾]*﴾/gu;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(value)) != null) {
+      if (m.index > last) parts.push({ q: false, t: value.slice(last, m.index) });
+      parts.push({ q: true, t: m[0] });
+      last = m.index + m[0].length;
+    }
+    if (last < value.length) parts.push({ q: false, t: value.slice(last) });
+    return parts.length ? parts : [{ q: false, t: value }];
+  }
 
   fnTooltip(t: Extract<MufradatProseToken, { kind: 'footnote' }>): string {
     if (t.text) {

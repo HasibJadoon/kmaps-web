@@ -41,6 +41,8 @@ function v2RouteMeta(s: import('../repositories/sources.repo').LexiconSource) {
     author:   s.author_name ?? '',
     period:   s.period_label ?? '',
     origin:   s.origin ?? '',
+    author_death_ah: s.author_death_ah ?? null,
+    author_death_ce: s.author_death_ce ?? null,
   };
   // Match the previous behaviour: include `bilingual: true` ONLY when set.
   // Callers downstream check `if (meta.bilingual)` so an absent key signals
@@ -216,30 +218,66 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     ).bind(root_norm, root_norm, root_norm, root_norm).all()).results ?? [];
 
     const canonical = (await env.DB_AL.prepare(
-      `SELECT id, root_text, root_letters, root_type, frequency_quran, meaning_core_en
+      `SELECT id, root_text, root_letters, root_type, weak_pattern,
+              frequency_quran, meaning_core_en, meaning_core_ar
        FROM ar_ling_roots WHERE root_text = ? LIMIT 1`
     ).bind(root_norm).first()) ?? null;
+
+    // Per-source snippet — the first clean prose line the readers would show.
+    // Prefer a `definition` block; fall back to the earliest non-header prose
+    // block. Taken from `text_plain` (composed clean text) so it works for
+    // every origin, including Lane (XML) and Sinai (JSON) whose raw_text is
+    // unreadable. One window-function query, not one per source.
+    const snippetRows = (await env.DB_AL.prepare(
+      `SELECT source_slug, text_plain FROM (
+         SELECT source_slug, text_plain,
+                ROW_NUMBER() OVER (
+                  PARTITION BY source_slug
+                  ORDER BY CASE block_type WHEN 'definition' THEN 0 ELSE 1 END,
+                           block_seq
+                ) AS rn
+         FROM ar_ling_lexicon_blocks
+         WHERE root_norm = ?
+           AND text_plain IS NOT NULL
+           AND length(trim(text_plain)) > 25
+           AND block_type NOT IN ('root_header', 'chapter_header', 'header')
+       ) WHERE rn = 1`
+    ).bind(root_norm).all()).results ?? [];
+    const snippetBySlug = new Map(
+      snippetRows.map((r: any) => [
+        r.source_slug as string,
+        String(r.text_plain).replace(/\s+/g, ' ').trim().slice(0, 240),
+      ]),
+    );
 
     // Resolve every source's meta in one bulk D1 query, then map by slug.
     const slugs = entries.map((e: any) => e.source_slug as string);
     const sourceRows = await new SourcesRepo(env.DB_AL).bySlugs(slugs);
     const sourceBySlug = new Map(sourceRows.map(s => [s.slug, s]));
 
-    return ok({
-      root_norm,
-      canonical,
-      sources: entries.map((e: any) => {
-        const c = counts.find((x: any) => x.source_slug === e.source_slug) ?? {};
-        const sourceRow = sourceBySlug.get(e.source_slug as string);
-        return {
-          ...e,
-          ...(sourceRow ? v2RouteMeta(sourceRow) : {}),
-          sections: Number((c as any).sections ?? 0),
-          blocks:   Number((c as any).blocks ?? 0),
-          quran_refs: Number((c as any).quran_refs ?? 0),
-        };
-      }),
-    });
+    // Order the sources chronologically — earliest author first. Hijri years
+    // are normalised to CE (H·0.970229 + 621.5643) so classical (AH) and
+    // modern (CE) authors sort on one axis; authors with no death year (living
+    // scholars, K-Maps synthesis) fall to the end.
+    const sortYear = (m: { author_death_ce: number | null; author_death_ah: number | null }) =>
+      m.author_death_ce != null ? m.author_death_ce
+      : m.author_death_ah != null ? Math.round(m.author_death_ah * 0.970229 + 621.5643)
+      : Number.MAX_SAFE_INTEGER;
+
+    const sources = entries.map((e: any) => {
+      const c = counts.find((x: any) => x.source_slug === e.source_slug) ?? {};
+      const sourceRow = sourceBySlug.get(e.source_slug as string);
+      return {
+        ...e,
+        ...(sourceRow ? v2RouteMeta(sourceRow) : {}),
+        sections: Number((c as any).sections ?? 0),
+        blocks:   Number((c as any).blocks ?? 0),
+        quran_refs: Number((c as any).quran_refs ?? 0),
+        snippet: snippetBySlug.get(e.source_slug as string) ?? null,
+      };
+    }).sort((a: any, b: any) => sortYear(a) - sortYear(b));
+
+    return ok({ root_norm, canonical, sources });
   }));
 
   // ── GET /al/lex/v2/entry/:source_slug/:root_norm — full block tree ────────

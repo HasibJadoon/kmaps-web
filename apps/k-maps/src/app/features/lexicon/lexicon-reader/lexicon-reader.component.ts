@@ -24,6 +24,22 @@ export class LexiconReaderComponent {
   trackParagraph = (i: number, _p: LisanParagraph) => i;
   trackToken     = (i: number, _t: LisanProseToken) => i;
 
+  // Split a plain-text token on ornate ayah brackets ﴿…﴾ so quoted verse runs
+  // tint verse-green (`.qq`) inline while exposition stays in the reading ink.
+  splitQuoted(value: string): { q: boolean; t: string }[] {
+    const parts: { q: boolean; t: string }[] = [];
+    const re = /﴿[^﴾]*﴾/gu;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(value)) != null) {
+      if (m.index > last) parts.push({ q: false, t: value.slice(last, m.index) });
+      parts.push({ q: true, t: m[0] });
+      last = m.index + m[0].length;
+    }
+    if (last < value.length) parts.push({ q: false, t: value.slice(last) });
+    return parts.length ? parts : [{ q: false, t: value }];
+  }
+
   fnTooltip(t: Extract<LisanProseToken, { kind: 'footnote' }>): string {
     const pivot = t.pivot ? ` — ${t.pivot}` : '';
     if (t.text) return `حاشية ${t.num}${pivot}: ${t.text}`;

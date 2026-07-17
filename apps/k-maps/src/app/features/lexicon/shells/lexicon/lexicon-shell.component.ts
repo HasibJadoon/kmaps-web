@@ -21,6 +21,7 @@ import {
   AlDictionaryApiService, LexV2RootRow, LisanReadView,
 } from '../../../../shared/services/al-dictionary-api.service';
 import { LexiconReaderComponent } from '../../lexicon-reader/lexicon-reader.component';
+import { BookSelectorComponent } from '../../components/book-selector/book-selector.component';
 
 export const LISAN_SLUG = 'ketabonline_ibn_manzur_lisan_al_arab';
 
@@ -55,7 +56,7 @@ type Side = 'index' | 'citations';
 @Component({
   selector: 'km-lexicon-shell',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LexiconReaderComponent],
+  imports: [CommonModule, FormsModule, RouterLink, LexiconReaderComponent, BookSelectorComponent],
   templateUrl: './lexicon-shell.component.html',
   styleUrl: './lexicon-shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -119,6 +120,16 @@ export class LexiconShellComponent implements AfterViewInit {
   readonly fontSizeClass     = computed(() =>
     ['fs-xs', 'fs-sm', 'fs-md', 'fs-lg', 'fs-xl'][this.fontSize()]);
 
+  // Entry-head hero letters: prefer the canonical spaced `root_letters`, else
+  // space out the raw root text so every root gets the big letter display.
+  readonly entryLetters = computed(() => {
+    const v = this.view();
+    const letters = v?.canonical?.root_letters?.trim();
+    if (letters) return letters;
+    const raw = (v?.entry.root_text ?? this.currentRoot()).trim();
+    return raw.replace(/\s+/g, '').split('').join(' ');
+  });
+
   readonly indexWidth     = signal(RAIL.INDEX_DEFAULT);
   readonly citationsWidth = signal(RAIL.CITATIONS_DEFAULT);
 
@@ -130,13 +141,17 @@ export class LexiconShellComponent implements AfterViewInit {
     combineLatest([this.route.paramMap, this.route.queryParamMap])
       .pipe(takeUntilDestroyed())
       .subscribe(([params, query]) => {
-        const slug = params.get('slug') ?? '';
-        if (!CLASSICAL_LEXICON_SLUGS.has(slug)) return;
-        // Remember which source we're rendering so loadRoots / loadEntry
-        // can fetch from the right backend route.
-        this.activeSlug.set(slug);
+        // Root-centric URL: /lexicon/root/:root?book=<slug>.
+        const book = query.get('book') ?? '';
+        if (!CLASSICAL_LEXICON_SLUGS.has(book)) return;
+        // If the selector switched to a different classical source, reset the
+        // root index so it reloads for the new book.
+        if (book !== this.activeSlug()) {
+          this.activeSlug.set(book);
+          this.rootList.set([]);
+        }
         if (this.rootList().length === 0) this.loadRoots();
-        const root = query.get('root') ?? '';
+        const root = params.get('root') ?? '';
         if (root) this.loadEntry(root);
         else if (this.rootList().length > 0)
           this.goToRoot(this.rootList()[0].root_norm);
@@ -231,10 +246,8 @@ export class LexiconShellComponent implements AfterViewInit {
   }
 
   goToRoot(root_norm: string) {
-    this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { root: root_norm },
-      queryParamsHandling: 'merge',
+    this.router.navigate(['/lexicon/root', root_norm], {
+      queryParams: { book: this.activeSlug() },
     });
   }
   prevRoot() {

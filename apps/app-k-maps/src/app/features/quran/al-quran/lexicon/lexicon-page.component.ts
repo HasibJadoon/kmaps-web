@@ -330,7 +330,7 @@ export class LexiconPageComponent implements OnInit {
    *  one place so the icon and the colour token always agree. */
   cardKind(slug: string): 'lane' | 'mufradat' | 'classical' {
     if (slug === 'lane_lexicon' || slug === 'lane_quranic_research_perseus') return 'lane';
-    if (slug === 'ketabonline_al_raghib_mufradat') return 'mufradat';
+    if (slug === 'al_raghib_mufradat') return 'mufradat';
     return 'classical';
   }
 

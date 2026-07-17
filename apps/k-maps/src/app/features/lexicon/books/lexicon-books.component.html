@@ -1,0 +1,126 @@
+<section class="lib" dir="rtl">
+
+  <a class="lib__back" [routerLink]="['/lexicon']">
+    <span class="lib__back-chevron">‹</span><span>الرجوع</span>
+  </a>
+
+  <header class="lib__head">
+    <div>
+      <div class="lib__eyebrow">THE&nbsp;LIBRARY</div>
+      <h1 class="lib__title">المكتبة</h1>
+      <p class="lib__lede">اختر معجمًا أو قراءةً أكاديميّة للتصفّح كاملًا — سُمْك كلّ مجلّد يوازي عدد جذوره.</p>
+    </div>
+    <div class="lib__count">
+      <span class="lib__count-n">{{ books().length }}</span>
+      <span class="lib__count-l">مصدرًا</span>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <p class="lib__muted">…</p>
+  } @else {
+    <div class="lib__grid">
+      @for (b of books(); track b.slug) {
+        <div class="perspab">
+          <div class="book"
+               [style.--thick]="b.thick + 'px'"
+               [style.--accent]="b.accent"
+               [style.--accent-deep]="b.accentDeep"
+               [style.--rx]="restX + 'deg'"
+               [style.--ry]="restY + 'deg'"
+               (pointermove)="onTilt($event)"
+               (pointerleave)="onTiltEnd($event)"
+               (click)="openBook(b)">
+
+            <div class="book__back"></div>
+            <div class="book__foreedge"></div>
+            <div class="book__topedge"></div>
+
+            <div class="book__spine">
+              <span class="book__spine-rule"></span>
+              <span class="book__spine-mid"><span class="book__spine-title">{{ b.ar }}</span></span>
+              <span class="book__spine-rule"></span>
+            </div>
+
+            <div class="book__cover">
+              <div class="book__glare" aria-hidden="true"></div>
+              <div class="book__frame" aria-hidden="true"></div>
+              <div class="book__content">
+                <div class="book__badges">
+                  @if (b.badge) { <span class="book__badge">{{ b.badge }}</span> }
+                  @if (b.bilingual) { <span class="book__bi">AR·EN</span> }
+                </div>
+                <div class="book__center">
+                  <div class="book__mark" aria-hidden="true"><span></span></div>
+                  <h2 class="book__title">{{ b.ar }}</h2>
+                  @if (b.latin) { <div class="book__latin">{{ b.latin }}</div> }
+                  <div class="book__author">{{ b.author }}</div>
+                </div>
+                <div class="book__foot">
+                  <span class="book__era">{{ b.era }}</span>
+                  <span class="book__count"><span class="tab">{{ b.countLabel }}</span> {{ b.unit }}</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="book__shadow" aria-hidden="true"></div>
+        </div>
+      }
+    </div>
+  }
+</section>
+
+<!-- Opened-book overlay: cover swings on the spine hinge, then routes in ── -->
+@if (sel(); as s) {
+  <div class="modal" dir="rtl" (click)="closeBook()"
+       [style.background]="'rgba(5,5,5,' + backdrop() + ')'">
+
+    <button class="modal__close" (click)="closeBook()">
+      عودة إلى المكتبة <span class="modal__close-arrow">→</span>
+    </button>
+
+    <div class="modal__stage" (click)="stop($event)">
+      <div class="modal__book"
+           [style.--ca]="s.accent" [style.--cd]="s.accentDeep"
+           [style.transform]="'scale(' + scale() + ')'">
+
+        <div class="modal__page" [style.opacity]="pageIn()">
+          <div class="modal__page-gutter" aria-hidden="true"></div>
+          <div class="modal__page-frame" aria-hidden="true"></div>
+          <div class="modal__page-inner">
+            <div class="modal__kicker">{{ s.kicker }}</div>
+            <div class="modal__mark" aria-hidden="true"><span></span></div>
+            <h1 class="modal__title">{{ s.ar }}</h1>
+            @if (s.latin) { <div class="modal__latin">{{ s.latin }}</div> }
+            <div class="modal__author">{{ s.author }}</div>
+            <div class="modal__era">{{ s.era }}</div>
+            <div class="modal__spacer"></div>
+            <div class="modal__countrow">
+              <span class="modal__count">{{ s.countLabel }}</span>
+              <span class="modal__unit">{{ s.unit }}</span>
+            </div>
+            <div class="modal__sub">مدخلًا في هذا المصدر</div>
+            <div class="modal__loading" [style.opacity]="pageIn()">
+              <span class="modal__dot" aria-hidden="true"></span>
+              يُفتح المصدر…
+            </div>
+          </div>
+        </div>
+
+        <div class="modal__cover"
+             [style.transform]="'rotateY(' + coverDeg() + 'deg) translateZ(2px)'"
+             [style.opacity]="coverFade()">
+          <div class="modal__cover-frame" aria-hidden="true"></div>
+          <div class="modal__cover-inner">
+            <div class="modal__cover-mark" aria-hidden="true"><span></span></div>
+            <h2 class="modal__cover-title">{{ s.ar }}</h2>
+            @if (s.latin) { <div class="modal__cover-latin">{{ s.latin }}</div> }
+            <div class="modal__cover-author">{{ s.author }}</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+}

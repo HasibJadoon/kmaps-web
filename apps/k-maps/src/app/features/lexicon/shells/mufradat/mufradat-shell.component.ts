@@ -44,8 +44,9 @@ import {
   AlDictionaryApiService, LexV2RootRow, MufradatReadView,
 } from '../../../../shared/services/al-dictionary-api.service';
 import { MufradatReaderComponent } from '../../mufradat-reader/mufradat-reader.component';
+import { BookSelectorComponent } from '../../components/book-selector/book-selector.component';
 
-export const MUFRADAT_SLUG = 'ketabonline_al_raghib_mufradat';
+export const MUFRADAT_SLUG = 'al_raghib_mufradat';
 
 const RAIL = {
   INDEX_DEFAULT:     300, INDEX_MIN:     220, INDEX_MAX:     480,
@@ -63,7 +64,7 @@ type Side = 'index' | 'citations';
 @Component({
   selector: 'km-mufradat-shell',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, MufradatReaderComponent],
+  imports: [CommonModule, FormsModule, RouterLink, MufradatReaderComponent, BookSelectorComponent],
   templateUrl: './mufradat-shell.component.html',
   styleUrl: './mufradat-shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -88,6 +89,7 @@ export class MufradatShellComponent implements AfterViewInit {
   private readonly destroyRef = inject(DestroyRef);
 
   // ── Reader state ─────────────────────────────────────────────────────
+  readonly bookSlug    = MUFRADAT_SLUG;   // for the toolbar book selector
   readonly currentRoot = signal('');
   readonly loading     = signal(false);
   readonly view        = signal<MufradatReadView | null>(null);
@@ -122,9 +124,26 @@ export class MufradatShellComponent implements AfterViewInit {
   readonly showIndex         = signal(true);
   readonly showCitations     = signal(true);
   readonly citationsExpanded = signal(false);
+  // Trilingual toggle: 'both' shows the EN/UR synthesis under each verbatim
+  // passage; 'ar' collapses to Arabic-only (also the graceful fallback when
+  // a root has no authored translations).
+  readonly trans             = signal<'both' | 'ar'>('both');
   readonly fontSize          = signal(2);   // 0=xs … 4=xl
   readonly fontSizeClass     = computed(() =>
     ['fs-xs', 'fs-sm', 'fs-md', 'fs-lg', 'fs-xl'][this.fontSize()]);
+
+  // Entry-head hero letters: prefer the authored spaced form ("ب ي ن"),
+  // then the canonical `root_letters`, then space out the raw root text so
+  // every root gets the big letter-spaced display even without synthesis.
+  readonly entryLetters = computed(() => {
+    const v = this.view();
+    const spaced = v?.entry_gloss?.letters_spaced?.trim();
+    if (spaced) return spaced;
+    const letters = v?.canonical?.root_letters?.trim();
+    if (letters) return letters;
+    const raw = (v?.entry.root_text ?? this.currentRoot()).trim();
+    return raw.replace(/\s+/g, '').split('').join(' ');
+  });
 
   // User-chosen rail widths (drag-resize). The effective width animated
   // via GSAP is derived from these + open/closed/expanded state.
@@ -141,10 +160,11 @@ export class MufradatShellComponent implements AfterViewInit {
     combineLatest([this.route.paramMap, this.route.queryParamMap])
       .pipe(takeUntilDestroyed())
       .subscribe(([params, query]) => {
-        const slug = params.get('slug') ?? '';
-        if (slug !== MUFRADAT_SLUG) return;
+        // Root-centric URL: /lexicon/root/:root?book=<slug>.
+        const book = query.get('book') ?? '';
+        if (book !== MUFRADAT_SLUG) return;
         if (this.rootList().length === 0) this.loadRoots();
-        const root = query.get('root') ?? '';
+        const root = params.get('root') ?? '';
         if (root) this.loadEntry(root);
         else if (this.rootList().length > 0)
           this.goToRoot(this.rootList()[0].root_norm);
@@ -207,6 +227,8 @@ export class MufradatShellComponent implements AfterViewInit {
 
   // ── Toggles ──────────────────────────────────────────────────────────
   toggleDark() { this.darkMode.update(v => !v); }
+
+  toggleTrans() { this.trans.update(v => (v === 'both' ? 'ar' : 'both')); }
 
   toggleIndex() {
     this.showIndex.update(v => !v);
@@ -276,10 +298,8 @@ export class MufradatShellComponent implements AfterViewInit {
 
   // ── Navigation ───────────────────────────────────────────────────────
   goToRoot(root_norm: string) {
-    this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { root: root_norm },
-      queryParamsHandling: 'merge',
+    this.router.navigate(['/lexicon/root', root_norm], {
+      queryParams: { book: MUFRADAT_SLUG },
     });
   }
 
@@ -378,6 +398,7 @@ export class MufradatShellComponent implements AfterViewInit {
       case '[': this.toggleIndex(); break;
       case ']': this.toggleCitations(); break;
       case 'd': this.toggleDark(); break;
+      case 't': this.toggleTrans(); break;
       case '+': this.changeFont(+1); break;
       case '-': this.changeFont(-1); break;
     }

@@ -1,4 +1,4 @@
-// ─── /al/lex/v2/read/ketabonline_al_raghib_mufradat/:root_norm ───────────────
+// ─── /al/lex/v2/read/al_raghib_mufradat/:root_norm ───────────────
 //
 // Reader-ready endpoint for Mufradat al-Quran (al-Raghib al-Isfahani).
 //
@@ -32,7 +32,7 @@ import { SourcesRepo } from '../repositories/sources.repo';
 
 // Slug stays in code — URL path segment, not metadata. SOURCE_META object
 // retired in favour of D1-backed metadata via SourcesRepo.bySlug(SOURCE_SLUG).
-const SOURCE_SLUG = 'ketabonline_al_raghib_mufradat';
+const SOURCE_SLUG = 'al_raghib_mufradat';
 
 interface MufradatSourceMeta {
   slug:      string;
@@ -92,6 +92,45 @@ interface MufradatSection {
   heading_ar: string | null;
   page_no: number | null;
   paragraphs: MufradatParagraph[];
+  // Optional per-section trilingual synthesis (trusted, class-scoped HTML).
+  translation_en?: string | null;
+  translation_ur?: string | null;
+}
+
+// Family-map (study-aid) synthesis — see Angular MufradatFamily for docs.
+interface MufradatFamilyForm {
+  badge: string;
+  head_html: string;
+  masdar_html?: string | null;
+  gloss_en?: string | null;
+  gloss_ur?: string | null;
+  citation_html?: string | null;
+}
+interface MufradatFamilyPole {
+  key: string;
+  title_ar: string;
+  title_en: string;
+  forms: MufradatFamilyForm[];
+}
+interface MufradatFamilyDerivation {
+  quote_ar: string;
+  en_html: string;
+  ur_html: string;
+  inferred_en_html?: string | null;
+  inferred_ur_html?: string | null;
+}
+interface MufradatFamily {
+  meaning_core: { ar: string; en: string; ur: string };
+  poles: MufradatFamilyPole[];
+  derivation?: MufradatFamilyDerivation | null;
+}
+interface MufradatEntryGloss {
+  letters_spaced?: string | null;
+  letters_dotted?: string | null;
+  root_type_ar?: string | null;
+  gloss_en?: string | null;
+  gloss_ar?: string | null;
+  gloss_ur?: string | null;
 }
 
 interface MufradatReadView {
@@ -107,6 +146,8 @@ interface MufradatReadView {
     frequency_quran: number | null; meaning_core_en: string | null;
   } | null;
   sections: MufradatSection[];
+  family: MufradatFamily | null;
+  entry_gloss: MufradatEntryGloss | null;
   footnotes: { num: number; text: string | null; printed_page: number | null }[];
   quran_citations: {
     surah: string; surah_num: number | null; ayah: number; ayah_to: number | null;
@@ -128,21 +169,43 @@ export function lexiconMufradatRoutes(router: Router<ArLinguisticsEnv>) {
       const root_norm = (params.root_norm ?? '').trim();
       if (!root_norm) return badRequest('root_norm required');
 
-      const entry = await env.DB_AL.prepare(
+      // Enriched read (synthesis columns). Falls back to the legacy column
+      // set if the trilingual/family migration hasn't been applied yet, so a
+      // worker deploy that races ahead of the DB migration never 500s.
+      let entry = await env.DB_AL.prepare(
         `SELECT id, root_text, root_norm, root_id, raw_text,
-                page_start, page_end, volume_no, source_url, source_native_id
+                page_start, page_end, volume_no, source_url, source_native_id,
+                family_json, entry_gloss_json
          FROM ar_ling_lexicon_root_entries
          WHERE source_slug = ? AND root_norm = ? LIMIT 1`
-      ).bind(SOURCE_SLUG, root_norm).first<any>();
+      ).bind(SOURCE_SLUG, root_norm).first<any>().catch(() => undefined);
+      if (entry === undefined) {
+        entry = await env.DB_AL.prepare(
+          `SELECT id, root_text, root_norm, root_id, raw_text,
+                  page_start, page_end, volume_no, source_url, source_native_id
+           FROM ar_ling_lexicon_root_entries
+           WHERE source_slug = ? AND root_norm = ? LIMIT 1`
+        ).bind(SOURCE_SLUG, root_norm).first<any>();
+      }
       if (!entry) return notFound('entry not found in Mufradat');
 
-      const sectionsRaw = (await env.DB_AL.prepare(
+      let sectionsRaw = (await env.DB_AL.prepare(
         `SELECT id, section_seq, heading_ar, heading_norm, section_type,
-                text_ar, page_no
+                text_ar, page_no, translation_en, translation_ur
          FROM ar_ling_lexicon_entry_sections
          WHERE source_slug = ? AND root_norm = ?
          ORDER BY section_seq`
-      ).bind(SOURCE_SLUG, root_norm).all<any>()).results ?? [];
+      ).bind(SOURCE_SLUG, root_norm).all<any>().then(r => r.results ?? [])
+        .catch(() => null));
+      if (sectionsRaw === null) {
+        sectionsRaw = (await env.DB_AL.prepare(
+          `SELECT id, section_seq, heading_ar, heading_norm, section_type,
+                  text_ar, page_no
+           FROM ar_ling_lexicon_entry_sections
+           WHERE source_slug = ? AND root_norm = ?
+           ORDER BY section_seq`
+        ).bind(SOURCE_SLUG, root_norm).all<any>()).results ?? [];
+      }
 
       const blocks = (await env.DB_AL.prepare(
         `SELECT id, section_id, parent_block_id, block_seq, block_type,
@@ -214,8 +277,20 @@ function composeView(
       heading_ar: s.heading_ar,
       page_no: s.page_no,
       paragraphs,
+      translation_en: s.translation_en ?? null,
+      translation_ur: s.translation_ur ?? null,
     };
   });
+
+  // Optional synthesis layers, parsed from the entry's JSON columns.
+  const family = parseJsonColumn<MufradatFamily>(entry.family_json);
+  const entry_gloss = parseJsonColumn<MufradatEntryGloss>(entry.entry_gloss_json);
+
+  // Seed the footnote apparatus with every authored footnote-backing block,
+  // not only those an inline marker happened to reference. Marker-referenced
+  // rows (below) then overwrite the printed_page/text with their resolved
+  // per-page values; unreferenced authored notes still surface in the panel.
+  const seedFootnotes = fnBacking.allRows;
 
   // Aggregate stats + entry-wide footnote/citation lists.
   // Footnotes panel: one row per distinct (printed_page, num) actually
@@ -269,9 +344,9 @@ function composeView(
     },
     canonical: canonical as any,
     sections,
-    footnotes: [...fnPanelMap.values()].sort((a, b) =>
-      (a.printed_page ?? 0) - (b.printed_page ?? 0) || a.num - b.num,
-    ),
+    family,
+    entry_gloss,
+    footnotes: mergeFootnotes([...fnPanelMap.values()], seedFootnotes),
     quran_citations: [...citationsMap.values()]
       .sort((a, b) => (a.surah_num ?? 999) - (b.surah_num ?? 999) || a.ayah - b.ayah),
     stats: {
@@ -279,6 +354,28 @@ function composeView(
       quran_citations: citationsMap.size, footnote_markers: fnMarkers,
     },
   };
+}
+
+// Parse a nullable JSON text column into T, tolerating null/empty/malformed
+// values (returns null rather than throwing so one bad row can't 500 a read).
+function parseJsonColumn<T>(raw: unknown): T | null {
+  if (raw == null || raw === '') return null;
+  if (typeof raw === 'object') return raw as T;
+  try { return JSON.parse(String(raw)) as T; } catch { return null; }
+}
+
+type FnRow = { num: number; text: string | null; printed_page: number | null };
+
+// Union the marker-referenced footnotes with the authored backing rows so a
+// note that was never referenced inline (e.g. the synthesis blocks that
+// dropped their markers) still appears in the apparatus. Referenced rows win
+// on `num`; unreferenced backing rows are appended. Sorted in book order.
+function mergeFootnotes(referenced: FnRow[], backing: FnRow[]): FnRow[] {
+  const byNum = new Map<number, FnRow>();
+  for (const r of backing)    if (!byNum.has(r.num)) byNum.set(r.num, r);
+  for (const r of referenced) byNum.set(r.num, r);   // referenced overwrites
+  return [...byNum.values()].sort((a, b) =>
+    (a.printed_page ?? 0) - (b.printed_page ?? 0) || a.num - b.num);
 }
 
 // ── Paragraph composer ───────────────────────────────────────────────────────
@@ -399,7 +496,7 @@ function splitOutEditorial(text: string): { kind: 'prose' | 'editorial'; text: s
   while ((m = re.exec(text)) != null) {
     const inner = m[1];
     const trailing = m[2] ?? '';
-    if (/\/\s*[0-9٠-٩]/.test(inner)) continue; // skip Quran refs
+    if (/[\/:]\s*[0-9٠-٩]/.test(inner)) continue; // skip Quran refs (slash or colon)
     if (m.index > cur) out.push({ kind: 'prose', text: text.slice(cur, m.index) });
     const editorialBody = trailing.trim()
       ? `${inner.trim()} ${trailing.trim()}`.replace(/\s*\.\s*$/, '')
@@ -424,7 +521,10 @@ function splitOutEditorial(text: string): { kind: 'prose' | 'editorial'; text: s
 
 const D = '[0-9٠-٩]';
 const SURAH_NAME = '[\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\u200F\\s]{1,30}?';
-const Q_RX  = new RegExp(`\\[\\s*(${SURAH_NAME})\\s*\\/\\s*(${D}{1,3})(?:\\s*[-،]\\s*(${D}{1,3}))?\\s*\\]`, 'gu');
+// Accept BOTH ref separators: legacy ingest uses "[سورة/ آية]" (slash); the
+// hand-polished synthesis blocks use "[سورة:آية]" (colon). One regex handles
+// either so both formats tokenize into quran citations.
+const Q_RX  = new RegExp(`\\[\\s*(${SURAH_NAME})\\s*[\\/:]\\s*(${D}{1,3})(?:\\s*[-،]\\s*(${D}{1,3}))?\\s*\\]`, 'gu');
 const FN_PAREN = new RegExp(`\\(\\s*\\(\\s*(${D}+)\\s*\\)\\s*\\)`, 'gu');
 const FN_GUIL  = new RegExp(`«\\s*(${D}+)\\s*»`, 'gu');
 // Paren-quote content must contain at least one Arabic letter, never start

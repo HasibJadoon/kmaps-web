@@ -127,7 +127,7 @@ export class AlDictionaryApiService {
   getMufradatRead(root_norm: string): Observable<MufradatReadView> {
     return this.api.getData<MufradatReadView>(
       'al',
-      ['lex', 'v2', 'read', 'ketabonline_al_raghib_mufradat', root_norm],
+      ['lex', 'v2', 'read', 'al_raghib_mufradat', root_norm],
     );
   }
 
@@ -207,6 +207,8 @@ export interface LexV2SourceMeta {
   origin: 'thahabi' | 'ketabonline' | 'saaid' | 'qomra' | 'lane';
   bilingual?: boolean;
   roots: number;
+  author_death_ah?: number | null;
+  author_death_ce?: number | null;
 }
 
 export interface LexV2SourcesResult { sources: LexV2SourceMeta[]; total: number; }
@@ -234,10 +236,13 @@ export interface LexV2RootCompare {
   root_norm: string;
   canonical: {
     id: string; root_text: string; root_letters: string;
-    root_type: string; frequency_quran: number | null; meaning_core_en: string | null;
+    root_type: string; weak_pattern: string | null;
+    frequency_quran: number | null;
+    meaning_core_en: string | null; meaning_core_ar: string | null;
   } | null;
   sources: (LexV2RootRow & LexV2SourceMeta & {
     sections: number; blocks: number; quran_refs: number;
+    snippet: string | null;
   })[];
 }
 
@@ -361,7 +366,7 @@ export interface LexV2SearchResult {
 
 // ─── Mufradat (al-Raghib) reader types ───────────────────────────────────────
 // Independent shape — produced by the worker's per-source composer at
-// /al/lex/v2/read/ketabonline_al_raghib_mufradat/:root_norm
+// /al/lex/v2/read/al_raghib_mufradat/:root_norm
 
 export type MufradatProseToken =
   | { kind: 'text'; value: string }
@@ -396,12 +401,60 @@ export interface MufradatSection {
   heading_ar: string | null;
   page_no: number | null;
   paragraphs: MufradatParagraph[];
+  // Optional per-section trilingual synthesis. Authored in D1; absent for
+  // roots that haven't been translated yet (reader then shows AR-only).
+  // Both fields carry trusted, class-scoped HTML (span.ar / span.r / b / i).
+  translation_en?: string | null;
+  translation_ur?: string | null;
+}
+
+// ── Family map (study-aid synthesis) ─────────────────────────────────────────
+// Optional per-entry "the family at a glance": a meaning-core card, two
+// semantic poles each holding derived verb/noun forms, and al-Raghib's own
+// derivation-chain note. Authored in D1 (family_json); null for un-synthesised
+// roots. All *_html fields are trusted, class-scoped HTML.
+export interface MufradatFamilyForm {
+  badge: string;            // "I · ضَرَبَ", "n.", "II", "IV", "V", "X"
+  head_html: string;        // "بَانَ · <em>يَبِينُ</em>"
+  masdar_html?: string | null;  // "مصادر: بَيْن · بَيْنونة · بُيون"
+  gloss_en?: string | null; // trusted HTML
+  gloss_ur?: string | null;
+  citation_html?: string | null;  // "<span class=\"rf\">al-Anʿām 6:94</span> ﴿…﴾"
+}
+export interface MufradatFamilyPole {
+  key: 'sep' | 'disc' | string;   // color key → --sep / --disc
+  title_ar: string;
+  title_en: string;
+  forms: MufradatFamilyForm[];
+}
+export interface MufradatFamilyDerivation {
+  quote_ar: string;         // «يقال: بَانَ واسْتَبَانَ…»
+  en_html: string;
+  ur_html: string;
+  inferred_en_html?: string | null;
+  inferred_ur_html?: string | null;
+}
+export interface MufradatFamily {
+  meaning_core: { ar: string; en: string; ur: string };
+  poles: MufradatFamilyPole[];
+  derivation?: MufradatFamilyDerivation | null;
+}
+
+// Entry-head trilingual gloss + typographic helpers (spaced/dotted letters,
+// the Arabic root-type label). Optional; falls back to canonical fields.
+export interface MufradatEntryGloss {
+  letters_spaced?: string | null;   // "ب ي ن"
+  letters_dotted?: string | null;   // "ب · ي · ن"
+  root_type_ar?: string | null;     // "جذر ثلاثيّ أجوف يائيّ"
+  gloss_en?: string | null;         // "separation · disclosure · clarity"
+  gloss_ar?: string | null;
+  gloss_ur?: string | null;
 }
 
 export interface MufradatReadView {
   kind: 'mufradat';
   meta: {
-    slug: 'ketabonline_al_raghib_mufradat';
+    slug: 'al_raghib_mufradat';
     title_ar: string;
     title_en: string;
     author: string;
@@ -427,6 +480,9 @@ export interface MufradatReadView {
     meaning_core_en: string | null;
   } | null;
   sections: MufradatSection[];
+  // Optional synthesis layers — present only for authored roots.
+  family?: MufradatFamily | null;
+  entry_gloss?: MufradatEntryGloss | null;
   footnotes: { num: number; text: string | null; printed_page: number | null }[];
   quran_citations: {
     surah: string;

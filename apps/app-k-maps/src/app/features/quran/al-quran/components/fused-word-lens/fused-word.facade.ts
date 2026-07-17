@@ -17,7 +17,7 @@ import { FusedWordVM, LexRow } from './fused-word.models';
 const LEX_LABELS: Record<string, string> = {
   ketabonline_ibn_manzur_lisan_al_arab: 'Lisān al-ʿArab',
   ketabonline_al_zabidi_taj_al_arus: 'Tāj al-ʿArūs',
-  ketabonline_al_raghib_mufradat: 'Mufradāt',
+  al_raghib_mufradat: 'Mufradāt',
   ketabonline_al_fayyumi_misbah_munir: 'Miṣbāḥ al-Munīr',
   ketabonline_al_jawhari_al_sihah: 'al-Ṣiḥāḥ',
   saaid_maqayis_al_lugha: 'Maqāyīs al-Lugha',
