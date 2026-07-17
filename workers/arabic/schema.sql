@@ -1,20 +1,4 @@
--- Schema for km_arabic.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded.
--- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
-
-CREATE TABLE ar_applied_balagha (
-  id              TEXT PRIMARY KEY,
-  al_balagha_ref  TEXT NOT NULL,                  
-  title           TEXT NOT NULL,
-  title_ar        TEXT,
-  explanation_md  TEXT NOT NULL,
-  level           TEXT,
-  qr_scope_ref    TEXT,                           
-  examples_json   TEXT,                           
-  quiz_notes      TEXT,
-  meta_json       TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-);
+-- Snapshot regenerated from live D1 km_arabic (7ffa77c9-2d6c-46cb-a360-b198da502252) 2026-07-17 — canonical-v1
 
 CREATE TABLE ar_assignment_submissions (
   id              TEXT PRIMARY KEY,
@@ -194,18 +178,9 @@ CREATE TABLE ar_curriculum_units (
 );
 
 CREATE TABLE ar_domain_phrases (
-  id              TEXT PRIMARY KEY,
-  domain_id       TEXT NOT NULL,
-  arabic          TEXT NOT NULL,
-  transliteration TEXT,
-  meaning_en      TEXT NOT NULL,
-  usage_context   TEXT,
-  level           TEXT,
-  vocab_id        TEXT,                           
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (domain_id) REFERENCES ar_domains(id),
-  FOREIGN KEY (vocab_id)  REFERENCES ar_vocabulary(id)
-);
+  id TEXT PRIMARY KEY, domain_id TEXT NOT NULL, arabic TEXT NOT NULL, transliteration TEXT,
+  meaning_en TEXT NOT NULL, usage_context TEXT, level TEXT, al_lemma_ref TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')), FOREIGN KEY (domain_id) REFERENCES ar_domains(id));
 
 CREATE TABLE ar_domains (
   id          TEXT PRIMARY KEY,
@@ -217,95 +192,17 @@ CREATE TABLE ar_domains (
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE ar_exercise_attempts (
-  id              TEXT PRIMARY KEY,
-  exercise_id     TEXT NOT NULL,
-  core_user_ref   TEXT NOT NULL,
-  response_json   TEXT,                           
-  is_correct      INTEGER NOT NULL DEFAULT 0,
-  score           REAL,
-  time_spent_secs INTEGER,
-  attempt_number  INTEGER NOT NULL DEFAULT 1,
-  attempted_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (exercise_id) REFERENCES ar_exercises(id)
-);
-
-CREATE TABLE ar_exercises (
-  id              TEXT PRIMARY KEY,               
-  lesson_id       TEXT,
-  unit_id         TEXT,
-  exercise_type   TEXT NOT NULL DEFAULT 'mcq',
-    
-    
-  prompt_ar       TEXT,
-  prompt_en       TEXT,
-  options_json    TEXT,                           
-  answer_json     TEXT,                           
-  explanation_md  TEXT,
-  vocab_id        TEXT,
-  grammar_id      TEXT,
-  al_concept_ref  TEXT,                           
-  qr_scope_ref    TEXT,
-  level           TEXT,
-  skill_focus     TEXT,
-  difficulty      INTEGER NOT NULL DEFAULT 3,     
-  meta_json       TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (lesson_id)  REFERENCES ar_lessons(id),
-  FOREIGN KEY (unit_id)    REFERENCES ar_container_units(id),
-  FOREIGN KEY (vocab_id)   REFERENCES ar_vocabulary(id),
-  FOREIGN KEY (grammar_id) REFERENCES ar_grammar(id)
-);
-
-CREATE TABLE ar_expressions (
-  id              TEXT PRIMARY KEY,
-  arabic          TEXT NOT NULL,
-  transliteration TEXT,
-  meaning_en      TEXT NOT NULL,
-  expression_type TEXT NOT NULL DEFAULT 'idiom',
-    
-  al_expression_ref TEXT,                         
-  domain_id       TEXT,
-  level           TEXT,
-  usage_note      TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE VIRTUAL TABLE ar_expressions_fts USING fts5(
-  arabic, meaning_en, content='ar_expressions', content_rowid='rowid'
-);
-
-CREATE TABLE ar_grammar (
-  id              TEXT PRIMARY KEY,               
-  title           TEXT NOT NULL,
-  title_ar        TEXT,
-  al_nahw_ref     TEXT,                           
-  al_morph_ref    TEXT,                           
-  grammar_type    TEXT NOT NULL DEFAULT 'nahw',
-    
-  level           TEXT,                           
-  explanation_md  TEXT NOT NULL,
-  examples_json   TEXT,                           
-  rule_summary    TEXT,
-  qr_scope_ref    TEXT,                           
-  meta_json       TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE VIRTUAL TABLE ar_grammar_fts USING fts5(
-  title, title_ar, explanation_md, content='ar_grammar', content_rowid='rowid'
-);
-
-CREATE TABLE ar_grammar_vocabulary_links (
-  id          TEXT PRIMARY KEY,
-  grammar_id  TEXT NOT NULL,
-  vocab_id    TEXT NOT NULL,
-  link_role   TEXT NOT NULL DEFAULT 'example',   
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (grammar_id) REFERENCES ar_grammar(id),
-  FOREIGN KEY (vocab_id)   REFERENCES ar_vocabulary(id),
-  UNIQUE (grammar_id, vocab_id)
+CREATE TABLE ar_exposure_log (
+  id             TEXT PRIMARY KEY,
+  core_user_ref  TEXT NOT NULL,
+  lemma_ar       TEXT NOT NULL,
+  memlet_key     TEXT,
+  item_id        TEXT,
+  surface        TEXT NOT NULL,
+  qr_ref         TEXT,
+  outcome        TEXT,
+  latency_ms     INTEGER,
+  shown_at       TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE ar_learning_tracks (
@@ -362,6 +259,18 @@ CREATE TABLE ar_mastery_profiles (
   UNIQUE (core_user_ref, track_id, skill)
 );
 
+CREATE TABLE ar_memlet_mastery (
+  id             TEXT PRIMARY KEY,
+  core_user_ref  TEXT NOT NULL,
+  lemma_ar       TEXT NOT NULL,
+  memlet_key     TEXT NOT NULL,
+  exposures      INTEGER NOT NULL DEFAULT 0,
+  correct        INTEGER NOT NULL DEFAULT 0,
+  encoding_score REAL NOT NULL DEFAULT 0,
+  last_seen_at   TEXT,
+  UNIQUE (core_user_ref, lemma_ar, memlet_key)
+);
+
 CREATE TABLE ar_scenarios (
   id              TEXT PRIMARY KEY,
   domain_id       TEXT NOT NULL,
@@ -378,36 +287,28 @@ CREATE TABLE ar_scenarios (
 );
 
 CREATE TABLE ar_srs_cards (
-  id              TEXT PRIMARY KEY,
+  id              TEXT PRIMARY KEY,               
   deck_id         TEXT NOT NULL,
   core_user_ref   TEXT NOT NULL,
-  resource_ref    TEXT NOT NULL,
+  resource_ref    TEXT NOT NULL,                  
   resource_type   TEXT NOT NULL,
-
-  card_template   TEXT NOT NULL DEFAULT 'freeform',
-  front_text      TEXT NOT NULL DEFAULT '',
-  back_text       TEXT NOT NULL DEFAULT '',
-  extra_json      TEXT,
-  tags            TEXT,
-  suspended       INTEGER NOT NULL DEFAULT 0,
-
-  stability       REAL NOT NULL DEFAULT 1.0,
-  difficulty      REAL NOT NULL DEFAULT 0.3,
+    
+  
+  stability       REAL NOT NULL DEFAULT 1.0,      
+  difficulty      REAL NOT NULL DEFAULT 0.3,      
   elapsed_days    INTEGER NOT NULL DEFAULT 0,
   scheduled_days  INTEGER NOT NULL DEFAULT 1,
   reps            INTEGER NOT NULL DEFAULT 0,
   lapses          INTEGER NOT NULL DEFAULT 0,
   card_state      TEXT NOT NULL DEFAULT 'new',
-
+    
   last_review_at  TEXT,
   next_review_at  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now')), card_template TEXT NOT NULL DEFAULT 'freeform', front_text TEXT NOT NULL DEFAULT '', back_text TEXT NOT NULL DEFAULT '', extra_json TEXT, tags TEXT, suspended INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (deck_id) REFERENCES ar_srs_decks(id),
   UNIQUE (deck_id, resource_ref)
 );
-
-CREATE INDEX idx_ar_sc_due ON ar_srs_cards(core_user_ref, suspended, next_review_at);
 
 CREATE TABLE ar_srs_decks (
   id              TEXT PRIMARY KEY,
@@ -449,16 +350,16 @@ CREATE TABLE ar_task_completions (
   UNIQUE (task_id, core_user_ref)
 );
 
-CREATE TABLE ar_unit_grammar_map (
-  id          TEXT PRIMARY KEY,
-  unit_id     TEXT NOT NULL,
-  grammar_id  TEXT NOT NULL,
-  sort_order  INTEGER NOT NULL DEFAULT 0,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (unit_id)    REFERENCES ar_container_units(id),
-  FOREIGN KEY (grammar_id) REFERENCES ar_grammar(id),
-  UNIQUE (unit_id, grammar_id)
-);
+CREATE TABLE ar_unit_concept_map (
+  id TEXT PRIMARY KEY, unit_id TEXT NOT NULL, al_term_ref TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (unit_id) REFERENCES ar_container_units(id), UNIQUE (unit_id, al_term_ref));
+
+CREATE TABLE ar_unit_lemma_map (
+  id TEXT PRIMARY KEY, unit_id TEXT NOT NULL, al_lemma_ref TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0, is_key_word INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (unit_id) REFERENCES ar_container_units(id), UNIQUE (unit_id, al_lemma_ref));
 
 CREATE TABLE ar_unit_progress (
   id                TEXT PRIMARY KEY,
@@ -474,18 +375,6 @@ CREATE TABLE ar_unit_progress (
   UNIQUE (unit_id, core_user_ref)
 );
 
-CREATE TABLE ar_unit_vocabulary_map (
-  id          TEXT PRIMARY KEY,
-  unit_id     TEXT NOT NULL,
-  vocab_id    TEXT NOT NULL,
-  sort_order  INTEGER NOT NULL DEFAULT 0,
-  is_key_word INTEGER NOT NULL DEFAULT 0,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (unit_id)  REFERENCES ar_container_units(id),
-  FOREIGN KEY (vocab_id) REFERENCES ar_vocabulary(id),
-  UNIQUE (unit_id, vocab_id)
-);
-
 CREATE TABLE ar_user_track_profiles (
   id              TEXT PRIMARY KEY,
   core_user_ref   TEXT NOT NULL,                  
@@ -498,60 +387,6 @@ CREATE TABLE ar_user_track_profiles (
   FOREIGN KEY (track_id) REFERENCES ar_learning_tracks(id),
   UNIQUE (core_user_ref, track_id)
 );
-
-CREATE TABLE ar_vocabulary (
-  id              TEXT PRIMARY KEY,               
-  arabic          TEXT NOT NULL,
-  transliteration TEXT,
-  meaning_en      TEXT NOT NULL,
-  meaning_notes   TEXT,
-  al_lemma_ref    TEXT,                           
-  al_root_ref     TEXT,                           
-  al_morph_ref    TEXT,                           
-  word_class      TEXT NOT NULL DEFAULT 'noun',
-    
-  level           TEXT,                           
-  domain_id       TEXT,
-  frequency_rank  INTEGER,
-  qr_scope_ref    TEXT,                           
-  tags_json       TEXT,                           
-  meta_json       TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE ar_vocabulary_evidence (
-  id              TEXT PRIMARY KEY,
-  vocab_id        TEXT NOT NULL,
-  source_ref      TEXT,                           
-  locator         TEXT,
-  excerpt_ar      TEXT,
-  excerpt_en      TEXT,
-  qr_scope_ref    TEXT,
-  evidence_type   TEXT NOT NULL DEFAULT 'text',
-    
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (vocab_id) REFERENCES ar_vocabulary(id)
-);
-
-CREATE VIRTUAL TABLE ar_vocabulary_fts USING fts5(
-  arabic, meaning_en, meaning_notes, content='ar_vocabulary', content_rowid='rowid'
-);
-
-CREATE TABLE ar_vocabulary_relations (
-  id              TEXT PRIMARY KEY,
-  from_vocab_id   TEXT NOT NULL,
-  to_vocab_id     TEXT NOT NULL,
-  relation_type   TEXT NOT NULL DEFAULT 'synonym',
-    
-  note            TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (from_vocab_id) REFERENCES ar_vocabulary(id),
-  FOREIGN KEY (to_vocab_id)   REFERENCES ar_vocabulary(id),
-  UNIQUE (from_vocab_id, to_vocab_id, relation_type)
-);
-
-CREATE INDEX idx_ar_ab_balagha ON ar_applied_balagha(al_balagha_ref);
 
 CREATE INDEX idx_ar_asub_assign  ON ar_assignment_submissions(assignment_id);
 
@@ -569,19 +404,17 @@ CREATE INDEX idx_ar_ce_status  ON ar_class_enrolments(status);
 
 CREATE INDEX idx_ar_ce_student ON ar_class_enrolments(student_ref);
 
+CREATE INDEX idx_ar_cr_class    ON ar_class_resources(class_id);
+
+CREATE INDEX idx_ar_cr_resource ON ar_class_resources(resource_ref);
+
 CREATE INDEX idx_ar_cl_status  ON ar_classes(status);
 
 CREATE INDEX idx_ar_cl_teacher ON ar_classes(teacher_ref);
 
 CREATE INDEX idx_ar_cl_ws      ON ar_classes(core_ws_ref);
 
-CREATE INDEX idx_ar_con_track ON ar_containers(track_id);
-
-CREATE INDEX idx_ar_con_type  ON ar_containers(container_type);
-
-CREATE INDEX idx_ar_cr_class    ON ar_class_resources(class_id);
-
-CREATE INDEX idx_ar_cr_resource ON ar_class_resources(resource_ref);
+CREATE INDEX idx_ar_cut_unit ON ar_container_unit_tasks(unit_id);
 
 CREATE INDEX idx_ar_cu_container ON ar_container_units(container_id);
 
@@ -589,31 +422,13 @@ CREATE INDEX idx_ar_cu_parent    ON ar_container_units(parent_id);
 
 CREATE INDEX idx_ar_cu_type      ON ar_container_units(unit_type);
 
+CREATE INDEX idx_ar_con_track ON ar_containers(track_id);
+
+CREATE INDEX idx_ar_con_type  ON ar_containers(container_type);
+
 CREATE INDEX idx_ar_cun_curr ON ar_curriculum_units(curriculum_id);
 
-CREATE INDEX idx_ar_cut_unit ON ar_container_unit_tasks(unit_id);
-
-CREATE INDEX idx_ar_dp_domain ON ar_domain_phrases(domain_id);
-
-CREATE INDEX idx_ar_ea_at       ON ar_exercise_attempts(attempted_at);
-
-CREATE INDEX idx_ar_ea_exercise ON ar_exercise_attempts(exercise_id);
-
-CREATE INDEX idx_ar_ea_user     ON ar_exercise_attempts(core_user_ref);
-
-CREATE INDEX idx_ar_ex_lesson ON ar_exercises(lesson_id);
-
-CREATE INDEX idx_ar_ex_level  ON ar_exercises(level);
-
-CREATE INDEX idx_ar_ex_type   ON ar_exercises(exercise_type);
-
-CREATE INDEX idx_ar_exp_type ON ar_expressions(expression_type);
-
-CREATE INDEX idx_ar_gr_level ON ar_grammar(level);
-
-CREATE INDEX idx_ar_gr_nahw  ON ar_grammar(al_nahw_ref);
-
-CREATE INDEX idx_ar_gr_type  ON ar_grammar(grammar_type);
+CREATE INDEX idx_ar_lt_type ON ar_learning_tracks(track_type);
 
 CREATE INDEX idx_ar_les_level ON ar_lessons(level);
 
@@ -621,15 +436,15 @@ CREATE INDEX idx_ar_les_type  ON ar_lessons(lesson_type);
 
 CREATE INDEX idx_ar_les_unit  ON ar_lessons(unit_id);
 
-CREATE INDEX idx_ar_lt_type ON ar_learning_tracks(track_type);
-
 CREATE INDEX idx_ar_mp_skill ON ar_mastery_profiles(skill);
 
 CREATE INDEX idx_ar_mp_user  ON ar_mastery_profiles(core_user_ref);
 
+CREATE INDEX idx_ar_sc_domain ON ar_scenarios(domain_id);
+
 CREATE INDEX idx_ar_sc_deck   ON ar_srs_cards(deck_id);
 
-CREATE INDEX idx_ar_sc_domain ON ar_scenarios(domain_id);
+CREATE INDEX idx_ar_sc_due ON ar_srs_cards(core_user_ref, suspended, next_review_at);
 
 CREATE INDEX idx_ar_sc_next   ON ar_srs_cards(next_review_at);
 
@@ -649,10 +464,6 @@ CREATE INDEX idx_ar_tc_task ON ar_task_completions(task_id);
 
 CREATE INDEX idx_ar_tc_user ON ar_task_completions(core_user_ref);
 
-CREATE INDEX idx_ar_ugm_grammar ON ar_unit_grammar_map(grammar_id);
-
-CREATE INDEX idx_ar_ugm_unit    ON ar_unit_grammar_map(unit_id);
-
 CREATE INDEX idx_ar_up_status ON ar_unit_progress(status);
 
 CREATE INDEX idx_ar_up_unit   ON ar_unit_progress(unit_id);
@@ -663,18 +474,3 @@ CREATE INDEX idx_ar_utp_track ON ar_user_track_profiles(track_id);
 
 CREATE INDEX idx_ar_utp_user  ON ar_user_track_profiles(core_user_ref);
 
-CREATE INDEX idx_ar_uvm_unit  ON ar_unit_vocabulary_map(unit_id);
-
-CREATE INDEX idx_ar_uvm_vocab ON ar_unit_vocabulary_map(vocab_id);
-
-CREATE INDEX idx_ar_ve_vocab ON ar_vocabulary_evidence(vocab_id);
-
-CREATE INDEX idx_ar_voc_class  ON ar_vocabulary(word_class);
-
-CREATE INDEX idx_ar_voc_lemma  ON ar_vocabulary(al_lemma_ref);
-
-CREATE INDEX idx_ar_voc_level  ON ar_vocabulary(level);
-
-CREATE INDEX idx_ar_voc_root   ON ar_vocabulary(al_root_ref);
-
-CREATE INDEX idx_ar_vr_from ON ar_vocabulary_relations(from_vocab_id);
