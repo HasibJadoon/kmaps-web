@@ -236,9 +236,10 @@ export class CybTopbarComponent {
              route: pno ? [this.base, sid, pno, n.layer!] : null };
   }
   private rootChip(n: CybNode, sid: number, pno: number | null, tier: Tier): Chip {
-    // A root's dashboard lives on the map; the ladder hands off to it.
+    // Stays in the view you are in — the ladder marks the root on its own rung
+    // and hands off to the map only when you open the dashboard itself.
     return { kind: 'root', ar: this.rootName(n), label: '', pct: n.build_pct, tier,
-             route: pno ? ['/cybernetics/map', sid, pno, 'vocabulary', this.rootName(n)] : null };
+             route: pno ? [this.base, sid, pno, 'vocabulary', this.rootName(n)] : null };
   }
 
   /**

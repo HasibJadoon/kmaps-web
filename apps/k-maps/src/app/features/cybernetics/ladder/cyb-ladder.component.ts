@@ -27,7 +27,21 @@ interface Rung {
   scope: string; reportsTo: string;
   b: number; s: number; c: number; r: number;
   open: boolean; hasKids: boolean;
+  /** live = this rung's sensor is reading build; sel = it is what the URL names. */
+  live: boolean; sel: boolean;
   nav: (string | number)[] | null;
+  /** Leaf pieces, grouped and laid out by their nature rather than as rows. */
+  blocks?: LeafBlock[];
+}
+
+interface LeafBlock { layout: 'grid' | 'seq' | 'chips'; title: string; wide?: boolean; cells: PieceCell[] }
+
+/** One unopened sibling — a surah, a passage, a root, an expression. */
+interface PieceCell {
+  ar: string; label: string; sub: string; meta: string;
+  /** The same four outputs a rung carries — a card is a sensor too. */
+  b: number; s: number; c: number; r: number;
+  sel: boolean; nav: (string | number)[] | null;
 }
 
 @Component({
@@ -72,7 +86,65 @@ interface Rung {
         @for (g of rungs(); track g.kind + g.num + g.en + g.depth) {
           <div class="rung" [style.--dx.px]="g.depth * 20">
             @if (g.depth > 0) { <div class="connector"></div> }
-            <div class="rcard" [class.hask]="!!g.nav" [style.--kc]="kindColor(g.kind)" [style.--kg]="kindGlow(g.kind)"
+            <!-- A stream's leaves are laid out by what they actually are: roots
+                 are many short Arabic tokens, so they read as a grid; iʿrāb
+                 sentences are an ordered done/not-done run, so they read as a
+                 sequence; a handful of expressions read as chips. -->
+            @if (g.blocks; as blocks) {
+              <div class="leaves">
+                @for (bk of blocks; track bk.title) {
+                  <div class="lb">
+                    <div class="lt">{{ bk.title }}</div>
+                    @switch (bk.layout) {
+                      @case ('grid') {
+                        <div class="cellgrid" [class.wide]="bk.wide">
+                          @for (c of bk.cells; track c.ar + c.label + c.meta) {
+                            <button class="cell" [class.live]="c.b > 0" [class.sel]="c.sel"
+                                    [disabled]="!c.nav" (click)="go(c.nav)">
+                              @if (c.meta) { <div class="cm">{{ c.meta }}</div> }
+                              @if (c.ar) {
+                                <div class="car">{{ c.ar }}</div>
+                                @if (c.label) { <div class="cen">{{ c.label }}</div> }
+                              } @else { <div class="cen big">{{ c.label }}</div> }
+                              @if (c.sub) { <div class="csub">{{ c.sub }}</div> }
+                              <div class="c4">
+                                @for (o of outs(c); track o.k) {
+                                  <div class="co" [class.z]="!o.v" [style.--oc]="o.col">
+                                    <div class="col"><span>{{ o.k }}</span><b>{{ fmt(o.v) }}</b></div>
+                                    <div class="ctk"><i [style.width.%]="bar(o.v)"></i></div>
+                                  </div>
+                                }
+                              </div>
+                            </button>
+                          }
+                        </div>
+                      }
+                      @case ('seq') {
+                        <div class="seq">
+                          @for (c of bk.cells; track c.label) {
+                            <span class="sq" [class.done]="c.b >= 100" [class.part]="c.b > 0 && c.b < 100"
+                                  [title]="c.meta">{{ c.label }}</span>
+                          }
+                        </div>
+                      }
+                      @default {
+                        <div class="lchips">
+                          @for (c of bk.cells; track c.ar + c.label) {
+                            <button class="lchip" [class.live]="c.b > 0" [disabled]="!c.nav" (click)="go(c.nav)">
+                              @if (c.ar) { <span class="lar">{{ c.ar }}</span> }
+                              <span class="lk">{{ c.label }}</span>
+                              <span class="lp">{{ fmt(c.b) }}%</span>
+                            </button>
+                          }
+                        </div>
+                      }
+                    }
+                  </div>
+                }
+              </div>
+            } @else {
+            <div class="rcard" [class.hask]="!!g.nav" [class.live]="g.live" [class.sel]="g.sel"
+                 [style.--kc]="kindColor(g.kind)" [style.--kg]="kindGlow(g.kind)"
                  (click)="g.nav ? go(g.nav) : null">
               <span class="tw">{{ g.hasKids ? (g.open ? '▾' : '▸') : '·' }}</span>
               <div class="sens"><div class="sdot"></div><div class="sl">sensor</div></div>
@@ -83,6 +155,7 @@ interface Rung {
                   @if (g.ar) { <span class="aa">{{ g.ar }}</span> }
                   <span class="en">{{ g.en }}</span>
                   <span class="kindb">{{ g.kind }}</span>
+                  @if (g.live) { <span class="livb">active</span> }
                 </div>
                 @if (g.scope) { <div class="sc">{{ g.scope }}</div> }
                 <div class="rep">↑ reports to {{ g.reportsTo }}</div>
@@ -94,6 +167,7 @@ interface Rung {
                 <div class="o" [class.z]="!g.r" style="--oc:var(--retn)"><div class="ol"><span>R</span><b>{{ fmt(g.r) }}</b></div><div class="tk"><i [style.width.%]="bar(g.r)"></i></div></div>
               </div>
             </div>
+            }
           </div>
         }
       </div>
@@ -136,6 +210,58 @@ interface Rung {
     .rcard { margin-left:var(--dx); border:1px solid rgba(255,255,255,.09); border-left:3px solid var(--kc); border-radius:11px;
       background:linear-gradient(90deg, var(--kg), #0e0e0e 80%); padding:10px 13px; display:flex; gap:12px; align-items:center; }
     .rcard.hask { cursor:pointer; } .rcard.hask:hover { border-color:var(--bd-hi); }
+    /* a sensor that is reading build, and the rung the URL is standing on */
+    .rcard.live { border-color:rgba(77,217,168,.28); }
+    .rcard.sel { border-color:var(--bd-hi); box-shadow:0 0 0 1px rgba(201,168,76,.22) inset; }
+    .livb { font-size:7.5px; font-family:ui-monospace,monospace; letter-spacing:.06em; text-transform:uppercase;
+      color:var(--content); border:1px solid rgba(77,217,168,.4); border-radius:8px; padding:1px 5px; }
+
+    /* leaf pieces — grouped by kind, each group in the shape that suits it */
+    .leaves { margin-left:var(--dx); display:flex; flex-direction:column; gap:11px;
+      border-left:1px dashed rgba(255,255,255,.08); padding:3px 0 3px 12px; }
+    .lt { font-family:var(--serif); font-size:9.5px; letter-spacing:.11em; text-transform:uppercase;
+      color:var(--gold-d); margin-bottom:6px; }
+    .cellgrid { display:grid; gap:7px; grid-template-columns:repeat(auto-fill, minmax(126px, 1fr)); }
+    .cellgrid.wide { grid-template-columns:repeat(auto-fill, minmax(184px, 1fr)); }
+    .cellgrid.wide .cell { text-align:left; }
+    .cell { background:#0e0e0e; border:1px solid rgba(255,255,255,.09); border-left:3px solid var(--study);
+      border-radius:10px; padding:8px 10px 9px; text-align:center; cursor:pointer; color:var(--text); font-family:inherit; }
+    .cell:disabled { cursor:default; }
+    .cell:not(:disabled):hover { border-color:var(--bd-hi); }
+    .cell.live { border-left-color:var(--content); }
+    .cell.sel { border-color:var(--bd-hi); background:rgba(201,168,76,.09); }
+    .cm { font-family:ui-monospace,monospace; font-size:8.5px; color:var(--t3); text-align:left; }
+    .car { font-family:var(--ar); font-size:24px; color:var(--gold-b); line-height:1.5; }
+    .cen { font-family:var(--serif); font-size:10px; color:var(--t2); }
+    .cen.big { font-size:12.5px; color:var(--text); padding:8px 0; }
+    .csub { font-size:9px; color:var(--t3); margin-top:2px; }
+    /* a card carries the same four outputs its rung would */
+    /* two by two in a narrow card, four across once there is room */
+    .c4 { display:grid; grid-template-columns:repeat(2,1fr); gap:4px 8px; margin-top:8px; }
+    .cellgrid.wide .c4 { grid-template-columns:repeat(4,1fr); gap:4px; }
+    .col { display:flex; justify-content:space-between; align-items:baseline; font-size:7.5px; color:var(--t3);
+      text-transform:uppercase; letter-spacing:.03em; }
+    .col b { color:var(--oc); font-family:ui-monospace,monospace; font-size:8.5px; }
+    .ctk { height:4px; border-radius:3px; background:#242424; overflow:hidden; margin-top:2px; }
+    .ctk i { display:block; height:100%; background:var(--oc); }
+    .co.z .ctk { background:none; border:1px dashed rgba(224,120,92,.35); }
+
+    /* an ordered run — the sentence sequence, read left to right */
+    .seq { display:flex; gap:4px; flex-wrap:wrap; }
+    .sq { width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center;
+      border-radius:7px; border:1px dashed rgba(255,255,255,.14); background:#0e0e0e;
+      font-family:ui-monospace,monospace; font-size:10px; color:var(--t3); }
+    .sq.part { border-style:solid; border-color:rgba(77,217,168,.45); color:var(--content); }
+    .sq.done { border-style:solid; border-color:var(--content); background:rgba(77,217,168,.16); color:var(--content); }
+
+    /* a handful of named things — chips */
+    .lchips { display:flex; gap:6px; flex-wrap:wrap; }
+    .lchip { display:inline-flex; align-items:baseline; gap:6px; background:#0e0e0e; border-radius:16px;
+      border:1px solid rgba(255,255,255,.1); padding:3px 11px; color:var(--t2); font-family:inherit; cursor:pointer; }
+    .lchip:disabled { cursor:default; } .lchip.live { border-color:rgba(77,217,168,.4); }
+    .lar { font-family:var(--ar); font-size:15px; color:var(--gold-b); }
+    .lk { font-size:9px; font-family:ui-monospace,monospace; color:var(--t3); text-transform:uppercase; }
+    .lp { font-family:ui-monospace,monospace; font-size:9px; color:var(--content); }
     .tw { flex:0 0 auto; width:14px; text-align:center; color:var(--gold-d); font-size:11px; }
     .sens { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:3px; width:40px; }
     .sdot { width:14px; height:14px; border-radius:50%; background:var(--study); box-shadow:0 0 9px rgba(107,186,255,.7); position:relative; }
@@ -233,10 +359,105 @@ export class CybLadderComponent {
     return pieces.find((n) => n.piece_kind === 'root') ?? pieces[0];
   }
 
+  /**
+   * A stream's leaves, grouped by kind and given the shape that kind wants.
+   *   • roots — 27 short Arabic tokens in āyah order → a scannable grid
+   *   • iʿrāb sentences — an ordered s1…s12 run that is done or not → a sequence
+   *   • expressions, nuances — a handful of named things → chips
+   */
+  private leafBlocks(stage: CybNode, key: string, sid: number, pno: number, rootSel: string | null): LeafBlock[] {
+    const blocks: LeafBlock[] = [];
+    const refTail = (n: CybNode) => (n.target_ref ?? '').split(':').pop() ?? '';
+
+    if (key === 'vocabulary') {
+      // The roots come from the āyāt themselves, so every unique root shows up
+      // whether or not the control plane has instantiated a node for it yet.
+      const roots = this.verseRoots();
+      if (roots.length) {
+        blocks.push({
+          layout: 'grid', title: `${roots.length} roots · in āyah order`,
+          cells: roots.map((vr) => {
+            const n = this.rootNodeFor(vr.root);
+            return {
+              ar: vr.root, label: '', sub: `${vr.lemmas} lemma${vr.lemmas > 1 ? 's' : ''}`,
+              meta: `${sid}:${vr.first_ayah} · ${vr.occurrences}×`,
+              ...this.four(n), sel: rootSel === vr.root,
+              nav: ['/cybernetics/map', sid, pno, 'vocabulary', vr.root],
+            };
+          }),
+        });
+      }
+      // Expressions and nuances live alongside the roots but are not roots.
+      const others = stage.children.filter((c) => c.piece_kind && c.piece_kind !== 'root');
+      for (const kind of [...new Set(others.map((c) => c.piece_kind!))]) {
+        const of = others.filter((c) => c.piece_kind === kind);
+        blocks.push({
+          layout: 'chips', title: `${of.length} ${kind.replace(/_/g, ' ')}`,
+          cells: of.map((c) => ({ ar: refTail(c), label: '', sub: '', meta: '', ...this.four(c), sel: false, nav: null })),
+        });
+      }
+      return blocks;
+    }
+
+    const kids = stage.children;
+    if (!kids.length) return blocks;
+
+    if (kids.every((c) => c.piece_kind === 'ss_sentence')) {
+      const seq = [...kids].sort((a, b) => this.seqNo(refTail(a)) - this.seqNo(refTail(b)));
+      const done = seq.filter((c) => c.build_pct >= 100).length;
+      blocks.push({
+        layout: 'seq', title: `${seq.length} sentences · ${done} parsed`,
+        cells: seq.map((c) => ({
+          ar: '', label: String(this.seqNo(refTail(c))), sub: '', meta: `${refTail(c)} · build ${c.build_pct}%`,
+          ...this.four(c), sel: false, nav: null,
+        })),
+      });
+      return blocks;
+    }
+
+    blocks.push({
+      layout: 'chips', title: `${kids.length} pieces`,
+      cells: kids.map((c) => ({
+        ar: /[؀-ۿ]/.test(refTail(c)) ? refTail(c) : '',
+        label: /[؀-ۿ]/.test(refTail(c)) ? (c.piece_kind ?? '') : refTail(c),
+        sub: '', meta: '', ...this.four(c), sel: false, nav: null,
+      })),
+    });
+    return blocks;
+  }
+
+  /** The four outputs of a card, in the ladder's own order. */
+  outs(c: PieceCell) {
+    return [
+      { k: 'B', v: c.b, col: 'var(--build)' },
+      { k: 'S', v: c.s, col: 'var(--study)' },
+      { k: 'C', v: c.c, col: 'var(--content)' },
+      { k: 'R', v: c.r, col: 'var(--retn)' },
+    ];
+  }
+
+  /** A node's four readings, or four zeros where nothing is instantiated yet. */
+  private four(n: CybNode | undefined) {
+    return { b: n?.build_pct ?? 0, s: n?.study_pct ?? 0, c: n?.content_pct ?? 0, r: n?.retention_pct ?? 0 };
+  }
+
+  /** A rung that carries grids instead of a sensor card. */
+  private gridRung(depth: number, id: string, blocks: LeafBlock[]): Rung {
+    return {
+      depth, kind: 'piece', ar: '', en: id, num: '', scope: '', reportsTo: '',
+      b: 0, s: 0, c: 0, r: 0, open: true, hasKids: false, live: false, sel: false,
+      nav: null, blocks,
+    };
+  }
+
+  /** "s10" → 10, so the sentence run sorts in reading order, not lexically. */
+  private seqNo(ref: string): number { return Number(ref.replace(/\D/g, '')) || 0; }
+
   /** The ladder flattened to rungs — only the path in the URL is expanded. */
   readonly rungs = computed<Rung[]>(() => {
     const out: Rung[] = [];
     const sid = this.surahId(); const pno = this.passageNo(); const st = this.stream();
+    const rootSel = this.rootParam();
     // The Qurʾān rung is the rollup over ALL 114 surahs — an un-instantiated
     // surah reports 0, so the parent cannot read higher than its children.
     const perSurah = this.surahs().map((su) => this.surahNode(su.id));
@@ -248,10 +469,30 @@ export class CybLadderComponent {
       s: this.avg(perSurah.map((n) => n?.study_pct ?? 0)),
       c: this.avg(perSurah.map((n) => n?.content_pct ?? 0)),
       r: this.avg(perSurah.map((n) => n?.retention_pct ?? 0)),
-      open: true, hasKids: true, nav: null,
+      open: true, hasKids: true,
+      live: this.builtSurahs() > 0, sel: !sid,
+      nav: sid ? ['/cybernetics/ladder'] : null,
     });
 
-    for (const su of this.surahs()) {
+    // Unopened siblings ride as a grid — 114 surahs or 7 passages as full-width
+    // rungs would bury the descent. Opening one turns it back into a rung, with
+    // its sensor and its four outputs, and its own siblings fold into the grid.
+    if (!sid) {
+      out.push(this.gridRung(1, 'surahs', [{
+        layout: 'grid', title: `114 surahs · ${this.builtSurahs()} instantiated`,
+        cells: this.surahs().map((su) => {
+          const n = this.surahNode(su.id);
+          return {
+            ar: su.name_ar, label: su.name_transliteration || su.name_en, sub: '',
+            meta: `${su.id} · ${su.ayah_count} āyāt`, ...this.four(n), sel: false,
+            nav: ['/cybernetics/ladder', su.id],
+          };
+        }),
+      }]));
+      return out;
+    }
+
+    for (const su of this.surahs().filter((s) => s.id === sid)) {
       const n = this.surahNode(su.id);
       const open = sid === su.id;
       out.push({
@@ -259,11 +500,30 @@ export class CybLadderComponent {
         scope: `${su.ayah_count} āyāt${n ? '' : ' · not started'}`, reportsTo: 'the Qurʾān',
         b: n?.build_pct ?? 0, s: n?.study_pct ?? 0, c: n?.content_pct ?? 0, r: n?.retention_pct ?? 0,
         open, hasKids: true,
+        live: (n?.build_pct ?? 0) > 0, sel: open && !pno,
         nav: open ? ['/cybernetics/ladder'] : ['/cybernetics/ladder', su.id],
       });
       if (!open) continue;
 
-      for (const u of this.units()) {
+      if (!pno) {
+        const us = this.units();
+        if (us.length) {
+          out.push(this.gridRung(2, 'passages', [{
+            layout: 'grid', wide: true, title: `${us.length} study passages`,
+            cells: us.map((u) => {
+              const pn = this.passageNodeFor(u);
+              return {
+                ar: '', label: `${su.id}:${u.ayah_from}–${u.ayah_to}`, sub: u.label,
+                meta: `${u.passage_no} · ${u.theme ?? ''}`, ...this.four(pn), sel: false,
+                nav: ['/cybernetics/ladder', su.id, u.passage_no],
+              };
+            }),
+          }]));
+        }
+        continue;
+      }
+
+      for (const u of this.units().filter((x) => x.passage_no === pno)) {
         const pn = this.passageNodeFor(u);
         const popen = pno === u.passage_no;
         out.push({
@@ -271,47 +531,46 @@ export class CybLadderComponent {
           num: String(u.passage_no), scope: u.theme ?? '', reportsTo: 'the Surah',
           b: pn?.build_pct ?? 0, s: pn?.study_pct ?? 0, c: pn?.content_pct ?? 0, r: pn?.retention_pct ?? 0,
           open: popen, hasKids: !!pn?.children.length,
+          live: (pn?.build_pct ?? 0) > 0, sel: popen && !st,
           nav: popen ? ['/cybernetics/ladder', su.id] : ['/cybernetics/ladder', su.id, u.passage_no],
         });
         if (!popen || !pn) continue;
 
-        for (const stage of pn.children) {
+        if (!st) {
+          out.push(this.gridRung(3, 'streams', [{
+            layout: 'grid', wide: true, title: `${pn.children.length} stream-systems`,
+            cells: pn.children.map((stage) => {
+              const k = stage.layer ?? '';
+              const m = STREAMS[k] ?? { ar: '', en: k, scope: '' };
+              const kids = k === 'vocabulary' || stage.children.length > 0;
+              return {
+                ar: m.ar, label: m.en, sub: m.scope, meta: k, ...this.four(stage), sel: false,
+                nav: kids ? ['/cybernetics/ladder', su.id, u.passage_no, k] : null,
+              };
+            }),
+          }]));
+          continue;
+        }
+
+        for (const stage of pn.children.filter((c) => c.layer === st)) {
           const key = stage.layer ?? '';
           const meta = STREAMS[key] ?? { ar: '', en: key, scope: '' };
-          const sopen = st === key;
+          const sopen = true;
           const kids = key === 'vocabulary' || stage.children.length > 0;
           out.push({
             depth: 3, kind: 'stream', ar: meta.ar, en: meta.en, num: '',
             scope: meta.scope, reportsTo: 'the Passage',
             b: stage.build_pct, s: stage.study_pct, c: stage.content_pct, r: stage.retention_pct,
             open: sopen, hasKids: kids,
+            live: stage.build_pct > 0, sel: sopen,
             nav: !kids ? null
                : sopen ? ['/cybernetics/ladder', su.id, u.passage_no]
                        : ['/cybernetics/ladder', su.id, u.passage_no, key],
           });
           if (!sopen) continue;
 
-          if (key === 'vocabulary') {
-            for (const vr of this.verseRoots()) {
-              const rn = this.rootNodeFor(vr.root);
-              out.push({
-                depth: 4, kind: 'piece', ar: vr.root, en: `${su.id}:${vr.first_ayah} · ${vr.occurrences}×`, num: '',
-                scope: `${vr.lemmas} lemma${vr.lemmas > 1 ? 's' : ''}`, reportsTo: 'Root / Vocabulary',
-                b: rn?.build_pct ?? 0, s: rn?.study_pct ?? 0, c: rn?.content_pct ?? 0, r: rn?.retention_pct ?? 0,
-                open: false, hasKids: false,
-                nav: ['/cybernetics/map', su.id, u.passage_no, 'vocabulary', vr.root],
-              });
-            }
-          } else {
-            for (const piece of stage.children) {
-              out.push({
-                depth: 4, kind: 'piece', ar: (piece.target_ref ?? '').split(':').pop() ?? '',
-                en: piece.piece_kind ?? '', num: '', scope: '', reportsTo: meta.en,
-                b: piece.build_pct, s: piece.study_pct, c: piece.content_pct, r: piece.retention_pct,
-                open: false, hasKids: false, nav: null,
-              });
-            }
-          }
+          const blocks = this.leafBlocks(stage, key, su.id, u.passage_no, rootSel);
+          if (blocks.length) out.push(this.gridRung(4, key, blocks));
         }
       }
     }
@@ -332,7 +591,7 @@ export class CybLadderComponent {
   /** A sliver so a non-zero rollup is visible on the track too. */
   bar(v: number): number { return v > 0 ? Math.max(0.9, Math.min(100, v)) : 0; }
 
-  go(nav: (string | number)[]) { this.router.navigate(nav); }
+  go(nav: (string | number)[] | null) { if (nav) this.router.navigate(nav); }
   openBuiltPath() {
     const built = this.flat().find((n) => n.scale === 'surah' && n.build_pct > 0);
     const sid = built ? Number(built.target_ref) : 44;
