@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
 import type { CybNode, Surah, StudyUnit, StagingMatrix, StageCell, SubLayer } from '../data/cyb.models';
@@ -72,7 +72,8 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
           <div class="list">
             @for (u of units(); track u.passage_id) {
               @let pnode = passageNode(u);
-              <div class="lc" [style.--lc]="pnode && pnode.build_pct > 0 ? 'var(--content)' : 'var(--gold-d)'">
+              <div class="lc clickable" [style.--lc]="pnode && pnode.build_pct > 0 ? 'var(--content)' : 'var(--gold-d)'"
+                   (click)="onPassageCard(u, pnode)">
                 <div class="lct"><span class="en">{{ u.passage_no }}. {{ u.label }}</span><span class="no">{{ surah()?.id }}:{{ u.ayah_from }}–{{ u.ayah_to }}</span></div>
                 @if (u.theme) { <div class="lcd">{{ u.theme }}</div> }
                 <div class="steps">
@@ -87,9 +88,10 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
                     <span class="pl2">build {{ pnode.build_pct }}% · study {{ pnode.study_pct }}%</span></div>
                 }
                 <div class="lcact">
-                  @if (pnode && pnode.children.length) { <button class="drillbtn" (click)="drillPassage(pnode)">streams · roots ›</button> }
-                  <a class="studylink" [routerLink]="['/quran/surahs', surah()?.id, 'study', u.passage_no]">Open in Study ›</a>
+                  <span class="hint">{{ pnode && pnode.children.length ? 'tap card → streams · roots' : 'tap card → open in Study' }}</span>
+                  <a class="studylink" [routerLink]="['/quran/surahs', surah()?.id, 'study', u.passage_no]" (click)="$event.stopPropagation()">Open in Study ›</a>
                 </div>
+                <span class="go">›</span>
               </div>
             }
           </div>
@@ -214,6 +216,8 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
     .step { font-size:8.5px; font-family:ui-monospace,monospace; border:1px solid rgba(255,255,255,.1); border-radius:7px; padding:2px 6px; color:var(--t3); } .step.on { color:var(--content); border-color:rgba(77,217,168,.4); }
     .pbuild { display:flex; align-items:center; gap:8px; margin-top:8px; } .pbuild .o { flex:1; height:6px; border-radius:4px; background:#242424; overflow:hidden; } .pbuild .o i { display:block; height:100%; background:var(--oc); } .pl2 { font-size:8.5px; color:var(--t3); font-family:ui-monospace,monospace; }
     .lcact { display:flex; gap:12px; align-items:center; margin-top:9px; }
+    .hint { font-size:10.5px; color:var(--content); font-family:var(--serif); }
+    .lc.clickable { cursor:pointer; } .lc.clickable:hover { border-color:var(--bd-hi); transform:translateY(-1px); }
     .drillbtn { background:none; border:none; color:var(--content); font-size:11px; cursor:pointer; padding:0; font-family:var(--serif); }
     .studylink { color:var(--gold-b); font-size:11px; text-decoration:none; font-family:var(--serif); } .studylink:hover { text-decoration:underline; }
     .go { position:absolute; right:11px; bottom:10px; color:var(--gold-d); font-size:14px; }
@@ -239,6 +243,7 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
 })
 export class CybMapComponent {
   private readonly svc = inject(CybService);
+  private readonly router = inject(Router);
 
   readonly surahs = signal<Surah[]>([]);
   readonly error = signal<string | null>(null);
@@ -312,6 +317,11 @@ export class CybMapComponent {
     });
   }
   drillPassage(pnode: CybNode) { this.path.set([pnode]); this.selRoot.set(null); this.view.set('drill'); }
+  /** Clicking a passage card: built → drill its streams; else open it in Study. */
+  onPassageCard(u: StudyUnit, pnode: CybNode | undefined) {
+    if (pnode && pnode.children.length) this.drillPassage(pnode);
+    else this.router.navigate(['/quran/surahs', this.surah()?.id, 'study', u.passage_no]);
+  }
   drill(n: CybNode) { if (n.children.length) { this.path.update((p) => [...p, n]); } }
   openRoot(n: CybNode) { this.selRoot.set(n); this.view.set('root'); }
   popTo(i: number) { this.selRoot.set(null); this.view.set('drill'); this.path.update((p) => p.slice(0, i + 1)); }
