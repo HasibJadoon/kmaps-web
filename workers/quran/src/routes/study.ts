@@ -73,6 +73,20 @@ export function studyRoutes(router: Router<QuranEnv>) {
     },
   );
 
+  // ── Unique roots of a passage, from the verses themselves ───────────────────
+  // GET /qr/study/surahs/:surahId/passages/:passageNo/roots
+  // One row per DISTINCT root in the passage's āyāt (qr_word_occurrences).
+
+  router.get(
+    '/qr/study/surahs/:surahId/passages/:passageNo/roots',
+    async (_req, env, { surahId, passageNo }) => {
+      const sp = parseSurahPassage(surahId, passageNo);
+      if (!sp) return badRequest('Invalid surahId or passageNo');
+      const roots = await new StudyRepo(env.DB_QR).passageRoots(sp.s, sp.p);
+      return roots ? ok(roots) : notFound(`passage ${sp.s}:${sp.p}`);
+    },
+  );
+
   // ── Full lesson — ayahs + vocabulary + expressions + tasks ───────────────────
 
   router.get(

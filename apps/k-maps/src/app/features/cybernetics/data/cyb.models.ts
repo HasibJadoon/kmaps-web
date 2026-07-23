@@ -130,6 +130,9 @@ export interface StudyGrid {
   units: StudyUnit[];
 }
 
+/** A unique root occurring in a passage's āyāt (GET .../passages/:no/roots). */
+export interface PassageRoot { root: string; occurrences: number; lemmas: number }
+
 export interface CybConfigEntry { value: string; note: string | null }
 
 export interface CybMonitor {

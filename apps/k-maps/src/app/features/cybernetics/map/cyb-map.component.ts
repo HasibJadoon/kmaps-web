@@ -4,7 +4,7 @@ import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
 import type {
   CybNode, Surah, StudyUnit, StagingMatrix, StageCell, SubLayer,
-  RootDetail, RootClaim, RootMemlet, RootQuestion, RootOption, RootMedia,
+  RootDetail, RootClaim, RootMemlet, RootQuestion, RootOption, RootMedia, PassageRoot,
 } from '../data/cyb.models';
 
 // Quran Map — Qurʾān-centric, over the Surah Study module:
@@ -62,9 +62,9 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
           <span class="csep">›</span>
           <button class="crumb" [class.cur]="view()==='drill' && i === path().length - 1" (click)="popTo(i)">{{ crumbLabel(n) }}</button>
         }
-        @if (view()==='root' && selRoot(); as r) {
+        @if (view()==='root' && selRootNorm(); as rn) {
           <span class="csep">›</span>
-          <button class="crumb cur">{{ rootNorm(r) }}</button>
+          <button class="crumb cur">{{ rn }}</button>
         }
       </div>
 
@@ -129,7 +129,25 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
       <!-- ══ L3 · streams (stage nodes) OR L4 · roots (piece nodes) ══ -->
       @else if (view()==='drill') {
         @let kids = current();
-        @if (kids.length && kids[0].scale === 'stage') {
+        @if (currentNode()?.layer === 'vocabulary') {
+          <div class="vh"><span>Root / Vocabulary · {{ verseRoots().length }} unique roots</span><span class="h">from the āyāt · tap a root for its dashboard</span></div>
+          @if (verseRoots().length) {
+            <div class="grid">
+              @for (vr of verseRoots(); track vr.root) {
+                @let rnode = cybNodeForRoot(vr.root);
+                <button class="cell rootcell"
+                        [style.borderLeftColor]="(rnode?.build_pct || 0) >= 50 ? 'var(--content)' : 'var(--gold-d)'"
+                        (click)="openRootNorm(vr.root)">
+                  <div class="top"><span class="num">{{ vr.occurrences }}× · {{ vr.lemmas }} lemma{{ vr.lemmas > 1 ? 's' : '' }}</span></div>
+                  <div class="nar rootar">{{ vr.root }}</div>
+                  <div class="pbar"><div class="pf" [style.width.%]="rnode?.build_pct || 0"></div></div>
+                  <div class="pl">build {{ rnode?.build_pct || 0 }}%</div>
+                </button>
+              }
+            </div>
+          } @else { <div class="msg">Loading the passage's roots…</div> }
+        }
+        @else if (kids.length && kids[0].scale === 'stage') {
           <div class="vh"><span>{{ drillTitle() }} · the 6 stream-systems</span><span class="h">tap Vocabulary to reach the roots</span></div>
           <div class="list">
             @for (n of kids; track n.id) {
@@ -163,25 +181,25 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
       }
 
       <!-- ══ L5 · Root Dashboard ══ -->
-      @else if (view()==='root' && selRoot(); as r) {
-        @let rn = rootNorm(r);
+      @else if (view()==='root' && selRootNorm(); as rn) {
+        @let r = selRoot();
         @let roll = rootRollup(rn);
         <div class="vh"><span>Root Dashboard</span><span class="h">4 outputs + staged layers</span></div>
         <div class="rd">
           <div class="rdh">
             <span class="rdar">{{ rn }}</span>
             <div class="rdm">
-              <div class="rn">{{ rn }} <span class="rk">· {{ r.piece_kind }}</span></div>
-              <div class="rdd">build {{ r.build_pct }}% · {{ roll?.staged || 0 }} claims staged · {{ roll?.promoted || 0 }} promoted · {{ memletCount(rn) }} memlets · ↑ reports to Vocabulary</div>
+              <div class="rn">{{ rn }} <span class="rk">· {{ r?.piece_kind || 'root' }}</span></div>
+              <div class="rdd">build {{ r?.build_pct || 0 }}% · {{ roll?.staged || 0 }} claims staged · {{ roll?.promoted || 0 }} promoted · {{ memletCount(rn) }} memlets · ↑ reports to Vocabulary</div>
             </div>
           </div>
 
           <div class="sub2">The 4 outputs</div>
           <div class="o4dash">
-            <div class="ob"><span class="obl">Build <b>{{ r.build_pct }}</b></span><span class="o" style="--oc:var(--build)"><i [style.width.%]="r.build_pct"></i></span></div>
-            <div class="ob"><span class="obl">Study <b>{{ r.study_pct }}</b></span><span class="o" style="--oc:var(--study)"><i [style.width.%]="r.study_pct"></i></span></div>
-            <div class="ob"><span class="obl">Content <b>{{ r.content_pct }}</b></span><span class="o" style="--oc:var(--content)"><i [style.width.%]="r.content_pct"></i></span></div>
-            <div class="ob"><span class="obl">Retn <b>{{ r.retention_pct }}</b></span><span class="o" style="--oc:var(--retn)"><i [style.width.%]="r.retention_pct"></i></span></div>
+            <div class="ob"><span class="obl">Build <b>{{ r?.build_pct || 0 }}</b></span><span class="o" style="--oc:var(--build)"><i [style.width.%]="r?.build_pct || 0"></i></span></div>
+            <div class="ob"><span class="obl">Study <b>{{ r?.study_pct || 0 }}</b></span><span class="o" style="--oc:var(--study)"><i [style.width.%]="r?.study_pct || 0"></i></span></div>
+            <div class="ob"><span class="obl">Content <b>{{ r?.content_pct || 0 }}</b></span><span class="o" style="--oc:var(--content)"><i [style.width.%]="r?.content_pct || 0"></i></span></div>
+            <div class="ob"><span class="obl">Retn <b>{{ r?.retention_pct || 0 }}</b></span><span class="o" style="--oc:var(--retn)"><i [style.width.%]="r?.retention_pct || 0"></i></span></div>
           </div>
 
           <!-- three structurally identical layer families -->
@@ -201,7 +219,7 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
                 }
               </div>
             } @else {
-              <div class="empty">{{ rn }} — {{ r.build_pct }}% built from its lexicon sources, but no layers staged yet.</div>
+              <div class="empty">{{ rn }} — {{ r?.build_pct || 0 }}% built from its lexicon sources, but no layers staged yet.</div>
             }
           </div>
 
@@ -503,6 +521,9 @@ export class CybMapComponent {
   readonly rootTab = signal<'layers' | 'memlets' | 'questions'>('layers');
   readonly selLayer = signal<string | null>(null);
   readonly selMemletKind = signal<string | null>(null);
+  readonly selUnit = signal<StudyUnit | null>(null);
+  readonly verseRoots = signal<PassageRoot[]>([]);
+  readonly selRootNorm = signal<string | null>(null);
   readonly selQuestionKind = signal<string | null>(null);
 
   private readonly flat = computed<CybNode[]>(() => {
@@ -514,6 +535,8 @@ export class CybMapComponent {
 
   readonly activeCount = computed(() =>
     this.flat().filter((n) => n.scale === 'surah' && n.build_pct > 0).length);
+
+  currentNode(): CybNode | null { const p = this.path(); return p.length ? p[p.length - 1] : null; }
 
   readonly current = computed<CybNode[]>(() => {
     const p = this.path();
@@ -567,16 +590,39 @@ export class CybMapComponent {
   drillPassage(pnode: CybNode) { this.path.set([pnode]); this.selRoot.set(null); this.view.set('drill'); }
   /** Clicking a passage card: built → drill its streams; else open it in Study. */
   onPassageCard(u: StudyUnit, pnode: CybNode | undefined) {
+    this.selUnit.set(u);
     if (pnode && pnode.children.length) this.drillPassage(pnode);
     else this.router.navigate(['/quran/surahs', this.surah()?.id, 'study', u.passage_no]);
   }
-  drill(n: CybNode) { if (n.children.length) { this.path.update((p) => [...p, n]); } }
-  openRoot(n: CybNode) {
-    this.selRoot.set(n); this.view.set('root');
+  drill(n: CybNode) {
+    if (!n.children.length && n.layer !== 'vocabulary') return;
+    this.path.update((p) => [...p, n]);
+    if (n.layer === 'vocabulary') this.loadVerseRoots();
+  }
+  /** The passage's UNIQUE roots, straight from its āyāt (no duplicates). */
+  private loadVerseRoots() {
+    const s = this.surah(); const u = this.selUnit();
+    if (!s || !u) { this.verseRoots.set([]); return; }
+    this.verseRoots.set([]);
+    this.svc.passageRoots(s.id, u.passage_no).subscribe({
+      next: (r) => this.verseRoots.set(r), error: () => this.verseRoots.set([]),
+    });
+  }
+  /** The cyb node carrying this root's outputs — prefer the real root piece. */
+  cybNodeForRoot(rn: string): CybNode | undefined {
+    const pieces = this.flat().filter((n) => n.scale === 'piece' && this.rootNorm(n) === rn);
+    return pieces.find((n) => n.piece_kind === 'root') ?? pieces[0];
+  }
+  /** Open the Root Dashboard for a root norm (works with or without a cyb node). */
+  openRootNorm(rn: string) {
+    this.selRoot.set(this.cybNodeForRoot(rn) ?? null);
+    this.selRootNorm.set(rn);
+    this.view.set('root');
     this.rootTab.set('layers'); this.selLayer.set(null); this.rootDetail.set(null);
     this.selMemletKind.set(null); this.selQuestionKind.set(null);
-    this.svc.rootDetail(this.rootNorm(n)).subscribe({ next: (d) => this.rootDetail.set(d), error: () => {} });
+    this.svc.rootDetail(rn).subscribe({ next: (d) => this.rootDetail.set(d), error: () => {} });
   }
+  openRoot(n: CybNode) { this.openRootNorm(this.rootNorm(n)); }
   selectLayer(sub: string) { this.selLayer.set(sub); this.rootTab.set('layers'); }
   selectMemletKind(k: string) { this.selMemletKind.set(k); this.rootTab.set('memlets'); }
   selectQuestionKind(k: string) { this.selQuestionKind.set(k); this.rootTab.set('questions'); }
@@ -654,9 +700,9 @@ export class CybMapComponent {
   }
   memletsN(): number { return this.rootDetail()?.memlets.length ?? 0; }
   questionsN(): number { return this.rootDetail()?.questions.length ?? 0; }
-  popTo(i: number) { this.selRoot.set(null); this.view.set('drill'); this.path.update((p) => p.slice(0, i + 1)); }
-  toSurahs() { this.view.set('surahs'); this.surah.set(null); this.path.set([]); this.selRoot.set(null); }
-  toPassages() { this.view.set('passages'); this.path.set([]); this.selRoot.set(null); }
+  popTo(i: number) { this.selRoot.set(null); this.selRootNorm.set(null); this.view.set('drill'); this.path.update((p) => p.slice(0, i + 1)); }
+  toSurahs() { this.view.set('surahs'); this.surah.set(null); this.path.set([]); this.selRoot.set(null); this.selRootNorm.set(null); }
+  toPassages() { this.view.set('passages'); this.path.set([]); this.selRoot.set(null); this.selRootNorm.set(null); }
 
   // ── labels ──
   streamLabel(n: CybNode) { return STREAM_LABELS[n.layer ?? ''] ?? { ar: '', en: n.layer ?? n.scale, hint: '' }; }

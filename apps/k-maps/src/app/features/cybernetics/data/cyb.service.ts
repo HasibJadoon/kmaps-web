@@ -8,7 +8,7 @@ import { Observable } from 'rxjs';
 import { BackendApiService } from '../../../shared/services/backend-api.service';
 import type {
   CybMonitor, CybNode, CybNodeDetail, CybJob, CybSource, CountRow,
-  StagingSummary, StagingMatrix, Surah, StudyGrid, RootDetail,
+  StagingSummary, StagingMatrix, Surah, StudyGrid, RootDetail, PassageRoot,
 } from './cyb.models';
 
 @Injectable({ providedIn: 'root' })
@@ -22,6 +22,11 @@ export class CybService {
   /** All 114 surahs from the QR corpus — the Qurʾān-centric map spine. */
   surahs(): Observable<Surah[]> {
     return this.api.getData<Surah[]>('qr', ['surahs']);
+  }
+
+  /** The UNIQUE roots occurring in a passage's āyāt — the vocabulary spine. */
+  passageRoots(surahId: number, passageNo: number): Observable<PassageRoot[]> {
+    return this.api.getData<PassageRoot[]>('qr', ['study', 'surahs', surahId, 'passages', passageNo, 'roots']);
   }
 
   /** The Surah Study grid — real study passages (units) + step availability. */

@@ -351,6 +351,33 @@ export class StudyRepo {
    * task-type flags query (no task_json). Used by the passage-detail endpoint so
    * picking a passage does not pull the whole task tree.
    */
+  /**
+   * The UNIQUE roots actually occurring in a passage's āyāt, straight from the
+   * corpus (qr_word_occurrences). One row per root — no duplicates — with how
+   * often it occurs and how many distinct lemmas it takes in this passage.
+   * This is the authoritative vocabulary spine for the passage.
+   */
+  async passageRoots(
+    surahId: number,
+    passageNo: number,
+  ): Promise<{ root: string; occurrences: number; lemmas: number }[] | null> {
+    const passages = await this._passages(surahId);
+    const passage  = passages.find(p => p.passage_no === passageNo);
+    if (!passage) return null;
+    return query<{ root: string; occurrences: number; lemmas: number }>(
+      this.db,
+      `SELECT root,
+              COUNT(*)               AS occurrences,
+              COUNT(DISTINCT lemma)  AS lemmas
+       FROM qr_word_occurrences
+       WHERE surah = ? AND ayah BETWEEN ? AND ?
+         AND root IS NOT NULL AND root <> ''
+       GROUP BY root
+       ORDER BY occurrences DESC, root`,
+      [passage.surah_id, passage.ayah_from, passage.ayah_to],
+    );
+  }
+
   async stepTypes(surahId: number, passageNo: number): Promise<string[] | null> {
     const passages = await this._passages(surahId);
     const passage  = passages.find(p => p.passage_no === passageNo);
