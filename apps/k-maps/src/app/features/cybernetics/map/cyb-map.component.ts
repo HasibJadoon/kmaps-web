@@ -52,7 +52,9 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
   template: `
     @if (error()) { <div class="msg err">{{ error() }}</div> }
     @else {
-      <km-cyb-topbar view="map" [surahs]="surahs()" [nodes]="flatNodes()" />
+      <km-cyb-topbar view="map" [surahs]="surahs()" [nodes]="flatNodes()"
+                     [surahId]="surahId()" [passageNo]="passageNo()"
+                     [stream]="streamParam()" [root]="rootParam()" />
       <!-- breadcrumb -->
       <div class="crumbs">
         <button class="crumb" [class.cur]="view()==='surahs'" (click)="goSurahs()">القرآن · Qurʾān</button>
@@ -79,7 +81,8 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
       <!-- ══ L1 · 114 surahs ══ -->
       @if (view()==='surahs') {
         @if (surahs().length) {
-          <div class="vh"><span>Entire Qurʾān · 114 surahs</span><span class="h">{{ activeCount() }} active · tap to open</span></div>
+          <div class="vh"><span>Entire Qurʾān · 114 surahs</span>
+            <span class="h"><b class="qp">build {{ quranPct() }}%</b> · {{ activeCount() }} active · tap to open</span></div>
           <div class="grid">
             @for (s of surahs(); track s.id) {
               @let node = surahNode(s.id);
@@ -425,6 +428,7 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
     .csep { color:var(--gold-d); font-weight:700; }
     .vh { font-family:var(--serif); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold-d); margin:0 0 12px; display:flex; justify-content:space-between; align-items:baseline; }
     .vh .h { font-size:10px; color:var(--t3); font-family:ui-monospace,monospace; letter-spacing:0; text-transform:none; }
+    .vh .qp { color:var(--build); font-weight:400; }
 
     .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:7px; }
     .cell { text-align:left; border:1px solid rgba(255,255,255,.08); border-radius:9px; background:linear-gradient(160deg,#151515,#0d0d0d); padding:7px 8px 8px; cursor:pointer; color:var(--text); }
@@ -593,6 +597,18 @@ export class CybMapComponent {
   readonly flatNodes = computed<CybNode[]>(() => this.flat());
   readonly activeCount = computed(() =>
     this.flat().filter((n) => n.scale === 'surah' && n.build_pct > 0).length);
+
+  // The Qurʾān's own reading: the rollup over all 114 surahs, an un-instantiated
+  // one reporting 0. Real work at a leaf lands under 1% up here, so it is shown
+  // to two decimals rather than rounded away to nothing.
+  readonly quranPct = computed(() => {
+    const list = this.surahs();
+    if (!list.length) return '0';
+    const sum = list.reduce((a, s) => a + (this.surahNode(s.id)?.build_pct ?? 0), 0);
+    const v = sum / list.length;
+    if (!v) return '0';
+    return v >= 10 ? String(Math.round(v)) : v >= 1 ? v.toFixed(1) : v.toFixed(2);
+  });
 
   readonly current = computed<CybNode[]>(() => {
     if (this.streamParam()) return this.stageNodeCur()?.children ?? [];

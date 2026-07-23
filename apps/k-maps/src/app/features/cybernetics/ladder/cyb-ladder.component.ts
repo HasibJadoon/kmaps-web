@@ -39,7 +39,9 @@ interface Rung {
     @if (error()) { <div class="msg err">{{ error() }}</div> }
     @else if (!surahs().length) { <div class="msg">Loading the Qurʾān…</div> }
     @else {
-      <km-cyb-topbar view="ladder" [surahs]="surahs()" [nodes]="flatNodes()" />
+      <km-cyb-topbar view="ladder" [surahs]="surahs()" [nodes]="flatNodes()"
+                     [surahId]="surahId()" [passageNo]="passageNo()"
+                     [stream]="stream()" [root]="rootParam()" />
       <p class="sub">Every level is a viable system with a <b class="sn">sensor</b> and four outputs.
         Each sensor reads its own state and <b class="up">feeds it backward — up the recursion</b> —
         so a parent is only as built as its children report.</p>
@@ -86,10 +88,10 @@ interface Rung {
                 <div class="rep">↑ reports to {{ g.reportsTo }}</div>
               </div>
               <div class="out4">
-                <div class="o" [class.z]="!g.b" style="--oc:var(--build)"><div class="ol"><span>B</span><b>{{ g.b }}</b></div><div class="tk"><i [style.width.%]="g.b"></i></div></div>
-                <div class="o" [class.z]="!g.s" style="--oc:var(--study)"><div class="ol"><span>S</span><b>{{ g.s }}</b></div><div class="tk"><i [style.width.%]="g.s"></i></div></div>
-                <div class="o" [class.z]="!g.c" style="--oc:var(--content)"><div class="ol"><span>C</span><b>{{ g.c }}</b></div><div class="tk"><i [style.width.%]="g.c"></i></div></div>
-                <div class="o" [class.z]="!g.r" style="--oc:var(--retn)"><div class="ol"><span>R</span><b>{{ g.r }}</b></div><div class="tk"><i [style.width.%]="g.r"></i></div></div>
+                <div class="o" [class.z]="!g.b" style="--oc:var(--build)"><div class="ol"><span>B</span><b>{{ fmt(g.b) }}</b></div><div class="tk"><i [style.width.%]="bar(g.b)"></i></div></div>
+                <div class="o" [class.z]="!g.s" style="--oc:var(--study)"><div class="ol"><span>S</span><b>{{ fmt(g.s) }}</b></div><div class="tk"><i [style.width.%]="bar(g.s)"></i></div></div>
+                <div class="o" [class.z]="!g.c" style="--oc:var(--content)"><div class="ol"><span>C</span><b>{{ fmt(g.c) }}</b></div><div class="tk"><i [style.width.%]="bar(g.c)"></i></div></div>
+                <div class="o" [class.z]="!g.r" style="--oc:var(--retn)"><div class="ol"><span>R</span><b>{{ fmt(g.r) }}</b></div><div class="tk"><i [style.width.%]="bar(g.r)"></i></div></div>
               </div>
             </div>
           </div>
@@ -175,6 +177,7 @@ export class CybLadderComponent {
   readonly surahId   = computed(() => { const v = this.pm()?.get('surahId'); return v ? Number(v) : null; });
   readonly passageNo = computed(() => { const v = this.pm()?.get('passageNo'); return v ? Number(v) : null; });
   readonly stream    = computed(() => this.pm()?.get('stream') ?? null);
+  readonly rootParam = computed(() => this.pm()?.get('root') ?? null);
 
   private readonly flat = computed<CybNode[]>(() => {
     const out: CybNode[] = [];
@@ -315,7 +318,19 @@ export class CybLadderComponent {
     return out;
   });
 
-  private avg(v: number[]): number { return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : 0; }
+  // Kept unrounded: the Qurʾān rung averages over all 114 surahs, so real work at
+  // a leaf lands well under 1% up top — rounding it would report a built root as 0.
+  private avg(v: number[]): number { return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; }
+
+  /** Shows the smallest real reading rather than collapsing it to 0. */
+  fmt(v: number): string {
+    if (!v) return '0';
+    if (v >= 10) return String(Math.round(v));
+    if (v >= 1) return v.toFixed(1);
+    return v.toFixed(2);
+  }
+  /** A sliver so a non-zero rollup is visible on the track too. */
+  bar(v: number): number { return v > 0 ? Math.max(0.9, Math.min(100, v)) : 0; }
 
   go(nav: (string | number)[]) { this.router.navigate(nav); }
   openBuiltPath() {
