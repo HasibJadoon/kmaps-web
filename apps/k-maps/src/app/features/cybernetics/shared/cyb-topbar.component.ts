@@ -300,10 +300,12 @@ export class CybTopbarComponent {
       const stage = this.kids(here, 'stage').find((n) => n.layer === st);
       if (stage) out.push(this.streamChip(stage, sid, pno, 'trail'));
       const rn = this.root();
-      if (rn) {
-        const rNode = this.descend(here).find((n) => n.scale === 'piece' && n.piece_kind === 'root' && this.rootName(n) === rn);
-        if (rNode) out.push(this.rootChip(rNode, sid, pno, 'trail'));
-      }
+      // Standing in a stream, the trail still names the root it is working on —
+      // the one the URL selected, or the leading one on this layer.
+      const rNode = rn
+        ? this.descend(here).find((n) => n.scale === 'piece' && n.piece_kind === 'root' && this.rootName(n) === rn)
+        : this.inBuild(this.descend(stage).filter((n) => n.scale === 'piece' && n.piece_kind === 'root'))[0];
+      if (rNode) out.push(this.rootChip(rNode, sid, pno, 'trail'));
     }
     return out;
   });
