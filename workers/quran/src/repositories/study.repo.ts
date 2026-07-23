@@ -360,20 +360,27 @@ export class StudyRepo {
   async passageRoots(
     surahId: number,
     passageNo: number,
-  ): Promise<{ root: string; occurrences: number; lemmas: number }[] | null> {
+  ): Promise<
+    { root: string; occurrences: number; lemmas: number; first_ayah: number; first_word: number }[] | null
+  > {
     const passages = await this._passages(surahId);
     const passage  = passages.find(p => p.passage_no === passageNo);
     if (!passage) return null;
-    return query<{ root: string; occurrences: number; lemmas: number }>(
+    // Ordered by where each root FIRST appears in the passage (āyah, then word),
+    // so the grid reads in the order the verses do.
+    return query<{ root: string; occurrences: number; lemmas: number; first_ayah: number; first_word: number }>(
       this.db,
       `SELECT root,
-              COUNT(*)               AS occurrences,
-              COUNT(DISTINCT lemma)  AS lemmas
+              COUNT(*)                              AS occurrences,
+              COUNT(DISTINCT lemma)                 AS lemmas,
+              MIN(ayah)                             AS first_ayah,
+              MIN(ayah * 1000 + word_index)         AS first_pos,
+              MIN(ayah * 1000 + word_index) % 1000  AS first_word
        FROM qr_word_occurrences
        WHERE surah = ? AND ayah BETWEEN ? AND ?
          AND root IS NOT NULL AND root <> ''
        GROUP BY root
-       ORDER BY occurrences DESC, root`,
+       ORDER BY first_pos`,
       [passage.surah_id, passage.ayah_from, passage.ayah_to],
     );
   }

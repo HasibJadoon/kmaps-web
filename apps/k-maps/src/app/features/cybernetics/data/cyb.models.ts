@@ -131,7 +131,7 @@ export interface StudyGrid {
 }
 
 /** A unique root occurring in a passage's āyāt (GET .../passages/:no/roots). */
-export interface PassageRoot { root: string; occurrences: number; lemmas: number }
+export interface PassageRoot { root: string; occurrences: number; lemmas: number; first_ayah: number; first_word: number }
 
 export interface CybConfigEntry { value: string; note: string | null }
 

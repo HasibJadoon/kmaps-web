@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
 import type {
@@ -53,16 +53,22 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
     @else {
       <!-- breadcrumb -->
       <div class="crumbs">
-        <button class="crumb" [class.cur]="view()==='surahs'" (click)="toSurahs()">القرآن · Qurʾān</button>
-        @if (surah(); as s) {
+        <button class="crumb" [class.cur]="view()==='surahs'" (click)="goSurahs()">القرآن · Qurʾān</button>
+        @if (surahId()) {
           <span class="csep">›</span>
-          <button class="crumb" [class.cur]="view()==='passages'" (click)="toPassages()">{{ s.name_en }} <span class="aa">{{ s.name_ar }}</span></button>
+          <button class="crumb" [class.cur]="view()==='passages'" (click)="goSurah()">
+            {{ surah()?.name_en || 'Surah ' + surahId() }} <span class="aa">{{ surah()?.name_ar }}</span></button>
         }
-        @for (n of path(); track n.id; let i = $index) {
+        @if (passageNo()) {
           <span class="csep">›</span>
-          <button class="crumb" [class.cur]="view()==='drill' && i === path().length - 1" (click)="popTo(i)">{{ crumbLabel(n) }}</button>
+          <button class="crumb" [class.cur]="view()==='streams'" (click)="goPassage()">
+            {{ selUnit() ? surahId() + ':' + selUnit()!.ayah_from + '–' + selUnit()!.ayah_to : 'Passage ' + passageNo() }}</button>
         }
-        @if (view()==='root' && selRootNorm(); as rn) {
+        @if (streamParam(); as st) {
+          <span class="csep">›</span>
+          <button class="crumb" [class.cur]="view()==='pieces'" (click)="goStream()">{{ streamLabelKey(st).en }}</button>
+        }
+        @if (rootParam(); as rn) {
           <span class="csep">›</span>
           <button class="crumb cur">{{ rn }}</button>
         }
@@ -126,28 +132,10 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
         }
       }
 
-      <!-- ══ L3 · streams (stage nodes) OR L4 · roots (piece nodes) ══ -->
-      @else if (view()==='drill') {
+      <!-- ══ L3 · the 6 stream-systems ══ -->
+      @else if (view()==='streams') {
         @let kids = current();
-        @if (currentNode()?.layer === 'vocabulary') {
-          <div class="vh"><span>Root / Vocabulary · {{ verseRoots().length }} unique roots</span><span class="h">from the āyāt · tap a root for its dashboard</span></div>
-          @if (verseRoots().length) {
-            <div class="grid">
-              @for (vr of verseRoots(); track vr.root) {
-                @let rnode = cybNodeForRoot(vr.root);
-                <button class="cell rootcell"
-                        [style.borderLeftColor]="(rnode?.build_pct || 0) >= 50 ? 'var(--content)' : 'var(--gold-d)'"
-                        (click)="openRootNorm(vr.root)">
-                  <div class="top"><span class="num">{{ vr.occurrences }}× · {{ vr.lemmas }} lemma{{ vr.lemmas > 1 ? 's' : '' }}</span></div>
-                  <div class="nar rootar">{{ vr.root }}</div>
-                  <div class="pbar"><div class="pf" [style.width.%]="rnode?.build_pct || 0"></div></div>
-                  <div class="pl">build {{ rnode?.build_pct || 0 }}%</div>
-                </button>
-              }
-            </div>
-          } @else { <div class="msg">Loading the passage's roots…</div> }
-        }
-        @else if (kids.length && kids[0].scale === 'stage') {
+        @if (kids.length) {
           <div class="vh"><span>{{ drillTitle() }} · the 6 stream-systems</span><span class="h">tap Vocabulary to reach the roots</span></div>
           <div class="list">
             @for (n of kids; track n.id) {
@@ -165,6 +153,29 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
               </div>
             }
           </div>
+        } @else { <div class="msg">Loading the passage's streams…</div> }
+      }
+
+      <!-- ══ L4 · the stream's pieces (roots for Vocabulary) ══ -->
+      @else if (view()==='pieces') {
+        @let kids = current();
+        @if (streamParam() === 'vocabulary') {
+          <div class="vh"><span>Root / Vocabulary · {{ verseRoots().length }} unique roots</span><span class="h">from the āyāt · tap a root for its dashboard</span></div>
+          @if (verseRoots().length) {
+            <div class="grid">
+              @for (vr of verseRoots(); track vr.root) {
+                @let rnode = cybNodeForRoot(vr.root);
+                <button class="cell rootcell"
+                        [style.borderLeftColor]="(rnode?.build_pct || 0) >= 50 ? 'var(--content)' : 'var(--gold-d)'"
+                        (click)="openRootNorm(vr.root)">
+                  <div class="top"><span class="num">{{ surahId() }}:{{ vr.first_ayah }} · {{ vr.occurrences }}×</span></div>
+                  <div class="nar rootar">{{ vr.root }}</div>
+                  <div class="pbar"><div class="pf" [style.width.%]="rnode?.build_pct || 0"></div></div>
+                  <div class="pl">build {{ rnode?.build_pct || 0 }}%</div>
+                </button>
+              }
+            </div>
+          } @else { <div class="msg">Loading the passage's roots…</div> }
         } @else if (kids.length) {
           <div class="vh"><span>Root / Vocabulary · {{ kids.length }} roots</span><span class="h">tap a root for its dashboard</span></div>
           <div class="grid">
@@ -520,19 +531,39 @@ export class CybMapComponent {
   private readonly treeRoots = signal<CybNode[]>([]);
   private readonly matrix = signal<StagingMatrix | null>(null);
 
-  readonly view = signal<'surahs' | 'passages' | 'drill' | 'root'>('surahs');
-  readonly surah = signal<Surah | null>(null);
+  // ── URL is the source of truth for where you are in the drill ──
+  private readonly route = inject(ActivatedRoute);
+  private readonly pm = signal<ParamMap | null>(null);
+
+  readonly surahId    = computed(() => { const v = this.pm()?.get('surahId'); return v ? Number(v) : null; });
+  readonly passageNo  = computed(() => { const v = this.pm()?.get('passageNo'); return v ? Number(v) : null; });
+  readonly streamParam = computed(() => this.pm()?.get('stream') ?? null);
+  readonly rootParam   = computed(() => this.pm()?.get('root') ?? null);
+
+  readonly view = computed<'surahs' | 'passages' | 'streams' | 'pieces' | 'root'>(() => {
+    if (this.rootParam()) return 'root';
+    if (this.streamParam()) return 'pieces';
+    if (this.passageNo()) return 'streams';
+    if (this.surahId()) return 'passages';
+    return 'surahs';
+  });
+
+  readonly surah  = computed(() => this.surahs().find((s) => s.id === this.surahId()) ?? null);
   readonly units = signal<StudyUnit[]>([]);
   readonly loadingPassages = signal(false);
-  readonly path = signal<CybNode[]>([]);
-  readonly selRoot = signal<CybNode | null>(null);
+  readonly selUnit = computed(() => this.units().find((u) => u.passage_no === this.passageNo()) ?? null);
+  readonly passageNodeCur = computed(() => { const u = this.selUnit(); return u ? this.passageNode(u) : undefined; });
+  readonly stageNodeCur = computed(() => {
+    const p = this.passageNodeCur(); const st = this.streamParam();
+    return p && st ? p.children.find((c) => c.layer === st) : undefined;
+  });
+  readonly selRootNorm = computed(() => this.rootParam());
+  readonly selRoot = computed(() => { const rn = this.rootParam(); return rn ? (this.cybNodeForRoot(rn) ?? null) : null; });
   readonly rootDetail = signal<RootDetail | null>(null);
   readonly rootTab = signal<'layers' | 'memlets' | 'questions'>('layers');
   readonly selLayer = signal<string | null>(null);
   readonly selMemletKind = signal<string | null>(null);
-  readonly selUnit = signal<StudyUnit | null>(null);
   readonly verseRoots = signal<PassageRoot[]>([]);
-  readonly selRootNorm = signal<string | null>(null);
   readonly selQuestionKind = signal<string | null>(null);
 
   private readonly flat = computed<CybNode[]>(() => {
@@ -545,27 +576,44 @@ export class CybMapComponent {
   readonly activeCount = computed(() =>
     this.flat().filter((n) => n.scale === 'surah' && n.build_pct > 0).length);
 
-  currentNode(): CybNode | null { const p = this.path(); return p.length ? p[p.length - 1] : null; }
-
   readonly current = computed<CybNode[]>(() => {
-    const p = this.path();
-    return p.length ? p[p.length - 1].children : [];
+    if (this.streamParam()) return this.stageNodeCur()?.children ?? [];
+    return this.passageNodeCur()?.children ?? [];
   });
 
   readonly drillTitle = computed(() => {
-    const p = this.path();
-    if (!p.length) return '';
-    return this.crumbLabel(p[p.length - 1]);
+    const p = this.passageNodeCur();
+    return p ? this.crumbLabel(p) : '';
   });
 
   readonly subLayers = computed<SubLayer[]>(() => this.matrix()?.sub_layers ?? []);
 
   constructor() {
+    // Every URL change re-derives the view and pulls only what that level needs.
+    this.route.paramMap.subscribe((pm) => {
+      const prevSurah = this.surahId(); const prevRoot = this.rootParam();
+      this.pm.set(pm);
+      const sid = this.surahId();
+      if (sid && sid !== prevSurah) this.loadStudyGrid(sid);
+      if (!sid) this.units.set([]);
+      if (this.streamParam() === 'vocabulary' && this.passageNo()) this.loadVerseRoots();
+      const rn = this.rootParam();
+      if (rn && rn !== prevRoot) {
+        this.rootTab.set('layers'); this.selLayer.set(null);
+        this.selMemletKind.set(null); this.selQuestionKind.set(null);
+        this.rootDetail.set(null);
+        this.svc.rootDetail(rn).subscribe({ next: (d) => this.rootDetail.set(d), error: () => {} });
+      }
+    });
+
     forkJoin({ surahs: this.svc.surahs(), tree: this.svc.tree(), matrix: this.svc.stagingMatrix() }).subscribe({
       next: ({ surahs, tree, matrix }) => {
         this.surahs.set(surahs.sort((a, b) => a.id - b.id));
         this.treeRoots.set(tree.roots);
         this.matrix.set(matrix);
+        const sid = this.surahId();
+        if (sid && !this.units().length) this.loadStudyGrid(sid);
+        if (this.streamParam() === 'vocabulary' && this.passageNo()) this.loadVerseRoots();
       },
       error: (e) => this.error.set(String(e?.message ?? e)),
     });
@@ -588,32 +636,29 @@ export class CybMapComponent {
   memletCount(rn: string): number { return this.cellFor(rn, '72-MEM')?.n ?? 0; }
 
   // ── navigation ──
-  openSurah(s: Surah) {
-    this.surah.set(s); this.units.set([]); this.path.set([]); this.selRoot.set(null);
-    this.view.set('passages'); this.loadingPassages.set(true);
-    this.svc.studyGrid(s.id).subscribe({
+  private loadStudyGrid(surahId: number) {
+    this.units.set([]); this.loadingPassages.set(true);
+    this.svc.studyGrid(surahId).subscribe({
       next: (g) => { this.units.set(g.units ?? []); this.loadingPassages.set(false); },
       error: () => { this.units.set([]); this.loadingPassages.set(false); },
     });
   }
-  drillPassage(pnode: CybNode) { this.path.set([pnode]); this.selRoot.set(null); this.view.set('drill'); }
-  /** Clicking a passage card: built → drill its streams; else open it in Study. */
+  openSurah(s: Surah) { this.router.navigate(['/cybernetics/map', s.id]); }
+  /** Clicking a passage card: built → its streams; else open it in Study. */
   onPassageCard(u: StudyUnit, pnode: CybNode | undefined) {
-    this.selUnit.set(u);
-    if (pnode && pnode.children.length) this.drillPassage(pnode);
-    else this.router.navigate(['/quran/surahs', this.surah()?.id, 'study', u.passage_no]);
+    if (pnode && pnode.children.length) this.router.navigate(['/cybernetics/map', this.surahId(), u.passage_no]);
+    else this.router.navigate(['/quran/surahs', this.surahId(), 'study', u.passage_no]);
   }
   drill(n: CybNode) {
     if (!n.children.length && n.layer !== 'vocabulary') return;
-    this.path.update((p) => [...p, n]);
-    if (n.layer === 'vocabulary') this.loadVerseRoots();
+    this.router.navigate(['/cybernetics/map', this.surahId(), this.passageNo(), n.layer]);
   }
   /** The passage's UNIQUE roots, straight from its āyāt (no duplicates). */
   private loadVerseRoots() {
-    const s = this.surah(); const u = this.selUnit();
-    if (!s || !u) { this.verseRoots.set([]); return; }
+    const sid = this.surahId(); const pno = this.passageNo();
+    if (!sid || !pno) { this.verseRoots.set([]); return; }
     this.verseRoots.set([]);
-    this.svc.passageRoots(s.id, u.passage_no).subscribe({
+    this.svc.passageRoots(sid, pno).subscribe({
       next: (r) => this.verseRoots.set(r), error: () => this.verseRoots.set([]),
     });
   }
@@ -624,14 +669,15 @@ export class CybMapComponent {
   }
   /** Open the Root Dashboard for a root norm (works with or without a cyb node). */
   openRootNorm(rn: string) {
-    this.selRoot.set(this.cybNodeForRoot(rn) ?? null);
-    this.selRootNorm.set(rn);
-    this.view.set('root');
-    this.rootTab.set('layers'); this.selLayer.set(null); this.rootDetail.set(null);
-    this.selMemletKind.set(null); this.selQuestionKind.set(null);
-    this.svc.rootDetail(rn).subscribe({ next: (d) => this.rootDetail.set(d), error: () => {} });
+    this.router.navigate(['/cybernetics/map', this.surahId(), this.passageNo(),
+                          this.streamParam() ?? 'vocabulary', rn]);
   }
   openRoot(n: CybNode) { this.openRootNorm(this.rootNorm(n)); }
+  // breadcrumb targets
+  goSurahs()  { this.router.navigate(['/cybernetics/map']); }
+  goSurah()   { this.router.navigate(['/cybernetics/map', this.surahId()]); }
+  goPassage() { this.router.navigate(['/cybernetics/map', this.surahId(), this.passageNo()]); }
+  goStream()  { this.router.navigate(['/cybernetics/map', this.surahId(), this.passageNo(), this.streamParam()]); }
   selectLayer(sub: string) { this.selLayer.set(sub); this.rootTab.set('layers'); }
   showAllLayers() { this.selLayer.set(null); this.rootTab.set('layers'); }
   showAllMemlets() { this.selMemletKind.set(null); this.rootTab.set('memlets'); }
@@ -719,11 +765,9 @@ export class CybMapComponent {
   }
   memletsN(): number { return this.rootDetail()?.memlets.length ?? 0; }
   questionsN(): number { return this.rootDetail()?.questions.length ?? 0; }
-  popTo(i: number) { this.selRoot.set(null); this.selRootNorm.set(null); this.view.set('drill'); this.path.update((p) => p.slice(0, i + 1)); }
-  toSurahs() { this.view.set('surahs'); this.surah.set(null); this.path.set([]); this.selRoot.set(null); this.selRootNorm.set(null); }
-  toPassages() { this.view.set('passages'); this.path.set([]); this.selRoot.set(null); this.selRootNorm.set(null); }
 
   // ── labels ──
+  streamLabelKey(key: string) { return STREAM_LABELS[key] ?? { ar: '', en: key, hint: '' }; }
   streamLabel(n: CybNode) { return STREAM_LABELS[n.layer ?? ''] ?? { ar: '', en: n.layer ?? n.scale, hint: '' }; }
   streamColor(layer: string | null): string {
     switch (layer) {
