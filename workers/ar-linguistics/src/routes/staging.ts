@@ -33,9 +33,14 @@ export function stagingRoutes(router: Router<ArLinguisticsEnv>) {
   // memlet cards, and the question bank. Backs the Root Dashboard's deep tabs.
   router.get('/al/staging/root/:root', async (_req, env, { root }) => {
     const repo = new StagingRepo(env.DB_AL);
-    const [claims, memlets, questions, subLayers] = await Promise.all([
-      repo.rootClaims(root), repo.rootMemlets(root), repo.rootQuestions(root), repo.subLayers(),
+    const [claims, memlets, questions, options, media, subLayers, memletKinds, questionKinds] = await Promise.all([
+      repo.rootClaims(root), repo.rootMemlets(root), repo.rootQuestions(root),
+      repo.rootOptions(root), repo.rootMedia(root), repo.subLayers(),
+      repo.memletKinds(), repo.questionKinds(),
     ]);
-    return ok({ root, claims, memlets, questions, sub_layers: subLayers });
+    return ok({
+      root, claims, memlets, questions, options, media,
+      sub_layers: subLayers, memlet_kinds: memletKinds, question_kinds: questionKinds,
+    });
   });
 }

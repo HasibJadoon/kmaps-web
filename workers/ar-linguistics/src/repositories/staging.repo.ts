@@ -37,7 +37,32 @@ export interface RootMemlet {
 export interface RootQuestion {
   id: string; question_key: string;
   prompt_ar: string | null; prompt_en: string | null; prompt_ur: string | null;
-  explanation_en: string | null;
+  explanation_en: string | null; answer_json: string | null;
+}
+/** One MCQ option for a question (correct or a typed distractor). */
+export interface RootOption {
+  id: string; item_id: string;
+  option_ar: string; option_en: string | null; option_ur: string | null;
+  is_correct: number; distractor_kind: string | null;
+  why_wrong_en: string | null; why_wrong_ar: string | null; sort_order: number;
+}
+/** A media asset catalogued for a memlet (image / video / audio). */
+export interface RootMedia {
+  id: string; memlet_id: string; memlet_key: string | null;
+  media_kind: string; r2_key: string; bucket: string;
+  mime: string | null; duration_ms: number | null;
+  reciter: string | null; qr_ref: string | null; status: string;
+}
+/** The memlet-kind registry — the memlet layer family (parallel to sub-layers). */
+export interface MemletKind {
+  memlet_key: string; name_ar: string; name_en: string; name_ur: string | null;
+  modality: string; scope_level: string; display_order: number;
+}
+/** The question-kind registry — the question layer family. */
+export interface QuestionKind {
+  question_key: string; name_ar: string; name_en: string;
+  memlet_key: string | null; response_kind: string;
+  cognitive_level: string; difficulty_floor: number;
 }
 export interface RootRollup { root_norm: string; staged: number; promoted: number; layers: number }
 export interface StatusCount { status: string; n: number }
@@ -125,11 +150,58 @@ export class StagingRepo {
   rootQuestions(root: string): Promise<RootQuestion[]> {
     return query<RootQuestion>(
       this.db,
-      `SELECT id, question_key, prompt_ar, prompt_en, prompt_ur, explanation_en
+      `SELECT id, question_key, prompt_ar, prompt_en, prompt_ur, explanation_en, answer_json
        FROM ar_ling_question_items
        WHERE root_norm = ?
        ORDER BY question_key`,
       [root],
+    );
+  }
+
+  /** MCQ options for every question of a root — correct + typed distractors. */
+  rootOptions(root: string): Promise<RootOption[]> {
+    return query<RootOption>(
+      this.db,
+      `SELECT d.id, d.item_id, d.option_ar, d.option_en, d.option_ur, d.is_correct,
+              d.distractor_kind, d.why_wrong_en, d.why_wrong_ar, d.sort_order
+       FROM ar_ling_question_distractors d
+       JOIN ar_ling_question_items q ON q.id = d.item_id
+       WHERE q.root_norm = ?
+       ORDER BY d.item_id, d.sort_order`,
+      [root],
+    );
+  }
+
+  /** Media catalogued against this root's memlets (image · video · audio). */
+  rootMedia(root: string): Promise<RootMedia[]> {
+    return query<RootMedia>(
+      this.db,
+      `SELECT m.id, m.memlet_id, ml.memlet_key, m.media_kind, m.r2_key, m.bucket,
+              m.mime, m.duration_ms, m.reciter, m.qr_ref, m.status
+       FROM ar_ling_memlet_media m
+       JOIN ar_ling_memlets ml ON ml.id = m.memlet_id
+       WHERE ml.root_norm = ?
+       ORDER BY m.media_kind`,
+      [root],
+    );
+  }
+
+  /** The 16-kind memlet registry — the memlet layer family. */
+  memletKinds(): Promise<MemletKind[]> {
+    return query<MemletKind>(
+      this.db,
+      `SELECT memlet_key, name_ar, name_en, name_ur, modality, scope_level, display_order
+       FROM ar_ling_memlet_kinds ORDER BY display_order`,
+    );
+  }
+
+  /** The 11-kind question registry — the question layer family. */
+  questionKinds(): Promise<QuestionKind[]> {
+    return query<QuestionKind>(
+      this.db,
+      `SELECT question_key, name_ar, name_en, memlet_key, response_kind,
+              cognitive_level, difficulty_floor
+       FROM ar_ling_question_kinds ORDER BY question_key`,
     );
   }
 

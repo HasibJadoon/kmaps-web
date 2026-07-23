@@ -188,9 +188,35 @@ export interface RootMemlet {
 export interface RootQuestion {
   id: string; question_key: string;
   prompt_ar: string | null; prompt_en: string | null; prompt_ur: string | null;
-  explanation_en: string | null;
+  explanation_en: string | null; answer_json: string | null;
+}
+/** One MCQ option — the correct answer or a typed distractor with why_wrong. */
+export interface RootOption {
+  id: string; item_id: string;
+  option_ar: string; option_en: string | null; option_ur: string | null;
+  is_correct: number; distractor_kind: string | null;
+  why_wrong_en: string | null; why_wrong_ar: string | null; sort_order: number;
+}
+/** A media asset catalogued against a memlet (image · video · audio). */
+export interface RootMedia {
+  id: string; memlet_id: string; memlet_key: string | null;
+  media_kind: string; r2_key: string; bucket: string;
+  mime: string | null; duration_ms: number | null;
+  reciter: string | null; qr_ref: string | null; status: string;
+}
+/** Memlet layer family registry (16 kinds). */
+export interface MemletKind {
+  memlet_key: string; name_ar: string; name_en: string; name_ur: string | null;
+  modality: string; scope_level: string; display_order: number;
+}
+/** Question layer family registry (11 kinds). */
+export interface QuestionKind {
+  question_key: string; name_ar: string; name_en: string;
+  memlet_key: string | null; response_kind: string;
+  cognitive_level: string; difficulty_floor: number;
 }
 export interface RootDetail {
   root: string; claims: RootClaim[]; memlets: RootMemlet[];
-  questions: RootQuestion[]; sub_layers: SubLayer[];
+  questions: RootQuestion[]; options: RootOption[]; media: RootMedia[];
+  sub_layers: SubLayer[]; memlet_kinds: MemletKind[]; question_kinds: QuestionKind[];
 }

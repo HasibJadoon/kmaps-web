@@ -4,7 +4,7 @@ import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
 import type {
   CybNode, Surah, StudyUnit, StagingMatrix, StageCell, SubLayer,
-  RootDetail, RootClaim, RootMemlet,
+  RootDetail, RootClaim, RootMemlet, RootQuestion, RootOption, RootMedia,
 } from '../data/cyb.models';
 
 // Quran Map — Qurʾān-centric, over the Surah Study module:
@@ -184,22 +184,56 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
             <div class="ob"><span class="obl">Retn <b>{{ r.retention_pct }}</b></span><span class="o" style="--oc:var(--retn)"><i [style.width.%]="r.retention_pct"></i></span></div>
           </div>
 
-          @if (rootCells(rn).length) {
-            <div class="sub2">Staged layers · tap a layer to read its claims · green ring = promoted</div>
+          <!-- three structurally identical layer families -->
+          <div class="fam">
+            <div class="sub2">Information layers <span class="famn">{{ infoFilled(rn) }}/{{ subLayers().length }}</span> · tap to read claims · green ring = promoted</div>
+            @if (rootCells(rn).length) {
+              <div class="heat">
+                @for (c of subLayers(); track c.sub_code) {
+                  @let cell = cellFor(rn, c.sub_code);
+                  <div class="hc" [class.z]="!cell" [class.sel]="selLayer() === c.sub_code"
+                       [style.background]="cell ? shade(cell.n) : '#0d0d0d'"
+                       [style.boxShadow]="cell && cell.promoted === cell.n && cell.n > 0 ? 'inset 0 0 0 2px var(--content)' : 'none'"
+                       [title]="c.name_en + ' · ' + c.sub_code + ' · ' + c.scope_level"
+                       (click)="cell ? selectLayer(c.sub_code) : null">
+                    <div class="hn">{{ cell?.n || '·' }}</div><div class="hk">{{ c.sub_code }}</div>
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="empty">{{ rn }} — {{ r.build_pct }}% built from its lexicon sources, but no layers staged yet.</div>
+            }
+          </div>
+
+          <div class="fam">
+            <div class="sub2">Memlet layers <span class="famn">{{ memFilled() }}/{{ rootDetail()?.memlet_kinds?.length || 0 }}</span> · Membean · tap to open the memlet</div>
             <div class="heat">
-              @for (c of subLayers(); track c.sub_code) {
-                @let cell = cellFor(rn, c.sub_code);
-                <div class="hc" [class.z]="!cell" [class.sel]="selLayer() === c.sub_code"
-                     [style.background]="cell ? shade(cell.n) : '#0d0d0d'"
-                     [style.boxShadow]="cell && cell.promoted === cell.n && cell.n > 0 ? 'inset 0 0 0 2px var(--content)' : 'none'"
-                     [title]="c.name_en" (click)="cell ? selectLayer(c.sub_code) : null">
-                  <div class="hn">{{ cell?.n || '·' }}</div><div class="hk">{{ short(c.sub_code) }}</div>
+              @for (k of rootDetail()?.memlet_kinds || []; track k.memlet_key) {
+                @let n = memletCountFor(k.memlet_key);
+                <div class="hc mem" [class.z]="!n" [class.sel]="selMemletKind() === k.memlet_key"
+                     [style.background]="n ? shadeM(n) : '#0d0d0d'"
+                     [title]="k.name_en + ' · ' + k.modality + ' · ' + k.scope_level"
+                     (click)="n ? selectMemletKind(k.memlet_key) : null">
+                  <div class="hn">{{ n || '·' }}</div><div class="hk">{{ k.memlet_key }}</div>
                 </div>
               }
             </div>
-          } @else {
-            <div class="empty">{{ rn }} — {{ r.build_pct }}% built from its lexicon sources, but no layers staged yet. Mining stages its sub-layers into ar_ling_root_stage.</div>
-          }
+          </div>
+
+          <div class="fam">
+            <div class="sub2">Question layers <span class="famn">{{ qFilled() }}/{{ rootDetail()?.question_kinds?.length || 0 }}</span> · tap to open the items</div>
+            <div class="heat">
+              @for (k of rootDetail()?.question_kinds || []; track k.question_key) {
+                @let n = questionCountFor(k.question_key);
+                <div class="hc qk2" [class.z]="!n" [class.sel]="selQuestionKind() === k.question_key"
+                     [style.background]="n ? shadeQ(n) : '#0d0d0d'"
+                     [title]="k.name_en + ' · ' + k.response_kind + ' · ' + k.cognitive_level"
+                     (click)="n ? selectQuestionKind(k.question_key) : null">
+                  <div class="hn">{{ n || '·' }}</div><div class="hk">{{ k.question_key }}</div>
+                </div>
+              }
+            </div>
+          </div>
 
           <!-- deep tabs: Layers (verbatim claims) · Memlets (Membean) · Questions -->
           <div class="rtabs">
@@ -241,6 +275,16 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
                             @if (m.body_en) { <div class="mbb">{{ m.body_en }}</div> }
                             @if (m.body_ar) { <div class="mbba">{{ m.body_ar }}</div> }
                             @if (m.body_ur) { <div class="mbbu">{{ m.body_ur }}</div> }
+                            @let med = mediaFor(m.memlet_key);
+                            @if (med.length) {
+                              <div class="mmed">
+                                @for (x of med; track x.id) {
+                                  <span class="medb" [class.ready]="x.status==='ready'" [title]="x.bucket + '/' + x.r2_key">
+                                    {{ mediaIcon(x.media_kind) }} {{ x.media_kind }}@if (x.mime) { · {{ x.mime }} } · {{ x.status }}
+                                  </span>
+                                }
+                              </div>
+                            }
                           </div>
                         }
                       </div>
@@ -258,6 +302,16 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
                             @if (m.body_en) { <div class="mbb">{{ m.body_en }}</div> }
                             @if (m.body_ar) { <div class="mbba">{{ m.body_ar }}</div> }
                             @if (m.body_ur) { <div class="mbbu">{{ m.body_ur }}</div> }
+                            @let med = mediaFor(m.memlet_key);
+                            @if (med.length) {
+                              <div class="mmed">
+                                @for (x of med; track x.id) {
+                                  <span class="medb" [class.ready]="x.status==='ready'" [title]="x.bucket + '/' + x.r2_key">
+                                    {{ mediaIcon(x.media_kind) }} {{ x.media_kind }}@if (x.mime) { · {{ x.mime }} } · {{ x.status }}
+                                  </span>
+                                }
+                              </div>
+                            }
                           </div>
                         }
                       </div>
@@ -283,12 +337,31 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
             } @else { <div class="empty">No memlets seeded for {{ rn }} yet — the mining passes stage them per source.</div> }
           }
           @else if (rootTab()==='questions') {
+            @if (selQuestionKind()) { <button class="clearlayer" (click)="selQuestionKind.set(null)">← all question kinds</button> }
             <div class="qcards">
-              @for (q of rootDetail()!.questions; track q.id) {
-                <div class="qcard"><div class="qk">{{ q.question_key }}</div>
+              @for (q of visibleQuestions(); track q.id) {
+                <div class="qcard">
+                  <div class="qk">{{ q.question_key }}<span class="qkn">{{ questionKindName(q.question_key) }}</span></div>
                   <div class="qp">{{ q.prompt_en || q.prompt_ar }}</div>
-                  @if (q.explanation_en) { <div class="qx">{{ q.explanation_en }}</div> }</div>
-              } @empty { <div class="empty">No question items built for {{ rn }} yet.</div> }
+                  @if (q.prompt_ar && q.prompt_en) { <div class="qpa">{{ q.prompt_ar }}</div> }
+                  <div class="qopts">
+                    @for (o of optionsFor(q.id); track o.id; let i = $index) {
+                      <div class="qopt" [class.correct]="o.is_correct">
+                        <span class="ql">{{ letter(i) }}</span>
+                        <span class="qotext">
+                          <span class="qoen">{{ o.option_en || o.option_ar }}</span>
+                          @if (o.option_en && o.option_ar) { <span class="qoar">{{ o.option_ar }}</span> }
+                          @if (!o.is_correct && o.why_wrong_en) {
+                            <span class="qwhy"><b>{{ o.distractor_kind }}</b> — {{ o.why_wrong_en }}</span>
+                          }
+                        </span>
+                        @if (o.is_correct) { <span class="qtick">✓</span> }
+                      </div>
+                    } @empty { <div class="qnoopt">answer: {{ answerOf(q) }}</div> }
+                  </div>
+                  @if (q.explanation_en) { <div class="qx">{{ q.explanation_en }}</div> }
+                </div>
+              } @empty { <div class="empty">No question items built for {{ rn }} yet — the mining pass mints them per source.</div> }
             </div>
           }
 
@@ -354,7 +427,7 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
     .heat { display:flex; flex-wrap:wrap; gap:4px; }
     .hc { width:50px; border-radius:6px; padding:5px 3px; text-align:center; font-family:ui-monospace,monospace; color:#0c0c0c; cursor:pointer; } .hc.z { background:#0d0d0d !important; color:#3a3a3a; cursor:default; }
     .hc:not(.z):hover { transform:translateY(-1px); } .hc.sel { outline:2px solid var(--gold-b); outline-offset:1px; }
-    .hc .hn { font-size:12px; font-weight:700; } .hc .hk { font-size:7px; opacity:.85; }
+    .hc .hn { font-size:12px; font-weight:700; } .hc .hk { font-size:7px; opacity:.85; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .empty { font-size:12px; color:var(--t3); font-style:italic; padding:16px; text-align:center; border:1px dashed rgba(255,255,255,.12); border-radius:10px; }
     .rec { font-size:12px; color:var(--t2); line-height:1.5; } .rec b { color:var(--gold-b); }
 
@@ -387,6 +460,24 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
     .mbb { font-size:11.5px; color:var(--t2); line-height:1.6; margin-top:4px; }
     .mbba { font-family:var(--ar); font-size:14px; color:var(--arab); line-height:1.8; margin-top:5px; direction:rtl; text-align:right; }
     .mbbu { font-family:var(--ar); font-size:12.5px; color:var(--t3); line-height:1.8; margin-top:3px; direction:rtl; text-align:right; }
+    .fam { margin-bottom:12px; }
+    .famn { font-family:ui-monospace,monospace; font-size:9.5px; color:var(--t3); margin-left:6px; letter-spacing:0; text-transform:none; }
+    .hc.mem .hk, .hc.qk2 .hk { font-size:6.5px; }
+    .mmed { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+    .medb { font-family:ui-monospace,monospace; font-size:8.5px; color:var(--t3); border:1px solid rgba(255,255,255,.14); border-radius:7px; padding:2px 7px; }
+    .medb.ready { color:var(--content); border-color:rgba(77,217,168,.4); }
+    .qkn { font-family:var(--serif); font-size:10px; color:var(--t3); margin-left:8px; text-transform:none; letter-spacing:0; }
+    .qpa { font-family:var(--ar); font-size:15px; color:var(--arab); margin-top:4px; direction:rtl; text-align:right; }
+    .qopts { display:flex; flex-direction:column; gap:5px; margin-top:9px; }
+    .qopt { display:flex; align-items:flex-start; gap:8px; border:1px solid rgba(255,255,255,.09); border-radius:8px; background:#141414; padding:7px 10px; }
+    .qopt.correct { border-color:rgba(77,217,168,.5); background:rgba(77,217,168,.07); }
+    .ql { font-family:var(--serif); font-size:11px; color:var(--t3); width:14px; flex:0 0 auto; }
+    .qotext { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+    .qoen { font-size:12.5px; color:var(--text); }
+    .qoar { font-family:var(--ar); font-size:14px; color:var(--arab); direction:rtl; text-align:right; }
+    .qwhy { font-size:10px; color:var(--t3); line-height:1.45; } .qwhy b { color:var(--err); font-family:ui-monospace,monospace; font-size:9px; }
+    .qtick { color:var(--content); font-weight:800; flex:0 0 auto; }
+    .qnoopt { font-family:ui-monospace,monospace; font-size:11px; color:var(--content); margin-top:6px; }
     .qcards { display:flex; flex-direction:column; gap:8px; }
     .qcard { border:1px solid rgba(77,217,168,.28); border-left:3px solid var(--content); border-radius:9px; background:rgba(77,217,168,.04); padding:10px 12px; }
     .qcard .qk { font-family:ui-monospace,monospace; font-size:9px; color:var(--content); text-transform:uppercase; }
@@ -411,6 +502,8 @@ export class CybMapComponent {
   readonly rootDetail = signal<RootDetail | null>(null);
   readonly rootTab = signal<'layers' | 'memlets' | 'questions'>('layers');
   readonly selLayer = signal<string | null>(null);
+  readonly selMemletKind = signal<string | null>(null);
+  readonly selQuestionKind = signal<string | null>(null);
 
   private readonly flat = computed<CybNode[]>(() => {
     const out: CybNode[] = [];
@@ -481,9 +574,58 @@ export class CybMapComponent {
   openRoot(n: CybNode) {
     this.selRoot.set(n); this.view.set('root');
     this.rootTab.set('layers'); this.selLayer.set(null); this.rootDetail.set(null);
+    this.selMemletKind.set(null); this.selQuestionKind.set(null);
     this.svc.rootDetail(this.rootNorm(n)).subscribe({ next: (d) => this.rootDetail.set(d), error: () => {} });
   }
   selectLayer(sub: string) { this.selLayer.set(sub); this.rootTab.set('layers'); }
+  selectMemletKind(k: string) { this.selMemletKind.set(k); this.rootTab.set('memlets'); }
+  selectQuestionKind(k: string) { this.selQuestionKind.set(k); this.rootTab.set('questions'); }
+
+  // ── family coverage (filled / total), rendered identically for all three ──
+  infoFilled(rn: string): number { return this.rootCells(rn).filter((c) => c.n > 0).length; }
+  memFilled(): number {
+    const d = this.rootDetail();
+    return d ? new Set(d.memlets.map((m) => m.memlet_key)).size : 0;
+  }
+  qFilled(): number {
+    const d = this.rootDetail();
+    return d ? new Set(d.questions.map((q) => q.question_key)).size : 0;
+  }
+  memletCountFor(key: string): number {
+    return (this.rootDetail()?.memlets ?? []).filter((m) => m.memlet_key === key).length;
+  }
+  questionCountFor(key: string): number {
+    return (this.rootDetail()?.questions ?? []).filter((q) => q.question_key === key).length;
+  }
+  shadeM(v: number): string { return v <= 0 ? '#0d0d0d' : v <= 2 ? '#2f5f86' : v <= 5 ? '#3f83b8' : '#6bbaff'; }
+  shadeQ(v: number): string { return v <= 0 ? '#0d0d0d' : v <= 2 ? '#2d6b55' : v <= 5 ? '#3f9c78' : '#4dd9a8'; }
+
+  // ── question bank ──
+  visibleQuestions(): RootQuestion[] {
+    const d = this.rootDetail();
+    if (!d) return [];
+    const sel = this.selQuestionKind();
+    return sel ? d.questions.filter((q) => q.question_key === sel) : d.questions;
+  }
+  optionsFor(itemId: string): RootOption[] {
+    return (this.rootDetail()?.options ?? []).filter((o) => o.item_id === itemId);
+  }
+  letter(i: number): string { return 'abcdefgh'[i] ?? String(i + 1); }
+  answerOf(q: RootQuestion): string {
+    if (!q.answer_json) return '—';
+    try { return JSON.parse(q.answer_json).correct ?? q.answer_json; } catch { return q.answer_json; }
+  }
+  questionKindName(key: string): string {
+    return (this.rootDetail()?.question_kinds ?? []).find((k) => k.question_key === key)?.name_en ?? '';
+  }
+
+  // ── media catalogued for a memlet kind ──
+  mediaFor(key: string): RootMedia[] {
+    return (this.rootDetail()?.media ?? []).filter((m) => m.memlet_key === key);
+  }
+  mediaIcon(kind: string): string {
+    return kind === 'image' ? '🖼' : kind === 'video' ? '🎬' : kind === 'audio' ? '🔊' : '📎';
+  }
 
   // Layers with claims (filtered to the selected layer, if any), ordered by registry.
   visibleLayers(): { sub_code: string; name_en: string; claims: RootClaim[] }[] {
@@ -498,7 +640,8 @@ export class CybMapComponent {
   panelsFor(col: 'l' | 'r'): { key: string; en: string; ar: string; items: RootMemlet[] }[] {
     const d = this.rootDetail();
     if (!d) return [];
-    return MEMBEAN_PANELS.filter((p) => p.col === col)
+    const sel = this.selMemletKind();
+    return MEMBEAN_PANELS.filter((p) => p.col === col && (!sel || p.key === sel))
       .map((p) => ({ key: p.key, en: p.en, ar: p.ar, items: d.memlets.filter((m) => m.memlet_key === p.key) }))
       .filter((x) => x.items.length);
   }
