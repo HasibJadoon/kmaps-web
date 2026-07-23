@@ -207,6 +207,10 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
             <div class="sub2">Information layers <span class="famn">{{ infoFilled(rn) }}/{{ subLayers().length }}</span> · tap to read claims · green ring = promoted</div>
             @if (rootCells(rn).length) {
               <div class="heat">
+                <div class="hc all" [class.sel]="rootTab()==='layers' && !selLayer()"
+                     title="All information layers" (click)="showAllLayers()">
+                  <div class="hn">{{ roll?.staged || 0 }}</div><div class="hk">ALL</div>
+                </div>
                 @for (c of subLayers(); track c.sub_code) {
                   @let cell = cellFor(rn, c.sub_code);
                   <div class="hc" [class.z]="!cell" [class.sel]="selLayer() === c.sub_code"
@@ -226,6 +230,10 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
           <div class="fam">
             <div class="sub2">Memlet layers <span class="famn">{{ memFilled() }}/{{ rootDetail()?.memlet_kinds?.length || 0 }}</span> · Membean · tap to open the memlet</div>
             <div class="heat">
+              <div class="hc all mem" [class.sel]="rootTab()==='memlets' && !selMemletKind()"
+                   title="All memlet layers" (click)="showAllMemlets()">
+                <div class="hn">{{ memletsN() }}</div><div class="hk">ALL</div>
+              </div>
               @for (k of rootDetail()?.memlet_kinds || []; track k.memlet_key) {
                 @let n = memletCountFor(k.memlet_key);
                 <div class="hc mem" [class.z]="!n" [class.sel]="selMemletKind() === k.memlet_key"
@@ -241,6 +249,10 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
           <div class="fam">
             <div class="sub2">Question layers <span class="famn">{{ qFilled() }}/{{ rootDetail()?.question_kinds?.length || 0 }}</span> · tap to open the items</div>
             <div class="heat">
+              <div class="hc all qk2" [class.sel]="rootTab()==='questions' && !selQuestionKind()"
+                   title="All question layers" (click)="showAllQuestions()">
+                <div class="hn">{{ questionsN() }}</div><div class="hk">ALL</div>
+              </div>
               @for (k of rootDetail()?.question_kinds || []; track k.question_key) {
                 @let n = questionCountFor(k.question_key);
                 <div class="hc qk2" [class.z]="!n" [class.sel]="selQuestionKind() === k.question_key"
@@ -253,16 +265,9 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
             </div>
           </div>
 
-          <!-- deep tabs: Layers (verbatim claims) · Memlets (Membean) · Questions -->
-          <div class="rtabs">
-            <button [class.on]="rootTab()==='layers'" (click)="rootTab.set('layers')">Layers · claims</button>
-            <button [class.on]="rootTab()==='memlets'" (click)="rootTab.set('memlets')">Memlets{{ memletsN() ? ' · ' + memletsN() : '' }}</button>
-            <button [class.on]="rootTab()==='questions'" (click)="rootTab.set('questions')">Questions{{ questionsN() ? ' · ' + questionsN() : '' }}</button>
-          </div>
-
+          <div class="paneh">{{ paneTitle() }}</div>
           @if (!rootDetail()) { <div class="msg">Loading root detail…</div> }
           @else if (rootTab()==='layers') {
-            @if (selLayer()) { <button class="clearlayer" (click)="selLayer.set(null)">← all layers</button> }
             @for (lyr of visibleLayers(); track lyr.sub_code) {
               <div class="lyr">
                 <div class="lyrh"><span class="lyrc">{{ lyr.sub_code }}</span> {{ lyr.name_en }} <span class="lyrn">{{ lyr.claims.length }} claims</span></div>
@@ -355,7 +360,6 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
             } @else { <div class="empty">No memlets seeded for {{ rn }} yet — the mining passes stage them per source.</div> }
           }
           @else if (rootTab()==='questions') {
-            @if (selQuestionKind()) { <button class="clearlayer" (click)="selQuestionKind.set(null)">← all question kinds</button> }
             <div class="qcards">
               @for (q of visibleQuestions(); track q.id) {
                 <div class="qcard">
@@ -479,6 +483,11 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
     .mbba { font-family:var(--ar); font-size:14px; color:var(--arab); line-height:1.8; margin-top:5px; direction:rtl; text-align:right; }
     .mbbu { font-family:var(--ar); font-size:12.5px; color:var(--t3); line-height:1.8; margin-top:3px; direction:rtl; text-align:right; }
     .fam { margin-bottom:12px; }
+    .hc.all { background:#141414 !important; color:var(--gold-b); border:1px dashed var(--bd); }
+    .hc.all.mem { color:var(--study); } .hc.all.qk2 { color:var(--content); }
+    .hc.all.sel { border-style:solid; outline:2px solid currentColor; outline-offset:1px; }
+    .paneh { font-family:var(--serif); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold-b);
+      margin:16px 0 10px; padding-bottom:7px; border-bottom:1px solid var(--bd); }
     .famn { font-family:ui-monospace,monospace; font-size:9.5px; color:var(--t3); margin-left:6px; letter-spacing:0; text-transform:none; }
     .hc.mem .hk, .hc.qk2 .hk { font-size:6.5px; }
     .mmed { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
@@ -624,6 +633,16 @@ export class CybMapComponent {
   }
   openRoot(n: CybNode) { this.openRootNorm(this.rootNorm(n)); }
   selectLayer(sub: string) { this.selLayer.set(sub); this.rootTab.set('layers'); }
+  showAllLayers() { this.selLayer.set(null); this.rootTab.set('layers'); }
+  showAllMemlets() { this.selMemletKind.set(null); this.rootTab.set('memlets'); }
+  showAllQuestions() { this.selQuestionKind.set(null); this.rootTab.set('questions'); }
+  /** What the content pane below the strips is currently showing. */
+  paneTitle(): string {
+    const t = this.rootTab();
+    if (t === 'layers') return this.selLayer() ? `Claims · ${this.selLayer()}` : 'All claims · every information layer';
+    if (t === 'memlets') return this.selMemletKind() ? `Memlet · ${this.selMemletKind()}` : 'All memlets · the Membean page';
+    return this.selQuestionKind() ? `Questions · ${this.selQuestionKind()}` : 'All questions · the bank';
+  }
   selectMemletKind(k: string) { this.selMemletKind.set(k); this.rootTab.set('memlets'); }
   selectQuestionKind(k: string) { this.selQuestionKind.set(k); this.rootTab.set('questions'); }
 
