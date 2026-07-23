@@ -8,7 +8,7 @@ import { Observable } from 'rxjs';
 import { BackendApiService } from '../../../shared/services/backend-api.service';
 import type {
   CybMonitor, CybNode, CybNodeDetail, CybJob, CybSource, CountRow,
-  StagingSummary, StagingMatrix,
+  StagingSummary, StagingMatrix, Surah, StudyGrid,
 } from './cyb.models';
 
 @Injectable({ providedIn: 'root' })
@@ -17,6 +17,16 @@ export class CybService {
 
   monitor(): Observable<CybMonitor> {
     return this.api.getData<CybMonitor>('core', ['cyb', 'monitor']);
+  }
+
+  /** All 114 surahs from the QR corpus — the Qurʾān-centric map spine. */
+  surahs(): Observable<Surah[]> {
+    return this.api.getData<Surah[]>('qr', ['surahs']);
+  }
+
+  /** The Surah Study grid — real study passages (units) + step availability. */
+  studyGrid(surahId: number): Observable<StudyGrid> {
+    return this.api.getData<StudyGrid>('qr', ['study', 'surahs', surahId]);
   }
 
   tree(node?: string, lane?: string): Observable<{ roots: CybNode[] }> {

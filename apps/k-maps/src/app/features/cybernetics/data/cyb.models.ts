@@ -96,6 +96,40 @@ export interface CybSource {
   note: string | null;
 }
 
+/** A surah from the QR corpus (GET /qr/surahs) — the Qurʾān-centric spine. */
+export interface Surah {
+  id: number;
+  name_ar: string;
+  name_en: string;
+  name_transliteration: string;
+  revelation_type: 'makki' | 'madani' | string;
+  ayah_count: number;
+  juz_start?: number;
+  page_start?: number;
+}
+
+/** A study passage (unit) from the canonical Surah Study module
+ *  (GET /qr/study/surahs/:id). Each carries which study steps exist. */
+export interface StudyUnit {
+  passage_id: string;
+  passage_no: number;
+  ayah_from: number;
+  ayah_to: number;
+  start_ref: string;
+  end_ref: string;
+  label: string;
+  theme: string | null;
+  reading: { has: number };
+  vocabulary: { nouns: number; verbs: number; total: number };
+  sentence_structure: { has: number };
+  expressions: { has: number };
+  passage_structure: { has: number };
+}
+export interface StudyGrid {
+  surah: { surah_id: number; name_ar: string | null; name_en: string | null };
+  units: StudyUnit[];
+}
+
 export interface CybConfigEntry { value: string; note: string | null }
 
 export interface CybMonitor {
