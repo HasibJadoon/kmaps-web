@@ -12,6 +12,28 @@ import type {
 // The cybernetics build/study/content/retention overlays at every level; the
 // deepest level is each root's own dashboard (4 outputs + staged layers +
 // recursion), fed by the live cyb tree + AL staging matrix.
+// The Membean word-page panel layout, mapped onto K-Maps memlet kinds.
+// col 'l' = the learning column (context, hook, examples);
+// col 'r' = the analysis column (ingredients, theater, constellation, related…).
+const MEMBEAN_PANELS: { key: string; en: string; ar: string; col: 'l' | 'r' }[] = [
+  { key: 'context',        en: 'Context',            ar: 'السياق',       col: 'l' },
+  { key: 'root_image',     en: 'Memory Hook',        ar: 'صورة الجذر',   col: 'l' },
+  { key: 'examples',       en: 'Examples',           ar: 'الشواهد',      col: 'l' },
+  { key: 'attestation',    en: 'Attestation',        ar: 'الشهادات',     col: 'l' },
+  { key: 'recitation',     en: 'Recitation',         ar: 'التلاوة',      col: 'l' },
+  { key: 'image',          en: 'Image',              ar: 'الصورة',       col: 'l' },
+  { key: 'word_sum',       en: 'Word Ingredients',   ar: 'الجذر والوزن', col: 'r' },
+  { key: 'wazn_operation', en: 'Wazn Operation',     ar: 'عمل الوزن',    col: 'r' },
+  { key: 'video',          en: 'Word Theater',       ar: 'المقطع',       col: 'r' },
+  { key: 'constellation',  en: 'Word Constellation', ar: 'الشبكة',       col: 'r' },
+  { key: 'related',        en: 'Related Words',      ar: 'النظائر',      col: 'r' },
+  { key: 'variants',       en: 'Word Variants',      ar: 'المشتقات',     col: 'r' },
+  { key: 'irab',           en: 'Iʿrāb in context',   ar: 'الإعراب',      col: 'r' },
+  { key: 'drops',          en: 'Drops',              ar: 'ما لا يحمله',  col: 'r' },
+  { key: 'spelling',       en: 'Spelling',           ar: 'الإملاء',      col: 'r' },
+  { key: 'diacritics',     en: 'Vocalisation',       ar: 'الشكل',        col: 'r' },
+];
+
 const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = {
   vocabulary: { ar: 'المفردات', en: 'Root / Vocabulary', hint: 'roots' },
   reading:    { ar: 'القراءة',  en: 'Reading', hint: 'tilāwa · tajwīd' },
@@ -205,18 +227,60 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
             } @empty { <div class="empty">No staged claims yet.</div> }
           }
           @else if (rootTab()==='memlets') {
-            @for (grp of memletsByScope(); track grp.scope) {
-              <div class="sub2">{{ grp.scope }} memlets · Membean-style</div>
-              <div class="mcards">
-                @for (m of grp.items; track m.id) {
-                  <div class="mcard">
-                    <div class="mk">{{ m.memlet_key }}</div>
-                    <div class="mt">{{ m.title_en }}@if (m.title_ar) { <span class="mtar">{{ m.title_ar }}</span> }</div>
-                    @if (m.body_en) { <div class="mb">{{ m.body_en }}</div> }
-                  </div>
-                }
+            @if (memletsN()) {
+              <!-- Membean word-page layout: learning column | analysis column -->
+              <div class="mbwrap">
+                <div class="mbcol">
+                  @for (p of panelsFor('l'); track p.key) {
+                    <div class="mbpanel">
+                      <div class="mbhead">{{ p.en }}<span class="mbar">{{ p.ar }}</span><span class="mbn">{{ p.items.length }}</span></div>
+                      <div class="mbbody">
+                        @for (m of p.items; track m.id) {
+                          <div class="mbitem">
+                            <div class="mbt">{{ m.title_en }}@if (m.title_ar) { <span class="mbta">{{ m.title_ar }}</span> }</div>
+                            @if (m.body_en) { <div class="mbb">{{ m.body_en }}</div> }
+                            @if (m.body_ar) { <div class="mbba">{{ m.body_ar }}</div> }
+                            @if (m.body_ur) { <div class="mbbu">{{ m.body_ur }}</div> }
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+                <div class="mbcol">
+                  @for (p of panelsFor('r'); track p.key) {
+                    <div class="mbpanel">
+                      <div class="mbhead">{{ p.en }}<span class="mbar">{{ p.ar }}</span><span class="mbn">{{ p.items.length }}</span></div>
+                      <div class="mbbody">
+                        @for (m of p.items; track m.id) {
+                          <div class="mbitem">
+                            <div class="mbt">{{ m.title_en }}@if (m.title_ar) { <span class="mbta">{{ m.title_ar }}</span> }</div>
+                            @if (m.body_en) { <div class="mbb">{{ m.body_en }}</div> }
+                            @if (m.body_ar) { <div class="mbba">{{ m.body_ar }}</div> }
+                            @if (m.body_ur) { <div class="mbbu">{{ m.body_ur }}</div> }
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
               </div>
-            } @empty { <div class="empty">No memlets seeded for {{ rn }} yet — the mining passes stage them per source.</div> }
+              @if (otherMemlets().length) {
+                <div class="sub2">Other memlets</div>
+                <div class="mbwrap">
+                  <div class="mbcol">
+                    @for (m of otherMemlets(); track m.id) {
+                      <div class="mbpanel"><div class="mbhead">{{ m.memlet_key }}</div>
+                        <div class="mbbody"><div class="mbitem">
+                          <div class="mbt">{{ m.title_en }}@if (m.title_ar) { <span class="mbta">{{ m.title_ar }}</span> }</div>
+                          @if (m.body_en) { <div class="mbb">{{ m.body_en }}</div> }
+                        </div></div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+            } @else { <div class="empty">No memlets seeded for {{ rn }} yet — the mining passes stage them per source.</div> }
           }
           @else if (rootTab()==='questions') {
             <div class="qcards">
@@ -308,11 +372,21 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
     .claim .gur { font-family:var(--ar); font-size:13px; color:var(--t2); margin-top:3px; direction:rtl; text-align:right; }
     .claim .cmeta { font-size:9.5px; color:var(--t3); margin-top:6px; font-family:ui-monospace,monospace; } .claim .src { color:var(--gold-d); }
     .claim .cst.promoted { color:var(--content); }
-    .mcards { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:8px; margin-bottom:6px; }
-    .mcard { border:1px solid rgba(107,186,255,.25); border-left:3px solid var(--study); border-radius:9px; background:rgba(107,186,255,.05); padding:10px 12px; }
-    .mcard .mk { font-family:ui-monospace,monospace; font-size:9px; color:var(--study); text-transform:uppercase; }
-    .mcard .mt { font-weight:640; font-size:13px; color:var(--text); margin:3px 0; } .mcard .mtar { font-family:var(--ar); color:var(--study); font-size:14px; margin-right:4px; }
-    .mcard .mb { font-size:11px; color:var(--t3); line-height:1.5; }
+    /* Membean word-page panel layout */
+    .mbwrap { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
+    @media(max-width:860px){ .mbwrap { grid-template-columns:1fr; } }
+    .mbcol { display:flex; flex-direction:column; gap:12px; }
+    .mbpanel { border:1px solid rgba(255,255,255,.09); border-radius:10px; overflow:hidden; background:#0f0f0f; }
+    .mbhead { display:flex; align-items:baseline; gap:8px; background:linear-gradient(180deg,#2a2a2a,#1c1c1c); border-bottom:1px solid rgba(255,255,255,.08);
+      padding:8px 12px; font-family:var(--serif); font-size:12px; letter-spacing:.04em; color:var(--gold-b); }
+    .mbhead .mbar { font-family:var(--ar); font-size:13px; color:var(--t2); }
+    .mbhead .mbn { margin-left:auto; font-family:ui-monospace,monospace; font-size:9px; color:var(--t3); }
+    .mbbody { padding:10px 12px; display:flex; flex-direction:column; gap:10px; }
+    .mbitem + .mbitem { border-top:1px solid rgba(255,255,255,.06); padding-top:10px; }
+    .mbt { font-weight:640; font-size:13px; color:var(--text); } .mbta { font-family:var(--ar); color:var(--gold-b); font-size:14px; margin-right:6px; }
+    .mbb { font-size:11.5px; color:var(--t2); line-height:1.6; margin-top:4px; }
+    .mbba { font-family:var(--ar); font-size:14px; color:var(--arab); line-height:1.8; margin-top:5px; direction:rtl; text-align:right; }
+    .mbbu { font-family:var(--ar); font-size:12.5px; color:var(--t3); line-height:1.8; margin-top:3px; direction:rtl; text-align:right; }
     .qcards { display:flex; flex-direction:column; gap:8px; }
     .qcard { border:1px solid rgba(77,217,168,.28); border-left:3px solid var(--content); border-radius:9px; background:rgba(77,217,168,.04); padding:10px 12px; }
     .qcard .qk { font-family:ui-monospace,monospace; font-size:9px; color:var(--content); text-transform:uppercase; }
@@ -420,12 +494,20 @@ export class CybMapComponent {
       .map((sl) => ({ sub_code: sl.sub_code, name_en: sl.name_en, claims: d.claims.filter((c) => c.sub_code === sl.sub_code) }))
       .filter((x) => x.claims.length && (!sel || x.sub_code === sel));
   }
-  memletsByScope(): { scope: string; items: RootMemlet[] }[] {
+  /** Membean panels for one column, each carrying its matching memlets. */
+  panelsFor(col: 'l' | 'r'): { key: string; en: string; ar: string; items: RootMemlet[] }[] {
     const d = this.rootDetail();
     if (!d) return [];
-    return ['root', 'lemma', 'word']
-      .map((s) => ({ scope: s, items: d.memlets.filter((m) => m.scope_level === s) }))
+    return MEMBEAN_PANELS.filter((p) => p.col === col)
+      .map((p) => ({ key: p.key, en: p.en, ar: p.ar, items: d.memlets.filter((m) => m.memlet_key === p.key) }))
       .filter((x) => x.items.length);
+  }
+  /** Memlet kinds that have no Membean panel yet. */
+  otherMemlets(): RootMemlet[] {
+    const d = this.rootDetail();
+    if (!d) return [];
+    const known = new Set(MEMBEAN_PANELS.map((p) => p.key));
+    return d.memlets.filter((m) => !known.has(m.memlet_key));
   }
   memletsN(): number { return this.rootDetail()?.memlets.length ?? 0; }
   questionsN(): number { return this.rootDetail()?.questions.length ?? 0; }
