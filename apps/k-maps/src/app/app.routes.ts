@@ -32,6 +32,11 @@ export const routes: Routes = [
       import('./features/quran/quran.routes').then((m) => m.QURAN_ROUTES),
   },
   {
+    path: 'cybernetics',
+    loadChildren: () =>
+      import('./features/cybernetics/cybernetics.routes').then((m) => m.CYBERNETICS_ROUTES),
+  },
+  {
     path: 'arabic',
     loadChildren: () =>
       import('./features/arabic/arabic.routes').then((m) => m.ARABIC_ROUTES),

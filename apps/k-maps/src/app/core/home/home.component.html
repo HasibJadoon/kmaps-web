@@ -46,8 +46,11 @@
       <button
         class="km-module-card"
         [class]="'km-module-card--' + mod.id"
-        (click)="navigate(mod.route)"
-        [attr.aria-label]="'Open ' + mod.label"
+        [class.km-module-card--group]="mod.children?.length"
+        [class.km-module-card--open]="expandedId === mod.id"
+        (click)="onCard(mod)"
+        [attr.aria-label]="mod.children?.length ? (expandedId === mod.id ? 'Collapse ' : 'Expand ') + mod.label : 'Open ' + mod.label"
+        [attr.aria-expanded]="mod.children?.length ? expandedId === mod.id : null"
       >
         <div class="km-module-card__artwork">
           <span class="km-module-card__glyph">{{ mod.glyph }}</span>
@@ -55,9 +58,35 @@
         </div>
         <div class="km-module-card__bottom-glow"></div>
         <span class="km-module-card__label">{{ mod.label }}</span>
+        @if (mod.children?.length) {
+          <span class="km-module-card__caret" aria-hidden="true">{{ expandedId === mod.id ? '▲' : '▾' }}</span>
+        }
       </button>
     }
   </main>
+
+  @if (expandedGroup(); as grp) {
+    <section class="home__subcards" [attr.aria-label]="grp.label + ' tools'">
+      <span class="home__subcards-label">{{ grp.label }}</span>
+      <div class="home__subcards-row">
+        @for (child of grp.children!; track child.id) {
+          <button
+            class="km-module-card km-module-card--sub"
+            [class]="'km-module-card--' + child.id"
+            (click)="navigate(child.route)"
+            [attr.aria-label]="'Open ' + child.label"
+          >
+            <div class="km-module-card__artwork">
+              <span class="km-module-card__glyph">{{ child.glyph }}</span>
+              <div class="km-module-card__shimmer"></div>
+            </div>
+            <div class="km-module-card__bottom-glow"></div>
+            <span class="km-module-card__label">{{ child.label }}</span>
+          </button>
+        }
+      </div>
+    </section>
+  }
 
   <footer class="home__footer" #domainLabel>
     <span class="km-divider-text">Select a Domain</span>

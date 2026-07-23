@@ -17,6 +17,9 @@ interface ModuleCard {
   route: string;
   icon: string;
   glyph: string;
+  /** When set, this card is a group: clicking it reveals these sub-cards
+   *  instead of navigating. */
+  children?: ModuleCard[];
 }
 
 interface FlameInstance {
@@ -209,12 +212,36 @@ export class HomeComponent implements AfterViewInit, OnDestroy {
     { id: 'lexicon', label: 'Lexicon', route: '/lexicon', icon: '◈', glyph: 'م' },
     { id: 'linguistics', label: 'Linguistics', route: '/linguistics', icon: '◆', glyph: 'ن' },
     { id: 'worldview', label: 'Worldview', route: '/worldview', icon: '◎', glyph: '◉' },
-    { id: 'planner', label: 'Planner', route: '/planner', icon: '▦', glyph: '⊞' },
-    { id: 'srs', label: 'SRS', route: '/srs', icon: '↻', glyph: '↻' },
-    { id: 'content', label: 'Content', route: '/content', icon: '▷', glyph: '▶' },
-    { id: 'studio', label: 'Studio', route: '/studio', icon: '♪', glyph: '♪' },
-    { id: 'docs', label: 'Docs', route: '/docs', icon: '✦', glyph: '✦' },
+    { id: 'cybernetics', label: 'Cybernetics', route: '/cybernetics', icon: '⟳', glyph: '⟳' },
+    // Workspace groups the operational tools as sub-cards (revealed on click).
+    {
+      id: 'workspace', label: 'Workspace', route: '', icon: '▦', glyph: '⊞',
+      children: [
+        { id: 'planner', label: 'Planner', route: '/planner', icon: '▦', glyph: '⊞' },
+        { id: 'srs', label: 'SRS', route: '/srs', icon: '↻', glyph: '↻' },
+        { id: 'content', label: 'Content', route: '/content', icon: '▷', glyph: '▶' },
+        { id: 'studio', label: 'Studio', route: '/studio', icon: '♪', glyph: '♪' },
+        { id: 'docs', label: 'Docs', route: '/docs', icon: '✦', glyph: '✦' },
+      ],
+    },
   ];
+
+  /** The id of the currently expanded group card, or null. */
+  expandedId: string | null = null;
+
+  /** The expanded group (for rendering its sub-cards), or null. */
+  expandedGroup(): ModuleCard | null {
+    return this.modules.find((m) => m.id === this.expandedId && m.children?.length) ?? null;
+  }
+
+  /** Group cards toggle their sub-card tray; leaf cards navigate. */
+  onCard(mod: ModuleCard): void {
+    if (mod.children?.length) {
+      this.expandedId = this.expandedId === mod.id ? null : mod.id;
+    } else {
+      this.navigate(mod.route);
+    }
+  }
 
   ngAfterViewInit(): void {
     this.animationContext = gsap.context(() => {

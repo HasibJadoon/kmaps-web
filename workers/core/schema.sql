@@ -534,3 +534,124 @@ CREATE INDEX idx_core_ws_owner  ON core_workspaces(owner_id);
 CREATE INDEX idx_core_ws_status ON core_workspaces(status);
 
 CREATE INDEX idx_core_ws_type   ON core_workspaces(workspace_type);
+
+-- ─── Cybernetics control plane (cyb_*) ───────────────────────────────────────
+-- Cross-domain control loop driving Qurʾān · Arabic · WorldViews to a built ·
+-- studied · retained state. Read API: workers/core/src/routes/cyb.ts.
+-- Authored in kmaps-database/database/migrations/km-core/002_cyb_control_plane.sql.
+
+CREATE TABLE cyb_node (
+  id            TEXT PRIMARY KEY,
+  domain        TEXT NOT NULL,
+  lane          TEXT NOT NULL DEFAULT 'quran',
+  parent_id     TEXT REFERENCES cyb_node(id) ON DELETE CASCADE,
+  scale         TEXT NOT NULL,
+  target_kind   TEXT, target_ref TEXT, layer TEXT, piece_kind TEXT,
+  build_state   TEXT NOT NULL DEFAULT 'empty',   build_pct   INTEGER NOT NULL DEFAULT 0,
+  study_state   TEXT NOT NULL DEFAULT 'unseen',  study_pct   INTEGER NOT NULL DEFAULT 0,
+  content_state TEXT NOT NULL DEFAULT 'none',    content_pct INTEGER NOT NULL DEFAULT 0,
+  retention_state TEXT NOT NULL DEFAULT 'none',  retention_pct INTEGER NOT NULL DEFAULT 0,
+  setpoint_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(setpoint_json)),
+  priority      INTEGER NOT NULL DEFAULT 5,
+  meta_json     TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json)),
+  updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+CREATE INDEX cyb_node_parent ON cyb_node(parent_id);
+CREATE INDEX cyb_node_layer  ON cyb_node(domain, layer);
+
+CREATE TABLE cyb_edge (
+  id TEXT PRIMARY KEY,
+  from_node TEXT NOT NULL REFERENCES cyb_node(id) ON DELETE CASCADE,
+  to_node   TEXT NOT NULL REFERENCES cyb_node(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  meta_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json)),
+  UNIQUE(from_node, to_node, kind)
+);
+
+CREATE TABLE cyb_sensor (
+  id TEXT PRIMARY KEY,
+  node_id TEXT NOT NULL REFERENCES cyb_node(id) ON DELETE CASCADE,
+  axis TEXT NOT NULL, kind TEXT NOT NULL, band_code TEXT, metric TEXT NOT NULL,
+  reading REAL NOT NULL DEFAULT 0, expected REAL NOT NULL DEFAULT 1, weight REAL NOT NULL DEFAULT 1,
+  state TEXT NOT NULL DEFAULT 'empty', health TEXT NOT NULL DEFAULT 'unknown', trend TEXT NOT NULL DEFAULT 'flat',
+  prev_reading REAL, error_val REAL NOT NULL DEFAULT 0, read_count INTEGER NOT NULL DEFAULT 0,
+  source_table TEXT, source_slug TEXT, first_read_at TEXT, last_read_at TEXT,
+  UNIQUE(node_id, axis, band_code, metric, source_slug)
+);
+CREATE INDEX cyb_sensor_node ON cyb_sensor(node_id, axis);
+CREATE INDEX cyb_sensor_bad  ON cyb_sensor(health);
+
+CREATE TABLE cyb_sensor_def (
+  id TEXT PRIMARY KEY, axis TEXT NOT NULL, applies_to TEXT NOT NULL, band_code TEXT, metric TEXT NOT NULL,
+  reader TEXT NOT NULL, reader_args TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(reader_args)),
+  expected REAL NOT NULL DEFAULT 1, weight REAL NOT NULL DEFAULT 1, stale_days INTEGER NOT NULL DEFAULT 30,
+  status TEXT NOT NULL DEFAULT 'live', note TEXT
+);
+
+CREATE TABLE cyb_sensor_reading (
+  id TEXT PRIMARY KEY, sensor_id TEXT NOT NULL REFERENCES cyb_sensor(id) ON DELETE CASCADE,
+  reading REAL NOT NULL, state TEXT NOT NULL, tick_id TEXT,
+  at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+CREATE INDEX cyb_sensor_reading_s ON cyb_sensor_reading(sensor_id, at);
+
+CREATE TABLE cyb_disturbance (
+  id TEXT PRIMARY KEY, node_id TEXT REFERENCES cyb_node(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL, sensor_id TEXT, detail TEXT, severity INTEGER NOT NULL DEFAULT 3,
+  resolved INTEGER NOT NULL DEFAULT 0, raised_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
+CREATE TABLE cyb_job (
+  id TEXT PRIMARY KEY, node_id TEXT NOT NULL REFERENCES cyb_node(id) ON DELETE CASCADE,
+  op TEXT NOT NULL, band_code TEXT, source_slug TEXT, actuator TEXT NOT NULL DEFAULT 'claude',
+  skill TEXT, depends_on TEXT, readiness TEXT NOT NULL DEFAULT 'ready', error_val REAL NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
+CREATE TABLE cyb_feedback (
+  id TEXT PRIMARY KEY, node_id TEXT NOT NULL REFERENCES cyb_node(id) ON DELETE CASCADE,
+  axis TEXT NOT NULL, signal TEXT NOT NULL, detail TEXT, moved_sensor TEXT,
+  at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
+CREATE TABLE cyb_tick (
+  id TEXT PRIMARY KEY, ran_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  sensed INTEGER, drifts INTEGER, actuated INTEGER, corrected INTEGER, summary TEXT
+);
+
+CREATE TABLE cyb_gauge (
+  id TEXT PRIMARY KEY, node_id TEXT NOT NULL REFERENCES cyb_node(id) ON DELETE CASCADE,
+  gauge_kind TEXT NOT NULL, score INTEGER NOT NULL CHECK (score BETWEEN 0 AND 100),
+  actor TEXT NOT NULL DEFAULT 'hasib', card_id TEXT,
+  attempt_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  meta_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json))
+);
+
+CREATE TABLE cyb_card (
+  id TEXT PRIMARY KEY, node_id TEXT NOT NULL REFERENCES cyb_node(id) ON DELETE CASCADE,
+  card_kind TEXT NOT NULL, ease REAL NOT NULL DEFAULT 2.5, interval_days INTEGER NOT NULL DEFAULT 0,
+  reps INTEGER NOT NULL DEFAULT 0, due_at TEXT, last_grade INTEGER
+);
+
+CREATE TABLE cyb_review (
+  id TEXT PRIMARY KEY, card_id TEXT NOT NULL REFERENCES cyb_card(id) ON DELETE CASCADE,
+  grade INTEGER NOT NULL, reviewed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
+CREATE TABLE cyb_production (
+  id TEXT PRIMARY KEY, node_id TEXT NOT NULL REFERENCES cyb_node(id) ON DELETE CASCADE,
+  format TEXT NOT NULL, target TEXT NOT NULL, with_whom TEXT, youtube_ref TEXT,
+  state TEXT NOT NULL DEFAULT 'drafted', gated_ok INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
+CREATE TABLE cyb_source_registry (
+  id TEXT PRIMARY KEY, loop_key TEXT NOT NULL, domain TEXT NOT NULL, source_slug TEXT NOT NULL,
+  title_ar TEXT, title_en TEXT, author TEXT, source_kind TEXT NOT NULL, authority_rank INTEGER NOT NULL DEFAULT 5,
+  binding TEXT NOT NULL, locator TEXT NOT NULL, entry_locator TEXT NOT NULL, trilingual INTEGER NOT NULL DEFAULT 0,
+  license TEXT, coverage_state TEXT NOT NULL DEFAULT 'catalogued', note TEXT,
+  meta_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json)),
+  UNIQUE(loop_key, source_slug)
+);
+
+CREATE TABLE cyb_config (key TEXT PRIMARY KEY, value TEXT NOT NULL, note TEXT);

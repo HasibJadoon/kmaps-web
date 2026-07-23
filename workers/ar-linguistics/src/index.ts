@@ -26,6 +26,7 @@ import { sourceRagRoutes } from './routes/source_rag';
 import { wordViewRoutes } from './routes/word_view';
 import { wordAnalysisRoutes } from './routes/word_analysis';
 import { grammarRoutes } from './routes/grammar';
+import { stagingRoutes } from './routes/staging';
 
 const router = new Router<ArLinguisticsEnv>();
 
@@ -53,6 +54,7 @@ sourceRagRoutes(router);
 wordViewRoutes(router);          // /al/verb-government/:root, /al/root-antonyms/:root, /al/expressions/by-root/:root
 wordAnalysisRoutes(router);      // /al/word-analysis?roots= — deep root layer for the word modal
 grammarRoutes(router);           // /al/gram/* — ṣarf/naḥw/balāgha corpus (books, spine, pages, search)
+stagingRoutes(router);           // /al/staging/* — root_stage × reg_sub_layer (Data Matrix / Staging Spine)
 
 export default {
   fetch: (request: Request, env: ArLinguisticsEnv) => router.handle(request, env),

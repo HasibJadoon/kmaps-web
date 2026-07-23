@@ -15,6 +15,7 @@ import { workspaceRoleRoutes } from './routes/workspace-roles';
 import { activityRoutes } from './routes/activity';
 import { grantRoutes } from './routes/grants';
 import { srsRegistryRoutes } from './routes/srs-registry';
+import { cybRoutes } from './routes/cyb';
 
 const router = new Router<CoreEnv>();
 
@@ -32,6 +33,7 @@ workspaceRoleRoutes(router);
 activityRoutes(router);
 grantRoutes(router);
 srsRegistryRoutes(router);   // GET/POST/DELETE /core/srs/registry — SRS enrollment index
+cybRoutes(router);           // GET /core/cyb/* — cybernetics control plane (monitor · tree · jobs)
 
 export default {
   fetch: (request: Request, env: CoreEnv) => router.handle(request, env),
