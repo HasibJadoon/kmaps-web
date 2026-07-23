@@ -28,6 +28,7 @@ import { tafsirDisplayRoutes } from './routes/tafsir-display';
 import { lexiconRoutes } from './routes/lexicon';
 import { depGraphRoutes } from './routes/dep-graphs';
 import { mushafRoutes } from './routes/mushaf';
+import { adminSyncRoutes } from './routes/admin-sync';
 
 const router = new Router<QuranEnv>();
 
@@ -58,6 +59,7 @@ irabRoutes(router);          // GET /qr/irab/book-sources, /qr/irab/book-entries
 iraabDisplayRoutes(router);  // GET /qr/iraab/display, /qr/iraab/display/sources, /qr/iraab/display/search
 lexiconRoutes(router);       // GET /qr/lexicon/lemmas, /qr/lexicon/roots
 depGraphRoutes(router);      // GET /qr/irab/dep-graph/:surah/:ayah — SVG from R2; /meta — D1 metadata
+adminSyncRoutes(router);     // POST /qr/admin/sync/al-root-ref — backfill al_root_ref via AR_LINGUISTICS
 
 export default {
   fetch: (request: Request, env: QuranEnv) => router.handle(request, env),

@@ -528,7 +528,8 @@ CREATE TABLE qr_morph_display_roots (
   meta_json          JSON,
   created_at         TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
-, root_uid TEXT);
+, root_uid TEXT, al_root_ref TEXT, content_source TEXT NOT NULL DEFAULT 'al_projection', content_synced_at TEXT);
+CREATE INDEX idx_qr_mdr_al_ref ON qr_morph_display_roots(al_root_ref);
 
 CREATE TABLE qr_morph_display_sources (
   id TEXT PRIMARY KEY, source_slug TEXT NOT NULL UNIQUE, kind TEXT NOT NULL,

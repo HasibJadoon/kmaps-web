@@ -28,12 +28,16 @@ export const CYBERNETICS_ROUTES: Routes = [
           import('./map/cyb-map.component').then((m) => m.CybMapComponent),
         title: 'Quran Map — K-MAPS',
       })),
-      {
-        path: 'ladder',
+      // The ladder walks the same recursion as the map, so it takes the same
+      // route shape — a path in one view opens the same path in the other.
+      ...['ladder', 'ladder/:surahId', 'ladder/:surahId/:passageNo',
+          'ladder/:surahId/:passageNo/:stream',
+          'ladder/:surahId/:passageNo/:stream/:root'].map((path) => ({
+        path,
         loadComponent: () =>
           import('./ladder/cyb-ladder.component').then((m) => m.CybLadderComponent),
         title: 'Quran Ladder — K-MAPS',
-      },
+      })),
     ],
   },
 ];
