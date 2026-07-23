@@ -201,7 +201,11 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
             <span class="rdar">{{ rn }}</span>
             <div class="rdm">
               <div class="rn">{{ rn }} <span class="rk">· {{ r?.piece_kind || 'root' }}</span></div>
-              <div class="rdd">build {{ r?.build_pct || 0 }}% · {{ roll?.staged || 0 }} claims staged · {{ roll?.promoted || 0 }} promoted · {{ memletCount(rn) }} memlets · ↑ reports to Vocabulary</div>
+              <div class="rdd">build {{ r?.build_pct || 0 }}% · {{ roll?.staged || 0 }} claims staged · {{ roll?.promoted || 0 }} promoted · {{ memletCount(rn) }} memlets
+                @if (rootDetail()) {
+                  · <span class="tri" [class.gap]="trilingualN() < claimsN()">AR·EN·UR {{ trilingualN() }}/{{ claimsN() }}</span>
+                }
+                · ↑ reports to Vocabulary</div>
             </div>
           </div>
 
@@ -288,7 +292,12 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
                     @if (c.gloss_en) { <div class="gen">{{ c.gloss_en }}</div> }
                     @if (c.gloss_ur) { <div class="gur">{{ c.gloss_ur }}</div> }
                     <div class="cmeta"><span class="src">{{ c.source_slug }}</span> · {{ c.claim_type }}
-                      · <span class="cst" [class.promoted]="c.status==='promoted'">{{ c.status }}</span></div>
+                      · <span class="cst" [class.promoted]="c.status==='promoted'">{{ c.status }}</span>
+                      <span class="langs">
+                        <span class="lg" [class.on]="!!c.quote_ar">AR</span>
+                        <span class="lg" [class.on]="!!c.gloss_en">EN</span>
+                        <span class="lg" [class.on]="!!c.gloss_ur">UR</span>
+                      </span></div>
                   </div>
                 }
               </div>
@@ -478,6 +487,12 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
     .claim .gur { font-family:var(--ar); font-size:13px; color:var(--t2); margin-top:3px; direction:rtl; text-align:right; }
     .claim .cmeta { font-size:9.5px; color:var(--t3); margin-top:6px; font-family:ui-monospace,monospace; } .claim .src { color:var(--gold-d); }
     .claim .cst.promoted { color:var(--content); }
+    .langs { margin-left:8px; display:inline-flex; gap:3px; }
+    .lg { font-size:8px; font-family:ui-monospace,monospace; border:1px solid rgba(255,255,255,.12); border-radius:4px;
+      padding:0 4px; color:#4a4a4a; }
+    .lg.on { color:var(--content); border-color:rgba(77,217,168,.45); }
+    .tri { font-family:ui-monospace,monospace; font-size:10px; color:var(--content); }
+    .tri.gap { color:var(--err); }
     /* Membean word-page panel layout */
     .mbwrap { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
     @media(max-width:860px){ .mbwrap { grid-template-columns:1fr; } }
@@ -764,6 +779,11 @@ export class CybMapComponent {
     return d.memlets.filter((m) => !known.has(m.memlet_key));
   }
   memletsN(): number { return this.rootDetail()?.memlets.length ?? 0; }
+  claimsN(): number { return this.rootDetail()?.claims.length ?? 0; }
+  /** Claims carrying all three languages — the AR/EN/UR contract. */
+  trilingualN(): number {
+    return (this.rootDetail()?.claims ?? []).filter((c) => c.quote_ar && c.gloss_en && c.gloss_ur).length;
+  }
   questionsN(): number { return this.rootDetail()?.questions.length ?? 0; }
 
   // ── labels ──
