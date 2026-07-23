@@ -2,15 +2,22 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
-import type { CybNode, Surah, StudyUnit } from '../data/cyb.models';
+import type { CybNode, Surah, StudyUnit, StagingMatrix, StageCell, SubLayer } from '../data/cyb.models';
 
-// Quran Map — Qurʾān-centric. Mirrors the Surah Study module
-// (Qurʾān → Surah → Study passages → Steps/streams → Roots) with the
-// cybernetics build/study/content/retention overlaid at every level.
-//   L1  entire Qurʾān · 114 surahs (qr/surahs) + cyb surah build
-//   L2  a surah's study passages (qr/study/surahs/:id) + cyb passage build
-//   L3+ a passage's streams → roots (the live cyb_node tree for built passages)
-// Passages open the real Study module; built passages drill the cyb tree.
+// Quran Map — Qurʾān-centric, over the Surah Study module:
+//   Qurʾān(114) → Surah → Study passages → Streams(6) → Roots → Root Dashboard.
+// The cybernetics build/study/content/retention overlays at every level; the
+// deepest level is each root's own dashboard (4 outputs + staged layers +
+// recursion), fed by the live cyb tree + AL staging matrix.
+const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = {
+  vocabulary: { ar: 'المفردات', en: 'Root / Vocabulary', hint: 'roots' },
+  reading:    { ar: 'القراءة',  en: 'Reading', hint: 'tilāwa · tajwīd' },
+  ss:         { ar: 'الإعراب',  en: 'Sentence Structure', hint: 'iʿrāb' },
+  structure:  { ar: 'النظم',    en: 'Passage Structure', hint: 'naẓm · coherence' },
+  tafsir:     { ar: 'التفسير',  en: 'Tafsīr', hint: '8 books' },
+  worldview:  { ar: 'رؤية العالم', en: 'Worldview · WVS', hint: 'ʿaqīda · ethics' },
+};
+
 @Component({
   selector: 'km-cyb-map',
   standalone: true,
@@ -28,7 +35,11 @@ import type { CybNode, Surah, StudyUnit } from '../data/cyb.models';
         }
         @for (n of path(); track n.id; let i = $index) {
           <span class="csep">›</span>
-          <button class="crumb" [class.cur]="i === path().length - 1" (click)="popTo(i)">{{ nodeLabel(n) }}</button>
+          <button class="crumb" [class.cur]="view()==='drill' && i === path().length - 1" (click)="popTo(i)">{{ crumbLabel(n) }}</button>
+        }
+        @if (view()==='root' && selRoot(); as r) {
+          <span class="csep">›</span>
+          <button class="crumb cur">{{ rootNorm(r) }}</button>
         }
       </div>
 
@@ -72,46 +83,98 @@ import type { CybNode, Surah, StudyUnit } from '../data/cyb.models';
                   <span class="step" [class.on]="u.expressions.has">idioms</span>
                 </div>
                 @if (pnode && pnode.build_pct > 0) {
-                  <div class="pbuild">
-                    <span class="o" style="--oc:var(--build)"><i [style.width.%]="pnode.build_pct"></i></span>
-                    <span class="pl2">build {{ pnode.build_pct }}% · study {{ pnode.study_pct }}%</span>
-                  </div>
+                  <div class="pbuild"><span class="o" style="--oc:var(--build)"><i [style.width.%]="pnode.build_pct"></i></span>
+                    <span class="pl2">build {{ pnode.build_pct }}% · study {{ pnode.study_pct }}%</span></div>
                 }
                 <div class="lcact">
-                  @if (pnode && pnode.children.length) {
-                    <button class="drillbtn" (click)="drillPassage(pnode)">streams · roots ›</button>
-                  }
+                  @if (pnode && pnode.children.length) { <button class="drillbtn" (click)="drillPassage(pnode)">streams · roots ›</button> }
                   <a class="studylink" [routerLink]="['/quran/surahs', surah()?.id, 'study', u.passage_no]">Open in Study ›</a>
                 </div>
               </div>
             }
           </div>
         } @else {
-          <div class="msg">
-            {{ surah()?.name_en }} — no study passages defined yet.
-            <a class="studylink" [routerLink]="['/quran/surahs', surah()?.id, 'study']">Open the surah in Study ›</a>
-          </div>
+          <div class="msg">{{ surah()?.name_en }} — no study passages defined yet.
+            <a class="studylink" [routerLink]="['/quran/surahs', surah()?.id, 'study']">Open the surah in Study ›</a></div>
         }
       }
 
-      <!-- ══ L3+ · cyb tree drill (streams → roots → pieces) ══ -->
+      <!-- ══ L3 · streams (stage nodes) OR L4 · roots (piece nodes) ══ -->
       @else if (view()==='drill') {
-        <div class="vh"><span>{{ drillTitle() }}</span><span class="h">4 outputs · B·S·C·R per node</span></div>
-        <div class="grid">
-          @for (n of current(); track n.id) {
-            <button class="cell" [class.leaf]="!n.children.length" (click)="drill(n)">
-              <div class="top"><span class="num">{{ n.piece_kind ?? n.layer ?? n.scale }}</span>
-                @if (n.children.length) { <span class="kids">{{ n.children.length }} ›</span> }</div>
-              <div class="nar">{{ nodeLabel(n) }}</div>
-              <div class="o4">
-                <span class="o" style="--oc:var(--build)"><i [style.width.%]="n.build_pct"></i></span>
-                <span class="o" style="--oc:var(--study)"><i [style.width.%]="n.study_pct"></i></span>
-                <span class="o" style="--oc:var(--content)"><i [style.width.%]="n.content_pct"></i></span>
-                <span class="o" style="--oc:var(--retn)"><i [style.width.%]="n.retention_pct"></i></span>
+        @let kids = current();
+        @if (kids.length && kids[0].scale === 'stage') {
+          <div class="vh"><span>{{ drillTitle() }} · the 6 stream-systems</span><span class="h">tap Vocabulary to reach the roots</span></div>
+          <div class="list">
+            @for (n of kids; track n.id) {
+              @let lab = streamLabel(n);
+              <div class="lc" [style.--lc]="streamColor(n.layer)" [class.dim]="!n.children.length"
+                   (click)="n.children.length ? drill(n) : null">
+                <div class="lct"><span class="aa" [style.color]="streamColor(n.layer)">{{ lab.ar }}</span><span class="en">{{ lab.en }}</span><span class="no">{{ lab.hint }}</span></div>
+                <div class="o4big">
+                  <div class="ob"><span class="obl">Build <b>{{ n.build_pct }}</b></span><span class="o" style="--oc:var(--build)"><i [style.width.%]="n.build_pct"></i></span></div>
+                  <div class="ob"><span class="obl">Study <b>{{ n.study_pct }}</b></span><span class="o" style="--oc:var(--study)"><i [style.width.%]="n.study_pct"></i></span></div>
+                  <div class="ob"><span class="obl">Content <b>{{ n.content_pct }}</b></span><span class="o" style="--oc:var(--content)"><i [style.width.%]="n.content_pct"></i></span></div>
+                  <div class="ob"><span class="obl">Retn <b>{{ n.retention_pct }}</b></span><span class="o" style="--oc:var(--retn)"><i [style.width.%]="n.retention_pct"></i></span></div>
+                </div>
+                @if (n.children.length) { <span class="go">›</span> }
               </div>
-              <div class="o4l"><span>B {{ n.build_pct }}</span><span>S {{ n.study_pct }}</span><span>C {{ n.content_pct }}</span><span>R {{ n.retention_pct }}</span></div>
-            </button>
-          } @empty { <div class="msg">Leaf node — no further breakdown staged yet.</div> }
+            }
+          </div>
+        } @else if (kids.length) {
+          <div class="vh"><span>Root / Vocabulary · {{ kids.length }} roots</span><span class="h">tap a root for its dashboard</span></div>
+          <div class="grid">
+            @for (n of kids; track n.id) {
+              <button class="cell rootcell" [style.borderLeftColor]="n.build_pct >= 50 ? 'var(--content)' : 'var(--gold-d)'" (click)="openRoot(n)">
+                <div class="top"><span class="num">{{ n.piece_kind }}</span></div>
+                <div class="nar rootar">{{ rootNorm(n) }}</div>
+                <div class="pbar"><div class="pf" [style.width.%]="n.build_pct"></div></div>
+                <div class="pl">build {{ n.build_pct }}%</div>
+              </button>
+            }
+          </div>
+        } @else { <div class="msg">Leaf node — no further breakdown staged yet.</div> }
+      }
+
+      <!-- ══ L5 · Root Dashboard ══ -->
+      @else if (view()==='root' && selRoot(); as r) {
+        @let rn = rootNorm(r);
+        @let roll = rootRollup(rn);
+        <div class="vh"><span>Root Dashboard</span><span class="h">4 outputs + staged layers</span></div>
+        <div class="rd">
+          <div class="rdh">
+            <span class="rdar">{{ rn }}</span>
+            <div class="rdm">
+              <div class="rn">{{ rn }} <span class="rk">· {{ r.piece_kind }}</span></div>
+              <div class="rdd">build {{ r.build_pct }}% · {{ roll?.staged || 0 }} claims staged · {{ roll?.promoted || 0 }} promoted · {{ memletCount(rn) }} memlets · ↑ reports to Vocabulary</div>
+            </div>
+          </div>
+
+          <div class="sub2">The 4 outputs</div>
+          <div class="o4dash">
+            <div class="ob"><span class="obl">Build <b>{{ r.build_pct }}</b></span><span class="o" style="--oc:var(--build)"><i [style.width.%]="r.build_pct"></i></span></div>
+            <div class="ob"><span class="obl">Study <b>{{ r.study_pct }}</b></span><span class="o" style="--oc:var(--study)"><i [style.width.%]="r.study_pct"></i></span></div>
+            <div class="ob"><span class="obl">Content <b>{{ r.content_pct }}</b></span><span class="o" style="--oc:var(--content)"><i [style.width.%]="r.content_pct"></i></span></div>
+            <div class="ob"><span class="obl">Retn <b>{{ r.retention_pct }}</b></span><span class="o" style="--oc:var(--retn)"><i [style.width.%]="r.retention_pct"></i></span></div>
+          </div>
+
+          @if (rootCells(rn).length) {
+            <div class="sub2">Staged layers · green ring = promoted</div>
+            <div class="heat">
+              @for (c of subLayers(); track c.sub_code) {
+                @let cell = cellFor(rn, c.sub_code);
+                <div class="hc" [class.z]="!cell" [style.background]="cell ? shade(cell.n) : '#0d0d0d'"
+                     [style.boxShadow]="cell && cell.promoted === cell.n && cell.n > 0 ? 'inset 0 0 0 2px var(--content)' : 'none'"
+                     [title]="c.name_en">
+                  <div class="hn">{{ cell?.n || '·' }}</div><div class="hk">{{ short(c.sub_code) }}</div>
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="empty">{{ rn }} — {{ r.build_pct }}% built from its lexicon sources, but no layers staged yet. Mining stages its sub-layers into ar_ling_root_stage.</div>
+          }
+
+          <div class="sub2">Recursion</div>
+          <div class="rec">This root senses its own state and reports up: its build feeds the <b>Vocabulary</b> stream → the <b>Passage</b> → <b>{{ surah()?.name_en }}</b> → the whole Qurʾān.</div>
         </div>
       }
     }
@@ -127,37 +190,51 @@ import type { CybNode, Surah, StudyUnit } from '../data/cyb.models';
     .vh { font-family:var(--serif); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold-d); margin:0 0 12px; display:flex; justify-content:space-between; align-items:baseline; }
     .vh .h { font-size:10px; color:var(--t3); font-family:ui-monospace,monospace; letter-spacing:0; text-transform:none; }
 
-    /* surah grid */
     .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:7px; }
     .cell { text-align:left; border:1px solid rgba(255,255,255,.08); border-radius:9px; background:linear-gradient(160deg,#151515,#0d0d0d); padding:7px 8px 8px; cursor:pointer; color:var(--text); }
-    .cell:hover { border-color:var(--bd-hi); transform:translateY(-2px); } .cell.leaf { cursor:default; }
+    .cell:hover { border-color:var(--bd-hi); transform:translateY(-2px); }
     .cell.active { border-color:var(--content); box-shadow:0 0 0 1px var(--content); }
+    .cell.rootcell { border-left:3px solid var(--gold-d); text-align:center; }
     .top { display:flex; justify-content:space-between; align-items:center; }
     .num { font-family:ui-monospace,monospace; font-size:8.5px; color:var(--t3); text-transform:uppercase; }
-    .kids { font-size:9px; color:var(--gold-d); }
     .rt { width:7px; height:7px; border-radius:50%; } .rt.makki { background:#e8b45c; } .rt.madani { background:#6bbaff; }
     .nar { font-family:var(--ar); font-size:18px; color:var(--gold-b); line-height:1.15; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .rootar { text-align:center; font-size:22px; }
     .nen { font-size:9px; color:var(--t2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .ay { font-size:7.5px; color:var(--t3); }
     .pbar { height:5px; border-radius:3px; background:#222; overflow:hidden; margin-top:6px; } .pf { height:100%; background:var(--content); }
-    .pl { font-size:7.5px; margin-top:2px; font-family:ui-monospace,monospace; color:var(--t3); }
-    .cell.active .pl { color:var(--content); }
-    .o4 { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-top:8px; }
-    .o { height:6px; border-radius:4px; background:#242424; overflow:hidden; } .o i { display:block; height:100%; background:var(--oc); }
-    .o4l { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-top:3px; font-size:7.5px; color:var(--t3); }
+    .pl { font-size:7.5px; margin-top:2px; font-family:ui-monospace,monospace; color:var(--t3); } .cell.active .pl { color:var(--content); }
 
-    /* passage list */
     .list { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:9px; }
-    .lc { border:1px solid rgba(255,255,255,.09); border-left:3px solid var(--lc,var(--gold-d)); border-radius:11px; background:linear-gradient(90deg,#161616,#0d0d0d); padding:11px 13px; }
-    .lct { display:flex; align-items:baseline; gap:8px; } .lct .en { font-family:var(--serif); font-size:14px; color:var(--text); } .lct .no { margin-left:auto; font-size:9px; color:var(--t3); font-family:ui-monospace,monospace; }
+    .lc { border:1px solid rgba(255,255,255,.09); border-left:3px solid var(--lc,var(--gold-d)); border-radius:11px; background:linear-gradient(90deg,#161616,#0d0d0d); padding:11px 13px; position:relative; }
+    .lc.dim { opacity:.6; } .lc:not(.dim) { cursor:pointer; } .lc:not(.dim):hover { border-color:var(--bd-hi); }
+    .lct { display:flex; align-items:baseline; gap:8px; } .lct .aa { font-family:var(--ar); font-size:19px; } .lct .en { font-family:var(--serif); font-size:14px; color:var(--text); } .lct .no { margin-left:auto; font-size:9px; color:var(--t3); font-family:ui-monospace,monospace; }
     .lcd { font-size:10.5px; color:var(--t3); margin-top:3px; }
     .steps { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
-    .step { font-size:8.5px; font-family:ui-monospace,monospace; border:1px solid rgba(255,255,255,.1); border-radius:7px; padding:2px 6px; color:var(--t3); }
-    .step.on { color:var(--content); border-color:rgba(77,217,168,.4); }
+    .step { font-size:8.5px; font-family:ui-monospace,monospace; border:1px solid rgba(255,255,255,.1); border-radius:7px; padding:2px 6px; color:var(--t3); } .step.on { color:var(--content); border-color:rgba(77,217,168,.4); }
     .pbuild { display:flex; align-items:center; gap:8px; margin-top:8px; } .pbuild .o { flex:1; height:6px; border-radius:4px; background:#242424; overflow:hidden; } .pbuild .o i { display:block; height:100%; background:var(--oc); } .pl2 { font-size:8.5px; color:var(--t3); font-family:ui-monospace,monospace; }
     .lcact { display:flex; gap:12px; align-items:center; margin-top:9px; }
     .drillbtn { background:none; border:none; color:var(--content); font-size:11px; cursor:pointer; padding:0; font-family:var(--serif); }
     .studylink { color:var(--gold-b); font-size:11px; text-decoration:none; font-family:var(--serif); } .studylink:hover { text-decoration:underline; }
+    .go { position:absolute; right:11px; bottom:10px; color:var(--gold-d); font-size:14px; }
+
+    .o4big { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:9px; }
+    .ob { } .obl { display:flex; justify-content:space-between; font-size:7.5px; color:var(--t3); text-transform:uppercase; } .obl b { font-family:ui-monospace,monospace; font-size:9px; color:var(--text); }
+    .o4big .o, .o4dash .o { height:6px; border-radius:4px; background:#242424; overflow:hidden; margin-top:2px; display:block; } .o4big .o i, .o4dash .o i { display:block; height:100%; background:var(--oc); }
+
+    /* root dashboard */
+    .rd { border:1px solid var(--bd-hi); border-radius:13px; background:linear-gradient(180deg,#161512,#0c0c0c); padding:15px 17px; }
+    .rdh { display:flex; align-items:center; gap:14px; border-bottom:1px solid var(--bd); padding-bottom:12px; margin-bottom:12px; }
+    .rdar { font-family:var(--ar); font-size:38px; color:var(--gold-b); }
+    .rn { font-family:var(--serif); font-size:18px; color:var(--text); } .rn .rk { color:var(--t3); font-size:12px; }
+    .rdd { font-size:11px; color:var(--t3); margin-top:2px; }
+    .sub2 { font-family:var(--serif); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold-d); margin:14px 0 8px; }
+    .o4dash { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; max-width:520px; }
+    .heat { display:flex; flex-wrap:wrap; gap:4px; }
+    .hc { width:50px; border-radius:6px; padding:5px 3px; text-align:center; font-family:ui-monospace,monospace; color:#0c0c0c; } .hc.z { background:#0d0d0d !important; color:#3a3a3a; }
+    .hc .hn { font-size:12px; font-weight:700; } .hc .hk { font-size:7px; opacity:.85; }
+    .empty { font-size:12px; color:var(--t3); font-style:italic; padding:16px; text-align:center; border:1px dashed rgba(255,255,255,.12); border-radius:10px; }
+    .rec { font-size:12px; color:var(--t2); line-height:1.5; } .rec b { color:var(--gold-b); }
   `],
 })
 export class CybMapComponent {
@@ -166,14 +243,15 @@ export class CybMapComponent {
   readonly surahs = signal<Surah[]>([]);
   readonly error = signal<string | null>(null);
   private readonly treeRoots = signal<CybNode[]>([]);
+  private readonly matrix = signal<StagingMatrix | null>(null);
 
-  readonly view = signal<'surahs' | 'passages' | 'drill'>('surahs');
+  readonly view = signal<'surahs' | 'passages' | 'drill' | 'root'>('surahs');
   readonly surah = signal<Surah | null>(null);
   readonly units = signal<StudyUnit[]>([]);
   readonly loadingPassages = signal(false);
   readonly path = signal<CybNode[]>([]);
+  readonly selRoot = signal<CybNode | null>(null);
 
-  // Flattened cyb node lookups (only ~54 nodes).
   private readonly flat = computed<CybNode[]>(() => {
     const out: CybNode[] = [];
     const walk = (n: CybNode) => { out.push(n); n.children.forEach(walk); };
@@ -192,15 +270,17 @@ export class CybMapComponent {
   readonly drillTitle = computed(() => {
     const p = this.path();
     if (!p.length) return '';
-    const n = p[p.length - 1];
-    return `${this.nodeLabel(n)} · ${n.children.length} children`;
+    return this.crumbLabel(p[p.length - 1]);
   });
 
+  readonly subLayers = computed<SubLayer[]>(() => this.matrix()?.sub_layers ?? []);
+
   constructor() {
-    forkJoin({ surahs: this.svc.surahs(), tree: this.svc.tree() }).subscribe({
-      next: ({ surahs, tree }) => {
+    forkJoin({ surahs: this.svc.surahs(), tree: this.svc.tree(), matrix: this.svc.stagingMatrix() }).subscribe({
+      next: ({ surahs, tree, matrix }) => {
         this.surahs.set(surahs.sort((a, b) => a.id - b.id));
         this.treeRoots.set(tree.roots);
+        this.matrix.set(matrix);
       },
       error: (e) => this.error.set(String(e?.message ?? e)),
     });
@@ -213,36 +293,58 @@ export class CybMapComponent {
   passageNode(u: StudyUnit): CybNode | undefined {
     const s = this.surah()?.id;
     const key = `${s}:${u.ayah_from}-${u.ayah_to}`;
-    return this.flat().find(
-      (n) => n.scale === 'passage' && (n.target_ref ?? '').replace(/^QR:SP:/, '') === key,
-    );
+    return this.flat().find((n) => n.scale === 'passage' && (n.target_ref ?? '').replace(/^QR:SP:/, '') === key);
   }
+
+  // ── staging overlays for the root dashboard ──
+  rootCells(rn: string): StageCell[] { return (this.matrix()?.cells ?? []).filter((c) => c.root_norm === rn); }
+  cellFor(rn: string, sub: string): StageCell | undefined { return this.rootCells(rn).find((c) => c.sub_code === sub); }
+  rootRollup(rn: string) { return (this.matrix()?.roots ?? []).find((r) => r.root_norm === rn); }
+  memletCount(rn: string): number { return this.cellFor(rn, '72-MEM')?.n ?? 0; }
 
   // ── navigation ──
   openSurah(s: Surah) {
-    this.surah.set(s);
-    this.units.set([]);
-    this.path.set([]);
-    this.view.set('passages');
-    this.loadingPassages.set(true);
+    this.surah.set(s); this.units.set([]); this.path.set([]); this.selRoot.set(null);
+    this.view.set('passages'); this.loadingPassages.set(true);
     this.svc.studyGrid(s.id).subscribe({
       next: (g) => { this.units.set(g.units ?? []); this.loadingPassages.set(false); },
       error: () => { this.units.set([]); this.loadingPassages.set(false); },
     });
   }
-  drillPassage(pnode: CybNode) { this.path.set([pnode]); this.view.set('drill'); }
-  drill(n: CybNode) { if (n.children.length) this.path.update((p) => [...p, n]); }
-  popTo(i: number) {
-    if (i === 0) { this.view.set('drill'); }
-    this.path.update((p) => p.slice(0, i + 1));
-  }
-  toSurahs() { this.view.set('surahs'); this.surah.set(null); this.path.set([]); }
-  toPassages() { this.view.set('passages'); this.path.set([]); }
+  drillPassage(pnode: CybNode) { this.path.set([pnode]); this.selRoot.set(null); this.view.set('drill'); }
+  drill(n: CybNode) { if (n.children.length) { this.path.update((p) => [...p, n]); } }
+  openRoot(n: CybNode) { this.selRoot.set(n); this.view.set('root'); }
+  popTo(i: number) { this.selRoot.set(null); this.view.set('drill'); this.path.update((p) => p.slice(0, i + 1)); }
+  toSurahs() { this.view.set('surahs'); this.surah.set(null); this.path.set([]); this.selRoot.set(null); }
+  toPassages() { this.view.set('passages'); this.path.set([]); this.selRoot.set(null); }
 
-  nodeLabel(n: CybNode): string {
-    if (n.piece_kind === 'root' && n.target_ref) return n.target_ref.split(':').pop() ?? n.id;
+  // ── labels ──
+  streamLabel(n: CybNode) { return STREAM_LABELS[n.layer ?? ''] ?? { ar: '', en: n.layer ?? n.scale, hint: '' }; }
+  streamColor(layer: string | null): string {
+    switch (layer) {
+      case 'vocabulary': return 'var(--build)';
+      case 'reading': return '#e8b45c';
+      case 'ss': return 'var(--study)';
+      case 'structure': return 'var(--retn)';
+      case 'tafsir': return 'var(--content)';
+      case 'worldview': return 'var(--retn)';
+      default: return 'var(--gold-d)';
+    }
+  }
+  crumbLabel(n: CybNode): string {
     if (n.scale === 'passage') return (n.target_ref ?? '').replace(/^QR:SP:/, '');
-    if (n.layer) return n.layer;
-    return n.target_ref ?? n.id;
+    if (n.scale === 'stage') return this.streamLabel(n).en;
+    if (n.piece_kind === 'root') return this.rootNorm(n);
+    return n.layer ?? n.target_ref ?? n.id;
+  }
+  rootNorm(n: CybNode): string { return (n.target_ref ?? '').split(':').pop() ?? n.id; }
+  short(sub: string): string { return sub.split('-').pop() ?? sub; }
+  shade(v: number): string {
+    if (v <= 0) return '#0d0d0d';
+    if (v <= 2) return '#6e5a1f';
+    if (v <= 4) return '#a5842f';
+    if (v <= 6) return '#c79f3a';
+    if (v <= 9) return '#dcb44a';
+    return '#e8c96a';
   }
 }
