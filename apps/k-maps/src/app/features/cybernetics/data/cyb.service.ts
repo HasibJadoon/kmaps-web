@@ -8,7 +8,7 @@ import { Observable } from 'rxjs';
 import { BackendApiService } from '../../../shared/services/backend-api.service';
 import type {
   CybMonitor, CybNode, CybNodeDetail, CybJob, CybSource, CountRow,
-  StagingSummary, StagingMatrix, Surah, StudyGrid,
+  StagingSummary, StagingMatrix, Surah, StudyGrid, RootDetail,
 } from './cyb.models';
 
 @Injectable({ providedIn: 'root' })
@@ -56,5 +56,10 @@ export class CybService {
 
   stagingMatrix(): Observable<StagingMatrix> {
     return this.api.getData<StagingMatrix>('al', ['staging', 'matrix']);
+  }
+
+  /** Deep drill for one root: its staged claims, memlets, and questions. */
+  rootDetail(root: string): Observable<RootDetail> {
+    return this.api.getData<RootDetail>('al', ['staging', 'root', root]);
   }
 }

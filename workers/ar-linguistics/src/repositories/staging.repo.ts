@@ -24,6 +24,21 @@ export interface SubLayer {
 }
 
 export interface StageCell { root_norm: string; sub_code: string; n: number; promoted: number }
+export interface RootClaim {
+  id: string; sub_code: string; band: number; source_slug: string;
+  claim_type: string; status: string; promoted_to_table: string | null;
+  quote_ar: string | null; gloss_en: string | null; gloss_ur: string | null;
+}
+export interface RootMemlet {
+  id: string; memlet_key: string; scope_level: string;
+  title_ar: string | null; title_en: string | null; title_ur: string | null;
+  body_ar: string | null; body_en: string | null; body_ur: string | null; status: string;
+}
+export interface RootQuestion {
+  id: string; question_key: string;
+  prompt_ar: string | null; prompt_en: string | null; prompt_ur: string | null;
+  explanation_en: string | null;
+}
 export interface RootRollup { root_norm: string; staged: number; promoted: number; layers: number }
 export interface StatusCount { status: string; n: number }
 
@@ -74,6 +89,47 @@ export class StagingRepo {
     return query<StatusCount>(
       this.db,
       `SELECT status, COUNT(*) AS n FROM ar_ling_root_stage GROUP BY status ORDER BY n DESC`,
+    );
+  }
+
+  // ── Deep per-root drill: the actual staged claims, memlets, questions ──
+
+  // Every staged claim for a root — verbatim quote + trilingual gloss + source,
+  // grouped client-side by sub_code (the layer). This is the "layers deeper".
+  rootClaims(root: string): Promise<RootClaim[]> {
+    return query<RootClaim>(
+      this.db,
+      `SELECT id, sub_code, band, source_slug, claim_type, status,
+              promoted_to_table, quote_ar, gloss_en, gloss_ur
+       FROM ar_ling_root_stage
+       WHERE root_norm = ?
+       ORDER BY band, sub_code, source_slug`,
+      [root],
+    );
+  }
+
+  // The Membean-style memlet cards for a root (root/lemma/word scope).
+  rootMemlets(root: string): Promise<RootMemlet[]> {
+    return query<RootMemlet>(
+      this.db,
+      `SELECT id, memlet_key, scope_level, title_ar, title_en, title_ur,
+              body_ar, body_en, body_ur, status
+       FROM ar_ling_memlets
+       WHERE root_norm = ?
+       ORDER BY CASE scope_level WHEN 'root' THEN 0 WHEN 'lemma' THEN 1 WHEN 'word' THEN 2 ELSE 3 END, memlet_key`,
+      [root],
+    );
+  }
+
+  // The question bank for a root.
+  rootQuestions(root: string): Promise<RootQuestion[]> {
+    return query<RootQuestion>(
+      this.db,
+      `SELECT id, question_key, prompt_ar, prompt_en, prompt_ur, explanation_en
+       FROM ar_ling_question_items
+       WHERE root_norm = ?
+       ORDER BY question_key`,
+      [root],
     );
   }
 

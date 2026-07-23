@@ -27,4 +27,15 @@ export function stagingRoutes(router: Router<ArLinguisticsEnv>) {
     ]);
     return ok({ cells, sub_layers: subLayers, roots: rootRollups });
   });
+
+  // GET /al/staging/root/:root — deep drill for one root: the actual staged
+  // claims (verbatim quote + trilingual gloss + source), the Membean-style
+  // memlet cards, and the question bank. Backs the Root Dashboard's deep tabs.
+  router.get('/al/staging/root/:root', async (_req, env, { root }) => {
+    const repo = new StagingRepo(env.DB_AL);
+    const [claims, memlets, questions, subLayers] = await Promise.all([
+      repo.rootClaims(root), repo.rootMemlets(root), repo.rootQuestions(root), repo.subLayers(),
+    ]);
+    return ok({ root, claims, memlets, questions, sub_layers: subLayers });
+  });
 }

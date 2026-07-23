@@ -2,7 +2,10 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
-import type { CybNode, Surah, StudyUnit, StagingMatrix, StageCell, SubLayer } from '../data/cyb.models';
+import type {
+  CybNode, Surah, StudyUnit, StagingMatrix, StageCell, SubLayer,
+  RootDetail, RootClaim, RootMemlet,
+} from '../data/cyb.models';
 
 // Quran Map — Qurʾān-centric, over the Surah Study module:
 //   Qurʾān(114) → Surah → Study passages → Streams(6) → Roots → Root Dashboard.
@@ -160,19 +163,69 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
           </div>
 
           @if (rootCells(rn).length) {
-            <div class="sub2">Staged layers · green ring = promoted</div>
+            <div class="sub2">Staged layers · tap a layer to read its claims · green ring = promoted</div>
             <div class="heat">
               @for (c of subLayers(); track c.sub_code) {
                 @let cell = cellFor(rn, c.sub_code);
-                <div class="hc" [class.z]="!cell" [style.background]="cell ? shade(cell.n) : '#0d0d0d'"
+                <div class="hc" [class.z]="!cell" [class.sel]="selLayer() === c.sub_code"
+                     [style.background]="cell ? shade(cell.n) : '#0d0d0d'"
                      [style.boxShadow]="cell && cell.promoted === cell.n && cell.n > 0 ? 'inset 0 0 0 2px var(--content)' : 'none'"
-                     [title]="c.name_en">
+                     [title]="c.name_en" (click)="cell ? selectLayer(c.sub_code) : null">
                   <div class="hn">{{ cell?.n || '·' }}</div><div class="hk">{{ short(c.sub_code) }}</div>
                 </div>
               }
             </div>
           } @else {
             <div class="empty">{{ rn }} — {{ r.build_pct }}% built from its lexicon sources, but no layers staged yet. Mining stages its sub-layers into ar_ling_root_stage.</div>
+          }
+
+          <!-- deep tabs: Layers (verbatim claims) · Memlets (Membean) · Questions -->
+          <div class="rtabs">
+            <button [class.on]="rootTab()==='layers'" (click)="rootTab.set('layers')">Layers · claims</button>
+            <button [class.on]="rootTab()==='memlets'" (click)="rootTab.set('memlets')">Memlets{{ memletsN() ? ' · ' + memletsN() : '' }}</button>
+            <button [class.on]="rootTab()==='questions'" (click)="rootTab.set('questions')">Questions{{ questionsN() ? ' · ' + questionsN() : '' }}</button>
+          </div>
+
+          @if (!rootDetail()) { <div class="msg">Loading root detail…</div> }
+          @else if (rootTab()==='layers') {
+            @if (selLayer()) { <button class="clearlayer" (click)="selLayer.set(null)">← all layers</button> }
+            @for (lyr of visibleLayers(); track lyr.sub_code) {
+              <div class="lyr">
+                <div class="lyrh"><span class="lyrc">{{ lyr.sub_code }}</span> {{ lyr.name_en }} <span class="lyrn">{{ lyr.claims.length }} claims</span></div>
+                @for (c of lyr.claims; track c.id) {
+                  <div class="claim">
+                    @if (c.quote_ar) { <div class="qar">{{ c.quote_ar }}</div> }
+                    @if (c.gloss_en) { <div class="gen">{{ c.gloss_en }}</div> }
+                    @if (c.gloss_ur) { <div class="gur">{{ c.gloss_ur }}</div> }
+                    <div class="cmeta"><span class="src">{{ c.source_slug }}</span> · {{ c.claim_type }}
+                      · <span class="cst" [class.promoted]="c.status==='promoted'">{{ c.status }}</span></div>
+                  </div>
+                }
+              </div>
+            } @empty { <div class="empty">No staged claims yet.</div> }
+          }
+          @else if (rootTab()==='memlets') {
+            @for (grp of memletsByScope(); track grp.scope) {
+              <div class="sub2">{{ grp.scope }} memlets · Membean-style</div>
+              <div class="mcards">
+                @for (m of grp.items; track m.id) {
+                  <div class="mcard">
+                    <div class="mk">{{ m.memlet_key }}</div>
+                    <div class="mt">{{ m.title_en }}@if (m.title_ar) { <span class="mtar">{{ m.title_ar }}</span> }</div>
+                    @if (m.body_en) { <div class="mb">{{ m.body_en }}</div> }
+                  </div>
+                }
+              </div>
+            } @empty { <div class="empty">No memlets seeded for {{ rn }} yet — the mining passes stage them per source.</div> }
+          }
+          @else if (rootTab()==='questions') {
+            <div class="qcards">
+              @for (q of rootDetail()!.questions; track q.id) {
+                <div class="qcard"><div class="qk">{{ q.question_key }}</div>
+                  <div class="qp">{{ q.prompt_en || q.prompt_ar }}</div>
+                  @if (q.explanation_en) { <div class="qx">{{ q.explanation_en }}</div> }</div>
+              } @empty { <div class="empty">No question items built for {{ rn }} yet.</div> }
+            </div>
           }
 
           <div class="sub2">Recursion</div>
@@ -235,10 +288,35 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
     .sub2 { font-family:var(--serif); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold-d); margin:14px 0 8px; }
     .o4dash { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; max-width:520px; }
     .heat { display:flex; flex-wrap:wrap; gap:4px; }
-    .hc { width:50px; border-radius:6px; padding:5px 3px; text-align:center; font-family:ui-monospace,monospace; color:#0c0c0c; } .hc.z { background:#0d0d0d !important; color:#3a3a3a; }
+    .hc { width:50px; border-radius:6px; padding:5px 3px; text-align:center; font-family:ui-monospace,monospace; color:#0c0c0c; cursor:pointer; } .hc.z { background:#0d0d0d !important; color:#3a3a3a; cursor:default; }
+    .hc:not(.z):hover { transform:translateY(-1px); } .hc.sel { outline:2px solid var(--gold-b); outline-offset:1px; }
     .hc .hn { font-size:12px; font-weight:700; } .hc .hk { font-size:7px; opacity:.85; }
     .empty { font-size:12px; color:var(--t3); font-style:italic; padding:16px; text-align:center; border:1px dashed rgba(255,255,255,.12); border-radius:10px; }
     .rec { font-size:12px; color:var(--t2); line-height:1.5; } .rec b { color:var(--gold-b); }
+
+    /* deep tabs + claims + memlets */
+    .rtabs { display:flex; gap:0; border-bottom:1px solid var(--bd); margin:16px 0 12px; overflow-x:auto; }
+    .rtabs button { font-family:var(--serif); font-size:11.5px; letter-spacing:.03em; padding:9px 15px; color:var(--t3); cursor:pointer; white-space:nowrap; background:none; border:none; border-bottom:2px solid transparent; }
+    .rtabs button.on { color:var(--gold-b); border-bottom-color:var(--gold-b); }
+    .clearlayer { background:none; border:1px solid var(--bd); color:var(--gold-b); border-radius:16px; padding:3px 12px; font-size:11px; cursor:pointer; margin-bottom:10px; font-family:var(--serif); }
+    .lyr { margin-bottom:14px; }
+    .lyrh { font-family:var(--serif); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--gold-d); margin-bottom:6px; display:flex; align-items:baseline; gap:8px; }
+    .lyrh .lyrc { font-family:ui-monospace,monospace; font-size:9.5px; color:var(--t3); } .lyrh .lyrn { margin-left:auto; font-family:ui-monospace,monospace; font-size:9px; color:var(--t3); }
+    .claim { border:1px solid rgba(255,255,255,.07); border-left:2px solid var(--gold-d); border-radius:8px; background:#0f0f0f; padding:9px 12px; margin-bottom:6px; }
+    .claim .qar { font-family:var(--ar); font-size:17px; color:var(--arab); line-height:1.7; direction:rtl; text-align:right; }
+    .claim .gen { font-size:12px; color:var(--t2); margin-top:5px; line-height:1.5; }
+    .claim .gur { font-family:var(--ar); font-size:13px; color:var(--t2); margin-top:3px; direction:rtl; text-align:right; }
+    .claim .cmeta { font-size:9.5px; color:var(--t3); margin-top:6px; font-family:ui-monospace,monospace; } .claim .src { color:var(--gold-d); }
+    .claim .cst.promoted { color:var(--content); }
+    .mcards { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:8px; margin-bottom:6px; }
+    .mcard { border:1px solid rgba(107,186,255,.25); border-left:3px solid var(--study); border-radius:9px; background:rgba(107,186,255,.05); padding:10px 12px; }
+    .mcard .mk { font-family:ui-monospace,monospace; font-size:9px; color:var(--study); text-transform:uppercase; }
+    .mcard .mt { font-weight:640; font-size:13px; color:var(--text); margin:3px 0; } .mcard .mtar { font-family:var(--ar); color:var(--study); font-size:14px; margin-right:4px; }
+    .mcard .mb { font-size:11px; color:var(--t3); line-height:1.5; }
+    .qcards { display:flex; flex-direction:column; gap:8px; }
+    .qcard { border:1px solid rgba(77,217,168,.28); border-left:3px solid var(--content); border-radius:9px; background:rgba(77,217,168,.04); padding:10px 12px; }
+    .qcard .qk { font-family:ui-monospace,monospace; font-size:9px; color:var(--content); text-transform:uppercase; }
+    .qcard .qp { font-size:12.5px; color:var(--text); margin-top:3px; } .qcard .qx { font-size:11px; color:var(--t3); margin-top:4px; }
   `],
 })
 export class CybMapComponent {
@@ -256,6 +334,9 @@ export class CybMapComponent {
   readonly loadingPassages = signal(false);
   readonly path = signal<CybNode[]>([]);
   readonly selRoot = signal<CybNode | null>(null);
+  readonly rootDetail = signal<RootDetail | null>(null);
+  readonly rootTab = signal<'layers' | 'memlets' | 'questions'>('layers');
+  readonly selLayer = signal<string | null>(null);
 
   private readonly flat = computed<CybNode[]>(() => {
     const out: CybNode[] = [];
@@ -323,7 +404,31 @@ export class CybMapComponent {
     else this.router.navigate(['/quran/surahs', this.surah()?.id, 'study', u.passage_no]);
   }
   drill(n: CybNode) { if (n.children.length) { this.path.update((p) => [...p, n]); } }
-  openRoot(n: CybNode) { this.selRoot.set(n); this.view.set('root'); }
+  openRoot(n: CybNode) {
+    this.selRoot.set(n); this.view.set('root');
+    this.rootTab.set('layers'); this.selLayer.set(null); this.rootDetail.set(null);
+    this.svc.rootDetail(this.rootNorm(n)).subscribe({ next: (d) => this.rootDetail.set(d), error: () => {} });
+  }
+  selectLayer(sub: string) { this.selLayer.set(sub); this.rootTab.set('layers'); }
+
+  // Layers with claims (filtered to the selected layer, if any), ordered by registry.
+  visibleLayers(): { sub_code: string; name_en: string; claims: RootClaim[] }[] {
+    const d = this.rootDetail();
+    if (!d) return [];
+    const sel = this.selLayer();
+    return d.sub_layers
+      .map((sl) => ({ sub_code: sl.sub_code, name_en: sl.name_en, claims: d.claims.filter((c) => c.sub_code === sl.sub_code) }))
+      .filter((x) => x.claims.length && (!sel || x.sub_code === sel));
+  }
+  memletsByScope(): { scope: string; items: RootMemlet[] }[] {
+    const d = this.rootDetail();
+    if (!d) return [];
+    return ['root', 'lemma', 'word']
+      .map((s) => ({ scope: s, items: d.memlets.filter((m) => m.scope_level === s) }))
+      .filter((x) => x.items.length);
+  }
+  memletsN(): number { return this.rootDetail()?.memlets.length ?? 0; }
+  questionsN(): number { return this.rootDetail()?.questions.length ?? 0; }
   popTo(i: number) { this.selRoot.set(null); this.view.set('drill'); this.path.update((p) => p.slice(0, i + 1)); }
   toSurahs() { this.view.set('surahs'); this.surah.set(null); this.path.set([]); this.selRoot.set(null); }
   toPassages() { this.view.set('passages'); this.path.set([]); this.selRoot.set(null); }

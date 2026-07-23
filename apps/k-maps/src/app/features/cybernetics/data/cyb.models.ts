@@ -173,3 +173,24 @@ export interface StagingSummary {
   sub_layers: SubLayer[];
 }
 export interface StagingMatrix { cells: StageCell[]; sub_layers: SubLayer[]; roots: RootRollup[] }
+
+// ── Deep per-root drill (GET /al/staging/root/:root) ──
+export interface RootClaim {
+  id: string; sub_code: string; band: number; source_slug: string;
+  claim_type: string; status: string; promoted_to_table: string | null;
+  quote_ar: string | null; gloss_en: string | null; gloss_ur: string | null;
+}
+export interface RootMemlet {
+  id: string; memlet_key: string; scope_level: string;
+  title_ar: string | null; title_en: string | null; title_ur: string | null;
+  body_ar: string | null; body_en: string | null; body_ur: string | null; status: string;
+}
+export interface RootQuestion {
+  id: string; question_key: string;
+  prompt_ar: string | null; prompt_en: string | null; prompt_ur: string | null;
+  explanation_en: string | null;
+}
+export interface RootDetail {
+  root: string; claims: RootClaim[]; memlets: RootMemlet[];
+  questions: RootQuestion[]; sub_layers: SubLayer[];
+}
