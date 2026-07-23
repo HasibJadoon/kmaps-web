@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
+import { CybTopbarComponent } from '../shared/cyb-topbar.component';
 import type {
   CybNode, Surah, StudyUnit, StagingMatrix, StageCell, SubLayer,
   RootDetail, RootClaim, RootMemlet, RootQuestion, RootOption, RootMedia, PassageRoot,
@@ -47,10 +48,11 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
   selector: 'km-cyb-map',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink],
+  imports: [RouterLink, CybTopbarComponent],
   template: `
     @if (error()) { <div class="msg err">{{ error() }}</div> }
     @else {
+      <km-cyb-topbar view="map" [surahs]="surahs()" [nodes]="flatNodes()" />
       <!-- breadcrumb -->
       <div class="crumbs">
         <button class="crumb" [class.cur]="view()==='surahs'" (click)="goSurahs()">القرآن · Qurʾān</button>
@@ -588,6 +590,7 @@ export class CybMapComponent {
     return out;
   });
 
+  readonly flatNodes = computed<CybNode[]>(() => this.flat());
   readonly activeCount = computed(() =>
     this.flat().filter((n) => n.scale === 'surah' && n.build_pct > 0).length);
 

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
+import { CybTopbarComponent } from '../shared/cyb-topbar.component';
 import type { CybNode, Surah, StudyUnit, PassageRoot } from '../data/cyb.models';
 
 // Quran Ladder — the Qurʾān as one recursion, rung by rung.
@@ -33,10 +34,12 @@ interface Rung {
   selector: 'km-cyb-ladder',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [CybTopbarComponent],
   template: `
     @if (error()) { <div class="msg err">{{ error() }}</div> }
     @else if (!surahs().length) { <div class="msg">Loading the Qurʾān…</div> }
     @else {
+      <km-cyb-topbar view="ladder" [surahs]="surahs()" [nodes]="flatNodes()" />
       <p class="sub">Every level is a viable system with a <b class="sn">sensor</b> and four outputs.
         Each sensor reads its own state and <b class="up">feeds it backward — up the recursion</b> —
         so a parent is only as built as its children report.</p>
@@ -180,6 +183,7 @@ export class CybLadderComponent {
     return out;
   });
 
+  readonly flatNodes = computed<CybNode[]>(() => this.flat());
   readonly builtSurahs = computed(() => this.flat().filter((n) => n.scale === 'surah' && n.build_pct > 0).length);
 
   constructor() {
