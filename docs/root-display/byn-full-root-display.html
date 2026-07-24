@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Full Root Display — 100 ROOT Spine · بين</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#141009; --bg2:#1b160d; --panel:#211a10; --panel2:#2a2114;
+    --ink:#ece3cf; --ink-dim:#b9ac90; --ink-faint:#8a7d63;
+    --accent:#c9a86a; --glow:#e6c866; --line:#3a2f1c;
+    /* domain */
+    --al:#c9a86a; --qr:#6ab0a8;
+    /* roles */
+    --core:#e6c866; --link:#7a9cc9; --view:#b48ac9; --disp:#6ab0a8;
+    --stat:#9a8f78; --reg:#7dc98a; --sf:#d09a5e; --dl:#c98ab4; --xc:#d98a8a;
+    /* status */
+    --ok:#7dc98a; --gap:#e0785a; --miss:#d98a8a;
+    /* group accents */
+    --g-identity:#e6c866; --g-intel:#d09a5e; --g-sense:#7dc98a;
+    --g-graph:#7a9cc9; --g-schol:#c98ab4; --g-disp:#6ab0a8; --g-build:#9a8f78;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:radial-gradient(1200px 600px at 50% -10%, #1e1810 0%, var(--bg) 60%);
+    color:var(--ink); font-family:Inter,system-ui,sans-serif; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px; margin:0 auto; padding:34px 22px 90px}
+  .ar{font-family:'Amiri',serif; direction:rtl}
+  .ur{font-family:'Noto Nastaliq Urdu','Amiri',serif; direction:rtl}
+  h1,h2,h3{margin:0; font-weight:700; letter-spacing:.2px}
+  a{color:var(--glow)}
+
+  /* ---- header ---- */
+  header.hero{display:flex; align-items:center; gap:22px; flex-wrap:wrap;
+    border:1px solid var(--line); border-radius:18px; padding:22px 24px;
+    background:linear-gradient(120deg,#241c11,#1a140c);
+    box-shadow:0 20px 60px -30px #000 inset, 0 10px 40px -20px #000;}
+  .rootchip{width:104px; height:104px; border-radius:18px; flex:none;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 50% 30%, #2c2213, #17110a);
+    border:1px solid #4a3a1f; box-shadow:0 0 40px -8px var(--glow);}
+  .rootchip .glyph{font-family:'Amiri',serif; font-size:52px; color:var(--glow); line-height:1}
+  .rootchip .spaced{font-family:'Amiri',serif; font-size:15px; color:var(--ink-dim); margin-top:4px; letter-spacing:2px}
+  .hero-meta h1{font-size:26px}
+  .hero-meta .sub{color:var(--ink-dim); font-size:14.5px; margin-top:6px; max-width:640px}
+  .hero-stats{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap}
+  .stat{background:#2a2114; border:1px solid var(--line); border-radius:10px; padding:7px 12px; font-size:13px}
+  .stat b{color:var(--glow); font-size:15px}
+
+  /* ---- legend ---- */
+  .legend{display:flex; gap:18px; flex-wrap:wrap; margin:22px 2px 6px; font-size:12.5px; color:var(--ink-dim)}
+  .legend .grp{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .badge{display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700;
+    padding:2px 8px; border-radius:999px; border:1px solid transparent; letter-spacing:.4px; white-space:nowrap}
+  .b-al{color:#1a140a; background:var(--al)} .b-qr{color:#08201d; background:var(--qr)}
+  .b-core{border-color:var(--core); color:var(--core)} .b-link{border-color:var(--link); color:var(--link)}
+  .b-view{border-color:var(--view); color:var(--view)} .b-disp{border-color:var(--disp); color:var(--disp)}
+  .b-stat{border-color:var(--stat); color:var(--stat)} .b-reg{border-color:var(--reg); color:var(--reg)}
+  .b-sf{border-color:var(--sf); color:var(--sf)} .b-dl{border-color:var(--dl); color:var(--dl)} .b-xc{border-color:var(--xc); color:var(--xc)}
+  .pill{font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px}
+  .p-ok{color:#08210f; background:var(--ok)} .p-gap{color:#2a1108; background:var(--gap)} .p-miss{color:#2a0d0d; background:var(--miss)}
+
+  /* ---- section ---- */
+  section{margin-top:34px}
+  .sec-head{display:flex; align-items:baseline; gap:12px; margin-bottom:14px; border-bottom:1px solid var(--line); padding-bottom:8px}
+  .sec-head .num{font-size:12px; color:var(--accent); font-weight:700; letter-spacing:2px}
+  .sec-head h2{font-size:19px}
+  .sec-head .desc{color:var(--ink-faint); font-size:13px; margin-left:auto}
+
+  /* ---- layer tree ---- */
+  .tree{display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:14px}
+  .group{border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--panel)}
+  .group > .g-head{display:flex; align-items:center; gap:9px; padding:11px 14px;
+    font-weight:700; font-size:13.5px; letter-spacing:.6px; border-left:4px solid var(--acc,#c9a86a);
+    background:linear-gradient(90deg,#241c11,#1c160d)}
+  .group > .g-head .cnt{margin-left:auto; font-size:11px; color:var(--ink-faint); font-weight:600}
+  .rows{padding:8px 10px 12px; display:flex; flex-direction:column; gap:7px}
+  .row{border:1px solid #322816; border-radius:10px; padding:8px 10px; background:#1c160d}
+  .row.miss{border-style:dashed; border-color:#5a2f26; background:#20130f}
+  .row .r-top{display:flex; align-items:center; gap:7px; flex-wrap:wrap}
+  .row .tbl{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; color:var(--ink); font-weight:600}
+  .row .r-desc{color:var(--ink-faint); font-size:11.5px; margin-top:4px}
+  .row .r-badges{margin-left:auto; display:flex; gap:5px; align-items:center}
+
+  /* ---- universal layers flow ---- */
+  .flow{display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px}
+  .flow .lane{border:1px solid var(--line); border-radius:14px; padding:14px 16px; background:var(--panel);
+    position:relative}
+  .flow .lane h3{font-size:15px; margin-bottom:4px}
+  .flow .lane .scope{font-size:11px; font-weight:700; letter-spacing:.5px; padding:2px 8px; border-radius:999px; display:inline-block; margin-bottom:8px}
+  .sc-univ{color:#08210f; background:var(--ok)} .sc-ctx{color:#2a1108; background:var(--sf)}
+  .flow .lane p{font-size:12.5px; color:var(--ink-dim); margin:4px 0}
+  .flow .lane .tabs{font-family:ui-monospace,monospace; font-size:11px; color:var(--ink-faint); margin-top:8px; line-height:1.9}
+  .flow .arrow{position:absolute; right:-11px; top:50%; transform:translateY(-50%); color:var(--accent); font-size:22px; z-index:2}
+  @media(max-width:820px){.flow{grid-template-columns:1fr} .flow .arrow{display:none}}
+
+  /* ---- example cards ---- */
+  .cards{display:flex; flex-direction:column; gap:14px}
+  .card{border:1px solid var(--line); border-radius:14px; background:var(--panel); overflow:hidden}
+  .card > .c-head{display:flex; align-items:center; gap:10px; padding:12px 16px;
+    background:linear-gradient(90deg,#241c11,#1b150c); border-left:4px solid var(--acc,#c9a86a)}
+  .card > .c-head h3{font-size:15px}
+  .card > .c-head .tbl{font-family:ui-monospace,monospace; font-size:11.5px; color:var(--ink-faint); margin-left:6px}
+  .card > .c-head .r-badges{margin-left:auto; display:flex; gap:6px; align-items:center}
+  .c-body{padding:14px 16px}
+  .kv{display:grid; grid-template-columns:150px 1fr; gap:6px 14px; font-size:13.5px}
+  .kv .k{color:var(--ink-faint); font-size:12px}
+  .kv .v{color:var(--ink)}
+  .big-ar{font-family:'Amiri',serif; font-size:22px; color:var(--glow); direction:rtl}
+  .tri{display:grid; grid-template-columns:1fr; gap:6px; margin:6px 0}
+  .tri .l{border-left:2px solid var(--line); padding-left:10px}
+  .tri .l .lab{font-size:10px; color:var(--ink-faint); letter-spacing:1px; text-transform:uppercase}
+  .tri .l.ar-l{direction:rtl; border-left:none; border-right:2px solid var(--accent); padding-left:0; padding-right:10px; text-align:right}
+  .chips{display:flex; gap:8px; flex-wrap:wrap; margin-top:6px}
+  .chip{border:1px solid var(--line); border-radius:9px; padding:6px 10px; background:#1c160d; font-size:12.5px}
+  .chip .ar{font-family:'Amiri',serif; font-size:16px; color:var(--glow)}
+  .chip small{display:block; color:var(--ink-faint); font-size:10.5px; direction:ltr}
+
+  .poles{display:flex; gap:10px; align-items:center; margin:10px 0}
+  .pole{flex:1; text-align:center; border:1px solid var(--line); border-radius:12px; padding:12px; background:#1c160d}
+  .pole .ar{font-family:'Amiri',serif; font-size:22px; color:var(--glow)}
+  .pole .en{font-size:12px; color:var(--ink-dim); margin-top:3px}
+  .poles .vs{color:var(--accent); font-weight:700; font-size:13px}
+
+  table.data{width:100%; border-collapse:collapse; font-size:12.5px; margin-top:4px}
+  table.data th{text-align:left; color:var(--ink-faint); font-weight:600; font-size:11px; letter-spacing:.5px;
+    text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line)}
+  table.data td{padding:6px 8px; border-bottom:1px solid #29200f; vertical-align:middle}
+  table.data tr:hover td{background:#1e1810}
+  table.data td .ar{font-family:'Amiri',serif; font-size:16px; color:var(--glow)}
+  .freqbar{height:7px; border-radius:4px; background:linear-gradient(90deg,var(--glow),var(--sf)); min-width:5px}
+
+  .passages{display:flex; flex-direction:column; gap:9px; margin-top:6px}
+  .passage{border:1px solid #322816; border-radius:10px; background:#1c160d; padding:10px 12px}
+  .passage .p-h{display:flex; gap:8px; align-items:baseline; margin-bottom:5px}
+  .passage .seq{font-family:ui-monospace,monospace; font-size:10.5px; color:var(--accent); font-weight:700}
+  .passage .p-en{font-size:12.5px; color:var(--ink-dim)}
+  .passage .p-ar{font-family:'Amiri',serif; font-size:17px; color:var(--ink); direction:rtl; line-height:1.9}
+  .passage.foot{border-color:#2c3a42} .passage.foot .seq{color:var(--qr)}
+  .passage.edit{border-color:#5a3a26; background:#211510} .passage.edit .seq{color:var(--gap)}
+
+  .lex-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:9px}
+  .lex{border:1px solid #322816; border-radius:10px; padding:9px 11px; background:#1c160d}
+  .lex .l-h{display:flex; align-items:baseline; gap:6px}
+  .lex .l-h .name{font-weight:700; font-size:12.5px}
+  .lex .l-h .auth{color:var(--ink-faint); font-size:10.5px}
+  .lex .l-meta{display:flex; gap:6px; margin-top:6px; font-size:10.5px; color:var(--ink-faint); flex-wrap:wrap; align-items:center}
+  .lex .l-meta .c{background:#2a2114; border-radius:6px; padding:1px 6px}
+  a.lex{text-decoration:none; color:var(--ink); display:block; position:relative;
+    transition:border-color .15s, transform .1s, box-shadow .15s}
+  a.lex:hover{border-color:var(--accent); transform:translateY(-2px); box-shadow:0 8px 20px -12px var(--glow)}
+  .lex .shell{font-size:9px; font-weight:800; letter-spacing:.4px; padding:1px 6px; border-radius:5px}
+  .sh-mufradat{color:#2a1108; background:var(--sf)} .sh-classical{color:#08201d; background:var(--qr)}
+  .sh-lane{color:#1a140a; background:var(--al)} .sh-schol{color:#2a0d2a; background:var(--dl)}
+  .lex .open{position:absolute; top:8px; right:9px; color:var(--ink-faint); font-size:10.5px; opacity:0; transition:opacity .15s}
+  a.lex:hover .open{opacity:1; color:var(--glow)}
+
+  .gap-note{border:1px dashed var(--gap); border-radius:12px; padding:12px 15px; background:#20130f; margin-top:2px}
+  .gap-note b{color:var(--gap)}
+  .gap-note .tabs{font-family:ui-monospace,monospace; font-size:11.5px; color:var(--ink-dim); margin-top:6px; line-height:2}
+
+  .callout{border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:10px;
+    padding:12px 15px; background:#1e1810; font-size:13px; color:var(--ink-dim); margin-top:12px}
+  .callout b{color:var(--ink)}
+  .foot-note{color:var(--ink-faint); font-size:11.5px; margin-top:6px}
+  code{font-family:ui-monospace,monospace; font-size:11.5px; background:#2a2114; padding:1px 6px; border-radius:5px; color:var(--glow)}
+
+  /* ---- two displays ---- */
+  .two{display:grid; grid-template-columns:1fr 54px 1fr; align-items:stretch; gap:0}
+  @media(max-width:820px){.two{grid-template-columns:1fr} .two .distill{transform:rotate(90deg); padding:6px 0}}
+  .disp{border:1px solid var(--line); border-radius:14px; padding:16px 18px; background:var(--panel)}
+  .disp.d-books{border-left:4px solid var(--sf); background:linear-gradient(135deg,#241c11,#1a140c)}
+  .disp.d-synth{border-left:4px solid var(--qr); background:linear-gradient(135deg,#132420,#0f1a17)}
+  .disp .d-tag{font-size:10.5px; font-weight:800; letter-spacing:2px; color:var(--ink-faint)}
+  .disp h3{font-size:17px; margin:4px 0 6px} .disp h3 .ar{font-size:18px; color:var(--glow)}
+  .disp .d-sub{font-size:12.5px; color:var(--ink-dim); margin-bottom:10px}
+  .disp .d-list{font-size:12px; color:var(--ink); line-height:1.9}
+  .disp .d-list .src{display:inline-block; font-size:9.5px; font-weight:800; letter-spacing:1px; color:var(--accent);
+    background:#2a2114; border-radius:5px; padding:1px 6px; margin:0 6px 0 0; vertical-align:middle}
+  .d-synth .d-list .src{color:var(--qr); background:#132420}
+  .disp .d-tabs{font-family:ui-monospace,monospace; font-size:10.5px; color:var(--ink-faint); margin-top:10px; border-top:1px solid var(--line); padding-top:8px}
+  .disp .d-note{font-size:11px; color:var(--ink-faint); font-style:italic; margin-top:6px}
+  .distill{display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--accent); font-size:26px; font-weight:700}
+  .distill .distill-l{font-size:9.5px; letter-spacing:1px; color:var(--ink-faint); font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <div class="rootchip">
+      <div class="glyph">بٙيْن</div>
+      <div class="spaced">ب ي ن</div>
+    </div>
+    <div class="hero-meta">
+      <h1>Full Root Display — the 100&nbsp;ROOT Spine</h1>
+      <div class="sub">Every layer of a root, from canonical identity to Qurʾānic word occurrence, rendered as one page.
+        Live data pulled from <code>km_arabic_linguistic</code> + <code>km_quran</code>. Worked example: root <span class="ar">بين</span> (b‑y‑n).</div>
+      <div class="hero-stats">
+        <div class="stat"><b>523</b> Qurʾān occ.</div>
+        <div class="stat"><b>53</b> lemmas</div>
+        <div class="stat"><b>12</b> dictionaries</div>
+        <div class="stat">type <b>ثلاثي</b> · ajwaf‑yā</div>
+        <div class="stat">AL id <b>a30d6f8…</b></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= LEGEND ================= -->
+  <div class="legend">
+    <div class="grp"><span style="color:var(--ink)">Domain:</span>
+      <span class="badge b-al">AL</span> arabic‑linguistic
+      <span class="badge b-qr">QR</span> quran</div>
+    <div class="grp"><span style="color:var(--ink)">Role:</span>
+      <span class="badge b-core">CORE</span><span class="badge b-link">LINK</span><span class="badge b-view">VIEW</span>
+      <span class="badge b-disp">DISP</span><span class="badge b-reg">REG</span><span class="badge b-stat">STAT</span></div>
+    <div class="grp"><span style="color:var(--ink)">Data for بين:</span>
+      <span class="pill p-ok">populated</span><span class="pill p-gap">empty · gap</span><span class="pill p-miss">missing from your tree</span></div>
+  </div>
+
+  <!-- ================= TWO DISPLAYS MODEL ================= -->
+  <section>
+    <div class="sec-head"><span class="num">THE MODEL</span><h2>Two displays, one root</h2>
+      <span class="desc">books are the source of truth · synthesis is derived from them</span></div>
+    <div class="two">
+      <div class="disp d-books">
+        <div class="d-tag">DISPLAY 1</div>
+        <h3>The Books <span class="ar">الأصل</span></h3>
+        <div class="d-sub">Verbatim originals — top‑level, unaltered. What each author actually wrote, one source at a time.</div>
+        <div class="d-list">
+          <span class="src">Lexicons</span> al‑ʿAyn · Maqāyīs · Ṣiḥāḥ · <b>Mufradāt (Rāghib)</b> · Lisān · Qāmūs · Miṣbāḥ · Tāj · Jamhara · Lane · Sinai
+          <span class="src">Tafsīr</span> Ibn ʿĀshūr · al‑Ṭabarī · comparanda · inscriptions
+        </div>
+        <div class="d-tabs">ar_ling_lexicon_root_entries · _blocks &nbsp;|&nbsp; ar_ling_root_scholarship</div>
+        <div class="d-note">12 dictionary entries for بين · verbatim, trilingual glosses additive beneath</div>
+      </div>
+      <div class="distill">⟶<div class="distill-l">distill</div></div>
+      <div class="disp d-synth">
+        <div class="d-tag">DISPLAY 2</div>
+        <h3>The Synthesis <span class="ar">الخلاصة</span></h3>
+        <div class="d-sub">Rich K‑Maps per‑root intelligence — <b>one row‑set per root</b>, distilled from <i>all</i> the books + tafsīr above.</div>
+        <div class="d-list">
+          <span class="src">Built</span> root_dna · root_vocab · syn_root
+          <span class="src">To build</span> root_senses · sense_axes · development_stages · antonyms · relations · semantic_fields
+        </div>
+        <div class="d-tabs">ar_ling_root_* (the 100‑ROOT spine, Part A below)</div>
+        <div class="d-note">the empty synthesis tables = the books read but not yet distilled for this root</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:14px">
+      <b>The pipeline:</b> every synthesis row must trace back to a book. Display 1 never changes (archival, verbatim);
+      Display 2 is a rebuildable projection — you can delete and re‑synthesise it as the reading improves, and each claim keeps its provenance to the source entry it came from.
+    </div>
+  </section>
+
+  <!-- ================= PART A: ARCHITECTURE TREE ================= -->
+  <section>
+    <div class="sec-head"><span class="num">PART A</span><h2>★ The Spine — layer architecture</h2>
+      <span class="desc">7 groups · 20 tables/views · AL:100‑ROOT / QR:100‑ROOT</span></div>
+    <div class="tree">
+
+      <!-- IDENTITY -->
+      <div class="group">
+        <div class="g-head" style="--acc:var(--g-identity)">◑ IDENTITY <span class="cnt">3 tables</span></div>
+        <div class="rows">
+          <div class="row"><div class="r-top"><span class="tbl">ar_ling_roots</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-core">CORE</span><span class="pill p-ok">✓</span></span></div>
+            <div class="r-desc">canonical root — id, radicals, root_type, weak_pattern, freq</div></div>
+          <div class="row"><div class="r-top"><span class="tbl">ar_ling_root_variants</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-core">CORE</span><span class="pill p-gap">0</span></span></div>
+            <div class="r-desc">spelling / radical variants</div></div>
+          <div class="row"><div class="r-top"><span class="tbl">qr_root_registry</span>
+            <span class="r-badges"><span class="badge b-qr">QR</span><span class="badge b-reg">REG</span><span class="pill p-ok">✓</span></span></div>
+            <div class="r-desc">root_ar → root_uid → AL id bridge</div></div>
+        </div>
+      </div>
+
+      <!-- INTELLIGENCE -->
+      <div class="group">
+        <div class="g-head" style="--acc:var(--g-intel)">✦ INTELLIGENCE <span class="cnt">3 tables</span></div>
+        <div class="rows">
+          <div class="row"><div class="r-top"><span class="tbl">ar_ling_root_dna</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-core">CORE</span><span class="pill p-ok">✓ live</span></span></div>
+            <div class="r-desc">core image / story / poles / family (trilingual + provenance)</div></div>
+          <div class="row"><div class="r-top"><span class="tbl">ar_ling_root_vocab</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-core">CORE</span><span class="pill p-ok">✓ live</span></span></div>
+            <div class="r-desc">derived‑word inventory + Membean hooks</div></div>
+          <div class="row"><div class="r-top"><span class="tbl">ar_ling_root_development_stages</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-core">CORE</span><span class="pill p-gap">0</span></span></div>
+            <div class="r-desc">diachronic meaning stages</div></div>
+        </div>
+      </div>
+
+      <!-- SENSE & FIELD -->
+      <div class="group">
+        <div class="g-head" style="--acc:var(--g-sense)">◇ SENSE &amp; FIELD <span class="cnt">3 tables</span></div>
+        <div class="rows">
+          <div class="row"><div class="r-top"><span class="tbl">ar_ling_root_senses</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-core">CORE</span><span class="pill p-gap">0</span></span></div>
+            <div class="r-desc">canonical per‑root senses (is_core = aṣl al‑maʿnā)</div></div>
+          <div class="row"><div class="r-top"><span class="tbl">ar_ling_root_sense_axes</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-core">CORE</span><span class="pill p-gap">0</span></span></div>
+            <div class="r-desc">continuous meaning dimensions (weighted by āyāt)</div></div>
+          <div class="row"><div class="r-top"><span class="tbl">ar_ling_root_semantic_fields</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-link">LINK</span><span class="pill p-gap">0</span></span></div>
+            <div class="r-desc">root → semantic_field (optionally sense‑scoped)</div></div>
+        </div>
+      </div>
+
+      <!-- GRAPH -->
+      <div class="group">
+        <div class="g-head" style="--acc:var(--g-graph)">⇄ GRAPH (root‑to‑root) <span class="cnt">5 + 2 missing</span></div>
+        <div class="rows">
+          <div class="row"><div class="r-top"><span class="tbl">ar_ling_root_antonyms</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-core">CORE</span><span class="pill p-gap">0</span></span></div>
+            <div class="r-desc">pairwise opposites</div></div>
+          <div class="row"><div class="r-top"><span class="tbl">ar_ling_root_relations</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-link">LINK</span><span class="pill p-gap">0</span></span></div>
+            <div class="r-desc">typed edges (support / overcome / cognate / metathesis…)</div></div>
+          <div class="row"><div class="r-top"><span class="tbl">ar_ling_syn_root</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-xc">XC</span><span class="pill p-ok">✓ raw</span></span></div>
+            <div class="r-desc">synonym / aḍdād family summary</div></div>
+          <div class="row"><div class="r-top"><span class="tbl">ar_ling_syn_sense</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-link">LINK</span><span class="pill p-gap">0</span></span></div>
+            <div class="r-desc">sense‑level synonymy</div></div>
+          <div class="row"><div class="r-top"><span class="tbl">ar_ling_root_edges_v</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-view">VIEW</span><span class="pill p-ok">✓</span></span></div>
+            <div class="r-desc">unified read: antonyms ∪ relations ∪ syn_root</div></div>
+          <div class="row miss"><div class="r-top"><span class="tbl">ar_ling_syn_lemma</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-link">LINK</span><span class="pill p-miss">MISSING</span></span></div>
+            <div class="r-desc">lemma‑level synonymy — <b>not in your tree</b></div></div>
+          <div class="row miss"><div class="r-top"><span class="tbl">ar_ling_syn_lemma_sense</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-link">LINK</span><span class="pill p-miss">MISSING</span></span></div>
+            <div class="r-desc">lemma×sense synonymy map — <b>not in your tree</b></div></div>
+        </div>
+      </div>
+
+      <!-- SCHOLARSHIP -->
+      <div class="group">
+        <div class="g-head" style="--acc:var(--g-schol)">✒ SCHOLARSHIP <span class="cnt">1 table</span></div>
+        <div class="rows">
+          <div class="row"><div class="r-top"><span class="tbl">ar_ling_root_scholarship</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-core">CORE</span><span class="pill p-ok">✓</span></span></div>
+            <div class="r-desc">Ibn ʿĀshūr / Ṭabarī / Sinai / comparanda / inscriptions</div></div>
+        </div>
+      </div>
+
+      <!-- DISPLAY PROJECTION -->
+      <div class="group">
+        <div class="g-head" style="--acc:var(--g-disp)">▦ DISPLAY PROJECTION <span class="cnt">1 table</span></div>
+        <div class="rows">
+          <div class="row"><div class="r-top"><span class="tbl">qr_morph_display_roots</span>
+            <span class="r-badges"><span class="badge b-qr">QR</span><span class="badge b-disp">DISP</span><span class="pill p-ok">✓ live</span></span></div>
+            <div class="r-desc">render cache; carries <code>al_root_ref → AL:&lt;id&gt;</code> typed pointer</div></div>
+        </div>
+      </div>
+
+      <!-- BUILD STATUS -->
+      <div class="group">
+        <div class="g-head" style="--acc:var(--g-build)">⚙ BUILD STATUS <span class="cnt">1 + 1 missing</span></div>
+        <div class="rows">
+          <div class="row"><div class="r-top"><span class="tbl">ar_ling_root_build_status</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-stat">STAT</span><span class="pill p-ok">✓</span></span></div>
+            <div class="r-desc">per‑source build ledger (root × book_scope)</div></div>
+          <div class="row miss"><div class="r-top"><span class="tbl">ar_ling_root_build_jobs</span>
+            <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-stat">STAT</span><span class="pill p-miss">MISSING</span></span></div>
+            <div class="r-desc">the build queue (root, source, priority, attempts) — <b>not in your tree</b></div></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="callout">
+      <b>Missing from your layer structure (exist in D1, absent from your tree):</b>
+      <code>ar_ling_root_build_jobs</code> (BUILD — you listed only <i>build_status</i>),
+      <code>ar_ling_syn_lemma</code> and <code>ar_ling_syn_lemma_sense</code> (GRAPH — the lemma‑level synonymy pair).
+      Everything else you listed exists as named.
+    </div>
+  </section>
+
+  <!-- ================= PART B: UNIVERSAL LAYERS ================= -->
+  <section>
+    <div class="sec-head"><span class="num">PART B</span><h2>Three universal layers</h2>
+      <span class="desc">Root → Lemma → Word · the spine feeds the lemma feeds the āya</span></div>
+    <div class="flow">
+      <div class="lane">
+        <div class="scope sc-univ">UNIVERSAL</div>
+        <h3>Root Layer</h3>
+        <p>The root itself, one per triliteral. Identity, DNA, senses, graph, scholarship — everything in Part A.</p>
+        <div class="tabs">ar_ling_roots<br>ar_ling_root_dna · _vocab<br>ar_ling_syn_root · _edges_v<br>ar_ling_root_scholarship</div>
+        <div class="arrow">→</div>
+      </div>
+      <div class="lane">
+        <div class="scope sc-univ">UNIVERSAL</div>
+        <h3>Lemma Layer</h3>
+        <p>The derived words of the root — 53 lemmas for بين — bucketed into form families (I, II, IV, V, X) via ṣarf.</p>
+        <div class="tabs">ar_ling_lemmas<br>ar_ling_lemma_form_map<br>ar_ling_form_families · _tiers<br>ar_ling_word_sums · syn_lemma</div>
+        <div class="arrow">→</div>
+      </div>
+      <div class="lane">
+        <div class="scope sc-ctx">UNIVERSAL + CONTEXTUAL</div>
+        <h3>Word Layer</h3>
+        <p>Each actual occurrence in the muṣḥaf — الْمُبِينِ at 44:2 — with QAC morphology and a typed pointer home to the root.</p>
+        <div class="tabs">qr_word_occurrences (523)<br>qr_morph_display_words<br>qr_morph_display_roots<br>→ root_uid → AL:&lt;id&gt;</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PART C: بين WORKED EXAMPLE ================= -->
+  <section>
+    <div class="sec-head"><span class="num">PART C</span><h2>بين — worked example, layer by layer</h2>
+      <span class="desc">real rows from D1, 2026‑07</span></div>
+    <div class="cards">
+
+      <!-- IDENTITY -->
+      <div class="card">
+        <div class="c-head" style="--acc:var(--g-identity)"><h3>Identity</h3><span class="tbl">ar_ling_roots</span>
+          <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-core">CORE</span></span></div>
+        <div class="c-body">
+          <div class="kv">
+            <div class="k">Root</div><div class="v big-ar">بين &nbsp;·&nbsp; ب ي ن</div>
+            <div class="k">Radicals</div><div class="v">ب · ي · ن &nbsp;<span style="color:var(--ink-faint)">(buckwalter <code>byn</code>)</span></div>
+            <div class="k">Type / pattern</div><div class="v">trilateral · <span class="ar">أجوف يائي</span> (ajwaf‑yā, hollow)</div>
+            <div class="k">Qurʾān freq</div><div class="v"><b style="color:var(--glow)">523</b> occurrences</div>
+            <div class="k">Core (Maqāyīs)</div>
+            <div class="v"><span class="ar" style="font-size:16px">بُعْدُ الشيءِ وانكشافُه: الفراقُ والانفصال، ومنه الظهورُ والوضوح</span><br>
+              <span style="color:var(--ink-dim); font-size:12.5px">separation and disclosure — what parts and stands apart becomes clear and manifest</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DNA -->
+      <div class="card">
+        <div class="c-head" style="--acc:var(--g-intel)"><h3>Intelligence · Root DNA</h3><span class="tbl">ar_ling_root_dna</span>
+          <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-core">CORE</span><span class="pill p-ok">live · conf 0.82</span></span></div>
+        <div class="c-body">
+          <div class="tri">
+            <div class="l ar-l"><div class="lab">headline · ar</div><span class="ar" style="font-size:18px; color:var(--glow)">ما بانَ فقد انكشف: فراقٌ يُولِّد الوضوح</span></div>
+            <div class="l"><div class="lab">headline · en</div>to part is to become plain — a separation that discloses</div>
+            <div class="l ur"><div class="lab" style="direction:ltr">headline · ur</div>جو جدا ہوا وہ ظاہر ہوا: فراق جو وضوح پیدا کرے</div>
+          </div>
+          <div class="poles">
+            <div class="pole"><div class="ar">الانفصال</div><div class="en">separation</div></div>
+            <div class="vs">⇋ aḍdād ⇋</div>
+            <div class="pole"><div class="ar">الظهور</div><div class="en">disclosure</div></div>
+          </div>
+          <div style="font-size:13px; color:var(--ink-dim); margin:8px 0 4px">
+            The root بين pictures a gap opening between two things — and in that very parting, what was hidden steps into view.
+            So <span class="ar" style="color:var(--glow)">بَيْن</span> is the dividing middle, <span class="ar" style="color:var(--glow)">بَيان</span> the making‑plain,
+            and <span class="ar" style="color:var(--glow)">المُبين</span> what is clear in itself and clarifies all else.</div>
+          <div class="chips">
+            <div class="chip"><span class="ar">بَيْن</span><small>the middle, the interval</small></div>
+            <div class="chip"><span class="ar">بَيان</span><small>unveiling &amp; exposition</small></div>
+            <div class="chip"><span class="ar">بَيِّنة</span><small>a clear proof</small></div>
+            <div class="chip"><span class="ar">مُبين</span><small>clear in itself, clarifying others</small></div>
+          </div>
+          <div class="foot-note">anchor → <b>al‑Dukhān 44:2</b> · <span class="ar">المُبين</span> · icon ◑ · palette #141009 / #c9a86a / #e6c866</div>
+        </div>
+      </div>
+
+      <!-- SYN ROOT -->
+      <div class="card">
+        <div class="c-head" style="--acc:var(--g-graph)"><h3>Graph · Synonym / Aḍdād family</h3><span class="tbl">ar_ling_syn_root</span>
+          <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-xc">XC</span><span class="pill p-ok">raw · is_addad</span></span></div>
+        <div class="c-body">
+          <div class="l ar-l" style="border-right:2px solid var(--accent); padding-right:10px; margin-bottom:8px">
+            <span class="ar" style="font-size:16px">أصلٌ واحدٌ يدلُّ على بُعْدِ الشيءِ وانكشافِه: فمنه الفراقُ والانفصالُ (بَيْن)، ومنه الوصلُ إذ هو ضدٌّ من الأضداد، ومنه الظهورُ والوضوحُ والفصاحةُ (بَيان).</span></div>
+          <div style="font-size:13px; color:var(--ink-dim)">A single root: distance &amp; disclosure. From it come <b>separation</b> (bayn), its own contrary <b>union</b> (one of the aḍdād), and <b>clarity / eloquence / proof</b> (bayān).</div>
+          <div class="chips" style="margin-top:10px">
+            <div class="chip">separation</div><div class="chip">union</div><div class="chip">clarity</div><div class="chip">distance</div>
+          </div>
+          <div class="foot-note">layer_code <code>AL:100-ROOT:00-CORE:P</code></div>
+        </div>
+      </div>
+
+      <!-- VOCAB -->
+      <div class="card">
+        <div class="c-head" style="--acc:var(--g-intel)"><h3>Intelligence · Vocab &amp; Membean hook</h3><span class="tbl">ar_ling_root_vocab</span>
+          <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-core">CORE</span><span class="pill p-ok">live</span></span></div>
+        <div class="c-body">
+          <div style="font-size:14px; color:var(--glow); font-style:italic; margin-bottom:8px">
+            “Mubīn draws the <b>boundary</b> clear: bayān separates so meaning shows itself.”</div>
+          <div class="kv">
+            <div class="k">Core sense</div><div class="v">clarity through separation — what stands apart shows itself; mubīn is clear in itself and clarity‑giving</div>
+            <div class="k">First occurrence</div><div class="v">Sūra <b>44</b>, āya <b>2</b></div>
+            <div class="k">Examples</div><div class="v">44:2 · 12:1 · 26:2</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCHOLARSHIP -->
+      <div class="card">
+        <div class="c-head" style="--acc:var(--g-schol)"><h3>Scholarship</h3><span class="tbl">ar_ling_root_scholarship</span>
+          <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-core">CORE</span><span class="pill p-ok">imported</span></span></div>
+        <div class="c-body">
+          <div class="kv">
+            <div class="k">Reading</div><div class="v">bayyana tr./intr. (li‑) &nbsp;<span style="color:var(--ink-faint)">· qurʾānic‑hermeneutic</span></div>
+            <div class="k">Source</div><div class="v">Nicolai Sinai — <i>Key Terms of the Qurʾan</i> (sinai_key_terms)</div>
+          </div>
+          <div style="font-size:12.5px; color:var(--ink-dim); margin-top:8px; border-left:2px solid var(--line); padding-left:10px">
+            “Numerous Qurʾanic passages associate divine revelation with the notion of clarity, expressed by the root b‑y‑n. The ‘signs’ (āyāt) are often qualified by <i>bayyin</i>, ‘clear’; the Messenger’s task is <i>al‑balāgh al‑mubīn</i>, ‘clear delivery’…”</div>
+        </div>
+      </div>
+
+      <!-- LEXICON: 12 sources -->
+      <div class="card">
+        <div class="c-head" style="--acc:var(--al)"><h3>Lexicon — 12 dictionary entries</h3><span class="tbl">ar_ling_lexicon_root_entries</span>
+          <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-core">CORE</span></span></div>
+        <div class="c-body">
+          <div class="lex-grid">
+            <a class="lex" href="/lexicon/root/بين?book=al_raghib_mufradat"><span class="open">open ↗</span><div class="l-h"><span class="name">al‑Rāghib</span><span class="auth">Mufradāt</span></div><div class="l-meta"><span class="shell sh-mufradat">MUFRADĀT</span><span class="c">clean · 8p</span><span class="c">4.6k</span><span class="c">p.156</span></div></a>
+            <a class="lex" href="/lexicon/root/بين?book=thahabi_al_khalil_kitab_al_ayn"><span class="open">open ↗</span><div class="l-h"><span class="name">Kitāb alʿAyn</span><span class="auth">al‑Khalīl</span></div><div class="l-meta"><span class="shell sh-classical">CLASSICAL</span><span class="c">clean · 5p</span><span class="c">0.7k</span></div></a>
+            <a class="lex" href="/lexicon/root/بين?book=saaid_maqayis_al_lugha"><span class="open">open ↗</span><div class="l-h"><span class="name">Maqāyīs</span><span class="auth">Ibn Fāris</span></div><div class="l-meta"><span class="shell sh-classical">CLASSICAL</span><span class="c">clean · 6p</span><span class="c">0.4k</span><span class="c">p.33</span></div></a>
+            <a class="lex" href="/lexicon/root/بين?book=ketabonline_al_jawhari_al_sihah"><span class="open">open ↗</span><div class="l-h"><span class="name">al‑Ṣiḥāḥ</span><span class="auth">al‑Jawharī</span></div><div class="l-meta"><span class="shell sh-classical">CLASSICAL</span><span class="c">clean · 12p</span><span class="c">3.8k</span></div></a>
+            <a class="lex" href="/lexicon/root/بين?book=ketabonline_al_fayyumi_misbah_munir"><span class="open">open ↗</span><div class="l-h"><span class="name">al‑Miṣbāḥ</span><span class="auth">al‑Fayyūmī</span></div><div class="l-meta"><span class="shell sh-classical">CLASSICAL</span><span class="c">clean · 9p</span><span class="c">3.1k</span></div></a>
+            <a class="lex" href="/lexicon/root/بين?book=ketabonline_ibn_duraid_jamharat_al_lugha"><span class="open">open ↗</span><div class="l-h"><span class="name">Jamhara</span><span class="auth">Ibn Durayd</span></div><div class="l-meta"><span class="shell sh-classical">CLASSICAL</span><span class="c">clean · 3p</span><span class="c">0.2k</span></div></a>
+            <a class="lex" href="/lexicon/root/بين?book=ketabonline_ibn_manzur_lisan_al_arab"><span class="open">open ↗</span><div class="l-h"><span class="name">Lisān alʿArab</span><span class="auth">Ibn Manẓūr</span></div><div class="l-meta"><span class="shell sh-classical">CLASSICAL</span><span class="c">clean · 20p</span><span class="c">28.8k</span></div></a>
+            <a class="lex" href="/lexicon/root/بين?book=qomra_al_qamus_al_muhit"><span class="open">open ↗</span><div class="l-h"><span class="name">al‑Qāmūs</span><span class="auth">al‑Fīrūzābādī</span></div><div class="l-meta"><span class="shell sh-classical">CLASSICAL</span><span class="c">clean · 12p</span><span class="c">4.2k</span></div></a>
+            <a class="lex" href="/lexicon/root/بين?book=ketabonline_al_zabidi_taj_al_arus"><span class="open">open ↗</span><div class="l-h"><span class="name">Tāj alʿArūs</span><span class="auth">al‑Zabīdī</span></div><div class="l-meta"><span class="shell sh-classical">CLASSICAL</span><span class="c">clean · 30p</span><span class="c">27.1k</span></div></a>
+            <a class="lex" href="/lexicon/root/بين?book=lane_lexicon"><span class="open">open ↗</span><div class="l-h"><span class="name">Lane</span><span class="auth">E.W. Lane</span></div><div class="l-meta"><span class="shell sh-lane">LANE</span><span class="c">clean · 23p</span><span class="c">26.1k</span><span class="c">+fam</span></div></a>
+            <a class="lex" href="/lexicon/root/بين?book=sinai_key_terms"><span class="open">open ↗</span><div class="l-h"><span class="name">Sinai</span><span class="auth">modern</span></div><div class="l-meta"><span class="shell sh-schol">SCHOLARSHIP</span><span class="c">clean · 3t</span><span class="c">paraphrase</span></div></a>
+            <a class="lex" href="/lexicon/root/بين?book=kmaps_five_lens"><span class="open">open ↗</span><div class="l-h"><span class="name">Five‑Lens</span><span class="auth">K‑Maps</span></div><div class="l-meta"><span class="shell sh-schol">SCHOLARSHIP</span><span class="c"><span style="color:var(--gap)">raw</span></span><span class="c">1.1k</span></div></a>
+          </div>
+          <div class="foot-note">Each card opens the live reader → <code>/lexicon/root/بين?book=&lt;slug&gt;</code>. Routing uses the AL <code>source_slug</code> — note <code>qr_morph_display_roots.lens_coverage_json</code> stores Mufradāt as <code>ketabonline_al_raghib_mufradat</code>, but the reader expects <code>al_raghib_mufradat</code>, so the projection slug must not be used to route.</div>
+        </div>
+      </div>
+
+      <!-- RAGHIB EXPANDED -->
+      <div class="card">
+        <div class="c-head" style="--acc:var(--al)"><h3>Rāghib al‑Aṣfahānī · <span class="ar">المفردات</span> — book‑scoped entry</h3>
+          <span class="tbl">re_mfr_6401dfb6…</span>
+          <span class="r-badges"><span class="badge b-al">AL</span><span class="pill p-ok">clean · 8p trilingual</span></span></div>
+        <div class="c-body">
+          <div class="passages">
+            <div class="passage"><div class="p-h"><span class="seq">§10 · root_header</span><span class="p-en">the origin &amp; the two senses</span></div>
+              <div class="p-ar">بَيْنٌ موضوعٌ للخَلالةِ بين الشيئينِ ووسَطِهما. قال تعالى: ﴿وَجَعَلْنَا بَيْنَهُمَا زَرْعًا﴾ [الكهف:٣٢]</div>
+              <div class="p-en" style="margin-top:4px">Bayn is set for the interval between two things and their midst…</div></div>
+            <div class="passage"><div class="p-h"><span class="seq">§11 · definition</span><span class="p-en">noun &amp; adverb — the readings</span></div>
+              <div class="p-ar">و«بَيْن» يُستعملُ تارةً اسماً وتارةً ظرفاً، فمن قرأ ﴿بَيْنُكم﴾ جعلَه اسماً، ومن قرأ ﴿بَيْنَكُمْ﴾ جعلَه ظرفاً</div></div>
+            <div class="passage"><div class="p-h"><span class="seq">§12 · definition</span><span class="p-en">the usage rule &amp; dhāt al‑bayn</span></div>
+              <div class="p-ar">ولا يُستعملُ «بين» إلا فيما كان له مسافةٌ، نحو بين البلدينِ، أو له عددٌ اثنانِ فصاعداً</div></div>
+            <div class="passage"><div class="p-h"><span class="seq">§13 · poetry</span><span class="p-en">baynamā / baynā — temporal</span></div>
+              <div class="p-ar">ويُزادُ في بين «ما» أو الألفُ فيُجعلُ بمنزلةِ «حين»، نحو بَيْنَمَا زيدٌ يفعلُ كذا</div></div>
+            <div class="passage"><div class="p-h"><span class="seq">§14 · definition</span><span class="p-en">the verb family; mubayyana / mubayyina</span></div>
+              <div class="p-ar">يقال: بَانَ واسْتَبَانَ وتَبَيَّنَ نحو عجِلَ واستعجلَ وتعجّلَ، وقد بَيَّنْتُهُ</div></div>
+            <div class="passage"><div class="p-h"><span class="seq">§15 · definition</span><span class="p-en">al‑bayyina — the clear proof</span></div>
+              <div class="p-ar">والبَيِّنَةُ: الدلالةُ الواضحةُ عقليةً كانت أو محسوسةً، وسُمِّي الشاهدانِ بيّنةً</div></div>
+            <div class="passage"><div class="p-h"><span class="seq">§16 · definition</span><span class="p-en">al‑bayān — by taskhīr &amp; by ikhtibār</span></div>
+              <div class="p-ar">والبَيَانُ: الكشفُ عن الشيءِ، وهو أعمُّ من النطقِ، لأنّ النطقَ مختصٌّ بالإنسانِ</div></div>
+            <div class="passage"><div class="p-h"><span class="seq">§17 · definition</span><span class="p-en">exposition of the mujmal; al‑mubīn</span></div>
+              <div class="p-ar">وسُمِّي ما يُشرَحُ به المُجمَلُ والمُبهَمُ من الكلامِ بياناً، نحو ﴿ثُمَّ إِنَّ عَلَيْنَا بَيَانَهُ﴾ [القيامة:١٩]</div></div>
+            <div class="passage foot"><div class="p-h"><span class="seq">﹡ ḥāshiya 2</span><span class="p-en">qirāʾāt of baynukum / baynakum</span></div>
+              <div class="p-ar">وهذه قراءةُ ابنِ كثيرٍ وأبي عمرٍو وحمزةَ ويعقوبَ وخلفٍ وشعبةَ عن عاصمٍ برفعِ (بينكم)…</div></div>
+            <div class="passage foot"><div class="p-h"><span class="seq">﹡ ḥāshiya 3</span><span class="p-en">the shāhid — Abū Dhuʾayb al‑Hudhalī</span></div>
+              <div class="p-ar">البيتُ لأبي ذؤيبٍ الهُذليِّ، وهو في ديوانِ الهذليينَ ١/٣٧، واللسانِ (بين)</div></div>
+            <div class="passage edit"><div class="p-h"><span class="seq">⚑ D41 · editor_note</span><span class="p-en">edition typo corrected</span></div>
+              <div class="p-ar">قوله ﴿تقطّع بينكم﴾ مطبوعٌ [الأنعام/١٩٤] وهو خطأٌ لأنّ السورةَ ١٦٥ آيةً، والصوابُ [الأنعام/٩٤]</div>
+              <div class="p-en" style="margin-top:4px">Printed as 6:194 (impossible — the sūra has 165 āyāt); corrected to 6:94.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEMMA LAYER -->
+      <div class="card">
+        <div class="c-head" style="--acc:var(--sf)"><h3>Lemma Layer — derived words</h3><span class="tbl">ar_ling_lemmas · lemma_form_map</span>
+          <span class="r-badges"><span class="badge b-al">AL</span><span class="badge b-core">CORE</span><span class="pill p-ok">53 lemmas</span></span></div>
+        <div class="c-body">
+          <table class="data">
+            <thead><tr><th>Lemma</th><th>bare</th><th>POS</th><th>Form</th><th>Qurʾān freq</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><span class="ar">بَيْن</span></td><td>بين</td><td>noun</td><td>I</td><td>266</td><td><div class="freqbar" style="width:100%"></div></td></tr>
+              <tr><td><span class="ar">مُّبِين</span></td><td>مبين</td><td>noun · adj</td><td>IV · act.pcpl</td><td>119</td><td><div class="freqbar" style="width:45%"></div></td></tr>
+              <tr><td><span class="ar">بَيِّنَة</span></td><td>بينة</td><td>noun</td><td>I</td><td>71</td><td><div class="freqbar" style="width:27%"></div></td></tr>
+              <tr><td><span class="ar">بَيَّنُ</span></td><td>بين</td><td>noun · verb</td><td>II · tafʿīl</td><td>35</td><td><div class="freqbar" style="width:14%"></div></td></tr>
+              <tr><td><span class="ar">تَبَيَّنَ</span></td><td>تبين</td><td>noun</td><td>V · tafaʿʿul</td><td>18</td><td><div class="freqbar" style="width:8%"></div></td></tr>
+              <tr><td><span class="ar">بَيَان</span></td><td>بيان</td><td>noun</td><td>I</td><td>3</td><td><div class="freqbar" style="width:3%"></div></td></tr>
+              <tr><td><span class="ar">مُّبَيِّنَٰت</span></td><td>مبينت</td><td>noun · adj</td><td>II · act.pcpl</td><td>3</td><td><div class="freqbar" style="width:3%"></div></td></tr>
+              <tr><td><span class="ar">مُسْتَبِين</span></td><td>مستبين</td><td>adj</td><td>X · act.pcpl</td><td>1</td><td><div class="freqbar" style="width:2%"></div></td></tr>
+              <tr><td><span class="ar">تِبْيَٰن</span></td><td>تبين</td><td>noun</td><td>II</td><td>1</td><td><div class="freqbar" style="width:2%"></div></td></tr>
+            </tbody>
+          </table>
+          <div class="foot-note">Form families via <code>ar_ling_lemma_form_map → ar_ling_form_families</code> — the canonical derived families:
+            <b>I</b> (bare), <b>II</b> tafʿīl, <b>IV</b> ifʿāl / active participle <span class="ar">مُبِين</span> (119×), <b>V</b> tafaʿʿul, <b>X</b> istifʿāl. Tiers: mujarrad · mazeed · mushtaqqāt.</div>
+        </div>
+      </div>
+
+      <!-- WORD LAYER -->
+      <div class="card">
+        <div class="c-head" style="--acc:var(--qr)"><h3>Word Layer — Qurʾānic occurrence</h3><span class="tbl">qr_word_occurrences</span>
+          <span class="r-badges"><span class="badge b-qr">QR</span><span class="badge b-core">CORE</span><span class="pill p-ok">523 occ.</span></span></div>
+        <div class="c-body">
+          <div style="text-align:center; margin-bottom:10px">
+            <div class="ar" style="font-size:30px; color:var(--glow)">وَٱلْكِتَـٰبِ ٱلْمُبِينِ</div>
+            <div style="font-size:12.5px; color:var(--ink-faint)">al‑Dukhān 44:2 — “By the clear Book”</div>
+          </div>
+          <div class="kv">
+            <div class="k">Word</div><div class="v"><span class="ar" style="font-size:18px; color:var(--glow)">الْمُبِينِ</span> &nbsp;(الْمُبِينِ)</div>
+            <div class="k">Lemma → root</div><div class="v"><span class="ar">مُّبِين</span> → <span class="ar">بين</span></div>
+            <div class="k">POS · morphology</div><div class="v">ADJ · active participle · Form IV · masc · genitive</div>
+            <div class="k">QAC tag</div><div class="v"><code>STEM|POS:ADJ|ACT|PCPL|(IV)|LEM:m~ubiyn|ROOT:byn|M|GEN</code></div>
+            <div class="k">Segments</div><div class="v">PREFIX <span class="ar">ألْ</span> (DET) + STEM <span class="ar">مُبِينِ</span></div>
+            <div class="k">Typed pointer</div><div class="v">root_uid → <code>a30d6f8e…</code> = <b>AL:root</b> (same id as the spine)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DISPLAY PROJECTION + BUILD -->
+      <div class="card">
+        <div class="c-head" style="--acc:var(--g-disp)"><h3>Display Projection &amp; Build Status</h3>
+          <span class="tbl">qr_morph_display_roots · ar_ling_root_build_status</span>
+          <span class="r-badges"><span class="badge b-qr">QR</span><span class="badge b-disp">DISP</span></span></div>
+        <div class="c-body">
+          <div class="kv">
+            <div class="k">Render cache</div><div class="v"><code>MDR:بين</code> · is_anchor 1 · status live · content_source al_projection</div>
+            <div class="k">Bundled in cache</div><div class="v">family_json (5 forms) · lens_coverage_json (<b>12 dictionaries</b>, full text) · senses · section icons</div>
+            <div class="k">Build ledger</div><div class="v">scope <b>44:1‑9</b> · <b>11 / 11</b> books done · updated 2026‑07‑12</div>
+          </div>
+          <div class="callout" style="margin-top:12px">
+            <b>Two real gaps found on this root:</b>
+            (1) <code>qr_morph_display_roots.al_root_ref</code> is <b>NULL</b> — the typed <code>AL:&lt;id&gt;</code> pointer your spec expects isn't back‑filled; the link currently rides on <code>root_uid</code> instead.
+            (2) build_status shows 11/11 done yet <code>status = 'pending'</code> — the ledger never got stamped <i>complete</i>.
+          </div>
+        </div>
+      </div>
+
+      <!-- DATA GAPS -->
+      <div class="card">
+        <div class="c-head" style="--acc:var(--gap)"><h3>Empty layers for بين — synthesis gaps</h3>
+          <span class="r-badges"><span class="pill p-gap">7 tables · 0 rows</span></span></div>
+        <div class="c-body">
+          <div class="gap-note">
+            <b>Populated schema, but no rows for بين yet</b> — these are the synthesis layers still to be built for this root:
+            <div class="tabs">
+              ar_ling_root_senses &nbsp;— canonical senses (aṣl al‑maʿnā)<br>
+              ar_ling_root_sense_axes &nbsp;— usage‑weighted meaning dimensions<br>
+              ar_ling_root_development_stages &nbsp;— diachronic stages<br>
+              ar_ling_root_antonyms &nbsp;— pairwise opposites<br>
+              ar_ling_root_relations &nbsp;— typed root‑to‑root edges<br>
+              ar_ling_root_semantic_fields &nbsp;— field membership<br>
+              ar_ling_word_sums &nbsp;— per‑lemma ṣarf derivations
+            </div>
+            The raw material is all present (12 dictionaries, DNA, syn_root), so these can be synthesised next.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <div class="callout" style="margin-top:30px">
+    <b>Sources.</b> All rows are live from Cloudflare D1 on 2026‑07‑17 — <code>km_arabic_linguistic</code> (192f4792…) and <code>km_quran</code> (8dbd5053…).
+    Root <span class="ar">بين</span> · AL id <code>a30d6f8ea317824c7b2d71a0c0</code>.
+  </div>
+
+</div>
+</body>
+</html>

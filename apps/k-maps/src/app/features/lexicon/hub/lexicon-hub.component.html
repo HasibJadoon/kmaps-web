@@ -1,0 +1,43 @@
+<section class="lexh">
+  <km-back-button />
+
+  <header class="lexh__head">
+    <p class="lexh__eyebrow">Root Workbench</p>
+    <h1 class="lexh__title">Lexicon</h1>
+    <p class="lexh__subtitle">
+      Read the classical dictionaries, browse synthesized roots, and construct roots
+      from every source — verse by verse.
+    </p>
+    <div class="lexh__rule" aria-hidden="true"></div>
+  </header>
+
+  <main class="lexh__grid">
+    @for (c of cards; track c.id) {
+      <a
+        class="lexh__card"
+        [class]="'lexh__card--' + c.id"
+        [style.--accent]="c.accent"
+        [routerLink]="c.route"
+        [attr.aria-label]="'Open ' + c.title"
+      >
+        <div class="lexh__artwork">
+          <span class="lexh__glyph">{{ c.glyph }}</span>
+          <span class="lexh__glyph-ar" aria-hidden="true">{{ c.titleAr }}</span>
+        </div>
+
+        <div class="lexh__body">
+          <span class="lexh__tag">{{ c.tag }}</span>
+          <span class="lexh__card-title">{{ c.title }}</span>
+          <span class="lexh__badge">{{ c.subtitle }}</span>
+        </div>
+
+        <span class="lexh__chev" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path d="m10 6 6 6-6 6" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+      </a>
+    }
+  </main>
+</section>

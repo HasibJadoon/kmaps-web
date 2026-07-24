@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ROOT Layer Builder — ب ي ن reference</title>
+<style>
+  :root{
+    --bg:#0f1220; --card:#171a2b; --ink:#e8eaf2; --muted:#9aa3b8; --line:#2a2f45;
+    --sf:#3b82f6; --nh:#14b8a6; --dl:#a855f7; --bl:#ec4899; --xc:#f59e0b;
+    --identity:#6366f1; --intel:#8b5cf6; --sense:#a855f7; --graph:#06b6d4;
+    --schol:#f59e0b; --disp:#22c55e; --build:#64748b;
+    --new:#f43f5e;
+  }
+  *{box-sizing:border-box}
+  .wrap{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--ink);
+    background:var(--bg);padding:22px;border-radius:14px;line-height:1.4}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  h1{font-size:22px;margin:0 0 2px} .sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+  h2{font-size:15px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:26px 0 10px}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;
+    padding:2px 8px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+  .dot{width:8px;height:8px;border-radius:50%}
+  .disc-SF{color:#bfdbfe} .disc-SF .dot{background:var(--sf)}
+  .disc-NH{color:#99f6e4} .disc-NH .dot{background:var(--nh)}
+  .disc-DL{color:#e9d5ff} .disc-DL .dot{background:var(--dl)}
+  .disc-BL{color:#fbcfe8} .disc-BL .dot{background:var(--bl)}
+  .disc-XC{color:#fde68a} .disc-XC .dot{background:var(--xc)}
+  .role{font-family:ui-monospace,Menlo,monospace;font-size:10px;color:var(--muted);
+    border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  .new{background:var(--new);color:#fff;border-color:var(--new);font-weight:700}
+
+  /* tree */
+  .group{border-left:3px solid var(--gc,#555);background:var(--card);border-radius:10px;
+    padding:12px 14px;margin:0 0 10px}
+  .group h3{margin:0 0 8px;font-size:13px;display:flex;align-items:center;gap:8px}
+  .badge{font-size:10px;font-weight:700;color:#fff;background:var(--gc);border-radius:6px;padding:2px 7px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  td{padding:5px 8px;border-top:1px solid var(--line);vertical-align:top}
+  td.tn{font-family:ui-monospace,Menlo,monospace;color:#cbd5e1;white-space:nowrap}
+  td.meta{white-space:nowrap;width:1%} td.desc{color:var(--muted)}
+  tr:first-child td{border-top:none}
+
+  /* build steps */
+  .step{background:var(--card);border-radius:10px;margin:0 0 12px;overflow:hidden;
+    border:1px solid var(--line)}
+  .step .head{display:flex;align-items:center;gap:10px;padding:10px 14px;
+    background:var(--sc,#333);color:#fff}
+  .step .n{font-weight:800;font-size:15px;background:rgba(255,255,255,.22);
+    width:26px;height:26px;border-radius:50%;display:grid;place-items:center}
+  .step .head b{font-size:14px} .step .head .k{margin-left:auto;font-size:11px;opacity:.85;
+    font-family:ui-monospace,monospace}
+  .step .body{padding:12px 14px}
+  .row{display:grid;grid-template-columns:200px 1fr;gap:10px;padding:7px 0;border-top:1px solid var(--line)}
+  .row:first-child{border-top:none}
+  .row .t{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#cbd5e1}
+  .row .t small{display:block;color:var(--muted);font-family:inherit;font-size:11px;margin-top:2px}
+  .ex{font-size:12.5px}
+  .ar{font-family:"Geeza Pro","Amiri","Scheherazade New",serif;font-size:16px;direction:rtl}
+  code{background:#0b0e1a;border:1px solid var(--line);border-radius:5px;padding:1px 5px;
+    font-size:11.5px;color:#a5f3fc}
+  .k{color:var(--muted)}
+  .pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;margin:2px 3px 0 0;
+    background:#0b0e1a;border:1px solid var(--line)}
+  .pole{border-color:var(--sense);color:#e9d5ff}
+  .arrow{color:var(--muted)}
+  .foot{color:var(--muted);font-size:11.5px;margin-top:16px;border-top:1px solid var(--line);padding-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h2 class="sr-only">The ROOT layer of K-Maps, its tables grouped into seven build stages, then a worked example building the Arabic root ba-ya-noon layer by layer.</h2>
+
+<h1>ROOT Layer Builder <span style="color:var(--muted);font-weight:400">· AL:100-ROOT / QR:100-ROOT</span></h1>
+<p class="sub">A layer-by-layer recipe for standing up a new Arabic root. Worked example: <span class="ar">ب ي ن</span> (b‑y‑n).</p>
+
+<div class="legend">
+  <span class="chip disc-SF"><span class="dot"></span>SF · ṣarf</span>
+  <span class="chip disc-NH"><span class="dot"></span>NH · naḥw</span>
+  <span class="chip disc-DL"><span class="dot"></span>DL · dalāla</span>
+  <span class="chip disc-BL"><span class="dot"></span>BL · balāgha</span>
+  <span class="chip disc-XC"><span class="dot"></span>XC · cross‑cut</span>
+  <span class="chip"><span class="role">CORE</span> primary rows</span>
+  <span class="chip"><span class="role">LINK</span> bridge/edge</span>
+  <span class="chip"><span class="new">★</span> added 2026‑07‑17</span>
+</div>
+
+<h2>The tree — seven stages of the ROOT layer</h2>
+
+<div class="group" style="--gc:var(--identity)">
+  <h3><span class="badge">1 · IDENTITY</span> who the root is</h3>
+  <table>
+    <tr><td class="tn">ar_ling_roots</td><td class="meta"><span class="chip disc-SF"><span class="dot"></span>SF</span> <span class="role">CORE</span></td><td class="desc">canonical row: id, radicals, root_type, weak_pattern, frequency</td></tr>
+    <tr><td class="tn">ar_ling_root_variants</td><td class="meta"><span class="chip disc-SF"><span class="dot"></span>SF</span> <span class="role">CORE</span></td><td class="desc">spelling / radical variants</td></tr>
+    <tr><td class="tn">qr_root_registry <span class="new">★</span></td><td class="meta"><span class="chip">QR</span> <span class="role">REG</span></td><td class="desc">root_ar → root_uid → AL id bridge</td></tr>
+  </table>
+</div>
+
+<div class="group" style="--gc:var(--intel)">
+  <h3><span class="badge">2 · INTELLIGENCE</span> the synthesis</h3>
+  <table>
+    <tr><td class="tn">ar_ling_root_dna</td><td class="meta"><span class="chip disc-SF"><span class="dot"></span>SF</span> <span class="role">DNA</span></td><td class="desc">core image · story · poles · family (trilingual, provenance+confidence)</td></tr>
+    <tr><td class="tn">ar_ling_root_vocab</td><td class="meta"><span class="role">CORE</span></td><td class="desc">derived-word inventory + Membean hooks</td></tr>
+    <tr><td class="tn">ar_ling_root_development_stages</td><td class="meta"><span class="chip disc-DL"><span class="dot"></span>DL</span> <span class="role">CORE</span></td><td class="desc">diachronic meaning stages</td></tr>
+  </table>
+</div>
+
+<div class="group" style="--gc:var(--sense)">
+  <h3><span class="badge">3 · SENSE &amp; FIELD</span> what it means</h3>
+  <table>
+    <tr><td class="tn">ar_ling_root_senses <span class="new">★</span></td><td class="meta"><span class="chip disc-DL"><span class="dot"></span>DL</span> <span class="role">CORE</span></td><td class="desc">canonical per-root senses (is_core = aṣl al-maʿnā)</td></tr>
+    <tr><td class="tn">ar_ling_root_sense_axes</td><td class="meta"><span class="chip disc-DL"><span class="dot"></span>DL</span> <span class="role">CORE</span></td><td class="desc">continuous meaning dimensions (weighted by āyāt)</td></tr>
+    <tr><td class="tn">ar_ling_root_semantic_fields <span class="new">★</span></td><td class="meta"><span class="chip disc-DL"><span class="dot"></span>DL</span> <span class="role">LINK</span></td><td class="desc">root → semantic_field (optionally sense-scoped)</td></tr>
+  </table>
+</div>
+
+<div class="group" style="--gc:var(--graph)">
+  <h3><span class="badge">4 · GRAPH</span> root ↔ root</h3>
+  <table>
+    <tr><td class="tn">ar_ling_root_antonyms</td><td class="meta"><span class="chip disc-DL"><span class="dot"></span>DL</span> <span class="role">CORE</span></td><td class="desc">pairwise opposites</td></tr>
+    <tr><td class="tn">ar_ling_root_relations <span class="new">★</span></td><td class="meta"><span class="chip disc-DL"><span class="dot"></span>DL</span> <span class="role">LINK</span></td><td class="desc">typed edges: support / overcome / cognate / metathesis / sub_root</td></tr>
+    <tr><td class="tn">ar_ling_syn_root</td><td class="meta"><span class="chip disc-XC"><span class="dot"></span>XC</span> <span class="role">CORE</span></td><td class="desc">synonym / aḍdād family summary</td></tr>
+    <tr><td class="tn">ar_ling_syn_sense</td><td class="meta"><span class="chip disc-DL"><span class="dot"></span>DL</span> <span class="role">LINK</span></td><td class="desc">sense-level synonymy</td></tr>
+    <tr><td class="tn">ar_ling_root_edges_v <span class="new">★</span></td><td class="meta"><span class="role">VIEW</span></td><td class="desc">unified read: antonyms ∪ relations ∪ syn_root</td></tr>
+  </table>
+</div>
+
+<div class="group" style="--gc:var(--schol)">
+  <h3><span class="badge">5 · SCHOLARSHIP</span> the sources</h3>
+  <table>
+    <tr><td class="tn">ar_ling_root_scholarship</td><td class="meta"><span class="chip disc-DL"><span class="dot"></span>DL</span> <span class="role">CORE</span></td><td class="desc">Ibn Fāris · Rāghib · Ibn ʿĀshūr · comparanda / inscriptions</td></tr>
+  </table>
+</div>
+
+<div class="group" style="--gc:var(--disp)">
+  <h3><span class="badge">6 · DISPLAY</span> the render cache</h3>
+  <table>
+    <tr><td class="tn">qr_morph_display_roots <span class="new">★</span></td><td class="meta"><span class="chip">QR</span> <span class="role">DISP</span></td><td class="desc">render cache; carries al_root_ref → AL:&lt;id&gt; (typed pointer)</td></tr>
+  </table>
+</div>
+
+<div class="group" style="--gc:var(--build)">
+  <h3><span class="badge">7 · BUILD STATUS</span> the ledger</h3>
+  <table>
+    <tr><td class="tn">ar_ling_root_build_status</td><td class="meta"><span class="role">STAT</span></td><td class="desc">per-source build ledger</td></tr>
+  </table>
+</div>
+
+<h2>Building <span class="ar">ب ي ن</span> — layer by layer</h2>
+
+<div class="step" style="--sc:var(--identity)">
+  <div class="head"><span class="n">1</span><b>IDENTITY</b><span class="k">insert the root first — everything else FKs to its id</span></div>
+  <div class="body">
+    <div class="row"><div class="t">ar_ling_roots<small>one CORE row</small></div><div class="ex">
+      <code>id=AL_ROOT:byn</code> · <span class="ar">بين</span> · radicals <span class="ar">ب ي ن</span> · <span class="k">root_type</span> trilateral · <span class="k">weak_pattern</span> ajwaf‑yāʾ (hollow, mid ي) · <span class="k">buckwalter</span> byn · <span class="k">frequency_quran</span> ≈ 523 · <span class="k">meaning_core</span> "separation → distinction → clarity" / <span class="ar">الفصل ثم التمييز ثم الوضوح</span>
+    </div></div>
+    <div class="row"><div class="t">ar_ling_root_variants<small>none</small></div><div class="ex k">no attested radical variant — skip</div></div>
+    <div class="row"><div class="t">qr_root_registry <span class="new" style="font-size:9px">★</span><small>QR identity bridge</small></div><div class="ex"><span class="ar">بين</span> → <code>root_uid</code> → resolves to <code>AL:AL_ROOT:byn</code></div></div>
+  </div>
+</div>
+
+<div class="step" style="--sc:var(--intel)">
+  <div class="head"><span class="n">2</span><b>INTELLIGENCE</b><span class="k">synthesize the root's mental model</span></div>
+  <div class="body">
+    <div class="row"><div class="t">ar_ling_root_dna<small>1 row · trilingual</small></div><div class="ex">
+      <b>headline</b> "Between → Clear" · <b>core image</b> a gap that lets you <i>tell things apart</i> → the gap becomes <i>disclosure</i>.
+      <div><span class="pill pole">separation ↔ union</span><span class="pill pole">concealment ↔ disclosure</span></div>
+      <span class="k">confidence</span> 0.85 · <span class="k">provenance</span> [Maqāyīs, Mufradāt]
+    </div></div>
+    <div class="row"><div class="t">ar_ling_root_vocab<small>derived forms</small></div><div class="ex">
+      <span class="ar">بَانَ</span> (I, be clear/separate) · <span class="ar">بَيَّنَ</span> (II, make clear) · <span class="ar">أَبَانَ</span> (IV) · <span class="ar">تَبَيَّنَ</span> (V) · <span class="ar">اسْتَبَانَ</span> (X) · <span class="ar">بَيَان</span> · <span class="ar">بَيِّنة</span> · <span class="ar">مُبِين</span> · <span class="ar">بَيْن</span>
+    </div></div>
+    <div class="row"><div class="t">ar_ling_root_development_stages<small>ordered stages</small></div><div class="ex">
+      ① <span class="ar">بَيْن</span> physical gap/space <span class="arrow">→</span> ② parting / separation (firāq) <span class="arrow">→</span> ③ distinction, telling apart <span class="arrow">→</span> ④ clarity, disclosure (bayān) <span class="arrow">→</span> ⑤ proof / evidence (bayyina)
+    </div></div>
+  </div>
+</div>
+
+<div class="step" style="--sc:var(--sense)">
+  <div class="head"><span class="n">3</span><b>SENSE &amp; FIELD</b><span class="k">the pivot everything attaches to</span></div>
+  <div class="body">
+    <div class="row"><div class="t">ar_ling_root_senses <span class="new" style="font-size:9px">★</span><small>canonical senses</small></div><div class="ex">
+      <code>is_core</code> <span class="ar">فصل/بُعد</span> separation‑distance · distinction · <span class="ar">بيان</span> clarity/exposition · <span class="ar">بيّنة</span> proof
+    </div></div>
+    <div class="row"><div class="t">ar_ling_root_sense_axes<small>weighted 0–3</small></div><div class="ex">
+      physical → abstract <b>3</b> · concealment → disclosure <b>3</b> · separation → union <b>2</b> <span class="k">(aḍdād)</span>
+    </div></div>
+    <div class="row"><div class="t">ar_ling_root_semantic_fields <span class="new" style="font-size:9px">★</span><small>links → semantic_fields</small></div><div class="ex">
+      <span class="pill">communication / clarity</span><span class="pill">separation / space</span><span class="pill">evidence / proof</span> <span class="k">is_primary = clarity</span>
+    </div></div>
+  </div>
+</div>
+
+<div class="step" style="--sc:var(--graph)">
+  <div class="head"><span class="n">4</span><b>GRAPH</b><span class="k">wire the root into its neighbours</span></div>
+  <div class="body">
+    <div class="row"><div class="t">ar_ling_root_antonyms<small>opposites</small></div><div class="ex">
+      clarity <span class="arrow">↔</span> <span class="ar">إبهام / غموض</span> (obscurity) · internal ḍidd: separation <span class="arrow">↔</span> <span class="ar">وصل</span> (union)
+    </div></div>
+    <div class="row"><div class="t">ar_ling_root_relations <span class="new" style="font-size:9px">★</span><small>typed edges</small></div><div class="ex">
+      <span class="ar">بين</span> <span class="arrow">→</span> <span class="ar">وضح</span> <code>near/clarity</code> · <span class="ar">فصل</span> <code>support/separation</code> · <span class="ar">فرق</span> <code>distinction</code> · <span class="ar">شرح</span> <code>expound</code> · <span class="ar">دلل</span> <code>proof</code>
+    </div></div>
+    <div class="row"><div class="t">ar_ling_syn_root<small>family summary</small></div><div class="ex">
+      family { <span class="ar">بين · وضح · فصح · شرح · جلو</span> } · <code>is_addad=1</code> (separation ⇄ union)
+    </div></div>
+    <div class="row"><div class="t">ar_ling_root_edges_v<small>view</small></div><div class="ex k">no insert — reads the three tables above as one edge list</div></div>
+  </div>
+</div>
+
+<div class="step" style="--sc:var(--schol)">
+  <div class="head"><span class="n">5</span><b>SCHOLARSHIP</b><span class="k">ground the synthesis in sources</span></div>
+  <div class="body">
+    <div class="row"><div class="t">ar_ling_root_scholarship<small>one row per source</small></div><div class="ex">
+      <b>Ibn Fāris (Maqāyīs):</b> <span class="ar">بُعْد الشيء وانكشافُه</span> — the distance of a thing and its disclosure. ·
+      <b>al‑Rāghib (Mufradāt):</b> <span class="ar">البَيْن من الأضداد</span> — used for both separation and joining; <span class="ar">البَيان</span> = disclosure of meaning.
+    </div></div>
+  </div>
+</div>
+
+<div class="step" style="--sc:var(--disp)">
+  <div class="head"><span class="n">6</span><b>DISPLAY</b><span class="k">project a render cache pointing back to AL</span></div>
+  <div class="body">
+    <div class="row"><div class="t">qr_morph_display_roots <span class="new" style="font-size:9px">★</span><small>MDR:بين</small></div><div class="ex">
+      <code>al_root_ref = AL:AL_ROOT:byn</code> · <code>content_source = al_projection</code> · cached meaning_core / hooks / senses_json / family_json · <code>content_synced_at</code> stamped by the sync job
+    </div></div>
+  </div>
+</div>
+
+<div class="step" style="--sc:var(--build)">
+  <div class="head"><span class="n">7</span><b>BUILD STATUS</b><span class="k">mark the root done per source</span></div>
+  <div class="body">
+    <div class="row"><div class="t">ar_ling_root_build_status<small>ledger</small></div><div class="ex">
+      <span class="ar">بين</span> · book_scope = mufradat+maqayis · done_books / total_books · <code>status = complete</code>
+    </div></div>
+  </div>
+</div>
+
+<p class="foot">Build order matters: <b>1 identity</b> creates the id every later FK needs → <b>2–3</b> synthesise and pin senses → <b>4</b> can now reference sense ids on its edges → <b>5</b> grounds it → <b>6</b> projects the cache → <b>7</b> closes the ledger. Reverse the order and you get orphan rows.</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,159 @@
+:host {
+  display: block;
+  // Manuscript palette — matches lexicon-home + the book reader so navigating
+  // between the hub and the reader feels seamless.
+  --lex-bg:        #1c1b18;
+  --lex-paper:     #25231e;
+  --lex-paper-2:   #2a281f;
+  --lex-ink:       #e9e0c8;
+  --lex-ink-soft:  #a89f87;
+  --lex-ink-faint: #6c6356;
+  --lex-rule:      #3a362c;
+  --lex-shadow:    0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -10px rgba(0, 0, 0, .55);
+
+  background:
+    radial-gradient(120% 80% at 82% -8%, rgba(200, 160, 74, .08), transparent 60%),
+    var(--lex-bg);
+  min-height: 100vh;
+  font-family: 'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', Georgia, serif;
+}
+
+.lexh {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 40px 24px 90px;
+  color: var(--lex-ink);
+}
+
+.lexh__head {
+  text-align: center;
+  margin: 12px 0 40px;
+}
+.lexh__eyebrow {
+  margin: 0 0 8px;
+  font-family: 'Poppins', system-ui, sans-serif;
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .34em;
+  text-transform: uppercase;
+  color: var(--lex-ink-faint);
+}
+.lexh__title {
+  margin: 0 0 10px;
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+.lexh__subtitle {
+  max-width: 46ch;
+  margin: 0 auto;
+  color: var(--lex-ink-soft);
+  font-family: 'Poppins', system-ui, sans-serif;
+  font-size: .96rem;
+  line-height: 1.55;
+}
+.lexh__rule {
+  width: 120px;
+  height: 2px;
+  margin: 22px auto 0;
+  background: linear-gradient(90deg, transparent, #c8a04a, transparent);
+  opacity: .7;
+}
+
+.lexh__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+.lexh__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 22px 20px;
+  border: 1px solid var(--lex-rule);
+  border-radius: 16px;
+  background:
+    linear-gradient(160deg, var(--lex-paper-2), var(--lex-paper));
+  box-shadow: var(--lex-shadow);
+  text-decoration: none;
+  color: var(--lex-ink);
+  overflow: hidden;
+  transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease;
+}
+.lexh__card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--accent);
+  opacity: .85;
+}
+.lexh__card:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--lex-rule));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 18px 40px -14px rgba(0, 0, 0, .7);
+}
+.lexh__card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.lexh__artwork {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.lexh__glyph {
+  font-size: 2.6rem;
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: 0 2px 14px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.lexh__glyph-ar {
+  font-size: 1.15rem;
+  color: var(--lex-ink-faint);
+}
+
+.lexh__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+.lexh__tag {
+  font-family: 'Poppins', system-ui, sans-serif;
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .22em;
+  color: var(--accent);
+}
+.lexh__card-title {
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.lexh__badge {
+  align-self: flex-start;
+  margin-top: auto;
+  padding: 4px 11px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--lex-rule));
+  border-radius: 999px;
+  font-family: 'Poppins', system-ui, sans-serif;
+  font-size: .72rem;
+  color: color-mix(in srgb, var(--accent) 75%, var(--lex-ink));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.lexh__chev {
+  position: absolute;
+  top: 20px;
+  right: 18px;
+  color: var(--lex-ink-faint);
+  transition: transform .22s ease, color .22s ease;
+}
+.lexh__card:hover .lexh__chev {
+  transform: translateX(3px);
+  color: var(--accent);
+}

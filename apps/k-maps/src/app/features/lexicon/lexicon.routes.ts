@@ -2,10 +2,57 @@ import { Routes } from '@angular/router';
 
 export const LEXICON_ROUTES: Routes = [
   {
+    // Landing hub — four sub-cards (Lexicon · K-Maps · Fix Display · Root Synthesis).
     path: '',
+    loadComponent: () =>
+      import('./hub/lexicon-hub.component').then(m => m.LexiconHubComponent),
+    title: 'Lexicon — K-MAPS',
+  },
+  {
+    // Card 1 — the classical-dictionary reader (the previous /lexicon view).
+    path: 'library',
     loadComponent: () =>
       import('./lexicon-home.component').then(m => m.LexiconHomeComponent),
     title: 'المعجم',
+  },
+  {
+    // Card 2 — all synthesized roots (build_status = 'done'). Data wired next.
+    path: 'kmaps',
+    loadComponent: () =>
+      import('./hub/lexicon-workflow-placeholder.component')
+        .then(m => m.LexiconWorkflowPlaceholderComponent),
+    data: {
+      eyebrow: 'Synthesis',
+      title: 'K-Maps — Synthesized Roots',
+      note: 'Every root whose cross-source synthesis is complete will list here.',
+    },
+    title: 'K-Maps — Synthesized Roots',
+  },
+  {
+    // Card 3 — fix/build source display for Sūra 44 roots not yet synthesized.
+    path: 'workflow/display',
+    loadComponent: () =>
+      import('./hub/lexicon-workflow-placeholder.component')
+        .then(m => m.LexiconWorkflowPlaceholderComponent),
+    data: {
+      eyebrow: 'Workflow · Sūra 44',
+      title: 'Fix Display',
+      note: 'Verse by verse: clean and build the source display for roots not yet synthesized.',
+    },
+    title: 'Fix Display — Sūra 44',
+  },
+  {
+    // Card 4 — synthesize the root from all sources for Sūra 44, where not done.
+    path: 'workflow/synthesis',
+    loadComponent: () =>
+      import('./hub/lexicon-workflow-placeholder.component')
+        .then(m => m.LexiconWorkflowPlaceholderComponent),
+    data: {
+      eyebrow: 'Workflow · Sūra 44',
+      title: 'Root Synthesis',
+      note: 'Verse by verse: weave all sources into a synthesized root, only where not already done.',
+    },
+    title: 'Root Synthesis — Sūra 44',
   },
   {
     path: 'books',

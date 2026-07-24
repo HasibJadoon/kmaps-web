@@ -918,7 +918,8 @@ CREATE TABLE "ar_ling_root_antonyms" (
   source_ref TEXT,
   status TEXT NOT NULL DEFAULT 'draft',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+, root_id TEXT, confidence REAL DEFAULT 0.8, generated_by TEXT);
+CREATE INDEX idx_ar_root_antonyms_rid ON ar_ling_root_antonyms(root_id);
 
 CREATE TABLE ar_ling_root_build_jobs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -957,8 +958,10 @@ CREATE TABLE "ar_ling_root_development_stages" (
   source_ref  TEXT,                            -- Maqāyīs block id etc. when grounded
   source_slug TEXT NOT NULL DEFAULT 'kmaps_development',
   status      TEXT NOT NULL DEFAULT 'draft',
+  root_id TEXT, confidence REAL DEFAULT 0.8, generated_by TEXT,
   UNIQUE (root_norm, stage_no)
 );
+CREATE INDEX idx_ar_root_devstages_rid ON ar_ling_root_development_stages(root_id);
 
 CREATE TABLE ar_ling_root_dna (
   root_norm TEXT PRIMARY KEY,
@@ -1045,8 +1048,10 @@ CREATE TABLE "ar_ling_root_sense_axes" (
   note_en     TEXT,
   source_slug TEXT NOT NULL DEFAULT 'kmaps_usage_map',
   status      TEXT NOT NULL DEFAULT 'draft',
+  root_id TEXT, confidence REAL DEFAULT 0.8, generated_by TEXT,
   UNIQUE (root_norm, axis_key)
 );
+CREATE INDEX idx_ar_root_sense_axes_rid ON ar_ling_root_sense_axes(root_id);
 
 CREATE TABLE "ar_ling_root_variants" (
   id              TEXT PRIMARY KEY,
