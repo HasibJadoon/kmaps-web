@@ -1,9 +1,9 @@
 // ─── /qr/admin/sync — cross-domain projection sync jobs ───────────────────────
-// Backfills qr_morph_display_roots.al_root_ref (added in QR migration 0009) by
+// Backfills qr_morph_display_root.al_root_ref (added in QR migration 0009) by
 // resolving each display root's canonical AL id through the AR_LINGUISTICS
 // service binding — never by binding AL's D1 database directly (domain rule).
 //
-// AL owns root identity; qr_morph_display_roots is a render cache. This job makes
+// AL owns root identity; qr_morph_display_root is a render cache. This job makes
 // the cache carry a typed 'AL:<ar_ling_roots.id>' pointer back to the source of
 // truth and stamps content_synced_at. It does not rewrite the cached content
 // columns (a fuller refresh can fetch /al/roots/:id later) — it establishes the
@@ -57,7 +57,7 @@ export function adminSyncRoutes(router: Router<QuranEnv>) {
     const refresh = url.searchParams.get('refresh') === '1';
     const where = force ? '' : 'WHERE al_root_ref IS NULL';
     const { results } = await env.DB_QR
-      .prepare(`SELECT id, root_ar FROM qr_morph_display_roots ${where}`)
+      .prepare(`SELECT id, root_ar FROM qr_morph_display_root ${where}`)
       .all<{ id: string; root_ar: string }>();
 
     const rows = results ?? [];
@@ -78,7 +78,7 @@ export function adminSyncRoutes(router: Router<QuranEnv>) {
         updates.push(
           env.DB_QR
             .prepare(
-              `UPDATE qr_morph_display_roots
+              `UPDATE qr_morph_display_root
                   SET al_root_ref = ?, content_source = 'al_projection', content_synced_at = ?,
                       meaning_core_en = COALESCE(?, meaning_core_en),
                       meaning_core_ar = COALESCE(?, meaning_core_ar),
@@ -97,7 +97,7 @@ export function adminSyncRoutes(router: Router<QuranEnv>) {
         updates.push(
           env.DB_QR
             .prepare(
-              `UPDATE qr_morph_display_roots
+              `UPDATE qr_morph_display_root
                   SET al_root_ref = ?, content_source = 'al_projection', content_synced_at = ?
                 WHERE id = ?`,
             )

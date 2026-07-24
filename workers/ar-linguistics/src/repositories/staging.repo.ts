@@ -1,4 +1,4 @@
-// ─── StagingRepo — the AL staging spine (ar_ling_root_stage × reg_sub_layer) ──
+// ─── StagingRepo — the AL staging spine (ar_ling_stg_claim × reg_sub_layer) ──
 // The linguistics domain (shared by Qurʾān + Arabic acquisition) squeezes every
 // classical source into per-sub-layer *claims*, staged trilingually, then
 // promoted to their carrier tables. This repo reads those staged claims so the
@@ -91,7 +91,7 @@ export class StagingRepo {
       this.db,
       `SELECT root_norm, sub_code, COUNT(*) AS n,
               SUM(CASE WHEN ${PROMOTED} THEN 1 ELSE 0 END) AS promoted
-       FROM ar_ling_root_stage
+       FROM ar_ling_stg_claim
        GROUP BY root_norm, sub_code`,
     );
   }
@@ -104,7 +104,7 @@ export class StagingRepo {
               COUNT(*) AS staged,
               SUM(CASE WHEN ${PROMOTED} THEN 1 ELSE 0 END) AS promoted,
               COUNT(DISTINCT sub_code) AS layers
-       FROM ar_ling_root_stage
+       FROM ar_ling_stg_claim
        GROUP BY root_norm
        ORDER BY staged DESC`,
     );
@@ -113,7 +113,7 @@ export class StagingRepo {
   statusCounts(): Promise<StatusCount[]> {
     return query<StatusCount>(
       this.db,
-      `SELECT status, COUNT(*) AS n FROM ar_ling_root_stage GROUP BY status ORDER BY n DESC`,
+      `SELECT status, COUNT(*) AS n FROM ar_ling_stg_claim GROUP BY status ORDER BY n DESC`,
     );
   }
 
@@ -126,7 +126,7 @@ export class StagingRepo {
       this.db,
       `SELECT id, sub_code, band, source_slug, claim_type, status,
               promoted_to_table, quote_ar, gloss_en, gloss_ur
-       FROM ar_ling_root_stage
+       FROM ar_ling_stg_claim
        WHERE root_norm = ?
        ORDER BY band, sub_code, source_slug`,
       [root],
@@ -139,7 +139,7 @@ export class StagingRepo {
       this.db,
       `SELECT id, memlet_key, scope_level, title_ar, title_en, title_ur,
               body_ar, body_en, body_ur, status
-       FROM ar_ling_memlets
+       FROM ar_ling_learn_memlet
        WHERE root_norm = ?
        ORDER BY CASE scope_level WHEN 'root' THEN 0 WHEN 'lemma' THEN 1 WHEN 'word' THEN 2 ELSE 3 END, memlet_key`,
       [root],
@@ -151,7 +151,7 @@ export class StagingRepo {
     return query<RootQuestion>(
       this.db,
       `SELECT id, question_key, prompt_ar, prompt_en, prompt_ur, explanation_en, answer_json
-       FROM ar_ling_question_items
+       FROM ar_ling_learn_question
        WHERE root_norm = ?
        ORDER BY question_key`,
       [root],
@@ -164,8 +164,8 @@ export class StagingRepo {
       this.db,
       `SELECT d.id, d.item_id, d.option_ar, d.option_en, d.option_ur, d.is_correct,
               d.distractor_kind, d.why_wrong_en, d.why_wrong_ar, d.sort_order
-       FROM ar_ling_question_distractors d
-       JOIN ar_ling_question_items q ON q.id = d.item_id
+       FROM ar_ling_learn_question_distractor d
+       JOIN ar_ling_learn_question q ON q.id = d.item_id
        WHERE q.root_norm = ?
        ORDER BY d.item_id, d.sort_order`,
       [root],
@@ -178,8 +178,8 @@ export class StagingRepo {
       this.db,
       `SELECT m.id, m.memlet_id, ml.memlet_key, m.media_kind, m.r2_key, m.bucket,
               m.mime, m.duration_ms, m.reciter, m.qr_ref, m.status
-       FROM ar_ling_memlet_media m
-       JOIN ar_ling_memlets ml ON ml.id = m.memlet_id
+       FROM ar_ling_learn_memlet_media m
+       JOIN ar_ling_learn_memlet ml ON ml.id = m.memlet_id
        WHERE ml.root_norm = ?
        ORDER BY m.media_kind`,
       [root],
@@ -191,7 +191,7 @@ export class StagingRepo {
     return query<MemletKind>(
       this.db,
       `SELECT memlet_key, name_ar, name_en, name_ur, modality, scope_level, display_order
-       FROM ar_ling_memlet_kinds ORDER BY display_order`,
+       FROM ar_ling_learn_memlet_kind ORDER BY display_order`,
     );
   }
 
@@ -201,7 +201,7 @@ export class StagingRepo {
       this.db,
       `SELECT question_key, name_ar, name_en, memlet_key, response_kind,
               cognitive_level, difficulty_floor
-       FROM ar_ling_question_kinds ORDER BY question_key`,
+       FROM ar_ling_learn_question_kind ORDER BY question_key`,
     );
   }
 
@@ -211,12 +211,12 @@ export class StagingRepo {
     }>(
       this.db,
       `SELECT
-         (SELECT COUNT(*) FROM ar_ling_root_stage)                                  AS staged,
-         (SELECT COUNT(*) FROM ar_ling_root_stage WHERE ${PROMOTED})                AS promoted,
-         (SELECT COUNT(DISTINCT root_norm) FROM ar_ling_root_stage)                 AS roots,
+         (SELECT COUNT(*) FROM ar_ling_stg_claim)                                  AS staged,
+         (SELECT COUNT(*) FROM ar_ling_stg_claim WHERE ${PROMOTED})                AS promoted,
+         (SELECT COUNT(DISTINCT root_norm) FROM ar_ling_stg_claim)                 AS roots,
          (SELECT COUNT(*) FROM ar_ling_reg_sub_layer WHERE status='live')           AS sub_layers,
-         (SELECT COUNT(*) FROM ar_ling_memlets)                                     AS memlets,
-         (SELECT COUNT(*) FROM ar_ling_question_items)                              AS questions`,
+         (SELECT COUNT(*) FROM ar_ling_learn_memlet)                                     AS memlets,
+         (SELECT COUNT(*) FROM ar_ling_learn_question)                              AS questions`,
     );
     return row ?? { staged: 0, promoted: 0, roots: 0, sub_layers: 0, memlets: 0, questions: 0 };
   }

@@ -1,8 +1,8 @@
 // ─── Expression schemas & types ───────────────────────────────────────────────
-// Tables: ar_ling_expression_types, ar_ling_expressions,
+// Tables: ar_ling_root_lemma_tabir_kind, ar_ling_root_lemma_tabir,
 //         ar_ling_expression_tokens, ar_ling_collocations
 
-// ── ar_ling_expression_types ──────────────────────────────────────────────────
+// ── ar_ling_root_lemma_tabir_kind ──────────────────────────────────────────────────
 
 export interface ArLingExpressionType {
   id: string;              // AL:ULID
@@ -49,14 +49,14 @@ export function validateArLingExpressionTypeCreate(
   };
 }
 
-// ── ar_ling_expressions ───────────────────────────────────────────────────────
+// ── ar_ling_root_lemma_tabir ───────────────────────────────────────────────────────
 
 export interface ArLingExpression {
   id: string;                         // AL:ULID
   expression_ar: string;
   expression_en: string;
-  expression_type_id: string | null;  // FK → ar_ling_expression_types.id
-  primary_lemma_id: string | null;    // FK → ar_ling_lemmas.id
+  expression_type_id: string | null;  // FK → ar_ling_root_lemma_tabir_kind.id
+  primary_lemma_id: string | null;    // FK → ar_ling_root_lemma.id
   explanation_md: string | null;
   qr_refs_json: string | null;        // JSON [{qr_ref, note}]
   created_at: string;
@@ -112,10 +112,10 @@ export function validateArLingExpressionCreate(
 
 export interface ArLingExpressionToken {
   id: string;              // AL:ULID
-  expression_id: string;   // FK → ar_ling_expressions.id
+  expression_id: string;   // FK → ar_ling_root_lemma_tabir.id
   token_position: number;
   token_text: string;
-  lemma_id: string | null; // FK → ar_ling_lemmas.id
+  lemma_id: string | null; // FK → ar_ling_root_lemma.id
   note_md: string | null;
 }
 
@@ -156,8 +156,8 @@ export function validateArLingExpressionTokenCreate(
 
 export interface ArLingCollocation {
   id: string;                  // AL:ULID
-  lemma_a_id: string;          // FK → ar_ling_lemmas.id
-  lemma_b_id: string;          // FK → ar_ling_lemmas.id
+  lemma_a_id: string;          // FK → ar_ling_root_lemma.id
+  lemma_b_id: string;          // FK → ar_ling_root_lemma.id
   collocation_type: string;
   // 'general'|'verb_object'|'noun_adjective'|'idafa'|'verb_particle'|'other'
   frequency_note: string | null;

@@ -22,7 +22,7 @@ const ROOT_ICON_KEYS = new Set(Object.keys(ROOT_LUCIDE).map(k => k.toLowerCase()
 
 /**
  * Root view — the UNIVERSAL lexicon spine, rendered VERBATIM from the display layer
- * (qr_morph_display_roots). Trilingual (EN/AR/UR) like the morphology layer; the
+ * (qr_morph_display_root). Trilingual (EN/AR/UR) like the morphology layer; the
  * derived family renders as the shared 3D km-morph-word-card (universal-only — no
  * occurrence context). Every icon is a lucide name carried in the data.
  */

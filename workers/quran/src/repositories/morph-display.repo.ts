@@ -1,9 +1,9 @@
 // ─── MorphDisplayRepo — the word view, straight from the display layer ────────
 // The Morphology step is WORD-focused. This repo reads the render-ready display
-// tables (qr_morph_display_words / _lemmas / _blocks / _sources) and merges the
+// tables (qr_morph_display_word / _lemmas / _blocks / _sources) and merges the
 // block tiers for one word so the UI renders a dumb list of typed blocks:
 //   context (this occurrence's iʿrāb + word-focused tafsīr, keyed word-level
-//   s:a:w) · lemma (ṣarf — wazn/form live on qr_morph_display_lemmas, joined
+//   s:a:w) · lemma (ṣarf — wazn/form live on qr_morph_display_lemma, joined
 //   via words.lemma_ref) · root (universal meaning, family, hook, five-lens,
 //   lexicon shades, senses, SS-grounded examples). Everything trilingual
 //   (en/ar/ur); Arabic terms stay Arabic. Tier-2 facts (wazn, derived type,
@@ -33,8 +33,8 @@ interface WordRow {
   is_anchor: number; importance: number; difficulty: number | null; frequency_quran: number | null;
   root_meaning_ar: string | null; root_meaning_en: string | null; quran_meanings_json: string | null;
 }
-// Tier-2 (lemma) facts joined from qr_morph_display_lemmas via words.lemma_ref,
-// plus the form-family master row (qr_morph_form_families via form_family_id) —
+// Tier-2 (lemma) facts joined from qr_morph_display_lemma via words.lemma_ref,
+// plus the form-family master row (qr_morph_form_family via form_family_id) —
 // the bāb: نَصَرَ … for Form I, the form name (إِفْعَال …) for derived forms.
 // These win over the word-row copies (which are transitional and get nulled).
 interface LemmaTierRow {
@@ -64,7 +64,7 @@ const LEMMA_TIER_SELECT = `
        f.kind            AS f_kind,
        f.tier            AS f_tier`;
 const FAMILY_JOIN =
-  `LEFT JOIN qr_morph_form_families f ON f.id = l.form_family_id AND f.status = 'live'`;
+  `LEFT JOIN qr_morph_form_family f ON f.id = l.form_family_id AND f.status = 'live'`;
 interface BlockRow {
   scope_level: string; scope_key: string | null; ayah_key: string | null;
   block_type: string; block_subtype: string | null; display_order: number;
@@ -89,8 +89,8 @@ export class MorphDisplayRepo {
     const w = await queryOne<WordRow & LemmaTierRow>(
       this.db,
       `SELECT w.*,${LEMMA_TIER_SELECT}
-         FROM qr_morph_display_words w
-         LEFT JOIN qr_morph_display_lemmas l ON l.id = w.lemma_ref AND l.status = 'live'
+         FROM qr_morph_display_word w
+         LEFT JOIN qr_morph_display_lemma l ON l.id = w.lemma_ref AND l.status = 'live'
          ${FAMILY_JOIN}
         WHERE w.surah_no = ? AND w.ayah_no = ? AND w.word_index = ? AND w.status = 'live'`,
       [surah, ayah, wordIndex],
@@ -108,7 +108,7 @@ export class MorphDisplayRepo {
               title_ar, title_en, title_ur, text_ar, text_en, text_ur,
               data_json, source_slug, source_ref, source_page, is_synthesis, register, meta_json,
               registers_json, media_r2_key, media_kind, media_alt
-         FROM qr_morph_display_blocks
+         FROM qr_morph_display_block
         WHERE status = 'live' AND root_ar = ?
         ORDER BY display_order`,
       [w.root_ar ?? ''],
@@ -122,7 +122,7 @@ export class MorphDisplayRepo {
         this.db,
         `SELECT source_slug, kind, title_ar, title_en, author_name_ar, author_name_en, author_name_ur,
                 death_year_hijri, register, badge_color, badge_glyph, display_order
-           FROM qr_morph_display_sources WHERE source_slug IN (${sph}) AND is_visible = 1`,
+           FROM qr_morph_display_source WHERE source_slug IN (${sph}) AND is_visible = 1`,
         slugs,
       ).catch(() => []);
     }
@@ -130,7 +130,7 @@ export class MorphDisplayRepo {
     // Prev/next promoted word in the surah (for full-page word navigation).
     const sibs = await query<{ ayah_no: number; word_index: number; surface_ar: string }>(
       this.db,
-      `SELECT ayah_no, word_index, surface_ar FROM qr_morph_display_words
+      `SELECT ayah_no, word_index, surface_ar FROM qr_morph_display_word
         WHERE surah_no = ? AND is_promoted = 1 AND status = 'live'
         ORDER BY ayah_no, word_index`,
       [surah],
@@ -238,10 +238,10 @@ export class MorphDisplayRepo {
     const rows = await query<GridRow>(
       this.db,
       `SELECT d.*, o.morphology_tag_json AS morphology_tag_json,${LEMMA_TIER_SELECT}
-         FROM qr_morph_display_words d
-         LEFT JOIN qr_word_occurrences o
+         FROM qr_morph_display_word d
+         LEFT JOIN qr_word_occurrence o
            ON o.surah = d.surah_no AND o.ayah = d.ayah_no AND o.word_index = d.word_index
-         LEFT JOIN qr_morph_display_lemmas l ON l.id = d.lemma_ref AND l.status = 'live'
+         LEFT JOIN qr_morph_display_lemma l ON l.id = d.lemma_ref AND l.status = 'live'
          ${FAMILY_JOIN}
         WHERE d.surah_no = ? AND d.is_promoted = 1 AND d.status = 'live'
         ORDER BY d.ayah_no, d.word_index`,

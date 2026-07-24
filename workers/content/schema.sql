@@ -1,6 +1,9 @@
 -- Schema for km_content.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-07-25.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
+-- Regenerate with scripts/regen_schemas.py — do not hand-edit.
+
+-- ── Tables (38) ────────────────────────────────────────────────────
 
 CREATE TABLE cm_audio_scenes (
   scene_id           TEXT PRIMARY KEY,
@@ -148,6 +151,19 @@ CREATE TABLE cm_distributions (
   created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 
+CREATE TABLE cm_doc_ink (
+  ink_id         TEXT PRIMARY KEY,
+  note_id        TEXT NOT NULL REFERENCES cm_notes(note_id) ON DELETE CASCADE,
+  page_index     INTEGER NOT NULL DEFAULT 0,
+  kmink_json     TEXT NOT NULL,
+  pk_drawing_b64 TEXT,
+  pk_stale       INTEGER NOT NULL DEFAULT 0,
+  width          INTEGER,
+  height         INTEGER,
+  updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  UNIQUE (note_id, page_index)
+);
+
 CREATE TABLE cm_document_versions (
   version_id         TEXT PRIMARY KEY,
   doc_id             TEXT NOT NULL REFERENCES cm_documents(doc_id),
@@ -178,6 +194,67 @@ CREATE TABLE cm_documents (
   meta_json          TEXT NOT NULL DEFAULT '{}',
   created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
+CREATE TABLE cm_engine_jobs (
+  job_id          TEXT PRIMARY KEY,
+  parent_job_id   TEXT REFERENCES cm_engine_jobs(job_id),
+  root_norm       TEXT NOT NULL,
+  book_scope      TEXT,
+  engine          TEXT NOT NULL,
+  kind            TEXT NOT NULL DEFAULT 'step',
+  stage_code      TEXT,
+  op              TEXT,
+  seq             INTEGER NOT NULL DEFAULT 0,
+  params_json     TEXT NOT NULL DEFAULT '{}'  CHECK (json_valid(params_json)),
+  depends_on_json TEXT NOT NULL DEFAULT '[]'  CHECK (json_valid(depends_on_json)),
+  spawns_json     TEXT NOT NULL DEFAULT '[]'  CHECK (json_valid(spawns_json)),
+  readiness       TEXT,
+  status          TEXT NOT NULL DEFAULT 'queued',
+  skip_reason     TEXT,
+  result_ref      TEXT,
+  priority        INTEGER NOT NULL DEFAULT 0,
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  note_md         TEXT,
+  created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  started_at      TEXT,
+  finished_at     TEXT
+, audit_interval_min INTEGER, last_audit_at TEXT, progress_pct INTEGER);
+
+CREATE TABLE cm_engines (
+  engine_id     TEXT PRIMARY KEY,
+  short_name    TEXT NOT NULL UNIQUE,
+  title         TEXT NOT NULL,
+  kind          TEXT NOT NULL DEFAULT 'op',
+  pipeline      TEXT NOT NULL DEFAULT 'root_cinema',
+  stage_code    TEXT,
+  seq           INTEGER NOT NULL DEFAULT 0,
+  scope         TEXT,
+  doc_ref       TEXT REFERENCES cm_documents(doc_id),
+  summary       TEXT,
+  invoke        TEXT,
+  steps_json    TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(steps_json)),
+  ops_json      TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(ops_json)),
+  inputs_json   TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(inputs_json)),
+  targets_json  TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(targets_json)),
+  produces_min  INTEGER NOT NULL DEFAULT 0,
+  produces_max  INTEGER,
+  md_twin       TEXT,
+  status        TEXT NOT NULL DEFAULT 'live',
+  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+, module TEXT, brain TEXT, submodules_json TEXT NOT NULL DEFAULT '[]', axis TEXT NOT NULL DEFAULT 'pipeline', owns_tables_json TEXT NOT NULL DEFAULT '[]', works_tables_json TEXT NOT NULL DEFAULT '[]', responsibilities_json TEXT NOT NULL DEFAULT '[]');
+
+CREATE TABLE cm_folders (
+  id            TEXT PRIMARY KEY,
+  core_user_ref TEXT NOT NULL,
+  parent_ref    TEXT,
+  name          TEXT NOT NULL,
+  color         TEXT,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT DEFAULT (datetime('now')),
+  updated_at    TEXT DEFAULT (datetime('now'))
 );
 
 CREATE VIRTUAL TABLE cm_fts_captures USING fts5(
@@ -226,6 +303,23 @@ CREATE TABLE cm_highlights (
   meta_json          TEXT NOT NULL DEFAULT '{}',
   created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
+
+CREATE TABLE "cm_ingest_sources" (
+  family        TEXT PRIMARY KEY,
+  label         TEXT NOT NULL,
+  db            TEXT NOT NULL,
+  registry_table TEXT,
+  filter        TEXT,
+  book_count    INTEGER,
+  discipline    TEXT,
+  feeds_sublayers_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(feeds_sublayers_json)),
+  scope         TEXT,
+  register      TEXT,
+  verbatim      INTEGER NOT NULL DEFAULT 1,
+  cross_db      INTEGER NOT NULL DEFAULT 0,
+  note          TEXT,
+  status        TEXT NOT NULL DEFAULT 'live'
+, content_table TEXT, logged INTEGER NOT NULL DEFAULT 0, weak_weight_json TEXT);
 
 CREATE TABLE cm_media_assets (
   asset_id           TEXT PRIMARY KEY,
@@ -299,7 +393,7 @@ CREATE TABLE cm_notes (
   meta_json          TEXT NOT NULL DEFAULT '{}',
   created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-);
+, visibility TEXT NOT NULL DEFAULT 'private', domain     TEXT, surah      INTEGER, ayah_from  INTEGER, ayah_to    INTEGER, ocr_text TEXT, folder_ref TEXT, deleted_at TEXT);
 
 CREATE TABLE cm_publications (
   pub_id             TEXT PRIMARY KEY,
@@ -440,6 +534,18 @@ CREATE TABLE cm_sources (
   updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 
+-- ── Indexes (114) ───────────────────────────────────────────────────
+
+CREATE INDEX idx_cm_engines_kind ON cm_engines(kind);
+
+CREATE INDEX idx_cm_engines_stage ON cm_engines(pipeline, seq);
+
+CREATE INDEX idx_cm_jobs_parent ON cm_engine_jobs(parent_job_id);
+
+CREATE INDEX idx_cm_jobs_root ON cm_engine_jobs(root_norm);
+
+CREATE INDEX idx_cm_jobs_run ON cm_engine_jobs(status, priority DESC, seq);
+
 CREATE INDEX idx_cmas_asset      ON cm_audio_scenes(asset_id);
 
 CREATE INDEX idx_cmas_transcript ON cm_audio_scenes(transcript_id);
@@ -532,6 +638,8 @@ CREATE INDEX idx_cmdv_doc        ON cm_document_versions(doc_id);
 
 CREATE INDEX idx_cmdv_user       ON cm_document_versions(core_user_ref);
 
+CREATE INDEX idx_cmfolders_owner ON cm_folders(core_user_ref, parent_ref, sort_order);
+
 CREATE INDEX idx_cmh_note        ON cm_highlights(note_ref);
 
 CREATE INDEX idx_cmh_target      ON cm_highlights(target_ref);
@@ -539,6 +647,8 @@ CREATE INDEX idx_cmh_target      ON cm_highlights(target_ref);
 CREATE INDEX idx_cmh_user        ON cm_highlights(core_user_ref);
 
 CREATE INDEX idx_cmh_workspace   ON cm_highlights(workspace_ref);
+
+CREATE INDEX idx_cmink_note ON cm_doc_ink(note_id, page_index);
 
 CREATE INDEX idx_cmma_policy     ON cm_media_assets(policy_ref);
 
@@ -567,6 +677,17 @@ CREATE INDEX idx_cmn_updated     ON cm_notes(updated_at);
 CREATE INDEX idx_cmn_user        ON cm_notes(core_user_ref);
 
 CREATE INDEX idx_cmn_workspace   ON cm_notes(workspace_ref);
+
+CREATE INDEX idx_cmnotes_anchor
+  ON cm_notes(domain, surah, ayah_from, ayah_to);
+
+CREATE INDEX idx_cmnotes_folder ON cm_notes(core_user_ref, folder_ref, deleted_at);
+
+CREATE INDEX idx_cmnotes_owner
+  ON cm_notes(core_user_ref, updated_at DESC);
+
+CREATE INDEX idx_cmnotes_visibility
+  ON cm_notes(visibility, workspace_ref, updated_at DESC);
 
 CREATE INDEX idx_cmnt_note       ON cm_note_targets(note_id);
 

@@ -1,5 +1,5 @@
 // ─── /qr/lexicon/root/:root — the ROOT display record ─────────────────────────
-// Serves qr_morph_display_roots verbatim (the render layer). Every icon/label is a
+// Serves qr_morph_display_root verbatim (the render layer). Every icon/label is a
 // data field; the UI is a logic-free renderer. Icons are lucide names, pool-guarded
 // on the client. No aggregation here — this is the materialized display row.
 
@@ -34,7 +34,7 @@ export function lexiconDisplayRoutes(router: Router<QuranEnv>) {
                 hook_ar, hook_en, hook_ur,
                 family_json, lens_coverage_json, senses_json, section_icons_json,
                 semantic_field, is_anchor
-           FROM qr_morph_display_roots
+           FROM qr_morph_display_root
           WHERE root_ar = ? AND status = 'live' LIMIT 1`,
         [decoded],
       );

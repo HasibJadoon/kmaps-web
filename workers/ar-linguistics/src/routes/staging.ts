@@ -2,7 +2,7 @@
 // Backs the Data Matrix / Staging Spine tabs of the Cybernetics Control Monitor.
 //   • GET /al/staging/summary — headline counts + status breakdown + sub-layers
 //   • GET /al/staging/matrix  — root × sub_code claim counts (+ promoted) + cols
-// Every number is a live read of ar_ling_root_stage × ar_ling_reg_sub_layer.
+// Every number is a live read of ar_ling_stg_claim × ar_ling_reg_sub_layer.
 
 import type { Router } from '../../../shared/src/router';
 import { ok } from '../../../shared/src/response';

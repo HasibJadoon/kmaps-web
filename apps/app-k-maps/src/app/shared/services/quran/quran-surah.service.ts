@@ -619,7 +619,7 @@ export class QuranSurahService {
   getStudyReading(surahId: number, passageNo: number): Observable<StudyReadingResponse> {
     // Lazy, table-sourced: hits the per-step reading endpoint, which builds the
     // ayahs (both diacritic and non-diacritic forms + word tokens + muṣḥaf meta)
-    // straight from qr_ayah / qr_word_occurrences / qr_translations — not task_json.
+    // straight from qr_ayah / qr_word_occurrence / qr_translation — not task_json.
     return this.api
       .getData<{ ayah_from?: number; ayah_to?: number; ayahs?: Record<string, unknown>[] }>(
         'qr',

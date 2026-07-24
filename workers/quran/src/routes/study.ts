@@ -75,7 +75,7 @@ export function studyRoutes(router: Router<QuranEnv>) {
 
   // ── Unique roots of a passage, from the verses themselves ───────────────────
   // GET /qr/study/surahs/:surahId/passages/:passageNo/roots
-  // One row per DISTINCT root in the passage's āyāt (qr_word_occurrences).
+  // One row per DISTINCT root in the passage's āyāt (qr_word_occurrence).
 
   router.get(
     '/qr/study/surahs/:surahId/passages/:passageNo/roots',

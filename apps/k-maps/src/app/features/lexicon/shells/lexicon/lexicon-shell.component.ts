@@ -23,25 +23,25 @@ import {
 import { LexiconReaderComponent } from '../../lexicon-reader/lexicon-reader.component';
 import { BookSelectorComponent } from '../../components/book-selector/book-selector.component';
 
-export const LISAN_SLUG = 'ketabonline_ibn_manzur_lisan_al_arab';
+export const LISAN_SLUG = 'ibn_manzur_lisan_arab';
 
 // All slugs that this shell can render. The back-end composer exposes
 // the same response shape for each. Adding a slug here lets the shell
 // fetch + render it without any further changes.
 export const CLASSICAL_LEXICON_SLUGS = new Set<string>([
   LISAN_SLUG,
-  'ketabonline_al_jawhari_al_sihah',
-  'thahabi_al_khalil_kitab_al_ayn',
-  'saaid_maqayis_al_lugha',
-  'qomra_al_ubab_al_zakhir',
+  'jawhari_sihah',
+  'khalil_kitab_ayn',
+  'maqayis_lugha',
+  'ubab_zakhir',
   // Sources whose ingestion chunker emitted {…} braces (al-Qamus matn for
   // Taj, parenthesized headwords for Misbah / Jamharat). Their Qur'ān
   // citations were resolved offline and live in quran_refs; the composer
   // handles the rest as standard classical-lexicon content.
-  'ketabonline_al_zabidi_taj_al_arus',
-  'ketabonline_al_fayyumi_misbah_munir',
-  'ketabonline_ibn_duraid_jamharat_al_lugha',
-  'qomra_al_qamus_al_muhit',
+  'zabidi_taj_arus',
+  'fayyumi_misbah_munir',
+  'ibn_durayd_jamharat_lugha',
+  'qamus_muhit',
 ]);
 
 const RAIL = {

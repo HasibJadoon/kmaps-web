@@ -1,7 +1,7 @@
 // ─── OuterHorizonRepo — Layer 11: Outer Historical + Textual + Civilizational ─
 // Tables: qr_context_topics, qr_context_topic_links, qr_context_claims,
 //         qr_context_evidence_items, qr_context_evidence_links,
-//         qr_historical_context_profiles,
+//         qr_historical_context,
 //         qr_academic_question_registry, qr_academic_positions
 
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
@@ -398,14 +398,14 @@ export class OuterHorizonRepo {
       // Single-surah lookup — skip paginate overhead
       return queryOne<HistoricalContextProfile>(
         this.db,
-        `SELECT ${HCP_COLS} FROM qr_historical_context_profiles WHERE surah = ?`,
+        `SELECT ${HCP_COLS} FROM qr_historical_context WHERE surah = ?`,
         [surahId],
       );
     }
     return paginate<HistoricalContextProfile>(
       this.db,
-      `SELECT ${HCP_COLS} FROM qr_historical_context_profiles ORDER BY surah`,
-      `SELECT COUNT(*) AS count FROM qr_historical_context_profiles`,
+      `SELECT ${HCP_COLS} FROM qr_historical_context ORDER BY surah`,
+      `SELECT COUNT(*) AS count FROM qr_historical_context`,
       [],
       opts,
     );
@@ -417,14 +417,14 @@ export class OuterHorizonRepo {
   ): Promise<HistoricalContextProfile> {
     const existing = await queryOne<{ surah: number }>(
       this.db,
-      `SELECT surah FROM qr_historical_context_profiles WHERE surah = ?`,
+      `SELECT surah FROM qr_historical_context WHERE surah = ?`,
       [surahId],
     );
 
     if (existing) {
       await execute(
         this.db,
-        `UPDATE qr_historical_context_profiles SET
+        `UPDATE qr_historical_context SET
            arabian_milieu = ?,
            political_context = ?,
            late_antique_setting = ?,
@@ -443,7 +443,7 @@ export class OuterHorizonRepo {
     } else {
       await execute(
         this.db,
-        `INSERT INTO qr_historical_context_profiles
+        `INSERT INTO qr_historical_context
            (surah, arabian_milieu, political_context,
             late_antique_setting, inter_scriptural_env, note_md)
          VALUES (?, ?, ?, ?, ?, ?)`,
@@ -460,7 +460,7 @@ export class OuterHorizonRepo {
 
     return (await queryOne<HistoricalContextProfile>(
       this.db,
-      `SELECT ${HCP_COLS} FROM qr_historical_context_profiles WHERE surah = ?`,
+      `SELECT ${HCP_COLS} FROM qr_historical_context WHERE surah = ?`,
       [surahId],
     ))!;
   }

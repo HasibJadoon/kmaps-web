@@ -1,4 +1,4 @@
-// ─── /al/lex/v2/read/al_raghib_mufradat/:root_norm ───────────────
+// ─── /al/lex/v2/read/raghib_mufradat/:root_norm ───────────────
 //
 // Reader-ready endpoint for Mufradat al-Quran (al-Raghib al-Isfahani).
 //
@@ -32,7 +32,7 @@ import { SourcesRepo } from '../repositories/sources.repo';
 
 // Slug stays in code — URL path segment, not metadata. SOURCE_META object
 // retired in favour of D1-backed metadata via SourcesRepo.bySlug(SOURCE_SLUG).
-const SOURCE_SLUG = 'al_raghib_mufradat';
+const SOURCE_SLUG = 'raghib_mufradat';
 
 interface MufradatSourceMeta {
   slug:      string;
@@ -176,14 +176,14 @@ export function lexiconMufradatRoutes(router: Router<ArLinguisticsEnv>) {
         `SELECT id, root_text, root_norm, root_id, raw_text,
                 page_start, page_end, volume_no, source_url, source_native_id,
                 family_json, entry_gloss_json
-         FROM ar_ling_lexicon_root_entries
+         FROM ar_ling_lexicon_entry
          WHERE source_slug = ? AND root_norm = ? LIMIT 1`
       ).bind(SOURCE_SLUG, root_norm).first<any>().catch(() => undefined);
       if (entry === undefined) {
         entry = await env.DB_AL.prepare(
           `SELECT id, root_text, root_norm, root_id, raw_text,
                   page_start, page_end, volume_no, source_url, source_native_id
-           FROM ar_ling_lexicon_root_entries
+           FROM ar_ling_lexicon_entry
            WHERE source_slug = ? AND root_norm = ? LIMIT 1`
         ).bind(SOURCE_SLUG, root_norm).first<any>();
       }
@@ -192,7 +192,7 @@ export function lexiconMufradatRoutes(router: Router<ArLinguisticsEnv>) {
       let sectionsRaw = (await env.DB_AL.prepare(
         `SELECT id, section_seq, heading_ar, heading_norm, section_type,
                 text_ar, page_no, translation_en, translation_ur
-         FROM ar_ling_lexicon_entry_sections
+         FROM ar_ling_lexicon_entry_section
          WHERE source_slug = ? AND root_norm = ?
          ORDER BY section_seq`
       ).bind(SOURCE_SLUG, root_norm).all<any>().then(r => r.results ?? [])
@@ -201,7 +201,7 @@ export function lexiconMufradatRoutes(router: Router<ArLinguisticsEnv>) {
         sectionsRaw = (await env.DB_AL.prepare(
           `SELECT id, section_seq, heading_ar, heading_norm, section_type,
                   text_ar, page_no
-           FROM ar_ling_lexicon_entry_sections
+           FROM ar_ling_lexicon_entry_section
            WHERE source_slug = ? AND root_norm = ?
            ORDER BY section_seq`
         ).bind(SOURCE_SLUG, root_norm).all<any>()).results ?? [];
@@ -210,7 +210,7 @@ export function lexiconMufradatRoutes(router: Router<ArLinguisticsEnv>) {
       const blocks = (await env.DB_AL.prepare(
         `SELECT id, section_id, parent_block_id, block_seq, block_type,
                 title_ar, text_plain, data_json
-         FROM ar_ling_lexicon_blocks
+         FROM ar_ling_lexicon_block
          WHERE source_slug = ? AND root_norm = ?
          ORDER BY block_seq`
       ).bind(SOURCE_SLUG, root_norm).all<any>()).results ?? [];

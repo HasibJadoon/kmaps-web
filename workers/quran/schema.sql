@@ -1,6 +1,11 @@
--- Snapshot regenerated from live D1 km_quran (8dbd5053-c9b8-4dd0-9e45-1d66d3a58fba) 2026-07-17 — canonical-v1
+-- Schema for km_quran.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-07-25.
+-- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
+-- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
-CREATE TABLE qr_analysis_claims (
+-- ── Tables (126) ────────────────────────────────────────────────────
+
+CREATE TABLE "qr_analysis_claim" (
   id                   TEXT PRIMARY KEY,
   scope_id             TEXT NOT NULL,
   claim_type           TEXT NOT NULL,
@@ -10,12 +15,12 @@ CREATE TABLE qr_analysis_claims (
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (scope_id) REFERENCES qr_analysis_scopes(id)
+  FOREIGN KEY (scope_id) REFERENCES "qr_analysis_scope"(id)
 );
 
 CREATE VIRTUAL TABLE qr_analysis_claims_fts USING fts5(scope_id UNINDEXED, claim_type, claim_text, claim_text_ar);
 
-CREATE TABLE qr_analysis_scopes (
+CREATE TABLE "qr_analysis_scope" (
   id                   TEXT PRIMARY KEY,
   scope_type           TEXT NOT NULL,
   surah                INTEGER,
@@ -27,18 +32,7 @@ CREATE TABLE qr_analysis_scopes (
   created_at           TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_argument_relations (
-  id                   TEXT PRIMARY KEY,
-  from_argument_id     TEXT NOT NULL,
-  to_argument_id       TEXT NOT NULL,
-  relation_type        TEXT NOT NULL,
-  note_md              TEXT,
-  created_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (from_argument_id) REFERENCES qr_arguments(id),
-  FOREIGN KEY (to_argument_id)   REFERENCES qr_arguments(id)
-);
-
-CREATE TABLE qr_arguments (
+CREATE TABLE "qr_argument" (
   id                   TEXT PRIMARY KEY,
   surah                INTEGER,
   title                TEXT NOT NULL,
@@ -51,7 +45,18 @@ CREATE TABLE qr_arguments (
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
+);
+
+CREATE TABLE "qr_argument_link" (
+  id                   TEXT PRIMARY KEY,
+  from_argument_id     TEXT NOT NULL,
+  to_argument_id       TEXT NOT NULL,
+  relation_type        TEXT NOT NULL,
+  note_md              TEXT,
+  created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (from_argument_id) REFERENCES "qr_argument"(id),
+  FOREIGN KEY (to_argument_id)   REFERENCES "qr_argument"(id)
 );
 
 CREATE TABLE qr_ayah (
@@ -68,10 +73,19 @@ CREATE TABLE qr_ayah (
   created_at        TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at        TEXT NOT NULL DEFAULT (datetime('now')), juz INTEGER, hizb INTEGER, ruku INTEGER,
   UNIQUE (surah, ayah),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_claim_evidence_links (
+CREATE TABLE "qr_citation" (
+  id TEXT PRIMARY KEY, root_norm TEXT, from_domain TEXT NOT NULL DEFAULT 'qr',
+  from_layer TEXT NOT NULL, from_id TEXT NOT NULL, to_ref TEXT NOT NULL, to_kind TEXT NOT NULL,
+  relation TEXT NOT NULL DEFAULT 'grounds', source_slug TEXT, page_no INTEGER, quote_ar TEXT,
+  confidence REAL, origin TEXT NOT NULL DEFAULT 'backfill', status TEXT NOT NULL DEFAULT 'live',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (from_domain, from_layer, from_id, to_ref, relation)
+);
+
+CREATE TABLE "qr_claim_evidence_link" (
   id                   TEXT PRIMARY KEY,
   claim_id             TEXT NOT NULL,
   evidence_id          TEXT NOT NULL,
@@ -79,11 +93,11 @@ CREATE TABLE qr_claim_evidence_links (
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (claim_id, evidence_id),
-  FOREIGN KEY (claim_id)   REFERENCES qr_analysis_claims(id),
-  FOREIGN KEY (evidence_id) REFERENCES qr_evidence_items(id)
+  FOREIGN KEY (claim_id)   REFERENCES "qr_analysis_claim"(id),
+  FOREIGN KEY (evidence_id) REFERENCES "qr_evidence"(id)
 );
 
-CREATE TABLE qr_debate_clusters (
+CREATE TABLE "qr_debate_cluster" (
   id                   TEXT PRIMARY KEY,
   surah                INTEGER,
   title_en             TEXT NOT NULL,
@@ -95,10 +109,10 @@ CREATE TABLE qr_debate_clusters (
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_doc_links (
+CREATE TABLE "qr_doc_link" (
   id                   TEXT PRIMARY KEY,
   qr_scope_type        TEXT NOT NULL,
   qr_scope_id          TEXT NOT NULL,
@@ -108,7 +122,7 @@ CREATE TABLE qr_doc_links (
   created_at           TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_evidence_items (
+CREATE TABLE "qr_evidence" (
   id                   TEXT PRIMARY KEY,
   evidence_type        TEXT NOT NULL,
   provenance           TEXT,
@@ -125,7 +139,7 @@ CREATE TABLE qr_evidence_items (
 
 CREATE VIRTUAL TABLE qr_evidence_items_fts USING fts5(evidence_type, provenance, content_text, content_text_ar);
 
-CREATE TABLE qr_historical_context_profiles (
+CREATE TABLE "qr_historical_context" (
   surah                INTEGER PRIMARY KEY,
   arabian_milieu       TEXT,
   political_context    TEXT,
@@ -133,10 +147,10 @@ CREATE TABLE qr_historical_context_profiles (
   inter_scriptural_env TEXT,
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_interpretive_differences (
+CREATE TABLE "qr_interpretive_difference" (
   id                   TEXT PRIMARY KEY,
   scope_type           TEXT NOT NULL,
   surah                INTEGER,
@@ -155,7 +169,7 @@ CREATE TABLE qr_interpretive_differences (
   updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_iraab_book_display_blocks (
+CREATE TABLE "qr_irab_book_display_block" (
   id                  TEXT PRIMARY KEY,
   -- Provenance ----------------------------------------------------------------
   source_id           TEXT,
@@ -205,7 +219,7 @@ CREATE TABLE qr_iraab_book_display_blocks (
   updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE VIRTUAL TABLE qr_iraab_book_display_blocks_fts
+CREATE VIRTUAL TABLE "qr_irab_book_display_block_fts"
 USING fts5 (
   block_id UNINDEXED,
   source_slug UNINDEXED,
@@ -220,7 +234,7 @@ USING fts5 (
   tokenize = "unicode61 remove_diacritics 2"
 );
 
-CREATE TABLE qr_iraab_book_display_links (
+CREATE TABLE "qr_irab_book_display_link" (
   id            TEXT PRIMARY KEY,
   from_block_id TEXT NOT NULL,
   to_block_id   TEXT NOT NULL,
@@ -231,7 +245,7 @@ CREATE TABLE qr_iraab_book_display_links (
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_iraab_book_display_notes (
+CREATE TABLE "qr_irab_book_display_note" (
   id              TEXT PRIMARY KEY,
   block_id        TEXT,                                -- nullable: notes can stand alone
   note_kind       TEXT NOT NULL,                       -- 'author'|'teaching'|'footnote'|'reviewer'
@@ -250,7 +264,7 @@ CREATE TABLE qr_iraab_book_display_notes (
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_iraab_book_display_refs (
+CREATE TABLE "qr_irab_book_display_ref" (
   id              TEXT PRIMARY KEY,
   block_id        TEXT NOT NULL,
   ref_kind        TEXT NOT NULL,                       -- 'ayah'|'word'|'lemma'|'root'|'concept'
@@ -266,7 +280,7 @@ CREATE TABLE qr_iraab_book_display_refs (
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_iraab_book_display_sources (
+CREATE TABLE "qr_irab_book_display_source" (
   id                TEXT PRIMARY KEY,                  -- mirrors qr_irab_sources.id
   source_slug       TEXT NOT NULL UNIQUE,
   book_title_ar     TEXT,
@@ -286,7 +300,7 @@ CREATE TABLE qr_iraab_book_display_sources (
   updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_iraab_book_display_tags (
+CREATE TABLE "qr_irab_book_display_tag" (
   id              TEXT PRIMARY KEY,
   block_id        TEXT NOT NULL,                       -- → qr_iraab_book_display_blocks.id
   tag_kind        TEXT NOT NULL,                       -- 'general'|'grammar'|'sarf'|'balagha'|'topic'|'review'
@@ -296,7 +310,7 @@ CREATE TABLE qr_iraab_book_display_tags (
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE "qr_irab_book_entries" (
+CREATE TABLE "qr_irab_book_entry" (
   id TEXT PRIMARY KEY,
   source_id TEXT,
   source_slug TEXT NOT NULL,
@@ -341,7 +355,7 @@ CREATE TABLE "qr_irab_book_entries" (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_irab_extraction_runs (
+CREATE TABLE "qr_irab_extraction_run" (
   id TEXT PRIMARY KEY,
   source_slug TEXT NOT NULL,
   resource_id INTEGER,
@@ -358,7 +372,7 @@ CREATE TABLE qr_irab_extraction_runs (
   error_message TEXT
 );
 
-CREATE TABLE qr_irab_import_errors (
+CREATE TABLE "qr_irab_import_error" (
   id TEXT PRIMARY KEY,
   extraction_run_id TEXT,
   source_slug TEXT,
@@ -372,7 +386,22 @@ CREATE TABLE qr_irab_import_errors (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE qr_irab_source_chunks (
+CREATE TABLE "qr_irab_source" (
+  id TEXT PRIMARY KEY,
+  source_slug TEXT NOT NULL UNIQUE,
+  source_title_ar TEXT,
+  source_title_en TEXT,
+  source_kind TEXT NOT NULL DEFAULT 'irab_book',
+  source_version TEXT,
+  source_downloaded_at TEXT,
+  source_file_hash TEXT,
+  source_file_size INTEGER,
+  note_md TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE "qr_irab_source_chunk" (
   id TEXT PRIMARY KEY,
   extraction_run_id TEXT,
   source_id TEXT,
@@ -398,34 +427,7 @@ CREATE TABLE qr_irab_source_chunks (
   UNIQUE(source_slug, source_record_id, section_kind, section_order)
 );
 
-CREATE TABLE qr_irab_sources (
-  id TEXT PRIMARY KEY,
-  source_slug TEXT NOT NULL UNIQUE,
-  source_title_ar TEXT,
-  source_title_en TEXT,
-  source_kind TEXT NOT NULL DEFAULT 'irab_book',
-  source_version TEXT,
-  source_downloaded_at TEXT,
-  source_file_hash TEXT,
-  source_file_size INTEGER,
-  note_md TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE qr_lemma_occurrences (
-  id                TEXT PRIMARY KEY,
-  lemma_id          TEXT NOT NULL,
-  surah             INTEGER NOT NULL,
-  ayah              INTEGER NOT NULL,
-  word_index        INTEGER NOT NULL,
-  word_occurrence_id TEXT NOT NULL,
-  UNIQUE (lemma_id, surah, ayah, word_index),
-  FOREIGN KEY (lemma_id)          REFERENCES qr_lemmas(id),
-  FOREIGN KEY (word_occurrence_id) REFERENCES qr_word_occurrences(id)
-);
-
-CREATE TABLE qr_lemmas (
+CREATE TABLE "qr_lemma" (
   id                TEXT PRIMARY KEY,
   lemma_text        TEXT NOT NULL UNIQUE,
   root              TEXT,
@@ -435,7 +437,19 @@ CREATE TABLE qr_lemmas (
   updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
 , wazn_ar TEXT);
 
-CREATE TABLE "qr_morph_display_blocks" (
+CREATE TABLE "qr_lemma_occurrence" (
+  id                TEXT PRIMARY KEY,
+  lemma_id          TEXT NOT NULL,
+  surah             INTEGER NOT NULL,
+  ayah              INTEGER NOT NULL,
+  word_index        INTEGER NOT NULL,
+  word_occurrence_id TEXT NOT NULL,
+  UNIQUE (lemma_id, surah, ayah, word_index),
+  FOREIGN KEY (lemma_id)          REFERENCES "qr_lemma"(id),
+  FOREIGN KEY (word_occurrence_id) REFERENCES "qr_word_occurrence"(id)
+);
+
+CREATE TABLE "qr_morph_display_block" (
   id TEXT PRIMARY KEY,
   scope_level TEXT NOT NULL CHECK (scope_level IN ('root','lemma','context')),
   scope_key   TEXT NOT NULL,
@@ -447,7 +461,7 @@ CREATE TABLE "qr_morph_display_blocks" (
   title_ar TEXT, title_en TEXT, title_ur TEXT,
   text_ar TEXT, text_en TEXT, text_ur TEXT,
   data_json JSON NOT NULL DEFAULT '{}',
-  source_slug TEXT NOT NULL REFERENCES qr_morph_display_sources(source_slug),
+  source_slug TEXT NOT NULL REFERENCES "qr_morph_display_source"(source_slug),
   source_ref TEXT, source_page TEXT,
   is_synthesis INTEGER NOT NULL DEFAULT 0, register TEXT,
   confidence TEXT DEFAULT 'medium', status TEXT NOT NULL DEFAULT 'live', meta_json JSON,
@@ -459,7 +473,7 @@ CREATE TABLE "qr_morph_display_blocks" (
       OR (is_synthesis = 0 AND source_slug NOT LIKE 'kmaps_%' AND source_ref IS NOT NULL))
 );
 
-CREATE TABLE qr_morph_display_lemmas (
+CREATE TABLE "qr_morph_display_lemma" (
   id            TEXT PRIMARY KEY,            -- 'MDL:{bare}#{qr_lemmas.id[:8]}'
   lemma_ref     TEXT NOT NULL UNIQUE,        -- qr_lemmas.id (the real key)
   lemma_ar      TEXT NOT NULL,
@@ -505,7 +519,7 @@ CREATE TABLE qr_morph_display_media (
   updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_morph_display_roots (
+CREATE TABLE "qr_morph_display_root" (
   id                 TEXT PRIMARY KEY,             -- 'MDR:بين'
   root_ar            TEXT NOT NULL UNIQUE,         -- 'بين'
   root_display       TEXT,                         -- 'ب ي ن'
@@ -529,9 +543,8 @@ CREATE TABLE qr_morph_display_roots (
   created_at         TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
 , root_uid TEXT, al_root_ref TEXT, content_source TEXT NOT NULL DEFAULT 'al_projection', content_synced_at TEXT);
-CREATE INDEX idx_qr_mdr_al_ref ON qr_morph_display_roots(al_root_ref);
 
-CREATE TABLE qr_morph_display_sources (
+CREATE TABLE "qr_morph_display_source" (
   id TEXT PRIMARY KEY, source_slug TEXT NOT NULL UNIQUE, kind TEXT NOT NULL,
   title_ar TEXT, title_en TEXT, author_name_ar TEXT, author_name_en TEXT,
   death_year_hijri INTEGER, register TEXT, badge_color TEXT, badge_glyph TEXT,
@@ -539,7 +552,7 @@ CREATE TABLE qr_morph_display_sources (
   meta_json JSON, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 , title_ur TEXT, author_name_ur TEXT, icon TEXT);
 
-CREATE TABLE qr_morph_display_words (
+CREATE TABLE "qr_morph_display_word" (
   id TEXT PRIMARY KEY, word_occ_ref TEXT, surah_no INTEGER NOT NULL, ayah_no INTEGER NOT NULL,
   word_index INTEGER NOT NULL, ayah_key TEXT, surface_ar TEXT NOT NULL, surface_bare TEXT,
   lemma_ar TEXT, root_ar TEXT, root_display TEXT, root_ref TEXT, word_group TEXT NOT NULL,
@@ -552,7 +565,7 @@ CREATE TABLE qr_morph_display_words (
   UNIQUE(surah_no, ayah_no, word_index)
 );
 
-CREATE TABLE qr_morph_form_families (
+CREATE TABLE "qr_morph_form_family" (
   id            TEXT PRIMARY KEY,          -- 'FORM:IV' · 'BAB:nasara'
   family_order  INTEGER NOT NULL,          -- 1..N display order
   kind          TEXT NOT NULL,             -- 'form_i_bab' | 'derived_verb' | 'noun'
@@ -568,7 +581,7 @@ CREATE TABLE qr_morph_form_families (
   status        TEXT NOT NULL DEFAULT 'live'
 , tier TEXT);
 
-CREATE TABLE qr_morph_form_tiers (
+CREATE TABLE "qr_morph_form_tier" (
   tier_key     TEXT PRIMARY KEY,
   tier_order   INTEGER NOT NULL,
   arabic_name  TEXT NOT NULL,
@@ -577,7 +590,7 @@ CREATE TABLE qr_morph_form_tiers (
   icon         TEXT
 );
 
-CREATE TABLE qr_mushaf_layout_lines (
+CREATE TABLE "qr_mushaf_layout_line" (
   id              TEXT PRIMARY KEY,
   layout_key      TEXT NOT NULL,
   page_number     INTEGER NOT NULL,
@@ -594,25 +607,25 @@ CREATE TABLE qr_mushaf_layout_lines (
   UNIQUE (layout_key, page_number, line_number)
 );
 
-CREATE TABLE "qr_passage_analysis_cache" (
+CREATE TABLE "qr_passage_analysis" (
   id                 TEXT PRIMARY KEY,
   surah              INTEGER NOT NULL,
   study_passage_id   TEXT,
   cache_version      INTEGER NOT NULL DEFAULT 1,
   cache_generated_at TEXT,
   payload_json       TEXT,
-  FOREIGN KEY (surah)            REFERENCES qr_surahs(id),
-  FOREIGN KEY (study_passage_id) REFERENCES qr_surah_study_passages(id)
+  FOREIGN KEY (surah)            REFERENCES "qr_surah"(id),
+  FOREIGN KEY (study_passage_id) REFERENCES "qr_surah_study_passage"(id)
 );
 
-CREATE TABLE qr_passage_sections (
+CREATE TABLE "qr_passage_section" (
   id TEXT PRIMARY KEY, passage_id TEXT NOT NULL, surah INTEGER NOT NULL,
   sort_order INTEGER NOT NULL DEFAULT 0, section_key TEXT, title TEXT, badge TEXT,
   tone TEXT, renderer TEXT NOT NULL, data_json TEXT,
   status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_quran_bil_quran_relations (
+CREATE TABLE "qr_quran_bil_quran_link" (
   id                   TEXT PRIMARY KEY,
   from_surah           INTEGER NOT NULL,
   from_ayah            INTEGER NOT NULL,
@@ -622,8 +635,8 @@ CREATE TABLE qr_quran_bil_quran_relations (
   scholar_ref          TEXT,
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (from_surah) REFERENCES qr_surahs(id),
-  FOREIGN KEY (to_surah)   REFERENCES qr_surahs(id)
+  FOREIGN KEY (from_surah) REFERENCES "qr_surah"(id),
+  FOREIGN KEY (to_surah)   REFERENCES "qr_surah"(id)
 );
 
 CREATE TABLE qr_root_registry (
@@ -632,17 +645,17 @@ CREATE TABLE qr_root_registry (
   buckwalter TEXT
 );
 
-CREATE TABLE qr_scholar_paradigm_links (
+CREATE TABLE "qr_scholar_paradigm_link" (
   scholar_id           TEXT NOT NULL,
   paradigm_id          TEXT NOT NULL,
   affiliation_type     TEXT NOT NULL DEFAULT 'primary',
   note_md              TEXT,
   PRIMARY KEY (scholar_id, paradigm_id),
-  FOREIGN KEY (scholar_id)  REFERENCES qr_scholar_profiles(id),
-  FOREIGN KEY (paradigm_id) REFERENCES qr_scholarly_paradigms(id)
+  FOREIGN KEY (scholar_id)  REFERENCES "qr_scholar_profile"(id),
+  FOREIGN KEY (paradigm_id) REFERENCES "qr_scholarly_paradigm"(id)
 );
 
-CREATE TABLE qr_scholar_positions (
+CREATE TABLE "qr_scholar_position" (
   id                   TEXT PRIMARY KEY,
   scholar_id           TEXT NOT NULL,
   work_id              TEXT,
@@ -660,13 +673,13 @@ CREATE TABLE qr_scholar_positions (
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (scholar_id) REFERENCES qr_scholar_profiles(id),
-  FOREIGN KEY (work_id)    REFERENCES qr_scholar_works(id)
+  FOREIGN KEY (scholar_id) REFERENCES "qr_scholar_profile"(id),
+  FOREIGN KEY (work_id)    REFERENCES "qr_scholar_work"(id)
 );
 
 CREATE VIRTUAL TABLE qr_scholar_positions_fts USING fts5(scholar_id UNINDEXED, surah UNINDEXED, position_type, position_text_ar, position_text_en, position_summary);
 
-CREATE TABLE qr_scholar_profiles (
+CREATE TABLE "qr_scholar_profile" (
   id                   TEXT PRIMARY KEY,
   name_ar              TEXT NOT NULL,
   name_en              TEXT,
@@ -689,7 +702,7 @@ CREATE TABLE qr_scholar_profiles (
 
 CREATE VIRTUAL TABLE qr_scholar_profiles_fts USING fts5(name_ar, name_en, laqab, nisba, biography_md);
 
-CREATE TABLE qr_scholar_works (
+CREATE TABLE "qr_scholar_work" (
   id                   TEXT PRIMARY KEY,
   scholar_id           TEXT NOT NULL,
   title_ar             TEXT NOT NULL,
@@ -704,10 +717,10 @@ CREATE TABLE qr_scholar_works (
   summary              TEXT,
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (scholar_id) REFERENCES qr_scholar_profiles(id)
+  FOREIGN KEY (scholar_id) REFERENCES "qr_scholar_profile"(id)
 );
 
-CREATE TABLE qr_scholarly_paradigms (
+CREATE TABLE "qr_scholarly_paradigm" (
   id                   TEXT PRIMARY KEY,
   name_ar              TEXT NOT NULL,
   name_en              TEXT NOT NULL,
@@ -717,7 +730,7 @@ CREATE TABLE qr_scholarly_paradigms (
   created_at           TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_scope_nuances (
+CREATE TABLE "qr_scope_nuance" (
   id                   TEXT PRIMARY KEY,
   scope_id             TEXT NOT NULL,
   claim_id             TEXT,
@@ -727,10 +740,10 @@ CREATE TABLE qr_scope_nuances (
   discourse_force      TEXT,
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (scope_id) REFERENCES qr_analysis_scopes(id)
+  FOREIGN KEY (scope_id) REFERENCES "qr_analysis_scope"(id)
 );
 
-CREATE TABLE qr_scope_topics (
+CREATE TABLE "qr_scope_topic" (
   id                   TEXT PRIMARY KEY,
   topic_id             TEXT NOT NULL,
   scope_type           TEXT NOT NULL,
@@ -741,7 +754,7 @@ CREATE TABLE qr_scope_topics (
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (topic_id) REFERENCES qr_topic_registry(id),
-  FOREIGN KEY (surah)    REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah)    REFERENCES "qr_surah"(id)
 );
 
 CREATE TABLE qr_ss_discourse_citation (
@@ -848,7 +861,7 @@ CREATE TABLE qr_ss_occ_phrase (
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (clause_id)    REFERENCES qr_ss_occ_clause(id),
-  FOREIGN KEY (head_word_id) REFERENCES qr_word_occurrences(id)
+  FOREIGN KEY (head_word_id) REFERENCES "qr_word_occurrence"(id)
 );
 
 CREATE TABLE qr_ss_occ_segment (
@@ -862,7 +875,7 @@ CREATE TABLE qr_ss_occ_segment (
   lx_particle_ref      TEXT,
   morphology_tag       TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (word_occurrence_id) REFERENCES qr_word_occurrences(id)
+  FOREIGN KEY (word_occurrence_id) REFERENCES "qr_word_occurrence"(id)
 );
 
 CREATE TABLE qr_ss_occ_sentence (
@@ -878,7 +891,7 @@ CREATE TABLE qr_ss_occ_sentence (
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
 CREATE TABLE qr_ss_pattern_register (
@@ -915,6 +928,18 @@ CREATE TABLE qr_ss_scope_grammar_link (
   created_at           TEXT NOT NULL DEFAULT (datetime('now'))
 , gloss_json TEXT CHECK (gloss_json IS NULL OR json_valid(gloss_json)));
 
+CREATE TABLE "qr_ss_scope_link" (
+  id                   TEXT PRIMARY KEY,
+  from_scope_type      TEXT NOT NULL,
+  from_scope_id        TEXT NOT NULL,
+  to_scope_type        TEXT NOT NULL,
+  to_scope_id          TEXT NOT NULL,
+  relation_type        TEXT NOT NULL,
+  lx_relation_ref      TEXT,
+  note_md              TEXT,
+  created_at           TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE qr_ss_scope_member_map (
   id                   TEXT PRIMARY KEY,
   word_occurrence_id   TEXT NOT NULL,
@@ -923,7 +948,7 @@ CREATE TABLE qr_ss_scope_member_map (
   member_role          TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (word_occurrence_id, scope_type, scope_id),
-  FOREIGN KEY (word_occurrence_id) REFERENCES qr_word_occurrences(id)
+  FOREIGN KEY (word_occurrence_id) REFERENCES "qr_word_occurrence"(id)
 );
 
 CREATE TABLE qr_ss_scope_morph_link (
@@ -978,24 +1003,12 @@ CREATE TABLE qr_ss_scope_reading_evidence_link (
   support_type         TEXT NOT NULL DEFAULT 'supports',
   PRIMARY KEY (reading_id, evidence_id),
   FOREIGN KEY (reading_id)  REFERENCES qr_ss_scope_reading(id),
-  FOREIGN KEY (evidence_id) REFERENCES qr_evidence_items(id)
+  FOREIGN KEY (evidence_id) REFERENCES "qr_evidence"(id)
 );
 
 CREATE VIRTUAL TABLE qr_ss_scope_reading_fts USING fts5(scope_type UNINDEXED, scope_id UNINDEXED, reading_type, reading_text, reading_text_ar);
 
-CREATE TABLE qr_ss_scope_relations (
-  id                   TEXT PRIMARY KEY,
-  from_scope_type      TEXT NOT NULL,
-  from_scope_id        TEXT NOT NULL,
-  to_scope_type        TEXT NOT NULL,
-  to_scope_id          TEXT NOT NULL,
-  relation_type        TEXT NOT NULL,
-  lx_relation_ref      TEXT,
-  note_md              TEXT,
-  created_at           TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE qr_ss_syntax_relations (
+CREATE TABLE "qr_ss_syntax_link" (
   id                   TEXT PRIMARY KEY,
   surah                INTEGER NOT NULL,
   ayah                 INTEGER NOT NULL,
@@ -1005,8 +1018,8 @@ CREATE TABLE qr_ss_syntax_relations (
   lx_rel_type_ref      TEXT,
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (head_word_id) REFERENCES qr_word_occurrences(id),
-  FOREIGN KEY (dep_word_id)  REFERENCES qr_word_occurrences(id)
+  FOREIGN KEY (head_word_id) REFERENCES "qr_word_occurrence"(id),
+  FOREIGN KEY (dep_word_id)  REFERENCES "qr_word_occurrence"(id)
 );
 
 CREATE TABLE qr_ss_term (
@@ -1117,7 +1130,7 @@ CREATE TABLE qr_ss_tree_edge (
   FOREIGN KEY (child_node_id)  REFERENCES qr_ss_tree_node(id)
 );
 
-CREATE TABLE qr_ss_tree_layout_cache (
+CREATE TABLE "qr_ss_tree_layout" (
   tree_id              TEXT PRIMARY KEY,
   layout_json          TEXT NOT NULL,
   renderer             TEXT NOT NULL DEFAULT 'd3_tidy_tree',
@@ -1157,7 +1170,7 @@ CREATE TABLE qr_ss_vocab_register (
   PRIMARY KEY (kind, key)
 );
 
-CREATE TABLE qr_study_questions (
+CREATE TABLE "qr_study_question" (
   id            TEXT PRIMARY KEY,
   surah         INTEGER NOT NULL,
   passage_id    TEXT,
@@ -1175,19 +1188,33 @@ CREATE TABLE qr_study_questions (
   note_md       TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id),
-  FOREIGN KEY (passage_id) REFERENCES qr_surah_study_passages(id) ON DELETE CASCADE
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id),
+  FOREIGN KEY (passage_id) REFERENCES "qr_surah_study_passage"(id) ON DELETE CASCADE
 );
 
-CREATE TABLE qr_surah_analysis_cache (
+CREATE TABLE "qr_surah" (
+  id                INTEGER PRIMARY KEY,
+  name_ar           TEXT NOT NULL,
+  name_en           TEXT NOT NULL,
+  name_transliteration TEXT,
+  revelation_type   TEXT NOT NULL DEFAULT 'makki',
+  ayah_count        INTEGER NOT NULL,
+  juz_start         INTEGER,
+  page_start        INTEGER,
+  order_revelation  INTEGER,
+  created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE "qr_surah_analysis" (
   surah                INTEGER PRIMARY KEY,
   cache_version        INTEGER NOT NULL DEFAULT 1,
   cache_generated_at   TEXT,
   payload_json         TEXT,
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_atomic_profiles (
+CREATE TABLE "qr_surah_atomic_profile" (
   surah                  INTEGER PRIMARY KEY,
   atomic_center          TEXT NOT NULL,
   atomic_center_ar       TEXT,
@@ -1198,7 +1225,7 @@ CREATE TABLE qr_surah_atomic_profiles (
   note_md                TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at             TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
 CREATE TABLE qr_surah_ayah_meta (
@@ -1210,10 +1237,10 @@ CREATE TABLE qr_surah_ayah_meta (
   manzil            INTEGER,
   sajda             INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (surah, ayah),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_clause_patterns (
+CREATE TABLE "qr_surah_clause_pattern" (
   surah                INTEGER PRIMARY KEY,
   dominant_clause_type TEXT,
   nominal_clause_pct   REAL,
@@ -1225,10 +1252,10 @@ CREATE TABLE qr_surah_clause_patterns (
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_closures (
+CREATE TABLE "qr_surah_closure" (
   surah                  INTEGER PRIMARY KEY,
   ayah_from              INTEGER NOT NULL,
   ayah_to                INTEGER NOT NULL,
@@ -1237,10 +1264,10 @@ CREATE TABLE qr_surah_closures (
   rhetorical_force       TEXT,
   note_md                TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_coherence_signals (
+CREATE TABLE "qr_surah_coherence_signal" (
   id                     TEXT PRIMARY KEY,
   surah                  INTEGER NOT NULL,
   signal_type            TEXT NOT NULL,
@@ -1248,10 +1275,10 @@ CREATE TABLE qr_surah_coherence_signals (
   ayahs_json             TEXT,
   note_md                TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_diamond_patterns (
+CREATE TABLE "qr_surah_diamond_pattern" (
   id                     TEXT PRIMARY KEY,
   surah                  INTEGER NOT NULL,
   structure_reading_id   TEXT,
@@ -1265,10 +1292,10 @@ CREATE TABLE qr_surah_diamond_patterns (
   balance_note           TEXT,
   note_md                TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_ellipsis_patterns (
+CREATE TABLE "qr_surah_ellipsis_pattern" (
   surah                INTEGER PRIMARY KEY,
   dominant_ellipsis_type TEXT,
   total_ellipsis_count INTEGER NOT NULL DEFAULT 0,
@@ -1276,10 +1303,23 @@ CREATE TABLE qr_surah_ellipsis_patterns (
   notable_instances    TEXT,
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_motif_clusters (
+CREATE TABLE "qr_surah_link" (
+  id                   TEXT PRIMARY KEY,
+  surah_a              INTEGER NOT NULL,
+  surah_b              INTEGER NOT NULL,
+  relation_type        TEXT NOT NULL,
+  description          TEXT,
+  evidence_summary     TEXT,
+  note_md              TEXT,
+  created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (surah_a) REFERENCES "qr_surah"(id),
+  FOREIGN KEY (surah_b) REFERENCES "qr_surah"(id)
+);
+
+CREATE TABLE "qr_surah_motif_cluster" (
   id                     TEXT PRIMARY KEY,
   surah                  INTEGER NOT NULL,
   cluster_label          TEXT NOT NULL,
@@ -1289,10 +1329,10 @@ CREATE TABLE qr_surah_motif_clusters (
   semantic_role          TEXT,
   note_md                TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_openings (
+CREATE TABLE "qr_surah_opening" (
   surah                  INTEGER PRIMARY KEY,
   ayah_from              INTEGER NOT NULL DEFAULT 1,
   ayah_to                INTEGER NOT NULL,
@@ -1301,10 +1341,10 @@ CREATE TABLE qr_surah_openings (
   sets_up_md             TEXT,
   note_md                TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_profiles (
+CREATE TABLE "qr_surah_profile" (
   surah                  INTEGER PRIMARY KEY,
   governing_movement     TEXT,
   central_claim          TEXT,
@@ -1315,10 +1355,10 @@ CREATE TABLE qr_surah_profiles (
   note_md                TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at             TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_reception_histories (
+CREATE TABLE "qr_surah_reception" (
   id                   TEXT PRIMARY KEY,
   surah                INTEGER NOT NULL,
   era                  TEXT NOT NULL,
@@ -1330,10 +1370,10 @@ CREATE TABLE qr_surah_reception_histories (
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (surah, era),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_register_shifts (
+CREATE TABLE "qr_surah_register_shift" (
   id                   TEXT PRIMARY KEY,
   surah                INTEGER NOT NULL,
   ayah_shift           INTEGER NOT NULL,
@@ -1342,23 +1382,10 @@ CREATE TABLE qr_surah_register_shifts (
   to_state             TEXT,
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_relations (
-  id                   TEXT PRIMARY KEY,
-  surah_a              INTEGER NOT NULL,
-  surah_b              INTEGER NOT NULL,
-  relation_type        TEXT NOT NULL,
-  description          TEXT,
-  evidence_summary     TEXT,
-  note_md              TEXT,
-  created_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah_a) REFERENCES qr_surahs(id),
-  FOREIGN KEY (surah_b) REFERENCES qr_surahs(id)
-);
-
-CREATE TABLE qr_surah_rhetoric_profiles (
+CREATE TABLE "qr_surah_rhetoric_profile" (
   surah                INTEGER PRIMARY KEY,
   dominant_mode        TEXT,
   clause_density       TEXT,
@@ -1368,10 +1395,10 @@ CREATE TABLE qr_surah_rhetoric_profiles (
   rhetorical_devices   TEXT,
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_sequence_patterns (
+CREATE TABLE "qr_surah_sequence_pattern" (
   id                     TEXT PRIMARY KEY,
   surah                  INTEGER NOT NULL,
   sequence_type          TEXT NOT NULL,
@@ -1379,10 +1406,10 @@ CREATE TABLE qr_surah_sequence_patterns (
   description            TEXT,
   note_md                TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_structural_pivots (
+CREATE TABLE "qr_surah_structural_pivot" (
   id                     TEXT PRIMARY KEY,
   surah                  INTEGER NOT NULL,
   pivot_index            INTEGER NOT NULL,
@@ -1392,10 +1419,10 @@ CREATE TABLE qr_surah_structural_pivots (
   note_md                TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (surah, pivot_index),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_structure_links (
+CREATE TABLE "qr_surah_structure_link" (
   id                     TEXT PRIMARY KEY,
   surah                  INTEGER NOT NULL,
   from_unit_id           TEXT NOT NULL,
@@ -1404,11 +1431,11 @@ CREATE TABLE qr_surah_structure_links (
   link_evidence          TEXT,
   note_md                TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (from_unit_id) REFERENCES qr_surah_structure_units(id),
-  FOREIGN KEY (to_unit_id)   REFERENCES qr_surah_structure_units(id)
+  FOREIGN KEY (from_unit_id) REFERENCES "qr_surah_structure_unit"(id),
+  FOREIGN KEY (to_unit_id)   REFERENCES "qr_surah_structure_unit"(id)
 );
 
-CREATE TABLE qr_surah_structure_readings (
+CREATE TABLE "qr_surah_structure_reading" (
   id                     TEXT PRIMARY KEY,
   surah                  INTEGER NOT NULL,
   reading_label          TEXT NOT NULL,
@@ -1420,10 +1447,10 @@ CREATE TABLE qr_surah_structure_readings (
   note_md                TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at             TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_structure_units (
+CREATE TABLE "qr_surah_structure_unit" (
   id                     TEXT PRIMARY KEY,
   surah                  INTEGER NOT NULL,
   unit_index             INTEGER NOT NULL,
@@ -1434,10 +1461,10 @@ CREATE TABLE qr_surah_structure_units (
   reading_id             TEXT,
   note_md                TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_study_passages (
+CREATE TABLE "qr_surah_study_passage" (
   id                    TEXT PRIMARY KEY,           -- QR:SP:{surah}:{ayah_from}-{ayah_to}
   surah                 INTEGER NOT NULL,
   passage_no            INTEGER NOT NULL,
@@ -1466,10 +1493,10 @@ CREATE TABLE qr_surah_study_passages (
 
   UNIQUE (surah, passage_no),
   UNIQUE (surah, ayah_from, ayah_to),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_study_steps (
+CREATE TABLE "qr_surah_study_step" (
   id                    TEXT PRIMARY KEY,           -- QR:STEP:{surah}:{range}:{step_key}
   passage_id            TEXT NOT NULL,
   step_key              TEXT NOT NULL,              -- reading|morphology|sentence_structure|...
@@ -1483,21 +1510,10 @@ CREATE TABLE qr_surah_study_steps (
   updated_at            TEXT NOT NULL DEFAULT (datetime('now')),
 
   UNIQUE (passage_id, step_key),
-  FOREIGN KEY (passage_id) REFERENCES qr_surah_study_passages(id) ON DELETE CASCADE
+  FOREIGN KEY (passage_id) REFERENCES "qr_surah_study_passage"(id) ON DELETE CASCADE
 );
 
-CREATE TABLE qr_surah_study_task_json_chunks (
-  task_id       TEXT NOT NULL,
-  passage_id    TEXT NOT NULL,
-  chunk_index   INTEGER NOT NULL,
-  chunk_text    TEXT NOT NULL,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  PRIMARY KEY (task_id, chunk_index),
-  FOREIGN KEY (task_id)    REFERENCES qr_surah_study_tasks(id) ON DELETE CASCADE,
-  FOREIGN KEY (passage_id) REFERENCES qr_surah_study_passages(id) ON DELETE CASCADE
-);
-
-CREATE TABLE qr_surah_study_tasks (
+CREATE TABLE "qr_surah_study_task" (
   id                    TEXT PRIMARY KEY,
   passage_id            TEXT NOT NULL,
   step_id               TEXT NOT NULL,
@@ -1517,12 +1533,23 @@ CREATE TABLE qr_surah_study_tasks (
   created_at            TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at            TEXT NOT NULL DEFAULT (datetime('now')),
 
-  FOREIGN KEY (passage_id) REFERENCES qr_surah_study_passages(id) ON DELETE CASCADE,
-  FOREIGN KEY (step_id)    REFERENCES qr_surah_study_steps(id) ON DELETE CASCADE,
-  FOREIGN KEY (parent_task_id) REFERENCES qr_surah_study_tasks(id) ON DELETE CASCADE
+  FOREIGN KEY (passage_id) REFERENCES "qr_surah_study_passage"(id) ON DELETE CASCADE,
+  FOREIGN KEY (step_id)    REFERENCES "qr_surah_study_step"(id) ON DELETE CASCADE,
+  FOREIGN KEY (parent_task_id) REFERENCES "qr_surah_study_task"(id) ON DELETE CASCADE
 );
 
-CREATE TABLE qr_surah_symmetry_patterns (
+CREATE TABLE "qr_surah_study_task_chunk" (
+  task_id       TEXT NOT NULL,
+  passage_id    TEXT NOT NULL,
+  chunk_index   INTEGER NOT NULL,
+  chunk_text    TEXT NOT NULL,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (task_id, chunk_index),
+  FOREIGN KEY (task_id)    REFERENCES "qr_surah_study_task"(id) ON DELETE CASCADE,
+  FOREIGN KEY (passage_id) REFERENCES "qr_surah_study_passage"(id) ON DELETE CASCADE
+);
+
+CREATE TABLE "qr_surah_symmetry_pattern" (
   id                     TEXT PRIMARY KEY,
   surah                  INTEGER NOT NULL,
   structure_reading_id   TEXT,
@@ -1534,10 +1561,10 @@ CREATE TABLE qr_surah_symmetry_patterns (
   summary_md             TEXT,
   note_md                TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_theme_profiles (
+CREATE TABLE "qr_surah_theme_profile" (
   surah                INTEGER PRIMARY KEY,
   primary_theme        TEXT NOT NULL,
   secondary_themes     TEXT,
@@ -1545,10 +1572,10 @@ CREATE TABLE qr_surah_theme_profiles (
   ethical_axis         TEXT,
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_theology_profiles (
+CREATE TABLE "qr_surah_theology_profile" (
   surah                INTEGER PRIMARY KEY,
   divine_attributes    TEXT,
   prophethood_aspects  TEXT,
@@ -1556,10 +1583,10 @@ CREATE TABLE qr_surah_theology_profiles (
   cosmology_aspects    TEXT,
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_topic_flows (
+CREATE TABLE "qr_surah_topic_flow" (
   id                   TEXT PRIMARY KEY,
   surah                INTEGER NOT NULL,
   flow_index           INTEGER NOT NULL,
@@ -1572,10 +1599,10 @@ CREATE TABLE qr_surah_topic_flows (
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (surah, flow_index),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surah_worldview_profiles (
+CREATE TABLE "qr_surah_worldview_profile" (
   surah                INTEGER PRIMARY KEY,
   anthropology_notes   TEXT,
   value_architecture   TEXT,
@@ -1584,24 +1611,10 @@ CREATE TABLE qr_surah_worldview_profiles (
   worldview_tensions   TEXT,
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE TABLE qr_surahs (
-  id                INTEGER PRIMARY KEY,
-  name_ar           TEXT NOT NULL,
-  name_en           TEXT NOT NULL,
-  name_transliteration TEXT,
-  revelation_type   TEXT NOT NULL DEFAULT 'makki',
-  ayah_count        INTEGER NOT NULL,
-  juz_start         INTEGER,
-  page_start        INTEGER,
-  order_revelation  INTEGER,
-  created_at        TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE qr_tafsir_book_display_blocks (
+CREATE TABLE "qr_tafsir_book_display_block" (
   id                       TEXT PRIMARY KEY,
   -- Provenance --------------------------------------------------------------
   source_id                TEXT,
@@ -1683,7 +1696,7 @@ USING fts5 (
   tokenize = "unicode61 remove_diacritics 2"
 );
 
-CREATE TABLE qr_tafsir_book_display_links (
+CREATE TABLE "qr_tafsir_book_display_link" (
   id              TEXT PRIMARY KEY,
   from_block_id   TEXT NOT NULL,
   to_block_id     TEXT,                                 -- nullable when target is a canonical record
@@ -1695,7 +1708,7 @@ CREATE TABLE qr_tafsir_book_display_links (
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_tafsir_book_display_notes (
+CREATE TABLE "qr_tafsir_book_display_note" (
   id              TEXT PRIMARY KEY,
   block_id        TEXT,                                 -- nullable: notes can float
   note_kind       TEXT NOT NULL,                        -- 'author'|'teaching'|'footnote'|'reviewer'|'editorial'|'source_citation'|'mutazili_rebuttal'
@@ -1715,7 +1728,7 @@ CREATE TABLE qr_tafsir_book_display_notes (
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_tafsir_book_display_refs (
+CREATE TABLE "qr_tafsir_book_display_ref" (
   id              TEXT PRIMARY KEY,
   block_id        TEXT NOT NULL,
   ref_kind        TEXT NOT NULL,                        -- 'ayah'|'word'|'lemma'|'root'|'concept'|'scholar'|'position'|'hadith_source'
@@ -1731,7 +1744,7 @@ CREATE TABLE qr_tafsir_book_display_refs (
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_tafsir_book_display_sources (
+CREATE TABLE "qr_tafsir_book_display_source" (
   id                 TEXT PRIMARY KEY,                  -- mirrors qr_scholar_works.id
   source_slug        TEXT NOT NULL UNIQUE,              -- 'tabari','razi','zamakhshari',…
   scholar_id         TEXT,                              -- → qr_scholar_profiles.id
@@ -1761,7 +1774,7 @@ CREATE TABLE qr_tafsir_book_display_sources (
   updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_tafsir_book_display_tags (
+CREATE TABLE "qr_tafsir_book_display_tag" (
   id              TEXT PRIMARY KEY,
   block_id        TEXT NOT NULL,                        -- → blocks.id
   tag_kind        TEXT NOT NULL,                        -- 'general'|'narration'|'theology'|'paradigm'|'madhab'|'topic'|'review'
@@ -1771,7 +1784,7 @@ CREATE TABLE qr_tafsir_book_display_tags (
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_tafsir_entries (
+CREATE TABLE "qr_tafsir_entry" (
   id                   TEXT PRIMARY KEY,
   surah                INTEGER NOT NULL,
   ayah_from            INTEGER NOT NULL,
@@ -1785,7 +1798,7 @@ CREATE TABLE qr_tafsir_entries (
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at           TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
 CREATE TABLE qr_topic_registry (
@@ -1798,29 +1811,7 @@ CREATE TABLE qr_topic_registry (
   created_at           TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE qr_translation_passages (
-  id                TEXT PRIMARY KEY,
-  source_id         TEXT NOT NULL,
-  surah             INTEGER NOT NULL,
-  ayah_from         INTEGER NOT NULL,
-  ayah_to           INTEGER NOT NULL,
-  passage_translation TEXT NOT NULL,
-  note_md           TEXT,
-  created_at        TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (source_id) REFERENCES qr_translation_sources(id)
-);
-
-CREATE TABLE qr_translation_sources (
-  id                TEXT PRIMARY KEY,
-  source_code       TEXT NOT NULL UNIQUE,
-  translator_name   TEXT NOT NULL,
-  language          TEXT NOT NULL DEFAULT 'en',
-  edition           TEXT,
-  is_default        INTEGER NOT NULL DEFAULT 0,
-  created_at        TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE qr_translations (
+CREATE TABLE "qr_translation" (
   id                TEXT PRIMARY KEY,
   source_id         TEXT NOT NULL,
   surah             INTEGER NOT NULL,
@@ -1830,10 +1821,32 @@ CREATE TABLE qr_translations (
   created_at        TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at        TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (source_id, surah, ayah),
-  FOREIGN KEY (source_id) REFERENCES qr_translation_sources(id)
+  FOREIGN KEY (source_id) REFERENCES "qr_translation_source"(id)
 );
 
-CREATE TABLE qr_word_occurrences (
+CREATE TABLE "qr_translation_passage" (
+  id                TEXT PRIMARY KEY,
+  source_id         TEXT NOT NULL,
+  surah             INTEGER NOT NULL,
+  ayah_from         INTEGER NOT NULL,
+  ayah_to           INTEGER NOT NULL,
+  passage_translation TEXT NOT NULL,
+  note_md           TEXT,
+  created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (source_id) REFERENCES "qr_translation_source"(id)
+);
+
+CREATE TABLE "qr_translation_source" (
+  id                TEXT PRIMARY KEY,
+  source_code       TEXT NOT NULL UNIQUE,
+  translator_name   TEXT NOT NULL,
+  language          TEXT NOT NULL DEFAULT 'en',
+  edition           TEXT,
+  is_default        INTEGER NOT NULL DEFAULT 0,
+  created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE "qr_word_occurrence" (
   id                TEXT PRIMARY KEY,
   surah             INTEGER NOT NULL,
   ayah              INTEGER NOT NULL,
@@ -1847,177 +1860,174 @@ CREATE TABLE qr_word_occurrences (
   created_at        TEXT NOT NULL DEFAULT (datetime('now')), morphology_tag_json JSON
   CHECK (morphology_tag_json IS NULL OR json_valid(morphology_tag_json)), root_uid TEXT, lemma_ref TEXT,
   UNIQUE (surah, ayah, word_index),
-  FOREIGN KEY (surah) REFERENCES qr_surahs(id)
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
-CREATE INDEX idx_qrac_scope ON qr_analysis_claims(scope_id);
+-- ── Views (2) ─────────────────────────────────────────────────────
 
-CREATE INDEX idx_qrac_type  ON qr_analysis_claims(claim_type);
+CREATE VIEW qr_ss_vocab_violations AS
+ SELECT 'term_key' kind, n.term_key key, 'qr_ss_tree_node' tbl, n.id row_id FROM qr_ss_tree_node n
+   WHERE n.term_key IS NOT NULL AND n.term_key NOT IN (SELECT key FROM qr_ss_vocab_register WHERE kind='term_key' AND status='canonical')
+ UNION ALL
+ SELECT 'clause_function', c.clause_function, 'qr_ss_occ_clause', c.id FROM qr_ss_occ_clause c
+   WHERE c.clause_function IS NOT NULL AND c.clause_function NOT IN (SELECT key FROM qr_ss_vocab_register WHERE kind='clause_function' AND status='canonical')
+ UNION ALL
+ SELECT 'clause_type', c.clause_type, 'qr_ss_occ_clause', c.id FROM qr_ss_occ_clause c
+   WHERE c.clause_type IS NOT NULL AND c.clause_type NOT IN (SELECT key FROM qr_ss_vocab_register WHERE kind='clause_type' AND status='canonical')
+ UNION ALL
+ SELECT 'segment_type', s.segment_type, 'qr_ss_occ_segment', s.id FROM qr_ss_occ_segment s
+   WHERE s.segment_type IS NOT NULL AND s.segment_type NOT IN (SELECT key FROM qr_ss_vocab_register WHERE kind='segment_type' AND status='canonical')
+ UNION ALL
+ SELECT 'relation_label', x.relation_label, 'qr_ss_syntax_relations', x.id FROM "qr_ss_syntax_link" x
+   WHERE x.relation_label IS NOT NULL AND x.relation_label NOT IN (SELECT key FROM qr_ss_vocab_register WHERE kind='relation_label' AND status='canonical');
 
-CREATE INDEX idx_qras_surah ON qr_analysis_scopes(surah);
+CREATE VIEW qr_vw_surah_study_tasks_compat AS
+SELECT
+  t.public_task_id AS task_id,
+  p.public_unit_id AS unit_id,
+  parent.public_task_id AS parent_task_id,
+  t.task_type,
+  t.task_name,
+  t.step_no,
+  t.status,
+  t.task_json,
+  t.updated_at,
+  t.passage_id,
+  t.step_id
+FROM "qr_surah_study_task" t
+JOIN "qr_surah_study_passage" p ON p.id = t.passage_id
+LEFT JOIN "qr_surah_study_task" parent ON parent.id = t.parent_task_id;
 
-CREATE INDEX idx_qras_type  ON qr_analysis_scopes(scope_type);
+-- ── Indexes (166) ───────────────────────────────────────────────────
 
-CREATE INDEX idx_qrar_from ON qr_argument_relations(from_argument_id);
+CREATE INDEX idx_iraab_block_ayah       ON "qr_irab_book_display_block" (surah_no, ayah_no);
 
-CREATE INDEX idx_qrar_to   ON qr_argument_relations(to_argument_id);
+CREATE INDEX idx_iraab_block_ayah_key   ON "qr_irab_book_display_block" (ayah_key);
 
-CREATE INDEX idx_qrarg_surah ON qr_arguments(surah);
+CREATE INDEX idx_iraab_block_chunk      ON "qr_irab_book_display_block" (source_chunk_id);
 
-CREATE INDEX idx_qrarg_type  ON qr_arguments(argument_type);
+CREATE INDEX idx_iraab_block_entry      ON "qr_irab_book_display_block" (source_entry_id);
 
-CREATE INDEX idx_qra_page  ON qr_ayah(page_number);
+CREATE INDEX idx_iraab_block_group      ON "qr_irab_book_display_block" (ayah_group_key);
 
-CREATE INDEX idx_qra_surah ON qr_ayah(surah);
+CREATE INDEX idx_iraab_block_grouped    ON "qr_irab_book_display_block" (surah_no, is_grouped);
 
-CREATE INDEX idx_qrcel_claim    ON qr_claim_evidence_links(claim_id);
+CREATE INDEX idx_iraab_block_order      ON "qr_irab_book_display_block" (surah_no, ayah_no, display_order);
 
-CREATE INDEX idx_qrcel_evidence ON qr_claim_evidence_links(evidence_id);
+CREATE INDEX idx_iraab_block_review     ON "qr_irab_book_display_block" (review_status);
 
-CREATE INDEX idx_qrdc_surah ON qr_debate_clusters(surah);
+CREATE INDEX idx_iraab_block_slug       ON "qr_irab_book_display_block" (source_slug);
 
-CREATE INDEX idx_qrdc_type  ON qr_debate_clusters(cluster_type);
+CREATE INDEX idx_iraab_block_source     ON "qr_irab_book_display_block" (source_id);
 
-CREATE INDEX idx_qrdl_scope ON qr_doc_links(qr_scope_type, qr_scope_id);
+CREATE INDEX idx_iraab_block_surah      ON "qr_irab_book_display_block" (surah_no);
 
-CREATE INDEX idx_qrei_type ON qr_evidence_items(evidence_type);
+CREATE INDEX idx_iraab_block_type       ON "qr_irab_book_display_block" (block_type);
 
-CREATE INDEX idx_qrid_surah ON qr_interpretive_differences(surah, ayah_from);
+CREATE INDEX idx_iraab_link_to ON "qr_irab_book_display_link" (to_block_id, link_kind);
 
-CREATE INDEX idx_iraab_block_ayah       ON qr_iraab_book_display_blocks (surah_no, ayah_no);
+CREATE INDEX idx_iraab_note_ayah  ON "qr_irab_book_display_note" (surah_no, ayah_no);
 
-CREATE INDEX idx_iraab_block_ayah_key   ON qr_iraab_book_display_blocks (ayah_key);
+CREATE INDEX idx_iraab_note_block ON "qr_irab_book_display_note" (block_id);
 
-CREATE INDEX idx_iraab_block_chunk      ON qr_iraab_book_display_blocks (source_chunk_id);
+CREATE INDEX idx_iraab_note_group ON "qr_irab_book_display_note" (ayah_group_key);
 
-CREATE INDEX idx_iraab_block_entry      ON qr_iraab_book_display_blocks (source_entry_id);
+CREATE INDEX idx_iraab_note_kind  ON "qr_irab_book_display_note" (note_kind);
 
-CREATE INDEX idx_iraab_block_group      ON qr_iraab_book_display_blocks (ayah_group_key);
+CREATE INDEX idx_iraab_ref_ayah    ON "qr_irab_book_display_ref" (surah_no, ayah_no);
 
-CREATE INDEX idx_iraab_block_grouped    ON qr_iraab_book_display_blocks (surah_no, is_grouped);
+CREATE INDEX idx_iraab_ref_block   ON "qr_irab_book_display_ref" (block_id);
 
-CREATE INDEX idx_iraab_block_order      ON qr_iraab_book_display_blocks (surah_no, ayah_no, display_order);
+CREATE INDEX idx_iraab_ref_group   ON "qr_irab_book_display_ref" (ayah_group_key);
 
-CREATE INDEX idx_iraab_block_review     ON qr_iraab_book_display_blocks (review_status);
-
-CREATE INDEX idx_iraab_block_slug       ON qr_iraab_book_display_blocks (source_slug);
-
-CREATE INDEX idx_iraab_block_source     ON qr_iraab_book_display_blocks (source_id);
-
-CREATE INDEX idx_iraab_block_surah      ON qr_iraab_book_display_blocks (surah_no);
-
-CREATE INDEX idx_iraab_block_type       ON qr_iraab_book_display_blocks (block_type);
-
-CREATE UNIQUE INDEX uq_iraab_block_natural
-  ON qr_iraab_book_display_blocks (source_chunk_id, source_entry_id, block_type, display_order);
-
-CREATE INDEX idx_iraab_link_to ON qr_iraab_book_display_links (to_block_id, link_kind);
-
-CREATE UNIQUE INDEX uq_iraab_link_natural
-  ON qr_iraab_book_display_links (from_block_id, to_block_id, link_kind);
-
-CREATE INDEX idx_iraab_note_ayah  ON qr_iraab_book_display_notes (surah_no, ayah_no);
-
-CREATE INDEX idx_iraab_note_block ON qr_iraab_book_display_notes (block_id);
-
-CREATE INDEX idx_iraab_note_group ON qr_iraab_book_display_notes (ayah_group_key);
-
-CREATE INDEX idx_iraab_note_kind  ON qr_iraab_book_display_notes (note_kind);
-
-CREATE INDEX idx_iraab_ref_ayah    ON qr_iraab_book_display_refs (surah_no, ayah_no);
-
-CREATE INDEX idx_iraab_ref_block   ON qr_iraab_book_display_refs (block_id);
-
-CREATE INDEX idx_iraab_ref_group   ON qr_iraab_book_display_refs (ayah_group_key);
-
-CREATE INDEX idx_iraab_ref_typed   ON qr_iraab_book_display_refs (typed_ref);
+CREATE INDEX idx_iraab_ref_typed   ON "qr_irab_book_display_ref" (typed_ref);
 
 CREATE INDEX idx_iraab_tag_value_norm
-  ON qr_iraab_book_display_tags (tag_kind, tag_value_norm);
+  ON "qr_irab_book_display_tag" (tag_kind, tag_value_norm);
 
-CREATE UNIQUE INDEX uq_iraab_tag_natural
-  ON qr_iraab_book_display_tags (block_id, tag_kind, tag_value);
+CREATE INDEX idx_mdl_bare ON "qr_morph_display_lemma"(lemma_bare);
 
-CREATE INDEX idx_qr_irab_book_entries_chunk
-  ON qr_irab_book_entries(source_chunk_id);
+CREATE INDEX idx_mdl_root ON "qr_morph_display_lemma"(root_ar);
 
-CREATE INDEX idx_qr_irab_book_entries_mapping
-  ON qr_irab_book_entries(al_mapping_status);
+CREATE INDEX idx_morph_blocks_ayah  ON "qr_morph_display_block"(ayah_key, scope_level);
 
-CREATE INDEX idx_qr_irab_book_entries_word_link
-  ON qr_irab_book_entries(word_link_status);
+CREATE INDEX idx_morph_blocks_root  ON "qr_morph_display_block"(root_ar, scope_level);
 
-CREATE UNIQUE INDEX ux_qr_irab_entry_dedupe
-  ON qr_irab_book_entries(source_slug, source_chunk_id, entry_order, target_text_bare, source_quote_hash);
-
-CREATE INDEX idx_qr_irab_source_chunks_ayah
-  ON qr_irab_source_chunks(surah, ayah_from, ayah_to);
-
-CREATE INDEX idx_qr_irab_source_chunks_section
-  ON qr_irab_source_chunks(section_kind);
-
-CREATE INDEX idx_qr_irab_source_chunks_source
-  ON qr_irab_source_chunks(source_slug);
-
-CREATE INDEX idx_qrlo_lemma      ON qr_lemma_occurrences(lemma_id);
-
-CREATE INDEX idx_qrlo_surah_ayah ON qr_lemma_occurrences(surah, ayah);
-
-CREATE INDEX idx_qrlo_woid ON qr_lemma_occurrences(word_occurrence_id);
-
-CREATE INDEX idx_qrl_root ON qr_lemmas(root);
-
-CREATE INDEX idx_morph_blocks_ayah  ON qr_morph_display_blocks(ayah_key, scope_level);
-
-CREATE INDEX idx_morph_blocks_root  ON qr_morph_display_blocks(root_ar, scope_level);
-
-CREATE INDEX idx_morph_blocks_scope ON qr_morph_display_blocks(scope_level, scope_key, display_order);
-
-CREATE INDEX idx_mdl_bare ON qr_morph_display_lemmas(lemma_bare);
-
-CREATE INDEX idx_mdl_root ON qr_morph_display_lemmas(root_ar);
+CREATE INDEX idx_morph_blocks_scope ON "qr_morph_display_block"(scope_level, scope_key, display_order);
 
 CREATE INDEX idx_morph_media_root ON qr_morph_display_media(root_ar, block_type);
 
 CREATE INDEX idx_morph_media_word ON qr_morph_display_media(surah_no, ayah_no, word_index);
 
-CREATE INDEX idx_morph_words_grid ON qr_morph_display_words(surah_no, is_promoted, word_group, display_order);
+CREATE INDEX idx_morph_words_grid ON "qr_morph_display_word"(surah_no, is_promoted, word_group, display_order);
 
-CREATE INDEX idx_morph_words_passage ON qr_morph_display_words(surah_no, ayah_no, word_index);
+CREATE INDEX idx_morph_words_passage ON "qr_morph_display_word"(surah_no, ayah_no, word_index);
 
-CREATE INDEX idx_morph_words_root ON qr_morph_display_words(root_ar);
+CREATE INDEX idx_morph_words_root ON "qr_morph_display_word"(root_ar);
+
+CREATE INDEX idx_qr_irab_book_entries_chunk
+  ON "qr_irab_book_entry"(source_chunk_id);
+
+CREATE INDEX idx_qr_irab_book_entries_mapping
+  ON "qr_irab_book_entry"(al_mapping_status);
+
+CREATE INDEX idx_qr_irab_book_entries_word_link
+  ON "qr_irab_book_entry"(word_link_status);
+
+CREATE INDEX idx_qr_irab_source_chunks_ayah
+  ON "qr_irab_source_chunk"(surah, ayah_from, ayah_to);
+
+CREATE INDEX idx_qr_irab_source_chunks_section
+  ON "qr_irab_source_chunk"(section_kind);
+
+CREATE INDEX idx_qr_irab_source_chunks_source
+  ON "qr_irab_source_chunk"(source_slug);
+
+CREATE INDEX idx_qr_mdr_al_ref ON "qr_morph_display_root"(al_root_ref);
 
 CREATE INDEX idx_qr_mushaf_layout_page
-  ON qr_mushaf_layout_lines(layout_key, page_number, line_number);
+  ON "qr_mushaf_layout_line"(layout_key, page_number, line_number);
 
 CREATE INDEX idx_qr_mushaf_layout_surah
-  ON qr_mushaf_layout_lines(layout_key, surah_number);
+  ON "qr_mushaf_layout_line"(layout_key, surah_number);
 
-CREATE INDEX idx_qr_passage_sections_passage ON qr_passage_sections(passage_id, sort_order);
+CREATE INDEX idx_qr_passage_sections_passage ON "qr_passage_section"(passage_id, sort_order);
 
-CREATE INDEX idx_qrqbq_from ON qr_quran_bil_quran_relations(from_surah, from_ayah);
+CREATE INDEX idx_qr_ss_term_cat ON qr_ss_term(category, sort_order);
 
-CREATE INDEX idx_qrqbq_to   ON qr_quran_bil_quran_relations(to_surah, to_ayah);
+CREATE INDEX idx_qr_ss_tree_node_term ON qr_ss_tree_node(term_key);
 
-CREATE INDEX ix_qrreg_uid ON qr_root_registry(root_uid);
+CREATE INDEX idx_qr_ss_tree_node_word ON qr_ss_tree_node(word_occurrence_id);
 
-CREATE INDEX idx_qrscpos_scholar ON qr_scholar_positions(scholar_id);
+CREATE INDEX idx_qra_page  ON qr_ayah(page_number);
 
-CREATE INDEX idx_qrscpos_scope   ON qr_scholar_positions(surah, ayah_from);
+CREATE INDEX idx_qra_surah ON qr_ayah(surah);
 
-CREATE INDEX idx_qrschp_era    ON qr_scholar_profiles(era);
+CREATE INDEX idx_qrac_scope ON "qr_analysis_claim"(scope_id);
 
-CREATE INDEX idx_qrschp_madhab ON qr_scholar_profiles(madhab);
+CREATE INDEX idx_qrac_type  ON "qr_analysis_claim"(claim_type);
 
-CREATE INDEX idx_qrschw_scholar ON qr_scholar_works(scholar_id);
+CREATE INDEX idx_qrar_from ON "qr_argument_link"(from_argument_id);
 
-CREATE INDEX idx_qrsn_scope ON qr_scope_nuances(scope_id);
+CREATE INDEX idx_qrar_to   ON "qr_argument_link"(to_argument_id);
 
-CREATE INDEX idx_qrst_surah  ON qr_scope_topics(surah);
+CREATE INDEX idx_qrarg_surah ON "qr_argument"(surah);
 
-CREATE INDEX idx_qrst_topic  ON qr_scope_topics(topic_id);
+CREATE INDEX idx_qrarg_type  ON "qr_argument"(argument_type);
 
-CREATE INDEX idx_qrsee_sentence ON qr_ss_ellipsis_event(sentence_id);
+CREATE INDEX idx_qras_surah ON "qr_analysis_scope"(surah);
+
+CREATE INDEX idx_qras_type  ON "qr_analysis_scope"(scope_type);
+
+CREATE INDEX idx_qrc_from  ON "qr_citation"(from_domain, from_layer, from_id);
+
+CREATE INDEX idx_qrc_root  ON "qr_citation"(root_norm);
+
+CREATE INDEX idx_qrc_toref ON "qr_citation"(to_ref);
+
+CREATE INDEX idx_qrcel_claim    ON "qr_claim_evidence_link"(claim_id);
+
+CREATE INDEX idx_qrcel_evidence ON "qr_claim_evidence_link"(evidence_id);
 
 CREATE INDEX idx_qrcl_parent   ON qr_ss_occ_clause(parent_clause_id);
 
@@ -2025,9 +2035,53 @@ CREATE INDEX idx_qrcl_sentence ON qr_ss_occ_clause(sentence_id);
 
 CREATE INDEX idx_qrcl_surah    ON qr_ss_occ_clause(surah, ayah_from);
 
+CREATE INDEX idx_qrdc_surah ON "qr_debate_cluster"(surah);
+
+CREATE INDEX idx_qrdc_type  ON "qr_debate_cluster"(cluster_type);
+
+CREATE INDEX idx_qrdl_scope ON "qr_doc_link"(qr_scope_type, qr_scope_id);
+
+CREATE INDEX idx_qrei_type ON "qr_evidence"(evidence_type);
+
+CREATE INDEX idx_qrid_surah ON "qr_interpretive_difference"(surah, ayah_from);
+
+CREATE INDEX idx_qrl_root ON "qr_lemma"(root);
+
+CREATE INDEX idx_qrlo_lemma      ON "qr_lemma_occurrence"(lemma_id);
+
+CREATE INDEX idx_qrlo_surah_ayah ON "qr_lemma_occurrence"(surah, ayah);
+
+CREATE INDEX idx_qrlo_woid ON "qr_lemma_occurrence"(word_occurrence_id);
+
 CREATE INDEX idx_qrph_clause ON qr_ss_occ_phrase(clause_id);
 
 CREATE INDEX idx_qrph_surah  ON qr_ss_occ_phrase(surah, ayah);
+
+CREATE INDEX idx_qrpiv_surah ON "qr_surah_structural_pivot"(surah);
+
+CREATE INDEX idx_qrqbq_from ON "qr_quran_bil_quran_link"(from_surah, from_ayah);
+
+CREATE INDEX idx_qrqbq_to   ON "qr_quran_bil_quran_link"(to_surah, to_ayah);
+
+CREATE INDEX idx_qrsbl_scope ON qr_ss_scope_balagha_link(scope_type, scope_id);
+
+CREATE INDEX idx_qrschp_era    ON "qr_scholar_profile"(era);
+
+CREATE INDEX idx_qrschp_madhab ON "qr_scholar_profile"(madhab);
+
+CREATE INDEX idx_qrschw_scholar ON "qr_scholar_work"(scholar_id);
+
+CREATE INDEX idx_qrscpos_scholar ON "qr_scholar_position"(scholar_id);
+
+CREATE INDEX idx_qrscpos_scope   ON "qr_scholar_position"(surah, ayah_from);
+
+CREATE INDEX idx_qrscr_from ON "qr_ss_scope_link"(from_scope_type, from_scope_id);
+
+CREATE INDEX idx_qrscr_to   ON "qr_ss_scope_link"(to_scope_type, to_scope_id);
+
+CREATE INDEX idx_qrscs_surah ON "qr_surah_coherence_signal"(surah);
+
+CREATE INDEX idx_qrsee_sentence ON qr_ss_ellipsis_event(sentence_id);
 
 CREATE INDEX idx_qrseg_surah ON qr_ss_occ_segment(surah, ayah);
 
@@ -2035,168 +2089,171 @@ CREATE INDEX idx_qrseg_word  ON qr_ss_occ_segment(word_occurrence_id);
 
 CREATE INDEX idx_qrsen_surah ON qr_ss_occ_sentence(surah, ayah_from);
 
-CREATE INDEX idx_qrsbl_scope ON qr_ss_scope_balagha_link(scope_type, scope_id);
-
 CREATE INDEX idx_qrsgl_scope ON qr_ss_scope_grammar_link(scope_type, scope_id);
+
+CREATE INDEX idx_qrsmc_surah ON "qr_surah_motif_cluster"(surah);
+
+CREATE INDEX idx_qrsml_scope ON qr_ss_scope_morph_link(scope_type, scope_id);
 
 CREATE INDEX idx_qrsmm_scope ON qr_ss_scope_member_map(scope_type, scope_id);
 
 CREATE INDEX idx_qrsmm_word  ON qr_ss_scope_member_map(word_occurrence_id);
 
-CREATE INDEX idx_qrsml_scope ON qr_ss_scope_morph_link(scope_type, scope_id);
+CREATE INDEX idx_qrsn_scope ON "qr_scope_nuance"(scope_id);
+
+CREATE INDEX idx_qrsq_passage ON "qr_study_question"(passage_id, sort_order);
+
+CREATE INDEX idx_qrsr_surah_a ON "qr_surah_link"(surah_a);
+
+CREATE INDEX idx_qrsr_surah_b ON "qr_surah_link"(surah_b);
+
+CREATE INDEX idx_qrsrs_surah ON "qr_surah_register_shift"(surah);
 
 CREATE INDEX idx_qrssn_scope ON qr_ss_scope_nuance(scope_type, scope_id);
 
+CREATE INDEX idx_qrssp_range
+  ON "qr_surah_study_passage"(surah, ayah_from, ayah_to);
+
+CREATE INDEX idx_qrssp_surah
+  ON "qr_surah_study_passage"(surah, passage_no);
+
 CREATE INDEX idx_qrssr_scope ON qr_ss_scope_reading(scope_type, scope_id);
 
-CREATE INDEX idx_qrscr_from ON qr_ss_scope_relations(from_scope_type, from_scope_id);
+CREATE INDEX idx_qrssr_surah ON "qr_surah_structure_reading"(surah);
 
-CREATE INDEX idx_qrscr_to   ON qr_ss_scope_relations(to_scope_type, to_scope_id);
+CREATE INDEX idx_qrsss_passage_order
+  ON "qr_surah_study_step"(passage_id, step_no);
 
-CREATE INDEX idx_qrsyn_dep   ON qr_ss_syntax_relations(dep_word_id);
+CREATE INDEX idx_qrsst_parent
+  ON "qr_surah_study_task"(parent_task_id, step_no);
 
-CREATE INDEX idx_qrsyn_head  ON qr_ss_syntax_relations(head_word_id);
+CREATE INDEX idx_qrsst_passage_type
+  ON "qr_surah_study_task"(passage_id, task_type, step_no);
 
-CREATE INDEX idx_qrsyn_surah ON qr_ss_syntax_relations(surah, ayah);
+CREATE UNIQUE INDEX idx_qrsst_root_type_unique
+  ON "qr_surah_study_task"(passage_id, task_type)
+  WHERE parent_task_id IS NULL;
 
-CREATE INDEX idx_qr_ss_term_cat ON qr_ss_term(category, sort_order);
+CREATE INDEX idx_qrsstjc_passage
+  ON "qr_surah_study_task_chunk"(passage_id, task_id, chunk_index);
+
+CREATE INDEX idx_qrssu_surah ON "qr_surah_structure_unit"(surah);
+
+CREATE INDEX idx_qrst_surah  ON "qr_scope_topic"(surah);
+
+CREATE INDEX idx_qrst_topic  ON "qr_scope_topic"(topic_id);
 
 CREATE INDEX idx_qrste_tree ON qr_ss_tree_edge(tree_id);
 
-CREATE INDEX idx_qr_ss_tree_node_term ON qr_ss_tree_node(term_key);
-
-CREATE INDEX idx_qr_ss_tree_node_word ON qr_ss_tree_node(word_occurrence_id);
+CREATE INDEX idx_qrstf_surah ON "qr_surah_topic_flow"(surah);
 
 CREATE INDEX idx_qrstn_parent ON qr_ss_tree_node(parent_node_id);
 
 CREATE INDEX idx_qrstn_tree   ON qr_ss_tree_node(tree_id);
 
-CREATE INDEX idx_qrsq_passage ON qr_study_questions(passage_id, sort_order);
+CREATE INDEX idx_qrsyn_dep   ON "qr_ss_syntax_link"(dep_word_id);
 
-CREATE INDEX idx_qrscs_surah ON qr_surah_coherence_signals(surah);
+CREATE INDEX idx_qrsyn_head  ON "qr_ss_syntax_link"(head_word_id);
 
-CREATE INDEX idx_qrsmc_surah ON qr_surah_motif_clusters(surah);
+CREATE INDEX idx_qrsyn_surah ON "qr_ss_syntax_link"(surah, ayah);
 
-CREATE INDEX idx_qrsrs_surah ON qr_surah_register_shifts(surah);
+CREATE INDEX idx_qrte_scholar ON "qr_tafsir_entry"(scholar_id);
 
-CREATE INDEX idx_qrsr_surah_a ON qr_surah_relations(surah_a);
+CREATE INDEX idx_qrte_surah   ON "qr_tafsir_entry"(surah, ayah_from);
 
-CREATE INDEX idx_qrsr_surah_b ON qr_surah_relations(surah_b);
+CREATE INDEX idx_qrtp_source_surah ON "qr_translation_passage"(source_id, surah);
 
-CREATE INDEX idx_qrpiv_surah ON qr_surah_structural_pivots(surah);
+CREATE INDEX idx_qrtr_source_surah ON "qr_translation"(source_id, surah);
 
-CREATE INDEX idx_qrssr_surah ON qr_surah_structure_readings(surah);
+CREATE INDEX idx_qrwo_lemma      ON "qr_word_occurrence"(lemma);
 
-CREATE INDEX idx_qrssu_surah ON qr_surah_structure_units(surah);
+CREATE INDEX idx_qrwo_lemma_ref ON "qr_word_occurrence"(lemma_ref);
 
-CREATE INDEX idx_qrssp_range
-  ON qr_surah_study_passages(surah, ayah_from, ayah_to);
+CREATE INDEX idx_qrwo_root       ON "qr_word_occurrence"(root);
 
-CREATE INDEX idx_qrssp_surah
-  ON qr_surah_study_passages(surah, passage_no);
+CREATE INDEX idx_qrwo_surah_ayah ON "qr_word_occurrence"(surah, ayah);
 
-CREATE INDEX idx_qrsss_passage_order
-  ON qr_surah_study_steps(passage_id, step_no);
+CREATE INDEX idx_tafsir_block_ayah        ON "qr_tafsir_book_display_block" (surah_no, ayah_no);
 
-CREATE INDEX idx_qrsstjc_passage
-  ON qr_surah_study_task_json_chunks(passage_id, task_id, chunk_index);
-
-CREATE INDEX idx_qrsst_parent
-  ON qr_surah_study_tasks(parent_task_id, step_no);
-
-CREATE INDEX idx_qrsst_passage_type
-  ON qr_surah_study_tasks(passage_id, task_type, step_no);
-
-CREATE UNIQUE INDEX idx_qrsst_root_type_unique
-  ON qr_surah_study_tasks(passage_id, task_type)
-  WHERE parent_task_id IS NULL;
-
-CREATE INDEX idx_qrstf_surah ON qr_surah_topic_flows(surah);
-
-CREATE INDEX idx_tafsir_block_ayah        ON qr_tafsir_book_display_blocks (surah_no, ayah_no);
-
-CREATE INDEX idx_tafsir_block_ayah_key    ON qr_tafsir_book_display_blocks (ayah_key);
+CREATE INDEX idx_tafsir_block_ayah_key    ON "qr_tafsir_book_display_block" (ayah_key);
 
 CREATE INDEX idx_tafsir_block_ayah_scholar
-  ON qr_tafsir_book_display_blocks (surah_no, ayah_no, scholar_id, display_order);
+  ON "qr_tafsir_book_display_block" (surah_no, ayah_no, scholar_id, display_order);
 
-CREATE INDEX idx_tafsir_block_entry       ON qr_tafsir_book_display_blocks (source_tafsir_entry_id);
+CREATE INDEX idx_tafsir_block_entry       ON "qr_tafsir_book_display_block" (source_tafsir_entry_id);
 
-CREATE INDEX idx_tafsir_block_group       ON qr_tafsir_book_display_blocks (ayah_group_key);
+CREATE INDEX idx_tafsir_block_group       ON "qr_tafsir_book_display_block" (ayah_group_key);
 
-CREATE INDEX idx_tafsir_block_grouped     ON qr_tafsir_book_display_blocks (surah_no, is_grouped);
+CREATE INDEX idx_tafsir_block_grouped     ON "qr_tafsir_book_display_block" (surah_no, is_grouped);
 
-CREATE INDEX idx_tafsir_block_madhab_era  ON qr_tafsir_book_display_blocks (madhab, era);
+CREATE INDEX idx_tafsir_block_madhab_era  ON "qr_tafsir_book_display_block" (madhab, era);
 
-CREATE INDEX idx_tafsir_block_review      ON qr_tafsir_book_display_blocks (review_status);
+CREATE INDEX idx_tafsir_block_review      ON "qr_tafsir_book_display_block" (review_status);
 
-CREATE INDEX idx_tafsir_block_scholar     ON qr_tafsir_book_display_blocks (scholar_id, surah_no);
+CREATE INDEX idx_tafsir_block_scholar     ON "qr_tafsir_book_display_block" (scholar_id, surah_no);
 
-CREATE INDEX idx_tafsir_block_slug        ON qr_tafsir_book_display_blocks (source_slug);
+CREATE INDEX idx_tafsir_block_slug        ON "qr_tafsir_book_display_block" (source_slug);
 
-CREATE INDEX idx_tafsir_block_source      ON qr_tafsir_book_display_blocks (source_id);
+CREATE INDEX idx_tafsir_block_source      ON "qr_tafsir_book_display_block" (source_id);
 
-CREATE INDEX idx_tafsir_block_surah       ON qr_tafsir_book_display_blocks (surah_no);
+CREATE INDEX idx_tafsir_block_surah       ON "qr_tafsir_book_display_block" (surah_no);
 
-CREATE INDEX idx_tafsir_block_type        ON qr_tafsir_book_display_blocks (block_type);
+CREATE INDEX idx_tafsir_block_type        ON "qr_tafsir_book_display_block" (block_type);
 
-CREATE INDEX idx_tafsir_block_work        ON qr_tafsir_book_display_blocks (work_id, surah_no);
+CREATE INDEX idx_tafsir_block_work        ON "qr_tafsir_book_display_block" (work_id, surah_no);
 
-CREATE UNIQUE INDEX uq_tafsir_block_natural
-  ON qr_tafsir_book_display_blocks (source_tafsir_entry_id, block_type, display_order, paragraph_index);
+CREATE INDEX idx_tafsir_display_sources_era     ON "qr_tafsir_book_display_source" (era);
 
-CREATE INDEX idx_tafsir_link_to        ON qr_tafsir_book_display_links (to_block_id, link_kind);
+CREATE INDEX idx_tafsir_display_sources_madhab  ON "qr_tafsir_book_display_source" (madhab);
 
-CREATE INDEX idx_tafsir_link_to_typed  ON qr_tafsir_book_display_links (to_typed_ref);
+CREATE INDEX idx_tafsir_display_sources_order   ON "qr_tafsir_book_display_source" (display_order);
 
-CREATE UNIQUE INDEX uq_tafsir_link_natural
-  ON qr_tafsir_book_display_links (from_block_id, to_block_id, link_kind);
+CREATE INDEX idx_tafsir_link_to        ON "qr_tafsir_book_display_link" (to_block_id, link_kind);
 
-CREATE INDEX idx_tafsir_note_ayah    ON qr_tafsir_book_display_notes (surah_no, ayah_no);
+CREATE INDEX idx_tafsir_link_to_typed  ON "qr_tafsir_book_display_link" (to_typed_ref);
 
-CREATE INDEX idx_tafsir_note_block   ON qr_tafsir_book_display_notes (block_id);
+CREATE INDEX idx_tafsir_note_ayah    ON "qr_tafsir_book_display_note" (surah_no, ayah_no);
 
-CREATE INDEX idx_tafsir_note_group   ON qr_tafsir_book_display_notes (ayah_group_key);
+CREATE INDEX idx_tafsir_note_block   ON "qr_tafsir_book_display_note" (block_id);
 
-CREATE INDEX idx_tafsir_note_kind    ON qr_tafsir_book_display_notes (note_kind);
+CREATE INDEX idx_tafsir_note_group   ON "qr_tafsir_book_display_note" (ayah_group_key);
 
-CREATE INDEX idx_tafsir_note_scholar ON qr_tafsir_book_display_notes (scholar_id);
+CREATE INDEX idx_tafsir_note_kind    ON "qr_tafsir_book_display_note" (note_kind);
 
-CREATE INDEX idx_tafsir_ref_ayah   ON qr_tafsir_book_display_refs (surah_no, ayah_no);
+CREATE INDEX idx_tafsir_note_scholar ON "qr_tafsir_book_display_note" (scholar_id);
 
-CREATE INDEX idx_tafsir_ref_block  ON qr_tafsir_book_display_refs (block_id);
+CREATE INDEX idx_tafsir_ref_ayah   ON "qr_tafsir_book_display_ref" (surah_no, ayah_no);
 
-CREATE INDEX idx_tafsir_ref_group  ON qr_tafsir_book_display_refs (ayah_group_key);
+CREATE INDEX idx_tafsir_ref_block  ON "qr_tafsir_book_display_ref" (block_id);
 
-CREATE INDEX idx_tafsir_ref_typed  ON qr_tafsir_book_display_refs (typed_ref);
+CREATE INDEX idx_tafsir_ref_group  ON "qr_tafsir_book_display_ref" (ayah_group_key);
 
-CREATE INDEX idx_tafsir_display_sources_era     ON qr_tafsir_book_display_sources (era);
-
-CREATE INDEX idx_tafsir_display_sources_madhab  ON qr_tafsir_book_display_sources (madhab);
-
-CREATE INDEX idx_tafsir_display_sources_order   ON qr_tafsir_book_display_sources (display_order);
+CREATE INDEX idx_tafsir_ref_typed  ON "qr_tafsir_book_display_ref" (typed_ref);
 
 CREATE INDEX idx_tafsir_tag_value_norm
-  ON qr_tafsir_book_display_tags (tag_kind, tag_value_norm);
+  ON "qr_tafsir_book_display_tag" (tag_kind, tag_value_norm);
+
+CREATE INDEX ix_qrreg_uid ON qr_root_registry(root_uid);
+
+CREATE INDEX ix_qwo_root_uid ON "qr_word_occurrence"(root_uid);
+
+CREATE UNIQUE INDEX uq_iraab_block_natural
+  ON "qr_irab_book_display_block" (source_chunk_id, source_entry_id, block_type, display_order);
+
+CREATE UNIQUE INDEX uq_iraab_link_natural
+  ON "qr_irab_book_display_link" (from_block_id, to_block_id, link_kind);
+
+CREATE UNIQUE INDEX uq_iraab_tag_natural
+  ON "qr_irab_book_display_tag" (block_id, tag_kind, tag_value);
+
+CREATE UNIQUE INDEX uq_tafsir_block_natural
+  ON "qr_tafsir_book_display_block" (source_tafsir_entry_id, block_type, display_order, paragraph_index);
+
+CREATE UNIQUE INDEX uq_tafsir_link_natural
+  ON "qr_tafsir_book_display_link" (from_block_id, to_block_id, link_kind);
 
 CREATE UNIQUE INDEX uq_tafsir_tag_natural
-  ON qr_tafsir_book_display_tags (block_id, tag_kind, tag_value);
+  ON "qr_tafsir_book_display_tag" (block_id, tag_kind, tag_value);
 
-CREATE INDEX idx_qrte_scholar ON qr_tafsir_entries(scholar_id);
-
-CREATE INDEX idx_qrte_surah   ON qr_tafsir_entries(surah, ayah_from);
-
-CREATE INDEX idx_qrtp_source_surah ON qr_translation_passages(source_id, surah);
-
-CREATE INDEX idx_qrtr_source_surah ON qr_translations(source_id, surah);
-
-CREATE INDEX idx_qrwo_lemma      ON qr_word_occurrences(lemma);
-
-CREATE INDEX idx_qrwo_lemma_ref ON qr_word_occurrences(lemma_ref);
-
-CREATE INDEX idx_qrwo_root       ON qr_word_occurrences(root);
-
-CREATE INDEX idx_qrwo_surah_ayah ON qr_word_occurrences(surah, ayah);
-
-CREATE INDEX ix_qwo_root_uid ON qr_word_occurrences(root_uid);
-
+CREATE UNIQUE INDEX ux_qr_irab_entry_dedupe
+  ON "qr_irab_book_entry"(source_slug, source_chunk_id, entry_order, target_text_bare, source_quote_hash);

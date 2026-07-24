@@ -35,11 +35,11 @@ export interface RootAnalysis {
 }
 
 // The four NAMED lenses are a back-compat contract for existing consumers; every
-// other lexicon in ar_ling_lexicon_root_entries surfaces through `lenses.others`.
-// Nothing here decides WHICH lexicons render — qr_morph_display_sources does that.
+// other lexicon in ar_ling_lexicon_entry surfaces through `lenses.others`.
+// Nothing here decides WHICH lexicons render — qr_morph_display_source does that.
 const LENS_SLUG = {
-  maqayis: 'saaid_maqayis_al_lugha',
-  mufradat: 'al_raghib_mufradat',
+  maqayis: 'maqayis_lugha',
+  mufradat: 'raghib_mufradat',
   lane: 'lane_lexicon',
   sinai: 'sinai_key_terms',
 } as const;
@@ -114,20 +114,20 @@ export class WordAnalysisRepo {
       query<{ root_text: string; root_normalized: string | null; root_letters: string | null; root_type: string | null; weak_pattern: string | null; frequency_quran: number | null; meaning_core_ar: string | null; meaning_core_en: string | null }>(
         this.db, `SELECT root_text, root_normalized, root_letters, root_type, weak_pattern, frequency_quran, meaning_core_ar, meaning_core_en FROM ar_ling_roots WHERE root_text IN (${ph}) OR root_normalized IN (${ph})`, [...uniq, ...uniq]).catch(() => []),
       query<{ root_norm: string; membean_hook: string | null; unique_senses_json: string | null; examples_json: string | null }>(
-        this.db, `SELECT root_norm, membean_hook, unique_senses_json, examples_json FROM ar_ling_root_vocab WHERE root_norm IN (${ph})`, uniq).catch(() => []),
+        this.db, `SELECT root_norm, membean_hook, unique_senses_json, examples_json FROM ar_ling_learn_vocab WHERE root_norm IN (${ph})`, uniq).catch(() => []),
       query<{ root_norm: string; nuance_gems_json: string | null; near_synonyms_json: string | null }>(
         this.db, `SELECT root_norm, nuance_gems_json, near_synonyms_json FROM ar_ling_vocab_depth WHERE root_norm IN (${ph})`, uniq).catch(() => []),
       query<{ root_norm: string; antonym_ar: string; antonym_en: string | null; antonym_root: string | null }>(
-        this.db, `SELECT root_norm, antonym_ar, antonym_en, antonym_root FROM ar_ling_root_antonyms WHERE root_norm IN (${ph}) ORDER BY sort_order`, uniq).catch(() => []),
+        this.db, `SELECT root_norm, antonym_ar, antonym_en, antonym_root FROM ar_ling_root_didd WHERE root_norm IN (${ph}) ORDER BY sort_order`, uniq).catch(() => []),
       query<{ root_norm: string; title: string | null; caption_md: string | null; palette: string | null; svg_inline: string | null }>(
         this.db, `SELECT root_norm, title, caption_md, palette, svg_inline FROM ar_ling_vocab_illustrations WHERE root_norm IN (${ph})`, uniq).catch(() => []),
       query<{ root_norm: string; diagram_kind: string | null; spec_json: string | null; renderer_key: string | null }>(
         this.db, `SELECT root_norm, diagram_kind, spec_json, renderer_key FROM ar_ling_vocab_diagrams WHERE root_norm IN (${ph})`, uniq).catch(() => []),
       query<{ root_norm: string; source_slug: string; raw_text: string | null; entry_text_ar: string | null; entry_text_en: string | null; page_start: number | null }>(
-        this.db, `SELECT root_norm, source_slug, raw_text, entry_text_ar, entry_text_en, page_start FROM ar_ling_lexicon_root_entries WHERE root_norm IN (${ph})`,
+        this.db, `SELECT root_norm, source_slug, raw_text, entry_text_ar, entry_text_en, page_start FROM ar_ling_lexicon_entry WHERE root_norm IN (${ph})`,
         uniq).catch(() => []),
       query<{ root_norm: string; heading_norm: string | null; text_ar: string | null }>(
-        this.db, `SELECT root_norm, heading_norm, text_ar FROM ar_ling_lexicon_entry_sections WHERE root_norm IN (${ph}) AND source_slug = ?`, [...uniq, FIVE_LENS_SLUG]).catch(() => []),
+        this.db, `SELECT root_norm, heading_norm, text_ar FROM ar_ling_lexicon_entry_section WHERE root_norm IN (${ph}) AND source_slug = ?`, [...uniq, FIVE_LENS_SLUG]).catch(() => []),
     ]);
 
     // Derivation family (مشتقّات) — Quranic lemmas of each root. Root rows are
@@ -137,7 +137,7 @@ export class WordAnalysisRepo {
       this.db,
       `SELECT r.root_text, r.root_normalized,
               l.lemma_text, l.part_of_speech, l.verb_form, l.is_quran_word
-         FROM ar_ling_lemmas l JOIN ar_ling_roots r ON l.root_id = r.id
+         FROM ar_ling_root_lemma l JOIN ar_ling_roots r ON l.root_id = r.id
         WHERE (r.root_text IN (${ph}) OR r.root_normalized IN (${ph}))
           AND l.is_quran_word = 1
           AND l.part_of_speech != 'root_entry'

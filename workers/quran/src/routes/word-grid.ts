@@ -6,8 +6,8 @@
 //
 // A logic-free renderer paints these cards verbatim (passage-card styling).
 //
-// Data: BASE qr_word_occurrences ⟕ RICH qr_morph_display_words ⟕
-// qr_morph_display_lemmas (LEFT JOIN for an authored lemma_ar / gloss / spaced
+// Data: BASE qr_word_occurrence ⟕ RICH qr_morph_display_word ⟕
+// qr_morph_display_lemma (LEFT JOIN for an authored lemma_ar / gloss / spaced
 // root when the word is promoted; the gloss is a tier-2 lemma fact served from
 // the lemma tier, word-row copy as transitional fallback).
 // Content words only — filtered by `root IS NOT NULL` (particles have no root).
@@ -105,11 +105,11 @@ export function wordGridRoutes(router: Router<QuranEnv>) {
                 COUNT(*)                        AS occurrences,
                 MIN(w.surah * 1000000 + w.ayah * 1000 + w.word_index) AS first_key,
                 MAX(w.word_text)                AS surface_any
-           FROM qr_word_occurrences w
-           LEFT JOIN qr_morph_display_words d
+           FROM qr_word_occurrence w
+           LEFT JOIN qr_morph_display_word d
              ON d.surah_no = w.surah AND d.ayah_no = w.ayah
             AND d.word_index = w.word_index AND d.status = 'live'
-           LEFT JOIN qr_morph_display_lemmas dl ON dl.id = d.lemma_ref AND dl.status = 'live'
+           LEFT JOIN qr_morph_display_lemma dl ON dl.id = d.lemma_ref AND dl.status = 'live'
           WHERE ${conditions.join(' AND ')}
           GROUP BY COALESCE(w.lemma, w.word_text), w.root
           ORDER BY occurrences DESC, first_key ASC

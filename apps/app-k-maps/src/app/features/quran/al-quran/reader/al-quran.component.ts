@@ -237,7 +237,7 @@ export class AlQuranComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /** Open the styled Five-Lens lexicon modal for a tapped word's root. The
-   *  root travels on the word from the page payload (qr_word_occurrences.root)
+   *  root travels on the word from the page payload (qr_word_occurrence.root)
    *  — the modal fetches the curated entry by root. Display-only. */
   async openFiveLens(word: QuranPageWord): Promise<void> {
     if (!word.root) return;

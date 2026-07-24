@@ -15,15 +15,15 @@ import { WordExtrasService } from './word-extras.service';
 import { FusedWordVM, LexRow } from './fused-word.models';
 
 const LEX_LABELS: Record<string, string> = {
-  ketabonline_ibn_manzur_lisan_al_arab: 'Lisān al-ʿArab',
-  ketabonline_al_zabidi_taj_al_arus: 'Tāj al-ʿArūs',
-  al_raghib_mufradat: 'Mufradāt',
-  ketabonline_al_fayyumi_misbah_munir: 'Miṣbāḥ al-Munīr',
-  ketabonline_al_jawhari_al_sihah: 'al-Ṣiḥāḥ',
-  saaid_maqayis_al_lugha: 'Maqāyīs al-Lugha',
-  thahabi_al_khalil_kitab_al_ayn: 'Kitāb al-ʿAyn',
-  qomra_al_qamus_al_muhit: 'al-Qāmūs al-Muḥīṭ',
-  qomra_al_ubab_al_zakhir: 'al-ʿUbāb al-Zākhir',
+  ibn_manzur_lisan_arab: 'Lisān al-ʿArab',
+  zabidi_taj_arus: 'Tāj al-ʿArūs',
+  raghib_mufradat: 'Mufradāt',
+  fayyumi_misbah_munir: 'Miṣbāḥ al-Munīr',
+  jawhari_sihah: 'al-Ṣiḥāḥ',
+  maqayis_lugha: 'Maqāyīs al-Lugha',
+  khalil_kitab_ayn: 'Kitāb al-ʿAyn',
+  qamus_muhit: 'al-Qāmūs al-Muḥīṭ',
+  ubab_zakhir: 'al-ʿUbāb al-Zākhir',
   lane_lexicon: 'Lane',
 };
 

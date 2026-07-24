@@ -208,7 +208,7 @@ export class WordPopoverComponent {
 
   /** word.text is QPC PUA-encoded (only renders with the per-page QPC font);
    *  Amiri/Noto Naskh can't render those glyphs. Prefer word.simple — populated
-   *  by the worker from qr_word_occurrences.word_text — and fall back to empty
+   *  by the worker from qr_word_occurrence.word_text — and fall back to empty
    *  so the header hides the word span if the morphology row is missing. */
   displayText(): string {
     return (this.word.simple ?? '').trim();

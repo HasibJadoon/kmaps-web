@@ -32,14 +32,14 @@ import {
 // the back-end composer's SOURCE_CONFIGS table.
 const CLASSICAL_LEXICON_SLUGS = new Set<string>([
   LISAN_SLUG,
-  'ketabonline_al_jawhari_al_sihah',
-  'thahabi_al_khalil_kitab_al_ayn',
-  'saaid_maqayis_al_lugha',
-  'qomra_al_ubab_al_zakhir',
-  'ketabonline_al_zabidi_taj_al_arus',
-  'ketabonline_al_fayyumi_misbah_munir',
-  'ketabonline_ibn_duraid_jamharat_al_lugha',
-  'qomra_al_qamus_al_muhit',
+  'jawhari_sihah',
+  'khalil_kitab_ayn',
+  'maqayis_lugha',
+  'ubab_zakhir',
+  'zabidi_taj_arus',
+  'fayyumi_misbah_munir',
+  'ibn_durayd_jamharat_lugha',
+  'qamus_muhit',
 ]);
 
 interface BlockNode {
@@ -309,9 +309,9 @@ export class LexiconBookReaderComponent {
         const root = query.get('root') ?? '';
 
         // The al-Rāghib Mufradāt source dropped its provider prefix
-        // (ketabonline_al_raghib_mufradat → al_raghib_mufradat). Redirect
+        // (raghib_mufradat → raghib_mufradat). Redirect
         // any bookmarked links on the old slug so they keep working.
-        if (slug === 'ketabonline_al_raghib_mufradat') {
+        if (slug === 'raghib_mufradat') {
           this.router.navigate(['/lexicon/books', MUFRADAT_SLUG], {
             queryParams: root ? { root } : {},
             replaceUrl: true,

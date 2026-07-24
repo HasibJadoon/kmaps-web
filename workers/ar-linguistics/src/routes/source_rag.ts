@@ -3,8 +3,8 @@
 //
 // This worker owns DB_AL (km_arabic_linguistic) only.
 // It covers:
-//   - ar_ling_source_chunks  → lexicon / irab / balagha / near-synonym chunks
-//   - ar_ling_vector_records → links to qr_tafsir_entries + qr_translations
+//   - ar_ling_source_chunk  → lexicon / irab / balagha / near-synonym chunks
+//   - ar_ling_infra_vector → links to qr_tafsir_entry + qr_translation
 //     (text for those lives in km_quran, resolved by the backend proxy)
 //
 // Endpoints:
@@ -86,10 +86,10 @@ export function sourceRagRoutes(router: Router<ArLinguisticsEnv>) {
   // ── health ─────────────────────────────────────────────────────────────────
   router.get('/al/source-rag/health', async (_req, env) => {
     const row = await env.DB_AL
-      .prepare('SELECT COUNT(*) as cnt FROM ar_ling_source_chunks WHERE is_embedded=1')
+      .prepare('SELECT COUNT(*) as cnt FROM ar_ling_source_chunk WHERE is_embedded=1')
       .first<{ cnt: number }>();
     const vr = await env.DB_AL
-      .prepare('SELECT COUNT(*) as cnt FROM ar_ling_vector_records')
+      .prepare('SELECT COUNT(*) as cnt FROM ar_ling_infra_vector')
       .first<{ cnt: number }>();
     return ok({
       status: 'ok',
@@ -140,7 +140,7 @@ export function sourceRagRoutes(router: Router<ArLinguisticsEnv>) {
       SELECT id, chunk_kind, heading_norm, text_ar, text_en,
              page_no, volume_no, meta_json,
              surah_no, ayah_start, ayah_end
-      FROM ar_ling_source_chunks
+      FROM ar_ling_source_chunk
       WHERE ${conditions.join(' AND ')}
       ORDER BY chunk_kind, ayah_start, id
       LIMIT ?
@@ -171,13 +171,13 @@ export function sourceRagRoutes(router: Router<ArLinguisticsEnv>) {
   });
 
   // ── GET /al/source-rag/vector-links ────────────────────────────────────────
-  // Returns ar_ling_vector_records for surah/ayah — includes refs to
-  // qr_tafsir_entries and qr_translations in km_quran.
+  // Returns ar_ling_infra_vector for surah/ayah — includes refs to
+  // qr_tafsir_entry and qr_translation in km_quran.
   // The backend proxy uses these to fetch actual text from km_quran worker.
   // Query params:
   //   surah        (required)
   //   ayah         (optional)
-  //   target_table (optional) — e.g. 'qr_tafsir_entries'
+  //   target_table (optional) — e.g. 'qr_tafsir_entry'
   //   work_id      (optional) — filter to one tafsir work
   //   limit        (default 100)
   router.get('/al/source-rag/vector-links', async (req, env) => {
@@ -209,7 +209,7 @@ export function sourceRagRoutes(router: Router<ArLinguisticsEnv>) {
       SELECT id, target_db, target_table, target_id,
              work_id, scholar_id, chunk_kind, source_slug,
              surah_no, ayah_start, ayah_end
-      FROM ar_ling_vector_records
+      FROM ar_ling_infra_vector
       WHERE ${conditions.join(' AND ')}
       ORDER BY chunk_kind, ayah_start
       LIMIT ?
@@ -263,7 +263,7 @@ export function sourceRagRoutes(router: Router<ArLinguisticsEnv>) {
       SELECT id, chunk_kind, heading_norm, text_ar, text_en,
              page_no, volume_no, meta_json,
              surah_no, ayah_start, ayah_end
-      FROM ar_ling_source_chunks
+      FROM ar_ling_source_chunk
       WHERE surah_no = ? ${ayahCondition}
         AND chunk_kind IN (${kindPlaceholders})
         AND is_embedded = 1
@@ -277,9 +277,9 @@ export function sourceRagRoutes(router: Router<ArLinguisticsEnv>) {
       SELECT id, target_db, target_table, target_id,
              work_id, scholar_id, chunk_kind, source_slug,
              surah_no, ayah_start, ayah_end
-      FROM ar_ling_vector_records
+      FROM ar_ling_infra_vector
       WHERE surah_no = ? ${ayahCondition}
-        AND target_table = 'qr_tafsir_entries'
+        AND target_table = 'qr_tafsir_entry'
       ORDER BY work_id, ayah_start
       LIMIT 100
     `;
@@ -289,7 +289,7 @@ export function sourceRagRoutes(router: Router<ArLinguisticsEnv>) {
       SELECT id, target_db, target_table, target_id,
              work_id, scholar_id, chunk_kind, source_slug,
              surah_no, ayah_start, ayah_end
-      FROM ar_ling_vector_records
+      FROM ar_ling_infra_vector
       WHERE surah_no = ? ${ayahCondition}
         AND chunk_kind = 'translation'
       ORDER BY source_slug, ayah_start

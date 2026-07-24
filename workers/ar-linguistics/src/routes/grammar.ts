@@ -3,9 +3,9 @@
 // Classical Arabic grammar corpus — ṣarf (SF), naḥw (NH), balāgha (BL).
 // Reads the discipline-tagged tables produced by the Shamela4 authority ingest:
 //   ar_ling_gram_bab      — the spine (abwāب tree per book, matn order preserved)
-//   ar_ling_gram_chunks   — page-level verbatim text (page/volume anchored)
+//   ar_ling_gram_chunk   — page-level verbatim text (page/volume anchored)
 //   ar_ling_gram_chunks_fts — FTS5 (unicode61 remove_diacritics 2)
-//   ar_ling_sources       — book + edition metadata (provenance)
+//   ar_ling_source       — book + edition metadata (provenance)
 //
 // Endpoints (all under the public `al` gateway → reachable at /api/al/gram/*):
 //   GET /al/gram/books                       all books grouped by discipline
@@ -44,12 +44,12 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
 
     const pageAgg = (await env.DB_AL.prepare(
       `SELECT source_slug, COUNT(*) AS pages, MAX(volume_no) AS volumes
-         FROM ar_ling_gram_chunks GROUP BY source_slug`,
+         FROM ar_ling_gram_chunk GROUP BY source_slug`,
     ).all<{ source_slug: string; pages: number; volumes: number | null }>()).results ?? [];
 
     const meta = (await env.DB_AL.prepare(
       `SELECT slug, title_ar, author_name, author_death_ah, genre
-         FROM ar_ling_sources
+         FROM ar_ling_source
         WHERE slug IN (SELECT DISTINCT source_slug FROM ar_ling_gram_bab)`,
     ).all<{ slug: string; title_ar: string; author_name: string | null; author_death_ah: number | null; genre: string | null }>()).results ?? [];
 
@@ -95,8 +95,8 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
     const meta = await env.DB_AL.prepare(
       `SELECT s.slug, s.title_ar, s.author_name, s.author_death_ah, s.genre,
               e.edition_label, e.note_md AS betaka
-         FROM ar_ling_sources s
-         LEFT JOIN ar_ling_source_editions e ON e.source_id = s.id
+         FROM ar_ling_source s
+         LEFT JOIN ar_ling_source_edition e ON e.source_id = s.id
         WHERE s.slug = ? LIMIT 1`,
     ).bind(slug).first<Record<string, unknown>>();
     if (!meta) return badRequest(`unknown book: ${slug}`);
@@ -115,7 +115,7 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
     }
 
     const pageCount = await env.DB_AL.prepare(
-      `SELECT COUNT(*) AS n FROM ar_ling_gram_chunks WHERE source_slug = ?`,
+      `SELECT COUNT(*) AS n FROM ar_ling_gram_chunk WHERE source_slug = ?`,
     ).bind(slug).first<{ n: number }>();
 
     return ok({ book: { ...meta, page_count: pageCount?.n ?? 0 }, spine: roots, bab_count: babs.length });
@@ -134,12 +134,12 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
     const binds = bab ? [slug, bab] : [slug];
 
     const total = await env.DB_AL.prepare(
-      `SELECT COUNT(*) AS n FROM ar_ling_gram_chunks WHERE ${where}`,
+      `SELECT COUNT(*) AS n FROM ar_ling_gram_chunk WHERE ${where}`,
     ).bind(...binds).first<{ n: number }>();
 
     const rows = (await env.DB_AL.prepare(
       `SELECT id, bab_id, volume_no, part_label, page_no, seq, text_ar, footnotes_ar
-         FROM ar_ling_gram_chunks WHERE ${where}
+         FROM ar_ling_gram_chunk WHERE ${where}
         ORDER BY seq LIMIT ? OFFSET ?`,
     ).bind(...binds, limit, offset).all<Record<string, unknown>>()).results ?? [];
 
@@ -178,8 +178,8 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
       const ph = ids.map(() => '?').join(',');
       const a = (await env.DB_AL.prepare(
         `SELECT c.id, c.page_no, c.volume_no, s.title_ar
-           FROM ar_ling_gram_chunks c
-           JOIN ar_ling_sources s ON s.slug = c.source_slug
+           FROM ar_ling_gram_chunk c
+           JOIN ar_ling_source s ON s.slug = c.source_slug
           WHERE c.id IN (${ph})`,
       ).bind(...ids).all<{ id: string; page_no: number | null; volume_no: number | null; title_ar: string }>()).results ?? [];
       anchors = Object.fromEntries(a.map(x => [x.id, x]));

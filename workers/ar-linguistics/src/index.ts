@@ -16,6 +16,7 @@ import { balaghaRoutes } from './routes/balagha';
 import { lexiconRoutes } from './routes/lexicon';
 import { lexiconFiveLensRoutes } from './routes/lexicon_five_lens';
 import { lexiconV2Routes } from './routes/lexicon_v2';
+import { lexiconDisplayRoutes } from './routes/lexicon_display';
 import { lexiconMufradatRoutes } from './routes/lexicon_mufradat';
 import { lexiconLisanRoutes } from './routes/lexicon_lisan';
 import { lexiconLaneRoutes }  from './routes/lexicon_lane';
@@ -44,6 +45,7 @@ balaghaRoutes(router);
 lexiconRoutes(router);
 lexiconFiveLensRoutes(router);
 lexiconV2Routes(router);
+lexiconDisplayRoutes(router);    // /al/lex/v2/display/* — per-lexicon render contract (D1-backed, 0039)
 lexiconMufradatRoutes(router);
 lexiconLisanRoutes(router);
 lexiconLaneRoutes(router);

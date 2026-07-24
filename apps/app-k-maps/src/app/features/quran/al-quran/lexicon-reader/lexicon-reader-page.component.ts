@@ -3,7 +3,7 @@
 // One page handles every source kind in the catalog:
 //   • Lane                  (lane_lexicon)            → getLaneRead
 //   • Classical lexicons    (lisan / taj / sihah / …) → getV2Entry
-//   • Mufradat al-Raghib    (ketabonline_al_raghib_*) → getMufradatRead
+//   • Mufradat al-Raghib    (raghib_mufradat)         → getMufradatRead
 //   • Academic scholarship  (aljallad_… and future)   → getScholarshipBySource
 //
 // Layout: a single header toolbar (back arrow · book title · roots-picker icon)
@@ -47,20 +47,20 @@ interface AyahPreview {
 export type SourceKind = 'lane' | 'classical' | 'mufradat' | 'scholarship';
 
 const CLASSICAL_LEXICON_SLUGS = new Set<string>([
-  'ketabonline_ibn_manzur_lisan_al_arab',
-  'ketabonline_al_zabidi_taj_al_arus',
-  'ketabonline_al_jawhari_al_sihah',
-  'saaid_maqayis_al_lugha',
-  'qomra_al_qamus_al_muhit',
-  'qomra_al_ubab_al_zakhir',
-  'qomra_al_misbah_al_munir',
-  'qomra_jamharat_al_lugha',
-  'thahabi_al_khalil_kitab_al_ayn',
-  'ketabonline_al_fayyumi_misbah_munir',
-  'ketabonline_ibn_duraid_jamharat_al_lugha',
+  'ibn_manzur_lisan_arab',
+  'zabidi_taj_arus',
+  'jawhari_sihah',
+  'maqayis_lugha',
+  'qamus_muhit',
+  'ubab_zakhir',
+  'fayyumi_misbah_munir',
+  'ibn_durayd_jamharat_lugha',
+  'khalil_kitab_ayn',
+  'fayyumi_misbah_munir',
+  'ibn_durayd_jamharat_lugha',
 ]);
-const LANE_SLUGS = new Set<string>(['lane_lexicon', 'lane_quranic_research_perseus']);
-const MUFRADAT_SLUG = 'al_raghib_mufradat';
+const LANE_SLUGS = new Set<string>(['lane_lexicon', 'lane_lexicon']);
+const MUFRADAT_SLUG = 'raghib_mufradat';
 
 function sourceKind(slug: string): SourceKind {
   if (LANE_SLUGS.has(slug))             return 'lane';

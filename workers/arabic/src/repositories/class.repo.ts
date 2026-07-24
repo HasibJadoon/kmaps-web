@@ -1,5 +1,5 @@
-// ─── ClassRepo — ar_classes + ar_class_enrolments + ar_class_resources ────────
-//              + ar_class_assignments + ar_assignment_submissions
+// ─── ClassRepo — ar_class + ar_class_enrolment + ar_class_resource ────────
+//              + ar_class_assignment + ar_class_assignment_submission
 // Teacher-led delivery shell: class lifecycle, enrolments, resources,
 // assignments and graded submissions.
 
@@ -163,8 +163,8 @@ export class ClassRepo {
   list(workspaceRef: string, opts: PaginateOptions = {}) {
     return paginate<ArClass>(
       this.db,
-      `SELECT ${CLASS_COLS} FROM ar_classes WHERE core_ws_ref = ? ORDER BY created_at DESC`,
-      `SELECT COUNT(*) AS count FROM ar_classes WHERE core_ws_ref = ?`,
+      `SELECT ${CLASS_COLS} FROM ar_class WHERE core_ws_ref = ? ORDER BY created_at DESC`,
+      `SELECT COUNT(*) AS count FROM ar_class WHERE core_ws_ref = ?`,
       [workspaceRef],
       opts,
     );
@@ -173,7 +173,7 @@ export class ClassRepo {
   findById(id: string): Promise<ArClass | null> {
     return queryOne<ArClass>(
       this.db,
-      `SELECT ${CLASS_COLS} FROM ar_classes WHERE id = ?`,
+      `SELECT ${CLASS_COLS} FROM ar_class WHERE id = ?`,
       [id],
     );
   }
@@ -181,7 +181,7 @@ export class ClassRepo {
   findBySlug(slug: string): Promise<ArClass | null> {
     return queryOne<ArClass>(
       this.db,
-      `SELECT ${CLASS_COLS} FROM ar_classes WHERE slug = ?`,
+      `SELECT ${CLASS_COLS} FROM ar_class WHERE slug = ?`,
       [slug],
     );
   }
@@ -191,7 +191,7 @@ export class ClassRepo {
     const now = new Date().toISOString();
     await execute(
       this.db,
-      `INSERT INTO ar_classes
+      `INSERT INTO ar_class
          (id, slug, title, description_md, class_type,
           container_id, curriculum_id, teacher_ref, core_ws_ref, status,
           start_date, end_date, max_enrolments, visibility, meta_json,
@@ -235,7 +235,7 @@ export class ClassRepo {
     vals.push(id);
     await execute(
       this.db,
-      `UPDATE ar_classes SET ${sets.join(', ')} WHERE id = ?`,
+      `UPDATE ar_class SET ${sets.join(', ')} WHERE id = ?`,
       vals,
     );
     return this.findById(id);
@@ -246,7 +246,7 @@ export class ClassRepo {
   enrolments(classId: string): Promise<ClassEnrolment[]> {
     return query<ClassEnrolment>(
       this.db,
-      `SELECT ${ENROL_COLS} FROM ar_class_enrolments
+      `SELECT ${ENROL_COLS} FROM ar_class_enrolment
        WHERE class_id = ? ORDER BY enrolled_at`,
       [classId],
     );
@@ -257,14 +257,14 @@ export class ClassRepo {
     const now = new Date().toISOString();
     await execute(
       this.db,
-      `INSERT OR IGNORE INTO ar_class_enrolments
+      `INSERT OR IGNORE INTO ar_class_enrolment
          (id, class_id, student_ref, role, status, enrolled_at, completed_at, meta_json)
        VALUES (?, ?, ?, 'student', 'active', ?, NULL, NULL)`,
       [id, classId, studentRef, now],
     );
     return (await queryOne<ClassEnrolment>(
       this.db,
-      `SELECT ${ENROL_COLS} FROM ar_class_enrolments WHERE class_id = ? AND student_ref = ?`,
+      `SELECT ${ENROL_COLS} FROM ar_class_enrolment WHERE class_id = ? AND student_ref = ?`,
       [classId, studentRef],
     ))!;
   }
@@ -273,7 +273,7 @@ export class ClassRepo {
     const now = new Date().toISOString();
     await execute(
       this.db,
-      `UPDATE ar_class_enrolments
+      `UPDATE ar_class_enrolment
        SET status = 'withdrawn', completed_at = ?
        WHERE class_id = ? AND student_ref = ?`,
       [now, classId, studentRef],
@@ -285,7 +285,7 @@ export class ClassRepo {
   resources(classId: string): Promise<ClassResource[]> {
     return query<ClassResource>(
       this.db,
-      `SELECT ${RESOURCE_COLS} FROM ar_class_resources
+      `SELECT ${RESOURCE_COLS} FROM ar_class_resource
        WHERE class_id = ? ORDER BY sort_order`,
       [classId],
     );
@@ -296,7 +296,7 @@ export class ClassRepo {
     const now = new Date().toISOString();
     await execute(
       this.db,
-      `INSERT OR IGNORE INTO ar_class_resources
+      `INSERT OR IGNORE INTO ar_class_resource
          (id, class_id, resource_ref, resource_type, resource_label,
           sort_order, is_required, added_by_ref, added_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -314,7 +314,7 @@ export class ClassRepo {
     );
     return (await queryOne<ClassResource>(
       this.db,
-      `SELECT ${RESOURCE_COLS} FROM ar_class_resources WHERE class_id = ? AND resource_ref = ?`,
+      `SELECT ${RESOURCE_COLS} FROM ar_class_resource WHERE class_id = ? AND resource_ref = ?`,
       [classId, input.resource_ref],
     ))!;
   }
@@ -324,8 +324,8 @@ export class ClassRepo {
   assignments(classId: string, opts: PaginateOptions = {}) {
     return paginate<ClassAssignment>(
       this.db,
-      `SELECT ${ASSIGN_COLS} FROM ar_class_assignments WHERE class_id = ? ORDER BY due_date NULLS LAST, created_at`,
-      `SELECT COUNT(*) AS count FROM ar_class_assignments WHERE class_id = ?`,
+      `SELECT ${ASSIGN_COLS} FROM ar_class_assignment WHERE class_id = ? ORDER BY due_date NULLS LAST, created_at`,
+      `SELECT COUNT(*) AS count FROM ar_class_assignment WHERE class_id = ?`,
       [classId],
       opts,
     );
@@ -334,7 +334,7 @@ export class ClassRepo {
   findAssignment(id: string): Promise<ClassAssignment | null> {
     return queryOne<ClassAssignment>(
       this.db,
-      `SELECT ${ASSIGN_COLS} FROM ar_class_assignments WHERE id = ?`,
+      `SELECT ${ASSIGN_COLS} FROM ar_class_assignment WHERE id = ?`,
       [id],
     );
   }
@@ -344,7 +344,7 @@ export class ClassRepo {
     const now = new Date().toISOString();
     await execute(
       this.db,
-      `INSERT INTO ar_class_assignments
+      `INSERT INTO ar_class_assignment
          (id, class_id, title, instructions_md, resource_refs,
           due_date, weight, status, meta_json, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)`,
@@ -368,7 +368,7 @@ export class ClassRepo {
   submissions(assignmentId: string): Promise<AssignmentSubmission[]> {
     return query<AssignmentSubmission>(
       this.db,
-      `SELECT ${SUB_COLS} FROM ar_assignment_submissions
+      `SELECT ${SUB_COLS} FROM ar_class_assignment_submission
        WHERE assignment_id = ? ORDER BY submitted_at`,
       [assignmentId],
     );
@@ -379,7 +379,7 @@ export class ClassRepo {
     const now = new Date().toISOString();
     await execute(
       this.db,
-      `INSERT OR REPLACE INTO ar_assignment_submissions
+      `INSERT OR REPLACE INTO ar_class_assignment_submission
          (id, assignment_id, student_ref, submission_type, content_md,
           cm_doc_ref, score, feedback_md, graded_by_ref, status,
           submitted_at, graded_at)
@@ -396,7 +396,7 @@ export class ClassRepo {
     );
     return (await queryOne<AssignmentSubmission>(
       this.db,
-      `SELECT ${SUB_COLS} FROM ar_assignment_submissions
+      `SELECT ${SUB_COLS} FROM ar_class_assignment_submission
        WHERE assignment_id = ? AND student_ref = ?`,
       [assignmentId, input.student_ref],
     ))!;
@@ -410,14 +410,14 @@ export class ClassRepo {
     const now = new Date().toISOString();
     await execute(
       this.db,
-      `UPDATE ar_assignment_submissions
+      `UPDATE ar_class_assignment_submission
        SET score = ?, feedback_md = ?, status = 'graded', graded_at = ?
        WHERE id = ?`,
       [score, feedbackMd, now, submissionId],
     );
     return queryOne<AssignmentSubmission>(
       this.db,
-      `SELECT ${SUB_COLS} FROM ar_assignment_submissions WHERE id = ?`,
+      `SELECT ${SUB_COLS} FROM ar_class_assignment_submission WHERE id = ?`,
       [submissionId],
     );
   }

@@ -78,7 +78,7 @@ export class ArabicMenuCardComponent implements OnInit {
       next: (res) => {
         if (res?.ok && res.counts) {
           this.stats = {
-            containers: res.counts.ar_containers ?? 0,
+            containers: res.counts.ar_curriculum_container ?? 0,
             vocab: res.counts.ar_roots ?? 0,
             grammar: res.counts.ar_grammar ?? 0,
             balagha: res.counts.ar_balagha ?? 0,

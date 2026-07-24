@@ -46,7 +46,7 @@ import {
 import { MufradatReaderComponent } from '../../mufradat-reader/mufradat-reader.component';
 import { BookSelectorComponent } from '../../components/book-selector/book-selector.component';
 
-export const MUFRADAT_SLUG = 'al_raghib_mufradat';
+export const MUFRADAT_SLUG = 'raghib_mufradat';
 
 const RAIL = {
   INDEX_DEFAULT:     300, INDEX_MIN:     220, INDEX_MAX:     480,

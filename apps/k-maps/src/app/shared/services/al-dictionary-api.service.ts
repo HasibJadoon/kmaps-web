@@ -127,17 +127,17 @@ export class AlDictionaryApiService {
   getMufradatRead(root_norm: string): Observable<MufradatReadView> {
     return this.api.getData<MufradatReadView>(
       'al',
-      ['lex', 'v2', 'read', 'al_raghib_mufradat', root_norm],
+      ['lex', 'v2', 'read', 'raghib_mufradat', root_norm],
     );
   }
 
   // ── Lisan al-Arab (Ibn Manzur) reader endpoint ──────────────────────────
   // Composer extracts `[[…]]` inline footnotes, reads pre-populated
-  // ar_ling_lexicon_quran_refs (878 rows resolved offline via 5-gram
+  // ar_ling_lexicon_quran_ref (878 rows resolved offline via 5-gram
   // matching), validates noisy poetry/hadith block typing, and tags
   // classical authority mentions.
   getLisanRead(root_norm: string): Observable<LisanReadView> {
-    return this.getClassicalRead('ketabonline_ibn_manzur_lisan_al_arab', root_norm);
+    return this.getClassicalRead('ibn_manzur_lisan_arab', root_norm);
   }
 
   // ── Generic classical-lexicon reader ───────────────────────────────────
@@ -366,7 +366,7 @@ export interface LexV2SearchResult {
 
 // ─── Mufradat (al-Raghib) reader types ───────────────────────────────────────
 // Independent shape — produced by the worker's per-source composer at
-// /al/lex/v2/read/al_raghib_mufradat/:root_norm
+// /al/lex/v2/read/raghib_mufradat/:root_norm
 
 export type MufradatProseToken =
   | { kind: 'text'; value: string }
@@ -454,7 +454,7 @@ export interface MufradatEntryGloss {
 export interface MufradatReadView {
   kind: 'mufradat';
   meta: {
-    slug: 'al_raghib_mufradat';
+    slug: 'raghib_mufradat';
     title_ar: string;
     title_en: string;
     author: string;
@@ -540,7 +540,7 @@ export interface LisanSection {
 export interface LisanReadView {
   kind: 'lisan';
   meta: {
-    slug: 'ketabonline_ibn_manzur_lisan_al_arab';
+    slug: 'ibn_manzur_lisan_arab';
     title_ar: string;
     title_en: string;
     author: string;

@@ -1,4 +1,4 @@
-// ─── MorphologyRepo — ar_ling_morphology + ar_ling_form_paradigms ────────────
+// ─── MorphologyRepo — ar_ling_root_lemma_sarf + ar_ling_root_form_paradigm ────────────
 
 import { query, queryOne, paginate } from '../../../shared/src/db';
 import type { PaginateOptions } from '../../../shared/src/types';
@@ -27,7 +27,7 @@ export class MorphologyRepo {
     return query<MorphologyEntry>(
       this.db,
       `SELECT id, lemma_id, form_ar, stem_type, pattern, tags
-       FROM ar_ling_morphology
+       FROM ar_ling_root_lemma_sarf
        WHERE lemma_id = ?
        ORDER BY stem_type, form_ar`,
       [lemmaId],
@@ -38,7 +38,7 @@ export class MorphologyRepo {
     return queryOne<MorphologyEntry>(
       this.db,
       `SELECT id, lemma_id, form_ar, stem_type, pattern, tags
-       FROM ar_ling_morphology WHERE id = ?`,
+       FROM ar_ling_root_lemma_sarf WHERE id = ?`,
       [id],
     );
   }
@@ -49,8 +49,8 @@ export class MorphologyRepo {
     return paginate<FormParadigm>(
       this.db,
       `SELECT id, paradigm_name, category, pattern, example_ar
-       FROM ar_ling_form_paradigms ${where} ORDER BY category, paradigm_name`,
-      `SELECT COUNT(*) AS count FROM ar_ling_form_paradigms ${where}`,
+       FROM ar_ling_root_form_paradigm ${where} ORDER BY category, paradigm_name`,
+      `SELECT COUNT(*) AS count FROM ar_ling_root_form_paradigm ${where}`,
       params,
       opts,
     );

@@ -112,7 +112,7 @@ import type { CybMonitor, StagingMatrix } from '../data/cyb.models';
               </tbody>
             </table>
           </div>
-          <p class="note">Σ staged claims per root × sub-layer — live from ar_ling_root_stage. Brighter = more staged.</p>
+          <p class="note">Σ staged claims per root × sub-layer — live from ar_ling_stg_claim. Brighter = more staged.</p>
         } @else { <div class="msg">Loading staging matrix…</div> }
       }
 

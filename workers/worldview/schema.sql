@@ -1,4 +1,9 @@
--- Snapshot regenerated from live D1 km_worldview (5640655e-0b0c-468d-b582-20b666f72d03) 2026-07-17 — canonical-v1
+-- Schema for km_worldview.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-07-25.
+-- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
+-- Regenerate with scripts/regen_schemas.py — do not hand-edit.
+
+-- ── Tables (158) ────────────────────────────────────────────────────
 
 CREATE TABLE wv_abrahamic_morality_matrices (
   id              TEXT PRIMARY KEY,
@@ -2275,13 +2280,23 @@ CREATE TABLE wv_virtue_profiles (
   FOREIGN KEY (moral_axis_id) REFERENCES wv_moral_axes(id)
 );
 
-CREATE INDEX idx_wv_ap_trad ON wv_adversarial_patterns(tradition_id);
+-- ── Views (3) ─────────────────────────────────────────────────────
 
-CREATE INDEX idx_wv_ap_type ON wv_adversarial_patterns(pattern_type);
+CREATE VIEW wv_unit_content AS SELECT * FROM wv_unit_attachments WHERE attachment_type = 'content' AND status = 'active' ORDER BY source_unit_id, order_index;
+
+CREATE VIEW wv_unit_documents AS SELECT * FROM wv_unit_attachments WHERE attachment_type = 'document' AND status = 'active' ORDER BY source_unit_id, order_index;
+
+CREATE VIEW wv_unit_episodes AS SELECT * FROM wv_unit_attachments WHERE attachment_type = 'episode' AND status = 'active' ORDER BY source_unit_id, order_index;
+
+-- ── Indexes (159) ───────────────────────────────────────────────────
 
 CREATE INDEX idx_wv_aff_entity ON wv_affiliations(entity_ref, entity_type);
 
 CREATE INDEX idx_wv_aff_target ON wv_affiliations(target_type, target_id);
+
+CREATE INDEX idx_wv_ap_trad ON wv_adversarial_patterns(tradition_id);
+
+CREATE INDEX idx_wv_ap_type ON wv_adversarial_patterns(pattern_type);
 
 CREATE INDEX idx_wv_ar_from ON wv_argument_relations(from_arg_id);
 
@@ -2295,17 +2310,23 @@ CREATE INDEX idx_wv_bs_topic  ON wv_brainstorm_sessions(topic_id);
 
 CREATE INDEX idx_wv_bs_user   ON wv_brainstorm_sessions(core_user_ref);
 
-CREATE INDEX idx_wv_csl_case  ON wv_case_scope_links(case_id);
+CREATE INDEX idx_wv_cax_comp ON wv_comparison_axes(comparison_id);
 
-CREATE INDEX idx_wv_csl_scope ON wv_case_scope_links(scope_type, scope_id);
+CREATE INDEX idx_wv_cc2_comp ON wv_comparison_cells(comparison_id);
+
+CREATE INDEX idx_wv_cc2_row  ON wv_comparison_cells(row_id);
 
 CREATE INDEX idx_wv_cc_trad ON wv_civilizational_contributions(tradition_id);
 
 CREATE INDEX idx_wv_cc_type ON wv_civilizational_contributions(contrib_type);
 
+CREATE INDEX idx_wv_cel2_contrib ON wv_contribution_evidence_links(contrib_id);
+
 CREATE INDEX idx_wv_cel_claim    ON wv_claim_evidence_links(claim_id);
 
 CREATE INDEX idx_wv_cel_evidence ON wv_claim_evidence_links(evidence_id);
+
+CREATE INDEX idx_wv_cf_trad ON wv_covenant_frameworks(tradition_id);
 
 CREATE INDEX idx_wv_cl_topic  ON wv_claims(topic_id);
 
@@ -2319,15 +2340,11 @@ CREATE INDEX idx_wv_cm_entity  ON wv_cluster_members(entity_type, entity_id);
 
 CREATE INDEX idx_wv_cp_type ON wv_colonial_projects(project_type);
 
-CREATE INDEX idx_wv_cax_comp ON wv_comparison_axes(comparison_id);
-
-CREATE INDEX idx_wv_cc2_comp ON wv_comparison_cells(comparison_id);
-
-CREATE INDEX idx_wv_cc2_row  ON wv_comparison_cells(row_id);
-
 CREATE INDEX idx_wv_cr_comp ON wv_comparison_rows(comparison_id);
 
-CREATE INDEX idx_wv_cel2_contrib ON wv_contribution_evidence_links(contrib_id);
+CREATE INDEX idx_wv_csl_case  ON wv_case_scope_links(case_id);
+
+CREATE INDEX idx_wv_csl_scope ON wv_case_scope_links(scope_type, scope_id);
 
 CREATE INDEX idx_wv_cu_corpus ON wv_corpus_units(corpus_id);
 
@@ -2335,31 +2352,33 @@ CREATE INDEX idx_wv_cu_parent ON wv_corpus_units(parent_id);
 
 CREATE INDEX idx_wv_cu_type   ON wv_corpus_units(unit_type);
 
-CREATE INDEX idx_wv_cf_trad ON wv_covenant_frameworks(tradition_id);
-
-CREATE INDEX idx_wv_dcm_cluster ON wv_debate_cluster_members(cluster_id);
-
-CREATE INDEX idx_wv_di_spec ON wv_diagram_instances(spec_id);
-
-CREATE INDEX idx_wv_dr_trad ON wv_discernment_rules(tradition_id);
-
 CREATE INDEX idx_wv_db_source ON wv_distill_batches(source_id);
 
 CREATE INDEX idx_wv_db_status ON wv_distill_batches(status);
+
+CREATE INDEX idx_wv_dcm_cluster ON wv_debate_cluster_members(cluster_id);
 
 CREATE INDEX idx_wv_di2_batch  ON wv_distill_items(batch_id);
 
 CREATE INDEX idx_wv_di2_status ON wv_distill_items(status);
 
+CREATE INDEX idx_wv_di_spec ON wv_diagram_instances(spec_id);
+
 CREATE INDEX idx_wv_dl_doc    ON wv_doc_links(cm_doc_ref);
 
 CREATE INDEX idx_wv_dl_entity ON wv_doc_links(entity_type, entity_id);
 
+CREATE INDEX idx_wv_dr_trad ON wv_discernment_rules(tradition_id);
+
 CREATE INDEX idx_wv_ec_stream ON wv_enlightenment_currents(stream_id);
 
-CREATE INDEX idx_wv_eql_ep ON wv_episode_quran_links(episode_id);
+CREATE INDEX idx_wv_ec_trad ON wv_exemplar_cases(tradition_id);
 
-CREATE INDEX idx_wv_eql_qr ON wv_episode_quran_links(qr_scope_ref);
+CREATE INDEX idx_wv_ec_type ON wv_exemplar_cases(case_type);
+
+CREATE INDEX idx_wv_ei_source ON wv_evidence_items(source_id);
+
+CREATE INDEX idx_wv_ei_type   ON wv_evidence_items(evidence_type);
 
 CREATE INDEX idx_wv_el_event ON wv_event_locations(event_id);
 
@@ -2369,21 +2388,17 @@ CREATE INDEX idx_wv_ep_entity ON wv_event_participants(entity_type, entity_id);
 
 CREATE INDEX idx_wv_ep_event  ON wv_event_participants(event_id);
 
+CREATE INDEX idx_wv_eql_ep ON wv_episode_quran_links(episode_id);
+
+CREATE INDEX idx_wv_eql_qr ON wv_episode_quran_links(qr_scope_ref);
+
+CREATE INDEX idx_wv_esl_evidence ON wv_evidence_scope_links(evidence_id);
+
 CREATE INDEX idx_wv_ev_loc   ON wv_events(location_id);
 
 CREATE INDEX idx_wv_ev_trad  ON wv_events(tradition_id);
 
 CREATE INDEX idx_wv_ev_years ON wv_events(start_year, end_year);
-
-CREATE INDEX idx_wv_ei_source ON wv_evidence_items(source_id);
-
-CREATE INDEX idx_wv_ei_type   ON wv_evidence_items(evidence_type);
-
-CREATE INDEX idx_wv_esl_evidence ON wv_evidence_scope_links(evidence_id);
-
-CREATE INDEX idx_wv_ec_trad ON wv_exemplar_cases(tradition_id);
-
-CREATE INDEX idx_wv_ec_type ON wv_exemplar_cases(case_type);
 
 CREATE INDEX idx_wv_gtl_loc ON wv_geo_timeline_links(location_id);
 
@@ -2399,35 +2414,33 @@ CREATE INDEX idx_wv_id_suggestion ON wv_insight_decisions(suggestion_id);
 
 CREATE INDEX idx_wv_id_user       ON wv_insight_decisions(core_user_ref);
 
-CREATE INDEX idx_wv_is_batch  ON wv_insight_suggestions(batch_id);
-
-CREATE INDEX idx_wv_is_status ON wv_insight_suggestions(status);
-
-CREATE INDEX idx_wv_is_type   ON wv_insight_suggestions(suggestion_type);
-
-CREATE INDEX idx_wv_ip_inst ON wv_institution_profiles(institution_id);
-
 CREATE INDEX idx_wv_inst_loc  ON wv_institutions(location_id);
 
 CREATE INDEX idx_wv_inst_trad ON wv_institutions(tradition_id);
 
 CREATE INDEX idx_wv_inst_type ON wv_institutions(institution_type);
 
-CREATE INDEX idx_wv_lrl_loc  ON wv_location_role_links(location_id);
+CREATE INDEX idx_wv_ip_inst ON wv_institution_profiles(institution_id);
 
-CREATE INDEX idx_wv_lrl_trad ON wv_location_role_links(tradition_id);
+CREATE INDEX idx_wv_is_batch  ON wv_insight_suggestions(batch_id);
+
+CREATE INDEX idx_wv_is_status ON wv_insight_suggestions(status);
+
+CREATE INDEX idx_wv_is_type   ON wv_insight_suggestions(suggestion_type);
 
 CREATE INDEX idx_wv_loc_region ON wv_locations(region_id);
 
 CREATE INDEX idx_wv_loc_type   ON wv_locations(location_type);
 
-CREATE INDEX idx_wv_mf_layer ON wv_map_features(map_layer_id);
+CREATE INDEX idx_wv_lrl_loc  ON wv_location_role_links(location_id);
 
-CREATE INDEX idx_wv_ms_type ON wv_modernity_streams(stream_type);
+CREATE INDEX idx_wv_lrl_trad ON wv_location_role_links(tradition_id);
+
+CREATE INDEX idx_wv_ma_type ON wv_moral_axes(axis_type);
 
 CREATE INDEX idx_wv_mav_axis ON wv_moral_arc_views(moral_axis_id);
 
-CREATE INDEX idx_wv_ma_type ON wv_moral_axes(axis_type);
+CREATE INDEX idx_wv_mf_layer ON wv_map_features(map_layer_id);
 
 CREATE INDEX idx_wv_mn_axis ON wv_moral_norms(moral_axis_id);
 
@@ -2436,6 +2449,12 @@ CREATE INDEX idx_wv_mn_trad ON wv_moral_norms(tradition_id);
 CREATE INDEX idx_wv_mov_trad ON wv_movements(tradition_id);
 
 CREATE INDEX idx_wv_mov_type ON wv_movements(movement_type);
+
+CREATE INDEX idx_wv_ms_type ON wv_modernity_streams(stream_type);
+
+CREATE INDEX idx_wv_nd_trad ON wv_nodes(tradition_id);
+
+CREATE INDEX idx_wv_nd_type ON wv_nodes(node_type);
 
 CREATE INDEX idx_wv_ne_from ON wv_node_edges(from_node_id);
 
@@ -2447,53 +2466,29 @@ CREATE INDEX idx_wv_nql_node ON wv_node_quran_links(node_id);
 
 CREATE INDEX idx_wv_nql_qr   ON wv_node_quran_links(qr_scope_ref);
 
-CREATE INDEX idx_wv_nsl_node  ON wv_node_scope_links(node_id);
-
-CREATE INDEX idx_wv_nsl_scope ON wv_node_scope_links(scope_type, scope_ref);
-
-CREATE INDEX idx_wv_nd_trad ON wv_nodes(tradition_id);
-
-CREATE INDEX idx_wv_nd_type ON wv_nodes(node_type);
-
-CREATE INDEX idx_wv_ns_norm ON wv_norm_sources(norm_id);
-
 CREATE INDEX idx_wv_nr_note   ON wv_note_relations(note_id);
 
 CREATE INDEX idx_wv_nr_target ON wv_note_relations(target_type, target_id);
+
+CREATE INDEX idx_wv_ns_norm ON wv_norm_sources(norm_id);
+
+CREATE INDEX idx_wv_nsl_node  ON wv_node_scope_links(node_id);
+
+CREATE INDEX idx_wv_nsl_scope ON wv_node_scope_links(scope_type, scope_ref);
 
 CREATE INDEX idx_wv_nt_topic ON wv_notes(topic_id);
 
 CREATE INDEX idx_wv_nt_user  ON wv_notes(core_user_ref);
 
-CREATE INDEX idx_wv_org_trad ON wv_organizations(tradition_id);
-
-CREATE INDEX idx_wv_org_type ON wv_organizations(org_type);
-
 CREATE INDEX idx_wv_oa_status ON wv_output_artifacts(status);
 
 CREATE INDEX idx_wv_oa_type   ON wv_output_artifacts(artifact_type);
 
-CREATE INDEX idx_wv_ppl_era  ON wv_people(era);
+CREATE INDEX idx_wv_org_trad ON wv_organizations(tradition_id);
 
-CREATE INDEX idx_wv_ppl_trad ON wv_people(tradition_id);
-
-CREATE INDEX idx_wv_ppl_type ON wv_people(person_type);
+CREATE INDEX idx_wv_org_type ON wv_organizations(org_type);
 
 CREATE INDEX idx_wv_pa_person ON wv_people_aliases(person_id);
-
-CREATE INDEX idx_wv_pr_from ON wv_people_relations(from_person_id);
-
-CREATE INDEX idx_wv_pr_to   ON wv_people_relations(to_person_id);
-
-CREATE INDEX idx_wv_per_years ON wv_periods(start_year, end_year);
-
-CREATE INDEX idx_wv_pr_trad ON wv_practices(tradition_id);
-
-CREATE INDEX idx_wv_pr_type ON wv_practices(practice_type);
-
-CREATE INDEX idx_wv_pel_episode ON wv_prophetic_episode_links(episode_id);
-
-CREATE INDEX idx_wv_pel_target  ON wv_prophetic_episode_links(target_type, target_id);
 
 CREATE INDEX idx_wv_pe_prophet ON wv_prophetic_episodes(prophet_id);
 
@@ -2501,9 +2496,29 @@ CREATE INDEX idx_wv_pe_trad   ON wv_prophetic_episodes(tradition_id);
 
 CREATE INDEX idx_wv_pe_type   ON wv_prophetic_episodes(episode_type);
 
+CREATE INDEX idx_wv_pel_episode ON wv_prophetic_episode_links(episode_id);
+
+CREATE INDEX idx_wv_pel_target  ON wv_prophetic_episode_links(target_type, target_id);
+
+CREATE INDEX idx_wv_per_years ON wv_periods(start_year, end_year);
+
 CREATE INDEX idx_wv_pex_person ON wv_prophetic_exemplars(person_id);
 
 CREATE INDEX idx_wv_pm_trad ON wv_prophetic_models(tradition_id);
+
+CREATE INDEX idx_wv_ppl_era  ON wv_people(era);
+
+CREATE INDEX idx_wv_ppl_trad ON wv_people(tradition_id);
+
+CREATE INDEX idx_wv_ppl_type ON wv_people(person_type);
+
+CREATE INDEX idx_wv_pr_from ON wv_people_relations(from_person_id);
+
+CREATE INDEX idx_wv_pr_to   ON wv_people_relations(to_person_id);
+
+CREATE INDEX idx_wv_pr_trad ON wv_practices(tradition_id);
+
+CREATE INDEX idx_wv_pr_type ON wv_practices(practice_type);
 
 CREATE INDEX idx_wv_q_topic ON wv_questions(topic_id);
 
@@ -2515,23 +2530,11 @@ CREATE INDEX idx_wv_reading_session_user   ON wv_reading_sessions(core_user_ref,
 
 CREATE INDEX idx_wv_reg_parent ON wv_regions(parent_id);
 
-CREATE INDEX idx_wv_rm_trad ON wv_revelation_models(tradition_id);
-
 CREATE INDEX idx_wv_rf_layer ON wv_route_features(route_layer_id);
 
+CREATE INDEX idx_wv_rm_trad ON wv_revelation_models(tradition_id);
+
 CREATE INDEX idx_wv_rs_layer ON wv_route_segments(map_layer_id);
-
-CREATE INDEX idx_wv_sf_trad ON wv_sacrifice_frameworks(tradition_id);
-
-CREATE INDEX idx_wv_srm_trad ON wv_salvation_redemption_models(tradition_id);
-
-CREATE INDEX idx_wv_sch_trad ON wv_schools(tradition_id);
-
-CREATE INDEX idx_wv_sch_type ON wv_schools(school_type);
-
-CREATE INDEX idx_wv_sc_trad ON wv_scriptural_corpora(tradition_id);
-
-CREATE INDEX idx_wv_sc_type ON wv_scriptural_corpora(corpus_type);
 
 CREATE INDEX idx_wv_sc_embedded ON wv_source_chunks(is_embedded);
 
@@ -2539,9 +2542,25 @@ CREATE INDEX idx_wv_sc_kind     ON wv_source_chunks(source_id, chunk_kind);
 
 CREATE INDEX idx_wv_sc_source   ON wv_source_chunks(source_id);
 
+CREATE INDEX idx_wv_sc_trad ON wv_scriptural_corpora(tradition_id);
+
+CREATE INDEX idx_wv_sc_type ON wv_scriptural_corpora(corpus_type);
+
+CREATE INDEX idx_wv_sch_trad ON wv_schools(tradition_id);
+
+CREATE INDEX idx_wv_sch_type ON wv_schools(school_type);
+
+CREATE INDEX idx_wv_sf_trad ON wv_sacrifice_frameworks(tradition_id);
+
 CREATE INDEX idx_wv_sp_person ON wv_source_people(person_id);
 
 CREATE INDEX idx_wv_sp_source ON wv_source_people(source_id);
+
+CREATE INDEX idx_wv_src_trad   ON wv_sources(tradition_id);
+
+CREATE INDEX idx_wv_src_type   ON wv_sources(source_type);
+
+CREATE INDEX idx_wv_srm_trad ON wv_salvation_redemption_models(tradition_id);
 
 CREATE INDEX idx_wv_su_illus_rsession ON wv_source_unit_illustrations(reading_session_id, order_index);
 
@@ -2553,15 +2572,7 @@ CREATE INDEX idx_wv_su_illus_unit ON wv_source_unit_illustrations(source_unit_id
 
 CREATE INDEX idx_wv_su_source ON wv_source_units(source_id);
 
-CREATE INDEX idx_wv_src_trad   ON wv_sources(tradition_id);
-
-CREATE INDEX idx_wv_src_type   ON wv_sources(source_type);
-
-CREATE INDEX idx_wv_tl_al     ON wv_term_links(al_concept_ref);
-
-CREATE INDEX idx_wv_tl_entity ON wv_term_links(entity_type, entity_id);
-
-CREATE INDEX idx_wv_tpl_person ON wv_thinker_period_links(person_id);
+CREATE INDEX idx_wv_tb_trad ON wv_tradition_branches(tradition_id);
 
 CREATE INDEX idx_wv_te_cent ON wv_timeline_events(century);
 
@@ -2569,11 +2580,15 @@ CREATE INDEX idx_wv_te_trad ON wv_timeline_events(tradition_id);
 
 CREATE INDEX idx_wv_te_year ON wv_timeline_events(year_exact, year_start);
 
+CREATE INDEX idx_wv_tl_al     ON wv_term_links(al_concept_ref);
+
+CREATE INDEX idx_wv_tl_entity ON wv_term_links(entity_type, entity_id);
+
 CREATE INDEX idx_wv_top_domain ON wv_topics(topic_domain);
 
 CREATE INDEX idx_wv_top_trad   ON wv_topics(tradition_id);
 
-CREATE INDEX idx_wv_tb_trad ON wv_tradition_branches(tradition_id);
+CREATE INDEX idx_wv_tpl_person ON wv_thinker_period_links(person_id);
 
 CREATE INDEX idx_wv_trad_parent ON wv_traditions(parent_id);
 
@@ -2592,4 +2607,3 @@ CREATE INDEX idx_wv_unit_blocks_unit ON wv_unit_blocks (source_unit_id, order_in
 CREATE INDEX idx_wv_vp_axis ON wv_value_positions(moral_axis_id);
 
 CREATE INDEX idx_wv_vp_trad ON wv_virtue_profiles(tradition_id);
-

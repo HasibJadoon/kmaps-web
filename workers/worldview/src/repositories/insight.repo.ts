@@ -12,7 +12,7 @@ export interface InsightSuggestion {
   payload_json: string;     // JSON: the extracted knowledge payload
   status: string;           // suggested | approved | edited | rejected | saved
   batch_id: string | null;  // WV:ULID → wv_distill_batches
-  source_chunk_ref: string | null; // AL:ULID → ar_ling_source_chunks
+  source_chunk_ref: string | null; // AL:ULID → ar_ling_source_chunk
   created_at: string;
   reviewed_at: string | null;
 }

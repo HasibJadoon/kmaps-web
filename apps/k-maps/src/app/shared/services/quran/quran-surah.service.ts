@@ -312,7 +312,7 @@ export interface StudyWordVm {
   morphology?: { verb_form?: string; derived_pattern?: string; noun_number?: string; transitivity?: string };
 }
 
-/** Lean expression row — table-sourced (ar_ling_expressions), one per match. */
+/** Lean expression row — table-sourced (ar_ling_root_lemma_tabir), one per match. */
 export interface StudyExpressionVm {
   id: string;
   ayah: number;
@@ -862,7 +862,7 @@ export class QuranSurahService {
   getStudyReading(surahId: number, passageNo: number): Observable<StudyReadingResponse> {
     // Lazy, table-sourced: hits the per-step reading endpoint, which builds the
     // ayahs (both diacritic and non-diacritic forms + word tokens + muṣḥaf meta)
-    // straight from qr_ayah / qr_word_occurrences / qr_translations — not task_json.
+    // straight from qr_ayah / qr_word_occurrence / qr_translation — not task_json.
     return this.api
       .getData<{ ayah_from?: number; ayah_to?: number; ayahs?: Record<string, unknown>[] }>(
         'qr',
@@ -894,8 +894,8 @@ export class QuranSurahService {
   getStudyMorphology(surahId: number, passageNo: number): Observable<StudyMorphologyResponse> {
     // Lazy, table-sourced: hits the per-step morphology endpoint, which builds
     // each word's ṣarf (root/lemma/pos + QAC features), iʿrāb, qirāʾāt readings,
-    // synthesis and per-ayah tafsīr straight from qr_word_occurrences /
-    // qr_irab_book_entries / qr_ss_scope_reading / qr_tafsir_entries — not task_json.
+    // synthesis and per-ayah tafsīr straight from qr_word_occurrence /
+    // qr_irab_book_entry / qr_ss_scope_reading / qr_tafsir_entry — not task_json.
     return this.api
       .getData<{
         surah?: number;
@@ -958,7 +958,7 @@ export class QuranSurahService {
 
   getStudyExpressions(surahId: number, passageNo: number): Observable<StudyExpressionsResponse> {
     // Lazy, table-sourced: hits the per-step expressions endpoint, which reads
-    // ar_ling_expressions (over the AR_LINGUISTICS binding) for the passage's
+    // ar_ling_root_lemma_tabir (over the AR_LINGUISTICS binding) for the passage's
     // ayah range — not task_json. Lean payload: { ayahFrom, ayahTo, items[] }.
     return this.api
       .getData<{

@@ -23,7 +23,7 @@ export interface WordGridResult {
   words: WordGridCard[];
 }
 
-// ── Root display record (from qr_morph_display_roots — the render layer) ───────
+// ── Root display record (from qr_morph_display_root — the render layer) ───────
 // Every icon is a lucide NAME carried in the data; the UI never chooses icons.
 
 export interface Tri { ar: string | null; en: string | null; ur: string | null; }

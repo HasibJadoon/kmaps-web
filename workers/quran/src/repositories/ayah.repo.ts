@@ -59,10 +59,10 @@ export class AyahRepo {
     surah, ayah, word_index,
     word_text AS text, word_text_bare AS text_bare,
     root, lemma, pos, morphology_tag
-  FROM qr_word_occurrences`;
+  FROM qr_word_occurrence`;
 
   /** All words for a surah, ordered by ayah then word_index. */
-  wordsBySurah(surahId: number): Promise<AyahWord & { surah: number; ayah: number }[]> {
+  wordsBySurah(surahId: number): Promise<(AyahWord & { surah: number; ayah: number })[]> {
     return query(
       this.db,
       `SELECT ${AyahRepo.WORD_SELECT}
@@ -72,7 +72,7 @@ export class AyahRepo {
   }
 
   /** Words for an ayah range. */
-  wordsByRange(surahId: number, from: number, to: number): Promise<AyahWord & { surah: number; ayah: number }[]> {
+  wordsByRange(surahId: number, from: number, to: number): Promise<(AyahWord & { surah: number; ayah: number })[]> {
     return query(
       this.db,
       `SELECT ${AyahRepo.WORD_SELECT}

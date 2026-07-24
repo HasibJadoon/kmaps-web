@@ -329,8 +329,8 @@ export class LexiconPageComponent implements OnInit {
    *  data-kind CSS hook for kind-tinted accents (Phase 5). Keep this in
    *  one place so the icon and the colour token always agree. */
   cardKind(slug: string): 'lane' | 'mufradat' | 'classical' {
-    if (slug === 'lane_lexicon' || slug === 'lane_quranic_research_perseus') return 'lane';
-    if (slug === 'al_raghib_mufradat') return 'mufradat';
+    if (slug === 'lane_lexicon' || slug === 'lane_lexicon') return 'lane';
+    if (slug === 'raghib_mufradat') return 'mufradat';
     return 'classical';
   }
 

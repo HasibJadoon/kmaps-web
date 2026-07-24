@@ -215,7 +215,7 @@ export function validateArVocabularyRelationCreate(
 export interface VocabCard {
   id: string;               // AR:ULID
   container_id: string;     // AR:ULID
-  lx_lemma_ref: string;     // AL:ULID → ar_ling_lemmas
+  lx_lemma_ref: string;     // AL:ULID → ar_ling_root_lemma
   display_ar: string;
   gloss_en: string | null;
   sort_order: number;

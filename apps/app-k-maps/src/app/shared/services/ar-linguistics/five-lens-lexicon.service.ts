@@ -11,7 +11,7 @@ export interface QuranWord {
   ayah: number;
   wordIndex: number;
   text: string; // e.g. "زُلْفَىٰ"
-  root?: string; // normalized root, e.g. "زلف"  (from qr_word_occurrences.root)
+  root?: string; // normalized root, e.g. "زلف"  (from qr_word_occurrence.root)
   lemma?: string;
 }
 
@@ -92,7 +92,7 @@ export interface FiveLensConstellation {
 export interface FiveLensLexExcerpt {
   source: string; // source_slug, label resolved client-side
   lang: string; // 'ar' | 'en'
-  text: string; // real dictionary excerpt from ar_ling_lexicon_blocks
+  text: string; // real dictionary excerpt from ar_ling_lexicon_block
 }
 
 export interface FiveLensEntry {

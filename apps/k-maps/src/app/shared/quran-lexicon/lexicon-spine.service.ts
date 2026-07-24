@@ -5,7 +5,7 @@ import { BackendApiService } from '../services/backend-api.service';
 import { RootDisplay } from './word-grid.types';
 
 /**
- * The universal lexicon spine, read from the DISPLAY LAYER (qr_morph_display_roots).
+ * The universal lexicon spine, read from the DISPLAY LAYER (qr_morph_display_root).
  * Every field — including every icon (a lucide name) — is data; the UI renders it
  * verbatim. The row is a materialized projection of the ar-linguistics word-analysis
  * aggregation (classical lexicons Maqāyīs/Mufradāt/Lane/Sinai, derived family, senses),

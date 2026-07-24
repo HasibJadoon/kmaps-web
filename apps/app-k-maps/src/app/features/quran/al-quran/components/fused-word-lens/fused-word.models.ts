@@ -17,9 +17,9 @@ export interface SarfRow {
   past: string;
   present: string;
   masdar: string;
-} // ar_ling_form_paradigms + conjugation_templates / five-lens morphology
+} // ar_ling_root_form_paradigm + conjugation_templates / five-lens morphology
 
-/** Verb transitivity + preposition government — ar_ling_verb_government. */
+/** Verb transitivity + preposition government — ar_ling_root_lemma_tadiya. */
 export interface VgRow {
   verbAr: string;
   form?: string;
@@ -30,27 +30,27 @@ export interface VgRow {
   qrRef?: string;
 }
 
-/** Cross-root antonym/contrast — ar_ling_root_antonyms. */
+/** Cross-root antonym/contrast — ar_ling_root_didd. */
 export interface AntonymRow {
   ar: string;
   en?: string;
   kind: 'antonym' | 'contrast';
 }
 
-/** Mir verbal idiom — ar_ling_expressions. */
+/** Mir verbal idiom — ar_ling_root_lemma_tabir. */
 export interface IdiomRow {
   phraseAr: string;
   en: string;
   sourceLabel: string;
 }
 
-/** One mufassir's gloss — qr_tafsir_entries (content_ar/content_en). */
+/** One mufassir's gloss — qr_tafsir_entry (content_ar/content_en). */
 export interface TafsirRow {
   name: string;
   gloss: string;
 }
 
-/** One dictionary excerpt — ar_ling_lexicon_blocks. */
+/** One dictionary excerpt — ar_ling_lexicon_block. */
 export interface LexRow {
   source: string;
   ar?: string;
@@ -61,20 +61,20 @@ export interface ConstNode {
   ar: string;
   en?: string;
   isQuran: boolean;
-} // ar_ling_lemmas (derivational family)
+} // ar_ling_root_lemma (derivational family)
 
 export interface ExampleRow {
   ar: string;
   en: string;
   sense?: string;
   ref: string;
-} // ar_ling_quran_links + qr_translations
+} // ar_ling_root_lemma_word_quran_link + qr_translation
 
 export interface VariantRow {
   ar: string;
   pos: string;
   gloss: string;
-} // ar_ling_lemmas
+} // ar_ling_root_lemma
 
 export interface FusedWordVM {
   // header

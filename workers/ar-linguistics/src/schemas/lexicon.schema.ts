@@ -1,7 +1,7 @@
 // ─── Lexicon / Semantics schemas & types ──────────────────────────────────────
 // Tables: ar_ling_lexicon_entries, ar_ling_senses, ar_ling_sense_relations,
-//         ar_ling_semantic_fields, ar_ling_near_synonym_sets,
-//         ar_ling_near_synonym_members, ar_ling_lexicon_evidence,
+//         ar_ling_reg_semantic_field, ar_ling_root_lemma_furuq_set,
+//         ar_ling_root_lemma_furuq_member, ar_ling_lexicon_evidence,
 //         ar_ling_lexicon_morphology
 
 // ── ar_ling_lexicon_entries ───────────────────────────────────────────────────
@@ -201,7 +201,7 @@ export function validateArLingSenseRelationCreate(
   };
 }
 
-// ── ar_ling_semantic_fields ───────────────────────────────────────────────────
+// ── ar_ling_reg_semantic_field ───────────────────────────────────────────────────
 
 export interface ArLingSemanticField {
   id: string;                    // AL:ULID
@@ -245,7 +245,7 @@ export function validateArLingSemanticFieldCreate(
   };
 }
 
-// ── ar_ling_near_synonym_sets ─────────────────────────────────────────────────
+// ── ar_ling_root_lemma_furuq_set ─────────────────────────────────────────────────
 
 export interface ArLingNearSynonymSet {
   id: string;              // AL:ULID
@@ -281,12 +281,12 @@ export function validateArLingNearSynonymSetCreate(
   };
 }
 
-// ── ar_ling_near_synonym_members ──────────────────────────────────────────────
+// ── ar_ling_root_lemma_furuq_member ──────────────────────────────────────────────
 
 export interface ArLingNearSynonymMember {
   id: string;              // AL:ULID
-  set_id: string;          // FK → ar_ling_near_synonym_sets.id
-  lemma_id: string;        // FK → ar_ling_lemmas.id
+  set_id: string;          // FK → ar_ling_root_lemma_furuq_set.id
+  lemma_id: string;        // FK → ar_ling_root_lemma.id
   nuance_note: string;     // what distinguishes this word from siblings
 }
 
@@ -327,7 +327,7 @@ export interface ArLingLexiconEvidence {
   text_ar: string;
   text_en: string | null;
   qr_ref: string | null;           // QR:surah:ayah or QR:<ULID>
-  source_ref: string | null;       // AL:<ar_ling_sources.id>
+  source_ref: string | null;       // AL:<ar_ling_source.id>
   note_md: string | null;
   created_at: string;
 }
@@ -371,7 +371,7 @@ export function validateArLingLexiconEvidenceCreate(
 export interface ArLingLexiconMorphology {
   id: string;                  // AL:ULID
   lexicon_entry_id: string;    // FK → ar_ling_lexicon_entries.id
-  morphology_id: string;       // FK → ar_ling_morphology.id
+  morphology_id: string;       // FK → ar_ling_root_lemma_sarf.id
   inflected_form: string | null;
 }
 

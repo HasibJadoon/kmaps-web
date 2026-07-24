@@ -2,7 +2,7 @@
 //
 // Two sets of routes:
 //
-// 1. Classical source-chunk lexicon (ar_ling_source_chunks):
+// 1. Classical source-chunk lexicon (ar_ling_source_chunk):
 //      GET /al/lexicon/dict/sources            — list all lexicon source DBs
 //      GET /al/lexicon/dict/root/:rootText      — entries for one root, grouped by source
 //      GET /al/lexicon/dict/entry/:chunkId      — single chunk by id
@@ -24,7 +24,7 @@ import { SourcesRepo, toResponseMeta, type LexiconSource } from '../repositories
 // ── Source-meta helpers (D1-backed) ──────────────────────────────────────────
 // Source titles / author / period / catalogue ordering used to live in two
 // hardcoded constants here (SOURCE_META + SOURCE_ORDER). Both are now columns
-// on ar_ling_sources, queried via SourcesRepo. Migrations 0016 + 0017 added
+// on ar_ling_source, queried via SourcesRepo. Migrations 0016 + 0017 added
 // the slug / origin / source_order columns and seeded every row that
 // corresponds to a TS slug.
 //
@@ -63,7 +63,7 @@ function normArabic(t: string): string {
     .trim();
 }
 
-const BILINGUAL_SLUGS = new Set(['lane_lexicon', 'lane_quranic_research_perseus']);
+const BILINGUAL_SLUGS = new Set(['lane_lexicon', 'lane_lexicon']);
 
 interface DictEntry {
   id: string; source_slug: string; heading_norm: string | null; root_id: string | null;
@@ -256,7 +256,7 @@ async function rebuildLaneQualityForRoot(
   const statements = results.map(row => {
     const q = scanLaneQuality(row);
     return env.DB_AL.prepare(`
-      INSERT OR REPLACE INTO ar_ling_lane_quality_index (
+      INSERT OR REPLACE INTO ar_ling_lexicon_lane_quality (
         lexicon_entry_id,
         root_text,
         heading_norm,
@@ -342,7 +342,7 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
                SUM(has_bare_cross_ref) AS bare_cross_ref,
                SUM(has_quran_marker) AS quran_marker,
                MAX(last_scanned_at) AS last_scanned_at
-        FROM ar_ling_lane_quality_index
+        FROM ar_ling_lexicon_lane_quality
       `).first<Record<string, unknown>>(),
       env.DB_AL.prepare(`
         SELECT COUNT(*) AS total,
@@ -350,7 +350,7 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
                SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved,
                SUM(CASE WHEN status = 'applied' THEN 1 ELSE 0 END) AS applied,
                SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejected
-        FROM ar_ling_lane_patch_log
+        FROM ar_ling_lexicon_lane_patch_log
       `).first<Record<string, unknown>>(),
     ]);
 
@@ -382,7 +382,7 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
                e.status,
                e.ai_fill_state,
                substr(e.definition_en, 1, 360) AS definition_preview
-        FROM ar_ling_lane_quality_index q
+        FROM ar_ling_lexicon_lane_quality q
         JOIN ar_ling_lexicon_entries e ON e.id = q.lexicon_entry_id
         WHERE ${where.join(' AND ')}
         ORDER BY q.repair_priority DESC, q.page_no ASC, q.source_entry_seq ASC
@@ -407,7 +407,7 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
                e.status,
                e.ai_fill_state,
                substr(e.definition_en, 1, 420) AS definition_preview
-        FROM ar_ling_lane_quality_index q
+        FROM ar_ling_lexicon_lane_quality q
         JOIN ar_ling_lexicon_entries e ON e.id = q.lexicon_entry_id
         WHERE q.root_text = ?
           AND q.issue_count > 0
@@ -447,12 +447,12 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
   // changes on ingest, so the response is edge-cached for 10 minutes
   // via the Workers Cache API. Cache key = full request URL.
   router.get('/al/lexicon/dict/sources', (req, env) => cached(req, async () => {
-    // Single source of truth: ar_ling_lexicon_root_entries. The legacy
-    // path joined ar_ling_source_chunks which double-misfires here —
-    //   • qomra_jamharat_al_lugha has 2,908 chunks but no root_entries
+    // Single source of truth: ar_ling_lexicon_entry. The legacy
+    // path joined ar_ling_source_chunk which double-misfires here —
+    //   • ibn_durayd_jamharat_lugha has 2,908 chunks but no root_entries
     //     (legacy import never migrated to v2), so listing it sends
     //     users to an empty reader.
-    //   • ketabonline_ibn_duraid_jamharat_al_lugha has 1,229 root_entries
+    //   • ibn_durayd_jamharat_lugha has 1,229 root_entries
     //     but no chunks (newer pipeline writes straight to v2), so the
     //     old query hid it entirely.
     // Counting from root_entries matches what /al/lex/v2/sources does and
@@ -463,7 +463,7 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
                COUNT(*) AS total,
                COUNT(*) AS roots,
                0        AS embedded
-        FROM   ar_ling_lexicon_root_entries r
+        FROM   ar_ling_lexicon_entry r
         WHERE  r.source_slug IS NOT NULL
         GROUP BY r.source_slug
         ORDER BY total DESC
@@ -508,7 +508,7 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
       .prepare(`
         SELECT id, source_slug, heading_norm, root_id,
                text_ar, text_en, page_no, volume_no, chunk_seq, meta_json
-        FROM   ar_ling_source_chunks
+        FROM   ar_ling_source_chunk
         WHERE  chunk_kind IN ('lexical_entry', 'lexical_word_entry', 'lexicon_entry', 'root_entry')
           AND  heading_norm = ?
           ${ph}
@@ -554,13 +554,13 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
       const { results: lemmaRows } = await env.DB_AL
         .prepare(`SELECT l.id, l.lemma_text, l.lemma_text_bare, l.part_of_speech,
                          l.verb_form, l.is_quran_word, l.frequency_quran
-                  FROM   ar_ling_lemmas l
+                  FROM   ar_ling_root_lemma l
                   WHERE  l.root_id = ?
                   UNION
                   SELECT l.id, l.lemma_text, l.lemma_text_bare, l.part_of_speech,
                          l.verb_form, l.is_quran_word, l.frequency_quran
-                  FROM   ar_ling_lemmas l
-                  JOIN   ar_ling_lemma_root_links lr ON lr.lemma_id = l.id
+                  FROM   ar_ling_root_lemma l
+                  JOIN   ar_ling_root_lemma_link lr ON lr.lemma_id = l.id
                   WHERE  lr.root_id = ?
                   ORDER BY frequency_quran DESC, lemma_text`)
         .bind(rootRow.id, rootRow.id)
@@ -608,7 +608,7 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
     const row = await env.DB_AL
       .prepare(`SELECT id, source_slug, heading_norm, root_id,
                        text_ar, text_en, page_no, volume_no, chunk_seq, meta_json
-                FROM   ar_ling_source_chunks WHERE id = ?`)
+                FROM   ar_ling_source_chunk WHERE id = ?`)
       .bind(chunkId)
       .first<Record<string, unknown>>();
 
@@ -643,7 +643,7 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
       env.DB_AL.prepare(`
         SELECT id, source_slug, heading_norm, root_id,
                text_ar, text_en, page_no, volume_no, chunk_seq, meta_json
-        FROM   ar_ling_source_chunks
+        FROM   ar_ling_source_chunk
         WHERE  chunk_kind IN ('lexical_entry', 'lexical_word_entry', 'lexicon_entry', 'root_entry')
           AND  heading_norm = ? ${ph}
         LIMIT ?
@@ -652,7 +652,7 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
       env.DB_AL.prepare(`
         SELECT id, source_slug, heading_norm, root_id,
                text_ar, text_en, page_no, volume_no, chunk_seq, meta_json
-        FROM   ar_ling_source_chunks
+        FROM   ar_ling_source_chunk
         WHERE  chunk_kind IN ('lexical_entry', 'lexical_word_entry', 'lexicon_entry', 'root_entry')
           AND  heading_norm != ?
           AND  (text_ar LIKE ? OR text_en LIKE ? OR heading_norm LIKE ?)
@@ -777,7 +777,7 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
   // (handled by lexiconV2Routes). The old route queried the retired
   // ar_ling_lexicon_entries table and produced a parallel response shape;
   // removing it prevents accidental re-use and forces a single code path
-  // through ar_ling_lexicon_root_entries.
+  // through ar_ling_lexicon_entry.
 
   // GET /al/lexicon/entries/search?q=&source=&limit=
   // Searches heading_ar and definition_clean.
@@ -839,7 +839,7 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
                MAX(CASE WHEN b.block_type = 'page_ref'    THEN b.text_en END) AS page_label
         FROM   ar_ling_lexicon_entries e
         LEFT JOIN ar_ling_source_lexicon_display_blocks b ON b.lexicon_entry_id = e.id
-        LEFT JOIN ar_ling_lemmas l ON l.id = e.lemma_id
+        LEFT JOIN ar_ling_root_lemma l ON l.id = e.lemma_id
         LEFT JOIN ar_ling_roots  r ON r.id = e.root_id
         WHERE  e.id = ?
         GROUP BY e.id

@@ -16,7 +16,7 @@
 // and isn't routed through here.
 //
 // Per-source variation (titles, authors, parser hints) lives in D1's
-// ar_ling_sources and is loaded per-request via SourcesRepo. The shape
+// ar_ling_source and is loaded per-request via SourcesRepo. The shape
 // returned is identical for all sources (single LisanReadView type) so
 // the front-end can use one shell for all of them.
 
@@ -48,25 +48,25 @@ interface SourceConfig {
 // footnote_source / quran_block_shape) was retired from this file in favour
 // of D1-backed lookups via SourcesRepo.bySlug(). Migrations 0017 + 0018
 // seeded every slug below. Parser hints (footnote_source, quran_block_shape)
-// live in ar_ling_sources columns of the same name.
+// live in ar_ling_source columns of the same name.
 //
 // Some books are richly Quran-quoted (Lisan, Mufradat), others have only a
 // handful (al-Qamus: ~36 quran_quote blocks across 9,567 roots) — the rich
 // composer is registered for all of them anyway; the rare-citation cases
 // just produce sparse panels rather than failing.
 const LISAN_SLUGS: readonly string[] = [
-  'ketabonline_ibn_manzur_lisan_al_arab',
-  'ketabonline_al_jawhari_al_sihah',
-  'thahabi_al_khalil_kitab_al_ayn',
-  'saaid_maqayis_al_lugha',
-  'qomra_al_ubab_al_zakhir',
+  'ibn_manzur_lisan_arab',
+  'jawhari_sihah',
+  'khalil_kitab_ayn',
+  'maqayis_lugha',
+  'ubab_zakhir',
   // Brace-block sources (cue_only_verse_in_braces) — Qur'ān citations were
   // resolved offline via the 5-gram matcher and stored in
-  // ar_ling_lexicon_quran_refs. The composer reads those refs by block_id.
-  'ketabonline_al_zabidi_taj_al_arus',
-  'ketabonline_al_fayyumi_misbah_munir',
-  'ketabonline_ibn_duraid_jamharat_al_lugha',
-  'qomra_al_qamus_al_muhit',
+  // ar_ling_lexicon_quran_ref. The composer reads those refs by block_id.
+  'zabidi_taj_arus',
+  'fayyumi_misbah_munir',
+  'ibn_durayd_jamharat_lugha',
+  'qamus_muhit',
 ] as const;
 
 
@@ -187,13 +187,13 @@ function registerSourceRoute(router: Router<ArLinguisticsEnv>, slug: string) {
       // Pull the per-source config (title, parser hints) from D1 instead of
       // a closed-over TS constant. The slug is what gets bound into queries
       // below; everything else (display meta + footnote_source +
-      // quran_block_shape) flows from ar_ling_sources via SourcesRepo.
+      // quran_block_shape) flows from ar_ling_source via SourcesRepo.
       const cfg = await resolveSourceConfig(env.DB_AL, slug);
 
       const entry = await env.DB_AL.prepare(
         `SELECT id, root_text, root_norm, root_id, raw_text,
                 page_start, page_end, volume_no, source_url, source_native_id
-         FROM ar_ling_lexicon_root_entries
+         FROM ar_ling_lexicon_entry
          WHERE source_slug = ? AND root_norm = ? LIMIT 1`
       ).bind(cfg.slug, root_norm).first<any>();
       if (!entry) return notFound(`entry not found in ${cfg.title_en}`);
@@ -201,7 +201,7 @@ function registerSourceRoute(router: Router<ArLinguisticsEnv>, slug: string) {
       const sectionsRaw = (await env.DB_AL.prepare(
         `SELECT id, section_seq, heading_ar, heading_norm, section_type,
                 text_ar, page_no
-         FROM ar_ling_lexicon_entry_sections
+         FROM ar_ling_lexicon_entry_section
          WHERE source_slug = ? AND root_norm = ?
          ORDER BY section_seq`
       ).bind(cfg.slug, root_norm).all<any>()).results ?? [];
@@ -209,14 +209,14 @@ function registerSourceRoute(router: Router<ArLinguisticsEnv>, slug: string) {
       const blocks = (await env.DB_AL.prepare(
         `SELECT id, section_id, parent_block_id, block_seq, block_type,
                 title_ar, text_plain, data_json, printed_page
-         FROM ar_ling_lexicon_blocks
+         FROM ar_ling_lexicon_block
          WHERE source_slug = ? AND root_norm = ?
          ORDER BY block_seq`
       ).bind(cfg.slug, root_norm).all<any>()).results ?? [];
 
       const quranRefs = (await env.DB_AL.prepare(
         `SELECT block_id, surah, ayah, raw_ref, context_snippet
-         FROM ar_ling_lexicon_quran_refs
+         FROM ar_ling_lexicon_quran_ref
          WHERE source_slug = ? AND root_norm = ?
          ORDER BY surah, ayah`
       ).bind(cfg.slug, root_norm).all<any>()).results ?? [];

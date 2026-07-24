@@ -6,7 +6,7 @@ import { BackendApiService } from '../core/backend-api.service';
 
 // ---- models ----------------------------------------------------------------
 
-/** Raw word occurrence row from km-quran-worker (qr_word_occurrences). */
+/** Raw word occurrence row from km-quran-worker (qr_word_occurrence). */
 interface QrWordRow {
   surah: number;
   ayah: number;
@@ -117,7 +117,7 @@ interface QacStem {
 
 /**
  * Read-only companion to the Five-Lens modal: pulls every Qur'anic occurrence
- * of a root from km-quran-worker (qr_word_occurrences) via the backend gateway
+ * of a root from km-quran-worker (qr_word_occurrence) via the backend gateway
  * at /api/qr/words/by-root, and decodes each token's QAC morphology into a
  * readable grammar line. Never writes.
  */

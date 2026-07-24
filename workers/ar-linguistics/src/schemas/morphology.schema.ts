@@ -1,9 +1,9 @@
 // ─── Morphology schemas & types ───────────────────────────────────────────────
-// Tables: ar_ling_morphology, ar_ling_lemma_morphology,
-//         ar_ling_form_paradigms, ar_ling_inflection_rules,
-//         ar_ling_conjugation_templates
+// Tables: ar_ling_root_lemma_sarf, ar_ling_lemma_morphology,
+//         ar_ling_root_form_paradigm, ar_ling_root_lemma_ilal,
+//         ar_ling_root_form_template
 
-// ── ar_ling_morphology ────────────────────────────────────────────────────────
+// ── ar_ling_root_lemma_sarf ────────────────────────────────────────────────────────
 
 export interface ArLingMorphology {
   id: string;                    // AL:ULID
@@ -74,8 +74,8 @@ export function validateArLingMorphologyCreate(
 
 export interface ArLingLemmaMorphology {
   id: string;                    // AL:ULID
-  lemma_id: string;              // FK → ar_ling_lemmas.id
-  morphology_id: string;         // FK → ar_ling_morphology.id
+  lemma_id: string;              // FK → ar_ling_root_lemma.id
+  morphology_id: string;         // FK → ar_ling_root_lemma_sarf.id
   inflected_form: string | null; // actual inflected surface form
 }
 
@@ -103,7 +103,7 @@ export function validateArLingLemmaMorphologyCreate(
   };
 }
 
-// ── ar_ling_form_paradigms ────────────────────────────────────────────────────
+// ── ar_ling_root_form_paradigm ────────────────────────────────────────────────────
 
 export interface ArLingFormParadigm {
   id: string;              // AL:ULID
@@ -158,7 +158,7 @@ export function validateArLingFormParadigmCreate(
   };
 }
 
-// ── ar_ling_inflection_rules ──────────────────────────────────────────────────
+// ── ar_ling_root_lemma_ilal ──────────────────────────────────────────────────
 
 export interface ArLingInflectionRule {
   id: string;                    // AL:ULID
@@ -218,11 +218,11 @@ export function validateArLingInflectionRuleCreate(
   };
 }
 
-// ── ar_ling_conjugation_templates ─────────────────────────────────────────────
+// ── ar_ling_root_form_template ─────────────────────────────────────────────
 
 export interface ArLingConjugationTemplate {
   id: string;              // AL:ULID
-  paradigm_id: string;     // FK → ar_ling_form_paradigms.id
+  paradigm_id: string;     // FK → ar_ling_root_form_paradigm.id
   person: string;          // '3ms'|'3fs'|'3md'|'3mp'|'3fp'|'2ms'|…
   tense: string;           // 'past'|'present'|'imperative'|'subjunctive'|'jussive'
   voice: string;           // 'active'|'passive'
