@@ -91,6 +91,114 @@ function computeSectionBody(text_ar: string | null | undefined): {
   return { text, paragraphs, footnote_refs: [...fnSet].sort((a, b) => a - b) };
 }
 
+// ── Ṣarf family, resolved ────────────────────────────────────────────────────
+//
+// Every book draws its own ṣarf tree for a root — al-Rāghib's بين is not
+// al-Jawharī's — so the family is a *book-scoped block*, one per (source, root),
+// and there are as many of them as there are sources that treat the root.
+//
+// Its `data_json` names grammar terms by id (`GT:form_family:bab_daraba`,
+// `GT:transitivity:intransitive`). Those ids are useless to a renderer, so they
+// are resolved here against `ar_ling_gram_term` into trilingual labels and the
+// block is emitted display-ready. The raw block still rides in `blocks`.
+
+interface TermLabel { id: string; ar: string; en: string; ur: string; short_ar: string | null }
+
+/** Every `GT:` id reachable inside one ṣarf block. */
+function sarfTermRefs(data: any): string[] {
+  const out: string[] = [];
+  const push = (v: unknown) => { if (typeof v === 'string' && v.startsWith('GT:')) out.push(v); };
+  push(data?.root_type);
+  for (const form of (Array.isArray(data?.forms) ? data.forms : [])) {
+    push(form?.bab); push(form?.masdar_term); push(form?.ism_fail_term); push(form?.root_type);
+    for (const alt of (Array.isArray(form?.bab_alt) ? form.bab_alt : [])) push(alt);
+    for (const t of (Array.isArray(form?.trans) ? form.trans : [])) push(t);
+  }
+  return Array.from(new Set(out));
+}
+
+/** `{ar,en,ur}` as stored, with the empties nulled rather than sent as "". */
+function trilingual(v: any): { ar: string | null; en: string | null; ur: string | null } | null {
+  if (!v || typeof v !== 'object') return null;
+  const pick = (k: string) => (typeof v[k] === 'string' && v[k].trim() ? v[k] : null);
+  const out = { ar: pick('ar'), en: pick('en'), ur: pick('ur') };
+  return out.ar || out.en || out.ur ? out : null;
+}
+
+async function resolveSarfFamilies(env: ArLinguisticsEnv, blocks: any[]) {
+  const parsed = blocks
+    .filter(b => b.block_type === 'sarf_family')
+    .map(b => {
+      let data: any = null;
+      try { data = JSON.parse(b.data_json ?? '{}'); } catch { data = null; }
+      return { block: b, data };
+    });
+  if (!parsed.length) return [];
+
+  // One lookup for the whole entry. A ṣarf block names a couple of dozen terms
+  // at most, well inside D1's bound-parameter cap.
+  const ids = Array.from(new Set(parsed.flatMap(p => sarfTermRefs(p.data))));
+  const terms = new Map<string, TermLabel>();
+  if (ids.length) {
+    const rows = (await env.DB_AL.prepare(
+      `SELECT id, name_ar, name_en, name_ur, short_ar
+         FROM ar_ling_gram_term
+        WHERE id IN (${ids.map(() => '?').join(',')})`
+    ).bind(...ids).all()).results ?? [];
+    for (const r of rows as any[]) {
+      terms.set(r.id, { id: r.id, ar: r.name_ar, en: r.name_en, ur: r.name_ur, short_ar: r.short_ar ?? null });
+    }
+  }
+  // An id with no registry row reports as itself rather than vanishing — a
+  // missing term is a data gap worth seeing, not worth hiding.
+  const term = (id: unknown): TermLabel | null =>
+    typeof id === 'string' && id.startsWith('GT:')
+      ? terms.get(id) ?? { id, ar: id, en: id, ur: id, short_ar: null }
+      : null;
+
+  return parsed.map(({ block, data }) => ({
+    block_id: block.id,
+    section_id: block.section_id ?? null,
+    title_ar: block.title_ar ?? null,
+    scope: data?.scope ?? 'book',
+    root_type: term(data?.root_type),
+    core: trilingual(data?.block_meta?.core),
+    // What makes *this book's* reading of the family its own — the reason the
+    // panel is per source at all.
+    distinctive_note: trilingual(data?.block_meta?.distinctive_note),
+    authors_own_words: trilingual(data?.block_meta?.authors_own_words),
+    poles: (Array.isArray(data?.poles) ? data.poles : []).map((p: any) => ({
+      key: p?.key ?? null,
+      ...(trilingual(p?.label) ?? { ar: null, en: null, ur: null }),
+    })),
+    forms: (Array.isArray(data?.forms) ? data.forms : []).map((f: any) => ({
+      form_id: f?.form_id ?? null,
+      roman: f?.roman ?? '',
+      bab: term(f?.bab),
+      bab_alt: (Array.isArray(f?.bab_alt) ? f.bab_alt : []).map(term).filter(Boolean),
+      madi: f?.madi ?? null,
+      mudari: f?.mudari ?? null,
+      masdar_term: term(f?.masdar_term),
+      masadir: (Array.isArray(f?.masadir) ? f.masadir : []).filter((m: any) => typeof m === 'string'),
+      ism_fail: f?.ism_fail ?? null,
+      ism_fail_term: term(f?.ism_fail_term),
+      trans: (Array.isArray(f?.trans) ? f.trans : []).map(term).filter(Boolean),
+      // Authored trilingually in some books and as a bare string in others.
+      trans_note: trilingual(f?.trans_note)
+        ?? (typeof f?.trans_note === 'string' && f.trans_note.trim()
+              ? { ar: f.trans_note, en: null, ur: null } : null),
+      pole: f?.pole ?? null,
+      gloss: trilingual(f?.gloss),
+      senses: (Array.isArray(f?.senses) ? f.senses : [])
+        .map((s: any) => ({ sense: trilingual(s?.sense), example: trilingual(s?.example) }))
+        .filter((s: any) => s.sense || s.example),
+      ayah: f?.ayah ?? null,
+      shahid: trilingual(f?.shahid)
+        ?? (typeof f?.shahid === 'string' && f.shahid.trim() ? { ar: f.shahid, en: null, ur: null } : null),
+    })),
+  }));
+}
+
 /**
  * Pull footnote backing text from `block_type='footnote'` blocks.
  * The ingestion convention is `data_json.footnote_no` for the marker number
@@ -364,14 +472,27 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
        WHERE source_slug = ? AND root_entry_id = ?`
     ).bind(slug, entry.id).all()).results ?? [];
 
-    // Canonical root metadata (the spine that ties sources together)
-    const canonical = entry.root_id
-      ? await env.DB_AL.prepare(
-          `SELECT id, root_text, root_letters, root_type, weak_pattern,
-                  frequency_quran, frequency_hadith, meaning_core_en
-           FROM ar_ling_roots WHERE id = ? LIMIT 1`
-        ).bind(entry.root_id).first()
-      : null;
+    // Canonical root metadata (the spine that ties sources together).
+    //
+    // `ar_ling_lexicon_entry.root_id` is NULL for almost every entry — only Lane
+    // and the five-lens rows were ever back-linked — so keying on it alone
+    // returned null canonical for al-Rāghib, al-Jawharī, Ibn Fāris and the rest,
+    // and the reader's whole headword block (shape, Qurʾānic frequency, core
+    // sense) came up empty for the books people actually read. The root row
+    // exists; only the link is missing. Fall back to matching it by the
+    // normalized root, which is what the two tables already agree on.
+    const canonicalSelect =
+      `SELECT id, root_text, root_letters, root_type, weak_pattern,
+              frequency_quran, frequency_hadith, meaning_core_en
+         FROM ar_ling_roots`;
+    const canonical =
+      (entry.root_id
+        ? await env.DB_AL.prepare(`${canonicalSelect} WHERE id = ? LIMIT 1`)
+            .bind(entry.root_id).first()
+        : null)
+      ?? await env.DB_AL.prepare(
+           `${canonicalSelect} WHERE root_normalized = ? OR root_text = ? LIMIT 1`
+         ).bind(root_norm, root_norm).first();
 
     // ── Normalize each section into a reader-ready `body` ──────────────
     // Ingestion split prose into fragment blocks (one per citation, footnote
@@ -390,6 +511,9 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     // ── Collect footnote backing text (when ingestion preserved it) ────
     const footnotes = collectFootnotes(blocks);
 
+    // The book's own ṣarf tree for this root, with its term ids resolved.
+    const sarf_families = await resolveSarfFamilies(env, blocks);
+
     const sourceRow = await new SourcesRepo(env.DB_AL).bySlug(slug);
     return ok({
       meta: sourceRow ? v2RouteMeta(sourceRow) : { slug },
@@ -397,6 +521,7 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
       canonical,
       sections: sectionsWithBody,
       blocks,
+      sarf_families,
       links,
       tags,
       quran_refs,
@@ -409,6 +534,7 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
         tags: tags.length,
         quran_refs: quran_refs.length,
         footnotes: footnotes.length,
+        sarf_families: sarf_families.length,
       },
     });
   }));
