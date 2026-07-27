@@ -37,6 +37,7 @@ function v2RouteMeta(s: import('../repositories/sources.repo').LexiconSource) {
   const base = {
     slug:     s.slug,
     title_ar: s.title_ar,
+    title_short_ar: s.title_short_ar ?? s.title_ar,
     title_en: s.title_en ?? s.title_ar,
     author:   s.author_name ?? '',
     period:   s.period_label ?? '',

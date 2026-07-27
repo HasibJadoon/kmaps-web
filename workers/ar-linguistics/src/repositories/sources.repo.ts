@@ -29,6 +29,7 @@ export interface LexiconSource {
   id:                 string;        // D1 primary key (e.g. SRC:KETABONLINE:MUFRADAT)
   slug:               string;        // TS-side identifier used in URLs (e.g. raghib_mufradat)
   title_ar:           string;
+  title_short_ar:     string | null; // spine / book-strip name (العين, المفردات)
   title_en:           string | null;
   author_name:        string | null;
   period_label:       string | null;
@@ -46,6 +47,7 @@ interface SourceRow {
   id:                 string;
   slug:               string;
   title_ar:           string;
+  title_short_ar:     string | null;
   title_en:           string | null;
   author_name:        string | null;
   period_label:       string | null;
@@ -60,7 +62,7 @@ interface SourceRow {
 }
 
 const SELECT = `
-  id, slug, title_ar, title_en, author_name, period_label,
+  id, slug, title_ar, title_short_ar, title_en, author_name, period_label,
   origin, bilingual, source_order, footnote_source, quran_block_shape, genre,
   author_death_ah, author_death_ce
 FROM ar_ling_source`;
@@ -70,6 +72,7 @@ function toSource(r: SourceRow): LexiconSource {
     id:                 r.id,
     slug:               r.slug,
     title_ar:           r.title_ar,
+    title_short_ar:     r.title_short_ar ?? null,
     title_en:           r.title_en,
     author_name:        r.author_name,
     period_label:       r.period_label,
