@@ -12,15 +12,75 @@ export interface SubLayer {
   sub_code: string;
   band: number;
   band_key: string;
+  band_name_ar: string | null;
   band_name_en: string | null;
   name_ar: string;
   name_en: string;
   name_ur: string | null;
   scope_level: string;
   discipline: string;
+  default_card: string;
   produced_by: string;
   fill_state: string;
+  carrier_state: string;
+  tables_json: string;
   display_order: number;
+}
+
+/** A row of `ar_ling_reg_build_layer` — the scope registry (root/lemma/word). */
+export interface BuildLayerRow {
+  layer_code: string;
+  layer_key: string;
+  name_ar: string;
+  name_en: string;
+  name_ur: string;
+  scope_level: string;
+  fill_order: number;
+  mode: string;
+  note_en: string | null;
+}
+
+/** One sub-layer as the layer model publishes it — tables parsed, no raw JSON. */
+export interface LayerModelSub {
+  sub_code: string;
+  name_ar: string;
+  name_en: string;
+  name_ur: string | null;
+  /** The registry's own scope_level, before the fold onto a tab (see `SCOPE_OF`). */
+  scope_level: string;
+  discipline: string;
+  card: string;
+  produced_by: string;
+  fill_state: string;
+  carrier_state: string;
+  tables: string[];
+  display_order: number;
+}
+
+/** One band of sub-layers inside a scope — what the mobile UI calls a "layer". */
+export interface LayerModelLayer {
+  scope: string;
+  band: number;
+  key: string;
+  name_ar: string | null;
+  name_en: string | null;
+  subs: LayerModelSub[];
+}
+
+export interface LayerModelScope {
+  key: string;
+  code: string;
+  name_ar: string;
+  name_en: string;
+  name_ur: string;
+  note: string | null;
+  layers: number;
+  subs: number;
+}
+
+export interface LayerModel {
+  scopes: LayerModelScope[];
+  layers: LayerModelLayer[];
 }
 
 export interface StageCell { root_norm: string; sub_code: string; n: number; promoted: number }
@@ -70,19 +130,118 @@ export interface StatusCount { status: string; n: number }
 /** A claim is promoted when it has reached its carrier table. */
 const PROMOTED = `(status = 'promoted' OR promoted_to_table IS NOT NULL)`;
 
+/**
+ * `ar_ling_reg_build_layer.layer_key` → the scope key the app tabs between.
+ * Only the naming differs: layer 300 is registered as "context" and reads as
+ * the word scope everywhere else.
+ */
+const SCOPE_KEY: Record<string, string> = { root: 'root', lemma: 'lemma', context: 'word' };
+
+/**
+ * `ar_ling_reg_sub_layer.scope_level` → the scope that owns it. Two levels have
+ * no scope row of their own and fold onto their nearest owner: a *form* is a
+ * property of the lemma that carries it, and a *letter* is a radical of the
+ * root. The unfolded `scope_level` still rides on every sub so the fold is
+ * visible in the UI rather than lost here.
+ */
+const SCOPE_OF: Record<string, string> = {
+  root: 'root', letter: 'root',
+  lemma: 'lemma', form: 'lemma',
+  word: 'word', context: 'word',
+};
+
+/** `tables_json` is a JSON array of carrier table names; a bad blob is no table. */
+function parseTables(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 export class StagingRepo {
   constructor(private db: D1Database) {}
 
-  // The 27-row sub-layer registry — column headers for the matrix, in order.
+  // The sub-layer registry — column headers for the matrix, in order.
   subLayers(): Promise<SubLayer[]> {
     return query<SubLayer>(
       this.db,
-      `SELECT sub_code, band, band_key, band_name_en, name_ar, name_en, name_ur,
-              scope_level, discipline, produced_by, fill_state, display_order
+      `SELECT sub_code, band, band_key, band_name_ar, band_name_en,
+              name_ar, name_en, name_ur, scope_level, discipline,
+              default_card, produced_by, fill_state, carrier_state,
+              tables_json, display_order
        FROM ar_ling_reg_sub_layer
        WHERE status = 'live'
        ORDER BY display_order, band, sub_code`,
     );
+  }
+
+  /** The three scopes the Root Dashboard tabs between — real registry rows. */
+  buildScopes(): Promise<BuildLayerRow[]> {
+    return query<BuildLayerRow>(
+      this.db,
+      `SELECT layer_code, layer_key, name_ar, name_en, name_ur,
+              scope_level, fill_order, mode, note_en
+       FROM ar_ling_reg_build_layer
+       WHERE layer_code IN ('100', '200', '300')
+       ORDER BY fill_order`,
+    );
+  }
+
+  /**
+   * The scope → layer → sub-layer tree behind the mobile Root Dashboard.
+   *
+   * Nothing here is authored in the app: the three scopes are the 100/200/300
+   * rows of `ar_ling_reg_build_layer`, a "layer" is a *band* of
+   * `ar_ling_reg_sub_layer` within a scope, and the leaves are the sub-layer
+   * rows themselves with their carrier tables and fill state.
+   */
+  async layerModel(): Promise<LayerModel> {
+    const [scopeRows, subs] = await Promise.all([this.buildScopes(), this.subLayers()]);
+
+    const layers: LayerModelLayer[] = [];
+    const index = new Map<string, LayerModelLayer>();
+    for (const sub of subs) {
+      const scope = SCOPE_OF[sub.scope_level];
+      if (!scope) continue;
+      const key = `${scope}:${sub.band}`;
+      let layer = index.get(key);
+      if (!layer) {
+        layer = {
+          scope, band: sub.band, key: sub.band_key,
+          name_ar: sub.band_name_ar, name_en: sub.band_name_en, subs: [],
+        };
+        index.set(key, layer);
+        layers.push(layer);
+      }
+      layer.subs.push({
+        sub_code: sub.sub_code,
+        name_ar: sub.name_ar, name_en: sub.name_en, name_ur: sub.name_ur,
+        scope_level: sub.scope_level, discipline: sub.discipline,
+        card: sub.default_card, produced_by: sub.produced_by,
+        fill_state: sub.fill_state, carrier_state: sub.carrier_state,
+        tables: parseTables(sub.tables_json),
+        display_order: sub.display_order,
+      });
+    }
+    layers.sort((a, b) => a.band - b.band);
+
+    const scopes: LayerModelScope[] = scopeRows.map((row) => {
+      const key = SCOPE_KEY[row.layer_key] ?? row.layer_key;
+      const mine = layers.filter((l) => l.scope === key);
+      return {
+        key,
+        code: `${row.layer_code}-${row.layer_key.toUpperCase()}`,
+        name_ar: row.name_ar, name_en: row.name_en, name_ur: row.name_ur,
+        note: row.note_en,
+        layers: mine.length,
+        subs: mine.reduce((total, l) => total + l.subs.length, 0),
+      };
+    });
+
+    return { scopes, layers };
   }
 
   // Per root × sub_code counts (+ how many promoted) — the matrix body.

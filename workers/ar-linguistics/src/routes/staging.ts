@@ -1,7 +1,8 @@
 // ─── /al/staging/* — the AL staging spine (read-only) ────────────────────────
 // Backs the Data Matrix / Staging Spine tabs of the Cybernetics Control Monitor.
-//   • GET /al/staging/summary — headline counts + status breakdown + sub-layers
-//   • GET /al/staging/matrix  — root × sub_code claim counts (+ promoted) + cols
+//   • GET /al/staging/summary     — headline counts + status breakdown + sub-layers
+//   • GET /al/staging/matrix      — root × sub_code claim counts (+ promoted) + cols
+//   • GET /al/staging/layer-model — scope → layer → sub-layer registry tree
 // Every number is a live read of ar_ling_stg_claim × ar_ling_reg_sub_layer.
 
 import type { Router } from '../../../shared/src/router';
@@ -26,6 +27,15 @@ export function stagingRoutes(router: Router<ArLinguisticsEnv>) {
       repo.matrix(), repo.subLayers(), repo.rootRollups(),
     ]);
     return ok({ cells, sub_layers: subLayers, roots: rootRollups });
+  });
+
+  // GET /al/staging/layer-model — the registry tree the Root Dashboard drills:
+  // the three scopes (root · lemma · word), the bands of sub-layers inside each,
+  // and every sub-layer's carrier tables and fill state. Registry only — the
+  // per-root numbers come from the matrix and the control plane's sensors.
+  router.get('/al/staging/layer-model', async (_req, env) => {
+    const repo = new StagingRepo(env.DB_AL);
+    return ok(await repo.layerModel());
   });
 
   // GET /al/staging/root/:root — deep drill for one root: the actual staged
