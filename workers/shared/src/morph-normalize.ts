@@ -16,7 +16,13 @@
 // Combining marks to drop: tashkīl, superscript alef, Qurʾānic annotation marks.
 // Ranges are chosen NOT to touch base letters (U+0620–U+064A). Verified against
 // بَيْن مُبِين كِتَاب أَنزَلَ نَزَّلَ.
-const TASHKEEL = /[ؐ-ًؚ-ٰٟۖ-ۜ۟-۪ۤۧۨ-ۭ࣓-ࣿ]/g;
+//
+// Written as \u escapes on purpose. The literal form of this class read
+// `[ؐ-ًؚ-ٰٟ…]`, in which the four boundary characters U+0610 U+061A U+064B
+// U+0670 — correct, and in order — were paired by the hyphens as 0610–064B and
+// 061A–0670. Both of those spans swallow the whole Arabic letter block, so
+// morphNorm('بين') returned ''. Invisible in the literal form, obvious here.
+const TASHKEEL = /[\u0610-\u061A\u064B-\u0670\u06D6-\u06DC\u06DF-\u06ED\u08D3-\u08FF]/g;
 const TATWEEL  = /ـ/g;                       // ـ kashida (U+0640)
 const NON_LETTER_WS = /[\s‌‍]+/g;      // spaces + ZWNJ/ZWJ
 
