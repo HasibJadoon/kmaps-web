@@ -20,6 +20,7 @@ import { lexiconDisplayRoutes } from './routes/lexicon_display';
 import { lexiconMufradatRoutes } from './routes/lexicon_mufradat';
 import { lexiconLisanRoutes } from './routes/lexicon_lisan';
 import { lexiconLaneRoutes }  from './routes/lexicon_lane';
+import { sarfFamilyRoutes }   from './routes/sarf_family';
 import { scholarshipRoutes }  from './routes/scholarship';
 import { expressionRoutes } from './routes/expressions';
 import { nearSynonymRoutes } from './routes/near_synonyms';
@@ -49,6 +50,7 @@ lexiconDisplayRoutes(router);    // /al/lex/v2/display/* — per-lexicon render 
 lexiconMufradatRoutes(router);
 lexiconLisanRoutes(router);
 lexiconLaneRoutes(router);
+sarfFamilyRoutes(router);        // /al/sarf/* — ṣarf-family panel, registry-resolved (one book / all books)
 scholarshipRoutes(router);
 expressionRoutes(router);
 nearSynonymRoutes(router);
