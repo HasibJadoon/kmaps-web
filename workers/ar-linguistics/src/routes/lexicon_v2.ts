@@ -538,9 +538,66 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     const looseProse = blocks.filter((b: any) =>
       PROSE_BLOCKS.has(b.block_type) && !b.section_id && (b.text_plain ?? '').trim());
 
-    let sections_source: 'sections' | 'blocks' = 'sections';
+    let sections_source: 'sections' | 'blocks' | 'block_tree' = 'sections';
     let effectiveSections = sections;
-    if (sections.length && sections.every(isStub) && looseProse.length) {
+
+    // ── Titled block tree, when it provably covers the article ────────
+    // Kitāb al-ʿAyn (and any source segmented the same way) stores the article
+    // twice: once joined in `section.text_ar`, once as ordered leaf blocks that
+    // now carry authored headings. Rendering the leaves is what turns a wall of
+    // Arabic into a headed article — but only if they actually tile the text.
+    // An earlier attempt rendered a block tree that covered ~16% of the entry
+    // and silently dropped the rest, so coverage is *proved* here per request:
+    // the leaves' own text, concatenated in printed order, must reproduce
+    // `text_ar` (whitespace-insensitive). Otherwise we fall through to the
+    // joined section and nothing is lost.
+    const LEAF_BLOCKS = new Set(['definition', 'poetry_quote', 'hadith_quote', 'quran_quote']);
+    // Whitespace and the bare lemma colon are separators, not content: ingestion
+    // sometimes keeps a lone ':' in the joined text that no block inherited.
+    // Ignoring both is what lets an otherwise exact tiling compare equal.
+    const squash = (s: string | null | undefined) => (s ?? '').replace(/[\s:]+/gu, '');
+    if (sections.length && !sections.every(isStub)) {
+      const built: any[] = [];
+      let covered = true;
+      for (const s of sections) {
+        const leaves = blocks
+          // `book_native` only: derived blocks re-cut the same prose (بين carries
+          // both e1.p3 and hand-written e1.p3.a/b/c), so mixing them would
+          // double-count the text and fail the coverage check below.
+          .filter((b: any) => b.section_id === s.id && LEAF_BLOCKS.has(b.block_type)
+                              && (b.origin === 'book_native' || b.origin === 'derived_segmentation')
+                              && (b.title_ar ?? '').trim() && (b.text_plain ?? '').trim())
+          .sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
+        // A one-leaf article is still worth rendering from the tree: it gains
+        // its authored heading instead of showing as an untitled wall.
+        if (!leaves.length
+            || squash(leaves.map((b: any) => b.text_plain).join('')) !== squash(s.text_ar)) {
+          covered = false;
+          break;
+        }
+        for (const b of leaves) {
+          built.push({
+            id: b.id,
+            section_seq: built.length + 1,
+            heading_ar: b.title_ar,
+            heading_norm: null,
+            heading_bare: null,
+            section_type: b.block_type,
+            text_ar: b.text_plain,
+            text_en: null,
+            page_no: b.printed_page ?? s.page_no ?? null,
+            source_native_section_id: null,
+            parent_section_id: s.id,
+          });
+        }
+      }
+      if (covered && built.length) {
+        sections_source = 'block_tree';
+        effectiveSections = built;
+      }
+    }
+
+    if (sections_source === 'sections' && sections.length && sections.every(isStub) && looseProse.length) {
       sections_source = 'blocks';
       effectiveSections = looseProse.map((b: any, i: number) => {
         let data: any = null;
