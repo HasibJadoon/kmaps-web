@@ -494,6 +494,51 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
            `${canonicalSelect} WHERE root_normalized = ? OR root_text = ? LIMIT 1`
          ).bind(root_norm, root_norm).first();
 
+    // ── Block-first sources ────────────────────────────────────────────
+    // Two ingest shapes reach this route. The Arabic lexica are section-first:
+    // `entry_section.text_ar` holds the article and the blocks are fragments
+    // hanging off it. Lane is block-first: its sections are headword stubs
+    // (text_ar is literally just `بَانَ`) and the whole article — 23 blocks,
+    // 13k characters of English — sits in loose `definition` blocks with a NULL
+    // section_id. A client that renders sections and joins blocks by section_id
+    // therefore showed Lane as a column of empty headings.
+    //
+    // Rather than make every client branch on the slug, sections are synthesised
+    // from those blocks when — and only when — every section is a stub. The
+    // headword is kept as the heading, so the printed structure survives.
+    const PROSE_BLOCKS = new Set(['definition', 'entry_header']);
+    const isStub = (s: any) => {
+        const body = (s.text_ar ?? s.text_en ?? '').trim();
+        return body === '' || body === (s.heading_ar ?? '').trim();
+    };
+    const looseProse = blocks.filter((b: any) =>
+      PROSE_BLOCKS.has(b.block_type) && !b.section_id && (b.text_plain ?? '').trim());
+
+    let sections_source: 'sections' | 'blocks' = 'sections';
+    let effectiveSections = sections;
+    if (sections.length && sections.every(isStub) && looseProse.length) {
+      sections_source = 'blocks';
+      effectiveSections = looseProse.map((b: any, i: number) => {
+        let data: any = null;
+        try { data = JSON.parse(b.data_json ?? '{}'); } catch { data = null; }
+        return {
+          id: b.id,
+          section_seq: i + 1,
+          // The lemma the block is about, falling back to the printed headword.
+          heading_ar: data?.lemma ?? b.title_ar ?? null,
+          heading_norm: null,
+          heading_bare: null,
+          section_type: data?.form ? `form_${data.form}` : 'definition',
+          // Lane's prose is English; keeping it in text_en means `lang` below
+          // resolves the reading direction from data rather than from the slug.
+          text_ar: null,
+          text_en: b.text_plain,
+          page_no: b.printed_page ?? null,
+          source_native_section_id: null,
+        };
+      });
+    }
+
     // ── Normalize each section into a reader-ready `body` ──────────────
     // Ingestion split prose into fragment blocks (one per citation, footnote
     // marker, even a stray period). `section.text_ar` is the joined truth.
@@ -502,11 +547,17 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     // flowing prose without re-stitching the fragments.
     // Bilingual sources (Sinai) carry their prose in text_en; `lang` lets the reader
     // set the reading direction from data rather than assuming Arabic.
-    const sectionsWithBody = sections.map((s: any) => ({
-      ...s,
-      lang: s.text_ar ? 'ar' : (s.text_en ? 'en' : null),
-      body: computeSectionBody(s.text_ar ?? s.text_en),
-    }));
+    const sectionsWithBody = effectiveSections.map((s: any) => {
+      const lang = s.text_ar ? 'ar' : (s.text_en ? 'en' : null);
+      if (sections_source === 'blocks') {
+        // One block is one paragraph. Sentence-splitting Lane's prose at every
+        // period turns "(M, Mgh, Msb, K,) [aor. يَبِينُ,] inf. n. …" into a dozen
+        // fragments, because the abbreviations are periods too.
+        const text = (s.text_en ?? s.text_ar ?? '').replace(/\s+/g, ' ').trim();
+        return { ...s, lang, body: { text, paragraphs: text ? [text] : [], footnote_refs: [] } };
+      }
+      return { ...s, lang, body: computeSectionBody(s.text_ar ?? s.text_en) };
+    });
 
     // ── Collect footnote backing text (when ingestion preserved it) ────
     const footnotes = collectFootnotes(blocks);
@@ -520,6 +571,9 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
       entry,
       canonical,
       sections: sectionsWithBody,
+      // Which shape this entry's article came from, so the difference is visible
+      // rather than silently papered over.
+      sections_source,
       blocks,
       sarf_families,
       links,
@@ -528,7 +582,7 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
       footnotes,
       sources_of_entry,
       stats: {
-        sections: sections.length,
+        sections: sectionsWithBody.length,
         blocks: blocks.length,
         links: links.length,
         tags: tags.length,
