@@ -444,7 +444,8 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
 
     const sections = (await env.DB_AL.prepare(
       `SELECT id, section_seq, heading_ar, heading_norm, heading_bare,
-              section_type, text_ar, text_en, page_no, source_native_section_id
+              section_type, text_ar, text_en, page_no, source_native_section_id,
+              lane_itype
        FROM ar_ling_lexicon_entry_section
        WHERE source_slug = ? AND root_norm = ?
        ORDER BY section_seq`
@@ -615,6 +616,46 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
         sections_source = 'block_tree';
         effectiveSections = built;
       }
+    }
+
+    // Lane's section rows hold only the headword — `text_ar` for "كَتَبَهُ" is
+    // literally `كَتَبَهُ` — so a stub section is not the article, it is a label
+    // for it. The article lives in the blocks, and Lane's ingestion produced two
+    // shapes: 115 entries leave the prose blocks unattached (section_id NULL,
+    // handled by looseProse below) and 4,949 attach them to the stub section.
+    // Only the first shape was ever rendered, so 97.5% of Lane came back as a
+    // column of headings with no prose at all. When the sections are stubs and
+    // the blocks are attached, fold each section's own blocks into its body:
+    // Lane's headings survive and finally carry his text.
+    const attachedProse = new Map<string, any[]>();
+    if (sections.length && sections.every(isStub) && !looseProse.length) {
+      for (const b of blocks) {
+        if (b.block_type !== 'definition' || !b.section_id) continue;
+        if (!(b.text_plain ?? '').trim()) continue;
+        const list = attachedProse.get(b.section_id);
+        if (list) list.push(b); else attachedProse.set(b.section_id, [b]);
+      }
+    }
+    if (sections_source === 'sections' && attachedProse.size) {
+      sections_source = 'blocks';
+      effectiveSections = sections
+        .filter((s: any) => attachedProse.has(s.id))
+        .map((s: any, i: number) => {
+          const bs = attachedProse.get(s.id)!
+            .sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
+          return {
+            id: s.id,
+            section_seq: i + 1,
+            heading_ar: s.heading_ar,
+            heading_norm: s.heading_norm ?? null,
+            heading_bare: s.heading_bare ?? null,
+            section_type: s.lane_itype ? `form_${s.lane_itype}` : (s.section_type ?? 'definition'),
+            text_ar: null,
+            text_en: bs.map((b: any) => b.text_plain).join('\n'),
+            page_no: bs[0]?.printed_page ?? s.page_no ?? null,
+            source_native_section_id: null,
+          };
+        });
     }
 
     if (sections_source === 'sections' && sections.length && sections.every(isStub) && looseProse.length) {
