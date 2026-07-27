@@ -158,35 +158,38 @@ export interface SarfBook {
   sarf_family:         Record<string, unknown>;
 }
 
-/** One book's use of a cross-book pole family. */
-export interface PoleFamilyUsage {
-  source_slug: string;
-  /** The book-local pole key (`forms[].pole` / `derivations[].facet`) that
-   *  carries this family in this book — null when the item names no pole. */
-  pole_key:    string | null;
-  /** That pole's trilingual label, from the book's own `poles[]`. */
-  label:       Trilingual | null;
-  form_ids:    string[];
-  item_count:  number;
+/** A pole family as it spans the corpus.
+ *
+ *  Shape follows the sarf_family v2 spec: keyed by the `PF:` code, carrying
+ *  `label` (Tri) and `sources_using` (slug → the form_ids under it), so
+ *  "show the disclosure-pole treatment across all lexica" is a lookup rather
+ *  than per-source string-matching. `pole_keys`, `source_count` and
+ *  `item_count` are additive — they say which book-local axis each lexicon
+ *  files this family under, which the spec's two fields don't carry.
+ *
+ *  Derived from the `pole`/`pole_family` values actually present, on every
+ *  request, exactly once per root — never stored, so it cannot drift from the
+ *  data it describes. (`PF:` codes have no registry table by design; their
+ *  labels live in each book's own `poles[]` and are harvested here.) */
+export interface PoleFamilyEntry {
+  /** Representative label: the earliest book that names this family. */
+  label:         Trilingual | null;
+  /** source_slug → form_ids of the forms/derivations under this family. */
+  sources_using: Record<string, string[]>;
+  /** source_slug → that book's own pole key (`forms[].pole` /
+   *  `derivations[].facet`) — the author's axis, never a registry term. */
+  pole_keys:     Record<string, string | null>;
+  source_count:  number;
+  item_count:    number;
 }
 
-/** A pole family as it spans the corpus. Derived from the blocks on every
- *  request — never stored, so it cannot drift from the data it describes.
- *  (`PF:` codes have no registry table; their labels live in each book's
- *  `poles[]` and are harvested here.) */
-export interface PoleFamily {
-  code:         string;
-  /** Representative label: the earliest book that names this family. */
-  label:        Trilingual | null;
-  source_count: number;
-  item_count:   number;
-  used_by:      PoleFamilyUsage[];
-}
+/** `PF:` code → entry, widest attestation first. */
+export type PoleFamilyTable = Record<string, PoleFamilyEntry>;
 
 export interface SarfRootView {
   root_norm:        string;
   source_count:     number;
-  pole_families:    PoleFamily[];
+  pole_families:    PoleFamilyTable;
   books:            SarfBook[];
   /** `GT:` codes present in the blocks but missing from ar_ling_gram_term.
    *  Empty on healthy data. */
@@ -250,8 +253,8 @@ function toTrilingual(value: unknown): Trilingual | null {
  *  chronological order — `label` therefore resolves to the earliest naming. */
 export function computePoleFamilies(
   blocks: { source_slug: string; sarf_family: Record<string, unknown> }[],
-): PoleFamily[] {
-  const families = new Map<string, PoleFamily>();
+): PoleFamilyTable {
+  const families = new Map<string, PoleFamilyEntry & { code: string }>();
 
   for (const { source_slug, sarf_family } of blocks) {
     // Book-local pole key → its trilingual label.
@@ -263,8 +266,10 @@ export function computePoleFamilies(
 
     // forms[] name their pole as `pole`; derivations[] as `facet`.
     const items = [...asArray(sarf_family.forms), ...asArray(sarf_family.derivations)];
-    const perFamily = new Map<string, PoleFamilyUsage>();
 
+    // Collapse this book's items per family first, so a book that files three
+    // forms under one family counts as one source, not three.
+    const perFamily = new Map<string, { pole_key: string | null; form_ids: string[]; count: number }>();
     for (const item of items) {
       const code = readString(item, 'pole_family');
       if (!code) continue;
@@ -273,36 +278,45 @@ export function computePoleFamilies(
 
       let usage = perFamily.get(code);
       if (!usage) {
-        usage = {
-          source_slug,
-          pole_key: poleKey,
-          label: poleKey ? poleLabels.get(poleKey) ?? null : null,
-          form_ids: [],
-          item_count: 0,
-        };
+        usage = { pole_key: poleKey, form_ids: [], count: 0 };
         perFamily.set(code, usage);
       }
       if (formId) usage.form_ids.push(formId);
-      usage.item_count += 1;
+      usage.count += 1;
     }
 
     for (const [code, usage] of perFamily) {
       let family = families.get(code);
       if (!family) {
-        family = { code, label: null, source_count: 0, item_count: 0, used_by: [] };
+        family = {
+          code,
+          label: null,
+          sources_using: {},
+          pole_keys: {},
+          source_count: 0,
+          item_count: 0,
+        };
         families.set(code, family);
       }
-      family.label ??= usage.label;
+      // Blocks arrive chronologically, so the first book to name this family
+      // supplies the representative label.
+      family.label ??= usage.pole_key ? poleLabels.get(usage.pole_key) ?? null : null;
+      family.sources_using[source_slug] = usage.form_ids;
+      family.pole_keys[source_slug]     = usage.pole_key;
       family.source_count += 1;
-      family.item_count += usage.item_count;
-      family.used_by.push(usage);
+      family.item_count   += usage.count;
     }
   }
 
   // Widest attestation first — the families the tradition agrees on lead.
-  return [...families.values()].sort(
+  // Key insertion order is preserved through JSON.stringify, so the table
+  // arrives at the client already ranked.
+  const ranked = [...families.values()].sort(
     (a, b) => b.source_count - a.source_count || a.code.localeCompare(b.code),
   );
+  const table: PoleFamilyTable = {};
+  for (const { code, ...entry } of ranked) table[code] = entry;
+  return table;
 }
 
 function asArray(value: unknown): unknown[] {
