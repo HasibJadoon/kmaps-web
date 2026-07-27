@@ -110,7 +110,8 @@ function sarfTermRefs(data: any): string[] {
   const push = (v: unknown) => { if (typeof v === 'string' && v.startsWith('GT:')) out.push(v); };
   push(data?.root_type);
   for (const form of (Array.isArray(data?.forms) ? data.forms : [])) {
-    push(form?.bab); push(form?.masdar_term); push(form?.ism_fail_term); push(form?.root_type);
+    push(form?.bab); push(form?.form_tier); push(form?.masdar_term);
+    push(form?.ism_fail_term); push(form?.ism_maf_term); push(form?.root_type);
     for (const alt of (Array.isArray(form?.bab_alt) ? form.bab_alt : [])) push(alt);
     for (const t of (Array.isArray(form?.trans) ? form.trans : [])) push(t);
   }
@@ -176,18 +177,30 @@ async function resolveSarfFamilies(env: ArLinguisticsEnv, blocks: any[]) {
       roman: f?.roman ?? '',
       bab: term(f?.bab),
       bab_alt: (Array.isArray(f?.bab_alt) ? f.bab_alt : []).map(term).filter(Boolean),
+      // Form I carries `bab`, Forms II-XII carry `form_tier`, and a nominal-only
+      // row carries `GT:form_family:noun_derivatives`. Dropping form_tier left
+      // every derived form with no label at all.
+      form_tier: term(f?.form_tier),
+      root_type: term(f?.root_type),
       madi: f?.madi ?? null,
       mudari: f?.mudari ?? null,
+      voice: f?.voice ?? null,
+      passive_form: f?.passive_form ?? null,
       masdar_term: term(f?.masdar_term),
       masadir: (Array.isArray(f?.masadir) ? f.masadir : []).filter((m: any) => typeof m === 'string'),
       ism_fail: f?.ism_fail ?? null,
       ism_fail_term: term(f?.ism_fail_term),
+      ism_maf: f?.ism_maf ?? null,
+      ism_maf_term: term(f?.ism_maf_term),
       trans: (Array.isArray(f?.trans) ? f.trans : []).map(term).filter(Boolean),
       // Authored trilingually in some books and as a bare string in others.
       trans_note: trilingual(f?.trans_note)
         ?? (typeof f?.trans_note === 'string' && f.trans_note.trim()
               ? { ar: f.trans_note, en: null, ur: null } : null),
       pole: f?.pole ?? null,
+      pole_family: f?.pole_family ?? null,
+      levels_with: (Array.isArray(f?.levels_with) ? f.levels_with : [])
+        .filter((x: any) => typeof x === 'string'),
       gloss: trilingual(f?.gloss),
       senses: (Array.isArray(f?.senses) ? f.senses : [])
         .map((s: any) => ({ sense: trilingual(s?.sense), example: trilingual(s?.example) }))
@@ -196,6 +209,17 @@ async function resolveSarfFamilies(env: ArLinguisticsEnv, blocks: any[]) {
       shahid: trilingual(f?.shahid)
         ?? (typeof f?.shahid === 'string' && f.shahid.trim() ? { ar: f.shahid, en: null, ur: null } : null),
     })),
+    // Where the author says two forms are the same, the claim lives here and the
+    // members cross-link via each form's `levels_with`.
+    levelling_groups: (Array.isArray(data?.levelling_groups) ? data.levelling_groups : [])
+      .map((g: any) => ({
+        key: g?.key ?? null,
+        members: (Array.isArray(g?.members) ? g.members : []).filter((m: any) => typeof m === 'string'),
+        claim: trilingual(g?.claim),
+        qualifier: trilingual(g?.qualifier),
+      }))
+      .filter((g: any) => g.members.length),
+    note: typeof data?.note === 'string' && data.note.trim() ? data.note : null,
   }));
 }
 
