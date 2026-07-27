@@ -591,7 +591,19 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
           });
         }
       }
-      if (covered && built.length) {
+      // Only render the tree when it earns its place. al-Rāghib already files
+      // one section per idea with a hand-written heading ("قاعدة الاستعمال ·
+      // بين يدي · ذات البين"), and his blocks are one-per-section, so swapping
+      // in the block titles subdivided nothing and replaced the richer heading
+      // with a thinner one. Take the tree only where it actually splits a
+      // section, or where the section heading is the bare headword — which is
+      // the al-Khalīl case this exists for.
+      const bareHeading = (s: any) => {
+        const h = squash(s.heading_ar);
+        return !h || h === squash(entry?.root_text) || h === squash(entry?.root_norm);
+      };
+      if (covered && built.length
+          && (built.length > sections.length || sections.every(bareHeading))) {
         sections_source = 'block_tree';
         effectiveSections = built;
       }
