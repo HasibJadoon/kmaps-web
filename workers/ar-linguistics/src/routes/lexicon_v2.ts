@@ -175,6 +175,14 @@ async function resolveSarfFamilies(env: ArLinguisticsEnv, blocks: any[]) {
     forms: (Array.isArray(data?.forms) ? data.forms : []).map((f: any) => ({
       form_id: f?.form_id ?? null,
       roman: f?.roman ?? '',
+      // The headword this form is filed under, and the blocks that carry the
+      // author's prose for it. A family built this way is an index into the
+      // article rather than a rewrite of it, so the reader can pivot from a
+      // form straight to the passage without the family restating the gloss.
+      lemma: typeof f?.lemma === 'string' && f.lemma.trim() ? f.lemma : null,
+      section_id: f?.section_id ?? null,
+      block_ids: (Array.isArray(f?.block_ids) ? f.block_ids : [])
+        .filter((x: any) => typeof x === 'string'),
       bab: term(f?.bab),
       bab_alt: (Array.isArray(f?.bab_alt) ? f.bab_alt : []).map(term).filter(Boolean),
       // Form I carries `bab`, Forms II-XII carry `form_tier`, and a nominal-only

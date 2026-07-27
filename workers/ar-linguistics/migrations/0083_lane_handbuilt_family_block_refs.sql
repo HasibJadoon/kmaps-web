@@ -1,0 +1,17 @@
+-- The two Lane families that were hand-authored keep their glosses and gain
+-- the same block references the generated ones carry, matched by form number.
+
+UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[0].section_id', 'sec_lane_ece86bc4a87b016e', '$.forms[0].block_ids', json('[]'), '$.forms[0].lemma', 'بَانَ') WHERE id = 'blk_lane2_fam';
+UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[1].section_id', 'sec_lane_3746dfe35c9f974e', '$.forms[1].block_ids', json('[]'), '$.forms[1].lemma', 'بيّن') WHERE id = 'blk_lane2_fam';
+UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[2].section_id', 'sec_lane_c70c7beb4d597bef', '$.forms[2].block_ids', json('[]'), '$.forms[2].lemma', 'باينهُ') WHERE id = 'blk_lane2_fam';
+UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[3].section_id', 'sec_lane_50adcb6ed99dc50a', '$.forms[3].block_ids', json('[]'), '$.forms[3].lemma', 'ابان') WHERE id = 'blk_lane2_fam';
+UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[4].section_id', 'sec_lane_797cb322ca75f87a', '$.forms[4].block_ids', json('[]'), '$.forms[4].lemma', 'تبيّن') WHERE id = 'blk_lane2_fam';
+UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[5].section_id', 'sec_lane_5f4fef205a5dc882', '$.forms[5].block_ids', json('[]'), '$.forms[5].lemma', 'تباينا') WHERE id = 'blk_lane2_fam';
+UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[6].section_id', 'sec_lane_90892e4c58376367', '$.forms[6].block_ids', json('[]'), '$.forms[6].lemma', 'استبان') WHERE id = 'blk_lane2_fam';
+UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[0].section_id', 'sec_lane_e2cc16f6df2f5b49', '$.forms[0].block_ids', json('["blk_lane_7b3c4841cc5329bf", "blk_lane_da53f96abbcf8204"]'), '$.forms[0].lemma', 'كَتَبَهُ') WHERE id = 'blk_lane_ktb_fam';
+UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[1].section_id', 'sec_lane_e3a05122f1b927d9', '$.forms[1].block_ids', json('["blk_lane_d8c3d318b61f1244", "blk_lane_2ca36b3716c10317"]'), '$.forms[1].lemma', 'كَتَّبَ') WHERE id = 'blk_lane_ktb_fam';
+UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[2].section_id', 'sec_lane_710526031f9eb65c', '$.forms[2].block_ids', json('["blk_lane_3021fb0dc5378f4b", "blk_lane_b7836569633d5772"]'), '$.forms[2].lemma', 'اكتب') WHERE id = 'blk_lane_ktb_fam';
+UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[3].section_id', 'sec_lane_301ebdc7ddcf11b5', '$.forms[3].block_ids', json('["blk_lane_40ac8782c69ebcc5", "blk_lane_e11ecd4fd3d51798"]'), '$.forms[3].lemma', 'تكتّب') WHERE id = 'blk_lane_ktb_fam';
+UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[4].section_id', 'sec_lane_6721a990311d8745', '$.forms[4].block_ids', json('["blk_lane_4ddd3dce3cc79712", "blk_lane_0e7ace0cf760c716"]'), '$.forms[4].lemma', 'إِكْتَتَبَ') WHERE id = 'blk_lane_ktb_fam';
+UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[5].section_id', 'sec_lane_c117b65654b7fd54', '$.forms[5].block_ids', json('["blk_lane_417f0b2d085c321c", "blk_lane_79da6826c104a4aa"]'), '$.forms[5].lemma', 'مُكَاتَبَةٌ') WHERE id = 'blk_lane_ktb_fam';
+UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[6].section_id', 'sec_lane_5566e41fd1ad6444', '$.forms[6].block_ids', json('["blk_lane_4e58688376160595", "blk_lane_a55f829a4e75225a"]'), '$.forms[6].lemma', 'تَكَاْتَبَ') WHERE id = 'blk_lane_ktb_fam';
