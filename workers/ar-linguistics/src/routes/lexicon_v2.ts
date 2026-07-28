@@ -631,10 +631,18 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     // taken, in printed order, so nothing the book has is left behind.
     // `root_header` is skipped: it repeats the first definition verbatim.
     if (sections_source === 'sections' && !sections.length) {
-      const leaves = blocks
-        .filter((b: any) => LEAF_BLOCKS.has(b.block_type)
-                            && (b.origin === 'book_native' || b.origin === 'derived_segmentation')
-                            && (b.text_plain ?? '').trim())
+      // A root can carry two parallel cuts of the same prose: the original
+      // `book_native` split and the finer `derived_segmentation` one that
+      // superseded it (al-Khalīl's بين has e1.p1–p5 *and* e1.a1–a7 over the same
+      // 1,221 characters). Where there are sections the two are told apart by
+      // attachment; here there is nothing to attach to, so pick one cut — the
+      // derived one when it exists — or the article renders twice.
+      const withText = blocks.filter((b: any) => LEAF_BLOCKS.has(b.block_type)
+                                                 && (b.text_plain ?? '').trim());
+      const preferred = withText.some((b: any) => b.origin === 'derived_segmentation')
+        ? 'derived_segmentation' : 'book_native';
+      const leaves = withText
+        .filter((b: any) => b.origin === preferred)
         .sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
       if (leaves.length) {
         // Decide the column by script rather than by slug, so this works for an
