@@ -58,6 +58,19 @@ wordAnalysisRoutes(router);      // /al/word-analysis?roots= — deep root layer
 grammarRoutes(router);           // /al/gram/* — ṣarf/naḥw/balāgha corpus (books, spine, pages, search)
 stagingRoutes(router);           // /al/staging/* — root_stage × reg_sub_layer (Data Matrix / Staging Spine)
 
+// Every route here is a live D1 read, and none of them carried a single
+// freshness header — no Cache-Control, no ETag, no Last-Modified. Nothing was
+// caching them server-side (no cf-cache-status on any response), but a client
+// is entitled to *heuristically* cache a response that says nothing about its
+// own freshness, and URLSession does exactly that: the iOS reader could keep
+// serving an article from URLCache long after the worker started returning a
+// corrected one. Say it explicitly instead of relying on the absence of a
+// cache, so a data fix is visible on the next request everywhere.
 export default {
-  fetch: (request: Request, env: ArLinguisticsEnv) => router.handle(request, env),
+  fetch: async (request: Request, env: ArLinguisticsEnv) => {
+    const res = await router.handle(request, env);
+    const headers = new Headers(res.headers);
+    headers.set('Cache-Control', 'no-store');
+    return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+  },
 } satisfies ExportedHandler<ArLinguisticsEnv>;
