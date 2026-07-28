@@ -618,6 +618,48 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
       }
     }
 
+    // ── No section rows at all, but a titled block tree ───────────────
+    // 13 al-Khalīl roots — the ones hand-seeded first (امر سمع علم ربب حيي
+    // موت سمو ارض اله ابو اول ليل شكك) — were built straight into blocks and
+    // never got `ar_ling_lexicon_entry_section` rows. Every branch above is
+    // gated on `sections.length`, so those entries returned zero sections and
+    // rendered as a blank article: headword, ṣarf panel, colophon, no text.
+    //
+    // There is no `text_ar` to prove coverage against here, so the tiling check
+    // can't run — but it guards against *dropping* text, and the alternative on
+    // this path is showing none at all. Every native leaf that has text is
+    // taken, in printed order, so nothing the book has is left behind.
+    // `root_header` is skipped: it repeats the first definition verbatim.
+    if (sections_source === 'sections' && !sections.length) {
+      const leaves = blocks
+        .filter((b: any) => LEAF_BLOCKS.has(b.block_type)
+                            && (b.origin === 'book_native' || b.origin === 'derived_segmentation')
+                            && (b.text_plain ?? '').trim())
+        .sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
+      if (leaves.length) {
+        // Decide the column by script rather than by slug, so this works for an
+        // Arabic book and an English one alike. `lang` downstream reads it back.
+        const isArabic = (t: string) => /\p{Script=Arabic}/u.test(t);
+        sections_source = 'block_tree';
+        effectiveSections = leaves.map((b: any, i: number) => {
+          const text = b.text_plain as string;
+          return {
+            id: b.id,
+            section_seq: i + 1,
+            heading_ar: b.title_ar ?? null,
+            heading_norm: null,
+            heading_bare: null,
+            section_type: b.block_type,
+            text_ar: isArabic(text) ? text : null,
+            text_en: isArabic(text) ? null : text,
+            page_no: b.printed_page ?? null,
+            source_native_section_id: null,
+            parent_section_id: null,
+          };
+        });
+      }
+    }
+
     // Lane's section rows hold only the headword — `text_ar` for "كَتَبَهُ" is
     // literally `كَتَبَهُ` — so a stub section is not the article, it is a label
     // for it. The article lives in the blocks, and Lane's ingestion produced two
