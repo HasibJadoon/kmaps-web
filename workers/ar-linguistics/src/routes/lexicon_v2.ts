@@ -23,6 +23,7 @@ import { ok, notFound, badRequest } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
 import type { ArLinguisticsEnv } from '../env';
 import { SourcesRepo, type LexiconSource } from '../repositories/sources.repo';
+import { rootQueryCandidates } from '../lib/root_query';
 
 // ── Per-source display metadata (D1-backed) ──────────────────────────────────
 // SOURCES (a hardcoded Record<slug, {…}>) used to live here. The same data
@@ -61,14 +62,20 @@ const AR_INDIC_TO_ASCII = (s: string) =>
  *  - body.text        whitespace-collapsed single string
  *  - body.paragraphs  split at sentence-ending `.`, `؟`, `!`, `۔`
  *  - body.footnote_refs   distinct footnote marker numbers found in text
+ *  - body.marker_nums     every marker number, in reading order, repeats kept
+ *
+ * `footnote_refs` is a de-duplicated set because that is what it has always
+ * been and the Angular reader iterates it as bare numbers. `marker_nums` is
+ * the honest sequence: a page-crossing article really does say «1» twice, and
+ * collapsing that is exactly how the two got confused for each other.
  *
  * No content is invented; the function only joins fragments and detects
  * inline markers that the UI already parses (« N », (( N )), [Sura/Aya]).
  */
 function computeSectionBody(text_ar: string | null | undefined): {
-  text: string; paragraphs: string[]; footnote_refs: number[];
+  text: string; paragraphs: string[]; footnote_refs: number[]; marker_nums: number[];
 } {
-  if (!text_ar) return { text: '', paragraphs: [], footnote_refs: [] };
+  if (!text_ar) return { text: '', paragraphs: [], footnote_refs: [], marker_nums: [] };
   const text = text_ar.replace(/\s+/g, ' ').trim();
 
   // Split at sentence terminators followed by whitespace. The lookbehind
@@ -80,15 +87,19 @@ function computeSectionBody(text_ar: string | null | undefined): {
 
   // Inline footnote markers — « N », (( N )), (N), or "N-" at line start.
   const fnRe = /«\s*([0-9٠-٩]+)\s*»|\(\s*\(\s*([0-9٠-٩]+)\s*\)\s*\)/gu;
-  const fnSet = new Set<number>();
+  const marker_nums: number[] = [];
   let m: RegExpExecArray | null;
   while ((m = fnRe.exec(text)) != null) {
     const raw = m[1] ?? m[2];
     if (!raw) continue;
     const n = +AR_INDIC_TO_ASCII(raw);
-    if (Number.isFinite(n) && n > 0) fnSet.add(n);
+    if (Number.isFinite(n) && n > 0) marker_nums.push(n);
   }
-  return { text, paragraphs, footnote_refs: [...fnSet].sort((a, b) => a - b) };
+  const fnSet = new Set<number>(marker_nums);
+  return {
+    text, paragraphs, marker_nums,
+    footnote_refs: [...fnSet].sort((a, b) => a - b),
+  };
 }
 
 // ── Ṣarf family, resolved ────────────────────────────────────────────────────
@@ -231,20 +242,42 @@ async function resolveSarfFamilies(env: ArLinguisticsEnv, blocks: any[]) {
   }));
 }
 
+interface Footnote {
+  num: number;
+  /** Position of this note's marker in the entry's reading order, 1-based. */
+  ordinal: number | null;
+  /** The printed page the note sits on — half of its identity. */
+  printed_page: number | null;
+  text: string;
+  block_id: string;
+  section_id: string | null;
+}
+
 /**
  * Pull footnote backing text from `block_type='footnote'` blocks.
  * The ingestion convention is `data_json.footnote_no` for the marker number
  * and `text_plain` for the body. Missing or malformed entries are skipped.
+ *
+ * A note is identified by (printed_page, footnote_no), never by the number
+ * alone: Shamela restarts footnote numbering on every printed page, so an
+ * article that crosses a page boundary carries two «1» markers meaning two
+ * different notes. `fn_ordinal` — the marker's index in the entry's reading
+ * order — is what tells them apart, and sorting by it puts this list in the
+ * same order the markers appear in the prose.
  */
-function collectFootnotes(blocks: any[]): { num: number; text: string; block_id: string; section_id: string | null; }[] {
-  const out: { num: number; text: string; block_id: string; section_id: string | null; }[] = [];
+function collectFootnotes(blocks: any[]): Footnote[] {
+  const out: Footnote[] = [];
   for (const b of blocks) {
     if (b.block_type !== 'footnote') continue;
     let num: number | null = null;
+    let ordinal: number | null = null;
+    let printed_page: number | null = null;
     try {
       const dj = JSON.parse(b.data_json || '{}');
       const raw = dj.footnote_no ?? dj.footnote_num ?? dj.num;
       if (raw != null) num = +AR_INDIC_TO_ASCII(String(raw));
+      if (dj.fn_ordinal != null) ordinal = +dj.fn_ordinal;
+      if (dj.printed_page != null) printed_page = +dj.printed_page;
     } catch { /* fallthrough */ }
     if (num == null) {
       // Fallback: pluck a leading digit from text or title.
@@ -255,12 +288,64 @@ function collectFootnotes(blocks: any[]): { num: number; text: string; block_id:
     if (num == null || !Number.isFinite(num)) continue;
     out.push({
       num,
+      ordinal: Number.isFinite(ordinal as number) ? ordinal : null,
+      printed_page: Number.isFinite(printed_page as number)
+        ? printed_page : (b.printed_page ?? null),
       text: (b.text_plain || '').trim(),
       block_id: b.id,
       section_id: b.section_id ?? null,
     });
   }
-  return out.sort((a, b) => a.num - b.num);
+  // Reading order where ingestion recorded it, printed number otherwise.
+  return out.sort((a, b) =>
+    (a.ordinal ?? Infinity) - (b.ordinal ?? Infinity) || a.num - b.num);
+}
+
+/**
+ * Bind every marker in the article to the note it actually refers to.
+ *
+ * Walks the sections in reading order, counting markers, and pairs the k-th
+ * marker with the note whose `fn_ordinal` is k. The pairing is only accepted
+ * when the note's printed number matches the marker's — otherwise the ordinals
+ * and the prose disagree (a source whose blocks were never page-tagged, or an
+ * entry whose text was re-cut since ingestion) and the old number-only lookup
+ * is used instead. Which of the two ran is reported as `footnote_binding`, so
+ * a book that silently falls back is visible rather than merely plausible.
+ */
+function bindFootnoteMarks(sections: any[], footnotes: Footnote[]):
+    'ordinal' | 'by_number' {
+  const byOrdinal = new Map<number, Footnote>();
+  for (const f of footnotes) if (f.ordinal != null) byOrdinal.set(f.ordinal, f);
+
+  let k = 0, ordinalHolds = byOrdinal.size > 0;
+  for (const s of sections) {
+    for (const num of (s.body?.marker_nums ?? [])) {
+      k += 1;
+      if (byOrdinal.get(k)?.num !== num) ordinalHolds = false;
+    }
+  }
+
+  const firstByNum = new Map<number, Footnote>();
+  for (const f of footnotes) if (!firstByNum.has(f.num)) firstByNum.set(f.num, f);
+
+  k = 0;
+  for (const s of sections) {
+    const marks = (s.body?.marker_nums ?? []).map((num: number) => {
+      k += 1;
+      const f = ordinalHolds ? byOrdinal.get(k) : firstByNum.get(num);
+      return {
+        num,
+        ordinal: ordinalHolds ? k : (f?.ordinal ?? null),
+        printed_page: f?.printed_page ?? null,
+        block_id: f?.block_id ?? null,
+        // A marker the book prints but whose note was never harvested. Kept
+        // rather than dropped: the reader should see that «N» is unbacked.
+        resolved: !!f,
+      };
+    });
+    if (s.body) s.body.footnote_marks = marks;
+  }
+  return ordinalHolds ? 'ordinal' : 'by_number';
 }
 
 // SOURCE_ORDER (the v2-specific catalogue ordering) used to live here as
@@ -332,16 +417,25 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
 
   // ── GET /al/lex/v2/roots/:root_norm — multi-source compare ───────────────
   router.get('/al/lex/v2/roots/:root_norm', (req, env, params) => cached(req, async () => {
-    const root_norm = (params.root_norm ?? '').trim();
-    if (!root_norm) return badRequest('root_norm required');
+    const requested = (params.root_norm ?? '').trim();
+    if (!requested) return badRequest('root_norm required');
 
-    const entries = (await env.DB_AL.prepare(
-      `SELECT id, source_slug, root_text, root_norm, root_id,
-              page_start, page_end, volume_no
-       FROM ar_ling_lexicon_entry
-       WHERE root_norm = ?
-       ORDER BY source_slug`
-    ).bind(root_norm).all()).results ?? [];
+    // Exactly what was asked for first, then the folded spelling — بَيْن, أمر
+    // and "byn" all name a root the index stores bare. Exact-first means a
+    // query that already resolves keeps resolving; folding can only add a
+    // fallback, never redirect a working lookup elsewhere.
+    let root_norm = requested;
+    let entries: any[] = [];
+    for (const candidate of rootQueryCandidates(requested)) {
+      entries = (await env.DB_AL.prepare(
+        `SELECT id, source_slug, root_text, root_norm, root_id,
+                page_start, page_end, volume_no
+         FROM ar_ling_lexicon_entry
+         WHERE root_norm = ?
+         ORDER BY source_slug`
+      ).bind(candidate).all()).results ?? [];
+      if (entries.length) { root_norm = candidate; break; }
+    }
 
     if (!entries.length) return notFound('root not found');
 
@@ -427,19 +521,26 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
   // (slug, root) so navigating between roots and re-opening books is instant.
   router.get('/al/lex/v2/entry/:source_slug/:root_norm', (req, env, params) => cached(req, async () => {
     const slug = params.source_slug ?? '';
-    const root_norm = (params.root_norm ?? '').trim();
-    if (!slug || !root_norm) return badRequest('slug + root_norm required');
+    const requested = (params.root_norm ?? '').trim();
+    if (!slug || !requested) return badRequest('slug + root_norm required');
 
-    // Bilingual sources (Lane, Sinai) carry their entry in the *_en columns; the
-    // Arabic lexica use the *_ar ones. Serve both and let the reader pick.
-    const entry = await env.DB_AL.prepare(
-      `SELECT id, source_slug, root_text, root_norm, root_id,
-              raw_text, entry_text_ar, entry_text_en,
-              page_start, page_end, volume_no, source_url,
-              source_native_id, status
-       FROM ar_ling_lexicon_entry
-       WHERE source_slug = ? AND root_norm = ? LIMIT 1`
-    ).bind(slug, root_norm).first<any>();
+    // Same exact-then-folded lookup as the compare route above, so a vowelled
+    // or transliterated root opens the reader too rather than only the compare.
+    let entry: any = null;
+    let root_norm = requested;
+    for (const candidate of rootQueryCandidates(requested)) {
+      // Bilingual sources (Lane, Sinai) carry their entry in the *_en columns;
+      // the Arabic lexica use the *_ar ones. Serve both and let the reader pick.
+      entry = await env.DB_AL.prepare(
+        `SELECT id, source_slug, root_text, root_norm, root_id,
+                raw_text, entry_text_ar, entry_text_en,
+                page_start, page_end, volume_no, source_url,
+                source_native_id, status
+         FROM ar_ling_lexicon_entry
+         WHERE source_slug = ? AND root_norm = ? LIMIT 1`
+      ).bind(slug, candidate).first<any>();
+      if (entry) { root_norm = candidate; break; }
+    }
     if (!entry) return notFound('entry not found');
 
     const sections = (await env.DB_AL.prepare(
@@ -746,13 +847,17 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
         // period turns "(M, Mgh, Msb, K,) [aor. يَبِينُ,] inf. n. …" into a dozen
         // fragments, because the abbreviations are periods too.
         const text = (s.text_en ?? s.text_ar ?? '').replace(/\s+/g, ' ').trim();
-        return { ...s, lang, body: { text, paragraphs: text ? [text] : [], footnote_refs: [] } };
+        return { ...s, lang, body: { text, paragraphs: text ? [text] : [], footnote_refs: [], marker_nums: [] } };
       }
       return { ...s, lang, body: computeSectionBody(s.text_ar ?? s.text_en) };
     });
 
     // ── Collect footnote backing text (when ingestion preserved it) ────
     const footnotes = collectFootnotes(blocks);
+    // …and bind each «N» in the prose to the note it means. In al-Khalīl a
+    // page-crossing article prints «1» once per page, so the number alone does
+    // not identify a note; the marker's reading-order position does.
+    const footnote_binding = bindFootnoteMarks(sectionsWithBody, footnotes);
 
     // The book's own ṣarf tree for this root, with its term ids resolved.
     const sarf_families = await resolveSarfFamilies(env, blocks);
@@ -772,6 +877,9 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
       tags,
       quran_refs,
       footnotes,
+      // 'ordinal' when every marker paired with a note of the same printed
+      // number, 'by_number' when the reader fell back to first-match.
+      footnote_binding,
       sources_of_entry,
       stats: {
         sections: sectionsWithBody.length,
