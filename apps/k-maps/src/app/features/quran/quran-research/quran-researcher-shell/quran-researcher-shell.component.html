@@ -23,12 +23,14 @@
           <input
             class="qrs-search__input"
             type="search"
-            placeholder="البحث في القرآن الكريم..."
+            placeholder="البحث في القرآن الكريم… أو ٤٤:٣"
             dir="rtl"
             aria-label="البحث في القرآن الكريم"
+            (keydown.enter)="onSearchSubmit($any($event.target).value)"
           />
           <kbd class="qrs-search__kbd">/</kbd>
         </label>
+
       </div>
 
       <div class="qrs-header__center">
@@ -98,6 +100,40 @@
           <span class="qrs-tab__label">{{ tab.labelAr }}</span>
         </a>
       }
+
+      <!-- Muṣḥaf navigation. On the tab row, not the header's left column: there
+           it wrapped into three stacked lines and collided with the logo. Parked
+           at the row's far end opposite the tabs. Drives the reader via the URL. -->
+      @if (showMushafNav()) {
+        <div class="qrs-nav" aria-label="Mushaf navigation" dir="ltr">
+          <label class="qrs-nav__field">
+            <span>Surah</span>
+            <select [value]="currentSurah()" (change)="goToSurah($any($event.target).value)">
+              @for (su of quranState.surahs(); track su.surahNumber) {
+                <option [value]="su.surahNumber" [selected]="su.surahNumber === currentSurah()">
+                  {{ su.surahNumber }}. {{ su.englishName }}
+                </option>
+              }
+            </select>
+          </label>
+
+          <label class="qrs-nav__field qrs-nav__field--num">
+            <span>Verse</span>
+            <input type="number" min="1" [max]="verseCount()"
+                   [value]="currentVerse()"
+                   (change)="goToVerse($any($event.target).value)" />
+            <em>/ {{ verseCount() }}</em>
+          </label>
+
+          <label class="qrs-nav__field qrs-nav__field--num">
+            <span>Page</span>
+            <input type="number" min="1" max="604"
+                   [value]="currentPage() ?? ''"
+                   (change)="goToPage($any($event.target).value)" />
+          </label>
+        </div>
+      }
+
     </nav>
 
     <div class="qrs-header__sep qrs-header__sep--thick"></div>

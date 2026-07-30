@@ -1,4 +1,5 @@
 import {
+  DestroyRef,
   ElementRef,
   ChangeDetectionStrategy,
   Component,
@@ -7,7 +8,8 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { Router, ActivatedRoute } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router, ActivatedRoute, ParamMap } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import gsap from 'gsap';
 import { QrPageLayoutAyah, QrPagePayload, QrPageWord } from '../../../../shared/models/quran/qr.models';
@@ -18,6 +20,30 @@ const FIRST_PAGE = 1;
 const LAST_PAGE = 604;
 const PAGE_BATCH_SIZE = 4;
 const MUSHAF_LAYOUT = 'qpc-v2-15-lines';
+
+/** Per-page QPC V2 fonts, same origin the native app downloads them from. */
+const QPC_V2_CDN_BASE = 'https://static-cdn.tarteel.ai/qul/fonts/quran_fonts/v2/woff2';
+
+/**
+ * Pages of lookahead kept loaded past each edge of the viewport.
+ *
+ * Deliberately more than one batch's worth of reading: a batch needs its page
+ * fonts fetched before it can paint, so starting at the edge means the reader
+ * waits. Three keeps the fetch far enough ahead that pages are already laid out
+ * by the time they scroll into view.
+ */
+const PREFETCH_PAGES = 3;
+
+/**
+ * How long to keep watching for prepended pages to gain height before giving up
+ * on the scroll anchor.
+ *
+ * Bounded in milliseconds rather than frames: a batch is four muṣḥaf pages of
+ * several hundred glyph spans each, and change detection plus layout for that
+ * routinely outlasts a handful of frames — a frame-counted window expired before
+ * the height ever changed and silently skipped the correction.
+ */
+const ANCHOR_TIMEOUT_MS = 2000;
 
 @Component({
   selector: 'km-al-quran',
@@ -32,12 +58,19 @@ export class AlQuranComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly qrApi = inject(QuranApiService);
   private readonly host = inject(ElementRef<HTMLElement>);
+  private readonly destroyRef = inject(DestroyRef);
+  /** The param combination already loaded, so self-issued navigations no-op. */
+  private lastAppliedParamKey = '';
   private readonly loadedPageFonts = new Set<number>();
   readonly quranState = inject(QuranStateService);
 
   readonly pages = signal<QrPagePayload[]>([]);
   readonly loading = signal(true);
   readonly loadingMore = signal(false);
+
+  /** The scrolling page container, captured from the first scroll event so the
+   *  prefetch and the prepend anchor can both measure it. */
+  private scrollEl?: HTMLElement;
   readonly error = signal<string | null>(null);
   readonly activeStartPage = signal(FIRST_PAGE);
 
@@ -59,6 +92,40 @@ export class AlQuranComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     this.quranState.load();
     await this.loadInitialPages();
+
+    // The URL is the source of truth for where the reader is sitting, so the
+    // navigation controls can live outside this component (in the shell header)
+    // and simply write query params. Previously the params were read once during
+    // init, which meant a control anywhere else on the page could change the URL
+    // without the muṣḥaf ever moving.
+    this.route.queryParamMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((params) => void this.syncFromParams(params));
+  }
+
+  /**
+   * Re-point the reader at whatever the URL now says, ignoring the navigations
+   * this component performed itself — those have already loaded their pages, and
+   * reloading them would fight the scroll anchor and re-run the entrance animation.
+   */
+  private async syncFromParams(params: ParamMap): Promise<void> {
+    const key = [params.get('page'), params.get('surah'), params.get('startingVerse')].join('|');
+    if (key === this.lastAppliedParamKey) return;
+    this.lastAppliedParamKey = key;
+
+    const page = Number(params.get('page'));
+    if (Number.isFinite(page) && page > 0) {
+      if (page !== this.activeStartPage()) await this.loadFromPage(this.clampPage(page));
+      return;
+    }
+
+    const surah = Number(params.get('surah'));
+    const verse = Number(params.get('startingVerse'));
+    if (!Number.isFinite(surah) || surah <= 0) return;
+
+    const target = Number.isFinite(verse) && verse > 0 ? verse : 1;
+    this.pendingFocusVerseKey = `${surah}:${target}`;
+    await this.loadFromPage(await this.resolveAyahPage(this.clampSurah(surah), target));
   }
 
   trackPage(_index: number, page: QrPagePayload): number {
@@ -83,8 +150,28 @@ export class AlQuranComponent implements OnInit {
 
   onScroll(event: Event): void {
     const el = event.target as HTMLElement;
-    const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
-    if (remaining < 900) void this.loadNextPages();
+    this.scrollEl = el;
+    const margin = this.prefetchMargin(el);
+
+    // Both directions, symmetrically: the reader can walk the muṣḥaf forwards or
+    // backwards and the next batch is already in flight before they arrive.
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < margin) {
+      void this.loadNextPages();
+      return;
+    }
+    if (el.scrollTop < margin) void this.loadPreviousPages();
+  }
+
+  /**
+   * How close to either end starts a fetch: `PREFETCH_PAGES` pages' worth of
+   * scroll, measured from what is actually rendered rather than a fixed pixel
+   * count — a page's height moves with the font-size control and the viewport,
+   * so a constant meant "two pages" on one setup and a third of one on another.
+   */
+  private prefetchMargin(el: HTMLElement): number {
+    const count = this.pages().length;
+    const perPage = count > 0 ? el.scrollHeight / count : 0;
+    return Math.max(600, perPage * PREFETCH_PAGES);
   }
 
   async loadPreviousPages(): Promise<void> {
@@ -96,15 +183,76 @@ export class AlQuranComponent implements OnInit {
     const from = Math.max(FIRST_PAGE, first - PAGE_BATCH_SIZE);
     const pageNumbers = this.range(from, first - 1);
 
+    // Anchor before prepending. Pages added *above* the viewport push everything
+    // down by exactly the height they add, so without this the reader is thrown
+    // backwards every time a batch lands — which is why loading backwards used to
+    // need a button press instead of happening on scroll.
+    const el = this.scrollEl;
+    const heightBefore = el?.scrollHeight ?? 0;
+    const topBefore    = el?.scrollTop ?? 0;
+
     try {
       const loaded = await this.fetchPages(pageNumbers);
       this.pages.set([...loaded, ...this.pages()]);
-      this.animateLoadedPages();
+      this.restoreAnchor(el, heightBefore, topBefore);
+      // Prepended pages skip the entrance animation. It transforms them, and a
+      // transform on freshly inserted nodes suppresses the browser's own scroll
+      // anchoring — so animating a prepend fought the correction above instead of
+      // helping it. Pages arriving below the fold still animate in.
+      this.markAnimated();
     } catch (err) {
       this.error.set(this.errorMessage(err, 'Failed to load previous pages'));
     } finally {
       this.loadingMore.set(false);
+      this.maybePrefetch();
     }
+  }
+
+  /**
+   * Hold the reader's place across a prepend, once the new pages are laid out.
+   *
+   * The correction can only be applied after the prepended pages have height, and
+   * that is not the next frame: the signal write has to go through change
+   * detection and a DOM patch first. Measuring on a single frame read an unchanged
+   * `scrollHeight`, decided nothing had been added, and left the reader thrown
+   * several thousand pixels down the muṣḥaf. So this waits for the height to
+   * actually grow, and gives up rather than looping if it never does.
+   */
+  private restoreAnchor(el: HTMLElement | undefined, heightBefore: number, topBefore: number): void {
+    if (!el) return;
+    const deadline = performance.now() + ANCHOR_TIMEOUT_MS;
+    const apply = () => {
+      const added = el.scrollHeight - heightBefore;
+      if (added > 0) {
+        el.scrollTop = topBefore + added;
+        return;
+      }
+      if (performance.now() < deadline) requestAnimationFrame(apply);
+    };
+    requestAnimationFrame(apply);
+  }
+
+  /**
+   * Re-run the edge test after a batch lands or the first pages render.
+   *
+   * Scroll events alone are not enough to stay ahead: on a tall viewport the
+   * opening batch can leave less than the lookahead below the fold, and no scroll
+   * event ever fires to correct that — the reader hits the end of the document
+   * before anything asks for more. Re-testing after each load tops the buffer up
+   * until the lookahead is satisfied, and the same distance check bounds it, so
+   * it settles instead of walking the whole muṣḥaf.
+   */
+  private maybePrefetch(): void {
+    // The container is normally captured from a scroll event, but the opening
+    // batch has to be able to top itself up before the reader has scrolled at all.
+    this.scrollEl ??= (this.host.nativeElement as HTMLElement)
+      .querySelector<HTMLElement>('.al-quran-page') ?? undefined;
+    const el = this.scrollEl;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      if (this.loadingMore()) return;
+      this.onScroll({ target: el } as unknown as Event);
+    });
   }
 
   async loadNextPages(): Promise<void> {
@@ -124,6 +272,7 @@ export class AlQuranComponent implements OnInit {
       this.error.set(this.errorMessage(err, 'Failed to load more pages'));
     } finally {
       this.loadingMore.set(false);
+      this.maybePrefetch();
     }
   }
 
@@ -148,6 +297,42 @@ export class AlQuranComponent implements OnInit {
     await this.loadFromPage(page);
   }
 
+  /** The surah the reader is currently in, for the verse control's bounds. */
+  readonly activeSurah = computed(() => this.pages()[0]?.ayahs?.[0]?.surah ?? 1);
+
+  readonly activeSurahAyahCount = computed(() => {
+    const n = this.activeSurah();
+    return this.quranState.surahs().find(s => s.surahNumber === n)?.ayahCount ?? 286;
+  });
+
+  /** Jump to an āyah of the current surah, landing on its page and highlighting it. */
+  async goToVerse(raw: string): Promise<void> {
+    const surah = this.activeSurah();
+    const max = this.activeSurahAyahCount();
+    const verse = Math.min(Math.max(1, Math.trunc(Number(raw) || 1)), max);
+    await this.goToReference(surah, verse);
+  }
+
+  /**
+   * Open a `surah:ayah` reference: resolve the page it sits on, put it in the URL
+   * so the view is shareable, then load and highlight it. Shared by the verse
+   * control and by a reference typed into the search box.
+   */
+  async goToReference(surahRaw: number, verseRaw: number): Promise<void> {
+    const surah = this.clampSurah(surahRaw);
+    const count = this.quranState.surahs().find(s => s.surahNumber === surah)?.ayahCount;
+    const verse = Math.min(Math.max(1, Math.trunc(verseRaw) || 1), count ?? 286);
+
+    const page = await this.resolveAyahPage(surah, verse);
+    this.pendingFocusVerseKey = `${surah}:${verse}`;
+    await this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { surah, startingVerse: verse, page: null },
+      queryParamsHandling: 'merge',
+    });
+    await this.loadFromPage(page);
+  }
+
   back(): void {
     this.router.navigate(['/quran']);
   }
@@ -164,6 +349,8 @@ export class AlQuranComponent implements OnInit {
       this.pages.set([]);
     } finally {
       this.loading.set(false);
+      // Fill the lookahead straight away rather than waiting for a first scroll.
+      this.maybePrefetch();
     }
   }
 
@@ -269,13 +456,22 @@ export class AlQuranComponent implements OnInit {
       // font-display: block keeps text invisible while the font downloads
       // instead of flashing a fallback (swap). Combined with waitForQpcFonts()
       // below, pages only become visible once the correct font is confirmed ready.
+      //
+      // Two sources, in order. The local directory is the fast path but it holds
+      // 604 files and is gitignored (`.gitignore`: "large binary directories,
+      // served from local dev only"), so on a fresh checkout it simply isn't
+      // there — and because `font-display: block` never falls back, a missing
+      // file left the muṣḥaf permanently blank rather than degraded. The CDN is
+      // the same source the native app uses (`QPCFontManager.cdnBase`), which
+      // also ships only pages 1–2 and fetches the rest on demand.
       style.textContent = `
 @font-face {
   font-family: 'QPCV2Page${page}';
   font-style: normal;
   font-weight: 400;
   font-display: block;
-  src: url('/assets/fonts/QPC%20V2%20Font.woff2/p${page}.woff2') format('woff2');
+  src: url('/assets/fonts/QPC%20V2%20Font.woff2/p${page}.woff2') format('woff2'),
+       url('${QPC_V2_CDN_BASE}/p${page}.woff2') format('woff2');
 }`;
       doc.head.appendChild(style);
     }
@@ -290,6 +486,15 @@ export class AlQuranComponent implements OnInit {
     // Cap at 2.5s so a slow network never blocks the reader indefinitely.
     const timeout = new Promise<void>((resolve) => setTimeout(resolve, 2500));
     return Promise.race([Promise.all(loads).then(() => undefined), timeout]);
+  }
+
+  /** Opt new pages out of the entrance animation without animating them. */
+  private markAnimated(): void {
+    requestAnimationFrame(() => {
+      (this.host.nativeElement as HTMLElement)
+        .querySelectorAll<HTMLElement>('.mushaf-page:not(.is-animated)')
+        .forEach(el => el.classList.add('is-animated'));
+    });
   }
 
   private animateLoadedPages(reset = false): void {

@@ -2,10 +2,24 @@
 // QURAN RESEARCHER SHELL — Header Container + Page Container
 // ═══════════════════════════════════════════════════════════
 
+// The shell owns the viewport so `.qrs-page` below can be the scroller.
+//
+// `min-height` alone let the column grow to its content, which meant the page
+// container never had a definite height to scroll inside: it stretched to the
+// full article instead, so it emitted no scroll events and the reader's
+// scroll-driven paging never fired. A definite height is what makes
+// `flex: 1; min-height: 0; overflow-y: auto` on `.qrs-page` actually scroll.
+:host {
+  display: block;
+  height: 100dvh;
+  overflow: hidden;
+}
+
 .qrs-shell {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  height: 100%;
+  min-height: 0;
   background: #050505;
   color: var(--km-text);
   font-family: var(--km-font-body);
@@ -317,4 +331,72 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+// ─── MUṢḤAF NAVIGATION (header) ───────────────────────────────────────────
+// Surah / verse / page, beside the search box. Kept compact so it sits on the
+// header's single line, and quiet until hovered so it doesn't compete with the
+// muṣḥaf itself.
+.qrs-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  // Never wrap — this row is tight, and wrapping is what made these controls
+  // stack into three lines over the logo when they lived in the header column.
+  flex-wrap: nowrap;
+  // Park hard left, opposite the RTL tabs.
+  //
+  // The auto margin goes on the *end* side because this element carries its own
+  // `dir="ltr"` (its labels and numbers are Latin), and logical margins resolve
+  // against the element's own direction — not the RTL row's. With it on the start
+  // side the control was pushed rightwards into the middle of the row.
+  margin-inline-end: auto;
+  padding-inline-start: 0.35rem;
+
+  &__field {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid rgba(201, 168, 76, 0.18);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.02);
+    font-size: 0.72rem;
+    color: var(--km-text-dim, rgba(255, 255, 255, 0.55));
+    transition: border-color 140ms;
+
+    &:hover, &:focus-within { border-color: rgba(201, 168, 76, 0.42); }
+
+    > span {
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-size: 0.6rem;
+      white-space: nowrap;
+    }
+
+    select, input {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--km-text, rgba(255, 255, 255, 0.92));
+      font: inherit;
+      font-size: 0.8rem;
+      outline: none;
+      cursor: pointer;
+    }
+    select  { padding-inline-end: 4px; max-width: 168px; }
+    // Wide enough for three digits without the spinner clipping them.
+    input   { width: 52px; text-align: center; cursor: text; }
+
+    em {
+      font-style: normal;
+      opacity: 0.5;
+      font-size: 0.66rem;
+      white-space: nowrap;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qrs-nav__field { transition: none; }
 }
