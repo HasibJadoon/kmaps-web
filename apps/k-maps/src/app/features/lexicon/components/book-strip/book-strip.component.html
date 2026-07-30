@@ -1,0 +1,23 @@
+@if (hasBooks()) {
+  <nav class="strip" dir="rtl" aria-label="الكتب التي تتناول هذا الجذر">
+    <span class="strip__eyebrow">المصادر · {{ books().length }}</span>
+    <ul class="strip__list">
+      @for (b of books(); track b.slug) {
+        <li>
+          <button type="button"
+                  class="chip"
+                  [class.is-on]="b.slug === currentBook()"
+                  [class.is-bilingual]="b.bilingual"
+                  [attr.aria-current]="b.slug === currentBook() ? 'true' : null"
+                  [title]="b.fullTitle + ' — ' + b.byline"
+                  (click)="pick(b.slug)">
+            <span class="chip__label">{{ b.label }}</span>
+            @if (b.sections > 0) {
+              <span class="chip__n" dir="ltr">{{ b.sections }}</span>
+            }
+          </button>
+        </li>
+      }
+    </ul>
+  </nav>
+}

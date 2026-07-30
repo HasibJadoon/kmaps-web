@@ -18,31 +18,25 @@ import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { combineLatest, of, catchError } from 'rxjs';
 import {
-  AlDictionaryApiService, LexV2RootRow, LisanReadView,
+  AlDictionaryApiService, LexV2RootRow, LexV2SarfFamily, LisanReadView,
 } from '../../../../shared/services/al-dictionary-api.service';
 import { LexiconReaderComponent } from '../../lexicon-reader/lexicon-reader.component';
 import { BookSelectorComponent } from '../../components/book-selector/book-selector.component';
+import { SarfPanelComponent } from '../../components/sarf-panel/sarf-panel.component';
+import { BookStripComponent } from '../../components/book-strip/book-strip.component';
+import { RootJumpComponent } from '../../components/root-jump/root-jump.component';
+import { LexEraPipe } from '../../data/lex-era.pipe';
+import { CLASSICAL_SHELL_SLUGS, LexiconSourcesService } from '../../data/lexicon-sources.service';
 
 export const LISAN_SLUG = 'ibn_manzur_lisan_arab';
 
-// All slugs that this shell can render. The back-end composer exposes
-// the same response shape for each. Adding a slug here lets the shell
-// fetch + render it without any further changes.
-export const CLASSICAL_LEXICON_SLUGS = new Set<string>([
-  LISAN_SLUG,
-  'jawhari_sihah',
-  'khalil_kitab_ayn',
-  'maqayis_lugha',
-  'ubab_zakhir',
-  // Sources whose ingestion chunker emitted {…} braces (al-Qamus matn for
-  // Taj, parenthesized headwords for Misbah / Jamharat). Their Qur'ān
-  // citations were resolved offline and live in quran_refs; the composer
-  // handles the rest as standard classical-lexicon content.
-  'zabidi_taj_arus',
-  'fayyumi_misbah_munir',
-  'ibn_durayd_jamharat_lugha',
-  'qamus_muhit',
-]);
+// Which books this shell renders now lives in the source registry
+// (`COMPOSER_BACKED_SLUGS`), because the same list was being maintained in three
+// places and had already drifted — the reader, the root dispatcher and the dead
+// book-reader each kept their own copy, two of them with duplicate entries.
+//
+// Re-exported so existing importers keep working.
+export { CLASSICAL_SHELL_SLUGS as CLASSICAL_LEXICON_SLUGS };
 
 const RAIL = {
   INDEX_DEFAULT:     320, INDEX_MIN:     220, INDEX_MAX:     480,
@@ -56,7 +50,10 @@ type Side = 'index' | 'citations';
 @Component({
   selector: 'km-lexicon-shell',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LexiconReaderComponent, BookSelectorComponent],
+  imports: [
+    CommonModule, FormsModule, RouterLink,
+    LexiconReaderComponent, BookSelectorComponent, SarfPanelComponent, BookStripComponent, RootJumpComponent, LexEraPipe,
+  ],
   templateUrl: './lexicon-shell.component.html',
   styleUrl: './lexicon-shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -76,6 +73,7 @@ export class LexiconShellComponent implements AfterViewInit {
 
   private readonly hostEl     = inject(ElementRef<HTMLElement>);
   private readonly api        = inject(AlDictionaryApiService);
+  private readonly sourcesSvc = inject(LexiconSourcesService);
   private readonly route      = inject(ActivatedRoute);
   private readonly router     = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -88,6 +86,18 @@ export class LexiconShellComponent implements AfterViewInit {
   readonly loading     = signal(false);
   readonly view        = signal<LisanReadView | null>(null);
   readonly error       = signal<string | null>(null);
+
+  // The book's ṣarf tree for this root. Fetched separately because the
+  // `/read/<slug>` composer this shell uses doesn't carry `sarf_families` —
+  // only the generic `/lex/v2/entry` endpoint does. A book with no family
+  // simply renders no panel, so a failure here never blocks the article.
+  readonly sarf = signal<LexV2SarfFamily | null>(null);
+
+  // Spine name of the active book, for the ṣarf note's «this book» stamp. The
+  // read composer's meta has no `title_short_ar`, so it comes off the registry.
+  private readonly shortTitles = signal<ReadonlyMap<string, string>>(new Map());
+  readonly bookShortTitle = computed(() =>
+    this.shortTitles().get(this.activeSlug()) ?? this.view()?.meta.title_ar ?? '');
 
   readonly rootList        = signal<LexV2RootRow[]>([]);
   readonly rootListLoading = signal(false);
@@ -138,12 +148,17 @@ export class LexiconShellComponent implements AfterViewInit {
   private dragStartW = 0;
 
   constructor() {
+    this.sourcesSvc.registry$
+      .pipe(takeUntilDestroyed())
+      .subscribe(reg => this.shortTitles.set(
+        new Map(reg.sources.map(s => [s.slug, s.title_short_ar]))));
+
     combineLatest([this.route.paramMap, this.route.queryParamMap])
       .pipe(takeUntilDestroyed())
       .subscribe(([params, query]) => {
         // Root-centric URL: /lexicon/root/:root?book=<slug>.
         const book = query.get('book') ?? '';
-        if (!CLASSICAL_LEXICON_SLUGS.has(book)) return;
+        if (!CLASSICAL_SHELL_SLUGS.has(book)) return;
         // If the selector switched to a different classical source, reset the
         // root index so it reloads for the new book.
         if (book !== this.activeSlug()) {
@@ -179,8 +194,10 @@ export class LexiconShellComponent implements AfterViewInit {
     const open   = target > 0;
     host.classList.add(`anim-${side}`);
     host.style.setProperty(`--w-${side}`, `${target}px`);
-    window.setTimeout(() =>
-      host.classList.remove(`anim-${side}`), DUR_WIDTH + 40);
+    window.setTimeout(() => {
+      host.classList.remove(`anim-${side}`);
+      this.repaintContent();
+    }, DUR_WIDTH + 40);
     const railEl = side === 'index'
       ? this.indexRailRef?.nativeElement
       : this.citationsRailRef?.nativeElement;
@@ -189,6 +206,26 @@ export class LexiconShellComponent implements AfterViewInit {
       railEl.style.opacity = open ? '1' : '0';
     }
   }
+
+  /**
+   * Invalidate the reading column's paint once a rail animation finishes.
+   *
+   * `.content` is the scroll container and the toggle transitions its
+   * `padding-inline`, so every rail toggle re-lays-out the column. Chromium can
+   * finish that transition still holding a stale tile for descendants that clip
+   * on a rounded boundary — the ṣarf panel and its form cards — and a band of the
+   * page keeps painting at its old offset. The geometry is already correct at
+   * that point (a forced reflow re-measures identically), so this only nudges the
+   * compositor to re-rasterise; it deliberately does not promote a layer, which
+   * would cost memory on every scroll for the rest of the session.
+   */
+  private repaintContent() {
+    const el = this.contentRef?.nativeElement;
+    if (!el) return;
+    el.style.transform = 'translateZ(0)';
+    requestAnimationFrame(() => { el.style.transform = ''; });
+  }
+
   private setVar(side: Side, w: number) {
     const host = this.hostEl.nativeElement;
     host.classList.remove(`anim-${side}`);
@@ -277,6 +314,7 @@ export class LexiconShellComponent implements AfterViewInit {
     this.loading.set(true);
     this.error.set(null);
     this.currentRoot.set(root_norm);
+    this.sarf.set(null);
     this.api.getClassicalRead(this.activeSlug(), root_norm).pipe(
       catchError(() => { this.error.set('تعذّر تحميل المادة'); return of(null); }),
       takeUntilDestroyed(this.destroyRef),
@@ -284,6 +322,22 @@ export class LexiconShellComponent implements AfterViewInit {
       this.view.set(v);
       this.loading.set(false);
       queueMicrotask(() => this.contentRef?.nativeElement.scrollTo({ top: 0 }));
+    });
+    this.loadSarf(root_norm);
+  }
+
+  // Runs in parallel with the article — the panel fills in when it lands rather
+  // than holding the prose behind a second request.
+  private loadSarf(root_norm: string) {
+    const slug = this.activeSlug();
+    this.api.getSarfFamily(slug, root_norm).pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(f => {
+      // A slower ṣarf response for a root the reader has already navigated away
+      // from must not overwrite the current one.
+      if (this.activeSlug() === slug && this.currentRoot() === root_norm) {
+        this.sarf.set(f);
+      }
     });
   }
 

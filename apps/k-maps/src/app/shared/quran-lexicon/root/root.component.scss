@@ -11,12 +11,40 @@
     font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase;
     color: rgba(192, 132, 245, 0.85);
   }
+  // The root and its way into the lexicon, on one baseline.
+  &__titlerow {
+    display: flex; align-items: baseline; flex-wrap: wrap;
+    gap: 0.4rem 1rem;
+  }
   &__title {
     margin: 0.2rem 0 0.4rem;
     font-size: 2.6rem; line-height: 1.2; color: #f4e9cf;
     font-family: 'UthmanicHafs', 'AmiriQuran', serif;
   }
   &__core { margin: 0; font-size: 1.05rem; color: rgba(244, 233, 207, 0.8); max-width: 60ch; }
+}
+
+// «Open in Lexicon» — the plain way in, beside the root itself.
+.rv-open {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.35rem 0.75rem; border-radius: 999px;
+  border: 1px solid rgba(232, 201, 106, 0.4);
+  background: rgba(232, 201, 106, 0.08);
+  color: #e8c96a; font-size: 0.8rem; text-decoration: none; white-space: nowrap;
+  transition: color 140ms, border-color 140ms, background 140ms;
+
+  &:hover {
+    color: #f3d77a;
+    border-color: rgba(232, 201, 106, 0.75);
+    background: rgba(232, 201, 106, 0.16);
+    .rv-open__go { transform: translateX(2px); }
+  }
+  &:focus-visible { outline: 2px solid rgba(232, 201, 106, 0.7); outline-offset: 2px; }
+  &__go { transition: transform 140ms; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-open { transition: none; &__go { transition: none; } }
 }
 
 .rv-hook {
@@ -35,6 +63,29 @@
   border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.3);
   lucide-icon { opacity: 0.7; }
   &--on { border-color: rgba(77, 217, 168, 0.5); color: #4dd9a8; background: rgba(77,217,168,0.08); }
+
+  // A chip that opens the book. Being a link *is* the signal that the book has
+  // this root, so it carries the live styling whether or not the display layer
+  // staged a summary — Jamharat is `off` for بين yet holds seven blocks, and
+  // greying it made a working book look dead. Only genuinely empty books stay dim.
+  &--link {
+    text-decoration: none; cursor: pointer;
+    border-color: rgba(77, 217, 168, 0.5); color: #4dd9a8;
+    background: rgba(77, 217, 168, 0.08);
+    transition: color 140ms, border-color 140ms, background 140ms, transform 140ms;
+
+    &:hover {
+      color: #4dd9a8;
+      border-color: rgba(77, 217, 168, 0.75);
+      background: rgba(77, 217, 168, 0.14);
+      transform: translateY(-1px);
+    }
+    &:focus-visible { outline: 2px solid rgba(77, 217, 168, 0.7); outline-offset: 2px; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-lens--link { transition: none; &:hover { transform: none; } }
 }
 .rv-freq { display: inline-flex; align-items: center; gap: 0.3rem; margin-inline-start: auto; font-size: 0.78rem; color: rgba(232, 192, 96, 0.85); }
 

@@ -1,0 +1,132 @@
+// ─── Root jump ──────────────────────────────────────────────────────────────
+// The stepper pill from the toolbar, with the root doubling as a search field.
+// Colours read the host's tokens with literal fallbacks, because the Lane shell
+// keeps its own palette and does not define the shared lexicon set.
+
+:host {
+  display: inline-block;
+  position: relative;
+
+  --rj-paper:  var(--paper-2, #1c160f);
+  --rj-ink:    var(--ink, #ede0c4);
+  --rj-soft:   var(--ink-soft, #b7ac90);
+  --rj-faint:  var(--ink-faint, #8a7e63);
+  --rj-rule:   var(--rule, rgba(201, 168, 76, .16));
+  --rj-accent: var(--accent, #c9a84c);
+  --rj-bg:     var(--bg, #0b0a08);
+}
+
+.jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--rj-rule);
+  border-radius: 12px;
+  background: var(--rj-paper);
+
+  &.is-open { border-color: color-mix(in srgb, var(--rj-accent) 55%, transparent); }
+}
+
+.jump__step {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--rj-soft);
+  cursor: pointer;
+  transition: background 140ms, color 140ms;
+
+  &:hover { background: var(--rj-rule); color: var(--rj-ink); }
+  &:focus-visible { outline: 2px solid var(--rj-accent); outline-offset: -2px; }
+}
+
+// The resting state: the current root, which is also the button that turns the
+// control into a field.
+.jump__current {
+  min-width: 62px;
+  padding: 0 10px;
+  height: 28px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--rj-accent);
+  font-family: 'Amiri', serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: text;
+  transition: background 140ms;
+
+  &:hover:not(:disabled) { background: var(--rj-rule); }
+  &:disabled { cursor: default; opacity: 0.55; }
+  &:focus-visible { outline: 2px solid var(--rj-accent); outline-offset: -2px; }
+}
+
+.jump__field {
+  width: 132px;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--rj-bg);
+  color: var(--rj-ink);
+  font-family: 'Amiri', serif;
+  font-size: 1rem;
+  outline: none;
+
+  &::placeholder { color: var(--rj-faint); font-weight: 700; }
+  // Chrome's own clear affordance duplicates Escape and crowds the pill.
+  &::-webkit-search-cancel-button { display: none; }
+}
+
+// ── Match list ─────────────────────────────────────────────────────────────
+.jump__list {
+  position: absolute;
+  z-index: 40;
+  inset-inline-start: 0;
+  top: calc(100% + 6px);
+  min-width: 100%;
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--rj-rule);
+  border-radius: 12px;
+  background: var(--rj-paper);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, .7);
+}
+
+.jump__hit {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--rj-ink);
+  text-align: start;
+  cursor: pointer;
+
+  &:hover, &.is-cursor { background: var(--rj-rule); }
+  &.is-current { color: var(--rj-accent); font-weight: 700; }
+}
+.jump__hit-ar   { font-family: 'Amiri', serif; font-size: 0.98rem; }
+.jump__hit-page { font-family: 'Poppins', system-ui, sans-serif; font-size: 0.66rem; color: var(--rj-faint); }
+
+.jump__empty {
+  padding: 8px 10px;
+  color: var(--rj-faint);
+  font-family: 'Amiri', serif;
+  font-size: 0.88rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jump__step, .jump__current { transition: none; }
+}

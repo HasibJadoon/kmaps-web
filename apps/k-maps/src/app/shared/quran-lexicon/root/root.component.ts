@@ -1,5 +1,9 @@
-import { Component, inject, signal, ChangeDetectionStrategy, OnInit } from '@angular/core';
+import {
+  Component, DestroyRef, computed, inject, signal, ChangeDetectionStrategy, OnInit,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
+import { of, catchError } from 'rxjs';
 import {
   LucideAngularModule, LUCIDE_ICONS, LucideIconProvider,
   ScrollText, BookOpen, Library, BookMarked, Hash, Sparkles, GitFork, ListTree,
@@ -7,6 +11,10 @@ import {
   Eye, BadgeCheck, Lamp, Waves, Languages, Crown, Droplets, Boxes,
 } from 'lucide-angular';
 import { LexiconSpineService } from '../lexicon-spine.service';
+import {
+  LexSourceRegistry, LexiconSourcesService,
+} from '../../../features/lexicon/data/lexicon-sources.service';
+import { AlDictionaryApiService } from '../../services/al-dictionary-api.service';
 import { RootDisplay, Tri, FamilyLemmaVm, FamilyGroupVm, FamilyTierVm, LensVm } from '../word-grid.types';
 import { MorphWordCardComponent, MorphCardVm } from '../../../features/quran/shared/morph-word-card.component';
 
@@ -42,11 +50,28 @@ export class RootComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly spine = inject(LexiconSpineService);
+  private readonly sources = inject(LexiconSourcesService);
+  private readonly api = inject(AlDictionaryApiService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly root = signal<string>(this.route.snapshot.paramMap.get('root') ?? '');
   readonly display = signal<RootDisplay | null>(null);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
+
+  /** Loaded once; until it lands, lens links stay unrendered rather than wrong. */
+  private readonly sourceRegistry = signal<LexSourceRegistry | null>(null);
+
+  /**
+   * Reader slugs that actually hold this root, from the lexicon index itself.
+   *
+   * The display layer's own `on` flag can't stand in for this, in either
+   * direction: for بين, Jamharat is `on: false` yet carries seven blocks the
+   * reader renders, while al-ʿUbāb is also `on: false` and genuinely has no
+   * entry. Gating on `on` would hide a real book and still link a dead one, so
+   * membership here is what decides whether a chip is a link.
+   */
+  private readonly rootBooks = signal<ReadonlySet<string> | null>(null);
 
   readonly lang = signal<Lang>('en');
   readonly langs: { key: Lang; label: string }[] = [
@@ -55,8 +80,24 @@ export class RootComponent implements OnInit {
   setLang(l: Lang): void { this.lang.set(l); }
 
   ngOnInit(): void {
+    this.sources.registry$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(reg => this.sourceRegistry.set(reg));
+
     const r = this.root();
     if (!r) { this.loading.set(false); return; }
+
+    this.api.getV2RootCompare(r).pipe(
+      catchError(() => of(null)),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(c => {
+      const slugs = (c?.sources ?? []).map(
+        s => (s as { source_slug?: string; slug?: string }).source_slug
+          ?? (s as { slug?: string }).slug ?? '');
+      // A null response means the index couldn't be reached, not that no book has
+      // the root; leaving this null keeps every chip linked rather than none.
+      this.rootBooks.set(c ? new Set(slugs.filter(Boolean)) : null);
+    });
     this.spine.rootDisplay(r).subscribe({
       next: (d) => { this.display.set(d); this.loading.set(false); },
       error: (e) => { this.error.set(e?.status === 404 ? 'No lexicon entry yet for this root' : (e?.message ?? 'Failed to load')); this.loading.set(false); },
@@ -101,8 +142,38 @@ export class RootComponent implements OnInit {
     const l = this.lang();
     return l === 'ar' ? null : l === 'ur' ? (t.urdu_name ?? t.english_name ?? null) : (t.english_name ?? null);
   }
-  /** Deep-link to the classical book reader for a lens: /lexicon/books/<slug>?root=<root>. */
-  lensLink(l: LensVm): unknown[] | null { return l.slug ? ['/lexicon/books', l.slug] : null; }
+  /**
+   * The book the «Lexicon» link opens.
+   *
+   * The first lens that resolves to a real reader slug. Lens slugs come from the
+   * Qurʾān worker's display layer, which names books differently from the lexicon
+   * index (`ketabonline_al_jawhari_al_sihah` vs `jawhari_sihah`) and leaves three
+   * of them — al-Qāmūs, al-ʿUbāb, Jamharat — with no slug at all, so each one is
+   * resolved through the source registry (by title when it has no usable slug)
+   * rather than linked raw. Ordering is the display layer's, which puts Maqāyīs
+   * first — the etymological core — a good place to land. Once inside, the
+   * reader's book strip switches books without coming back here.
+   */
+  readonly lexiconBook = computed<string | null>(() => {
+    if (!this.sourceRegistry()) return null;
+    for (const l of this.display()?.lenses ?? []) {
+      const slug = this.lensBook(l);
+      if (slug) return slug;
+    }
+    return null;
+  });
+
+  /**
+   * `?book=` for one lens chip — null when the book has no entry for this root, so
+   * the chip stays a plain label instead of a link onto an empty page.
+   */
+  lensBook(l: LensVm): string | null {
+    const slug = this.sourceRegistry()?.resolve(l.slug, l.label ?? l.heading);
+    if (!slug) return null;
+    const have = this.rootBooks();
+    if (have && !have.has(slug)) return null;
+    return slug;
+  }
 
   /** A family lemma → universal-only card VM (no context → the 3D card shows the lemma). */
   famVm(f: FamilyLemmaVm): MorphCardVm {

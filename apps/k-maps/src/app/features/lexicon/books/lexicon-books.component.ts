@@ -7,6 +7,7 @@ import { forkJoin, catchError, of } from 'rxjs';
 import {
   AlDictionaryApiService, AlDictSource, ScholarshipSource,
 } from '../../../shared/services/al-dictionary-api.service';
+import { eraLabelAr } from '../data/lexicon-sources.service';
 
 // One dictionary rendered as a 3D volume on the shelf. Classical lexica measure
 // "جذرًا" (roots); academic readings measure "قراءة". Spine thickness scales with
@@ -41,13 +42,9 @@ const ACCENTS: Record<string, [string, string]> = {
 };
 const ACCENT_DEFAULT: [string, string] = ['#c9a84c', '#6f5320'];
 
-// Machine period → Arabic era label (mirrors the lexicon search page). Falls
-// back to the raw value so an unmapped period still shows something.
-const ERA_AR: Record<string, string> = {
-  classical:       'كلاسيكي',
-  early_classical: 'كلاسيكي مبكر',
-  late_classical:  'كلاسيكي متأخر',
-};
+// Era labels come from the source registry, in native Arabic («تراثي») rather
+// than the «كلاسيكي» loanword, and with the unmapped periods this shelf used to
+// print raw — Sinai's «2023» and Lane's «modern / 19th century».
 
 // Spine-thickness envelope (px). sqrt keeps the thinnest volumes legible.
 const THICK_MIN = 24;
@@ -105,7 +102,13 @@ export class LexiconBooksComponent {
     }).pipe(takeUntilDestroyed()).subscribe(({ lex, sch }) => {
       // Sort each kind heaviest-first, then classical lexica ahead of readings.
       const lexico = [...lex.sources].sort((a, b) => b.roots - a.roots);
-      const schol  = [...sch.sources].filter(s => !!s.slug).sort((a, b) => b.count - a.count);
+      // A slug on both shelves is one book, not two. Lisan and Sinai's key terms
+      // are carried by the scholarship endpoint as well as the lexicon index, and
+      // the shelf used to draw each of them twice.
+      const lexSlugs = new Set(lexico.map(s => s.slug));
+      const schol = [...sch.sources]
+        .filter(s => !!s.slug && !lexSlugs.has(s.slug))
+        .sort((a, b) => b.count - a.count);
 
       const max = Math.max(
         1,
@@ -135,7 +138,7 @@ export class LexiconBooksComponent {
       ar: s.title_ar,
       latin: s.title_en ?? '',
       author: s.author,
-      era: ERA_AR[s.period] ?? s.period,
+      era: eraLabelAr(s.period),
       count: s.roots,
       countLabel: s.roots.toLocaleString('en-US'),
       unit: 'جذرًا',

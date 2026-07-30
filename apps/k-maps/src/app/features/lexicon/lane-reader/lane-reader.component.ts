@@ -37,6 +37,25 @@ export class LaneReaderComponent {
     return `${t.code} — ${t.name_en} (${t.name_ar})`;
   }
 
+  // ── Reference marks on Arabic tokens ──────────────────────────────────────
+  //
+  // Lane marks a word that has its own entry further down with a trailing ↓ (and
+  // ↑ for one above). The ingested token carries that mark inside its Arabic
+  // value — «كتّبهُ↓» — and a mark is bidi-neutral, so at the end of an RTL run it
+  // resolves to the run's *left* edge and paints before the word instead of after
+  // it. Splitting it out lets the Arabic keep its own RTL run while the mark sits
+  // in the surrounding English flow, where it reads as the trailing mark it is.
+
+  /** The Arabic itself, with any trailing reference mark removed. */
+  formText(value: string): string {
+    return value.replace(/[↓↑]+\s*$/u, '');
+  }
+
+  /** The trailing reference mark, or '' when the token carries none. */
+  formMark(value: string): string {
+    return (/([↓↑]+)\s*$/u.exec(value)?.[1]) ?? '';
+  }
+
   onQuranClick(t: Extract<LaneToken, { kind: 'quran' }>) {
     if (t.surah && t.ayah) this.openAyahEvent.emit({ surah: t.surah, ayah: t.ayah });
   }

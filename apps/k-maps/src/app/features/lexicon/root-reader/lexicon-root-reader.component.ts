@@ -6,10 +6,11 @@ import { ActivatedRoute } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { combineLatest } from 'rxjs';
 import { MufradatShellComponent, MUFRADAT_SLUG } from '../shells/mufradat/mufradat-shell.component';
-import { LexiconShellComponent, CLASSICAL_LEXICON_SLUGS } from '../shells/lexicon/lexicon-shell.component';
+import { LexiconShellComponent } from '../shells/lexicon/lexicon-shell.component';
 import { LaneShellComponent, LANE_SLUG } from '../shells/lane/lane-shell.component';
 import { ScholarshipShellComponent } from '../shells/scholarship/scholarship-shell.component';
 import { RootComponent } from '../../../shared/quran-lexicon/root/root.component';
+import { CLASSICAL_SHELL_SLUGS } from '../data/lexicon-sources.service';
 
 /**
  * Root-centric lexicon reader. The URL puts the ROOT in the path and the BOOK
@@ -48,8 +49,11 @@ export class LexiconRootReaderComponent {
   readonly book = signal('');
 
   readonly isMufradat  = computed(() => this.book() === MUFRADAT_SLUG);
-  readonly isClassical = computed(() => CLASSICAL_LEXICON_SLUGS.has(this.book()));
   readonly isLane      = computed(() => this.book() === LANE_SLUG);
+  // Any other book the backend has registered a `/read/` composer for. Books
+  // without one (Sinai's key terms, the five-lens synthesis) fall to the
+  // scholarship shell, which reads a different endpoint entirely.
+  readonly isClassical = computed(() => CLASSICAL_SHELL_SLUGS.has(this.book()));
 
   constructor() {
     combineLatest([this.route.paramMap, this.route.queryParamMap])

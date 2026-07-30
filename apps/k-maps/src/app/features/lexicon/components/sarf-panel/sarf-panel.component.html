@@ -1,0 +1,170 @@
+@if (family(); as fam) {
+  <section class="sarf" dir="rtl">
+
+    <!-- Header bar: the label, the root's shape, and the prose-script toggle. -->
+    <header class="sarf__bar">
+      <span class="sarf__eyebrow">Ṣarf family</span>
+      <span class="sarf__title">عائلة الصرف</span>
+      @if (fam.root_type; as rt) {
+        <span class="tag tag--shape">{{ rt.ar }}</span>
+      }
+      <span class="sarf__spacer"></span>
+      <span class="sarf__modes" dir="ltr">
+        @for (m of modes; track m.id) {
+          <button type="button" class="sarf__mode"
+                  [class.is-on]="mode() === m.id"
+                  (click)="setMode(m.id)">{{ m.label }}</button>
+        }
+      </span>
+    </header>
+
+    @if (isEmpty()) {
+      <p class="sarf__empty">لم تُبنَ عائلة الصرف لهذا الجذر في هذا الكتاب بعد.</p>
+    } @else {
+
+      @if (tri(fam.core); as core) {
+        <p class="sarf__core" [attr.dir]="mode() === 'en' ? 'ltr' : 'rtl'">{{ core }}</p>
+      }
+
+      <!-- This book's own reading of the family — the reason the panel is per
+           source at all, so it leads rather than trails. -->
+      @if (tri(fam.distinctive_note); as note) {
+        <aside class="note">
+          <span class="note__eyebrow">
+            This book@if (bookTitle()) { · {{ bookTitle() }} }
+          </span>
+          <p class="note__text" [attr.dir]="mode() === 'en' ? 'ltr' : 'rtl'"
+             [class.is-ur]="mode() === 'ur'">{{ note }}</p>
+        </aside>
+      }
+
+      <div class="sarf__body">
+        @for (group of poleGroups(); track group.key ?? $index) {
+          <section class="pole" [attr.data-colour]="group.colour">
+
+            @if (group.titleAr || group.titleEn) {
+              <header class="pole__head">
+                <span class="pole__dot" aria-hidden="true"></span>
+                @if (group.titleAr) { <span class="pole__ar">{{ group.titleAr }}</span> }
+                @if (group.titleEn) { <span class="pole__en">{{ group.titleEn }}</span> }
+                <span class="pole__rule"></span>
+              </header>
+            }
+
+            <div class="pole__grid">
+              @for (form of group.forms; track formId(form)) {
+                <article class="form" [class.is-open]="isOpen(form)">
+
+                  <button type="button" class="form__head"
+                          [attr.aria-expanded]="hasDetail(form) ? isOpen(form) : null"
+                          (click)="toggle(form)">
+                    <span class="form__line">
+                      <span class="form__roman" dir="ltr">{{ form.roman }}</span>
+                      @if (headword(form); as hw) {
+                        <b class="form__madi">{{ hw }}</b>
+                      }
+                      @if (form.mudari) { <span class="form__mudari">{{ form.mudari }}</span> }
+                      @if (form.masadir.length) {
+                        <span class="form__masadir">{{ form.masadir.join(' · ') }}</span>
+                      }
+                      @if (hasDetail(form)) {
+                        <span class="form__chev" aria-hidden="true">{{ isOpen(form) ? '⌄' : '‹' }}</span>
+                      }
+                    </span>
+
+                    <!-- Bāb and transitivity stay Arabic whatever the toggle says:
+                         they are the books' own terms, and the toggle governs prose. -->
+                    <span class="form__tags">
+                      @if (babLabel(form); as bab) {
+                        <span class="tag tag--bab">{{ bab.ar }}</span>
+                      }
+                      @for (t of form.trans; track t.id) {
+                        <span class="tag tag--trans">{{ t.ar }}</span>
+                      }
+                      @if (showAyahTag(form)) {
+                        <span class="tag tag--ref" dir="ltr">{{ form.ayah }}</span>
+                      }
+                    </span>
+
+                    <!-- The meaning, in one script or stacked in three. -->
+                    @if (meaning(form); as mn) {
+                      @if (showsAllScripts()) {
+                        <span class="gloss gloss--stack">
+                          @if (mn.ar) { <span class="gloss__ar" dir="rtl">{{ mn.ar }}</span> }
+                          @if (mn.en) { <span class="gloss__en" dir="ltr">{{ mn.en }}</span> }
+                          @if (mn.ur) { <span class="gloss__ur" dir="rtl">{{ mn.ur }}</span> }
+                        </span>
+                      } @else if (tri(mn); as one) {
+                        <span class="gloss gloss--one">{{ one }}</span>
+                      }
+                    }
+                  </button>
+
+                  @if (isOpen(form) && hasDetail(form)) {
+                    <div class="detail">
+
+                      @if (derivations(form).length) {
+                        <div class="detail__derivs">
+                          @for (d of derivations(form); track d.label + d.value) {
+                            <span class="deriv">
+                              <span class="deriv__label">{{ d.label }}</span>
+                              <span class="deriv__value">{{ d.value }}</span>
+                            </span>
+                          }
+                        </div>
+                      }
+
+                      <!-- Trilingual strip: one band with full-height dividers, so
+                           the three scripts share a baseline instead of stacking. -->
+                      @if (meaning(form); as mn) {
+                        <div class="strip">
+                          @if (mn.ar) { <span class="strip__cell strip__cell--ar" dir="rtl">{{ mn.ar }}</span> }
+                          @if (mn.ar && mn.en) { <span class="strip__div"></span> }
+                          @if (mn.en) { <span class="strip__cell strip__cell--en" dir="ltr">{{ mn.en }}</span> }
+                          @if ((mn.ar || mn.en) && mn.ur) { <span class="strip__div"></span> }
+                          @if (mn.ur) { <span class="strip__cell strip__cell--ur" dir="rtl">{{ mn.ur }}</span> }
+                        </div>
+                      }
+
+                      @if (extraSenses(form).length) {
+                        <ul class="senses">
+                          @for (s of extraSenses(form); track $index) {
+                            <li class="senses__item">
+                              @if (tri(s.sense); as text) {
+                                <p class="senses__sense">{{ text }}</p>
+                              }
+                              @if (s.example?.ar) {
+                                <p class="senses__example">{{ s.example?.ar }}</p>
+                              }
+                            </li>
+                          }
+                        </ul>
+                      }
+
+                      @if (tri(form.trans_note); as tn) {
+                        <p class="detail__note">{{ tn }}</p>
+                      }
+
+                      @if (exampleText(form); as ex) {
+                        <figure class="example">
+                          <figcaption class="example__caption">شاهد</figcaption>
+                          @if (ex.ar) { <p class="example__ar">{{ ex.ar }}</p> }
+                          @if (mode() !== 'ar' && tri(ex) && tri(ex) !== ex.ar) {
+                            <p class="example__tr" [attr.dir]="mode() === 'en' ? 'ltr' : 'rtl'">{{ tri(ex) }}</p>
+                          }
+                          @if (form.ayah) {
+                            <span class="example__ref" dir="ltr">{{ form.ayah }}</span>
+                          }
+                        </figure>
+                      }
+                    </div>
+                  }
+                </article>
+              }
+            </div>
+          </section>
+        }
+      </div>
+    }
+  </section>
+}

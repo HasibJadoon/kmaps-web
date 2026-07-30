@@ -608,20 +608,24 @@ $panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
     background: transparent;
     border: none;
     width: 100%;
-    text-align: right;
-    padding: 6px 22px 6px 14px;
+    // Logical, not right-hand: Lane reads left to right, so the label starts at
+    // the inline start and the active bar marks that same edge. These were
+    // physical `right` values left over from when the rail was laid out RTL.
+    text-align: start;
+    padding-block: 6px;
+    padding-inline: 22px 14px;
     font: inherit;
     color: var(--ink);
     cursor: pointer;
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    border-right: 3px solid transparent;
+    border-inline-start: 3px solid transparent;
     transition: background .12s, border-color .12s, color .12s;
     &:hover { background: rgba(138,106,46,.06); }
     &.active {
       background: rgba(138,106,46,.12);
-      border-right-color: var(--accent);
+      border-inline-start-color: var(--accent);
       color: var(--accent);
       font-weight: 600;
     }
@@ -636,10 +640,10 @@ $panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
   appearance: none;
   background: var(--quran-bg);
   border: 1px solid var(--rule);
-  border-right: 3px solid var(--quran);
+  border-inline-start: 3px solid var(--quran);
   border-radius: 8px;
   padding: 10px 12px;
-  text-align: right;
+  text-align: start;
   width: 100%;
   margin-bottom: 8px;
   cursor: pointer;
@@ -729,6 +733,10 @@ $panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
   km-mufradat-reader,
   km-lane-reader,
   km-lexicon-reader,
+  // Lane's apparatus follows Lane's own full-width column rather than the
+  // shared 900px cap, so the strip and ṣarf panel stay flush with the prose.
+  km-book-strip,
+  km-lex-sarf-panel,
   .entry-head,
   .entry-foot {
     max-width: 100%;

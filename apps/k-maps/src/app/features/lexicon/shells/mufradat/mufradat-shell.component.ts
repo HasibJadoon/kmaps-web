@@ -41,10 +41,14 @@ import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { combineLatest, of, catchError } from 'rxjs';
 import {
-  AlDictionaryApiService, LexV2RootRow, MufradatReadView,
+  AlDictionaryApiService, LexV2RootRow, LexV2SarfFamily, MufradatReadView,
 } from '../../../../shared/services/al-dictionary-api.service';
 import { MufradatReaderComponent } from '../../mufradat-reader/mufradat-reader.component';
 import { BookSelectorComponent } from '../../components/book-selector/book-selector.component';
+import { SarfPanelComponent } from '../../components/sarf-panel/sarf-panel.component';
+import { BookStripComponent } from '../../components/book-strip/book-strip.component';
+import { RootJumpComponent } from '../../components/root-jump/root-jump.component';
+import { LexEraPipe } from '../../data/lex-era.pipe';
 
 export const MUFRADAT_SLUG = 'raghib_mufradat';
 
@@ -64,7 +68,10 @@ type Side = 'index' | 'citations';
 @Component({
   selector: 'km-mufradat-shell',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, MufradatReaderComponent, BookSelectorComponent],
+  imports: [
+    CommonModule, FormsModule, RouterLink,
+    MufradatReaderComponent, BookSelectorComponent, SarfPanelComponent, BookStripComponent, RootJumpComponent, LexEraPipe,
+  ],
   templateUrl: './mufradat-shell.component.html',
   styleUrl: './mufradat-shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -94,6 +101,11 @@ export class MufradatShellComponent implements AfterViewInit {
   readonly loading     = signal(false);
   readonly view        = signal<MufradatReadView | null>(null);
   readonly error       = signal<string | null>(null);
+
+  // al-Rāghib's own ṣarf tree. Distinct from this view's pre-baked `family`
+  // map: that is his derived-word list, this is the paradigm — one interval
+  // sense spread over five bābs — and it rides the generic entry endpoint.
+  readonly sarf = signal<LexV2SarfFamily | null>(null);
 
   // ── Root index ───────────────────────────────────────────────────────
   readonly rootList        = signal<LexV2RootRow[]>([]);
@@ -206,8 +218,10 @@ export class MufradatShellComponent implements AfterViewInit {
     const open   = target > 0;
     host.classList.add(`anim-${side}`);
     host.style.setProperty(`--w-${side}`, `${target}px`);
-    window.setTimeout(() =>
-      host.classList.remove(`anim-${side}`), DUR_WIDTH + 40);
+    window.setTimeout(() => {
+      host.classList.remove(`anim-${side}`);
+      this.repaintContent();
+    }, DUR_WIDTH + 40);
 
     const railEl = side === 'index'
       ? this.indexRailRef?.nativeElement
@@ -219,6 +233,26 @@ export class MufradatShellComponent implements AfterViewInit {
   }
 
   /** Apply a width to the rail's CSS var instantly — no animation. */
+
+  /**
+   * Invalidate the reading column's paint once a rail animation finishes.
+   *
+   * `.content` is the scroll container and the toggle transitions its
+   * `padding-inline`, so every rail toggle re-lays-out the column. Chromium can
+   * finish that transition still holding a stale tile for descendants that clip
+   * on a rounded boundary — the ṣarf panel and its form cards — and a band of the
+   * page keeps painting at its old offset. The geometry is already correct at
+   * that point (a forced reflow re-measures identically), so this only nudges the
+   * compositor to re-rasterise; it deliberately does not promote a layer, which
+   * would cost memory on every scroll for the rest of the session.
+   */
+  private repaintContent() {
+    const el = this.contentRef?.nativeElement;
+    if (!el) return;
+    el.style.transform = 'translateZ(0)';
+    requestAnimationFrame(() => { el.style.transform = ''; });
+  }
+
   private setVar(side: Side, w: number) {
     const host = this.hostEl.nativeElement;
     host.classList.remove(`anim-${side}`);
@@ -334,6 +368,7 @@ export class MufradatShellComponent implements AfterViewInit {
     this.loading.set(true);
     this.error.set(null);
     this.currentRoot.set(root_norm);
+    this.sarf.set(null);
     this.api.getMufradatRead(root_norm).pipe(
       catchError(() => {
         this.error.set('تعذّر تحميل المادة');
@@ -345,6 +380,10 @@ export class MufradatShellComponent implements AfterViewInit {
       this.loading.set(false);
       queueMicrotask(() => this.contentRef?.nativeElement.scrollTo({ top: 0 }));
     });
+    // In parallel — a late response for an abandoned root must not land.
+    this.api.getSarfFamily(MUFRADAT_SLUG, root_norm).pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(f => { if (this.currentRoot() === root_norm) this.sarf.set(f); });
   }
 
   // ── Cross-feature actions ────────────────────────────────────────────

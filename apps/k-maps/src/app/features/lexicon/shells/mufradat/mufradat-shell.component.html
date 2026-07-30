@@ -17,7 +17,7 @@
     @if (view()?.meta; as m) {
       <div class="reader__title-block">
         <h1>{{ m.title_ar }}</h1>
-        <p class="reader__author">{{ m.author }} · {{ m.period }}</p>
+        <p class="reader__author">{{ m.author }} · {{ m.period | lexEra }}</p>
       </div>
     } @else {
       <div class="reader__title-block"><h1 class="muted">…</h1></div>
@@ -29,16 +29,13 @@
 
     <div class="tb-spacer"></div>
 
-    <!-- Root stepper -->
-    <div class="root-stepper">
-      <button class="step" (click)="nextRoot()" title="الجذر التالي (←)" aria-label="next">
-        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M14 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <span class="root-stepper__current">{{ currentRoot() }}</span>
-      <button class="step" (click)="prevRoot()" title="الجذر السابق (→)" aria-label="prev">
-        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M10 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-    </div>
+    <!-- Stepper and root search in one control. -->
+    <km-root-jump
+      [root]="currentRoot()"
+      [roots]="rootList()"
+      (nextRoot)="nextRoot()"
+      (prevRoot)="prevRoot()"
+      (pickRoot)="goToRoot($event)" />
 
     <span class="tb-div"></span>
 
@@ -80,6 +77,9 @@
       } @else if (error()) {
         <p class="error">⚠ {{ error() }}</p>
       } @else if (view(); as v) {
+
+        <!-- Every book that treats this root, oldest author first. -->
+        <km-book-strip [root]="currentRoot()" [currentBook]="bookSlug" />
 
         <!-- ── Entry head ────────────────────────────────────────────── -->
         <div class="entry-head">
@@ -124,6 +124,9 @@
           </div>
         </div>
 
+        <!-- The shape of the root, before the prose that explains it. -->
+        <km-lex-sarf-panel [family]="sarf()" [bookTitle]="'المفردات'" />
+
         <km-mufradat-reader
           [view]="v"
           [trans]="trans()"
@@ -134,7 +137,7 @@
         <footer class="entry-foot">
           <p class="entry-foot__attribution">
             {{ v.meta.title_ar }} · <span class="hi">{{ v.meta.author }}</span>
-            @if (v.meta.period) { · {{ v.meta.period }} }
+            @if (v.meta.period) { · {{ v.meta.period | lexEra }} }
           </p>
           <p class="entry-foot__sub">
             verbatim text (public domain) · rendered in Arabic · English · Urdu

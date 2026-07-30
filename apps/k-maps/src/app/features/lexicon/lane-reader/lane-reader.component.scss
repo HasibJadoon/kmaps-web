@@ -377,10 +377,50 @@
 .lane__sense-body {
   grid-column: 2;       // ALWAYS column 2, even when label is absent
   margin: 0;
+  // Justified with hyphenation — the printed-dictionary setting Lane is typeset
+  // in: both edges flush, and words break at a hyphen at the end of a line so the
+  // spaces stay even instead of stretching.
+  //
+  // Hyphenation is what keeps the gaps even here. Lane's prose carries dense
+  // unbreakable Arabic runs, bracketed sigla and italic abbreviations, so a
+  // ~640px column has few break opportunities; without hyphens the justifier can
+  // only stretch spaces, and they open into rivers. The two settings belong
+  // together — justify alone is what produced those gaps.
   text-align: justify;
   hyphens: auto;
+  // A last line is a real short line, not something to stretch to the margin.
+  text-align-last: start;
+  // Keep the breaks legible: no word shorter than 6 letters is split, and no
+  // fragment of fewer than 3 letters is left on either side, so the line never
+  // ends on a one-letter stub.
+  hyphenate-limit-chars: 6 3 3;
+  // Prefer an even rag/fill over a greedy first fit, where supported.
+  text-wrap: pretty;
+  // An Arabic run with no break opportunity must still not spill the column.
+  overflow-wrap: break-word;
   word-spacing: 0.02em;
-  unicode-bidi: plaintext;
+
+  // `isolate`, never `plaintext`.
+  //
+  // `plaintext` takes the paragraph's direction from its first strong character,
+  // and a Lane sense almost always opens with its Arabic headword — so the whole
+  // English paragraph resolved RTL: ragged on the left, flush on the right, and
+  // justified towards the wrong margin, all while the reader itself was dir="ltr".
+  // Lane is an English lexicon, so the base direction has to come from
+  // `direction`, and only the Arabic runs inside it turn around.
+  unicode-bidi: isolate;
+}
+
+// A trailing ↓/↑ reference mark, carried outside its word's RTL run so bidi
+// can't move it to the far side. Dimmed: it is apparatus, not part of the word.
+.lane-form__mark {
+  display: inline;
+  // The isolate is what keeps bidi from moving the mark; it also adds a little
+  // advance, so the mark is pulled back to sit against the word it belongs to.
+  unicode-bidi: isolate;
+  color: var(--ink-faint, #7b7263);
+  font-size: 0.82em;
+  margin-inline-start: -0.12em;
 }
 
 // ── Inline tokens ──────────────────────────────────────────────────────

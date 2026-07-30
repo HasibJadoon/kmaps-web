@@ -15,9 +15,13 @@ import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { combineLatest, of, catchError } from 'rxjs';
 import {
-  AlDictionaryApiService, LexV2RootRow, LaneReadView, LaneToken,
+  AlDictionaryApiService, LexV2RootRow, LexV2SarfFamily, LaneReadView, LaneToken,
 } from '../../../../shared/services/al-dictionary-api.service';
 import { LaneReaderComponent } from '../../lane-reader/lane-reader.component';
+import { SarfPanelComponent } from '../../components/sarf-panel/sarf-panel.component';
+import { BookStripComponent } from '../../components/book-strip/book-strip.component';
+import { RootJumpComponent } from '../../components/root-jump/root-jump.component';
+import { LexEraPipe } from '../../data/lex-era.pipe';
 
 export const LANE_SLUG = 'lane_lexicon';
 
@@ -32,7 +36,7 @@ type Side = 'index' | 'citations';
 @Component({
   selector: 'km-lane-shell',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, LaneReaderComponent],
+  imports: [CommonModule, FormsModule, RouterLink, LaneReaderComponent, SarfPanelComponent, BookStripComponent, RootJumpComponent, LexEraPipe],
   templateUrl: './lane-shell.component.html',
   styleUrl: './lane-shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -60,6 +64,11 @@ export class LaneShellComponent implements AfterViewInit {
   readonly loading     = signal(false);
   readonly view        = signal<LaneReadView | null>(null);
   readonly error       = signal<string | null>(null);
+
+  // Lane's ṣarf trees are generated from its own `lane_itype` — 3,957 families
+  // over 14,155 forms — and ride the generic entry endpoint, not this shell's
+  // `/read/lane_lexicon` composer, so they are fetched alongside the article.
+  readonly sarf = signal<LexV2SarfFamily | null>(null);
 
   readonly rootList        = signal<LexV2RootRow[]>([]);
   readonly rootListLoading = signal(false);
@@ -132,8 +141,10 @@ export class LaneShellComponent implements AfterViewInit {
     const open   = target > 0;
     host.classList.add(`anim-${side}`);
     host.style.setProperty(`--w-${side}`, `${target}px`);
-    window.setTimeout(() =>
-      host.classList.remove(`anim-${side}`), DUR_WIDTH + 40);
+    window.setTimeout(() => {
+      host.classList.remove(`anim-${side}`);
+      this.repaintContent();
+    }, DUR_WIDTH + 40);
     const railEl = side === 'index'
       ? this.indexRailRef?.nativeElement
       : this.citationsRailRef?.nativeElement;
@@ -142,6 +153,26 @@ export class LaneShellComponent implements AfterViewInit {
       railEl.style.opacity = open ? '1' : '0';
     }
   }
+
+  /**
+   * Invalidate the reading column's paint once a rail animation finishes.
+   *
+   * `.content` is the scroll container and the toggle transitions its
+   * `padding-inline`, so every rail toggle re-lays-out the column. Chromium can
+   * finish that transition still holding a stale tile for descendants that clip
+   * on a rounded boundary — the ṣarf panel and its form cards — and a band of the
+   * page keeps painting at its old offset. The geometry is already correct at
+   * that point (a forced reflow re-measures identically), so this only nudges the
+   * compositor to re-rasterise; it deliberately does not promote a layer, which
+   * would cost memory on every scroll for the rest of the session.
+   */
+  private repaintContent() {
+    const el = this.contentRef?.nativeElement;
+    if (!el) return;
+    el.style.transform = 'translateZ(0)';
+    requestAnimationFrame(() => { el.style.transform = ''; });
+  }
+
   private setVar(side: Side, w: number) {
     const host = this.hostEl.nativeElement;
     host.classList.remove(`anim-${side}`);
@@ -224,6 +255,7 @@ export class LaneShellComponent implements AfterViewInit {
     this.loading.set(true);
     this.error.set(null);
     this.currentRoot.set(root_norm);
+    this.sarf.set(null);
     this.api.getLaneRead(root_norm).pipe(
       catchError(() => { this.error.set('Could not load entry'); return of(null); }),
       takeUntilDestroyed(this.destroyRef),
@@ -232,6 +264,10 @@ export class LaneShellComponent implements AfterViewInit {
       this.loading.set(false);
       queueMicrotask(() => this.contentRef?.nativeElement.scrollTo({ top: 0 }));
     });
+    // In parallel — a late response for an abandoned root must not land.
+    this.api.getSarfFamily(LANE_SLUG, root_norm).pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(f => { if (this.currentRoot() === root_norm) this.sarf.set(f); });
   }
 
   openAyah(surah: number, ayah: number) {

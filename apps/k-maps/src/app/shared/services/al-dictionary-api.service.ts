@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import { BackendApiService } from './backend-api.service';
 
 // ─── Types — classical source chunks (/al/lexicon/dict/*) ────────────────────
@@ -117,6 +118,22 @@ export class AlDictionaryApiService {
 
   getV2Entry(source_slug: string, root_norm: string): Observable<LexV2EntryDetail> {
     return this.api.getData<LexV2EntryDetail>('al', ['lex', 'v2', 'entry', source_slug, root_norm]);
+  }
+
+  // ── Ṣarf family for one (book, root) ────────────────────────────────────
+  // The per-book `/read/<slug>` composers don't carry `sarf_families`, so the
+  // shells pull it from the generic entry endpoint alongside their own view.
+  // An entry can hold more than one ṣarf block; the first non-empty one is the
+  // family, and a book with none simply has no panel.
+  getSarfFamily(source_slug: string, root_norm: string): Observable<LexV2SarfFamily | null> {
+    return this.getV2Entry(source_slug, root_norm).pipe(
+      map(e => {
+        const families = e?.sarf_families ?? [];
+        const filled = families.find(f => (f.forms?.length ?? 0) > 0 || f.core);
+        return filled ?? families[0] ?? null;
+      }),
+      catchError(() => of(null)),
+    );
   }
 
   // ── Mufradat-specific reader endpoint ────────────────────────────────────
@@ -268,7 +285,12 @@ export interface LexV2Block {
 export interface LexV2SectionBody {
   text: string;
   paragraphs: string[];
+  /** Distinct marker numbers, sorted. Kept for callers that only want a set. */
   footnote_refs: number[];
+  /** Every marker number in reading order, repeats kept. */
+  marker_nums?: number[];
+  /** Every marker in reading order, bound to its note. */
+  footnote_marks?: LexV2FootnoteMark[];
 }
 
 export interface LexV2Section {
@@ -289,6 +311,22 @@ export interface LexV2Footnote {
   text: string;
   block_id: string;
   section_id: string | null;
+  /** Reading-order position of this note's marker in the entry, 1-based. */
+  ordinal?: number | null;
+  /**
+   * The printed page the note sits on. A note is (printed_page, num): Shamela
+   * restarts footnote numbering on every page, so an article crossing a page
+   * break prints «1» twice for two different notes.
+   */
+  printed_page?: number | null;
+}
+
+/** A «N» in the prose, already bound by the worker to the note it means. */
+export interface LexV2FootnoteMark {
+  num: number;
+  ordinal: number | null;
+  printed_page: number | null;
+  resolved: boolean;
 }
 
 export interface LexV2Link {
@@ -313,6 +351,89 @@ export interface LexV2QuranRef {
   surah: number; ayah: number; raw_ref: string; context_snippet: string | null;
 }
 
+// ─── Ṣarf family ────────────────────────────────────────────────────────────
+// Every book draws its own ṣarf tree for a root — al-Rāghib's بين is not
+// al-Jawharī's — so the family is book-scoped, one per (source, root), and
+// switching books switches the tree. The worker resolves every `GT:` grammar-
+// term id against ar_ling_gram_term before it reaches us, so these arrive
+// display-ready and a renderer never sees an id.
+//
+// Only `/lex/v2/entry/:slug/:root` carries this. The per-book `/lex/v2/read/…`
+// composers do not, which is why the shells fetch it alongside their own view.
+
+/** A grammar term as the registry names it, already resolved. */
+export interface LexV2TermLabel {
+  id: string; ar: string; en: string; ur: string; short_ar: string | null;
+}
+
+/** Authored trilingually; empties arrive as null rather than "". */
+export interface LexV2Tri { ar: string | null; en: string | null; ur: string | null; }
+
+export interface LexV2SarfPole {
+  key: string | null; ar: string | null; en: string | null; ur: string | null;
+}
+
+export interface LexV2SarfSense { sense: LexV2Tri | null; example: LexV2Tri | null; }
+
+export interface LexV2SarfForm {
+  form_id: string | null;
+  roman: string;
+  /** The headword this form is filed under. Lane states it for every form and
+   *  leaves `madi` null, so the card falls back to it or shows a bare numeral. */
+  lemma: string | null;
+  section_id: string | null;
+  /** Blocks carrying the author's prose for this form — the family is an index
+   *  into the article, so a form can pivot straight to the passage. */
+  block_ids: string[];
+  /** Form I carries `bab`; Forms II–XII and nominal-only rows carry
+   *  `form_tier` instead, so the chip has to fall back or derived forms show bare. */
+  bab: LexV2TermLabel | null;
+  bab_alt: LexV2TermLabel[];
+  form_tier: LexV2TermLabel | null;
+  root_type: LexV2TermLabel | null;
+  madi: string | null;
+  mudari: string | null;
+  voice: string | null;
+  passive_form: string | null;
+  masdar_term: LexV2TermLabel | null;
+  masadir: string[];
+  ism_fail: string | null;
+  ism_fail_term: LexV2TermLabel | null;
+  ism_maf: string | null;
+  ism_maf_term: LexV2TermLabel | null;
+  trans: LexV2TermLabel[];
+  trans_note: LexV2Tri | null;
+  pole: string | null;
+  pole_family: string | null;
+  levels_with: string[];
+  gloss: LexV2Tri | null;
+  senses: LexV2SarfSense[];
+  ayah: string | null;
+  shahid: LexV2Tri | null;
+}
+
+export interface LexV2SarfLevellingGroup {
+  key: string | null; members: string[];
+  claim: LexV2Tri | null; qualifier: LexV2Tri | null;
+}
+
+export interface LexV2SarfFamily {
+  block_id: string;
+  section_id: string | null;
+  title_ar: string | null;
+  scope: string;
+  root_type: LexV2TermLabel | null;
+  core: LexV2Tri | null;
+  /** What this book does with the family that the others do not — the reason
+   *  the panel is per source at all. */
+  distinctive_note: LexV2Tri | null;
+  authors_own_words: LexV2Tri | null;
+  poles: LexV2SarfPole[];
+  forms: LexV2SarfForm[];
+  levelling_groups: LexV2SarfLevellingGroup[];
+  note: string | null;
+}
+
 export interface LexV2EntryDetail {
   meta: LexV2SourceMeta;
   entry: {
@@ -334,12 +455,16 @@ export interface LexV2EntryDetail {
   tags: LexV2Tag[];
   quran_refs: LexV2QuranRef[];
   footnotes?: LexV2Footnote[];
+  /** Book-scoped ṣarf trees, resolved display-ready. Present on this endpoint
+   *  only — the `/lex/v2/read/…` composers omit it. */
+  sarf_families?: LexV2SarfFamily[];
   sources_of_entry: {
     id: string; source_kind: string; source_native_id: string | null; source_url: string | null;
   }[];
   stats: {
     sections: number; blocks: number; links: number; tags: number; quran_refs: number;
     footnotes?: number;
+    sarf_families?: number;
   };
 }
 

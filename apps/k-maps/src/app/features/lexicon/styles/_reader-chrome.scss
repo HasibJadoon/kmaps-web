@@ -18,26 +18,30 @@
   --w-citations: 340px;
 
   // ── Light theme (azure parchment) ──────────────────────────────────
-  --bg:          #dbe6f2;
-  --paper:       #f5f9fd;
-  --paper-2:     #e9f1f9;
-  --paper-3:     #dce8f4;
-  --ink:         #152740;
-  --ink-soft:    #4a6382;
-  --ink-faint:   #8399b5;
-  --rule:        rgba(40, 84, 140, .16);
-  --rule-soft:   rgba(40, 84, 140, .08);
-  --rule-strong: #aac2de;
-  --accent:      #b07d2c;
+  // Values from the "Mufradat Root Reader — Refined" design.
+  --bg:          #eef2f6;
+  --paper:       #ffffff;
+  --paper-2:     #f3f6fa;
+  --paper-3:     #e8edf3;
+  --ink:         #1c2733;
+  --ink-soft:    #51617a;
+  --ink-faint:   #8695ab;
+  --rule:        rgba(40, 84, 140, .14);
+  --rule-soft:   rgba(40, 84, 140, .07);
+  --rule-strong: #c3d2e3;
+  --accent:      #a97a2c;
   --accent-bright:#8a5e16;
-  --accent-soft: rgba(176, 125, 44, .13);
-  --verse:       #1f6b50;
+  --accent-soft: rgba(169, 122, 44, .12);
+  --verse:       #2f7a55;
+  // `--clarity` is new with the refined design: a second semantic hue, so a
+  // reading with two poles can colour them apart instead of running both gold.
+  --clarity:     #3a6ea8;
   --kw:          #b0432f;
   --kw-strong:   #98301f;
   --ref:         #5b7fa8;
   --sep:         #b0432f;
   --disc:        #2f5f96;
-  --glow:        0 0 32px rgba(176, 125, 44, .16);
+  --glow:        0 0 32px rgba(169, 122, 44, .16);
 
   font-family: 'Poppins', system-ui, sans-serif;
   color: var(--ink);
@@ -46,23 +50,27 @@
 
 :host.dark {
   // ── Dark theme (midnight manuscript) — the design default ──────────
-  --bg:          #080808;
-  --paper:       #0f0d0b;
-  --paper-2:     #161009;
-  --paper-3:     #1f1710;
+  // Values from the "Mufradat Root Reader — Refined" design. The paper steps are
+  // a touch warmer than before, and `--verse` / `--ref` move off gold: a shāhid
+  // was the same hue as the chrome around it, so nothing marked it as quoted.
+  --bg:          #0b0a08;
+  --paper:       #141210;
+  --paper-2:     #1c160f;
+  --paper-3:     #241c12;
   --ink:         #ede0c4;
   --ink-soft:    #b7ac90;
   --ink-faint:   #8a7e63;
-  --rule:        rgba(201, 162, 75, .18);
-  --rule-soft:   rgba(201, 162, 75, .08);
+  --rule:        rgba(201, 168, 76, .16);
+  --rule-soft:   rgba(201, 168, 76, .08);
   --rule-strong: #6f5a2e;
   --accent:      #c9a84c;
   --accent-bright:#e8c96a;
   --accent-soft: rgba(201, 168, 76, .10);
-  --verse:       #e4c878;
+  --verse:       #7fae6a;
+  --clarity:     #6f93c9;
   --kw:          #cf8a7a;
   --kw-strong:   #b24a38;
-  --ref:         #9b7f42;
+  --ref:         #8fa8c9;
   --sep:         #b24a38;
   --disc:        #5b7ba8;
   --glow:        0 0 40px rgba(201, 168, 76, .14);
@@ -635,16 +643,26 @@ $panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
 // ── Content reading area ─────────────────────────────────────────────
 .content {
+  // Everything in the reading column shares one width and one gutter: the
+  // headword, the apparatus between it and the prose, the prose itself, and the
+  // colophon. Only `km-mufradat-reader` and the head/foot used to be listed, so
+  // the article body — headings, paragraphs, poetry and editor blocks — ran
+  // flush to the rails while the headword above it sat inside a 50px margin.
   km-mufradat-reader,
+  km-lexicon-reader,
+  km-lane-reader,
+  km-book-strip,
+  km-lex-sarf-panel,
   .entry-head,
   .entry-foot {
     display: block;
-    max-width: 900px;
+    // 860px and a 4vw gutter, per the refined design's reading column.
+    max-width: 860px;
     margin-inline: auto;
-    padding-inline: clamp(20px, 5vw, 50px);
+    padding-inline: clamp(20px, 4vw, 48px);
   }
-  .entry-head { padding-top: 44px; }
-  .entry-foot { padding-bottom: 96px; }
+  .entry-head { padding-top: 40px; }
+  .entry-foot { padding-bottom: 90px; }
 }
 
 // ── Entry head ─────────────────────────────────────────────────────────
@@ -654,7 +672,7 @@ $panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
   &__eyebrow {
     display: inline-block;
     font-family: 'Cinzel', serif;
-    font-size: 0.66rem;
+    font-size: 0.64rem;
     font-weight: 600;
     letter-spacing: 0.22em;
     color: var(--accent);
@@ -663,24 +681,26 @@ $panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
   &__hero {
     display: flex;
     align-items: flex-start;
-    gap: 26px;
+    gap: 28px;
     flex-wrap: wrap;
   }
+  // The headword takes `--kw` rather than `--kw-strong`: the refined design
+  // rests it a step off the darkest rose so the glow reads as light, not ink.
   &__title {
     margin: 0;
     font-family: 'Amiri', serif;
-    font-size: 78px;
+    font-size: 76px;
     font-weight: 700;
-    color: var(--kw-strong);
+    color: var(--kw);
     line-height: 0.9;
     letter-spacing: 0.06em;
     white-space: nowrap;
-    text-shadow: 0 2px 26px color-mix(in srgb, var(--kw-strong) 30%, transparent);
+    text-shadow: 0 2px 28px color-mix(in srgb, var(--kw) 28%, transparent);
   }
   &__facts {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 9px;
     padding-top: 8px;
   }
   .fact-pill {
@@ -741,7 +761,7 @@ $panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
       font-weight: 500;
       &--quran { color: var(--verse); border: 1px solid color-mix(in srgb, var(--verse) 34%, transparent); }
       &--verse { color: var(--verse); border: 1px solid color-mix(in srgb, var(--verse) 34%, transparent); }
-      &--note  { color: var(--kw-strong); border: 1px solid color-mix(in srgb, var(--kw-strong) 40%, transparent); }
+      &--note  { color: var(--kw); border: 1px solid color-mix(in srgb, var(--kw) 40%, transparent); }
     }
   }
 }

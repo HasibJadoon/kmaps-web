@@ -8,16 +8,18 @@
 <article class="lane" dir="ltr">
   @for (form of view().forms; track trackForm($index, form)) {
     <section class="lane__form">
-      <!-- The form heading is RTL-aligned: medallion + Arabic headword
-           pair sits on the right (the natural reading position for an
-           Arabic word), page number floats to the left. -->
-      <header class="lane__form-head" dir="rtl">
-        @if (form.form_label_ar) {
-          <span class="lane__form-headword">{{ form.form_label_ar }}</span>
-        }
+      <!-- Lane is an English lexicon, so the heading reads left to right like the
+           article under it: form medallion, then the Arabic headword, then the
+           page. Only the headword itself is an RTL run — that is the Arabic
+           script's own order, not a layout choice, and it is what keeps a
+           multi-word form from rendering with its words reversed. -->
+      <header class="lane__form-head">
         <span class="lane__form-numeral">{{ formNumeral(form.form_num) || '✦' }}</span>
+        @if (form.form_label_ar) {
+          <span class="lane__form-headword" dir="rtl">{{ form.form_label_ar }}</span>
+        }
         @if (form.page_no) {
-          <span class="lane__form-page" dir="ltr">p. {{ form.page_no }}</span>
+          <span class="lane__form-page">p. {{ form.page_no }}</span>
         }
       </header>
 
@@ -43,8 +45,10 @@
     @switch (t.kind) {
       @case ('text')       { <span>{{ t.value }}</span> }
       @case ('br')         { <br /> }
-      @case ('arabic')     { <span class="lane-form" dir="rtl">{{ t.value }}</span> }
-      @case ('headword')   { <strong class="lane-headword" dir="rtl">{{ t.value }}</strong> }
+      <!-- A trailing ↓/↑ is kept out of the RTL run so it stays after the word
+           rather than flipping to its left — see `formMark`. -->
+      @case ('arabic')     { <span class="lane-form" dir="rtl">{{ formText(t.value) }}</span>@if (formMark(t.value); as mark) {<span class="lane-form__mark">{{ mark }}</span>} }
+      @case ('headword')   { <strong class="lane-headword" dir="rtl">{{ formText(t.value) }}</strong>@if (formMark(t.value); as mark) {<span class="lane-form__mark">{{ mark }}</span>} }
       @case ('figurative') { <span class="lane-fig" title="figurative meaning">‡</span> }
       @case ('cross_ref')  {
         <a class="lane-xref" (click)="onCrossRefClick(t)" [title]="'see entry: ' + t.target">

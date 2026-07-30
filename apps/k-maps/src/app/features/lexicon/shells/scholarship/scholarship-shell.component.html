@@ -66,6 +66,10 @@
         <p class="error">⚠ {{ error() }}</p>
       } @else if (view(); as v) {
 
+        <!-- Every book that treats this root, oldest author first — the same way
+             out of a modern reading as out of a classical one. -->
+        <km-book-strip [root]="currentRoot()" [currentBook]="slug()" />
+
         <header class="entry-head">
           <h2 class="entry-head__title" dir="rtl">{{ v.notes[0]?.root_text || v.root_norm }}</h2>
           @if (v.source) {
@@ -81,6 +85,9 @@
             </div>
           }
         </header>
+
+        <!-- The shape of the root, before the reading that discusses it. -->
+        <km-lex-sarf-panel [family]="sarf()" [bookTitle]="v.source?.title_ar || ''" />
 
         @if (!v.notes.length) {
           <p class="muted">لا توجد قراءة لهذا الجذر في هذا المصدر.</p>

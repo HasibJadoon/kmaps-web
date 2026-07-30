@@ -8,7 +8,18 @@
         }
       </div>
     </div>
-    <h1 class="root-view__title">{{ root() }}</h1>
+    <div class="root-view__titlerow">
+      <h1 class="root-view__title">{{ root() }}</h1>
+      <!-- Straight into the reader for this root. The book strip there covers the
+           rest of the shelf, so the root page no longer restates it per book. -->
+      @if (lexiconBook(); as book) {
+        <a class="rv-open" [routerLink]="['/lexicon/root', root()]" [queryParams]="{ book }">
+          <lucide-icon name="book-open" [size]="15"></lucide-icon>
+          <span>Open in Lexicon</span>
+          <lucide-icon class="rv-open__go" name="arrow-right" [size]="14"></lucide-icon>
+        </a>
+      }
+    </div>
     @if (pick(display()?.meaning_core); as core) {
       <p class="root-view__core" [dir]="isRtl ? 'rtl' : 'ltr'" [style.font-family]="langFont()" [class.rv-ur]="lang()==='ur'">{{ core }}</p>
     }
@@ -27,11 +38,20 @@
       </div>
     }
 
+    <!-- Each book chip opens the reader on this root. -->
     <div class="rv-lenses">
       @for (l of d.lenses; track l.key) {
-        <span class="rv-lens" [class.rv-lens--on]="l.on">
-          <lucide-icon [name]="safeIcon(l.icon)" [size]="13"></lucide-icon>{{ l.label }}
-        </span>
+        @if (lensBook(l); as book) {
+          <a class="rv-lens rv-lens--link" [class.rv-lens--on]="l.on"
+             [routerLink]="['/lexicon/root', root()]" [queryParams]="{ book }"
+             [title]="'Open ' + l.label + ' on ' + root()">
+            <lucide-icon [name]="safeIcon(l.icon)" [size]="13"></lucide-icon>{{ l.label }}
+          </a>
+        } @else {
+          <span class="rv-lens" [class.rv-lens--on]="l.on">
+            <lucide-icon [name]="safeIcon(l.icon)" [size]="13"></lucide-icon>{{ l.label }}
+          </span>
+        }
       }
       @if (d.frequency_quran) {
         <span class="rv-freq"><lucide-icon [name]="sectionIcon('freq')" [size]="13"></lucide-icon>{{ d.frequency_quran }}× in Qurʾān</span>
@@ -72,36 +92,8 @@
       </ul>
     }
 
-    <!-- Classical lexicons — a small summary per source; click opens the full reader -->
-    <h2 class="rv-section"><lucide-icon [name]="sectionIcon('freq')" [size]="15"></lucide-icon>Classical lexicons</h2>
-    <div class="rv-sources">
-      @for (l of d.lenses; track l.key) {
-        @if (l.on && (l.summary || l.text)) {
-          @if (lensLink(l); as link) {
-            <a class="rv-src rv-src--link" [routerLink]="link" [queryParams]="{ root: l.root }">
-              <header class="rv-src__head">
-                <lucide-icon [name]="safeIcon(l.icon)" [size]="14"></lucide-icon>
-                <span class="rv-src__name">{{ l.label }}</span>
-                @if (l.page) { <span class="rv-src__page">p.{{ l.page }}</span> }
-                <lucide-icon class="rv-src__go" name="arrow-right" [size]="14"></lucide-icon>
-              </header>
-              @if (l.author) { <span class="rv-src__author">{{ l.author }}</span> }
-              <p class="rv-src__text" [dir]="l.dir ?? 'rtl'">{{ l.summary || l.text }}</p>
-              <span class="rv-src__cta">Read in {{ l.label }} →</span>
-            </a>
-          } @else {
-            <article class="rv-src">
-              <header class="rv-src__head">
-                <lucide-icon [name]="safeIcon(l.icon)" [size]="14"></lucide-icon>
-                <span class="rv-src__name">{{ l.label }}</span>
-                @if (l.page) { <span class="rv-src__page">p.{{ l.page }}</span> }
-              </header>
-              @if (l.author) { <span class="rv-src__author">{{ l.author }}</span> }
-              <p class="rv-src__text" [dir]="l.dir ?? 'rtl'">{{ l.summary || l.text }}</p>
-            </article>
-          }
-        }
-      }
-    </div>
+    <!-- The per-book summary cards that used to sit here are gone: the book chips
+         above open each book's real entry directly, so a truncated preview of the
+         same text was a second, staler copy of it. -->
   }
 </section>

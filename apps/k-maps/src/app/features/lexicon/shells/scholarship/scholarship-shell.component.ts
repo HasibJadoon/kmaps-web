@@ -17,23 +17,28 @@ import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { combineLatest, of, catchError } from 'rxjs';
 import {
-  AlDictionaryApiService, ScholarshipShellView, ScholarshipRootRow,
+  AlDictionaryApiService, LexV2SarfFamily, ScholarshipShellView, ScholarshipRootRow,
 } from '../../../../shared/services/al-dictionary-api.service';
+import { BookStripComponent } from '../../components/book-strip/book-strip.component';
+import { SarfPanelComponent } from '../../components/sarf-panel/sarf-panel.component';
 
 // This shell renders ANY academic source — Al-Jallad's "Excavating the
-// Quran" today, but also future epigraphic / archaeological /
-// comparative-Semitic articles by other authors. The book-reader uses a
-// NEGATIVE filter (not-a-known-lexicon → fall through here) so adding a
-// new source to `ar_ling_root_scholarship` requires zero code changes.
+// Quran" and Sinai's key terms today, but also future epigraphic /
+// archaeological / comparative-Semitic articles by other authors. The root
+// dispatcher uses a NEGATIVE filter (no `/read/` composer → fall through here) so
+// adding a new source to `ar_ling_root_scholarship` requires zero code changes.
 //
-// To opt a source OUT of the academic shell (e.g. if a new lexicon shell
-// is added later for it), include its slug in the lexicon allowlists in
-// `lexicon-book-reader.component.ts`.
+// To opt a source OUT of the academic shell, add its slug to
+// `COMPOSER_BACKED_SLUGS` in `data/lexicon-sources.service.ts` once the backend
+// has a composer for it.
 
 @Component({
   selector: 'km-scholarship-shell',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [
+    CommonModule, FormsModule, RouterLink,
+    BookStripComponent, SarfPanelComponent,
+  ],
   templateUrl: './scholarship-shell.component.html',
   styleUrl: './scholarship-shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -60,6 +65,7 @@ export class ScholarshipShellComponent {
   readonly loading      = signal(false);
   readonly view         = signal<ScholarshipShellView | null>(null);
   readonly error        = signal<string | null>(null);
+  readonly sarf         = signal<LexV2SarfFamily | null>(null);
 
   readonly rootList     = signal<ScholarshipRootRow[]>([]);
   readonly rootListLoading = signal(false);
@@ -120,6 +126,7 @@ export class ScholarshipShellComponent {
     this.loading.set(true);
     this.error.set(null);
     this.currentRoot.set(root_norm);
+    this.sarf.set(null);
     this.api.getScholarshipBySource(slug, root_norm).pipe(
       catchError(() => { this.error.set('Could not load entry'); return of(null); }),
       takeUntilDestroyed(this.destroyRef),
@@ -127,6 +134,14 @@ export class ScholarshipShellComponent {
       this.view.set(v);
       this.loading.set(false);
       queueMicrotask(() => this.contentRef?.nativeElement.scrollTo({ top: 0 }));
+    });
+    // A modern source can still carry a ṣarf tree on the index, so the panel is
+    // fetched here for the same reason as in the other readers. Runs in parallel;
+    // a late response for an abandoned root must not land.
+    this.api.getSarfFamily(slug, root_norm).pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(f => {
+      if (this.slug() === slug && this.currentRoot() === root_norm) this.sarf.set(f);
     });
   }
 

@@ -9,6 +9,7 @@ import { of, catchError } from 'rxjs';
 import {
   AlDictionaryApiService, LexV2RootCompare, LexV2SearchHit,
 } from '../../../shared/services/al-dictionary-api.service';
+import { deathLabelAr } from '../data/lexicon-sources.service';
 
 type Mode = 'root' | 'word' | 'fts';
 
@@ -43,10 +44,6 @@ const ROOT_TYPE_AR: Record<string, string> = {
 const WEAK_PATTERN_AR: Record<string, string> = {
   sound: 'صحيح', assimilated: 'مثال', hollow: 'أجوف', defective: 'ناقص',
   hamzated: 'مهموز', doubled: 'مضاعف',
-};
-const ERA_AR: Record<string, string> = {
-  classical: 'كلاسيكي', early_classical: 'كلاسيكي مبكر',
-  late_classical: 'كلاسيكي متأخر',
 };
 
 @Component({
@@ -210,11 +207,10 @@ export class LexiconSearchComponent {
   }
 
   // Dated byline fragment: «ت 502 هـ» for Hijri authors, «ت 1876 م» for
-  // CE-dated authors (Lane), or the era label for living scholars.
+  // CE-dated authors (Lane), or the era label for living scholars. Shared with
+  // the shelf so the two surfaces can't drift apart again.
   private deathLabel(s: { author_death_ah?: number | null; author_death_ce?: number | null; period: string }): string {
-    if (s.author_death_ah) return `ت ${s.author_death_ah} هـ`;
-    if (s.author_death_ce) return `ت ${s.author_death_ce} م`;
-    return ERA_AR[s.period] ?? s.period ?? '';
+    return deathLabelAr(s);
   }
 
   private rootTypeLabel(type?: string | null, weak?: string | null): string {
