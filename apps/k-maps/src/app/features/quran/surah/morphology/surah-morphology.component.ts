@@ -113,12 +113,23 @@ export class SurahMorphologyComponent implements OnInit {
     this.router.navigate(['/quran/surahs', this.surahId(), 'morphology', 'word', w.ayah, w.word_index]);
   }
 
-  /** Open the root page (researcher lexicon) for this word's root. */
+  /**
+   * Open the lexicon on this word's root.
+   *
+   * Goes to the real lexicon (`/lexicon/root/:root`), which lands on the root's
+   * own page — gloss, Qurʾānic frequency, derived family, and a snippet per book
+   * with a way into each — rather than the researcher tab's separate root panel.
+   * From there a book opens the full reader with its ṣarf family.
+   *
+   * The root is sent as typed apart from stripping the display spacing: folding
+   * spellings onto the stored form is the worker's job (`lib/root_query.ts`), not
+   * a second implementation per caller.
+   */
   openRoot(root: string | null, event?: Event): void {
     event?.stopPropagation();
     const r = (root ?? '').replace(/\s+/g, '').trim();
     if (!r) return;
-    this.router.navigate(['/quran/lexicon'], { queryParams: { root: r } });
+    this.router.navigate(['/lexicon/root', r]);
   }
 
   back(): void { this.router.navigate(['/quran/surahs', this.surahId(), 'linguistics']); }

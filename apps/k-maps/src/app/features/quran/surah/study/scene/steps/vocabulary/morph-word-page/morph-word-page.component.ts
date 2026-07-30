@@ -169,9 +169,12 @@ export class MorphWordPageComponent implements OnInit {
     if (this.fromGrid) { this.router.navigate(['/quran/surahs', this.surahId, 'morphology']); return; }
     this.router.navigate(['/quran/surahs', this.surahId, 'study', this.passageNo], { queryParams: { step: 'morphology' } });
   }
+  /** Open the lexicon on this word's root — the root's own page, with a way into
+   *  every book that treats it. See `surah-morphology` for why the root is sent
+   *  as typed. */
   openRoot(): void {
     const r = (this.word()?.root_ar ?? '').replace(/\s+/g, '').trim();
-    if (r) this.router.navigate(['/quran/lexicon'], { queryParams: { root: r } });
+    if (r) this.router.navigate(['/lexicon/root', r]);
   }
 
   goTo(n: { ayah: number; word_index: number } | null | undefined): void {
