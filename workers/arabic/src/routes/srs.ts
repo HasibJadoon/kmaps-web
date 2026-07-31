@@ -1,4 +1,19 @@
-// ─── /ar/srs routes — the K-MAPS spaced-repetition engine ────────────────────
+// ─── /ar/srs routes — DEPRECATED, superseded by /core/srs/* ──────────────────
+//
+// Spaced repetition is now one store in km_core: `core_srs_deck`,
+// `core_srs_card`, `core_srs_review`, scheduled by FSRS, beside the
+// `core_srs_registry` index that already spanned every module.
+//
+// This route set put the card state in the *Arabic* database, which made
+// km_arabic the home of the Qurʾān's and the Worldview's cards, and meant no
+// single query could answer "what is due" across subjects — the one question an
+// SRS exists to answer. Its scheduler was also SM-2 filling FSRS-named columns:
+// `stability` held the interval and `difficulty` held the ease factor.
+//
+// Nothing was migrated because ar_learn_srs_card, _deck and _review are all
+// empty. These routes remain only so an old client does not 404; they should be
+// removed once nothing calls them. New work goes to /core/srs/*.
+//
 // Decks, Anki-style cards, the unified review queue and SM-2 grading.
 // Every deck and card is scoped to the authenticated user (X-KM-User-Id).
 
