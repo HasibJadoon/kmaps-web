@@ -132,13 +132,23 @@ export class SrsRepo {
    */
   due(userRef: string, opts: { module?: string; limit?: number } = {}): Promise<SrsCard[]> {
     const args: unknown[] = [userRef];
+    // `datetime(next_review_at)`, not the raw column. Two formats land in it —
+    // `createCard` writes SQLite's `datetime('now')` ("2026-07-31 19:00:00")
+    // and `applySchedule` writes the scheduler's `.toISOString()`
+    // ("2026-07-31T19:00:00.000Z") — and comparing those as text compares 'T'
+    // (0x54) against ' ' (0x20), so an ISO timestamp always sorts after a
+    // same-day SQLite one. A card scheduled for earlier *today* therefore never
+    // came due until the date rolled over, which silently disabled every
+    // learning step: Again's 1m and 10m returns were pushed to tomorrow.
     let where = `WHERE user_ref = ? AND suspended = 0
-                 AND (next_review_at IS NULL OR next_review_at <= datetime('now'))`;
+                 AND (next_review_at IS NULL
+                      OR datetime(next_review_at) <= datetime('now'))`;
     if (opts.module) { where += ` AND module = ?`; args.push(opts.module); }
     args.push(Math.min(500, Math.max(1, opts.limit ?? 50)));
     return query<SrsCard>(this.db,
       `SELECT ${CARD_COLS} ${where}
-       ORDER BY CASE WHEN next_review_at IS NULL THEN 0 ELSE 1 END, next_review_at
+       ORDER BY CASE WHEN next_review_at IS NULL THEN 0 ELSE 1 END,
+                datetime(next_review_at)
        LIMIT ?`, args);
   }
 
@@ -146,7 +156,8 @@ export class SrsRepo {
     return query<{ module: string; n: number }>(this.db,
       `SELECT module, COUNT(*) AS n FROM core_srs_card
        WHERE user_ref = ? AND suspended = 0
-         AND (next_review_at IS NULL OR next_review_at <= datetime('now'))
+         AND (next_review_at IS NULL
+              OR datetime(next_review_at) <= datetime('now'))
        GROUP BY module`, [userRef]);
   }
 

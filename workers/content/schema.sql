@@ -1,9 +1,9 @@
 -- Schema for km_content.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-07-25.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-01.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (38) ────────────────────────────────────────────────────
+-- ── Tables (38) ──────────────────────────────────────────────────
 
 CREATE TABLE cm_audio_scenes (
   scene_id           TEXT PRIMARY KEY,
@@ -534,7 +534,8 @@ CREATE TABLE cm_sources (
   updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 
--- ── Indexes (114) ───────────────────────────────────────────────────
+
+-- ── Indexes (114) ────────────────────────────────────────────────
 
 CREATE INDEX idx_cm_engines_kind ON cm_engines(kind);
 

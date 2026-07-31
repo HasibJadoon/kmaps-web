@@ -1,97 +1,9 @@
 -- Schema for km_arabic.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-07-25.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-01.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (26) ────────────────────────────────────────────────────
-
-CREATE TABLE "ar_class" (
-  id              TEXT PRIMARY KEY,
-  slug            TEXT UNIQUE,
-  title           TEXT NOT NULL,
-  description_md  TEXT,
-  class_type      TEXT NOT NULL DEFAULT 'course',
-    
-  container_id    TEXT,                           
-  curriculum_id   TEXT,                           
-  teacher_ref     TEXT NOT NULL,                  
-  core_ws_ref     TEXT NOT NULL,                  
-  status          TEXT NOT NULL DEFAULT 'draft',
-    
-  start_date      TEXT,
-  end_date        TEXT,
-  max_enrolments  INTEGER,
-  visibility      TEXT NOT NULL DEFAULT 'workspace',
-    
-  meta_json       TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (container_id)  REFERENCES "ar_curriculum_container"(id),
-  FOREIGN KEY (curriculum_id) REFERENCES "ar_curriculum"(id)
-);
-
-CREATE TABLE "ar_class_assignment" (
-  id              TEXT PRIMARY KEY,
-  class_id        TEXT NOT NULL,
-  title           TEXT NOT NULL,
-  instructions_md TEXT,
-  resource_refs   TEXT,                           
-  due_date        TEXT,
-  weight          REAL NOT NULL DEFAULT 1.0,
-  status          TEXT NOT NULL DEFAULT 'open',   
-  meta_json       TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (class_id) REFERENCES "ar_class"(id)
-);
-
-CREATE TABLE "ar_class_assignment_submission" (
-  id              TEXT PRIMARY KEY,
-  assignment_id   TEXT NOT NULL,
-  student_ref     TEXT NOT NULL,                  
-  submission_type TEXT NOT NULL DEFAULT 'text',
-    
-  content_md      TEXT,
-  cm_doc_ref      TEXT,                           
-  score           REAL,
-  feedback_md     TEXT,
-  graded_by_ref   TEXT,
-  status          TEXT NOT NULL DEFAULT 'submitted',
-    
-  submitted_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  graded_at       TEXT,
-  FOREIGN KEY (assignment_id) REFERENCES "ar_class_assignment"(id),
-  UNIQUE (assignment_id, student_ref)
-);
-
-CREATE TABLE "ar_class_enrolment" (
-  id              TEXT PRIMARY KEY,
-  class_id        TEXT NOT NULL,
-  student_ref     TEXT NOT NULL,                  
-  role            TEXT NOT NULL DEFAULT 'student',
-    
-  status          TEXT NOT NULL DEFAULT 'active',
-    
-  enrolled_at     TEXT NOT NULL DEFAULT (datetime('now')),
-  completed_at    TEXT,
-  meta_json       TEXT,
-  FOREIGN KEY (class_id) REFERENCES "ar_class"(id),
-  UNIQUE (class_id, student_ref)
-);
-
-CREATE TABLE "ar_class_resource" (
-  id              TEXT PRIMARY KEY,
-  class_id        TEXT NOT NULL,
-  resource_ref    TEXT NOT NULL,                  
-  resource_type   TEXT NOT NULL,
-    
-  resource_label  TEXT,
-  sort_order      INTEGER NOT NULL DEFAULT 0,
-  is_required     INTEGER NOT NULL DEFAULT 1,
-  added_by_ref    TEXT,                           
-  added_at        TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (class_id) REFERENCES "ar_class"(id),
-  UNIQUE (class_id, resource_ref)
-);
+-- ── Tables (23) ──────────────────────────────────────────────────
 
 CREATE TABLE "ar_curriculum" (
   id              TEXT PRIMARY KEY,
@@ -260,6 +172,10 @@ CREATE TABLE "ar_curriculum_unit_lemma_map" (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (unit_id) REFERENCES "ar_curriculum_container_unit"(id), UNIQUE (unit_id, al_lemma_ref));
 
+CREATE TABLE ar_exercises ( id TEXT PRIMARY KEY, lesson_id TEXT, unit_id TEXT, exercise_type TEXT NOT NULL DEFAULT 'mcq', prompt_ar TEXT, prompt_en TEXT, options_json TEXT, answer_json TEXT, explanation_md TEXT, vocab_id TEXT, grammar_id TEXT, al_concept_ref TEXT, qr_scope_ref TEXT, level TEXT, skill_focus TEXT, difficulty INTEGER NOT NULL DEFAULT 3, meta_json TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), FOREIGN KEY (lesson_id) REFERENCES ar_curriculum_lesson(id), FOREIGN KEY (unit_id) REFERENCES ar_curriculum_container_unit(id), FOREIGN KEY (grammar_id) REFERENCES ar_grammar(id) );
+
+CREATE TABLE ar_grammar ( id TEXT PRIMARY KEY, title TEXT NOT NULL, title_ar TEXT, al_nahw_ref TEXT, al_morph_ref TEXT, grammar_type TEXT NOT NULL DEFAULT 'nahw', level TEXT, explanation_md TEXT NOT NULL, examples_json TEXT, rule_summary TEXT, qr_scope_ref TEXT, meta_json TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')) );
+
 CREATE TABLE "ar_learn_exposure_log" (
   id             TEXT PRIMARY KEY,
   core_user_ref  TEXT NOT NULL,
@@ -302,58 +218,11 @@ CREATE TABLE "ar_learn_memlet_mastery" (
   UNIQUE (core_user_ref, lemma_ar, memlet_key)
 );
 
-CREATE TABLE "ar_learn_srs_card" (
-  id              TEXT PRIMARY KEY,               
-  deck_id         TEXT NOT NULL,
-  core_user_ref   TEXT NOT NULL,
-  resource_ref    TEXT NOT NULL,                  
-  resource_type   TEXT NOT NULL,
-    
-  
-  stability       REAL NOT NULL DEFAULT 1.0,      
-  difficulty      REAL NOT NULL DEFAULT 0.3,      
-  elapsed_days    INTEGER NOT NULL DEFAULT 0,
-  scheduled_days  INTEGER NOT NULL DEFAULT 1,
-  reps            INTEGER NOT NULL DEFAULT 0,
-  lapses          INTEGER NOT NULL DEFAULT 0,
-  card_state      TEXT NOT NULL DEFAULT 'new',
-    
-  last_review_at  TEXT,
-  next_review_at  TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now')), card_template TEXT NOT NULL DEFAULT 'freeform', front_text TEXT NOT NULL DEFAULT '', back_text TEXT NOT NULL DEFAULT '', extra_json TEXT, tags TEXT, suspended INTEGER NOT NULL DEFAULT 0,
-  FOREIGN KEY (deck_id) REFERENCES "ar_learn_srs_deck"(id),
-  UNIQUE (deck_id, resource_ref)
-);
+CREATE TABLE ar_learn_srs_card ( id TEXT PRIMARY KEY, deck_id TEXT NOT NULL, core_user_ref TEXT NOT NULL, resource_ref TEXT NOT NULL, resource_type TEXT NOT NULL, card_template TEXT NOT NULL DEFAULT 'freeform', front_text TEXT NOT NULL DEFAULT '', back_text TEXT NOT NULL DEFAULT '', extra_json TEXT, tags TEXT, suspended INTEGER NOT NULL DEFAULT 0, stability REAL NOT NULL DEFAULT 1.0, difficulty REAL NOT NULL DEFAULT 0.3, elapsed_days INTEGER NOT NULL DEFAULT 0, scheduled_days INTEGER NOT NULL DEFAULT 1, reps INTEGER NOT NULL DEFAULT 0, lapses INTEGER NOT NULL DEFAULT 0, card_state TEXT NOT NULL DEFAULT 'new', last_review_at TEXT, next_review_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), FOREIGN KEY (deck_id) REFERENCES ar_learn_srs_deck(id), UNIQUE (deck_id, resource_ref) );
 
-CREATE TABLE "ar_learn_srs_deck" (
-  id              TEXT PRIMARY KEY,
-  core_user_ref   TEXT NOT NULL,
-  core_ws_ref     TEXT,
-  title           TEXT NOT NULL,
-  deck_type       TEXT NOT NULL DEFAULT 'vocabulary',
-    
-  description     TEXT,
-  card_count      INTEGER NOT NULL DEFAULT 0,
-  is_shared       INTEGER NOT NULL DEFAULT 0,
-  meta_json       TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-);
+CREATE TABLE ar_learn_srs_deck ( id TEXT PRIMARY KEY, core_user_ref TEXT NOT NULL, core_ws_ref TEXT, title TEXT NOT NULL, deck_type TEXT NOT NULL DEFAULT 'vocabulary', description TEXT, card_count INTEGER NOT NULL DEFAULT 0, is_shared INTEGER NOT NULL DEFAULT 0, meta_json TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) );
 
-CREATE TABLE "ar_learn_srs_review" (
-  id              TEXT PRIMARY KEY,
-  card_id         TEXT NOT NULL,
-  core_user_ref   TEXT NOT NULL,
-  rating          INTEGER NOT NULL,               
-  
-  stability_after REAL,
-  difficulty_after REAL,
-  scheduled_days_after INTEGER,
-  state_after     TEXT,
-  review_duration_secs INTEGER,
-  reviewed_at     TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (card_id) REFERENCES "ar_learn_srs_card"(id)
-);
+CREATE TABLE ar_learn_srs_review ( id TEXT PRIMARY KEY, card_id TEXT NOT NULL, core_user_ref TEXT NOT NULL, rating INTEGER NOT NULL, stability_after REAL, difficulty_after REAL, scheduled_days_after INTEGER, state_after TEXT, review_duration_secs INTEGER, reviewed_at TEXT NOT NULL DEFAULT (datetime('now')), FOREIGN KEY (card_id) REFERENCES ar_learn_srs_card(id) );
 
 CREATE TABLE "ar_learn_task_completion" (
   id              TEXT PRIMARY KEY,
@@ -393,37 +262,12 @@ CREATE TABLE "ar_learn_unit_progress" (
   UNIQUE (unit_id, core_user_ref)
 );
 
--- ── Indexes (43) ───────────────────────────────────────────────────
 
-CREATE INDEX idx_ar_asub_assign  ON "ar_class_assignment_submission"(assignment_id);
-
-CREATE INDEX idx_ar_asub_student ON "ar_class_assignment_submission"(student_ref);
-
-CREATE INDEX idx_ar_ca_class  ON "ar_class_assignment"(class_id);
-
-CREATE INDEX idx_ar_ca_due    ON "ar_class_assignment"(due_date);
-
-CREATE INDEX idx_ar_ca_status ON "ar_class_assignment"(status);
-
-CREATE INDEX idx_ar_ce_class   ON "ar_class_enrolment"(class_id);
-
-CREATE INDEX idx_ar_ce_status  ON "ar_class_enrolment"(status);
-
-CREATE INDEX idx_ar_ce_student ON "ar_class_enrolment"(student_ref);
-
-CREATE INDEX idx_ar_cl_status  ON "ar_class"(status);
-
-CREATE INDEX idx_ar_cl_teacher ON "ar_class"(teacher_ref);
-
-CREATE INDEX idx_ar_cl_ws      ON "ar_class"(core_ws_ref);
+-- ── Indexes (28) ─────────────────────────────────────────────────
 
 CREATE INDEX idx_ar_con_track ON "ar_curriculum_container"(track_id);
 
 CREATE INDEX idx_ar_con_type  ON "ar_curriculum_container"(container_type);
-
-CREATE INDEX idx_ar_cr_class    ON "ar_class_resource"(class_id);
-
-CREATE INDEX idx_ar_cr_resource ON "ar_class_resource"(resource_ref);
 
 CREATE INDEX idx_ar_cu_container ON "ar_curriculum_container_unit"(container_id);
 
@@ -434,6 +278,18 @@ CREATE INDEX idx_ar_cu_type      ON "ar_curriculum_container_unit"(unit_type);
 CREATE INDEX idx_ar_cun_curr ON "ar_curriculum_unit"(curriculum_id);
 
 CREATE INDEX idx_ar_cut_unit ON "ar_curriculum_container_unit_task"(unit_id);
+
+CREATE INDEX idx_ar_exercises_grammar ON ar_exercises(grammar_id);
+
+CREATE INDEX idx_ar_exercises_lesson ON ar_exercises(lesson_id);
+
+CREATE INDEX idx_ar_exercises_unit ON ar_exercises(unit_id);
+
+CREATE INDEX idx_ar_grammar_type ON ar_grammar(grammar_type, level);
+
+CREATE INDEX idx_ar_learn_srs_card_restype ON ar_learn_srs_card(deck_id, resource_type);
+
+CREATE INDEX idx_ar_learn_srs_deck_type ON ar_learn_srs_deck(core_user_ref, deck_type);
 
 CREATE INDEX idx_ar_les_level ON "ar_curriculum_lesson"(level);
 
@@ -447,25 +303,9 @@ CREATE INDEX idx_ar_mp_skill ON "ar_learn_mastery"(skill);
 
 CREATE INDEX idx_ar_mp_user  ON "ar_learn_mastery"(core_user_ref);
 
-CREATE INDEX idx_ar_sc_deck   ON "ar_learn_srs_card"(deck_id);
-
 CREATE INDEX idx_ar_sc_domain ON "ar_curriculum_scenario"(domain_id);
 
-CREATE INDEX idx_ar_sc_due ON "ar_learn_srs_card"(core_user_ref, suspended, next_review_at);
-
-CREATE INDEX idx_ar_sc_next   ON "ar_learn_srs_card"(next_review_at);
-
-CREATE INDEX idx_ar_sc_state  ON "ar_learn_srs_card"(card_state);
-
-CREATE INDEX idx_ar_sc_user   ON "ar_learn_srs_card"(core_user_ref);
-
-CREATE INDEX idx_ar_sd_user ON "ar_learn_srs_deck"(core_user_ref);
-
-CREATE INDEX idx_ar_sr_at   ON "ar_learn_srs_review"(reviewed_at);
-
-CREATE INDEX idx_ar_sr_card ON "ar_learn_srs_review"(card_id);
-
-CREATE INDEX idx_ar_sr_user ON "ar_learn_srs_review"(core_user_ref);
+CREATE INDEX idx_ar_sc_due ON ar_learn_srs_card(core_user_ref, suspended, next_review_at);
 
 CREATE INDEX idx_ar_tc_task ON "ar_learn_task_completion"(task_id);
 

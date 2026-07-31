@@ -1,9 +1,13 @@
 -- Schema for km_studio.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-07-25.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-01.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (6) ────────────────────────────────────────────────────
+-- ── Tables (8) ───────────────────────────────────────────────────
+
+CREATE TABLE st_capture_markers ( id TEXT PRIMARY KEY, session_ref TEXT NOT NULL, point_ref TEXT NOT NULL, section_ref TEXT, take_number INTEGER NOT NULL DEFAULT 1, start_tc TEXT, end_tc TEXT, status TEXT NOT NULL DEFAULT 'good', note TEXT, clip_ref TEXT, seq INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), FOREIGN KEY (session_ref) REFERENCES st_capture_sessions(id), FOREIGN KEY (point_ref) REFERENCES st_talking_points(id) );
+
+CREATE TABLE st_capture_sessions ( id TEXT PRIMARY KEY, episode_ref TEXT NOT NULL, core_user_ref TEXT NOT NULL, concept TEXT NOT NULL DEFAULT 'talking_head', started_at TEXT, ended_at TEXT, sync_marker_tc TEXT, device_json TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), FOREIGN KEY (episode_ref) REFERENCES st_episodes(id) );
 
 CREATE TABLE st_episodes (
   id              TEXT PRIMARY KEY,
@@ -79,7 +83,12 @@ CREATE TABLE st_templates (
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- ── Indexes (9) ───────────────────────────────────────────────────
+
+-- ── Indexes (11) ─────────────────────────────────────────────────
+
+CREATE INDEX idx_st_capture_markers_session ON st_capture_markers(session_ref, seq);
+
+CREATE INDEX idx_st_capture_sessions_episode ON st_capture_sessions(episode_ref);
 
 CREATE INDEX idx_st_episodes_owner ON st_episodes(core_user_ref, created_at);
 

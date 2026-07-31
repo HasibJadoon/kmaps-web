@@ -171,10 +171,14 @@ export class SrsRegistryRepo {
   dueCards(userRef: string, limit = 50): Promise<SrsRegistryCard[]> {
     return query<SrsRegistryCard>(
       this.db,
+      // Normalised for the same reason as core_srs_card.due: `next_review_at`
+      // here is patched by callers and arrives ISO-formatted, which does not
+      // compare as text against SQLite's `datetime('now')` within a single day.
       `SELECT ${SRS_COLS}
        WHERE user_ref = ?
-         AND (next_review_at IS NULL OR next_review_at <= datetime('now'))
-       ORDER BY next_review_at ASC
+         AND (next_review_at IS NULL
+              OR datetime(next_review_at) <= datetime('now'))
+       ORDER BY datetime(next_review_at) ASC
        LIMIT ?`,
       [userRef, limit],
     );

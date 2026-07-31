@@ -1,9 +1,9 @@
 -- Schema for km_worldview.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-07-25.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-01.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (158) ────────────────────────────────────────────────────
+-- ── Tables (158) ─────────────────────────────────────────────────
 
 CREATE TABLE wv_abrahamic_morality_matrices (
   id              TEXT PRIMARY KEY,
@@ -2280,7 +2280,8 @@ CREATE TABLE wv_virtue_profiles (
   FOREIGN KEY (moral_axis_id) REFERENCES wv_moral_axes(id)
 );
 
--- ── Views (3) ─────────────────────────────────────────────────────
+
+-- ── Views (3) ────────────────────────────────────────────────────
 
 CREATE VIEW wv_unit_content AS SELECT * FROM wv_unit_attachments WHERE attachment_type = 'content' AND status = 'active' ORDER BY source_unit_id, order_index;
 
@@ -2288,7 +2289,8 @@ CREATE VIEW wv_unit_documents AS SELECT * FROM wv_unit_attachments WHERE attachm
 
 CREATE VIEW wv_unit_episodes AS SELECT * FROM wv_unit_attachments WHERE attachment_type = 'episode' AND status = 'active' ORDER BY source_unit_id, order_index;
 
--- ── Indexes (159) ───────────────────────────────────────────────────
+
+-- ── Indexes (159) ────────────────────────────────────────────────
 
 CREATE INDEX idx_wv_aff_entity ON wv_affiliations(entity_ref, entity_type);
 

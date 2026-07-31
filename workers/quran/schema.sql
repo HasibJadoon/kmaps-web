@@ -1,9 +1,9 @@
 -- Schema for km_quran.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-07-25.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-01.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (126) ────────────────────────────────────────────────────
+-- ── Tables (129) ─────────────────────────────────────────────────
 
 CREATE TABLE "qr_analysis_claim" (
   id                   TEXT PRIMARY KEY,
@@ -639,6 +639,14 @@ CREATE TABLE "qr_quran_bil_quran_link" (
   FOREIGN KEY (to_surah)   REFERENCES "qr_surah"(id)
 );
 
+CREATE TABLE qr_root_raw (
+  id TEXT PRIMARY KEY, root_uid TEXT NOT NULL, root_norm TEXT, source_code TEXT NOT NULL,
+  discipline TEXT NOT NULL, fetch_strategy TEXT NOT NULL, origin_db TEXT NOT NULL DEFAULT 'km_quran',
+  origin_table TEXT NOT NULL, origin_id TEXT NOT NULL,
+  surah INTEGER, ayah INTEGER, word_index INTEGER, word_text TEXT, lemma TEXT, pos TEXT, morphology_tag TEXT,
+  text_ar TEXT, data_json TEXT, status TEXT NOT NULL DEFAULT 'raw', created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE qr_root_registry (
   root_ar   TEXT PRIMARY KEY,
   root_uid  TEXT NOT NULL,
@@ -756,6 +764,8 @@ CREATE TABLE "qr_scope_topic" (
   FOREIGN KEY (topic_id) REFERENCES qr_topic_registry(id),
   FOREIGN KEY (surah)    REFERENCES "qr_surah"(id)
 );
+
+CREATE TABLE qr_src_code (data_slug TEXT PRIMARY KEY, code TEXT NOT NULL, discipline TEXT NOT NULL, title_en TEXT);
 
 CREATE TABLE qr_ss_discourse_citation (
   id TEXT PRIMARY KEY,
@@ -1863,7 +1873,27 @@ CREATE TABLE "qr_word_occurrence" (
   FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
--- ── Views (2) ─────────────────────────────────────────────────────
+CREATE TABLE qr_word_sense_link (
+  id            TEXT PRIMARY KEY,
+  word_occ_id   TEXT NOT NULL REFERENCES qr_word_occurrence(id),
+  al_sense_id   TEXT NOT NULL,
+  al_arc_id     TEXT,
+  surah_no      INTEGER NOT NULL,
+  ayah_no       INTEGER NOT NULL,
+  word_index    INTEGER NOT NULL,
+  ayah_key      TEXT,
+  is_contextual INTEGER NOT NULL DEFAULT 0,
+  is_primary    INTEGER NOT NULL DEFAULT 0,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  evidence_json JSON NOT NULL DEFAULT '[]' CHECK (json_valid(evidence_json)),
+  confidence    TEXT DEFAULT 'medium',
+  status        TEXT NOT NULL DEFAULT 'live',
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (word_occ_id, al_sense_id)
+);
+
+
+-- ── Views (2) ────────────────────────────────────────────────────
 
 CREATE VIEW qr_ss_vocab_violations AS
  SELECT 'term_key' kind, n.term_key key, 'qr_ss_tree_node' tbl, n.id row_id FROM qr_ss_tree_node n
@@ -1878,7 +1908,7 @@ CREATE VIEW qr_ss_vocab_violations AS
  SELECT 'segment_type', s.segment_type, 'qr_ss_occ_segment', s.id FROM qr_ss_occ_segment s
    WHERE s.segment_type IS NOT NULL AND s.segment_type NOT IN (SELECT key FROM qr_ss_vocab_register WHERE kind='segment_type' AND status='canonical')
  UNION ALL
- SELECT 'relation_label', x.relation_label, 'qr_ss_syntax_relations', x.id FROM "qr_ss_syntax_link" x
+ SELECT 'relation_label', x.relation_label, 'qr_ss_syntax_link', x.id FROM qr_ss_syntax_link x
    WHERE x.relation_label IS NOT NULL AND x.relation_label NOT IN (SELECT key FROM qr_ss_vocab_register WHERE kind='relation_label' AND status='canonical');
 
 CREATE VIEW qr_vw_surah_study_tasks_compat AS
@@ -1898,7 +1928,8 @@ FROM "qr_surah_study_task" t
 JOIN "qr_surah_study_passage" p ON p.id = t.passage_id
 LEFT JOIN "qr_surah_study_task" parent ON parent.id = t.parent_task_id;
 
--- ── Indexes (166) ───────────────────────────────────────────────────
+
+-- ── Indexes (170) ────────────────────────────────────────────────
 
 CREATE INDEX idx_iraab_block_ayah       ON "qr_irab_book_display_block" (surah_no, ayah_no);
 
@@ -2233,9 +2264,17 @@ CREATE INDEX idx_tafsir_ref_typed  ON "qr_tafsir_book_display_ref" (typed_ref);
 CREATE INDEX idx_tafsir_tag_value_norm
   ON "qr_tafsir_book_display_tag" (tag_kind, tag_value_norm);
 
+CREATE INDEX idx_wsl_ayah ON qr_word_sense_link(surah_no, ayah_no, word_index);
+
+CREATE INDEX idx_wsl_sense ON qr_word_sense_link(al_sense_id);
+
+CREATE INDEX idx_wsl_word ON qr_word_sense_link(word_occ_id, display_order);
+
 CREATE INDEX ix_qrreg_uid ON qr_root_registry(root_uid);
 
 CREATE INDEX ix_qwo_root_uid ON "qr_word_occurrence"(root_uid);
+
+CREATE INDEX qr_root_raw_root ON qr_root_raw(root_uid, source_code);
 
 CREATE UNIQUE INDEX uq_iraab_block_natural
   ON "qr_irab_book_display_block" (source_chunk_id, source_entry_id, block_type, display_order);

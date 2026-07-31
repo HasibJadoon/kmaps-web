@@ -1,9 +1,9 @@
 -- Schema for km_planner.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-07-25.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-01.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (32) ────────────────────────────────────────────────────
+-- ── Tables (32) ──────────────────────────────────────────────────
 
 CREATE TABLE cp_build_job (
   id             TEXT PRIMARY KEY,
@@ -500,7 +500,8 @@ CREATE TABLE sp_planner (
   updated_at      TEXT
 );
 
--- ── Views (5) ─────────────────────────────────────────────────────
+
+-- ── Views (5) ────────────────────────────────────────────────────
 
 CREATE VIEW cp_coupling_violation AS
 SELECT n.id AS node_id, n.domain, n.target_ref, n.layer, n.build_state, n.study_state,
@@ -562,7 +563,8 @@ FROM cp_srs_card c JOIN cp_node n ON n.id = c.node_id
 WHERE c.suspended = 0 AND (c.due_at IS NULL OR c.due_at <= strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 ORDER BY c.due_at ASC;
 
--- ── Indexes (44) ───────────────────────────────────────────────────
+
+-- ── Indexes (44) ─────────────────────────────────────────────────
 
 CREATE INDEX idx_pl_cal_plan  ON pl_calendar_entries(plan_id);
 
