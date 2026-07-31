@@ -107,14 +107,19 @@ CREATE INDEX IF NOT EXISTS core_srs_review_user ON core_srs_review(user_ref, rev
 -- FSRS ships weights averaged over many people; its advantage comes from
 -- fitting them to one person's forgetting. A fit is stored here with the
 -- evidence that justified it, so a bad fit can be explained and rolled back.
+--
+-- `weights_json` is whatever the installed ts-fsrs expects — 21 numbers under
+-- FSRS-6. The length is not constrained here on purpose: the library validates
+-- it and falls back to its own defaults, so an upgrade that changes the vector
+-- cannot be blocked by a CHECK written against an older version. Decay is not a
+-- column for the same reason; under FSRS-6 it is one of the weights.
 CREATE TABLE IF NOT EXISTS core_srs_params (
   user_ref          TEXT PRIMARY KEY,
   weights_json      TEXT NOT NULL,
-  decay             REAL NOT NULL DEFAULT -0.5,
   desired_retention REAL NOT NULL DEFAULT 0.9,
   maximum_interval  INTEGER NOT NULL DEFAULT 36500,
-  learning_steps    TEXT NOT NULL DEFAULT '[1,10]',
-  relearning_steps  TEXT NOT NULL DEFAULT '[10]',
+  learning_steps    TEXT NOT NULL DEFAULT '["1m","10m"]',
+  relearning_steps  TEXT NOT NULL DEFAULT '["10m"]',
   fitted_at         TEXT,
   fitted_reviews    INTEGER NOT NULL DEFAULT 0,
   log_loss_before   REAL,

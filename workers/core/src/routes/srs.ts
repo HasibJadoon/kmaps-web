@@ -28,18 +28,17 @@ import { requireAuth } from '../../../shared/src/auth';
 import type { CoreEnv } from '../env';
 import { SrsRepo, type SrsCard, type SrsParams } from '../repositories/srs.repo';
 import {
-  schedule, previewIntervals, evaluate, optimize, resolveParams,
-  DEFAULT_WEIGHTS, type Rating, type FsrsParams,
+  grade as gradeCard, previewDays, retrievabilityOf, evaluate, optimize,
+  buildParams, isRating, default_w,
+  type RatingValue, type StoredParams,
 } from '../srs/fsrs';
+import type { FSRSParameters } from 'ts-fsrs';
 
 const MODULES = new Set(['AR', 'AL', 'QR', 'WV', 'other']);
 const RESOURCE_TYPES = new Set([
   'vocabulary', 'grammar', 'root', 'lemma', 'word',
   'ayah', 'passage', 'concept', 'other',
 ]);
-
-const isRating = (v: unknown): v is Rating =>
-  v === 1 || v === 2 || v === 3 || v === 4;
 
 async function readJson(req: Request): Promise<Record<string, unknown> | undefined> {
   try {
@@ -54,31 +53,27 @@ async function readJson(req: Request): Promise<Record<string, unknown> | undefin
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 
-/** The learner's parameters, falling back to the published defaults. */
-function paramsOf(row: SrsParams | null): Partial<FsrsParams> {
-  if (!row) return {};
-  let weights = DEFAULT_WEIGHTS;
-  try {
-    const parsed = JSON.parse(row.weights_json);
-    if (Array.isArray(parsed)) weights = parsed as number[];
-  } catch { /* a corrupt vector falls back rather than failing the review */ }
-  const steps = (raw: string, fallback: number[]) => {
+/** The learner's stored settings, or nothing — `buildParams` supplies and
+ *  validates the defaults. */
+function storedOf(row: SrsParams | null): StoredParams | null {
+  if (!row) return null;
+  const json = <T>(raw: string | null, fallback: T): T => {
+    if (!raw) return fallback;
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed as number[] : fallback;
+      return Array.isArray(parsed) ? (parsed as T) : fallback;
     } catch { return fallback; }
   };
   return {
-    w: weights,
-    decay: row.decay,
-    desiredRetention: row.desired_retention,
-    maximumInterval: row.maximum_interval,
-    learningSteps: steps(row.learning_steps, [1, 10]),
-    relearningSteps: steps(row.relearning_steps, [10]),
+    w: json<number[] | null>(row.weights_json, null),
+    request_retention: row.desired_retention,
+    maximum_interval: row.maximum_interval,
+    learning_steps: json<string[] | null>(row.learning_steps, null),
+    relearning_steps: json<string[] | null>(row.relearning_steps, null),
   };
 }
 
-function cardToApi(c: SrsCard, params: Partial<FsrsParams>) {
+function cardToApi(c: SrsCard, params: FSRSParameters) {
   let extra: unknown = null;
   if (c.extra_json) { try { extra = JSON.parse(c.extra_json); } catch { extra = null; } }
   return {
@@ -105,14 +100,9 @@ function cardToApi(c: SrsCard, params: Partial<FsrsParams>) {
     next_review_at: c.next_review_at,
     // What each button would schedule, so a client never has to reimplement
     // the algorithm to label them.
-    preview_days: previewIntervals(
-      {
-        card_state: c.card_state, stability: c.stability, difficulty: c.difficulty,
-        scheduled_days: c.scheduled_days, learning_step: c.learning_step,
-        reps: c.reps, lapses: c.lapses, last_review_at: c.last_review_at,
-      },
-      new Date(), params,
-    ),
+    preview_days: previewDays(c, new Date(), params),
+    // What the forgetting curve says right now.
+    retrievability: retrievabilityOf(c, new Date(), params),
   };
 }
 
@@ -160,7 +150,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const deck = await repo.findDeck(id);
     if (!deck) return notFound(`deck ${id}`);
     if (deck.user_ref !== ctx.userId) return forbidden('Not your deck');
-    const params = paramsOf(await repo.params(ctx.userId));
+    const params = buildParams(storedOf(await repo.params(ctx.userId)));
     const cards = await repo.cardsInDeck(id);
     return ok(cards.map((c) => cardToApi(c, params)));
   });
@@ -199,7 +189,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
       extra_json: body?.['extra'] ? JSON.stringify(body['extra']) : null,
       tags: Array.isArray(body?.['tags']) ? (body['tags'] as string[]).join(',') : null,
     });
-    return created(cardToApi(card, paramsOf(await repo.params(ctx.userId))));
+    return created(cardToApi(card, buildParams(storedOf(await repo.params(ctx.userId)))));
   });
 
   router.get('/core/srs/cards/:id', async (req, env, { id }) => {
@@ -209,7 +199,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const card = await repo.findCard(id);
     if (!card) return notFound(`card ${id}`);
     if (card.user_ref !== ctx.userId) return forbidden('Not your card');
-    return ok(cardToApi(card, paramsOf(await repo.params(ctx.userId))));
+    return ok(cardToApi(card, buildParams(storedOf(await repo.params(ctx.userId)))));
   });
 
   router.delete('/core/srs/cards/:id', async (req, env, { id }) => {
@@ -237,39 +227,32 @@ export function srsRoutes(router: Router<CoreEnv>) {
     if (!card) return notFound(`card ${id}`);
     if (card.user_ref !== ctx.userId) return forbidden('Not your card');
 
+    const c = card;
     const body = await readJson(req);
-    const rating = body?.['rating'];
+    const rating: unknown = body?.['rating'];
     if (!isRating(rating)) {
       return badRequest('rating must be 1 (Again), 2 (Hard), 3 (Good) or 4 (Easy)');
     }
     const duration = typeof body?.['duration_secs'] === 'number'
       ? Math.round(body['duration_secs'] as number) : null;
 
-    const params = paramsOf(await repo.params(ctx.userId));
+    const params = buildParams(storedOf(await repo.params(ctx.userId)));
     const now = new Date();
-    const next = schedule(
-      {
-        card_state: card.card_state, stability: card.stability, difficulty: card.difficulty,
-        scheduled_days: card.scheduled_days, learning_step: card.learning_step,
-        reps: card.reps, lapses: card.lapses, last_review_at: card.last_review_at,
-      },
-      rating, now, params,
-    );
+    const next = gradeCard(c, rating, now, params);
 
-    // The log is written first: it is the record, and the card is a projection
-    // of it. If the update failed after a successful log the state could be
-    // rebuilt; the reverse could not.
+    // The log is written first: it is the record, and the card is only its
+    // latest projection. A log without an update can be replayed; an update
+    // without a log cannot be explained.
     await repo.logReview({
       card_id: id, user_ref: ctx.userId, rating,
-      state_before: card.card_state,
-      stability_after: next.stability, difficulty_after: next.difficulty,
-      elapsed_days: next.elapsed_days, scheduled_days_after: next.scheduled_days,
-      state_after: next.card_state, review_duration_secs: duration,
+      state_before: next.state_before,
+      stability_after: next.columns.stability, difficulty_after: next.columns.difficulty,
+      elapsed_days: next.columns.elapsed_days,
+      scheduled_days_after: next.columns.scheduled_days,
+      state_after: next.columns.card_state, review_duration_secs: duration,
       reviewed_at: now.toISOString(),
     });
-    const updated = await repo.applySchedule(id, {
-      ...next, last_review_at: now.toISOString(),
-    });
+    const updated = await repo.applySchedule(id, next.columns);
     return ok(cardToApi(updated!, params));
   });
 
@@ -283,7 +266,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const module = url.searchParams.get('module') ?? undefined;
     const limit = Number(url.searchParams.get('limit') ?? '50');
     const repo = new SrsRepo(env.DB_CORE);
-    const params = paramsOf(await repo.params(ctx.userId));
+    const params = buildParams(storedOf(await repo.params(ctx.userId)));
     const [cards, counts] = await Promise.all([
       repo.due(ctx.userId, { module, limit: Number.isFinite(limit) ? limit : 50 }),
       repo.dueCounts(ctx.userId),
@@ -313,17 +296,20 @@ export function srsRoutes(router: Router<CoreEnv>) {
     if (ctx instanceof Response) return ctx;
     const repo = new SrsRepo(env.DB_CORE);
     const row = await repo.params(ctx.userId);
-    const params = resolveParams(paramsOf(row));
+    const params = buildParams(storedOf(row));
     const log = await repo.reviewLog(ctx.userId);
     return ok({
+      algorithm: 'ts-fsrs',
       fitted: row !== null,
       fitted_at: row?.fitted_at ?? null,
+      is_default_weights: params.w.length === default_w.length
+        && params.w.every((v, i) => v === default_w[i]),
       weights: params.w,
-      decay: params.decay,
-      desired_retention: params.desiredRetention,
-      maximum_interval: params.maximumInterval,
-      learning_steps: params.learningSteps,
-      relearning_steps: params.relearningSteps,
+      request_retention: params.request_retention,
+      maximum_interval: params.maximum_interval,
+      learning_steps: params.learning_steps,
+      relearning_steps: params.relearning_steps,
+      enable_fuzz: params.enable_fuzz,
       evaluation: evaluate(log, params),
       note: row?.note ?? null,
     });
@@ -341,7 +327,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
       ? (body['minimum_reviews'] as number) : undefined;
 
     const repo = new SrsRepo(env.DB_CORE);
-    const current = paramsOf(await repo.params(ctx.userId));
+    const current = storedOf(await repo.params(ctx.userId));
     const log = await repo.reviewLog(ctx.userId);
     const result = optimize(log, current, { minimumReviews });
 

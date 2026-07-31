@@ -6,7 +6,7 @@
 
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
-import type { CardState, Rating } from '../srs/fsrs';
+import type { CardStateName, RatingValue } from '../srs/fsrs';
 
 export interface SrsDeck {
   id: string;
@@ -36,7 +36,7 @@ export interface SrsCard {
   suspended: number;
   stability: number | null;
   difficulty: number | null;
-  card_state: CardState;
+  card_state: CardStateName;
   learning_step: number;
   reps: number;
   lapses: number;
@@ -51,7 +51,6 @@ export interface SrsCard {
 export interface SrsParams {
   user_ref: string;
   weights_json: string;
-  decay: number;
   desired_retention: number;
   maximum_interval: number;
   learning_steps: string;
@@ -197,7 +196,7 @@ export class SrsRepo {
   // ── The log ────────────────────────────────────────────────────────────────
 
   async logReview(input: {
-    card_id: string; user_ref: string; rating: Rating; state_before: string;
+    card_id: string; user_ref: string; rating: RatingValue; state_before: string;
     stability_after: number; difficulty_after: number; elapsed_days: number;
     scheduled_days_after: number; state_after: string;
     review_duration_secs: number | null; reviewed_at: string;
@@ -214,7 +213,7 @@ export class SrsRepo {
   }
 
   /** The whole log for one learner — what a weight fit trains on. */
-  reviewLog(userRef: string): Promise<Array<{ card_id: string; rating: Rating; reviewed_at: string }>> {
+  reviewLog(userRef: string): Promise<Array<{ card_id: string; rating: RatingValue; reviewed_at: string }>> {
     return query(this.db,
       `SELECT card_id, rating, reviewed_at FROM core_srs_review
        WHERE user_ref = ? ORDER BY reviewed_at`, [userRef]);
@@ -230,7 +229,7 @@ export class SrsRepo {
 
   params(userRef: string): Promise<SrsParams | null> {
     return queryOne<SrsParams>(this.db,
-      `SELECT user_ref, weights_json, decay, desired_retention, maximum_interval,
+      `SELECT user_ref, weights_json, desired_retention, maximum_interval,
               learning_steps, relearning_steps, fitted_at, fitted_reviews,
               log_loss_before, log_loss_after, note
        FROM core_srs_params WHERE user_ref = ?`, [userRef]);
