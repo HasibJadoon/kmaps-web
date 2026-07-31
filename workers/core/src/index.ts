@@ -14,6 +14,7 @@ import { workspaceRoutes } from './routes/workspaces';
 import { workspaceRoleRoutes } from './routes/workspace-roles';
 import { activityRoutes } from './routes/activity';
 import { grantRoutes } from './routes/grants';
+import { srsRoutes } from './routes/srs';
 import { srsRegistryRoutes } from './routes/srs-registry';
 import { cybRoutes } from './routes/cyb';
 
@@ -32,6 +33,7 @@ workspaceRoutes(router);
 workspaceRoleRoutes(router);
 activityRoutes(router);
 grantRoutes(router);
+srsRoutes(router);           // /core/srs/* — the one spaced-repetition engine (FSRS)
 srsRegistryRoutes(router);   // GET/POST/DELETE /core/srs/registry — SRS enrollment index
 cybRoutes(router);           // GET /core/cyb/* — cybernetics control plane (monitor · tree · jobs)
 

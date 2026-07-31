@@ -87,7 +87,11 @@ export interface StageCell { root_norm: string; sub_code: string; n: number; pro
 export interface RootClaim {
   id: string; sub_code: string; band: number; source_slug: string;
   claim_type: string; status: string; promoted_to_table: string | null;
-  quote_ar: string | null; gloss_en: string | null; gloss_ur: string | null;
+  quote_ar: string | null;
+  gloss_ar: string | null; gloss_en: string | null; gloss_ur: string | null;
+  confidence: string | null;
+  /** The row's full content. See the SELECT for why it is carried. */
+  payload_json: string | null;
 }
 export interface RootMemlet {
   id: string; memlet_key: string; scope_level: string;
@@ -283,8 +287,14 @@ export class StagingRepo {
   rootClaims(root: string): Promise<RootClaim[]> {
     return query<RootClaim>(
       this.db,
+      // payload_json is the row's real content — the verbatim quote, the
+      // trilingual body, the marked terms, the citation, and the display block
+      // that says which heading level and colour the row wants. Without it a
+      // client can only render the gloss columns, which are a summary and are
+      // often empty where the payload is full.
       `SELECT id, sub_code, band, source_slug, claim_type, status,
-              promoted_to_table, quote_ar, gloss_en, gloss_ur
+              promoted_to_table, quote_ar, gloss_ar, gloss_en, gloss_ur,
+              confidence, payload_json
        FROM ar_ling_stg_claim
        WHERE root_norm = ?
        ORDER BY band, sub_code, source_slug`,
