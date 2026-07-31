@@ -5,6 +5,7 @@ import { ok, created, notFound, badRequest, paginated } from '../../../shared/sr
 import { parsePagination } from '../../../shared/src/validate';
 import type { ArLinguisticsEnv } from '../env';
 import { RootRepo } from '../repositories/root.repo';
+import { SenseRepo } from '../repositories/sense.repo';
 import { validateRootCreate } from '../schemas/root.schema';
 
 export function rootRoutes(router: Router<ArLinguisticsEnv>) {
@@ -20,6 +21,20 @@ export function rootRoutes(router: Router<ArLinguisticsEnv>) {
     const q = url.searchParams.get('q');
     if (!q) return badRequest('q param required');
     return paginated(await new RootRepo(env.DB_AL).search(q, parsePagination(url)));
+  });
+
+  // GET /al/roots/:root/senses — the 360° sense layer for one root: its senses,
+  // the arcs between them, every arc's steps, and the attestations backing all
+  // three. One call, because the arc is meaningless without its steps and a
+  // claim is meaningless without who said it.
+  //
+  // Declared before /al/roots/:id so "senses" is never matched as an id.
+  router.get('/al/roots/:root/senses', async (_req, env, { root }) => {
+    const repo = new SenseRepo(env.DB_AL);
+    const [senses, arcs, steps, attestations] = await Promise.all([
+      repo.senses(root), repo.arcs(root), repo.steps(root), repo.attestations(root),
+    ]);
+    return ok({ root, senses, arcs, steps, attestations });
   });
 
   // GET /al/roots/:id
