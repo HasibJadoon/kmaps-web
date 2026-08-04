@@ -50,13 +50,20 @@ export class WordRepo {
   }
 
   /** All occurrences of a root across the entire Quran. */
-  byRoot(root: string, opts: PaginateOptions = {}) {
-    return paginate<WordOccurrence>(
+  /**
+   * Every occurrence of a root, unpaginated.
+   *
+   * This is the whole of a root's word level and it is bounded and small — بين
+   * is the busiest in the muṣḥaf at 523. It used to go through `paginate`,
+   * which hard-clamps per_page to 100 regardless of what the caller asks for,
+   * so the endpoint returned a fifth of بين and looked complete. A ceiling
+   * raised at the route could not get past it; not paginating can.
+   */
+  byRoot(root: string): Promise<WordOccurrence[]> {
+    return query<WordOccurrence>(
       this.db,
       `SELECT ${SELECT} WHERE root = ? ORDER BY surah, ayah, word_index`,
-      `SELECT COUNT(*) AS count FROM qr_word_occurrence WHERE root = ?`,
       [root],
-      opts,
     );
   }
 }

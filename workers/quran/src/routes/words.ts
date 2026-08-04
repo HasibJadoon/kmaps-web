@@ -41,17 +41,9 @@ export function wordRoutes(router: Router<QuranEnv>) {
     const url  = new URL(req.url);
     const root = url.searchParams.get('root');
     if (!root) return badRequest('root param required');
-    // A root's occurrence list is the whole of its word level, and it is bounded
-    // and small — بين is the busiest in the muṣḥaf at 523. The shared
-    // `parsePagination` caps per_page at 100, which silently returned a fifth of
-    // بين and looked like a complete answer, so this route sets its own ceiling.
-    const paging = parsePagination(url);
-    const perPage = Math.min(
-      2000,
-      Math.max(1, parseInt(url.searchParams.get('per_page') ?? '2000', 10) || 2000),
-    );
-    return paginated(
-      await new WordRepo(env.DB_QR).byRoot(root, { ...paging, per_page: perPage }),
-    );
+    // Unpaginated on purpose: a root's occurrence list is the whole of its word
+    // level and is bounded — بين is the busiest in the muṣḥaf at 523. Returning
+    // a page of it looked like a complete answer and was not.
+    return ok(await new WordRepo(env.DB_QR).byRoot(root));
   });
 }
