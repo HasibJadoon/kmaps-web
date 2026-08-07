@@ -29,7 +29,7 @@ interface DocNote {
 }
 
 const SELECT = `
-  SELECT note_id AS id, title, body_text AS body, visibility, domain,
+  SELECT note_id AS id, note_type, title, body_text AS body, visibility, domain,
          surah, ayah_from, ayah_to, is_pinned, tags_json, folder_ref, deleted_at,
          created_at, updated_at
   FROM cm_notes`;
@@ -226,10 +226,11 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
          (note_id, core_user_ref, note_type, title, body_text, is_pinned,
           tags_json, meta_json, visibility, domain, surah, ayah_from, ayah_to,
           created_at, updated_at)
-       VALUES (?, ?, 'note', ?, ?, 0, '[]', '{}', ?, ?, ?, ?, ?,
+       VALUES (?, ?, ?, ?, ?, 0, '[]', '{}', ?, ?, ?, ?, ?,
                strftime('%Y-%m-%dT%H:%M:%SZ','now'), strftime('%Y-%m-%dT%H:%M:%SZ','now'))`,
       [
         id, owner,
+        b['note_type'] === 'ink' ? 'ink' : 'note',
         (b['title'] as string | null) ?? null,
         String(b['body'] ?? ''),
         visibility,
