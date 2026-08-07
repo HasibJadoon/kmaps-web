@@ -350,7 +350,13 @@ export function srsRoutes(router: Router<CoreEnv>) {
         resource_ref: module === 'AL'
           ? (c.node_id.split(':')[3] ?? c.node_id)
           : refOfNode(c.node_id, surah),
-        card_template: c.card_kind,
+        // The card's uniqueness key is (deck, resource_ref, card_template) and
+        // the insert is ON CONFLICT DO NOTHING. An ayah carries several cards
+        // of the same kind — 44:3 has two ss_tarjama_build — so keying the
+        // template on the kind silently dropped 9 of surah 44's 32. The source
+        // card id is unique by construction, so it is the template; the kind
+        // stays in tags and extra_json, which is where it is read from anyway.
+        card_template: c.id,
         front_text: c.front_md ?? '',
         back_text: c.back_md ?? '',
         extra_json: JSON.stringify({ cyb_card: c.id, node_id: c.node_id, kind: c.card_kind }),
