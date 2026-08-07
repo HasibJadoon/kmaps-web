@@ -84,6 +84,8 @@ function cardToApi(c: SrsCard, params: FSRSParameters) {
     resource_type: c.resource_type,
     resource_ref: c.resource_ref,
     card_template: c.card_template,
+    card_kind: (c as any).card_kind ?? null,
+    concept_domain: (c as any).concept_domain ?? null,
     front_text: c.front_text,
     back_text: c.back_text,
     extra,
@@ -106,6 +108,36 @@ function cardToApi(c: SrsCard, params: FSRSParameters) {
     retrievability: retrievabilityOf(c, new Date(), params),
   };
 }
+
+/// What a card can teach, per deck. Served to clients as data so a new kind or
+/// domain is a worker deploy, never an app release. concept_domains apply to
+/// any module's `concept` kind.
+const TAXONOMY = {
+  modules: {
+    QR: {
+      label: 'Qurʾān',
+      kinds: ['translation', 'idiom', 'expression', 'concept',
+              'vocabulary', 'structure', 'tajwid', 'context'],
+    },
+    AL: {
+      label: 'Arabic Linguistics',
+      kinds: ['root_dna', 'sarf', 'nahw', 'balagha', 'furuq',
+              'senses', 'concept'],
+    },
+    AR: {
+      label: 'Arabic',
+      kinds: ['vocabulary', 'grammar', 'expression', 'idiom', 'concept'],
+    },
+    WV: {
+      label: 'Worldview',
+      kinds: ['concept', 'argument', 'quote', 'definition'],
+    },
+    other: { label: 'Other', kinds: ['concept'] },
+  },
+  concept_domains: ['theology', 'psychology', 'sociology', 'law',
+                    'ethics', 'eschatology', 'spirituality', 'history',
+                    'economics', 'politics'],
+} as const;
 
 export function srsRoutes(router: Router<CoreEnv>) {
 
@@ -190,9 +222,14 @@ export function srsRoutes(router: Router<CoreEnv>) {
     return ok({ decks: rows });
   });
 
-  // POST /core/srs/decks/:id/copy — take a shared deck for yourself. The cards
-  // are copied fresh, not referenced: scheduling is personal, so a downloaded
-  // deck starts new for you and the author's progress is untouched.
+  // POST /core/srs/decks/:id/copy — take a shared deck's cards for yourself.
+  //
+  // Every take-path in the system files cards the same way: into the taker's
+  // own module deck, keyed on a stable source identity (the origin card's id),
+  // so only new and unique cards are added — overlapping decks, re-takes, and
+  // cards already taken from the master library all deduplicate to nothing.
+  // Scheduling is personal: your copies start new and the author's progress is
+  // untouched by your reviews.
   router.post('/core/srs/decks/:id/copy', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -207,22 +244,33 @@ export function srsRoutes(router: Router<CoreEnv>) {
       : false);
     if (!visible) return forbidden('That deck is not shared with you');
 
-    const copy = await repo.createDeck({
-      user_ref: ctx.userId,
-      title: source.title,
-      deck_type: source.deck_type,
-      description: source.description,
-    });
     const cards = await repo.cardsInDeck(id);
+
+    // What this user already holds, by source identity. A card that was itself
+    // taken carries its origin in card_template; an author's original card is
+    // its own origin, so its id is the identity.
+    const held = await query<{ card_template: string }>(
+      env.DB_CORE,
+      'SELECT card_template FROM core_srs_card WHERE user_ref = ?', [ctx.userId]);
+    const taken = new Set(held.map((h) => h.card_template));
+
+    let added = 0;
     for (const c of cards) {
+      // The origin id survives chained sharing: taking a deck whose cards were
+      // themselves taken still dedupes against the true source.
+      const origin = c.card_template && c.card_template !== 'freeform' ? c.card_template : c.id;
+      if (taken.has(origin)) continue;
       await repo.createCard({
-        deck_id: copy.id, user_ref: ctx.userId,
+        deck_id: await deckForModule(env, ctx.userId, c.module),
+        user_ref: ctx.userId,
         module: c.module, resource_type: c.resource_type, resource_ref: c.resource_ref,
-        card_template: c.card_template, front_text: c.front_text, back_text: c.back_text,
+        card_template: origin, front_text: c.front_text, back_text: c.back_text,
         extra_json: c.extra_json, tags: c.tags,
       });
+      taken.add(origin);
+      added += 1;
     }
-    return created({ deck: copy, copied: cards.length });
+    return created({ added, skipped: cards.length - added });
   });
 
   // ── Decks follow modules ──────────────────────────────────────────────────
@@ -269,6 +317,204 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const m = /:ss:(\d+):(\d+)/.exec(nodeId);
     return m ? `${m[1]}:${m[2]}` : String(surah);
   }
+
+  /// Who may publish into the shared library. Approving a card puts it under a
+  /// surah for everyone, which is an editorial act, so the list is explicit
+  /// rather than "any admin". CARD_APPROVERS is a comma-separated email list.
+  async function isApprover(env: CoreEnv, userId: string): Promise<boolean> {
+    const allowed = (env.CARD_APPROVERS ?? '')
+      .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+    if (allowed.length === 0) return false;
+    const rows = await query<{ email: string }>(
+      env.DB_CORE, 'SELECT email FROM core_users WHERE id = ?', [userId]);
+    const email = rows[0]?.email?.toLowerCase();
+    return !!email && allowed.includes(email);
+  }
+
+  // GET /core/srs/library/items?surah=44 — every library card for a scope,
+  // each marked with whether this user already has it. The client lists the
+  // ones they do not, so adding is a per-card choice rather than all-or-nothing.
+  router.get('/core/srs/library/items', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const url = new URL(req.url);
+    const surah = Number(url.searchParams.get('surah') ?? '0');
+    const like = surah > 0 ? `CYB:quran:${surah}:%` : 'CYB:%';
+    const refLike = surah > 0 ? `${surah}:%` : '%';
+
+    // What the user already holds, by the template we key copies on.
+    const held = await query<{ card_template: string }>(
+      env.DB_CORE,
+      'SELECT card_template FROM core_srs_card WHERE user_ref = ?', [ctx.userId]);
+    const taken = new Set(held.map((h) => h.card_template));
+
+    const authored = await query<{
+      id: string; node_id: string; card_kind: string;
+      front_md: string | null; back_md: string | null;
+    }>(
+      env.DB_CORE,
+      'SELECT id, node_id, card_kind, front_md, back_md FROM cyb_card WHERE node_id LIKE ?',
+      [like],
+    );
+
+    const community = await query<{
+      id: string; module: string; resource_ref: string; card_kind: string | null;
+      front_text: string; back_text: string | null; author: string | null;
+    }>(
+      env.DB_CORE,
+      `SELECT l.id, l.module, l.resource_ref, l.card_kind, l.front_text, l.back_text,
+              u.display_name AS author
+         FROM core_srs_library_card l
+         LEFT JOIN core_users u ON u.id = l.author_ref
+        WHERE l.status = 'approved' AND l.resource_ref LIKE ?`,
+      [refLike],
+    );
+
+    const items = [
+      ...authored.map((c) => ({
+        id: c.id,
+        source: 'authored',
+        module: c.node_id.startsWith('CYB:ling:') ? 'AL' : 'QR',
+        resource_ref: refOfNode(c.node_id, surah),
+        kind: c.card_kind,
+        front: c.front_md ?? '',
+        back: c.back_md ?? '',
+        author: null as string | null,
+        taken: taken.has(c.id),
+      })),
+      ...community.map((c) => ({
+        id: c.id,
+        source: 'community',
+        module: c.module,
+        resource_ref: c.resource_ref,
+        kind: c.card_kind ?? 'community',
+        front: c.front_text,
+        back: c.back_text ?? '',
+        author: c.author,
+        taken: taken.has(c.id),
+      })),
+    ];
+    return ok({ items, available: items.length, enrolled: items.filter((i) => i.taken).length });
+  });
+
+  // POST /core/srs/library/take { ids: [...] } — add just these cards.
+  router.post('/core/srs/library/take', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const body = await readJson(req);
+    const ids = Array.isArray(body?.['ids']) ? (body['ids'] as unknown[]).filter((i) => typeof i === 'string') as string[] : [];
+    if (ids.length === 0) return badRequest('ids is required');
+
+    const repo = new SrsRepo(env.DB_CORE);
+    let added = 0;
+    for (const id of ids) {
+      const authored = await query<{
+        id: string; node_id: string; card_kind: string; front_md: string | null; back_md: string | null;
+      }>(env.DB_CORE, 'SELECT id, node_id, card_kind, front_md, back_md FROM cyb_card WHERE id = ?', [id]);
+      if (authored[0]) {
+        const c = authored[0];
+        const module = c.node_id.startsWith('CYB:ling:') ? 'AL' : 'QR';
+        const m = /:ss:(\d+):(\d+)/.exec(c.node_id);
+        await repo.createCard({
+          deck_id: await deckForModule(env, ctx.userId, module),
+          user_ref: ctx.userId, module, resource_type: 'concept',
+          resource_ref: module === 'AL' ? (c.node_id.split(':')[3] ?? c.node_id) : (m ? `${m[1]}:${m[2]}` : c.node_id),
+          card_template: c.id,
+          front_text: c.front_md ?? '', back_text: c.back_md ?? '',
+          extra_json: JSON.stringify({ cyb_card: c.id, node_id: c.node_id, kind: c.card_kind }),
+          tags: c.card_kind,
+        });
+        added += 1;
+        continue;
+      }
+      const shared = await query<{
+        id: string; module: string; resource_type: string; resource_ref: string;
+        card_kind: string | null; front_text: string; back_text: string | null; tags: string | null;
+      }>(env.DB_CORE,
+        `SELECT id, module, resource_type, resource_ref, card_kind, front_text, back_text, tags
+           FROM core_srs_library_card WHERE id = ? AND status = 'approved'`, [id]);
+      if (!shared[0]) continue;
+      const c = shared[0];
+      await repo.createCard({
+        deck_id: await deckForModule(env, ctx.userId, c.module),
+        user_ref: ctx.userId, module: c.module, resource_type: c.resource_type,
+        resource_ref: c.resource_ref, card_template: c.id,
+        front_text: c.front_text, back_text: c.back_text ?? '',
+        extra_json: JSON.stringify({ library_card: c.id, kind: c.card_kind }),
+        tags: c.tags,
+      });
+      added += 1;
+    }
+    return created({ added, requested: ids.length });
+  });
+
+  // POST /core/srs/library/submit — offer a card to the shared library.
+  // It is not visible to anyone else until approved.
+  router.post('/core/srs/library/submit', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const body = await readJson(req);
+    const module = str(body?.['module']) ?? 'QR';
+    const resourceRef = str(body?.['resource_ref']);
+    const front = str(body?.['front_text']);
+    if (!resourceRef) return badRequest('resource_ref is required');
+    if (!front) return badRequest('front_text is required');
+
+    const id = typedId('SRSLIB');
+    await execute(env.DB_CORE,
+      `INSERT INTO core_srs_library_card
+         (id, author_ref, module, resource_type, resource_ref, card_kind,
+          front_text, back_text, tags, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+       ON CONFLICT (author_ref, resource_ref, front_text) DO NOTHING`,
+      [id, ctx.userId, module, str(body?.['resource_type']) ?? 'concept', resourceRef,
+       str(body?.['card_kind']) ?? null, front, str(body?.['back_text']) ?? null,
+       str(body?.['tags']) ?? null]);
+    return created({ id, status: 'pending' });
+  });
+
+  // GET /core/srs/library/pending — the approval queue. Approvers only; anyone
+  // else gets their own submissions, so an author can still track their offers.
+  router.get('/core/srs/library/pending', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const approver = await isApprover(env, ctx.userId);
+    const rows = await query(
+      env.DB_CORE,
+      approver
+        ? `SELECT l.*, u.display_name AS author, u.email AS author_email
+             FROM core_srs_library_card l
+             LEFT JOIN core_users u ON u.id = l.author_ref
+            WHERE l.status = 'pending' ORDER BY l.created_at`
+        : `SELECT l.*, NULL AS author, NULL AS author_email
+             FROM core_srs_library_card l
+            WHERE l.author_ref = ? ORDER BY l.created_at DESC`,
+      approver ? [] : [ctx.userId],
+    );
+    return ok({ submissions: rows, can_approve: approver });
+  });
+
+  // POST /core/srs/library/:id/review { decision, note? } — publish or decline.
+  router.post('/core/srs/library/:id/review', async (req, env, { id }) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    if (!(await isApprover(env, ctx.userId))) {
+      return forbidden('Only a card approver can review submissions');
+    }
+    const body = await readJson(req);
+    const decision = str(body?.['decision']);
+    if (decision !== 'approved' && decision !== 'rejected') {
+      return badRequest("decision must be 'approved' or 'rejected'");
+    }
+    await execute(env.DB_CORE,
+      `UPDATE core_srs_library_card
+          SET status = ?, review_note = ?, reviewed_by = ?,
+              reviewed_at = strftime('%Y-%m-%dT%H:%M:%SZ','now'),
+              updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
+        WHERE id = ?`,
+      [decision, str(body?.['note']) ?? null, ctx.userId, id]);
+    return ok({ id, status: decision });
+  });
 
   // GET /core/srs/library?surah=44 — what the library offers, and how much of
   // it this user has already taken.
@@ -451,6 +697,9 @@ export function srsRoutes(router: Router<CoreEnv>) {
     return created({ deck_id: deckId, imported });
   });
 
+  // GET /core/srs/taxonomy — the kind/domain vocabulary, public.
+  router.get('/core/srs/taxonomy', async () => ok(TAXONOMY));
+
   // ── Decks ──────────────────────────────────────────────────────────────────
 
   router.get('/core/srs/decks', async (req, env) => {
@@ -526,6 +775,8 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const card = await repo.createCard({
       deck_id: deckId, user_ref: ctx.userId,
       module, resource_type: resourceType, resource_ref: resourceRef,
+      card_kind: str(body?.['card_kind']) ?? null,
+      concept_domain: str(body?.['concept_domain']) ?? null,
       card_template: str(body?.['card_template']) ?? 'freeform',
       front_text: str(body?.['front_text']) ?? '',
       back_text: str(body?.['back_text']) ?? '',
@@ -608,14 +859,25 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const url = new URL(req.url);
     const module = url.searchParams.get('module') ?? undefined;
     const limit = Number(url.searchParams.get('limit') ?? '50');
+    const surah = Number(url.searchParams.get('surah') ?? '0');
+    const kind = url.searchParams.get('kind') ?? undefined;
+    const domain = url.searchParams.get('domain') ?? undefined;
     const repo = new SrsRepo(env.DB_CORE);
     const params = buildParams(storedOf(await repo.params(ctx.userId)));
     const [cards, counts] = await Promise.all([
       repo.due(ctx.userId, { module, limit: Number.isFinite(limit) ? limit : 50 }),
       repo.dueCounts(ctx.userId),
     ]);
+    // Scope filters run here rather than in every client: surah matches the
+    // ayah-key convention ("44" or "44:‥"), kind and domain are exact.
+    const scoped = cards.filter((c) => {
+      if (surah > 0 && !(c.resource_ref === String(surah) || c.resource_ref.startsWith(`${surah}:`))) return false;
+      if (kind && (c as any).card_kind !== kind) return false;
+      if (domain && (c as any).concept_domain !== domain) return false;
+      return true;
+    });
     return ok({
-      due: cards.map((c) => cardToApi(c, params)),
+      due: scoped.map((c) => cardToApi(c, params)),
       due_by_module: counts,
     });
   });

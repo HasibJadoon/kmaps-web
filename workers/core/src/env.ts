@@ -18,4 +18,6 @@ export interface CoreEnv {
   GOOGLE_CLIENT_ID?: string;
   APPLE_CLIENT_ID?: string;
   APPLE_REDIRECT_URI?: string; // required for the Apple web sign-in popup
+  /// Comma-separated emails allowed to publish cards into the shared library.
+  CARD_APPROVERS?: string;
 }

@@ -28,6 +28,11 @@ JWT_EXPIRY_SECONDS = "3600"
 # Add the services-id to this list and set the redirect when web is set up.
 APPLE_CLIENT_ID = "com.kmaps.app"
 
+# Who may publish a submitted card into the shared SRS library. Approving puts
+# a card under a surah for everyone, so this is an explicit list rather than a
+# role anyone can acquire. Comma-separated emails.
+CARD_APPROVERS = "hasibjadoon@gmail.com"
+
 # Google: the OAuth **iOS** client for bundle com.kmaps.app. No client secret —
 # the app is a public client using authorization-code + PKCE and exchanges the
 # code with Google directly, so only the resulting id_token reaches us and this

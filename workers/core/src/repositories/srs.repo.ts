@@ -69,7 +69,7 @@ FROM core_srs_deck`;
 
 const CARD_COLS = `
   id, deck_id, user_ref, module, resource_type, resource_ref, card_template,
-  front_text, back_text, extra_json, tags, suspended,
+  front_text, back_text, extra_json, tags, card_kind, concept_domain, suspended,
   stability, difficulty, card_state, learning_step, reps, lapses,
   elapsed_days, scheduled_days, last_review_at, next_review_at,
   created_at, updated_at
@@ -165,18 +165,20 @@ export class SrsRepo {
     deck_id: string; user_ref: string; module: string; resource_type: string;
     resource_ref: string; card_template?: string; front_text?: string;
     back_text?: string; extra_json?: string | null; tags?: string | null;
+    card_kind?: string | null; concept_domain?: string | null;
   }): Promise<SrsCard> {
     const id = typedId('SRSCARD');
     await execute(this.db,
       `INSERT INTO core_srs_card
          (id, deck_id, user_ref, module, resource_type, resource_ref, card_template,
-          front_text, back_text, extra_json, tags, next_review_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+          front_text, back_text, extra_json, tags, card_kind, concept_domain, next_review_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
        ON CONFLICT (deck_id, resource_ref, card_template) DO NOTHING`,
       [id, input.deck_id, input.user_ref, input.module, input.resource_type,
        input.resource_ref, input.card_template ?? 'freeform',
        input.front_text ?? '', input.back_text ?? '',
-       input.extra_json ?? null, input.tags ?? null]);
+       input.extra_json ?? null, input.tags ?? null,
+       input.card_kind ?? null, input.concept_domain ?? null]);
     const row = await queryOne<SrsCard>(this.db,
       `SELECT ${CARD_COLS} WHERE deck_id = ? AND resource_ref = ? AND card_template = ?`,
       [input.deck_id, input.resource_ref, input.card_template ?? 'freeform']);
