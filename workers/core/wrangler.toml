@@ -28,11 +28,12 @@ JWT_EXPIRY_SECONDS = "3600"
 # Add the services-id to this list and set the redirect when web is set up.
 APPLE_CLIENT_ID = "com.kmaps.app"
 
-# Google: needs an OAuth **iOS** client id for bundle com.kmaps.app from the
-# Google Cloud console, with `com.kmaps.app:/oauth2redirect` registered as its
-# redirect URI. No client secret — the app uses PKCE as a public client. Add a
-# web client id to the same list when the web app needs Google too.
-#   GOOGLE_CLIENT_ID = "REPLACE.apps.googleusercontent.com"
+# Google: the OAuth **iOS** client for bundle com.kmaps.app. No client secret —
+# the app is a public client using authorization-code + PKCE and exchanges the
+# code with Google directly, so only the resulting id_token reaches us and this
+# id is the audience we verify it against. Append a web client id to the list
+# when the web app needs Google too.
+GOOGLE_CLIENT_ID = "246205307788-tl2pl1rah47t980o219p007p4650kg5s.apps.googleusercontent.com"
 
 # Secrets (set via wrangler secret put):
 #   JWT_SECRET      — shared with km-backend-worker
