@@ -26,6 +26,7 @@ import {
 } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
 import { query, execute } from '../../../shared/src/db';
+import { typedId } from '../../../shared/src/ulid';
 import type { CoreEnv } from '../env';
 import { SrsRepo, type SrsCard, type SrsParams } from '../repositories/srs.repo';
 import {
@@ -470,7 +471,16 @@ export function srsRoutes(router: Router<CoreEnv>) {
       [id, ctx.userId, module, str(body?.['resource_type']) ?? 'concept', resourceRef,
        str(body?.['card_kind']) ?? null, front, str(body?.['back_text']) ?? null,
        str(body?.['tags']) ?? null]);
-    return created({ id, status: 'pending' });
+    // Read the row back rather than trusting the generated id: on conflict the
+    // insert does nothing, and returning the unused id hands the caller an id
+    // that does not exist — which then "approves" silently against no row.
+    const row = await query<{ id: string; status: string }>(
+      env.DB_CORE,
+      `SELECT id, status FROM core_srs_library_card
+        WHERE author_ref = ? AND resource_ref = ? AND front_text = ?`,
+      [ctx.userId, resourceRef, front]);
+    if (!row[0]) return badRequest('Could not record the submission');
+    return created({ id: row[0].id, status: row[0].status, duplicate: row[0].id !== id });
   });
 
   // GET /core/srs/library/pending — the approval queue. Approvers only; anyone
@@ -506,6 +516,9 @@ export function srsRoutes(router: Router<CoreEnv>) {
     if (decision !== 'approved' && decision !== 'rejected') {
       return badRequest("decision must be 'approved' or 'rejected'");
     }
+    const exists = await query<{ id: string }>(
+      env.DB_CORE, 'SELECT id FROM core_srs_library_card WHERE id = ?', [id]);
+    if (!exists[0]) return notFound(`submission ${id}`);
     await execute(env.DB_CORE,
       `UPDATE core_srs_library_card
           SET status = ?, review_note = ?, reviewed_by = ?,
@@ -549,18 +562,24 @@ export function srsRoutes(router: Router<CoreEnv>) {
     });
   });
 
-  // POST /core/srs/library/enroll { surah } — take the library's cards for
-  // this surah into your own deck. Idempotent: a card already enrolled is
-  // skipped, so pressing it twice does not duplicate your collection.
+  // POST /core/srs/library/enroll { surah? , scope? } — take a slice of the
+  // library. `surah` narrows to one surah's Qurʾān cards; `scope: "roots"`
+  // takes the linguistics root work, which carries no surah and so can never
+  // be reached by a surah filter; otherwise everything.
+  // Idempotent: a card already enrolled is skipped.
   router.post('/core/srs/library/enroll', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
     const body = await readJson(req);
     const surah = Number(body?.['surah'] ?? 0);
-    const like = surah > 0 ? `CYB:quran:${surah}:%` : 'CYB:%';
+    const scope = str(body?.['scope']) ?? (surah > 0 ? 'quran' : 'all');
+    const like = scope === 'roots' ? 'CYB:ling:root:%'
+      : surah > 0 ? `CYB:quran:${surah}:%`
+      : 'CYB:%';
 
     const repo = new SrsRepo(env.DB_CORE);
-    const deckId = str(body?.['deck_id']) ?? (await deckForModule(env, ctx.userId, module));
+    // No deck is chosen up front: each card's module decides its deck, so a
+    // mixed scope (quran + roots) files into the right deck per card.
 
     const source = await query<{
       id: string; node_id: string; card_kind: string;
@@ -582,7 +601,9 @@ export function srsRoutes(router: Router<CoreEnv>) {
       catch { /* ignore malformed extra */ }
     }
 
-    let created = 0;
+    // Not `created`: that is the 201 response helper, and shadowing it here
+    // turned the success path into "created is not a function".
+    let enrolled = 0;
     for (const c of source) {
       if (taken.has(c.id)) continue;
       // A node's own id says which module it belongs to, so the deck follows
@@ -608,9 +629,9 @@ export function srsRoutes(router: Router<CoreEnv>) {
         extra_json: JSON.stringify({ cyb_card: c.id, node_id: c.node_id, kind: c.card_kind }),
         tags: c.card_kind,
       });
-      created += 1;
+      enrolled += 1;
     }
-    return created({ enrolled: created, skipped: source.length - created });
+    return created({ enrolled, skipped: source.length - enrolled });
   });
 
   // ── Anki interop ──────────────────────────────────────────────────────────

@@ -31,7 +31,9 @@ APPLE_CLIENT_ID = "com.kmaps.app"
 # Who may publish a submitted card into the shared SRS library. Approving puts
 # a card under a surah for everyone, so this is an explicit list rather than a
 # role anyone can acquire. Comma-separated emails.
-CARD_APPROVERS = "hasibjadoon@gmail.com"
+# system@test.com is the full-rights test account — approver and admin.
+# Remove it from this list to disable its approval rights.
+CARD_APPROVERS = "hasibjadoon@gmail.com,system@test.com"
 
 # Google: the OAuth **iOS** client for bundle com.kmaps.app. No client secret —
 # the app is a public client using authorization-code + PKCE and exchanges the
