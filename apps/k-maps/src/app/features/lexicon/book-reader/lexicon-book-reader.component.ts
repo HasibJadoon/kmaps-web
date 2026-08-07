@@ -214,9 +214,21 @@ export class LexiconBookReaderComponent {
   });
 
   // Footnote backing text, indexed by marker number for quick tooltip lookup.
+  // The number alone does not identify a note — al-Khalīl's بجل prints «1» on
+  // each of pages 2138, 2139 and 2140 for three different notes — so this map
+  // keeps the *first* note of each number and is only a fallback. Prefer
+  // `footnoteByOrdinal` where the marker's reading position is known.
   readonly footnotesByNum = computed<Map<number, LexV2Footnote>>(() => {
     const map = new Map<number, LexV2Footnote>();
-    for (const f of this.entry()?.footnotes ?? []) map.set(f.num, f);
+    for (const f of this.entry()?.footnotes ?? []) if (!map.has(f.num)) map.set(f.num, f);
+    return map;
+  });
+
+  readonly footnoteByOrdinal = computed<Map<number, LexV2Footnote>>(() => {
+    const map = new Map<number, LexV2Footnote>();
+    for (const f of this.entry()?.footnotes ?? []) {
+      if (f.ordinal != null) map.set(f.ordinal, f);
+    }
     return map;
   });
 
@@ -242,17 +254,32 @@ export class LexiconBookReaderComponent {
     const mv = this.mufradatView();
     if (mv) return mv.footnotes;
 
-    const seen = new Map<number, string | null>();
+    // Keyed by (printed_page, num), not by num: بجل carries nine notes over
+    // three pages and numbers them 1-3, 1-5, 1 — de-duplicating on the number
+    // would drop four real notes and show the rail as if the book had five.
+    const seen = new Map<string, { num: number; text: string | null; printed_page: number | null }>();
+    const key = (num: number, page: number | null) => `${page ?? ''}:${num}`;
     for (const f of this.entry()?.footnotes ?? []) {
-      if (f && Number.isFinite(f.num)) seen.set(f.num, f.text || null);
+      if (!f || !Number.isFinite(f.num)) continue;
+      seen.set(key(f.num, f.printed_page ?? null),
+               { num: f.num, text: f.text || null, printed_page: f.printed_page ?? null });
     }
+    // Markers the book prints but whose note was never harvested still get a
+    // row, so an unbacked «N» is visible rather than quietly absent.
     for (const sec of this.entry()?.sections ?? []) {
+      const marks = sec.body?.footnote_marks;
+      if (marks) {
+        for (const m of marks) {
+          const k = key(m.num, m.printed_page ?? null);
+          if (!seen.has(k)) seen.set(k, { num: m.num, text: null, printed_page: m.printed_page ?? null });
+        }
+        continue;
+      }
       const refs = sec.body?.footnote_refs ?? this.scanFootnoteRefs(sec.text_ar);
-      for (const n of refs) if (!seen.has(n)) seen.set(n, null);
+      for (const n of refs) if (!seen.has(key(n, null))) seen.set(key(n, null), { num: n, text: null, printed_page: null });
     }
-    return [...seen.entries()]
-      .map(([num, text]) => ({ num, text, printed_page: null }))
-      .sort((a, b) => a.num - b.num);
+    return [...seen.values()]
+      .sort((a, b) => (a.printed_page ?? 0) - (b.printed_page ?? 0) || a.num - b.num);
   });
 
   private scanFootnoteRefs(text: string | null | undefined): number[] {

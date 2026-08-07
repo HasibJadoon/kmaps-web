@@ -60,7 +60,8 @@ const AR_INDIC_TO_ASCII = (s: string) =>
 /**
  * Turn an ingested `text_ar` (one line per fragment) into reader prose:
  *  - body.text        whitespace-collapsed single string
- *  - body.paragraphs  split at sentence-ending `.`, `؟`, `!`, `۔`
+ *  - body.paragraphs  split at sentence-ending `.`, `؟`, `!`, `۔` — or the whole
+ *                     text as one paragraph when `split` is false
  *  - body.footnote_refs   distinct footnote marker numbers found in text
  *  - body.marker_nums     every marker number, in reading order, repeats kept
  *
@@ -72,7 +73,7 @@ const AR_INDIC_TO_ASCII = (s: string) =>
  * No content is invented; the function only joins fragments and detects
  * inline markers that the UI already parses (« N », (( N )), [Sura/Aya]).
  */
-function computeSectionBody(text_ar: string | null | undefined): {
+function computeSectionBody(text_ar: string | null | undefined, split = true): {
   text: string; paragraphs: string[]; footnote_refs: number[]; marker_nums: number[];
 } {
   if (!text_ar) return { text: '', paragraphs: [], footnote_refs: [], marker_nums: [] };
@@ -80,10 +81,9 @@ function computeSectionBody(text_ar: string | null | undefined): {
 
   // Split at sentence terminators followed by whitespace. The lookbehind
   // keeps the terminator attached to the preceding paragraph.
-  const paragraphs = text
-    .split(/(?<=[.!؟۔])\s+/u)
-    .map(p => p.trim())
-    .filter(Boolean);
+  const paragraphs = split
+    ? text.split(/(?<=[.!؟۔])\s+/u).map(p => p.trim()).filter(Boolean)
+    : [text];
 
   // Inline footnote markers — « N », (( N )), (N), or "N-" at line start.
   const fnRe = /«\s*([0-9٠-٩]+)\s*»|\(\s*\(\s*([0-9٠-٩]+)\s*\)\s*\)/gu;
@@ -842,14 +842,18 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     // set the reading direction from data rather than assuming Arabic.
     const sectionsWithBody = effectiveSections.map((s: any) => {
       const lang = s.text_ar ? 'ar' : (s.text_en ? 'en' : null);
-      if (sections_source === 'blocks') {
-        // One block is one paragraph. Sentence-splitting Lane's prose at every
-        // period turns "(M, Mgh, Msb, K,) [aor. يَبِينُ,] inf. n. …" into a dozen
-        // fragments, because the abbreviations are periods too.
-        const text = (s.text_en ?? s.text_ar ?? '').replace(/\s+/g, ' ').trim();
-        return { ...s, lang, body: { text, paragraphs: text ? [text] : [], footnote_refs: [], marker_nums: [] } };
-      }
-      return { ...s, lang, body: computeSectionBody(s.text_ar ?? s.text_en) };
+      // One paragraph, unsplit — for blocks-sourced sections because one block
+      // *is* one paragraph, and for Latin prose because `.` is not reliably a
+      // sentence terminator in it. Sentence-splitting Lane turns "(M, Mgh,
+      // Msb, K,) [aor. يَبِينُ,] inf. n. …" into a dozen fragments; Sinai fares
+      // worse, because his prose is dense with "cf.", "e.g.", "s.th.", "o.s.",
+      // "ch." and verse references like "(Q 20:114)." — the reader was showing
+      // "…he receives (cf." and "also Q 20:114)." as two separate passages.
+      // Arabic prose is still split: `.` is genuinely rare in it, so the split
+      // lands on real sentence ends and gives the classical books the paragraph
+      // breaks the printed editions have and the ingested text does not.
+      const split = sections_source !== 'blocks' && lang !== 'en';
+      return { ...s, lang, body: computeSectionBody(s.text_ar ?? s.text_en, split) };
     });
 
     // ── Collect footnote backing text (when ingestion preserved it) ────
