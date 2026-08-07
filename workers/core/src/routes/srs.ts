@@ -225,6 +225,190 @@ export function srsRoutes(router: Router<CoreEnv>) {
     return created({ deck: copy, copied: cards.length });
   });
 
+  // ── Library: the authored cyb_card content ────────────────────────────────
+  //
+  // cyb_card holds study cards written for the content itself — root work,
+  // sentence structure, balāgha — keyed by node, e.g.
+  // "CYB:quran:44:1-9:ss:44:3:s1". It has no owner and one shared due_at, so it
+  // is a *library*, not a schedule. Enrolling copies a card into the caller's
+  // own core_srs_card, where FSRS tracks it per user.
+
+  /// The ayah key a cyb node points at ("44:3"), else the surah ("44").
+  function refOfNode(nodeId: string, surah: number): string {
+    const m = /:ss:(\d+):(\d+)/.exec(nodeId);
+    return m ? `${m[1]}:${m[2]}` : String(surah);
+  }
+
+  // GET /core/srs/library?surah=44 — what the library offers, and how much of
+  // it this user has already taken.
+  router.get('/core/srs/library', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const url = new URL(req.url);
+    const surah = Number(url.searchParams.get('surah') ?? '0');
+    const like = surah > 0 ? `CYB:quran:${surah}:%` : 'CYB:%';
+
+    const available = await query<{ n: number }>(
+      env.DB_CORE,
+      'SELECT COUNT(*) AS n FROM cyb_card WHERE node_id LIKE ?', [like],
+    );
+    const enrolled = await query<{ n: number }>(
+      env.DB_CORE,
+      `SELECT COUNT(*) AS n FROM core_srs_card
+        WHERE user_ref = ? AND resource_type = 'concept'
+          AND extra_json LIKE '%"cyb_card"%'
+          AND resource_ref LIKE ?`,
+      [ctx.userId, surah > 0 ? `${surah}:%` : '%'],
+    );
+    const kinds = await query(
+      env.DB_CORE,
+      'SELECT card_kind, COUNT(*) AS n FROM cyb_card WHERE node_id LIKE ? GROUP BY card_kind ORDER BY n DESC',
+      [like],
+    );
+    return ok({
+      available: available[0]?.n ?? 0,
+      enrolled: enrolled[0]?.n ?? 0,
+      by_kind: kinds,
+    });
+  });
+
+  // POST /core/srs/library/enroll { surah } — take the library's cards for
+  // this surah into your own deck. Idempotent: a card already enrolled is
+  // skipped, so pressing it twice does not duplicate your collection.
+  router.post('/core/srs/library/enroll', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const body = await readJson(req);
+    const surah = Number(body?.['surah'] ?? 0);
+    const like = surah > 0 ? `CYB:quran:${surah}:%` : 'CYB:%';
+
+    const repo = new SrsRepo(env.DB_CORE);
+    const deckId = str(body?.['deck_id']) ?? (await repo.defaultDeck(ctx.userId)).id;
+
+    const source = await query<{
+      id: string; node_id: string; card_kind: string;
+      front_md: string | null; back_md: string | null; tags_json: string | null;
+    }>(
+      env.DB_CORE,
+      'SELECT id, node_id, card_kind, front_md, back_md, tags_json FROM cyb_card WHERE node_id LIKE ?',
+      [like],
+    );
+
+    const mine = await query<{ extra_json: string | null }>(
+      env.DB_CORE,
+      `SELECT extra_json FROM core_srs_card WHERE user_ref = ? AND extra_json LIKE '%"cyb_card"%'`,
+      [ctx.userId],
+    );
+    const taken = new Set<string>();
+    for (const row of mine) {
+      try { const e = JSON.parse(row.extra_json ?? '{}'); if (e.cyb_card) taken.add(e.cyb_card); }
+      catch { /* ignore malformed extra */ }
+    }
+
+    let created = 0;
+    for (const c of source) {
+      if (taken.has(c.id)) continue;
+      await repo.createCard({
+        deck_id: deckId,
+        user_ref: ctx.userId,
+        module: 'QR',
+        resource_type: 'concept',
+        resource_ref: refOfNode(c.node_id, surah),
+        card_template: c.card_kind,
+        front_text: c.front_md ?? '',
+        back_text: c.back_md ?? '',
+        extra_json: JSON.stringify({ cyb_card: c.id, node_id: c.node_id, kind: c.card_kind }),
+        tags: c.card_kind,
+      });
+      created += 1;
+    }
+    return created({ enrolled: created, skipped: source.length - created, deck_id: deckId });
+  });
+
+  // ── Anki interop ──────────────────────────────────────────────────────────
+  //
+  // Plain-text notes, which is Anki's own native text format (File → Import /
+  // Export → Notes in Plain Text). Not .apkg: that is a zip around a SQLite
+  // collection plus media, which a Worker has no business assembling — and the
+  // text format round-trips the part that matters, the notes themselves.
+  //
+  // Scheduling deliberately does not travel. FSRS state is personal and
+  // relative to when *you* reviewed; importing someone's intervals would give
+  // you a schedule you never earned. Anki starts imported notes fresh too.
+
+  function tsvEscape(v: string | null | undefined): string {
+    return (v ?? '').replace(/\t/g, ' ').replace(/\r?\n/g, '<br>');
+  }
+
+  // GET /core/srs/decks/:id/export — the deck as Anki-readable TSV.
+  router.get('/core/srs/decks/:id/export', async (req, env, { id }) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const repo = new SrsRepo(env.DB_CORE);
+    const deck = await repo.findDeck(id);
+    if (!deck) return notFound(`deck ${id}`);
+    const mineOrShared = deck.user_ref === ctx.userId || deck.is_shared === 1;
+    if (!mineOrShared) return forbidden('That deck is not shared with you');
+
+    const cards = await repo.cardsInDeck(id);
+    const lines = [
+      '#separator:tab',
+      '#html:true',
+      '#tags column:3',
+      ...cards.map((c) => [
+        tsvEscape(c.front_text),
+        tsvEscape(c.back_text),
+        tsvEscape((c.tags ?? '').split(',').filter(Boolean).join(' ')),
+      ].join('\t')),
+    ];
+    return new Response(lines.join('\n'), {
+      headers: {
+        'content-type': 'text/tab-separated-values; charset=utf-8',
+        'content-disposition': `attachment; filename="${deck.title.replace(/[^\w.-]+/g, '_')}.txt"`,
+      },
+    });
+  });
+
+  // POST /core/srs/import { title?, deck_id?, text } — Anki plain-text notes
+  // into a deck of your own. Lines beginning with # are Anki's directives and
+  // are skipped; the first two columns are front and back, a third is tags.
+  router.post('/core/srs/import', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const body = await readJson(req);
+    const text = typeof body?.['text'] === 'string' ? body['text'] : '';
+    if (!text.trim()) return badRequest('text is required');
+
+    const repo = new SrsRepo(env.DB_CORE);
+    const deckId = str(body?.['deck_id'])
+      ?? (await repo.createDeck({
+            user_ref: ctx.userId,
+            title: str(body?.['title']) ?? 'Imported',
+          })).id;
+    const deck = await repo.findDeck(deckId);
+    if (!deck) return notFound(`deck ${deckId}`);
+    if (deck.user_ref !== ctx.userId) return forbidden('Not your deck');
+
+    let imported = 0;
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) continue;
+      const cols = line.split('\t');
+      const front = (cols[0] ?? '').trim();
+      if (!front) continue;
+      await repo.createCard({
+        deck_id: deckId, user_ref: ctx.userId,
+        module: 'other', resource_type: 'other',
+        resource_ref: front.slice(0, 120),
+        front_text: front,
+        back_text: (cols[1] ?? '').trim(),
+        tags: (cols[2] ?? '').trim().split(/\s+/).filter(Boolean).join(',') || null,
+      });
+      imported += 1;
+    }
+    return created({ deck_id: deckId, imported });
+  });
+
   // ── Decks ──────────────────────────────────────────────────────────────────
 
   router.get('/core/srs/decks', async (req, env) => {
