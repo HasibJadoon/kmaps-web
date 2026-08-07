@@ -225,6 +225,37 @@ export function srsRoutes(router: Router<CoreEnv>) {
     return created({ deck: copy, copied: cards.length });
   });
 
+  // ── Decks follow modules ──────────────────────────────────────────────────
+  //
+  // A user's collection is one deck per module — Qurʾān, Arabic Linguistics,
+  // Arabic, Worldview — rather than a single pile. deck_type carries the module
+  // code, so the deck for a card is derivable from the card and nothing has to
+  // be chosen at enrollment time.
+
+  const DECK_TITLES: Record<string, string> = {
+    QR: 'Qurʾān',
+    AL: 'Arabic Linguistics',
+    AR: 'Arabic',
+    WV: 'Worldview',
+    other: 'Other',
+  };
+
+  async function deckForModule(env: CoreEnv, userId: string, module: string) {
+    const code = DECK_TITLES[module] ? module : 'other';
+    const found = await query<{ id: string }>(
+      env.DB_CORE,
+      'SELECT id FROM core_srs_deck WHERE user_ref = ? AND deck_type = ? LIMIT 1',
+      [userId, code],
+    );
+    if (found[0]) return found[0].id;
+    const deck = await new SrsRepo(env.DB_CORE).createDeck({
+      user_ref: userId,
+      title: DECK_TITLES[code],
+      deck_type: code,
+    });
+    return deck.id;
+  }
+
   // ── Library: the authored cyb_card content ────────────────────────────────
   //
   // cyb_card holds study cards written for the content itself — root work,
@@ -283,7 +314,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const like = surah > 0 ? `CYB:quran:${surah}:%` : 'CYB:%';
 
     const repo = new SrsRepo(env.DB_CORE);
-    const deckId = str(body?.['deck_id']) ?? (await repo.defaultDeck(ctx.userId)).id;
+    const deckId = str(body?.['deck_id']) ?? (await deckForModule(env, ctx.userId, module));
 
     const source = await query<{
       id: string; node_id: string; card_kind: string;
@@ -308,12 +339,17 @@ export function srsRoutes(router: Router<CoreEnv>) {
     let created = 0;
     for (const c of source) {
       if (taken.has(c.id)) continue;
+      // A node's own id says which module it belongs to, so the deck follows
+      // from the card rather than from how it was enrolled.
+      const module = c.node_id.startsWith('CYB:ling:') ? 'AL' : 'QR';
       await repo.createCard({
-        deck_id: deckId,
+        deck_id: await deckForModule(env, ctx.userId, module),
         user_ref: ctx.userId,
-        module: 'QR',
+        module,
         resource_type: 'concept',
-        resource_ref: refOfNode(c.node_id, surah),
+        resource_ref: module === 'AL'
+          ? (c.node_id.split(':')[3] ?? c.node_id)
+          : refOfNode(c.node_id, surah),
         card_template: c.card_kind,
         front_text: c.front_md ?? '',
         back_text: c.back_md ?? '',
@@ -322,7 +358,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
       });
       created += 1;
     }
-    return created({ enrolled: created, skipped: source.length - created, deck_id: deckId });
+    return created({ enrolled: created, skipped: source.length - created });
   });
 
   // ── Anki interop ──────────────────────────────────────────────────────────
