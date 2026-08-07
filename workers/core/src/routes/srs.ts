@@ -25,6 +25,7 @@ import {
   ok, created, notFound, badRequest, forbidden, noContent,
 } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
+import { query, execute } from '../../../shared/src/db';
 import type { CoreEnv } from '../env';
 import { SrsRepo, type SrsCard, type SrsParams } from '../repositories/srs.repo';
 import {
@@ -107,6 +108,122 @@ function cardToApi(c: SrsCard, params: FSRSParameters) {
 }
 
 export function srsRoutes(router: Router<CoreEnv>) {
+
+  // GET /core/srs/leaderboard — everyone's progress, for the scoreboard.
+  // Signed-in users only: it publishes display names and activity, so it is
+  // shared rather than public. Mastered follows the usual convention — a card
+  // in review whose interval has reached 21 days.
+  router.get('/core/srs/leaderboard', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const rows = await query<{
+      user_id: string; display_name: string; total: number;
+      mastered: number; learning: number; reviews: number;
+    }>(
+      env.DB_CORE,
+      `SELECT u.id AS user_id,
+              u.display_name AS display_name,
+              COUNT(c.id) AS total,
+              SUM(CASE WHEN c.card_state = 'review' AND c.scheduled_days >= 21 THEN 1 ELSE 0 END) AS mastered,
+              SUM(CASE WHEN c.card_state IN ('learning','relearning') THEN 1 ELSE 0 END) AS learning,
+              COALESCE(SUM(c.reps), 0) AS reviews
+         FROM core_users u
+         JOIN core_srs_card c ON c.user_ref = u.id
+        WHERE u.account_status = 'active'
+        GROUP BY u.id, u.display_name
+        HAVING COUNT(c.id) > 0
+        ORDER BY mastered DESC, reviews DESC
+        LIMIT 100`,
+      [],
+    );
+    return ok({ leaderboard: rows, me: ctx.userId });
+  });
+
+  // PATCH /core/srs/decks/:id — share a deck, or move it into a workspace.
+  // Sharing is the author's decision, so only the owner may set it.
+  router.patch('/core/srs/decks/:id', async (req, env, { id }) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const repo = new SrsRepo(env.DB_CORE);
+    const deck = await repo.findDeck(id);
+    if (!deck) return notFound(`deck ${id}`);
+    if (deck.user_ref !== ctx.userId) return forbidden('Not your deck');
+
+    const body = await readJson(req);
+    const shared = typeof body?.['is_shared'] === 'boolean' ? (body['is_shared'] ? 1 : 0) : deck.is_shared;
+    const workspace = body?.['workspace_id'] === null
+      ? null
+      : (typeof body?.['workspace_id'] === 'string' ? body['workspace_id'] : deck.workspace_id);
+    const title = typeof body?.['title'] === 'string' && body['title'].trim()
+      ? body['title'].trim() : deck.title;
+
+    await execute(
+      env.DB_CORE,
+      `UPDATE core_srs_deck SET is_shared = ?, workspace_id = ?, title = ?,
+              updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
+        WHERE id = ?`,
+      [shared, workspace, title, id],
+    );
+    return ok(await repo.findDeck(id));
+  });
+
+  // GET /core/srs/decks/shared — decks other people published, plus any deck
+  // in a workspace this user belongs to. Your own are excluded: you already
+  // have them.
+  router.get('/core/srs/decks/shared', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const rows = await query(
+      env.DB_CORE,
+      `SELECT d.id, d.title, d.deck_type, d.description, d.workspace_id,
+              u.display_name AS author,
+              (SELECT COUNT(*) FROM core_srs_card c WHERE c.deck_id = d.id) AS card_count
+         FROM core_srs_deck d
+         JOIN core_users u ON u.id = d.user_ref
+        WHERE d.user_ref != ?
+          AND (d.is_shared = 1
+               OR d.workspace_id IN (SELECT workspace_id FROM core_workspace_members WHERE user_id = ?))
+        ORDER BY card_count DESC
+        LIMIT 100`,
+      [ctx.userId, ctx.userId],
+    );
+    return ok({ decks: rows });
+  });
+
+  // POST /core/srs/decks/:id/copy — take a shared deck for yourself. The cards
+  // are copied fresh, not referenced: scheduling is personal, so a downloaded
+  // deck starts new for you and the author's progress is untouched.
+  router.post('/core/srs/decks/:id/copy', async (req, env, { id }) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const repo = new SrsRepo(env.DB_CORE);
+    const source = await repo.findDeck(id);
+    if (!source) return notFound(`deck ${id}`);
+
+    const visible = source.user_ref === ctx.userId || source.is_shared === 1 || (source.workspace_id
+      ? (await query(env.DB_CORE,
+          'SELECT 1 AS ok FROM core_workspace_members WHERE workspace_id = ? AND user_id = ?',
+          [source.workspace_id, ctx.userId])).length > 0
+      : false);
+    if (!visible) return forbidden('That deck is not shared with you');
+
+    const copy = await repo.createDeck({
+      user_ref: ctx.userId,
+      title: source.title,
+      deck_type: source.deck_type,
+      description: source.description,
+    });
+    const cards = await repo.cardsInDeck(id);
+    for (const c of cards) {
+      await repo.createCard({
+        deck_id: copy.id, user_ref: ctx.userId,
+        module: c.module, resource_type: c.resource_type, resource_ref: c.resource_ref,
+        card_template: c.card_template, front_text: c.front_text, back_text: c.back_text,
+        extra_json: c.extra_json, tags: c.tags,
+      });
+    }
+    return created({ deck: copy, copied: cards.length });
+  });
 
   // ── Decks ──────────────────────────────────────────────────────────────────
 
