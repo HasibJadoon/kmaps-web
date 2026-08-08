@@ -1115,20 +1115,15 @@ export function srsRoutes(router: Router<CoreEnv>) {
         module,
         limit: Number.isFinite(limit) ? limit : 50,
         ahead: Number.isFinite(ahead) ? ahead : 0,
+        surah: surah > 0 ? surah : undefined,
+        kind, domain, deck,
       }),
       repo.dueCounts(ctx.userId),
     ]);
-    // Scope filters run here rather than in every client: surah matches the
+    // Scoping happens in the query, not in every client: surah matches the
     // ayah-key convention ("44" or "44:‥"), kind and domain are exact.
-    const scoped = cards.filter((c) => {
-      if (deck && c.deck_id !== deck) return false;
-      if (surah > 0 && !(c.resource_ref === String(surah) || c.resource_ref.startsWith(`${surah}:`))) return false;
-      if (kind && (c as any).card_kind !== kind) return false;
-      if (domain && (c as any).concept_domain !== domain) return false;
-      return true;
-    });
     return ok({
-      due: scoped.map((c) => cardToApi(c, params)),
+      due: cards.map((c) => cardToApi(c, params)),
       due_by_module: counts,
       ahead_days: ahead > 0 ? Math.floor(ahead) : 0,
     });

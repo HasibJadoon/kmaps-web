@@ -138,7 +138,10 @@ export class SrsRepo {
    * elapsed time, so an early answer earns a smaller interval than a punctual
    * one rather than being silently treated as if it were due.
    */
-  due(userRef: string, opts: { module?: string; limit?: number; ahead?: number } = {}): Promise<SrsCard[]> {
+  due(userRef: string, opts: {
+    module?: string; limit?: number; ahead?: number;
+    surah?: number; kind?: string; domain?: string; deck?: string;
+  } = {}): Promise<SrsCard[]> {
     const args: unknown[] = [userRef];
     // Clamped and floored before it reaches SQL: D1 cannot bind a modifier
     // string, so the horizon is interpolated, and only an integer may be.
@@ -156,6 +159,18 @@ export class SrsRepo {
                  AND (next_review_at IS NULL
                       OR datetime(next_review_at) <= ${horizon})`;
     if (opts.module) { where += ` AND module = ?`; args.push(opts.module); }
+    // Scope narrows here, not after the rows come back. Filtering in the route
+    // meant LIMIT counted rows the caller had already excluded: asking for one
+    // card in surah 44 fetched the single soonest card in the whole collection
+    // and then discarded it for being surah 6, answering "nothing due" to a
+    // surah with plenty due.
+    if (opts.surah && opts.surah > 0) {
+      where += ` AND (resource_ref = ? OR resource_ref LIKE ?)`;
+      args.push(String(opts.surah), `${opts.surah}:%`);
+    }
+    if (opts.kind) { where += ` AND card_kind = ?`; args.push(opts.kind); }
+    if (opts.domain) { where += ` AND concept_domain = ?`; args.push(opts.domain); }
+    if (opts.deck) { where += ` AND deck_id = ?`; args.push(opts.deck); }
     args.push(Math.min(500, Math.max(1, opts.limit ?? 50)));
     return query<SrsCard>(this.db,
       `SELECT ${CARD_COLS} ${where}

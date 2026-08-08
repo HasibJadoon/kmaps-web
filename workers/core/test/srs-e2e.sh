@@ -95,13 +95,16 @@ check "F4 linguistics queue holds only linguistics" "True" \
   "$(curl -s -H "$A" "$B/srs/review?module=AL&limit=500&ahead=3650" | python3 -c "import sys,json;d=json.load(sys.stdin)['data']['due'];print(len(d)>=25 and all(c['module']=='AL' for c in d))")"
 
 echo "── G. Grading and FSRS ───────────────────────────────────"
-CARD=$(curl -s -H "$A" "$B/srs/review?module=QR&surah=44&limit=1" | j "['data']['due'][0]['id']")
-check "G1 a due card has preview intervals" "True" \
-  "$(curl -s -H "$A" "$B/srs/review?module=QR&surah=44&limit=1" | python3 -c "import sys,json;d=json.load(sys.stdin)['data']['due'][0];print(d.get('preview_days') is not None)")"
+# Reachable, not necessarily due. This section grades a card every run, so
+# insisting on a *due* one meant the suite eventually emptied the queue it
+# depends on and reported four broken endpoints that were fine.
+CARD=$(curl -s -H "$A" "$B/srs/review?module=QR&surah=44&limit=1&ahead=3650" | j "['data']['due'][0]['id']")
+check "G1 a card carries preview intervals" "True" \
+  "$(curl -s -H "$A" "$B/srs/review?module=QR&surah=44&limit=1&ahead=3650" | python3 -c "import sys,json;d=json.load(sys.stdin)['data']['due'][0];print(d.get('preview_days') is not None)")"
 check "G2 grading Good schedules the card" "True" \
   "$(curl -s -X POST -H "$A" -H 'content-type: application/json' -d '{"rating":3,"duration_secs":4}' $B/srs/cards/$CARD/grade | python3 -c 'import sys,json;d=json.load(sys.stdin)["data"];print(d["card_state"] in ("learning","review") and d["next_review_at"] is not None)')"
-checkne "G3 graded card left the due queue" "$CARD" \
-  "$(curl -s -H "$A" "$B/srs/review?module=QR&surah=44&limit=1" | j "['data']['due'][0]['id']")"
+check "G3 graded card left the due queue" "True" \
+  "$(curl -s -H "$A" "$B/srs/review?module=QR&surah=44&limit=200" | python3 -c "import sys,json;d=json.load(sys.stdin)['data']['due'];print(all(c['id']!=sys.argv[1] for c in d))" "$CARD")"
 check "G4 invalid rating is rejected" "400" \
   "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "$A" -H 'content-type: application/json' -d '{"rating":9}' $B/srs/cards/$CARD/grade)"
 
