@@ -117,8 +117,9 @@ const TAXONOMY = {
   modules: {
     QR: {
       label: 'Qurʾān',
-      kinds: ['translation', 'idiom', 'expression', 'concept',
-              'vocabulary', 'structure', 'tajwid', 'context'],
+      kinds: ['vocabulary', 'idiom', 'expression', 'translation',
+              'sarf', 'nahw', 'balagha', 'irab',
+              'structure', 'context', 'tajwid', 'concept'],
     },
     AL: {
       label: 'Arabic Linguistics',
