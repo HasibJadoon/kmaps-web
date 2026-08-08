@@ -939,6 +939,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const surah = Number(url.searchParams.get('surah') ?? '0');
     const kind = url.searchParams.get('kind') ?? undefined;
     const domain = url.searchParams.get('domain') ?? undefined;
+    const deck = url.searchParams.get('deck') ?? undefined;
     const repo = new SrsRepo(env.DB_CORE);
     const params = buildParams(storedOf(await repo.params(ctx.userId)));
     const [cards, counts] = await Promise.all([
@@ -948,6 +949,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     // Scope filters run here rather than in every client: surah matches the
     // ayah-key convention ("44" or "44:‥"), kind and domain are exact.
     const scoped = cards.filter((c) => {
+      if (deck && c.deck_id !== deck) return false;
       if (surah > 0 && !(c.resource_ref === String(surah) || c.resource_ref.startsWith(`${surah}:`))) return false;
       if (kind && (c as any).card_kind !== kind) return false;
       if (domain && (c as any).concept_domain !== domain) return false;
