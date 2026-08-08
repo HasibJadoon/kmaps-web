@@ -129,9 +129,21 @@ export class SrsRepo {
   /**
    * The unified due queue. One query, every module — this is the question the
    * split store could not answer.
+   *
+   * `ahead` widens the horizon by that many days, which is Anki's "review
+   * ahead": when today's work is finished the queue is empty, but the cards
+   * themselves still exist, and someone with time left should be able to reach
+   * them. Nothing else changes — the cards come back in the same order, soonest
+   * first, and grading them early is an ordinary review. FSRS reads the real
+   * elapsed time, so an early answer earns a smaller interval than a punctual
+   * one rather than being silently treated as if it were due.
    */
-  due(userRef: string, opts: { module?: string; limit?: number } = {}): Promise<SrsCard[]> {
+  due(userRef: string, opts: { module?: string; limit?: number; ahead?: number } = {}): Promise<SrsCard[]> {
     const args: unknown[] = [userRef];
+    // Clamped and floored before it reaches SQL: D1 cannot bind a modifier
+    // string, so the horizon is interpolated, and only an integer may be.
+    const ahead = Math.min(3650, Math.max(0, Math.floor(opts.ahead ?? 0)));
+    const horizon = ahead > 0 ? `datetime('now', '+${ahead} day')` : `datetime('now')`;
     // `datetime(next_review_at)`, not the raw column. Two formats land in it —
     // `createCard` writes SQLite's `datetime('now')` ("2026-07-31 19:00:00")
     // and `applySchedule` writes the scheduler's `.toISOString()`
@@ -142,7 +154,7 @@ export class SrsRepo {
     // learning step: Again's 1m and 10m returns were pushed to tomorrow.
     let where = `WHERE user_ref = ? AND suspended = 0
                  AND (next_review_at IS NULL
-                      OR datetime(next_review_at) <= datetime('now'))`;
+                      OR datetime(next_review_at) <= ${horizon})`;
     if (opts.module) { where += ` AND module = ?`; args.push(opts.module); }
     args.push(Math.min(500, Math.max(1, opts.limit ?? 50)));
     return query<SrsCard>(this.db,

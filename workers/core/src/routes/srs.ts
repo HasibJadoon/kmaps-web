@@ -991,6 +991,12 @@ export function srsRoutes(router: Router<CoreEnv>) {
   // ── The queue ──────────────────────────────────────────────────────────────
 
   // GET /core/srs/review?module=QR&limit=50 — one queue, every subject.
+  //
+  // `ahead=<days>` is Anki's review-ahead: the same queue with the horizon
+  // pushed forward, so a finished day can be extended instead of ending at an
+  // empty screen. `due_by_module` deliberately keeps counting only what is
+  // genuinely due — studying ahead must not inflate the number that tells
+  // someone whether they are done.
   router.get('/core/srs/review', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -1001,10 +1007,15 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const kind = url.searchParams.get('kind') ?? undefined;
     const domain = url.searchParams.get('domain') ?? undefined;
     const deck = url.searchParams.get('deck') ?? undefined;
+    const ahead = Number(url.searchParams.get('ahead') ?? '0');
     const repo = new SrsRepo(env.DB_CORE);
     const params = buildParams(storedOf(await repo.params(ctx.userId)));
     const [cards, counts] = await Promise.all([
-      repo.due(ctx.userId, { module, limit: Number.isFinite(limit) ? limit : 50 }),
+      repo.due(ctx.userId, {
+        module,
+        limit: Number.isFinite(limit) ? limit : 50,
+        ahead: Number.isFinite(ahead) ? ahead : 0,
+      }),
       repo.dueCounts(ctx.userId),
     ]);
     // Scope filters run here rather than in every client: surah matches the
@@ -1019,6 +1030,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     return ok({
       due: scoped.map((c) => cardToApi(c, params)),
       due_by_module: counts,
+      ahead_days: ahead > 0 ? Math.floor(ahead) : 0,
     });
   });
 
