@@ -671,6 +671,67 @@ export function srsRoutes(router: Router<CoreEnv>) {
     return ok(updated ? cardToApi(updated, params) : null);
   });
 
+  // GET /core/srs/stats/detail — the numbers that show whether the scheduler
+  // is working: what was reviewed and when, what is coming, how intervals are
+  // distributed, and how often the answer was remembered.
+  //
+  // Retention is measured on *review*-state cards only. Counting learning
+  // steps would flatter it — a card seen three times in ten minutes is not
+  // evidence of memory.
+  router.get('/core/srs/stats/detail', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+
+    const [heatmap, forecast, intervals, ratings, retention, streak] = await Promise.all([
+      query(env.DB_CORE,
+        `SELECT substr(reviewed_at, 1, 10) AS day, COUNT(*) AS n
+           FROM core_srs_review
+          WHERE user_ref = ? AND reviewed_at >= date('now', '-365 day')
+          GROUP BY day ORDER BY day`, [ctx.userId]),
+      query(env.DB_CORE,
+        `SELECT substr(next_review_at, 1, 10) AS day, COUNT(*) AS n
+           FROM core_srs_card
+          WHERE user_ref = ? AND suspended = 0 AND next_review_at IS NOT NULL
+            AND date(next_review_at) <= date('now', '+30 day')
+          GROUP BY day ORDER BY day`, [ctx.userId]),
+      query(env.DB_CORE,
+        `SELECT CASE
+                  WHEN scheduled_days < 1   THEN 'learning'
+                  WHEN scheduled_days < 7   THEN '1-6d'
+                  WHEN scheduled_days < 21  THEN '1-3w'
+                  WHEN scheduled_days < 90  THEN '3w-3m'
+                  WHEN scheduled_days < 365 THEN '3m-1y'
+                  ELSE '1y+' END AS bucket,
+                COUNT(*) AS n
+           FROM core_srs_card
+          WHERE user_ref = ? AND card_state = 'review'
+          GROUP BY bucket`, [ctx.userId]),
+      query(env.DB_CORE,
+        `SELECT rating, COUNT(*) AS n FROM core_srs_review
+          WHERE user_ref = ? GROUP BY rating ORDER BY rating`, [ctx.userId]),
+      query<{ total: number; remembered: number }>(env.DB_CORE,
+        `SELECT COUNT(*) AS total,
+                SUM(CASE WHEN rating > 1 THEN 1 ELSE 0 END) AS remembered
+           FROM core_srs_review
+          WHERE user_ref = ? AND state_before = 'review'`, [ctx.userId]),
+      query<{ days: number }>(env.DB_CORE,
+        `SELECT COUNT(*) AS days FROM (
+           SELECT DISTINCT substr(reviewed_at, 1, 10) AS day
+             FROM core_srs_review WHERE user_ref = ?)`, [ctx.userId]),
+    ]);
+
+    const r = retention[0];
+    return ok({
+      heatmap,
+      forecast,
+      intervals,
+      ratings,
+      days_studied: streak[0]?.days ?? 0,
+      retention: r && r.total > 0 ? r.remembered / r.total : null,
+      reviews_total: (heatmap as { n: number }[]).reduce((a, b) => a + b.n, 0),
+    });
+  });
+
   // ── Anki interop ──────────────────────────────────────────────────────────
   //
   // Plain-text notes, which is Anki's own native text format (File → Import /
