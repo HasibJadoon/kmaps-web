@@ -5,10 +5,23 @@
 # nothing, so the negative cases (auth, permission, idempotency) matter most.
 
 S="$(dirname "$0")"
-T=$(cat "$S/tok.txt")
-A="Authorization: Bearer $T"
 B=https://backend.k-maps.com/api/core
 PASS=0; FAIL=0
+
+# The suite logs itself in. It used to read a tok.txt that was never in the
+# repo, so a fresh checkout produced 39 failures that all looked like broken
+# endpoints and were really one missing file. The password stays out of the
+# repo: pass it in the environment.
+: "${KMAPS_TEST_EMAIL:=system@test.com}"
+if [ -z "$KMAPS_TEST_PASSWORD" ]; then
+  echo "KMAPS_TEST_PASSWORD is not set — the suite signs in as $KMAPS_TEST_EMAIL." >&2
+  exit 2
+fi
+T=$(curl -s -X POST "$B/auth/login" -H 'content-type: application/json' \
+      -d "{\"email\":\"$KMAPS_TEST_EMAIL\",\"password\":\"$KMAPS_TEST_PASSWORD\"}" \
+    | python3 -c 'import sys,json;print(json.load(sys.stdin).get("data",{}).get("token",""))')
+if [ -z "$T" ]; then echo "Sign-in failed for $KMAPS_TEST_EMAIL." >&2; exit 2; fi
+A="Authorization: Bearer $T"
 
 # The path is passed as argv, not interpolated into the source: embedding
 # "['data']['x']" inside a quoted -c string terminates the Python string.
@@ -40,18 +53,22 @@ check "B3 concept domains include law + ethics" "True" \
   "$(curl -s -H "$A" $B/srs/taxonomy | python3 -c "import sys,json;d=json.load(sys.stdin)['data']['concept_domains'];print('law' in d and 'ethics' in d)")"
 
 echo "── C. Master library ─────────────────────────────────────"
-check "C1 surah 44 offers 32 cards" "32" \
-  "$(curl -s -H "$A" "$B/srs/library/items?surah=44" | j "['data']['available']")"
-check "C2 held count is consistent" "32" \
-  "$(curl -s -H "$A" "$B/srs/library/items?surah=44" | j "['data']['enrolled']")"
+# Counts are read, not hardcoded. The suite used to assert "32", which was
+# true only of an account nobody had used: one approved submission later,
+# every count-based case failed and pointed at endpoints that were fine.
+LIB44=$(curl -s -H "$A" "$B/srs/library/items?surah=44" | j "['data']['available']")
+check "C1 surah 44 offers a library" "True" \
+  "$([ "${LIB44:-0}" -ge 32 ] && echo True)"
+check "C2 nothing is held that is not offered" "True" \
+  "$(curl -s -H "$A" "$B/srs/library/items?surah=44" | python3 -c "import sys,json;d=json.load(sys.stdin)['data'];print(d['enrolled']<=d['available'])")"
 
 echo "── D. Enrollment and dedup ───────────────────────────────"
 check "D1 enrolling surah 44 leaves 32 held (add or skip)" "32" \
   "$(curl -s -X POST -H "$A" -H 'content-type: application/json' -d '{"surah":44}' $B/srs/library/enroll | python3 -c "import sys,json;d=json.load(sys.stdin)['data'];print(d['enrolled']+d['skipped'])")"
 check "D2 re-enrolling adds nothing" "0" \
   "$(curl -s -X POST -H "$A" -H 'content-type: application/json' -d '{"surah":44}' $B/srs/library/enroll | j "['data']['enrolled']")"
-check "D3 library now reports 32 held" "32" \
-  "$(curl -s -H "$A" "$B/srs/library/items?surah=44" | j "['data']['enrolled']")"
+check "D3 enrolling leaves every offered card held" "True" \
+  "$(curl -s -H "$A" "$B/srs/library/items?surah=44" | python3 -c "import sys,json;d=json.load(sys.stdin)['data'];print(d['enrolled']==d['available'])")"
 check "D4 roots present in linguistics" "25" \
   "$(curl -s -X POST -H "$A" -H 'content-type: application/json' -d '{"scope":"roots"}' $B/srs/library/enroll | python3 -c "import sys,json;d=json.load(sys.stdin)['data'];print(d['enrolled']+d['skipped'])")"
 
@@ -62,14 +79,20 @@ check "E2 an Arabic Linguistics deck exists" "True" \
   "$(curl -s -H "$A" $B/srs/decks | python3 -c "import sys,json;print(any(d['deck_type']=='AL' for d in json.load(sys.stdin)['data']))")"
 
 echo "── F. Queue scoping ──────────────────────────────────────"
-check "F1 surah 44 queue is populated" "True" \
-  "$(curl -s -H "$A" "$B/srs/review?module=QR&surah=44&limit=200" | python3 -c "import sys,json;print(len(json.load(sys.stdin)['data']['due'])>=30)")"
+# The horizon, not today's queue. Asserting on what happens to be *due* makes
+# the case fail the moment someone studies — which is the suite's own doing,
+# since section G grades cards. What must hold is that the surah's cards are
+# all reachable, whatever their schedule says.
+check "F1 surah 44 holds its whole library" "True" \
+  "$(curl -s -H "$A" "$B/srs/review?module=QR&surah=44&limit=500&ahead=3650" | python3 -c "import sys,json;print(len(json.load(sys.stdin)['data']['due'])>=32)")"
 check "F2 a surah with no cards is empty" "0" \
   "$(curl -s -H "$A" "$B/srs/review?module=QR&surah=2&limit=200" | python3 -c "import sys,json;print(len(json.load(sys.stdin)['data']['due']))")"
 check "F3 every surah-44 card references 44" "True" \
   "$(curl -s -H "$A" "$B/srs/review?module=QR&surah=44&limit=200" | python3 -c "import sys,json;d=json.load(sys.stdin)['data']['due'];print(all(c['resource_ref'].startswith('44') for c in d))")"
-check "F4 linguistics queue is separate" "25" \
-  "$(curl -s -H "$A" "$B/srs/review?module=AL&limit=200" | python3 -c "import sys,json;print(len(json.load(sys.stdin)['data']['due']))")"
+# "Separate" is a property, not a number: nothing from another module may
+# appear in this queue, and the linguistics material must all be there.
+check "F4 linguistics queue holds only linguistics" "True" \
+  "$(curl -s -H "$A" "$B/srs/review?module=AL&limit=500&ahead=3650" | python3 -c "import sys,json;d=json.load(sys.stdin)['data']['due'];print(len(d)>=25 and all(c['module']=='AL' for c in d))")"
 
 echo "── G. Grading and FSRS ───────────────────────────────────"
 CARD=$(curl -s -H "$A" "$B/srs/review?module=QR&surah=44&limit=1" | j "['data']['due'][0]['id']")
@@ -85,24 +108,32 @@ check "G4 invalid rating is rejected" "400" \
 echo "── H. Own cards, taxonomy-tagged ─────────────────────────"
 check "H1 create a theology concept card" "True" \
   "$(curl -s -X POST -H "$A" -H 'content-type: application/json' -d '{"module":"QR","resource_type":"ayah","resource_ref":"44:4","front_text":"What is decided on that night?","back_text":"Every wise matter","card_kind":"concept","concept_domain":"theology"}' $B/srs/cards | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('ok',False))")"
+# The filter is what is under test, not the schedule: these cards get graded
+# by section G and by every earlier run, so a due-only query eventually finds
+# nothing and blames the filter for it.
 check "H2 kind filter finds it" "True" \
-  "$(curl -s -H "$A" "$B/srs/review?module=QR&surah=44&kind=concept&limit=50" | python3 -c "import sys,json;d=json.load(sys.stdin)['data']['due'];print(any(c.get('card_kind')=='concept' for c in d))")"
+  "$(curl -s -H "$A" "$B/srs/review?module=QR&surah=44&kind=concept&limit=500&ahead=3650" | python3 -c "import sys,json;d=json.load(sys.stdin)['data']['due'];print(any(c.get('card_kind')=='concept' for c in d))")"
 check "H3 domain filter narrows further" "True" \
-  "$(curl -s -H "$A" "$B/srs/review?module=QR&surah=44&kind=concept&domain=theology&limit=50" | python3 -c "import sys,json;d=json.load(sys.stdin)['data']['due'];print(all(c.get('concept_domain')=='theology' for c in d) and len(d)>0)")"
+  "$(curl -s -H "$A" "$B/srs/review?module=QR&surah=44&kind=concept&domain=theology&limit=500&ahead=3650" | python3 -c "import sys,json;d=json.load(sys.stdin)['data']['due'];print(all(c.get('concept_domain')=='theology' for c in d) and len(d)>0)")"
 check "H4 a card with no module is rejected" "400" \
   "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "$A" -H 'content-type: application/json' -d '{"resource_ref":"44:9","front_text":"x"}' $B/srs/cards)"
 
 echo "── I. Submissions and approval ───────────────────────────"
-SUB=$(curl -s -X POST -H "$A" -H 'content-type: application/json' -d '{"module":"QR","resource_ref":"44:5","front_text":"Test submission — mercy from your Lord","back_text":"رَحْمَةً مِّن رَّبِّكَ","card_kind":"translation"}' $B/srs/library/submit | j "['data']['id']")
+# A distinct front per run. A fixed one deduplicates against the row an
+# earlier run already published, so approval and "take" both became no-ops
+# that the suite then read as regressions.
+STAMP=$(date +%s)
+BEFORE=$(curl -s -H "$A" "$B/srs/library/items?surah=44" | j "['data']['available']")
+SUB=$(curl -s -X POST -H "$A" -H 'content-type: application/json' -d "{\"module\":\"QR\",\"resource_ref\":\"44:5\",\"front_text\":\"Test submission $STAMP — mercy from your Lord\",\"back_text\":\"رَحْمَةً مِّن رَّبِّكَ\",\"card_kind\":\"translation\"}" $B/srs/library/submit | j "['data']['id']")
 check "I1 submission is created pending" "True" \
   "$(echo "$SUB" | grep -q 'SRSLIB' && echo True)"
 check "I2 approver sees the queue" "True" \
   "$(curl -s -H "$A" $B/srs/library/pending | j "['data']['can_approve']")"
-check "I3 pending card is NOT yet in the library" "32" \
+check "I3 pending card is NOT yet in the library" "$BEFORE" \
   "$(curl -s -H "$A" "$B/srs/library/items?surah=44" | j "['data']['available']")"
 check "I4 approving succeeds" "approved" \
   "$(curl -s -X POST -H "$A" -H 'content-type: application/json' -d '{"decision":"approved"}' $B/srs/library/$SUB/review | j "['data']['status']")"
-check "I5 approved card joins the library" "33" \
+check "I5 approved card joins the library" "$((BEFORE + 1))" \
   "$(curl -s -H "$A" "$B/srs/library/items?surah=44" | j "['data']['available']")"
 check "I6 bad decision value is rejected" "400" \
   "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "$A" -H 'content-type: application/json' -d '{"decision":"maybe"}' $B/srs/library/$SUB/review)"
@@ -111,8 +142,10 @@ echo "── J. Selective take ────────────────�
 NEWID=$(curl -s -H "$A" "$B/srs/library/items?surah=44" | python3 -c "import sys,json;d=[i for i in json.load(sys.stdin)['data']['items'] if not i['taken']];print(d[0]['id'] if d else '')")
 check "J1 taking one card adds one" "1" \
   "$(curl -s -X POST -H "$A" -H 'content-type: application/json' -d "{\"ids\":[\"$NEWID\"]}" $B/srs/library/take | j "['data']['added']")"
-check "J2 held count matches library" "33" \
-  "$(curl -s -H "$A" "$B/srs/library/items?surah=44" | j "['data']['enrolled']")"
+check "J1b taking it again adds nothing" "0" \
+  "$(curl -s -X POST -H "$A" -H 'content-type: application/json' -d "{\"ids\":[\"$NEWID\"]}" $B/srs/library/take | j "['data']['added']")"
+check "J2 held count matches library" "True" \
+  "$(curl -s -H "$A" "$B/srs/library/items?surah=44" | python3 -c "import sys,json;d=json.load(sys.stdin)['data'];print(d['enrolled']==d['available'])")"
 check "J3 empty ids is rejected" "400" \
   "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "$A" -H 'content-type: application/json' -d '{"ids":[]}' $B/srs/library/take)"
 
@@ -144,6 +177,19 @@ check "M2 export has one row per card" "True" \
   "$(curl -s -H "$A" $B/srs/decks/$DECK/export | tail -n +4 | wc -l | awk '{print ($1>30)?"True":"False"}')"
 check "M3 import creates cards" "2" \
   "$(curl -s -X POST -H "$A" -H 'content-type: application/json' -d '{"title":"Anki import test","text":"#separator:tab\nfront one\tback one\nfront two\tback two"}' $B/srs/import | j "['data']['imported']")"
+
+echo "── Teardown ──────────────────────────────────────────────"
+# M3 creates a deck every run. Without this the account accumulated five
+# "Anki import test" decks that buried the real ones on the SRS home screen —
+# a test that dirties the thing it tests is a test you stop trusting.
+LEFTOVER=$(curl -s -H "$A" $B/srs/decks \
+  | python3 -c 'import sys,json;print("\n".join(d["id"] for d in json.load(sys.stdin)["data"] if d["title"]=="Anki import test"))')
+REMOVED=0
+for D in $LEFTOVER; do
+  curl -s -o /dev/null -X DELETE -H "$A" "$B/srs/decks/$D" && REMOVED=$((REMOVED+1))
+done
+check "T1 import decks cleaned up" "0" \
+  "$(curl -s -H "$A" $B/srs/decks | python3 -c 'import sys,json;print(sum(1 for d in json.load(sys.stdin)["data"] if d["title"]=="Anki import test"))')"
 
 echo
 echo "────────────────────────────────────────────────────────"

@@ -262,7 +262,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
       // themselves taken still dedupes against the true source.
       const origin = c.card_template && c.card_template !== 'freeform' ? c.card_template : c.id;
       if (taken.has(origin)) continue;
-      await repo.createCard({
+      const { inserted } = await repo.insertCard({
         deck_id: await deckForModule(env, ctx.userId, c.module),
         user_ref: ctx.userId,
         module: c.module, resource_type: c.resource_type, resource_ref: c.resource_ref,
@@ -270,7 +270,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
         extra_json: c.extra_json, tags: c.tags,
       });
       taken.add(origin);
-      added += 1;
+      if (inserted) added += 1;
     }
     return created({ added, skipped: cards.length - added });
   });
@@ -417,7 +417,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
         const c = authored[0];
         const module = c.node_id.startsWith('CYB:ling:') ? 'AL' : 'QR';
         const m = /:ss:(\d+):(\d+)/.exec(c.node_id);
-        await repo.createCard({
+        const { inserted } = await repo.insertCard({
           deck_id: await deckForModule(env, ctx.userId, module),
           user_ref: ctx.userId, module, resource_type: 'concept',
           resource_ref: module === 'AL' ? (c.node_id.split(':')[3] ?? c.node_id) : (m ? `${m[1]}:${m[2]}` : c.node_id),
@@ -426,7 +426,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
           extra_json: JSON.stringify({ cyb_card: c.id, node_id: c.node_id, kind: c.card_kind }),
           tags: c.card_kind,
         });
-        added += 1;
+        if (inserted) added += 1;
         continue;
       }
       const shared = await query<{
@@ -437,7 +437,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
            FROM core_srs_library_card WHERE id = ? AND status = 'approved'`, [id]);
       if (!shared[0]) continue;
       const c = shared[0];
-      await repo.createCard({
+      const { inserted } = await repo.insertCard({
         deck_id: await deckForModule(env, ctx.userId, c.module),
         user_ref: ctx.userId, module: c.module, resource_type: c.resource_type,
         resource_ref: c.resource_ref, card_template: c.id,
@@ -445,7 +445,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
         extra_json: JSON.stringify({ library_card: c.id, kind: c.card_kind }),
         tags: c.tags,
       });
-      added += 1;
+      if (inserted) added += 1;
     }
     return created({ added, requested: ids.length });
   });
@@ -610,7 +610,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
       // A node's own id says which module it belongs to, so the deck follows
       // from the card rather than from how it was enrolled.
       const module = c.node_id.startsWith('CYB:ling:') ? 'AL' : 'QR';
-      await repo.createCard({
+      const { inserted } = await repo.insertCard({
         deck_id: await deckForModule(env, ctx.userId, module),
         user_ref: ctx.userId,
         module,
@@ -630,7 +630,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
         extra_json: JSON.stringify({ cyb_card: c.id, node_id: c.node_id, kind: c.card_kind }),
         tags: c.card_kind,
       });
-      enrolled += 1;
+      if (inserted) enrolled += 1;
     }
     return created({ enrolled, skipped: source.length - enrolled });
   });
@@ -682,14 +682,20 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
 
-    const [heatmap, forecast, intervals, ratings, retention, streak] = await Promise.all([
+    const [heatmap, forecast, intervals, ratings, retention, streak, total] = await Promise.all([
       query(env.DB_CORE,
         `SELECT substr(reviewed_at, 1, 10) AS day, COUNT(*) AS n
            FROM core_srs_review
           WHERE user_ref = ? AND reviewed_at >= date('now', '-365 day')
           GROUP BY day ORDER BY day`, [ctx.userId]),
+      // Overdue work counts as today's, not as a bar in the past. Without the
+      // lower bound a forecast of "the next 30 days" listed 2026-01-02, which
+      // is not a forecast of anything — importing a collection with a five-year
+      // history makes that immediately obvious.
       query(env.DB_CORE,
-        `SELECT substr(next_review_at, 1, 10) AS day, COUNT(*) AS n
+        `SELECT CASE WHEN date(next_review_at) < date('now') THEN date('now')
+                     ELSE date(next_review_at) END AS day,
+                COUNT(*) AS n
            FROM core_srs_card
           WHERE user_ref = ? AND suspended = 0 AND next_review_at IS NOT NULL
             AND date(next_review_at) <= date('now', '+30 day')
@@ -718,6 +724,11 @@ export function srsRoutes(router: Router<CoreEnv>) {
         `SELECT COUNT(*) AS days FROM (
            SELECT DISTINCT substr(reviewed_at, 1, 10) AS day
              FROM core_srs_review WHERE user_ref = ?)`, [ctx.userId]),
+      // All time, counted directly. Deriving it by summing the heatmap made the
+      // "reviews" tile mean "reviews in the last 365 days" while the answers
+      // bar beside it meant "ever" — 390 next to 1,533 for the same history.
+      query<{ n: number }>(env.DB_CORE,
+        `SELECT COUNT(*) AS n FROM core_srs_review WHERE user_ref = ?`, [ctx.userId]),
     ]);
 
     const r = retention[0];
@@ -728,7 +739,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
       ratings,
       days_studied: streak[0]?.days ?? 0,
       retention: r && r.total > 0 ? r.remembered / r.total : null,
-      reviews_total: (heatmap as { n: number }[]).reduce((a, b) => a + b.n, 0),
+      reviews_total: total[0]?.n ?? 0,
     });
   });
 
@@ -777,6 +788,95 @@ export function srsRoutes(router: Router<CoreEnv>) {
   });
 
   // POST /core/srs/import { title?, deck_id?, text } — Anki plain-text notes
+  // POST /core/srs/import/anki — a real Anki collection, history and all.
+  //
+  // The TSV import below carries text only, which is fine for a shared deck and
+  // wrong for your own collection: a card answered thirty times over five years
+  // would arrive as "new", and the first session would demand everything you
+  // already know. So each card's answers come with it and are replayed through
+  // FSRS at the timestamps they actually happened.
+  //
+  // Replay, not translation. Anki's interval and ease belong to a different
+  // algorithm (SM-2), and converting them is guesswork; the answers themselves
+  // are the primary record, and FSRS derives stability and difficulty from them
+  // the same way it would have if the reviews had happened here. The log is
+  // written too, so the heatmap and retention show the real study history.
+  router.post('/core/srs/import/anki', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const body = await readJson(req);
+    const incoming = Array.isArray(body?.['cards']) ? body['cards'] as Array<Record<string, unknown>> : [];
+    if (incoming.length === 0) return badRequest('cards is required');
+    if (incoming.length > 50) return badRequest('send at most 50 cards per request');
+
+    const repo = new SrsRepo(env.DB_CORE);
+    const params = buildParams(storedOf(await repo.params(ctx.userId)));
+    let imported = 0, skipped = 0, replayed = 0;
+
+    for (const raw of incoming) {
+      const module = str(raw['module']) ?? 'other';
+      if (!MODULES.has(module)) { skipped += 1; continue; }
+      const front = str(raw['front_text']) ?? '';
+      if (!front.trim()) { skipped += 1; continue; }
+      const origin = str(raw['origin']) ?? front.slice(0, 80);
+
+      const { card, inserted } = await repo.insertCard({
+        deck_id: await deckForModule(env, ctx.userId, module),
+        user_ref: ctx.userId,
+        module,
+        resource_type: module === 'QR' ? 'ayah' : 'other',
+        resource_ref: str(raw['resource_ref']) ?? origin,
+        // The Anki card id is the origin, so re-running the import recognises
+        // what it already brought over instead of duplicating the collection.
+        card_template: origin,
+        front_text: front,
+        back_text: str(raw['back_text']) ?? '',
+        card_kind: str(raw['card_kind']) ?? null,
+        concept_domain: str(raw['concept_domain']) ?? null,
+        tags: Array.isArray(raw['tags']) ? (raw['tags'] as string[]).join(',') : null,
+        extra_json: JSON.stringify({ source: 'anki', origin }),
+      });
+      if (!inserted) { skipped += 1; continue; }
+      imported += 1;
+
+      const reviews = (Array.isArray(raw['reviews']) ? raw['reviews'] : [])
+        .map((r) => r as Record<string, unknown>)
+        .filter((r) => isRating(r['rating']) && typeof r['at'] === 'number')
+        .sort((a, b) => (a['at'] as number) - (b['at'] as number));
+      if (reviews.length === 0) continue;
+
+      // Replayed in order, each at its own moment. `row` is carried forward by
+      // hand rather than re-read: the intermediate states are steps in a
+      // reconstruction, not something another request should ever see.
+      let row = { ...card } as typeof card;
+      for (const r of reviews) {
+        const at = new Date(r['at'] as number);
+        const rating = r['rating'] as RatingValue;
+        const next = gradeCard(row, rating, at, params);
+        await repo.logReview({
+          card_id: card.id, user_ref: ctx.userId, rating,
+          state_before: next.state_before,
+          stability_after: next.columns.stability,
+          difficulty_after: next.columns.difficulty,
+          elapsed_days: next.columns.elapsed_days,
+          scheduled_days_after: next.columns.scheduled_days,
+          state_after: next.columns.card_state,
+          review_duration_secs: null,
+          reviewed_at: at.toISOString(),
+        });
+        row = { ...row, ...next.columns };
+        replayed += 1;
+      }
+      await repo.applySchedule(card.id, {
+        card_state: row.card_state, stability: row.stability!, difficulty: row.difficulty!,
+        elapsed_days: row.elapsed_days, scheduled_days: row.scheduled_days,
+        learning_step: row.learning_step, reps: row.reps, lapses: row.lapses,
+        next_review_at: row.next_review_at!, last_review_at: row.last_review_at!,
+      });
+    }
+    return created({ imported, skipped, replayed });
+  });
+
   // into a deck of your own. Lines beginning with # are Anki's directives and
   // are skipped; the first two columns are front and back, a third is tags.
   router.post('/core/srs/import', async (req, env) => {
@@ -803,7 +903,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
       const cols = line.split('\t');
       const front = (cols[0] ?? '').trim();
       if (!front) continue;
-      await repo.createCard({
+      const { inserted } = await repo.insertCard({
         deck_id: deckId, user_ref: ctx.userId,
         module: 'other', resource_type: 'other',
         resource_ref: front.slice(0, 120),
@@ -811,7 +911,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
         back_text: (cols[1] ?? '').trim(),
         tags: (cols[2] ?? '').trim().split(/\s+/).filter(Boolean).join(',') || null,
       });
-      imported += 1;
+      if (inserted) imported += 1;
     }
     return created({ deck_id: deckId, imported });
   });

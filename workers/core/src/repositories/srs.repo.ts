@@ -173,12 +173,22 @@ export class SrsRepo {
        GROUP BY module`, [userRef]);
   }
 
-  async createCard(input: {
+  /**
+   * Add a card, reporting whether it was actually added.
+   *
+   * The dedup rule lives in the unique key, so a second attempt at the same
+   * (deck, resource, origin) is a no-op — but the callers report a count to the
+   * user ("Added 3 · 12 already yours"), and every one of them used to count
+   * attempts instead of insertions. Taking the same card twice therefore said
+   * "added 1" while the store correctly did nothing, which makes the one number
+   * the dedup story rests on the one number that was wrong.
+   */
+  async insertCard(input: {
     deck_id: string; user_ref: string; module: string; resource_type: string;
     resource_ref: string; card_template?: string; front_text?: string;
     back_text?: string; extra_json?: string | null; tags?: string | null;
     card_kind?: string | null; concept_domain?: string | null;
-  }): Promise<SrsCard> {
+  }): Promise<{ card: SrsCard; inserted: boolean }> {
     const id = typedId('SRSCARD');
     await execute(this.db,
       `INSERT INTO core_srs_card
@@ -194,7 +204,17 @@ export class SrsRepo {
     const row = await queryOne<SrsCard>(this.db,
       `SELECT ${CARD_COLS} WHERE deck_id = ? AND resource_ref = ? AND card_template = ?`,
       [input.deck_id, input.resource_ref, input.card_template ?? 'freeform']);
-    return row!;
+    // The row is read back either way — on a conflict it is the copy already
+    // held, which is what a caller wants to return. Whether it is *ours* is the
+    // reliable signal: the id we generated comes back only if the insert won.
+    // D1's `changes` for an ON CONFLICT DO NOTHING is not dependable enough to
+    // decide a number the user reads.
+    return { card: row!, inserted: row?.id === id };
+  }
+
+  /** The card, when the caller does not care whether it was new. */
+  async createCard(input: Parameters<SrsRepo['insertCard']>[0]): Promise<SrsCard> {
+    return (await this.insertCard(input)).card;
   }
 
   async applySchedule(id: string, next: {
