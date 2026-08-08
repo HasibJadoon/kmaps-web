@@ -635,6 +635,42 @@ export function srsRoutes(router: Router<CoreEnv>) {
     return created({ enrolled, skipped: source.length - enrolled });
   });
 
+  // PATCH /core/srs/cards/:id — edit a card's own text.
+  //
+  // Editing your copy never touches the library it came from: the copy is
+  // yours, the source belongs to its author. Scheduling is untouched too — a
+  // typo fix is not a review.
+  router.patch('/core/srs/cards/:id', async (req, env, { id }) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const repo = new SrsRepo(env.DB_CORE);
+    const card = await repo.findCard(id);
+    if (!card) return notFound(`card ${id}`);
+    if (card.user_ref !== ctx.userId) return forbidden('Not your card');
+
+    const body = await readJson(req);
+    const front = str(body?.['front_text']);
+    const back = str(body?.['back_text']);
+    const kind = str(body?.['card_kind']);
+    const domain = str(body?.['concept_domain']);
+    const suspended = typeof body?.['suspended'] === 'boolean' ? (body['suspended'] ? 1 : 0) : null;
+
+    await execute(env.DB_CORE,
+      `UPDATE core_srs_card SET
+         front_text = COALESCE(?, front_text),
+         back_text = COALESCE(?, back_text),
+         card_kind = COALESCE(?, card_kind),
+         concept_domain = COALESCE(?, concept_domain),
+         suspended = COALESCE(?, suspended),
+         updated_at = datetime('now')
+       WHERE id = ?`,
+      [front ?? null, back ?? null, kind ?? null, domain ?? null, suspended, id]);
+
+    const params = buildParams(storedOf(await repo.params(ctx.userId)));
+    const updated = await repo.findCard(id);
+    return ok(updated ? cardToApi(updated, params) : null);
+  });
+
   // ── Anki interop ──────────────────────────────────────────────────────────
   //
   // Plain-text notes, which is Anki's own native text format (File → Import /
@@ -724,10 +760,29 @@ export function srsRoutes(router: Router<CoreEnv>) {
 
   // ── Decks ──────────────────────────────────────────────────────────────────
 
+  // GET /core/srs/decks — the user's decks with their weights.
+  //
+  // Counts come from here rather than from a second round trip per deck: a
+  // deck list that cannot say how big each deck is forces the client to either
+  // guess or fan out.
   router.get('/core/srs/decks', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    return ok(await new SrsRepo(env.DB_CORE).decks(ctx.userId));
+    const rows = await query(
+      env.DB_CORE,
+      `SELECT d.id, d.title, d.deck_type, d.description, d.is_shared,
+              d.workspace_id, d.created_at, d.updated_at,
+              (SELECT COUNT(*) FROM core_srs_card c WHERE c.deck_id = d.id) AS card_count,
+              (SELECT COUNT(*) FROM core_srs_card c
+                WHERE c.deck_id = d.id AND c.suspended = 0
+                  AND (c.next_review_at IS NULL
+                       OR c.next_review_at <= strftime('%Y-%m-%dT%H:%M:%SZ','now'))) AS due_count
+         FROM core_srs_deck d
+        WHERE d.user_ref = ?
+        ORDER BY d.created_at`,
+      [ctx.userId],
+    );
+    return ok(rows);
   });
 
   router.post('/core/srs/decks', async (req, env) => {
