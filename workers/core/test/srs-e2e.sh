@@ -69,8 +69,12 @@ check "D2 re-enrolling adds nothing" "0" \
   "$(curl -s -X POST -H "$A" -H 'content-type: application/json' -d '{"surah":44}' $B/srs/library/enroll | j "['data']['enrolled']")"
 check "D3 enrolling leaves every offered card held" "True" \
   "$(curl -s -H "$A" "$B/srs/library/items?surah=44" | python3 -c "import sys,json;d=json.load(sys.stdin)['data'];print(d['enrolled']==d['available'])")"
-check "D4 roots present in linguistics" "25" \
-  "$(curl -s -X POST -H "$A" -H 'content-type: application/json' -d '{"scope":"roots"}' $B/srs/library/enroll | python3 -c "import sys,json;d=json.load(sys.stdin)['data'];print(d['enrolled']+d['skipped'])")"
+# A floor, not an exact count: the library grows as submissions are approved,
+# so "25" was a fact about one afternoon rather than a property of the route.
+check "D4 roots reachable in linguistics" "True" \
+  "$(curl -s -X POST -H "$A" -H 'content-type: application/json' -d '{"scope":"roots"}' $B/srs/library/enroll | python3 -c "import sys,json;d=json.load(sys.stdin)['data'];print(d['enrolled']+d['skipped']>=25)")"
+check "D5 re-enrolling roots adds nothing" "0" \
+  "$(curl -s -X POST -H "$A" -H 'content-type: application/json' -d '{"scope":"roots"}' $B/srs/library/enroll | j "['data']['enrolled']")"
 
 echo "── E. Decks follow modules ───────────────────────────────"
 check "E1 a Qurʾān deck exists" "True" \

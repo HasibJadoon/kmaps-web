@@ -19,6 +19,15 @@ export interface SrsDeck {
   meta_json: string | null;
   created_at: string;
   updated_at: string;
+  /** Decks nest: `quran/mufradat` sits under `quran`. */
+  parent_id: string | null;
+  slug: string | null;
+  sort_order: number | null;
+  /** Anki's two daily caps. Null means "no cap of its own". */
+  new_per_day: number | null;
+  review_per_day: number | null;
+  /** `tree` — the cap covers this deck and everything under it. */
+  limit_scope: string | null;
 }
 
 export interface SrsCard {
@@ -60,11 +69,20 @@ export interface SrsParams {
   log_loss_before: number | null;
   log_loss_after: number | null;
   note: string | null;
+  /** The learner's daily limits. A deck with no cap of its own uses these, so
+   *  "fifty a day" is a setting rather than a number written into each deck. */
+  new_per_day: number | null;
+  review_per_day: number | null;
 }
+
+/** Used when a learner has never set a limit. One place, not scattered. */
+export const DEFAULT_NEW_PER_DAY = 50;
+export const DEFAULT_REVIEW_PER_DAY = 200;
 
 const DECK_COLS = `
   id, user_ref, workspace_id, title, deck_type, description,
-  is_shared, meta_json, created_at, updated_at
+  is_shared, meta_json, created_at, updated_at,
+  parent_id, slug, sort_order, new_per_day, review_per_day, limit_scope
 FROM core_srs_deck`;
 
 const CARD_COLS = `
@@ -140,7 +158,11 @@ export class SrsRepo {
    */
   due(userRef: string, opts: {
     module?: string; limit?: number; ahead?: number;
-    surah?: number; kind?: string; domain?: string; deck?: string;
+    surah?: number; kind?: string; domain?: string;
+    /** One deck, or a whole subtree — selecting a parent studies its children,
+     *  which is the entire point of nesting them. A parent deck usually holds
+     *  no cards of its own, so matching a single deck_id served nothing. */
+    deck?: string; deckIds?: string[];
   } = {}): Promise<SrsCard[]> {
     const args: unknown[] = [userRef];
     // Clamped and floored before it reaches SQL: D1 cannot bind a modifier
@@ -170,13 +192,73 @@ export class SrsRepo {
     }
     if (opts.kind) { where += ` AND card_kind = ?`; args.push(opts.kind); }
     if (opts.domain) { where += ` AND concept_domain = ?`; args.push(opts.domain); }
-    if (opts.deck) { where += ` AND deck_id = ?`; args.push(opts.deck); }
+    const deckSet = opts.deckIds?.length ? opts.deckIds : (opts.deck ? [opts.deck] : []);
+    if (deckSet.length > 0) {
+      where += ` AND deck_id IN (${deckSet.map(() => '?').join(',')})`;
+      args.push(...deckSet);
+    }
     args.push(Math.min(500, Math.max(1, opts.limit ?? 50)));
     return query<SrsCard>(this.db,
       `SELECT ${CARD_COLS} ${where}
        ORDER BY CASE WHEN next_review_at IS NULL THEN 0 ELSE 1 END,
                 datetime(next_review_at)
        LIMIT ?`, args);
+  }
+
+  /**
+   * What has already been answered today, split the way the caps are.
+   *
+   * "New" is decided by the state the card was in when it was answered, not by
+   * the state it is in now: a card introduced this morning is in learning by
+   * the afternoon, so counting current state would let the day's new cards
+   * vanish from their own budget and the cap would never bind.
+   *
+   * The day boundary is UTC, matching every other date in this schema. A real
+   * next-day-starts-at-4am setting belongs with the learner's timezone, which
+   * is not stored yet.
+   */
+  /**
+   * Today's answers per deck, for per-deck budgets.
+   *
+   * The deck is read from the card rather than the log, because a card can be
+   * moved between decks and the budget that matters is the one it sits in now.
+   */
+  async todayCountsByDeck(userRef: string): Promise<Map<string, { introduced: number; reviewed: number }>> {
+    const rows = await query<{ deck_id: string; state_before: string; n: number }>(this.db,
+      `SELECT c.deck_id AS deck_id, r.state_before AS state_before, COUNT(*) AS n
+         FROM core_srs_review r
+         JOIN core_srs_card c ON c.id = r.card_id
+        WHERE r.user_ref = ? AND date(r.reviewed_at) = date('now')
+        GROUP BY c.deck_id, r.state_before`, [userRef]);
+    const out = new Map<string, { introduced: number; reviewed: number }>();
+    for (const r of rows) {
+      const cur = out.get(r.deck_id) ?? { introduced: 0, reviewed: 0 };
+      if (r.state_before === 'new') cur.introduced += r.n;
+      else cur.reviewed += r.n;
+      out.set(r.deck_id, cur);
+    }
+    return out;
+  }
+
+  async todayCounts(userRef: string, deckIds?: string[]): Promise<{ introduced: number; reviewed: number }> {
+    const args: unknown[] = [userRef];
+    let scope = '';
+    if (deckIds && deckIds.length > 0) {
+      scope = ` AND c.deck_id IN (${deckIds.map(() => '?').join(',')})`;
+      args.push(...deckIds);
+    }
+    const rows = await query<{ state_before: string; n: number }>(this.db,
+      `SELECT r.state_before AS state_before, COUNT(*) AS n
+         FROM core_srs_review r
+         JOIN core_srs_card c ON c.id = r.card_id
+        WHERE r.user_ref = ? AND date(r.reviewed_at) = date('now')${scope}
+        GROUP BY r.state_before`, args);
+    let introduced = 0, reviewed = 0;
+    for (const r of rows) {
+      if (r.state_before === 'new') introduced += r.n;
+      else reviewed += r.n;
+    }
+    return { introduced, reviewed };
   }
 
   dueCounts(userRef: string): Promise<Array<{ module: string; n: number }>> {
@@ -291,8 +373,34 @@ export class SrsRepo {
     return queryOne<SrsParams>(this.db,
       `SELECT user_ref, weights_json, desired_retention, maximum_interval,
               learning_steps, relearning_steps, fitted_at, fitted_reviews,
-              log_loss_before, log_loss_after, note
+              log_loss_before, log_loss_after, note,
+              new_per_day, review_per_day
        FROM core_srs_params WHERE user_ref = ?`, [userRef]);
+  }
+
+  /** The learner's daily limits, falling back to the documented defaults. */
+  async dailyDefaults(userRef: string): Promise<{ newPerDay: number; reviewPerDay: number }> {
+    const row = await this.params(userRef);
+    return {
+      newPerDay: row?.new_per_day ?? DEFAULT_NEW_PER_DAY,
+      reviewPerDay: row?.review_per_day ?? DEFAULT_REVIEW_PER_DAY,
+    };
+  }
+
+  /**
+   * Save the daily limits. `null` means "no limit", which is different from
+   * "unset" — so the row is written either way and the column carries the
+   * learner's answer rather than the absence of one.
+   */
+  async saveDailyLimits(userRef: string, newPerDay: number | null, reviewPerDay: number | null): Promise<void> {
+    await execute(this.db,
+      `INSERT INTO core_srs_params (user_ref, weights_json, new_per_day, review_per_day)
+       VALUES (?, '[]', ?, ?)
+       ON CONFLICT (user_ref) DO UPDATE SET
+         new_per_day = excluded.new_per_day,
+         review_per_day = excluded.review_per_day,
+         updated_at = datetime('now')`,
+      [userRef, newPerDay, reviewPerDay]);
   }
 
   async saveParams(input: {

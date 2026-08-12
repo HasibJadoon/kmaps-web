@@ -28,7 +28,10 @@ import { requireAuth } from '../../../shared/src/auth';
 import { query, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { CoreEnv } from '../env';
-import { SrsRepo, type SrsCard, type SrsParams } from '../repositories/srs.repo';
+import {
+  SrsRepo, DEFAULT_NEW_PER_DAY, DEFAULT_REVIEW_PER_DAY,
+  type SrsCard, type SrsDeck, type SrsParams,
+} from '../repositories/srs.repo';
 import {
   grade as gradeCard, previewDays, retrievabilityOf, evaluate, optimize,
   buildParams, isRating, default_w,
@@ -140,6 +143,116 @@ const TAXONOMY = {
                     'ethics', 'eschatology', 'spirituality', 'history',
                     'economics', 'politics'],
 } as const;
+
+/**
+ * The daily caps that apply when studying `deckId`, and the decks they cover.
+ *
+ * Anki's rule, and the reason it is the right one: a cap on a parent binds the
+ * whole subtree. Fifty new Qurʾān cards a day means fifty across roots, lemmas
+ * and ayat together — otherwise three children of fifty each quietly make the
+ * parent's number mean nothing. Walking up from the selected deck and taking
+ * the strictest cap found is what makes the parent's number true.
+ *
+ * With no deck selected the caps still apply, per root tree, because the point
+ * of a daily limit is to bound the day rather than the deck picker.
+ */
+/**
+ * The cap that governs one deck, and the decks its spend is counted over.
+ *
+ * Two scopes, because "fifty a day" can mean two different things:
+ *
+ *  - `deck` — this deck alone gets fifty. Studying a parent then draws fifty
+ *    from each child, because each child is its own budget. Ancestors do not
+ *    constrain it; a deck's number is simply true of that deck.
+ *  - `tree` — fifty across the deck and everything under it, Anki's rule,
+ *    where a parent's number binds its children collectively.
+ */
+function capOf(
+  decks: Map<string, SrsDeck>,
+  deckId: string,
+  fallback: { newPerDay: number | null; reviewPerDay: number | null },
+) {
+  const deck = decks.get(deckId);
+  if (!deck) return { newCap: null as number | null, reviewCap: null as number | null, scope: 'deck' };
+  if ((deck.limit_scope ?? 'deck') === 'deck') {
+    // A deck without its own number is not unlimited — it uses the learner's
+    // setting. That is what makes the limit a preference rather than something
+    // stamped onto every deck at creation and stale ever after.
+    return {
+      newCap: deck.new_per_day ?? fallback.newPerDay,
+      reviewCap: deck.review_per_day ?? fallback.reviewPerDay,
+      scope: 'deck',
+    };
+  }
+  let newCap: number | null = null;
+  let reviewCap: number | null = null;
+  let node: SrsDeck | undefined = deck;
+  while (node) {
+    if ((node.limit_scope ?? 'deck') === 'tree') {
+      if (node.new_per_day != null) newCap = newCap == null ? node.new_per_day : Math.min(newCap, node.new_per_day);
+      if (node.review_per_day != null) reviewCap = reviewCap == null ? node.review_per_day : Math.min(reviewCap, node.review_per_day);
+    }
+    node = node.parent_id ? decks.get(node.parent_id) : undefined;
+  }
+  return { newCap, reviewCap, scope: 'tree' };
+}
+
+/** The topmost ancestor — the deck a tree-scoped budget belongs to. */
+function rootOf(decks: Map<string, SrsDeck>, deckId: string): string | undefined {
+  let node = decks.get(deckId);
+  while (node?.parent_id && decks.has(node.parent_id)) node = decks.get(node.parent_id);
+  return node?.id;
+}
+
+/** What has been answered today against the budget this card draws from. */
+function todayFor(
+  today: Map<string, { introduced: number; reviewed: number }>,
+  decks: Map<string, SrsDeck>,
+  deckId: string,
+  scope: string,
+) {
+  if (scope === 'deck') return today.get(deckId) ?? { introduced: 0, reviewed: 0 };
+  const root = rootOf(decks, deckId);
+  let introduced = 0, reviewed = 0;
+  for (const [id, counts] of today) {
+    if (rootOf(decks, id) === root) { introduced += counts.introduced; reviewed += counts.reviewed; }
+  }
+  return { introduced, reviewed };
+}
+
+function limitsFor(decks: SrsDeck[], deckId?: string) {
+  const byId = new Map(decks.map((d) => [d.id, d]));
+  const children = new Map<string, SrsDeck[]>();
+  for (const d of decks) {
+    const key = d.parent_id ?? '';
+    children.set(key, [...(children.get(key) ?? []), d]);
+  }
+  const subtree = (id: string): string[] => {
+    const out = [id];
+    for (const c of children.get(id) ?? []) out.push(...subtree(c.id));
+    return out;
+  };
+
+  if (!deckId || !byId.has(deckId)) {
+    return { deckIds: undefined as string[] | undefined, newPerDay: null as number | null, reviewPerDay: null as number | null };
+  }
+  // Strictest cap on the path from the selected deck to its root.
+  let newPerDay: number | null = null;
+  let reviewPerDay: number | null = null;
+  let node: SrsDeck | undefined = byId.get(deckId);
+  while (node) {
+    if (node.new_per_day != null) {
+      newPerDay = newPerDay == null ? node.new_per_day : Math.min(newPerDay, node.new_per_day);
+    }
+    if (node.review_per_day != null) {
+      reviewPerDay = reviewPerDay == null ? node.review_per_day : Math.min(reviewPerDay, node.review_per_day);
+    }
+    node = node.parent_id ? byId.get(node.parent_id) : undefined;
+  }
+  // The budget is spent across the whole subtree, so today's count must be
+  // read over the same set of decks the cards will be drawn from.
+  return { deckIds: subtree(deckId), newPerDay, reviewPerDay };
+}
 
 export function srsRoutes(router: Router<CoreEnv>) {
 
@@ -933,17 +1046,99 @@ export function srsRoutes(router: Router<CoreEnv>) {
       env.DB_CORE,
       `SELECT d.id, d.title, d.deck_type, d.description, d.is_shared,
               d.workspace_id, d.created_at, d.updated_at,
+              d.parent_id, d.slug, d.sort_order,
+              d.new_per_day, d.review_per_day, d.limit_scope,
               (SELECT COUNT(*) FROM core_srs_card c WHERE c.deck_id = d.id) AS card_count,
               (SELECT COUNT(*) FROM core_srs_card c
                 WHERE c.deck_id = d.id AND c.suspended = 0
                   AND (c.next_review_at IS NULL
-                       OR c.next_review_at <= strftime('%Y-%m-%dT%H:%M:%SZ','now'))) AS due_count
+                       OR datetime(c.next_review_at) <= datetime('now'))) AS due_count,
+              (SELECT COUNT(*) FROM core_srs_card c
+                WHERE c.deck_id = d.id AND c.suspended = 0 AND c.card_state = 'new') AS new_count
          FROM core_srs_deck d
         WHERE d.user_ref = ?
-        ORDER BY d.created_at`,
+        ORDER BY COALESCE(d.sort_order, 0), d.title`,
       [ctx.userId],
     );
     return ok(rows);
+  });
+
+  // GET /core/srs/settings — the learner's daily limits.
+  //
+  // The limit belongs to the learner, not to each deck: a deck that carries no
+  // number of its own uses this one, so changing your mind is one edit rather
+  // than thirteen. A deck may still override, which is what makes it a default
+  // rather than a rule.
+  router.get('/core/srs/settings', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const repo = new SrsRepo(env.DB_CORE);
+    const row = await repo.params(ctx.userId);
+    return ok({
+      new_per_day: row?.new_per_day ?? DEFAULT_NEW_PER_DAY,
+      review_per_day: row?.review_per_day ?? DEFAULT_REVIEW_PER_DAY,
+      is_default: row?.new_per_day == null && row?.review_per_day == null,
+      default_new_per_day: DEFAULT_NEW_PER_DAY,
+      default_review_per_day: DEFAULT_REVIEW_PER_DAY,
+    });
+  });
+
+  // PATCH /core/srs/settings { new_per_day, review_per_day }
+  router.patch('/core/srs/settings', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const body = await readJson(req);
+    const repo = new SrsRepo(env.DB_CORE);
+    const current = await repo.params(ctx.userId);
+    const cap = (v: unknown, fallback: number | null): number | null => {
+      if (v === undefined) return fallback;
+      if (v === null) return null;
+      if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return fallback;
+      return Math.min(9999, Math.floor(v));
+    };
+    const newPerDay = cap(body?.['new_per_day'], current?.new_per_day ?? null);
+    const reviewPerDay = cap(body?.['review_per_day'], current?.review_per_day ?? null);
+    await repo.saveDailyLimits(ctx.userId, newPerDay, reviewPerDay);
+    return ok({
+      new_per_day: newPerDay ?? DEFAULT_NEW_PER_DAY,
+      review_per_day: reviewPerDay ?? DEFAULT_REVIEW_PER_DAY,
+      is_default: newPerDay == null && reviewPerDay == null,
+      default_new_per_day: DEFAULT_NEW_PER_DAY,
+      default_review_per_day: DEFAULT_REVIEW_PER_DAY,
+    });
+  });
+
+  // PATCH /core/srs/decks/:id/limits { new_per_day, review_per_day }
+  //
+  // Separate from the sharing PATCH because it answers a different question,
+  // and because null is meaningful here: it clears the cap rather than leaving
+  // it unchanged, which a merge-style body cannot express.
+  router.patch('/core/srs/decks/:id/limits', async (req, env, { id }) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const repo = new SrsRepo(env.DB_CORE);
+    const deck = await repo.findDeck(id);
+    if (!deck) return notFound(`deck ${id}`);
+    if (deck.user_ref !== ctx.userId) return forbidden('Not your deck');
+
+    const body = await readJson(req);
+    const cap = (v: unknown, current: number | null): number | null => {
+      if (v === undefined) return current;
+      if (v === null) return null;
+      if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return current;
+      return Math.min(9999, Math.floor(v));
+    };
+    const newPerDay = cap(body?.['new_per_day'], deck.new_per_day);
+    const reviewPerDay = cap(body?.['review_per_day'], deck.review_per_day);
+    const scope = str(body?.['limit_scope']) ?? deck.limit_scope ?? 'tree';
+    if (scope !== 'tree' && scope !== 'deck') return badRequest("limit_scope must be 'tree' or 'deck'");
+
+    await execute(env.DB_CORE,
+      `UPDATE core_srs_deck
+          SET new_per_day = ?, review_per_day = ?, limit_scope = ?, updated_at = datetime('now')
+        WHERE id = ?`,
+      [newPerDay, reviewPerDay, scope, id]);
+    return ok(await repo.findDeck(id));
   });
 
   router.post('/core/srs/decks', async (req, env) => {
@@ -1110,22 +1305,88 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const ahead = Number(url.searchParams.get('ahead') ?? '0');
     const repo = new SrsRepo(env.DB_CORE);
     const params = buildParams(storedOf(await repo.params(ctx.userId)));
-    const [cards, counts] = await Promise.all([
+    const decks = await repo.decks(ctx.userId);
+    const defaults = await repo.dailyDefaults(ctx.userId);
+    const fallback = { newPerDay: defaults.newPerDay, reviewPerDay: defaults.reviewPerDay };
+    const caps = limitsFor(decks, deck);
+    const [cards, counts, today] = await Promise.all([
       repo.due(ctx.userId, {
         module,
-        limit: Number.isFinite(limit) ? limit : 50,
+        // Ask for more than the caller wants: the daily caps cut the queue
+        // below, and trimming a list that was already truncated would report
+        // "nothing left today" while cards sat one row past the LIMIT.
+        limit: Math.min(500, Math.max(Number.isFinite(limit) ? limit : 50, 200)),
         ahead: Number.isFinite(ahead) ? ahead : 0,
         surah: surah > 0 ? surah : undefined,
-        kind, domain, deck,
+        kind, domain, deck, deckIds: caps.deckIds,
       }),
       repo.dueCounts(ctx.userId),
+      repo.todayCountsByDeck(ctx.userId),
     ]);
+    const deckById = new Map(decks.map((d) => [d.id, d]));
     // Scoping happens in the query, not in every client: surah matches the
     // ayah-key convention ("44" or "44:‥"), kind and domain are exact.
+    //
+    // The caps are applied last, to the ordered queue, so what survives is the
+    // most urgent work rather than an arbitrary slice. Studying ahead is
+    // deliberately exempt: the whole point of it is to go past today's plan,
+    // and a cap that blocked it would make the button do nothing.
+    // Each card is measured against its own deck's budget, so studying a
+    // parent draws each child's fifty rather than one fifty shared between
+    // them. A tree-scoped deck still pools its subtree — `capOf` decides which
+    // rule a deck follows, and the budget is keyed by whichever it is.
+    const spent = new Map<string, { n: number; r: number }>();
+    let served = cards;
+    if (ahead <= 0) {
+      served = cards.filter((c) => {
+        const cap = capOf(deckById, c.deck_id, fallback);
+        if (cap.newCap == null && cap.reviewCap == null) return true;
+        // Tree-scoped budgets are shared by the whole subtree, so they are
+        // keyed on the deck that owns the cap rather than on the card's deck.
+        const key = cap.scope === 'deck' ? c.deck_id : (rootOf(deckById, c.deck_id) ?? c.deck_id);
+        const use = spent.get(key) ?? { n: 0, r: 0 };
+        const before = todayFor(today, deckById, c.deck_id, cap.scope);
+        if (c.card_state === 'new') {
+          if (cap.newCap != null && before.introduced + use.n >= cap.newCap) return false;
+          use.n += 1; spent.set(key, use); return true;
+        }
+        // Learning cards already introduced today are not held back: the step
+        // that brings a card back in ten minutes is part of introducing it,
+        // and counting it against the review cap would strand it until
+        // tomorrow, half-learned.
+        if (c.card_state === 'learning' || c.card_state === 'relearning') return true;
+        if (cap.reviewCap != null && before.reviewed + use.r >= cap.reviewCap) return false;
+        use.r += 1; spent.set(key, use); return true;
+      });
+    }
+    served = served.slice(0, Math.min(500, Math.max(1, Number.isFinite(limit) ? limit : 50)));
+
     return ok({
-      due: cards.map((c) => cardToApi(c, params)),
+      due: served.map((c) => cardToApi(c, params)),
       due_by_module: counts,
       ahead_days: ahead > 0 ? Math.floor(ahead) : 0,
+      // What the caps are and what is left of them, so the app can say "12 of
+      // 50 new today" instead of leaving an empty queue unexplained.
+      daily: (() => {
+        // Reported for the deck actually selected. With no deck there is no
+        // single budget to report — the collection has one per deck — so the
+        // caps come back null rather than as a number that is true of nothing.
+        if (!deck || !deckById.has(deck)) {
+          return { new_per_day: null, review_per_day: null, new_today: null,
+                   reviews_today: null, new_left: null, reviews_left: null };
+        }
+        const cap = capOf(deckById, deck, fallback);
+        const used = todayFor(today, deckById, deck, cap.scope);
+        return {
+          new_per_day: cap.newCap,
+          review_per_day: cap.reviewCap,
+          new_today: used.introduced,
+          reviews_today: used.reviewed,
+          new_left: cap.newCap == null ? null : Math.max(0, cap.newCap - used.introduced),
+          reviews_left: cap.reviewCap == null ? null : Math.max(0, cap.reviewCap - used.reviewed),
+          scope: cap.scope,
+        };
+      })(),
     });
   });
 
