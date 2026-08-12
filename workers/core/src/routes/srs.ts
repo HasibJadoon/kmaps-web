@@ -194,7 +194,11 @@ function capOf(
     }
     node = node.parent_id ? decks.get(node.parent_id) : undefined;
   }
-  return { newCap, reviewCap, scope: 'tree' };
+  // A tree with no number anywhere on the path still inherits the learner's
+  // setting — the scope says how a cap is shared, not whether one exists.
+  // Without this, any deck whose scope happened to be 'tree' (the column's
+  // database default) was silently unlimited.
+  return { newCap: newCap ?? fallback.newPerDay, reviewCap: reviewCap ?? fallback.reviewPerDay, scope: 'tree' };
 }
 
 /** The topmost ancestor — the deck a tree-scoped budget belongs to. */
@@ -616,6 +620,26 @@ export function srsRoutes(router: Router<CoreEnv>) {
       approver ? [] : [ctx.userId],
     );
     return ok({ submissions: rows, can_approve: approver });
+  });
+
+  // DELETE /core/srs/library/:id — remove a card from the shared library.
+  //
+  // Curation needs an exit as well as an entrance: an approved card that turns
+  // out to be wrong (or was a test) would otherwise sit in every user's
+  // library forever. Copies already taken are ordinary cards owned by their
+  // takers and are deliberately left alone — removal stops the offer, it does
+  // not reach into collections.
+  router.delete('/core/srs/library/:id', async (req, env, { id }) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    if (!(await isApprover(env, ctx.userId))) {
+      return forbidden('Only a card approver can remove library cards');
+    }
+    const rows = await query<{ id: string }>(env.DB_CORE,
+      `SELECT id FROM core_srs_library_card WHERE id = ?`, [id]);
+    if (!rows[0]) return notFound(`library card ${id}`);
+    await execute(env.DB_CORE, `DELETE FROM core_srs_library_card WHERE id = ?`, [id]);
+    return noContent();
   });
 
   // POST /core/srs/library/:id/review { decision, note? } — publish or decline.

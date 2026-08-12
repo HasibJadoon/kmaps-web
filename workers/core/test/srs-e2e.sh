@@ -195,6 +195,10 @@ REMOVED=0
 for D in $LEFTOVER; do
   curl -s -o /dev/null -X DELETE -H "$A" "$B/srs/decks/$D" && REMOVED=$((REMOVED+1))
 done
+# The suite's own approved submission leaves through the same door a real
+# mistake would — removal stops the offer without touching taken copies.
+check "T0 test submission removed from the library" "204" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X DELETE -H "$A" $B/srs/library/$SUB)"
 check "T1 import decks cleaned up" "0" \
   "$(curl -s -H "$A" $B/srs/decks | python3 -c 'import sys,json;print(sum(1 for d in json.load(sys.stdin)["data"] if d["title"]=="Anki import test"))')"
 
