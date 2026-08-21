@@ -196,8 +196,19 @@ interface CarrierPlan {
 /** Identifiers are interpolated into SQL, so they must look like identifiers. */
 const IDENT = /^[a-z_][a-z0-9_]*$/;
 
-/** D1 refuses long compound SELECTs ("too many terms"), so unions go in chunks. */
-const UNION_CHUNK = 8;
+/** Band keys are upper-case registry codes (CORE, SARF, SENSE …). */
+const IDENT_BAND = /^[A-Z][A-Z0-9_]*$/;
+
+/**
+ * D1 refuses compound SELECTs of more than five branches ("too many terms in
+ * compound SELECT"), measured against the live database — not a soft limit.
+ *
+ * This was 8, so every full chunk threw and the catch below turned it into an
+ * empty result. Only the short final chunk survived, and نزل reported two
+ * carriers out of thirty-four: its Identity layer read "0 of 4 filled" over a
+ * real `ar_ling_roots` row, four phonology rows and a permutation row.
+ */
+const UNION_CHUNK = 5;
 
 export class StagingRepo {
   constructor(private db: D1Database) {}
@@ -295,13 +306,22 @@ export class StagingRepo {
    * are omitted rather than returned as zero — an unaudited carrier is unknown,
    * and calling it empty is the same untruth in a new place.
    */
-  async rootFill(root: string): Promise<RootFillCell[]> {
+  async rootFill(root: string, band?: string): Promise<RootFillCell[]> {
+    // Scoped to one band when the caller names one: opening a root counted all
+    // thirty-four carriers whether or not anything on screen showed them, and
+    // only one band is ever open at a time. `band_key` is the registry's own
+    // grouping (CORE → Identity), so the scope comes from the same place the
+    // screen's layers do.
+    const scoped = band && IDENT_BAND.test(band);
     const plans = await query<CarrierPlan>(
       this.db,
-      `SELECT table_name, sub_code, root_bind, root_bind_col
-         FROM ar_ling_reg_table_map
-        WHERE role = 'carrier' AND root_bind = 'direct'
-          AND table_name IS NOT NULL AND root_bind_col IS NOT NULL`,
+      `SELECT m.table_name, m.sub_code, m.root_bind, m.root_bind_col
+         FROM ar_ling_reg_table_map m
+         ${scoped ? 'JOIN ar_ling_reg_sub_layer s ON s.sub_code = m.sub_code' : ''}
+        WHERE m.role = 'carrier' AND m.root_bind = 'direct'
+          AND m.table_name IS NOT NULL AND m.root_bind_col IS NOT NULL
+          ${scoped ? 'AND s.band_key = ?' : ''}`,
+      scoped ? [band as string] : [],
     ).catch(() => []);
 
     // The registry is the whitelist. Nothing from the request reaches the SQL
@@ -347,11 +367,25 @@ export class StagingRepo {
                `COUNT(*) AS rows FROM ${p.table_name} WHERE ${p.root_bind_col} = ?`,
         )
         .join(' UNION ALL ');
-      // A carrier named in the registry may not exist in this database yet; one
-      // missing table must not blank the whole reading.
+      // A carrier named in the registry may not exist in this database yet, and
+      // one missing table must not blank the whole reading — so a failed union
+      // falls back to counting each carrier on its own. Swallowing the error
+      // outright is what let a chunk-size mistake read as "nothing is there".
       const rows = await query<RootFillCell>(this.db, sql, chunk.map(bindValue))
-        .catch(() => [] as RootFillCell[]);
-      cells.push(...rows);
+        .catch(() => null);
+      if (rows) {
+        cells.push(...rows);
+        continue;
+      }
+      for (const p of chunk) {
+        const one = await query<RootFillCell>(
+          this.db,
+          `SELECT '${p.sub_code}' AS sub_code, '${p.table_name}' AS carrier_table, ` +
+            `COUNT(*) AS rows FROM ${p.table_name} WHERE ${p.root_bind_col} = ?`,
+          [bindValue(p)],
+        ).catch(() => [] as RootFillCell[]);
+        cells.push(...one);
+      }
     }
 
     // A band can be carried by several tables (`tables_json` lists them), so the
