@@ -1,6 +1,6 @@
 // ─── PageRepo — Mushaf page rendering ──────────────────────────────────────────
 // Loads one mushaf page: ayahs, words, surahs, layout lines, default translation.
-// Tables: qr_ayah, qr_word_occurrence, qr_surah, qr_page_layout_lines,
+// Tables: qr_ayah, qr_word_occurrence, qr_surah, qr_mushaf_layout_line,
 //         qr_translation, qr_translation_source
 
 import { query, queryOne } from '../../../shared/src/db';
@@ -55,6 +55,10 @@ interface LayoutLineRow {
   word_from_index?: number | null;
   word_to_index?: number | null;
 }
+
+// The only mushaf layout present in km_quran. Kept explicit so a second layout
+// can never be silently mixed into one page.
+const QPC_LAYOUT_KEY = 'qpc-v2-15-lines';
 
 // ─── PageRepo ───────────────────────────────────────────────────────────────────
 
@@ -115,21 +119,28 @@ export class PageRepo {
       ).catch(() => []),
       query<LayoutLineRow>(
         this.db,
+        // Real carrier is qr_mushaf_layout_line (9,046 lines / 604 pages, one
+        // layout: qpc-v2-15-lines). It stores ayah refs as refs_json rather than
+        // ayah_from/ayah_to columns, so the range is derived here and the shape
+        // consumed below is unchanged.
         `SELECT line_number,
-                'ayah' AS line_type,
-                0 AS is_centered,
+                line_type,
+                is_centered,
                 NULL AS first_word_id,
                 NULL AS last_word_id,
-                surah AS surah_number,
-                surah,
-                ayah_from,
-                ayah_to,
-                word_from_index,
-                word_to_index
-         FROM qr_page_layout_lines
-         WHERE page_number = ?
+                surah_number,
+                (SELECT json_extract(r.value, '$.surah')
+                   FROM json_each(refs_json) r LIMIT 1)              AS surah,
+                (SELECT MIN(json_extract(r.value, '$.ayah'))
+                   FROM json_each(refs_json) r)                      AS ayah_from,
+                (SELECT MAX(json_extract(r.value, '$.ayah'))
+                   FROM json_each(refs_json) r)                      AS ayah_to,
+                NULL AS word_from_index,
+                NULL AS word_to_index
+         FROM qr_mushaf_layout_line
+         WHERE page_number = ? AND layout_key = ?
          ORDER BY line_number`,
-        [pageNo],
+        [pageNo, QPC_LAYOUT_KEY],
       ).catch(() => []),
       queryOne<{ id: string }>(
         this.db,

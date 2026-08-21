@@ -17,6 +17,7 @@ import { grantRoutes } from './routes/grants';
 import { srsRoutes } from './routes/srs';
 import { srsRegistryRoutes } from './routes/srs-registry';
 import { cybRoutes } from './routes/cyb';
+import { studySessionRoutes } from './routes/study-session';
 
 const router = new Router<CoreEnv>();
 
@@ -36,6 +37,7 @@ grantRoutes(router);
 srsRoutes(router);           // /core/srs/* — the one spaced-repetition engine (FSRS)
 srsRegistryRoutes(router);   // GET/POST/DELETE /core/srs/registry — SRS enrollment index
 cybRoutes(router);           // GET /core/cyb/* — cybernetics control plane (monitor · tree · jobs)
+studySessionRoutes(router);  // /core/study/sessions — the study axis's one carrier
 
 export default {
   fetch: (request: Request, env: CoreEnv) => router.handle(request, env),

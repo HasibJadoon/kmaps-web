@@ -39,7 +39,28 @@ import {
 } from '../srs/fsrs';
 import type { FSRSParameters } from 'ts-fsrs';
 
-const MODULES = new Set(['AR', 'AL', 'QR', 'WV', 'other']);
+const MODULES = new Set(['AR', 'AL', 'QR', 'WV', 'EN', 'other']);
+
+/// The five subjects, and the only values `concept_domain` may hold. The
+/// domain of a card is not a free label a client picks: it is which pillar the
+/// card's module belongs to, so it is derived here on every write.
+const DOMAIN_OF_MODULE: Record<string, string> = {
+  QR: 'Quran',
+  AR: 'Arabic',
+  AL: 'Arabic Linguistics',
+  WV: 'WorldView',
+  EN: 'English Language',
+};
+const CONCEPT_DOMAINS = [
+  'Quran', 'Arabic', 'Arabic Linguistics', 'WorldView', 'English Language',
+] as const;
+
+/// The pillar a card in `module` belongs to. `other` has none — an import that
+/// names no module is not yet one of the five.
+function domainOfModule(module: string | null | undefined): string | null {
+  return module ? DOMAIN_OF_MODULE[module] ?? null : null;
+}
+
 const RESOURCE_TYPES = new Set([
   'vocabulary', 'grammar', 'root', 'lemma', 'word',
   'ayah', 'passage', 'concept', 'other',
@@ -114,8 +135,15 @@ function cardToApi(c: SrsCard, params: FSRSParameters) {
 }
 
 /// What a card can teach, per deck. Served to clients as data so a new kind or
-/// domain is a worker deploy, never an app release. concept_domains apply to
-/// any module's `concept` kind.
+/// domain is a worker deploy, never an app release.
+///
+/// concept_domain is the *pillar* a card belongs to — the same five the deck
+/// tree is built from. It was briefly a free discipline list (theology,
+/// psychology, …) and then, in practice, a junk drawer: the root a card came
+/// from ended up there, so a collection of 250 cards browsed as 146 "domains"
+/// and grouping by domain said nothing. The root already lives in `root_norm`,
+/// so the field is now the one thing nothing else carried: which of the five
+/// subjects this card is. Five, always — a sixth is a new pillar, not a tag.
 const TAXONOMY = {
   modules: {
     QR: {
@@ -137,11 +165,13 @@ const TAXONOMY = {
       label: 'Worldview',
       kinds: ['concept', 'argument', 'quote', 'definition'],
     },
+    EN: {
+      label: 'English Language',
+      kinds: ['vocabulary', 'grammar', 'expression', 'idiom', 'concept'],
+    },
     other: { label: 'Other', kinds: ['concept'] },
   },
-  concept_domains: ['theology', 'psychology', 'sociology', 'law',
-                    'ethics', 'eschatology', 'spirituality', 'history',
-                    'economics', 'politics'],
+  concept_domains: CONCEPT_DOMAINS,
 } as const;
 
 /**
@@ -404,6 +434,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     AL: 'Arabic Linguistics',
     AR: 'Arabic',
     WV: 'Worldview',
+    EN: 'English Language',
     other: 'Other',
   };
 
@@ -789,9 +820,11 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const front = str(body?.['front_text']);
     const back = str(body?.['back_text']);
     const kind = str(body?.['card_kind']);
-    const domain = str(body?.['concept_domain']);
     const suspended = typeof body?.['suspended'] === 'boolean' ? (body['suspended'] ? 1 : 0) : null;
 
+    // `concept_domain` is not in the editable set: it follows the module, and
+    // the module of an existing card does not change. Rewriting it here keeps
+    // a card edited before this rule from carrying an old free-text domain.
     await execute(env.DB_CORE,
       `UPDATE core_srs_card SET
          front_text = COALESCE(?, front_text),
@@ -801,7 +834,8 @@ export function srsRoutes(router: Router<CoreEnv>) {
          suspended = COALESCE(?, suspended),
          updated_at = datetime('now')
        WHERE id = ?`,
-      [front ?? null, back ?? null, kind ?? null, domain ?? null, suspended, id]);
+      [front ?? null, back ?? null, kind ?? null,
+       domainOfModule(card.module), suspended, id]);
 
     const params = buildParams(storedOf(await repo.params(ctx.userId)));
     const updated = await repo.findCard(id);
@@ -969,7 +1003,9 @@ export function srsRoutes(router: Router<CoreEnv>) {
         front_text: front,
         back_text: str(raw['back_text']) ?? '',
         card_kind: str(raw['card_kind']) ?? null,
-        concept_domain: str(raw['concept_domain']) ?? null,
+        // An Anki deck's own "domain" is whatever the exporter wrote; the
+        // pillar is the module it was imported under.
+        concept_domain: domainOfModule(module),
         tags: Array.isArray(raw['tags']) ? (raw['tags'] as string[]).join(',') : null,
         extra_json: JSON.stringify({ source: 'anki', origin }),
       });
@@ -1233,7 +1269,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
       deck_id: deckId, user_ref: ctx.userId,
       module, resource_type: resourceType, resource_ref: resourceRef,
       card_kind: str(body?.['card_kind']) ?? null,
-      concept_domain: str(body?.['concept_domain']) ?? null,
+      concept_domain: domainOfModule(module),
       card_template: str(body?.['card_template']) ?? 'freeform',
       front_text: str(body?.['front_text']) ?? '',
       back_text: str(body?.['back_text']) ?? '',

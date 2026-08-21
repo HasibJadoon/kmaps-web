@@ -12,7 +12,7 @@ export interface SrsRegistryCard {
   workspace_id: string | null;
   resource_ref: string;
   resource_type: 'vocabulary' | 'grammar' | 'root' | 'lemma' | 'ayah' | 'concept' | 'other';
-  module: 'AR' | 'AL' | 'QR' | 'WV' | 'other';
+  module: 'AR' | 'AL' | 'QR' | 'WV' | 'EN' | 'other';
   card_ref: string | null;
   enqueued_at: string;
   last_review_at: string | null;

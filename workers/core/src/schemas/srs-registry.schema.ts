@@ -11,7 +11,7 @@ export interface SrsRegistryCard {
   workspace_id: string | null;
   resource_ref: string;                                 // typed ref to the item being learned
   resource_type: 'vocabulary' | 'grammar' | 'root' | 'lemma' | 'ayah' | 'concept' | 'other';
-  module: 'AR' | 'AL' | 'QR' | 'WV' | 'other';
+  module: 'AR' | 'AL' | 'QR' | 'WV' | 'EN' | 'other';
   card_ref: string | null;                              // 'AR:<srs_card_id>' once created
   enqueued_at: string;
   last_review_at: string | null;
@@ -82,7 +82,7 @@ export function validateSrsCardUpsert(
   if (!resourceTypes.includes(b.resource_type as never))
     return { error: `resource_type must be one of: ${resourceTypes.join(', ')}` };
 
-  const modules = ['AR', 'AL', 'QR', 'WV', 'other'] as const;
+  const modules = ['AR', 'AL', 'QR', 'WV', 'EN', 'other'] as const;
   if (!modules.includes(b.module as never))
     return { error: `module must be one of: ${modules.join(', ')}` };
 

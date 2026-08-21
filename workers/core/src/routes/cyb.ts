@@ -16,6 +16,21 @@ import type { CoreEnv } from '../env';
 import { CybRepo } from '../repositories/cyb.repo';
 
 export function cybRoutes(router: Router<CoreEnv>) {
+  // GET /core/cyb/process?domain=quran — the study process register: the ordered
+  // steps, what each covers, and the layers and skills that do it.
+  router.get('/core/cyb/process', async (req, env) => {
+    const domain = new URL(req.url).searchParams.get('domain') ?? undefined;
+    const processes = await new CybRepo(env.DB_CORE).process(domain);
+    return ok({ processes });
+  });
+
+  // GET /core/cyb/layers?domain=quran — the layer registry, the one taxonomy.
+  router.get('/core/cyb/layers', async (req, env) => {
+    const domain = new URL(req.url).searchParams.get('domain') ?? undefined;
+    const layers = await new CybRepo(env.DB_CORE).layers(domain);
+    return ok({ layers });
+  });
+
   // GET /core/cyb/monitor — the whole control loop as one snapshot.
   router.get('/core/cyb/monitor', async (_req, env) => {
     const repo = new CybRepo(env.DB_CORE);

@@ -9,7 +9,6 @@ import type { QuranEnv } from './env';
 
 import { surahRoutes } from './routes/surahs';
 import { ayahRoutes } from './routes/ayahs';
-import { passageRoutes } from './routes/passages';
 import { wordRoutes } from './routes/words';
 import { translationRoutes } from './routes/translations';
 import { studyRoutes } from './routes/study';
@@ -47,7 +46,6 @@ wordGridRoutes(router);      // GET /qr/word-grid?scope= — lightweight scope-b
 lexiconDisplayRoutes(router);// GET /qr/lexicon/root/:root — root display record (render layer)
 worldviewRoutes(router);     // GET /qr/surahs/:id/worldview — Quran-scoped worldview projection data
 ayahRoutes(router);          // GET /qr/ayahs, /qr/ayahs/search, /qr/ayahs/:s/:a
-passageRoutes(router);       // GET /qr/passages, by-ayah, single, create, delete
 wordRoutes(router);          // GET /qr/words, by-lemma, by-root
 translationRoutes(router);   // GET /qr/translation-sources, /qr/translations
 studyRoutes(router);         // GET /qr/study/surahs/:id — grid, passages, lesson, vocab, expressions

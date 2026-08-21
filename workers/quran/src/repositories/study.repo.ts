@@ -211,9 +211,23 @@ function sourcesFromNote(note: string | null): string[] {
 }
 
 // Task sort order: explicit display_order wins; fall back to known step type order.
+// The registered study process — cyb_process_step under PRC:quran:surah_passage_study.
+// Six steps in the order the work is done. `morphology` and `expressions` are one
+// step (an idiom cannot be read by parsing it); `comprehension` and `scholarship`
+// are one step. Task rows keep their original task_type, so the distinction
+// survives inside the step — which is why the legacy keys still resolve here.
 const STEP_ORDER: Record<string, number> = {
-  reading: 100, morphology: 200, sentence_structure: 300,
-  expressions: 400, comprehension: 500, passage_structure: 600,
+  reading: 100, vocabulary: 200, sentence_structure: 300,
+  passage_structure: 400, tafsir: 500, worldview: 600,
+  // Legacy task_type values, ordered inside the step that now owns them.
+  morphology: 200, expressions: 210,
+  comprehension: 500, scholarship: 510,
+};
+
+/** The step a legacy key now belongs to. */
+const STEP_ALIAS: Record<string, string> = {
+  morphology: 'vocabulary', expressions: 'vocabulary',
+  comprehension: 'tafsir', scholarship: 'tafsir',
 };
 
 function taskSortKey(t: StudyTask): number {
@@ -266,11 +280,24 @@ export class StudyRepo {
         end_ref:     `${p.surah_id}:${p.ayah_to}`,
         label:       p.title ?? `Passage ${p.passage_no}`,
         theme:       p.theme ?? null,
-        reading:             { has: flags.has('reading')            ? 1 : 0 },
-        vocabulary:          { nouns: wc.nouns, verbs: wc.verbs, total: wc.total },
+        // One flag per registered step, all six. This emitted five and omitted
+        // `comprehension` and `scholarship` entirely, so 21 real tasks across 11
+        // passages were invisible in the grid — not because the app dropped them
+        // but because the server never sent them. A legacy task_type counts
+        // towards the step that now owns it.
+        reading:             { has: flags.has('reading') ? 1 : 0 },
+        vocabulary:          {
+          nouns: wc.nouns, verbs: wc.verbs, total: wc.total,
+          has: (flags.has('vocabulary') || flags.has('morphology')
+                || flags.has('expressions')) ? 1 : 0,
+        },
         sentence_structure:  { has: flags.has('sentence_structure') ? 1 : 0 },
-        expressions:         { has: flags.has('expressions')        ? 1 : 0 },
         passage_structure:   { has: flags.has('passage_structure')  ? 1 : 0 },
+        tafsir:              {
+          has: (flags.has('tafsir') || flags.has('comprehension')
+                || flags.has('scholarship')) ? 1 : 0,
+        },
+        worldview:           { has: flags.has('worldview') ? 1 : 0 },
       };
     });
 
@@ -1016,7 +1043,11 @@ export class StudyRepo {
   ): Promise<unknown> {
     switch (stepType) {
       case 'reading':       return this.readingStep(surahId, passageNo);
+      // `vocabulary` is the registered step; `morphology` is the legacy key for
+      // the same work and still resolves.
+      case 'vocabulary':
       case 'morphology':    return this.morphologyStep(surahId, passageNo);
+      case 'tafsir':
       case 'comprehension': return this.comprehensionStep(surahId, passageNo);
       case 'expressions':   return this.expressionsStep(surahId, passageNo, al);
       case 'sentence_structure': return this.sentenceStructureStep(surahId, passageNo);

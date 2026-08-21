@@ -1,5 +1,5 @@
 -- Schema for km_studio.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-01.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-15.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
@@ -20,7 +20,7 @@ CREATE TABLE st_episodes (
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
-);
+, ecosystem TEXT, series_ref TEXT, session_no INTEGER, output_kind TEXT, source_ref TEXT);
 
 CREATE TABLE st_participants (
   id            TEXT PRIMARY KEY,
@@ -40,7 +40,7 @@ CREATE TABLE st_sections (
   heading       TEXT NOT NULL,
   seq           INTEGER NOT NULL DEFAULT 0,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now')), overlay_kind TEXT, d1_query TEXT,
   FOREIGN KEY (episode_ref) REFERENCES st_episodes(id)
 );
 
@@ -66,7 +66,7 @@ CREATE TABLE st_talking_points (
   est_seconds   INTEGER,
   seq           INTEGER NOT NULL DEFAULT 0,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at    TEXT NOT NULL DEFAULT (datetime('now')), bridge TEXT,
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now')), bridge TEXT, overlay_json TEXT,
   FOREIGN KEY (section_ref) REFERENCES st_sections(id),
   FOREIGN KEY (episode_ref) REFERENCES st_episodes(id)
 );

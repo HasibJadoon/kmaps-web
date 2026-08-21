@@ -165,6 +165,40 @@ function parseTables(raw: string | null): string[] {
   }
 }
 
+
+// ─── Carrier fill — what actually landed, counted live ────────────────────────
+// The staging table says what a mining session *proposed*. These counts say what
+// is *there*. They are different facts and the second is the one a reader means
+// by "is this built": a claim can sit staged forever without reaching a carrier,
+// and a carrier can be full of rows no claim ever passed through (imported
+// directly). Reading the queue for fill reported نزل's Identity as 1-of-4 when
+// three of its four carriers hold rows.
+//
+// Nothing here is stored. `ar_ling_reg_table_map` already holds the only durable
+// part — which table carries a sub-layer and which column binds the root — so
+// the count is taken at read time and can never go stale.
+
+/** One carrier's live row count for a root. */
+export interface RootFillCell {
+  sub_code: string;
+  carrier_table: string;
+  rows: number;
+}
+
+/** A carrier as the registry declares it. */
+interface CarrierPlan {
+  table_name: string;
+  sub_code: string;
+  root_bind: string;
+  root_bind_col: string | null;
+}
+
+/** Identifiers are interpolated into SQL, so they must look like identifiers. */
+const IDENT = /^[a-z_][a-z0-9_]*$/;
+
+/** D1 refuses long compound SELECTs ("too many terms"), so unions go in chunks. */
+const UNION_CHUNK = 8;
+
 export class StagingRepo {
   constructor(private db: D1Database) {}
 
@@ -249,6 +283,99 @@ export class StagingRepo {
   }
 
   // Per root × sub_code counts (+ how many promoted) — the matrix body.
+
+  // ── Carrier fill ────────────────────────────────────────────────────────────
+
+  /**
+   * Live row counts per sub-layer for one root, straight from the carriers.
+   *
+   * Driven entirely by `ar_ling_reg_table_map`: it names the carrier table and
+   * the column that binds a root, which is the whole of what a sensor needs to
+   * hold. Carriers whose binding has not been audited (`root_bind` of `unset`)
+   * are omitted rather than returned as zero — an unaudited carrier is unknown,
+   * and calling it empty is the same untruth in a new place.
+   */
+  async rootFill(root: string): Promise<RootFillCell[]> {
+    const plans = await query<CarrierPlan>(
+      this.db,
+      `SELECT table_name, sub_code, root_bind, root_bind_col
+         FROM ar_ling_reg_table_map
+        WHERE role = 'carrier' AND root_bind = 'direct'
+          AND table_name IS NOT NULL AND root_bind_col IS NOT NULL`,
+    ).catch(() => []);
+
+    // The registry is the whitelist. Nothing from the request reaches the SQL
+    // text — only the bound value, and only ever as a parameter.
+    const usable = plans.filter(
+      p => IDENT.test(p.table_name) && !!p.root_bind_col && IDENT.test(p.root_bind_col),
+    );
+    if (!usable.length) return [];
+
+    // A carrier binds the root by one of three different things, and binding the
+    // wrong one silently returns zero rather than failing. `ar_ling_root_lugha`
+    // and `ar_ling_root_taqalib` key on the root's ULID, so matching them against
+    // the root *string* reported an empty carrier for every root in the corpus —
+    // which is why Permutation read "empty" over a real row.
+    const idRow = await queryOne<{ id: string }>(
+      this.db, 'SELECT id FROM ar_ling_roots WHERE root_text = ? LIMIT 1', [root],
+    ).catch(() => null);
+    const rootId = idRow?.id ?? null;
+
+    const ID_COLS = new Set(['root_id', 'used_root_id']);
+    // Bound by a lemma, not a root: counting these against a root value is not a
+    // near-miss but a category error, so they are omitted as unknown.
+    const LEMMA_COLS = new Set(['lemma_id']);
+
+    const safe: CarrierPlan[] = [];
+    for (const p of usable) {
+      const col = p.root_bind_col as string;
+      if (LEMMA_COLS.has(col)) continue;
+      if (ID_COLS.has(col) && !rootId) continue;   // unknown, not zero
+      safe.push(p);
+    }
+    if (!safe.length) return [];
+
+    const bindValue = (p: CarrierPlan): string =>
+      ID_COLS.has(p.root_bind_col as string) ? (rootId as string) : root;
+
+    const cells: RootFillCell[] = [];
+    for (let i = 0; i < safe.length; i += UNION_CHUNK) {
+      const chunk = safe.slice(i, i + UNION_CHUNK);
+      const sql = chunk
+        .map(
+          p => `SELECT '${p.sub_code}' AS sub_code, '${p.table_name}' AS carrier_table, ` +
+               `COUNT(*) AS rows FROM ${p.table_name} WHERE ${p.root_bind_col} = ?`,
+        )
+        .join(' UNION ALL ');
+      // A carrier named in the registry may not exist in this database yet; one
+      // missing table must not blank the whole reading.
+      const rows = await query<RootFillCell>(this.db, sql, chunk.map(bindValue))
+        .catch(() => [] as RootFillCell[]);
+      cells.push(...rows);
+    }
+
+    // A band can be carried by several tables (`tables_json` lists them), so the
+    // reading for a sub-layer is their sum.
+    const merged = new Map<string, RootFillCell>();
+    for (const c of cells) {
+      const seen = merged.get(c.sub_code);
+      if (seen) {
+        seen.rows += Number(c.rows) || 0;
+        if (Number(c.rows) > 0 && !seen.carrier_table.includes(c.carrier_table)) {
+          seen.carrier_table = `${seen.carrier_table}, ${c.carrier_table}`;
+        }
+      } else {
+        merged.set(c.sub_code, {
+          sub_code: c.sub_code,
+          carrier_table: c.carrier_table,
+          rows: Number(c.rows) || 0,
+        });
+      }
+    }
+    return [...merged.values()].sort((a, b) => a.sub_code.localeCompare(b.sub_code));
+  }
+
+
   matrix(): Promise<StageCell[]> {
     return query<StageCell>(
       this.db,

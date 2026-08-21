@@ -1,9 +1,9 @@
 -- Schema for km_planner.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-01.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-15.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (32) ──────────────────────────────────────────────────
+-- ── Tables (30) ──────────────────────────────────────────────────
 
 CREATE TABLE cp_build_job (
   id             TEXT PRIMARY KEY,
@@ -112,31 +112,6 @@ CREATE TABLE cp_production (
   meta_json    TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json)),
   created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-);
-
-CREATE TABLE cp_review_event (
-  id              TEXT PRIMARY KEY,
-  card_id         TEXT NOT NULL REFERENCES cp_srs_card(id) ON DELETE CASCADE,
-  graded_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
-  grade           INTEGER NOT NULL CHECK (grade BETWEEN 0 AND 5),
-  interval_before INTEGER,
-  interval_after  INTEGER,
-  actor           TEXT NOT NULL DEFAULT 'hasib'
-);
-
-CREATE TABLE cp_srs_card (
-  id            TEXT PRIMARY KEY,
-  node_id       TEXT NOT NULL REFERENCES cp_node(id) ON DELETE CASCADE,
-  card_kind     TEXT NOT NULL DEFAULT 'recall' CHECK (card_kind IN ('recall','recite','translate','usage','structure')),
-  ease          REAL NOT NULL DEFAULT 2.5,
-  interval_days INTEGER NOT NULL DEFAULT 0,
-  reps          INTEGER NOT NULL DEFAULT 0,
-  lapses        INTEGER NOT NULL DEFAULT 0,
-  due_at        TEXT,
-  last_grade    INTEGER,
-  suspended     INTEGER NOT NULL DEFAULT 0,
-  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
-  updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 
 CREATE TABLE cp_tick_log (

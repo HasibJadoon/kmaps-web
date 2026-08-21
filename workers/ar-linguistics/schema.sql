@@ -1,9 +1,228 @@
 -- Schema for km_arabic_linguistic.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-01.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-15.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (103) ─────────────────────────────────────────────────
+-- ── Tables (123) ─────────────────────────────────────────────────
+
+CREATE TABLE ar_ling_concept_block (
+  id                TEXT PRIMARY KEY,
+  uid               TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(13)))),
+  concept_entry_id  TEXT REFERENCES ar_ling_concept_entry(id) ON DELETE CASCADE,
+  entry_uid         TEXT,
+  term_id           TEXT REFERENCES ar_ling_gram_term(id),
+  term_uid          TEXT,
+  discipline_key    TEXT REFERENCES ar_ling_reg_discipline(discipline_key),
+  sense_id          TEXT REFERENCES ar_ling_concept_sense(id),
+  sense_uid         TEXT,
+  section_id        TEXT REFERENCES ar_ling_concept_section(id),
+  source_slug       TEXT,
+  parent_block_id   TEXT REFERENCES ar_ling_concept_block(id),
+  block_path        TEXT NOT NULL,
+  block_seq         INTEGER NOT NULL,
+  depth             INTEGER NOT NULL DEFAULT 0,
+  block_type        TEXT NOT NULL,
+  lang              TEXT,
+  title_ar TEXT, title_en TEXT, title_ur TEXT,
+  text_plain TEXT, text_html TEXT,
+  translation_en TEXT, translation_ur TEXT,
+  data_json         TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(data_json)),
+  origin            TEXT NOT NULL DEFAULT 'book_native',
+  origin_ref        TEXT,
+  printed_page      INTEGER,
+  printed_anchor    TEXT,
+  status            TEXT NOT NULL DEFAULT 'draft',
+  created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at        TEXT,
+  CHECK (concept_entry_id IS NOT NULL OR term_id IS NOT NULL OR discipline_key IS NOT NULL)
+);
+
+CREATE VIRTUAL TABLE ar_ling_concept_block_fts USING fts5(
+  block_id UNINDEXED, block_uid UNINDEXED, term_id UNINDEXED, source_slug UNINDEXED,
+  title_ar, title_en, title_ur, text_plain, translation_en, translation_ur,
+  tokenize = 'unicode61 remove_diacritics 2'
+);
+
+CREATE TABLE ar_ling_concept_block_link (
+  id                TEXT PRIMARY KEY,
+  uid               TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(13)))),
+  from_block_id     TEXT NOT NULL REFERENCES ar_ling_concept_block(id) ON DELETE CASCADE,
+  from_block_uid    TEXT,
+  link_kind         TEXT NOT NULL,
+  to_term_id TEXT, to_term_uid TEXT,
+  to_sense_id TEXT, to_sense_uid TEXT,
+  to_root_norm TEXT, to_root_uid TEXT,
+  to_surah INTEGER, to_ayah INTEGER, to_ayah_to INTEGER,
+  to_block_id TEXT REFERENCES ar_ling_concept_block(id),
+  to_authority_code TEXT, to_lemma_ref TEXT, to_card_ref TEXT, to_url TEXT,
+  to_db             TEXT,
+  label TEXT, weight REAL DEFAULT 1.0, position_offset INTEGER,
+  origin            TEXT NOT NULL DEFAULT 'derived',
+  created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE ar_ling_concept_entry (
+  id              TEXT PRIMARY KEY,
+  uid             TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(13)))),
+  source_id       TEXT NOT NULL REFERENCES ar_ling_source(id),
+  source_slug     TEXT NOT NULL,
+  term_id         TEXT NOT NULL REFERENCES ar_ling_gram_term(id),
+  term_uid        TEXT,
+  discipline_key  TEXT NOT NULL REFERENCES ar_ling_reg_discipline(discipline_key),
+  heading_ar      TEXT,
+  entry_text_ar   TEXT,
+  raw_text        TEXT,
+  translation_en  TEXT,
+  translation_ur  TEXT,
+  toc_id          TEXT REFERENCES ar_ling_source_toc(id),
+  source_chunk_id TEXT REFERENCES ar_ling_source_chunk(id),
+  page_start INTEGER, page_end INTEGER, volume_no INTEGER,
+  source_url TEXT,
+  stance          TEXT CHECK (stance IS NULL OR stance IN ('defines','divides','disputes','applies','mentions')),
+  is_locus_classicus INTEGER NOT NULL DEFAULT 0,
+  parser_version TEXT, raw_hash TEXT, import_batch_id TEXT,
+  status          TEXT NOT NULL DEFAULT 'raw',
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (source_slug, term_id)
+);
+
+CREATE TABLE ar_ling_concept_equivalent (
+  id           TEXT PRIMARY KEY,
+  uid          TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(13)))),
+  term_id      TEXT NOT NULL REFERENCES ar_ling_gram_term(id),
+  term_uid     TEXT,
+  sense_id     TEXT REFERENCES ar_ling_concept_sense(id),
+  sense_uid    TEXT,
+  tradition    TEXT NOT NULL CHECK (tradition IN ('en_linguistics','en_arabist','ur_balaghat','greek_rhetoric','latin_rhetoric','hebrew','syriac','other')),
+  equiv_term   TEXT NOT NULL,
+  equiv_script TEXT,
+  equiv_gloss  TEXT,
+  fit          TEXT NOT NULL CHECK (fit IN ('exact','close','partial','false_friend')),
+  loss_kind    TEXT CHECK (loss_kind IN ('none','recoverable','partly_recoverable','structural')),
+  divergence_ar TEXT, divergence_en TEXT, divergence_ur TEXT,
+  source_ref   TEXT,
+  is_preferred INTEGER NOT NULL DEFAULT 0,
+  sort_order   INTEGER NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE ar_ling_concept_external_link (
+  id            TEXT PRIMARY KEY,
+  uid           TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(13)))),
+  from_kind     TEXT NOT NULL CHECK (from_kind IN ('discipline','group','term','sense','entry','block')),
+  from_ref      TEXT NOT NULL,
+  from_uid      TEXT NOT NULL,
+  to_db         TEXT NOT NULL,
+  to_kind       TEXT NOT NULL CHECK (to_kind IN ('course','unit','lesson','card','deck','quran_scope','document','asset')),
+  to_ref        TEXT NOT NULL,
+  to_uid        TEXT,
+  role          TEXT NOT NULL DEFAULT 'taught_in' CHECK (role IN ('taught_in','reviewed_by','applied_at','documented_in','contrast')),
+  label         TEXT,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (from_ref, to_ref, role)
+);
+
+CREATE TABLE ar_ling_concept_group (
+  group_id        TEXT PRIMARY KEY,
+  uid             TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(13)))),
+  discipline_key  TEXT NOT NULL REFERENCES ar_ling_reg_discipline(discipline_key),
+  group_kind      TEXT NOT NULL CHECK (group_kind IN ('bab','taxonomic','instrument','function','contrast_set','source_toc','thematic')),
+  parent_group_id TEXT REFERENCES ar_ling_concept_group(group_id),
+  source_slug     TEXT,
+  toc_id          TEXT REFERENCES ar_ling_source_toc(id),
+  name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
+  note_ar TEXT, note_en TEXT, note_ur TEXT,
+  seq             INTEGER NOT NULL DEFAULT 0,
+  status          TEXT NOT NULL DEFAULT 'live',
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE ar_ling_concept_group_member (
+  group_id    TEXT NOT NULL REFERENCES ar_ling_concept_group(group_id) ON DELETE CASCADE,
+  term_id     TEXT NOT NULL REFERENCES ar_ling_gram_term(id),
+  term_uid    TEXT,
+  seq         INTEGER NOT NULL DEFAULT 0,
+  role        TEXT,
+  note_ar TEXT, note_en TEXT, note_ur TEXT,
+  PRIMARY KEY (group_id, term_id)
+);
+
+CREATE TABLE ar_ling_concept_section (
+  id               TEXT PRIMARY KEY,
+  uid              TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(13)))),
+  concept_entry_id TEXT NOT NULL REFERENCES ar_ling_concept_entry(id) ON DELETE CASCADE,
+  entry_uid        TEXT,
+  source_slug      TEXT NOT NULL,
+  term_id          TEXT NOT NULL REFERENCES ar_ling_gram_term(id),
+  section_seq      INTEGER NOT NULL,
+  heading_ar TEXT, heading_norm TEXT,
+  section_type     TEXT NOT NULL DEFAULT 'definition',
+  text_ar TEXT, translation_en TEXT, translation_ur TEXT,
+  page_no INTEGER, volume_no INTEGER,
+  has_gaps         INTEGER NOT NULL DEFAULT 0,
+  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at       TEXT,
+  UNIQUE (concept_entry_id, section_seq)
+);
+
+CREATE TABLE ar_ling_concept_sense (
+  id          TEXT PRIMARY KEY,
+  uid         TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(13)))),
+  term_id     TEXT NOT NULL REFERENCES ar_ling_gram_term(id),
+  term_uid    TEXT,
+  sense_key   TEXT NOT NULL,
+  sense_order INTEGER NOT NULL DEFAULT 0,
+  name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
+  hadd_ar TEXT, hadd_en TEXT, hadd_ur TEXT,
+  dabit_ar TEXT, dabit_en TEXT, dabit_ur TEXT,
+  tarjama_athar_en TEXT, tarjama_athar_ur TEXT,
+  loss_kind   TEXT CHECK (loss_kind IN ('recoverable','partly_recoverable','structural')),
+  is_primary  INTEGER NOT NULL DEFAULT 0,
+  status      TEXT NOT NULL DEFAULT 'draft',
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT,
+  UNIQUE (term_id, sense_key)
+);
+
+CREATE TABLE ar_ling_concept_sense_example (
+  id           TEXT PRIMARY KEY,
+  uid          TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(13)))),
+  sense_id     TEXT NOT NULL REFERENCES ar_ling_concept_sense(id) ON DELETE CASCADE,
+  sense_uid    TEXT,
+  term_id      TEXT NOT NULL REFERENCES ar_ling_gram_term(id),
+  term_uid     TEXT,
+  example_kind TEXT NOT NULL DEFAULT 'quran' CHECK (example_kind IN ('quran','hadith','shir','prose','proverb','constructed')),
+  example_ar   TEXT NOT NULL,
+  gloss_en TEXT, gloss_ur TEXT,
+  analysis_ar TEXT, analysis_en TEXT, analysis_ur TEXT,
+  qr_surah INTEGER, qr_ayah INTEGER, qr_ref TEXT,
+  poet_or_speaker TEXT,
+  source_slug TEXT, page_ref TEXT,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE ar_ling_concept_synthesis (
+  term_id      TEXT PRIMARY KEY REFERENCES ar_ling_gram_term(id),
+  uid          TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(13)))),
+  term_uid     TEXT,
+  hadd_ar TEXT, hadd_en TEXT, hadd_ur TEXT,
+  discourse_ar TEXT, discourse_en TEXT, discourse_ur TEXT,
+  dabit_ar TEXT, dabit_en TEXT, dabit_ur TEXT,
+  khilaf_ar TEXT, khilaf_en TEXT, khilaf_ur TEXT,
+  tarjama_athar_en TEXT, tarjama_athar_ur TEXT,
+  easy_en TEXT, easy_ur TEXT,
+  roster_expected INTEGER NOT NULL DEFAULT 0,
+  roster_done     INTEGER NOT NULL DEFAULT 0,
+  coverage_pct    REAL,
+  depth_tier      TEXT CHECK (depth_tier IS NULL OR depth_tier IN ('stub','v1','v2','complete')),
+  status          TEXT NOT NULL DEFAULT 'draft',
+  reviewed_at     TEXT,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at      TEXT
+);
 
 CREATE TABLE ar_ling_gram_bab (
   id           TEXT PRIMARY KEY,
@@ -68,7 +287,7 @@ CREATE TABLE "ar_ling_gram_term" (
   badge_color TEXT, icon TEXT,
   version     INTEGER NOT NULL DEFAULT 1,
   superseded_by TEXT,
-  status      TEXT NOT NULL DEFAULT 'live', discipline TEXT, is_default_when_absent INTEGER NOT NULL DEFAULT 0,
+  status      TEXT NOT NULL DEFAULT 'live', discipline TEXT, is_default_when_absent INTEGER NOT NULL DEFAULT 0, uid TEXT,
   UNIQUE (category_key, term_key),
   UNIQUE (category_key, qac_flag),
   FOREIGN KEY (category_key)   REFERENCES "ar_ling_gram_category"(category_key),
@@ -258,6 +477,48 @@ CREATE TABLE "ar_ling_learn_vocab" (
   created_at          TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
 , core_sense_ur TEXT);
+
+CREATE TABLE ar_ling_lemma_arc (
+  id            TEXT PRIMARY KEY,
+  root_norm     TEXT NOT NULL,
+  lemma_id      TEXT NOT NULL REFERENCES ar_ling_root_lemma(id),
+  also_lemma_id TEXT REFERENCES ar_ling_root_lemma(id),
+  construction_ar TEXT NOT NULL,
+  harf          TEXT,
+  has_object    INTEGER NOT NULL DEFAULT 1,
+  attest_count  INTEGER NOT NULL,
+  all_refs_json TEXT NOT NULL CHECK (json_valid(all_refs_json)),
+  arc_ar        TEXT NOT NULL,
+  arc_en        TEXT NOT NULL,
+  arc_ur        TEXT,
+  boundary_note_en TEXT,
+  abstraction_note_en TEXT,
+  branches_json TEXT CHECK (branches_json IS NULL OR json_valid(branches_json)),
+  provenance_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(provenance_json)),
+  confidence    REAL NOT NULL DEFAULT 0.9,
+  status        TEXT NOT NULL DEFAULT 'live',
+  superseded_by TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(lemma_id, harf, has_object)
+);
+
+CREATE TABLE ar_ling_lemma_arc_example (
+  id         TEXT PRIMARY KEY,
+  arc_id     TEXT NOT NULL REFERENCES ar_ling_lemma_arc(id) ON DELETE CASCADE,
+  qr_ref     TEXT NOT NULL,
+  surah      INTEGER NOT NULL,
+  ayah       INTEGER NOT NULL,
+  text_ar    TEXT NOT NULL,
+  fluent_en  TEXT NOT NULL,
+  fluent_ur  TEXT,
+  note_en    TEXT,
+  note_ar    TEXT,
+  is_primary INTEGER NOT NULL DEFAULT 0,
+  source_ref TEXT,
+  seq        INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(arc_id, qr_ref)
+);
 
 CREATE TABLE "ar_ling_lexicon_block" (
   id                TEXT PRIMARY KEY,
@@ -651,6 +912,19 @@ CREATE TABLE ar_ling_reg_build_layer (
   note_en TEXT
 , primary_tables_json_bak TEXT, allowed_source_slugs_json_bak TEXT, code_alpha TEXT, scheme_version TEXT DEFAULT 'v1', note_ar TEXT, note_ur TEXT);
 
+CREATE TABLE ar_ling_reg_discipline (
+  discipline_key  TEXT PRIMARY KEY,
+  uid             TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(13)))),
+  name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
+  short_ar TEXT, short_en TEXT, short_ur TEXT,
+  scope_ar TEXT, scope_en TEXT, scope_ur TEXT,
+  roster_json     TEXT CHECK (roster_json IS NULL OR json_valid(roster_json)),
+  display_order   INTEGER NOT NULL DEFAULT 0,
+  icon TEXT, badge_color TEXT,
+  status          TEXT NOT NULL DEFAULT 'live',
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE ar_ling_reg_display_token (
   token_key TEXT PRIMARY KEY,
   token_type TEXT NOT NULL CHECK (token_type IN ('band','term_role','notice_kind','heading_level')),
@@ -684,6 +958,11 @@ CREATE TABLE ar_ling_reg_notice_kind (
   kind_key TEXT PRIMARY KEY, icon TEXT NOT NULL, color_hex TEXT NOT NULL,
   name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT
 );
+
+CREATE TABLE ar_ling_reg_ref_namespace (
+  prefix TEXT PRIMARY KEY, target_db TEXT NOT NULL, target_table TEXT NOT NULL,
+  target_key TEXT NOT NULL, used_by_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(used_by_json)),
+  note_en TEXT, status TEXT NOT NULL DEFAULT 'live');
 
 CREATE TABLE ar_ling_reg_root_key (
   column_name TEXT PRIMARY KEY,
@@ -728,7 +1007,14 @@ CREATE TABLE ar_ling_reg_table_map (
   table_name  TEXT NOT NULL,
   cluster     TEXT NOT NULL,
   layer_code  TEXT,
-  role        TEXT, sub_code TEXT, role_code TEXT, code_full TEXT, discipline TEXT,
+  role        TEXT, sub_code TEXT, role_code TEXT, code_full TEXT, discipline TEXT, provenance_role TEXT, sensor_class TEXT NOT NULL DEFAULT 'none', scope_types_json TEXT NOT NULL DEFAULT '[]', row_count_at_audit INTEGER, audited_at TEXT,
+  -- How this table reaches a root, and through which column. rootFill() reads
+  -- these to count a sub-layer's real rows for one root; without them it
+  -- returns nothing and every fill state silently falls back to the sensors.
+  -- 'unset' means the binding has not been audited — unknown, not empty.
+  root_bind      TEXT NOT NULL DEFAULT 'unset',   -- direct | via | none | unset
+  root_bind_col  TEXT,
+  root_bind_note TEXT,
   PRIMARY KEY (db, table_name)
 );
 
@@ -736,6 +1022,44 @@ CREATE TABLE ar_ling_reg_term_role (
   role_key TEXT PRIMARY KEY,
   color_hex TEXT NOT NULL,
   name_ar TEXT, name_en TEXT
+);
+
+CREATE TABLE ar_ling_root_asl (
+  id            TEXT PRIMARY KEY,
+  root_norm     TEXT NOT NULL,
+  root_id       TEXT,
+
+  -- The claim, in the words of the witness. statement_ar is quoted, never
+  -- paraphrased: an aṣl reported in our own voice is not an attestation.
+  statement_ar  TEXT NOT NULL,
+  statement_en  TEXT,
+  statement_ur  TEXT,
+
+  -- Who said it and when. death_hijri is what makes "oldest" decidable
+  -- rather than a matter of reputation — Ibn Durayd (321) outranks Ibn Fāris
+  -- (395) on this axis even though Maqāyīs is the famous one.
+  authority_ar  TEXT,
+  authority_en  TEXT,
+  death_hijri   INTEGER,
+
+  -- Where it is, so the claim can be checked.
+  source_slug   TEXT,
+  source_id     TEXT,
+  lexicon_entry_id TEXT REFERENCES "ar_ling_lexicon_entry"(id),
+  page_ref      TEXT,
+  volume_no     INTEGER,
+
+  -- A narrower or competing statement from a later witness, kept rather than
+  -- discarded: al-Rāghib narrowing Ibn Durayd is evidence, not noise.
+  is_primary    INTEGER NOT NULL DEFAULT 1,
+  narrows_id    TEXT REFERENCES ar_ling_root_asl(id),
+  note_md       TEXT,
+
+  confidence    TEXT NOT NULL DEFAULT 'medium',
+  status        TEXT NOT NULL DEFAULT 'draft',
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (root_norm, source_slug)
 );
 
 CREATE TABLE "ar_ling_root_backlink" (
@@ -894,6 +1218,10 @@ CREATE TABLE "ar_ling_root_haql" (
   FOREIGN KEY (root_id) REFERENCES ar_ling_roots(id),
   FOREIGN KEY (field_id) REFERENCES "ar_ling_reg_semantic_field"(id),
   FOREIGN KEY (sense_id) REFERENCES "ar_ling_root_sense"(id));
+
+CREATE TABLE ar_ling_root_layer_fill (
+  root TEXT NOT NULL, sub_code TEXT NOT NULL, band TEXT NOT NULL,
+  n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (root, sub_code));
 
 CREATE TABLE "ar_ling_root_lemma" (
   id              TEXT PRIMARY KEY,
@@ -1159,6 +1487,13 @@ CREATE TABLE ar_ling_root_letter_slot (
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (root_norm, slot_index)
+);
+
+CREATE TABLE ar_ling_root_lexicon_alias (
+  root_norm     TEXT PRIMARY KEY,
+  lookup_norm   TEXT NOT NULL,
+  reason        TEXT NOT NULL,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE "ar_ling_root_lugha" (
@@ -1570,6 +1905,8 @@ CREATE TABLE "ar_ling_term_dictionary" (
   PRIMARY KEY (term_text, root_norm)
 );
 
+CREATE TABLE tmp_qroot (root TEXT PRIMARY KEY);
+
 
 -- ── Views (18) ───────────────────────────────────────────────────
 
@@ -1709,7 +2046,7 @@ UNION ALL SELECT 'ar_ling_form_paradigms', id, paradigm_name FROM "ar_ling_root_
 UNION ALL SELECT 'ar_ling_conjugation_templates', id, template_form FROM "ar_ling_root_form_template" WHERE source_slug IS NULL;
 
 
--- ── Indexes (181) ────────────────────────────────────────────────
+-- ── Indexes (204) ────────────────────────────────────────────────
 
 CREATE INDEX idx_albk_book_page
   ON "ar_ling_lexicon_block"(book_page_id);
@@ -2098,6 +2435,40 @@ CREATE INDEX idx_ws_root ON "ar_ling_root_lemma_word_silsila"(root_norm, bab_key
 
 CREATE INDEX idx_ws_stepof ON "ar_ling_root_lemma_word_silsila"(step_of, step_seq);
 
+CREATE INDEX ix_arc_lemma ON ar_ling_lemma_arc(lemma_id);
+
+CREATE INDEX ix_arc_root ON ar_ling_lemma_arc(root_norm, status);
+
+CREATE INDEX ix_arcex_arc ON ar_ling_lemma_arc_example(arc_id, seq);
+
+CREATE INDEX ix_arcex_qr ON ar_ling_lemma_arc_example(surah, ayah);
+
+CREATE INDEX ix_cb_sense ON ar_ling_concept_block(sense_id);
+
+CREATE INDEX ix_cb_term  ON ar_ling_concept_block(term_id, block_type, block_seq);
+
+CREATE INDEX ix_cbl_from ON ar_ling_concept_block_link(from_block_id, link_kind);
+
+CREATE INDEX ix_cbl_qr   ON ar_ling_concept_block_link(to_surah, to_ayah);
+
+CREATE INDEX ix_ce_term ON ar_ling_concept_entry(term_id, source_slug);
+
+CREATE INDEX ix_ceq_term ON ar_ling_concept_equivalent(term_id, tradition, sort_order);
+
+CREATE INDEX ix_cg_disc  ON ar_ling_concept_group(discipline_key, group_kind, seq);
+
+CREATE INDEX ix_cgm_term ON ar_ling_concept_group_member(term_id);
+
+CREATE INDEX ix_cse_qr    ON ar_ling_concept_sense_example(qr_surah, qr_ayah);
+
+CREATE INDEX ix_cse_sense ON ar_ling_concept_sense_example(sense_id, sort_order);
+
+CREATE INDEX ix_cxl_from ON ar_ling_concept_external_link(from_uid, to_db, to_kind);
+
+CREATE INDEX ix_cxl_ref  ON ar_ling_concept_external_link(from_ref);
+
+CREATE INDEX ix_cxl_to   ON ar_ling_concept_external_link(to_uid);
+
 CREATE INDEX ix_lexicon_display_profile_order
   ON ar_ling_lexicon_display_profile (display_order);
 
@@ -2109,6 +2480,14 @@ CREATE INDEX ix_lexicon_display_section_kind
 
 CREATE INDEX ix_lexicon_display_section_slug_seq
   ON ar_ling_lexicon_display_section (source_slug, seq);
+
+CREATE INDEX ix_rlf_sub ON ar_ling_root_layer_fill(sub_code, n);
+
+CREATE INDEX ix_root_asl_death   ON ar_ling_root_asl(root_norm, death_hijri);
+
+CREATE INDEX ix_root_asl_primary ON ar_ling_root_asl(root_norm, is_primary);
+
+CREATE INDEX ix_root_asl_root    ON ar_ling_root_asl(root_norm);
 
 CREATE INDEX ix_root_letter_slot_letter ON ar_ling_root_letter_slot (letter_ar, slot_role);
 
@@ -2135,6 +2514,10 @@ CREATE INDEX ix_roots_canonical ON ar_ling_roots(canonical_id);
 CREATE INDEX ix_roots_normalized ON ar_ling_roots(root_normalized);
 
 CREATE UNIQUE INDEX ux_ar_ling_roots_root_normalized ON ar_ling_roots(root_normalized);
+
+CREATE UNIQUE INDEX ux_cb_entry_path ON ar_ling_concept_block(concept_entry_id, block_path) WHERE concept_entry_id IS NOT NULL;
+
+CREATE UNIQUE INDEX ux_gram_term_uid ON ar_ling_gram_term(uid);
 
 CREATE UNIQUE INDEX ux_morph_flags ON "ar_ling_root_lemma_sarf"(qac_flags, pos);
 

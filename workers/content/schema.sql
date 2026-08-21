@@ -1,5 +1,5 @@
 -- Schema for km_content.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-01.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-15.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
@@ -194,7 +194,7 @@ CREATE TABLE cm_documents (
   meta_json          TEXT NOT NULL DEFAULT '{}',
   created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-);
+, domain TEXT, surah INTEGER, ayah_from INTEGER, ayah_to INTEGER, passage_ref TEXT);
 
 CREATE TABLE cm_engine_jobs (
   job_id          TEXT PRIMARY KEY,
@@ -343,7 +343,7 @@ CREATE TABLE cm_media_assets (
   meta_json          TEXT NOT NULL DEFAULT '{}',
   created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-);
+, domain TEXT, surah INTEGER, ayah_from INTEGER, ayah_to INTEGER, passage_ref TEXT);
 
 CREATE TABLE cm_media_chapters (
   chapter_id         TEXT PRIMARY KEY,
@@ -393,7 +393,7 @@ CREATE TABLE cm_notes (
   meta_json          TEXT NOT NULL DEFAULT '{}',
   created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-, visibility TEXT NOT NULL DEFAULT 'private', domain     TEXT, surah      INTEGER, ayah_from  INTEGER, ayah_to    INTEGER, ocr_text TEXT, folder_ref TEXT, deleted_at TEXT);
+, visibility TEXT NOT NULL DEFAULT 'private', domain     TEXT, surah      INTEGER, ayah_from  INTEGER, ayah_to    INTEGER, ocr_text TEXT, folder_ref TEXT, deleted_at TEXT, passage_ref TEXT);
 
 CREATE TABLE cm_publications (
   pub_id             TEXT PRIMARY KEY,
@@ -535,7 +535,23 @@ CREATE TABLE cm_sources (
 );
 
 
--- ── Indexes (114) ────────────────────────────────────────────────
+-- ── Views (1) ────────────────────────────────────────────────────
+
+CREATE VIEW cm_quran_index AS
+SELECT 'asset' AS kind, asset_id AS id, asset_type AS subtype, title, title_ar,
+       surah, ayah_from, ayah_to, passage_ref, publication_state AS state, tags_json, updated_at
+FROM cm_media_assets WHERE domain='quran' AND surah IS NOT NULL
+UNION ALL
+SELECT 'document', doc_id, doc_type, title, title_ar,
+       surah, ayah_from, ayah_to, passage_ref, publication_state, tags_json, updated_at
+FROM cm_documents WHERE domain='quran' AND surah IS NOT NULL
+UNION ALL
+SELECT 'note', note_id, note_type, title, NULL,
+       surah, ayah_from, ayah_to, passage_ref, visibility, tags_json, updated_at
+FROM cm_notes WHERE domain='quran' AND surah IS NOT NULL;
+
+
+-- ── Indexes (119) ────────────────────────────────────────────────
 
 CREATE INDEX idx_cm_engines_kind ON cm_engines(kind);
 
@@ -767,3 +783,13 @@ CREATE INDEX idx_cmsu_source     ON cm_source_units(source_id);
 CREATE INDEX idx_cmsu_toc        ON cm_source_units(toc_id);
 
 CREATE INDEX idx_cmsu_type       ON cm_source_units(unit_type);
+
+CREATE INDEX ix_cm_assets_ayah ON cm_media_assets(surah, ayah_from, ayah_to);
+
+CREATE INDEX ix_cm_assets_passage ON cm_media_assets(passage_ref);
+
+CREATE INDEX ix_cm_docs_ayah ON cm_documents(surah, ayah_from, ayah_to);
+
+CREATE INDEX ix_cm_docs_passage ON cm_documents(passage_ref);
+
+CREATE INDEX ix_cm_notes_passage ON cm_notes(passage_ref);

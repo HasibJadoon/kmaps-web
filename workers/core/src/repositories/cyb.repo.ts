@@ -13,6 +13,40 @@
 
 import { query, queryOne } from '../../../shared/src/db';
 
+export interface ProcessRow {
+  uid: string; domain: string; lane: string; scope_kind: string;
+  name_ar: string; name_en: string; name_ur: string | null; note_md: string | null;
+}
+
+export interface ProcessStepRow {
+  uid: string; process_uid: string; step_key: string; step_no: number;
+  scope_kind: string; name_ar: string; name_en: string; name_ur: string | null;
+  covers_md: string | null; key_info_md: string | null;
+  merged_from_json: string; prereq_json: string;
+}
+
+export interface ProcessStepLayerRow {
+  step_uid: string; layer_uid: string; skill_slug: string | null;
+  role: string; note: string | null;
+  layer_key: string | null; layer_name_en: string | null; db_name: string | null;
+  skill_name: string | null; skill_stages: string | null;
+}
+
+export interface CybLayerRow {
+  id: string;
+  domain: string;
+  lane: string;
+  layer_key: string;
+  name_ar: string;
+  name_en: string;
+  name_ur: string | null;
+  hint: string | null;
+  db_name: string;
+  color_hex: string | null;
+  symbol: string | null;
+  display_order: number;
+}
+
 // ── Row interfaces (snake_case — match the live columns exactly) ───────────────
 
 export interface CybNode {
@@ -173,6 +207,86 @@ export class CybRepo {
     // Forest: every node whose parent is null (or whose parent is absent).
     const ids = new Set(nodes.map((n) => n.id));
     return nodes.filter((n) => !n.parent_id || !ids.has(n.parent_id)).map(build);
+  }
+
+  /**
+   * The layer registry — what a domain's streams actually are.
+   *
+   * Nothing served this table before, so every client that needed the list had
+   * to author its own: iOS carries a seven-case `CybStream` enum and renders all
+   * seven on every passage regardless of what the plane declares. A taxonomy
+   * kept in two places drifts, and it did — the enum has `worldview` and `cards`
+   * that the registry lacked, the registry has `translation` that the enum
+   * lacks. This is the one list.
+   */
+  layers(domain?: string): Promise<CybLayerRow[]> {
+    const where = domain ? "WHERE status = 'live' AND domain = ?" : "WHERE status = 'live'";
+    return query<CybLayerRow>(
+      this.db,
+      `SELECT id, domain, lane, layer_key, name_ar, name_en, name_ur, hint,
+              db_name, color_hex, symbol, display_order
+         FROM cyb_layer ${where}
+        ORDER BY domain, display_order`,
+      domain ? [domain] : [],
+    );
+  }
+
+  /**
+   * The study process register — the ordered work, and what does it.
+   *
+   * A **layer** is what gets built; a **step** is how you work through a passage.
+   * They are different axes, so a step reaches its tables through its layer
+   * (cyb_process_step_layer → cyb_layer → cyb_carrier_binding) rather than
+   * declaring them a second time. Skills hang off the same bridge.
+   */
+  async process(domain?: string) {
+    const where = domain ? "WHERE p.status = 'live' AND p.domain = ?" : "WHERE p.status = 'live'";
+    const args = domain ? [domain] : [];
+
+    const [processes, steps, bridges] = await Promise.all([
+      query<ProcessRow>(
+        this.db,
+        `SELECT uid, domain, lane, scope_kind, name_ar, name_en, name_ur, note_md
+           FROM cyb_process p ${where} ORDER BY domain`,
+        args,
+      ),
+      query<ProcessStepRow>(
+        this.db,
+        `SELECT s.uid, s.process_uid, s.step_key, s.step_no, s.scope_kind,
+                s.name_ar, s.name_en, s.name_ur, s.covers_md, s.key_info_md,
+                s.merged_from_json, s.prereq_json
+           FROM cyb_process_step s
+           JOIN cyb_process p ON p.uid = s.process_uid
+          ${where} AND s.status = 'live'
+          ORDER BY s.step_no`,
+        args,
+      ),
+      query<ProcessStepLayerRow>(
+        this.db,
+        `SELECT b.step_uid, b.layer_uid, b.skill_slug, b.role, b.note,
+                l.layer_key, l.name_en AS layer_name_en, l.db_name,
+                k.name AS skill_name, k.stages AS skill_stages
+           FROM cyb_process_step_layer b
+           JOIN cyb_process_step s ON s.uid = b.step_uid
+           JOIN cyb_process p ON p.uid = s.process_uid
+           LEFT JOIN cyb_layer l ON l.id = b.layer_uid
+           LEFT JOIN cyb_skill k ON k.slug = b.skill_slug
+          ${where}`,
+        args,
+      ),
+    ]);
+
+    return processes.map((proc) => ({
+      ...proc,
+      steps: steps
+        .filter((st) => st.process_uid === proc.uid)
+        .map((st) => ({
+          ...st,
+          merged_from: JSON.parse(st.merged_from_json || '[]'),
+          prereq: JSON.parse(st.prereq_json || '[]'),
+          layers: bridges.filter((b) => b.step_uid === st.uid),
+        })),
+    }));
   }
 
   nodesByScale(): Promise<CountRow[]> {

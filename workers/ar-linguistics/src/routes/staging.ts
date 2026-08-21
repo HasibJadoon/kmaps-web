@@ -43,14 +43,23 @@ export function stagingRoutes(router: Router<ArLinguisticsEnv>) {
   // memlet cards, and the question bank. Backs the Root Dashboard's deep tabs.
   router.get('/al/staging/root/:root', async (_req, env, { root }) => {
     const repo = new StagingRepo(env.DB_AL);
-    const [claims, memlets, questions, options, media, subLayers, memletKinds, questionKinds] = await Promise.all([
-      repo.rootClaims(root), repo.rootMemlets(root), repo.rootQuestions(root),
-      repo.rootOptions(root), repo.rootMedia(root), repo.subLayers(),
-      repo.memletKinds(), repo.questionKinds(),
-    ]);
+    const [claims, memlets, questions, options, media, subLayers, memletKinds, questionKinds, fill] =
+      await Promise.all([
+        repo.rootClaims(root), repo.rootMemlets(root), repo.rootQuestions(root),
+        repo.rootOptions(root), repo.rootMedia(root), repo.subLayers(),
+        repo.memletKinds(), repo.questionKinds(), repo.rootFill(root),
+      ]);
     return ok({
       root, claims, memlets, questions, options, media,
       sub_layers: subLayers, memlet_kinds: memletKinds, question_kinds: questionKinds,
+      // Live per-root row counts read straight off the carriers. `sub_layers`
+      // carries the registry's fill_state/carrier_state, which are global facts
+      // about a table ("ar_ling_roots has rows") and say nothing about THIS
+      // root — rendering them per-root is what made Core identity read "filled"
+      // over an empty carrier and Permutation read "empty" over a real row.
+      // A sub_code absent from this list has no audited carrier binding: that is
+      // unknown, not zero.
+      root_fill: fill,
     });
   });
 }
