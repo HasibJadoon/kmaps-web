@@ -115,6 +115,66 @@ export default {
       }
     }
 
+    // ── Composite: GET /api/cyb/passage/:surah/:no ────────────────────────────
+    // One passage, one document: identity, the four axes from
+    // v_cyb_node_reading (with measured/stale), the process register, and the
+    // study-grid flags. The app stops deriving; five divergent percentages
+    // collapse into this. Public read, never cached.
+    const passageMatch = request.method === 'GET' &&
+      url.pathname.match(/^\/api\/cyb\/passage\/(\d+)\/(\d+)$/);
+
+    if (passageMatch) {
+      const surah = parseInt(passageMatch[1]);
+      const no = parseInt(passageMatch[2]);
+      const internalHeaders = new Headers({
+        'X-KM-Internal': '1',
+        'X-KM-Internal-Secret': env.INTERNAL_SECRET ?? '',
+      });
+      const get = (fetcher: Fetcher, path: string) =>
+        fetcher.fetch(new Request(`http://internal.k-maps.local${path}`,
+                                  { headers: internalHeaders }));
+      try {
+        const [gridRes, processRes] = await Promise.all([
+          get(env.QURAN as Fetcher, `/qr/study/surahs/${surah}`),
+          get(env.CORE as Fetcher, `/core/cyb/process?domain=quran`),
+        ]);
+        type Grid = { data?: { units?: Array<Record<string, unknown>> } };
+        const grid = await gridRes.json<Grid>().catch(() => null);
+        const unit = grid?.data?.units?.find(u => u['passage_no'] === no) ?? null;
+        if (!unit) {
+          return withCors(err('not_found', `no passage ${surah}:${no}`, 404), origin, co);
+        }
+        const nodeId = `CYB:quran:${surah}:${unit['ayah_from']}-${unit['ayah_to']}`;
+        const readingRes = await get(env.CORE as Fetcher,
+          `/core/cyb/reading/${encodeURIComponent(nodeId)}`);
+        type Readings = { data?: { readings?: unknown[] } };
+        const readings = await readingRes.json<Readings>().catch(() => null);
+        const processBody = await processRes.json<{ data?: unknown }>().catch(() => null);
+
+        const res = json({
+          ok: true,
+          data: {
+            surah, passage_no: no,
+            passage_id: unit['passage_id'] ?? null,
+            node_id: nodeId,
+            ayah_from: unit['ayah_from'], ayah_to: unit['ayah_to'],
+            label: unit['label'] ?? null,
+            // Absent readings mean the plane has no node here — unmeasured,
+            // carried as null rather than zeros.
+            readings: readings?.data?.readings ?? null,
+            unit,
+            process: processBody?.data ?? null,
+          },
+        });
+        res.headers.set('Cache-Control', 'no-store');
+        return withCors(res, origin, co);
+      } catch (e) {
+        console.error('[backend] /cyb/passage composite error:', e);
+        return withCors(json({ ok: false, error: { code: 'service_error',
+          message: 'Failed to build passage payload' } }, { status: 502 }), origin, co);
+      }
+    }
+
     // ── Identify module: /api/qr/... → 'qr' ───────────────────────────────────
     // pathname.slice(5) strips the leading '/api/' → 'qr/menu'
     const remainder  = url.pathname.slice(5);          // 'qr/menu'

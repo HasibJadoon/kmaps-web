@@ -1,4 +1,4 @@
-// ─── StagingRepo — the AL carrier registry and what the carriers hold ──────
+// ─── RegistryRepo — the AL carrier registry and what the carriers hold ─────
 // The linguistics domain (shared by Qurʾān + Arabic acquisition) squeezes every
 // classical source into per-sub-layer *claims*, staged trilingually, then
 // promoted to their carrier tables. This repo reads those staged claims so the
@@ -223,7 +223,7 @@ const ROW_LIMIT = 50;
  */
 const UNION_CHUNK = 5;
 
-export class StagingRepo {
+export class RegistryRepo {
   constructor(private db: D1Database) {}
 
   // The sub-layer registry — column headers for the matrix, in order.

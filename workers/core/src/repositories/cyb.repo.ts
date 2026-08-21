@@ -177,6 +177,16 @@ FROM cyb_sensor`;
 export class CybRepo {
   constructor(private db: D1Database) {}
 
+  /** v_cyb_node_reading for one node — the one definition of a reading. */
+  readings(nodeID: string) {
+    return query<Record<string, unknown>>(
+      this.db,
+      `SELECT axis, pct, measured, stale, sensors, read_sensors
+         FROM v_cyb_node_reading WHERE node_id = ? ORDER BY axis`,
+      [nodeID],
+    );
+  }
+
   // ── Nodes / tree ──
 
   allNodes(lane?: string): Promise<CybNode[]> {

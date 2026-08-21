@@ -28,7 +28,7 @@ import { sourceRagRoutes } from './routes/source_rag';
 import { wordViewRoutes } from './routes/word_view';
 import { wordAnalysisRoutes } from './routes/word_analysis';
 import { grammarRoutes } from './routes/grammar';
-import { stagingRoutes } from './routes/staging';
+import { registryRoutes } from './routes/registry';
 
 const router = new Router<ArLinguisticsEnv>();
 
@@ -57,7 +57,7 @@ sourceRagRoutes(router);
 wordViewRoutes(router);          // /al/verb-government/:root, /al/root-antonyms/:root, /al/expressions/by-root/:root
 wordAnalysisRoutes(router);      // /al/word-analysis?roots= — deep root layer for the word modal
 grammarRoutes(router);           // /al/gram/* — ṣarf/naḥw/balāgha corpus (books, spine, pages, search)
-stagingRoutes(router);           // /al/staging/* — root_stage × reg_sub_layer (Data Matrix / Staging Spine)
+registryRoutes(router);          // /al/registry/* — the carrier registry and what the carriers hold
 
 // Every route here is a live D1 read, and none of them carried a single
 // freshness header — no Cache-Control, no ETag, no Last-Modified. Nothing was

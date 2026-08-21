@@ -116,6 +116,16 @@ export function cybRoutes(router: Router<CoreEnv>) {
     return ok({ list, by_coverage: byCoverage });
   });
 
+  // GET /core/cyb/reading/:id — v_cyb_node_reading for one node: axis →
+  // (pct, measured, stale, sensors, read_sensors). The one definition of a
+  // reading, served as itself.
+  router.get('/core/cyb/reading/:id', async (_req, env, { id }) => {
+    const repo = new CybRepo(env.DB_CORE);
+    const rows = await repo.readings(id);
+    if (!rows.length) return notFound(`cyb node ${id} not found`);
+    return ok({ node_id: id, readings: rows });
+  });
+
   // POST /core/cyb/sense/:id — the actuator, mechanised. Re-reads the node's
   // sensors against the real carriers through their owning workers, updates
   // readings, recomputes the node's per-axis percent, and sets *_measured.
