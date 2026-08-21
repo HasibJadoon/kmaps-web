@@ -72,6 +72,19 @@ registryRoutes(router);          // /al/registry/* — the carrier registry and 
 router.post('/al/internal/sense', async (req, env) => {
   const body = await req.json<SenseRequest>().catch(() => null);
   if (!body) return ok({ ok: false, error: 'bad request' });
+  // An id-bound carrier keys on this database's own ULID. km_core holds the
+  // scope as a string and cannot resolve it — so the database that owns the
+  // ids does, here, where the mapping actually lives.
+  if (body.bind_kind === 'id' && body.bind_value) {
+    const col = body.scope_kind === 'lemma' ? 'lemma_ar' : 'root_text';
+    const table = body.scope_kind === 'lemma' ? 'ar_ling_root_lemma' : 'ar_ling_roots';
+    const row = await env.DB_AL
+      .prepare(`SELECT id FROM ${table} WHERE ${col} = ? LIMIT 1`)
+      .bind(body.bind_value).first<{ id: string }>()
+      .catch(() => null);
+    if (!row?.id) return ok({ ok: false, error: `no ${body.scope_kind ?? 'root'} id for ${body.bind_value}` });
+    body.bind_value = row.id;
+  }
   return ok(await sense(env.DB_AL, body));
 });
 

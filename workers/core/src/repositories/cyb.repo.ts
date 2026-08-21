@@ -152,6 +152,15 @@ export interface CybSource {
 
 export interface CountRow { key: string; n: number }
 
+/** One table a process step writes into, reached through the bridge. */
+export interface StepCarrierRow {
+  step_uid: string;
+  db_name: string;
+  table_name: string;
+  band_code: string;
+  scope_kind: string;
+}
+
 // ── Column fragments ──────────────────────────────────────────────────────────
 
 const NODE_COLS = `
@@ -260,7 +269,7 @@ export class CybRepo {
     const where = domain ? "WHERE p.status = 'live' AND p.domain = ?" : "WHERE p.status = 'live'";
     const args = domain ? [domain] : [];
 
-    const [processes, steps, bridges] = await Promise.all([
+    const [processes, steps, bridges, carriers] = await Promise.all([
       query<ProcessRow>(
         this.db,
         `SELECT uid, domain, lane, scope_kind, name_ar, name_en, name_ur, note_md
@@ -291,6 +300,23 @@ export class CybRepo {
           ${where}`,
         args,
       ),
+      // What each step actually writes into, derived through the one bridge —
+      // step → layer → cyb_carrier_binding → table. Documentation that cannot
+      // go stale, because it is the same registry the sensors read by. A step
+      // with a skill and no carriers (worldview, today) is a step that cannot
+      // be built, and says so here rather than in prose.
+      query<StepCarrierRow>(
+        this.db,
+        `SELECT DISTINCT b.step_uid, c.db_name, c.table_name, c.band_code, c.scope_kind
+           FROM cyb_process_step_layer b
+           JOIN cyb_process_step s ON s.uid = b.step_uid
+           JOIN cyb_process p ON p.uid = s.process_uid
+           JOIN cyb_carrier_binding c
+             ON c.layer_uid = b.layer_uid AND c.status = 'live'
+          ${where}
+          ORDER BY c.band_code, c.table_name`,
+        args,
+      ),
     ]);
 
     return processes.map((proc) => ({
@@ -302,6 +328,7 @@ export class CybRepo {
           merged_from: JSON.parse(st.merged_from_json || '[]'),
           prereq: JSON.parse(st.prereq_json || '[]'),
           layers: bridges.filter((b) => b.step_uid === st.uid),
+          carriers: carriers.filter((c) => c.step_uid === st.uid),
         })),
     }));
   }

@@ -18,6 +18,13 @@ export interface SenseRequest {
   bind_value?: string;
   /** col_fraction: the column whose non-empty share is the reading. */
   col?: string;
+  /** `id` means bind_col holds this database's own key, not the scope string.
+   *  The owning worker resolves it — km_core does not hold other databases'
+   *  primary keys, and matching a ULID column against 'نزل' returns zero for
+   *  every root rather than failing. */
+  bind_kind?: 'text' | 'id';
+  /** The scope the value names: root | lemma | passage … */
+  scope_kind?: string;
   /** row_ratio: denominator. */
   expected?: number;
   /** sql_scalar: a single SELECT returning one numeric column. Registry-authored. */
