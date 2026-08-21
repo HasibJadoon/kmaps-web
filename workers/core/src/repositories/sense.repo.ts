@@ -378,6 +378,10 @@ export class CarrierRowsRepo {
    */
   async rowsForScope(scopeType: string, scopeID: string,
                      layerKey?: string, domain = 'quran'): Promise<CarrierRows[]> {
+    // A scope may name several ids: the words of one sentence are read
+    // together, so an iʿrāb table costs one request rather than one per word.
+    const ids = scopeID.split(',').map(v => v.trim()).filter(Boolean);
+    if (!ids.length) return [];
     const bindings = await query<{
       band_code: string; db_name: string; table_name: string;
       bind_col: string | null; bind_via: string | null; scope_kind: string;
@@ -404,7 +408,8 @@ export class CarrierRowsRepo {
         `http://internal.k-maps.local${ROWS_PATH[owner]}`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            table: b.table_name, bind_col: bindCol, bind_value: scopeID,
+            table: b.table_name, bind_col: bindCol, bind_value: ids[0],
+            bind_values: ids.length > 1 ? ids : undefined,
             // Only a carrier that mixes scope kinds needs to be told which.
             filter_col: b.bind_via ?? undefined,
             filter_value: b.bind_via ? scopeType : undefined,

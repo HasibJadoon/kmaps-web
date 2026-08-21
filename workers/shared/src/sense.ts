@@ -38,6 +38,9 @@ export interface RowsRequest {
   table: string;
   bind_col: string;
   bind_value: string;
+  /** Several scopes at once. A sentence's words are read together — one
+   *  request for twenty words rather than twenty for one sentence. */
+  bind_values?: string[];
   /** `a,b` — the scope is a range: bind_col = value AND a >= from AND b <= to. */
   bind_via?: string;
   range_from?: number;
@@ -65,6 +68,10 @@ export interface SenseResult {
 }
 
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** A sentence has tens of words, not hundreds; a request naming more than this
+ *  is a caller asking for a table dump under a scope's name. */
+const MAX_BIND_VALUES = 200;
 
 async function tableExists(db: D1Database, table: string): Promise<boolean> {
   const row = await db
@@ -183,8 +190,17 @@ export async function readRows(db: D1Database, req: RowsRequest): Promise<RowsRe
     if (!IDENT.test(req.bind_col)) return { ok: false, error: 'bad bind_col' };
     if (!(await tableExists(db, req.table))) return { ok: false, error: `no such table ${req.table}` };
 
-    let where = `${req.bind_col} = ?`;
-    const params: (string | number)[] = [req.bind_value];
+    const many = (req.bind_values ?? []).filter(v => typeof v === 'string' && v !== '');
+    if (many.length > MAX_BIND_VALUES) return { ok: false, error: 'too many bind values' };
+    let where: string;
+    const params: (string | number)[] = [];
+    if (many.length) {
+      where = `${req.bind_col} IN (${many.map(() => '?').join(',')})`;
+      params.push(...many);
+    } else {
+      where = `${req.bind_col} = ?`;
+      params.push(req.bind_value);
+    }
     // A passage is a range of ayat, not a key: bind_via names the two columns
     // that carry it. Without this the only readable scope is one with its own
     // id column, which is why every sentence table sat unbound.

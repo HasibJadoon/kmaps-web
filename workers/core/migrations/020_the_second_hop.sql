@@ -98,3 +98,19 @@ UPDATE cyb_carrier_binding
        scope_kind = 'scope_reading'
  WHERE status = 'live' AND domain = 'quran'
    AND table_name = 'qr_ss_scope_reading_evidence_link';
+
+-- ── The words themselves ─────────────────────────────────────────────────────
+-- `qr_ss_scope_morph_link` gives a word's parse and nothing of the word: no
+-- surface, no position. An iʿrāb page with the parses and not the words is not
+-- a page. `qr_word_occurrence` was bound once, at surah scope for vocabulary;
+-- this binds it a second time at word scope, so one request for a sentence's
+-- words returns both the surfaces and the parses.
+
+INSERT OR IGNORE INTO cyb_carrier_binding
+  (uid, domain, lane, layer_uid, band_uid, band_code, scope_kind,
+   db_name, table_name, bind_col, bind_kind, bind_via, role, bind_note)
+VALUES
+  ('BIND:ss:300-40-JISR:qr_word_occurrence', 'quran', 'quran', 'quran:ss',
+   'BND:ss:300-40-JISR', '300-40-JISR', 'word', 'km_quran',
+   'qr_word_occurrence', 'id', 'scope', NULL, 'carrier',
+   'the word surfaces the parses hang off');

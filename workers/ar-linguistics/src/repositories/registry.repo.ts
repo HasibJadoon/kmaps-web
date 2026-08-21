@@ -211,6 +211,23 @@ export interface CarrierRows {
   total: number;
 }
 
+/**
+ * Which declared, root-bound tables a sub-layer shows.
+ *
+ * `role` says what kind of statement a table makes — a carrier holds the
+ * content, a link ties two things together, an index says where something is
+ * printed, a projection is a prepared view of it. None of that decides whether
+ * the table holds rows *about this root*: `root_bind = 'direct'` does, and the
+ * declaration in `tables_json` decides whether it belongs to the sub-layer.
+ *
+ * Filtering on `role = 'carrier'` dropped real content on that technicality.
+ * `ar_ling_root_haql` is a link, so the Semantic field slot read empty over
+ * بين's four fields; `ar_ling_root_sarf_form_index` is an index, so Forms read
+ * empty over كتب's. `registry` stays out: a shared vocabulary is not the root's
+ * own material even when it can be filtered to it.
+ */
+const CONTENT_ROLES = "('carrier', 'link', 'index', 'projection')";
+
 /** A leaf shows its rows, not a page of them; enough to read, not to dump. */
 const ROW_LIMIT = 50;
 
@@ -364,7 +381,7 @@ export class RegistryRepo {
          JOIN ar_ling_reg_sub_layer s
            ON s.sub_code = m.sub_code
           AND s.tables_json LIKE '%"' || m.table_name || '"%'
-        WHERE m.role = 'carrier' AND m.root_bind = 'direct'
+        WHERE m.role IN ${CONTENT_ROLES} AND m.root_bind = 'direct'
           AND m.table_name IS NOT NULL AND m.root_bind_col IS NOT NULL
           ${conds.length ? `AND ${conds.join(' AND ')}` : ''}`,
       args,
@@ -476,7 +493,7 @@ export class RegistryRepo {
          JOIN ar_ling_reg_sub_layer s
            ON s.sub_code = m.sub_code
           AND s.tables_json LIKE '%"' || m.table_name || '"%'
-        WHERE m.role = 'carrier' AND m.root_bind = 'direct' AND m.sub_code = ?
+        WHERE m.role IN ${CONTENT_ROLES} AND m.root_bind = 'direct' AND m.sub_code = ?
           AND m.table_name IS NOT NULL AND m.root_bind_col IS NOT NULL`,
       [subCode],
     ).catch(() => []);
