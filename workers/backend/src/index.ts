@@ -192,6 +192,17 @@ export default {
       const internal = await fetcher.fetch(fwdRequest);
       // WebSocket upgrades carry a live socket handle — return as-is, never rewrap.
       if (isWebSocket || internal.status === 101) return internal;
+      // Control-plane readings must never be cached: a stale reading is a
+      // sensor reporting yesterday, which is the exact untruth the plane
+      // exists to remove. (A cached /al response cost an hour on 2026-08-21.)
+      const isReading = remainder.startsWith('core/cyb/')
+        || remainder.startsWith('core/study/')
+        || remainder.startsWith('al/staging/');
+      if (isReading) {
+        const fresh = new Response(internal.body, internal);
+        fresh.headers.set('Cache-Control', 'no-store');
+        return withCors(fresh, origin, co);
+      }
       return withCors(internal, origin, co);
     } catch (e) {
       console.error(`[backend] ${mod.binding} error:`, e);

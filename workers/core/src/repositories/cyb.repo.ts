@@ -61,6 +61,11 @@ export interface CybNode {
   piece_kind: string | null;
   build_state: string;
   build_pct: number;
+  build_measured?: number;
+  study_measured?: number;
+  content_measured?: number;
+  retention_measured?: number;
+  build_stale?: number;
   study_state: string;
   study_pct: number;
   content_state: string;
@@ -152,7 +157,9 @@ export interface CountRow { key: string; n: number }
 const NODE_COLS = `
   id, domain, lane, parent_id, scale, target_kind, target_ref, layer, piece_kind,
   build_state, build_pct, study_state, study_pct, content_state, content_pct,
-  retention_state, retention_pct, priority, meta_json, updated_at
+  retention_state, retention_pct,
+  build_measured, study_measured, content_measured, retention_measured, build_stale,
+  priority, meta_json, updated_at
 FROM cyb_node`;
 
 const JOB_COLS = `
