@@ -681,7 +681,7 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
         // A one-leaf article is still worth rendering from the tree: it gains
         // its authored heading instead of showing as an untitled wall.
         if (!leaves.length
-            || squash(leaves.map((b: any) => b.text_plain).join('')) !== squash(s.text_ar)) {
+            || squash(leaves.map((b: any) => b.text_plain).join('')) !== squash((s as any).text_ar)) {
           covered = false;
           break;
         }
@@ -780,9 +780,9 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     // Lane's headings survive and finally carry his text.
     const attachedProse = new Map<string, any[]>();
     if (sections.length && sections.every(isStub) && !looseProse.length) {
-      for (const b of blocks) {
+      for (const b of blocks as any[]) {
         if (b.block_type !== 'definition' || !b.section_id) continue;
-        if (!(b.text_plain ?? '').trim()) continue;
+        if (!String(b.text_plain ?? '').trim()) continue;
         const list = attachedProse.get(b.section_id);
         if (list) list.push(b); else attachedProse.set(b.section_id, [b]);
       }

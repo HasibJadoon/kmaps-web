@@ -48,11 +48,16 @@ export async function parseBody<T>(
 /**
  * Parse pagination query params with safe defaults.
  */
-export function parsePagination(url: URL): { page: number; per_page: number } {
+export function parsePagination(
+  url: URL,
+  bounds: { defaultPerPage?: number; maxPerPage?: number } = {},
+): { page: number; per_page: number } {
+  const def = bounds.defaultPerPage ?? 20;
+  const max = bounds.maxPerPage ?? 100;
   const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10) || 1);
   const per_page = Math.min(
-    100,
-    Math.max(1, parseInt(url.searchParams.get('per_page') ?? '20', 10) || 20),
+    max,
+    Math.max(1, parseInt(url.searchParams.get('per_page') ?? String(def), 10) || def),
   );
   return { page, per_page };
 }

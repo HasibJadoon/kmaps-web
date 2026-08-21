@@ -18,7 +18,7 @@ export interface Session {
   resource_type: string | null;
   resource_label: string | null;  // denormalized
   qr_scope_ref: string | null;    // 'QR:2:1-10' if Quran session
-  started_at: string;
+  started_at?: string;
   ended_at: string | null;
   duration_mins: number | null;
   pages_covered: string | null;   // e.g. '45-60'
@@ -39,7 +39,7 @@ export interface SessionCreate {
   resource_type?: string | null;
   resource_label?: string | null;
   qr_scope_ref?: string | null;
-  started_at: string;
+  started_at?: string;
   ended_at?: string | null;
   duration_mins?: number | null;
   pages_covered?: string | null;
@@ -129,7 +129,7 @@ export class SessionRepo {
         input.resource_type ?? null,
         input.resource_label ?? null,
         input.qr_scope_ref ?? null,
-        input.started_at,
+        input.started_at ?? new Date().toISOString(),
         input.ended_at ?? null,
         input.duration_mins ?? null,
         input.pages_covered ?? null,

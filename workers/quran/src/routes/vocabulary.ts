@@ -197,7 +197,7 @@ function toVocabItem(row: VocabLemmaRow, posGroup: PosGroup) {
     lx_lemma_ref:   row.lx_lemma_ref ?? null,   // 'AL:ULID' — use to fetch full lemma
     root_text:      row.root_text    ?? null,
     pos_tag:        row.pos_tag      ?? null,
-    pos_group,
+    pos_group:      posGroup,
     frequency:      row.frequency,
     sample_forms:   forms,                        // up to 5 distinct surface forms
     first_location: {

@@ -358,6 +358,22 @@ export class ProjectionRepo {
     );
   }
 
+  /** Every doc link that touches a surah, whatever scope its rows use.
+   *  Every row in the corpus is ayah-scoped ("44:3"), and the old surah-scope
+   *  query matched nothing for all 114 surahs — the hub's documents count was
+   *  structurally zero. A surah's documents are its ayat's documents. */
+  docLinksForSurah(surahId: number): Promise<DocLink[]> {
+    return query<DocLink>(
+      this.db,
+      `SELECT ${DL_COLS}
+       FROM qr_doc_link
+       WHERE (qr_scope_type = 'surah' AND qr_scope_id = ?)
+          OR (qr_scope_type = 'ayah'  AND qr_scope_id LIKE ? || ':%')
+       ORDER BY link_type, created_at`,
+      [String(surahId), String(surahId)],
+    );
+  }
+
   async addDocLink(
     qrScopeType: string,
     qrScopeId: string,

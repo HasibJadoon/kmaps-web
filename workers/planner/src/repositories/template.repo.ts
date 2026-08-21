@@ -23,7 +23,7 @@ export interface PlanTemplateCreate {
   title: string;
   plan_type?: string;
   description_md?: string | null;
-  template_json: string;    // must be valid JSON
+  template_json?: string | null;  // must be valid JSON when present
   is_public?: boolean;
   created_by_ref?: string | null;
 }
@@ -33,7 +33,7 @@ export interface PlanTemplatePatch {
   title?: string;
   plan_type?: string;
   description_md?: string | null;
-  template_json?: string;
+  template_json?: string | null;
   is_public?: boolean;
 }
 
@@ -98,7 +98,7 @@ export class TemplateRepo {
         input.title,
         input.plan_type ?? 'reading',
         input.description_md ?? null,
-        input.template_json,
+        input.template_json ?? '{}',
         input.is_public ? 1 : 0,
         input.created_by_ref ?? null,
         now,

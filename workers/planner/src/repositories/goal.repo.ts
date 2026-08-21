@@ -32,10 +32,13 @@ export interface GoalCreate {
   title: string;
   goal_type?: string;
   metric?: string;
-  target_value: number;
+  /// Optional at the API (the schema validates it); a goal without a target
+  /// binds 0 — a target you have not set, not a target of nothing.
+  target_value?: number;
   cadence?: string;
   period_start?: string | null;
   period_end?: string | null;
+  meta_json?: string | null;
 }
 
 export interface GoalPatch {
@@ -136,7 +139,7 @@ export class GoalRepo {
         input.title,
         input.goal_type ?? 'habit',
         input.metric ?? 'sessions',
-        input.target_value,
+        input.target_value ?? 0,
         input.cadence ?? 'weekly',
         input.period_start ?? null,
         input.period_end ?? null,

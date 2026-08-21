@@ -139,7 +139,9 @@ export function tafsirDisplayRoutes(router: Router<QuranEnv>) {
       ORDER BY death_year_hijri ASC NULLS LAST, scholar_id, display_order, paragraph_index NULLS FIRST, id
     `;
     const blockRes = await env.DB_QR.prepare(blockSql).bind(...blockParams).all<BlockRow>();
-    const blocks = blockRes.results.map((r: BlockRow) => hydrateBlock(r as Record<string, unknown>));
+    const blocks: Array<Record<string, unknown> & { id: string; source_slug: string }> =
+      blockRes.results.map((r: BlockRow) =>
+        hydrateBlock(r as Record<string, unknown>) as unknown as Record<string, unknown> & { id: string; source_slug: string });
     if (!blocks.length) return notFound('no display blocks');
 
     // 3) Side tables

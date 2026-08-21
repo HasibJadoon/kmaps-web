@@ -12,11 +12,21 @@ function parseSurahId(id: string): number | null {
   return surahId && surahId >= 1 && surahId <= 114 ? surahId : null;
 }
 
-function emptyHub(surahId: number) {
+/** The hub's counts, honest by construction: `documents` is a real read;
+ *  `nodes`, `sources` and `notes` are null — unmeasured — until the
+ *  km_worldview bindings are audited. A fabricated 0 is the one thing this
+ *  must never return: three of the four counts were structurally incapable of
+ *  being non-zero, and rendered as data for every surah in the corpus. */
+function hub(surahId: number, documents: number) {
   return {
     ok: true,
     surahId,
-    counts: { nodes: 0, sources: 0, notes: 0, documents: 0 },
+    counts: {
+      nodes: null as number | null,
+      sources: null as number | null,
+      notes: null as number | null,
+      documents,
+    },
   };
 }
 
@@ -62,38 +72,25 @@ export function worldviewRoutes(router: Router<QuranEnv>) {
     if (!surahId) return badRequest('Invalid surah ID');
 
     const repo = new ProjectionRepo(env.DB_QR);
-    const [nodes, documents] = await Promise.all([
-      listNodes(env, surahId, request).catch(() => null),
-      repo.docLinks('surah', String(surahId)).catch(() => []),
-    ]);
-
-    const response = emptyHub(surahId);
-    response.counts.nodes = nodes?.total ?? 0;
-    response.counts.documents = documents.length;
-    return ok(response);
+    // No catch-to-zero: a failed read must surface, not report an empty hub.
+    const documents = await repo.docLinksForSurah(surahId);
+    return ok(hub(surahId, documents.length));
   });
 
   router.get('/qr/surahs/:id/worldview/nodes', async (request, env, { id }) => {
     const surahId = parseSurahId(id);
     if (!surahId) return badRequest('Invalid surah ID');
 
-    const page = await listNodes(env, surahId, request).catch(() => ({ rows: [], total: 0 }));
-
-    return ok({
-      ok: true,
-      surahId,
-      total: page.total,
-      nodes: page.rows.map((row) => mapNode(row)),
-    });
+    // qr_worldview_nodes has never existed; until the worldview bindings are
+    // audited this scope is unmeasured, and says so.
+    return ok({ ok: true, surahId, total: null, nodes: [], unmeasured: true });
   });
 
   router.get('/qr/surahs/:id/worldview/documents', async (_request, env, { id }) => {
     const surahId = parseSurahId(id);
     if (!surahId) return badRequest('Invalid surah ID');
 
-    const documents = await new ProjectionRepo(env.DB_QR)
-      .docLinks('surah', String(surahId))
-      .catch(() => []);
+    const documents = await new ProjectionRepo(env.DB_QR).docLinksForSurah(surahId);
 
     return ok({
       ok: true,
@@ -106,13 +103,13 @@ export function worldviewRoutes(router: Router<QuranEnv>) {
   router.get('/qr/surahs/:id/worldview/sources', async (_request, _env, { id }) => {
     const surahId = parseSurahId(id);
     if (!surahId) return badRequest('Invalid surah ID');
-    return ok({ ok: true, surahId, total: 0, sources: [] });
+    return ok({ ok: true, surahId, total: null, sources: [], unmeasured: true });
   });
 
   router.get('/qr/surahs/:id/worldview/notes', async (_request, _env, { id }) => {
     const surahId = parseSurahId(id);
     if (!surahId) return badRequest('Invalid surah ID');
-    return ok({ ok: true, surahId, total: 0, notes: [] });
+    return ok({ ok: true, surahId, total: null, notes: [], unmeasured: true });
   });
 
   router.get('/qr/surahs/:id/worldview/podcasts', async (_request, _env, { id }) => {
