@@ -71,6 +71,24 @@ export function stagingRoutes(router: Router<ArLinguisticsEnv>) {
   // is unknown, not zero.
   router.get('/al/staging/root/:root/fill/:band', async (_req, env, { root, band }) => {
     const repo = new StagingRepo(env.DB_AL);
-    return ok({ root, band, root_fill: await repo.rootFill(root, band) });
+    return ok({ root, band, root_fill: await repo.rootFill(root, { band }) });
+  });
+
+  // GET /al/staging/root/:root/fill/scope/:scope — every band of one scope.
+  // The layer *list* shows eight layers at once, so fetching band by band would
+  // leave seven of them unread; one scope is still only what is on screen.
+  router.get('/al/staging/root/:root/fill/scope/:scope', async (_req, env, { root, scope }) => {
+    const repo = new StagingRepo(env.DB_AL);
+    return ok({ root, scope, root_fill: await repo.rootFill(root, { scope }) });
+  });
+
+  // GET /al/staging/root/:root/rows/:sub — what the carrier actually holds.
+  //
+  // The leaf rendered mirrored staging claims, so `00-CORE` showed "empty
+  // carrier" for نزل while `ar_ling_roots` held its row. These are the carrier's
+  // own rows, from the same tables the fill count is taken from.
+  router.get('/al/staging/root/:root/rows/:sub', async (_req, env, { root, sub }) => {
+    const repo = new StagingRepo(env.DB_AL);
+    return ok({ root, sub_code: sub, carriers: await repo.rootRows(root, sub) });
   });
 }

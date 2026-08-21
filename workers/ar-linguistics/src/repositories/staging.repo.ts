@@ -199,6 +199,20 @@ const IDENT = /^[a-z_][a-z0-9_]*$/;
 /** Band keys are upper-case registry codes (CORE, SARF, SENSE …). */
 const IDENT_BAND = /^[A-Z][A-Z0-9_]*$/;
 
+/** How much of the registry a fill reading covers. Empty means all of it. */
+export interface FillScope { band?: string | null; scope?: string | null }
+
+/** A carrier's actual rows for one root — the leaf screen's contents. */
+export interface CarrierRows {
+  sub_code: string;
+  carrier_table: string;
+  bind_col: string;
+  rows: Record<string, unknown>[];
+}
+
+/** A leaf shows its rows, not a page of them; enough to read, not to dump. */
+const ROW_LIMIT = 50;
+
 /**
  * D1 refuses compound SELECTs of more than five branches ("too many terms in
  * compound SELECT"), measured against the live database — not a soft limit.
@@ -306,22 +320,28 @@ export class StagingRepo {
    * are omitted rather than returned as zero — an unaudited carrier is unknown,
    * and calling it empty is the same untruth in a new place.
    */
-  async rootFill(root: string, band?: string): Promise<RootFillCell[]> {
-    // Scoped to one band when the caller names one: opening a root counted all
-    // thirty-four carriers whether or not anything on screen showed them, and
-    // only one band is ever open at a time. `band_key` is the registry's own
-    // grouping (CORE → Identity), so the scope comes from the same place the
-    // screen's layers do.
-    const scoped = band && IDENT_BAND.test(band);
+  async rootFill(root: string, where: FillScope = {}): Promise<RootFillCell[]> {
+    // Narrowed to what the caller is actually showing. Counting every carrier
+    // the registry declares to render one band's four sub-layers threw most of
+    // the work away; `band_key` and `scope_level` are the registry's own
+    // groupings, so the narrowing comes from the same place the screens' layers
+    // and tabs do.
+    const band = where.band && IDENT_BAND.test(where.band) ? where.band : null;
+    const scope = where.scope && IDENT.test(where.scope) ? where.scope : null;
+    const joins = band || scope;
+    const conds: string[] = [];
+    const args: string[] = [];
+    if (band) { conds.push('s.band_key = ?'); args.push(band); }
+    if (scope) { conds.push('s.scope_level = ?'); args.push(scope); }
     const plans = await query<CarrierPlan>(
       this.db,
       `SELECT m.table_name, m.sub_code, m.root_bind, m.root_bind_col
          FROM ar_ling_reg_table_map m
-         ${scoped ? 'JOIN ar_ling_reg_sub_layer s ON s.sub_code = m.sub_code' : ''}
+         ${joins ? 'JOIN ar_ling_reg_sub_layer s ON s.sub_code = m.sub_code' : ''}
         WHERE m.role = 'carrier' AND m.root_bind = 'direct'
           AND m.table_name IS NOT NULL AND m.root_bind_col IS NOT NULL
-          ${scoped ? 'AND s.band_key = ?' : ''}`,
-      scoped ? [band as string] : [],
+          ${conds.length ? `AND ${conds.join(' AND ')}` : ''}`,
+      args,
     ).catch(() => []);
 
     // The registry is the whitelist. Nothing from the request reaches the SQL
@@ -407,6 +427,58 @@ export class StagingRepo {
       }
     }
     return [...merged.values()].sort((a, b) => a.sub_code.localeCompare(b.sub_code));
+  }
+
+  /**
+   * The rows one sub-layer's carriers actually hold for one root.
+   *
+   * The leaf screen used to render mirrored staging claims, so a sub-layer
+   * whose carrier held rows but whose claims were filed elsewhere showed
+   * nothing at all. This reads the carrier itself — the same tables the fill
+   * count is taken from, so the count and the contents cannot disagree.
+   *
+   * `SELECT *`: the carriers have no common shape, and the point of the leaf is
+   * to show what the row is. Columns are rendered as they come.
+   */
+  async rootRows(root: string, subCode: string): Promise<CarrierRows[]> {
+    const plans = await query<CarrierPlan>(
+      this.db,
+      `SELECT table_name, sub_code, root_bind, root_bind_col
+         FROM ar_ling_reg_table_map
+        WHERE role = 'carrier' AND root_bind = 'direct' AND sub_code = ?
+          AND table_name IS NOT NULL AND root_bind_col IS NOT NULL`,
+      [subCode],
+    ).catch(() => []);
+
+    const usable = plans.filter(
+      p => IDENT.test(p.table_name) && !!p.root_bind_col && IDENT.test(p.root_bind_col),
+    );
+    if (!usable.length) return [];
+
+    const idRow = await queryOne<{ id: string }>(
+      this.db, 'SELECT id FROM ar_ling_roots WHERE root_text = ? LIMIT 1', [root],
+    ).catch(() => null);
+    const rootId = idRow?.id ?? null;
+
+    const ID_COLS = new Set(['root_id', 'used_root_id']);
+    const LEMMA_COLS = new Set(['lemma_id']);
+
+    const out: CarrierRows[] = [];
+    for (const p of usable) {
+      const col = p.root_bind_col as string;
+      if (LEMMA_COLS.has(col)) continue;
+      if (ID_COLS.has(col) && !rootId) continue;   // unknown, not empty
+      const bound = ID_COLS.has(col) ? (rootId as string) : root;
+      const rows = await query<Record<string, unknown>>(
+        this.db,
+        `SELECT * FROM ${p.table_name} WHERE ${col} = ? LIMIT ${ROW_LIMIT}`,
+        [bound],
+      ).catch(() => [] as Record<string, unknown>[]);
+      if (rows.length) {
+        out.push({ sub_code: subCode, carrier_table: p.table_name, bind_col: col, rows });
+      }
+    }
+    return out;
   }
 
 
