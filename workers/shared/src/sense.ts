@@ -32,6 +32,25 @@ export interface SenseRequest {
   params?: (string | number)[];
 }
 
+/** Reading a carrier's actual rows for a scope, through the same bridge the
+ *  counts use — so contents and count can never come from different tables. */
+export interface RowsRequest {
+  table: string;
+  bind_col: string;
+  bind_value: string;
+  /** `a,b` — the scope is a range: bind_col = value AND a >= from AND b <= to. */
+  bind_via?: string;
+  range_from?: number;
+  range_to?: number;
+  limit?: number;
+}
+
+export interface RowsResult {
+  ok: boolean;
+  rows?: Record<string, unknown>[];
+  error?: string;
+}
+
 export interface SenseResult {
   ok: boolean;
   reading?: number;
@@ -115,5 +134,33 @@ export async function sense(db: D1Database, req: SenseRequest): Promise<SenseRes
     }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'sense failed' };
+  }
+}
+
+/** The rows a carrier holds for one scope. Identifiers are checked against
+ *  sqlite_master, and the scope value never reaches the SQL text. */
+export async function readRows(db: D1Database, req: RowsRequest): Promise<RowsResult> {
+  try {
+    if (!IDENT.test(req.table)) return { ok: false, error: 'bad table' };
+    if (!IDENT.test(req.bind_col)) return { ok: false, error: 'bad bind_col' };
+    if (!(await tableExists(db, req.table))) return { ok: false, error: `no such table ${req.table}` };
+
+    let where = `${req.bind_col} = ?`;
+    const params: (string | number)[] = [req.bind_value];
+    // A passage is a range of ayat, not a key: bind_via names the two columns
+    // that carry it. Without this the only readable scope is one with its own
+    // id column, which is why every sentence table sat unbound.
+    const range = (req.bind_via ?? '').split(',').map(c => c.trim()).filter(Boolean);
+    if (range.length === 2 && req.range_from != null && req.range_to != null) {
+      if (!range.every(c => IDENT.test(c))) return { ok: false, error: 'bad range columns' };
+      where += ` AND ${range[0]} >= ? AND ${range[1]} <= ?`;
+      params.push(req.range_from, req.range_to);
+    }
+    const limit = Math.min(200, Math.max(1, req.limit ?? 60));
+    const rows = await db.prepare(`SELECT * FROM ${req.table} WHERE ${where} LIMIT ${limit}`)
+      .bind(...params).all<Record<string, unknown>>();
+    return { ok: true, rows: rows.results ?? [] };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'read failed' };
   }
 }

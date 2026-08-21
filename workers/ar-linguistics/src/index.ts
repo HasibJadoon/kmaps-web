@@ -4,7 +4,7 @@
 // nahw, balagha). Never binds DB_QR or DB_AR.
 
 import { Router } from '../../shared/src/router';
-import { sense, type SenseRequest } from '../../shared/src/sense';
+import { sense, readRows, type SenseRequest, type RowsRequest } from '../../shared/src/sense';
 import { dbHealth } from '../../shared/src/http';
 import { ok } from '../../shared/src/response';
 import type { ArLinguisticsEnv } from './env';
@@ -69,6 +69,13 @@ registryRoutes(router);          // /al/registry/* — the carrier registry and 
 // cache, so a data fix is visible on the next request everywhere.
 // The sensor engine's reader for this database. Internal-only: reached
 // through km-core-worker's service binding, never via a public module path.
+// The rows a carrier holds for one scope — same bridge, same whitelist.
+router.post('/al/internal/rows', async (req, env) => {
+  const body = await req.json<RowsRequest>().catch(() => null);
+  if (!body) return ok({ ok: false, error: 'bad request' });
+  return ok(await readRows(env.DB_AL, body));
+});
+
 router.post('/al/internal/sense', async (req, env) => {
   const body = await req.json<SenseRequest>().catch(() => null);
   if (!body) return ok({ ok: false, error: 'bad request' });

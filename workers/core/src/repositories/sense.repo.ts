@@ -258,3 +258,98 @@ export class SenseRepo {
     return report;
   }
 }
+
+// ─── Carrier rows for a node, through the bridge ─────────────────────────────
+//
+// The stream screens showed `cyb_node` children — the control plane's own
+// bookkeeping, rendered as "s1 · B 100 S — C — R —" twelve times over. That is
+// a review of the database, not a view of the work. This returns what the
+// carriers actually hold for a passage, resolved the one way km_core is allowed
+// to reach another database.
+
+export interface CarrierRows {
+  band_code: string;
+  db_name: string;
+  table_name: string;
+  bind_col: string;
+  rows: Record<string, unknown>[];
+}
+
+const ROWS_PATH: Record<string, string> = {
+  QURAN: '/qr/internal/rows',
+  AR_LINGUISTICS: '/al/internal/rows',
+  CONTENT: '/cm/internal/rows',
+};
+
+export class CarrierRowsRepo {
+  constructor(private env: CoreEnv) {}
+
+  /** Every carrier row a node's layer holds, band by band. */
+  async rowsForNode(nodeID: string, layerKey?: string): Promise<CarrierRows[] | null> {
+    const db = this.env.DB_CORE;
+    const node = await queryOne<NodeRow & { layer: string | null }>(
+      db,
+      `SELECT id, scale, domain, target_ref, meta_json, layer FROM cyb_node WHERE id = ?`,
+      [nodeID]);
+    if (!node) return null;
+
+    // A passage node's target_ref is `QR:SP:44:1-9`; the carriers bind on the
+    // surah and the ayah range it names.
+    const ref = node.target_ref ?? '';
+    const match = ref.replace('QR:SP:', '').match(/^(\d+):(\d+)-(\d+)$/);
+    const surah = match ? match[1] : null;
+    const from = match ? parseInt(match[2]) : null;
+    const to = match ? parseInt(match[3]) : null;
+
+    const layer = layerKey ?? node.layer;
+    if (!layer) return [];
+    const bindings = await query<{
+      band_code: string; db_name: string; table_name: string;
+      bind_col: string | null; bind_kind: string; bind_via: string | null;
+    }>(
+      db,
+      `SELECT band_code, db_name, table_name, bind_col, bind_kind, bind_via
+         FROM cyb_carrier_binding
+        WHERE status = 'live' AND role = 'carrier'
+          AND layer_uid = ? AND bind_kind NOT IN ('unset', 'none')
+          AND bind_col IS NOT NULL
+        ORDER BY band_code, table_name`,
+      [`${node.domain}:${layer}`]);
+
+    const out: CarrierRows[] = [];
+    for (const b of bindings) {
+      const owner = ownerOfDb(b.db_name);
+      if (!owner || owner === 'LOCAL') continue;
+      // What the node can name. A carrier keyed on `surah` is narrowed to the
+      // passage's ayat by the range columns the binding carries — without them
+      // a passage would read its whole surah. Anything else keyed by text takes
+      // the node's own ref (`QR:SP:44:1-9`), whatever the column is called:
+      // passage_id, study_passage_id, or the passage table's own id.
+      // An id-bound carrier reached through another table is a second hop the
+      // bridge does not express yet, and is left out rather than read against
+      // the wrong key.
+      let bindValue: string | null = null;
+      let rangeFrom: number | null = null;
+      let rangeTo: number | null = null;
+      if (b.bind_col === 'surah' && surah) { bindValue = surah; rangeFrom = from; rangeTo = to; }
+      else if (b.bind_kind === 'text') { bindValue = ref; }
+      else continue;
+
+      const res = await (this.env[owner] as Fetcher).fetch(new Request(
+        `http://internal.k-maps.local${ROWS_PATH[owner]}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            table: b.table_name, bind_col: b.bind_col, bind_value: bindValue,
+            bind_via: b.bind_via, range_from: rangeFrom, range_to: rangeTo, limit: 60,
+          }) }));
+      const body = await res.json<{ data?: { ok: boolean; rows?: Record<string, unknown>[] } }>()
+        .catch(() => null);
+      const rows = body?.data?.rows ?? [];
+      if (rows.length) {
+        out.push({ band_code: b.band_code, db_name: b.db_name,
+                   table_name: b.table_name, bind_col: b.bind_col, rows });
+      }
+    }
+    return out;
+  }
+}

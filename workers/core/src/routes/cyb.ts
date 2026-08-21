@@ -14,7 +14,7 @@ import type { Router } from '../../../shared/src/router';
 import { ok, notFound } from '../../../shared/src/response';
 import type { CoreEnv } from '../env';
 import { CybRepo } from '../repositories/cyb.repo';
-import { SenseRepo } from '../repositories/sense.repo';
+import { SenseRepo, CarrierRowsRepo } from '../repositories/sense.repo';
 
 export function cybRoutes(router: Router<CoreEnv>) {
   // GET /core/cyb/process?domain=quran — the study process register: the ordered
@@ -124,6 +124,15 @@ export function cybRoutes(router: Router<CoreEnv>) {
     const rows = await repo.readings(id);
     if (!rows.length) return notFound(`cyb node ${id} not found`);
     return ok({ node_id: id, readings: rows });
+  });
+
+  // GET /core/cyb/rows/:id — what the carriers hold for this node's layer.
+  // The stream screens rendered cyb_node children; this is the work itself.
+  router.get('/core/cyb/rows/:id', async (req, env, { id }) => {
+    const layer = new URL(req.url).searchParams.get('layer') ?? undefined;
+    const rows = await new CarrierRowsRepo(env).rowsForNode(id, layer);
+    if (!rows) return notFound(`cyb node ${id} not found`);
+    return ok({ node_id: id, layer: layer ?? null, carriers: rows });
   });
 
   // POST /core/cyb/sense/:id — the actuator, mechanised. Re-reads the node's

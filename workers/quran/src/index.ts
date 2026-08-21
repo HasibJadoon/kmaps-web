@@ -3,7 +3,7 @@
 // AR_LINGUISTICS, WORLDVIEW, and CONTENT — never by binding their D1 databases.
 
 import { Router } from '../../shared/src/router';
-import { sense, type SenseRequest } from '../../shared/src/sense';
+import { sense, readRows, type SenseRequest, type RowsRequest } from '../../shared/src/sense';
 import { dbHealth } from '../../shared/src/http';
 import { ok } from '../../shared/src/response';
 import type { QuranEnv } from './env';
@@ -62,6 +62,13 @@ adminSyncRoutes(router);     // POST /qr/admin/sync/al-root-ref — backfill al_
 
 // The sensor engine's reader for this database. Internal-only: reached
 // through km-core-worker's service binding, never via a public module path.
+// The rows a carrier holds for one scope — same bridge, same whitelist.
+router.post('/qr/internal/rows', async (req, env) => {
+  const body = await req.json<RowsRequest>().catch(() => null);
+  if (!body) return ok({ ok: false, error: 'bad request' });
+  return ok(await readRows(env.DB_QR, body));
+});
+
 router.post('/qr/internal/sense', async (req, env) => {
   const body = await req.json<SenseRequest>().catch(() => null);
   if (!body) return ok({ ok: false, error: 'bad request' });
