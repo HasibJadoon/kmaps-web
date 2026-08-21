@@ -1,4 +1,4 @@
-// ─── StagingRepo — the AL staging spine (ar_ling_stg_claim × reg_sub_layer) ──
+// ─── StagingRepo — the AL carrier registry and what the carriers hold ──────
 // The linguistics domain (shared by Qurʾān + Arabic acquisition) squeezes every
 // classical source into per-sub-layer *claims*, staged trilingually, then
 // promoted to their carrier tables. This repo reads those staged claims so the
@@ -132,7 +132,6 @@ export interface RootRollup { root_norm: string; staged: number; promoted: numbe
 export interface StatusCount { status: string; n: number }
 
 /** A claim is promoted when it has reached its carrier table. */
-const PROMOTED = `(status = 'promoted' OR promoted_to_table IS NOT NULL)`;
 
 /**
  * `ar_ling_reg_build_layer.layer_key` → the scope key the app tabs between.
@@ -480,61 +479,6 @@ export class StagingRepo {
     }
     return out;
   }
-
-
-  matrix(): Promise<StageCell[]> {
-    return query<StageCell>(
-      this.db,
-      `SELECT root_norm, sub_code, COUNT(*) AS n,
-              SUM(CASE WHEN ${PROMOTED} THEN 1 ELSE 0 END) AS promoted
-       FROM ar_ling_stg_claim
-       GROUP BY root_norm, sub_code`,
-    );
-  }
-
-  // Per-root rollup — staged claims, promoted, distinct layers touched.
-  rootRollups(): Promise<RootRollup[]> {
-    return query<RootRollup>(
-      this.db,
-      `SELECT root_norm,
-              COUNT(*) AS staged,
-              SUM(CASE WHEN ${PROMOTED} THEN 1 ELSE 0 END) AS promoted,
-              COUNT(DISTINCT sub_code) AS layers
-       FROM ar_ling_stg_claim
-       GROUP BY root_norm
-       ORDER BY staged DESC`,
-    );
-  }
-
-  statusCounts(): Promise<StatusCount[]> {
-    return query<StatusCount>(
-      this.db,
-      `SELECT status, COUNT(*) AS n FROM ar_ling_stg_claim GROUP BY status ORDER BY n DESC`,
-    );
-  }
-
-  // ── Deep per-root drill: the actual staged claims, memlets, questions ──
-
-  // Every staged claim for a root — verbatim quote + trilingual gloss + source,
-  // grouped client-side by sub_code (the layer). This is the "layers deeper".
-  rootClaims(root: string): Promise<RootClaim[]> {
-    return query<RootClaim>(
-      this.db,
-      // payload_json is the row's real content — the verbatim quote, the
-      // trilingual body, the marked terms, the citation, and the display block
-      // that says which heading level and colour the row wants. Without it a
-      // client can only render the gloss columns, which are a summary and are
-      // often empty where the payload is full.
-      `SELECT id, sub_code, band, source_slug, claim_type, status,
-              promoted_to_table, quote_ar, gloss_ar, gloss_en, gloss_ur,
-              confidence, payload_json
-       FROM ar_ling_stg_claim
-       WHERE root_norm = ?
-       ORDER BY band, sub_code, source_slug`,
-      [root],
-    );
-  }
-
   // The Membean-style memlet cards for a root (root/lemma/word scope).
   rootMemlets(root: string): Promise<RootMemlet[]> {
     return query<RootMemlet>(
@@ -613,9 +557,9 @@ export class StagingRepo {
     }>(
       this.db,
       `SELECT
-         (SELECT COUNT(*) FROM ar_ling_stg_claim)                                  AS staged,
-         (SELECT COUNT(*) FROM ar_ling_stg_claim WHERE ${PROMOTED})                AS promoted,
-         (SELECT COUNT(DISTINCT root_norm) FROM ar_ling_stg_claim)                 AS roots,
+         0                                                                        AS staged,
+         0                                                                        AS promoted,
+         (SELECT COUNT(DISTINCT root_norm) FROM ar_ling_roots)                     AS roots,
          (SELECT COUNT(*) FROM ar_ling_reg_sub_layer WHERE status='live')           AS sub_layers,
          (SELECT COUNT(*) FROM ar_ling_learn_memlet)                                     AS memlets,
          (SELECT COUNT(*) FROM ar_ling_learn_question)                              AS questions`,

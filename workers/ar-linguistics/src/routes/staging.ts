@@ -1,9 +1,13 @@
-// ─── /al/staging/* — the AL staging spine (read-only) ────────────────────────
-// Backs the Data Matrix / Staging Spine tabs of the Cybernetics Control Monitor.
-//   • GET /al/staging/summary     — headline counts + status breakdown + sub-layers
-//   • GET /al/staging/matrix      — root × sub_code claim counts (+ promoted) + cols
-//   • GET /al/staging/layer-model — scope → layer → sub-layer registry tree
-// Every number is a live read of ar_ling_stg_claim × ar_ling_reg_sub_layer.
+// ─── /al/* — the AL carrier registry, and what the carriers hold ─────────────
+// The path keeps its `staging` segment for now; nothing behind it is staging
+// any more. `ar_ling_stg_claim` was dropped on 2026-08-21 — its senses, uṣūl
+// and scholarship were carried into ar_ling_root_sense / _asl / _scholarship,
+// and the summary and matrix that only ever counted claims went with it.
+//   • GET /al/staging/layer-model            — scope → layer → sub-layer registry
+//   • GET /al/staging/root/:root             — memlets, questions, options, media
+//   • GET /al/staging/root/:root/fill/:band  — live carrier counts, one band
+//   • GET /al/staging/root/:root/fill/scope/:scope — one scope's bands
+//   • GET /al/staging/root/:root/rows/:sub   — what a carrier actually holds
 
 import type { Router } from '../../../shared/src/router';
 import { ok } from '../../../shared/src/response';
@@ -11,22 +15,22 @@ import type { ArLinguisticsEnv } from '../env';
 import { StagingRepo } from '../repositories/staging.repo';
 
 export function stagingRoutes(router: Router<ArLinguisticsEnv>) {
-  // GET /al/staging/summary
+  // GET /al/staging/summary — the registry, and the corpus behind it.
+  //
+  // The status breakdown and the per-root rollups counted staged and promoted
+  // claims. There are none: a row is in its carrier or it does not exist.
   router.get('/al/staging/summary', async (_req, env) => {
     const repo = new StagingRepo(env.DB_AL);
-    const [counts, byStatus, rootRollups, subLayers] = await Promise.all([
-      repo.counts(), repo.statusCounts(), repo.rootRollups(), repo.subLayers(),
-    ]);
-    return ok({ counts, by_status: byStatus, roots: rootRollups, sub_layers: subLayers });
+    const [counts, subLayers] = await Promise.all([repo.counts(), repo.subLayers()]);
+    return ok({ counts, by_status: [], roots: [], sub_layers: subLayers });
   });
 
-  // GET /al/staging/matrix
+  // GET /al/staging/matrix — root × sub_code, which was a claim count and is
+  // now nothing. The per-root reading comes from the carriers themselves, via
+  // the fill routes below.
   router.get('/al/staging/matrix', async (_req, env) => {
     const repo = new StagingRepo(env.DB_AL);
-    const [cells, subLayers, rootRollups] = await Promise.all([
-      repo.matrix(), repo.subLayers(), repo.rootRollups(),
-    ]);
-    return ok({ cells, sub_layers: subLayers, roots: rootRollups });
+    return ok({ cells: [], sub_layers: await repo.subLayers(), roots: [] });
   });
 
   // GET /al/staging/layer-model — the registry tree the Root Dashboard drills:
@@ -38,19 +42,20 @@ export function stagingRoutes(router: Router<ArLinguisticsEnv>) {
     return ok(await repo.layerModel());
   });
 
-  // GET /al/staging/root/:root — deep drill for one root: the actual staged
-  // claims (verbatim quote + trilingual gloss + source), the Membean-style
-  // memlet cards, and the question bank. Backs the Root Dashboard's deep tabs.
+  // GET /al/staging/root/:root — deep drill for one root: the Membean-style
+  // memlet cards, the question bank, and the registry they hang off. The claims
+  // this used to lead with were staging rows; a sub-layer's contents now come
+  // from its carrier, through the rows route below.
   router.get('/al/staging/root/:root', async (_req, env, { root }) => {
     const repo = new StagingRepo(env.DB_AL);
-    const [claims, memlets, questions, options, media, subLayers, memletKinds, questionKinds] =
+    const [memlets, questions, options, media, subLayers, memletKinds, questionKinds] =
       await Promise.all([
-        repo.rootClaims(root), repo.rootMemlets(root), repo.rootQuestions(root),
+        repo.rootMemlets(root), repo.rootQuestions(root),
         repo.rootOptions(root), repo.rootMedia(root), repo.subLayers(),
         repo.memletKinds(), repo.questionKinds(),
       ]);
     return ok({
-      root, claims, memlets, questions, options, media,
+      root, claims: [], memlets, questions, options, media,
       sub_layers: subLayers, memlet_kinds: memletKinds, question_kinds: questionKinds,
     });
   });

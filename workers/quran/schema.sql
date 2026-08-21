@@ -1,9 +1,9 @@
 -- Schema for km_quran.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-15.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-21.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (144) ─────────────────────────────────────────────────
+-- ── Tables (151) ─────────────────────────────────────────────────
 
 CREATE TABLE "qr_analysis_claim" (
   id                   TEXT PRIMARY KEY,
@@ -610,6 +610,141 @@ CREATE TABLE "qr_mushaf_layout_line" (
   refs_json       TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(refs_json)),
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (layout_key, page_number, line_number)
+);
+
+CREATE TABLE qr_nazm_group (
+  id TEXT PRIMARY KEY,
+  slug TEXT NOT NULL UNIQUE,
+  name_ar TEXT,
+  name_en TEXT NOT NULL,
+  name_translit TEXT,
+  surah_from INTEGER NOT NULL,
+  surah_to INTEGER NOT NULL,
+  member_count INTEGER NOT NULL,
+  contiguous INTEGER NOT NULL DEFAULT 1,
+  group_basis TEXT NOT NULL,
+  revelation_type TEXT,
+  epithet_ar TEXT,
+  epithet_attrib TEXT,
+  summary_md TEXT NOT NULL,
+  note_md TEXT,
+  gloss_json TEXT,
+  source_slug TEXT,
+  evidence_ref TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+, confidence TEXT NOT NULL DEFAULT 'attested');
+
+CREATE TABLE qr_nazm_group_member (
+  id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL,
+  surah INTEGER NOT NULL,
+  member_index INTEGER NOT NULL,
+  member_role TEXT,
+  opening_ayah INTEGER,
+  opening_form TEXT,
+  opening_text_ar TEXT,
+  epithet_pair_ar TEXT,
+  epithet_case TEXT,
+  is_anomaly INTEGER NOT NULL DEFAULT 0,
+  anomaly_note TEXT,
+  note_md TEXT,
+  gloss_json TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (group_id, surah),
+  FOREIGN KEY (group_id) REFERENCES qr_nazm_group(id),
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
+);
+
+CREATE TABLE qr_nazm_link (
+  id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL,
+  reading_id TEXT,
+  surah_a INTEGER NOT NULL,
+  surah_b INTEGER NOT NULL,
+  link_type TEXT NOT NULL,
+  link_strength TEXT,
+  link_evidence TEXT,
+  ayah_a INTEGER,
+  ayah_b INTEGER,
+  note_md TEXT,
+  source_slug TEXT,
+  evidence_ref TEXT,
+  gloss_json TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (group_id) REFERENCES qr_nazm_group(id),
+  FOREIGN KEY (reading_id) REFERENCES qr_nazm_reading(id),
+  FOREIGN KEY (surah_a) REFERENCES "qr_surah"(id),
+  FOREIGN KEY (surah_b) REFERENCES "qr_surah"(id)
+);
+
+CREATE TABLE qr_nazm_pass (
+  id TEXT PRIMARY KEY,
+  reading_id TEXT NOT NULL,
+  group_id TEXT NOT NULL,
+  pass_index INTEGER NOT NULL,
+  pass_label TEXT NOT NULL,
+  surahs_json TEXT NOT NULL,
+  surfaces_md TEXT NOT NULL,
+  note_md TEXT,
+  gloss_json TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (reading_id, pass_index),
+  FOREIGN KEY (reading_id) REFERENCES qr_nazm_reading(id),
+  FOREIGN KEY (group_id) REFERENCES qr_nazm_group(id)
+);
+
+CREATE TABLE qr_nazm_reading (
+  id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL,
+  reading_label TEXT NOT NULL,
+  structure_type TEXT NOT NULL,
+  pattern_notation TEXT,
+  scholar_ref TEXT,
+  paradigm_ref TEXT,
+  confidence TEXT NOT NULL DEFAULT 'proposed',
+  summary_md TEXT NOT NULL,
+  dissent_md TEXT,
+  note_md TEXT,
+  source_slug TEXT,
+  evidence_ref TEXT,
+  gloss_json TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (group_id) REFERENCES qr_nazm_group(id)
+);
+
+CREATE TABLE qr_nazm_theme (
+  id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL,
+  theme_key TEXT NOT NULL,
+  title_en TEXT NOT NULL,
+  title_ar TEXT,
+  marker_ar TEXT,
+  summary_md TEXT NOT NULL,
+  distribution_note TEXT,
+  note_md TEXT,
+  gloss_json TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (group_id, theme_key),
+  FOREIGN KEY (group_id) REFERENCES qr_nazm_group(id)
+);
+
+CREATE TABLE qr_nazm_theme_attestation (
+  id TEXT PRIMARY KEY,
+  theme_id TEXT NOT NULL,
+  group_id TEXT NOT NULL,
+  surah INTEGER NOT NULL,
+  ayah_from INTEGER NOT NULL,
+  ayah_to INTEGER,
+  text_ar TEXT,
+  verified INTEGER NOT NULL DEFAULT 0,
+  verified_against TEXT,
+  note_md TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (theme_id) REFERENCES qr_nazm_theme(id),
+  FOREIGN KEY (group_id) REFERENCES qr_nazm_group(id),
+  FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
 CREATE TABLE "qr_passage_analysis" (
@@ -2172,7 +2307,48 @@ CREATE TABLE qr_word_sense_link (
 );
 
 
--- ── Views (19) ───────────────────────────────────────────────────
+-- ── Views (22) ───────────────────────────────────────────────────
+
+CREATE VIEW qr_nazm_group_openings AS
+SELECT g.slug, m.member_index, m.surah, s.name_ar AS surah_ar, s.name_transliteration AS surah_translit,
+       m.member_role, m.opening_form, m.opening_ayah, a.text_uthmani_clean AS opening_live,
+       m.opening_text_ar AS opening_stored,
+       CASE WHEN a.text_uthmani_clean = m.opening_text_ar THEN 'ok' ELSE 'DRIFT' END AS integrity,
+       m.epithet_pair_ar, m.epithet_case, m.is_anomaly
+FROM qr_nazm_group_member m
+JOIN qr_nazm_group g ON g.id = m.group_id
+JOIN "qr_surah" s ON s.id = m.surah
+LEFT JOIN qr_ayah a ON a.surah = m.surah AND a.ayah = m.opening_ayah
+ORDER BY g.slug, m.member_index;
+
+CREATE VIEW qr_nazm_scholar_layer AS
+SELECT p.id AS scholar_id, p.name_en, p.birth_year_ce AS born, p.death_year_ce AS died,
+       par.name_en AS paradigm, l.affiliation_type,
+       (SELECT COUNT(*) FROM qr_nazm_group g
+          WHERE (p.id='QR:SCH:ISLAHI' AND g.slug LIKE 'islahi_%')
+             OR (p.id='QR:SCH:FARRIN' AND g.slug LIKE 'farrin_%')) AS group_rows,
+       CASE
+         WHEN p.id='QR:SCH:ISLAHI'   THEN 'complete group scheme'
+         WHEN p.id='QR:SCH:FARRIN'   THEN 'rival group scheme (partial)'
+         WHEN p.id='QR:SCH:FARAHI'   THEN 'principle only (amud)'
+         WHEN p.id='QR:SCH:NAK'      THEN 'macro-order engagement, no named groups'
+         WHEN p.id='QR:SCH:RANDHAWA' THEN 'macro-order engagement, no named groups'
+         WHEN p.id='QR:SCH:GHAMIDI'  THEN 'follows Islahi, none independent'
+         ELSE 'unassessed'
+       END AS group_layer_contribution
+FROM qr_scholar_profile p
+JOIN qr_scholar_paradigm_link l ON l.scholar_id = p.id
+JOIN qr_scholarly_paradigm par ON par.id = l.paradigm_id
+WHERE l.affiliation_type <> 'influenced_by';
+
+CREATE VIEW qr_nazm_surah_groups AS
+SELECT s.id AS surah, s.name_transliteration AS surah_translit,
+       COUNT(m.id) AS group_count,
+       GROUP_CONCAT(g.slug) AS groups
+FROM "qr_surah" s
+LEFT JOIN qr_nazm_group_member m ON m.surah = s.id
+LEFT JOIN qr_nazm_group g ON g.id = m.group_id
+GROUP BY s.id;
 
 CREATE VIEW qr_scholar_passage_incipit_check AS
 SELECT m.id, m.tafsir_id reading_id, m.movement_ord, m.incipit_ar, m.evidence_ref,
@@ -2388,7 +2564,7 @@ SELECT w.root, w.root_uid, w.lemma_ref, w.lemma AS lemma_surface,
    AND (s.word_start IS NULL OR w.word_index BETWEEN s.word_start AND s.word_end);
 
 
--- ── Indexes (173) ────────────────────────────────────────────────
+-- ── Indexes (175) ────────────────────────────────────────────────
 
 CREATE INDEX idx_iraab_block_ayah       ON "qr_irab_book_display_block" (surah_no, ayah_no);
 
@@ -2728,6 +2904,10 @@ CREATE INDEX idx_wsl_ayah ON qr_word_sense_link(surah_no, ayah_no, word_index);
 CREATE INDEX idx_wsl_sense ON qr_word_sense_link(al_sense_id);
 
 CREATE INDEX idx_wsl_word ON qr_word_sense_link(word_occ_id, display_order);
+
+CREATE INDEX ix_nazm_att_surah ON qr_nazm_theme_attestation(surah, ayah_from);
+
+CREATE INDEX ix_nazm_member_surah ON qr_nazm_group_member(surah);
 
 CREATE INDEX ix_pts_tafsir ON "qr_scholar_passage_section"(tafsir_id, section_ord);
 

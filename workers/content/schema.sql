@@ -1,5 +1,5 @@
 -- Schema for km_content.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-15.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-21.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
@@ -194,7 +194,7 @@ CREATE TABLE cm_documents (
   meta_json          TEXT NOT NULL DEFAULT '{}',
   created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-, domain TEXT, surah INTEGER, ayah_from INTEGER, ayah_to INTEGER, passage_ref TEXT);
+, domain TEXT, surah INTEGER, ayah_from INTEGER, ayah_to INTEGER, passage_ref TEXT, subdomain TEXT);
 
 CREATE TABLE cm_engine_jobs (
   job_id          TEXT PRIMARY KEY,

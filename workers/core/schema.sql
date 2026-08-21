@@ -1,9 +1,70 @@
 -- Schema for km_core.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-15.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-21.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (65) ──────────────────────────────────────────────────
+-- ── Tables (74) ──────────────────────────────────────────────────
+
+CREATE TABLE bkp_cyb_node_20260815(
+  id TEXT,
+  domain TEXT,
+  lane TEXT,
+  parent_id TEXT,
+  scale TEXT,
+  target_kind TEXT,
+  target_ref TEXT,
+  layer TEXT,
+  piece_kind TEXT,
+  build_state TEXT,
+  build_pct INT,
+  study_state TEXT,
+  study_pct INT,
+  content_state TEXT,
+  content_pct INT,
+  setpoint_json TEXT,
+  priority INT,
+  meta_json TEXT,
+  updated_at TEXT,
+  retention_state TEXT,
+  retention_pct INT
+);
+
+CREATE TABLE bkp_cyb_sensor_20260815(
+  id TEXT,
+  node_id TEXT,
+  axis TEXT,
+  kind TEXT,
+  band_code TEXT,
+  metric TEXT,
+  reading REAL,
+  expected REAL,
+  weight REAL,
+  state TEXT,
+  health TEXT,
+  trend TEXT,
+  prev_reading REAL,
+  error_val REAL,
+  read_count INT,
+  source_table TEXT,
+  source_slug TEXT,
+  first_read_at TEXT,
+  last_read_at TEXT
+);
+
+CREATE TABLE bkp_cyb_sensor_def_20260815(
+  id TEXT,
+  axis TEXT,
+  applies_to TEXT,
+  band_code TEXT,
+  metric TEXT,
+  reader TEXT,
+  reader_args TEXT,
+  expected REAL,
+  weight REAL,
+  stale_days INT,
+  status TEXT,
+  note TEXT
+);
 
 CREATE TABLE bkp_srs_card_20260815(
   id TEXT,
@@ -280,6 +341,8 @@ CREATE TABLE core_resource_policies (
   updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE core_root_build_stat (root_ar TEXT PRIMARY KEY, freq_quran INTEGER NOT NULL DEFAULT 0, build_pct INTEGER NOT NULL DEFAULT 0, synced_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')));
+
 CREATE TABLE core_root_surah_map (root_uid TEXT PRIMARY KEY, spread TEXT, n_surahs INTEGER, total_occur INTEGER);
 
 CREATE TABLE core_root_uid_map (root_ar TEXT PRIMARY KEY, root_uid TEXT NOT NULL, synced_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')));
@@ -437,6 +500,27 @@ CREATE TABLE core_srs_review (
   state_after          TEXT,
   review_duration_secs INTEGER,
   reviewed_at          TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE core_study_session (
+  id            TEXT PRIMARY KEY,
+  user_ref      TEXT NOT NULL,
+  domain        TEXT NOT NULL CHECK (domain IN ('quran','arabic','wv')),
+  lane          TEXT NOT NULL CHECK (lane IN ('quran','language','worldview')),
+  layer_id      TEXT,
+  band_code     TEXT,
+  scope_kind    TEXT NOT NULL,
+  scope_ref     TEXT NOT NULL,
+  node_id       TEXT REFERENCES cyb_node(id) ON DELETE SET NULL,
+  activity      TEXT NOT NULL CHECK (activity IN ('read','listen','watch','class','review','write','teach','discuss')),
+  source_kind   TEXT,
+  source_ref    TEXT,
+  started_at    TEXT NOT NULL,
+  ended_at      TEXT,
+  duration_secs INTEGER,
+  confidence    INTEGER CHECK (confidence IS NULL OR confidence BETWEEN 1 AND 4),
+  note          TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE core_talking_points (
@@ -635,6 +719,29 @@ CREATE TABLE cyb_card_type (
   note           TEXT,
   created_at     TEXT NOT NULL DEFAULT (datetime('now')));
 
+CREATE TABLE cyb_carrier_binding (
+  uid          TEXT PRIMARY KEY,
+  domain       TEXT NOT NULL CHECK (domain IN ('quran','arabic','wv')),
+  lane         TEXT NOT NULL CHECK (lane IN ('quran','language','worldview')),
+  layer_uid    TEXT,
+  band_uid     TEXT,
+  band_code    TEXT,
+  scope_kind   TEXT NOT NULL,
+  db_name      TEXT NOT NULL,
+  table_name   TEXT NOT NULL,
+  bind_col     TEXT,
+  bind_kind    TEXT NOT NULL DEFAULT 'unset' CHECK (bind_kind IN ('text','id','none','unset')),
+  bind_via     TEXT,
+  bind_note    TEXT,
+  role         TEXT NOT NULL DEFAULT 'carrier',
+  sensor_class TEXT NOT NULL DEFAULT 'measured',
+  authority    TEXT,
+  status       TEXT NOT NULL DEFAULT 'live',
+  source_reg   TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (db_name, table_name, band_code, scope_kind)
+);
+
 CREATE TABLE cyb_config (key TEXT PRIMARY KEY, value TEXT NOT NULL, note TEXT);
 
 CREATE TABLE cyb_discipline (
@@ -776,6 +883,47 @@ CREATE TABLE cyb_node (
   updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 , retention_state TEXT NOT NULL DEFAULT 'none', retention_pct INTEGER NOT NULL DEFAULT 0);
 
+CREATE TABLE cyb_process (
+  uid         TEXT PRIMARY KEY,
+  domain      TEXT NOT NULL CHECK (domain IN ('quran','arabic','wv')),
+  lane        TEXT NOT NULL CHECK (lane IN ('quran','language','worldview')),
+  scope_kind  TEXT NOT NULL,
+  name_ar     TEXT NOT NULL,
+  name_en     TEXT NOT NULL,
+  name_ur     TEXT,
+  note_md     TEXT,
+  status      TEXT NOT NULL DEFAULT 'live',
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE cyb_process_step (
+  uid          TEXT PRIMARY KEY,
+  process_uid  TEXT NOT NULL REFERENCES cyb_process(uid) ON DELETE CASCADE,
+  step_key     TEXT NOT NULL,
+  step_no      INTEGER NOT NULL,
+  scope_kind   TEXT NOT NULL DEFAULT 'passage',
+  name_ar      TEXT NOT NULL,
+  name_en      TEXT NOT NULL,
+  name_ur      TEXT,
+  covers_md    TEXT,
+  key_info_md  TEXT,
+  merged_from_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(merged_from_json)),
+  prereq_json  TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(prereq_json)),
+  status       TEXT NOT NULL DEFAULT 'live',
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (process_uid, step_key)
+);
+
+CREATE TABLE cyb_process_step_layer (
+  uid         TEXT PRIMARY KEY,
+  step_uid    TEXT NOT NULL REFERENCES cyb_process_step(uid) ON DELETE CASCADE,
+  layer_uid   TEXT NOT NULL,
+  skill_slug  TEXT,
+  role        TEXT NOT NULL DEFAULT 'primary' CHECK (role IN ('primary','secondary')),
+  note        TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE cyb_production (
   id          TEXT PRIMARY KEY,
   node_id     TEXT NOT NULL REFERENCES cyb_node(id) ON DELETE CASCADE,
@@ -799,7 +947,7 @@ CREATE TABLE cyb_ps_band (
   study_owner INTEGER NOT NULL DEFAULT 0, card_kind TEXT, card_prompt_en TEXT,
   content_owner INTEGER NOT NULL DEFAULT 0, scene_key TEXT, gate_mode TEXT NOT NULL DEFAULT 'warn',
   retention_target_days INTEGER NOT NULL DEFAULT 21, mastery_pct INTEGER NOT NULL DEFAULT 95,
-  weight REAL NOT NULL DEFAULT 1.0, status TEXT NOT NULL DEFAULT 'live', synced_at TEXT);
+  weight REAL NOT NULL DEFAULT 1.0, status TEXT NOT NULL DEFAULT 'live', synced_at TEXT, layer_key TEXT);
 
 CREATE TABLE cyb_pt_band (
   band_code TEXT PRIMARY KEY, layer_code TEXT NOT NULL, band_ord INTEGER NOT NULL,
@@ -959,7 +1107,7 @@ CREATE TABLE cyb_wv_band (
   status TEXT NOT NULL DEFAULT 'live', synced_at TEXT);
 
 
--- ── Views (30) ───────────────────────────────────────────────────
+-- ── Views (31) ───────────────────────────────────────────────────
 
 CREATE VIEW cyb_control_kpi AS
 SELECT COUNT(*) AS roots,
@@ -1082,7 +1230,7 @@ FROM cyb_node n WHERE n.target_kind='root';
 
 CREATE VIEW cyb_root_build AS
 SELECT n.id node_id, n.target_ref root, n.domain,
- b.band_code, b.name_en band, b.band_ord, b.discipline, b.prereq_json, b.build_authority,
+ b.band_code, b.name_en band, b.band_ord, b.layer_code, b.scope_level, b.discipline, b.prereq_json, b.build_authority,
  MAX(CASE WHEN d.metric='presence'   THEN COALESCE(s.reading,0) END) presence,
  MAX(CASE WHEN d.metric='coverage'   THEN COALESCE(s.reading,0) END) coverage,
  MAX(CASE WHEN d.metric='provenance' THEN COALESCE(s.reading,0) END) provenance,
@@ -1097,7 +1245,7 @@ SELECT n.id node_id, n.target_ref root, n.domain,
  MAX(s.last_read_at) last_read_at
 FROM cyb_node n
 JOIN cyb_root_band b ON b.status='live' AND b.build_carriers<>'[]'
-JOIN cyb_sensor_def d ON d.applies_to='root' AND d.axis='build' AND d.band_code=b.band_code
+JOIN cyb_sensor_def d ON d.applies_to='root' AND d.axis='build' AND d.band_code=b.band_code AND d.status='live'
 LEFT JOIN cyb_sensor s ON s.node_id=n.id AND s.axis='build' AND s.band_code=b.band_code AND s.metric=d.metric
 WHERE n.target_kind='root'
 GROUP BY n.id, b.band_code;
@@ -1331,8 +1479,22 @@ CREATE VIEW cyb_tick_log AS
 SELECT id, ran_at, sensed, drifts, actuated, corrected, summary
 FROM cyb_tick ORDER BY ran_at DESC LIMIT 50;
 
+CREATE VIEW v_cyb_sensor_dead_source AS
+SELECT s.id AS sensor_id, s.node_id, s.axis, s.band_code, s.metric, s.source_table, s.state,
+       CASE WHEN s.source_table IS NULL THEN 'null_source'
+            WHEN s.source_table LIKE 'km/_%' ESCAPE '/' THEN 'db_name_not_table'
+            WHEN s.source_table LIKE '%+%' THEN 'composite_string'
+            WHEN s.source_table = 'ar_ling_stg_claim' THEN 'staging_table'
+            ELSE 'check_exists' END AS issue
+FROM cyb_sensor s
+WHERE s.source_table IS NULL
+   OR s.source_table LIKE 'km/_%' ESCAPE '/'
+   OR s.source_table LIKE '%+%'
+   OR s.source_table = 'ar_ling_stg_claim'
+   OR s.state = 'pending_carrier';
 
--- ── Indexes (62) ─────────────────────────────────────────────────
+
+-- ── Indexes (65) ─────────────────────────────────────────────────
 
 CREATE INDEX core_srs_card_deck ON core_srs_card(deck_id);
 
@@ -1440,6 +1602,8 @@ CREATE INDEX idx_core_wr_ws ON core_workspace_roles(workspace_id);
 
 CREATE INDEX idx_cyb_skill_loop ON cyb_skill(loop_key);
 
+CREATE UNIQUE INDEX idx_process_step_layer_unique ON cyb_process_step_layer (step_uid, layer_uid, COALESCE(skill_slug,''));
+
 CREATE INDEX idx_srs_card_kind ON core_srs_card (user_ref, module, card_kind, concept_domain);
 
 CREATE INDEX idx_srs_lib_author
@@ -1454,6 +1618,10 @@ CREATE INDEX idx_srs_lib_status
 CREATE UNIQUE INDEX idx_srs_lib_unique
   ON core_srs_library_card (author_ref, resource_ref, front_text);
 
+CREATE INDEX idx_study_session_node ON core_study_session (node_id, started_at);
+
+CREATE INDEX idx_study_session_scope ON core_study_session (domain, scope_kind, scope_ref);
+
 CREATE INDEX ix_card_library_ref ON core_srs_card(library_ref);
 
 CREATE INDEX ix_card_surah ON core_srs_card_surah(surah);
@@ -1461,3 +1629,23 @@ CREATE INDEX ix_card_surah ON core_srs_card_surah(surah);
 CREATE INDEX ix_cscc_concept ON core_srs_card_concept(concept_ref);
 
 CREATE INDEX ix_cscc_uid     ON core_srs_card_concept(concept_uid);
+
+
+-- ── Triggers (1) ─────────────────────────────────────────────────
+
+CREATE TRIGGER trg_cyb_sensor_log_read
+AFTER UPDATE OF last_read_at ON cyb_sensor
+FOR EACH ROW
+WHEN NEW.last_read_at IS NOT NULL
+ AND (OLD.last_read_at IS NULL OR NEW.last_read_at <> OLD.last_read_at)
+BEGIN
+  INSERT INTO cyb_sensor_reading (id, sensor_id, reading, state, tick_id, at)
+  VALUES (
+    'SR:' || lower(hex(randomblob(12))),
+    NEW.id,
+    NEW.reading,
+    NEW.state,
+    NULLIF((SELECT value FROM cyb_config WHERE key='cyb.current_tick'),''),
+    NEW.last_read_at
+  );
+END;

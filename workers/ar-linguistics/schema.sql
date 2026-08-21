@@ -1,9 +1,9 @@
 -- Schema for km_arabic_linguistic.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-15.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-21.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (123) ─────────────────────────────────────────────────
+-- ── Tables (125) ─────────────────────────────────────────────────
 
 CREATE TABLE ar_ling_concept_block (
   id                TEXT PRIMARY KEY,
@@ -898,6 +898,15 @@ CREATE TABLE ar_ling_reg_band_color (
   color_name_en TEXT
 );
 
+CREATE TABLE ar_ling_reg_band_fill_rule (
+  band_code   TEXT PRIMARY KEY,
+  carrier     TEXT,
+  root_key    TEXT,
+  fill_sql    TEXT,
+  na_reason   TEXT,
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE ar_ling_reg_build_layer (
   layer_code   TEXT PRIMARY KEY,
   layer_key    TEXT NOT NULL UNIQUE,
@@ -911,6 +920,19 @@ CREATE TABLE ar_ling_reg_build_layer (
   allowed_source_slugs_json TEXT NOT NULL,
   note_en TEXT
 , primary_tables_json_bak TEXT, allowed_source_slugs_json_bak TEXT, code_alpha TEXT, scheme_version TEXT DEFAULT 'v1', note_ar TEXT, note_ur TEXT);
+
+CREATE TABLE ar_ling_reg_conformance_check (
+  check_id     TEXT PRIMARY KEY,
+  band_code    TEXT NOT NULL,
+  carrier      TEXT NOT NULL,
+  dimension    TEXT NOT NULL,
+  severity     TEXT NOT NULL DEFAULT 'warn',
+  description  TEXT NOT NULL,
+  offender_sql TEXT NOT NULL,
+  auto_fixable INTEGER NOT NULL DEFAULT 0,
+  status       TEXT NOT NULL DEFAULT 'live',
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
 CREATE TABLE ar_ling_reg_discipline (
   discipline_key  TEXT PRIMARY KEY,
@@ -1007,14 +1029,7 @@ CREATE TABLE ar_ling_reg_table_map (
   table_name  TEXT NOT NULL,
   cluster     TEXT NOT NULL,
   layer_code  TEXT,
-  role        TEXT, sub_code TEXT, role_code TEXT, code_full TEXT, discipline TEXT, provenance_role TEXT, sensor_class TEXT NOT NULL DEFAULT 'none', scope_types_json TEXT NOT NULL DEFAULT '[]', row_count_at_audit INTEGER, audited_at TEXT,
-  -- How this table reaches a root, and through which column. rootFill() reads
-  -- these to count a sub-layer's real rows for one root; without them it
-  -- returns nothing and every fill state silently falls back to the sensors.
-  -- 'unset' means the binding has not been audited — unknown, not empty.
-  root_bind      TEXT NOT NULL DEFAULT 'unset',   -- direct | via | none | unset
-  root_bind_col  TEXT,
-  root_bind_note TEXT,
+  role        TEXT, sub_code TEXT, role_code TEXT, code_full TEXT, discipline TEXT, provenance_role TEXT, sensor_class TEXT NOT NULL DEFAULT 'none', scope_types_json TEXT NOT NULL DEFAULT '[]', row_count_at_audit INTEGER, audited_at TEXT, root_bind TEXT NOT NULL DEFAULT 'unset', root_bind_col TEXT, root_bind_note TEXT,
   PRIMARY KEY (db, table_name)
 );
 
@@ -1081,6 +1096,14 @@ CREATE TABLE "ar_ling_root_backlink" (
   status       TEXT NOT NULL DEFAULT 'raw',
   created_at   TEXT NOT NULL DEFAULT (datetime('now')), display_json TEXT,
   UNIQUE (from_table, from_row_id, to_kind, to_row_id, to_ref)
+);
+
+CREATE TABLE ar_ling_root_band_fill (
+  root_norm   TEXT NOT NULL,
+  band_code   TEXT NOT NULL,
+  n           INTEGER NOT NULL DEFAULT 0,
+  computed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (root_norm, band_code)
 );
 
 CREATE TABLE "ar_ling_root_didd" (
@@ -1219,7 +1242,7 @@ CREATE TABLE "ar_ling_root_haql" (
   FOREIGN KEY (field_id) REFERENCES "ar_ling_reg_semantic_field"(id),
   FOREIGN KEY (sense_id) REFERENCES "ar_ling_root_sense"(id));
 
-CREATE TABLE ar_ling_root_layer_fill (
+CREATE TABLE "ar_ling_root_layer_fill_dep_20260815" (
   root TEXT NOT NULL, sub_code TEXT NOT NULL, band TEXT NOT NULL,
   n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (root, sub_code));
 
@@ -1391,7 +1414,7 @@ CREATE TABLE "ar_ling_root_lemma_tadiya" (
   source_ref TEXT,
   status TEXT NOT NULL DEFAULT 'draft',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
-, transitivity_term_id TEXT, taddiya_route TEXT, meaning_ur TEXT, display_json TEXT);
+, transitivity_term_id TEXT, taddiya_route TEXT, meaning_ur TEXT, display_json TEXT, taddiya_route_term_id TEXT REFERENCES ar_ling_gram_term(id));
 
 CREATE TABLE "ar_ling_root_lemma_taswib" (
   id              TEXT PRIMARY KEY,
@@ -1521,7 +1544,7 @@ CREATE TABLE ar_ling_root_naw_sawti (
   note_en       TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
-, display_json TEXT);
+, display_json TEXT, root_type_term_id TEXT REFERENCES ar_ling_gram_term(id));
 
 CREATE TABLE ar_ling_root_page_index (
   id TEXT PRIMARY KEY,
@@ -1868,36 +1891,6 @@ CREATE TABLE ar_ling_src_code (
   title_en  TEXT
 );
 
-CREATE TABLE "ar_ling_stg_claim" (
-  id                TEXT PRIMARY KEY,
-  root_norm         TEXT NOT NULL,
-  root_id           TEXT,
-  book_scope        TEXT NOT NULL,
-  band              INTEGER NOT NULL,
-  sub_code          TEXT NOT NULL,
-  discipline        TEXT,
-  source_slug       TEXT NOT NULL,
-  source_native_id  TEXT,
-  page_no           INTEGER,
-  volume_no         INTEGER,
-  claim_type        TEXT NOT NULL,
-  quote_ar          TEXT,
-  gloss_en          TEXT,
-  gloss_ur          TEXT,
-  payload_json      TEXT NOT NULL DEFAULT '{}',
-  confidence        TEXT NOT NULL DEFAULT 'proposed',
-  weight            REAL,
-  status            TEXT NOT NULL DEFAULT 'staged',
-  promoted_to_table TEXT,
-  promoted_row_id   TEXT,
-  reviewer_note_md  TEXT,
-  created_at        TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at        TEXT
-, uniq_key TEXT
-  GENERATED ALWAYS AS (
-    root_norm||'|'||sub_code||'|'||source_slug||'|'||claim_type||'|'||COALESCE(source_native_id,'')||'|'||substr(COALESCE(quote_ar,''),1,120)
-  ) VIRTUAL, gloss_ar TEXT);
-
 CREATE TABLE "ar_ling_term_dictionary" (
   term_text TEXT NOT NULL,
   root_norm TEXT,
@@ -1908,7 +1901,31 @@ CREATE TABLE "ar_ling_term_dictionary" (
 CREATE TABLE tmp_qroot (root TEXT PRIMARY KEY);
 
 
--- ── Views (18) ───────────────────────────────────────────────────
+-- ── Views (20) ───────────────────────────────────────────────────
+
+CREATE VIEW ar_ling_reg_band_carrier AS
+SELECT
+  t.sub_code,
+  s.name_en            AS band_name_en,
+  s.scope_level,
+  s.discipline,
+  COUNT(*)                                             AS carriers_total,
+  SUM(t.root_bind IN ('direct','via'))                 AS carriers_measurable,
+  SUM(t.root_bind='direct')                            AS carriers_direct,
+  SUM(t.root_bind='via')                               AS carriers_via,
+  SUM(t.root_bind='none')                              AS carriers_global,
+  SUM(t.root_bind='unset')                             AS carriers_unresolved,
+  CASE
+    WHEN SUM(t.root_bind IN ('direct','via'))=0 AND SUM(t.root_bind='unset')=0 THEN 'na'
+    WHEN SUM(t.root_bind='unset')>0                                            THEN 'unresolved'
+    ELSE 'live' END                                    AS derived_status,
+  (SELECT group_concat(x.table_name) FROM ar_ling_reg_table_map x
+     WHERE x.sub_code=t.sub_code AND x.db=t.db AND x.root_bind IN ('direct','via'))
+                                                       AS derived_carriers
+FROM ar_ling_reg_table_map t
+LEFT JOIN ar_ling_reg_sub_layer s ON s.sub_code=t.sub_code
+WHERE t.db='km_arabic_linguistic'
+GROUP BY t.sub_code;
 
 CREATE VIEW ar_ling_reg_root_display_format AS
 SELECT
@@ -1937,10 +1954,16 @@ CREATE VIEW ar_ling_root_edges_v AS
     r.strength, r.gloss_en, r.evidence_json, r.status, r.created_at
   FROM "ar_ling_root_relation" r
   UNION ALL
-  SELECT 'synonym_family', s.id, s.root_id, s.root_norm, NULL, NULL,
-    CASE WHEN s.is_addad = 1 THEN 'addad_family' ELSE 'synonym_family' END,
-    NULL, s.sense_family_summary_en, s.evidence_json, s.status, s.created_at
+  SELECT 'asl', s.id, s.root_id, s.root_norm, NULL, NULL, 'attested_asl',
+    NULL, s.statement_en, NULL, s.status, s.created_at
   FROM "ar_ling_root_asl" s;
+
+CREATE VIEW ar_ling_root_layer_fill AS
+SELECT f.root_norm AS root, f.band_code AS sub_code,
+       COALESCE(s.band_name_en, s.name_en, f.band_code) AS band,
+       f.n AS n, f.computed_at AS computed_at
+FROM ar_ling_root_band_fill f
+LEFT JOIN ar_ling_reg_sub_layer s ON s.sub_code = f.band_code;
 
 CREATE VIEW ar_ling_stage_board AS
 SELECT root_norm, layer_code,
@@ -1952,18 +1975,6 @@ FROM ar_ling_root_backlink
 GROUP BY root_norm, layer_code
 ORDER BY root_norm, layer_code;
 
-CREATE VIEW ar_ling_stg_claim_display AS
-SELECT
-  c.id, c.root_norm, c.sub_code, c.claim_type, c.quote_ar, c.gloss_en, c.gloss_ur,
-  c.confidence, c.status, c.page_no, c.volume_no,
-  c.source_slug,
-  s.author_name  AS source_author_ar,
-  s.title_ar     AS source_title_ar,
-  s.title_short_ar AS source_title_short_ar,
-  s.source_type  AS source_type
-FROM ar_ling_stg_claim c
-LEFT JOIN ar_ling_source s ON s.slug = c.source_slug;
-
 CREATE VIEW ar_ling_tablemap_board AS
 SELECT cluster, layer_code, sub_code, code_full, discipline, table_name
 FROM ar_ling_reg_table_map
@@ -1973,6 +1984,16 @@ ORDER BY cluster, layer_code, sub_code;
 CREATE VIEW v_balagha_bab AS SELECT * FROM ar_ling_gram_bab   WHERE discipline='BL';
 
 CREATE VIEW v_balagha_pages AS SELECT * FROM "ar_ling_gram_chunk" WHERE discipline='BL';
+
+CREATE VIEW v_gram_term_unbound AS
+SELECT 'ar_ling_root_naw_sawti' AS tbl, root_norm AS row_id, 'root_type_term_id' AS col, root_type_term_id AS val
+FROM ar_ling_root_naw_sawti WHERE root_type_term_id IS NULL OR root_type_term_id NOT IN (SELECT id FROM ar_ling_gram_term WHERE status='live')
+UNION ALL
+SELECT 'ar_ling_root_lemma_tadiya', id, 'transitivity_term_id', transitivity_term_id
+FROM ar_ling_root_lemma_tadiya WHERE transitivity_term_id IS NULL OR transitivity_term_id NOT IN (SELECT id FROM ar_ling_gram_term WHERE status='live')
+UNION ALL
+SELECT 'ar_ling_root_lemma_tadiya', id, 'taddiya_route_term_id', taddiya_route_term_id
+FROM ar_ling_root_lemma_tadiya WHERE taddiya_route_term_id IS NULL OR taddiya_route_term_id NOT IN (SELECT id FROM ar_ling_gram_term WHERE status='live');
 
 CREATE VIEW v_id_convention_drift AS
 SELECT 'ar_ling_root_lemma' AS tbl, id FROM ar_ling_root_lemma WHERE id LIKE 'AL:%'
@@ -2046,7 +2067,7 @@ UNION ALL SELECT 'ar_ling_form_paradigms', id, paradigm_name FROM "ar_ling_root_
 UNION ALL SELECT 'ar_ling_conjugation_templates', id, template_form FROM "ar_ling_root_form_template" WHERE source_slug IS NULL;
 
 
--- ── Indexes (204) ────────────────────────────────────────────────
+-- ── Indexes (200) ────────────────────────────────────────────────
 
 CREATE INDEX idx_albk_book_page
   ON "ar_ling_lexicon_block"(book_page_id);
@@ -2481,7 +2502,7 @@ CREATE INDEX ix_lexicon_display_section_kind
 CREATE INDEX ix_lexicon_display_section_slug_seq
   ON ar_ling_lexicon_display_section (source_slug, seq);
 
-CREATE INDEX ix_rlf_sub ON ar_ling_root_layer_fill(sub_code, n);
+CREATE INDEX ix_rlf_sub ON "ar_ling_root_layer_fill_dep_20260815"(sub_code, n);
 
 CREATE INDEX ix_root_asl_death   ON ar_ling_root_asl(root_norm, death_hijri);
 
@@ -2496,12 +2517,6 @@ CREATE INDEX ix_root_letter_slot_root  ON ar_ling_root_letter_slot (root_norm, s
 CREATE INDEX ix_root_naw_sawti_agree ON ar_ling_root_naw_sawti (agrees_with_legacy);
 
 CREATE INDEX ix_root_naw_sawti_cat   ON ar_ling_root_naw_sawti (category, soundness);
-
-CREATE INDEX ix_root_stage_cov ON "ar_ling_stg_claim"(root_norm, sub_code, source_slug);
-
-CREATE INDEX ix_root_stage_root ON "ar_ling_stg_claim"(root_norm, book_scope);
-
-CREATE INDEX ix_root_stage_stat ON "ar_ling_stg_claim"(status);
 
 CREATE INDEX ix_root_taqalib_group ON ar_ling_root_taqalib (group_key, perm_index);
 
@@ -2520,9 +2535,6 @@ CREATE UNIQUE INDEX ux_cb_entry_path ON ar_ling_concept_block(concept_entry_id, 
 CREATE UNIQUE INDEX ux_gram_term_uid ON ar_ling_gram_term(uid);
 
 CREATE UNIQUE INDEX ux_morph_flags ON "ar_ling_root_lemma_sarf"(qac_flags, pos);
-
-CREATE UNIQUE INDEX ux_root_stage_uniq
-  ON "ar_ling_stg_claim"(uniq_key) WHERE status <> 'rejected';
 
 CREATE UNIQUE INDEX ux_roots_norm ON "ar_ling_roots"(root_normalized);
 
