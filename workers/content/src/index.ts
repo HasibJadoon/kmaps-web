@@ -3,6 +3,7 @@
 // highlights, sources. ACL via CORE service binding (never grows its own ACL).
 
 import { Router } from '../../shared/src/router';
+import { sense, type SenseRequest } from '../../shared/src/sense';
 import { dbHealth } from '../../shared/src/http';
 import { ok } from '../../shared/src/response';
 import type { ContentEnv } from './env';
@@ -26,6 +27,14 @@ docSpaceRoutes(router);    // GET/POST/PATCH/DELETE /cm/docspace (owner-scoped n
 captureRoutes(router);     // GET/POST /cm/captures
 highlightRoutes(router);   // GET/POST/DELETE /cm/highlights
 cmSourceRoutes(router);    // GET/POST /cm/sources
+
+// The sensor engine's reader for this database. Internal-only: reached
+// through km-core-worker's service binding, never via a public module path.
+router.post('/cm/internal/sense', async (req, env) => {
+  const body = await req.json<SenseRequest>().catch(() => null);
+  if (!body) return ok({ ok: false, error: 'bad request' });
+  return ok(await sense(env.DB_CM, body));
+});
 
 export default {
   fetch: (request: Request, env: ContentEnv) => router.handle(request, env),

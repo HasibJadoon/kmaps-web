@@ -9,6 +9,20 @@ database_name = "km_core"
 database_id = "afe84ce7-04dd-45a1-99ac-f42ca53276d2"
 migrations_dir = "migrations"
 
+# The sensor engine reaches each carrier database through its owner —
+# CORE never binds another domain's D1 directly.
+[[services]]
+binding = "QURAN"
+service = "km-quran-worker"
+
+[[services]]
+binding = "AR_LINGUISTICS"
+service = "km-ar-linguistics-worker"
+
+[[services]]
+binding = "CONTENT"
+service = "km-content-worker"
+
 [vars]
 JWT_EXPIRY_SECONDS = "3600"
 

@@ -14,6 +14,7 @@ import type { Router } from '../../../shared/src/router';
 import { ok, notFound } from '../../../shared/src/response';
 import type { CoreEnv } from '../env';
 import { CybRepo } from '../repositories/cyb.repo';
+import { SenseRepo } from '../repositories/sense.repo';
 
 export function cybRoutes(router: Router<CoreEnv>) {
   // GET /core/cyb/process?domain=quran — the study process register: the ordered
@@ -113,5 +114,24 @@ export function cybRoutes(router: Router<CoreEnv>) {
     const repo = new CybRepo(env.DB_CORE);
     const [list, byCoverage] = await Promise.all([repo.sources(loop), repo.sourceCountByCoverage()]);
     return ok({ list, by_coverage: byCoverage });
+  });
+
+  // POST /core/cyb/sense/:id — the actuator, mechanised. Re-reads the node's
+  // sensors against the real carriers through their owning workers, updates
+  // readings, recomputes the node's per-axis percent, and sets *_measured.
+  // Coverage is honest: what the engine cannot yet bind comes back in
+  // `skipped` with its reason — never as a zero.
+  router.post('/core/cyb/sense/:id', async (_req, env, { id }) => {
+    const report = await new SenseRepo(env).senseNode(id);
+    if (!report) return notFound(`cyb node ${id} not found`);
+    return ok(report);
+  });
+
+  // GET is the dry run: the same readers against the same carriers, writing
+  // nothing — what the sensors *would* say, before committing them to it.
+  router.get('/core/cyb/sense/:id', async (_req, env, { id }) => {
+    const report = await new SenseRepo(env).senseNode(id, true);
+    if (!report) return notFound(`cyb node ${id} not found`);
+    return ok({ ...report, dry_run: true });
   });
 }

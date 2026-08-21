@@ -4,6 +4,7 @@
 // nahw, balagha). Never binds DB_QR or DB_AR.
 
 import { Router } from '../../shared/src/router';
+import { sense, type SenseRequest } from '../../shared/src/sense';
 import { dbHealth } from '../../shared/src/http';
 import { ok } from '../../shared/src/response';
 import type { ArLinguisticsEnv } from './env';
@@ -66,6 +67,14 @@ stagingRoutes(router);           // /al/staging/* — root_stage × reg_sub_laye
 // serving an article from URLCache long after the worker started returning a
 // corrected one. Say it explicitly instead of relying on the absence of a
 // cache, so a data fix is visible on the next request everywhere.
+// The sensor engine's reader for this database. Internal-only: reached
+// through km-core-worker's service binding, never via a public module path.
+router.post('/al/internal/sense', async (req, env) => {
+  const body = await req.json<SenseRequest>().catch(() => null);
+  if (!body) return ok({ ok: false, error: 'bad request' });
+  return ok(await sense(env.DB_AL, body));
+});
+
 export default {
   fetch: async (request: Request, env: ArLinguisticsEnv) => {
     const res = await router.handle(request, env);

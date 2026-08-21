@@ -118,6 +118,12 @@ export default {
     // ── Identify module: /api/qr/... → 'qr' ───────────────────────────────────
     // pathname.slice(5) strips the leading '/api/' → 'qr/menu'
     const remainder  = url.pathname.slice(5);          // 'qr/menu'
+    // Worker-to-worker routes never ride the public API. The sense readers
+    // live under /internal/ and are reached only through service bindings;
+    // an /api path that names them is refused at the edge, before auth.
+    if (remainder.includes('/internal/')) {
+      return withCors(err('not_found', 'Not found', 404), origin, co);
+    }
     const moduleKey  = remainder.split('/')[0] as ModuleKey;
     const mod        = MODULE_MAP[moduleKey];
 

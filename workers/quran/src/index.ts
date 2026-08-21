@@ -3,6 +3,7 @@
 // AR_LINGUISTICS, WORLDVIEW, and CONTENT — never by binding their D1 databases.
 
 import { Router } from '../../shared/src/router';
+import { sense, type SenseRequest } from '../../shared/src/sense';
 import { dbHealth } from '../../shared/src/http';
 import { ok } from '../../shared/src/response';
 import type { QuranEnv } from './env';
@@ -58,6 +59,14 @@ iraabDisplayRoutes(router);  // GET /qr/iraab/display, /qr/iraab/display/sources
 lexiconRoutes(router);       // GET /qr/lexicon/lemmas, /qr/lexicon/roots
 depGraphRoutes(router);      // GET /qr/irab/dep-graph/:surah/:ayah — SVG from R2; /meta — D1 metadata
 adminSyncRoutes(router);     // POST /qr/admin/sync/al-root-ref — backfill al_root_ref via AR_LINGUISTICS
+
+// The sensor engine's reader for this database. Internal-only: reached
+// through km-core-worker's service binding, never via a public module path.
+router.post('/qr/internal/sense', async (req, env) => {
+  const body = await req.json<SenseRequest>().catch(() => null);
+  if (!body) return ok({ ok: false, error: 'bad request' });
+  return ok(await sense(env.DB_QR, body));
+});
 
 export default {
   fetch: (request: Request, env: QuranEnv) => router.handle(request, env),
