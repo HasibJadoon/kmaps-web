@@ -48,6 +48,8 @@ export interface RowsRequest {
 export interface RowsResult {
   ok: boolean;
   rows?: Record<string, unknown>[];
+  /** What the carrier holds, against `rows.length`, which is what was sent. */
+  total?: number;
   error?: string;
 }
 
@@ -137,6 +139,37 @@ export async function sense(db: D1Database, req: SenseRequest): Promise<SenseRes
   }
 }
 
+/**
+ * How a carrier is ordered before the limit cuts it. A passage is read in the
+ * order its parts occur — ayah by ayah, sentence by sentence, step by step —
+ * and every carrier that has such a column names it here.
+ */
+const ROW_ORDER_KEYS = [
+  'surah', 'ayah', 'ayah_from', 'sentence_seq', 'clause_order', 'step_seq',
+  'step_no', 'stage_no', 'block_seq', 'chunk_seq', 'unit_index', 'slot_index',
+  'perm_index', 'sort_order', 'display_order', 'seq',
+];
+
+const orderCache = new Map<string, string>();
+
+async function orderingFor(db: D1Database, table: string): Promise<string> {
+  if (!IDENT.test(table)) return '';
+  const cached = orderCache.get(table);
+  if (cached !== undefined) return cached;
+
+  const cols = await db.prepare('SELECT name FROM pragma_table_info(?)')
+    .bind(table).all<{ name: string }>().catch(() => null);
+  const have = new Set((cols?.results ?? []).map(c => c.name));
+
+  const keys = ROW_ORDER_KEYS.filter(k => have.has(k)).slice(0, 2);
+  // `id` last, so rows tying on every ordering column still come back in the
+  // same sequence on every request.
+  if (have.has('id') && !keys.includes('id')) keys.push('id');
+  const clause = keys.length ? ` ORDER BY ${keys.join(', ')}` : '';
+  orderCache.set(table, clause);
+  return clause;
+}
+
 /** The rows a carrier holds for one scope. Identifiers are checked against
  *  sqlite_master, and the scope value never reaches the SQL text. */
 export async function readRows(db: D1Database, req: RowsRequest): Promise<RowsResult> {
@@ -157,9 +190,19 @@ export async function readRows(db: D1Database, req: RowsRequest): Promise<RowsRe
       params.push(req.range_from, req.range_to);
     }
     const limit = Math.min(200, Math.max(1, req.limit ?? 60));
-    const rows = await db.prepare(`SELECT * FROM ${req.table} WHERE ${where} LIMIT ${limit}`)
-      .bind(...params).all<Record<string, unknown>>();
-    return { ok: true, rows: rows.results ?? [] };
+    // Ordered before the limit, not after: 44:1–9 has 180 tafsīr rows against a
+    // limit of 60, so an unordered read handed the screen an arbitrary third of
+    // the commentary. Sorting on the client cannot recover the rows the limit
+    // already dropped.
+    const order = await orderingFor(db, req.table);
+    const [rows, count] = await Promise.all([
+      db.prepare(`SELECT * FROM ${req.table} WHERE ${where}${order} LIMIT ${limit}`)
+        .bind(...params).all<Record<string, unknown>>(),
+      db.prepare(`SELECT count(*) AS n FROM ${req.table} WHERE ${where}`)
+        .bind(...params).first<{ n: number }>(),
+    ]);
+    const results = rows.results ?? [];
+    return { ok: true, rows: results, total: count?.n ?? results.length };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'read failed' };
   }

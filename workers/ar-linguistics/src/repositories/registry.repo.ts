@@ -207,10 +207,28 @@ export interface CarrierRows {
   carrier_table: string;
   bind_col: string;
   rows: Record<string, unknown>[];
+  /** How many rows the carrier actually holds, so a truncated read says so. */
+  total: number;
 }
 
 /** A leaf shows its rows, not a page of them; enough to read, not to dump. */
 const ROW_LIMIT = 50;
+
+/**
+ * How a carrier is ordered before `ROW_LIMIT` cuts it.
+ *
+ * Sequence ahead of `source_slug`, which decides what a truncated lexicon read
+ * contains. بين has 206 blocks across eleven dictionaries: ordered by book, the
+ * fifty sent are the whole of the three whose slugs sort first, and Lisān
+ * al-ʿArab never arrives. Ordered by sequence, they are the opening blocks of
+ * every dictionary — which is how the lexica are actually read against each
+ * other, and what the screen says it is showing.
+ */
+const ORDER_KEYS = [
+  'block_seq', 'chunk_seq', 'step_no', 'step_seq', 'stage_no', 'slot_index',
+  'perm_index', 'sort_order', 'display_order', 'clause_order', 'unit_index',
+  'chunk_index', 'seq', 'death_hijri', 'source_slug',
+];
 
 /**
  * D1 refuses compound SELECTs of more than five branches ("too many terms in
@@ -225,6 +243,9 @@ const UNION_CHUNK = 5;
 
 export class RegistryRepo {
   constructor(private db: D1Database) {}
+
+  /** `ORDER BY` clause per carrier table — the shape does not change per root. */
+  private orderCache = new Map<string, string>();
 
   // The sub-layer registry — column headers for the matrix, in order.
   subLayers(): Promise<SubLayer[]> {
@@ -479,16 +500,57 @@ export class RegistryRepo {
       if (LEMMA_COLS.has(col)) continue;
       if (ID_COLS.has(col) && !rootId) continue;   // unknown, not empty
       const bound = ID_COLS.has(col) ? (rootId as string) : root;
-      const rows = await query<Record<string, unknown>>(
-        this.db,
-        `SELECT * FROM ${p.table_name} WHERE ${col} = ? LIMIT ${ROW_LIMIT}`,
-        [bound],
-      ).catch(() => [] as Record<string, unknown>[]);
+
+      const order = await this.orderingFor(p.table_name);
+      const [rows, total] = await Promise.all([
+        query<Record<string, unknown>>(
+          this.db,
+          `SELECT * FROM ${p.table_name} WHERE ${col} = ?${order} LIMIT ${ROW_LIMIT}`,
+          [bound],
+        ).catch(() => [] as Record<string, unknown>[]),
+        queryOne<{ n: number }>(
+          this.db,
+          `SELECT count(*) AS n FROM ${p.table_name} WHERE ${col} = ?`,
+          [bound],
+        ).catch(() => null),
+      ]);
       if (rows.length) {
-        out.push({ sub_code: subCode, carrier_table: p.table_name, bind_col: col, rows });
+        out.push({
+          sub_code: subCode, carrier_table: p.table_name, bind_col: col, rows,
+          total: total?.n ?? rows.length,
+        });
       }
     }
     return out;
+  }
+
+  /**
+   * `ORDER BY` for a carrier, built from the columns it actually has.
+   *
+   * Without one, `LIMIT 50` takes an arbitrary fifty: بين has 206 lexicon
+   * blocks across eleven dictionaries, so the leaf showed a quarter of the
+   * book in storage order and read as though that were all of it. Sorting on
+   * the client cannot fix this — by then the other 156 rows are already gone.
+   * The order has to be decided here, before the limit applies.
+   */
+  private async orderingFor(table: string): Promise<string> {
+    if (!IDENT.test(table)) return '';
+    const cached = this.orderCache.get(table);
+    if (cached !== undefined) return cached;
+
+    const cols = await query<{ name: string }>(
+      this.db, 'SELECT name FROM pragma_table_info(?)', [table],
+    ).catch(() => [] as { name: string }[]);
+    const have = new Set(cols.map(c => c.name));
+
+    // A book is read source by source, and within a source in printed order.
+    const keys = ORDER_KEYS.filter(k => have.has(k)).slice(0, 2);
+    // `id` last, so rows that tie on every ordering column still come back in
+    // the same sequence on every request.
+    if (have.has('id') && !keys.includes('id')) keys.push('id');
+    const clause = keys.length ? ` ORDER BY ${keys.join(', ')}` : '';
+    this.orderCache.set(table, clause);
+    return clause;
   }
   // The Membean-style memlet cards for a root (root/lemma/word scope).
   rootMemlets(root: string): Promise<RootMemlet[]> {

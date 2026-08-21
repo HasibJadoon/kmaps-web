@@ -273,6 +273,8 @@ export interface CarrierRows {
   table_name: string;
   bind_col: string;
   rows: Record<string, unknown>[];
+  /** What the carrier holds, against `rows.length`, which is what was sent. */
+  total: number;
 }
 
 const ROWS_PATH: Record<string, string> = {
@@ -320,6 +322,10 @@ export class CarrierRowsRepo {
     for (const b of bindings) {
       const owner = ownerOfDb(b.db_name);
       if (!owner || owner === 'LOCAL') continue;
+      // The query already excludes these; saying so here is what lets the row
+      // be built without asserting a type the binding does not guarantee.
+      const bindCol = b.bind_col;
+      if (!bindCol) continue;
       // What the node can name. A carrier keyed on `surah` is narrowed to the
       // passage's ayat by the range columns the binding carries — without them
       // a passage would read its whole surah. Anything else keyed by text takes
@@ -331,7 +337,7 @@ export class CarrierRowsRepo {
       let bindValue: string | null = null;
       let rangeFrom: number | null = null;
       let rangeTo: number | null = null;
-      if (b.bind_col === 'surah' && surah) { bindValue = surah; rangeFrom = from; rangeTo = to; }
+      if (bindCol === 'surah' && surah) { bindValue = surah; rangeFrom = from; rangeTo = to; }
       else if (b.bind_kind === 'text') { bindValue = ref; }
       else continue;
 
@@ -339,15 +345,17 @@ export class CarrierRowsRepo {
         `http://internal.k-maps.local${ROWS_PATH[owner]}`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            table: b.table_name, bind_col: b.bind_col, bind_value: bindValue,
+            table: b.table_name, bind_col: bindCol, bind_value: bindValue,
             bind_via: b.bind_via, range_from: rangeFrom, range_to: rangeTo, limit: 60,
           }) }));
-      const body = await res.json<{ data?: { ok: boolean; rows?: Record<string, unknown>[] } }>()
-        .catch(() => null);
+      const body = await res.json<{
+        data?: { ok: boolean; rows?: Record<string, unknown>[]; total?: number };
+      }>().catch(() => null);
       const rows = body?.data?.rows ?? [];
       if (rows.length) {
         out.push({ band_code: b.band_code, db_name: b.db_name,
-                   table_name: b.table_name, bind_col: b.bind_col, rows });
+                   table_name: b.table_name, bind_col: bindCol, rows,
+                   total: body?.data?.total ?? rows.length });
       }
     }
     return out;
