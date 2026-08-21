@@ -327,16 +327,22 @@ export class RegistryRepo {
     // and tabs do.
     const band = where.band && IDENT_BAND.test(where.band) ? where.band : null;
     const scope = where.scope && IDENT.test(where.scope) ? where.scope : null;
-    const joins = band || scope;
     const conds: string[] = [];
     const args: string[] = [];
     if (band) { conds.push('s.band_key = ?'); args.push(band); }
     if (scope) { conds.push('s.scope_level = ?'); args.push(scope); }
+    // The JOIN is not optional: a table carries a sub-layer because that
+    // sub-layer DECLARES it in tables_json. Binding alone used to be enough,
+    // so tables dropped into a band with nothing declaring them were counted —
+    // 00-CORE collected 29 that way, and بين's Core identity read 91 rows of
+    // which one was its identity. Undeclared is not a default home.
     const plans = await query<CarrierPlan>(
       this.db,
       `SELECT m.table_name, m.sub_code, m.root_bind, m.root_bind_col
          FROM ar_ling_reg_table_map m
-         ${joins ? 'JOIN ar_ling_reg_sub_layer s ON s.sub_code = m.sub_code' : ''}
+         JOIN ar_ling_reg_sub_layer s
+           ON s.sub_code = m.sub_code
+          AND s.tables_json LIKE '%"' || m.table_name || '"%'
         WHERE m.role = 'carrier' AND m.root_bind = 'direct'
           AND m.table_name IS NOT NULL AND m.root_bind_col IS NOT NULL
           ${conds.length ? `AND ${conds.join(' AND ')}` : ''}`,
@@ -440,12 +446,17 @@ export class RegistryRepo {
    * to show what the row is. Columns are rendered as they come.
    */
   async rootRows(root: string, subCode: string): Promise<CarrierRows[]> {
+    // Declared carriers only — the same rule the fill count reads by, so the
+    // contents and the count can never come from different table sets.
     const plans = await query<CarrierPlan>(
       this.db,
-      `SELECT table_name, sub_code, root_bind, root_bind_col
-         FROM ar_ling_reg_table_map
-        WHERE role = 'carrier' AND root_bind = 'direct' AND sub_code = ?
-          AND table_name IS NOT NULL AND root_bind_col IS NOT NULL`,
+      `SELECT m.table_name, m.sub_code, m.root_bind, m.root_bind_col
+         FROM ar_ling_reg_table_map m
+         JOIN ar_ling_reg_sub_layer s
+           ON s.sub_code = m.sub_code
+          AND s.tables_json LIKE '%"' || m.table_name || '"%'
+        WHERE m.role = 'carrier' AND m.root_bind = 'direct' AND m.sub_code = ?
+          AND m.table_name IS NOT NULL AND m.root_bind_col IS NOT NULL`,
       [subCode],
     ).catch(() => []);
 
