@@ -142,7 +142,7 @@ export class SenseRepo {
       `SELECT db_name, table_name, bind_col, bind_kind, band_code, scope_kind
          FROM cyb_carrier_binding
         WHERE status = 'live' AND domain = ? AND scope_kind = ?
-          AND bind_kind <> 'unset'`,
+          AND bind_kind NOT IN ('unset', 'scope')`,
       [node.domain, node.scale]);
     const byBand = new Map<string, BindingRow[]>();
     for (const b of bindings) {
@@ -347,6 +347,68 @@ export class CarrierRowsRepo {
           body: JSON.stringify({
             table: b.table_name, bind_col: bindCol, bind_value: bindValue,
             bind_via: b.bind_via, range_from: rangeFrom, range_to: rangeTo, limit: 60,
+          }) }));
+      const body = await res.json<{
+        data?: { ok: boolean; rows?: Record<string, unknown>[]; total?: number };
+      }>().catch(() => null);
+      const rows = body?.data?.rows ?? [];
+      if (rows.length) {
+        out.push({ band_code: b.band_code, db_name: b.db_name,
+                   table_name: b.table_name, bind_col: bindCol, rows,
+                   total: body?.data?.total ?? rows.length });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * The second hop — what a *part* of a passage carries.
+   *
+   * A passage node's ref reaches carriers keyed on the passage and nothing
+   * keyed on a sentence, a tree or a note, which is most of the syntactic
+   * apparatus. 44:1–9 alone is 152 sentence rows and the word-level material is
+   * far larger, so this is deliberately not folded into the passage read: the
+   * caller asks for one scope, when a reader selects it.
+   *
+   * Two binding shapes, both declared in the bridge:
+   *   * `bind_via` names a discriminator column — one row set serves words,
+   *     clauses and sentences, and (scope_type, scope_id) picks one out;
+   *   * `bind_via` is null — the carrier answers a single kind of scope, and
+   *     `scope_kind` says which.
+   */
+  async rowsForScope(scopeType: string, scopeID: string,
+                     layerKey?: string, domain = 'quran'): Promise<CarrierRows[]> {
+    const bindings = await query<{
+      band_code: string; db_name: string; table_name: string;
+      bind_col: string | null; bind_via: string | null; scope_kind: string;
+    }>(
+      this.env.DB_CORE,
+      `SELECT band_code, db_name, table_name, bind_col, bind_via, scope_kind
+         FROM cyb_carrier_binding
+        WHERE status = 'live' AND role = 'carrier' AND bind_kind = 'scope'
+          AND domain = ? AND bind_col IS NOT NULL
+          AND (bind_via IS NOT NULL OR scope_kind = ?)
+          AND (? IS NULL OR layer_uid = ?)
+        ORDER BY band_code, table_name`,
+      [domain, scopeType,
+       layerKey ?? null, layerKey ? `${domain}:${layerKey}` : null]);
+
+    const out: CarrierRows[] = [];
+    for (const b of bindings) {
+      const owner = ownerOfDb(b.db_name);
+      if (!owner || owner === 'LOCAL') continue;
+      const bindCol = b.bind_col;
+      if (!bindCol) continue;
+
+      const res = await (this.env[owner] as Fetcher).fetch(new Request(
+        `http://internal.k-maps.local${ROWS_PATH[owner]}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            table: b.table_name, bind_col: bindCol, bind_value: scopeID,
+            // Only a carrier that mixes scope kinds needs to be told which.
+            filter_col: b.bind_via ?? undefined,
+            filter_value: b.bind_via ? scopeType : undefined,
+            limit: 200,
           }) }));
       const body = await res.json<{
         data?: { ok: boolean; rows?: Record<string, unknown>[]; total?: number };

@@ -135,6 +135,23 @@ export function cybRoutes(router: Router<CoreEnv>) {
     return ok({ node_id: id, layer: layer ?? null, carriers: rows });
   });
 
+  // GET /core/cyb/scope/:scopeType/:scopeId — the second hop.
+  //
+  // A passage node reaches carriers keyed on the passage; everything keyed on a
+  // part of it — a sentence, a tree, a note — needs the part named. The reader
+  // asks for one scope when one is selected, rather than the passage dragging
+  // its whole syntactic apparatus along on open.
+  router.get('/core/cyb/scope/:scopeType/:scopeId', async (req, env,
+                                                           { scopeType, scopeId }) => {
+    const params = new URL(req.url).searchParams;
+    const layer = params.get('layer') ?? undefined;
+    const domain = params.get('domain') ?? 'quran';
+    const rows = await new CarrierRowsRepo(env)
+      .rowsForScope(scopeType, decodeURIComponent(scopeId), layer, domain);
+    return ok({ scope_type: scopeType, scope_id: scopeId,
+                layer: layer ?? null, carriers: rows });
+  });
+
   // POST /core/cyb/sense/:id — the actuator, mechanised. Re-reads the node's
   // sensors against the real carriers through their owning workers, updates
   // readings, recomputes the node's per-axis percent, and sets *_measured.

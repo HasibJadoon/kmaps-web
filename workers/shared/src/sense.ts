@@ -42,6 +42,11 @@ export interface RowsRequest {
   bind_via?: string;
   range_from?: number;
   range_to?: number;
+  /** A discriminator column, when one row set serves several kinds of scope.
+   *  `qr_ss_scope_morph_link` holds words and sentences alike, and only the
+   *  pair (scope_type, scope_id) picks out one of them. */
+  filter_col?: string;
+  filter_value?: string;
   limit?: number;
 }
 
@@ -188,6 +193,11 @@ export async function readRows(db: D1Database, req: RowsRequest): Promise<RowsRe
       if (!range.every(c => IDENT.test(c))) return { ok: false, error: 'bad range columns' };
       where += ` AND ${range[0]} >= ? AND ${range[1]} <= ?`;
       params.push(req.range_from, req.range_to);
+    }
+    if (req.filter_col != null && req.filter_value != null) {
+      if (!IDENT.test(req.filter_col)) return { ok: false, error: 'bad filter_col' };
+      where += ` AND ${req.filter_col} = ?`;
+      params.push(req.filter_value);
     }
     const limit = Math.min(200, Math.max(1, req.limit ?? 60));
     // Ordered before the limit, not after: 44:1–9 has 180 tafsīr rows against a
