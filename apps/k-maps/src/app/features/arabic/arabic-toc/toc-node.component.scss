@@ -1,0 +1,64 @@
+:host { display: contents; }
+
+.tn { list-style: none; margin: 0; }
+
+.tn__row {
+  display: flex; align-items: center; gap: 0.55rem;
+  padding-block: 0.4rem; padding-inline-end: 0.6rem;
+  border-radius: 6px; transition: background 0.15s ease;
+}
+.tn__row:hover { background: color-mix(in srgb, var(--km-surface) 80%, #fff 6%); }
+
+.tn__twist {
+  flex: 0 0 1.1rem; width: 1.1rem; height: 1.1rem; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; cursor: pointer;
+  color: var(--km-text-3); font-size: 0.7rem; line-height: 1;
+  transition: transform 0.18s ease, color 0.15s ease;
+}
+.tn__twist:hover { color: var(--accent, var(--km-gold)); }
+.tn--open > .tn__row > .tn__twist { transform: rotate(90deg); }
+.tn__twist--leaf { cursor: default; opacity: 0.35; }
+
+.tn__link {
+  display: flex; align-items: baseline; gap: 0.6rem; flex: 1 1 auto;
+  min-width: 0; text-decoration: none; color: inherit;
+}
+.tn__ar {
+  font-family: var(--km-font-arabic); font-size: 1.05rem; line-height: 1.6;
+  color: var(--km-text); unicode-bidi: plaintext;
+}
+.tn__link:hover .tn__ar { color: var(--accent, var(--km-gold)); }
+.tn__en {
+  font-size: 0.78rem; color: var(--km-text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.tn__meta { display: flex; align-items: center; gap: 0.5rem; flex: 0 0 auto; }
+.tn__kind {
+  font-family: var(--km-font-arabic); font-size: 0.72rem;
+  color: var(--km-text-3); opacity: 0.8;
+}
+/* A bāb is a chapter and a masʾala is a single question — the weight tells
+   them apart without a legend. */
+.tn__kind[data-kind='bab'],
+.tn__kind[data-kind='qism'] { color: var(--accent, var(--km-gold)); opacity: 1; }
+.tn__srcs { font-size: 0.66rem; color: var(--accent, var(--km-gold)); opacity: 0.8; }
+.tn__count {
+  font-size: 0.64rem; color: var(--km-text-3);
+  border: 1px solid var(--km-border); border-radius: 999px;
+  padding: 0.05rem 0.4rem; min-width: 1.4rem; text-align: center;
+}
+
+.tn__kids {
+  margin: 0; padding: 0;
+  border-inline-start: 1px solid var(--km-border);
+  margin-inline-start: 0.95rem;
+}
+
+@media (max-width: 640px) {
+  .tn__en { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tn__row, .tn__twist { transition: none; }
+}

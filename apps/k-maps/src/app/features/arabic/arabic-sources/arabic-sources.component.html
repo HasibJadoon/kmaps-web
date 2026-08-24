@@ -1,0 +1,104 @@
+<div class="src-page">
+  <div class="src-page__inner">
+
+    <nav class="src-nav">
+      <a class="back-btn" routerLink="/arabic/linguistics">&#8592; Linguistics</a>
+      <span class="src-nav__crumb">Sources</span>
+    </nav>
+
+    <header class="src-header">
+      <span class="src-header__ar" dir="rtl">المصادر</span>
+      <h1 class="src-header__title">Sources</h1>
+      <p class="src-header__sub">
+        Every matn, sharḥ and lecture behind the Naḥw, Ṣarf and Balāgha courses.
+      </p>
+    </header>
+
+    @if (loading()) {
+      <div class="src-grid">
+        @for (s of skeletons; track s) { <div class="skeleton-card"></div> }
+      </div>
+    } @else if (error()) {
+      <div class="empty-state">
+        <div class="empty-state__icon">!</div>
+        <p class="empty-state__title">{{ error() }}</p>
+      </div>
+    } @else if (!total()) {
+      <div class="empty-state">
+        <div class="empty-state__icon">م</div>
+        <p class="empty-state__title">No sources registered yet</p>
+      </div>
+    } @else {
+
+      <!-- Filter by kind: a book and a lecture are not read the same way -->
+      <div class="kind-bar" role="group" aria-label="Filter sources by kind">
+        @for (k of kinds(); track k) {
+          <button
+            type="button"
+            class="kind-btn"
+            [class.kind-btn--active]="kindFilter() === k"
+            [attr.aria-pressed]="kindFilter() === k"
+            (click)="setKind(k)"
+          >{{ kindLabel(k) }}</button>
+        }
+        <span class="kind-bar__count">{{ total() }} total</span>
+      </div>
+
+      @for (g of visible(); track g.name_en) {
+        <section class="src-group" [style.--accent]="g.accent || 'var(--km-gold)'">
+          <div class="src-group__head">
+            @if (g.name_ar) {
+              <span class="src-group__ar" dir="rtl">{{ g.name_ar }}</span>
+            }
+            <span class="src-group__en">{{ g.name_en }}</span>
+            <span class="src-group__count">{{ g.sources.length }}</span>
+          </div>
+
+          <div class="src-grid">
+            @for (s of g.sources; track s.id) {
+              <article class="src-card" [attr.data-kind]="s.source_kind">
+                <div class="src-card__spine"></div>
+                <div class="src-card__body">
+                  <div class="src-card__top">
+                    <span class="src-card__icon" aria-hidden="true">{{ kindIcon(s.source_kind) }}</span>
+                    <span class="src-card__authority">{{ authorityLabel(s.authority) }}</span>
+                  </div>
+
+                  <h3 class="src-card__title" dir="rtl">{{ displayTitle(s) }}</h3>
+                  @if (s.title_en && s.title_ar) {
+                    <p class="src-card__title-en">{{ s.title_en }}</p>
+                  }
+
+                  @if (displayAuthor(s)) {
+                    <p class="src-card__author" dir="rtl">
+                      {{ displayAuthor(s) }}@if (s.death_year) {<span class="src-card__death"> — ت {{ s.death_year }}</span>}
+                    </p>
+                  }
+
+                  @if (s.edition) { <p class="src-card__edition">{{ s.edition }}</p> }
+
+                  <div class="src-card__foot">
+                    @if (s.cited_by) {
+                      <span class="src-card__cited">{{ s.cited_by }} topics cite this</span>
+                    } @else {
+                      <span class="src-card__cited src-card__cited--none">Not yet cited in the TOC</span>
+                    }
+                    @if (s.url) {
+                      <a
+                        class="src-card__link"
+                        [href]="s.url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >{{ s.platform || 'Open' }} &#8599;</a>
+                    }
+                  </div>
+                </div>
+              </article>
+            }
+          </div>
+        </section>
+      }
+    }
+
+  </div>
+</div>

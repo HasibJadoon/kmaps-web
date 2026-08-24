@@ -3,106 +3,64 @@ import {
   OnInit,
   inject,
   signal,
+  computed,
   ChangeDetectionStrategy,
-  ChangeDetectorRef,
 } from '@angular/core';
-import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../../environments/environment';
+import { Router, RouterLink } from '@angular/router';
+import { DecimalPipe } from '@angular/common';
+import {
+  ArabicCurriculumApiService,
+  ArDiscipline,
+} from '../../../shared/services/arabic-curriculum-api.service';
 
-type Tab = 'grammar' | 'balagha' | 'analysis';
-type BalaghaB = 'bayan' | 'maani' | 'badi' | string;
-
-interface GrammarConcept {
-  id: number | string;
-  concept?: string;
-  name?: string;
-  category?: string;
-  example?: string;
-  description?: string;
-}
-
-interface BalaghaTerm {
-  id: number | string;
-  arabic_term?: string;
-  term_ar?: string;
-  english_term?: string;
-  term_en?: string;
-  definition?: string;
-  branch?: BalaghaB;
-  example?: string;
-}
-
+/**
+ * The Linguistics hub: the three domains of the Arabic sciences.
+ *
+ * This page used to guess at its own content — two tabs reading /ar/grammar and
+ * /ar/balagha, the second of which is not an endpoint, so the Balagha tab was
+ * permanently empty and the third tab said "coming soon". The three domains are
+ * now rows in ar_discipline, each with its course and its live counts, so the
+ * page states what the database actually holds.
+ */
 @Component({
   selector: 'km-arabic-linguistics',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
+  imports: [RouterLink, DecimalPipe],
   templateUrl: './arabic-linguistics.component.html',
   styleUrl: './arabic-linguistics.component.scss',
 })
 export class ArabicLinguisticsComponent implements OnInit {
-  private router = inject(Router);
-  private http = inject(HttpClient);
-  private cdr = inject(ChangeDetectorRef);
-  private readonly base = environment.apiBase;
+  private readonly router = inject(Router);
+  private readonly api = inject(ArabicCurriculumApiService);
 
-  activeTab = signal<Tab>('grammar');
-  grammarConcepts = signal<GrammarConcept[]>([]);
-  balaghaTerms = signal<BalaghaTerm[]>([]);
-  grammarLoading = signal(true);
-  balaghaLoading = signal(true);
-  skeletons = [1, 2, 3, 4, 5, 6];
+  readonly disciplines = signal<ArDiscipline[]>([]);
+  readonly loading = signal(true);
+  readonly error = signal<string | null>(null);
 
-  balahgaBranches = [
-    { key: 'bayan', label: 'Bayan', ar: 'البيان' },
-    { key: 'maani', label: "Ma'ani", ar: 'المعاني' },
-    { key: 'badi', label: "Badi'", ar: 'البديع' },
-  ];
+  readonly skeletons = [1, 2, 3];
+
+  readonly totals = computed(() => {
+    const d = this.disciplines();
+    return {
+      modules: d.reduce((n, x) => n + x.counts.modules, 0),
+      topics:  d.reduce((n, x) => n + x.counts.topics, 0),
+      sources: d.reduce((n, x) => n + x.counts.sources, 0),
+      hours:   Math.round(d.reduce((n, x) => n + x.counts.minutes, 0) / 60),
+    };
+  });
 
   ngOnInit(): void {
-    this.loadGrammar();
-    this.loadBalagha();
-  }
-
-  private loadGrammar(): void {
-    this.http.get<any>(`${this.base}/ar/grammar?limit=50`).subscribe({
+    this.api.getDisciplines().subscribe({
       next: (res) => {
-        if (res?.ok && Array.isArray(res.concepts)) {
-          this.grammarConcepts.set(res.concepts);
-        }
-        this.grammarLoading.set(false);
-        this.cdr.markForCheck();
+        this.disciplines.set(res.disciplines ?? []);
+        this.loading.set(false);
       },
       error: () => {
-        this.grammarLoading.set(false);
-        this.cdr.markForCheck();
+        this.error.set('Could not reach the curriculum. Try again in a moment.');
+        this.loading.set(false);
       },
     });
-  }
-
-  private loadBalagha(): void {
-    this.http.get<any>(`${this.base}/ar/balagha?limit=50`).subscribe({
-      next: (res) => {
-        if (res?.ok && Array.isArray(res.terms)) {
-          this.balaghaTerms.set(res.terms);
-        }
-        this.balaghaLoading.set(false);
-        this.cdr.markForCheck();
-      },
-      error: () => {
-        this.balaghaLoading.set(false);
-        this.cdr.markForCheck();
-      },
-    });
-  }
-
-  termsByBranch(branch: string): BalaghaTerm[] {
-    return this.balaghaTerms().filter((t) => t.branch === branch);
-  }
-
-  setTab(tab: Tab): void {
-    this.activeTab.set(tab);
   }
 
   back(): void {

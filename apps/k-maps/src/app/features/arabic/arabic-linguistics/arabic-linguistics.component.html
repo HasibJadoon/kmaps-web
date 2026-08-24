@@ -1,141 +1,80 @@
+<div class="ling-page">
+  <div class="ling-page__inner">
 
-    <div class="ling-page">
-      <div class="ling-page__inner">
+    <!-- Nav -->
+    <nav class="ling-nav">
+      <button class="back-btn" (click)="back()">&#8592; Arabic</button>
+      <span class="ling-nav__crumb">Linguistics</span>
+      <a class="ling-nav__sources" routerLink="/arabic/sources">Sources &#8594;</a>
+    </nav>
 
-        <!-- Nav -->
-        <nav class="ling-nav">
-          <button class="back-btn" (click)="back()">&#8592; Arabic</button>
-          <span class="ling-nav__crumb">Linguistics</span>
-        </nav>
+    <!-- Page title -->
+    <header class="ling-header">
+      <span class="ling-header__ar">علوم العربية</span>
+      <h1 class="ling-header__title">Linguistics</h1>
+      <p class="ling-header__sub">Naḥw &middot; Ṣarf &middot; Balāgha</p>
+    </header>
 
-        <!-- Page title -->
-        <header class="ling-header">
-          <span class="ling-header__ar">اللغويات</span>
-          <h1 class="ling-header__title">Linguistics</h1>
-          <p class="ling-header__sub">Grammar · Balagha · Sentence Analysis</p>
-        </header>
-
-        <!-- Tab bar -->
-        <div class="tab-bar">
-          <button
-            class="tab-btn"
-            [class.tab-btn--active]="activeTab() === 'grammar'"
-            (click)="setTab('grammar')"
-          >Grammar</button>
-          <button
-            class="tab-btn"
-            [class.tab-btn--active]="activeTab() === 'balagha'"
-            (click)="setTab('balagha')"
-          >Balagha</button>
-          <button
-            class="tab-btn"
-            [class.tab-btn--active]="activeTab() === 'analysis'"
-            (click)="setTab('analysis')"
-          >Sentence Analysis</button>
-        </div>
-
-        <!-- Grammar tab -->
-        @if (activeTab() === 'grammar') {
-          <div class="tab-content">
-            @if (grammarLoading()) {
-              <div class="card-grid">
-                @for (s of skeletons; track s) {
-                  <div class="skeleton-card"></div>
-                }
-              </div>
-            }
-            @if (!grammarLoading() && grammarConcepts().length === 0) {
-              <div class="empty-state">
-                <div class="empty-state__icon">ن</div>
-                <p class="empty-state__title">No grammar concepts yet</p>
-                <p class="empty-state__sub">Add grammar concepts via the Hub to see them here.</p>
-              </div>
-            }
-            @if (!grammarLoading() && grammarConcepts().length > 0) {
-              <div class="card-grid">
-                @for (g of grammarConcepts(); track g.id) {
-                  <div class="gram-card">
-                    <div class="gram-card__header">
-                      <h3 class="gram-card__name">{{ g.concept ?? g.name }}</h3>
-                      @if (g.category) {
-                        <span class="badge badge--cat">{{ g.category }}</span>
-                      }
-                    </div>
-                    @if (g.description) {
-                      <p class="gram-card__desc">{{ g.description }}</p>
-                    }
-                    @if (g.example) {
-                      <div class="gram-card__example">
-                        <span class="gram-card__ex-label">Example</span>
-                        <span class="gram-card__ex-text">{{ g.example }}</span>
-                      </div>
-                    }
-                  </div>
-                }
-              </div>
-            }
-          </div>
+    @if (loading()) {
+      <div class="disc-grid">
+        @for (s of skeletons; track s) {
+          <div class="skeleton-card"></div>
         }
-
-        <!-- Balagha tab -->
-        @if (activeTab() === 'balagha') {
-          <div class="tab-content">
-            @if (balaghaLoading()) {
-              <div class="card-grid">
-                @for (s of skeletons; track s) {
-                  <div class="skeleton-card"></div>
-                }
-              </div>
-            }
-            @if (!balaghaLoading() && balaghaTerms().length === 0) {
-              <div class="empty-state">
-                <div class="empty-state__icon">ب</div>
-                <p class="empty-state__title">No Balagha terms yet</p>
-                <p class="empty-state__sub">Add Balagha terms via the Hub to see them here.</p>
-              </div>
-            }
-            @if (!balaghaLoading() && balaghaTerms().length > 0) {
-              @for (branch of balahgaBranches; track branch.key) {
-                @if (termsByBranch(branch.key).length > 0) {
-                  <div class="branch-section">
-                    <div class="branch-header">
-                      <span class="branch-header__ar">{{ branch.ar }}</span>
-                      <span class="branch-header__en">{{ branch.label }}</span>
-                      <span class="branch-header__count">{{ termsByBranch(branch.key).length }}</span>
-                    </div>
-                    <div class="card-grid">
-                      @for (t of termsByBranch(branch.key); track t.id) {
-                        <div class="balagha-card">
-                          <div class="balagha-card__ar-term">{{ t.arabic_term ?? t.term_ar }}</div>
-                          <div class="balagha-card__en-term">{{ t.english_term ?? t.term_en }}</div>
-                          @if (t.definition) {
-                            <p class="balagha-card__def">{{ t.definition }}</p>
-                          }
-                          @if (t.example) {
-                            <div class="balagha-card__example">{{ t.example }}</div>
-                          }
-                          <span class="badge badge--branch" [attr.data-branch]="t.branch">{{ t.branch }}</span>
-                        </div>
-                      }
-                    </div>
-                  </div>
-                }
-              }
-            }
-          </div>
-        }
-
-        <!-- Analysis tab (placeholder) -->
-        @if (activeTab() === 'analysis') {
-          <div class="tab-content">
-            <div class="empty-state">
-              <div class="empty-state__icon">ص</div>
-              <p class="empty-state__title">Sentence Analysis</p>
-              <p class="empty-state__sub">Interactive Arabic sentence parsing and i'rab analysis — coming soon.</p>
-            </div>
-          </div>
-        }
-
       </div>
-    </div>
-  
+    } @else if (error()) {
+      <div class="empty-state">
+        <div class="empty-state__icon">!</div>
+        <p class="empty-state__title">{{ error() }}</p>
+      </div>
+    } @else {
+
+      <!-- The three domains -->
+      <div class="disc-grid">
+        @for (d of disciplines(); track d.code) {
+          <a
+            class="disc-card"
+            [style.--accent]="d.accent"
+            [routerLink]="['/arabic/linguistics', d.slug]"
+          >
+            <div class="disc-card__ar" dir="rtl">{{ d.name_ar }}</div>
+            <h2 class="disc-card__en">{{ d.name_en }}</h2>
+            @if (d.tagline_en) {
+              <p class="disc-card__tagline">{{ d.tagline_en }}</p>
+            }
+            <dl class="disc-card__stats">
+              <div><dt>Modules</dt><dd>{{ d.counts.modules }}</dd></div>
+              <div><dt>Topics</dt><dd>{{ d.counts.topics | number }}</dd></div>
+              <div><dt>Sources</dt><dd>{{ d.counts.sources }}</dd></div>
+            </dl>
+            @if (d.course?.level) {
+              <span class="disc-card__level">{{ d.course?.level }}</span>
+            }
+            <span class="disc-card__go">&#8250;</span>
+          </a>
+        }
+      </div>
+
+      <!-- One line of arithmetic over the three, so the scale is legible -->
+      <p class="ling-total">
+        {{ totals().modules }} modules &middot;
+        {{ totals().topics | number }} topics &middot;
+        {{ totals().sources }} authority sources &middot;
+        ~{{ totals().hours }} hours
+      </p>
+
+      <!-- Sources live in one place now, not scattered per discipline page -->
+      <a class="sources-card" routerLink="/arabic/sources">
+        <span class="sources-card__ar" dir="rtl">المصادر</span>
+        <span class="sources-card__body">
+          <span class="sources-card__title">Sources</span>
+          <span class="sources-card__sub">
+            Every matn, sharḥ and lecture the three courses lean on —
+            {{ totals().sources }} in all, grouped by discipline.
+          </span>
+        </span>
+        <span class="sources-card__go">&#8250;</span>
+      </a>
+    }
+
+  </div>
+</div>

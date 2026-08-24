@@ -43,8 +43,15 @@ export class ArabicMenuCardComponent implements OnInit {
       icon: 'ن',
       title: 'Linguistics',
       arabicTitle: 'اللغويات',
-      description: 'Grammar & rhetoric',
+      description: 'Naḥw · Ṣarf · Balāgha',
       route: '/arabic/linguistics',
+    },
+    {
+      icon: 'ص',
+      title: 'Sources',
+      arabicTitle: 'المصادر',
+      description: 'Every matn, sharḥ & lecture',
+      route: '/arabic/sources',
     },
     {
       icon: 'م',

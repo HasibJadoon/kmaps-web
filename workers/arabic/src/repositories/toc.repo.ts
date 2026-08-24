@@ -39,6 +39,7 @@ export interface DisciplineSummary extends Discipline {
 export interface TocNode {
   id: string;
   parent_id: string | null;
+  discipline: string;
   node_type: string;       // fann | qism | bab | fasl | masala
   name_ar: string;
   name_en: string | null;
@@ -69,7 +70,7 @@ export interface TocModule {
 }
 
 interface NodeRow {
-  id: string; parent_id: string | null; node_type: string;
+  id: string; parent_id: string | null; discipline: string; node_type: string;
   name_ar: string; name_en: string | null; name_ur: string | null;
   definition_ar: string | null; depth: number; path: string | null;
   sort_order: number; status: string; unit_id: string | null;
@@ -77,7 +78,7 @@ interface NodeRow {
 }
 
 const NODE_COLS = `
-  n.id, n.parent_id, n.node_type, n.name_ar, n.name_en, n.name_ur,
+  n.id, n.parent_id, n.discipline, n.node_type, n.name_ar, n.name_en, n.name_ur,
   n.definition_ar, n.depth, n.path, n.sort_order, n.status, n.unit_id,
   (SELECT COUNT(*) FROM ar_node_source s WHERE s.node_id = n.id) AS source_count`;
 

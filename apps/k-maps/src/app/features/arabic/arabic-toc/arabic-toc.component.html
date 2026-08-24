@@ -1,0 +1,142 @@
+<div class="toc-page" [style.--accent]="discipline()?.accent || 'var(--km-gold)'">
+  <div class="toc-page__inner">
+
+    <nav class="toc-nav">
+      <a class="back-btn" routerLink="/arabic/linguistics">&#8592; Linguistics</a>
+      @if (discipline(); as d) {
+        <span class="toc-nav__crumb">{{ d.name_en }}</span>
+      }
+      <a class="toc-nav__sources" routerLink="/arabic/sources">Sources &#8594;</a>
+    </nav>
+
+    @if (loading()) {
+      <div class="toc-skeleton"></div>
+    } @else if (error()) {
+      <div class="empty-state">
+        <div class="empty-state__icon">!</div>
+        <p class="empty-state__title">{{ error() }}</p>
+        <p class="empty-state__sub">Try Naḥw, Ṣarf or Balāgha.</p>
+      </div>
+    } @else if (discipline(); as d) {
+
+      <header class="toc-header">
+        <span class="toc-header__ar" dir="rtl">{{ d.name_ar }}</span>
+        <h1 class="toc-header__title">{{ course()?.title || d.name_en }}</h1>
+        @if (d.tagline_en) {
+          <p class="toc-header__sub">{{ d.tagline_en }}</p>
+        }
+        <p class="toc-header__stats">
+          {{ totals().modules }} modules &middot;
+          {{ totals().topics | number }} topics &middot;
+          {{ d.counts.sources }} sources &middot;
+          ~{{ (totals().minutes / 60) | number:'1.0-0' }} hours
+        </p>
+      </header>
+
+      <!-- ── Course TOC ─────────────────────────────────────────────── -->
+      <section class="toc-section">
+        <div class="toc-section__head">
+          <h2 class="toc-section__title">Table of contents</h2>
+          <div class="toc-actions">
+            <button type="button" class="toc-action" (click)="expandAll()">Expand all</button>
+            <button type="button" class="toc-action" (click)="collapseAll()">Collapse all</button>
+          </div>
+        </div>
+
+        <ol class="mod-list">
+          @for (m of modules(); track m.id) {
+            <li class="mod" [class.mod--open]="isOpen(m.id)">
+              <button
+                type="button"
+                class="mod__head"
+                [attr.aria-expanded]="isOpen(m.id)"
+                (click)="toggleModule(m.id)"
+              >
+                <span class="mod__no">{{ m.unit_index }}</span>
+                <span class="mod__titles">
+                  <span class="mod__ar" dir="rtl">{{ m.title_ar || m.title }}</span>
+                  <span class="mod__en">{{ m.title }}</span>
+                </span>
+                <span class="mod__meta">
+                  @if (topicCount(m)) {
+                    <span class="mod__chip">{{ topicCount(m) }} topics</span>
+                  }
+                  @if (m.lessons.length) {
+                    <span class="mod__chip">{{ m.lessons.length }} lessons</span>
+                  }
+                  @if (m.estimated_mins) {
+                    <span class="mod__chip mod__chip--mins">{{ m.estimated_mins }} min</span>
+                  }
+                </span>
+                <span class="mod__twist">&#9656;</span>
+              </button>
+
+              @if (isOpen(m.id)) {
+                <div class="mod__body">
+                  @if (m.description_md) {
+                    <p class="mod__desc">{{ m.description_md }}</p>
+                  }
+
+                  <!-- Lessons the curriculum authored under this module -->
+                  @if (m.lessons.length) {
+                    <ul class="lesson-list">
+                      @for (l of m.lessons; track l.id) {
+                        <li class="lesson">
+                          <span class="lesson__ar" dir="rtl">{{ l.title_ar || l.title }}</span>
+                          <span class="lesson__en">{{ l.title }}</span>
+                          @if (l.estimated_mins) {
+                            <span class="lesson__mins">{{ l.estimated_mins }} min</span>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  }
+
+                  <!-- The classical subtree, nested to whatever depth it has -->
+                  @if (m.topics.length) {
+                    <ul class="topic-tree">
+                      @for (t of m.topics; track t.id) {
+                        <km-toc-node [node]="t" [level]="0" [openTo]="1" />
+                      }
+                    </ul>
+                  } @else {
+                    <p class="mod__none">No sub-topics recorded for this module yet.</p>
+                  }
+                </div>
+              }
+            </li>
+          }
+        </ol>
+      </section>
+
+      <!-- ── The reference tree the course does not teach ───────────── -->
+      @if (reference().length) {
+        <section class="toc-section toc-section--ref">
+          <button
+            type="button"
+            class="ref-toggle"
+            [attr.aria-expanded]="showReference()"
+            (click)="showReference.set(!showReference())"
+          >
+            <span class="ref-toggle__twist" [class.ref-toggle__twist--open]="showReference()">&#9656;</span>
+            Reference tree — {{ reference().length }} branches outside the course
+          </button>
+          @if (showReference()) {
+            <p class="ref-note">
+              These belong to the discipline but no module claims them: shared
+              word-class topics and the chapter headings that sit above the
+              modules. They are here so the fihris is complete, not because they
+              are on the syllabus.
+            </p>
+            <ul class="topic-tree topic-tree--ref">
+              @for (t of reference(); track t.id) {
+                <km-toc-node [node]="t" [level]="0" [openTo]="1" />
+              }
+            </ul>
+          }
+        </section>
+      }
+    }
+
+  </div>
+</div>

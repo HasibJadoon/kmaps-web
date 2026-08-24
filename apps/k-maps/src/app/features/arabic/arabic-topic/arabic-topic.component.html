@@ -1,0 +1,115 @@
+<div class="tp-page">
+  <div class="tp-page__inner">
+
+    <nav class="tp-nav">
+      @if (disciplineSlug()) {
+        <a class="back-btn" [routerLink]="['/arabic/linguistics', disciplineSlug()]">&#8592; Contents</a>
+      } @else {
+        <a class="back-btn" routerLink="/arabic/linguistics">&#8592; Linguistics</a>
+      }
+      <a class="tp-nav__sources" routerLink="/arabic/sources">Sources &#8594;</a>
+    </nav>
+
+    @if (loading()) {
+      <div class="tp-skeleton"></div>
+    } @else if (error()) {
+      <div class="empty-state">
+        <div class="empty-state__icon">!</div>
+        <p class="empty-state__title">{{ error() }}</p>
+      </div>
+    } @else if (node(); as n) {
+
+      <!-- Where this sits. Without it a masʾala title says nothing. -->
+      @if (ancestors().length) {
+        <ol class="crumbs">
+          @for (a of ancestors(); track a.id) {
+            <li class="crumb">
+              <a [routerLink]="['/arabic/topic', a.id]" dir="rtl">{{ a.name_ar }}</a>
+              <span class="crumb__sep" aria-hidden="true">/</span>
+            </li>
+          }
+        </ol>
+      }
+
+      <header class="tp-header">
+        <span class="tp-header__kind">{{ kindLabel(n.node_type) }}</span>
+        <h1 class="tp-header__ar" dir="rtl">{{ n.name_ar }}</h1>
+        @if (n.name_en) { <p class="tp-header__en">{{ n.name_en }}</p> }
+        @if (n.name_ur) { <p class="tp-header__ur" dir="rtl">{{ n.name_ur }}</p> }
+      </header>
+
+      @if (n.definition_ar) {
+        <blockquote class="tp-def" dir="rtl">{{ n.definition_ar }}</blockquote>
+      }
+
+      <!-- Which module teaches it -->
+      @if (unit()) {
+        <div class="tp-unit">
+          <span class="tp-unit__label">Taught in</span>
+          <span class="tp-unit__title">{{ unitField('title') }}</span>
+          @if (unitField('course_title')) {
+            <span class="tp-unit__course">{{ unitField('course_title') }}</span>
+          }
+          @if (unitField('estimated_mins')) {
+            <span class="tp-unit__mins">{{ unitField('estimated_mins') }} min</span>
+          }
+        </div>
+      }
+
+      <!-- What falls under it -->
+      @if (children().length) {
+        <section class="tp-section">
+          <h2 class="tp-section__title">Under this — {{ children().length }}</h2>
+          <ul class="kid-list">
+            @for (c of children(); track c.id) {
+              <li class="kid">
+                <a class="kid__link" [routerLink]="['/arabic/topic', c.id]">
+                  <span class="kid__ar" dir="rtl">{{ c.name_ar }}</span>
+                  @if (c.name_en) { <span class="kid__en">{{ c.name_en }}</span> }
+                </a>
+                <span class="kid__kind">{{ kindLabel(c.node_type) }}</span>
+                @if (c.source_count) { <span class="kid__srcs">{{ c.source_count }} src</span> }
+              </li>
+            }
+          </ul>
+        </section>
+      }
+
+      <!-- Where it is argued -->
+      <section class="tp-section">
+        <h2 class="tp-section__title">Sources — {{ sources().length }}</h2>
+        @if (!sources().length) {
+          <p class="tp-none">
+            No source is pinned to this topic yet. Its parent chapter may carry one.
+          </p>
+        } @else {
+          <ul class="src-list">
+            @for (s of sources(); track s.id + s.role) {
+              <li class="src-row">
+                <span class="src-row__role">{{ s.role }}</span>
+                <span class="src-row__body">
+                  <a class="src-row__title" [routerLink]="['/arabic/sources']" dir="rtl">
+                    {{ s.title_ar || s.title_en }}
+                  </a>
+                  @if (s.author_ar || s.author_en) {
+                    <span class="src-row__author" dir="rtl">{{ s.author_ar || s.author_en }}</span>
+                  }
+                  @if (s.locator) {
+                    <span class="src-row__locator" dir="rtl">{{ s.locator }}</span>
+                  }
+                </span>
+                @if (sourceHref(s); as href) {
+                  <a class="src-row__link" [href]="href" target="_blank" rel="noopener noreferrer">
+                    @if (s.timestamp_s) { {{ stamp(s.timestamp_s) }} } @else { Open }
+                    &#8599;
+                  </a>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    }
+
+  </div>
+</div>

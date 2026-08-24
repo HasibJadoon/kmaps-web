@@ -36,6 +36,31 @@ export const ARABIC_ROUTES: Routes = [
           ),
         title: 'Linguistics — Arabic',
       },
+      // ── Curriculum table of contents ────────────────────
+      // /arabic/linguistics/nahw | sarf | balagha — one domain's whole TOC,
+      // course → modules → the classical subtree down to the masʾala.
+      {
+        path: 'linguistics/:discipline',
+        loadComponent: () =>
+          import('./arabic-toc/arabic-toc.component').then((m) => m.ArabicTocComponent),
+        title: 'Contents — Arabic',
+      },
+      // /arabic/topic/:id — one node of that tree, with its sources
+      {
+        path: 'topic/:id',
+        loadComponent: () =>
+          import('./arabic-topic/arabic-topic.component').then((m) => m.ArabicTopicComponent),
+        title: 'Topic — Arabic',
+      },
+      // /arabic/sources — every source the three courses lean on, in one place
+      {
+        path: 'sources',
+        loadComponent: () =>
+          import('./arabic-sources/arabic-sources.component').then(
+            (m) => m.ArabicSourcesComponent,
+          ),
+        title: 'Sources — Arabic',
+      },
       {
         path: 'domains',
         loadComponent: () =>

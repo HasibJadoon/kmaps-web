@@ -1,0 +1,165 @@
+.src-page {
+  width: 100%; min-height: 100dvh;
+  background: var(--km-bg); color: var(--km-text);
+  font-family: var(--km-font-body);
+  padding: 2rem 2rem 5rem;
+}
+.src-page__inner { max-width: 1100px; margin: 0 auto; }
+
+/* ── Nav + header ────────────────────────────────────────────────────── */
+.src-nav { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
+.back-btn {
+  background: transparent; border: 1px solid var(--km-border); border-radius: 6px;
+  color: var(--km-text-2); font-size: 0.8rem; letter-spacing: 0.06em;
+  text-transform: uppercase; padding: 0.45rem 0.9rem; text-decoration: none;
+  transition: border-color 0.2s, color 0.2s;
+}
+.back-btn:hover { border-color: var(--km-border-gold); color: var(--km-gold); }
+.src-nav__crumb {
+  font-family: var(--km-font-heading); font-size: 0.75rem; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--km-gold); opacity: 0.75;
+}
+
+.src-header {
+  text-align: center; padding-bottom: 1.75rem; margin-bottom: 1.75rem;
+  border-bottom: 1px solid var(--km-border);
+}
+.src-header__ar {
+  display: block; font-family: var(--km-font-arabic); font-size: 2.5rem;
+  color: var(--km-gold); margin-bottom: 0.2rem;
+}
+.src-header__title {
+  font-family: var(--km-font-heading); font-size: 1.4rem; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 0.45rem;
+}
+.src-header__sub {
+  font-size: 0.86rem; color: var(--km-text-3); margin: 0 auto; max-width: 54ch;
+}
+
+/* ── Kind filter ─────────────────────────────────────────────────────── */
+.kind-bar {
+  display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;
+  margin-bottom: 2rem;
+}
+.kind-btn {
+  background: transparent; border: 1px solid var(--km-border); border-radius: 999px;
+  color: var(--km-text-3); font-family: inherit; font-size: 0.72rem;
+  letter-spacing: 0.08em; text-transform: uppercase; padding: 0.35rem 0.85rem;
+  cursor: pointer; transition: border-color 0.18s, color 0.18s, background 0.18s;
+}
+.kind-btn:hover { color: var(--km-text-2); border-color: var(--km-text-3); }
+.kind-btn--active {
+  color: var(--km-bg); background: var(--km-gold); border-color: var(--km-gold);
+}
+.kind-bar__count {
+  margin-inline-start: auto; font-size: 0.72rem; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--km-text-3);
+}
+
+/* ── Groups ──────────────────────────────────────────────────────────── */
+.src-group { --accent: var(--km-gold); margin-bottom: 2.5rem; }
+.src-group__head {
+  display: flex; align-items: baseline; gap: 0.8rem;
+  padding-bottom: 0.7rem; margin-bottom: 1.1rem;
+  border-bottom: 1px solid var(--km-border);
+}
+.src-group__ar {
+  font-family: var(--km-font-arabic); font-size: 1.6rem; color: var(--accent);
+}
+.src-group__en {
+  font-family: var(--km-font-heading); font-size: 0.72rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--km-text-3);
+}
+.src-group__count {
+  margin-inline-start: auto; font-size: 0.72rem; color: var(--km-text-3);
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────── */
+.src-grid {
+  display: grid; gap: 0.9rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.src-card {
+  display: flex; background: var(--km-surface);
+  border: 1px solid var(--km-border); border-radius: 10px; overflow: hidden;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+.src-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--km-border));
+}
+/* The spine reads as a book on the shelf; a lecture gets the same bar so the
+   grid stays even, but its icon and platform link say what it is. */
+.src-card__spine {
+  flex: 0 0 5px;
+  background: linear-gradient(var(--accent), color-mix(in srgb, var(--accent) 45%, #000));
+}
+.src-card__body { padding: 0.95rem 1.05rem 0.85rem; flex: 1 1 auto; min-width: 0; }
+
+.src-card__top {
+  display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;
+}
+.src-card__icon { font-size: 0.9rem; line-height: 1; }
+.src-card__authority {
+  font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 999px; padding: 0.1rem 0.45rem;
+}
+
+.src-card__title {
+  font-family: var(--km-font-arabic); font-size: 1.25rem; line-height: 1.45;
+  color: var(--km-text); margin: 0; unicode-bidi: plaintext;
+}
+.src-card__title-en { font-size: 0.76rem; color: var(--km-text-3); margin: 0.15rem 0 0; }
+.src-card__author {
+  font-family: var(--km-font-arabic); font-size: 0.98rem; color: var(--km-text-2);
+  margin: 0.4rem 0 0; unicode-bidi: plaintext;
+}
+.src-card__death { opacity: 0.7; font-size: 0.85em; }
+.src-card__edition { font-size: 0.72rem; color: var(--km-text-3); margin: 0.3rem 0 0; }
+
+.src-card__foot {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+  margin-top: 0.8rem; padding-top: 0.65rem; border-top: 1px solid var(--km-border);
+}
+.src-card__cited { font-size: 0.68rem; color: var(--accent); }
+.src-card__cited--none { color: var(--km-text-3); font-style: italic; }
+.src-card__link {
+  margin-inline-start: auto; font-size: 0.68rem; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--km-text-3); text-decoration: none;
+  transition: color 0.18s;
+}
+.src-card__link:hover { color: var(--accent); }
+
+/* ── States ──────────────────────────────────────────────────────────── */
+.skeleton-card {
+  height: 180px; border-radius: 10px; border: 1px solid var(--km-border);
+  background: linear-gradient(
+    100deg,
+    var(--km-surface) 30%,
+    color-mix(in srgb, var(--km-surface) 70%, #fff) 50%,
+    var(--km-surface) 70%
+  );
+  background-size: 220% 100%;
+  animation: km-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes km-shimmer {
+  from { background-position: 180% 0; }
+  to   { background-position: -20% 0; }
+}
+
+.empty-state { text-align: center; padding: 4rem 1rem; }
+.empty-state__icon {
+  font-family: var(--km-font-arabic); font-size: 2.5rem; color: var(--km-gold);
+  opacity: 0.4; margin-bottom: 0.75rem;
+}
+.empty-state__title { font-size: 0.95rem; color: var(--km-text-2); margin: 0; }
+
+@media (max-width: 640px) {
+  .src-page { padding: 1.25rem 1rem 3rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-card { animation: none; }
+  .src-card, .kind-btn { transition: none; }
+}
