@@ -37,7 +37,12 @@ export function containerRoutes(router: Router<ArabicEnv>) {
     return created(await new ContainerRepo(env.DB_AR).create({
       title:          String(b.title),
       container_type: String(b.container_type),
-      parent_id:      (b.parent_id as string | null) ?? null,
+      slug:           b.slug       !== undefined ? String(b.slug)       : undefined,
+      title_ar:       (b.title_ar   as string | null) ?? null,
+      track_id:       (b.track_id   as string | null) ?? null,
+      discipline:     (b.discipline as string | null) ?? null,
+      level:          (b.level      as string | null) ?? null,
+      description_md: (b.description_md as string | null) ?? null,
       sort_order:     typeof b.sort_order === 'number' ? b.sort_order : 0,
     }));
   });
@@ -46,9 +51,14 @@ export function containerRoutes(router: Router<ArabicEnv>) {
   router.patch('/ar/containers/:id', async (req, env, { id }) => {
     const b   = await req.json() as Record<string, unknown>;
     const row = await new ContainerRepo(env.DB_AR).update(id, {
-      title:      b.title      !== undefined ? String(b.title)  : undefined,
-      status:     b.status     !== undefined ? String(b.status) : undefined,
-      sort_order: typeof b.sort_order === 'number' ? b.sort_order : undefined,
+      title:          b.title       !== undefined ? String(b.title)    : undefined,
+      title_ar:       b.title_ar    !== undefined ? String(b.title_ar) : undefined,
+      level:          b.level       !== undefined ? String(b.level)    : undefined,
+      description_md: b.description_md !== undefined ? String(b.description_md) : undefined,
+      is_published:   typeof b.is_published === 'boolean'
+        ? (b.is_published ? 1 : 0)
+        : (typeof b.is_published === 'number' ? b.is_published : undefined),
+      sort_order:     typeof b.sort_order === 'number' ? b.sort_order : undefined,
     });
     return row ? ok(row) : notFound(`container ${id}`);
   });

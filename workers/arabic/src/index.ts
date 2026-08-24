@@ -14,6 +14,7 @@ import { lessonRoutes } from './routes/lessons';
 import { grammarRoutes } from './routes/grammar';
 import { exerciseRoutes } from './routes/exercises';
 import { srsRoutes } from './routes/srs';
+import { tocRoutes } from './routes/toc';
 
 const router = new Router<ArabicEnv>();
 
@@ -27,6 +28,7 @@ vocabularyRoutes(router);  // GET/POST /ar/vocabulary, /due, /review
 grammarRoutes(router);     // GET/POST /ar/grammar, /by-concept
 exerciseRoutes(router);    // GET/POST /ar/exercises, /sample
 srsRoutes(router);         // GET/POST/PATCH/DELETE /ar/srs/* — spaced-repetition engine
+tocRoutes(router);         // GET /ar/toc, /ar/toc/:discipline, /ar/sources — curriculum TOC
 
 export default {
   fetch: (request: Request, env: ArabicEnv) => router.handle(request, env),
