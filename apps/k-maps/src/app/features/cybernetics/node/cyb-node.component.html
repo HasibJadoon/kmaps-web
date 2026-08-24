@@ -1,0 +1,111 @@
+<div class="nd">
+
+  @if (loading()) {
+    <div class="nd__state">Reading the node…</div>
+  } @else if (error() && !node()) {
+    <div class="nd__state nd__state--err">{{ error() }}</div>
+    <div class="nd__state"><code>{{ nodeId() }}</code></div>
+  } @else if (node(); as n) {
+
+    <!-- Head -->
+    <header class="hd">
+      <button type="button" class="hd__back" (click)="back()">&#8592;</button>
+      <div class="hd__id">
+        <h2>{{ n.target_ref || n.id }}</h2>
+        <p>
+          <span class="hd__scale">{{ n.scale }}</span>
+          <span class="hd__lane">{{ n.lane }}</span>
+          @if (n.layer) { <span class="hd__layer">{{ n.layer }}</span> }
+          @if (n.piece_kind) { <span class="hd__kind">{{ n.piece_kind }}</span> }
+        </p>
+      </div>
+      <button type="button" class="hd__lanehome" (click)="goLaneHome()">
+        {{ laneHome(n).label }} &#8594;
+      </button>
+    </header>
+
+    <p class="hd__nodeid"><code>{{ n.id }}</code></p>
+
+    <!-- ══ What it reads ══ -->
+    <km-cyb-card
+      title="Reading"
+      [hint]="evidence().measured + '/' + evidence().axes + ' axes measured · '
+              + evidence().read + '/' + evidence().sensors + ' sensors read'">
+      @if (!readings().length) {
+        <p class="none">No reading row for this node.</p>
+      } @else {
+        <div class="axes">
+          @for (r of readings(); track r.axis) {
+            <km-cyb-reading-card [reading]="r" />
+          }
+        </div>
+        @if (evidence().measured < evidence().axes) {
+          <p class="warn">
+            {{ evidence().axes - evidence().measured }} of {{ evidence().axes }} axes
+            carry a stored percentage that no sensor has measured. They are shown
+            hatched — the number may be right, but nothing checked it.
+          </p>
+        }
+        @if (evidence().stale) {
+          <p class="warn">{{ evidence().stale }} axis reading is stale.</p>
+        }
+      }
+    </km-cyb-card>
+
+    <!-- ══ What the carriers hold ══ -->
+    <km-cyb-card
+      title="Carriers"
+      [hint]="carrierTotals().bound + '/' + carrierTotals().tables + ' bound · '
+              + (carrierTotals().rows | number) + ' rows'">
+      @if (!carriers().length) {
+        <p class="none">
+          No carrier is bound to this node's layer, so there is nothing for a
+          sensor to count — which is why any percentage above is unmeasured.
+        </p>
+      } @else {
+        <div class="cars">
+          @for (c of carriers(); track c.carrier + (c.table_name ?? '')) {
+            <km-cyb-carrier-card [carrier]="c" />
+          }
+        </div>
+      }
+    </km-cyb-card>
+
+    <!-- ══ What is queued ══ -->
+    @if (jobs().length) {
+      <km-cyb-card
+        title="Queue"
+        [hint]="jobTotals().ready + ' ready · ' + jobTotals().blocked + ' blocked · '
+                + jobTotals().done + ' done'">
+        <ul class="jobs">
+          @for (j of jobs(); track j.id) {
+            <li class="job" [attr.data-r]="j.readiness">
+              <span class="job__op">{{ j.op }}</span>
+              @if (j.band_code) { <span class="job__band">{{ j.band_code }}</span> }
+              @if (j.skill) { <span class="job__skill">{{ j.skill }}</span> }
+              <span class="job__r">{{ j.readiness }}</span>
+            </li>
+          }
+        </ul>
+      </km-cyb-card>
+    }
+
+    <!-- ══ Below it ══ -->
+    @if (children().length) {
+      <km-cyb-card title="Below" [hint]="children().length + ' children'">
+        <ul class="kids">
+          @for (c of children(); track c.id) {
+            <li>
+              <button type="button" class="kid" (click)="open(c.id)">
+                <span class="kid__n">{{ c.layer || c.target_ref || c.id }}</span>
+                <span class="kid__s">{{ c.scale }}</span>
+                <span class="kid__bar"><i [style.width.%]="c.build_pct"></i></span>
+                <span class="kid__p">{{ c.build_pct }}%</span>
+              </button>
+            </li>
+          }
+        </ul>
+      </km-cyb-card>
+    }
+  }
+</div>

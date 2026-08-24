@@ -242,5 +242,11 @@ export class CybEpisodesComponent {
     this.router.navigate(['/arabic/topic', id]);
   }
 
+  /** The evidence behind a stage's percentage — the same screen every other
+   *  lane opens, because the bridge answers the same questions about all of them. */
+  openNode(id: string): void {
+    this.router.navigate(['/cybernetics/node', id]);
+  }
+
   trackNode = (_: number, n: { node: CybNode }) => n.node.id;
 }

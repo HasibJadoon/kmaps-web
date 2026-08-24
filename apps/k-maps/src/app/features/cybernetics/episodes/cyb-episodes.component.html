@@ -124,6 +124,11 @@
                         </div>
                       }
 
+                      <button type="button" class="detail__evidence"
+                              (click)="openNode(st.node.id)">
+                        Evidence behind this reading &#8594;
+                      </button>
+
                       <!-- Document: the work itself -->
                       @if (detailLoading()) {
                         <p class="detail__state">Reading the document…</p>

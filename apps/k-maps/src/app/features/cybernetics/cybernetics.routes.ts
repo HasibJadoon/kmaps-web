@@ -12,6 +12,14 @@ export const CYBERNETICS_ROUTES: Routes = [
       // forced through the map's recursion.
       // The register behind every other screen: the ordered steps, and — through
       // the carrier bridge — the tables each one actually writes into.
+      // The evidence behind any node in any lane — what it reads, what the
+      // carriers bound to it hold, and what is queued against it.
+      {
+        path: 'node/:id',
+        loadComponent: () =>
+          import('./node/cyb-node.component').then((m) => m.CybNodeComponent),
+        title: 'Node — K-MAPS',
+      },
       {
         path: 'process',
         loadComponent: () =>
