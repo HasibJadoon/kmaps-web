@@ -1,0 +1,119 @@
+<div class="pr">
+
+  <header class="pr__intro">
+    <h2>Study process</h2>
+    <p>
+      The ordered work, and what does it. Each step's <b>carriers</b> are derived
+      through the same bridge the sensors read by — step → layer →
+      <code>cyb_carrier_binding</code> → table — so a step that lists no carrier
+      is a step that cannot yet be built.
+    </p>
+  </header>
+
+  @if (loading()) {
+    <div class="pr__state">Reading the register…</div>
+  } @else if (error()) {
+    <div class="pr__state pr__state--err">{{ error() }}</div>
+  } @else if (!processes().length) {
+    <div class="pr__state">No live process registered.</div>
+  } @else {
+
+    <div class="pr__totals">
+      <span><b>{{ totals().steps }}</b> steps</span>
+      <span><b>{{ totals().buildable }}</b> buildable</span>
+      @if (totals().unbuildable) {
+        <span class="warn"><b>{{ totals().unbuildable }}</b> with no carrier</span>
+      }
+    </div>
+
+    @for (p of processes(); track p.uid) {
+      <section class="proc">
+        <div class="proc__head">
+          @if (p.name_ar) { <span class="proc__ar" dir="rtl">{{ p.name_ar }}</span> }
+          <h3>{{ p.name_en || p.uid }}</h3>
+          @if (p.domain) { <span class="proc__dom">{{ p.domain }}</span> }
+        </div>
+        @if (p.note_md) { <p class="proc__note">{{ p.note_md }}</p> }
+
+        <ol class="steps">
+          @for (st of p.steps; track st.uid) {
+            <li class="step" [class.step--on]="isOpen(st.uid)"
+                [class.step--blocked]="!st.carriers.length">
+              <button type="button" class="step__btn" (click)="toggle(st.uid)"
+                      [attr.aria-expanded]="isOpen(st.uid)">
+                <span class="step__no">{{ st.step_no }}</span>
+                <span class="step__ttl">
+                  <span class="step__ar" dir="rtl">{{ st.name_ar }}</span>
+                  <span class="step__en">{{ st.name_en }}</span>
+                </span>
+                <span class="step__scope">{{ st.scope_kind }}</span>
+                @if (st.carriers.length) {
+                  <span class="step__car">{{ st.carriers.length }} tables</span>
+                } @else {
+                  <span class="step__car step__car--none">no carrier</span>
+                }
+              </button>
+
+              @if (isOpen(st.uid)) {
+                <div class="body">
+                  @if (st.covers_md) {
+                    <p class="body__covers">{{ st.covers_md }}</p>
+                  }
+                  @if (st.key_info_md) {
+                    <p class="body__key">{{ st.key_info_md }}</p>
+                  }
+
+                  <div class="chips">
+                    @for (pq of st.prereq; track pq) {
+                      <span class="chip chip--pre">after · {{ pq }}</span>
+                    }
+                    @for (mf of st.merged_from; track mf) {
+                      <span class="chip chip--merged">absorbed · {{ mf }}</span>
+                    }
+                    @for (sk of skillsOf(st); track sk) {
+                      <span class="chip chip--skill">{{ sk }}</span>
+                    }
+                    @for (db of dbsOf(st); track db) {
+                      <span class="chip chip--db">{{ db }}</span>
+                    }
+                  </div>
+
+                  @if (st.layers.length) {
+                    <div class="grid">
+                      <h4>Layers</h4>
+                      @for (l of st.layers; track l.layer_uid ?? l.layer_key) {
+                        <div class="row">
+                          <span class="row__k">{{ l.layer_key || l.layer_uid }}</span>
+                          <span class="row__v">{{ l.layer_name_en }}</span>
+                          @if (l.role) { <span class="row__x">{{ l.role }}</span> }
+                        </div>
+                      }
+                    </div>
+                  }
+
+                  @if (st.carriers.length) {
+                    <div class="grid">
+                      <h4>Writes into</h4>
+                      @for (c of st.carriers; track c.db_name + '.' + c.table_name + (c.band_code ?? '')) {
+                        <div class="row">
+                          <span class="row__k">{{ c.table_name }}</span>
+                          <span class="row__v">{{ c.db_name }}</span>
+                          @if (c.band_code) { <span class="row__x">{{ c.band_code }}</span> }
+                        </div>
+                      }
+                    </div>
+                  } @else {
+                    <p class="body__blocked">
+                      No carrier is bound to this step's layers, so nothing can be
+                      written for it yet — the step is registered, not buildable.
+                    </p>
+                  }
+                </div>
+              }
+            </li>
+          }
+        </ol>
+      </section>
+    }
+  }
+</div>

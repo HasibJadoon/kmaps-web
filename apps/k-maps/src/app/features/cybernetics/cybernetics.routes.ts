@@ -7,6 +7,23 @@ export const CYBERNETICS_ROUTES: Routes = [
       import('./cybernetics-shell.component').then((m) => m.CyberneticsShellComponent),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'monitor' },
+      // The content lane: series → episode → stage. A different shape from the
+      // Qurʾān lane's surah drill, so it gets its own screen rather than being
+      // forced through the map's recursion.
+      // The register behind every other screen: the ordered steps, and — through
+      // the carrier bridge — the tables each one actually writes into.
+      {
+        path: 'process',
+        loadComponent: () =>
+          import('./process/cyb-process.component').then((m) => m.CybProcessComponent),
+        title: 'Study Process — K-MAPS',
+      },
+      {
+        path: 'episodes',
+        loadComponent: () =>
+          import('./episodes/cyb-episodes.component').then((m) => m.CybEpisodesComponent),
+        title: 'Episodes — K-MAPS',
+      },
       {
         path: 'monitor',
         loadComponent: () =>

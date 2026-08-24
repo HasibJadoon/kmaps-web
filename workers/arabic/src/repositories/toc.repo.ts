@@ -301,3 +301,79 @@ export class TocRepo {
        ORDER BY ns.sort_order, s.id`, [nodeId]);
   }
 }
+
+// ─── TeachingVariantRepo — ar_teaching_variant ─────────────────────────────────
+// One classical topic, retold for one audience. A masʾala is written once in the
+// hierarchy and taught many ways: a nine-year-old gets "The 'of' link", a peer
+// gets the ʿilla, a channel script gets a hook. The variants hang off the same
+// ar_grammar_node the curriculum TOC walks, which is what lets an episode name
+// a grammar node and get the teaching for its audience without duplicating it.
+
+export interface TeachingVariant {
+  id: string;
+  node_id: string;
+  audience: string;          // kid | peer | youtube | …
+  lang: string;
+  title: string | null;
+  body_md: string;
+  duration_min: number | null;
+  age_from: number | null;
+  source_ids_json: string | null;
+  example_ids_json: string | null;
+  status: string;            // draft | ready
+  /** Denormalised from the node so a caller listing variants by id can label
+      them without a second round trip. */
+  node_name_ar: string | null;
+  node_name_en: string | null;
+}
+
+const TV_COLS = `
+  v.id, v.node_id, v.audience, v.lang, v.title, v.body_md, v.duration_min,
+  v.age_from, v.source_ids_json, v.example_ids_json, v.status,
+  n.name_ar AS node_name_ar, n.name_en AS node_name_en`;
+
+export class TeachingVariantRepo {
+  constructor(private db: D1Database) {}
+
+  /**
+   * Variants filtered by node, audience and language — any combination, all
+   * optional. An episode asks by ids; a topic page asks by node.
+   */
+  list(opts: { node?: string | null; audience?: string | null; lang?: string | null } = {}): Promise<TeachingVariant[]> {
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (opts.node)     { where.push('v.node_id = ?');  params.push(opts.node); }
+    if (opts.audience) { where.push('v.audience = ?'); params.push(opts.audience); }
+    if (opts.lang)     { where.push('v.lang = ?');     params.push(opts.lang); }
+    return query<TeachingVariant>(this.db, `
+      SELECT ${TV_COLS} FROM ar_teaching_variant v
+      LEFT JOIN ar_grammar_node n ON n.id = v.node_id
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY v.audience, v.age_from, v.id`, params);
+  }
+
+  /**
+   * Variants named by id. An episode stage stores a list of variant ids in its
+   * meta, so the reader needs exactly those rows in one read rather than one
+   * request per id.
+   */
+  byIds(ids: string[]): Promise<TeachingVariant[]> {
+    if (!ids.length) return Promise.resolve([]);
+    // Cap the fan-out: a stage naming 200 variants is a bug, not a request to
+    // serve, and an unbounded IN list is how a D1 statement blows its limit.
+    const capped = ids.slice(0, 50);
+    const holes = capped.map(() => '?').join(',');
+    return query<TeachingVariant>(this.db, `
+      SELECT ${TV_COLS} FROM ar_teaching_variant v
+      LEFT JOIN ar_grammar_node n ON n.id = v.node_id
+       WHERE v.id IN (${holes})
+       ORDER BY v.audience, v.age_from, v.id`, capped);
+  }
+
+  findById(id: string): Promise<TeachingVariant | null> {
+    return queryOne<TeachingVariant>(this.db, `
+      SELECT ${TV_COLS} FROM ar_teaching_variant v
+      LEFT JOIN ar_grammar_node n ON n.id = v.node_id
+       WHERE v.id = ?`, [id]);
+  }
+}

@@ -1,0 +1,206 @@
+<div class="ep">
+
+  <header class="ep__intro">
+    <h2>Episodes — the content lane</h2>
+    <p>
+      An episode is a node of the same control plane the Qurʾān map walks:
+      <b>series → episode → stage</b>. Each stage names the document it produces,
+      and a teaching stage names the variants it retells.
+    </p>
+  </header>
+
+  @if (loading()) {
+    <div class="ep__state">Reading the content lane…</div>
+  } @else if (error()) {
+    <div class="ep__state ep__state--err">{{ error() }}</div>
+  } @else if (!series().length) {
+    <div class="ep__state">
+      No series in the content lane yet. A series is a <code>cyb_node</code> of
+      scale <code>programme</code> in lane <code>content</code>.
+    </div>
+  } @else {
+
+    <div class="ep__totals">
+      <span><b>{{ totals().series }}</b> series</span>
+      <span><b>{{ totals().episodes }}</b> episodes</span>
+      <span><b>{{ totals().started }}</b>/{{ totals().stages }} stages started</span>
+      <span><b>{{ totals().teaching }}</b> teaching stages</span>
+    </div>
+
+    @for (s of series(); track s.node.id) {
+      <section class="series">
+        <div class="series__head">
+          <span class="series__scale">Programme</span>
+          <h3>{{ s.node.target_ref || s.node.id }}</h3>
+          <span class="series__pct" [attr.data-tier]="stateTier(s.node)">
+            {{ s.node.build_pct }}%
+          </span>
+        </div>
+
+        @for (ep of s.episodes; track ep.node.id) {
+          <article class="epi">
+            <div class="epi__head">
+              @if (ep.meta.episode_no) {
+                <span class="epi__no">{{ ep.meta.episode_no }}</span>
+              }
+              <div class="epi__ttl">
+                <h4>{{ ep.docRef || ep.node.id }}</h4>
+                <p class="epi__sub">
+                  {{ ep.node.piece_kind || 'episode' }}
+                  @if (passageOf(ep.meta, ep.node); as p) { · <code>{{ p }}</code> }
+                </p>
+              </div>
+              <div class="epi__bars">
+                <span class="bar" [attr.data-tier]="stateTier(ep.node)">
+                  <i [style.width.%]="ep.node.build_pct"></i>
+                </span>
+                <span class="epi__pct">{{ ep.node.build_pct }}%</span>
+              </div>
+            </div>
+
+            <!-- The stack: what this episode is built out of. Each id is the
+                 same id its owning database uses — nothing is restated here. -->
+            @if (ep.meta.stack || ep.meta.audiences?.length) {
+              <div class="stack">
+                @if (grammarNode(ep); as gn) {
+                  <button type="button" class="stack__chip stack__chip--link"
+                          (click)="openGrammarNode(gn)"
+                          title="Open this topic in the Arabic contents">
+                    naḥw · {{ gn }}
+                  </button>
+                }
+                @if (ep.meta.stack?.ss; as ss) {
+                  <span class="stack__chip">iʿrāb · {{ ss }}</span>
+                }
+                @for (x of ep.meta.stack?.examples ?? []; track x) {
+                  <span class="stack__chip">ex · {{ x }}</span>
+                }
+                @for (a of ep.meta.audiences ?? []; track a) {
+                  <span class="stack__chip stack__chip--aud">{{ a }}</span>
+                }
+              </div>
+            }
+
+            @if (ep.meta.status_note) {
+              <p class="epi__note">{{ ep.meta.status_note }}</p>
+            }
+
+            <!-- Stages, in the order the work happens -->
+            <ol class="stages">
+              @for (st of ep.stages; track st.node.id) {
+                <li class="stage" [class.stage--on]="isSelected(st)">
+                  <button type="button" class="stage__btn" (click)="select(st)"
+                          [attr.aria-expanded]="isSelected(st)">
+                    <span class="stage__dot" [attr.data-tier]="stateTier(st.node)"></span>
+                    <span class="stage__name">{{ stageLabel(st.layer) }}</span>
+                    @if (st.variantIds.length) {
+                      <span class="stage__tv">{{ st.variantIds.length }} variants</span>
+                    }
+                    <span class="stage__pct">{{ st.node.build_pct }}%</span>
+                  </button>
+
+                  @if (isSelected(st)) {
+                    <div class="detail">
+
+                      <!-- The reading behind the percentage -->
+                      @if (readings().length) {
+                        <div class="axes">
+                          @for (r of axisOrder(readings()); track r.axis) {
+                            <div class="axis" [attr.data-axis]="r.axis">
+                              <span class="axis__k">{{ r.axis }}</span>
+                              <span class="axis__v">{{ r.pct }}%</span>
+                              <!-- A percentage nothing measured is a stored
+                                   intention, and says so rather than passing
+                                   itself off as a reading. -->
+                              <span class="axis__m">
+                                @if (r.measured) {
+                                  {{ r.read_sensors }}/{{ r.sensors }} sensors
+                                } @else {
+                                  unmeasured
+                                }
+                              </span>
+                            </div>
+                          }
+                        </div>
+                      }
+
+                      <!-- Document: the work itself -->
+                      @if (detailLoading()) {
+                        <p class="detail__state">Reading the document…</p>
+                      } @else if (detailError()) {
+                        <p class="detail__state detail__state--err">{{ detailError() }}</p>
+                      } @else if (doc(); as d) {
+                        <div class="docCard">
+                          <div class="docCard__head">
+                            <span class="docCard__type">{{ d.doc_type }}</span>
+                            <span class="docCard__state">{{ d.publication_state }}</span>
+                          </div>
+                          <h5 class="docCard__ttl">{{ d.title }}</h5>
+                          @if (d.title_ar) {
+                            <p class="docCard__ar" dir="rtl">{{ d.title_ar }}</p>
+                          }
+                          <dl class="docCard__meta">
+                            @if (d.passage_ref) {
+                              <div><dt>Passage</dt><dd>{{ d.passage_ref }}</dd></div>
+                            }
+                            @if (d.language) {
+                              <div><dt>Language</dt><dd>{{ d.language }}</dd></div>
+                            }
+                            @if (d.word_count) {
+                              <div><dt>Words</dt><dd>{{ d.word_count | number }}</dd></div>
+                            }
+                            <div><dt>Updated</dt><dd>{{ d.updated_at }}</dd></div>
+                          </dl>
+                        </div>
+                      } @else if (!st.docRef) {
+                        <p class="detail__state">This stage names no document yet.</p>
+                      }
+
+                      <!-- Teaching: the same topic, retold for this audience -->
+                      @if (st.variantIds.length) {
+                        <div class="tv">
+                          <h6 class="tv__h">Teaching variants</h6>
+                          @if (!variants().length) {
+                            <p class="detail__state">
+                              {{ st.variantIds.length }} named
+                              (<code>{{ st.variantIds.join(', ') }}</code>) — loading.
+                            </p>
+                          } @else {
+                            @for (v of variants(); track v.id) {
+                              <div class="tvRow">
+                                <div class="tvRow__top">
+                                  <span class="tvRow__aud">{{ v.audience }}</span>
+                                  @if (v.age_from) {
+                                    <span class="tvRow__age">{{ v.age_from }}+</span>
+                                  }
+                                  @if (v.duration_min) {
+                                    <span class="tvRow__min">{{ v.duration_min }} min</span>
+                                  }
+                                  <span class="tvRow__status">{{ v.status }}</span>
+                                </div>
+                                @if (v.title) { <p class="tvRow__ttl">{{ v.title }}</p> }
+                                <!-- Which classical topic it retells, by the id
+                                     the Arabic contents also uses -->
+                                <button type="button" class="tvRow__node"
+                                        (click)="openGrammarNode(v.node_id)">
+                                  <span dir="rtl">{{ v.node_name_ar }}</span>
+                                  @if (v.node_name_en) {
+                                    <span class="tvRow__nodeEn">{{ v.node_name_en }}</span>
+                                  }
+                                </button>
+                              </div>
+                            }
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
+                </li>
+              }
+            </ol>
+          </article>
+        }
+      </section>
+    }
+  }
+</div>

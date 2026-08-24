@@ -9,7 +9,9 @@ export interface CybNode {
   domain: string;
   lane: string;
   parent_id: string | null;
-  scale: 'domain' | 'surah' | 'passage' | 'stage' | 'piece';
+  // quran lane: domain → surah → passage → stage → piece
+  // doc lane:   domain → programme → unit → stage
+  scale: 'domain' | 'programme' | 'surah' | 'passage' | 'unit' | 'stage' | 'piece' | string;
   target_kind: string | null;
   target_ref: string | null;
   layer: string | null;
@@ -222,4 +224,173 @@ export interface RootDetail {
   root: string; claims: RootClaim[]; memlets: RootMemlet[];
   questions: RootQuestion[]; options: RootOption[]; media: RootMedia[];
   sub_layers: SubLayer[]; memlet_kinds: MemletKind[]; question_kinds: QuestionKind[];
+}
+
+// ─── The bridge ───────────────────────────────────────────────────────────────
+// km_core holds the control plane; the work itself lives in the domain
+// databases. These are the shapes the bridge returns — a node's reading, and
+// what the carriers bound to it actually hold. The web read the tree and the
+// monitor but never these, so a node's percentage had no visible evidence
+// behind it; iOS has consumed them since the bridge landed.
+
+/** One axis of one node: the single definition of a reading, served as itself. */
+export interface CybReading {
+  axis: 'build' | 'study' | 'content' | 'retention' | string;
+  pct: number;
+  /** 1 when a sensor actually measured this; 0 when the pct is a stored guess. */
+  measured: number;
+  stale: number;
+  sensors: number;
+  read_sensors: number;
+}
+
+/** Rows a single carrier table holds for a node — the work, not the summary. */
+export interface CarrierRows {
+  carrier: string;
+  table_name?: string | null;
+  source_db?: string | null;
+  band_code?: string | null;
+  total: number;
+  rows: Record<string, unknown>[];
+}
+
+/** Carrier rows grouped under the band that declares them. */
+export interface CarrierBandRows {
+  band_code: string;
+  band_name_ar?: string | null;
+  band_name_en?: string | null;
+  carriers: CarrierRows[];
+}
+
+/** What a step's work is done by: a layer, the skill that does it, the db. */
+export interface ProcessStepLayer {
+  step_uid: string;
+  layer_uid: string | null;
+  layer_key: string | null;
+  layer_name_en: string | null;
+  db_name: string | null;
+  skill_slug: string | null;
+  skill_name: string | null;
+  skill_stages: string | null;
+  role: string | null;
+  note: string | null;
+}
+
+/**
+ * What a step writes into, derived through the one bridge —
+ * step → layer → cyb_carrier_binding → table. A step with a skill and no
+ * carriers is a step that cannot be built, and the register says so.
+ */
+export interface StepCarrier {
+  step_uid: string;
+  db_name: string | null;
+  table_name: string | null;
+  band_code: string | null;
+  scope_kind: string | null;
+}
+
+/** One ordered step of a registered study process. */
+export interface StudyProcessStep {
+  uid: string;
+  process_uid: string;
+  step_key: string;
+  step_no: number;
+  scope_kind: string;
+  name_ar: string;
+  name_en: string;
+  name_ur: string | null;
+  covers_md: string | null;
+  key_info_md: string | null;
+  /** Steps this one absorbed when the process was consolidated. */
+  merged_from: string[];
+  prereq: string[];
+  layers: ProcessStepLayer[];
+  carriers: StepCarrier[];
+}
+
+export interface StudyProcess {
+  uid: string;
+  domain: string | null;
+  lane: string | null;
+  scope_kind: string | null;
+  name_ar: string | null;
+  name_en: string | null;
+  name_ur: string | null;
+  note_md: string | null;
+  steps: StudyProcessStep[];
+}
+
+/** The layer registry — the one taxonomy both clients read. */
+export interface CybLayer {
+  code: string;
+  domain?: string | null;
+  name_ar?: string | null;
+  name_en?: string | null;
+  scope_level?: string | null;
+  seq?: number;
+  status?: string;
+}
+
+// ─── The doc lane — episodes ─────────────────────────────────────────────────
+// An episode is not a new kind of thing. It is a cyb_node of scale 'unit' in
+// lane 'content', whose stages are its children and whose every stage points at
+// a cm_documents row. Teaching and Document are the two halves: the stage says
+// how far the work has got, the document is the work.
+
+/** A cm_documents row as the episode surfaces read it. */
+export interface CmDocument {
+  doc_id: string;
+  doc_type: string;            // episode | teaching_note | script | reference
+  title: string;
+  title_ar: string | null;
+  slug: string | null;
+  language: string | null;
+  publication_state: string;
+  domain: string | null;
+  subdomain: string | null;
+  surah: number | null;
+  ayah_from: number | null;
+  ayah_to: number | null;
+  passage_ref: string | null;
+  tags_json: string | null;
+  meta_json: string | null;
+  word_count: number | null;
+  reading_time_min: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** One classical topic retold for one audience. */
+export interface TeachingVariant {
+  id: string;
+  node_id: string;
+  audience: string;            // kid | peer | youtube | …
+  lang: string;
+  title: string | null;
+  body_md: string;
+  duration_min: number | null;
+  age_from: number | null;
+  source_ids_json: string | null;
+  example_ids_json: string | null;
+  status: string;
+  node_name_ar: string | null;
+  node_name_en: string | null;
+}
+
+/** What an episode's meta_json carries — parsed, with nothing assumed present. */
+export interface EpisodeMeta {
+  series?: string;
+  episode_no?: number;
+  audience?: string;
+  audiences?: string[];
+  age_from?: number;
+  parent_doc?: string;
+  cyb_node?: string;
+  teaching_variants?: string[];
+  stack?: {
+    ss?: string;
+    grammar_node?: string;
+    examples?: string[];
+  };
+  status_note?: string;
 }

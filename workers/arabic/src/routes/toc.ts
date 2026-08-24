@@ -5,7 +5,7 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, badRequest } from '../../../shared/src/response';
 import type { ArabicEnv } from '../env';
-import { TocRepo } from '../repositories/toc.repo';
+import { TocRepo, TeachingVariantRepo } from '../repositories/toc.repo';
 import { SourceRepo } from '../repositories/source.repo';
 
 export function tocRoutes(router: Router<ArabicEnv>) {
@@ -54,6 +54,33 @@ export function tocRoutes(router: Router<ArabicEnv>) {
   router.get('/ar/sources/:id', async (_req, env, { id }) => {
     const detail = await new SourceRepo(env.DB_AR).findById(id);
     return detail ? ok(detail) : notFound(`source ${id}`);
+  });
+
+  // ── Teaching variants ──────────────────────────────────────────────────────
+  // One topic retold for one audience. An episode's teaching stage names the
+  // variants it uses; before this they were stored and unreachable.
+
+  // GET /ar/teaching-variants?node=&audience=&lang=&ids=a,b,c
+  router.get('/ar/teaching-variants', async (req, env) => {
+    const url  = new URL(req.url);
+    const repo = new TeachingVariantRepo(env.DB_AR);
+    const ids  = url.searchParams.get('ids');
+    if (ids) {
+      const list = ids.split(',').map((s) => s.trim()).filter(Boolean);
+      if (!list.length) return badRequest('ids was present but empty');
+      return ok({ variants: await repo.byIds(list) });
+    }
+    return ok({ variants: await repo.list({
+      node:     url.searchParams.get('node'),
+      audience: url.searchParams.get('audience'),
+      lang:     url.searchParams.get('lang'),
+    }) });
+  });
+
+  // GET /ar/teaching-variants/:id
+  router.get('/ar/teaching-variants/:id', async (_req, env, { id }) => {
+    const row = await new TeachingVariantRepo(env.DB_AR).findById(id);
+    return row ? ok(row) : notFound(`teaching variant ${id}`);
   });
 
   // GET /ar/nodes/:id/sources — the sources cited at one topic

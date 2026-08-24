@@ -1,0 +1,95 @@
+/* Inherits the shell's palette via cascade. */
+.pr { padding-top: 18px; }
+
+.pr__intro h2 { font-family: var(--serif); font-size: 19px; color: var(--gold-b); margin: 0 0 6px; }
+.pr__intro p { color: var(--t2); font-size: 13px; line-height: 1.6; margin: 0; max-width: 74ch; }
+.pr__intro b { color: var(--text); }
+.pr__intro code { color: var(--gold); }
+
+.pr__state { padding: 40px 0; text-align: center; color: var(--t3); font-size: 13px; }
+.pr__state--err { color: var(--err); }
+
+.pr__totals {
+  display: flex; gap: 18px; flex-wrap: wrap; margin: 18px 0 22px;
+  padding: 11px 14px; border: 1px solid var(--bd); border-radius: 11px;
+  background: var(--s1); font-size: 12px; color: var(--t2);
+}
+.pr__totals b { color: var(--gold-b); font-size: 15px; }
+.pr__totals .warn b { color: var(--err); }
+
+.proc { margin-bottom: 26px; }
+.proc__head {
+  display: flex; align-items: baseline; gap: 10px;
+  padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--bd);
+}
+.proc__ar { font-family: var(--ar); font-size: 20px; color: var(--arab); }
+.proc__head h3 { font-family: var(--serif); font-size: 16px; color: var(--gold-b); margin: 0; }
+.proc__dom {
+  margin-inline-start: auto; font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--t3);
+}
+.proc__note { color: var(--t3); font-size: 12px; line-height: 1.6; margin: 0 0 12px; }
+
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+
+.step { border: 1px solid var(--bd); border-radius: 10px; background: var(--s1); overflow: hidden; }
+.step--on { border-color: var(--bd-hi); }
+.step--blocked { border-left: 3px solid var(--err); }
+
+.step__btn {
+  width: 100%; display: flex; align-items: center; gap: 11px;
+  background: transparent; border: none; cursor: pointer; padding: 10px 13px;
+  text-align: start; color: inherit; font-family: inherit;
+}
+.step__btn:hover { background: rgba(201,168,76,.07); }
+.step__no {
+  flex: 0 0 auto; font-family: var(--serif); font-size: 11px; color: var(--gold);
+  min-width: 30px;
+}
+.step__ttl { display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto; min-width: 0; }
+.step__ar { font-family: var(--ar); font-size: 15px; color: var(--arab); }
+.step__en { font-size: 11.5px; color: var(--t2); }
+.step__scope {
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--t3);
+}
+.step__car {
+  font-size: 10px; color: var(--content);
+  border: 1px solid rgba(77,217,168,.32); border-radius: 999px; padding: 1px 8px;
+  white-space: nowrap;
+}
+.step__car--none { color: var(--err); border-color: rgba(224,120,92,.4); }
+
+.body { padding: 0 13px 12px; display: grid; gap: 10px; }
+.body__covers { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--text); }
+.body__key { margin: 0; font-size: 12px; line-height: 1.6; color: var(--t2); }
+.body__blocked {
+  margin: 0; font-size: 11.5px; line-height: 1.55; color: var(--err);
+  border-inline-start: 2px solid rgba(224,120,92,.4); padding-inline-start: 9px;
+}
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  font-size: 10.5px; border-radius: 999px; padding: 2px 9px;
+  border: 1px solid var(--bd); color: var(--t2); background: #0f0f0f;
+}
+.chip--pre { color: var(--t3); }
+.chip--merged { color: var(--retn); border-color: rgba(197,138,217,.32); }
+.chip--skill { color: var(--gold-b); border-color: var(--bd-hi); }
+.chip--db { color: var(--study); border-color: rgba(107,186,255,.32); }
+
+.grid h4 {
+  margin: 0 0 5px; font-size: 9.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--t3); font-weight: 600;
+}
+.row {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 4px 0; border-bottom: 1px solid rgba(201,168,76,.1);
+}
+.row:last-child { border-bottom: none; }
+.row__k { font-size: 11.5px; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.row__v { font-size: 11px; color: var(--t3); flex: 1 1 auto; }
+.row__x { font-size: 10px; color: var(--gold); }
+
+@media (max-width: 640px) {
+  .step__scope { display: none; }
+}

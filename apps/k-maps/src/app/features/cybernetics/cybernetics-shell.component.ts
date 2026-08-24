@@ -23,6 +23,8 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
           <a routerLink="monitor" routerLinkActive="on">Control Monitor</a>
           <a routerLink="map" routerLinkActive="on">Quran Map</a>
           <a routerLink="ladder" routerLinkActive="on">Quran Ladder</a>
+          <a routerLink="episodes" routerLinkActive="on">Episodes</a>
+          <a routerLink="process" routerLinkActive="on">Process</a>
         </nav>
       </header>
       <router-outlet />
