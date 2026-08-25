@@ -2,7 +2,7 @@
 // Consumes the universal lexicon prose system (reading tokens, section heads,
 // poetry, block styling) and adds the two things this reader has over Mufradat:
 // an inline authority (ʿalam) chip and a block-level ayah quote.
-@use '../styles/reader-prose';
+@use 'reader-prose';
 
 // Inline authority mention (scholar / reader / grammarian named in the text).
 .mfp-auth {

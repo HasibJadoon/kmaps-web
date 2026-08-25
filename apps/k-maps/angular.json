@@ -1,14 +1,20 @@
 {
   "$schema": "../../node_modules/@angular/cli/lib/config/schema.json",
-  "cli": { "analytics": false },
+  "cli": {
+    "analytics": false
+  },
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
     "k-maps": {
       "projectType": "application",
       "schematics": {
-        "@schematics/angular:component": { "style": "scss" },
-        "@schematics/angular:application": { "strict": true }
+        "@schematics/angular:component": {
+          "style": "scss"
+        },
+        "@schematics/angular:application": {
+          "strict": true
+        }
       },
       "root": "",
       "sourceRoot": "src",
@@ -20,7 +26,9 @@
             "outputPath": "dist/k-maps",
             "index": "src/index.html",
             "browser": "src/main.ts",
-            "polyfills": ["zone.js"],
+            "polyfills": [
+              "zone.js"
+            ],
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "preserveSymlinks": true,
@@ -33,12 +41,22 @@
                 "output": "assets/monaco/vs"
               }
             ],
-            "styles": ["src/scss/styles.scss"],
-            "scripts": []
+            "styles": [
+              "src/scss/styles.scss"
+            ],
+            "scripts": [],
+            "stylePreprocessorOptions": {
+              "includePaths": [
+                "src/scss",
+                "src/app/shared/styles"
+              ]
+            }
           },
           "configurations": {
             "production": {
-              "optimization": { "fonts": false },
+              "optimization": {
+                "fonts": false
+              },
               "outputHashing": "all",
               "fileReplacements": [
                 {
@@ -47,8 +65,16 @@
                 }
               ],
               "budgets": [
-                { "type": "initial", "maximumWarning": "5mb", "maximumError": "8mb" },
-                { "type": "anyComponentStyle", "maximumWarning": "40kb", "maximumError": "64kb" }
+                {
+                  "type": "initial",
+                  "maximumWarning": "5mb",
+                  "maximumError": "8mb"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "40kb",
+                  "maximumError": "64kb"
+                }
               ]
             },
             "development": {
@@ -61,10 +87,16 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
-          "options": { "proxyConfig": "proxy.conf.json" },
+          "options": {
+            "proxyConfig": "proxy.conf.json"
+          },
           "configurations": {
-            "production": { "buildTarget": "k-maps:build:production" },
-            "development": { "buildTarget": "k-maps:build:development" },
+            "production": {
+              "buildTarget": "k-maps:build:production"
+            },
+            "development": {
+              "buildTarget": "k-maps:build:development"
+            },
             "local-worker": {
               "buildTarget": "k-maps:build:development",
               "proxyConfig": "proxy.conf.local.json"

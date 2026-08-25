@@ -4,4 +4,4 @@
 // so every lexicon reader shares one source of truth. This reader adds nothing
 // source-specific — the family map + trilingual render whenever the data is
 // present (Mufradat's بين today; any authored root tomorrow).
-@use '../styles/reader-prose';
+@use 'reader-prose';

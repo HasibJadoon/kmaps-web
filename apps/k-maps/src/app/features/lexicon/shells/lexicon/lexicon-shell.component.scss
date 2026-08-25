@@ -3,7 +3,7 @@
 // right-rail panels this shell has over Mufradat: hadith quotes, poetry
 // shawāhid, and authorities (aʿlām). Everything else — tokens, toolbar, rails,
 // entry-head, footer — is inherited unchanged from the shared chrome partial.
-@use '../../styles/reader-chrome';
+@use 'reader-chrome';
 
 // Per-panel accent dots for the extra panels.
 .rail__panel--hadith      .rail__h-dot { background: var(--disc); }
