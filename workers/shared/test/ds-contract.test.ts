@@ -104,6 +104,28 @@ describe('the golden fixture is the shared example', () => {
       'an unmeasured axis is the case a client most easily gets wrong');
   });
 
+  test('it is organised by the reader\'s chapters, in reading order', () => {
+    const keys = golden.chapters.map((c) => c.key);
+    assert.deepEqual(keys, ['identity', 'meaning', 'evidence', 'relations', 'remember', 'sources'],
+      'what it is, what it means, who says so — not 00-CORE, 010-SRC, 12-ASL');
+
+    // The sections follow that order, so a client can render straight through.
+    const positions = golden.sections.map((s) => keys.indexOf(s.chapter));
+    assert.deepEqual(positions, [...positions].sort((a, b) => a - b));
+  });
+
+  test('every chapter says which question it answers', () => {
+    for (const c of golden.chapters) {
+      assert.ok(c.title && c.question, `${c.key} is unlabelled`);
+    }
+  });
+
+  test('the registry code survives for whoever is building', () => {
+    // The reader gets chapters; a builder still needs to find the carrier.
+    assert.ok(golden.sections.every((s) => s.code));
+    assert.ok(golden.sections.some((s) => s.carriers.length > 0));
+  });
+
   test('every text run declares its script', () => {
     // A bare string would let a client set Arabic in the wrong face, which is
     // an error rather than a preference.

@@ -40,6 +40,53 @@ const CAP: Record<DsForm, { rows: number; cells: number; chars: number }> = {
 
 const AR = /[؀-ۿ]/;
 
+/**
+ * The reader's chapters, in the order a reader wants them.
+ *
+ * The registry organises a root by how it is BUILT — 00-CORE, 12-ASL, 18-STEP.
+ * Those codes are right for a build plan and wrong for someone trying to
+ * understand a word: nobody opens a root asking what is in sub-layer 18-STEP.
+ * They ask what it is, what it means, who says so, what it stands against, and
+ * where it turns up.
+ *
+ * So the sections come back grouped and ordered by that question. The registry
+ * codes stay on every section — a builder still needs them, and they are how
+ * you find the carrier — but they stop being the organising idea.
+ */
+const CHAPTERS: { key: string; title: string; title_ar: string; question: string }[] = [
+  { key: 'identity',  title: 'What it is',        title_ar: 'الهوية',
+    question: 'The letters, and what kind of root they make.' },
+  { key: 'meaning',   title: 'What it means',     title_ar: 'المعنى',
+    question: 'Its senses, and how each grew out of the last.' },
+  { key: 'evidence',  title: 'Who says so',       title_ar: 'الشواهد',
+    question: 'The witnesses, oldest first, and what they attest.' },
+  { key: 'relations', title: 'What it stands with and against', title_ar: 'الشبكة',
+    question: 'Opposites, semantic fields, and the roots it neighbours.' },
+  { key: 'quran',     title: 'Where it lives',    title_ar: 'في القرآن',
+    question: 'Its spread across the muṣḥaf.' },
+  { key: 'remember',  title: 'What to remember',  title_ar: 'الحفظ',
+    question: 'What has been built to keep it.' },
+  { key: 'sources',   title: 'Where it was read', title_ar: 'المصادر',
+    question: 'The books and pages this came out of.' },
+];
+
+/** Which chapter a registry sub-layer belongs under. */
+const CHAPTER_OF: Record<string, string> = {
+  '00-CORE': 'identity', '02-VARI': 'identity', '03-ASWAT': 'identity', '06-TAQL': 'identity',
+  '10-DNA': 'meaning', '14-SENSE': 'meaning', '15-AXIS': 'meaning',
+  '16-TAT': 'meaning', '17-ARC': 'meaning', '18-STEP': 'meaning',
+  '12-ASL': 'evidence', '19-ATT': 'evidence', '52-SCHOL': 'evidence',
+  '30-KIN': 'relations', '32-FIELD': 'relations', '40-LINK': 'relations',
+  '70-VOCAB': 'remember', '72-MEM': 'remember',
+  '010-SRC': 'sources', '50-META': 'sources',
+};
+
+/** A sub-layer nobody has placed still has to appear somewhere; "where it was
+ *  read" is the honest home for an unplaced carrier. */
+const DEFAULT_CHAPTER = 'sources';
+
+const CHAPTER_ORDER = new Map(CHAPTERS.map((c, i) => [c.key, i]));
+
 /** Text plus the script it is in — the client picks the face from this. */
 function t(value: unknown, script?: DsText['script']): DsText {
   const text = str(value);
@@ -105,6 +152,7 @@ export class DsRepo {
       const total = counted?.rows ?? held.reduce((a, c) => a + c.total, 0);
 
       return {
+        chapter: CHAPTER_OF[sl.sub_code] ?? DEFAULT_CHAPTER,
         code: sl.sub_code,
         band: sl.band_key,
         title: sl.name_en,
@@ -126,7 +174,14 @@ export class DsRepo {
       };
     });
 
+    // Reading order, not build order. Within a chapter the registry's own
+    // display_order still decides, because that IS the order those layers make
+    // sense in relative to each other.
+    sections.sort((a, b) =>
+      (CHAPTER_ORDER.get(a.chapter) ?? 99) - (CHAPTER_ORDER.get(b.chapter) ?? 99));
+
     return {
+      chapters: CHAPTERS.filter((c) => sections.some((s) => s.chapter === c.key)),
       subject: {
         kind: 'root',
         ref: rootRef,

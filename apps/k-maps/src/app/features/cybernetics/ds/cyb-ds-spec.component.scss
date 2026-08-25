@@ -107,3 +107,25 @@
     border: 1px solid var(--rule-soft); border-radius: 4px; padding: 2px 6px;
   }
 }
+
+// ── chapters ────────────────────────────────────────────────────────────────
+// The reader's model. A chapter is a question, and the sections under it are
+// the answer; the registry codes stay on the sections where a builder can find
+// them but no longer organise the page.
+.chapter { margin-bottom: 26px; }
+
+.ch {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin: 0 0 12px;
+
+  h2 {
+    margin: 0;
+    font-family: var(--serif); font-size: 17px; letter-spacing: .02em;
+    color: var(--gold-b);
+  }
+  .char { font-size: 17px; color: var(--t3); }
+  .q {
+    flex-basis: 100%; margin: 2px 0 0;
+    font-size: 12px; line-height: 1.5; color: var(--t3);
+  }
+}

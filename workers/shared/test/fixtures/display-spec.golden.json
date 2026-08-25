@@ -1,86 +1,391 @@
 {
-  "subject": { "kind": "root", "ref": "نزل", "display": { "text": "ن ز ل", "script": "ar" } },
+  "subject": {
+    "kind": "root",
+    "ref": "نزل",
+    "display": {
+      "text": "ن ز ل",
+      "script": "ar"
+    }
+  },
   "scope": "root",
   "form": "desktop",
+  "chapters": [
+    {
+      "key": "identity",
+      "title": "What it is",
+      "title_ar": "الهوية",
+      "question": "The letters, and what kind of root they make."
+    },
+    {
+      "key": "meaning",
+      "title": "What it means",
+      "title_ar": "المعنى",
+      "question": "Its senses, and how each grew out of the last."
+    },
+    {
+      "key": "evidence",
+      "title": "Who says so",
+      "title_ar": "الشواهد",
+      "question": "The witnesses, oldest first, and what they attest."
+    },
+    {
+      "key": "relations",
+      "title": "What it stands with and against",
+      "title_ar": "الشبكة",
+      "question": "Opposites, semantic fields, and the roots it neighbours."
+    },
+    {
+      "key": "remember",
+      "title": "What to remember",
+      "title_ar": "الحفظ",
+      "question": "What has been built to keep it."
+    },
+    {
+      "key": "sources",
+      "title": "Where it was read",
+      "title_ar": "المصادر",
+      "question": "The books and pages this came out of."
+    }
+  ],
   "plane": {
     "node_id": "CYB:arabic:root:نزل",
     "readings": [
-      { "axis": "build", "pct": 28, "measured": true, "stale": false, "sensors": 170, "read_sensors": 58 },
-      { "axis": "content", "pct": 0, "measured": false, "stale": false, "sensors": 0, "read_sensors": 0 },
-      { "axis": "retention", "pct": 0, "measured": false, "stale": false, "sensors": 0, "read_sensors": 0 },
-      { "axis": "study", "pct": 0, "measured": false, "stale": false, "sensors": 0, "read_sensors": 0 }
+      {
+        "axis": "build",
+        "pct": 28,
+        "measured": true,
+        "stale": false,
+        "sensors": 170,
+        "read_sensors": 58
+      },
+      {
+        "axis": "content",
+        "pct": 0,
+        "measured": false,
+        "stale": false,
+        "sensors": 0,
+        "read_sensors": 0
+      },
+      {
+        "axis": "retention",
+        "pct": 0,
+        "measured": false,
+        "stale": false,
+        "sensors": 0,
+        "read_sensors": 0
+      },
+      {
+        "axis": "study",
+        "pct": 0,
+        "measured": false,
+        "stale": false,
+        "sensors": 0,
+        "read_sensors": 0
+      }
     ]
   },
   "sections": [
     {
-      "code": "00-CORE", "band": "CORE", "title": "Core identity", "title_ar": "الأصل",
-      "icon": "🧬", "accent": "#c9a24b", "state": "filled", "total_rows": 1,
-      "carriers": ["ar_ling_roots"],
+      "chapter": "identity",
+      "code": "00-CORE",
+      "band": "CORE",
+      "title": "Core identity",
+      "title_ar": "الأصل",
+      "icon": "🧬",
+      "accent": "#c9a24b",
+      "state": "filled",
+      "total_rows": 1,
+      "carriers": [
+        "ar_ling_roots"
+      ],
       "blocks": [
         {
           "kind": "hero",
-          "mark": { "text": "ن ز ل", "script": "ar" },
-          "ar": { "text": "هبوطُ الشيءِ ووقوعُه من عُلوّ", "script": "ar" },
-          "en": { "text": "descent and befalling from a height", "script": "latin" },
+          "mark": {
+            "text": "ن ز ل",
+            "script": "ar"
+          },
+          "ar": {
+            "text": "هبوطُ الشيءِ ووقوعُه من عُلوّ",
+            "script": "ar"
+          },
+          "en": {
+            "text": "descent and befalling from a height",
+            "script": "latin"
+          },
           "facts": [
-            { "label": "type", "value": { "text": "trilateral", "script": "latin" } },
-            { "label": "in the muṣḥaf", "value": { "text": "293×", "script": "latin" } }
+            {
+              "label": "type",
+              "value": {
+                "text": "trilateral",
+                "script": "latin"
+              }
+            },
+            {
+              "label": "in the muṣḥaf",
+              "value": {
+                "text": "293×",
+                "script": "latin"
+              }
+            }
           ]
         }
       ]
     },
     {
-      "code": "03-ASWAT", "band": "CORE", "title": "Phonology", "title_ar": "علم الأصوات",
-      "icon": "🔤", "accent": "#c9a24b", "state": "filled", "total_rows": 4,
-      "carriers": ["ar_ling_root_letter_slot", "ar_ling_root_naw_sawti"],
+      "chapter": "identity",
+      "code": "03-ASWAT",
+      "band": "CORE",
+      "title": "Phonology",
+      "title_ar": "علم الأصوات",
+      "icon": "🔤",
+      "accent": "#c9a24b",
+      "state": "filled",
+      "total_rows": 4,
+      "carriers": [
+        "ar_ling_root_letter_slot",
+        "ar_ling_root_naw_sawti"
+      ],
       "blocks": [
         {
-          "kind": "grid", "title": "Letters", "hint": "3 · fāʾ · ʿayn · lām",
+          "kind": "grid",
+          "title": "Letters",
+          "hint": "3 · fāʾ · ʿayn · lām",
           "cells": [
-            { "id": "S1", "mark": { "text": "ن", "script": "ar" }, "caption": "fāʾ" },
-            { "id": "S2", "mark": { "text": "ز", "script": "ar" }, "caption": "ʿayn" },
-            { "id": "S3", "mark": { "text": "ل", "script": "ar" }, "caption": "lām", "footnote": "weak", "highlighted": true }
+            {
+              "id": "S1",
+              "mark": {
+                "text": "ن",
+                "script": "ar"
+              },
+              "caption": "fāʾ"
+            },
+            {
+              "id": "S2",
+              "mark": {
+                "text": "ز",
+                "script": "ar"
+              },
+              "caption": "ʿayn"
+            },
+            {
+              "id": "S3",
+              "mark": {
+                "text": "ل",
+                "script": "ar"
+              },
+              "caption": "lām",
+              "footnote": "weak",
+              "highlighted": true
+            }
           ],
           "overflow_count": 0
         },
         {
-          "kind": "pairs", "title": "Nature",
+          "kind": "pairs",
+          "title": "Nature",
           "pairs": [
-            { "id": "n0", "label": { "text": "soundness", "script": "latin" }, "value": { "text": "sound", "script": "latin" } }
+            {
+              "id": "n0",
+              "label": {
+                "text": "soundness",
+                "script": "latin"
+              },
+              "value": {
+                "text": "sound",
+                "script": "latin"
+              }
+            }
           ]
         }
       ]
     },
     {
-      "code": "06-TAQL", "band": "CORE", "title": "Permutation table", "title_ar": "جدول التقاليب",
-      "icon": "🔁", "accent": "#c9a24b", "state": "filled", "total_rows": 6,
-      "carriers": ["ar_ling_root_taqalib"],
+      "chapter": "identity",
+      "code": "06-TAQL",
+      "band": "CORE",
+      "title": "Permutation table",
+      "title_ar": "جدول التقاليب",
+      "icon": "🔁",
+      "accent": "#c9a24b",
+      "state": "filled",
+      "total_rows": 6,
+      "carriers": [
+        "ar_ling_root_taqalib"
+      ],
       "blocks": [
         {
-          "kind": "grid", "title": "Permutations", "hint": "2 of 6 used · taqālīb",
+          "kind": "grid",
+          "title": "Permutations",
+          "hint": "2 of 6 used · taqālīb",
           "cells": [
-            { "id": "T0", "mark": { "text": "نزل", "script": "ar" }, "caption": "used", "highlighted": true },
-            { "id": "T1", "mark": { "text": "نلز", "script": "ar" }, "caption": "unused", "muted": true }
+            {
+              "id": "T0",
+              "mark": {
+                "text": "نزل",
+                "script": "ar"
+              },
+              "caption": "used",
+              "highlighted": true
+            },
+            {
+              "id": "T1",
+              "mark": {
+                "text": "نلز",
+                "script": "ar"
+              },
+              "caption": "unused",
+              "muted": true
+            }
           ],
           "overflow_count": 4
         }
       ]
     },
     {
-      "code": "12-ASL", "band": "SYN", "title": "Attested asl", "title_ar": "الأصل عند اللغويين",
-      "icon": "🌱", "accent": "#d98c4a", "state": "filled", "total_rows": 3,
-      "carriers": ["ar_ling_root_asl"],
+      "chapter": "meaning",
+      "code": "17-ARC",
+      "band": "SENSE",
+      "title": "Sense arc",
+      "title_ar": "قوس المعنى",
+      "accent": null,
+      "state": "filled",
+      "total_rows": 1,
+      "carriers": [
+        "ar_ling_sense_arc"
+      ],
       "blocks": [
         {
-          "kind": "card_list", "title": "Uṣūl", "hint": "3 · oldest witness first",
+          "kind": "chain",
+          "title": "Root arc",
+          "summary": {
+            "text": "من الهبوط إلى الضيافة",
+            "script": "ar"
+          },
+          "nodes": [
+            {
+              "id": "a-0",
+              "title": {
+                "text": "النزول",
+                "script": "ar"
+              },
+              "subtitle": "descent"
+            },
+            {
+              "id": "a-1",
+              "title": {
+                "text": "hospitality",
+                "script": "latin"
+              },
+              "subtitle": "not among this root's senses",
+              "unresolved": true
+            },
+            {
+              "id": "a-2",
+              "title": {
+                "text": "المنزلة",
+                "script": "ar"
+              },
+              "subtitle": "rank",
+              "terminal": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "chapter": "meaning",
+      "code": "15-AXIS",
+      "band": "SENSE",
+      "title": "Sense axes",
+      "title_ar": "محاور المعنى",
+      "accent": null,
+      "state": "filled",
+      "total_rows": 2,
+      "carriers": [
+        "ar_ling_root_sense_axis"
+      ],
+      "blocks": [
+        {
+          "kind": "bars",
+          "title": "Axes",
+          "hint": "2 · weighted",
+          "bars": [
+            {
+              "id": "x1",
+              "label": {
+                "text": "الحركة",
+                "script": "ar"
+              },
+              "sublabel": "motion",
+              "value": "8",
+              "fraction": 1
+            },
+            {
+              "id": "x2",
+              "label": {
+                "text": "المكانة",
+                "script": "ar"
+              },
+              "sublabel": "station",
+              "value": "0",
+              "fraction": 0
+            }
+          ],
+          "overflow_count": 0
+        }
+      ]
+    },
+    {
+      "chapter": "evidence",
+      "code": "12-ASL",
+      "band": "SYN",
+      "title": "Attested asl",
+      "title_ar": "الأصل عند اللغويين",
+      "icon": "🌱",
+      "accent": "#d98c4a",
+      "state": "filled",
+      "total_rows": 3,
+      "carriers": [
+        "ar_ling_root_asl"
+      ],
+      "blocks": [
+        {
+          "kind": "card_list",
+          "title": "Uṣūl",
+          "hint": "3 · oldest witness first",
           "records": [
             {
               "id": "A2",
-              "badges": [{ "label": "d.", "value": "321 AH", "tone": "strong" }],
-              "ar": { "text": "أصل يدلّ على هُبوط", "script": "ar" },
-              "en": { "text": "A root denoting descent", "script": "latin" },
-              "facts": [{ "label": "authority", "value": { "text": "ابن دريد", "script": "ar" } }],
-              "provenance": { "source": "jamhara", "is_synthesis": false, "ref": "ج٢ ص٣١١" }
+              "badges": [
+                {
+                  "label": "d.",
+                  "value": "321 AH",
+                  "tone": "strong"
+                }
+              ],
+              "ar": {
+                "text": "أصل يدلّ على هُبوط",
+                "script": "ar"
+              },
+              "en": {
+                "text": "A root denoting descent",
+                "script": "latin"
+              },
+              "facts": [
+                {
+                  "label": "authority",
+                  "value": {
+                    "text": "ابن دريد",
+                    "script": "ar"
+                  }
+                }
+              ],
+              "provenance": {
+                "source": "jamhara",
+                "is_synthesis": false,
+                "ref": "ج٢ ص٣١١"
+              }
             }
           ],
           "overflow_count": 2
@@ -88,50 +393,51 @@
       ]
     },
     {
-      "code": "17-ARC", "band": "SENSE", "title": "Sense arc", "title_ar": "قوس المعنى",
-      "accent": null, "state": "filled", "total_rows": 1,
-      "carriers": ["ar_ling_sense_arc"],
+      "chapter": "evidence",
+      "code": "19-ATT",
+      "band": "SENSE",
+      "title": "Attestations",
+      "title_ar": "شواهد المعنى",
+      "accent": null,
+      "state": "filled",
+      "total_rows": 20,
+      "carriers": [
+        "ar_ling_sense_attestation"
+      ],
       "blocks": [
         {
-          "kind": "chain", "title": "Root arc",
-          "summary": { "text": "من الهبوط إلى الضيافة", "script": "ar" },
-          "nodes": [
-            { "id": "a-0", "title": { "text": "النزول", "script": "ar" }, "subtitle": "descent" },
-            { "id": "a-1", "title": { "text": "hospitality", "script": "latin" }, "subtitle": "not among this root's senses", "unresolved": true },
-            { "id": "a-2", "title": { "text": "المنزلة", "script": "ar" }, "subtitle": "rank", "terminal": true }
-          ]
-        }
-      ]
-    },
-    {
-      "code": "15-AXIS", "band": "SENSE", "title": "Sense axes", "title_ar": "محاور المعنى",
-      "accent": null, "state": "filled", "total_rows": 2,
-      "carriers": ["ar_ling_root_sense_axis"],
-      "blocks": [
-        {
-          "kind": "bars", "title": "Axes", "hint": "2 · weighted",
-          "bars": [
-            { "id": "x1", "label": { "text": "الحركة", "script": "ar" }, "sublabel": "motion", "value": "8", "fraction": 1 },
-            { "id": "x2", "label": { "text": "المكانة", "script": "ar" }, "sublabel": "station", "value": "0", "fraction": 0 }
-          ],
-          "overflow_count": 0
-        }
-      ]
-    },
-    {
-      "code": "19-ATT", "band": "SENSE", "title": "Attestations", "title_ar": "شواهد المعنى",
-      "accent": null, "state": "filled", "total_rows": 20,
-      "carriers": ["ar_ling_sense_attestation"],
-      "blocks": [
-        {
-          "kind": "ledger", "title": "Attestations", "hint": "20 · who said it",
+          "kind": "ledger",
+          "title": "Attestations",
+          "hint": "20 · who said it",
           "records": [
             {
               "id": "ATT1",
-              "badges": [{ "label": "", "value": "supports", "tone": "ok" }],
-              "ar": { "text": "ومنه النزول", "script": "ar" },
-              "facts": [{ "label": "at", "value": { "text": "ج٥ ص٤١٧", "script": "ar" } }],
-              "provenance": { "source": "maqayis", "is_synthesis": false, "ref": "ج٥ ص٤١٧", "confidence": "0.9" }
+              "badges": [
+                {
+                  "label": "",
+                  "value": "supports",
+                  "tone": "ok"
+                }
+              ],
+              "ar": {
+                "text": "ومنه النزول",
+                "script": "ar"
+              },
+              "facts": [
+                {
+                  "label": "at",
+                  "value": {
+                    "text": "ج٥ ص٤١٧",
+                    "script": "ar"
+                  }
+                }
+              ],
+              "provenance": {
+                "source": "maqayis",
+                "is_synthesis": false,
+                "ref": "ج٥ ص٤١٧",
+                "confidence": "0.9"
+              }
             }
           ],
           "overflow_count": 19
@@ -139,59 +445,168 @@
       ]
     },
     {
-      "code": "010-SRC", "band": "SRC", "title": "Source coverage", "title_ar": "تغطية المصادر",
-      "icon": "📚", "accent": null, "state": "filled", "total_rows": 305,
-      "carriers": ["ar_ling_lexicon_block"],
+      "chapter": "relations",
+      "code": "30-KIN",
+      "band": "GRAPH",
+      "title": "Antonyms",
+      "title_ar": "الأضداد",
+      "icon": "⇄",
+      "accent": "#3f9c8f",
+      "state": "empty",
+      "total_rows": 0,
+      "carriers": [],
       "blocks": [
         {
-          "kind": "pills", "title": "Books", "hint": "11 · lexica",
+          "kind": "note",
+          "note_kind": "empty",
+          "text": "The carrier was read and holds nothing for this root yet."
+        }
+      ]
+    },
+    {
+      "chapter": "remember",
+      "code": "72-MEM",
+      "band": "LEARN",
+      "title": "Memlets",
+      "title_ar": "الحافظات",
+      "icon": "🧠",
+      "accent": null,
+      "state": "unknown",
+      "total_rows": 0,
+      "carriers": [],
+      "blocks": [
+        {
+          "kind": "note",
+          "note_kind": "unknown",
+          "text": "No audited carrier binds this sub-layer, so nothing has been read for this root. Unknown is not zero."
+        }
+      ]
+    },
+    {
+      "chapter": "sources",
+      "code": "010-SRC",
+      "band": "SRC",
+      "title": "Source coverage",
+      "title_ar": "تغطية المصادر",
+      "icon": "📚",
+      "accent": null,
+      "state": "filled",
+      "total_rows": 305,
+      "carriers": [
+        "ar_ling_lexicon_block"
+      ],
+      "blocks": [
+        {
+          "kind": "pills",
+          "title": "Books",
+          "hint": "11 · lexica",
           "pills": [
-            { "id": "p1", "label": { "text": "لسان العرب", "script": "ar" } },
-            { "id": "p2", "label": { "text": "المقاييس", "script": "ar" }, "muted": true }
+            {
+              "id": "p1",
+              "label": {
+                "text": "لسان العرب",
+                "script": "ar"
+              }
+            },
+            {
+              "id": "p2",
+              "label": {
+                "text": "المقاييس",
+                "script": "ar"
+              },
+              "muted": true
+            }
           ],
           "overflow_count": 9
         },
         {
-          "kind": "prose_blocks", "title": "Entry",
+          "kind": "prose_blocks",
+          "title": "Entry",
           "blocks": [
-            { "id": "b1", "role": "heading", "depth": 0, "text": { "text": "نزل", "script": "ar" } },
-            { "id": "b2", "role": "definition", "depth": 1, "text": { "text": "النُّزول: الحُطوط من عُلوّ", "script": "ar" }, "translation": { "text": "descent from a height", "script": "latin" } },
-            { "id": "b3", "role": "verse", "depth": 1, "text": { "text": "وَنَزَّلْنَا عَلَيْكَ ٱلْكِتَٰبَ", "script": "ar", "register": "mushaf" } }
+            {
+              "id": "b1",
+              "role": "heading",
+              "depth": 0,
+              "text": {
+                "text": "نزل",
+                "script": "ar"
+              }
+            },
+            {
+              "id": "b2",
+              "role": "definition",
+              "depth": 1,
+              "text": {
+                "text": "النُّزول: الحُطوط من عُلوّ",
+                "script": "ar"
+              },
+              "translation": {
+                "text": "descent from a height",
+                "script": "latin"
+              }
+            },
+            {
+              "id": "b3",
+              "role": "verse",
+              "depth": 1,
+              "text": {
+                "text": "وَنَزَّلْنَا عَلَيْكَ ٱلْكِتَٰبَ",
+                "script": "ar",
+                "register": "mushaf"
+              }
+            }
           ],
           "overflow_count": 176
         }
       ]
     },
     {
-      "code": "50-META", "band": "SOURCE", "title": "Source metadata", "title_ar": "بيانات المصدر",
-      "icon": "🏷️", "accent": "#a37b6b", "state": "filled", "total_rows": 2,
-      "carriers": ["ar_ling_root_page_index"],
+      "chapter": "sources",
+      "code": "50-META",
+      "band": "SOURCE",
+      "title": "Source metadata",
+      "title_ar": "بيانات المصدر",
+      "icon": "🏷️",
+      "accent": "#a37b6b",
+      "state": "filled",
+      "total_rows": 2,
+      "carriers": [
+        "ar_ling_root_page_index"
+      ],
       "blocks": [
         {
-          "kind": "table", "title": "ar_ling_root_page_index", "hint": "2 of 2",
-          "columns": ["source_slug", "volume_no", "page_start"],
-          "rows": [["lisan_al_arab", "11", "656"], ["maqayis", "5", null]],
-          "null_columns": ["note_md"],
+          "kind": "table",
+          "title": "ar_ling_root_page_index",
+          "hint": "2 of 2",
+          "columns": [
+            "source_slug",
+            "volume_no",
+            "page_start"
+          ],
+          "rows": [
+            [
+              "lisan_al_arab",
+              "11",
+              "656"
+            ],
+            [
+              "maqayis",
+              "5",
+              null
+            ]
+          ],
+          "null_columns": [
+            "note_md"
+          ],
           "overflow_count": 0
         }
       ]
-    },
-    {
-      "code": "30-KIN", "band": "GRAPH", "title": "Antonyms", "title_ar": "الأضداد",
-      "icon": "⇄", "accent": "#3f9c8f", "state": "empty", "total_rows": 0,
-      "carriers": [],
-      "blocks": [
-        { "kind": "note", "note_kind": "empty", "text": "The carrier was read and holds nothing for this root yet." }
-      ]
-    },
-    {
-      "code": "72-MEM", "band": "LEARN", "title": "Memlets", "title_ar": "الحافظات",
-      "icon": "🧠", "accent": null, "state": "unknown", "total_rows": 0,
-      "carriers": [],
-      "blocks": [
-        { "kind": "note", "note_kind": "unknown", "text": "No audited carrier binds this sub-layer, so nothing has been read for this root. Unknown is not zero." }
-      ]
     }
   ],
-  "summary": { "filled": 9, "empty": 1, "unknown": 1, "rows": 344 }
+  "summary": {
+    "filled": 9,
+    "empty": 1,
+    "unknown": 1,
+    "rows": 344
+  }
 }

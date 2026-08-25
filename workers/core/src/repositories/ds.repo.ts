@@ -55,6 +55,7 @@ export class CoreDsRepo {
 
     const sections: DsSection[] = [
       ...(layers?.sections ?? [{
+        chapter: 'identity',
         code: '00-CORE', band: 'CORE', title: 'Layers', state: 'unknown' as const,
         total_rows: 0, carriers: [], accent: null,
         blocks: [{
@@ -66,7 +67,15 @@ export class CoreDsRepo {
       ...(spread ? [spread] : []),
     ];
 
+    // The domain worker owns the chapter model; core adds its own sections to
+    // the chapters they belong in, then re-sorts so the reading order holds
+    // across both sources rather than putting core's contributions last.
+    const chapters = layers?.chapters ?? [];
+    const order = new Map(chapters.map((c, i) => [c.key, i]));
+    sections.sort((a, b) => (order.get(a.chapter) ?? 99) - (order.get(b.chapter) ?? 99));
+
     return {
+      chapters: chapters.filter((c) => sections.some((s) => s.chapter === c.key)),
       subject: layers?.subject ?? {
         kind: 'root', ref: root,
         display: { text: root.split('').join(' '), script: 'ar' },
@@ -163,8 +172,8 @@ export class CoreDsRepo {
     ).catch(() => [] as CardRow[]);
 
     if (!rows.length) {
-      return this.noteSection('90-CARD', 'LEARN', 'Cards', 'البطاقات', 'empty',
-        'No card has been built for this root yet.');
+      return this.noteSection('remember', '90-CARD', 'LEARN', 'Cards', 'البطاقات',
+        'empty', 'No card has been built for this root yet.');
     }
 
     const records: DsRecord[] = rows.slice(0, cap).map((c): DsRecord => ({
@@ -185,6 +194,7 @@ export class CoreDsRepo {
     }));
 
     return {
+      chapter: 'remember',
       code: '90-CARD', band: 'LEARN', title: 'Cards', title_ar: 'البطاقات',
       icon: '🃏', accent: null, state: 'filled',
       total_rows: rows.length, carriers: ['core_srs_card'],
@@ -235,6 +245,7 @@ export class CoreDsRepo {
       }));
 
     return {
+      chapter: 'quran',
       code: '91-QURAN', band: 'SRC', title: 'Qurʾānic distribution',
       title_ar: 'التوزيع القرآني', icon: '📜', accent: null, state: 'filled',
       total_rows: rows.length, carriers: ['core_srs_card_surah'],
@@ -249,10 +260,11 @@ export class CoreDsRepo {
   }
 
   private noteSection(
-    code: string, band: string, title: string, titleAr: string,
+    chapter: string, code: string, band: string, title: string, titleAr: string,
     state: 'empty' | 'unknown', text: string,
   ): DsSection {
     return {
+      chapter,
       code, band, title, title_ar: titleAr, accent: null, state,
       total_rows: 0, carriers: [],
       blocks: [{ kind: 'note', note_kind: state, text }],

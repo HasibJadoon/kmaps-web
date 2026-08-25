@@ -1,8 +1,13 @@
 // ─── A whole display spec, rendered ──────────────────────────────────────────
 //
-// Sections in the order the worker sent them, each with the band's own colour
-// and glyph from the registry. No sorting, no filtering, no deriving here: the
-// spec arrives in the order it should be read.
+// Grouped into the reader's chapters — what it is, what it means, who says so —
+// because that is the shape of the information, not `00-CORE` and `12-ASL`.
+// Those registry codes are exactly right for a build plan and exactly wrong for
+// someone trying to understand a word, so they stay on the section, small,
+// where a builder can still find the carrier.
+//
+// No sorting, no filtering, no deriving here: the spec already arrives in the
+// order it should be read, chapters and all.
 //
 // Sections holding nothing are drawn, not skipped. For a typical root most of
 // them are empty or unknown — identity and phonology cover the whole corpus,
@@ -11,7 +16,7 @@
 
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { CybDsBlockComponent } from './cyb-ds-block.component';
-import type { DisplaySpec, DsReading } from '@kmaps/contracts/ds';
+import type { DisplaySpec, DsReading, DsSection } from '@kmaps/contracts/ds';
 
 @Component({
   selector: 'km-ds-spec',
@@ -56,8 +61,17 @@ import type { DisplaySpec, DsReading } from '@kmaps/contracts/ds';
       }
     </header>
 
-    <div class="sections">
-      @for (sec of s.sections; track sec.code) {
+    @for (ch of s.chapters; track ch.key) {
+      <div class="chapter">
+        <div class="ch">
+          <h2>{{ ch.title }}</h2>
+          @if (ch.title_ar) { <span class="ar char">{{ ch.title_ar }}</span> }
+          <!-- The question this chapter answers, in the reader's words. -->
+          <p class="q">{{ ch.question }}</p>
+        </div>
+
+        <div class="sections">
+          @for (sec of sectionsIn(ch.key); track sec.code) {
         <section class="sec" [attr.data-state]="sec.state"
                  [style.--accent]="sec.accent || 'var(--rule-strong)'">
           <div class="sh">
@@ -81,13 +95,21 @@ import type { DisplaySpec, DsReading } from '@kmaps/contracts/ds';
             </div>
           }
         </section>
-      }
-    </div>
+          }
+        </div>
+      </div>
+    }
   `,
   styleUrl: './cyb-ds-spec.component.scss',
 })
 export class CybDsSpecComponent {
   readonly spec = input.required<DisplaySpec>();
+
+  /** The sections of one chapter, in the order they arrived. Grouping only —
+   *  the spec decided which chapter each belongs to and what order they go in. */
+  sectionsIn(key: string): DsSection[] {
+    return this.spec().sections.filter((s) => s.chapter === key);
+  }
 
   /** Axes the plane has actually measured — used by callers that want a
    *  headline number rather than the full strip. */

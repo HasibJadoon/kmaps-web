@@ -203,8 +203,32 @@ export function normaliseSpec<T extends { sections: { blocks: unknown[] }[] }>(s
  */
 export type DsState = 'filled' | 'empty' | 'unknown';
 
+/**
+ * A chapter of the presentation — the reader's model, not the builder's.
+ *
+ * The registry organises a root by how it is BUILT: `00-CORE`, `12-ASL`,
+ * `18-STEP`. Those codes are exactly right for a build plan and exactly wrong
+ * for someone trying to understand a word. Nobody opens a root asking "what is
+ * in sub-layer 18-STEP"; they ask what it means, who says so, and where it
+ * turns up in the Qurʾān.
+ *
+ * So every section also declares the chapter it belongs to, and the chapters
+ * come in the order a reader would want them. The registry codes stay on the
+ * sections — a builder still needs them, and they are how you find the carrier
+ * — but they stop being the organising idea.
+ */
+export interface DsChapter {
+  key: string;
+  title: string;
+  title_ar?: string;
+  /** The reader's question this chapter answers. Shown, not just documented. */
+  question: string;
+}
+
 /** One sub-layer, rendered. */
 export interface DsSection {
+  /** Which chapter of the presentation this belongs under. */
+  chapter: string;
   /** The registry's own code — `14-SENSE`. */
   code: string;
   band: string;
@@ -265,6 +289,9 @@ export interface DisplaySpec {
   subject: DsSubject;
   scope: string;
   form: DsForm;
+  /** The reading order, as chapters. Sections carry the chapter they are in;
+   *  this is the order those chapters should appear and what to call them. */
+  chapters: DsChapter[];
   sections: DsSection[];
   /** Present only on the composed spec from km_core. */
   plane?: DsPlane;

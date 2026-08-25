@@ -63,6 +63,55 @@ describe('every declared layer appears, holding rows or not', () => {
   });
 });
 
+describe('the presentation follows the reader, not the registry', () => {
+  test('sections come back in chapter order, not sub_code order', async () => {
+    const s = await spec();
+    const seen: string[] = [];
+    for (const sec of s.sections) {
+      if (seen[seen.length - 1] !== sec.chapter) seen.push(sec.chapter);
+    }
+    // A reader asks what it is, then what it means, then who says so —
+    // 00-CORE before 14-SENSE before 12-ASL is the registry's order and would
+    // put the witnesses before the meanings they witness.
+    assert.deepEqual(seen, ['identity', 'meaning', 'evidence', 'relations', 'remember']);
+  });
+
+  test('a chapter appears exactly once and never empty', async () => {
+    const s = await spec();
+    const keys = s.chapters.map((c) => c.key);
+    assert.equal(new Set(keys).size, keys.length, 'no duplicates');
+    for (const c of s.chapters) {
+      assert.ok(s.sections.some((x) => x.chapter === c.key),
+        `chapter ${c.key} is announced but has no sections`);
+    }
+  });
+
+  test('every section belongs to an announced chapter', async () => {
+    const s = await spec();
+    const keys = new Set(s.chapters.map((c) => c.key));
+    for (const sec of s.sections) {
+      assert.ok(keys.has(sec.chapter), `${sec.code} is in an unannounced chapter`);
+    }
+  });
+
+  test('each chapter states the question it answers', async () => {
+    const s = await spec();
+    for (const c of s.chapters) {
+      assert.ok(c.title.length > 0, `${c.key} has no title`);
+      assert.ok(c.question.length > 0, `${c.key} does not say what it answers`);
+    }
+    // The reader's words, not the schema's.
+    const identity = s.chapters.find((c) => c.key === 'identity');
+    assert.equal(identity?.title, 'What it is');
+  });
+
+  test('the registry code stays on the section for whoever is building', async () => {
+    const s = await spec();
+    assert.ok(s.sections.every((x) => /^\d+[A-Z0-9-]*$/.test(x.code) || x.code.includes('-')));
+    assert.ok(s.sections.some((x) => x.code === '14-SENSE'));
+  });
+});
+
 describe('identity is the root itself', () => {
   test('the hero spaces the letters from the stored JSON', async () => {
     const s = await spec();
