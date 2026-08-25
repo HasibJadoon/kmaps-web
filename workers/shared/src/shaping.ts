@@ -38,6 +38,37 @@ export function flag(r: Row | undefined, key: string): boolean {
   return !!r && str(r[key]) === '1';
 }
 
+/**
+ * A JSON-array column, read defensively.
+ *
+ * `root_letters` is `["ن","ز","ل"]` and several carriers store lists the same
+ * way. These are `CHECK(json_valid(...))` in the schema, but a view must not
+ * blow up on the one row that is not — an unreadable list is an empty one.
+ */
+export function jsonArrayOf(raw: unknown): string[] {
+  const s = str(raw).trim();
+  if (!s || s[0] !== '[') return [];
+  try {
+    const v: unknown = JSON.parse(s);
+    return Array.isArray(v) ? v.map((x) => str(x)).filter((x) => x !== '') : [];
+  } catch { return []; }
+}
+
+/**
+ * The three positions every Arabic root is described by.
+ *
+ * `slot_role` stores them as fa/ain/lam; the books name them in full, so does
+ * this. An unrecognised code is shown as it is stored rather than blanked.
+ */
+export function slotName(role: unknown): string {
+  switch (str(role)) {
+    case 'fa': return 'fāʾ';
+    case 'ain': return 'ʿayn';
+    case 'lam': return 'lām';
+    default: return str(role);
+  }
+}
+
 // ── ordering ────────────────────────────────────────────────────────────────
 
 /**

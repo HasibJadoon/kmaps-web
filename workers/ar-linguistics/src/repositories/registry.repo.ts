@@ -28,6 +28,8 @@ export interface SubLayer {
   carrier_state: string;
   tables_json: string;
   display_order: number;
+  /** The registry's own glyph for this sub-layer, where it declares one. */
+  display_icon: string | null;
 }
 
 /** A row of `ar_ling_reg_build_layer` — the scope registry (root/lemma/word). */
@@ -58,6 +60,10 @@ export interface LayerModelSub {
   carrier_state: string;
   tables: string[];
   display_order: number;
+  display_icon: string | null;
+  /** The band that owns this sub-layer. It is also on the parent layer; it is
+   *  repeated here so a consumer holding one sub can still colour it. */
+  band_key: string;
 }
 
 /** One band of sub-layers inside a scope — what the mobile UI calls a "layer". */
@@ -295,7 +301,7 @@ export class RegistryRepo {
       `SELECT sub_code, band, band_key, band_name_ar, band_name_en,
               name_ar, name_en, name_ur, scope_level, discipline,
               default_card, produced_by, fill_state, carrier_state,
-              tables_json, display_order
+              tables_json, display_order, display_icon
        FROM ar_ling_reg_sub_layer
        WHERE status = 'live'
        ORDER BY display_order, band, sub_code`,
@@ -348,6 +354,8 @@ export class RegistryRepo {
         fill_state: sub.fill_state, carrier_state: sub.carrier_state,
         tables: parseTables(sub.tables_json),
         display_order: sub.display_order,
+        display_icon: sub.display_icon ?? null,
+        band_key: sub.band_key,
       });
     }
     layers.sort((a, b) => a.band - b.band);
