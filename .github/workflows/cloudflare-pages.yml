@@ -4,7 +4,23 @@ on:
   push:
     branches:
       - main
+    # Only rebuild when something that lands in the bundle changes. Note
+    # `workers/shared/src/contracts/**`: apps/k-maps/tsconfig.json maps
+    # `@kmaps/contracts/*` there, so a contract edit changes this app's
+    # build even though it lives under workers/.
+    paths:
+      - "apps/k-maps/**"
+      - "workers/shared/src/contracts/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/cloudflare-pages.yml"
   workflow_dispatch:
+
+# One production deploy at a time. Superseding an in-flight build is safe
+# here — Pages deploys are whole-bundle, so the newest commit wins.
+concurrency:
+  group: deploy-pages-k-maps
+  cancel-in-progress: true
 
 jobs:
   deploy:
