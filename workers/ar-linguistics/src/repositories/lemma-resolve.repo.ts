@@ -71,10 +71,14 @@ export interface ResolvedGovernance {
    *  lemma are the same string — that is how they matched — so this says what
    *  the source actually keyed on. */
   headword_pos: string | null;
-  /** True only when the headword is a verb lemma, i.e. when this statement is
-   *  the lemma's OWN government. False means the source keyed a derived nominal
-   *  and the government belongs to the verb behind it: render the construction
-   *  as attested (عَزِيز + عَلَى, Mir p.235), never as a bab. */
+  /** How this row was matched to the lemma. 'form' means the row is keyed by
+   *  (root, bāb) and states this lemma's own government — the curated
+   *  population. 'headword' means only that the source printed this string. */
+  match_basis: 'form' | 'headword';
+  /** True when this statement is the lemma's OWN government: matched by bāb, or
+   *  matched by headword where that headword is a verb. False means the source
+   *  keyed a derived nominal and the government belongs to the verb behind it:
+   *  render the construction as attested (عَزِيز + عَلَى, Mir p.235), not as a bāb. */
   governs_directly: boolean;
   transitivity: string; harf: string | null;
   /** The bab. NULL on 17,392 of 17,440 verb lemmas — 99.7% — so treat a null
@@ -165,11 +169,53 @@ function chunked<T>(xs: T[], size: number): T[][] {
  * colon (`LEM:LEX:شكك`), so a blanket "cut at the first colon" would corrupt
  * them into a key that matches nothing.
  */
-/** Join key for the governance table, which is keyed by (root, verb text)
- *  rather than by lemma id. '::' cannot occur in an Arabic root or lemma, so
- *  the two halves can never run together into a colliding key. */
-function govKeyOf(rootNorm: string | null, verbAr: string): string {
-  return `${rootNorm ?? ''}::${verbAr}`;
+/**
+ * Choose the governance rows that belong to one lemma, and say how each matched.
+ *
+ * `ar_ling_root_lemma_tadiya` holds two populations that need different joins:
+ *
+ *  · CURATED (79 rows, 70 live) — keyed by (root, bāb); the id literally IS
+ *    `VG:{root}:{FORM}`. `verb_form` is populated on every one. Governance is
+ *    form-scoped, and this is the population that models it correctly.
+ *  · MIR SCRAPE (318 rows, all draft) — `VG:MIR:{root}:{headword}:{harf}`, with
+ *    `verb_form` NULL on 317 of them and `verb_ar` holding whatever headword the
+ *    printed page carried.
+ *
+ * Matching on `verb_ar` text alone gets this exactly backwards: it reaches 348
+ * of 372 scrape rows and only 29 of 79 curated ones, because the curated rows
+ * spell the verb as a dictionary would (أَبَانَ, بَيَّنَ) while the lemma table
+ * holds other orthographies of the same word (ابان, بَيَّنُ, بيّن). Hamza seating,
+ * shadda spelling and the final vowel all differ, so text equality is the wrong
+ * join for the good data.
+ *
+ * So the bāb is tried first and the headword second, and the basis is reported.
+ */
+function pickGovernance(
+  rows: GovernanceRow[],
+  lemmaText: string,
+  verbForm: string | null,
+): Array<{ row: GovernanceRow; basis: 'form' | 'headword' }> {
+  const out: Array<{ row: GovernanceRow; basis: 'form' | 'headword' }> = [];
+  const seen = new Set<string>();
+  if (verbForm) {
+    const key = verbForm.trim().toUpperCase();
+    for (const row of rows) {
+      if ((row.verb_form ?? '').trim().toUpperCase() !== key) continue;
+      seen.add(rowKey(row));
+      out.push({ row, basis: 'form' });
+    }
+  }
+  for (const row of rows) {
+    if (row.verb_ar !== lemmaText || seen.has(rowKey(row))) continue;
+    out.push({ row, basis: 'headword' });
+  }
+  return out;
+}
+
+/** Identity for de-duping a row across the two match passes. The table has no
+ *  usable natural key — 83 of its 395 rows repeat a (root, headword) pair. */
+function rowKey(r: GovernanceRow): string {
+  return `${r.verb_form ?? ''}::${r.verb_ar}::${r.harf ?? ''}::${r.transitivity}`;
 }
 
 function stripNamespace(id: string): string {
@@ -344,12 +390,13 @@ export class LemmaResolveRepo {
     const stepBy = groupBy(steps, s => s.arc_id);
     const furuqBy = groupBy(furuq, f => f.lemma_id);
     const tabirBy = groupBy(tabir, t => t.primary_lemma_id);
-    const govBy = groupBy(gov, g => govKeyOf(g.root_norm, g.verb_ar));
+    const govByRoot = groupBy(gov, g => g.root_norm);
 
     for (const l of lemmas) {
       const rootNorm = l.root_normalized ?? l.root_text;
-      const govKey = govKeyOf(rootNorm, l.lemma_text);
-      const myGov = rootNorm ? (govBy.get(govKey) ?? []) : [];
+      const myGov = rootNorm
+        ? pickGovernance(govByRoot.get(rootNorm) ?? [], l.lemma_text, l.verb_form)
+        : [];
       const myArcs: ResolvedArc[] = (arcBy.get(l.id) ?? []).map(a => ({
         id: a.id, arc_key: a.arc_key, arc_ar: a.arc_ar, arc_en: a.arc_en, arc_ur: a.arc_ur,
         is_primary: a.is_primary, is_synthesis: a.is_synthesis,
@@ -381,11 +428,14 @@ export class LemmaResolveRepo {
         form,
         senses: mySenses.map(({ scope_key: _sk, ...s }) => s),
         arcs: myArcs,
-        governance: myGov.map(({ root_norm: _rn, verb_ar, ...g }) => ({
+        governance: myGov.map(({ row: { root_norm: _rn, verb_ar, ...g }, basis }) => ({
           ...g,
           headword_ar: verb_ar,
           headword_pos: l.part_of_speech,
-          governs_directly: l.part_of_speech === 'verb',
+          match_basis: basis,
+          // A form match is the row's own key, so it states this lemma's bab.
+          // A headword match only says the source printed this string.
+          governs_directly: basis === 'form' || l.part_of_speech === 'verb',
         })),
         furuq: myFuruq.map(({ lemma_id: _li, ...f }) => f),
         tabir: myTabir.map(({ primary_lemma_id: _pl, ...t }) => t),
