@@ -6,10 +6,11 @@ on:
     paths:
       - "workers/**"
       - ".github/workflows/deploy-workers.yml"
+      - ".github/workflows/_deploy-worker.yml"
+      - ".github/workflows/_gate.yml"
   workflow_dispatch:
 
 # ── Deployment order ────────────────────────────────────────────────────────────
-# Internal workers are deployed first (no public domain, service-binding only).
 # km-backend-worker is ALWAYS deployed last — it is the single public API, and
 # that is the one ordering guarantee here that actually matters.
 #
@@ -40,171 +41,99 @@ defaults:
 
 jobs:
   # ── Phase 0 — GATE ─────────────────────────────────────────────────────────
-  # Every worker below deploys straight to production. Until this job existed
-  # the only thing standing between a commit and the public API was whether
-  # wrangler happened to bundle it — nothing type-checked, so a worker whose
-  # types no longer matched its D1 schema shipped and failed at runtime.
-  #
-  # One job, all nine workers, and every deploy `needs` it.
-  typecheck:
-    name: "0 · typecheck all workers"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - run: npm ci
-      - name: unit tests
-        run: npm test
-
-      - name: tsc --noEmit
-        run: |
-          failed=()
-          for w in core ar-linguistics studio content worldview quran planner arabic backend; do
-            echo "── workers/$w"
-            npx tsc --noEmit -p "workers/$w/tsconfig.json" || failed+=("$w")
-          done
-          if [ ${#failed[@]} -gt 0 ]; then
-            echo "::error::type errors in: ${failed[*]}"
-            exit 1
-          fi
+  gate:
+    uses: ./.github/workflows/_gate.yml
 
   # ── Phase 1 (no deps) ──────────────────────────────────────────────────────
   deploy-core:
     name: "1 · km-core-worker"
-    runs-on: ubuntu-latest
-    needs: [typecheck]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/core
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    needs: [gate]
+    uses: ./.github/workflows/_deploy-worker.yml
+    with: { worker: core }
+    secrets: inherit
 
   deploy-al:
     name: "1 · km-ar-linguistics-worker"
-    runs-on: ubuntu-latest
-    needs: [typecheck]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/ar-linguistics
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    needs: [gate]
+    uses: ./.github/workflows/_deploy-worker.yml
+    with: { worker: ar-linguistics }
+    secrets: inherit
 
   deploy-studio:
     name: "1 · km-studio-worker"
-    runs-on: ubuntu-latest
-    needs: [typecheck]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/studio
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    needs: [gate]
+    uses: ./.github/workflows/_deploy-worker.yml
+    with: { worker: studio }
+    secrets: inherit
 
-  # ── Phase 2 (needs core) ───────────────────────────────────────────────────
+  # ── Phase 2 ────────────────────────────────────────────────────────────────
   deploy-content:
     name: "2 · km-content-worker"
-    runs-on: ubuntu-latest
-    needs: [typecheck, deploy-core]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/content
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    needs: [gate, deploy-core]
+    uses: ./.github/workflows/_deploy-worker.yml
+    with: { worker: content }
+    secrets: inherit
 
-  # ── Phase 3 (needs content + al + core) ───────────────────────────────────
+  # ── Phase 3 ────────────────────────────────────────────────────────────────
   deploy-worldview:
     name: "3 · km-worldview-worker"
-    runs-on: ubuntu-latest
-    needs: [typecheck, deploy-content, deploy-core]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/worldview
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    needs: [gate, deploy-content, deploy-core]
+    uses: ./.github/workflows/_deploy-worker.yml
+    with: { worker: worldview }
+    secrets: inherit
 
   deploy-quran:
     name: "3 · km-quran-worker"
-    runs-on: ubuntu-latest
-    needs: [typecheck, deploy-al, deploy-content, deploy-worldview]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/quran
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    needs: [gate, deploy-al, deploy-content, deploy-worldview]
+    uses: ./.github/workflows/_deploy-worker.yml
+    with: { worker: quran }
+    secrets: inherit
 
-  # ── Phase 4 (needs quran + core) ──────────────────────────────────────────
+  # ── Phase 4 ────────────────────────────────────────────────────────────────
   deploy-planner:
     name: "4 · km-planner-worker"
-    runs-on: ubuntu-latest
-    needs: [typecheck, deploy-quran, deploy-core]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/planner
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    needs: [gate, deploy-quran, deploy-core]
+    uses: ./.github/workflows/_deploy-worker.yml
+    with: { worker: planner }
+    secrets: inherit
 
   deploy-arabic:
     name: "4 · km-arabic-worker"
-    runs-on: ubuntu-latest
-    needs: [typecheck, deploy-al, deploy-quran, deploy-planner]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/arabic
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    needs: [gate, deploy-al, deploy-quran, deploy-planner]
+    uses: ./.github/workflows/_deploy-worker.yml
+    with: { worker: arabic }
+    secrets: inherit
 
-  # ── Phase 5 — GATEWAY (always last) ───────────────────────────────────────
+  # ── Phase 5 — the public API, last ─────────────────────────────────────────
   deploy-backend:
     name: "5 · km-backend-worker  ← PUBLIC API"
+    needs:
+      [gate, deploy-quran, deploy-worldview, deploy-arabic, deploy-planner,
+       deploy-content, deploy-al, deploy-studio, deploy-core]
+    uses: ./.github/workflows/_deploy-worker.yml
+    with: { worker: backend }
+    secrets: inherit
+
+  # ── Phase 6 — did we actually ship something that works? ───────────────────
+  # A green wrangler deploy only means the upload succeeded. This is the only
+  # step that checks the public API still answers afterwards.
+  smoke:
+    name: "6 · smoke — backend.k-maps.com/health"
+    needs: [deploy-backend]
     runs-on: ubuntu-latest
-    needs: [typecheck, deploy-quran, deploy-worldview, deploy-arabic, deploy-planner, deploy-content, deploy-al, deploy-studio, deploy-core]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/backend
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: /health must return 200 and ok:true
+        run: |
+          for i in 1 2 3 4 5; do
+            code=$(curl -sS -o /tmp/health.json -w '%{http_code}' \
+                   https://backend.k-maps.com/health || echo 000)
+            body=$(cat /tmp/health.json 2>/dev/null || true)
+            if [ "$code" = "200" ] && printf '%s' "$body" | grep -q '"ok":true'; then
+              echo "healthy: $body"
+              exit 0
+            fi
+            echo "attempt $i — HTTP $code — $body"
+            sleep 10
+          done
+          echo "::error::public API unhealthy after deploy (last: HTTP $code $body)"
+          exit 1

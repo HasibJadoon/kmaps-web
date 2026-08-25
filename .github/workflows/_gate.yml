@@ -1,0 +1,42 @@
+name: gate
+
+# Reusable verification gate — the single definition of "is this code OK".
+# Called by ci.yml on every pull request, and by each deploy workflow before
+# it ships. One place to change what "green" means.
+
+on:
+  workflow_call:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verify:
+    name: "tests + types"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20.19.0"   # satisfies apps/k-maps engines: ^20.19.0
+          cache: npm
+
+      - run: npm ci
+
+      - name: unit tests
+        run: npm test
+
+      # Collect every failing worker rather than stopping at the first, so a
+      # broken schema change shows all its damage in one run.
+      - name: tsc --noEmit (all nine workers)
+        run: |
+          failed=()
+          for w in core ar-linguistics studio content worldview quran planner arabic backend; do
+            echo "── workers/$w"
+            npx tsc --noEmit -p "workers/$w/tsconfig.json" || failed+=("$w")
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "::error::type errors in: ${failed[*]}"
+            exit 1
+          fi
