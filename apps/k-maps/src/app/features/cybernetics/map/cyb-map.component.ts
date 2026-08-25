@@ -4,9 +4,12 @@ import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
 import { CybTopbarComponent } from '../shared/cyb-topbar.component';
 import type {
-  CybNode, Surah, StudyUnit, StagingMatrix, StageCell, SubLayer,
-  RootDetail, RootClaim, RootMemlet, RootQuestion, RootOption, RootMedia, PassageRoot,
+  CybNode, CybAxis, Surah, StudyUnit, CybLayerRow, NodeCarrierRows,
+  LayerModel, LayerModelBand, LayerModelSub, RootFillCell, RootCarrierRows,
+  RootDetail, RootMemlet, RootQuestion, RootOption, RootMedia, PassageRoot,
+  RootGloss, RootSenseBundle, SenseAttestation,
 } from '../data/cyb.models';
+import { CYB_AXES } from '../data/cyb.models';
 
 // Quran Map — Qurʾān-centric, over the Surah Study module:
 //   Qurʾān(114) → Surah → Study passages → Streams(6) → Roots → Root Dashboard.
@@ -35,14 +38,18 @@ const MEMBEAN_PANELS: { key: string; en: string; ar: string; col: 'l' | 'r' }[] 
   { key: 'diacritics',     en: 'Vocalisation',       ar: 'الشكل',        col: 'r' },
 ];
 
-const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = {
-  vocabulary: { ar: 'المفردات', en: 'Root / Vocabulary', hint: 'roots' },
-  reading:    { ar: 'القراءة',  en: 'Reading', hint: 'tilāwa · tajwīd' },
-  ss:         { ar: 'الإعراب',  en: 'Sentence Structure', hint: 'iʿrāb' },
-  structure:  { ar: 'النظم',    en: 'Passage Structure', hint: 'naẓm · coherence' },
-  tafsir:     { ar: 'التفسير',  en: 'Tafsīr', hint: '8 books' },
-  worldview:  { ar: 'رؤية العالم', en: 'Worldview · WVS', hint: 'ʿaqīda · ethics' },
-};
+// The stream-systems are NOT listed here. `cyb_layer` is the one taxonomy
+// (GET /core/cyb/layers) — it carries `translation`, which this file's own list
+// of six never had, and a layer the registry retires has to stop rendering.
+// `streamLabel` reads the registry and falls back to the raw key so a layer the
+// plane instantiated ahead of the registry still renders under its own name.
+
+/** A stream row: the registry's layer, plus whatever the plane has staged. */
+interface StreamRow {
+  layer: string;
+  node: CybNode | undefined;
+  reg: CybLayerRow | undefined;
+}
 
 @Component({
   selector: 'km-cyb-map',
@@ -81,19 +88,32 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
       <!-- ══ L1 · 114 surahs ══ -->
       @if (view()==='surahs') {
         @if (surahs().length) {
-          <div class="vh"><span>Entire Qurʾān · 114 surahs</span>
-            <span class="h"><b class="qp">build {{ quranPct() }}%</b> · {{ activeCount() }} active · tap to open</span></div>
+          <div class="vh"><span>Entire Qurʾān · {{ surahs().length }} surahs</span>
+            <span class="h">
+              @if (quranBuild().measured) { <b class="qp">build {{ quranPct() }}%</b> }
+              @else { <b class="qp unm">build not measured</b> }
+              · {{ activeCount() }} active · tap to open</span></div>
           <div class="grid">
             @for (s of surahs(); track s.id) {
               @let node = surahNode(s.id);
-              <button class="cell" [class.active]="node && node.build_pct > 0" (click)="openSurah(s)">
+              <button class="cell glass" [class.active]="node && node.build_pct > 0" (click)="openSurah(s)">
                 <div class="top"><span class="num">{{ s.id }}</span>
                   <span class="rt" [class.makki]="s.revelation_type==='makki'" [class.madani]="s.revelation_type==='madani'"></span></div>
                 <div class="nar">{{ s.name_ar }}</div>
                 <div class="nen">{{ s.name_transliteration || s.name_en }}</div>
                 <div class="ay">{{ s.ayah_count }} āyāt</div>
-                <div class="pbar"><div class="pf" [style.width.%]="node?.build_pct || 0"></div></div>
-                <div class="pl">{{ node && node.build_pct > 0 ? 'build ' + node.build_pct + '%' : 'not started' }}</div>
+                <!-- All four outputs, not build alone: a surah reads on the
+                     same four axes as every other scale, and an axis no sensor
+                     has read shows a dashed track rather than an empty one. -->
+                <div class="o4m">
+                  @for (a of axes; track a) {
+                    <div class="m" [class.unm]="!measured(node, a)">
+                      <span>{{ axisInitial(a) }}
+                        @if (measured(node, a)) { <b>{{ axisPct(node, a) }}</b> }</span>
+                      <div class="b"><i [style.width.%]="bar(axisPct(node, a))" [style.background]="axisColor(a)"></i></div>
+                    </div>
+                  }
+                </div>
               </button>
             }
           </div>
@@ -105,29 +125,33 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
         @if (loadingPassages()) { <div class="msg">Loading passages…</div> }
         @else if (units().length) {
           <div class="vh"><span>{{ surah()?.name_en }} · study passages</span><span class="h">{{ units().length }} passages · tap to open</span></div>
-          <div class="list">
+          <div class="pgrid">
             @for (u of units(); track u.passage_id) {
               @let pnode = passageNode(u);
-              <div class="lc clickable" [style.--lc]="pnode && pnode.build_pct > 0 ? 'var(--content)' : 'var(--gold-d)'"
-                   (click)="onPassageCard(u, pnode)">
-                <div class="lct"><span class="en">{{ u.passage_no }}. {{ u.label }}</span><span class="no">{{ surah()?.id }}:{{ u.ayah_from }}–{{ u.ayah_to }}</span></div>
-                @if (u.theme) { <div class="lcd">{{ u.theme }}</div> }
+              <div class="glass pc" [class.act]="pnode && pnode.build_pct > 0" (click)="onPassageCard(u, pnode)">
+                <div class="pt">{{ u.passage_no }}. {{ u.label }}</div>
+                <div class="pref">{{ surah()?.id }}:{{ u.ayah_from }}–{{ u.ayah_to }}</div>
+                @if (u.theme) { <div class="pslug">{{ u.theme }}</div> }
+                <!-- The six registered steps, named as the server names them.
+                     "idioms" was a seventh that no longer exists: the server
+                     folds expressions into vocabulary and reports tafsīr and
+                     worldview instead. -->
                 <div class="steps">
-                  <span class="step" [class.on]="u.reading.has">reading</span>
-                  <span class="step" [class.on]="u.vocabulary.total > 0">vocab {{ u.vocabulary.total || '' }}</span>
-                  <span class="step" [class.on]="u.sentence_structure.has">iʿrāb</span>
-                  <span class="step" [class.on]="u.passage_structure.has">naẓm</span>
-                  <span class="step" [class.on]="u.expressions.has">idioms</span>
+                  <span class="step" [class.on]="u.reading.has"><span class="o"></span>reading</span>
+                  <span class="step" [class.on]="u.vocabulary.total > 0"><span class="o"></span>vocab {{ u.vocabulary.total || '' }}</span>
+                  <span class="step" [class.on]="u.sentence_structure.has"><span class="o"></span>iʿrāb</span>
+                  <span class="step" [class.on]="u.passage_structure.has"><span class="o"></span>naẓm</span>
+                  <span class="step" [class.on]="u.tafsir.has"><span class="o"></span>tafsīr</span>
+                  <span class="step" [class.on]="u.worldview.has"><span class="o"></span>worldview</span>
                 </div>
                 @if (pnode && pnode.build_pct > 0) {
-                  <div class="pbuild"><span class="o" style="--oc:var(--build)"><i [style.width.%]="pnode.build_pct"></i></span>
-                    <span class="pl2">build {{ pnode.build_pct }}% · study {{ pnode.study_pct }}%</span></div>
+                  <div class="pbuild"><span class="o" style="--oc:var(--build)"><i [style.width.%]="bar(pnode.build_pct)"></i></span>
+                    <span class="pl2">build {{ pnode.build_pct }}%</span></div>
                 }
-                <div class="lcact">
-                  <span class="hint">{{ pnode && pnode.children.length ? 'tap card → streams · roots' : 'tap card → open in Study' }}</span>
+                <div class="plink">
                   <a class="studylink" [routerLink]="['/quran/surahs', surah()?.id, 'study', u.passage_no]" (click)="$event.stopPropagation()">Open in Study ›</a>
+                  <span class="go">{{ pnode && pnode.children.length ? '› streams' : '›' }}</span>
                 </div>
-                <span class="go">›</span>
               </div>
             }
           </div>
@@ -137,81 +161,146 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
         }
       }
 
-      <!-- ══ L3 · the 6 stream-systems ══ -->
+      <!-- ══ L3 · the stream-systems, from the layer registry ══ -->
       @else if (view()==='streams') {
-        @let kids = current();
-        @if (kids.length) {
-          <div class="vh"><span>{{ drillTitle() }} · the 6 stream-systems</span><span class="h">tap Vocabulary to reach the roots</span></div>
-          <div class="list">
-            @for (n of kids; track n.id) {
-              @let lab = streamLabel(n);
-              <div class="lc" [style.--lc]="streamColor(n.layer)" [class.dim]="!n.children.length"
-                   (click)="n.children.length ? drill(n) : null">
-                <div class="lct"><span class="aa" [style.color]="streamColor(n.layer)">{{ lab.ar }}</span><span class="en">{{ lab.en }}</span><span class="no">{{ lab.hint }}</span></div>
-                <div class="o4big">
-                  <div class="ob"><span class="obl">Build <b>{{ n.build_pct }}</b></span><span class="o" style="--oc:var(--build)"><i [style.width.%]="n.build_pct"></i></span></div>
-                  <div class="ob"><span class="obl">Study <b>{{ n.study_pct }}</b></span><span class="o" style="--oc:var(--study)"><i [style.width.%]="n.study_pct"></i></span></div>
-                  <div class="ob"><span class="obl">Content <b>{{ n.content_pct }}</b></span><span class="o" style="--oc:var(--content)"><i [style.width.%]="n.content_pct"></i></span></div>
-                  <div class="ob"><span class="obl">Retn <b>{{ n.retention_pct }}</b></span><span class="o" style="--oc:var(--retn)"><i [style.width.%]="n.retention_pct"></i></span></div>
+        @let rows = streamRows();
+        @if (rows.length) {
+          <div class="vh"><span>{{ drillTitle() }} · {{ rows.length }} stream-systems</span>
+            <span class="h">from cyb_layer · tap Vocabulary to reach the roots</span></div>
+          <div class="pgrid">
+            @for (r of rows; track r.layer) {
+              @let lab = streamLabelKey(r.layer);
+              <div class="glass lc sc" [style.--lc]="streamColor(r.layer)"
+                   [class.act]="openable(r)" [class.dim]="!openable(r)"
+                   (click)="openable(r) ? drillLayer(r.layer) : null">
+                <div class="lct">
+                  @if (lab.ar) { <span class="aa" [style.color]="streamColor(r.layer)">{{ lab.ar }}</span> }
+                  <span class="en">{{ lab.en }}</span><span class="no">{{ lab.hint }}</span>
+                  @if (!r.reg) { <span class="drift" title="the plane staged this layer; the registry has not declared it">drift</span> }
                 </div>
-                @if (n.children.length) { <span class="go">›</span> }
+                <div class="o4big">
+                  @for (a of axes; track a) {
+                    <div class="ob">
+                      <span class="obl">{{ axisLabel(a) }}
+                        <b [class.unm]="!measured(r.node, a)">{{ measured(r.node, a) ? axisPct(r.node, a) : '—' }}</b></span>
+                      <span class="o" [style.--oc]="axisColor(a)" [class.unm]="!measured(r.node, a)">
+                        <i [style.width.%]="bar(axisPct(r.node, a))"></i></span>
+                    </div>
+                  }
+                </div>
+                @if (openable(r)) { <span class="go">›</span> }
               </div>
             }
           </div>
         } @else { <div class="msg">Loading the passage's streams…</div> }
       }
 
-      <!-- ══ L4 · the stream's pieces (roots for Vocabulary) ══ -->
+      <!-- ══ L4 · the stream's pieces ══ -->
+      <!-- For Vocabulary the pieces are the passage's own unique roots, straight
+           from the āyāt, so every root appears whether or not the plane has
+           minted a node for it. Every other stream shows what its CARRIERS hold
+           — the āyāt, the sentences, the renderings, the tafsīr. It used to show
+           cyb_node children, which is how the plane tracks work, not what the
+           work is: a screen called Sentence Structure should show sentences. -->
       @else if (view()==='pieces') {
-        @let kids = current();
         @if (streamParam() === 'vocabulary') {
-          <div class="vh"><span>Root / Vocabulary · {{ verseRoots().length }} unique roots</span><span class="h">from the āyāt · tap a root for its dashboard</span></div>
+          <div class="vh"><span>Root / Vocabulary · {{ verseRoots().length }} unique roots</span><span class="h">in āyah order · tap a root for its dashboard</span></div>
           @if (verseRoots().length) {
-            <div class="grid">
+            <!-- A root gets the room to be read, not a chip: the glyph carries
+                 the tile, its core meaning sits under it, and hovering one
+                 pushes the rest back so a single root can be looked at. -->
+            <div class="rgrid" [class.hovering]="hoverRoot() !== null">
               @for (vr of verseRoots(); track vr.root) {
                 @let rnode = cybNodeForRoot(vr.root);
-                <button class="cell rootcell"
-                        [style.borderLeftColor]="(rnode?.build_pct || 0) >= 50 ? 'var(--content)' : 'var(--gold-d)'"
+                @let card = glossFor(vr.root);
+                <button class="rtile" [class.near]="hoverRoot() === vr.root"
+                        (mouseenter)="hoverRoot.set(vr.root)" (mouseleave)="hoverRoot.set(null)"
                         (click)="openRootNorm(vr.root)">
-                  <div class="top"><span class="num">{{ surahId() }}:{{ vr.first_ayah }} · {{ vr.occurrences }}×</span></div>
-                  <div class="nar rootar">{{ vr.root }}</div>
-                  <div class="pbar"><div class="pf" [style.width.%]="rnode?.build_pct || 0"></div></div>
-                  <div class="pl">build {{ rnode?.build_pct || 0 }}%</div>
+                  <span class="rref">{{ surahId() }}:{{ vr.first_ayah }}</span>
+                  <span class="rpct" [class.hi]="(rnode?.build_pct || 0) >= 40"
+                        [class.mid]="(rnode?.build_pct || 0) >= 25 && (rnode?.build_pct || 0) < 40"
+                        [class.unm]="!measured(rnode,'build')">{{ pctLabel(rnode) }}</span>
+                  <span class="rglyph">{{ vr.root }}</span>
+                  @if (card?.meaning_core_en) {
+                    <span class="rgloss">{{ card!.meaning_core_en }}</span>
+                  } @else if (glossesLoaded()) {
+                    <span class="rgloss none">no core meaning stored for this root</span>
+                  }
+                  <span class="rocc">{{ vr.occurrences }}× here
+                    @if (card?.frequency_quran) { · {{ card!.frequency_quran }} in muṣḥaf }
+                    · {{ vr.lemmas }} lemma{{ vr.lemmas === 1 ? '' : 's' }}</span>
                 </button>
               }
             </div>
           } @else { <div class="msg">Loading the passage's roots…</div> }
-        } @else if (kids.length) {
-          <div class="vh"><span>Root / Vocabulary · {{ kids.length }} roots</span><span class="h">tap a root for its dashboard</span></div>
-          <div class="grid">
-            @for (n of kids; track n.id) {
-              <button class="cell rootcell" [style.borderLeftColor]="n.build_pct >= 50 ? 'var(--content)' : 'var(--gold-d)'" (click)="openRoot(n)">
-                <div class="top"><span class="num">{{ n.piece_kind }}</span></div>
-                <div class="nar rootar">{{ rootNorm(n) }}</div>
-                <div class="pbar"><div class="pf" [style.width.%]="n.build_pct"></div></div>
-                <div class="pl">build {{ n.build_pct }}%</div>
-              </button>
+        }
+        <!-- every other stream: what the carriers actually hold -->
+        @else {
+          @let bands = carrierBands();
+          @if (bands === null) { <div class="msg">Reading the carriers…</div> }
+          @else if (!bands.length) {
+            <div class="vh"><span>{{ streamLabelKey(streamParam()!).en }}</span><span class="h">no carrier holds this passage</span></div>
+            <div class="empty">The registry binds no {{ streamLabelKey(streamParam()!).en }} table that speaks
+              about {{ surahId() }}:{{ passageNo() }} — nothing here can be built until one is bound.</div>
+          }
+          @else {
+            <div class="vh"><span>{{ streamLabelKey(streamParam()!).en }} · {{ carrierRowCount() }} rows</span>
+              <span class="h">{{ bands.length }} carrier{{ bands.length === 1 ? '' : 's' }} · live off the tables</span></div>
+            @for (b of bands; track b.band_code + b.table_name) {
+              <div class="cb">
+                <div class="cbh">
+                  <span class="cbb">{{ b.band_code }}</span>
+                  <span class="cbt">{{ b.table_name }}</span>
+                  <span class="cbd">{{ b.db_name }} · bound on {{ b.bind_col }}</span>
+                  <span class="cbn">
+                    {{ b.rows.length }} of {{ b.total }}
+                    @if (b.total > b.rows.length) { <em title="the reader's limit cut this carrier short">truncated</em> }
+                  </span>
+                </div>
+                <div class="cbw">
+                  <table class="cbtbl">
+                    <thead><tr>@for (c of columnsOf(b); track c) { <th>{{ c }}</th> }</tr></thead>
+                    <tbody>
+                      @for (row of b.rows; track $index) {
+                        <tr>@for (c of columnsOf(b); track c) {
+                          <td [class.ar]="isArabic(row[c])" [title]="fullText(row[c])">
+                            <span class="cv">{{ cellText(row[c]) }}</span></td>
+                        }</tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             }
-          </div>
-        } @else { <div class="msg">Leaf node — no further breakdown staged yet.</div> }
+          }
+        }
       }
 
       <!-- ══ L5 · Root Dashboard ══ -->
       @else if (view()==='root' && selRootNorm(); as rn) {
         @let r = selRoot();
-        @let roll = rootRollup(rn);
-        <div class="vh"><span>Root Dashboard</span><span class="h">4 outputs + staged layers</span></div>
+        <div class="vh"><span>Root Dashboard</span><span class="h">4 outputs · the registry's bands · memlets · questions</span></div>
         <div class="rd">
           <div class="rdh">
             <span class="rdar">{{ rn }}</span>
             <div class="rdm">
-              <div class="rn">{{ rn }} <span class="rk">· {{ r?.piece_kind || 'root' }}</span></div>
-              <div class="rdd">build {{ r?.build_pct || 0 }}% · {{ roll?.staged || 0 }} claims staged · {{ roll?.promoted || 0 }} promoted · {{ memletCount(rn) }} memlets
-                @if (rootDetail()) {
-                  · <span class="tri" [class.gap]="trilingualN() < claimsN()">AR·EN·UR {{ trilingualN() }}/{{ claimsN() }}</span>
+              <div class="rn">{{ rn }}
+                <span class="rk">· {{ r?.piece_kind || 'root' }} · {{ surah()?.name_en }} {{ drillTitle() }} · Vocabulary</span></div>
+              <div class="rdd">
+                DB_AL · km_arabic_linguistic ·
+                {{ measured(r,'build') ? 'build ' + (r?.build_pct || 0) + '%' : 'build not measured' }}
+                · <b>{{ filledSubs() }}</b>/{{ scopeSubs().length }} {{ scope() }} sub-layers hold rows
+                @if (rootCard(); as c) {
+                  @if (c.frequency_quran) { · {{ c.frequency_quran }} words in the muṣḥaf }
                 }
+                · {{ memletCount() }} memlets · {{ questionsN() }} questions
                 · ↑ reports to Vocabulary</div>
             </div>
+            <!-- Filled · empty · unknown are three different states, and the
+                 third is the one a build plan needs: nobody bound a carrier. -->
+            <span class="pill grn">{{ filledSubs() }} carriers filled</span>
+            <span class="pill">{{ emptySubs() }} empty</span>
+            <span class="pill unk">{{ unknownSubs() }} unknown</span>
           </div>
 
           <div class="sub2">The 4 outputs</div>
@@ -222,29 +311,191 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
             <div class="ob"><span class="obl">Retn <b>{{ r?.retention_pct || 0 }}</b></span><span class="o" style="--oc:var(--retn)"><i [style.width.%]="r?.retention_pct || 0"></i></span></div>
           </div>
 
-          <!-- three structurally identical layer families -->
-          <div class="fam">
-            <div class="sub2">Information layers <span class="famn">{{ infoFilled(rn) }}/{{ subLayers().length }}</span> · tap to read claims · green ring = promoted</div>
-            @if (rootCells(rn).length) {
-              <div class="heat">
-                <div class="hc all" [class.sel]="rootTab()==='layers' && !selLayer()"
-                     title="All information layers" (click)="showAllLayers()">
-                  <div class="hn">{{ roll?.staged || 0 }}</div><div class="hk">ALL</div>
-                </div>
-                @for (c of subLayers(); track c.sub_code) {
-                  @let cell = cellFor(rn, c.sub_code);
-                  <div class="hc" [class.z]="!cell" [class.sel]="selLayer() === c.sub_code"
-                       [style.background]="cell ? shade(cell.n) : '#0d0d0d'"
-                       [style.boxShadow]="cell && cell.promoted === cell.n && cell.n > 0 ? 'inset 0 0 0 2px var(--content)' : 'none'"
-                       [title]="c.name_en + ' · ' + c.sub_code + ' · ' + c.scope_level"
-                       (click)="cell ? selectLayer(c.sub_code) : null">
-                    <div class="hn">{{ cell?.n || '·' }}</div><div class="hk">{{ c.sub_code }}</div>
-                  </div>
+          <!-- ── the registry's bands, filled live off the carriers ──
+               This used to be a strip of staged-claim counts from
+               /al/staging/matrix. That contract was dropped with
+               ar_ling_stg_claim on 2026-08-21, so the strip had been rendering
+               an empty array. A row is in its carrier or it does not exist, so
+               each cell below is a live count off the carrier itself. -->
+          <!-- ══ The layer data browser ══
+               Registry on the left, what the carrier holds in the middle, the
+               registry's own metadata for the selected sub-layer on the right.
+               A row is read twice in the centre: once as the content it is
+               (gloss, translation, provenance), once as the columns it is
+               stored in — the second is what tells you a field is NULL. -->
+          <div class="panes">
+            <div class="rail">
+              <div class="seg">
+                @for (sc of layerModel()?.scopes || []; track sc.key) {
+                  <button class="segi" [class.on]="scope()===sc.key" (click)="setScope(sc.key)"
+                          [title]="sc.layers + ' bands · ' + sc.subs + ' sub-layers'">
+                    <span class="aa">{{ sc.name_ar }}</span>{{ sc.name_en }}</button>
                 }
               </div>
-            } @else {
-              <div class="empty">{{ rn }} — {{ r?.build_pct || 0 }}% built from its lexicon sources, but no layers staged yet.</div>
-            }
+              <div class="rlabel">BANDS · SUB-LAYERS · ROWS</div>
+              @if (!layerModel()) { <div class="msg">Loading the carrier registry…</div> }
+              @else if (fillPending()) { <div class="msg">Counting this root's carriers…</div> }
+              @else {
+                @for (b of scopeBands(); track b.band) {
+                  <div class="bandg">
+                    <div class="bandt">
+                      <span class="bc">{{ b.band }}</span>
+                      <span class="bn">{{ b.key }}</span>
+                      @if (b.name_ar) { <span class="baa">{{ b.name_ar }}</span> }
+                    </div>
+                    @for (sl of b.subs; track sl.sub_code) {
+                      @let f = fillFor(sl.sub_code);
+                      <button class="leaf" [attr.data-state]="fillState(sl.sub_code)"
+                              [class.on]="selLayer()===sl.sub_code"
+                              [title]="sl.name_en + ' · ' + sl.scope_level + ' · ' + carrierLabel(sl)"
+                              (click)="selectLayer(sl.sub_code)">
+                        <span class="lc">{{ sl.sub_code }}</span>
+                        <span class="ln">{{ sl.name_en }}</span>
+                        <span class="lq">{{ f === null ? '?' : f.rows }}</span>
+                      </button>
+                    }
+                  </div>
+                }
+                <p class="note">A number is the rows that carrier holds <b>for {{ rn }}</b>, read
+                  now. <b class="unk">?</b> means no audited carrier binding — unknown, which is
+                  not the same as zero.</p>
+              }
+            </div>
+
+            <div class="main">
+              @if (!selLayer()) {
+                <div class="empty">Pick a sub-layer on the left to read what its carrier holds for {{ rn }}.</div>
+              } @else if (subRows() === null) {
+                <div class="msg">Reading {{ selLayer() }}…</div>
+              } @else if (!subRows()!.length) {
+                <!-- Two different findings share this branch, and only one of
+                     them is a zero: a bound carrier that holds no rows, and a
+                     sub-layer nobody has bound a carrier to. Saying "0 rows"
+                     for the second would report a measurement that was never
+                     taken. -->
+                @let unknown = fillState(selLayer()!) === 'unknown';
+                <div class="mh"><span class="code">{{ selLayer() }}</span>
+                  <span class="tbl">{{ selSub()?.tables?.length ? selSub()!.tables.join(' · ') : 'no carrier bound' }}</span>
+                  <span class="cnt" [class.unk]="unknown">{{ unknown ? 'unknown' : '0 rows' }}</span></div>
+                @if (unknown) {
+                  <div class="empty">{{ selLayer() }} — <b class="unk">unknown</b>, not zero. No audited
+                    carrier binds this sub-layer, so nothing has been read for {{ rn }}. Bind one in
+                    <span class="mono">ar_ling_reg_table_map</span> and the count becomes a reading.</div>
+                } @else {
+                  <div class="empty">{{ selLayer() }} — the carrier was read and holds nothing for {{ rn }}.</div>
+                }
+              } @else {
+                @for (c of subRows()!; track c.carrier_table) {
+                  <div class="mh">
+                    <span class="code">{{ c.sub_code }}</span>
+                    <span class="tbl">{{ c.carrier_table }}</span>
+                    <span class="meta">bound on <b>{{ c.bind_col }}</b> = {{ rn }}</span>
+                    <span class="cnt">{{ c.rows.length }} of {{ c.total }} rows</span>
+                  </div>
+                  <!-- as content -->
+                  @for (row of c.rows; track $index) {
+                    @let rd = readRow(row);
+                    <div class="row">
+                      <div class="rowh">
+                        <span class="rown">#{{ $index + 1 }}</span>
+                        @for (bg of rd.badges; track bg.k) {
+                          <span class="badge" [class.core]="bg.core" [class.ok]="bg.ok">{{ bg.k }} {{ bg.v }}</span>
+                        }
+                      </div>
+                      <div class="rowb">
+                        @if (rd.ar) { <div class="gar">{{ rd.ar }}</div> }
+                        @if (rd.en) { <div class="gen">{{ rd.en }}</div> }
+                        @if (rd.ur) { <div class="gur">{{ rd.ur }}</div> }
+                        @if (!rd.ar && !rd.en && !rd.ur) {
+                          <div class="gen dim">This carrier holds no glossed text — read it as columns below.</div>
+                        }
+                        @if (rd.fields.length) {
+                          <div class="fields">
+                            @for (f of rd.fields; track f.k) {
+                              <span class="fld" [title]="f.full">{{ f.k }} <b>{{ f.v }}</b></span>
+                            }
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                  <!-- as stored -->
+                  <div class="storeh">
+                    <span class="t">AS STORED · SELECT * FROM {{ c.carrier_table }} WHERE {{ c.bind_col }} = '{{ rn }}'</span>
+                    <span class="l"></span>
+                  </div>
+                  <div class="cbw">
+                    <table class="cbtbl">
+                      <thead><tr>@for (col of columnsOfRoot(c); track col) { <th>{{ col }}</th> }</tr></thead>
+                      <tbody>
+                        @for (row of c.rows; track $index) {
+                          <tr>@for (col of columnsOfRoot(c); track col) {
+                            <td [class.ar]="isArabic(row[col])" [class.nul]="row[col] === null || row[col] === undefined"
+                                [title]="fullText(row[col])"><span class="cv">{{ cellText(row[col]) }}</span></td>
+                          }</tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                  @if (nullColumns(c).length) {
+                    <p class="note">NULL for every row read, and so carrying nothing here:
+                      @for (col of nullColumns(c); track col) { <span class="mono">{{ col }}</span> }</p>
+                  }
+                }
+              }
+            </div>
+
+            <div class="insp">
+              @if (selSub(); as sl) {
+                <p class="ih">SUB-LAYER · REGISTRY</p>
+                <div class="kv"><span class="k">sub_code</span><span class="v g">{{ sl.sub_code }}</span></div>
+                <div class="kv"><span class="k">band · band_key</span><span class="v">{{ selBand()?.band }} · {{ selBand()?.key }}</span></div>
+                <div class="kv"><span class="k">name_ar</span><span class="v aa">{{ sl.name_ar }}</span></div>
+                @if (sl.name_ur) { <div class="kv"><span class="k">name_ur</span><span class="v aa">{{ sl.name_ur }}</span></div> }
+                <div class="kv"><span class="k">scope_level</span><span class="v">{{ sl.scope_level }}</span></div>
+                <div class="kv"><span class="k">discipline</span><span class="v">{{ sl.discipline }}</span></div>
+                <div class="kv"><span class="k">default_card</span><span class="v">{{ sl.card }}</span></div>
+                <div class="kv"><span class="k">produced_by</span><span class="v">{{ sl.produced_by }}</span></div>
+                <div class="kv"><span class="k">fill_state</span>
+                  <span class="v" [class.grn]="fillState(sl.sub_code)==='filled'"
+                        [class.unk]="fillState(sl.sub_code)==='unknown'">{{ fillState(sl.sub_code) }}</span></div>
+                <div class="kv"><span class="k">carrier_state</span>
+                  <span class="v" [class.grn]="sl.carrier_state==='audited'">{{ sl.carrier_state }}</span></div>
+                <div class="kv"><span class="k">display_order</span><span class="v">{{ sl.display_order }}</span></div>
+
+                <p class="ih sp">CARRIERS · tables_json</p>
+                @for (t of sl.tables; track t) {
+                  <span class="tchip">{{ t }} <small>· {{ carrierNote(t) }}</small></span>
+                } @empty {
+                  <span class="tchip dim">no table bound <small>· root_bind unset — reported unknown, never zero</small></span>
+                }
+
+                <p class="ih sp">ATTESTATION · 360°</p>
+                @if (senseBundle() === null) { <div class="msg">Reading the attestations…</div> }
+                @else if (attestSources().length) {
+                  @for (s of attestSources(); track s.slug) {
+                    <div class="src"><span class="nm">{{ s.slug }}</span>
+                      <span class="ag" [class.p]="s.agreement !== 'supports'">{{ s.agreement }}</span>
+                      <span class="agn">{{ s.n }}</span></div>
+                  }
+                  <p class="note">Distinct <span class="mono">source_slug</span> over
+                    <span class="mono">ar_ling_sense_attestation</span> for {{ rn }} — who stands behind
+                    this root's senses, and whether they agree.</p>
+                } @else {
+                  <p class="note">No source has attested a sense of {{ rn }} yet.</p>
+                }
+
+                <p class="ih sp">READ RULES</p>
+                <p class="note">Rows are ordered before the read is capped, so a truncated carrier shows
+                  its opening rows rather than whatever happens to sort first. A sub-layer whose
+                  <span class="mono">root_bind</span> is unset is reported <b class="unk">unknown</b>,
+                  never zero.</p>
+              } @else {
+                <p class="ih">SUB-LAYER · REGISTRY</p>
+                <p class="note">Nothing selected. The rail lists every band this scope declares and
+                  how many rows each sub-layer's carrier holds for {{ rn }} right now.</p>
+              }
+            </div>
           </div>
 
           <div class="fam">
@@ -285,29 +536,11 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
             </div>
           </div>
 
+          <!-- The layers pane moved into the browser above: a sub-layer's rows
+               are read there, beside the registry that describes them. What
+               stays here are the two panes the browser does not cover. -->
           <div class="paneh">{{ paneTitle() }}</div>
           @if (!rootDetail()) { <div class="msg">Loading root detail…</div> }
-          @else if (rootTab()==='layers') {
-            @for (lyr of visibleLayers(); track lyr.sub_code) {
-              <div class="lyr">
-                <div class="lyrh"><span class="lyrc">{{ lyr.sub_code }}</span> {{ lyr.name_en }} <span class="lyrn">{{ lyr.claims.length }} claims</span></div>
-                @for (c of lyr.claims; track c.id) {
-                  <div class="claim">
-                    @if (c.quote_ar) { <div class="qar">{{ c.quote_ar }}</div> }
-                    @if (c.gloss_en) { <div class="gen">{{ c.gloss_en }}</div> }
-                    @if (c.gloss_ur) { <div class="gur">{{ c.gloss_ur }}</div> }
-                    <div class="cmeta"><span class="src">{{ c.source_slug }}</span> · {{ c.claim_type }}
-                      · <span class="cst" [class.promoted]="c.status==='promoted'">{{ c.status }}</span>
-                      <span class="langs">
-                        <span class="lg" [class.on]="!!c.quote_ar">AR</span>
-                        <span class="lg" [class.on]="!!c.gloss_en">EN</span>
-                        <span class="lg" [class.on]="!!c.gloss_ur">UR</span>
-                      </span></div>
-                  </div>
-                }
-              </div>
-            } @empty { <div class="empty">No staged claims yet.</div> }
-          }
           @else if (rootTab()==='memlets') {
             @if (memletsN()) {
               <!-- Membean word-page layout: learning column | analysis column -->
@@ -430,10 +663,30 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
     .vh .h { font-size:10px; color:var(--t3); font-family:ui-monospace,monospace; letter-spacing:0; text-transform:none; }
     .vh .qp { color:var(--build); font-weight:400; }
 
+    /* ── the glossy glass card — one surface language for every level ── */
+    .glass { position:relative; border-radius:12px; border:1px solid rgba(232,201,106,.18);
+      background:linear-gradient(158deg,rgba(34,29,16,.7),rgba(13,11,7,.86));
+      box-shadow:0 14px 22px rgba(0,0,0,.5),0 0 14px rgba(201,168,76,.06),inset 0 1px 0 rgba(255,255,255,.11);
+      backdrop-filter:blur(9px); }
+    .glass::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+      background:linear-gradient(180deg,rgba(255,255,255,.38),rgba(255,255,255,.1) 14%,rgba(255,255,255,.02) 34%,transparent 54%);
+      mix-blend-mode:plus-lighter; opacity:.5; }
+    .glass.act { border-color:rgba(77,217,168,.55);
+      box-shadow:0 14px 24px rgba(0,0,0,.5),0 0 18px rgba(77,217,168,.14),inset 0 1px 0 rgba(255,255,255,.13); }
+
     .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:7px; }
-    .cell { text-align:left; border:1px solid rgba(255,255,255,.08); border-radius:9px; background:linear-gradient(160deg,#151515,#0d0d0d); padding:7px 8px 8px; cursor:pointer; color:var(--text); }
+    .cell { text-align:left; padding:9px 10px 10px; cursor:pointer; color:var(--text); display:flex; flex-direction:column; gap:1px; }
     .cell:hover { border-color:var(--bd-hi); transform:translateY(-2px); }
     .cell.active { border-color:var(--content); box-shadow:0 0 0 1px var(--content); }
+    /* the four outputs on a surah tile · a dashed track = no sensor has read it */
+    .o4m { display:grid; grid-template-columns:repeat(4,1fr); gap:5px; margin-top:8px; }
+    .o4m .m { display:flex; flex-direction:column; gap:2px; }
+    .o4m .m span { font-family:ui-monospace,monospace; font-size:7px; letter-spacing:.3px; color:var(--t3); white-space:nowrap; }
+    .o4m .m span b { color:var(--text); font-weight:700; }
+    .o4m .m .b { height:4px; border-radius:2px; background:rgba(255,255,255,.06); overflow:hidden; }
+    .o4m .m .b i { display:block; height:100%; border-radius:2px; }
+    .o4m .m.unm .b { background:transparent; border:1px dashed rgba(224,120,92,.26); }
+    .o4m .m.unm .b i { display:none; }
     .cell.rootcell { border-left:3px solid var(--gold-d); text-align:center; }
     .top { display:flex; justify-content:space-between; align-items:center; }
     .num { font-family:ui-monospace,monospace; font-size:8.5px; color:var(--t3); text-transform:uppercase; }
@@ -445,13 +698,55 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
     .pbar { height:5px; border-radius:3px; background:#222; overflow:hidden; margin-top:6px; } .pf { height:100%; background:var(--content); }
     .pl { font-size:7.5px; margin-top:2px; font-family:ui-monospace,monospace; color:var(--t3); } .cell.active .pl { color:var(--content); }
 
+    /* ── L4 · the passage's roots, given room to be read ── */
+    .rgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+      border-top:1px solid rgba(232,201,106,.14); border-left:1px solid rgba(232,201,106,.14); }
+    .rtile { position:relative; min-height:250px; padding:22px; cursor:pointer; color:var(--text);
+      border:0; border-right:1px solid rgba(232,201,106,.14); border-bottom:1px solid rgba(232,201,106,.14);
+      background:transparent; display:flex; flex-direction:column; align-items:center; justify-content:center;
+      transition:background .3s, filter .35s, opacity .35s; }
+    /* Hovering one root pushes the others back, so a single root can be looked
+       at without the grid competing for the eye. */
+    .rgrid.hovering .rtile { filter:blur(3px) saturate(.6); opacity:.45; }
+    .rgrid.hovering .rtile.near { filter:none; opacity:1; background:rgba(232,201,106,.07); }
+    .rref { position:absolute; top:0; left:0; font-family:ui-monospace,monospace; font-size:10px; color:var(--gold-d);
+      border-right:1px solid rgba(232,201,106,.14); border-bottom:1px solid rgba(232,201,106,.14); padding:6px 11px; }
+    .rpct { position:absolute; top:11px; right:14px; font-family:ui-monospace,monospace; font-weight:700; font-size:10px; color:#6b5f4c; }
+    .rpct.mid { color:var(--gold-b); } .rpct.hi { color:var(--content); }
+    .rpct.unm { color:var(--t3); font-style:italic; }
+    .rglyph { font-family:var(--ar); font-weight:700; font-size:64px; line-height:1; color:#e4d6b8;
+      text-shadow:0 6px 34px rgba(201,168,76,.18); transition:color .3s; }
+    .rtile:hover .rglyph { color:var(--gold-b); }
+    .rgloss { font-family:var(--serif); font-size:16px; color:var(--t2); margin-top:20px; text-align:center;
+      text-wrap:pretty; opacity:.62; transition:opacity .3s; }
+    .rtile:hover .rgloss { opacity:1; }
+    .rgloss.none { font-size:12px; color:var(--t3); font-style:italic; }
+    .rocc { font-family:ui-monospace,monospace; font-size:10px; color:#5e5445; margin-top:9px; text-align:center; }
+
     .list { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:9px; }
+    /* passages and streams: the design's four-up card wall */
+    .pgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:13px; align-items:stretch; }
+
+    /* ── L2 · a study passage ── */
+    .pc { padding:14px 16px; display:flex; flex-direction:column; min-height:158px; cursor:pointer; }
+    .pc:hover { transform:translateY(-1px); border-color:var(--bd-hi); }
+    .pt { font-family:var(--serif); font-size:14.5px; color:var(--text); line-height:1.28; max-width:78%; }
+    .pref { position:absolute; top:14px; right:15px; font-family:ui-monospace,monospace; font-size:9px; color:var(--t3); white-space:nowrap; }
+    .pslug { font-family:ui-monospace,monospace; font-size:9.5px; color:var(--gold-d); margin-top:6px; }
+    .plink { display:flex; justify-content:space-between; align-items:center; margin-top:auto; padding-top:11px; }
+    .plink .go { position:static; font-family:ui-monospace,monospace; font-size:9.5px; color:var(--gold-d); }
+
     .lc { border:1px solid rgba(255,255,255,.09); border-left:3px solid var(--lc,var(--gold-d)); border-radius:11px; background:linear-gradient(90deg,#161616,#0d0d0d); padding:11px 13px; position:relative; }
+    .lc.sc { border:1px solid rgba(232,201,106,.18); border-left:3px solid var(--lc,var(--gold-d)); display:flex; flex-direction:column; min-height:130px; padding:14px 16px; }
+    .lc.sc .o4big { margin-top:auto; padding-top:14px; }
     .lc.dim { opacity:.6; } .lc:not(.dim) { cursor:pointer; } .lc:not(.dim):hover { border-color:var(--bd-hi); }
     .lct { display:flex; align-items:baseline; gap:8px; } .lct .aa { font-family:var(--ar); font-size:19px; } .lct .en { font-family:var(--serif); font-size:14px; color:var(--text); } .lct .no { margin-left:auto; font-size:9px; color:var(--t3); font-family:ui-monospace,monospace; }
     .lcd { font-size:10.5px; color:var(--t3); margin-top:3px; }
     .steps { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
-    .step { font-size:8.5px; font-family:ui-monospace,monospace; border:1px solid rgba(255,255,255,.1); border-radius:7px; padding:2px 6px; color:var(--t3); } .step.on { color:var(--content); border-color:rgba(77,217,168,.4); }
+    .step { font-size:8.5px; font-family:ui-monospace,monospace; border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:3px 7px; color:var(--t3); display:inline-flex; align-items:center; gap:5px; }
+    .step.on { color:var(--content); border-color:rgba(77,217,168,.4); }
+    .step .o { width:8px; height:8px; border-radius:50%; border:1px solid rgba(255,255,255,.18); flex:none; }
+    .step.on .o { background:var(--content); border-color:var(--content); }
     .pbuild { display:flex; align-items:center; gap:8px; margin-top:8px; } .pbuild .o { flex:1; height:6px; border-radius:4px; background:#242424; overflow:hidden; } .pbuild .o i { display:block; height:100%; background:var(--oc); } .pl2 { font-size:8.5px; color:var(--t3); font-family:ui-monospace,monospace; }
     .lcact { display:flex; gap:12px; align-items:center; margin-top:9px; }
     .hint { font-size:10.5px; color:var(--content); font-family:var(--serif); }
@@ -463,6 +758,110 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
     .o4big { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:9px; }
     .ob { } .obl { display:flex; justify-content:space-between; font-size:7.5px; color:var(--t3); text-transform:uppercase; } .obl b { font-family:ui-monospace,monospace; font-size:9px; color:var(--text); }
     .o4big .o, .o4dash .o { height:6px; border-radius:4px; background:#242424; overflow:hidden; margin-top:2px; display:block; } .o4big .o i, .o4dash .o i { display:block; height:100%; background:var(--oc); }
+
+    /* ══ the layer data browser · registry | rows | metadata ══ */
+    .panes { display:flex; align-items:flex-start; margin:14px -17px 0; border-top:1px solid rgba(201,168,76,.13); }
+    .rail { width:300px; flex:none; align-self:stretch; border-right:1px solid rgba(201,168,76,.11);
+      padding:16px 14px 30px; background:linear-gradient(180deg,rgba(22,18,8,.42),transparent); }
+    .main { flex:1; min-width:0; padding:20px 24px 34px; overflow:hidden; }
+    .insp { width:330px; flex:none; align-self:stretch; border-left:1px solid rgba(201,168,76,.11);
+      padding:20px 20px 30px; background:linear-gradient(180deg,rgba(22,18,8,.35),transparent); }
+    @media(max-width:1200px){ .panes { flex-wrap:wrap; } .rail, .insp { width:100%; border:0; } }
+
+    /* scope segmented control */
+    .seg { display:flex; gap:5px; padding:4px; border-radius:8px; background:rgba(0,0,0,.45);
+      border:1px solid rgba(201,168,76,.14); box-shadow:inset 0 2px 6px rgba(0,0,0,.5); }
+    .segi { flex:1; text-align:center; padding:8px 4px; border:0; border-radius:6px; cursor:pointer;
+      font-weight:600; font-size:11px; color:var(--gold-d); background:transparent; }
+    .segi .aa { font-family:var(--ar); font-size:13px; display:block; color:var(--t3); }
+    .segi.on { color:#2a2205; background:linear-gradient(180deg,var(--gold-b),var(--gold));
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 2px 6px rgba(0,0,0,.4); }
+    .segi.on .aa { color:#3a2f08; }
+    .rlabel { font-family:ui-monospace,monospace; font-weight:600; font-size:9px; letter-spacing:1.4px; color:#6b5f4c; margin:20px 0 8px; }
+
+    /* the registry tree */
+    .bandg { margin-bottom:12px; }
+    .bandt { display:flex; align-items:center; gap:8px; padding:8px 9px; border-radius:6px; background:rgba(232,201,106,.06); }
+    .bandt .bc { font-family:ui-monospace,monospace; font-weight:700; font-size:8px; color:#2a2205;
+      background:linear-gradient(180deg,#f0d987,var(--gold)); border-radius:3px; padding:2px 6px; }
+    .bandt .bn { font-weight:600; font-size:11.5px; color:var(--gold-b); }
+    .bandt .baa { font-family:var(--ar); font-size:13px; color:var(--gold-d); margin-left:auto; }
+    .leaf { display:flex; width:100%; align-items:center; gap:9px; text-align:left; cursor:pointer;
+      padding:8px 10px 8px 14px; margin-top:3px; border:0; border-radius:6px;
+      border-left:2px solid #33322c; background:transparent; transition:.15s; }
+    .leaf:hover { background:rgba(255,255,255,.03); }
+    .leaf[data-state="filled"] { border-left-color:var(--content); }
+    .leaf[data-state="unknown"] { border-left-color:var(--err); }
+    .leaf.on { background:linear-gradient(90deg,rgba(232,201,106,.16),rgba(232,201,106,.03));
+      border-left-color:var(--gold-b); box-shadow:inset 0 1px 0 rgba(255,255,255,.06); }
+    .leaf .lc { font-family:ui-monospace,monospace; font-size:8px; color:#6b5f4c; width:60px; flex:none; }
+    .leaf .ln { font-size:11.5px; color:var(--t2); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .leaf.on .ln { color:var(--text); font-weight:500; }
+    .leaf .lq { font-family:ui-monospace,monospace; font-weight:700; font-size:11px; color:#3d3a33; }
+    .leaf[data-state="filled"] .lq { color:var(--content); }
+    .leaf[data-state="unknown"] .lq { color:var(--err); }
+    .unk { color:var(--err); }
+
+    /* the selected carrier */
+    .mh { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-bottom:14px; margin-top:18px;
+      border-bottom:1px solid rgba(201,168,76,.13); }
+    .mh:first-child { margin-top:0; }
+    .mh .code { font-family:ui-monospace,monospace; font-weight:700; font-size:10px; color:#2a2205;
+      background:linear-gradient(180deg,#f0d987,var(--gold)); border-radius:4px; padding:4px 9px; }
+    .mh .tbl { font-family:ui-monospace,monospace; font-weight:500; font-size:14px; color:var(--gold-b); }
+    .mh .meta { font-family:ui-monospace,monospace; font-size:10.5px; color:var(--gold-d); }
+    .mh .meta b { color:var(--t2); }
+    .mh .cnt { margin-left:auto; font-family:ui-monospace,monospace; font-weight:500; font-size:11px; color:var(--t2); }
+
+    /* a row, read as content */
+    .row { border-radius:8px; margin-top:14px; overflow:hidden;
+      background:linear-gradient(180deg,rgba(23,19,11,.7),rgba(11,10,8,.8)); border:1px solid rgba(232,201,106,.12);
+      box-shadow:0 1px 2px rgba(0,0,0,.5),0 12px 26px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.06); }
+    .rowh { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 16px;
+      background:linear-gradient(180deg,rgba(34,28,16,.85),transparent); box-shadow:inset 0 1px 0 rgba(255,255,255,.07); }
+    .rown { font-family:ui-monospace,monospace; font-weight:700; font-size:11px; color:var(--gold-d); }
+    .badge { font-family:ui-monospace,monospace; font-weight:600; font-size:8.5px; letter-spacing:.4px;
+      padding:3px 8px; border-radius:11px; border:1px solid rgba(201,168,76,.3); color:var(--gold); }
+    .badge.core { color:#2a2205; background:linear-gradient(180deg,#f0d987,var(--gold)); border-color:transparent; }
+    .badge.ok { color:var(--content); border-color:rgba(77,217,168,.4); }
+    .rowb { padding:14px 16px 16px; }
+    .gar { font-family:var(--ar); font-size:20px; color:var(--arab); direction:rtl; text-align:right; line-height:1.7; }
+    .gen { font-size:13px; line-height:1.5; color:#e8dcc4; margin-top:5px; }
+    .gen.dim { color:var(--t3); font-style:italic; }
+    .gur { font-family:var(--ar); font-size:15px; color:var(--t3); direction:rtl; text-align:right; margin-top:4px; }
+    .fields { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; padding-top:12px; border-top:1px solid rgba(201,168,76,.1); }
+    .fld { font-family:ui-monospace,monospace; font-size:9.5px; color:var(--t3); border:1px solid rgba(255,255,255,.08);
+      border-radius:5px; padding:4px 9px; background:rgba(0,0,0,.3); }
+    .fld b { color:var(--t2); font-weight:500; }
+    .storeh { display:flex; align-items:center; gap:10px; margin:26px 0 10px; }
+    .storeh .t { font-family:ui-monospace,monospace; font-weight:600; font-size:9px; letter-spacing:1.1px; color:#6b5f4c; }
+    .storeh .l { flex:1; height:1px; background:rgba(201,168,76,.12); }
+    .cbtbl td.nul { color:#3d3a33; font-style:italic; }
+
+    /* the inspector */
+    .ih { font-family:ui-monospace,monospace; font-weight:600; font-size:9px; letter-spacing:1.4px; color:#6b5f4c; margin:0 0 10px; }
+    .ih.sp { margin-top:22px; }
+    .kv { display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+    .kv .k { font-family:ui-monospace,monospace; font-size:10px; color:#6b5f4c; }
+    .kv .v { font-family:ui-monospace,monospace; font-weight:500; font-size:10.5px; color:var(--t2); text-align:right; }
+    .kv .v.g { color:var(--gold-b); } .kv .v.grn { color:var(--content); }
+    .kv .v.aa { font-family:var(--ar); font-size:14px; }
+    .tchip { display:block; font-family:ui-monospace,monospace; font-size:10px; color:var(--gold);
+      border:1px solid rgba(201,168,76,.18); border-radius:5px; padding:7px 10px; margin-top:6px;
+      background:rgba(0,0,0,.35); overflow-wrap:anywhere; }
+    .tchip.dim { opacity:.55; } .tchip small { color:#6b5f4c; }
+    .src { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+    .src .nm { font-size:11px; color:var(--t2); flex:1; overflow-wrap:anywhere; }
+    .src .ag { font-family:ui-monospace,monospace; font-weight:600; font-size:8.5px; color:var(--content); }
+    .src .ag.p { color:var(--gold-b); }
+    .src .agn { font-family:ui-monospace,monospace; font-size:9px; color:#6b5f4c; width:20px; text-align:right; }
+    .note .mono { font-family:ui-monospace,monospace; color:var(--t2); margin-right:5px; }
+
+    /* the root strip's three states */
+    .pill { font-family:ui-monospace,monospace; font-weight:500; font-size:10px; padding:5px 11px; border-radius:20px;
+      border:1px solid rgba(201,168,76,.3); color:var(--gold); white-space:nowrap; }
+    .pill.grn { color:var(--content); border-color:rgba(77,217,168,.4); }
+    .pill.unk { color:var(--err); border-color:rgba(224,120,92,.4); }
 
     /* root dashboard */
     .rd { border:1px solid var(--bd-hi); border-radius:13px; background:linear-gradient(180deg,#161512,#0c0c0c); padding:15px 17px; }
@@ -541,6 +940,76 @@ const STREAM_LABELS: Record<string, { ar: string; en: string; hint: string }> = 
     .qcard { border:1px solid rgba(77,217,168,.28); border-left:3px solid var(--content); border-radius:9px; background:rgba(77,217,168,.04); padding:10px 12px; }
     .qcard .qk { font-family:ui-monospace,monospace; font-size:9px; color:var(--content); text-transform:uppercase; }
     .qcard .qp { font-size:12.5px; color:var(--text); margin-top:3px; } .qcard .qx { font-size:11px; color:var(--t3); margin-top:4px; }
+
+    /* ── unmeasured · the plane has read nothing here ── */
+    .unm { color:var(--t3) !important; font-style:italic; }
+    .pbar.unm, .o.unm { background:transparent; border:1px dashed rgba(224,120,92,.3); box-sizing:border-box; }
+    .qp.unm { font-style:italic; }
+    .drift { font-family:ui-monospace,monospace; font-size:8px; letter-spacing:.6px; text-transform:uppercase;
+      color:var(--err); border:1px solid rgba(224,120,92,.4); border-radius:9px; padding:1px 6px; }
+
+    /* ── the recursion's scopes ── */
+    .scopetabs { display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 14px; }
+    .st { display:flex; flex-direction:column; gap:1px; text-align:left; cursor:pointer; font-family:inherit;
+      background:#0f0f0f; border:1px solid var(--bd); border-radius:11px; padding:8px 13px; color:var(--t2); }
+    .st:hover { border-color:var(--bd-hi); }
+    .st.on { border-color:var(--gold-b); background:linear-gradient(180deg,#1a1710,#0f0f0f); }
+    .star { font-family:var(--ar); font-size:15px; color:var(--gold-b); }
+    .sten { font-family:var(--serif); font-size:12px; color:var(--text); }
+    .stn { font-family:ui-monospace,monospace; font-size:8.5px; color:var(--t3); }
+
+    /* ── a band and its sub-layers ── */
+    .bnd { border:1px solid var(--bd); border-radius:12px; margin-bottom:10px; overflow:hidden; }
+    .bndh { display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; padding:9px 13px;
+      background:linear-gradient(90deg,#16150f,#0d0d0d); border-bottom:1px solid rgba(255,255,255,.05); }
+    .bndn { font-family:ui-monospace,monospace; font-size:9px; color:#2a2205; background:var(--gold-b);
+      border-radius:5px; padding:2px 6px; font-weight:700; }
+    .bndk { font-family:ui-monospace,monospace; font-size:10px; letter-spacing:1px; color:var(--gold-b); }
+    .bndar { font-family:var(--ar); font-size:15px; color:var(--t2); }
+    .bndt { font-family:var(--serif); font-size:12.5px; color:var(--text); }
+    .bndc { font-family:ui-monospace,monospace; font-size:9.5px; color:var(--t3); margin-left:auto; }
+    .bsubs { display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:1px; background:rgba(255,255,255,.05); }
+    .bsub { display:flex; flex-direction:column; gap:2px; text-align:left; cursor:pointer; font-family:inherit;
+      background:#0e0e0e; border:none; border-top:2px solid var(--blocked); padding:9px 11px; color:var(--t2); }
+    .bsub:hover { background:#141414; }
+    .bsub.sel { outline:2px solid var(--gold-b); outline-offset:-2px; }
+    .bsub[data-state="filled"] { border-top-color:var(--ready); }
+    .bsub[data-state="empty"]  { border-top-color:#2a2a2a; }
+    .bsub[data-state="unknown"]{ border-top-color:var(--err); }
+    .bsn { font-family:ui-monospace,monospace; font-size:15px; font-weight:700; color:var(--text); line-height:1; }
+    .bsub[data-state="empty"] .bsn { color:#3a3a3a; }
+    .bsub[data-state="unknown"] .bsn { color:var(--err); }
+    .bsc { font-family:ui-monospace,monospace; font-size:8px; color:var(--t3); }
+    .bsl { font-size:10.5px; color:var(--t2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .note .k.unknown { font-family:ui-monospace,monospace; color:var(--err); font-weight:700; }
+
+    /* ── a carrier, rendered as the table it is ── */
+    .cb { border:1px solid var(--bd); border-radius:12px; margin-bottom:12px; overflow:hidden; }
+    .cbh { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; padding:9px 13px;
+      background:linear-gradient(90deg,#141414,#0d0d0d); border-bottom:1px solid rgba(255,255,255,.06); }
+    .cbb { font-family:ui-monospace,monospace; font-size:9px; color:#2a2205; background:var(--gold-b);
+      border-radius:5px; padding:2px 6px; font-weight:700; }
+    .cbt { font-family:ui-monospace,monospace; font-size:12px; color:var(--gold-b); }
+    .cbd { font-family:ui-monospace,monospace; font-size:9px; color:var(--t3); }
+    .cbn { font-family:ui-monospace,monospace; font-size:9.5px; color:var(--t2); margin-left:auto; }
+    .cbn em { color:var(--err); font-style:normal; margin-left:5px; }
+    .cbw { overflow-x:auto; max-height:520px; overflow-y:auto; }
+    .cbtbl { border-collapse:collapse; width:100%; font-size:11.5px; }
+    .cbtbl th { position:sticky; top:0; background:#101010; font-family:ui-monospace,monospace; font-size:8.5px;
+      letter-spacing:.5px; text-transform:uppercase; color:var(--t3); text-align:left; padding:6px 9px;
+      border-bottom:1px solid var(--bd); white-space:nowrap; }
+    /* overflow-wrap:anywhere also shrinks a column's intrinsic width, which set
+       the id column one character wide and made every row as tall as its id was
+       long. break-word wraps the long prose the same way without touching the
+       min-content size. */
+    .cbtbl td { padding:6px 9px; border-bottom:1px solid rgba(255,255,255,.05); color:var(--t2);
+      vertical-align:top; min-width:72px; max-width:380px; overflow-wrap:break-word; }
+    /* A carrier's prose columns run to paragraphs. Three lines is enough to
+       recognise the row; the whole value is on the cell's title. */
+    .cbtbl .cv { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+      overflow:hidden; line-height:1.45; }
+    .cbtbl td.ar { font-family:var(--ar); font-size:15px; color:var(--arab); direction:rtl; text-align:right; }
+    .cbtbl tr:hover td { background:rgba(201,168,76,.05); }
   `],
 })
 export class CybMapComponent {
@@ -550,7 +1019,21 @@ export class CybMapComponent {
   readonly surahs = signal<Surah[]>([]);
   readonly error = signal<string | null>(null);
   private readonly treeRoots = signal<CybNode[]>([]);
-  private readonly matrix = signal<StagingMatrix | null>(null);
+  /** The layer registry — the ONE taxonomy of stream-systems. */
+  private readonly layerRegistry = signal<CybLayerRow[]>([]);
+  /** The AL carrier registry: scopes → bands → sub-layers. */
+  readonly layerModel = signal<LayerModel | null>(null);
+  /** Which scope of the recursion the band strip is showing. */
+  readonly scope = signal('root');
+  /** This root's live carrier counts for the open scope. Null while in flight. */
+  readonly rootFill = signal<RootFillCell[] | null>(null);
+  /** What the selected sub-layer's carrier holds. Null while in flight. */
+  readonly subRows = signal<RootCarrierRows[] | null>(null);
+  /** What a non-vocabulary stream's carriers hold. Null while in flight. */
+  readonly carrierBands = signal<NodeCarrierRows[] | null>(null);
+  /** Column order is not meaningful across carriers, so it is settled once per
+   *  table from the first row and reused for the rest. */
+  private readonly columnCache = new Map<string, string[]>();
 
   // ── URL is the source of truth for where you are in the drill ──
   private readonly route = inject(ActivatedRoute);
@@ -586,6 +1069,14 @@ export class CybMapComponent {
   readonly selMemletKind = signal<string | null>(null);
   readonly verseRoots = signal<PassageRoot[]>([]);
   readonly selQuestionKind = signal<string | null>(null);
+  /** The identity cards behind the root tiles, keyed by every spelling the
+   *  carrier answers to. Null until the read returns, so a tile can tell
+   *  "not fetched yet" from "fetched, and this root has no card". */
+  readonly rootGlosses = signal<Map<string, RootGloss> | null>(null);
+  readonly glossesLoaded = computed(() => this.rootGlosses() !== null);
+  readonly hoverRoot = signal<string | null>(null);
+  /** The root's own senses and who attested them — the 360° layer. */
+  readonly senseBundle = signal<RootSenseBundle | null>(null);
 
   private readonly flat = computed<CybNode[]>(() => {
     const out: CybNode[] = [];
@@ -595,20 +1086,27 @@ export class CybMapComponent {
   });
 
   readonly flatNodes = computed<CybNode[]>(() => this.flat());
+  readonly axes = CYB_AXES;
   readonly activeCount = computed(() =>
     this.flat().filter((n) => n.scale === 'surah' && n.build_pct > 0).length);
 
-  // The Qurʾān's own reading: the rollup over all 114 surahs, an un-instantiated
-  // one reporting 0. Real work at a leaf lands under 1% up here, so it is shown
-  // to two decimals rather than rounded away to nothing.
-  readonly quranPct = computed(() => {
-    const list = this.surahs();
-    if (!list.length) return '0';
-    const sum = list.reduce((a, s) => a + (this.surahNode(s.id)?.build_pct ?? 0), 0);
-    const v = sum / list.length;
-    if (!v) return '0';
-    return v >= 10 ? String(Math.round(v)) : v >= 1 ? v.toFixed(1) : v.toFixed(2);
+  // The Qurʾān's own reading: the mean over the surahs a sensor has actually
+  // read. Averaging the un-instantiated ones in as zero reported the corpus at
+  // a fraction of what was measured; a surah nobody has sensed is unknown, not
+  // zero. Real work at a leaf lands under 1% up here, so it is shown to two
+  // decimals rather than rounded away to nothing.
+  readonly quranBuild = computed<{ pct: number; measured: boolean; n: number }>(() => {
+    const read = this.surahs()
+      .map((s) => this.surahNode(s.id))
+      .filter((n): n is CybNode => !!n && n.build_measured === 1);
+    if (!read.length) return { pct: 0, measured: false, n: 0 };
+    return {
+      pct: read.reduce((a, n) => a + n.build_pct, 0) / read.length,
+      measured: true,
+      n: read.length,
+    };
   });
+  readonly quranPct = computed(() => this.fmt(this.quranBuild().pct));
 
   readonly current = computed<CybNode[]>(() => {
     if (this.streamParam()) return this.stageNodeCur()?.children ?? [];
@@ -620,7 +1118,33 @@ export class CybMapComponent {
     return p ? this.crumbLabel(p) : '';
   });
 
-  readonly subLayers = computed<SubLayer[]>(() => this.matrix()?.sub_layers ?? []);
+  /**
+   * The stream-systems for the open passage.
+   *
+   * The registry declares which layers a passage is worked through, so the list
+   * is that — plus any layer the control plane has instantiated that the
+   * registry has not heard of. Drift must render, not vanish.
+   */
+  readonly streamRows = computed<StreamRow[]>(() => {
+    const reg = this.layerRegistry();
+    const staged = this.passageNodeCur()?.children ?? [];
+    const keys = reg.map((l) => l.layer_key);
+    const extra = staged.map((n) => n.layer ?? '').filter((k) => k && !keys.includes(k));
+    return [...keys, ...extra].map((layer) => ({
+      layer,
+      node: staged.find((n) => n.layer === layer),
+      reg: reg.find((l) => l.layer_key === layer),
+    }));
+  });
+
+  /** The bands of the open scope, in registry order. */
+  readonly scopeBands = computed<LayerModelBand[]>(() =>
+    (this.layerModel()?.layers ?? []).filter((b) => b.scope === this.scope()));
+
+  readonly scopeSubs = computed<LayerModelSub[]>(() =>
+    this.scopeBands().flatMap((b) => b.subs));
+
+  readonly fillPending = computed(() => this.rootFill() === null);
 
   constructor() {
     // Every URL change re-derives the view and pulls only what that level needs.
@@ -635,21 +1159,69 @@ export class CybMapComponent {
       if (rn && rn !== prevRoot) {
         this.rootTab.set('layers'); this.selLayer.set(null);
         this.selMemletKind.set(null); this.selQuestionKind.set(null);
-        this.rootDetail.set(null);
+        this.rootDetail.set(null); this.subRows.set(null); this.senseBundle.set(null);
+        this.scope.set('root');
         this.svc.rootDetail(rn).subscribe({ next: (d) => this.rootDetail.set(d), error: () => {} });
+        // Who attested this root's senses — the inspector's 360° panel.
+        this.svc.rootSenses(rn).subscribe({
+          next: (b) => this.senseBundle.set(b),
+          error: () => this.senseBundle.set({ root: rn, senses: [], arcs: [], steps: [], attestations: [] }),
+        });
+        this.loadRootFill(rn);
       }
+      if (!rn) { this.rootFill.set(null); this.subRows.set(null); }
+      // A non-vocabulary stream shows what its carriers hold, not the plane's
+      // own child nodes. The read is per passage node and per layer.
+      const st = this.streamParam();
+      if (st && st !== 'vocabulary' && this.view() === 'pieces') this.loadCarrierBands();
+      else this.carrierBands.set(null);
     });
 
-    forkJoin({ surahs: this.svc.surahs(), tree: this.svc.tree(), matrix: this.svc.stagingMatrix() }).subscribe({
-      next: ({ surahs, tree, matrix }) => {
+    forkJoin({
+      surahs: this.svc.surahs(),
+      tree: this.svc.tree(),
+      layers: this.svc.layers('quran'),
+      model: this.svc.layerModel(),
+    }).subscribe({
+      next: ({ surahs, tree, layers, model }) => {
         this.surahs.set(surahs.sort((a, b) => a.id - b.id));
         this.treeRoots.set(tree.roots);
-        this.matrix.set(matrix);
+        this.layerRegistry.set(layers.layers);
+        this.layerModel.set(model);
         const sid = this.surahId();
         if (sid && !this.units().length) this.loadStudyGrid(sid);
         if (this.streamParam() === 'vocabulary' && this.passageNo()) this.loadVerseRoots();
+        const st = this.streamParam();
+        if (st && st !== 'vocabulary' && this.view() === 'pieces') this.loadCarrierBands();
       },
       error: (e) => this.error.set(String(e?.message ?? e)),
+    });
+  }
+
+  // ── the registries, read per open thing ──
+  private loadRootFill(root: string) {
+    this.rootFill.set(null);
+    this.svc.rootFillScope(root, this.scope()).subscribe({
+      next: (f) => this.rootFill.set(f.root_fill),
+      error: () => this.rootFill.set([]),
+    });
+  }
+  /** Switching scope re-counts: one scope is still only what is on screen. */
+  setScope(key: string) {
+    if (this.scope() === key) return;
+    this.scope.set(key);
+    this.selLayer.set(null); this.subRows.set(null);
+    const rn = this.rootParam();
+    if (rn) this.loadRootFill(rn);
+  }
+  private loadCarrierBands() {
+    const u = this.selUnit(); const st = this.streamParam();
+    const node = this.passageNodeCur();
+    if (!u || !st || !node) { this.carrierBands.set([]); return; }
+    this.carrierBands.set(null);
+    this.svc.nodeRows(node.id, st).subscribe({
+      next: (r) => this.carrierBands.set(r.carriers),
+      error: () => this.carrierBands.set([]),
     });
   }
 
@@ -663,11 +1235,178 @@ export class CybMapComponent {
     return this.flat().find((n) => n.scale === 'passage' && (n.target_ref ?? '').replace(/^QR:SP:/, '') === key);
   }
 
-  // ── staging overlays for the root dashboard ──
-  rootCells(rn: string): StageCell[] { return (this.matrix()?.cells ?? []).filter((c) => c.root_norm === rn); }
-  cellFor(rn: string, sub: string): StageCell | undefined { return this.rootCells(rn).find((c) => c.sub_code === sub); }
-  rootRollup(rn: string) { return (this.matrix()?.roots ?? []).find((r) => r.root_norm === rn); }
-  memletCount(rn: string): number { return this.cellFor(rn, '72-MEM')?.n ?? 0; }
+  // ── the four outputs, read the way the plane measures them ──
+  /** Whether a sensor has actually read this axis. A node with no reading is
+   *  *unknown* on it, which every screen has to say rather than print zero. */
+  measured(n: CybNode | null | undefined, axis: CybAxis): boolean {
+    if (!n) return false;
+    const flag = axis === 'build' ? n.build_measured
+      : axis === 'study' ? n.study_measured
+      : axis === 'content' ? n.content_measured
+      : n.retention_measured;
+    return flag === 1;
+  }
+  axisPct(n: CybNode | null | undefined, axis: CybAxis): number {
+    if (!n) return 0;
+    return axis === 'build' ? n.build_pct : axis === 'study' ? n.study_pct
+         : axis === 'content' ? n.content_pct : n.retention_pct;
+  }
+  axisLabel(a: CybAxis): string { return a === 'retention' ? 'Retn' : a[0].toUpperCase() + a.slice(1); }
+  /** The one-letter form the surah tiles use — B · S · C · R. */
+  axisInitial(a: CybAxis): string { return a === 'retention' ? 'R' : a[0].toUpperCase(); }
+  axisColor(a: CybAxis): string {
+    return a === 'build' ? 'var(--build)' : a === 'study' ? 'var(--study)'
+         : a === 'content' ? 'var(--content)' : 'var(--retn)';
+  }
+  /** What the build line under a cell says. The three cases are different
+   *  claims: never sensed, sensed and found nothing, sensed and found work. */
+  buildLabel(n: CybNode | null | undefined): string {
+    if (!this.measured(n, 'build')) return 'not measured';
+    return n!.build_pct > 0 ? `build ${n!.build_pct}%` : 'not started';
+  }
+  /** A sliver, so a non-zero rollup is still visible on the track. */
+  bar(v: number): number { return v > 0 ? Math.min(100, Math.max(0.9, v)) : 0; }
+  fmt(v: number): string {
+    if (v <= 0) return '0';
+    if (v >= 10) return String(Math.round(v));
+    return v >= 1 ? v.toFixed(1) : v.toFixed(2);
+  }
+
+  // ── the registry's bands, filled off this root's carriers ──
+  /** Null when the sub-layer has no audited carrier binding — unknown, which is
+   *  not the same as a carrier that was read and holds nothing. */
+  fillFor(sub: string): RootFillCell | null {
+    return (this.rootFill() ?? []).find((f) => f.sub_code === sub) ?? null;
+  }
+  fillState(sub: string): 'unknown' | 'empty' | 'filled' {
+    const f = this.fillFor(sub);
+    if (!f) return 'unknown';
+    return f.rows > 0 ? 'filled' : 'empty';
+  }
+  bandFilled(b: LayerModelBand): number {
+    return b.subs.filter((sl) => this.fillState(sl.sub_code) === 'filled').length;
+  }
+  filledSubs(): number {
+    return this.scopeSubs().filter((sl) => this.fillState(sl.sub_code) === 'filled').length;
+  }
+  /** Read and holds nothing — a measured zero. */
+  emptySubs(): number {
+    return this.scopeSubs().filter((sl) => this.fillState(sl.sub_code) === 'empty').length;
+  }
+  /** No audited carrier binding. Nobody has said where these rows would live,
+   *  so the count is unknown — the one state a build plan has to act on. */
+  unknownSubs(): number {
+    return this.scopeSubs().filter((sl) => this.fillState(sl.sub_code) === 'unknown').length;
+  }
+  /** The registry row for the open sub-layer, and the band that declares it. */
+  selSub(): LayerModelSub | undefined {
+    const code = this.selLayer();
+    return code ? this.scopeSubs().find((sl) => sl.sub_code === code) : undefined;
+  }
+  selBand(): LayerModelBand | undefined {
+    const code = this.selLayer();
+    return code ? this.scopeBands().find((b) => b.subs.some((sl) => sl.sub_code === code)) : undefined;
+  }
+  /** What the read actually found on this named table, so the chip is a
+   *  reading rather than a restatement of the registry. */
+  carrierNote(table: string): string {
+    const c = (this.subRows() ?? []).find((x) => x.carrier_table === table);
+    if (!c) return 'not read for this root';
+    return `${c.bind_col} · ${c.total} row${c.total === 1 ? '' : 's'}`;
+  }
+  /** Columns NULL in every row read. Naming them is the point of reading a row
+   *  as columns: a field that is empty everywhere is a build gap, and it is
+   *  invisible once the row is rendered as content. */
+  nullColumns(c: RootCarrierRows): string[] {
+    return this.columnsOfRoot(c).filter((col) =>
+      c.rows.every((r) => r[col] === null || r[col] === undefined || r[col] === ''));
+  }
+  /** The root's own identity card, when the grid already read it. */
+  rootCard(): RootGloss | undefined {
+    const rn = this.selRootNorm();
+    return rn ? this.glossFor(rn) : undefined;
+  }
+  /** Who stands behind this root's senses, folded to one line per source.
+   *  A source that both supports and qualifies shows its weaker stance — the
+   *  panel is there to surface disagreement, not to round it away. */
+  attestSources(): { slug: string; agreement: string; n: number }[] {
+    const by = new Map<string, { slug: string; agreement: string; n: number }>();
+    for (const a of this.senseBundle()?.attestations ?? []) {
+      const cur = by.get(a.source_slug);
+      if (!cur) { by.set(a.source_slug, { slug: a.source_slug, agreement: a.agreement, n: 1 }); continue; }
+      cur.n++;
+      if (a.agreement !== 'supports') cur.agreement = a.agreement;
+    }
+    return [...by.values()].sort((a, b) => b.n - a.n || a.slug.localeCompare(b.slug));
+  }
+
+  // ── a carrier row, read as content ──
+  // The carriers have no common shape, so this picks the glossed text out of
+  // whatever columns a row happens to have rather than assuming a schema:
+  // *_ar / *_en / *_ur carry the reading, a short flag column becomes a badge,
+  // and everything else that holds a value becomes a field chip. Anything NULL
+  // is left out here and named under the stored table instead.
+  readRow(row: Record<string, unknown>): {
+    ar: string; en: string; ur: string;
+    badges: { k: string; v: string; core: boolean; ok: boolean }[];
+    fields: { k: string; v: string; full: string }[];
+  } {
+    const str = (v: unknown) => (v === null || v === undefined) ? '' : String(v);
+    const cols = Object.keys(row);
+    const pick = (suffix: string) => {
+      const c = cols.find((k) => k.endsWith(suffix) && str(row[k]).trim() !== '');
+      return c ? str(row[c]) : '';
+    };
+    const arCol = cols.find((k) => k.endsWith('_ar') && str(row[k]).trim() !== '');
+    const enCol = cols.find((k) => k.endsWith('_en') && str(row[k]).trim() !== '');
+    const urCol = cols.find((k) => k.endsWith('_ur') && str(row[k]).trim() !== '');
+    const BADGE = ['is_core', 'status', 'confidence', 'sense_key', 'relation', 'agreement'];
+    const SKIP = new Set([arCol, enCol, urCol, 'id', 'created_at', 'updated_at', 'canonical_id']);
+    const badges = BADGE.filter((k) => cols.includes(k) && str(row[k]).trim() !== '').map((k) => {
+      const v = str(row[k]);
+      return { k, v, core: k === 'is_core' && v === '1', ok: k === 'status' && (v === 'live' || v === 'published') };
+    });
+    badges.forEach((b) => SKIP.add(b.k));
+    const fields = cols.filter((k) => !SKIP.has(k) && str(row[k]).trim() !== '').map((k) => {
+      const full = this.fullText(row[k]);
+      return { k, v: full.length > 48 ? full.slice(0, 48) + '…' : full, full };
+    });
+    return { ar: pick('_ar'), en: pick('_en'), ur: pick('_ur'), badges, fields };
+  }
+  /** A slot with one table names it; the catch-all slots hold dozens, and
+   *  naming only the first would read as a claim that the rest do not exist. */
+  carrierLabel(sl: LayerModelSub): string {
+    if (!sl.tables.length) return 'no carrier';
+    return sl.tables.length === 1 ? sl.tables[0] : `${sl.tables.length} tables`;
+  }
+  memletCount(): number { return this.rootDetail()?.memlets.length ?? 0; }
+
+  // ── carrier rows, rendered as the tables they are ──
+  columnsOf(b: NodeCarrierRows): string[] { return this.columns(`n:${b.table_name}`, b.rows); }
+  columnsOfRoot(c: RootCarrierRows): string[] { return this.columns(`r:${c.carrier_table}`, c.rows); }
+  private columns(key: string, rows: Record<string, unknown>[]): string[] {
+    const cached = this.columnCache.get(key);
+    if (cached) return cached;
+    const cols = rows.length ? Object.keys(rows[0]) : [];
+    this.columnCache.set(key, cols);
+    return cols;
+  }
+  carrierRowCount(): number {
+    return (this.carrierBands() ?? []).reduce((a, b) => a + b.rows.length, 0);
+  }
+  /** The whole value, for the cell's tooltip — the visible text is clamped. */
+  fullText(v: unknown): string {
+    if (v === null || v === undefined) return '';
+    return typeof v === 'object' ? JSON.stringify(v) : String(v);
+  }
+  cellText(v: unknown): string {
+    if (v === null || v === undefined) return '—';
+    const t = typeof v === 'object' ? JSON.stringify(v) : String(v);
+    return t.length > 220 ? t.slice(0, 220) + '…' : t;
+  }
+  isArabic(v: unknown): boolean {
+    return typeof v === 'string' && /[\u0600-\u06FF]/.test(v);
+  }
 
   // ── navigation ──
   private loadStudyGrid(surahId: number) {
@@ -683,18 +1422,39 @@ export class CybMapComponent {
     if (pnode && pnode.children.length) this.router.navigate(['/cybernetics/map', this.surahId(), u.passage_no]);
     else this.router.navigate(['/quran/surahs', this.surahId(), 'study', u.passage_no]);
   }
-  drill(n: CybNode) {
-    if (!n.children.length && n.layer !== 'vocabulary') return;
-    this.router.navigate(['/cybernetics/map', this.surahId(), this.passageNo(), n.layer]);
-  }
   /** The passage's UNIQUE roots, straight from its āyāt (no duplicates). */
   private loadVerseRoots() {
     const sid = this.surahId(); const pno = this.passageNo();
     if (!sid || !pno) { this.verseRoots.set([]); return; }
-    this.verseRoots.set([]);
+    this.verseRoots.set([]); this.rootGlosses.set(null);
     this.svc.passageRoots(sid, pno).subscribe({
-      next: (r) => this.verseRoots.set(r), error: () => this.verseRoots.set([]),
+      next: (r) => { this.verseRoots.set(r); this.loadRootGlosses(r.map((x) => x.root)); },
+      error: () => { this.verseRoots.set([]); this.rootGlosses.set(new Map()); },
     });
+  }
+  /** One read for every tile's card. A root the carrier has no row for simply
+   *  has no card — the tile says that rather than showing a blank line. */
+  private loadRootGlosses(roots: string[]) {
+    if (!roots.length) { this.rootGlosses.set(new Map()); return; }
+    this.svc.rootGlosses(roots).subscribe({
+      next: (g) => {
+        const m = new Map<string, RootGloss>();
+        // Key on both spellings the carrier stores: the passage's root list is
+        // normalized, the carrier's own root_text may not be.
+        for (const r of g.roots) {
+          if (r.root_normalized) m.set(r.root_normalized, r);
+          if (r.root_text) m.set(r.root_text, r);
+        }
+        this.rootGlosses.set(m);
+      },
+      error: () => this.rootGlosses.set(new Map()),
+    });
+  }
+  glossFor(rn: string): RootGloss | undefined { return this.rootGlosses()?.get(rn); }
+  /** What the tile's corner says about build: a percent, or that no sensor
+   *  has read it. Never a bare 0 standing in for unknown. */
+  pctLabel(n: CybNode | null | undefined): string {
+    return this.measured(n, 'build') ? `${n!.build_pct}%` : '—';
   }
   /** The cyb node carrying this root's outputs — prefer the real root piece. */
   cybNodeForRoot(rn: string): CybNode | undefined {
@@ -712,14 +1472,27 @@ export class CybMapComponent {
   goSurah()   { this.router.navigate(['/cybernetics/map', this.surahId()]); }
   goPassage() { this.router.navigate(['/cybernetics/map', this.surahId(), this.passageNo()]); }
   goStream()  { this.router.navigate(['/cybernetics/map', this.surahId(), this.passageNo(), this.streamParam()]); }
-  selectLayer(sub: string) { this.selLayer.set(sub); this.rootTab.set('layers'); }
-  showAllLayers() { this.selLayer.set(null); this.rootTab.set('layers'); }
+  /** Opening a sub-layer reads its carrier. Deliberately on open: a root screen
+   *  shows one sub-layer at a time, and reading all of them would throw most of
+   *  that work away. */
+  selectLayer(sub: string) {
+    this.rootTab.set('layers');
+    const rn = this.rootParam();
+    if (this.selLayer() === sub) { this.selLayer.set(null); this.subRows.set(null); return; }
+    this.selLayer.set(sub); this.subRows.set(null);
+    if (!rn) return;
+    this.svc.rootRows(rn, sub).subscribe({
+      next: (r) => this.subRows.set(r.carriers),
+      error: () => this.subRows.set([]),
+    });
+  }
+  showAllLayers() { this.selLayer.set(null); this.subRows.set(null); this.rootTab.set('layers'); }
   showAllMemlets() { this.selMemletKind.set(null); this.rootTab.set('memlets'); }
   showAllQuestions() { this.selQuestionKind.set(null); this.rootTab.set('questions'); }
   /** What the content pane below the strips is currently showing. */
   paneTitle(): string {
     const t = this.rootTab();
-    if (t === 'layers') return this.selLayer() ? `Claims · ${this.selLayer()}` : 'All claims · every information layer';
+    if (t === 'layers') return this.selLayer() ? `Carrier · ${this.selLayer()}` : 'Pick a sub-layer to read its carrier';
     if (t === 'memlets') return this.selMemletKind() ? `Memlet · ${this.selMemletKind()}` : 'All memlets · the Membean page';
     return this.selQuestionKind() ? `Questions · ${this.selQuestionKind()}` : 'All questions · the bank';
   }
@@ -727,7 +1500,6 @@ export class CybMapComponent {
   selectQuestionKind(k: string) { this.selQuestionKind.set(k); this.rootTab.set('questions'); }
 
   // ── family coverage (filled / total), rendered identically for all three ──
-  infoFilled(rn: string): number { return this.rootCells(rn).filter((c) => c.n > 0).length; }
   memFilled(): number {
     const d = this.rootDetail();
     return d ? new Set(d.memlets.map((m) => m.memlet_key)).size : 0;
@@ -772,15 +1544,6 @@ export class CybMapComponent {
     return kind === 'image' ? '🖼' : kind === 'video' ? '🎬' : kind === 'audio' ? '🔊' : '📎';
   }
 
-  // Layers with claims (filtered to the selected layer, if any), ordered by registry.
-  visibleLayers(): { sub_code: string; name_en: string; claims: RootClaim[] }[] {
-    const d = this.rootDetail();
-    if (!d) return [];
-    const sel = this.selLayer();
-    return d.sub_layers
-      .map((sl) => ({ sub_code: sl.sub_code, name_en: sl.name_en, claims: d.claims.filter((c) => c.sub_code === sl.sub_code) }))
-      .filter((x) => x.claims.length && (!sel || x.sub_code === sel));
-  }
   /** Membean panels for one column, each carrying its matching memlets. */
   panelsFor(col: 'l' | 'r'): { key: string; en: string; ar: string; items: RootMemlet[] }[] {
     const d = this.rootDetail();
@@ -798,26 +1561,27 @@ export class CybMapComponent {
     return d.memlets.filter((m) => !known.has(m.memlet_key));
   }
   memletsN(): number { return this.rootDetail()?.memlets.length ?? 0; }
-  claimsN(): number { return this.rootDetail()?.claims.length ?? 0; }
-  /** Claims carrying all three languages — the AR/EN/UR contract. */
-  trilingualN(): number {
-    return (this.rootDetail()?.claims ?? []).filter((c) => c.quote_ar && c.gloss_en && c.gloss_ur).length;
-  }
   questionsN(): number { return this.rootDetail()?.questions.length ?? 0; }
 
-  // ── labels ──
-  streamLabelKey(key: string) { return STREAM_LABELS[key] ?? { ar: '', en: key, hint: '' }; }
-  streamLabel(n: CybNode) { return STREAM_LABELS[n.layer ?? ''] ?? { ar: '', en: n.layer ?? n.scale, hint: '' }; }
+  // ── labels · all from cyb_layer, never from a list in this file ──
+  streamLabelKey(key: string): { ar: string; en: string; hint: string } {
+    const l = this.layerRegistry().find((x) => x.layer_key === key);
+    return {
+      ar: l?.name_ar ?? '',
+      en: l?.name_en ?? key.replace(/_/g, ' '),
+      hint: l?.hint ?? 'declared by the control plane',
+    };
+  }
+  streamLabel(n: CybNode) { return this.streamLabelKey(n.layer ?? ''); }
   streamColor(layer: string | null): string {
-    switch (layer) {
-      case 'vocabulary': return 'var(--build)';
-      case 'reading': return '#e8b45c';
-      case 'ss': return 'var(--study)';
-      case 'structure': return 'var(--retn)';
-      case 'tafsir': return 'var(--content)';
-      case 'worldview': return 'var(--retn)';
-      default: return 'var(--gold-d)';
-    }
+    return this.layerRegistry().find((x) => x.layer_key === layer)?.color_hex ?? 'var(--gold-d)';
+  }
+  /** Vocabulary always opens — its roots come from the āyāt, not from a staged
+   *  node. Every other stream opens onto its carriers, which exist or do not,
+   *  and that is answered by opening it. */
+  openable(r: StreamRow): boolean { return true; }
+  drillLayer(layer: string) {
+    this.router.navigate(['/cybernetics/map', this.surahId(), this.passageNo(), layer]);
   }
   crumbLabel(n: CybNode): string {
     if (n.scale === 'passage') return (n.target_ref ?? '').replace(/^QR:SP:/, '');
@@ -827,12 +1591,4 @@ export class CybMapComponent {
   }
   rootNorm(n: CybNode): string { return (n.target_ref ?? '').split(':').pop() ?? n.id; }
   short(sub: string): string { return sub.split('-').pop() ?? sub; }
-  shade(v: number): string {
-    if (v <= 0) return '#0d0d0d';
-    if (v <= 2) return '#6e5a1f';
-    if (v <= 4) return '#a5842f';
-    if (v <= 6) return '#c79f3a';
-    if (v <= 9) return '#dcb44a';
-    return '#e8c96a';
-  }
 }
