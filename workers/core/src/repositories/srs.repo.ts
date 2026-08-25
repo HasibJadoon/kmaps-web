@@ -367,6 +367,46 @@ export class SrsRepo {
     return this.findCard(id);
   }
 
+  /**
+   * Record where in the muṣḥaf a card's root lives.
+   *
+   * `core_srs_card_surah` is what lets a root card pass a sūra filter. An āyah
+   * card names its sūra in `resource_ref`; a root card's ref is
+   * `AL:root:<uid>`, which names none, so without a row here it is invisible to
+   * every sūra-scoped query. The table was read in two places and written in
+   * none — which is why Ghāfir's 66 root cards returned nothing.
+   *
+   * `is_intro` marks where the learner MET it, not the earliest sūra it occurs
+   * in. Those are different claims and only the first one is true: كتب occurs
+   * in 61 sūras beginning with al-Baqara, but a learner who met it in Ghāfir
+   * met it in Ghāfir. When the caller does not know, no row is marked — an
+   * unmarked spread is honest, and a guessed intro is not.
+   *
+   * Re-runnable: the spread is replaced, so recording it twice is not an error
+   * and a corrected count overwrites a stale one.
+   */
+  async linkSurahs(
+    cardId: string,
+    spread: { surah: number; n_occur: number }[],
+    introSurah: number | null = null,
+  ): Promise<number> {
+    await execute(this.db, `DELETE FROM core_srs_card_surah WHERE card_id = ?`, [cardId]);
+    const rows = spread.filter((r) => Number.isFinite(r.surah) && r.surah > 0);
+    if (!rows.length) return 0;
+
+    // One statement rather than a round trip per sūra: a common root touches
+    // sixty of them, and D1 charges for each call.
+    const values = rows.map(() => '(?, ?, ?, ?)').join(', ');
+    const args = rows.flatMap((r) => [
+      cardId, r.surah, Math.max(0, Math.trunc(r.n_occur)),
+      introSurah !== null && r.surah === introSurah ? 1 : 0,
+    ]);
+    await execute(this.db,
+      `INSERT INTO core_srs_card_surah (card_id, surah, n_occur, is_intro)
+       VALUES ${values}`, args);
+    return rows.length;
+  }
+
   async deleteCard(id: string): Promise<void> {
     await execute(this.db, `DELETE FROM core_srs_card WHERE id = ?`, [id]);
   }

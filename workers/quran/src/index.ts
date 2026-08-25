@@ -75,6 +75,34 @@ router.post('/qr/internal/sense', async (req, env) => {
   return ok(await sense(env.DB_QR, body));
 });
 
+// Where in the muṣḥaf a root lives, one row per sūra.
+//
+// km_core needs this when it makes a card, because `core_srs_card_surah` is
+// what lets a root card pass a sūra filter at all: an āyah card says its sūra
+// in its own `resource_ref`, and a root card's ref is `AL:root:<uid>`, which
+// names no sūra anywhere. The table was read in two places and written in
+// none, so every root card ever made was invisible to the filter.
+//
+// This is the only database that can answer it — km_quran owns the word
+// occurrences — so core asks rather than binding a second D1, the same rule
+// the sensor engine follows.
+router.post('/qr/internal/root-spread', async (req, env) => {
+  const body = await req.json<{ root?: string }>().catch(() => null);
+  const root = typeof body?.root === 'string' ? body.root.trim() : '';
+  if (!root) return ok({ ok: false, error: 'root is required' });
+
+  const { results } = await env.DB_QR
+    .prepare(`SELECT surah, COUNT(*) AS n_occur
+                FROM qr_word_occurrence
+               WHERE root = ?
+               GROUP BY surah
+               ORDER BY surah`)
+    .bind(root)
+    .all<{ surah: number; n_occur: number }>();
+
+  return ok({ ok: true, root, spread: results ?? [] });
+});
+
 export default {
   fetch: (request: Request, env: QuranEnv) => router.handle(request, env),
 } satisfies ExportedHandler<QuranEnv>;

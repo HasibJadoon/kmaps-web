@@ -105,6 +105,32 @@ function parseJson(raw: string | null): unknown {
   try { return JSON.parse(raw); } catch { return null; }
 }
 
+/**
+ * Where a root lives in the muṣḥaf, asked of the database that knows.
+ *
+ * Only km_quran holds the word occurrences, so core asks over the service
+ * binding rather than binding a second D1 — the domain rule the sensor engine
+ * already follows. A failure here costs the sūra links and nothing else: the
+ * card is still made, and `linkSurahs` can be re-run later to repair it.
+ */
+async function rootSpread(
+  env: CoreEnv, root: string,
+): Promise<{ surah: number; n_occur: number }[]> {
+  if (!env.QURAN || !root) return [];
+  try {
+    const res = await env.QURAN.fetch(new Request(
+      'http://internal.k-maps.local/qr/internal/root-spread',
+      { method: 'POST', body: JSON.stringify({ root }),
+        headers: { 'content-type': 'application/json' } },
+    ));
+    if (!res.ok) return [];
+    const body = await res.json<{ data?: { spread?: { surah: number; n_occur: number }[] } }>();
+    return body?.data?.spread ?? [];
+  } catch {
+    return [];
+  }
+}
+
 function cardToApi(c: SrsCard, params: FSRSParameters) {
   const extra = parseJson(c.extra_json);
   return {
@@ -1286,6 +1312,15 @@ export function srsRoutes(router: Router<CoreEnv>) {
     if (!deck) return notFound(`deck ${deckId}`);
     if (deck.user_ref !== ctx.userId) return forbidden('Not your deck');
 
+    // The root in letters. `resource_ref` carries the typed form
+    // (`AL:root:<uid>`), which cannot be matched against anything storing a
+    // root as letters, so the caller states it plainly or it is not recorded.
+    const rootNorm = str(body?.['root_norm']) ?? null;
+    // Where the learner met it — from the caller, never inferred. See
+    // SrsRepo.linkSurahs on why the earliest sūra is a different claim.
+    const introRaw = Number(body?.['intro_surah']);
+    const introSurah = Number.isInteger(introRaw) && introRaw > 0 ? introRaw : null;
+
     const card = await repo.createCard({
       deck_id: deckId, user_ref: ctx.userId,
       module, resource_type: resourceType, resource_ref: resourceRef,
@@ -1296,7 +1331,21 @@ export function srsRoutes(router: Router<CoreEnv>) {
       back_text: str(body?.['back_text']) ?? '',
       extra_json: body?.['extra'] ? JSON.stringify(body['extra']) : null,
       tags: Array.isArray(body?.['tags']) ? (body['tags'] as string[]).join(',') : null,
+      // A structured card: without these the note types cannot be used at all.
+      note_type_id: str(body?.['note_type_id']) ?? null,
+      fields_json: body?.['fields'] ? JSON.stringify(body['fields']) : null,
+      root_norm: rootNorm,
+      intro_surah: introSurah,
     });
+
+    // A root card names no sūra in its ref, so unless the spread is recorded
+    // here it can never pass a sūra filter. Written after the insert and only
+    // for a card that is about a root — an āyah card already says where it is.
+    if (rootNorm && card.id) {
+      const spread = await rootSpread(env, rootNorm);
+      if (spread.length) await repo.linkSurahs(card.id, spread, introSurah);
+    }
+
     return created(cardToApi(card, buildParams(storedOf(await repo.params(ctx.userId)))));
   });
 
