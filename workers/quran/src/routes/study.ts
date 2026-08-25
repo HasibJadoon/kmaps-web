@@ -14,6 +14,7 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, badRequest } from '../../../shared/src/response';
 import { parseIntParam } from '../../../shared/src/validate';
+import { cached } from '../../../shared/src/cache';
 import type { QuranEnv } from '../env';
 import {
   StudyRepo,
@@ -134,11 +135,22 @@ export function studyRoutes(router: Router<QuranEnv>) {
   // Render-ready, trilingual, tier-merged blocks. The morphology step's grid and
   // deep word modal both bind to these with zero UI logic.
 
-  router.get('/qr/study/morph/grid/:surahId', async (_req, env, { surahId }) => {
-    const s = parseIntParam(surahId);
-    if (!s) return badRequest('Invalid surahId');
-    return ok(await new MorphDisplayRepo(env.DB_QR).grid(s));
-  });
+  // `?from=&to=` narrows to one passage's āyāt. Without them the whole surah
+  // comes back, as before — but a passage view should send them: the lemma tier
+  // now resolves across a service boundary, and a surah is ~30× the lemmas a
+  // passage needs. Edge-cached because the composed result changes only when AL
+  // content does; `?refresh=1` bypasses it after an ingest.
+  router.get('/qr/study/morph/grid/:surahId', (req, env, { surahId }) =>
+    cached(req, async () => {
+      const s = parseIntParam(surahId);
+      if (!s) return badRequest('Invalid surahId');
+      const url = new URL(req.url);
+      const from = parseIntParam(url.searchParams.get('from') ?? '');
+      const to = parseIntParam(url.searchParams.get('to') ?? '');
+      const repo = new MorphDisplayRepo(env.DB_QR, createAlClient(env));
+      return ok(await repo.grid(s, from ?? undefined, to ?? undefined));
+    }),
+  );
 
   router.get(
     '/qr/study/morph/word/:surahId/:ayahNo/:wordIndex',

@@ -13,6 +13,7 @@
 
 import { query, queryOne } from '../../../shared/src/db';
 import { buildFeats, rangeOf, waznOf } from '../lib/morph-card';
+import type { AlClient, ResolvedLemma } from '../clients/al.client';
 
 function hydrate(v: unknown): unknown {
   if (v == null) return null;
@@ -82,7 +83,11 @@ interface SourceRow {
 }
 
 export class MorphDisplayRepo {
-  constructor(private db: D1Database) {}
+  /** `al` is optional so every existing caller keeps working: without it the
+   *  repo serves the word layer alone, which is complete in km_quran. With it,
+   *  the lemma tier is resolved by global id and no lemma content needs to be
+   *  stored here at all. */
+  constructor(private db: D1Database, private al: AlClient | null = null) {}
 
   /** Full word view: head + ordered tier-merged blocks + the sources they cite. */
   async wordView(surah: number, ayah: number, wordIndex: number): Promise<unknown | null> {
@@ -227,49 +232,129 @@ export class MorphDisplayRepo {
 
   /** Grid: promoted content words for a surah (noun/verb cards, never ḥarf).
    *  The card matches the full-surah morphology grid: the QAC occurrence tag is
-   *  joined so the same grammatical-feature chips + range synopsis are shaped. */
-  async grid(surah: number): Promise<unknown[]> {
+   *  joined so the same grammatical-feature chips + range synopsis are shaped.
+   *
+   *  `from`/`to` narrow to one passage's āyāt. The client used to fetch the whole
+   *  surah and filter locally, which is affordable for word rows but not once
+   *  each row's lemma is resolved across a service boundary: surah 40 is ~400
+   *  distinct lemmas against a passage's ~13.
+   *
+   *  When an AlClient is supplied, the lemma tier is resolved by global id and
+   *  wins over the display-table columns. Those columns are the transitional
+   *  fallback and go away with the tables; AL is the source. If the AL call
+   *  fails the card degrades to what km_quran holds rather than going blank. */
+  async grid(surah: number, from?: number, to?: number): Promise<unknown[]> {
     type GridRow = WordRow & LemmaTierRow & {
       sense_arc_en: string | null;
       sense_range_en: string | null;
       verb_form_ar: string | null;
       morphology_tag_json: string | null;
+      /** The AL global id ('AL:{26-hex}'), from qr_lemma.lx_lemma_ref. */
+      lemma_uid: string | null;
     };
+    const args: unknown[] = [surah];
+    let range = '';
+    if (from != null && to != null) {
+      range = ' AND d.ayah_no BETWEEN ? AND ?';
+      args.push(Math.min(from, to), Math.max(from, to));
+    }
+    // `d.lemma_ref` is km_quran's OWN lemma key (qr_lemma.id) — it is NOT an AL
+    // id and resolves to nothing on the AL side. `qr_lemma.lx_lemma_ref` is the
+    // registered global id ('AL:{26-hex}'), populated on all 4,817 rows, and it
+    // is the only thing that crosses the database boundary.
     const rows = await query<GridRow>(
       this.db,
-      `SELECT d.*, o.morphology_tag_json AS morphology_tag_json,${LEMMA_TIER_SELECT}
+      `SELECT d.*, o.morphology_tag_json AS morphology_tag_json,
+              q.lx_lemma_ref AS lemma_uid,${LEMMA_TIER_SELECT}
          FROM qr_morph_display_word d
          LEFT JOIN qr_word_occurrence o
            ON o.surah = d.surah_no AND o.ayah = d.ayah_no AND o.word_index = d.word_index
+         LEFT JOIN qr_lemma q ON q.id = d.lemma_ref
          LEFT JOIN qr_morph_display_lemma l ON l.id = d.lemma_ref AND l.status = 'live'
          ${FAMILY_JOIN}
-        WHERE d.surah_no = ? AND d.is_promoted = 1 AND d.status = 'live'
+        WHERE d.surah_no = ? AND d.is_promoted = 1 AND d.status = 'live'${range}
         ORDER BY d.ayah_no, d.word_index`,
-      [surah],
+      args,
     ).catch(() => [] as GridRow[]);
+
+    const lemmas = await this.resolveLemmaTier(rows.map(r => r.lemma_uid));
+
     return rows.map(w => {
-      const meanings = (hydrate(w.quran_meanings_json) as Array<{ ar: string; en: string }> | null) ?? null;
+      const al = w.lemma_uid ? lemmas[w.lemma_uid] : undefined;
       const bucket = w.word_group === 'verb' ? 'verb' : 'noun';
-      const derivedAr = w.l_derived_type_ar ?? w.derived_type_ar;
-      const derivedEn = w.l_derived_type_en ?? w.derived_type_en;
+      const derivedAr = al?.form?.name_ar ?? w.l_derived_type_ar ?? w.derived_type_ar;
+      const derivedEn = al?.form?.name_en ?? w.l_derived_type_en ?? w.derived_type_en;
+
+      // The sense list IS the meaning range — one row per sense in AL, ordered
+      // live-first and core-first. The display table's pre-joined JSON stands in
+      // only while a lemma has no senses modelled yet.
+      const alMeanings = (al?.senses ?? [])
+        .filter(s => s.gloss_ar || s.gloss_en)
+        .map(s => ({ ar: s.gloss_ar ?? '', en: s.gloss_en ?? '' }));
+      const meanings = alMeanings.length
+        ? alMeanings
+        : ((hydrate(w.quran_meanings_json) as Array<{ ar: string; en: string }> | null) ?? null);
+      const coreSense = (al?.senses ?? []).find(s => s.is_core) ?? al?.senses?.[0];
+      const primaryArc = (al?.arcs ?? []).find(a => a.is_primary) ?? al?.arcs?.[0];
+
       return {
         id: w.id, surah: w.surah_no, ayah: w.ayah_no, word_index: w.word_index,
-        surface_ar: w.surface_ar, lemma_ar: w.lemma_ar, root_ar: w.root_ar, root_display: w.root_display,
+        surface_ar: w.surface_ar,
+        lemma_ar: al?.lemma_ar ?? w.lemma_ar,
+        root_ar: al?.root?.root_text ?? w.root_ar,
+        root_display: w.root_display,
+        // `lemma_ref` stays km_quran's local key (existing consumers bind to it);
+        // `lemma_uid` / `root_uid` are the registered global ids the tiers are
+        // actually addressed by, so a client follows a reference instead of
+        // being handed a second copy of the lemma or root.
+        lemma_ref: w.lemma_ref,
+        lemma_uid: w.lemma_uid,
+        root_uid: al?.root?.id ? `AL:${al.root.id}` : null,
         group: w.word_group, pos_ar: w.pos_ar, pos_en: w.pos_en,
-        gloss: { ar: w.l_gloss_ar ?? w.gloss_ar, en: w.l_gloss_en ?? w.gloss_en, ur: w.l_gloss_ur ?? w.gloss_ur },
+        gloss: {
+          ar: coreSense?.gloss_ar ?? w.l_gloss_ar ?? w.gloss_ar,
+          en: coreSense?.gloss_en ?? w.l_gloss_en ?? w.gloss_en,
+          ur: coreSense?.gloss_ur ?? w.l_gloss_ur ?? w.gloss_ur,
+        },
         derived_type_ar: derivedAr, derived_type_en: derivedEn,
-        wazn_ar: waznOf(w.l_wazn_ar ?? w.wazn_ar, w.morphology_tag_json, w.lemma_ar, w.root_ar, bucket),
-        form_roman: w.f_roman ?? w.l_form_roman ?? w.form_roman,
-        form_ar: w.f_name_ar ?? w.l_form_ar ?? w.form_ar,
-        root_meaning: { ar: w.root_meaning_ar, en: w.root_meaning_en },
+        wazn_ar: waznOf(al?.form?.wazn ?? w.l_wazn_ar ?? w.wazn_ar,
+                        w.morphology_tag_json, w.lemma_ar, w.root_ar, bucket),
+        form_roman: al?.form?.roman ?? w.f_roman ?? w.l_form_roman ?? w.form_roman,
+        form_ar: al?.form?.name_ar ?? w.f_name_ar ?? w.l_form_ar ?? w.form_ar,
+        root_meaning: {
+          ar: al?.root?.meaning_core_ar ?? w.root_meaning_ar,
+          en: al?.root?.meaning_core_en ?? w.root_meaning_en,
+        },
         quran_meanings: meanings,
-        badge_color: w.badge_color, is_anchor: !!w.is_anchor, frequency_quran: w.frequency_quran,
+        badge_color: w.badge_color, is_anchor: !!w.is_anchor,
+        frequency_quran: al?.frequency_quran ?? w.frequency_quran,
         feats: buildFeats(bucket, w.morphology_tag_json, derivedAr, derivedEn,
-                          w.f_model_ar ?? w.l_verb_form_ar ?? w.verb_form_ar ?? null,
-                          w.f_name_ar, w.f_roman),
-        sense_arc_en: w.sense_arc_en ?? null,
+                          al?.form?.example_ar ?? w.f_model_ar ?? w.l_verb_form_ar ?? w.verb_form_ar ?? null,
+                          al?.form?.name_ar ?? w.f_name_ar, al?.form?.roman ?? w.f_roman),
+        sense_arc_en: primaryArc?.arc_en ?? w.sense_arc_en ?? null,
         sense_range_en: rangeOf(w.sense_range_en, meanings),
+        // The rest of the lemma tier, untouched: governance, furūq, expressions
+        // and every sense/arc with its status. The card decides what it renders;
+        // nothing here is stored on the Qurʾān side.
+        lemma: al ?? null,
       };
     });
+  }
+
+  /** Resolve the distinct lemma ids of a row set through AR_LINGUISTICS.
+   *  Returns an empty map — not an error — when the binding is absent or the
+   *  call fails, so a grid still renders its word layer without AL. */
+  private async resolveLemmaTier(
+    refs: Array<string | null>,
+  ): Promise<Record<string, ResolvedLemma>> {
+    if (!this.al) return {};
+    const ids = [...new Set(refs.filter((r): r is string => !!r))];
+    if (!ids.length) return {};
+    try {
+      const res = await this.al.resolveLemmas(ids);
+      return res.data ?? {};
+    } catch {
+      return {};
+    }
   }
 }

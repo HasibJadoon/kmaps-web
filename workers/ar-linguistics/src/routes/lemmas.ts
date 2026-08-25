@@ -5,9 +5,32 @@ import { ok, created, notFound, badRequest, paginated } from '../../../shared/sr
 import { parsePagination } from '../../../shared/src/validate';
 import type { ArLinguisticsEnv } from '../env';
 import { LemmaRepo } from '../repositories/lemma.repo';
+import { LemmaResolveRepo } from '../repositories/lemma-resolve.repo';
 import { validateLemmaCreate } from '../schemas/lemma.schema';
 
+/** One request cannot ask for more lemmas than a long surah holds; past that it
+ *  is a scan, and belongs in a batch job rather than a service call. */
+const MAX_RESOLVE_IDS = 500;
+
 export function lemmaRoutes(router: Router<ArLinguisticsEnv>) {
+
+  // GET /al/lemmas/resolve?ids=AL:…,AL:… → { [lemma_id]: ResolvedLemma }
+  //
+  // The lemma tier for a whole passage in one call: senses, arcs, governance,
+  // furuq, expressions and the form slot, every one of them scoped to the id
+  // rather than to the root — so km_quran can render the layer while storing
+  // none of it. Registered before /al/lemmas/:id so the literal path wins.
+  router.get('/al/lemmas/resolve', async (req, env) => {
+    const url = new URL(req.url);
+    const raw = url.searchParams.get('ids');
+    if (!raw) return badRequest('ids (comma-separated AL lemma id list) param required');
+    const ids = [...new Set(raw.split(',').map(s => s.trim()).filter(Boolean))];
+    if (!ids.length) return badRequest('no valid lemma ids supplied');
+    if (ids.length > MAX_RESOLVE_IDS) {
+      return badRequest(`too many ids (${ids.length}); max ${MAX_RESOLVE_IDS} per request`);
+    }
+    return ok(await new LemmaResolveRepo(env.DB_AL).byIds(ids));
+  });
 
   // GET /al/lemmas/search?q=كتاب
   router.get('/al/lemmas/search', async (req, env) => {

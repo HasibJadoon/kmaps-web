@@ -11,6 +11,24 @@ export interface FamilyLemma { lemma_ar: string; pos: string | null; verb_form: 
  *  terms_ar maps a transliterated term to its lemma-verified Arabic (may be partial). */
 export interface SinaiTerms { terms: string[]; terms_ar: Record<string, string>; type: string | null; weak_pattern: string | null; epigraphic: boolean; }
 
+/** A node of the modelled sense graph — `ar_ling_root_sense` at root scope.
+ *  Distinct from `RootAnalysis.senses`, which is the learner-facing gloss list
+ *  out of `ar_ling_learn_vocab` and carries no ids, no status and no structure. */
+export interface RootSenseNode {
+  id: string; sense_key: string; gloss_ar: string | null; gloss_en: string | null;
+  gloss_ur: string | null; label_ar: string | null; label_en: string | null;
+  definition_md: string | null; is_core: number; status: string;
+}
+export interface RootSenseArcStep {
+  step_no: number; sense_id: string; note_md: string | null;
+  gloss_ar: string | null; gloss_en: string | null;
+}
+export interface RootSenseArcNode {
+  id: string; arc_key: string; arc_ar: string | null; arc_en: string | null;
+  arc_ur: string | null; is_primary: number; is_synthesis: number;
+  confidence: number | null; status: string; steps: RootSenseArcStep[];
+}
+
 export interface RootAnalysis {
   root: string;
   root_letters: string | null;
@@ -21,6 +39,11 @@ export interface RootAnalysis {
   meaning_core_en: string | null;
   hook: string | null;
   senses: string[];
+  /** The structured sense graph and its arcs, both filtered to root scope —
+   *  the tables hold lemma rows alongside root rows in the same columns, so a
+   *  read by root_norm alone would fold a sibling lemma's senses into the root. */
+  sense_map: RootSenseNode[];
+  sense_arcs: RootSenseArcNode[];
   examples: string[];
   near_synonyms: unknown[];
   antonyms: { ar: string; en: string | null; root: string | null }[];
@@ -45,6 +68,18 @@ const LENS_SLUG = {
 } as const;
 const FIVE_LENS_SLUG = 'kmaps_five_lens';
 const MAX_LEN = 1400;
+/** live first, then review, then draft — the order a caller wants to take from. */
+const STATUS_RANK = `CASE status WHEN 'live' THEN 0 WHEN 'review' THEN 1 ELSE 2 END`;
+// D1 binds at most 100 parameters per statement and several queries below bind
+// the root list twice (root_text OR root_normalized), so a whole surah's roots
+// have to arrive in chunks rather than as one IN list.
+const CHUNK = 40;
+
+function chunked<T>(xs: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += size) out.push(xs.slice(i, i + size));
+  return out;
+}
 
 function placeholders(n: number): string { return Array(n).fill('?').join(','); }
 function jsonArr(v: unknown): unknown[] { if (v == null) return []; if (Array.isArray(v)) return v; try { const p = JSON.parse(String(v)); return Array.isArray(p) ? p : []; } catch { return []; } }
@@ -104,10 +139,19 @@ function parseSinai(raw: string | null): SinaiTerms | null {
 export class WordAnalysisRepo {
   constructor(private db: D1Database) {}
 
+  /** Resolve any number of roots; chunks internally to stay inside D1's
+   *  bound-parameter limit, and runs the chunks concurrently. */
   async byRoots(roots: string[]): Promise<Record<string, RootAnalysis>> {
-    const out: Record<string, RootAnalysis> = {};
     const uniq = [...new Set(roots.filter(r => !!r))];
-    if (!uniq.length) return out;
+    if (!uniq.length) return {};
+    const parts = await Promise.all(
+      chunked(uniq, CHUNK).map(c => this.resolveChunk(c)),
+    );
+    return Object.assign({}, ...parts) as Record<string, RootAnalysis>;
+  }
+
+  private async resolveChunk(uniq: string[]): Promise<Record<string, RootAnalysis>> {
+    const out: Record<string, RootAnalysis> = {};
     const ph = placeholders(uniq.length);
 
     const [rootsRows, vocab, depth, antonyms, illus, diagrams, lensRows, fiveSections] = await Promise.all([
@@ -129,6 +173,43 @@ export class WordAnalysisRepo {
       query<{ root_norm: string; heading_norm: string | null; text_ar: string | null }>(
         this.db, `SELECT root_norm, heading_norm, text_ar FROM ar_ling_lexicon_entry_section WHERE root_norm IN (${ph}) AND source_slug = ?`, [...uniq, FIVE_LENS_SLUG]).catch(() => []),
     ]);
+
+    // The sense graph. Both tables are scope-mixed — root rows and lemma rows
+    // share the columns — so scope_level='root' is not optional here. Status is
+    // returned rather than filtered: most of this layer is still draft, and
+    // hiding it would render an empty arc where a drafted one exists.
+    const [senseNodes, arcNodes, arcSteps] = await Promise.all([
+      query<{ root_norm: string } & RootSenseNode>(
+        this.db,
+        `SELECT root_norm, id, sense_key, gloss_ar, gloss_en, gloss_ur,
+                label_ar, label_en, definition_md, is_core, status
+           FROM ar_ling_root_sense
+          WHERE scope_level = 'root' AND root_norm IN (${ph})
+          ORDER BY ${STATUS_RANK}, is_core DESC, sort_order, sense_key`,
+        uniq).catch(() => []),
+      query<{ root_norm: string; id: string; arc_key: string; arc_ar: string | null;
+              arc_en: string | null; arc_ur: string | null; is_primary: number;
+              is_synthesis: number; confidence: number | null; status: string }>(
+        this.db,
+        `SELECT root_norm, id, arc_key, arc_ar, arc_en, arc_ur,
+                is_primary, is_synthesis, confidence, status
+           FROM ar_ling_sense_arc
+          WHERE scope_level = 'root' AND root_norm IN (${ph})
+          ORDER BY ${STATUS_RANK}, is_primary DESC, arc_key`,
+        uniq).catch(() => []),
+      query<{ arc_id: string } & RootSenseArcStep>(
+        this.db,
+        `SELECT st.arc_id, st.step_no, st.sense_id, st.note_md, s.gloss_ar, s.gloss_en
+           FROM ar_ling_sense_arc_step st
+           JOIN ar_ling_sense_arc a ON a.id = st.arc_id
+           LEFT JOIN ar_ling_root_sense s ON s.id = st.sense_id
+          WHERE a.scope_level = 'root' AND a.root_norm IN (${ph})
+          ORDER BY st.arc_id, st.step_no`,
+        uniq).catch(() => []),
+    ]);
+    const senseByRoot = groupBy(senseNodes, s => s.root_norm);
+    const arcByRoot = groupBy(arcNodes, a => a.root_norm);
+    const stepByArc = groupBy(arcSteps, s => s.arc_id);
 
     // Derivation family (مشتقّات) — Quranic lemmas of each root. Root rows are
     // duplicated across formats (بين / ب-ي-ن), so match through ar_ling_roots
@@ -204,6 +285,13 @@ export class WordAnalysisRepo {
       const sinaiRaw = lensList.find(x => x.source_slug === LENS_SLUG.sinai)?.raw_text ?? null;
       const fiveRaw = lensList.find(x => x.source_slug === FIVE_LENS_SLUG)?.raw_text ?? null;
       const five = buildFiveLens(fiveByRoot.get(root) ?? [], fiveRaw);
+      const senseMap = (senseByRoot.get(root) ?? []).map(({ root_norm: _rn, ...s }) => s);
+      const senseArcs: RootSenseArcNode[] = (arcByRoot.get(root) ?? []).map(a => ({
+        id: a.id, arc_key: a.arc_key, arc_ar: a.arc_ar, arc_en: a.arc_en, arc_ur: a.arc_ur,
+        is_primary: a.is_primary, is_synthesis: a.is_synthesis,
+        confidence: a.confidence, status: a.status,
+        steps: (stepByArc.get(a.id) ?? []).map(({ arc_id: _ai, ...s }) => s),
+      }));
 
       out[root] = {
         root,
@@ -215,6 +303,8 @@ export class WordAnalysisRepo {
         meaning_core_en: r?.meaning_core_en ?? null,
         hook: v?.membean_hook ?? null,
         senses: jsonStrArr(v?.unique_senses_json),
+        sense_map: senseMap,
+        sense_arcs: senseArcs,
         examples: jsonStrArr(v?.examples_json),
         near_synonyms: jsonArr(d?.near_synonyms_json),
         antonyms: (antByRoot.get(root) ?? []).map(a => ({ ar: a.antonym_ar, en: a.antonym_en, root: a.antonym_root })),
@@ -230,6 +320,7 @@ export class WordAnalysisRepo {
           meaning_core: !!(r?.meaning_core_en || r?.meaning_core_ar), illustration: illMap.has(root),
           sinai: lensList.some(x => x.source_slug === LENS_SLUG.sinai), lane: lensList.some(x => x.source_slug === LENS_SLUG.lane),
           family: (famByRoot.get(root) ?? []).length > 0,
+          sense_map: senseMap.length > 0, sense_arcs: senseArcs.length > 0,
         },
       };
     }
