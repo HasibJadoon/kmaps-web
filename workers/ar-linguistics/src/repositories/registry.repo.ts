@@ -7,6 +7,9 @@
 // READ-ONLY. Reads only ar_ling_* in DB_AL.
 
 import { query, queryOne } from '../../../shared/src/db';
+// How a carrier is tied to a root — direct, or through one other table.
+// Shared and unit-tested; see workers/shared/test/carrier-bind.test.ts.
+import { IDENT, parseVia, bindWhere } from '../../../shared/src/carrier-bind';
 
 export interface SubLayer {
   sub_code: string;
@@ -190,10 +193,9 @@ interface CarrierPlan {
   sub_code: string;
   root_bind: string;
   root_bind_col: string | null;
+  /** How a `via` carrier reaches the root — see `ViaPath` and migration 0106. */
+  root_bind_via_json?: string | null;
 }
-
-/** Identifiers are interpolated into SQL, so they must look like identifiers. */
-const IDENT = /^[a-z_][a-z0-9_]*$/;
 
 /** Band keys are upper-case registry codes (CORE, SARF, SENSE …). */
 const IDENT_BAND = /^[A-Z][A-Z0-9_]*$/;
@@ -263,6 +265,28 @@ export class RegistryRepo {
 
   /** `ORDER BY` clause per carrier table — the shape does not change per root. */
   private orderCache = new Map<string, string>();
+  /** Whether migration 0106 has run here. Cached per isolate. */
+  private viaColumn: boolean | null = null;
+
+  /**
+   * `root_bind_via_json` is added by migration 0106. The plan queries select it,
+   * and selecting a column that does not exist fails the whole statement — which
+   * the plan query's own catch would turn into "this root has no carriers at
+   * all", blanking every reading rather than losing one sub-layer.
+   *
+   * So the column is probed once and the SELECT is built to match. Code and
+   * migration can then ship in either order.
+   */
+  private async hasViaColumn(): Promise<boolean> {
+    if (this.viaColumn !== null) return this.viaColumn;
+    const row = await queryOne<{ n: number }>(
+      this.db,
+      `SELECT count(*) AS n FROM pragma_table_info('ar_ling_reg_table_map')
+        WHERE name = 'root_bind_via_json'`,
+    ).catch(() => null);
+    this.viaColumn = (row?.n ?? 0) > 0;
+    return this.viaColumn;
+  }
 
   // The sub-layer registry — column headers for the matrix, in order.
   subLayers(): Promise<SubLayer[]> {
@@ -374,14 +398,19 @@ export class RegistryRepo {
     // so tables dropped into a band with nothing declaring them were counted —
     // 00-CORE collected 29 that way, and بين's Core identity read 91 rows of
     // which one was its identity. Undeclared is not a default home.
+    // Migration 0106 may not have run here yet; the projection follows the
+    // column that exists, so code and migration ship in either order.
+    const via = await this.hasViaColumn();
+    const viaCol = via ? ', m.root_bind_via_json' : '';
+    const viaBind = via ? ", 'via'" : '';
     const plans = await query<CarrierPlan>(
       this.db,
-      `SELECT m.table_name, m.sub_code, m.root_bind, m.root_bind_col
+      `SELECT m.table_name, m.sub_code, m.root_bind, m.root_bind_col${viaCol}
          FROM ar_ling_reg_table_map m
          JOIN ar_ling_reg_sub_layer s
            ON s.sub_code = m.sub_code
           AND s.tables_json LIKE '%"' || m.table_name || '"%'
-        WHERE m.role IN ${CONTENT_ROLES} AND m.root_bind = 'direct'
+        WHERE m.role IN ${CONTENT_ROLES} AND m.root_bind IN ('direct'${viaBind})
           AND m.table_name IS NOT NULL AND m.root_bind_col IS NOT NULL
           ${conds.length ? `AND ${conds.join(' AND ')}` : ''}`,
       args,
@@ -389,9 +418,12 @@ export class RegistryRepo {
 
     // The registry is the whitelist. Nothing from the request reaches the SQL
     // text — only the bound value, and only ever as a parameter.
-    const usable = plans.filter(
-      p => IDENT.test(p.table_name) && !!p.root_bind_col && IDENT.test(p.root_bind_col),
-    );
+    // A `via` plan carries its join in `root_bind_via_json`; its `root_bind_col`
+    // is an audit note in prose, so it is not required to look like a column.
+    const usable = plans.filter(p => IDENT.test(p.table_name) && (
+      p.root_bind === 'via'
+        ? parseVia(p.root_bind_via_json) !== null
+        : !!p.root_bind_col && IDENT.test(p.root_bind_col)));
     if (!usable.length) return [];
 
     // A carrier binds the root by one of three different things, and binding the
@@ -411,6 +443,7 @@ export class RegistryRepo {
 
     const safe: CarrierPlan[] = [];
     for (const p of usable) {
+      if (p.root_bind === 'via') { safe.push(p); continue; }   // binds the root string
       const col = p.root_bind_col as string;
       if (LEMMA_COLS.has(col)) continue;
       if (ID_COLS.has(col) && !rootId) continue;   // unknown, not zero
@@ -419,33 +452,37 @@ export class RegistryRepo {
     if (!safe.length) return [];
 
     const bindValue = (p: CarrierPlan): string =>
-      ID_COLS.has(p.root_bind_col as string) ? (rootId as string) : root;
+      p.root_bind !== 'via' && ID_COLS.has(p.root_bind_col as string)
+        ? (rootId as string) : root;
+    const whereOf = (p: CarrierPlan) => bindWhere(p, bindValue(p), root);
 
     const cells: RootFillCell[] = [];
     for (let i = 0; i < safe.length; i += UNION_CHUNK) {
       const chunk = safe.slice(i, i + UNION_CHUNK);
-      const sql = chunk
+      const parts = chunk.map(p => ({ p, w: whereOf(p) })).filter(x => x.w !== null);
+      const sql = parts
         .map(
-          p => `SELECT '${p.sub_code}' AS sub_code, '${p.table_name}' AS carrier_table, ` +
-               `COUNT(*) AS rows FROM ${p.table_name} WHERE ${p.root_bind_col} = ?`,
+          ({ p, w }) => `SELECT '${p.sub_code}' AS sub_code, '${p.table_name}' AS carrier_table, ` +
+               `COUNT(*) AS rows FROM ${p.table_name} WHERE ${w!.sql}`,
         )
         .join(' UNION ALL ');
       // A carrier named in the registry may not exist in this database yet, and
       // one missing table must not blank the whole reading — so a failed union
       // falls back to counting each carrier on its own. Swallowing the error
       // outright is what let a chunk-size mistake read as "nothing is there".
-      const rows = await query<RootFillCell>(this.db, sql, chunk.map(bindValue))
-        .catch(() => null);
+      const rows = await query<RootFillCell>(
+        this.db, sql, parts.flatMap(x => x.w!.params),
+      ).catch(() => null);
       if (rows) {
         cells.push(...rows);
         continue;
       }
-      for (const p of chunk) {
+      for (const { p, w } of parts) {
         const one = await query<RootFillCell>(
           this.db,
           `SELECT '${p.sub_code}' AS sub_code, '${p.table_name}' AS carrier_table, ` +
-            `COUNT(*) AS rows FROM ${p.table_name} WHERE ${p.root_bind_col} = ?`,
-          [bindValue(p)],
+            `COUNT(*) AS rows FROM ${p.table_name} WHERE ${w!.sql}`,
+          w!.params,
         ).catch(() => [] as RootFillCell[]);
         cells.push(...one);
       }
@@ -486,21 +523,29 @@ export class RegistryRepo {
   async rootRows(root: string, subCode: string): Promise<CarrierRows[]> {
     // Declared carriers only — the same rule the fill count reads by, so the
     // contents and the count can never come from different table sets.
+    // Migration 0106 may not have run here yet; the projection follows the
+    // column that exists, so code and migration ship in either order.
+    const via = await this.hasViaColumn();
+    const viaCol = via ? ', m.root_bind_via_json' : '';
+    const viaBind = via ? ", 'via'" : '';
     const plans = await query<CarrierPlan>(
       this.db,
-      `SELECT m.table_name, m.sub_code, m.root_bind, m.root_bind_col
+      `SELECT m.table_name, m.sub_code, m.root_bind, m.root_bind_col${viaCol}
          FROM ar_ling_reg_table_map m
          JOIN ar_ling_reg_sub_layer s
            ON s.sub_code = m.sub_code
           AND s.tables_json LIKE '%"' || m.table_name || '"%'
-        WHERE m.role IN ${CONTENT_ROLES} AND m.root_bind = 'direct' AND m.sub_code = ?
+        WHERE m.role IN ${CONTENT_ROLES} AND m.root_bind IN ('direct'${viaBind}) AND m.sub_code = ?
           AND m.table_name IS NOT NULL AND m.root_bind_col IS NOT NULL`,
       [subCode],
     ).catch(() => []);
 
-    const usable = plans.filter(
-      p => IDENT.test(p.table_name) && !!p.root_bind_col && IDENT.test(p.root_bind_col),
-    );
+    // A `via` plan carries its join in `root_bind_via_json`; its `root_bind_col`
+    // is an audit note in prose, so it is not required to look like a column.
+    const usable = plans.filter(p => IDENT.test(p.table_name) && (
+      p.root_bind === 'via'
+        ? parseVia(p.root_bind_via_json) !== null
+        : !!p.root_bind_col && IDENT.test(p.root_bind_col)));
     if (!usable.length) return [];
 
     const idRow = await queryOne<{ id: string }>(
@@ -514,27 +559,32 @@ export class RegistryRepo {
     const out: CarrierRows[] = [];
     for (const p of usable) {
       const col = p.root_bind_col as string;
-      if (LEMMA_COLS.has(col)) continue;
-      if (ID_COLS.has(col) && !rootId) continue;   // unknown, not empty
-      const bound = ID_COLS.has(col) ? (rootId as string) : root;
+      if (p.root_bind !== 'via') {
+        if (LEMMA_COLS.has(col)) continue;
+        if (ID_COLS.has(col) && !rootId) continue;   // unknown, not empty
+      }
+      const bound = p.root_bind !== 'via' && ID_COLS.has(col) ? (rootId as string) : root;
+      const w = bindWhere(p, bound, root);
+      if (!w) continue;                              // unreadable: unknown, not empty
 
       const order = await this.orderingFor(p.table_name);
       const [rows, total] = await Promise.all([
         query<Record<string, unknown>>(
           this.db,
-          `SELECT * FROM ${p.table_name} WHERE ${col} = ?${order} LIMIT ${ROW_LIMIT}`,
-          [bound],
+          `SELECT * FROM ${p.table_name} WHERE ${w.sql}${order} LIMIT ${ROW_LIMIT}`,
+          w.params,
         ).catch(() => [] as Record<string, unknown>[]),
         queryOne<{ n: number }>(
           this.db,
-          `SELECT count(*) AS n FROM ${p.table_name} WHERE ${col} = ?`,
-          [bound],
+          `SELECT count(*) AS n FROM ${p.table_name} WHERE ${w.sql}`,
+          w.params,
         ).catch(() => null),
       ]);
       if (rows.length) {
         out.push({
-          sub_code: subCode, carrier_table: p.table_name, bind_col: col, rows,
-          total: total?.n ?? rows.length,
+          sub_code: subCode, carrier_table: p.table_name,
+          bind_col: p.root_bind === 'via' ? `via ${p.table_name}` : col,
+          rows, total: total?.n ?? rows.length,
         });
       }
     }
@@ -561,23 +611,31 @@ export class RegistryRepo {
     // Same JOIN rule as the fill count and the leaf: a table carries a
     // sub-layer only because that sub-layer declares it. Undeclared is not a
     // default home, so the contents and the count can never disagree.
+    // Migration 0106 may not have run here yet; the projection follows the
+    // column that exists, so code and migration ship in either order.
+    const via = await this.hasViaColumn();
+    const viaCol = via ? ', m.root_bind_via_json' : '';
+    const viaBind = via ? ", 'via'" : '';
     const plans = await query<CarrierPlan>(
       this.db,
-      `SELECT m.table_name, m.sub_code, m.root_bind, m.root_bind_col
+      `SELECT m.table_name, m.sub_code, m.root_bind, m.root_bind_col${viaCol}
          FROM ar_ling_reg_table_map m
          JOIN ar_ling_reg_sub_layer s
            ON s.sub_code = m.sub_code
           AND s.tables_json LIKE '%"' || m.table_name || '"%'
-        WHERE m.role IN ${CONTENT_ROLES} AND m.root_bind = 'direct'
+        WHERE m.role IN ${CONTENT_ROLES} AND m.root_bind IN ('direct'${viaBind})
           AND s.scope_level = ?
           AND m.table_name IS NOT NULL AND m.root_bind_col IS NOT NULL
         ORDER BY s.display_order, m.sub_code`,
       [scope],
     ).catch(() => []);
 
-    const usable = plans.filter(
-      p => IDENT.test(p.table_name) && !!p.root_bind_col && IDENT.test(p.root_bind_col),
-    );
+    // A `via` plan carries its join in `root_bind_via_json`; its `root_bind_col`
+    // is an audit note in prose, so it is not required to look like a column.
+    const usable = plans.filter(p => IDENT.test(p.table_name) && (
+      p.root_bind === 'via'
+        ? parseVia(p.root_bind_via_json) !== null
+        : !!p.root_bind_col && IDENT.test(p.root_bind_col)));
     if (!usable.length) return [];
 
     const idRow = await queryOne<{ id: string }>(
@@ -591,27 +649,32 @@ export class RegistryRepo {
     const out: CarrierRows[] = [];
     for (const p of usable) {
       const col = p.root_bind_col as string;
-      if (LEMMA_COLS.has(col)) continue;
-      if (ID_COLS.has(col) && !rootId) continue;   // unknown, not empty
-      const bound = ID_COLS.has(col) ? (rootId as string) : root;
+      if (p.root_bind !== 'via') {
+        if (LEMMA_COLS.has(col)) continue;
+        if (ID_COLS.has(col) && !rootId) continue;   // unknown, not empty
+      }
+      const bound = p.root_bind !== 'via' && ID_COLS.has(col) ? (rootId as string) : root;
+      const w = bindWhere(p, bound, root);
+      if (!w) continue;                              // unreadable: unknown, not empty
 
       const order = await this.orderingFor(p.table_name);
       const [rows, total] = await Promise.all([
         query<Record<string, unknown>>(
           this.db,
-          `SELECT * FROM ${p.table_name} WHERE ${col} = ?${order} LIMIT ${limit}`,
-          [bound],
+          `SELECT * FROM ${p.table_name} WHERE ${w.sql}${order} LIMIT ${limit}`,
+          w.params,
         ).catch(() => [] as Record<string, unknown>[]),
         queryOne<{ n: number }>(
           this.db,
-          `SELECT count(*) AS n FROM ${p.table_name} WHERE ${col} = ?`,
-          [bound],
+          `SELECT count(*) AS n FROM ${p.table_name} WHERE ${w.sql}`,
+          w.params,
         ).catch(() => null),
       ]);
       if (rows.length) {
         out.push({
-          sub_code: p.sub_code, carrier_table: p.table_name, bind_col: col, rows,
-          total: total?.n ?? rows.length,
+          sub_code: p.sub_code, carrier_table: p.table_name,
+          bind_col: p.root_bind === 'via' ? `via ${p.table_name}` : col,
+          rows, total: total?.n ?? rows.length,
         });
       }
     }
