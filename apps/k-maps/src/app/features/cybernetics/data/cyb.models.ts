@@ -22,6 +22,15 @@ export interface CybNode {
   content_pct: number;
   retention_state: string;
   retention_pct: number;
+  /** Per-axis: whether a sensor has actually read this axis. 0 is *unknown*,
+   *  which is not the same as a measured zero — see `axisMeasured`. */
+  build_measured?: number;
+  study_measured?: number;
+  content_measured?: number;
+  retention_measured?: number;
+  /** The build percent is carried from a superseded node: measured once, but no
+   *  live sensor stands behind it now. */
+  build_stale?: number;
   priority: number;
   meta_json: string;
   updated_at: string;
@@ -119,11 +128,17 @@ export interface StudyUnit {
   end_ref: string;
   label: string;
   theme: string | null;
+  // The SIX registered steps of PRC:quran:surah_passage_study, exactly as the
+  // grid endpoint sends them. This used to declare `expressions`, a legacy
+  // task_type the server folded into `vocabulary` — so `u.expressions.has`
+  // read `.has` of undefined, threw inside the passage @for, and left every
+  // card after the throw rendered blank.
   reading: { has: number };
-  vocabulary: { nouns: number; verbs: number; total: number };
+  vocabulary: { nouns: number; verbs: number; total: number; has: number };
   sentence_structure: { has: number };
-  expressions: { has: number };
   passage_structure: { has: number };
+  tafsir: { has: number };
+  worldview: { has: number };
 }
 export interface StudyGrid {
   surah: { surah_id: number; name_ar: string | null; name_en: string | null };
@@ -222,4 +237,198 @@ export interface RootDetail {
   root: string; claims: RootClaim[]; memlets: RootMemlet[];
   questions: RootQuestion[]; options: RootOption[]; media: RootMedia[];
   sub_layers: SubLayer[]; memlet_kinds: MemletKind[]; question_kinds: QuestionKind[];
+}
+
+// ── The four outputs ─────────────────────────────────────────────────────────
+
+export type CybAxis = 'build' | 'study' | 'content' | 'retention';
+export const CYB_AXES: CybAxis[] = ['build', 'study', 'content', 'retention'];
+
+/** `v_cyb_node_reading` for one axis (GET /core/cyb/reading/:id). */
+export interface NodeReading {
+  axis: CybAxis | string;
+  pct: number;
+  measured: number;
+  stale: number;
+  sensors: number;
+  read_sensors: number;
+}
+
+// ── The module registry (GET /core/cyb/domains) ──────────────────────────────
+// One row per module of the console. `slug` matches `cyb_node.domain`, so a
+// module's nodes are found by it. The dashboard's cards are this table.
+
+export interface CybDomain {
+  slug: string;
+  lane: string;
+  name_ar: string;
+  name_en: string;
+  name_ur: string | null;
+  hint: string | null;
+  /** Where the knowledge is built — Build senses this. */
+  content_db: string;
+  /** Where the learner's own state lives — Study and Retention sense this. */
+  learner_db: string;
+  /** What one unit of work is called here: a passage, a root, a concept. */
+  unit_kind: string;
+  color_hex: string | null;
+  symbol: string | null;
+  display_order: number;
+  status: string;
+}
+
+// ── The layer registry (GET /core/cyb/layers) ────────────────────────────────
+// The ONE taxonomy of stream-systems. The app used to carry its own list of
+// six; the registry has `translation` that the list never had, and a layer the
+// registry retires would have gone on rendering. Nothing here is authored in
+// the app.
+
+export interface CybLayerRow {
+  id: string;
+  domain: string;
+  lane: string;
+  layer_key: string;
+  name_ar: string | null;
+  name_en: string | null;
+  name_ur: string | null;
+  hint: string | null;
+  db_name: string | null;
+  color_hex: string | null;
+  symbol: string | null;
+  display_order: number;
+}
+
+// ── What the carriers hold ───────────────────────────────────────────────────
+
+/** One carrier's rows for a node, under the band that declares it
+ *  (GET /core/cyb/rows/:id?layer=). This is the work itself — āyāt, sentences,
+ *  renderings, tafsīr — as opposed to the control plane's own child nodes. */
+export interface NodeCarrierRows {
+  band_code: string;
+  db_name: string;
+  table_name: string;
+  bind_col: string;
+  rows: Record<string, unknown>[];
+  /** What the carrier holds, against `rows.length`, which is what was sent. A
+   *  truncated read has to say so rather than present a slice as the whole. */
+  total: number;
+}
+
+// ── The AL carrier registry (GET /al/registry/*) ─────────────────────────────
+// `ar_ling_stg_claim` was dropped on 2026-08-21 and `/al/staging/*` with it.
+// A row is in its carrier or it does not exist, so the per-root reading is a
+// live count off the carrier, never a stored claim count.
+
+/** One registered sub-layer: a named slot with its own carrier table(s). */
+export interface LayerModelSub {
+  sub_code: string;
+  name_ar: string;
+  name_en: string;
+  name_ur: string | null;
+  /** The registry's own level, before the fold onto a scope tab: a *form* folds
+   *  under lemma, a *letter* under root, so this can differ from the scope the
+   *  sub-layer appears under. */
+  scope_level: string;
+  discipline: string;
+  card: string;
+  produced_by: string;
+  fill_state: string;
+  carrier_state: string;
+  tables: string[];
+  display_order: number;
+}
+
+/** One band of sub-layers inside a scope — a row in the Root Dashboard. */
+export interface LayerModelBand {
+  scope: string;
+  band: number;
+  key: string;
+  name_ar: string | null;
+  name_en: string | null;
+  subs: LayerModelSub[];
+}
+
+/** One scope of the recursion — root · lemma · word — a tab in the dashboard. */
+export interface LayerModelScope {
+  key: string;
+  code: string;
+  name_ar: string;
+  name_en: string;
+  name_ur: string;
+  note: string | null;
+  layers: number;
+  subs: number;
+}
+
+export interface LayerModel {
+  scopes: LayerModelScope[];
+  layers: LayerModelBand[];
+}
+
+/** One carrier's live row count for a root. A sub_code absent from the list has
+ *  no audited carrier binding: that is unknown, not zero. */
+export interface RootFillCell {
+  sub_code: string;
+  carrier_table: string;
+  rows: number;
+}
+
+/** A sub-layer carrier's actual rows for one root — the leaf screen. */
+export interface RootCarrierRows {
+  sub_code: string;
+  carrier_table: string;
+  bind_col: string;
+  rows: Record<string, unknown>[];
+  total: number;
+}
+
+/** One root's identity card from `ar_ling_roots` (GET /al/roots/glosses).
+ *  The Quran worker names a passage's roots but cannot gloss them — the gloss
+ *  lives in DB_AL — so the root grid reads all of its tiles' cards in one call.
+ *  A root with no row here has no card: the tile says so rather than inventing
+ *  one. */
+export interface RootGloss {
+  root_normalized: string;
+  root_text: string;
+  root_letters: string | null;
+  root_type: string | null;
+  frequency_quran: number | null;
+  meaning_core_en: string | null;
+  meaning_core_ar: string | null;
+  meaning_core_ur: string | null;
+}
+
+/** A minted sense of a root (`ar_ling_root_sense`). */
+export interface RootSense {
+  id: string;
+  root_norm: string;
+  sense_key: string;
+  gloss_ar: string | null;
+  gloss_en: string | null;
+  gloss_ur: string | null;
+  is_core: number;
+  status: string;
+}
+
+/** Who said it — `ar_ling_sense_attestation`. `agreement` is the source's
+ *  stance on the claim, not a quality score. */
+export interface SenseAttestation {
+  id: string;
+  target_type: string;
+  target_id: string;
+  source_slug: string;
+  quote_ar: string | null;
+  quote_en: string | null;
+  locator: string | null;
+  agreement: string;
+  confidence: number | null;
+}
+
+/** GET /al/roots/:root/senses — the 360° sense layer in one read. */
+export interface RootSenseBundle {
+  root: string;
+  senses: RootSense[];
+  arcs: Record<string, unknown>[];
+  steps: Record<string, unknown>[];
+  attestations: SenseAttestation[];
 }
