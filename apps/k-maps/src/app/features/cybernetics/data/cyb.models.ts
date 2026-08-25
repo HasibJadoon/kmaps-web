@@ -4,38 +4,17 @@
 
 export interface CountRow { key: string; n: number }
 
-export interface CybNode {
-  id: string;
-  domain: string;
-  lane: string;
-  parent_id: string | null;
-  scale: 'domain' | 'surah' | 'passage' | 'stage' | 'piece';
-  target_kind: string | null;
-  target_ref: string | null;
-  layer: string | null;
-  piece_kind: string | null;
-  build_state: string;
-  build_pct: number;
-  study_state: string;
-  study_pct: number;
-  content_state: string;
-  content_pct: number;
-  retention_state: string;
-  retention_pct: number;
-  /** Per-axis: whether a sensor has actually read this axis. 0 is *unknown*,
-   *  which is not the same as a measured zero — see `axisMeasured`. */
-  build_measured?: number;
-  study_measured?: number;
-  content_measured?: number;
-  retention_measured?: number;
-  /** The build percent is carried from a superseded node: measured once, but no
-   *  live sensor stands behind it now. */
-  build_stale?: number;
-  priority: number;
-  meta_json: string;
-  updated_at: string;
-  children: CybNode[];
-}
+// The control-plane wire shapes come from the shared contract, not a copy.
+// This file used to declare CybNode itself, with `children` as a required
+// field the API never sends — see the contract's header for what that cost.
+import type {
+  CybNode, CybNodeTree, CybNodeDetail, CybNodeReading, CybSensor, CybGauge,
+} from '@kmaps/contracts/cyb';
+
+export type {
+  CybNode, CybNodeTree, CybNodeDetail, CybNodeReading, CybSensor, CybGauge,
+};
+export { KNOWN_CYB_SCALES } from '@kmaps/contracts/cyb';
 
 export interface CybJob {
   id: string;
@@ -51,34 +30,7 @@ export interface CybJob {
   created_at: string;
 }
 
-export interface CybSensor {
-  id: string;
-  node_id: string;
-  axis: string;
-  kind: string;
-  band_code: string | null;
-  metric: string;
-  reading: number;
-  expected: number;
-  weight: number;
-  state: string;
-  health: string;
-  trend: string;
-  error_val: number;
-  read_count: number;
-  source_table: string | null;
-  source_slug: string | null;
-  last_read_at: string | null;
-}
 
-export interface CybGauge {
-  id: string;
-  node_id: string;
-  gauge_kind: string;
-  score: number;
-  actor: string;
-  attempt_at: string;
-}
 
 export interface CybTick {
   id: string;
@@ -166,13 +118,6 @@ export interface CybMonitor {
   sources: { by_coverage: CountRow[] };
 }
 
-export interface CybNodeDetail {
-  node: CybNode;
-  sensors: CybSensor[];
-  jobs: CybJob[];
-  gauges: CybGauge[];
-  children: CybNode[];
-}
 
 // ── AL staging spine ──
 export interface SubLayer {

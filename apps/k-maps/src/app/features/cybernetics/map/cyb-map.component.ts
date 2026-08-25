@@ -4,7 +4,7 @@ import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
 import { CybTopbarComponent } from '../shared/cyb-topbar.component';
 import type {
-  CybNode, CybAxis, Surah, StudyUnit, CybLayerRow, NodeCarrierRows,
+  CybNode, CybNodeTree, CybAxis, Surah, StudyUnit, CybLayerRow, NodeCarrierRows,
   LayerModel, LayerModelBand, LayerModelSub, RootFillCell, RootCarrierRows,
   RootDetail, RootMemlet, RootQuestion, RootOption, RootMedia, PassageRoot,
   RootGloss, RootSenseBundle, SenseAttestation,
@@ -47,7 +47,7 @@ const MEMBEAN_PANELS: { key: string; en: string; ar: string; col: 'l' | 'r' }[] 
 /** A stream row: the registry's layer, plus whatever the plane has staged. */
 interface StreamRow {
   layer: string;
-  node: CybNode | undefined;
+  node: CybNodeTree | undefined;
   reg: CybLayerRow | undefined;
 }
 
@@ -1018,7 +1018,7 @@ export class CybMapComponent {
 
   readonly surahs = signal<Surah[]>([]);
   readonly error = signal<string | null>(null);
-  private readonly treeRoots = signal<CybNode[]>([]);
+  private readonly treeRoots = signal<CybNodeTree[]>([]);
   /** The layer registry — the ONE taxonomy of stream-systems. */
   private readonly layerRegistry = signal<CybLayerRow[]>([]);
   /** The AL carrier registry: scopes → bands → sub-layers. */
@@ -1078,14 +1078,14 @@ export class CybMapComponent {
   /** The root's own senses and who attested them — the 360° layer. */
   readonly senseBundle = signal<RootSenseBundle | null>(null);
 
-  private readonly flat = computed<CybNode[]>(() => {
-    const out: CybNode[] = [];
-    const walk = (n: CybNode) => { out.push(n); n.children.forEach(walk); };
+  private readonly flat = computed<CybNodeTree[]>(() => {
+    const out: CybNodeTree[] = [];
+    const walk = (n: CybNodeTree) => { out.push(n); n.children.forEach(walk); };
     this.treeRoots().forEach(walk);
     return out;
   });
 
-  readonly flatNodes = computed<CybNode[]>(() => this.flat());
+  readonly flatNodes = computed<CybNodeTree[]>(() => this.flat());
   readonly axes = CYB_AXES;
   readonly activeCount = computed(() =>
     this.flat().filter((n) => n.scale === 'surah' && n.build_pct > 0).length);
@@ -1098,7 +1098,7 @@ export class CybMapComponent {
   readonly quranBuild = computed<{ pct: number; measured: boolean; n: number }>(() => {
     const read = this.surahs()
       .map((s) => this.surahNode(s.id))
-      .filter((n): n is CybNode => !!n && n.build_measured === 1);
+      .filter((n): n is CybNodeTree => !!n && n.build_measured === 1);
     if (!read.length) return { pct: 0, measured: false, n: 0 };
     return {
       pct: read.reduce((a, n) => a + n.build_pct, 0) / read.length,
@@ -1108,7 +1108,7 @@ export class CybMapComponent {
   });
   readonly quranPct = computed(() => this.fmt(this.quranBuild().pct));
 
-  readonly current = computed<CybNode[]>(() => {
+  readonly current = computed<CybNodeTree[]>(() => {
     if (this.streamParam()) return this.stageNodeCur()?.children ?? [];
     return this.passageNodeCur()?.children ?? [];
   });
@@ -1226,10 +1226,10 @@ export class CybMapComponent {
   }
 
   // ── cyb overlays ──
-  surahNode(id: number): CybNode | undefined {
+  surahNode(id: number): CybNodeTree | undefined {
     return this.flat().find((n) => n.scale === 'surah' && Number(n.target_ref) === id);
   }
-  passageNode(u: StudyUnit): CybNode | undefined {
+  passageNode(u: StudyUnit): CybNodeTree | undefined {
     const s = this.surah()?.id;
     const key = `${s}:${u.ayah_from}-${u.ayah_to}`;
     return this.flat().find((n) => n.scale === 'passage' && (n.target_ref ?? '').replace(/^QR:SP:/, '') === key);
@@ -1418,7 +1418,7 @@ export class CybMapComponent {
   }
   openSurah(s: Surah) { this.router.navigate(['/cybernetics/map', s.id]); }
   /** Clicking a passage card: built → its streams; else open it in Study. */
-  onPassageCard(u: StudyUnit, pnode: CybNode | undefined) {
+  onPassageCard(u: StudyUnit, pnode: CybNodeTree | undefined) {
     if (pnode && pnode.children.length) this.router.navigate(['/cybernetics/map', this.surahId(), u.passage_no]);
     else this.router.navigate(['/quran/surahs', this.surahId(), 'study', u.passage_no]);
   }
@@ -1457,7 +1457,7 @@ export class CybMapComponent {
     return this.measured(n, 'build') ? `${n!.build_pct}%` : '—';
   }
   /** The cyb node carrying this root's outputs — prefer the real root piece. */
-  cybNodeForRoot(rn: string): CybNode | undefined {
+  cybNodeForRoot(rn: string): CybNodeTree | undefined {
     const pieces = this.flat().filter((n) => n.scale === 'piece' && this.rootNorm(n) === rn);
     return pieces.find((n) => n.piece_kind === 'root') ?? pieces[0];
   }

@@ -16,7 +16,7 @@ import { BackendApiService } from '../../../shared/services/backend-api.service'
 import type {
   CybMonitor, CybNode, CybNodeDetail, CybJob, CybSource, CountRow,
   StagingSummary, StagingMatrix, Surah, StudyGrid, RootDetail, PassageRoot,
-  CybLayerRow, CybDomain, LayerModel, RootFillCell, RootCarrierRows,
+  CybLayerRow, CybDomain, LayerModel, RootFillCell, RootCarrierRows, CybNodeTree,
   NodeCarrierRows, NodeReading, RootGloss, RootSenseBundle,
 } from './cyb.models';
 
@@ -43,11 +43,11 @@ export class CybService {
     return this.api.getData<StudyGrid>('qr', ['study', 'surahs', surahId]);
   }
 
-  tree(node?: string, lane?: string): Observable<{ roots: CybNode[] }> {
+  tree(node?: string, lane?: string): Observable<{ roots: CybNodeTree[] }> {
     const params: Record<string, string> = {};
     if (node) params['node'] = node;
     if (lane) params['lane'] = lane;
-    return this.api.getData<{ roots: CybNode[] }>('core', ['cyb', 'tree'], { params });
+    return this.api.getData<{ roots: CybNodeTree[] }>('core', ['cyb', 'tree'], { params });
   }
 
   node(id: string): Observable<CybNodeDetail> {

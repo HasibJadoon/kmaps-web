@@ -67,81 +67,20 @@ export interface CybLayerRow {
 
 // ── Row interfaces (snake_case — match the live columns exactly) ───────────────
 
-export interface CybNode {
-  id: string;
-  domain: string;
-  lane: string;
-  parent_id: string | null;
-  scale: 'domain' | 'surah' | 'passage' | 'stage' | 'piece';
-  target_kind: string | null;
-  target_ref: string | null;
-  layer: string | null;
-  piece_kind: string | null;
-  build_state: string;
-  build_pct: number;
-  build_measured?: number;
-  study_measured?: number;
-  content_measured?: number;
-  retention_measured?: number;
-  build_stale?: number;
-  study_state: string;
-  study_pct: number;
-  content_state: string;
-  content_pct: number;
-  retention_state: string;
-  retention_pct: number;
-  priority: number;
-  meta_json: string;
-  updated_at: string;
-}
+// The wire shapes live in the shared contract so the apps import the same
+// declaration instead of keeping a hand-copy. Re-exported here because every
+// repo and route in this worker already imports them from this file.
+import type {
+  CybNode, CybNodeTree, CybNodeDetail, CybNodeReading,
+  CybSensor, CybJob, CybGauge, CybAxis,
+} from '../../../shared/src/contracts/cyb';
 
-/** A node plus its children — the Map / Ladder shape. */
-export interface CybNodeTree extends CybNode {
-  children: CybNodeTree[];
-}
+export type {
+  CybNode, CybNodeTree, CybNodeDetail, CybNodeReading,
+  CybSensor, CybJob, CybGauge, CybAxis,
+};
+export { KNOWN_CYB_SCALES, CYB_AXES } from '../../../shared/src/contracts/cyb';
 
-export interface CybJob {
-  id: string;
-  node_id: string;
-  op: string;
-  band_code: string | null;
-  source_slug: string | null;
-  actuator: string;
-  skill: string | null;
-  depends_on: string | null;
-  readiness: string;
-  error_val: number;
-  created_at: string;
-}
-
-export interface CybSensor {
-  id: string;
-  node_id: string;
-  axis: string;
-  kind: string;
-  band_code: string | null;
-  metric: string;
-  reading: number;
-  expected: number;
-  weight: number;
-  state: string;
-  health: string;
-  trend: string;
-  error_val: number;
-  read_count: number;
-  source_table: string | null;
-  source_slug: string | null;
-  last_read_at: string | null;
-}
-
-export interface CybGauge {
-  id: string;
-  node_id: string;
-  gauge_kind: string;
-  score: number;
-  actor: string;
-  attempt_at: string;
-}
 
 export interface CybTick {
   id: string;

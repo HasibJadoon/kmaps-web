@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { CybService } from '../data/cyb.service';
-import type { CybNode, Surah } from '../data/cyb.models';
+import type { CybNode, CybNodeTree, Surah } from '../data/cyb.models';
 
 // Shared top bar for the Map and the Ladder:
 //   • search — a surah by number (44), name (dukhan / Ad-Dukhān) or Arabic (الدخان),
@@ -130,7 +130,7 @@ export class CybTopbarComponent {
   readonly view = input<'map' | 'ladder'>('map');
   readonly surahs = input<Surah[]>([]);
   /** The flattened cyb tree. */
-  readonly nodes = input<CybNode[]>([]);
+  readonly nodes = input<CybNodeTree[]>([]);
   /** Where the user already is — the strip never repeats what the URL says. */
   readonly surahId = input<number | null>(null);
   readonly passageNo = input<number | null>(null);
@@ -198,15 +198,15 @@ export class CybTopbarComponent {
   // ── the active trail ──────────────────────────────────────────────────────
   private get base() { return `/cybernetics/${this.view()}`; }
 
-  private inBuild(list: CybNode[]): CybNode[] {
+  private inBuild(list: CybNodeTree[]): CybNodeTree[] {
     return list.filter((n) => n.build_pct > 0).sort((a, b) => b.build_pct - a.build_pct);
   }
-  private kids(n: CybNode | undefined, scale: CybNode['scale']): CybNode[] {
+  private kids(n: CybNodeTree | undefined, scale: CybNode['scale']): CybNodeTree[] {
     return (n?.children ?? []).filter((c) => c.scale === scale);
   }
-  private descend(n: CybNode | undefined): CybNode[] {
-    const out: CybNode[] = [];
-    const walk = (x: CybNode) => { out.push(x); x.children.forEach(walk); };
+  private descend(n: CybNodeTree | undefined): CybNodeTree[] {
+    const out: CybNodeTree[] = [];
+    const walk = (x: CybNodeTree) => { out.push(x); x.children.forEach(walk); };
     if (n) n.children.forEach(walk);
     return out;
   }
@@ -215,27 +215,27 @@ export class CybTopbarComponent {
   private pno(p: CybNode | undefined): number | null { return this.passageIndex()[this.pkey(p)] ?? null; }
   private rootName(n: CybNode): string { return (n.target_ref ?? '').split(':').pop() ?? ''; }
 
-  private surahNode(id: number | null): CybNode | undefined {
+  private surahNode(id: number | null): CybNodeTree | undefined {
     if (!id) return undefined;
     return this.nodes().find((n) => n.scale === 'surah' && Number(n.target_ref) === id);
   }
 
-  private surahChip(n: CybNode, tier: Tier): Chip {
+  private surahChip(n: CybNodeTree, tier: Tier): Chip {
     const sid = Number(n.target_ref);
     const s = this.surahs().find((x) => x.id === sid);
     return { kind: 'surah', ar: s?.name_ar ?? '', label: s?.name_transliteration || s?.name_en || `Surah ${sid}`,
              pct: n.build_pct, tier, route: [this.base, sid] };
   }
-  private passageChip(n: CybNode, sid: number, tier: Tier): Chip {
+  private passageChip(n: CybNodeTree, sid: number, tier: Tier): Chip {
     const p = this.pno(n);
     return { kind: 'passage', ar: '', label: this.pkey(n), pct: n.build_pct, tier,
              route: p ? [this.base, sid, p] : [this.base, sid] };
   }
-  private streamChip(n: CybNode, sid: number, pno: number | null, tier: Tier): Chip {
+  private streamChip(n: CybNodeTree, sid: number, pno: number | null, tier: Tier): Chip {
     return { kind: 'stream', ar: '', label: n.layer ?? '', pct: n.build_pct, tier,
              route: pno ? [this.base, sid, pno, n.layer!] : null };
   }
-  private rootChip(n: CybNode, sid: number, pno: number | null, tier: Tier): Chip {
+  private rootChip(n: CybNodeTree, sid: number, pno: number | null, tier: Tier): Chip {
     // Stays in the view you are in — the ladder marks the root on its own rung
     // and hands off to the map only when you open the dashboard itself.
     return { kind: 'root', ar: this.rootName(n), label: '', pct: n.build_pct, tier,
@@ -247,7 +247,7 @@ export class CybTopbarComponent {
    * is live, and then the root inside it. The stream shown is the one that owns
    * the leading root, so the trail reads as one continuous descent.
    */
-  private leafChips(p: CybNode, sid: number): Chip[] {
+  private leafChips(p: CybNodeTree, sid: number): Chip[] {
     const pno = this.pno(p);
     const roots = this.inBuild(this.descend(p).filter((n) => n.scale === 'piece' && n.piece_kind === 'root'));
     if (roots.length) {

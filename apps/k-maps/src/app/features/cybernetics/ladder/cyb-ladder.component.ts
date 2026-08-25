@@ -3,7 +3,7 @@ import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
 import { CybTopbarComponent } from '../shared/cyb-topbar.component';
-import type { CybNode, Surah, StudyUnit, PassageRoot } from '../data/cyb.models';
+import type { CybNode, CybNodeTree, Surah, StudyUnit, PassageRoot } from '../data/cyb.models';
 
 // Quran Ladder — the Qurʾān as one recursion, rung by rung.
 // Every rung is a viable system: a sensor that reads its own state and feeds it
@@ -298,21 +298,21 @@ export class CybLadderComponent {
   readonly units = signal<StudyUnit[]>([]);
   readonly verseRoots = signal<PassageRoot[]>([]);
   readonly sensorsN = signal(0);
-  private readonly treeRoots = signal<CybNode[]>([]);
+  private readonly treeRoots = signal<CybNodeTree[]>([]);
 
   readonly surahId   = computed(() => { const v = this.pm()?.get('surahId'); return v ? Number(v) : null; });
   readonly passageNo = computed(() => { const v = this.pm()?.get('passageNo'); return v ? Number(v) : null; });
   readonly stream    = computed(() => this.pm()?.get('stream') ?? null);
   readonly rootParam = computed(() => this.pm()?.get('root') ?? null);
 
-  private readonly flat = computed<CybNode[]>(() => {
-    const out: CybNode[] = [];
-    const walk = (n: CybNode) => { out.push(n); n.children.forEach(walk); };
+  private readonly flat = computed<CybNodeTree[]>(() => {
+    const out: CybNodeTree[] = [];
+    const walk = (n: CybNodeTree) => { out.push(n); n.children.forEach(walk); };
     this.treeRoots().forEach(walk);
     return out;
   });
 
-  readonly flatNodes = computed<CybNode[]>(() => this.flat());
+  readonly flatNodes = computed<CybNodeTree[]>(() => this.flat());
   readonly builtSurahs = computed(() => this.flat().filter((n) => n.scale === 'surah' && n.build_pct > 0).length);
 
   constructor() {
@@ -365,7 +365,7 @@ export class CybLadderComponent {
    *   • iʿrāb sentences — an ordered s1…s12 run that is done or not → a sequence
    *   • expressions, nuances — a handful of named things → chips
    */
-  private leafBlocks(stage: CybNode, key: string, sid: number, pno: number, rootSel: string | null): LeafBlock[] {
+  private leafBlocks(stage: CybNodeTree, key: string, sid: number, pno: number, rootSel: string | null): LeafBlock[] {
     const blocks: LeafBlock[] = [];
     const refTail = (n: CybNode) => (n.target_ref ?? '').split(':').pop() ?? '';
 

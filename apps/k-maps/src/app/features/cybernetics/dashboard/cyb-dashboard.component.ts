@@ -3,7 +3,7 @@ import { Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
 import { CYB_AXES } from '../data/cyb.models';
-import type { CybAxis, CybDomain, CybMonitor, CybNode, CybJob } from '../data/cyb.models';
+import type { CybAxis, CybDomain, CybMonitor, CybNode, CybNodeTree, CybJob } from '../data/cyb.models';
 
 // ─── The Cybernetics dashboard — the console's front page ────────────────────
 //
@@ -422,9 +422,9 @@ export class CybDashboardComponent {
 }
 
 /** Every node in the forest, depth-first — the lookup spine for the rollups. */
-function flatten(roots: CybNode[]): CybNode[] {
-  const out: CybNode[] = [];
-  const walk = (n: CybNode) => { out.push(n); (n.children ?? []).forEach(walk); };
+function flatten(roots: CybNodeTree[]): CybNodeTree[] {
+  const out: CybNodeTree[] = [];
+  const walk = (n: CybNodeTree) => { out.push(n); (n.children ?? []).forEach(walk); };
   roots.forEach(walk);
   return out;
 }
