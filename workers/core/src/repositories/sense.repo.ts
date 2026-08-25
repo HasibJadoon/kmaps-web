@@ -230,15 +230,30 @@ export class SenseRepo {
     // Recompute the node's per-axis percent from what was actually read, and
     // mark the axis measured — the flag now states a fact the engine made true.
     if (dryRun) return report;
+    // `expected > 0` is a condition of entry, not a branch inside the sum.
+    //
+    // It used to read `CASE WHEN expected > 0 THEN reading / expected ELSE
+    // reading END`, so a sensor with no denominator contributed its raw
+    // reading — capped at 1.0, which is to say **100%** for any reading at all.
+    // An uncalibrated sensor would have reported a perfect score for a band
+    // nobody had measured, which is the one thing this plane is built not to do,
+    // and the iOS client already excluded them for exactly that reason.
+    //
+    // Every one of the 7,877 sensors in the table is calibrated today (the
+    // smallest `expected` is 0.1), so this changes no percentage now. It closes
+    // the trap before the first uncalibrated sensor arrives.
+    //
+    // A node whose sensors on an axis are all uncalibrated now yields no row
+    // for that axis, so `*_measured` stays 0 and the axis reads as unknown —
+    // which is the truth about it.
     const axes = await query<{ axis: string; pct: number; n: number }>(
       db,
       `SELECT axis,
-              ROUND(100.0 * SUM(weight * MIN(1.0, CASE WHEN expected > 0
-                     THEN reading / expected ELSE reading END))
+              ROUND(100.0 * SUM(weight * MIN(1.0, reading / expected))
                     / MAX(1e-9, SUM(weight)), 0) AS pct,
               COUNT(*) AS n
          FROM cyb_sensor
-        WHERE node_id = ? AND read_count > 0
+        WHERE node_id = ? AND read_count > 0 AND expected > 0
         GROUP BY axis`,
       [nodeID]);
     for (const a of axes) {
