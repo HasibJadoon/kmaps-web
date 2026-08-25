@@ -1,0 +1,50 @@
+name: deploy one worker
+
+# Reusable single-worker deploy. The nine deploy jobs in deploy-workers.yml
+# were identical except for a directory name; this is that job, once.
+
+on:
+  workflow_call:
+    inputs:
+      worker:
+        description: "Directory under workers/ (e.g. core, backend)"
+        required: true
+        type: string
+
+env:
+  # Pinned to the version in package-lock.json. Previously this was
+  # `npm install -g wrangler` (floating latest — 4.86.0 at time of writing)
+  # in one workflow and `npx wrangler@4.66.0` in another, so a Cloudflare
+  # release could change production deploy behaviour with no commit here.
+  WRANGLER_VERSION: "4.78.0"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  deploy:
+    name: "wrangler deploy"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20.19.0"
+
+      # wrangler bundles from source at deploy time, so a worker that imports
+      # an npm package needs node_modules present in THIS job — the gate
+      # installing them does not help, because each job is a fresh runner.
+      # Without it `wrangler deploy` fails with `Could not resolve "<pkg>"`
+      # (today only km-core, which imports ts-fsrs; every other worker bundles
+      # from source alone, which is what kept this hidden). The gate never
+      # catches it either: tsc resolves types happily and only bundling fails.
+      - run: npm ci
+
+      - run: npm install -g "wrangler@${WRANGLER_VERSION}"
+
+      - run: wrangler deploy
+        working-directory: workers/${{ inputs.worker }}
+        env:
+          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

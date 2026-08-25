@@ -1,0 +1,57 @@
+name: CI
+
+# Validation for pull requests. Until this existed the repo had CD but no CI:
+# every workflow triggered on push to main, so the first thing that ever
+# type-checked a change was the deploy pipeline — by which point the code was
+# already merged. The gate could block the deploy but not the bad merge.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A new push to the same PR supersedes the old run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # Same gate the deploy workflows use — tests + tsc across all nine workers.
+  gate:
+    uses: ./.github/workflows/_gate.yml
+
+  # The Angular apps are not covered by the worker typecheck, and previously
+  # nothing built them until a production deploy was already underway. A build
+  # failure there used to mean a red deploy, not a red PR.
+  build-k-maps:
+    name: "build apps/k-maps"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20.19.0"
+          cache: npm
+      - name: install
+        run: |
+          npm install --legacy-peer-deps --workspace apps/k-maps
+          npm install --legacy-peer-deps --ignore-scripts
+      - run: npm run build -w apps/k-maps
+
+  build-app-k-maps:
+    name: "build apps/app-k-maps"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+      - name: install and build
+        run: |
+          npm install --legacy-peer-deps --workspace apps/app-k-maps --include-workspace-root=false
+          npm run build -w apps/app-k-maps
