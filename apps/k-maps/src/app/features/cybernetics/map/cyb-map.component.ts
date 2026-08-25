@@ -1085,6 +1085,7 @@ export class CybMapComponent {
   readonly dsSpec = signal<DisplaySpec | null>(null);
   readonly dsError = signal<string | null>(null);
   private dsLoadedFor: string | null = null;
+  private auditLoadedFor: string | null = null;
 
   /** This root's live carrier counts for the open scope. Null while in flight. */
   readonly rootFill = signal<RootFillCell[] | null>(null);
@@ -1222,20 +1223,20 @@ export class CybMapComponent {
         this.selMemletKind.set(null); this.selQuestionKind.set(null);
         this.rootDetail.set(null); this.subRows.set(null); this.senseBundle.set(null);
         this.scope.set('root');
-        this.svc.rootDetail(rn).subscribe({ next: (d) => this.rootDetail.set(d), error: () => {} });
-        // Who attested this root's senses — the inspector's 360° panel.
-        this.svc.rootSenses(rn).subscribe({
-          next: (b) => this.senseBundle.set(b),
-          error: () => this.senseBundle.set({ root: rn, senses: [], arcs: [], steps: [], attestations: [] }),
-        });
-        this.loadRootFill(rn);
-        // The reader is the default face of a root, so its spec is fetched as
-        // soon as the URL names one — not on first click of the toggle.
-        if (this.rootView() === 'reader') this.loadDsSpec(rn);
+        // Only the view being shown pays for its data. The audit dashboard
+        // needs three more reads — the registry detail (40 sub-layers, the
+        // memlets, the question kinds), the sense bundle (every sense, arc,
+        // step and attestation the root has) and the fill counts — and none of
+        // them appear anywhere in the reader. Landing on a root used to fetch
+        // all of it regardless, so the default view paid for a screen nobody
+        // had asked for yet.
+        if (this.rootView() === 'audit') this.loadAudit(rn);
+        else this.loadDsSpec(rn);
       }
       if (!rn) {
         this.rootFill.set(null); this.subRows.set(null);
-        this.dsSpec.set(null); this.dsError.set(null); this.dsLoadedFor = null;
+        this.dsSpec.set(null); this.dsError.set(null);
+        this.dsLoadedFor = null; this.auditLoadedFor = null;
       }
       // A non-vocabulary stream shows what its carriers hold, not the plane's
       // own child nodes. The read is per passage node and per layer.
@@ -1662,7 +1663,22 @@ export class CybMapComponent {
   setRootView(v: 'reader' | 'audit') {
     if (this.rootView() === v) return;
     this.rootView.set(v);
-    if (v === 'reader') this.loadDsSpec(this.rootParam());
+    const rn = this.rootParam();
+    if (v === 'reader') this.loadDsSpec(rn);
+    else this.loadAudit(rn);
+  }
+
+  /** What only the audit dashboard draws. Fetched when it is actually opened. */
+  private loadAudit(rn: string | null) {
+    if (!rn || this.auditLoadedFor === rn) return;
+    this.auditLoadedFor = rn;
+    this.svc.rootDetail(rn).subscribe({ next: (d) => this.rootDetail.set(d), error: () => {} });
+    // Who attested this root's senses — the inspector's 360° panel.
+    this.svc.rootSenses(rn).subscribe({
+      next: (b) => this.senseBundle.set(b),
+      error: () => this.senseBundle.set({ root: rn, senses: [], arcs: [], steps: [], attestations: [] }),
+    });
+    this.loadRootFill(rn);
   }
 
   /** Fetch the composed spec for the root in the URL. Cheap to call twice —
