@@ -13,6 +13,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { BackendApiService } from '../../../shared/services/backend-api.service';
 import { CybDsSpecComponent } from './cyb-ds-spec.component';
+import { CybDsReaderComponent } from './cyb-ds-reader.component';
 import { normaliseSpec } from '@kmaps/contracts/ds';
 import type { DisplaySpec, DsForm } from '@kmaps/contracts/ds';
 
@@ -20,7 +21,7 @@ import type { DisplaySpec, DsForm } from '@kmaps/contracts/ds';
   selector: 'km-cyb-ds-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CybDsSpecComponent, RouterLink],
+  imports: [CybDsSpecComponent, CybDsReaderComponent, RouterLink],
   template: `
     <div class="bar">
       <a class="back" routerLink="/cybernetics/map">‹ Quran Map</a>
@@ -35,7 +36,15 @@ import type { DisplaySpec, DsForm } from '@kmaps/contracts/ds';
     @if (error(); as e) {
       <p class="msg err">{{ e }}</p>
     } @else if (spec(); as s) {
-      <km-ds-spec [spec]="s" />
+      <!-- The desktop form gets the reader: chapter rail, one wide column, the
+           whole root stacked down one page. The mobile form gets the plain
+           renderer, because a sticky rail on a phone is a lie about how much
+           screen there is. Both draw the same spec. -->
+      @if (form() === 'desktop') {
+        <km-ds-reader [spec]="s" />
+      } @else {
+        <km-ds-spec [spec]="s" />
+      }
     } @else {
       <p class="msg">Reading {{ root() }}…</p>
     }

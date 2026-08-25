@@ -57,6 +57,24 @@ function trilingual(id: string, o: Record<string, unknown>, arKey = 'ar'): DsRec
   return { id, ar: ar(o[arKey]), en: en(o.en), ur: ur(o.ur) };
 }
 
+/**
+ * Where a block belongs in the reader's page.
+ *
+ * A card's fields answer several different questions — what the root IS, what
+ * it MEANS, who SAYS so — and emitting them as one undifferentiated run would
+ * put a seven-stage sense arc and a scholarly attribution under the same
+ * heading. So each block names its chapter and its own section at the point it
+ * is built, and the composer turns them into sections that sit beside the
+ * layers from km_arabic_linguistic rather than in a pile labelled "Cards".
+ */
+export interface Placed {
+  chapter: string;
+  code: string;
+  title: string;
+  title_ar?: string;
+  block: DsBlock;
+}
+
 /** How much of a list to send. Same caps as every other layer. */
 const CAP = { desktop: 8, mobile: 3 } as const;
 export type CardForm = keyof typeof CAP;
@@ -70,14 +88,53 @@ export type CardForm = keyof typeof CAP;
  * absence is a build signal. An optional field nobody filled is not.
  */
 export function cardBlocks(fields: Fields, form: CardForm = 'desktop'): DsBlock[] {
+  return placedBlocks(fields, form).map((p) => p.block);
+}
+
+/**
+ * The card's blocks as sections, each in the chapter it answers.
+ *
+ * Consecutive blocks sharing a section code stay together — the eight arcs of
+ * كتب are eight chains in one "Sense arc", not eight sections.
+ */
+export function cardSections(fields: Fields, form: CardForm = 'desktop'): Placed[][] {
+  const groups: Placed[][] = [];
+  for (const p of placedBlocks(fields, form)) {
+    const last = groups[groups.length - 1];
+    if (last && last[0].code === p.code) last.push(p);
+    else groups.push([p]);
+  }
+  return groups;
+}
+
+function placedBlocks(fields: Fields, form: CardForm = 'desktop'): Placed[] {
   const cap = CAP[form];
-  const out: DsBlock[] = [];
+  const out: Placed[] = [];
+  /** Tag a block with the question it answers. */
+  const at = (chapter: string, code: string, title: string, titleAr: string) =>
+    (block: DsBlock): Placed => ({ chapter, code, title, title_ar: titleAr, block });
+
+  const asRoot    = at('identity',  'CARD-ID',    'The root',         'الجذر');
+  const asLetters = at('identity',  'CARD-LTR',   'The letters',      'الحروف');
+  const asThread  = at('meaning',   'CARD-DNA',   'The thread',       'الخيط');
+  const asAsl     = at('evidence',  'CARD-ASL',   'The aṣl',          'الأصل');
+  const asForms   = at('meaning',   'CARD-FORM',  'The forms',        'الأوزان');
+  const asArc     = at('meaning',   'CARD-ARC',   'The sense arc',    'قوس المعنى');
+  const asAxes    = at('meaning',   'CARD-AXIS',  'Axes',             'المحاور');
+  const asTaqalib = at('relations', 'CARD-TAQ',   'The permutations', 'التقاليب');
+  const asFuruq   = at('relations', 'CARD-FURUQ', 'Near-synonyms',    'الفروق');
+  const asAddad   = at('relations', 'CARD-ADDAD', 'Opposites',        'الأضداد');
+  const asField   = at('relations', 'CARD-FIELD', 'Semantic field',   'الحقل');
+  const asLemmas  = at('relations', 'CARD-LEMMA', 'The lemmas',       'المشتقات');
+  const asVerse   = at('quran',     'CARD-VERSE', 'Where it was met', 'الشاهد');
+  const asExpr    = at('quran',     'CARD-EXPR',  'Expressions',      'التعابير');
+  const asSchol   = at('evidence',  'CARD-SCH',   'Scholarship',      'أقوال العلماء');
 
   // ── The root itself ────────────────────────────────────────────────────────
   const root = s(fields.Root);
   const soundness = isObj(fields.Soundness) ? fields.Soundness : null;
   if (root) {
-    out.push({
+    out.push(asRoot({
       kind: 'hero',
       mark: { text: root.split('').join(' '), script: 'ar' },
       ar: soundness ? ar(soundness.ar) : undefined,
@@ -87,7 +144,7 @@ export function cardBlocks(fields: Fields, form: CardForm = 'desktop'): DsBlock[
           ? [{ label: 'in the muṣḥaf', value: { text: `${n(fields.QuranTotal)}×`, script: 'latin' as const } }]
           : []),
       ],
-    });
+    }));
   }
 
   // ── The letters, with where each is made ───────────────────────────────────
@@ -104,22 +161,22 @@ export function cardBlocks(fields: Fields, form: CardForm = 'desktop'): DsBlock[
         // root behaves. Joined because a cell has one footnote.
         footnote: [s(r.makhraj), s(r.sifa)].filter(Boolean).join(' · ') || undefined,
       }));
-    out.push({ kind: 'grid', title: 'The letters', cells });
+    out.push(asLetters({ kind: 'grid', title: 'The letters', cells }));
   }
 
   // ── The thread, and the oldest witness for it ──────────────────────────────
   const dna = isObj(fields.DnaThread) ? fields.DnaThread : null;
   if (dna) {
-    out.push({
+    out.push(asThread({
       kind: 'card_list',
       title: 'The thread',
       records: [trilingual('dna', dna)],
-    });
+    }));
   }
 
   const asl = isObj(fields.AslStatement) ? fields.AslStatement : null;
   if (asl) {
-    out.push({
+    out.push(asAsl({
       kind: 'card_list',
       title: 'The aṣl',
       // The field's own instruction: the OLDEST witness, not the famous one.
@@ -135,7 +192,7 @@ export function cardBlocks(fields: Fields, form: CardForm = 'desktop'): DsBlock[
           ? { source: s(asl.auth), is_synthesis: false, ref: s(asl.auth) }
           : undefined,
       }],
-    });
+    }));
   }
 
   // ── The form ladder ────────────────────────────────────────────────────────
@@ -169,11 +226,11 @@ export function cardBlocks(fields: Fields, form: CardForm = 'desktop'): DsBlock[
         ],
       };
     });
-    out.push({
+    out.push(asForms({
       kind: 'card_list', title: 'The forms',
       hint: `${ladder.length} · ° marks a qiyāsī maṣdar, supplied by the pattern`,
       records, overflow_count: Math.max(0, ladder.length - cap),
-    });
+    }));
   }
 
   // ── The sense arc ──────────────────────────────────────────────────────────
@@ -192,13 +249,13 @@ export function cardBlocks(fields: Fields, form: CardForm = 'desktop'): DsBlock[
       // and not dressed as evidence.
       unresolved: n(r.concrete) !== 1,
     }));
-    out.push({
+    out.push(asArc({
       kind: 'chain',
       title: `The arc · ${s(a.verb) || s(a.fam) || `family ${i + 1}`}`,
       hint: n(a.count) ? `${n(a.count)}× in the muṣḥaf · filled rungs are the physical senses` : 'filled rungs are the physical senses',
       summary: ar(a.arc_ar) ?? en(a.arc_en),
       nodes,
-    });
+    }));
   }
 
   // ── What the root moves along ──────────────────────────────────────────────
@@ -212,7 +269,7 @@ export function cardBlocks(fields: Fields, form: CardForm = 'desktop'): DsBlock[
       value: String(n(a.w)),
       fraction: n(a.w) / top,
     }));
-    out.push({ kind: 'bars', title: 'Axes', bars });
+    out.push(asAxes({ kind: 'bars', title: 'Axes', bars }));
   }
 
   // ── The permutation family ─────────────────────────────────────────────────
@@ -220,7 +277,7 @@ export function cardBlocks(fields: Fields, form: CardForm = 'desktop'): DsBlock[
   const members = taq ? (Array.isArray(taq.members) ? taq.members.map(s) : []) : [];
   if (taq && members.length) {
     const unused = s(taq.unused);
-    out.push({
+    out.push(asTaqalib({
       kind: 'grid',
       title: 'The permutations',
       // What the language declined to use is information, so the unused member
@@ -233,13 +290,13 @@ export function cardBlocks(fields: Fields, form: CardForm = 'desktop'): DsBlock[
         highlighted: m === root,
         footnote: m === unused ? 'unused' : undefined,
       })),
-    });
+    }));
   }
 
   // ── Near-synonyms, and what each foregrounds ───────────────────────────────
   const furuq = arr(fields.Furuq);
   if (furuq.length) {
-    out.push({
+    out.push(asFuruq({
       kind: 'card_list', title: 'Near-synonyms',
       hint: `${furuq.length} · what each foregrounds that this one does not`,
       records: furuq.slice(0, cap).map((f, i): DsRecord => ({
@@ -247,13 +304,13 @@ export function cardBlocks(fields: Fields, form: CardForm = 'desktop'): DsBlock[
         badges: s(f.w) ? [{ label: '', value: s(f.w), tone: 'strong' }] : undefined,
       })),
       overflow_count: Math.max(0, furuq.length - cap),
-    });
+    }));
   }
 
   // ── Opposites ──────────────────────────────────────────────────────────────
   const addad = arr(fields.Addad);
   if (addad.length) {
-    out.push({
+    out.push(asAddad({
       kind: 'card_list', title: 'Opposites',
       hint: 'attested and derived are marked apart',
       records: addad.slice(0, cap).map((a, i): DsRecord => ({
@@ -273,13 +330,13 @@ export function cardBlocks(fields: Fields, form: CardForm = 'desktop'): DsBlock[
           : { source: 'kmaps_derived', is_synthesis: true },
       })),
       overflow_count: Math.max(0, addad.length - cap),
-    });
+    }));
   }
 
   // ── The semantic field ─────────────────────────────────────────────────────
   const field = arr(fields.Field);
   if (field.length) {
-    out.push({
+    out.push(asField({
       kind: 'pills', title: 'Semantic field',
       pills: field.map((f, i) => ({
         id: `field-${i}`,
@@ -289,13 +346,43 @@ export function cardBlocks(fields: Fields, form: CardForm = 'desktop'): DsBlock[
         // client has to learn, for a distinction muting already carries.
         muted: n(f.primary) !== 1,
       })),
-    });
+    }));
+  }
+
+  // ── Every lemma the root threw off ─────────────────────────────────────────
+  // The whole derivational family on one page, which is the thing a reader
+  // came for: كتاب at 260 occurrences and كاتب at 6 are the same root wearing
+  // two faces, and seeing them apart hides that.
+  const lemmas = arr(fields.LemmaInventory);
+  if (lemmas.length) {
+    const total = lemmas.reduce((a, l) => a + n(l.n), 0);
+    out.push(asLemmas({
+      kind: 'card_list',
+      title: 'The lemmas',
+      hint: `${lemmas.length}${total ? ` · ${total} occurrences between them` : ''}`,
+      // Commonest first: the frequent lemma is the one a reader has already
+      // met and will recognise the root by.
+      records: lemmas
+        .slice()
+        .sort((a, b) => n(b.n) - n(a.n))
+        .slice(0, cap)
+        .map((l, i): DsRecord => ({
+          id: `lemma-${i}`,
+          ar: ar(l.t),
+          en: en(l.gloss),
+          badges: s(l.pos) ? [{ label: '', value: s(l.pos), tone: 'plain' }] : undefined,
+          facts: n(l.n)
+            ? [{ label: 'in the muṣḥaf', value: { text: `${n(l.n)}×`, script: 'latin' } }]
+            : undefined,
+        })),
+      overflow_count: Math.max(0, lemmas.length - cap),
+    }));
   }
 
   // ── Where it is met ────────────────────────────────────────────────────────
   const verse = s(fields.VerseAr);
   if (verse) {
-    out.push({
+    out.push(asVerse({
       kind: 'prose_blocks',
       title: 'Where it was met',
       hint: s(fields.VerseRef) || undefined,
@@ -305,12 +392,12 @@ export function cardBlocks(fields: Fields, form: CardForm = 'desktop'): DsBlock[
         // face rather than the Arabic UI face.
         text: { text: verse, script: 'ar', register: 'mushaf' },
       }],
-    });
+    }));
   }
 
   const expressions = arr(fields.Expressions);
   if (expressions.length) {
-    out.push({
+    out.push(asExpr({
       // Not `pairs`: an expression carries the āyah it was met in, and a pair
       // is two runs with nowhere to put a third fact.
       kind: 'card_list', title: 'Expressions',
@@ -323,13 +410,13 @@ export function cardBlocks(fields: Fields, form: CardForm = 'desktop'): DsBlock[
           : undefined,
       })),
       overflow_count: Math.max(0, expressions.length - cap),
-    });
+    }));
   }
 
   // ── Who said what ──────────────────────────────────────────────────────────
   const scholarship = arr(fields.Scholarship);
   if (scholarship.length) {
-    out.push({
+    out.push(asSchol({
       kind: 'ledger', title: 'Scholarship',
       records: scholarship.slice(0, cap).map((x, i): DsRecord => ({
         id: `sch-${i}`,
@@ -341,7 +428,7 @@ export function cardBlocks(fields: Fields, form: CardForm = 'desktop'): DsBlock[
           : undefined,
       })),
       overflow_count: Math.max(0, scholarship.length - cap),
-    });
+    }));
   }
 
   return out;

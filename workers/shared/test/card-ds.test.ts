@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cardBlocks } from '../../core/src/repositories/card-ds.repo';
+import { cardBlocks, cardSections } from '../../core/src/repositories/card-ds.repo';
 import type { DsBlock } from '../src/contracts/ds';
 
 const here = typeof __dirname === 'string'
@@ -170,5 +170,50 @@ describe('a phone is not a small desktop', () => {
     // Nothing truncates silently: shown + held back is the whole list.
     assert.equal(m.records.length + (m.overflow_count ?? 0),
                  d.records.length + (d.overflow_count ?? 0));
+  });
+});
+
+describe('the card answers the reader\'s questions, not one heading', () => {
+  const groups = () => cardSections(FIELDS, 'desktop');
+
+  test('its blocks are spread across chapters rather than piled in one', () => {
+    // A card is a synthesis OF the layers. Filing all of it under "Cards" put a
+    // seven-stage sense arc and a scholarly attribution under the same heading,
+    // and away from the layers that carry them — which is what made the richest
+    // content in the system invisible.
+    const chapters = new Set(groups().map((g) => g[0].chapter));
+    assert.ok(chapters.size >= 4, `only ${chapters.size} chapters: ${[...chapters]}`);
+    for (const key of ['identity', 'meaning', 'relations', 'evidence', 'quran']) {
+      assert.ok(chapters.has(key), `nothing answers "${key}"`);
+    }
+  });
+
+  test('the eight arcs of كتب are one section, not eight', () => {
+    const arcs = groups().filter((g) => g[0].code === 'CARD-ARC');
+    assert.equal(arcs.length, 1, 'consecutive blocks of a kind stay together');
+    assert.ok(arcs[0].length > 1, 'and it holds every arc');
+    assert.ok(arcs[0].every((p) => p.block.kind === 'chain'));
+  });
+
+  test('the aṣl is evidence and the lemmas are relations', () => {
+    // Where a block goes is a claim about what it answers: the aṣl is a
+    // WITNESS statement, so it belongs with who says so, not with what it means.
+    const at = (code: string) => groups().find((g) => g[0].code === code)?.[0];
+    assert.equal(at('CARD-ASL')?.chapter, 'evidence');
+    assert.equal(at('CARD-SCH')?.chapter, 'evidence');
+    assert.equal(at('CARD-LEMMA')?.chapter, 'relations');
+    assert.equal(at('CARD-VERSE')?.chapter, 'quran');
+    assert.equal(at('CARD-ID')?.chapter, 'identity');
+  });
+
+  test('every section names itself in both languages', () => {
+    for (const g of groups()) {
+      assert.ok(g[0].title.length > 0, `${g[0].code} has no title`);
+      assert.ok((g[0].title_ar ?? '').length > 0, `${g[0].code} has no Arabic title`);
+    }
+  });
+
+  test('grouping loses no block', () => {
+    assert.equal(groups().flat().length, cardBlocks(FIELDS, 'desktop').length);
   });
 });

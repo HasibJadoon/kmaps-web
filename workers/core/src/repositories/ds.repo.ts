@@ -25,7 +25,7 @@ import type {
   DisplaySpec, DsBlock, DsForm, DsSection, DsReading, DsPlane, DsRecord, DsBar,
 } from '../../../shared/src/contracts/ds';
 import type { CoreEnv } from '../env';
-import { cardBlocks, type CardForm } from './card-ds.repo';
+import { cardSections, type CardForm } from './card-ds.repo';
 
 /** Where the root's own layers come from. */
 const AL_DS = '/al/ds/root';
@@ -77,7 +77,7 @@ export class CoreDsRepo {
           text: 'The linguistics worker did not answer, so this root\'s layers could not be read. This is a reachability problem, not an empty root.',
         }],
       }]),
-      ...(cards ? [cards] : []),
+      ...(cards ?? []),
       ...(spread ? [spread] : []),
     ];
 
@@ -173,7 +173,7 @@ export class CoreDsRepo {
    * nothing, so the match also accepts the typed resource ref the card-building
    * skills actually write. Both are exact; neither guesses.
    */
-  private async cards(root: string, cap: number, form: DsForm): Promise<DsSection | null> {
+  private async cards(root: string, cap: number, form: DsForm): Promise<DsSection[]> {
     const rows = await query<CardRow>(
       this.db,
       `SELECT id, card_kind, resource_type, front_text, back_text, card_state,
@@ -186,8 +186,8 @@ export class CoreDsRepo {
     ).catch(() => [] as CardRow[]);
 
     if (!rows.length) {
-      return this.noteSection('remember', '90-CARD', 'LEARN', 'Cards', 'البطاقات',
-        'empty', 'No card has been built for this root yet.');
+      return [this.noteSection('remember', '90-CARD', 'LEARN', 'Cards', 'البطاقات',
+        'empty', 'No card has been built for this root yet.')];
     }
 
     const records: DsRecord[] = rows.slice(0, cap).map((c): DsRecord => ({
@@ -217,28 +217,47 @@ export class CoreDsRepo {
       .filter((x): x is { card: CardRow; fields: Record<string, unknown> } => x.fields !== null)
       .sort((a, b) => Object.keys(b.fields).length - Object.keys(a.fields).length)[0];
 
-    const authored = richest
-      ? cardBlocks(richest.fields, form as CardForm)
+    // The card's own fields become sections in the chapters they answer, so a
+    // sense arc sits under "What it means" beside the layers that carry it,
+    // rather than in a pile labelled "Cards". A card is a synthesis OF those
+    // layers; filing it away from them is what made it invisible.
+    const authored: DsSection[] = richest
+      ? cardSections(richest.fields, form as CardForm).map((group) => ({
+          chapter: group[0].chapter,
+          code: group[0].code,
+          band: 'LEARN',
+          title: group[0].title,
+          title_ar: group[0].title_ar,
+          accent: null,
+          state: 'filled' as const,
+          total_rows: group.length,
+          carriers: ['core_srs_card', 'core_srs_note_type'],
+          // The section header already carries the title. Repeating it on the
+          // block prints "The letters" twice, one above the other.
+          blocks: group.map((p) =>
+            p.block.title === group[0].title
+              ? { ...p.block, title: undefined }
+              : p.block),
+        }))
       : [];
 
-    return {
-      chapter: 'remember',
-      code: '90-CARD', band: 'LEARN', title: 'Cards', title_ar: 'البطاقات',
-      icon: '🃏', accent: null, state: 'filled',
-      total_rows: rows.length,
-      carriers: authored.length
-        ? ['core_srs_card', 'core_srs_note_type']
-        : ['core_srs_card'],
-      blocks: [
-        ...authored,
-        {
+    // What is scheduled stays its own section: due dates are not a fact about
+    // the root, they are a fact about this learner's memory of it.
+    return [
+      ...authored,
+      {
+        chapter: 'remember',
+        code: '90-CARD', band: 'LEARN', title: 'Cards', title_ar: 'البطاقات',
+        icon: '🃏', accent: null, state: 'filled',
+        total_rows: rows.length, carriers: ['core_srs_card'],
+        blocks: [{
           kind: 'card_list',
           title: 'Scheduling',
           hint: `${rows.length} card${rows.length === 1 ? '' : 's'} · soonest due first`,
           records, overflow_count: Math.max(0, rows.length - cap),
-        },
-      ],
-    };
+        }],
+      },
+    ];
   }
 
   /**

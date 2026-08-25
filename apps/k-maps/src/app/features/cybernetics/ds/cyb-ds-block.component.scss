@@ -50,6 +50,9 @@
 .grid {
   display: grid; gap: 6px;
   grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  // Arabic cells fill from the right, so the first radical sits where a
+  // reader of Arabic looks first. The cells' own text stays isolated.
+  &.rtl { direction: rtl; }
 }
 .cell {
   display: flex; flex-direction: column; align-items: center; gap: 3px;

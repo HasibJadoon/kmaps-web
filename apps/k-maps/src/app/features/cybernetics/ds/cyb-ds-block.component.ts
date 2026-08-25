@@ -50,7 +50,10 @@ import type { DsBlock, DsText } from '@kmaps/contracts/ds';
       }
 
       @case ('grid') {
-        <div class="grid">
+        <!-- A root's radicals are a right-to-left sequence: the fāʾ is the
+             RIGHTMOST cell, not the leftmost. Laid out ltr, كتب reads ك-ت-ب
+             across the page, which is the root backwards. -->
+        <div class="grid" [class.rtl]="isArabicGrid(b.cells)">
           @for (c of b.cells; track c.id) {
             <div class="cell" [class.muted]="c.muted" [class.hi]="c.highlighted">
               <span class="cmark" [class.ar]="c.mark.script === 'ar'">{{ c.mark.text }}</span>
@@ -215,6 +218,11 @@ import type { DsBlock, DsText } from '@kmaps/contracts/ds';
   styleUrl: './cyb-ds-block.component.scss',
 })
 export class CybDsBlockComponent {
+  /** Whether a grid's marks are Arabic, and so must run right to left. */
+  isArabicGrid(cells: { mark: { script: string } }[]): boolean {
+    return cells.length > 0 && cells.every((c) => c.mark.script === 'ar');
+  }
+
   readonly block = input.required<DsBlock>();
   /** The script a run of text is in — the client's only job is picking a face. */
   protected isArabic(x: DsText | undefined): boolean { return x?.script === 'ar'; }
