@@ -163,11 +163,44 @@ export interface DsSubject {
   display: DsText;
 }
 
+/**
+ * One axis of the control plane's reading of this subject.
+ *
+ * `measured` is the field that matters. A node no sensor has read reports
+ * `pct: 0, measured: false`, and rendering that as 0% claims a measurement
+ * nobody took — for most roots, three of the four axes are in exactly that
+ * state. `sensors` against `read_sensors` says how much of the axis has
+ * actually been looked at.
+ */
+export interface DsReading {
+  axis: string;
+  pct: number;
+  measured: boolean;
+  /** Measured once, but no live sensor stands behind the number now. */
+  stale: boolean;
+  sensors: number;
+  read_sensors: number;
+}
+
+/**
+ * What the control plane knows about this subject.
+ *
+ * Added by km_core, which owns the plane. The domain worker that shapes the
+ * layers cannot read km_core and should not: the spec says what a layer IS and
+ * holds, the plane says how far along it is, and they are separate claims.
+ */
+export interface DsPlane {
+  node_id: string | null;
+  readings: DsReading[];
+}
+
 export interface DisplaySpec {
   subject: DsSubject;
   scope: string;
   form: DsForm;
   sections: DsSection[];
+  /** Present only on the composed spec from km_core. */
+  plane?: DsPlane;
   /** Counts across the whole spec, so a header need not add them up. */
   summary: { filled: number; empty: number; unknown: number; rows: number };
 }

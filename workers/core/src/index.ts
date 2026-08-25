@@ -16,6 +16,7 @@ import { activityRoutes } from './routes/activity';
 import { grantRoutes } from './routes/grants';
 import { srsRoutes } from './routes/srs';
 import { srsRegistryRoutes } from './routes/srs-registry';
+import { dsRoutes } from './routes/ds';
 import { cybRoutes } from './routes/cyb';
 import { studySessionRoutes } from './routes/study-session';
 
@@ -36,7 +37,8 @@ activityRoutes(router);
 grantRoutes(router);
 srsRoutes(router);           // /core/srs/* — the one spaced-repetition engine (FSRS)
 srsRegistryRoutes(router);   // GET/POST/DELETE /core/srs/registry — SRS enrollment index
-cybRoutes(router);           // GET /core/cyb/* — cybernetics control plane (monitor · tree · jobs)
+cybRoutes(router);
+dsRoutes(router);                // /core/ds/* — the composed display spec: layers + plane + cards           // GET /core/cyb/* — cybernetics control plane (monitor · tree · jobs)
 studySessionRoutes(router);  // /core/study/sessions — the study axis's one carrier
 
 export default {
