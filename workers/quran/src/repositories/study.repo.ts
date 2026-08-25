@@ -219,6 +219,11 @@ function sourcesFromNote(note: string | null): string[] {
 const STEP_ORDER: Record<string, number> = {
   reading: 100, vocabulary: 200, sentence_structure: 300,
   passage_structure: 400, tafsir: 500, worldview: 600,
+  // Step 700 of the registered process. It was missing here, so a task of this
+  // type fell to the 99000 default and sorted after everything — and the grid
+  // below never reported it at all. No passage carries one yet, which is the
+  // only reason it has not bitten.
+  surah_structure: 700,
   // Legacy task_type values, ordered inside the step that now owns them.
   morphology: 200, expressions: 210,
   comprehension: 500, scholarship: 510,
@@ -298,6 +303,7 @@ export class StudyRepo {
                 || flags.has('scholarship')) ? 1 : 0,
         },
         worldview:           { has: flags.has('worldview') ? 1 : 0 },
+        surah_structure:     { has: flags.has('surah_structure') ? 1 : 0 },
       };
     });
 

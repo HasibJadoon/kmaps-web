@@ -143,6 +143,7 @@ interface StreamRow {
                   <span class="step" [class.on]="u.passage_structure.has"><span class="o"></span>naẓm</span>
                   <span class="step" [class.on]="u.tafsir.has"><span class="o"></span>tafsīr</span>
                   <span class="step" [class.on]="u.worldview.has"><span class="o"></span>worldview</span>
+                  <span class="step" [class.on]="u.surah_structure.has"><span class="o"></span>surah naẓm</span>
                 </div>
                 @if (pnode && pnode.build_pct > 0) {
                   <div class="pbuild"><span class="o" style="--oc:var(--build)"><i [style.width.%]="bar(pnode.build_pct)"></i></span>

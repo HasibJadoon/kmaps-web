@@ -91,6 +91,9 @@ export interface StudyUnit {
   passage_structure: { has: number };
   tafsir: { has: number };
   worldview: { has: number };
+  /** Step 700 of PRC:quran:surah_passage_study. The registry declares seven
+   *  steps; this one was missing from the server's list and so from here. */
+  surah_structure: { has: number };
 }
 export interface StudyGrid {
   surah: { surah_id: number; name_ar: string | null; name_en: string | null };
