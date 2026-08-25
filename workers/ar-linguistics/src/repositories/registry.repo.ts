@@ -210,6 +210,16 @@ const IDENT_BAND = /^[A-Z][A-Z0-9_]*$/;
 export interface FillScope { band?: string | null; scope?: string | null }
 
 /** A carrier's actual rows for one root — the leaf screen's contents. */
+/** One book that holds a root, and how much of it — see rootSourceCoverage. */
+export interface SourceCoverage {
+  source_slug: string;
+  book: string | null;
+  book_full: string | null;
+  author: string | null;
+  died_ah: number | null;
+  entries: number;
+}
+
 export interface CarrierRows {
   sub_code: string;
   carrier_table: string;
@@ -265,6 +275,64 @@ const ORDER_KEYS = [
  * real `ar_ling_roots` row, four phonology rows and a permutation row.
  */
 const UNION_CHUNK = 5;
+
+/**
+ * The lexicon's book BODIES — the printed text of the muʿjams themselves.
+ *
+ * These are not root data. They are the corpus the Lexicon reader owns
+ * (/lexicon/root/:root?book=…), and they are enormous: reading them to answer
+ * "what does this root look like" pulled entry, section, block, page and chunk
+ * rows for every book that mentions the root, and was most of the ~15s the
+ * composed root spec took to answer.
+ *
+ * What the root view actually wants from the books is COVERAGE — which of them
+ * hold this root, and how much — and that is one grouped query away
+ * (rootSourceCoverage). So the bodies are skipped when composing a root, and
+ * left to the reader whose screen they belong on. The registry's own audit view
+ * still reads them: an auditor asking what a carrier holds must see the rows.
+ */
+const BOOK_BODY_TABLES: ReadonlySet<string> = new Set([
+  'ar_ling_lexicon_entry',
+  'ar_ling_lexicon_entry_section',
+  'ar_ling_lexicon_block',
+  'ar_ling_lexicon_book_page',
+  'ar_ling_source_chunk',
+  'ar_ling_root_page_index',
+]);
+
+/** How many carrier reads may be in flight at once. See mapLimit. */
+const CARRIER_CONCURRENCY = 8;
+
+/**
+ * Run an async job over every item with a ceiling on how many run at once.
+ *
+ * D1 round-trips dominate this repo. A scope read touches every carrier table
+ * a scope declares — about forty for a root — and each one costs a pragma for
+ * its ordering, a read, and a count. Awaited inside a `for` loop those
+ * serialise: /al/ds/root answered in ~15s, essentially all of it spent waiting
+ * on one round-trip at a time. Firing all forty at once finishes quickly but
+ * puts an unbounded burst on D1 for every request, so a small ceiling takes
+ * nearly all of the win and keeps the burst predictable.
+ *
+ * Results come back in input order, so callers that relied on the loop's order
+ * keep it.
+ */
+async function mapLimit<T, R>(
+  items: readonly T[], limit: number, job: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+      for (;;) {
+        const i = next++;
+        if (i >= items.length) return;
+        out[i] = await job(items[i]);
+      }
+    }),
+  );
+  return out;
+}
 
 export class RegistryRepo {
   constructor(private db: D1Database) {}
@@ -564,16 +632,17 @@ export class RegistryRepo {
     const ID_COLS = new Set(['root_id', 'used_root_id']);
     const LEMMA_COLS = new Set(['lemma_id']);
 
-    const out: CarrierRows[] = [];
-    for (const p of usable) {
+    await mapLimit(usable, CARRIER_CONCURRENCY, (p) => this.orderingFor(p.table_name));
+
+    const read = await mapLimit(usable, CARRIER_CONCURRENCY, async (p): Promise<CarrierRows | null> => {
       const col = p.root_bind_col as string;
       if (p.root_bind !== 'via') {
-        if (LEMMA_COLS.has(col)) continue;
-        if (ID_COLS.has(col) && !rootId) continue;   // unknown, not empty
+        if (LEMMA_COLS.has(col)) return null;
+        if (ID_COLS.has(col) && !rootId) return null;   // unknown, not empty
       }
       const bound = p.root_bind !== 'via' && ID_COLS.has(col) ? (rootId as string) : root;
       const w = bindWhere(p, bound, root);
-      if (!w) continue;                              // unreadable: unknown, not empty
+      if (!w) return null;                              // unreadable: unknown, not empty
 
       const order = await this.orderingFor(p.table_name);
       const [rows, total] = await Promise.all([
@@ -588,15 +657,15 @@ export class RegistryRepo {
           w.params,
         ).catch(() => null),
       ]);
-      if (rows.length) {
-        out.push({
-          sub_code: subCode, carrier_table: p.table_name,
-          bind_col: p.root_bind === 'via' ? `via ${p.table_name}` : col,
-          rows, total: total?.n ?? rows.length,
-        });
-      }
-    }
-    return out;
+      if (!rows.length) return null;
+      return {
+        sub_code: subCode, carrier_table: p.table_name,
+        bind_col: p.root_bind === 'via' ? `via ${p.table_name}` : col,
+        rows, total: total?.n ?? rows.length,
+      };
+    });
+
+    return read.filter((r): r is CarrierRows => r !== null);
   }
 
   /**
@@ -612,7 +681,10 @@ export class RegistryRepo {
    * leaf: `total` still reports the carrier's real size, so a card can say it
    * is showing three of three hundred and link to the full read.
    */
-  async rootRowsScope(root: string, scope: string, perSub = 6): Promise<CarrierRows[]> {
+  async rootRowsScope(
+    root: string, scope: string, perSub = 6,
+    opts: { skipBookBodies?: boolean } = {},
+  ): Promise<CarrierRows[]> {
     if (!IDENT.test(scope)) return [];
     const limit = Math.max(1, Math.min(ROW_LIMIT, Math.floor(perSub)));
 
@@ -643,7 +715,9 @@ export class RegistryRepo {
     const usable = plans.filter(p => IDENT.test(p.table_name) && (
       p.root_bind === 'via'
         ? parseVia(p.root_bind_via_json) !== null
-        : !!p.root_bind_col && IDENT.test(p.root_bind_col)));
+        : !!p.root_bind_col && IDENT.test(p.root_bind_col)))
+      // The books are the Lexicon reader's, not the root's. See BOOK_BODY_TABLES.
+      .filter(p => !(opts.skipBookBodies && BOOK_BODY_TABLES.has(p.table_name)));
     if (!usable.length) return [];
 
     const idRow = await queryOne<{ id: string }>(
@@ -654,16 +728,20 @@ export class RegistryRepo {
     const ID_COLS = new Set(['root_id', 'used_root_id']);
     const LEMMA_COLS = new Set(['lemma_id']);
 
-    const out: CarrierRows[] = [];
-    for (const p of usable) {
+    // Warm every carrier's ORDER BY together. orderingFor() issues one pragma
+    // per table and memoises it; pulled one at a time from inside the read
+    // below it was half of the serialised round-trips.
+    await mapLimit(usable, CARRIER_CONCURRENCY, (p) => this.orderingFor(p.table_name));
+
+    const read = await mapLimit(usable, CARRIER_CONCURRENCY, async (p): Promise<CarrierRows | null> => {
       const col = p.root_bind_col as string;
       if (p.root_bind !== 'via') {
-        if (LEMMA_COLS.has(col)) continue;
-        if (ID_COLS.has(col) && !rootId) continue;   // unknown, not empty
+        if (LEMMA_COLS.has(col)) return null;
+        if (ID_COLS.has(col) && !rootId) return null;   // unknown, not empty
       }
       const bound = p.root_bind !== 'via' && ID_COLS.has(col) ? (rootId as string) : root;
       const w = bindWhere(p, bound, root);
-      if (!w) continue;                              // unreadable: unknown, not empty
+      if (!w) return null;                              // unreadable: unknown, not empty
 
       const order = await this.orderingFor(p.table_name);
       const [rows, total] = await Promise.all([
@@ -678,15 +756,15 @@ export class RegistryRepo {
           w.params,
         ).catch(() => null),
       ]);
-      if (rows.length) {
-        out.push({
-          sub_code: p.sub_code, carrier_table: p.table_name,
-          bind_col: p.root_bind === 'via' ? `via ${p.table_name}` : col,
-          rows, total: total?.n ?? rows.length,
-        });
-      }
-    }
-    return out;
+      if (!rows.length) return null;
+      return {
+        sub_code: p.sub_code, carrier_table: p.table_name,
+        bind_col: p.root_bind === 'via' ? `via ${p.table_name}` : col,
+        rows, total: total?.n ?? rows.length,
+      };
+    });
+
+    return read.filter((r): r is CarrierRows => r !== null);
   }
 
   /**
@@ -698,6 +776,31 @@ export class RegistryRepo {
    * the client cannot fix this — by then the other 156 rows are already gone.
    * The order has to be decided here, before the limit applies.
    */
+  /**
+   * Which books hold this root, oldest first — coverage, not content.
+   *
+   * Keyed on root_norm, which is indexed (idx_alre_root_norm). The obvious
+   * root_text is not: the same question asked that way reads ~53k rows and
+   * takes ~2.4s, against ~57 rows and ~1ms here.
+   */
+  async rootSourceCoverage(root: string): Promise<SourceCoverage[]> {
+    return query<SourceCoverage>(
+      this.db,
+      `SELECT s.slug            AS source_slug,
+              COALESCE(s.title_short_ar, s.title_ar) AS book,
+              s.title_ar        AS book_full,
+              s.author_name     AS author,
+              s.author_death_ah AS died_ah,
+              count(*)          AS entries
+         FROM ar_ling_lexicon_entry e
+         JOIN ar_ling_source s ON s.id = e.source_id
+        WHERE e.root_norm = ?
+        GROUP BY s.id
+        ORDER BY COALESCE(s.source_order, 99), s.author_death_ah`,
+      [root],
+    ).catch(() => []);
+  }
+
   private async orderingFor(table: string): Promise<string> {
     if (!IDENT.test(table)) return '';
     const cached = this.orderCache.get(table);

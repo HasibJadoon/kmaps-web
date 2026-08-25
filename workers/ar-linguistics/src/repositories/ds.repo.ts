@@ -120,11 +120,18 @@ export class DsRepo {
   async root(rootRef: string, form: DsForm = 'desktop', scope = 'root'): Promise<DisplaySpec> {
     const cap = CAP[form] ?? CAP.desktop;
 
-    const [model, fill, carriers, bands] = await Promise.all([
+    const [model, fill, carriers, bands, coverage] = await Promise.all([
       this.registry.layerModel(),
       this.registry.rootFill(rootRef, { scope }),
-      this.registry.rootRowsScope(rootRef, scope, cap.rows),
+      // skipBookBodies: a root is not the books that mention it. Reading the
+      // muʿjam text itself here pulled entry/section/block/page/chunk rows for
+      // every book holding the root — most of the ~15s this endpoint used to
+      // take — to render what is, on the page, a list of book names. The names
+      // come from one grouped query instead (below), and the text stays where
+      // it belongs, in the Lexicon reader.
+      this.registry.rootRowsScope(rootRef, scope, cap.rows, { skipBookBodies: true }),
       this.bandColours(),
+      this.registry.rootSourceCoverage(rootRef),
     ]);
 
     const subs = (model.layers ?? [])
@@ -136,6 +143,21 @@ export class DsRepo {
       const list = byCode.get(c.sub_code) ?? [];
       list.push(c);
       byCode.set(c.sub_code, list);
+    }
+
+    // "Where it was read" is answered by which books hold the root, not by
+    // their contents. One row per book, oldest first — the shape the sources
+    // rail of a printed muʿjam has. Without this the chapter would read as
+    // empty now that the book bodies are not pulled, which would be a lie:
+    // fourteen books hold كتب.
+    if (coverage.length) {
+      byCode.set('010-SRC', [{
+        sub_code: '010-SRC',
+        carrier_table: 'ar_ling_source',
+        bind_col: 'via ar_ling_lexicon_entry.root_norm',
+        rows: coverage as unknown as Record<string, unknown>[],
+        total: coverage.length,
+      }]);
     }
     const fillOf = new Map(fill.map((f) => [f.sub_code, f]));
 

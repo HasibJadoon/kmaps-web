@@ -23,12 +23,53 @@ import { query, queryOne } from '../../../shared/src/db';
 import { str, num } from '../../../shared/src/shaping';
 import type {
   DisplaySpec, DsBlock, DsForm, DsSection, DsReading, DsPlane, DsRecord, DsBar,
+  DsChapter,
 } from '../../../shared/src/contracts/ds';
 import type { CoreEnv } from '../env';
 import { cardSections, type CardForm } from './card-ds.repo';
 
 /** Where the root's own layers come from. */
 const AL_DS = '/al/ds/root';
+
+/**
+ * The chapters core itself introduces, with where they belong in the reading
+ * order. km-al owns the model; this is only the part of it core fills.
+ */
+const CORE_CHAPTERS: { chapter: DsChapter; after: string }[] = [
+  {
+    after: 'relations',
+    chapter: {
+      key: 'quran',
+      title: 'Where it lives',
+      title_ar: 'في القرآن',
+      question: 'Its spread across the muṣḥaf.',
+    },
+  },
+];
+
+/**
+ * Announce any chapter the composed sections use that the domain worker did not
+ * list, inserting it where it reads rather than at the end.
+ *
+ * Placement matters: appending would put "where it lives in the muṣḥaf" after
+ * "where it was read", which reads as a footnote to the bibliography. The
+ * sections are sorted by this list's order immediately afterwards, so position
+ * here is what decides position on the page.
+ */
+function mergeChapters(fromDomain: DsChapter[], sections: { chapter: string }[]): DsChapter[] {
+  const out = [...fromDomain];
+  const announced = new Set(out.map((c) => c.key));
+  const used = new Set(sections.map((s) => s.chapter));
+
+  for (const { chapter, after } of CORE_CHAPTERS) {
+    if (announced.has(chapter.key) || !used.has(chapter.key)) continue;
+    const at = out.findIndex((c) => c.key === after);
+    if (at >= 0) out.splice(at + 1, 0, chapter);
+    else out.push(chapter);
+    announced.add(chapter.key);
+  }
+  return out;
+}
 
 /** Cards and distribution are read at the same depth as everything else. */
 const CAP: Record<DsForm, number> = { desktop: 8, mobile: 3 };
@@ -84,7 +125,16 @@ export class CoreDsRepo {
     // The domain worker owns the chapter model; core adds its own sections to
     // the chapters they belong in, then re-sorts so the reading order holds
     // across both sources rather than putting core's contributions last.
-    const chapters = layers?.chapters ?? [];
+    //
+    // km-al can only ANNOUNCE a chapter its own sections fill — it drops the
+    // empty ones so it never advertises a chapter with nothing under it. The
+    // muṣḥaf sections are added HERE, after that filter has already run, so
+    // 'quran' arrived announced by nobody: three sections (91-QURAN, the verses
+    // a root was met in, its expressions) came out of the API pointing at a
+    // chapter that did not exist in the list beside them, and a chapter-driven
+    // reader rendered none of them. Whoever introduces a section owns
+    // announcing its chapter, so core declares the ones core adds.
+    const chapters = mergeChapters(layers?.chapters ?? [], sections);
     const order = new Map(chapters.map((c, i) => [c.key, i]));
     sections.sort((a, b) => (order.get(a.chapter) ?? 99) - (order.get(b.chapter) ?? 99));
 

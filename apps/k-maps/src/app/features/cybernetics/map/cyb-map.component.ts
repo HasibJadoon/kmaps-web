@@ -10,6 +10,10 @@ import type {
   RootGloss, RootSenseBundle, SenseAttestation,
 } from '../data/cyb.models';
 import { CYB_AXES } from '../data/cyb.models';
+import { BackendApiService } from '../../../shared/services/backend-api.service';
+import { CybDsReaderComponent } from '../ds/cyb-ds-reader.component';
+import { normaliseSpec } from '@kmaps/contracts/ds';
+import type { DisplaySpec } from '@kmaps/contracts/ds';
 
 // Quran Map — Qurʾān-centric, over the Surah Study module:
 //   Qurʾān(114) → Surah → Study passages → Streams(6) → Roots → Root Dashboard.
@@ -55,7 +59,7 @@ interface StreamRow {
   selector: 'km-cyb-map',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, CybTopbarComponent],
+  imports: [RouterLink, CybTopbarComponent, CybDsReaderComponent],
   template: `
     @if (error()) { <div class="msg err">{{ error() }}</div> }
     @else {
@@ -280,7 +284,38 @@ interface StreamRow {
       <!-- ══ L5 · Root Dashboard ══ -->
       @else if (view()==='root' && selRootNorm(); as rn) {
         @let r = selRoot();
-        <div class="vh"><span>Root Dashboard</span><span class="h">4 outputs · the registry's bands · memlets · questions</span></div>
+        <!-- The root now opens as a READER by default: the composed spec from
+             km_core, chaptered the way somebody asking about a word reads it
+             (what it is, what it means, who says so). The three-pane builder
+             dashboard this used to open as is still one click away — it answers
+             a different question (which carrier is bound, how built is it), and
+             that question did not stop mattering. -->
+        <div class="vh">
+          @if (rootView() === 'reader') {
+            <span>Root Reader</span>
+            <span class="h">the composed spec — chapters, sections, and what each carrier holds</span>
+          } @else {
+            <span>Root Dashboard</span>
+            <span class="h">4 outputs · the registry bands · memlets · questions</span>
+          }
+          <span class="vhsp"></span>
+          <div class="rvt">
+            <button [class.on]="rootView()==='reader'" (click)="setRootView('reader')">reader</button>
+            <button [class.on]="rootView()==='audit'" (click)="setRootView('audit')">audit</button>
+          </div>
+        </div>
+
+        @if (rootView() === 'reader') {
+          @if (dsError(); as e) {
+            <p class="dsmsg err">{{ e }}</p>
+          } @else if (dsSpec(); as sp) {
+            <km-ds-reader [spec]="sp" />
+          } @else {
+            <p class="dsmsg">Reading {{ rn }}…</p>
+          }
+        }
+
+        @if (rootView() === 'audit') {
         <div class="rd">
           <div class="rdh">
             <span class="rdar">{{ rn }}</span>
@@ -649,10 +684,23 @@ interface StreamRow {
           <div class="sub2">Recursion</div>
           <div class="rec">This root senses its own state and reports up: its build feeds the <b>Vocabulary</b> stream → the <b>Passage</b> → <b>{{ surah()?.name_en }}</b> → the whole Qurʾān.</div>
         </div>
+        }
       }
     }
   `,
   styles: [`
+    /* Reader / audit switch in the root view header. */
+    .vhsp { flex:1; }
+    .rvt { display:flex; gap:3px; padding:3px; border-radius:9px;
+      background:var(--paper); border:1px solid var(--rule); }
+    .rvt button { font-family:ui-monospace,monospace; font-size:10px;
+      padding:5px 11px; border:0; border-radius:6px; cursor:pointer;
+      background:transparent; color:var(--t3); }
+    .rvt button.on { color:var(--bg);
+      background:linear-gradient(180deg,var(--gold-b),var(--gold)); }
+    .dsmsg { padding:40px; text-align:center; color:var(--t3); font-size:13px; }
+    .dsmsg.err { color:var(--err); }
+
     :host { display:block; }
     .msg { color:var(--t2); padding:26px; text-align:center; } .msg.err { color:var(--err); }
     .crumbs { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:16px 0 14px; }
@@ -1015,6 +1063,7 @@ interface StreamRow {
 })
 export class CybMapComponent {
   private readonly svc = inject(CybService);
+  private readonly api = inject(BackendApiService);
   private readonly router = inject(Router);
 
   readonly surahs = signal<Surah[]>([]);
@@ -1026,6 +1075,17 @@ export class CybMapComponent {
   readonly layerModel = signal<LayerModel | null>(null);
   /** Which scope of the recursion the band strip is showing. */
   readonly scope = signal('root');
+
+  // ── The root's reader ──────────────────────────────────────────────────────
+  // 'reader' draws the composed display spec; 'audit' keeps the builder's
+  // three-pane carrier browser. The spec is fetched from km_core rather than
+  // the linguistics worker, because only core composes the whole picture —
+  // the AL layers, the cards built off the root, and its spread in the muṣḥaf.
+  readonly rootView = signal<'reader' | 'audit'>('reader');
+  readonly dsSpec = signal<DisplaySpec | null>(null);
+  readonly dsError = signal<string | null>(null);
+  private dsLoadedFor: string | null = null;
+
   /** This root's live carrier counts for the open scope. Null while in flight. */
   readonly rootFill = signal<RootFillCell[] | null>(null);
   /** What the selected sub-layer's carrier holds. Null while in flight. */
@@ -1169,8 +1229,14 @@ export class CybMapComponent {
           error: () => this.senseBundle.set({ root: rn, senses: [], arcs: [], steps: [], attestations: [] }),
         });
         this.loadRootFill(rn);
+        // The reader is the default face of a root, so its spec is fetched as
+        // soon as the URL names one — not on first click of the toggle.
+        if (this.rootView() === 'reader') this.loadDsSpec(rn);
       }
-      if (!rn) { this.rootFill.set(null); this.subRows.set(null); }
+      if (!rn) {
+        this.rootFill.set(null); this.subRows.set(null);
+        this.dsSpec.set(null); this.dsError.set(null); this.dsLoadedFor = null;
+      }
       // A non-vocabulary stream shows what its carriers hold, not the plane's
       // own child nodes. The read is per passage node and per layer.
       const st = this.streamParam();
@@ -1592,4 +1658,36 @@ export class CybMapComponent {
   }
   rootNorm(n: CybNode): string { return (n.target_ref ?? '').split(':').pop() ?? n.id; }
   short(sub: string): string { return sub.split('-').pop() ?? sub; }
+
+  setRootView(v: 'reader' | 'audit') {
+    if (this.rootView() === v) return;
+    this.rootView.set(v);
+    if (v === 'reader') this.loadDsSpec(this.rootParam());
+  }
+
+  /** Fetch the composed spec for the root in the URL. Cheap to call twice —
+   *  it no-ops unless the root actually changed. */
+  private loadDsSpec(root: string | null) {
+    // Takes the root as an argument rather than reading rootParam(): this runs
+    // inside the paramMap subscription, where the component's own param signal
+    // has not been updated yet, so rootParam() would still hold the previous
+    // route (or null on first landing) and the fetch would never fire.
+    if (!root) return;
+    if (this.dsLoadedFor === root && this.dsSpec()) return;
+    this.dsLoadedFor = root;
+    this.dsSpec.set(null);
+    this.dsError.set(null);
+    this.api
+      .getData<DisplaySpec>('core', ['ds', 'root', root], { params: { form: 'desktop' } })
+      .subscribe({
+        // One conversion at the boundary: anything this build cannot draw
+        // becomes a note saying so, rather than a section that looks empty.
+        next: (spec) => this.dsSpec.set(normaliseSpec(spec)),
+        error: (e) =>
+          this.dsError.set(
+            `Could not read the display spec for ${root}. (${String(e?.message ?? e)})`,
+          ),
+      });
+  }
+
 }
