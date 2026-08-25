@@ -101,6 +101,40 @@ describe('where it was met is not where it occurs first', () => {
   });
 });
 
+describe('one timestamp format reaches the column', () => {
+  test('a new card is scheduled in ISO, not SQLite\'s datetime()', async () => {
+    // The two shapes compare as text with 'T' (0x54) against ' ' (0x20), so an
+    // ISO stamp always sorted after a same-day SQLite one and a card due
+    // earlier today never came due — which silently disabled every learning
+    // step. And `cardToApi` hands the raw string to clients, where
+    // `new Date("2026-07-31 19:00:00")` is an Invalid Date in Safari.
+    const d1 = fakeD1((db) => {
+      db.exec(`CREATE TABLE core_srs_card (
+        id TEXT, deck_id TEXT, user_ref TEXT, module TEXT, resource_type TEXT,
+        resource_ref TEXT, card_template TEXT, front_text TEXT, back_text TEXT,
+        extra_json TEXT, tags TEXT, card_kind TEXT, concept_domain TEXT,
+        note_type_id TEXT, fields_json TEXT, root_norm TEXT, intro_surah INTEGER,
+        next_review_at TEXT,
+        suspended INTEGER DEFAULT 0, stability REAL, difficulty REAL,
+        card_state TEXT DEFAULT 'new', learning_step INTEGER DEFAULT 0,
+        reps INTEGER DEFAULT 0, lapses INTEGER DEFAULT 0,
+        elapsed_days INTEGER DEFAULT 0, scheduled_days INTEGER DEFAULT 0,
+        last_review_at TEXT, created_at TEXT, updated_at TEXT,
+        UNIQUE (deck_id, resource_ref, card_template));`);
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = new SrsRepo(d1 as any);
+    const { card } = await r.insertCard({
+      deck_id: 'D1', user_ref: 'U1', module: 'AL',
+      resource_type: 'root', resource_ref: 'AL:root:abc',
+    });
+    assert.match(card.next_review_at ?? '', /^\d{4}-\d{2}-\d{2}T.*Z$/,
+      `expected an ISO stamp, got ${card.next_review_at}`);
+    assert.ok(!Number.isNaN(new Date(card.next_review_at ?? '').getTime()),
+      'a client must be able to parse it');
+  });
+});
+
 describe('bad input does not become bad rows', () => {
   test('an empty spread writes nothing and says so', async () => {
     const { repo: r, d1 } = repo();

@@ -189,14 +189,19 @@ export class SrsRepo {
     // string, so the horizon is interpolated, and only an integer may be.
     const ahead = Math.min(3650, Math.max(0, Math.floor(opts.ahead ?? 0)));
     const horizon = ahead > 0 ? `datetime('now', '+${ahead} day')` : `datetime('now')`;
-    // `datetime(next_review_at)`, not the raw column. Two formats land in it —
-    // `createCard` writes SQLite's `datetime('now')` ("2026-07-31 19:00:00")
-    // and `applySchedule` writes the scheduler's `.toISOString()`
-    // ("2026-07-31T19:00:00.000Z") — and comparing those as text compares 'T'
-    // (0x54) against ' ' (0x20), so an ISO timestamp always sorts after a
-    // same-day SQLite one. A card scheduled for earlier *today* therefore never
-    // came due until the date rolled over, which silently disabled every
-    // learning step: Again's 1m and 10m returns were pushed to tomorrow.
+    // `datetime(next_review_at)`, not the raw column. Two formats used to land
+    // in it — `insertCard` wrote SQLite's `datetime('now')`
+    // ("2026-07-31 19:00:00") and `applySchedule` the scheduler's
+    // `.toISOString()` ("2026-07-31T19:00:00.000Z") — and comparing those as
+    // text compares 'T' (0x54) against ' ' (0x20), so an ISO timestamp always
+    // sorted after a same-day SQLite one. A card scheduled for earlier *today*
+    // therefore never came due until the date rolled over, which silently
+    // disabled every learning step: Again's 1m and 10m returns were pushed to
+    // tomorrow.
+    //
+    // `insertCard` now writes ISO too, so only one shape reaches the column.
+    // The normalising call stays: it costs nothing, and it is what keeps a row
+    // written by hand or by an older deploy from reviving the bug.
     let where = `WHERE user_ref = ? AND suspended = 0
                  AND (next_review_at IS NULL
                       OR datetime(next_review_at) <= ${horizon})`;
@@ -310,6 +315,20 @@ export class SrsRepo {
    * "added 1" while the store correctly did nothing, which makes the one number
    * the dedup story rests on the one number that was wrong.
    */
+  /**
+   * A new card, due now.
+   *
+   * `next_review_at` is written as ISO, not as SQLite's `datetime('now')`.
+   * Those are the two formats that used to land in this column, and comparing
+   * them as text compares 'T' (0x54) against ' ' (0x20), so an ISO timestamp
+   * always sorted after a same-day SQLite one. Every read was defended with
+   * `datetime(...)`, which fixed the comparison but left two shapes in the
+   * column — and `cardToApi` hands the raw string to clients, where
+   * `new Date("2026-07-31 19:00:00")` is an Invalid Date in Safari.
+   *
+   * Writing one format is the fix at the source. No backfill is needed: every
+   * one of the 62 scheduled cards in km_core already carries the ISO form.
+   */
   async insertCard(input: {
     deck_id: string; user_ref: string; module: string; resource_type: string;
     resource_ref: string; card_template?: string; front_text?: string;
@@ -325,7 +344,7 @@ export class SrsRepo {
          (id, deck_id, user_ref, module, resource_type, resource_ref, card_template,
           front_text, back_text, extra_json, tags, card_kind, concept_domain,
           note_type_id, fields_json, root_norm, intro_surah, next_review_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (deck_id, resource_ref, card_template) DO NOTHING`,
       [id, input.deck_id, input.user_ref, input.module, input.resource_type,
        input.resource_ref, input.card_template ?? 'freeform',
@@ -333,7 +352,9 @@ export class SrsRepo {
        input.extra_json ?? null, input.tags ?? null,
        input.card_kind ?? null, input.concept_domain ?? null,
        input.note_type_id ?? null, input.fields_json ?? null,
-       input.root_norm ?? null, input.intro_surah ?? null]);
+       input.root_norm ?? null, input.intro_surah ?? null,
+       // ISO, the same format `applySchedule` writes — see below.
+       new Date().toISOString()]);
     const row = await queryOne<SrsCard>(this.db,
       `SELECT ${CARD_COLS} WHERE deck_id = ? AND resource_ref = ? AND card_template = ?`,
       [input.deck_id, input.resource_ref, input.card_template ?? 'freeform']);
