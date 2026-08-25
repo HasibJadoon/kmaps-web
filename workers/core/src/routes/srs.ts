@@ -99,9 +99,14 @@ function storedOf(row: SrsParams | null): StoredParams | null {
   };
 }
 
+/** A stored JSON column, or null — a malformed one is not a crash. */
+function parseJson(raw: string | null): unknown {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
 function cardToApi(c: SrsCard, params: FSRSParameters) {
-  let extra: unknown = null;
-  if (c.extra_json) { try { extra = JSON.parse(c.extra_json); } catch { extra = null; } }
+  const extra = parseJson(c.extra_json);
   return {
     id: c.id,
     deck_id: c.deck_id,
@@ -109,10 +114,16 @@ function cardToApi(c: SrsCard, params: FSRSParameters) {
     resource_type: c.resource_type,
     resource_ref: c.resource_ref,
     card_template: c.card_template,
-    card_kind: (c as any).card_kind ?? null,
-    concept_domain: (c as any).concept_domain ?? null,
+    card_kind: c.card_kind,
+    concept_domain: c.concept_domain,
     front_text: c.front_text,
     back_text: c.back_text,
+    // A structured card renders from `fields` against its note type; front and
+    // back are the fallback for a freeform one, not the whole card.
+    note_type_id: c.note_type_id,
+    fields: parseJson(c.fields_json),
+    root_norm: c.root_norm,
+    intro_surah: c.intro_surah,
     extra,
     tags: c.tags ? c.tags.split(',').filter(Boolean) : [],
     suspended: c.suspended === 1,

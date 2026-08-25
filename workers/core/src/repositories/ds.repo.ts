@@ -25,6 +25,7 @@ import type {
   DisplaySpec, DsBlock, DsForm, DsSection, DsReading, DsPlane, DsRecord, DsBar,
 } from '../../../shared/src/contracts/ds';
 import type { CoreEnv } from '../env';
+import { cardBlocks, type CardForm } from './card-ds.repo';
 
 /** Where the root's own layers come from. */
 const AL_DS = '/al/ds/root';
@@ -39,6 +40,19 @@ interface CardRow {
   note_type_id: string | null; fields_json: string | null;
 }
 
+/** A card's stored fields, or null if it has none or they are malformed. */
+function fieldsOf(card: CardRow): Record<string, unknown> | null {
+  if (!card.fields_json) return null;
+  try {
+    const parsed: unknown = JSON.parse(card.fields_json);
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export class CoreDsRepo {
   constructor(private db: D1Database, private env: CoreEnv) {}
 
@@ -49,7 +63,7 @@ export class CoreDsRepo {
     const [layers, plane, cards, spread] = await Promise.all([
       this.layerSpec(root, form),
       this.plane(root),
-      this.cards(root, cap),
+      this.cards(root, cap, form),
       this.distribution(root),
     ]);
 
@@ -159,7 +173,7 @@ export class CoreDsRepo {
    * nothing, so the match also accepts the typed resource ref the card-building
    * skills actually write. Both are exact; neither guesses.
    */
-  private async cards(root: string, cap: number): Promise<DsSection | null> {
+  private async cards(root: string, cap: number, form: DsForm): Promise<DsSection | null> {
     const rows = await query<CardRow>(
       this.db,
       `SELECT id, card_kind, resource_type, front_text, back_text, card_state,
@@ -193,15 +207,37 @@ export class CoreDsRepo {
       ],
     }));
 
+    // A structured card holds far more than its two faces: a form ladder, a
+    // sense arc with its physical rungs marked, aḍdād tagged attested or
+    // derived. Rendering only front/back would throw that away, so the richest
+    // card's own fields are drawn, with the list of cards kept beneath it as
+    // the scheduling view it is.
+    const richest = rows
+      .map((c) => ({ card: c, fields: fieldsOf(c) }))
+      .filter((x): x is { card: CardRow; fields: Record<string, unknown> } => x.fields !== null)
+      .sort((a, b) => Object.keys(b.fields).length - Object.keys(a.fields).length)[0];
+
+    const authored = richest
+      ? cardBlocks(richest.fields, form as CardForm)
+      : [];
+
     return {
       chapter: 'remember',
       code: '90-CARD', band: 'LEARN', title: 'Cards', title_ar: 'البطاقات',
       icon: '🃏', accent: null, state: 'filled',
-      total_rows: rows.length, carriers: ['core_srs_card'],
-      blocks: [{
-        kind: 'card_list', title: 'Cards', hint: `${rows.length} · soonest due first`,
-        records, overflow_count: Math.max(0, rows.length - cap),
-      }],
+      total_rows: rows.length,
+      carriers: authored.length
+        ? ['core_srs_card', 'core_srs_note_type']
+        : ['core_srs_card'],
+      blocks: [
+        ...authored,
+        {
+          kind: 'card_list',
+          title: 'Scheduling',
+          hint: `${rows.length} card${rows.length === 1 ? '' : 's'} · soonest due first`,
+          records, overflow_count: Math.max(0, rows.length - cap),
+        },
+      ],
     };
   }
 

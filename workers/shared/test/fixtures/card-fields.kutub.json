@@ -1,0 +1,1064 @@
+{
+  "Root": "كتب",
+  "RootUid": "cb303790920fa750c588a8f5fd",
+  "Radicals": [
+    {
+      "l": "ك",
+      "name": "الكاف",
+      "makhraj": "أسفل من أقصى اللسان",
+      "order": 5,
+      "sifa": "مهموس"
+    },
+    {
+      "l": "ت",
+      "name": "التاء",
+      "makhraj": "ما بين طرف اللسان وأصول الثنايا",
+      "order": 11,
+      "sifa": "مهموس"
+    },
+    {
+      "l": "ب",
+      "name": "الباء",
+      "makhraj": "ما بين الشفتين",
+      "order": 15,
+      "sifa": "مجهور"
+    }
+  ],
+  "Soundness": {
+    "ref": "GT:root_type:sound",
+    "uid": "1de0573a9e746904042eb04b43",
+    "ar": "صحيح سالم",
+    "en": "sound — no weak letter, no hamza",
+    "tier": "GT:form_tier:thulathi_mujarrad"
+  },
+  "FormLadder": [
+    {
+      "form": {
+        "ref": "GT:form_family:form_i",
+        "uid": "c5be22c508d4cf5870d77d8f00",
+        "ar": "المجرّد",
+        "en": "Form I"
+      },
+      "bab": {
+        "ref": "GT:form_family:bab_nasara",
+        "uid": "452d09517ad5c84a62ab2b3f61",
+        "ar": "بابُ نَصَرَ"
+      },
+      "verb": "كَتَبَ يَكْتُبُ",
+      "masadir": [
+        {
+          "m": "كَتْب",
+          "deriv": "GT:derivation_type:masdar",
+          "status": "attested",
+          "auth": "Ṣ, Ḳ"
+        },
+        {
+          "m": "كِتاب",
+          "deriv": "GT:derivation_type:masdar",
+          "status": "attested",
+          "auth": "Ṣ, Ḳ",
+          "note": "بالكسر على خِلافِ القِياس — al-Liḥyānī: an ism like لِباس"
+        },
+        {
+          "m": "كِتابة",
+          "deriv": "GT:derivation_type:masdar",
+          "status": "attested",
+          "auth": "Ṣ, Ḳ",
+          "note": "fiʿāla marks a trade — al-Azharī: كالصِّياغة والخِياطة"
+        },
+        {
+          "m": "كِتْبة",
+          "deriv": "GT:derivation_type:masdar",
+          "status": "attested",
+          "auth": "Mṣb"
+        }
+      ],
+      "ap": {
+        "w": "كَاتِب",
+        "deriv": "GT:derivation_type:active_participle"
+      },
+      "pp": {
+        "w": "مَكْتُوب",
+        "deriv": "GT:derivation_type:passive_participle"
+      },
+      "gov": [
+        {
+          "harf": null,
+          "trans": "GT:transitivity:transitive",
+          "route": "GT:taddiya_route:binafsihi",
+          "en": "to write / record"
+        },
+        {
+          "harf": "عَلَى",
+          "harfPos": "GT:pos:harf_jarr",
+          "trans": "GT:transitivity:transitive_by_harf",
+          "route": "GT:taddiya_route:biharf",
+          "en": "to impose upon — the BURDEN pole",
+          "ref": "2:216"
+        },
+        {
+          "harf": "لِ",
+          "harfPos": "GT:pos:harf_jarr",
+          "trans": "GT:transitivity:transitive_by_harf",
+          "route": "GT:taddiya_route:biharf",
+          "en": "to decree in favour — the BENEFIT pole",
+          "ref": "4:127"
+        },
+        {
+          "harf": "فِي",
+          "harfPos": "GT:pos:harf_jarr",
+          "trans": "GT:transitivity:transitive_by_harf",
+          "route": "GT:taddiya_route:biharf",
+          "en": "to entrench in",
+          "ref": "58:22"
+        },
+        {
+          "harf": "مَعَ",
+          "harfPos": "GT:pos:harf_jarr",
+          "trans": "GT:transitivity:transitive_by_harf",
+          "route": "GT:taddiya_route:biharf",
+          "en": "to enrol among — Mir notes مَعَ here is a ẓarf",
+          "ref": "3:53"
+        }
+      ]
+    },
+    {
+      "form": {
+        "ref": "GT:form_family:form_ii",
+        "uid": "0b1055a1809aa7331f121c6111",
+        "ar": "التفعيل",
+        "en": "Form II"
+      },
+      "verb": "كَتَّبَ",
+      "masadir": [
+        {
+          "m": "تَكْتيب",
+          "deriv": "GT:derivation_type:masdar",
+          "status": "attested",
+          "auth": "AZ, Ṣ"
+        }
+      ],
+      "ap": {
+        "w": "مُكَتِّب",
+        "deriv": "GT:derivation_type:active_participle"
+      },
+      "pp": {
+        "w": "مُكَتَّب",
+        "deriv": "GT:derivation_type:passive_participle"
+      },
+      "gov": [
+        {
+          "harf": null,
+          "trans": "GT:transitivity:transitive",
+          "route": "GT:taddiya_route:bitadeef",
+          "en": "causative by GEMINATION — teach a boy, muster the squadrons, bind an udder"
+        }
+      ]
+    },
+    {
+      "form": {
+        "ref": "GT:form_family:form_iii",
+        "uid": "746712101aaa7bfd307670006f",
+        "ar": "المفاعلة",
+        "en": "Form III"
+      },
+      "verb": "كاتَبَ",
+      "masadir": [
+        {
+          "m": "مُكاتَبة",
+          "deriv": "GT:derivation_type:masdar",
+          "status": "attested"
+        },
+        {
+          "m": "كِتاب",
+          "deriv": "GT:derivation_type:masdar",
+          "status": "attested",
+          "note": "24:33 يَبْتَغُونَ ٱلْكِتَٰبَ = the CONTRACT, not the Book"
+        }
+      ],
+      "ap": {
+        "w": "مُكاتِب",
+        "deriv": "GT:derivation_type:active_participle"
+      },
+      "pp": {
+        "w": "مُكاتَب",
+        "deriv": "GT:derivation_type:passive_participle"
+      },
+      "gov": [
+        {
+          "harf": null,
+          "trans": "GT:transitivity:transitive",
+          "route": "GT:taddiya_route:binafsihi",
+          "en": "RECIPROCAL by pattern — both correspondence and the two-party freedom contract"
+        }
+      ]
+    },
+    {
+      "form": {
+        "ref": "GT:form_family:form_iv",
+        "uid": "728420831f26760236b62eebdd",
+        "ar": "الإفعال",
+        "en": "Form IV"
+      },
+      "verb": "أكْتَبَ",
+      "masadir": [
+        {
+          "m": "إكْتاب",
+          "deriv": "GT:derivation_type:masdar",
+          "status": "qiyasi",
+          "note": "NOT attested in Lane, Lisān, Tāj or Maqāyīs"
+        }
+      ],
+      "ap": {
+        "w": "مُكْتِب",
+        "deriv": "GT:derivation_type:active_participle"
+      },
+      "pp": {
+        "w": "مُكْتَب",
+        "deriv": "GT:derivation_type:passive_participle"
+      },
+      "gov": [
+        {
+          "harf": null,
+          "trans": "GT:transitivity:ditransitive",
+          "route": "GT:taddiya_route:bihamza",
+          "en": "causative by HAMZA — dictate to me; also tie a waterskin shut",
+          "ref": "25:5"
+        }
+      ]
+    },
+    {
+      "form": {
+        "ref": "GT:form_family:form_v",
+        "uid": "eb92c38c5eaa2aa9b0ca09c734",
+        "ar": "التفعّل",
+        "en": "Form V"
+      },
+      "verb": "تَكَتَّبَ",
+      "masadir": [
+        {
+          "m": "تَكَتُّب",
+          "deriv": "GT:derivation_type:masdar",
+          "status": "qiyasi"
+        }
+      ],
+      "ap": {
+        "w": "مُتَكَتِّب",
+        "deriv": "GT:derivation_type:active_participle"
+      },
+      "gov": [
+        {
+          "harf": null,
+          "trans": "GT:transitivity:intransitive",
+          "route": "GT:taddiya_route:lazim",
+          "en": "REFLEXIVE of the joining — the horse massed; a man girded his clothes"
+        }
+      ]
+    },
+    {
+      "form": {
+        "ref": "GT:form_family:form_vi",
+        "uid": "2fe76d632069504f6a61afb785",
+        "ar": "التفاعل",
+        "en": "Form VI"
+      },
+      "verb": "تَكاتَبَ",
+      "masadir": [
+        {
+          "m": "تَكاتُب",
+          "deriv": "GT:derivation_type:masdar",
+          "status": "attested",
+          "auth": "Ṣ, Ḳ via Lane"
+        }
+      ],
+      "ap": {
+        "w": "مُتَكاتِب",
+        "deriv": "GT:derivation_type:active_participle"
+      },
+      "gov": [
+        {
+          "harf": null,
+          "trans": "GT:transitivity:intransitive",
+          "route": "GT:taddiya_route:lazim",
+          "en": "reciprocal-intransitive — subject necessarily dual or plural"
+        }
+      ]
+    },
+    {
+      "form": {
+        "ref": "GT:form_family:form_viii",
+        "uid": "17717eba6feea16e3b5921d821",
+        "ar": "الافتعال",
+        "en": "Form VIII"
+      },
+      "verb": "اكْتَتَبَ",
+      "masadir": [
+        {
+          "m": "اكْتِتاب",
+          "deriv": "GT:derivation_type:masdar",
+          "status": "attested"
+        },
+        {
+          "m": "كِتْبة",
+          "deriv": "GT:derivation_type:masdar",
+          "status": "attested",
+          "note": "quasi-maṣdar, syn. with اكتِتاب"
+        }
+      ],
+      "ap": {
+        "w": "مُكْتَتِب",
+        "deriv": "GT:derivation_type:active_participle"
+      },
+      "pp": {
+        "w": "مُكْتَتَب",
+        "deriv": "GT:derivation_type:passive_participle"
+      },
+      "gov": [
+        {
+          "harf": null,
+          "trans": "GT:transitivity:transitive",
+          "route": "GT:taddiya_route:binafsihi",
+          "en": "REFLEXIVE-BENEFACTIVE — had it written FOR HIMSELF; enrolled HIMSELF",
+          "ref": "25:5"
+        }
+      ]
+    },
+    {
+      "form": {
+        "ref": "GT:form_family:form_x",
+        "uid": "8af9a225e08f3b124fc2faa32d",
+        "ar": "الاستفعال",
+        "en": "Form X"
+      },
+      "verb": "اسْتَكْتَبَ",
+      "masadir": [
+        {
+          "m": "اسْتِكْتاب",
+          "deriv": "GT:derivation_type:masdar",
+          "status": "qiyasi"
+        }
+      ],
+      "ap": {
+        "w": "مُسْتَكْتِب",
+        "deriv": "GT:derivation_type:active_participle"
+      },
+      "gov": [
+        {
+          "harf": null,
+          "trans": "GT:transitivity:ditransitive",
+          "route": "GT:taddiya_route:binafsihi",
+          "en": "requestive — he asked him FOR the thing to be written"
+        },
+        {
+          "harf": null,
+          "trans": "GT:transitivity:intransitive",
+          "route": "GT:taddiya_route:lazim",
+          "en": "INANIMATE SUBJECT — فلم يَسْتَكْتِبْ, the hide would not take the tie"
+        }
+      ]
+    }
+  ],
+  "VerseAr": "حمٓ ۝ وَٱلْكِتَٰبِ ٱلْمُبِينِ",
+  "VerseRef": "44:1-2",
+  "VerseWord": "ٱلْكِتَٰبِ",
+  "QuranTotal": 319,
+  "AslStatement": {
+    "ar": "وأصلُ الكَتْبِ ضمُّ الشيءِ إلى الشيء",
+    "en": "the asl of katb is joining a thing to a thing",
+    "ur": "کتب کی اصل ایک چیز کو دوسری سے ملانا ہے",
+    "auth": "Ibn Durayd",
+    "deathAH": 321,
+    "note_ar": "قبل ابن فارس بأربعٍ وسبعين سنة",
+    "note_en": "74 years before Ibn Faris, who is usually credited",
+    "note_ur": "ابن فارس سے چوہتر سال پہلے"
+  },
+  "DnaThread": {
+    "ar": "يَجمَعُ فيُثبِت",
+    "en": "it joins — and what is joined is thereby fixed",
+    "ur": "جوڑتا ہے پھر ثابت کرتا ہے"
+  },
+  "SenseArc": [
+    {
+      "fam": "I",
+      "form": "GT:form_family:form_i",
+      "verb": "كَتَبَ",
+      "count": 49,
+      "arc_ar": "خَرْزُ الأديمِ بالسَّيْر ← شَدُّ الحيوانِ والسِّقاء ← ضمُّ الحروفِ بالخَطّ ← اسمُ ما جُمِعَ ← الإثباتُ والفَرْض ← الكتابةُ في القلب ← الكلامُ المنظومُ وإن لم يُخَطّ",
+      "arc_en": "stitching hide → binding beasts and vessels → joining letters by script → the name for what is gathered → fixing and imposing → writing in the heart → joined speech, never inscribed",
+      "arc_ur": "چمڑا سینا ← جانور اور مشک باندھنا ← حروف کو خط سے جوڑنا ← جمع شدہ کا نام ← ثابت کرنا اور فرض کرنا ← دل پر لکھنا ← جُڑا کلام خواہ لکھا نہ جائے",
+      "rungs": [
+        {
+          "n": 1,
+          "ar": "الكُتْبةُ: الخرزةُ التي ضمَّ السيرُ كِلا وجهيها",
+          "en": "the single stitch whose thong drew BOTH faces together",
+          "auth": "al-Khalīl",
+          "d": 170,
+          "concrete": 1
+        },
+        {
+          "n": 2,
+          "ar": "كُتِبَ منخِراها بخيطٍ لئلا تشمَّ البَوَّ",
+          "en": "the fostering camel's nostrils sewn shut — beside the vulva ringed and the udder bound",
+          "auth": "al-Khalīl · Ibn Durayd · Abū Zayd",
+          "d": 170,
+          "concrete": 1
+        },
+        {
+          "n": 3,
+          "ar": "ضمُّ الحروفِ بعضِها إلى بعضٍ بالخَطّ",
+          "en": "script enters as a SPECIAL CASE, not a new sense",
+          "auth": "al-Rāghib",
+          "d": 502,
+          "concrete": 0
+        },
+        {
+          "n": 4,
+          "ar": "الكِتابُ اسمٌ لِما كُتِبَ مَجْموعاً",
+          "en": "the product is named — the sheet together with what is on it",
+          "auth": "al-Azharī",
+          "d": 370,
+          "concrete": 0
+        },
+        {
+          "n": 5,
+          "ar": "الإرادةُ مبدأ والكِتابةُ منتهى",
+          "en": "what is written is thereby FIXED — فَرْض، حُكْم، قَدَر",
+          "auth": "al-Rāghib · Ibn Fāris",
+          "d": 502,
+          "concrete": 0
+        },
+        {
+          "n": 6,
+          "ar": "كَتَبَ في قلوبِهم الإيمانَ",
+          "en": "the surface stops being a surface · 58:22",
+          "auth": "al-Rāghib",
+          "d": 502,
+          "concrete": 0
+        },
+        {
+          "n": 7,
+          "ar": "ولهذا سُمِّي كلامُ اللهِ — وإن لم يُكتَبْ — كِتاباً",
+          "en": "TERMINAL, and it doubles back: the ink is removed and rung 1 is all that remains",
+          "auth": "al-Rāghib",
+          "d": 502,
+          "concrete": 0
+        }
+      ]
+    },
+    {
+      "fam": "II",
+      "form": "GT:form_family:form_ii",
+      "verb": "كَتَّبَ",
+      "route": "GT:taddiya_route:bitadeef",
+      "count": 0,
+      "arc_ar": "التعديةُ بالتضعيف ← جَعْلُ الغيرِ يَكتُبُ أو يَجتمِع ← فالصبيُّ يُعلَّم، والكتائبُ تُعبَّأ، والناقةُ تُصَرّ",
+      "arc_en": "causative by GEMINATION → making another write or gather → so the boy is taught, the squadrons mustered, the udder bound",
+      "arc_ur": "تضعیف سے تعدیہ ← دوسرے سے لکھوانا یا جمع کرانا ← لڑکا سکھایا، دستے ترتیب دیے، تھن باندھے",
+      "rungs": [
+        {
+          "n": 1,
+          "ar": "هو المُكَتِّبُ الذي يُعلِّمُ الكتابة",
+          "en": "the muktib is the one who TEACHES writing",
+          "auth": "al-Liḥyānī",
+          "d": 215,
+          "concrete": 0
+        },
+        {
+          "n": 2,
+          "ar": "كَتَّبَ فلانٌ الكتائبَ تكتيباً أي عبَّاها",
+          "en": "he mustered the squadrons — gathering men, not letters",
+          "auth": "al-Jawharī",
+          "d": 393,
+          "concrete": 1
+        },
+        {
+          "n": 3,
+          "ar": "كَتَّبْتُ الناقةَ تكتيباً إذا صَرَرْتَها",
+          "en": "binding the she-camel's udder — one form, three fields: school, army, herd",
+          "auth": "Abū Zayd",
+          "d": 215,
+          "concrete": 1
+        }
+      ]
+    },
+    {
+      "fam": "III",
+      "form": "GT:form_family:form_iii",
+      "verb": "كاتَبَ",
+      "count": 1,
+      "arc_ar": "بابُ المفاعلةِ للاثنين ← فكلٌّ يَكتُبُ إلى صاحبِه ← أو يَتعاقدان على العِتْق",
+      "arc_en": "the mufāʿala bāb is two-party by pattern → each writes to the other → or the two contract for manumission",
+      "arc_ur": "باب مفاعلہ دو فریق پر ہے ← ہر ایک دوسرے کو لکھے ← یا دونوں آزادی کا معاہدہ کریں",
+      "rungs": [
+        {
+          "n": 1,
+          "ar": "كاتَبَ صديقَه: راسَلَه، وتكاتبا",
+          "en": "to write to a friend — correspondence",
+          "auth": "Lane",
+          "d": null,
+          "concrete": 0
+        },
+        {
+          "n": 2,
+          "ar": "المُكاتَبُ: الذي يشتري نفسَه ويُكاتِبُ عليها",
+          "en": "the manumission contract · 24:33 — the SAME bāb, because both are two-party by pattern",
+          "auth": "Ibn Durayd",
+          "d": 321,
+          "concrete": 0
+        },
+        {
+          "n": 3,
+          "ar": "سُمِّيَت المُكاتَبةُ كِتابةً في الإسلام",
+          "en": "al-Azharī DATES it: the usage is post-Qurʾānic, not pre-Islamic Arabic",
+          "auth": "al-Azharī",
+          "d": 370,
+          "concrete": 0
+        }
+      ]
+    },
+    {
+      "fam": "IV",
+      "form": "GT:form_family:form_iv",
+      "verb": "أكْتَبَ",
+      "route": "GT:taddiya_route:bihamza",
+      "count": 1,
+      "arc_ar": "التعديةُ بالهمزة ← فإمّا أن تَحمِلَ غيرَك على الكتابة ← وإمّا أن تَشُدَّ الشيءَ فتُغلِقَه",
+      "arc_en": "causative by HAMZA → either you make another write → or you tie a thing shut",
+      "arc_ur": "ہمزہ سے تعدیہ ← یا دوسرے سے لکھوانا ← یا کسی چیز کو باندھ دینا",
+      "rungs": [
+        {
+          "n": 1,
+          "ar": "أكْتَبْتُ القِربةَ: شَدَدْتُها بالوِكاء",
+          "en": "tying the waterskin's mouth SHUT — closing, not piercing and sewing",
+          "auth": "al-Jawharī",
+          "d": 393,
+          "concrete": 1
+        },
+        {
+          "n": 2,
+          "ar": "أكْتِبْني هذه القصيدةَ أي أمْلِها عليَّ",
+          "en": "dictate it to me · 25:5 — the causative pointed at speech instead of leather",
+          "auth": "al-Jawharī",
+          "d": 393,
+          "concrete": 0
+        },
+        {
+          "n": 3,
+          "ar": "كان الحجَّاجُ مُكْتِباً بالطائف",
+          "en": "al-Ḥajjāj was a schoolmaster at al-Ṭāʾif — the agent noun of this form is THE TEACHER",
+          "auth": "al-Ḥasan via Tāj",
+          "d": null,
+          "concrete": 0
+        }
+      ]
+    },
+    {
+      "fam": "V",
+      "form": "GT:form_family:form_v",
+      "verb": "تَكَتَّبَ",
+      "route": "GT:taddiya_route:lazim",
+      "count": 0,
+      "arc_ar": "مُطاوَعةٌ لازمة ← فالجمعُ يعودُ على فاعلِه ← فالخيلُ تَجتمِعُ، والرجلُ يَجمَعُ عليه ثيابَه",
+      "arc_en": "reflexive and intransitive → the joining returns upon its own doer → the horse masses, the man gathers his clothes about him",
+      "arc_ur": "لازم و مطاوع ← جمع خود فاعل پر لوٹے ← گھوڑے جمع ہوں، آدمی کپڑے سمیٹ لے",
+      "rungs": [
+        {
+          "n": 1,
+          "ar": "تَكَتَّبَتِ الخيلُ أي تَجَمَّعَتْ",
+          "en": "the horse massed — الكَتِيبةُ ما جُمِعَ فلم يَنتَشِرْ, what is gathered and does NOT scatter",
+          "auth": "al-Jawharī",
+          "d": 393,
+          "concrete": 1
+        },
+        {
+          "n": 2,
+          "ar": "وقد تَكَتَّبَ يُزَفُّ في قومِه، أي تَحَزَّمَ وجَمَعَ عليه ثيابَه",
+          "en": "al-Mughīra in procession, clothes gathered tight — Ibn al-Athīr derives it straight from كَتَبْتُ السقاءَ إذا خَرَزْتَه",
+          "auth": "Ibn al-Athīr via Lisān",
+          "d": 606,
+          "concrete": 1
+        }
+      ]
+    },
+    {
+      "fam": "VI",
+      "form": "GT:form_family:form_vi",
+      "verb": "تَكاتَبَ",
+      "count": 0,
+      "arc_ar": "التفاعُلُ يُصَرِّحُ بما أضمرَتْه المفاعلة ← فالفعلُ بين اثنين ظاهراً",
+      "arc_en": "tafāʿul makes explicit what mufāʿala implied — the act is overtly between two",
+      "arc_ur": "تفاعل وہ ظاہر کرتا ہے جو مفاعلہ میں مضمر تھا",
+      "rungs": [
+        {
+          "n": 1,
+          "ar": "مُكاتَبةٌ وتَكاتُبٌ سواءٌ: تَكاتَبا، كتب كلٌّ إلى صاحبِه",
+          "en": "Lane equates the two maṣādir — but the VI subject must be dual or plural, so the reciprocity is in the FORM, not inferred",
+          "auth": "Lane",
+          "d": null,
+          "concrete": 0
+        }
+      ]
+    },
+    {
+      "fam": "VIII",
+      "form": "GT:form_family:form_viii",
+      "verb": "اكْتَتَبَ",
+      "count": 1,
+      "arc_ar": "الافتعالُ للمُطاوَعةِ وحظِّ النفس ← فيَكتُبُ لنفسِه أو يُكتَبُ له ← ثم يُدخِلُ اسمَه في الديوان",
+      "arc_en": "iftiʿāl is reflexive-benefactive → he writes for himself or has it written for him → then enters his own name in the register",
+      "arc_ur": "افتعال مطاوعت اور اپنے فائدے کے لیے ← اپنے لیے لکھے یا لکھوائے ← پھر دفتر میں نام درج کرائے",
+      "rungs": [
+        {
+          "n": 1,
+          "ar": "الكِتْبةُ: اكتِتابُك كِتاباً تَنسَخُه",
+          "en": "copying a book out FOR YOURSELF",
+          "auth": "al-Khalīl",
+          "d": 170,
+          "concrete": 0
+        },
+        {
+          "n": 2,
+          "ar": "اكْتَتَبَها فهي تُمْلى عليه",
+          "en": "25:5 — he HAD them written for him; the benefit returns to the doer",
+          "auth": "Qurʾān",
+          "d": null,
+          "concrete": 0
+        },
+        {
+          "n": 3,
+          "ar": "مَنِ اكْتَتَبَ ضَمِناً بعَثَه اللهُ ضَمِناً يومَ القيامة",
+          "en": "whoever enrols HIMSELF as disabled falsely — the register as a moral instrument: what you write yourself into, you are raised as",
+          "auth": "Ibn ʿUmar via Lisān",
+          "d": 711,
+          "concrete": 0
+        }
+      ]
+    },
+    {
+      "fam": "X",
+      "form": "GT:form_family:form_x",
+      "verb": "اسْتَكْتَبَ",
+      "count": 0,
+      "arc_ar": "الاستفعالُ للطلب ← فتَطلُبُ من غيرِك أن يَكتُبَ ← ثم يُستعمَلُ في غيرِ العاقلِ فيُطلَبُ منه القَبولُ فيَأبى",
+      "arc_en": "istifʿāl is requestive → you ask another to write → then it is used of an inanimate thing, asked to take the tie and refusing",
+      "arc_ur": "استفعال طلب کے لیے ← دوسرے سے لکھوانے کی درخواست ← پھر غیر عاقل کے لیے: قبول طلب کیا جائے اور وہ انکار کرے",
+      "rungs": [
+        {
+          "n": 1,
+          "ar": "استكتبه الشيءَ: سأله أن يكتبَه له",
+          "en": "to ask someone to write a thing for you",
+          "auth": "al-Jawharī",
+          "d": 393,
+          "concrete": 0
+        },
+        {
+          "n": 2,
+          "ar": "أَكْتَبْتُ فمَ السِّقاءِ فلم يَسْتَكْتِبْ — أي لم يَسْتَوْكِ لجفائِه وغِلَظِه",
+          "en": "the hide would not TAKE the tie, being stiff and coarse — form X with an INANIMATE subject, the root describing its own FAILURE",
+          "auth": "Ibn al-Aʿrābī via Tāj",
+          "d": 231,
+          "concrete": 1
+        }
+      ]
+    }
+  ],
+  "Axes": [
+    {
+      "ar": "المحسوس ← المعقول",
+      "en": "physical joining to conceptual joining",
+      "ur": "محسوس سے معقول تک",
+      "w": 3
+    },
+    {
+      "ar": "الحَدَث ← العَين",
+      "en": "the act to the thing produced",
+      "ur": "فعل سے شے تک",
+      "w": 2
+    },
+    {
+      "ar": "الحَمْل ← الفَضْل",
+      "en": "imposed upon to bestowed for, carried by the harf",
+      "ur": "بوجھ سے بھلائی تک، حرف اسے اٹھاتا ہے",
+      "w": 2
+    },
+    {
+      "ar": "الشَّدُّ ← الإطلاق",
+      "en": "binding shut to discharge",
+      "ur": "باندھنے سے آزاد کرنے تک",
+      "w": 1
+    }
+  ],
+  "Taqalib": {
+    "group": "بتك",
+    "members": [
+      "بتك",
+      "بكت",
+      "تبك",
+      "تكب",
+      "كبت",
+      "كتب"
+    ],
+    "unused": "تكب",
+    "note": "al-Khalīl names five as مُستعمَلات and omits تكب — the computed table agrees exactly"
+  },
+  "Furuq": [
+    {
+      "w": "خَطَّ",
+      "ar": "الخَطُّ آلةُ الضَّمِّ؛ قال ابنُ سِيدَه: كَتَبَه خَطَّه",
+      "en": "the traced line, the instrument by which letters are joined",
+      "ur": "لکیر: وہ ذریعہ جس سے حروف جڑتے ہیں"
+    },
+    {
+      "w": "سَطَرَ",
+      "ar": "السَّطْرُ الصَّفُّ من الكتابةِ ومن الشجرِ المغروسِ ومن القومِ الوقوف",
+      "en": "the row, equally of writing, planted trees, or standing men",
+      "ur": "قطار: تحریر، درخت اور کھڑے لوگ سب کی"
+    },
+    {
+      "w": "زَبَرَ",
+      "ar": "كلُّ كتابٍ يَصعُبُ الوقوفُ عليه",
+      "en": "the hard, scripture difficult to penetrate",
+      "ur": "وہ کتاب جس تک رسائی مشکل ہو"
+    },
+    {
+      "w": "رَقَمَ",
+      "ar": "العلامةُ أسبقُ؛ والأرضُ المرقومةُ سُمِّيت تشبيهاً بما عليه أثرُ الكتاب",
+      "en": "the mark, and the mark is prior",
+      "ur": "نشان اصل ہے؛ نشان زدہ زمین تحریر کے مشابہ کہلائی"
+    },
+    {
+      "w": "نَسَخَ",
+      "ar": "النَّسْخُ يستلزمُ أصلاً يُنقَلُ عنه، ومن ثَمَّ كان الرفعَ أيضاً",
+      "en": "the copy, always presupposes an exemplar, hence also abrogation",
+      "ur": "نقل: اصل کو لازم کرتی ہے، اسی لیے منسوخی بھی"
+    }
+  ],
+  "Addad": [
+    {
+      "w": "نَشَرَ",
+      "ar": "ضِدُّ الجمعِ؛ والكتيبةُ ما جُمِعَ فلم يَنتَشِرْ",
+      "en": "gathered against scattered",
+      "ur": "جمع کے مقابل: بکھرنا",
+      "tibaq": "GT:balagha_badi:tibaq_ijab",
+      "status": "attested",
+      "auth": "al-Jawhari"
+    },
+    {
+      "w": "أغْفَلَ",
+      "ar": "ضِدُّ الكتابةِ في القلب؛ أغفلتُ الكتابَ تركتُه خالياً",
+      "en": "written against left blank",
+      "ur": "لکھے ہوئے کے مقابل: خالی چھوڑنا",
+      "tibaq": "GT:balagha_badi:tibaq_ijab",
+      "status": "attested",
+      "auth": "al-Raghib"
+    },
+    {
+      "w": "مَحا",
+      "ar": "ضِدُّ الإثباتِ؛ يمحو اللهُ ما يشاءُ ويُثبِت",
+      "en": "fixed against erased",
+      "ur": "ثابت کے مقابل: مٹانا",
+      "tibaq": "GT:balagha_badi:tibaq_ijab",
+      "status": "derived"
+    },
+    {
+      "w": "فَتَقَ",
+      "ar": "ضِدُّ الخَرْزِ؛ نَقْضُ ما خُرِز",
+      "en": "stitched against unpicked",
+      "ur": "سلائی کے مقابل: ادھیڑنا",
+      "tibaq": "GT:balagha_badi:tibaq_ijab",
+      "status": "derived"
+    }
+  ],
+  "Field": [
+    {
+      "id": "BOOK",
+      "en": "Book",
+      "w": 3,
+      "primary": 1
+    },
+    {
+      "id": "WRITERS",
+      "en": "Writers",
+      "w": 3
+    },
+    {
+      "id": "PROMISE",
+      "en": "Promise",
+      "w": 3
+    },
+    {
+      "id": "RULER",
+      "en": "Ruler",
+      "w": 2
+    },
+    {
+      "id": "ARMY",
+      "en": "Army",
+      "w": 2
+    },
+    {
+      "id": "CAMEL",
+      "en": "Camel",
+      "w": 2
+    },
+    {
+      "id": "DEBT",
+      "en": "Debt",
+      "w": 2
+    },
+    {
+      "id": "HEART",
+      "en": "Heart",
+      "w": 1
+    },
+    {
+      "id": "SPEECH",
+      "en": "Speech",
+      "w": 1
+    }
+  ],
+  "Expressions": [
+    {
+      "e": "كَتَبَ عَلَى",
+      "en": "to bind / make obligatory upon",
+      "ref": "2:216"
+    },
+    {
+      "e": "كَتَبَ عَلَى",
+      "en": "to predestine for",
+      "ref": "3:154"
+    },
+    {
+      "e": "كَتَبَ لِ",
+      "en": "to decree in favour",
+      "ref": "4:127"
+    },
+    {
+      "e": "كَتَبَ لِ",
+      "en": "to credit to the account",
+      "ref": "9:121"
+    },
+    {
+      "e": "كَتَبَ فِي",
+      "en": "to entrench / engrave in",
+      "ref": "58:22"
+    },
+    {
+      "e": "كَتَبَ مَعَ",
+      "en": "to enrol among",
+      "ref": "3:53"
+    },
+    {
+      "e": "كَتَبَ",
+      "en": "to record / keep in mind",
+      "ref": "3:181"
+    },
+    {
+      "e": "كَتَبَ",
+      "en": "to lay down / ordain",
+      "ref": "58:21"
+    },
+    {
+      "e": "كَاتَبَ",
+      "en": "to make a manumission contract",
+      "ref": "24:33"
+    }
+  ],
+  "LemmaInventory": [
+    {
+      "t": "كِتَٰب",
+      "pos": "noun",
+      "n": 260,
+      "gloss": "Book, scripture, decree",
+      "ref": "CARD:AL:lemma:26ec9894256ccd2fcb77820470:lemma.mushtaqq"
+    },
+    {
+      "t": "كَتَبَ",
+      "pos": "verb I",
+      "n": 49,
+      "gloss": "to write, impose, decree"
+    },
+    {
+      "t": "كَاتِب",
+      "pos": "noun",
+      "n": 6,
+      "gloss": "scribe — and per Ibn al-Aʿrābī, the knower"
+    },
+    {
+      "t": "مَكْتُوب",
+      "pos": "ism mafʿūl",
+      "n": 1,
+      "gloss": "written, inscribed",
+      "ref": "7:157"
+    },
+    {
+      "t": "كِتَٰبِى",
+      "pos": "noun+pron",
+      "n": 1,
+      "gloss": "my record",
+      "ref": "69:19"
+    },
+    {
+      "t": "كَاتِبُ",
+      "pos": "verb III",
+      "n": 1,
+      "gloss": "to contract manumission",
+      "ref": "24:33"
+    },
+    {
+      "t": "اكْتَتَبَ",
+      "pos": "verb VIII",
+      "n": 1,
+      "gloss": "to have written for oneself",
+      "ref": "25:5"
+    }
+  ],
+  "Scholarship": [
+    {
+      "author": "Ibn al-Aʿrābī",
+      "claim": "الكاتبُ عند العرب: العالِم — the kātib is the KNOWER, not the scribe",
+      "ref": "52:41 + 68:47",
+      "via": "al-Jawharī · Ibn Fāris · Lane, three independent transmitters"
+    },
+    {
+      "author": "Shamir",
+      "claim": "كلُّ ما ذُكِرَ في الكَتْبِ قريبٌ بعضُه من بعضٍ، وإنما هو جَمْعُكَ بين الشيئين",
+      "ref": "Lisān #40",
+      "via": "the unifying principle stated outright, and الكتيبة and كتبت الكتاب derived from it in one breath"
+    },
+    {
+      "author": "al-Azharī",
+      "claim": "سُمِّيَت المُكاتَبةُ كِتابةً في الإسلام، وفيه دليلٌ على أنّ هذا الإطلاقَ ليس عربيًّا",
+      "ref": "Miṣbāḥ",
+      "via": "a DATED sense — the manumission usage is post-Qurʾānic, not pre-Islamic Arabic"
+    },
+    {
+      "author": "al-Zabīdī",
+      "claim": "وكان الكاتِبُ عندهم عزيزاً وفيهم قليلاً",
+      "ref": "Tāj #163",
+      "via": "the sociological explanation of Ibn al-Aʿrābī, 800 years later: literacy was scarce, so the literate man WAS the learned man"
+    },
+    {
+      "author": "Nicolai Sinai",
+      "claim": "Qurʾānic kitāb splits CELESTIAL (a transcendent repository of Godʼs knowledge and decrees) against EARTHLY scripture",
+      "ref": "Key Terms, 2023",
+      "via": "and kitāb meaning plain writ is attested in pre-Qurʾānic poetry — the scripture sense builds on an existing word"
+    },
+    {
+      "author": "The irab books on 44:2 (added in the grammar-seam pass)",
+      "claim": "al-Irab al-Muyassar on ﴿وَٱلْكِتَٰبِ ٱلْمُبِينِ﴾: الواوُ واوُ القسم، و﴿الكتاب﴾ مجرورٌ بواوِ القسم، والجارُ والمجرورُ متعلقان بفعلٍ محذوفٍ تقديره أُقسِمُ، و﴿المبين﴾ نعتٌ للكتاب. So the two words this passage turns on are bound in one oath: the OBJECT sworn by, majrur not by a preposition but by the waw of oath, with its governing verb deleted; and its NAAT. On 44:1 he adds only تقدّم الكلام على الحروف المقطّعة في أول سورة البقرة — the disconnected letters are deferred, not parsed. And al-Ghalayini (Jami al-Durus p.186) supplies the contrast that makes the waw meaningful: والتاءُ لا تدخلُ إلا على لفظِ الجلالة، والواوُ تدخلُ على كلّ مُقسَمٍ به — the taa of oath swears by God alone, the waw by anything; this is the waw, and the thing sworn by is the Book. Keyed to the ayah in km_quran.qr_irab_book_entry, unqueried during the first build",
+      "ref": "al-Irab al-Muyassar, 44:1-2; Jami al-Durus p.186",
+      "via": "qul_irab_muyassar"
+    }
+  ],
+  "RegistryRefs": {
+    "namespace": "GT",
+    "target_db": "km_arabic_linguistic",
+    "target_table": "ar_ling_gram_term",
+    "target_key": "id",
+    "declared_in": "ar_ling_reg_ref_namespace",
+    "categories_used": [
+      "form_family",
+      "transitivity",
+      "taddiya_route",
+      "derivation_type",
+      "root_type",
+      "pos",
+      "form_tier"
+    ]
+  },
+  "LangContract": {
+    "rule": "ar, en and ur are SEPARATE keys on every human-readable field",
+    "forbidden": "Arabic embedded inside an en or ur string",
+    "bidi": "if unavoidable in prose, wrap the Arabic run U+2066 LRI to U+2069 PDI",
+    "applies_to": [
+      "AslStatement",
+      "DnaThread",
+      "SenseArc",
+      "Axes",
+      "Furuq",
+      "Addad",
+      "Field",
+      "Expressions",
+      "LemmaInventory",
+      "Scholarship"
+    ]
+  },
+  "Imagery": {
+    "passage_en": "A man sits with two edges of hide and a thong. He pierces, draws the thong through, pulls — and where there were two faces there is now one. Al-Khalīl opens the root here and gives the stitch its own name: الكُتْبة, the stitch whose thong has drawn both faces together. Ibn Fāris will not let it pass as a mere act; he stops to say WHY it is called that — لجمعها المخروز, because of its gathering of what is sewn. Al-Rāghib narrows the material to leather and leather, أديم إلى أديم.\n\nThen the same hand turns to living things. A she-camel is made to foster a calf not her own, and her nostrils are stitched shut so she cannot smell the stuffed hide and refuse it — al-Khalīl, with Dhū al-Rumma as witness. Ibn Durayd has the vulva ringed so she cannot be mounted; Abū Zayd, through al-Jawharī, has the udder bound so the calf cannot suckle. Three body parts, three purposes, one verb — and the verb has not yet touched a page.\n\nIt generalises. Al-Jawharī ties a waterskin's mouth shut with a thong: أكْتَبْتُ القِربةَ. And Ibn al-Aʿrābī, whom al-Zabīdī preserves, records the failure — أَكْتَبْتُ فمَ السِّقاءِ فلم يَسْتَكْتِبْ, the hide too stiff and coarse to TAKE the tie. A form-X verb whose subject is a piece of leather, refusing to be joined.\n\nThe thong now disappears and the joining remains. Horse gather into one body and the word for that body is الكَتِيبة — al-Jawharī defines it by what it does not do: ما جُمِعَ فلم يَنتَشِرْ, gathered and not scattering. Al-Khalīl calls the school الكُتَّاب and glosses it مَجمعُ صبيانِه, the gathering-place of its boys — not the writing-place. Ibn al-Athīr, through Lisān, has al-Mughīra walk in procession تَكَتَّبَ, clothes gathered tight about him, and derives it in the same breath from كَتَبْتُ السقاءَ إذا خَرَزْتَه: a man stitched into his own garments.\n\nOnly now does script arrive, and it arrives as an instance. Al-Rāghib: ضمُّ الحروفِ بعضِها إلى بعضٍ بالخَطّ, letters joined by the traced line. Ibn Durayd glosses writing itself as gathering — كتب الكتابَ إذا جمع حروفه. Al-Azharī names the product: الكِتابُ اسمٌ لِما كُتِبَ مَجْموعاً, and al-Rāghib adds that it names the sheet TOGETHER WITH what is on it — two things under one word, the root performing itself inside the noun.\n\nWhat is joined is thereby fixed. Al-Rāghib gives the mechanism: a thing is willed, then said, then written — الإرادةُ مبدأ والكِتابةُ منتهى — and when you want to press the willing you name it by its end. So كُتِبَ عَلَيْكُمُ is not ink but obligation. Mir, following al-Rāghib, shows the particle carrying the direction: عَلَى lays the burden on you, لِ hands the good to you. Al-Zamakhsharī watches a tax-collector take the land-tax in full and write out the quittance, and Lane watches a judge write for maintenance — the same verb closing an account and passing a sentence.\n\nThen the surface stops being a surface. كَتَبَ فِى قُلُوبِهِمُ ٱلْإِيمَـٰنَ — and al-Rāghib sets it against أَغْفَلْنَا قَلْبَهُ, from أغفلتُ الكتابَ, a page left blank and undotted. A heart is written or it is empty.\n\nAnd at the end the ink is taken away. ولهذا سُمِّي كلامُ اللهِ — وإن لم يُكتَبْ — كِتاباً. Speech joined is speech gathered, and what is gathered is a Book. الٓمٓ ذَٰلِكَ ٱلْكِتَٰبُ needs no page. The thong is gone and the two faces are still one.",
+    "passage_ar": "رجلٌ بين يديه حاشيتا أديمٍ وسَيْرٌ. يَخرِزُ ويَجذِبُ، فإذا الوجهانِ وجهٌ واحد. من هنا افتتح الخليلُ المادّةَ وسمَّى الخَرْزةَ نفسَها: الكُتْبةُ التي ضمَّ السيرُ كِلا وجهيها. ولم يَدَعْها ابنُ فارسٍ فِعلاً مُجرَّداً، بل وقف يُعلِّلُ: وإنما سُمِّيت بذلك لِجَمْعِها المَخْروز. وضيَّقَ الراغبُ المادّةَ فقال: ضمُّ أديمٍ إلى أديمٍ بالخياطة.\n\nثم انتقلت اليدُ إلى الحيّ. ناقةٌ تُظأَرُ على غيرِ ولدِها فيُكتَبُ مَنخِراها بخيطٍ لئلا تشمَّ البَوَّ فتَنفِرَ — والشاهدُ لذي الرُّمّة. وعند ابنِ دريدٍ خَزْمُ حَيائها بحَلْقة، وعند أبي زيدٍ صَرُّ ضَرْعِها. ثلاثةُ مواضعَ وثلاثةُ مقاصدَ وفعلٌ واحد، ولم يمسَّ الفعلُ صحيفةً بعد.\n\nثم اتَّسع. شدَّ الجوهريُّ فمَ القِربةِ بالوِكاء: أكْتَبْتُ القِربةَ. وحفِظ الزَّبيديُّ عن ابنِ الأعرابيِّ صورةَ الإخفاق: أَكْتَبْتُ فمَ السِّقاءِ فلم يَسْتَكْتِبْ، لجفائِه وغِلَظِه. فِعلٌ على وزنِ استفعلَ وفاعلُه أديمٌ يأبى أن يُضَمّ.\n\nثم غاب السَّيْرُ وبقي الجَمْع. اجتمعت الخيلُ فكانت الكَتِيبة، وحدَّها الجوهريُّ بما لا تفعلُه: ما جُمِعَ فلم يَنتَشِرْ. وسمَّى الخليلُ المكتبَ الكُتَّابَ وفسَّره: مَجمعُ صبيانِه — لا مَوضِعُ خطِّهم. ومشى المغيرةُ يُزَفُّ في قومِه وقد تَكَتَّبَ، أي جمعَ عليه ثيابَه، وردَّها ابنُ الأثيرِ في نفَسٍ واحدٍ إلى كَتَبْتُ السِّقاءَ إذا خَرَزْتَه.\n\nوهنا فقط جاء الخطُّ، وجاء مثالاً لا أصلاً: ضمُّ الحروفِ بعضِها إلى بعضٍ بالخَطّ. وفسَّر ابنُ دريدٍ الكتابةَ بالجمعِ نفسِه: كتب الكتابَ إذا جمع حروفَه. وسمَّى الأزهريُّ المُنتَج: الكِتابُ اسمٌ لِما كُتِبَ مَجْموعاً، وزاد الراغبُ أنه اسمٌ للصحيفةِ مع المكتوبِ فيه — اثنانِ في لفظٍ واحد.\n\nوما جُمِعَ ثبَت. قال الراغبُ: الشيءُ يُراد ثم يُقال ثم يُكتَب، فالإرادةُ مبدأ والكِتابةُ منتهى، ويُعبَّرُ عن المبدأ بالمنتهى. فـ﴿كُتِبَ عليكم﴾ فَرْضٌ لا مِداد. وأرى مِيرْ أنّ الحرفَ يحملُ الجهةَ: عَلَى تَضَعُ الحِملَ عليك، ولِـ تُعطيك. وكتب البُندارُ البراءةَ لمن استوفى منه الخَراج، وكتب القاضي بالنفقة — فعلٌ واحدٌ يُبرِئُ ذمّةً ويقضي بحُكم.\n\nثم لم يَعُدِ المكتوبُ عليه سطحاً: ﴿كَتَبَ في قلوبِهم الإيمانَ﴾، وقابَلها الراغبُ بـ﴿أغفلنا قلبَه﴾ من أغفلتُ الكتابَ إذا تركتَه خالياً من الكتابةِ والإعجام. فالقلبُ مكتوبٌ أو خالٍ.\n\nوفي الآخِرِ رُفِعَ المِداد: ولهذا سُمِّي كلامُ اللهِ — وإن لم يُكتَبْ — كِتاباً. فالكلامُ المنظومُ مجموعٌ، والمجموعُ كِتاب. ﴿الٓمٓ ذَٰلِكَ ٱلْكِتَٰبُ﴾ ولا صحيفةَ تُشترَط. ذهب السَّيْرُ وبقي الوجهانِ واحداً.",
+    "woven_sources": [
+      {
+        "src": "khalil_kitab_ayn",
+        "d": 170,
+        "unique": "الكُتْبة named as the stitch itself; the nostril-stitch with Dhū al-Rumma; الكُتَّاب glossed مَجمعُ صبيانِه"
+      },
+      {
+        "src": "ibn_durayd_jamharat_lugha",
+        "d": 321,
+        "unique": "the aṣl stated outright; writing GLOSSED as gathering — كتب الكتابَ إذا جمع حروفه; the vulva ringed"
+      },
+      {
+        "src": "jawhari_sihah",
+        "d": 393,
+        "unique": "الكتيبة defined by what it does NOT do; the waterskin tied with a wikāʾ; Abū Zaydʼs udder-binding"
+      },
+      {
+        "src": "maqayis_lugha",
+        "d": 395,
+        "unique": "the DERIVATION — لجمعها المخروز, why the stitch is called that"
+      },
+      {
+        "src": "raghib_mufradat",
+        "d": 502,
+        "unique": "أديم إلى أديم; the will→speech→writing mechanism; the written heart against the blank page; and كِتاب without ink"
+      },
+      {
+        "src": "zamakhshari",
+        "d": 538,
+        "unique": "the ṣakk — the tax-collector writing out a quittance"
+      },
+      {
+        "src": "ibn_manzur_lisan_arab",
+        "d": 711,
+        "unique": "al-Mughīra girded in procession, and Ibn al-Athīr deriving it FROM the waterskin"
+      },
+      {
+        "src": "zabidi_taj_arus",
+        "d": 1205,
+        "unique": "Ibn al-Aʿrābīʼs FAILURE case — the hide that would not take the tie"
+      },
+      {
+        "src": "lane_lexicon",
+        "d": null,
+        "unique": "the judge writing for maintenance — the root at a human bench"
+      },
+      {
+        "src": "mir_verbal_idioms",
+        "d": null,
+        "unique": "the ḥarf carries the direction: عَلَى loads, لِ gives"
+      }
+    ],
+    "covers": {
+      "families": [
+        "I",
+        "II",
+        "III",
+        "IV",
+        "V",
+        "VIII",
+        "X"
+      ],
+      "governance": [
+        "عَلَى",
+        "لِ",
+        "فِي",
+        "بنفسه",
+        "لازم"
+      ],
+      "concrete_rungs": 9,
+      "abstract_rungs": 7
+    },
+    "shown": 1
+  }
+}

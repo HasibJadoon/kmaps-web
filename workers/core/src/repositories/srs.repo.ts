@@ -38,9 +38,28 @@ export interface SrsCard {
   resource_type: string;
   resource_ref: string;
   card_template: string;
+  /** Selected in CARD_COLS and, until now, reached only through `as any`. */
+  card_kind: string | null;
+  concept_domain: string | null;
   front_text: string;
   back_text: string;
   extra_json: string | null;
+  /**
+   * A structured card: `note_type_id` names a `core_srs_note_type` and
+   * `fields_json` holds that type's fields. 25 cards carry a complete payload —
+   * radicals with their makhraj, a form ladder, a sense arc with concrete rungs
+   * marked — and nothing could read it, because no column here selected it.
+   */
+  note_type_id: string | null;
+  fields_json: string | null;
+  /**
+   * The root this card is about, plain. `resource_ref` carries the typed form
+   * (`AL:root:<uid>`), which cannot be joined against anything that stores a
+   * root as letters.
+   */
+  root_norm: string | null;
+  /** The sūra where the learner first met it. */
+  intro_surah: number | null;
   tags: string | null;
   suspended: number;
   stability: number | null;
@@ -88,6 +107,7 @@ FROM core_srs_deck`;
 const CARD_COLS = `
   id, deck_id, user_ref, module, resource_type, resource_ref, card_template,
   front_text, back_text, extra_json, tags, card_kind, concept_domain, suspended,
+  note_type_id, fields_json, root_norm, intro_surah,
   stability, difficulty, card_state, learning_step, reps, lapses,
   elapsed_days, scheduled_days, last_review_at, next_review_at,
   created_at, updated_at
@@ -295,19 +315,25 @@ export class SrsRepo {
     resource_ref: string; card_template?: string; front_text?: string;
     back_text?: string; extra_json?: string | null; tags?: string | null;
     card_kind?: string | null; concept_domain?: string | null;
+    /** A structured card. Without these no endpoint could create one. */
+    note_type_id?: string | null; fields_json?: string | null;
+    root_norm?: string | null; intro_surah?: number | null;
   }): Promise<{ card: SrsCard; inserted: boolean }> {
     const id = typedId('SRSCARD');
     await execute(this.db,
       `INSERT INTO core_srs_card
          (id, deck_id, user_ref, module, resource_type, resource_ref, card_template,
-          front_text, back_text, extra_json, tags, card_kind, concept_domain, next_review_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+          front_text, back_text, extra_json, tags, card_kind, concept_domain,
+          note_type_id, fields_json, root_norm, intro_surah, next_review_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
        ON CONFLICT (deck_id, resource_ref, card_template) DO NOTHING`,
       [id, input.deck_id, input.user_ref, input.module, input.resource_type,
        input.resource_ref, input.card_template ?? 'freeform',
        input.front_text ?? '', input.back_text ?? '',
        input.extra_json ?? null, input.tags ?? null,
-       input.card_kind ?? null, input.concept_domain ?? null]);
+       input.card_kind ?? null, input.concept_domain ?? null,
+       input.note_type_id ?? null, input.fields_json ?? null,
+       input.root_norm ?? null, input.intro_surah ?? null]);
     const row = await queryOne<SrsCard>(this.db,
       `SELECT ${CARD_COLS} WHERE deck_id = ? AND resource_ref = ? AND card_template = ?`,
       [input.deck_id, input.resource_ref, input.card_template ?? 'freeform']);
