@@ -10,11 +10,21 @@ on:
 
 # ── Deployment order ────────────────────────────────────────────────────────────
 # Internal workers are deployed first (no public domain, service-binding only).
-# km-backend-worker is ALWAYS deployed last — it is the single public API.
+# km-backend-worker is ALWAYS deployed last — it is the single public API, and
+# that is the one ordering guarantee here that actually matters.
 #
-# Dependency graph:
-#   core, al, studio  →  content  →  worldview  →  quran  →  planner, arabic  →  backend
-#   (km-studio-worker has no service-binding deps — it only owns DB_ST)
+# The phases below are NOT a topological sort, because the real binding graph
+# is cyclic — read the wrangler.toml files, not this comment, for the truth:
+#   core → QURAN,  quran → WORLDVIEW,  worldview → CORE      (3-cycle)
+#   arabic → PLANNER,  planner → ARABIC                      (2-cycle)
+#   studio → CORE       (it is not dependency-free, as previously claimed)
+#
+# No ordering can satisfy a cyclic graph. In practice this is fine: all nine
+# workers already exist in production, so service bindings resolve regardless
+# of deploy order. Order only ever mattered for first-time creation. Treat the
+# phases as sequencing, NOT as protection against a contract mismatch — if you
+# change a service-binding contract, the old and new sides will be live
+# simultaneously no matter what this file does.
 # ────────────────────────────────────────────────────────────────────────────────
 
 # ── Why every deploy job runs `npm ci` ──────────────────────────────────────────
@@ -31,6 +41,13 @@ on:
 # Phase 1 failure skips every later phase, so the next worker to take a
 # dependency would silently block the public API deploy.
 # ────────────────────────────────────────────────────────────────────────────────
+
+# Never run two deploy graphs at once, and never cancel one mid-flight:
+# aborting between phases leaves the gateway live against a partially
+# updated set of domain workers.
+concurrency:
+  group: deploy-workers
+  cancel-in-progress: false
 
 defaults:
   run:
