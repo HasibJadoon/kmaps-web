@@ -4,21 +4,52 @@ on:
   push:
     branches:
       - main
+    # Only rebuild when something that lands in the bundle changes. Note
+    # `workers/shared/src/contracts/**`: apps/k-maps/tsconfig.json maps
+    # `@kmaps/contracts/*` there, so a contract edit changes this app's
+    # build even though it lives under workers/.
+    paths:
+      - "apps/k-maps/**"
+      - "workers/shared/src/contracts/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/cloudflare-pages.yml"
+      - ".github/workflows/_gate.yml"
   workflow_dispatch:
 
+# One production deploy at a time. Superseding an in-flight build is safe
+# here — Pages deploys are whole-bundle, so the newest commit wins.
+concurrency:
+  group: deploy-pages-k-maps
+  cancel-in-progress: true
+
+env:
+  WRANGLER_VERSION: "4.78.0"
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
+  # This app used to deploy to production with nothing verified first — the
+  # worker pipeline had a gate, the two Angular apps did not.
+  gate:
+    uses: ./.github/workflows/_gate.yml
+
   deploy:
+    needs: [gate]
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "20.19.0"
+          cache: npm
 
       - name: Install dependencies
         run: |
@@ -39,7 +70,7 @@ jobs:
           [ -z "$SAFE_MSG" ] && SAFE_MSG="Deploy $(git rev-parse --short HEAD)"
           echo "Sanitized commit message: $SAFE_MSG"
           for i in 1 2 3; do
-            npx wrangler@4.66.0 pages deploy ${{ github.workspace }}/apps/k-maps/dist/k-maps/browser \
+            npx "wrangler@${WRANGLER_VERSION}" pages deploy ${{ github.workspace }}/apps/k-maps/dist/k-maps/browser \
               --project-name k-maps \
               --branch main \
               --commit-message "$SAFE_MSG" \

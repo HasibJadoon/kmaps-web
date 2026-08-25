@@ -31,6 +31,9 @@ concurrency:
   group: qr-display-parsers
   cancel-in-progress: false
 
+env:
+  WRANGLER_VERSION: "4.78.0"
+
 defaults:
   run:
     shell: bash
@@ -41,10 +44,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: "20" }
-      - run: npm install -g wrangler
+      - run: npm install -g "wrangler@${WRANGLER_VERSION}"
       - name: Project qr_tafsir_entries → qr_tafsir_book_display_*
         run: node scripts/tafsir-display-parser.mjs --all-surahs --apply
         env:
@@ -56,10 +59,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: "20" }
-      - run: npm install -g wrangler
+      - run: npm install -g "wrangler@${WRANGLER_VERSION}"
       - name: Project qr_iraab_chunks → qr_iraab_book_display_*
         run: node scripts/iraab-display-parser.mjs --all-surahs --apply
         env:
