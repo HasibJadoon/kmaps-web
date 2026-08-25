@@ -34,6 +34,15 @@ export const CYBERNETICS_ROUTES: Routes = [
           import('./map/cyb-map.component').then((m) => m.CybMapComponent),
         title: 'Quran Map — K-MAPS',
       })),
+      // The display spec, rendered. The map's root view will move onto this
+      // once /core/ds is deployed; until then it lives beside it so the
+      // renderer can be exercised without disturbing a working screen.
+      {
+        path: 'ds/:root',
+        loadComponent: () =>
+          import('./ds/cyb-ds-page.component').then((m) => m.CybDsPageComponent),
+        title: 'Root — K-MAPS',
+      },
       // The ladder walks the same recursion as the map, so it takes the same
       // route shape — a path in one view opens the same path in the other.
       ...['ladder', 'ladder/:surahId', 'ladder/:surahId/:passageNo',

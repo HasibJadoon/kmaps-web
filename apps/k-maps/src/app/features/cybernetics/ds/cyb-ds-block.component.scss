@@ -1,0 +1,217 @@
+// One block of a display spec. Chrome and fonts only — every decision about
+// what the numbers mean was made by the worker.
+//
+// Tokens come from the cybernetics shell, which points at the same
+// manuscript-noir palette the Lexicon reader defines.
+
+:host { display: block; }
+
+.bh {
+  display: flex; align-items: baseline; gap: 10px;
+  margin: 0 0 8px;
+  .t {
+    font-family: var(--serif); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--gold-d);
+  }
+  .h {
+    margin-left: auto; font-family: ui-monospace, monospace;
+    font-size: 9.5px; color: var(--t3);
+  }
+}
+
+// Arabic is a face, not a style. The UI face and the muṣḥaf face are different
+// fonts; the spec says which script a run is in and this picks accordingly.
+.ar { font-family: var(--ar); }
+.rtl { direction: rtl; text-align: right; }
+.ur { font-size: .95em; color: var(--t3); }
+.en { font-size: 12.5px; line-height: 1.55; color: var(--t2); }
+.mono { font-family: ui-monospace, monospace; }
+
+// ── hero ────────────────────────────────────────────────────────────────────
+.hero {
+  padding: 16px 18px; border-radius: 12px;
+  background: linear-gradient(158deg, rgba(34,29,16,.7), rgba(13,11,7,.86));
+  border: 1px solid rgba(232,201,106,.18);
+  .mark {
+    font-size: 40px; line-height: 1.1; color: var(--gold-b);
+    text-shadow: 0 6px 34px rgba(201,168,76,.18);
+  }
+  p { margin: 8px 0 0; }
+}
+
+.facts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.fact {
+  font-family: ui-monospace, monospace; font-size: 9.5px; color: var(--t2);
+  border: 1px solid var(--rule); border-radius: 20px; padding: 4px 10px;
+  i { color: var(--t3); font-style: normal; margin-right: 4px; }
+}
+
+// ── grid ────────────────────────────────────────────────────────────────────
+.grid {
+  display: grid; gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+}
+.cell {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 12px 8px; border-radius: 10px;
+  border: 1px solid var(--rule); background: var(--paper);
+  // An unused member of a closed family is real information, so it stays on
+  // screen and recedes rather than being dropped.
+  &.muted { opacity: .45; }
+  &.hi { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
+  .cmark { font-size: 26px; line-height: 1; color: var(--ink); }
+  .ccap { font-family: ui-monospace, monospace; font-size: 9px; color: var(--t3); }
+  .cfoot { font-family: ui-monospace, monospace; font-size: 8px; color: var(--accent); }
+}
+
+// ── chain ───────────────────────────────────────────────────────────────────
+.summary { margin: 0 0 10px; font-size: 17px; color: var(--ink); }
+.chain {
+  list-style: none; margin: 0; padding: 0;
+  li {
+    display: flex; gap: 12px; padding: 0 0 14px; position: relative;
+    // The rail that makes a path look like a path.
+    &:not(:last-child)::before {
+      content: ''; position: absolute; left: 12px; top: 26px; bottom: 0;
+      width: 2px; background: var(--rule);
+    }
+    &.terminal .ord { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    &.unresolved .ntitle { color: var(--err); }
+    &.unresolved .nsub { font-style: italic; }
+  }
+  .ord {
+    flex: none; width: 26px; height: 26px; border-radius: 50%;
+    display: grid; place-items: center;
+    border: 1px solid var(--rule); background: var(--paper);
+    font-family: ui-monospace, monospace; font-size: 11px; color: var(--t2);
+  }
+  .nbody { display: flex; flex-direction: column; gap: 2px; padding-top: 2px; }
+  .ntitle { font-size: 17px; color: var(--ink); }
+  .nsub { font-size: 11.5px; color: var(--t2); }
+  .ndet { font-size: 10.5px; color: var(--t3); }
+}
+
+// ── bars ────────────────────────────────────────────────────────────────────
+.bars { display: flex; flex-direction: column; gap: 8px; }
+.bar {
+  display: grid; grid-template-columns: 1fr auto 96px;
+  align-items: center; gap: 10px;
+  .blabel {
+    display: flex; flex-direction: column; gap: 1px; min-width: 0;
+    span { font-size: 13px; color: var(--ink); }
+    em { font-style: normal; font-size: 10px; color: var(--t3); }
+    small { font-size: 10px; color: var(--t3); }
+  }
+  .bval { font-family: ui-monospace, monospace; font-size: 11px; color: var(--accent); }
+  .track {
+    height: 6px; border-radius: 4px; overflow: hidden;
+    background: rgba(255,255,255,.06);
+    i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+    // Nothing yet is not a very small something.
+    &.none {
+      background: transparent;
+      border: 1px dashed rgba(224,120,92,.3);
+      i { display: none; }
+    }
+  }
+}
+
+// ── records ─────────────────────────────────────────────────────────────────
+.records { display: flex; flex-direction: column; gap: 10px; }
+.rec {
+  padding: 12px 14px; border-radius: 10px;
+  border: 1px solid rgba(232,201,106,.12);
+  background: linear-gradient(180deg, rgba(23,19,11,.7), rgba(11,10,8,.8));
+  p { margin: 6px 0 0; }
+  p:first-of-type { margin-top: 0; }
+}
+.ledger .rec { padding: 10px 12px; }
+
+.badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.badge {
+  font-family: ui-monospace, monospace; font-size: 8.5px; letter-spacing: .4px;
+  padding: 3px 8px; border-radius: 11px;
+  border: 1px solid var(--rule); color: var(--accent);
+  i { font-style: normal; color: var(--t3); margin-right: 3px; }
+  &[data-tone='strong'] { color: var(--bg); background: linear-gradient(180deg, var(--gold-b), var(--gold)); border-color: transparent; }
+  &[data-tone='ok']     { color: var(--content); border-color: rgba(127,174,106,.4); }
+  // A source that qualifies a claim is evidence, not a failure — warn is amber,
+  // never the error colour.
+  &[data-tone='warn']   { color: var(--gold-b); border-color: rgba(232,201,106,.35); }
+  &[data-tone='plain']  { color: var(--t2); }
+}
+
+.prov {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline;
+  margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--rule-soft);
+  font-family: ui-monospace, monospace; font-size: 9px; color: var(--t3);
+  .src { color: var(--t2); }
+  .tag { color: var(--clarity); }      // ours, and saying so
+  .ref { color: var(--accent); }
+  &.synth .src { font-style: italic; }
+}
+
+// ── pills / pairs ───────────────────────────────────────────────────────────
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill {
+  font-size: 12px; color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 16px; padding: 5px 12px;
+  background: var(--paper);
+  &.muted { opacity: .5; }
+}
+
+.pairs {
+  display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0;
+  dt { font-family: ui-monospace, monospace; font-size: 10px; color: var(--t3); }
+  dd { margin: 0; font-size: 12.5px; color: var(--t2); }
+}
+
+// ── prose ───────────────────────────────────────────────────────────────────
+.prose { display: flex; flex-direction: column; gap: 10px; }
+.pb {
+  padding-inline-start: calc(var(--depth, 0) * 14px);
+  span { display: block; }
+  .ptr { font-size: 11.5px; color: var(--t3); margin-top: 4px; }
+  // A role, not a size. What a heading looks like is the client's business.
+  &[data-role='heading']    span { font-size: 19px; color: var(--gold-b); }
+  &[data-role='definition'] span { font-size: 16px; color: var(--ink); }
+  &[data-role='verse']      span { font-size: 16px; color: var(--accent); text-align: center; }
+  &[data-role='narration']  span { font-size: 16px; border-inline-end: 2px solid var(--accent); padding-inline-end: 10px; }
+  &[data-role='aside']      span { font-size: 12px; color: var(--t3); }
+}
+
+// ── table ───────────────────────────────────────────────────────────────────
+.tw { overflow-x: auto; border-radius: 8px; border: 1px solid var(--rule); }
+table { width: 100%; border-collapse: collapse; font-size: 11px; }
+th {
+  position: sticky; top: 0; text-align: left; white-space: nowrap;
+  background: var(--paper-2); color: var(--t3);
+  font-family: ui-monospace, monospace; font-size: 8px;
+  letter-spacing: .6px; text-transform: uppercase;
+  padding: 8px 10px; border-bottom: 1px solid var(--rule);
+}
+td {
+  padding: 8px 10px; vertical-align: top; color: var(--t2);
+  font-family: ui-monospace, monospace;
+  border-bottom: 1px solid var(--rule-soft);
+  &.nul { color: #3d3a33; font-style: italic; }
+}
+.nulls {
+  margin: 8px 0 0; font-size: 10.5px; color: var(--t3);
+  .mono { color: var(--t2); margin-right: 6px; }
+}
+
+// ── notes ───────────────────────────────────────────────────────────────────
+.note {
+  margin: 0; padding: 14px 16px; border-radius: 10px;
+  font-size: 12px; line-height: 1.5; color: var(--t3);
+  border: 1px dashed var(--rule);
+  // Unknown is not empty, and it does not look like empty either.
+  &[data-kind='unknown'] { color: var(--err); border-color: rgba(224,120,92,.32); }
+  &[data-kind='truncated'] { font-style: italic; }
+}
+
+.more {
+  margin: 8px 0 0; font-family: ui-monospace, monospace;
+  font-size: 9.5px; color: var(--t3);
+}

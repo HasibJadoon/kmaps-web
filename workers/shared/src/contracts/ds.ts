@@ -109,22 +109,89 @@ export interface DsProseBlock {
   provenance?: DsProvenance;
 }
 
-/** The block kinds. Each is a shape some client already draws. */
-export type DsBlock =
-  | { kind: 'hero'; title?: string; hint?: string; mark: DsText; facts?: DsFact[]; ar?: DsText; en?: DsText; ur?: DsText }
-  | { kind: 'grid'; title?: string; hint?: string; cells: DsCell[]; overflow_count?: number }
-  | { kind: 'chain'; title?: string; hint?: string; summary?: DsText; nodes: DsNode[] }
-  | { kind: 'bars'; title?: string; hint?: string; bars: DsBar[]; overflow_count?: number }
-  | { kind: 'card_list'; title?: string; hint?: string; records: DsRecord[]; overflow_count?: number }
-  | { kind: 'ledger'; title?: string; hint?: string; records: DsRecord[]; overflow_count?: number }
-  | { kind: 'pills'; title?: string; hint?: string; pills: { id: string; label: DsText; muted?: boolean }[]; overflow_count?: number }
-  | { kind: 'prose_blocks'; title?: string; hint?: string; blocks: DsProseBlock[]; overflow_count?: number }
-  | { kind: 'pairs'; title?: string; hint?: string; pairs: { id: string; label: DsText; value: DsText }[] }
-  | { kind: 'table'; title?: string; hint?: string; columns: string[]; rows: (string | null)[][]; overflow_count?: number;
+/** Every block may be titled and hinted; the rest is per kind. */
+export interface DsBlockBase {
+  title?: string;
+  hint?: string;
+}
+
+/**
+ * The block kinds this version of the vocabulary defines. Each is a shape some
+ * client already draws.
+ */
+export type DsKnownBlock =
+  | (DsBlockBase & { kind: 'hero'; mark: DsText; facts?: DsFact[]; ar?: DsText; en?: DsText; ur?: DsText })
+  | (DsBlockBase & { kind: 'grid'; cells: DsCell[]; overflow_count?: number })
+  | (DsBlockBase & { kind: 'chain'; summary?: DsText; nodes: DsNode[] })
+  | (DsBlockBase & { kind: 'bars'; bars: DsBar[]; overflow_count?: number })
+  | (DsBlockBase & { kind: 'card_list'; records: DsRecord[]; overflow_count?: number })
+  | (DsBlockBase & { kind: 'ledger'; records: DsRecord[]; overflow_count?: number })
+  | (DsBlockBase & { kind: 'pills'; pills: { id: string; label: DsText; muted?: boolean }[]; overflow_count?: number })
+  | (DsBlockBase & { kind: 'prose_blocks'; blocks: DsProseBlock[]; overflow_count?: number })
+  | (DsBlockBase & { kind: 'pairs'; pairs: { id: string; label: DsText; value: DsText }[] })
+  | (DsBlockBase & {
+      kind: 'table'; columns: string[]; rows: (string | null)[][]; overflow_count?: number;
       /** Columns that were NULL in every row read — a build gap that becomes
        *  invisible the moment a row is rendered as prose. */
-      null_columns?: string[] }
-  | { kind: 'note'; title?: string; note_kind: 'empty' | 'unknown' | 'truncated'; text: string };
+      null_columns?: string[];
+    })
+  | (DsBlockBase & { kind: 'note'; note_kind: 'empty' | 'unknown' | 'truncated'; text: string });
+
+/**
+ * What a renderer switches on.
+ *
+ * Closed on purpose: a discriminated union narrows, and a renderer that cannot
+ * narrow is a renderer full of casts. Forward compatibility is handled at the
+ * boundary instead — see `normaliseBlock`. The vocabulary still grows freely on
+ * the worker side; a client simply converts what it does not recognise before
+ * the type system ever sees it.
+ */
+export type DsBlock = DsKnownBlock;
+
+/** The kinds this build knows how to draw. */
+export const DS_BLOCK_KINDS = [
+  'hero', 'grid', 'chain', 'bars', 'card_list', 'ledger', 'pills',
+  'prose_blocks', 'pairs', 'table', 'note',
+] as const;
+
+export type DsBlockKind = (typeof DS_BLOCK_KINDS)[number];
+
+function isKnownKind(k: unknown): k is DsBlockKind {
+  return typeof k === 'string' && (DS_BLOCK_KINDS as readonly string[]).includes(k);
+}
+
+/**
+ * Make one block safe to render.
+ *
+ * The worker owns the vocabulary and will grow it: a new carrier earns a better
+ * shape than a table, a new scope needs a new arrangement. A client compiled
+ * before that happens must not blank the section or throw — blank is the exact
+ * failure this whole design exists to avoid, because a reader cannot tell it
+ * apart from a layer that genuinely holds nothing.
+ *
+ * So an unrecognised kind becomes a note that says which kind it was. The data
+ * is there; only this build's renderer is older than the spec.
+ */
+export function normaliseBlock(raw: unknown): DsBlock {
+  const b = (raw ?? {}) as { kind?: unknown; title?: unknown; hint?: unknown };
+  if (isKnownKind(b.kind)) return raw as DsBlock;
+  const kind = typeof b.kind === 'string' && b.kind ? b.kind : 'an unnamed';
+  return {
+    kind: 'note',
+    note_kind: 'unknown',
+    title: typeof b.title === 'string' ? b.title : undefined,
+    text: `This build cannot render a “${kind}” block yet. `
+        + 'The data is there; the renderer is older than the spec.',
+  };
+}
+
+/** Make a whole spec safe to render. One call, at the edge. */
+export function normaliseSpec<T extends { sections: { blocks: unknown[] }[] }>(spec: T): T {
+  for (const section of spec.sections ?? []) {
+    section.blocks = (section.blocks ?? []).map(normaliseBlock);
+  }
+  return spec;
+}
 
 /**
  * Whether this layer holds anything — and the third state is the important one.

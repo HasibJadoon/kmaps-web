@@ -1,0 +1,109 @@
+// A whole display spec. Chrome only.
+
+:host { display: block; }
+
+.ar { font-family: var(--ar); }
+
+// ── the subject ─────────────────────────────────────────────────────────────
+.subject {
+  display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap;
+  padding: 18px 20px; margin-bottom: 14px; border-radius: 12px;
+  border: 1px solid rgba(232,201,106,.18);
+  background: linear-gradient(158deg, rgba(34,29,16,.7), rgba(13,11,7,.86));
+
+  .mark {
+    font-size: 44px; line-height: 1; color: var(--gold-b);
+    text-shadow: 0 4px 22px rgba(201,168,76,.32);
+  }
+  .meta { flex: 1; min-width: 200px; }
+  .ref {
+    font-size: 15px; color: var(--ink);
+    em { font-style: normal; font-size: 12px; color: var(--t3); }
+  }
+  .counts {
+    margin-top: 4px;
+    font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--t3);
+    b { color: var(--t2); font-weight: 500; }
+    .filled { color: var(--content); }
+    // Unknown is the state a build plan is looking for, so it is not grey.
+    .unknown { color: var(--err); }
+  }
+}
+
+// ── the four outputs ────────────────────────────────────────────────────────
+.axes {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px; width: 100%;
+}
+.axis {
+  .al {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: ui-monospace, monospace; font-size: 8.5px;
+    letter-spacing: .5px; text-transform: uppercase; color: var(--t3);
+    b { font-size: 11px; color: var(--ink); }
+  }
+  .at {
+    display: block; height: 5px; margin-top: 3px; border-radius: 3px;
+    overflow: hidden; background: rgba(255,255,255,.06);
+    i { display: block; height: 100%; background: var(--accent); }
+    // An axis no sensor has read is dashed, not a zero-width bar: nobody
+    // measured it, which is a different claim from "it measured zero".
+    &.none { background: transparent; border: 1px dashed rgba(224,120,92,.3); }
+  }
+  .an {
+    display: block; margin-top: 3px;
+    font-family: ui-monospace, monospace; font-size: 8px; color: var(--t3);
+  }
+  &.unmeasured .al b { color: var(--t3); font-style: italic; }
+}
+
+// ── sections ────────────────────────────────────────────────────────────────
+.sections { display: flex; flex-direction: column; gap: 12px; }
+
+.sec {
+  border-radius: 12px; padding: 14px 16px;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  background: var(--paper);
+  // A layer holding nothing still occupies the page; it recedes rather than
+  // disappearing, because its absence is information.
+  &[data-state='empty']   { opacity: .72; }
+  &[data-state='unknown'] { opacity: .72; border-left-color: var(--err); }
+}
+
+.sh {
+  display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap;
+  padding-bottom: 10px; margin-bottom: 12px;
+  border-bottom: 1px solid var(--rule-soft);
+
+  .icon { font-size: 14px; }
+  .code {
+    font-family: ui-monospace, monospace; font-size: 8.5px;
+    color: var(--bg); background: var(--accent);
+    border-radius: 4px; padding: 2px 6px;
+  }
+  .title { font-family: var(--serif); font-size: 14px; color: var(--ink); }
+  .tar { font-size: 15px; color: var(--t3); }
+  .state {
+    margin-left: auto;
+    font-family: ui-monospace, monospace; font-size: 8.5px;
+    letter-spacing: .5px; text-transform: uppercase; color: var(--t3);
+    &[data-state='filled']  { color: var(--content); }
+    &[data-state='unknown'] { color: var(--err); }
+  }
+  .rows {
+    font-family: ui-monospace, monospace; font-size: 9.5px; color: var(--t2);
+  }
+}
+
+.blocks { display: flex; flex-direction: column; gap: 16px; }
+
+.carriers {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--rule-soft);
+  // Naming the tables is how a reader goes and checks.
+  span {
+    font-family: ui-monospace, monospace; font-size: 8.5px; color: var(--t3);
+    border: 1px solid var(--rule-soft); border-radius: 4px; padding: 2px 6px;
+  }
+}
