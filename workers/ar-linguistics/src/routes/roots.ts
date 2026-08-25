@@ -23,6 +23,19 @@ export function rootRoutes(router: Router<ArLinguisticsEnv>) {
     return paginated(await new RootRepo(env.DB_AL).search(q, parsePagination(url)));
   });
 
+  // GET /al/roots/glosses?roots=نزل,كتب,علم — the identity card of many roots
+  // at once. A grid of root tiles needs a gloss and a muṣḥaf frequency per
+  // tile; those live in DB_AL while the passage's root list comes from the
+  // Quran worker, so the app reads them here in one call rather than N.
+  //
+  // Declared before /al/roots/:id so "glosses" is never matched as an id.
+  router.get('/al/roots/glosses', async (req, env) => {
+    const raw = new URL(req.url).searchParams.get('roots');
+    if (!raw) return badRequest('roots param required (comma-separated)');
+    const roots = [...new Set(raw.split(',').map((r) => r.trim()).filter(Boolean))].slice(0, 200);
+    return ok({ roots: await new RootRepo(env.DB_AL).glosses(roots) });
+  });
+
   // GET /al/roots/:root/senses — the 360° sense layer for one root: its senses,
   // the arcs between them, every arc's steps, and the attestations backing all
   // three. One call, because the arc is meaningless without its steps and a

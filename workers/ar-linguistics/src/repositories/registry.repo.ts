@@ -542,6 +542,83 @@ export class RegistryRepo {
   }
 
   /**
+   * Every sub-layer's rows for one root, in one pass.
+   *
+   * The leaf reader answers "what does THIS carrier hold", which makes the
+   * screen a click-per-layer: twenty sub-layers meant twenty round trips
+   * before you could see what a root actually holds. Reading a root is not
+   * twenty questions — it is one, so this reads the whole scope and lets the
+   * screen show every layer's rows at once.
+   *
+   * `perSub` is deliberately small. This is a preview of each layer, not the
+   * leaf: `total` still reports the carrier's real size, so a card can say it
+   * is showing three of three hundred and link to the full read.
+   */
+  async rootRowsScope(root: string, scope: string, perSub = 6): Promise<CarrierRows[]> {
+    if (!IDENT.test(scope)) return [];
+    const limit = Math.max(1, Math.min(ROW_LIMIT, Math.floor(perSub)));
+
+    // Same JOIN rule as the fill count and the leaf: a table carries a
+    // sub-layer only because that sub-layer declares it. Undeclared is not a
+    // default home, so the contents and the count can never disagree.
+    const plans = await query<CarrierPlan>(
+      this.db,
+      `SELECT m.table_name, m.sub_code, m.root_bind, m.root_bind_col
+         FROM ar_ling_reg_table_map m
+         JOIN ar_ling_reg_sub_layer s
+           ON s.sub_code = m.sub_code
+          AND s.tables_json LIKE '%"' || m.table_name || '"%'
+        WHERE m.role IN ${CONTENT_ROLES} AND m.root_bind = 'direct'
+          AND s.scope_level = ?
+          AND m.table_name IS NOT NULL AND m.root_bind_col IS NOT NULL
+        ORDER BY s.display_order, m.sub_code`,
+      [scope],
+    ).catch(() => []);
+
+    const usable = plans.filter(
+      p => IDENT.test(p.table_name) && !!p.root_bind_col && IDENT.test(p.root_bind_col),
+    );
+    if (!usable.length) return [];
+
+    const idRow = await queryOne<{ id: string }>(
+      this.db, 'SELECT id FROM ar_ling_roots WHERE root_text = ? LIMIT 1', [root],
+    ).catch(() => null);
+    const rootId = idRow?.id ?? null;
+
+    const ID_COLS = new Set(['root_id', 'used_root_id']);
+    const LEMMA_COLS = new Set(['lemma_id']);
+
+    const out: CarrierRows[] = [];
+    for (const p of usable) {
+      const col = p.root_bind_col as string;
+      if (LEMMA_COLS.has(col)) continue;
+      if (ID_COLS.has(col) && !rootId) continue;   // unknown, not empty
+      const bound = ID_COLS.has(col) ? (rootId as string) : root;
+
+      const order = await this.orderingFor(p.table_name);
+      const [rows, total] = await Promise.all([
+        query<Record<string, unknown>>(
+          this.db,
+          `SELECT * FROM ${p.table_name} WHERE ${col} = ?${order} LIMIT ${limit}`,
+          [bound],
+        ).catch(() => [] as Record<string, unknown>[]),
+        queryOne<{ n: number }>(
+          this.db,
+          `SELECT count(*) AS n FROM ${p.table_name} WHERE ${col} = ?`,
+          [bound],
+        ).catch(() => null),
+      ]);
+      if (rows.length) {
+        out.push({
+          sub_code: p.sub_code, carrier_table: p.table_name, bind_col: col, rows,
+          total: total?.n ?? rows.length,
+        });
+      }
+    }
+    return out;
+  }
+
+  /**
    * `ORDER BY` for a carrier, built from the columns it actually has.
    *
    * Without one, `LIMIT 50` takes an arbitrary fifty: بين has 206 lexicon

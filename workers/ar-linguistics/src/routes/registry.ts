@@ -86,6 +86,28 @@ export function registryRoutes(router: Router<ArLinguisticsEnv>) {
     return ok({ root, scope, root_fill: await repo.rootFill(root, { scope }) });
   });
 
+  // GET /al/registry/root/:root/rows?scope=root&per=6 — every sub-layer's rows
+  // for this root, in one read.
+  //
+  // Reading a root one carrier at a time made the screen a click per layer:
+  // twenty sub-layers, twenty round trips, and no way to see at a glance what
+  // the root actually holds. This is the whole scope at once, a few rows per
+  // layer, with each carrier's real `total` alongside so a preview never reads
+  // as the whole of it.
+  //
+  // Declared before /rows/:sub so the two never race; they are different
+  // segment counts, but the intent is worth stating.
+  router.get('/al/registry/root/:root/rows', async (req, env, { root }) => {
+    const url = new URL(req.url);
+    const scope = url.searchParams.get('scope') ?? 'root';
+    const per = Number(url.searchParams.get('per') ?? 6);
+    const repo = new RegistryRepo(env.DB_AL);
+    return ok({
+      root, scope,
+      carriers: await repo.rootRowsScope(root, scope, Number.isFinite(per) ? per : 6),
+    });
+  });
+
   // GET /al/registry/root/:root/rows/:sub — what the carrier actually holds.
   //
   // The leaf rendered mirrored staging claims, so `00-CORE` showed "empty
