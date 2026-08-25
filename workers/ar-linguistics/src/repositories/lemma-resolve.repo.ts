@@ -42,9 +42,44 @@ export interface ResolvedArc {
   confidence: number | null; status: string; steps: ResolvedArcStep[];
 }
 
-/** One valency statement: this verb, in this bab, takes its object thus. */
-export interface ResolvedGovernance {
+/**
+ * One government statement, as the source recorded it.
+ *
+ * `ar_ling_root_lemma_tadiya` is scraped from Mir's *Verbal Idioms of the
+ * Qur'an*, and `verb_ar` holds whatever headword the printed page carried.
+ * Despite the column name that is often NOT a verb: of the rows that resolve to
+ * a lemma, 81 land on a noun, adjective or 'other', and the strings themselves
+ * include elatives, sifa mushabbaha and even inflected forms.
+ *
+ * That distinction is grammatically load-bearing, so it is reported rather than
+ * flattened. اعمال attaches to a verb; a participle or sifa acquires it from the
+ * verb it derives from, under its own conditions. Rendering a nominal headword
+ * as though the nominal itself governs states something false about Arabic.
+ */
+/** The tadiya row as stored — the fields the resolver derives are added later. */
+interface GovernanceRow {
+  root_norm: string; verb_ar: string;
   transitivity: string; harf: string | null; verb_form: string | null;
+  meaning_ar: string | null; meaning_en: string | null; meaning_ur: string | null;
+  route: string | null; qr_ref: string | null; status: string;
+}
+
+export interface ResolvedGovernance {
+  /** The headword the SOURCE keyed this statement on, verbatim from `verb_ar`. */
+  headword_ar: string;
+  /** Part of speech of the lemma this row attached to. The headword and the
+   *  lemma are the same string — that is how they matched — so this says what
+   *  the source actually keyed on. */
+  headword_pos: string | null;
+  /** True only when the headword is a verb lemma, i.e. when this statement is
+   *  the lemma's OWN government. False means the source keyed a derived nominal
+   *  and the government belongs to the verb behind it: render the construction
+   *  as attested (عَزِيز + عَلَى, Mir p.235), never as a bab. */
+  governs_directly: boolean;
+  transitivity: string; harf: string | null;
+  /** The bab. NULL on 17,392 of 17,440 verb lemmas — 99.7% — so treat a null
+   *  as "not recorded", never as "Form I". */
+  verb_form: string | null;
   meaning_ar: string | null; meaning_en: string | null; meaning_ur: string | null;
   route: string | null; qr_ref: string | null; status: string;
 }
@@ -291,7 +326,7 @@ export class LemmaResolveRepo {
       ).catch(() => []),
 
       govNorms.length
-        ? query<{ root_norm: string; verb_ar: string } & ResolvedGovernance>(
+        ? query<GovernanceRow>(
             this.db,
             `SELECT root_norm, verb_ar, transitivity, harf, verb_form,
                     meaning_ar, meaning_en, meaning_ur,
@@ -346,7 +381,12 @@ export class LemmaResolveRepo {
         form,
         senses: mySenses.map(({ scope_key: _sk, ...s }) => s),
         arcs: myArcs,
-        governance: myGov.map(({ root_norm: _rn, verb_ar: _va, ...g }) => g),
+        governance: myGov.map(({ root_norm: _rn, verb_ar, ...g }) => ({
+          ...g,
+          headword_ar: verb_ar,
+          headword_pos: l.part_of_speech,
+          governs_directly: l.part_of_speech === 'verb',
+        })),
         furuq: myFuruq.map(({ lemma_id: _li, ...f }) => f),
         tabir: myTabir.map(({ primary_lemma_id: _pl, ...t }) => t),
         coverage: {
@@ -367,10 +407,16 @@ export class LemmaResolveRepo {
 /**
  * Place the lemma in the global form vocabulary.
  *
- * `verb_form` is the bab ('I'..'X') and is what a verb matches on. It is NULL on
- * most derived nominals — a participle or masdar reaches its form only through
- * the verb it derives from, and that lemma-to-lemma edge does not exist in the
- * data yet — so this returns null rather than guessing a bab nothing states.
+ * `verb_form` is the bab ('I'..'X') and is what a lemma matches on. It is NULL on
+ * 17,392 of 17,440 verb lemmas — 99.7% — and on every single non-verb, so in
+ * practice this returns null for almost everything today. That is a data gap,
+ * not a bug here: guessing a bab from the surface would be inventing grammar.
+ *
+ * Two things have to land before this layer carries weight: backfill verb_form
+ * on the verb lemmas (the pattern determines it, so it is derivable), and add
+ * the lemma-to-lemma derivation edge so a participle or masdar can reach the
+ * form of the verb it comes from. Until then `form` is null and `coverage.form`
+ * says so.
  */
 function matchForm(
   forms: Array<{
