@@ -6,7 +6,13 @@ export const CYBERNETICS_ROUTES: Routes = [
     loadComponent: () =>
       import('./cybernetics-shell.component').then((m) => m.CyberneticsShellComponent),
     children: [
-      { path: '', pathMatch: 'full', redirectTo: 'monitor' },
+      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+      {
+        path: 'dashboard',
+        loadComponent: () =>
+          import('./dashboard/cyb-dashboard.component').then((m) => m.CybDashboardComponent),
+        title: 'Cybernetics — K-MAPS',
+      },
       {
         path: 'monitor',
         loadComponent: () =>

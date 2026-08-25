@@ -711,13 +711,23 @@ export function srsRoutes(router: Router<CoreEnv>) {
       env.DB_CORE,
       'SELECT COUNT(*) AS n FROM cyb_card WHERE node_id LIKE ?', [like],
     );
+    // Counted against the same `like` as `available`, and on the same identity
+    // that `enroll` deduplicates on — the source card's id in `extra_json`.
+    //
+    // The old count guessed instead, matching `resource_type = 'concept'` and a
+    // `resource_ref` that began with the surah. Neither holds: enrolled copies
+    // are filed as `ayah` or `root` far more often than `concept`, and a root
+    // card's ref is the root, not an ayah key. So a learner holding all 32 of
+    // surah 44 was told 0 of 32 — "add them to start" — and pressing Add all
+    // enrolled nothing, because `enroll` deduplicates correctly. The banner
+    // could never clear.
     const enrolled = await query<{ n: number }>(
       env.DB_CORE,
       `SELECT COUNT(*) AS n FROM core_srs_card
-        WHERE user_ref = ? AND resource_type = 'concept'
-          AND extra_json LIKE '%"cyb_card"%'
-          AND resource_ref LIKE ?`,
-      [ctx.userId, surah > 0 ? `${surah}:%` : '%'],
+        WHERE user_ref = ?
+          AND json_extract(extra_json, '$.cyb_card') IN
+              (SELECT id FROM cyb_card WHERE node_id LIKE ?)`,
+      [ctx.userId, like],
     );
     const kinds = await query(
       env.DB_CORE,

@@ -186,9 +186,19 @@ export class SrsRepo {
     // card in surah 44 fetched the single soonest card in the whole collection
     // and then discarded it for being surah 6, answering "nothing due" to a
     // surah with plenty due.
+    //
+    // Two things can put a card in a surah and both have to count. An ayah card
+    // says so in its own `resource_ref` ("40" or "40:7"). A root or lemma card
+    // cannot: its ref is the thing it teaches — `AL:root:d9475928e7…` — and the
+    // surah it was met in lives in `core_srs_card_surah`. Matching the ref alone
+    // therefore hid every root and lemma card behind a surah filter: Ghāfir has
+    // 66 such cards and returned none of them, and collection-wide only 46 of
+    // 242 surah-linked cards could ever pass.
     if (opts.surah && opts.surah > 0) {
-      where += ` AND (resource_ref = ? OR resource_ref LIKE ?)`;
-      args.push(String(opts.surah), `${opts.surah}:%`);
+      where += ` AND (resource_ref = ? OR resource_ref LIKE ?
+                      OR id IN (SELECT card_id FROM core_srs_card_surah
+                                 WHERE surah = ?))`;
+      args.push(String(opts.surah), `${opts.surah}:%`, opts.surah);
     }
     if (opts.kind) { where += ` AND card_kind = ?`; args.push(opts.kind); }
     if (opts.domain) { where += ` AND concept_domain = ?`; args.push(opts.domain); }

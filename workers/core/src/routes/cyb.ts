@@ -4,6 +4,7 @@
 //   • Quran Map        → GET /core/cyb/tree     (drill Qurʾān→Surah→Passage→…)
 //   • Quran Ladder     → GET /core/cyb/tree     (same forest, rendered as a tree)
 //   • node detail      → GET /core/cyb/node/:id (sensors · jobs · gauges · kids)
+//   • module registry  → GET /core/cyb/domains  (the modules, from cyb_domain)
 //   • mining queue     → GET /core/cyb/jobs     (the cyb_job queue)
 //   • source registry  → GET /core/cyb/sources  (per-loop mining sources)
 //
@@ -23,6 +24,15 @@ export function cybRoutes(router: Router<CoreEnv>) {
     const domain = new URL(req.url).searchParams.get('domain') ?? undefined;
     const processes = await new CybRepo(env.DB_CORE).process(domain);
     return ok({ processes });
+  });
+
+  // GET /core/cyb/domains — the module registry: the domains the console
+  // watches, each with its Arabic name, its colour, its carrier database and
+  // what one unit of its work is called. The dashboard's module cards render
+  // this; the four of them are not a list the app keeps.
+  router.get('/core/cyb/domains', async (_req, env) => {
+    const domains = await new CybRepo(env.DB_CORE).domains();
+    return ok({ domains });
   });
 
   // GET /core/cyb/layers?domain=quran — the layer registry, the one taxonomy.

@@ -32,6 +32,24 @@ export interface ProcessStepLayerRow {
   skill_name: string | null; skill_stages: string | null;
 }
 
+/** One module of the console — a domain that runs its own B·S·C·R loop.
+ *  `cyb_domain` is the registry; nothing about a module is authored in the app. */
+export interface CybDomainRow {
+  slug: string;
+  lane: string;
+  name_ar: string;
+  name_en: string;
+  name_ur: string | null;
+  hint: string | null;
+  content_db: string;
+  learner_db: string;
+  unit_kind: string;
+  color_hex: string | null;
+  symbol: string | null;
+  display_order: number;
+  status: string;
+}
+
 export interface CybLayerRow {
   id: string;
   domain: string;
@@ -245,6 +263,24 @@ export class CybRepo {
    * that the registry lacked, the registry has `translation` that the enum
    * lacks. This is the one list.
    */
+  /**
+   * The module registry — the domains the console watches, in display order.
+   *
+   * Retired rows are excluded the way `layers()` excludes them: a module the
+   * registry has retired must stop rendering, and filtering in the app would
+   * put that decision in the wrong place.
+   */
+  domains(): Promise<CybDomainRow[]> {
+    return query<CybDomainRow>(
+      this.db,
+      `SELECT slug, lane, name_ar, name_en, name_ur, hint, content_db, learner_db,
+              unit_kind, color_hex, symbol, display_order, status
+         FROM cyb_domain
+        WHERE status = 'live'
+        ORDER BY display_order`,
+    );
+  }
+
   layers(domain?: string): Promise<CybLayerRow[]> {
     const where = domain ? "WHERE status = 'live' AND domain = ?" : "WHERE status = 'live'";
     return query<CybLayerRow>(

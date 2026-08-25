@@ -1,5 +1,5 @@
 -- Schema for km_arabic_linguistic.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-21.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-24.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
@@ -1901,7 +1901,7 @@ CREATE TABLE "ar_ling_term_dictionary" (
 CREATE TABLE tmp_qroot (root TEXT PRIMARY KEY);
 
 
--- ── Views (20) ───────────────────────────────────────────────────
+-- ── Views (21) ───────────────────────────────────────────────────
 
 CREATE VIEW ar_ling_reg_band_carrier AS
 SELECT
@@ -1980,6 +1980,14 @@ SELECT cluster, layer_code, sub_code, code_full, discipline, table_name
 FROM ar_ling_reg_table_map
 WHERE db='km_arabic_linguistic'
 ORDER BY cluster, layer_code, sub_code;
+
+CREATE VIEW v_ar_ling_carrier_undeclared AS
+SELECT m.table_name, m.sub_code, m.root_bind, m.root_bind_col
+  FROM ar_ling_reg_table_map m
+ WHERE m.role = 'carrier' AND m.root_bind = 'direct'
+   AND NOT EXISTS (SELECT 1 FROM ar_ling_reg_sub_layer s
+                    WHERE s.sub_code = m.sub_code
+                      AND s.tables_json LIKE '%"' || m.table_name || '"%');
 
 CREATE VIEW v_balagha_bab AS SELECT * FROM ar_ling_gram_bab   WHERE discipline='BL';
 

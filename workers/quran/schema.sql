@@ -1,5 +1,5 @@
 -- Schema for km_quran.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-21.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-24.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
@@ -1406,7 +1406,7 @@ CREATE TABLE qr_ss_tree_node (
   scope_id             TEXT,
   depth                INTEGER NOT NULL DEFAULT 0,
   node_order           INTEGER NOT NULL DEFAULT 0,
-  created_at           TEXT NOT NULL DEFAULT (datetime('now')), term_key TEXT, label_ar TEXT, note_md TEXT, word_occurrence_id TEXT, is_virtual INTEGER NOT NULL DEFAULT 0,
+  created_at           TEXT NOT NULL DEFAULT (datetime('now')), term_key TEXT, label_ar TEXT, note_md TEXT, word_occurrence_id TEXT, is_virtual INTEGER NOT NULL DEFAULT 0, tafsir_note_md TEXT, tafsir_refs TEXT, balagha_note_md TEXT, balagha_refs TEXT, gloss_json TEXT CHECK (gloss_json IS NULL OR json_valid(gloss_json)), sarf_note_md TEXT, sarf_refs TEXT, sarf_term_ref TEXT,
   FOREIGN KEY (tree_id)        REFERENCES qr_ss_tree(id),
   FOREIGN KEY (parent_node_id) REFERENCES qr_ss_tree_node(id)
 );

@@ -1,144 +1,9 @@
 -- Schema for km_core.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-21.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-24.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (74) ──────────────────────────────────────────────────
-
-CREATE TABLE bkp_cyb_node_20260815(
-  id TEXT,
-  domain TEXT,
-  lane TEXT,
-  parent_id TEXT,
-  scale TEXT,
-  target_kind TEXT,
-  target_ref TEXT,
-  layer TEXT,
-  piece_kind TEXT,
-  build_state TEXT,
-  build_pct INT,
-  study_state TEXT,
-  study_pct INT,
-  content_state TEXT,
-  content_pct INT,
-  setpoint_json TEXT,
-  priority INT,
-  meta_json TEXT,
-  updated_at TEXT,
-  retention_state TEXT,
-  retention_pct INT
-);
-
-CREATE TABLE bkp_cyb_sensor_20260815(
-  id TEXT,
-  node_id TEXT,
-  axis TEXT,
-  kind TEXT,
-  band_code TEXT,
-  metric TEXT,
-  reading REAL,
-  expected REAL,
-  weight REAL,
-  state TEXT,
-  health TEXT,
-  trend TEXT,
-  prev_reading REAL,
-  error_val REAL,
-  read_count INT,
-  source_table TEXT,
-  source_slug TEXT,
-  first_read_at TEXT,
-  last_read_at TEXT
-);
-
-CREATE TABLE bkp_cyb_sensor_def_20260815(
-  id TEXT,
-  axis TEXT,
-  applies_to TEXT,
-  band_code TEXT,
-  metric TEXT,
-  reader TEXT,
-  reader_args TEXT,
-  expected REAL,
-  weight REAL,
-  stale_days INT,
-  status TEXT,
-  note TEXT
-);
-
-CREATE TABLE bkp_srs_card_20260815(
-  id TEXT,
-  deck_id TEXT,
-  user_ref TEXT,
-  module TEXT,
-  resource_type TEXT,
-  resource_ref TEXT,
-  card_template TEXT,
-  front_text TEXT,
-  back_text TEXT,
-  extra_json TEXT,
-  tags TEXT,
-  suspended INT,
-  stability REAL,
-  difficulty REAL,
-  card_state TEXT,
-  learning_step INT,
-  reps INT,
-  lapses INT,
-  elapsed_days INT,
-  scheduled_days INT,
-  last_review_at TEXT,
-  next_review_at TEXT,
-  created_at TEXT,
-  updated_at TEXT,
-  card_kind TEXT,
-  concept_domain TEXT,
-  note_id TEXT,
-  intro_surah INT,
-  intro_ayah INT,
-  corpus TEXT,
-  source_db TEXT,
-  library_ref TEXT,
-  note_type_id TEXT,
-  fields_json TEXT,
-  discipline TEXT,
-  root_norm TEXT,
-  concept_topic TEXT
-);
-
-CREATE TABLE bkp_srs_card_concept_20260815(
-  card_id TEXT,
-  concept_ref TEXT,
-  concept_uid TEXT,
-  sense_ref TEXT,
-  sense_uid TEXT,
-  source_db TEXT,
-  role TEXT,
-  note TEXT,
-  created_at TEXT
-);
-
-CREATE TABLE bkp_srs_card_surah_20260815(
-  card_id TEXT,
-  surah INT,
-  n_occur INT,
-  is_intro INT
-);
-
-CREATE TABLE bkp_srs_review_20260815(
-  id TEXT,
-  card_id TEXT,
-  user_ref TEXT,
-  rating INT,
-  state_before TEXT,
-  stability_after REAL,
-  difficulty_after REAL,
-  elapsed_days INT,
-  scheduled_days_after INT,
-  state_after TEXT,
-  review_duration_secs INT,
-  reviewed_at TEXT
-);
+-- ── Tables (67) ──────────────────────────────────────────────────
 
 CREATE TABLE core_activity_events (
   id              TEXT PRIMARY KEY,               -- ULID
@@ -719,26 +584,19 @@ CREATE TABLE cyb_card_type (
   note           TEXT,
   created_at     TEXT NOT NULL DEFAULT (datetime('now')));
 
-CREATE TABLE cyb_carrier_binding (
-  uid          TEXT PRIMARY KEY,
-  domain       TEXT NOT NULL CHECK (domain IN ('quran','arabic','wv')),
-  lane         TEXT NOT NULL CHECK (lane IN ('quran','language','worldview')),
-  layer_uid    TEXT,
-  band_uid     TEXT,
-  band_code    TEXT,
-  scope_kind   TEXT NOT NULL,
-  db_name      TEXT NOT NULL,
-  table_name   TEXT NOT NULL,
-  bind_col     TEXT,
-  bind_kind    TEXT NOT NULL DEFAULT 'unset' CHECK (bind_kind IN ('text','id','none','unset')),
-  bind_via     TEXT,
-  bind_note    TEXT,
-  role         TEXT NOT NULL DEFAULT 'carrier',
+CREATE TABLE "cyb_carrier_binding" (
+  uid TEXT PRIMARY KEY,
+  domain TEXT NOT NULL CHECK (domain IN ('quran','arabic','wv')),
+  lane TEXT NOT NULL CHECK (lane IN ('quran','language','worldview')),
+  layer_uid TEXT, band_uid TEXT, band_code TEXT,
+  scope_kind TEXT NOT NULL, db_name TEXT NOT NULL, table_name TEXT NOT NULL,
+  bind_col TEXT,
+  bind_kind TEXT NOT NULL DEFAULT 'unset' CHECK (bind_kind IN ('text','id','none','unset','scope')),
+  bind_via TEXT, bind_note TEXT,
+  role TEXT NOT NULL DEFAULT 'carrier',
   sensor_class TEXT NOT NULL DEFAULT 'measured',
-  authority    TEXT,
-  status       TEXT NOT NULL DEFAULT 'live',
-  source_reg   TEXT,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  authority TEXT, status TEXT NOT NULL DEFAULT 'live', source_reg TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (db_name, table_name, band_code, scope_kind)
 );
 
@@ -881,7 +739,7 @@ CREATE TABLE cyb_node (
   priority      INTEGER NOT NULL DEFAULT 5,
   meta_json     TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json)),
   updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-, retention_state TEXT NOT NULL DEFAULT 'none', retention_pct INTEGER NOT NULL DEFAULT 0);
+, retention_state TEXT NOT NULL DEFAULT 'none', retention_pct INTEGER NOT NULL DEFAULT 0, build_measured     INTEGER NOT NULL DEFAULT 0, study_measured     INTEGER NOT NULL DEFAULT 0, content_measured   INTEGER NOT NULL DEFAULT 0, retention_measured INTEGER NOT NULL DEFAULT 0, build_stale        INTEGER NOT NULL DEFAULT 0);
 
 CREATE TABLE cyb_process (
   uid         TEXT PRIMARY KEY,
@@ -1107,7 +965,7 @@ CREATE TABLE cyb_wv_band (
   status TEXT NOT NULL DEFAULT 'live', synced_at TEXT);
 
 
--- ── Views (31) ───────────────────────────────────────────────────
+-- ── Views (26) ───────────────────────────────────────────────────
 
 CREATE VIEW cyb_control_kpi AS
 SELECT COUNT(*) AS roots,
@@ -1146,13 +1004,6 @@ CREATE VIEW cyb_drift_open AS
 SELECT d.id, n.target_ref AS root, n.id AS node_id, d.kind, d.severity, d.detail, d.sensor_id, d.raised_at
 FROM cyb_disturbance d JOIN cyb_node n ON n.id=d.node_id
 WHERE d.resolved=0 ORDER BY d.severity DESC, d.raised_at DESC;
-
-CREATE VIEW cyb_due AS
-  SELECT c.id AS card_id, c.node_id, c.card_kind, c.interval_days, c.due_at, c.last_grade,
-         n.domain, n.lane, n.layer
-  FROM cyb_card c JOIN cyb_node n ON n.id = c.node_id
-  WHERE c.due_at IS NOT NULL AND c.due_at <= strftime('%Y-%m-%dT%H:%M:%SZ','now')
-  ORDER BY c.due_at;
 
 CREATE VIEW cyb_job_board AS
 SELECT j.id AS job_id, n.target_ref AS root, n.id AS node_id, j.op, j.band_code,
@@ -1266,24 +1117,6 @@ LEFT JOIN cyb_production p ON p.node_id=n.id AND p.target=b.scene_key
 WHERE n.target_kind='root'
 GROUP BY n.id, b.band_code;
 
-CREATE VIEW cyb_root_retention AS
-SELECT n.id node_id, n.target_ref root, b.band_code, b.name_en band,
- b.retention_target_days target_days, b.mastery_pct, COUNT(c.id) cards,
- ROUND(AVG(c.interval_days),1) avg_interval,
- SUM(CASE WHEN c.interval_days>=b.retention_target_days THEN 1 ELSE 0 END) at_target,
- ROUND(AVG(CASE WHEN r.grade IS NOT NULL THEN r.grade*1.0/5 END)*100,1) score_pct,
- CASE WHEN COUNT(c.id)=0 THEN 'none'
-      WHEN AVG(c.interval_days)>=b.retention_target_days
-       AND AVG(CASE WHEN r.grade IS NOT NULL THEN r.grade*1.0/5 END)*100>=b.mastery_pct
-      THEN 'retained' ELSE 'holding' END retention_state,
- ROUND(1.0 - MIN(1.0, COALESCE(AVG(c.interval_days),0)*1.0/b.retention_target_days),3) retention_error
-FROM cyb_node n
-JOIN cyb_root_band b ON b.study_owner=1 AND b.status='live'
-LEFT JOIN cyb_card c ON c.node_id=n.id AND c.card_kind=b.card_kind
-LEFT JOIN cyb_review r ON r.card_id=c.id
-WHERE n.target_kind='root'
-GROUP BY n.id, b.band_code;
-
 CREATE VIEW cyb_root_sensor AS
 SELECT n.target_ref AS root, n.id AS node_id, s.axis, s.band_code, s.metric,
   s.reading, s.expected, s.error_val, s.state, s.health, s.trend,
@@ -1292,24 +1125,6 @@ SELECT n.target_ref AS root, n.id AS node_id, s.axis, s.band_code, s.metric,
 FROM cyb_sensor s JOIN cyb_node n ON n.id=s.node_id
 WHERE n.target_kind='root'
 ORDER BY n.target_ref, s.axis, s.band_code, s.metric;
-
-CREATE VIEW cyb_root_study AS
-SELECT n.id node_id, n.target_ref root, b.band_code, b.name_en band, b.card_kind, b.card_prompt_en,
- COUNT(DISTINCT c.id) cards,
- SUM(CASE WHEN c.due_at<=strftime('%Y-%m-%dT%H:%M:%SZ','now') THEN 1 ELSE 0 END) due_now,
- ROUND(AVG(c.ease),2) avg_ease, ROUND(AVG(c.interval_days),1) avg_interval,
- ROUND(AVG(CASE WHEN r.grade IS NOT NULL THEN r.grade*1.0/5 END),3) gauge_score,
- SUM(CASE WHEN r.grade<=2 THEN 1 ELSE 0 END) lapses,
- CASE WHEN COUNT(c.id)=0 THEN 'unseen'
-      WHEN AVG(CASE WHEN r.grade IS NOT NULL THEN r.grade*1.0/5 END)>=0.95 THEN 'mastered'
-      WHEN SUM(CASE WHEN r.grade<=2 THEN 1 ELSE 0 END)>0 THEN 'lapsing'
-      ELSE 'learning' END study_state
-FROM cyb_node n
-JOIN cyb_root_band b ON b.study_owner=1 AND b.status='live'
-LEFT JOIN cyb_card c ON c.node_id=n.id AND c.card_kind=b.card_kind
-LEFT JOIN cyb_review r ON r.card_id=c.id
-WHERE n.target_kind='root'
-GROUP BY n.id, b.band_code;
 
 CREATE VIEW cyb_sensor_health AS
 SELECT s.id, s.node_id, s.axis, s.band_code, s.metric, s.reading, s.expected, s.error_val,
@@ -1329,19 +1144,6 @@ SELECT k.slug, k.name, k.version, k.loop_key, k.status, k.stages, k.orchestrates
   (SELECT COUNT(*) FROM cyb_skill_file f WHERE f.skill_id=k.id) AS files,
   k.artifact_ref, k.updated_at
 FROM cyb_skill k ORDER BY k.updated_at DESC;
-
-CREATE VIEW cyb_source_board AS
-SELECT code, discipline, disciplines, author, data_slug, db, locator, entry_locator, authority_rank AS rank, scope, feeds, status
-FROM cyb_source ORDER BY discipline, authority_rank;
-
-CREATE VIEW cyb_source_coverage AS
-SELECT discipline, COUNT(*) AS sources,
-  SUM(status='ingested') AS ingested, SUM(status='authored') AS authored, SUM(status='authority') AS authority
-FROM cyb_source GROUP BY discipline ORDER BY sources DESC;
-
-CREATE VIEW cyb_source_fetch AS
-SELECT code, discipline, data_slug, db, db_id, locator, entry_locator, authority_rank, scope, feeds
-FROM cyb_source ORDER BY discipline, authority_rank;
 
 CREATE VIEW cyb_source_for_loop AS
   SELECT loop_key, source_slug, source_kind, authority_rank, binding, locator, entry_locator, coverage_state
@@ -1402,95 +1204,63 @@ LEFT JOIN cyb_production p ON p.node_id=n.id AND p.target=b.scene_key
 WHERE n.layer='ss'
 GROUP BY n.id, b.band_code;
 
-CREATE VIEW cyb_ss_retention AS
-SELECT n.id node_id, n.target_ref ayah, b.band_code, b.name_en band,
- b.retention_target_days target_days, b.mastery_pct, COUNT(c.id) cards,
- ROUND(AVG(c.interval_days),1) avg_interval,
- SUM(CASE WHEN c.interval_days>=b.retention_target_days THEN 1 ELSE 0 END) at_target,
- ROUND(AVG(CASE WHEN r.grade IS NOT NULL THEN r.grade*1.0/5 END)*100,1) score_pct,
- CASE WHEN COUNT(c.id)=0 THEN 'none'
-      WHEN AVG(c.interval_days)>=b.retention_target_days
-       AND AVG(CASE WHEN r.grade IS NOT NULL THEN r.grade*1.0/5 END)*100>=b.mastery_pct
-      THEN 'retained' ELSE 'holding' END retention_state,
- ROUND(1.0 - MIN(1.0, COALESCE(AVG(c.interval_days),0)*1.0/b.retention_target_days),3) retention_error
-FROM cyb_node n
-JOIN cyb_ss_band b ON b.study_owner=1 AND b.status='live'
-LEFT JOIN cyb_card c ON c.node_id=n.id AND c.card_kind=b.card_kind
-LEFT JOIN cyb_review r ON r.card_id=c.id
-WHERE n.layer='ss'
-GROUP BY n.id, b.band_code;
-
-CREATE VIEW cyb_ss_study AS
-SELECT n.id node_id, n.target_ref ayah, b.band_code, b.name_en band, b.card_kind, b.card_prompt_en,
- COUNT(DISTINCT c.id) cards,
- SUM(CASE WHEN c.due_at<=strftime('%Y-%m-%dT%H:%M:%SZ','now') THEN 1 ELSE 0 END) due_now,
- ROUND(AVG(c.ease),2) avg_ease, ROUND(AVG(c.interval_days),1) avg_interval,
- ROUND(AVG(CASE WHEN r.grade IS NOT NULL THEN r.grade*1.0/5 END),3) gauge_score,
- SUM(CASE WHEN r.grade<=2 THEN 1 ELSE 0 END) lapses,
- CASE WHEN COUNT(c.id)=0 THEN 'unseen'
-      WHEN AVG(CASE WHEN r.grade IS NOT NULL THEN r.grade*1.0/5 END)>=0.95 THEN 'mastered'
-      WHEN SUM(CASE WHEN r.grade<=2 THEN 1 ELSE 0 END)>0 THEN 'lapsing'
-      ELSE 'learning' END study_state
-FROM cyb_node n
-JOIN cyb_ss_band b ON b.study_owner=1 AND b.status='live'
-LEFT JOIN cyb_card c ON c.node_id=n.id AND c.card_kind=b.card_kind
-LEFT JOIN cyb_review r ON r.card_id=c.id
-WHERE n.layer='ss'
-GROUP BY n.id, b.band_code;
-
-CREATE VIEW cyb_ss_surah_review AS
-SELECT CAST(substr(n.target_ref,7,instr(substr(n.target_ref,7),':')-1) AS INTEGER) surah,
-       b.band_code, b.name_en band, b.card_kind, b.card_prompt_en,
-       COUNT(DISTINCT n.id) nodes,
-       COUNT(DISTINCT c.id) cards,
-       COUNT(DISTINCT n.id) - COUNT(DISTINCT c.node_id) unseeded,
-       SUM(CASE WHEN c.due_at<=strftime('%Y-%m-%dT%H:%M:%SZ','now') THEN 1 ELSE 0 END) due_now,
-       ROUND(AVG(c.interval_days),1) avg_interval,
-       b.retention_target_days target_days,
-       SUM(CASE WHEN c.interval_days>=b.retention_target_days THEN 1 ELSE 0 END) at_target,
-       SUM(CASE WHEN r.grade<=2 THEN 1 ELSE 0 END) lapses,
-       ROUND(AVG(CASE WHEN r.grade IS NOT NULL THEN r.grade*1.0/5 END)*100,1) score_pct,
-       b.mastery_pct,
-       CASE WHEN COUNT(DISTINCT c.id)=0 THEN 'unseeded'
-            WHEN COUNT(DISTINCT n.id) > COUNT(DISTINCT c.node_id) THEN 'partial'
-            WHEN AVG(c.interval_days)>=b.retention_target_days
-             AND AVG(CASE WHEN r.grade IS NOT NULL THEN r.grade*1.0/5 END)*100>=b.mastery_pct
-            THEN 'retained' ELSE 'holding' END review_state
-FROM cyb_node n
-JOIN cyb_ss_band b ON b.study_owner=1 AND b.status='live'
-LEFT JOIN cyb_card c ON c.node_id=n.id AND c.card_kind=b.card_kind
-LEFT JOIN cyb_review r ON r.card_id=c.id
-WHERE n.layer='ss' AND n.target_ref LIKE 'QR:SS:%'
-GROUP BY surah, b.band_code;
-
-CREATE VIEW cyb_stage_study AS
-  SELECT n.id AS node_id, n.domain, n.lane, n.layer, n.scale,
-         n.build_pct, n.study_pct, n.study_state, n.content_state,
-         COALESCE(MAX(c.interval_days),0) AS max_retention_days,
-         CASE WHEN n.study_pct >= CAST((SELECT value FROM cyb_config WHERE key='mastery_threshold') AS INT)
-                   AND COALESCE(MAX(c.interval_days),0) >= CAST((SELECT value FROM cyb_config WHERE key='retention_days') AS INT)
-              THEN 'mastered' ELSE 'not_yet' END AS mastery_verdict
-  FROM cyb_node n
-  LEFT JOIN cyb_card c ON c.node_id = n.id
-  WHERE n.layer IS NOT NULL
-  GROUP BY n.id;
-
 CREATE VIEW cyb_tick_log AS
 SELECT id, ran_at, sensed, drifts, actuated, corrected, summary
 FROM cyb_tick ORDER BY ran_at DESC LIMIT 50;
+
+CREATE VIEW v_cyb_binding_broken AS SELECT b.uid, b.domain, b.db_name, b.table_name, b.layer_uid, b.band_code, b.role, CASE WHEN b.layer_uid IS NULL THEN 'carrier names no layer' WHEN NOT EXISTS (SELECT 1 FROM cyb_layer l WHERE l.id=b.layer_uid) THEN 'layer_uid resolves to no cyb_layer' ELSE 'uid does not name its band family' END AS issue FROM cyb_carrier_binding b WHERE b.status='live' AND b.role='carrier' AND (b.layer_uid IS NULL OR NOT EXISTS (SELECT 1 FROM cyb_layer l WHERE l.id=b.layer_uid) OR b.uid <> 'BIND:' || (CASE WHEN EXISTS (SELECT 1 FROM cyb_root_band z WHERE z.band_code=b.band_code) THEN 'root' WHEN EXISTS (SELECT 1 FROM cyb_ps_band z WHERE z.band_code=b.band_code) THEN 'passage' WHEN EXISTS (SELECT 1 FROM cyb_ss_band z WHERE z.band_code=b.band_code) THEN 'ss' WHEN EXISTS (SELECT 1 FROM cyb_wv_band z WHERE z.band_code=b.band_code) THEN 'wv' WHEN EXISTS (SELECT 1 FROM cyb_doc_band z WHERE z.band_code=b.band_code) THEN 'doc' WHEN EXISTS (SELECT 1 FROM cyb_pt_band z WHERE z.band_code=b.band_code) THEN 'pt' ELSE 'unknown' END) || ':' || b.band_code || ':' || b.table_name);
+
+CREATE VIEW v_cyb_binding_unresolved AS
+SELECT uid, domain, db_name, table_name, band_code
+  FROM cyb_carrier_binding
+ WHERE bind_kind = 'unset' AND status = 'live';
+
+CREATE VIEW v_cyb_node_reading AS
+SELECT n.id AS node_id, 'build' AS axis,
+       n.build_pct AS pct, n.build_measured AS measured, n.build_stale AS stale,
+       (SELECT COUNT(*) FROM cyb_sensor s WHERE s.node_id = n.id AND s.axis = 'build') AS sensors,
+       (SELECT COUNT(*) FROM cyb_sensor s WHERE s.node_id = n.id AND s.axis = 'build' AND s.read_count > 0) AS read_sensors
+  FROM cyb_node n
+UNION ALL
+SELECT n.id, 'study', n.study_pct, n.study_measured, 0,
+       (SELECT COUNT(*) FROM cyb_sensor s WHERE s.node_id = n.id AND s.axis = 'study'),
+       (SELECT COUNT(*) FROM cyb_sensor s WHERE s.node_id = n.id AND s.axis = 'study' AND s.read_count > 0)
+  FROM cyb_node n
+UNION ALL
+SELECT n.id, 'content', n.content_pct, n.content_measured, 0,
+       (SELECT COUNT(*) FROM cyb_sensor s WHERE s.node_id = n.id AND s.axis = 'content'),
+       (SELECT COUNT(*) FROM cyb_sensor s WHERE s.node_id = n.id AND s.axis = 'content' AND s.read_count > 0)
+  FROM cyb_node n
+UNION ALL
+SELECT n.id, 'retention', n.retention_pct, n.retention_measured, 0,
+       (SELECT COUNT(*) FROM cyb_sensor s WHERE s.node_id = n.id AND s.axis = 'retention'),
+       (SELECT COUNT(*) FROM cyb_sensor s WHERE s.node_id = n.id AND s.axis = 'retention' AND s.read_count > 0)
+  FROM cyb_node n;
+
+CREATE VIEW v_cyb_node_unsourced AS
+SELECT r.node_id, r.axis, r.pct
+  FROM v_cyb_node_reading r
+  JOIN cyb_node n ON n.id = r.node_id
+ WHERE r.measured = 1 AND r.pct > 0 AND r.sensors = 0
+   AND n.scale NOT IN ('surah','stage','domain','programme')
+   AND NOT (n.scale = 'root' AND EXISTS (
+        SELECT 1 FROM core_root_build_stat st
+         WHERE st.root_ar = COALESCE(json_extract(n.meta_json,'$.root_ar'), n.target_ref)
+           AND st.build_pct = r.pct AND r.axis = 'build'));
+
+CREATE VIEW v_cyb_process_doc AS SELECT s.uid AS step_uid, s.step_no, s.step_key, s.name_en AS step_name, s.scope_kind, l.id AS layer_id, l.name_en AS layer_name, l.db_name, b.skill_slug, c.band_code, c.table_name, c.bind_col, c.bind_kind, c.scope_kind AS carrier_scope FROM cyb_process_step s JOIN cyb_process_step_layer b ON b.step_uid = s.uid LEFT JOIN cyb_layer l ON l.id = b.layer_uid LEFT JOIN cyb_carrier_binding c ON c.layer_uid = b.layer_uid AND c.status = 'live';
 
 CREATE VIEW v_cyb_sensor_dead_source AS
 SELECT s.id AS sensor_id, s.node_id, s.axis, s.band_code, s.metric, s.source_table, s.state,
        CASE WHEN s.source_table IS NULL THEN 'null_source'
             WHEN s.source_table LIKE 'km/_%' ESCAPE '/' THEN 'db_name_not_table'
             WHEN s.source_table LIKE '%+%' THEN 'composite_string'
-            WHEN s.source_table = 'ar_ling_stg_claim' THEN 'staging_table'
+            WHEN s.state = 'pending_carrier' THEN 'pending_carrier_decision'
             ELSE 'check_exists' END AS issue
 FROM cyb_sensor s
 WHERE s.source_table IS NULL
    OR s.source_table LIKE 'km/_%' ESCAPE '/'
    OR s.source_table LIKE '%+%'
-   OR s.source_table = 'ar_ling_stg_claim'
    OR s.state = 'pending_carrier';
 
 

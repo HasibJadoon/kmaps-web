@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CybService } from '../data/cyb.service';
-import type { CybMonitor, StagingMatrix } from '../data/cyb.models';
+import type { CybMonitor, LayerModel, LayerModelBand } from '../data/cyb.models';
 
 // The Cybernetics Control Monitor — the closed loop rendered live from
 // /core/cyb/monitor: reference → sensor → comparator → controller → actuator →
@@ -57,7 +57,7 @@ import type { CybMonitor, StagingMatrix } from '../data/cyb.models';
 
       <div class="tabs2">
         <button [class.on]="tab()==='loop'" (click)="tab.set('loop')">Controller · jobs · errors</button>
-        <button [class.on]="tab()==='matrix'" (click)="tab.set('matrix')">Data matrix · staging</button>
+        <button [class.on]="tab()==='matrix'" (click)="tab.set('matrix')">Carrier registry</button>
         <button [class.on]="tab()==='law'" (click)="tab.set('law')">Control law</button>
       </div>
 
@@ -94,26 +94,44 @@ import type { CybMonitor, StagingMatrix } from '../data/cyb.models';
       }
 
       @if (tab()==='matrix') {
-        @if (matrix(); as mx) {
-          <div class="tablewrap">
-            <table>
-              <thead><tr><th class="rl">root</th>
-                @for (c of mx.sub_layers; track c.sub_code) { <th class="code">{{ c.sub_code }}</th> }
-                <th class="tot">Σ</th></tr></thead>
-              <tbody>
-                @for (r of mx.roots; track r.root_norm) {
-                  <tr><td class="rl"><span class="rar">{{ r.root_norm }}</span></td>
-                    @for (c of mx.sub_layers; track c.sub_code) {
-                      <td class="cell" [style.background]="shade(cell(mx, r.root_norm, c.sub_code))"
-                          [class.z]="!cell(mx, r.root_norm, c.sub_code)">{{ cell(mx, r.root_norm, c.sub_code) || '·' }}</td>
-                    }
-                    <td class="tot">{{ r.staged }}</td></tr>
-                }
-              </tbody>
-            </table>
+        @if (model(); as lm) {
+          <div class="scopes">
+            @for (sc of lm.scopes; track sc.key) {
+              <button class="sb" [class.on]="scope()===sc.key" (click)="scope.set(sc.key)">
+                <span class="sbc">{{ sc.code }}</span>
+                <span class="sbar">{{ sc.name_ar }}</span>
+                <span class="sbn">{{ sc.name_en }}</span>
+                <span class="sbm">{{ sc.layers }} bands · {{ sc.subs }} sub-layers</span>
+              </button>
+            }
           </div>
-          <p class="note">Σ staged claims per root × sub-layer — live from ar_ling_stg_claim. Brighter = more staged.</p>
-        } @else { <div class="msg">Loading staging matrix…</div> }
+          @for (b of bands(lm); track b.band) {
+            <div class="band">
+              <div class="bandh">
+                <span class="bandn">{{ b.band }}</span>
+                <span class="bandk">{{ b.key }}</span>
+                @if (b.name_ar) { <span class="bandar">{{ b.name_ar }}</span> }
+                <span class="bandt">{{ b.name_en }}</span>
+                <span class="bandc">{{ b.subs.length }} sub-layer{{ b.subs.length === 1 ? '' : 's' }}</span>
+              </div>
+              <div class="subs">
+                @for (sl of b.subs; track sl.sub_code) {
+                  <div class="sl" [attr.data-carrier]="sl.carrier_state" [attr.data-fill]="sl.fill_state">
+                    <div class="slh"><span class="slc">{{ sl.sub_code }}</span><span class="sld">{{ sl.discipline }}</span></div>
+                    <div class="sln">{{ sl.name_en }}</div>
+                    <div class="slar">{{ sl.name_ar }}</div>
+                    <div class="slt">{{ carrierLabel(sl.tables) }}</div>
+                    <div class="sls">{{ sl.fill_state }} · {{ sl.carrier_state }} · {{ sl.produced_by }}</div>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+          <p class="note">The AL carrier registry — every declared sub-layer, its discipline, and the
+            table that carries it. Per-root counts are read off these carriers on the Root Dashboard;
+            <code>fill_state</code> and <code>carrier_state</code> here are global facts about a table,
+            not a claim about any one root.</p>
+        } @else { <div class="msg">Loading the carrier registry…</div> }
       }
 
       @if (tab()==='law') {
@@ -162,6 +180,35 @@ import type { CybMonitor, StagingMatrix } from '../data/cyb.models';
     .drow { display:flex; justify-content:space-between; font-size:11.5px; color:var(--t2); padding:4px 0; border-top:1px solid rgba(255,255,255,.05); } .drow b { color:var(--err); font-family:ui-monospace,monospace; }
     .tick { display:flex; gap:9px; padding:6px 0; border-top:1px solid rgba(255,255,255,.05); font-size:11px; color:var(--t2); line-height:1.4; }
     .tick .ti { font-family:ui-monospace,monospace; font-size:9.5px; color:var(--ready); border:1px solid rgba(77,217,168,.35); border-radius:8px; padding:1px 6px; height:fit-content; flex:0 0 auto; }
+    .scopes { display:flex; gap:9px; flex-wrap:wrap; margin-bottom:16px; }
+    .sb { display:flex; flex-direction:column; gap:2px; text-align:left; cursor:pointer; font-family:inherit;
+      background:#0f0f0f; border:1px solid var(--bd); border-radius:12px; padding:10px 14px; color:var(--t2); }
+    .sb:hover { border-color:var(--bd-hi); }
+    .sb.on { border-color:var(--gold-b); background:linear-gradient(180deg,#1a1710,#0f0f0f); }
+    .sbc { font-family:ui-monospace,monospace; font-size:8.5px; letter-spacing:1px; color:var(--t3); }
+    .sbar { font-family:var(--ar); font-size:16px; color:var(--gold-b); }
+    .sbn { font-family:var(--serif); font-size:12.5px; color:var(--text); }
+    .sbm { font-family:ui-monospace,monospace; font-size:9px; color:var(--t3); }
+    .band { border:1px solid var(--bd); border-radius:12px; margin-bottom:11px; overflow:hidden; }
+    .bandh { display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; padding:10px 14px;
+      background:linear-gradient(90deg,#16150f,#0d0d0d); border-bottom:1px solid rgba(255,255,255,.05); }
+    .bandn { font-family:ui-monospace,monospace; font-size:9px; color:#2a2205; background:var(--gold-b);
+      border-radius:5px; padding:2px 6px; font-weight:700; }
+    .bandk { font-family:ui-monospace,monospace; font-size:10px; letter-spacing:1px; color:var(--gold-b); }
+    .bandar { font-family:var(--ar); font-size:15px; color:var(--t2); }
+    .bandt { font-family:var(--serif); font-size:13px; color:var(--text); }
+    .bandc { font-family:ui-monospace,monospace; font-size:9px; color:var(--t3); margin-left:auto; }
+    .subs { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:1px; background:rgba(255,255,255,.05); }
+    .sl { background:#0e0e0e; padding:10px 12px; border-top:2px solid var(--blocked); }
+    .sl[data-carrier="populated"] { border-top-color:var(--ready); }
+    .sl[data-carrier="partial"] { border-top-color:var(--gold-b); }
+    .sl[data-fill="missing"] { border-top-color:var(--err); }
+    .slh { display:flex; justify-content:space-between; gap:6px; font-family:ui-monospace,monospace; font-size:8.5px; color:var(--t3); }
+    .sln { font-size:12px; color:var(--text); margin-top:4px; }
+    .slar { font-family:var(--ar); font-size:14px; color:var(--gold-b); }
+    .slt { font-family:ui-monospace,monospace; font-size:9px; color:var(--t2); margin-top:5px; overflow-wrap:anywhere; }
+    .sls { font-family:ui-monospace,monospace; font-size:8.5px; color:var(--t3); margin-top:3px; }
+    .note code { font-family:ui-monospace,monospace; color:var(--gold-b); }
     .tablewrap { overflow-x:auto; border-radius:12px; border:1px solid var(--bd); }
     table { border-collapse:separate; border-spacing:0; font-size:12px; min-width:900px; }
     th,td { border:1px solid rgba(255,255,255,.06); text-align:center; }
@@ -179,7 +226,9 @@ import type { CybMonitor, StagingMatrix } from '../data/cyb.models';
 export class CybMonitorComponent {
   private readonly svc = inject(CybService);
   readonly monitor = signal<CybMonitor | null>(null);
-  readonly matrix = signal<StagingMatrix | null>(null);
+  readonly model = signal<LayerModel | null>(null);
+  /** Which scope of the recursion the registry tab is showing. */
+  readonly scope = signal('root');
   readonly error = signal<string | null>(null);
   readonly tab = signal<'loop' | 'matrix' | 'law'>('loop');
 
@@ -193,7 +242,7 @@ export class CybMonitorComponent {
       next: (m) => this.monitor.set(m),
       error: (e) => this.error.set(String(e?.message ?? e)),
     });
-    this.svc.stagingMatrix().subscribe({ next: (mx) => this.matrix.set(mx), error: () => {} });
+    this.svc.layerModel().subscribe({ next: (lm) => this.model.set(lm), error: () => {} });
   }
 
   short(s: string | null): string {
@@ -205,16 +254,16 @@ export class CybMonitorComponent {
     return Object.entries(m.config).map(([key, v]) => ({ key, value: v.value, note: v.note }));
   }
 
-  cell(mx: StagingMatrix, root: string, sub: string): number {
-    return mx.cells.find((c) => c.root_norm === root && c.sub_code === sub)?.n ?? 0;
+  bands(lm: LayerModel): LayerModelBand[] {
+    return lm.layers.filter((b) => b.scope === this.scope());
   }
 
-  shade(n: number): string {
-    if (n <= 0) return '#0b0b0b';
-    if (n <= 2) return '#6e5a1f';
-    if (n <= 4) return '#a5842f';
-    if (n <= 6) return '#c79f3a';
-    if (n <= 9) return '#dcb44a';
-    return '#e8c96a';
+  /** What to print for a carrier. A slot with one table names it; the catch-all
+   *  slots hold dozens, and naming only the first would read as a claim that the
+   *  rest do not exist. */
+  carrierLabel(tables: string[]): string {
+    if (!tables.length) return 'no carrier';
+    if (tables.length === 1) return tables[0];
+    return `${tables.length} tables · ${tables[0]} …`;
   }
 }

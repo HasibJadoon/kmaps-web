@@ -1,9 +1,9 @@
 -- Schema for km_arabic.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-21.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-24.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (20) ──────────────────────────────────────────────────
+-- ── Tables (26) ──────────────────────────────────────────────────
 
 CREATE TABLE "ar_curriculum" (
   id              TEXT PRIMARY KEY,
@@ -37,7 +37,7 @@ CREATE TABLE "ar_curriculum_container" (
   is_published    INTEGER NOT NULL DEFAULT 0,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now')), uid TEXT, al_discipline_uid TEXT,
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now')), uid TEXT, al_discipline_uid TEXT, discipline TEXT,
   FOREIGN KEY (track_id) REFERENCES "ar_curriculum_track"(id)
 );
 
@@ -56,7 +56,7 @@ CREATE TABLE "ar_curriculum_container_unit" (
   al_concept_refs TEXT,                           
   qr_scope_ref    TEXT,                           
   meta_json       TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')), uid TEXT, al_group_ref TEXT, al_group_uid TEXT, source_db TEXT NOT NULL DEFAULT 'km_arabic_linguistic',
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')), uid TEXT, al_group_ref TEXT, al_group_uid TEXT, source_db TEXT NOT NULL DEFAULT 'km_arabic_linguistic', gn_node_id TEXT,
   FOREIGN KEY (container_id) REFERENCES "ar_curriculum_container"(id),
   FOREIGN KEY (parent_id)    REFERENCES "ar_curriculum_container_unit"(id)
 );
@@ -172,9 +172,63 @@ CREATE TABLE "ar_curriculum_unit_lemma_map" (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (unit_id) REFERENCES "ar_curriculum_container_unit"(id), UNIQUE (unit_id, al_lemma_ref));
 
+CREATE TABLE ar_discipline (
+  code        TEXT PRIMARY KEY,
+  slug        TEXT NOT NULL UNIQUE,
+  name_ar     TEXT NOT NULL,
+  name_en     TEXT NOT NULL,
+  name_ur     TEXT,
+  tagline_en  TEXT,
+  root_node_id TEXT,
+  container_id TEXT,
+  accent      TEXT,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE ar_exercises ( id TEXT PRIMARY KEY, lesson_id TEXT, unit_id TEXT, exercise_type TEXT NOT NULL DEFAULT 'mcq', prompt_ar TEXT, prompt_en TEXT, options_json TEXT, answer_json TEXT, explanation_md TEXT, vocab_id TEXT, grammar_id TEXT, al_concept_ref TEXT, qr_scope_ref TEXT, level TEXT, skill_focus TEXT, difficulty INTEGER NOT NULL DEFAULT 3, meta_json TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), FOREIGN KEY (lesson_id) REFERENCES ar_curriculum_lesson(id), FOREIGN KEY (unit_id) REFERENCES ar_curriculum_container_unit(id), FOREIGN KEY (grammar_id) REFERENCES ar_grammar(id) );
 
 CREATE TABLE ar_grammar ( id TEXT PRIMARY KEY, title TEXT NOT NULL, title_ar TEXT, al_nahw_ref TEXT, al_morph_ref TEXT, grammar_type TEXT NOT NULL DEFAULT 'nahw', level TEXT, explanation_md TEXT NOT NULL, examples_json TEXT, rule_summary TEXT, qr_scope_ref TEXT, meta_json TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')) );
+
+CREATE TABLE ar_grammar_example (
+  id            TEXT PRIMARY KEY,
+  node_id       TEXT REFERENCES ar_grammar_node(id),
+  grammar_id    TEXT REFERENCES ar_grammar(id),
+  example_ar    TEXT NOT NULL,
+  gloss_en      TEXT,
+  gloss_ur      TEXT,
+  example_kind  TEXT NOT NULL DEFAULT 'quran',
+  qr_ref        TEXT,
+  source_ref    TEXT,
+  mudaf         TEXT,
+  mudaf_ilayh   TEXT,
+  idafa_type    TEXT,
+  purity        TEXT,
+  effect        TEXT,
+  analysis_ar   TEXT,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  meta_json     TEXT
+);
+
+CREATE TABLE ar_grammar_node (
+  id             TEXT PRIMARY KEY,
+  parent_id      TEXT REFERENCES ar_grammar_node(id),
+  discipline     TEXT NOT NULL,
+  node_type      TEXT NOT NULL DEFAULT 'bab',
+  name_ar        TEXT NOT NULL,
+  name_en        TEXT,
+  name_ur        TEXT,
+  definition_ar  TEXT,
+  sort_order     INTEGER NOT NULL DEFAULT 0,
+  depth          INTEGER NOT NULL DEFAULT 0,
+  path           TEXT,
+  grammar_id     TEXT REFERENCES ar_grammar(id),
+  unit_id        TEXT,
+  al_refs_json   TEXT,
+  status         TEXT NOT NULL DEFAULT 'skeleton',
+  meta_json      TEXT,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+, teach_order INTEGER, difficulty INTEGER, prereq_json TEXT);
 
 CREATE TABLE "ar_learn_exposure_log" (
   id             TEXT PRIMARY KEY,
@@ -256,8 +310,55 @@ CREATE TABLE "ar_learn_unit_progress" (
   UNIQUE (unit_id, core_user_ref)
 );
 
+CREATE TABLE ar_learning_source (
+  id            TEXT PRIMARY KEY,
+  source_kind   TEXT NOT NULL,
+  title_ar      TEXT,
+  title_en      TEXT,
+  author_ar     TEXT,
+  author_en     TEXT,
+  death_year    TEXT,
+  url           TEXT,
+  platform      TEXT,
+  edition       TEXT,
+  locator       TEXT,
+  lang          TEXT,
+  discipline    TEXT,
+  authority     TEXT NOT NULL DEFAULT 'secondary',
+  al_source_slug TEXT,
+  notes_md      TEXT,
+  meta_json     TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
--- ── Indexes (25) ─────────────────────────────────────────────────
+CREATE TABLE ar_node_source (
+  node_id     TEXT NOT NULL,
+  source_id   TEXT NOT NULL REFERENCES ar_learning_source(id),
+  locator     TEXT,
+  role        TEXT NOT NULL DEFAULT 'reference',
+  timestamp_s INTEGER,
+  note_ar     TEXT,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (node_id, source_id, role)
+);
+
+CREATE TABLE ar_teaching_variant (
+  id          TEXT PRIMARY KEY,
+  node_id     TEXT NOT NULL REFERENCES ar_grammar_node(id),
+  audience    TEXT NOT NULL,
+  lang        TEXT NOT NULL DEFAULT 'en',
+  title       TEXT,
+  body_md     TEXT NOT NULL,
+  duration_min INTEGER,
+  age_from    INTEGER,
+  source_ids_json TEXT,
+  example_ids_json TEXT,
+  status      TEXT NOT NULL DEFAULT 'draft',
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+
+-- ── Indexes (34) ─────────────────────────────────────────────────
 
 CREATE INDEX idx_ar_con_track ON "ar_curriculum_container"(track_id);
 
@@ -308,3 +409,21 @@ CREATE INDEX idx_ar_up_user   ON "ar_learn_unit_progress"(core_user_ref);
 CREATE INDEX idx_ar_utp_track ON "ar_learn_track_profile"(track_id);
 
 CREATE INDEX idx_ar_utp_user  ON "ar_learn_track_profile"(core_user_ref);
+
+CREATE INDEX idx_cc_discipline ON ar_curriculum_container (discipline, sort_order);
+
+CREATE INDEX idx_ccu_container ON ar_curriculum_container_unit (container_id, parent_id, unit_index);
+
+CREATE INDEX idx_ccu_node ON ar_curriculum_container_unit (gn_node_id);
+
+CREATE INDEX idx_gn_disc_parent ON ar_grammar_node (discipline, parent_id, sort_order);
+
+CREATE INDEX idx_gn_parent ON ar_grammar_node (parent_id, sort_order);
+
+CREATE INDEX idx_gn_path ON ar_grammar_node (path);
+
+CREATE INDEX idx_gn_unit ON ar_grammar_node (unit_id);
+
+CREATE INDEX idx_ls_discipline ON ar_learning_source (discipline, source_kind);
+
+CREATE INDEX idx_ns_source ON ar_node_source (source_id);
