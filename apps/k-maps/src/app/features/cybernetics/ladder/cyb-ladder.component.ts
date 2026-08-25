@@ -3,7 +3,7 @@ import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
 import { CybTopbarComponent } from '../shared/cyb-topbar.component';
-import type { CybNode, CybNodeTree, Surah, StudyUnit, PassageRoot } from '../data/cyb.models';
+import type { CybNode, CybNodeTree, CybLayerRow, Surah, StudyUnit, PassageRoot } from '../data/cyb.models';
 
 // Quran Ladder — the Qurʾān as one recursion, rung by rung.
 // Every rung is a viable system: a sensor that reads its own state and feeds it
@@ -11,14 +11,12 @@ import type { CybNode, CybNodeTree, Surah, StudyUnit, PassageRoot } from '../dat
 //   Entire Qurʾān → Surah → Passage → Stream → Root
 // It walks the same path as the map and takes the same route shape, so a URL in
 // one view opens the same place in the other. Only the path in the URL expands.
-const STREAMS: Record<string, { ar: string; en: string; scope: string }> = {
-  vocabulary: { ar: 'المفردات', en: 'Root / Vocabulary', scope: 'itself recurses Root → Lemma → Word' },
-  reading:    { ar: 'القراءة',  en: 'Reading', scope: 'tilāwa · tajwīd · muṣḥaf layout' },
-  ss:         { ar: 'الإعراب',  en: 'Sentence Structure', scope: 'dependency tree · balāgha' },
-  structure:  { ar: 'النظم',    en: 'Passage Structure', scope: 'coherence · munāsaba' },
-  tafsir:     { ar: 'التفسير',  en: 'Tafsīr', scope: 'key-points by lens' },
-  worldview:  { ar: 'رؤية العالم', en: 'Worldview · WVS', scope: 'ʿaqīda · ethics · picture of reality' },
-};
+// The stream-systems are NOT listed here. `cyb_layer` is the one taxonomy
+// (GET /core/cyb/layers). This file used to carry its own list of six, which
+// had already fallen three behind the registry — translation, cards and srs
+// existed on the plane and could never appear in the ladder — and a layer the
+// registry retires has to stop rendering. The map fixed this; the ladder is
+// the copy that was left.
 
 interface Rung {
   depth: number;
@@ -299,6 +297,7 @@ export class CybLadderComponent {
   readonly verseRoots = signal<PassageRoot[]>([]);
   readonly sensorsN = signal(0);
   private readonly treeRoots = signal<CybNodeTree[]>([]);
+  private readonly layerRegistry = signal<CybLayerRow[]>([]);
 
   readonly surahId   = computed(() => { const v = this.pm()?.get('surahId'); return v ? Number(v) : null; });
   readonly passageNo = computed(() => { const v = this.pm()?.get('passageNo'); return v ? Number(v) : null; });
@@ -325,8 +324,10 @@ export class CybLadderComponent {
       if (this.stream() === 'vocabulary' && this.passageNo()) this.loadRoots();
     });
 
-    forkJoin({ surahs: this.svc.surahs(), tree: this.svc.tree(), monitor: this.svc.monitor() }).subscribe({
-      next: ({ surahs, tree, monitor }) => {
+    forkJoin({ surahs: this.svc.surahs(), tree: this.svc.tree(), monitor: this.svc.monitor(),
+              layers: this.svc.layers('quran') }).subscribe({
+      next: ({ surahs, tree, monitor, layers }) => {
+        this.layerRegistry.set(layers.layers);
         this.surahs.set(surahs.sort((a, b) => a.id - b.id));
         this.treeRoots.set(tree.roots);
         this.sensorsN.set(monitor.loop.sensors);
@@ -437,6 +438,18 @@ export class CybLadderComponent {
   }
 
   /** A node's four readings, or four zeros where nothing is instantiated yet. */
+  /** The registry's label for a layer, falling back to the raw key so a layer
+   *  the plane instantiated ahead of the registry still renders under its own
+   *  name rather than vanishing. */
+  private streamMeta(key: string): { ar: string; en: string; scope: string } {
+    const l = this.layerRegistry().find((x) => x.layer_key === key);
+    return {
+      ar: l?.name_ar ?? '',
+      en: l?.name_en ?? key.replace(/_/g, ' '),
+      scope: l?.hint ?? 'declared by the control plane',
+    };
+  }
+
   private four(n: CybNode | undefined) {
     return { b: n?.build_pct ?? 0, s: n?.study_pct ?? 0, c: n?.content_pct ?? 0, r: n?.retention_pct ?? 0 };
   }
@@ -541,7 +554,7 @@ export class CybLadderComponent {
             layout: 'grid', wide: true, title: `${pn.children.length} stream-systems`,
             cells: pn.children.map((stage) => {
               const k = stage.layer ?? '';
-              const m = STREAMS[k] ?? { ar: '', en: k, scope: '' };
+              const m = this.streamMeta(k);
               const kids = k === 'vocabulary' || stage.children.length > 0;
               return {
                 ar: m.ar, label: m.en, sub: m.scope, meta: k, ...this.four(stage), sel: false,
@@ -554,7 +567,7 @@ export class CybLadderComponent {
 
         for (const stage of pn.children.filter((c) => c.layer === st)) {
           const key = stage.layer ?? '';
-          const meta = STREAMS[key] ?? { ar: '', en: key, scope: '' };
+          const meta = this.streamMeta(key);
           const sopen = true;
           const kids = key === 'vocabulary' || stage.children.length > 0;
           out.push({
