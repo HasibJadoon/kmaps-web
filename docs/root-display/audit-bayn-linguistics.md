@@ -142,18 +142,48 @@ Two honest options: ingest them as `tabir` rows with their lexicon citations, or
 section for بين until they exist. Corpus-wide `tabir` holds 2,370 rows over 408 roots, so the
 ingest path is proven — بين simply was not run through it.
 
-## 5 · Two layers are unkeyable by schema, not by omission
+## 5 · One layer was switched off; the other is not a carrier at all — **fixed**
 
-- **`ar_ling_root_lemma_ilal`** — 24 rows, columns `rule_name`, `rule_type`, `applies_to`,
-  `bab_key`, `example_before`, `example_after`. **There is no lemma column.** It is a catalogue
-  of general iʿlāl rules, not per-lemma data.
-- **`ar_ling_root_lemma_sarf`** — 963 rows of `pattern`, `gender`, `number`, `case_marker`,
-  `tense`, `voice`, `person`, `mood`. **No root or lemma column.** A morphology-bundle
-  dictionary referenced by id.
+Both were reported here as "unkeyable by schema". Half of that was wrong, and chasing it
+produced the real cause.
 
-Neither is a gap to backfill. The registry's `carrier_state = 'unkeyable'` on `24-ILAL` is
-correct and should stay. If per-lemma iʿlāl is wanted, it needs a new join table binding rule
-to lemma — not rows added to these.
+**`ar_ling_root_lemma_ilal`** — 24 rules of iʿlāl and ibdāl, no lemma column. The
+catalogue is right to be a catalogue; what was missing was the join. Migration `0107`
+adds one:
+
+- each rule now declares the class of word it changes (`bind_weak`, `bind_verb_form`,
+  `bind_pos`). **16 of 24 bind**; the other 8 record why not — two are sandhi across a
+  word boundary (tajwīd, not a lemma's ṣarf), two fire on a participle or maṣdar and
+  need a `form_map`↔lemma bridge, four are keyed on a noun pattern lemmas do not carry.
+- `ar_ling_root_lemma_ilal_apply` carries the binding — **2,192 rows over 1,147 Qurʾānic
+  lemmas and 629 roots**, every one `claim_basis = 'derived'`: a qiyāsī rule applying to
+  its whole class is not a lexicon attesting this word. `surface_before` /
+  `surface_after` stay NULL, because an intermediate form must be generated or cited,
+  never guessed by a migration.
+
+For بين it yields exactly what a student should see — يُبِينُ takes
+`النقل في الإفعال من الأجوف` (**مُبْيِن → مُبِين**) and `حذف همزة أَفْعَلَ في المضارع`;
+بَيَّنُ, تَبَيَّنَ and تَسْتَبِينَ take the hollow-verb rules.
+
+**But the binding was never the gate.** `RegistryRepo.subLayers()` selects
+`WHERE status = 'live'`, and `24-ILAL` sat at **`status = 'na'`** — retired, presumably
+*because* it looked unkeyable. It could not have reached a client however well its
+carriers were bound.
+
+And the layer's *other* carrier, **`ar_ling_root_lemma_word_silsila`, was always keyed
+and always populated** — 8 rows for بين holding underlying/surface pairs, the operation
+deriving one from the other, and a rule quoting Ibn ʿUṣfūr, in all three languages. None
+of it was reachable. The layer was not unkeyable; it was switched off.
+
+Live now: `24-ILAL` returns `state: filled`, **18 rows**, both carriers. Lemma scope went
+from 7 sections to 8.
+
+**`ar_ling_root_lemma_sarf`** — this half stands. 963 rows of `pos = ACC | AMD | ANS |
+CERT | COND`, `pattern = '—'`, every inflectional column NULL. They are QAC tag bundles
+for *word occurrences*; a word references a bundle, no root or lemma carries one. It was
+filed under `00-CORE` as a carrier with an unset bind, which is what made it look like a
+gap. `0107` reclassifies it `role = 'registry'`, `root_bind = 'none'`. Nothing to
+backfill — the fix is to stop calling it a lemma carrier.
 
 ## 6 · `ar_ling_lemma_arc` is empty for the deepest root in the corpus
 
@@ -177,10 +207,15 @@ namespace.
 | 2 | Fix `part_of_speech` on بَيْن, بَيِّنَة, مُّبِين | `ar_ling_root_lemma` |
 | 3 | Read the ladder's English from `tadiya`, not `form_masmu` | builder |
 | 4 | Either ingest بين's idioms or drop the section for this root | `ar_ling_root_lemma_tabir` |
-| 5 | Keep `24-ILAL` reporting `unknown`; it is a schema fact | registry — no change |
+| 5 | ~~Keep `24-ILAL` as `unknown`~~ → **done**: join added, layer un-retired | `0107` |
 | 6 | Build lemma arcs for بين, or the lemma card cannot complete | `ar_ling_lemma_arc` |
 | 7 | Retire `ar_ling_root_scholarship_bak_sinai` | schema |
 | 8 | Stop treating `ar_ling_root_display` as a source | builder |
 
 Nothing above blocks the root page. Items 1–3 are small and improve what a reader sees
 immediately; 4 and 6 decide whether two sections can honestly render for this root.
+
+**Item 5 is done** (`0107`), and carries a lesson worth keeping: a layer reporting
+`unknown` may not be missing data at all. Check `ar_ling_reg_sub_layer.status` before
+concluding a carrier cannot be bound — `24-ILAL` held eighteen readable rows the whole
+time, behind a retired flag.
