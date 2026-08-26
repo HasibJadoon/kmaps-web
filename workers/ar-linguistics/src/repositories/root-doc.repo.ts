@@ -29,6 +29,9 @@ export interface RootDoc {
   forms: Form[];
   /** Lemmas the corpus binds to no form. For many roots this is most of them. */
   unassigned: Lemma[];
+  /** Government the carrier does not tie to a form. Most of it, corpus-wide. */
+  government: Government[];
+  expressions: Expression[];
   relations: Relations;
   sources: SourceRef[];
   /** Declared, never silent. A reader sees nothing; a builder sees this. */
@@ -104,6 +107,18 @@ interface Lemma {
   /** The key a composer uses to fetch this lemma's verses from km_quran. */
   examples_key: string;
   examples: null;
+}
+/**
+ * An idiom, and the verses it is cited at.
+ *
+ * `ar_ling_root_lemma_tabir` stores one row per (idiom × verse × source page),
+ * not one per idiom: اخذ has 58 rows carrying 8 idioms over 51 āyāt and 7
+ * pages. Counting rows reports eight idioms as fifty-eight.
+ */
+interface Expression {
+  ar: string; preposition: string | null; lemma_ar: string | null;
+  construction: Tri; citations: { surah: number; ayah: number; translation_en: string | null }[];
+  by: string | null;
 }
 interface Relations {
   addad: { ar: string | null; en: string | null; axis: string | null; basis: Basis; by: Attrib | null }[];
@@ -197,7 +212,9 @@ export class RootDocRepo {
       });
     }
 
-    const sources = await this.sources(rootAr);
+    const [government, expressions, sources] = await Promise.all([
+      this.rootGovernment(rootAr), this.expressions(rootAr), this.sources(rootAr),
+    ]);
     const senseRows = await queryOne<{ n: number; labelled: number }>(this.db,
       `SELECT COUNT(*) AS n, SUM(CASE WHEN label_ar IS NOT NULL THEN 1 ELSE 0 END) AS labelled
          FROM ar_ling_root_sense WHERE root_norm = ?`, [rootAr]);
@@ -223,7 +240,7 @@ export class RootDocRepo {
           quran_tokens: null,
         },
       },
-      asl, senses, development, forms, unassigned, relations, sources, gaps,
+      asl, senses, development, forms, unassigned, government, expressions, relations, sources, gaps,
     };
   }
 
@@ -363,6 +380,62 @@ export class RootDocRepo {
    * `ar_ling_root_form_masmu.meaning_en` is empty corpus-wide, while
    * `ar_ling_root_lemma_tadiya` carries all three languages with a source.
    */
+  /** Government rows the carrier ties to no form — 80% of them, corpus-wide. */
+  async rootGovernment(root: string): Promise<Government[]> {
+    const rows = await query<Record<string, unknown>>(this.db,
+      `SELECT g.transitivity, g.taddiya_route, g.harf, g.meaning_ar, g.meaning_en, g.meaning_ur,
+              g.source_ref, s.author_name, s.author_death_ah, s.title_ar
+         FROM ar_ling_root_lemma_tadiya g
+         LEFT JOIN ar_ling_source s
+                ON s.slug = substr(g.source_ref, 1, instr(g.source_ref || ':', ':') - 1)
+        WHERE g.root_norm = ? AND g.status = 'live' AND g.verb_form IS NULL
+        ORDER BY g.sort_order`, [root]);
+    return rows.map((v) => ({
+      transitivity: (v['transitivity'] as string) ?? null,
+      route: (v['taddiya_route'] as string) ?? null,
+      particle: (v['harf'] as string) ?? null,
+      meaning: tri(v['meaning_ar'], v['meaning_en'], v['meaning_ur']),
+      by: v['source_ref'] ? {
+        author: (v['author_name'] as string) ?? null,
+        work: (v['title_ar'] as string) ?? null,
+        died_ah: v['author_death_ah'] == null ? null : Number(v['author_death_ah']),
+        at: null, slug: String(v['source_ref']).split(':')[0],
+      } : null,
+    }));
+  }
+
+  /** Idioms, folded onto their citations. See `Expression`. */
+  async expressions(root: string): Promise<Expression[]> {
+    const rows = await query<Record<string, unknown>>(this.db,
+      `SELECT expression_ar, preposition_ar, lemma_ar, surah, ayah, ayah_translation_en,
+              construction_ar, construction_en, construction_ur, source_slug
+         FROM ar_ling_root_lemma_tabir
+        WHERE root_ar = ? AND status = 'live'
+        ORDER BY preposition_ar, expression_ar, surah, ayah`, [root]);
+    const byIdiom = new Map<string, Expression>();
+    for (const x of rows) {
+      const ar = String(x['expression_ar'] ?? '').trim();
+      if (!ar) continue;
+      const prep = (x['preposition_ar'] as string) ?? null;
+      const key = `${ar}|${prep ?? ''}`;
+      let e = byIdiom.get(key);
+      if (!e) {
+        e = {
+          ar, preposition: prep, lemma_ar: (x['lemma_ar'] as string) ?? null,
+          construction: tri(x['construction_ar'], x['construction_en'], x['construction_ur']),
+          citations: [], by: (x['source_slug'] as string) ?? null,
+        };
+        byIdiom.set(key, e);
+      }
+      const su = Number(x['surah'] ?? 0), ay = Number(x['ayah'] ?? 0);
+      if (su && ay && !e.citations.some((c) => c.surah === su && c.ayah === ay)) {
+        e.citations.push({ surah: su, ayah: ay,
+          translation_en: (x['ayah_translation_en'] as string) || null });
+      }
+    }
+    return [...byIdiom.values()];
+  }
+
   private async forms(root: string): Promise<Form[]> {
     const rows = await query<Record<string, unknown>>(this.db,
       `SELECT verb_form, verb_ar, active_participle_ar, passive_participle_ar,
@@ -397,10 +470,20 @@ export class RootDocRepo {
       'passive_participle','passive_present','passive_past','elative','intensive',
       'noun_of_place_time','meaning','source_ref']);
 
+    // `verb_form` here is NULL on 317 of 395 rows corpus-wide, and four of the
+    // rest read `I-participle`, `I-participle-fp`, `I-masdar`. Normalise the
+    // suffixed ones onto their form; the unkeyed ones are root-scope government
+    // and are returned beside the forms rather than dropped.
+    const formOf = (v: unknown): string | null => {
+      const t = (v as string)?.trim();
+      if (!t) return null;
+      return t.split('-')[0];
+    };
+
     const order = (f: string) => ['I','II','III','IV','V','VI','VII','VIII','IX','X'].indexOf(f);
     return rows.map((x) => {
       const f = String(x['verb_form']);
-      const g = gov.filter((v) => v['verb_form'] === f);
+      const g = gov.filter((v) => formOf(v['verb_form']) === f);
       let masadir: { ar: string; basis: Basis }[] = [];
       try {
         masadir = (JSON.parse(String(x['masdar_json'] ?? '[]')) as { m: string; status: string }[])
