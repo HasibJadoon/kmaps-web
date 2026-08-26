@@ -49,12 +49,17 @@ APPLE_CLIENT_ID = "com.kmaps.app"
 # Remove it from this list to disable its approval rights.
 CARD_APPROVERS = "hasibjadoon@gmail.com,system@test.com"
 
-# Google: the OAuth **iOS** client for bundle com.kmaps.app. No client secret —
-# the app is a public client using authorization-code + PKCE and exchanges the
-# code with Google directly, so only the resulting id_token reaches us and this
-# id is the audience we verify it against. Append a web client id to the list
-# when the web app needs Google too.
-GOOGLE_CLIENT_ID = "246205307788-tl2pl1rah47t980o219p007p4650kg5s.apps.googleusercontent.com"
+# Google: two audiences, WEB FIRST then iOS.
+#
+# /core/auth/providers hands the browser google[0], and Google Identity
+# Services validates the calling page's origin against that client's Authorized
+# JavaScript origins. An iOS client has no such origins at all, which is why the
+# web login failed with `invalid_client` / "no registered origin" — the list
+# previously held only the iOS client for bundle com.kmaps.app.
+#
+# The iOS id stays second: verifyGoogleIdToken accepts any listed audience, so
+# kmaps-ios keeps working. Neither is a secret (public clients, PKCE).
+GOOGLE_CLIENT_ID = "246205307788-iig05bvkiclr3oggcfnkk96s1frds8h8.apps.googleusercontent.com,246205307788-tl2pl1rah47t980o219p007p4650kg5s.apps.googleusercontent.com"
 
 # Secrets (set via wrangler secret put):
 #   JWT_SECRET      — shared with km-backend-worker
