@@ -211,6 +211,7 @@ namespace.
 | 6 | Build lemma arcs for بين, or the lemma card cannot complete | `ar_ling_lemma_arc` |
 | 7 | Retire `ar_ling_root_scholarship_bak_sinai` | schema |
 | 8 | Stop treating `ar_ling_root_display` as a source | builder |
+| 9 | ~~Arc steps and attestations report `unknown`~~ → **done**: `0106` applied | `0106` |
 
 Nothing above blocks the root page. Items 1–3 are small and improve what a reader sees
 immediately; 4 and 6 decide whether two sections can honestly render for this root.
@@ -219,3 +220,39 @@ immediately; 4 and 6 decide whether two sections can honestly render for this ro
 `unknown` may not be missing data at all. Check `ar_ling_reg_sub_layer.status` before
 concluding a carrier cannot be bound — `24-ILAL` held eighteen readable rows the whole
 time, behind a retired flag.
+
+## 8 · Two more layers were dark, for a third reason — **fixed**
+
+Chasing "the sense arcs are missing" found neither a data gap nor a retired flag, but an
+**unapplied migration**.
+
+`18-STEP` (arc steps) and `19-ATT` (attestations) both bind to the root *through* another
+table — a step through its arc, an attestation through its sense. `ar_ling_reg_table_map`
+recorded those joins as prose in `root_bind_col`:
+
+> `arc_id -> ar_ling_sense_arc.id -> root_norm`
+
+Prose cannot be executed. Migration `0106` had already diagnosed this precisely and added
+a machine-readable `root_bind_via_json` beside it — **but it was never applied to
+production.** The reader degrades gracefully when the column is absent, so every `via`
+carrier was silently dropped and both layers reported `unknown`.
+
+Applied now. `18-STEP` → **filled, 12 rows**; `19-ATT` → **filled, 106 rows**, rendering as
+a ledger of who said what. That makes attestations the richest layer بين has, and it was
+invisible.
+
+Four `via` rows remain unbound by design (`20-GOV`'s example table, three of `80-KIN`).
+`0106` deliberately left them: one is a three-hop path and the others name a column with no
+target. They keep reporting `unknown`, which is true.
+
+### `d1_migrations` cannot answer "is it applied?"
+
+The tracker's last entry is **`0061`, 2026-07-24**, while the repo is at `0107` — later
+migrations were applied outside it. So the table is not a record of what is live, and a
+migration sitting in the repo proves nothing about production. **Probe the schema.**
+
+That is now twice in one audit that a layer reported as a data gap was a plumbing failure:
+`24-ILAL` behind a retired flag, `18-STEP` and `19-ATT` behind an unapplied column. Before
+treating any `unknown` layer as missing content, check three things — the sub-layer's
+`status`, its carriers' `root_bind`, and whether the migration that was supposed to fix it
+actually ran.
