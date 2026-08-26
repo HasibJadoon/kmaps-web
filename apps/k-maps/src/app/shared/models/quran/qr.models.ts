@@ -285,7 +285,7 @@ export interface QrPassage {
 }
 
 // ─── Display-layer types (migrations 011 + 012) ──────────────────────────────
-// Mirrored exactly in apps/app-k-maps so both clients consume the same worker.
+// Shapes come straight from the worker; the Ionic client that mirrored them is retired.
 
 export type QrDisplayReviewStatus = 'ai_candidate' | 'needs_review' | 'approved' | 'rejected' | 'archived';
 export type QrDisplayConfidence   = 'low' | 'medium' | 'high' | 'verified';

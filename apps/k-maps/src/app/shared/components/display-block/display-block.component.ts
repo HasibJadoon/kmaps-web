@@ -11,7 +11,7 @@ import type {
 /**
  * Desktop block renderer for qr_*_book_display_blocks.
  *
- * Mirrors apps/app-k-maps/src/app/shared/components/display-block/ — same
+ * Was mirrored in the retired Ionic client (apps/app-k-maps) — same
  * block-type dispatch, same modern look. Uses native Angular (no Ionic)
  * with GSAP-compatible smooth transitions.
  */

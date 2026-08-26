@@ -1,8 +1,0 @@
-{
-  "/api": {
-    "target": "https://backend.k-maps.com",
-    "secure": true,
-    "changeOrigin": true,
-    "ws": true
-  }
-}
