@@ -58,8 +58,35 @@ interface Sense {
 }
 interface Witness { quote_ar: string | null; quote_en: string | null; by: Attrib; agreement: string | null }
 interface Stage { no: number; ar: string | null; en: string | null; ur: string | null; note: string | null }
+/**
+ * الصرف الصغير — the minimal paradigm a student is actually taught: the past,
+ * the present, the maṣdar, the two participles, and what the form does or does
+ * not yield beyond them.
+ *
+ * A slot reading `غير مأثور` or `غير مستعمل` is NOT an empty slot. It is the
+ * language declining to build one, recorded by a lexicographer, and it must
+ * reach the reader as a statement rather than a blank.
+ */
+interface SarfSaghir {
+  past: string | null;
+  present: string | null;
+  masadir: string[];
+  active_participle: string | null;
+  passive_participle: Slot;
+  passive_present: string | null;
+  elative: Slot;
+  intensive: Slot;
+  noun_of_place_time: Slot;
+  /** Where the form's own row carries a note — an iʿlāl, a technical usage. */
+  notes: { key: string; text: string }[];
+  by: string[];
+}
+/** Present, or explicitly not built. `null` means nobody recorded either way. */
+type Slot = { value: string; state: 'attested' } | { value: string; state: 'not_built' } | null;
+
 interface Form {
   roman: string; verb_ar: string | null; chain_ar: string | null;
+  sarf_saghir: SarfSaghir | null;
   masadir: { ar: string; basis: Basis }[];
   active_participle: string | null; passive_participle: string | null; passive_note: string | null;
   meaning: Tri;
@@ -90,6 +117,14 @@ interface SourceRef extends Attrib { cited_for: string[] }
 
 const basisOf = (slug: string | null, synth?: unknown): Basis =>
   (synth === 1 || (slug ?? '').startsWith('kmaps_')) ? 'ours' : 'attested';
+
+/** The tradition writes a missing slot in words, not as a blank. */
+const NOT_BUILT = /غير\s*(مأثور|مستعمل|مستعملة)/;
+const slot = (v: unknown): Slot => {
+  const t = (v as string)?.trim();
+  if (!t) return null;
+  return { value: t, state: NOT_BUILT.test(t) ? 'not_built' : 'attested' };
+};
 
 const tri = (a: unknown, e: unknown, u: unknown): Tri => ({
   ar: (a as string) || null, en: (e as string) || null, ur: (u as string) || null,
@@ -134,6 +169,22 @@ export class RootDocRepo {
         why: 'the root note type declares SenseArc.fam, but ar_ling_sense_arc_step has no form '
            + 'column and ar_ling_root_sense has none either. Reading a form onto a pole from its '
            + 'government gloss is an inference, so it is left out rather than presented as data.',
+      });
+    }
+    const withSarf = forms.filter((f) => f.sarf_saghir).length;
+    if (forms.length) {
+      gaps.push({
+        at: 'forms[].sarf_saghir',
+        what: withSarf
+          ? 'the imperative and the prohibitive are absent from every form'
+          : 'no paradigm rows for this root — only the past, maṣdar and participles',
+        why: withSarf
+          ? 'ar_ling_root_form_paradigm carries the past, present, maṣādir, participles, elative '
+          + 'and noun of place, but no carrier anywhere holds الأمر or النهي, so the ṣarf ṣaghīr '
+          + 'is shown short rather than completed by rule.'
+          : 'ar_ling_root_form_paradigm holds rows for a handful of roots only; without one there '
+          + 'is no muḍāriʿ, and a paradigm generated from the pattern would not be attested. '
+          + 'ar_ling_root_form_template covers sound roots only.',
       });
     }
     if (lemmas.length) {
@@ -329,6 +380,23 @@ export class RootDocRepo {
         WHERE g.root_norm = ? AND g.status = 'live'
         ORDER BY g.sort_order`, [root]);
 
+    // `ar_ling_root_form_paradigm` is the fuller carrier: it holds the muḍāriʿ,
+    // which `form_masmu` does not, plus the elative, the intensive and the noun
+    // of place — and it records where the language declines a slot. Only a
+    // handful of roots have it, so it leads and the masmu carrier fills in.
+    const pars = await query<Record<string, unknown>>(this.db,
+      `SELECT verb_form, paradigm_json FROM ar_ling_root_form_paradigm
+        WHERE id LIKE 'PAR:' || ? || ':%'`, [root]);
+    const parFor = new Map<string, Record<string, unknown>>();
+    for (const x of pars) {
+      try { parFor.set(String(x['verb_form']), JSON.parse(String(x['paradigm_json'] ?? '{}'))); }
+      catch { /* a malformed row is not a paradigm */ }
+    }
+
+    const NOTE_KEYS = new Set(['past','present','masadir','masdar','active_participle',
+      'passive_participle','passive_present','passive_past','elative','intensive',
+      'noun_of_place_time','meaning','source_ref']);
+
     const order = (f: string) => ['I','II','III','IV','V','VI','VII','VIII','IX','X'].indexOf(f);
     return rows.map((x) => {
       const f = String(x['verb_form']);
@@ -338,16 +406,35 @@ export class RootDocRepo {
         masadir = (JSON.parse(String(x['masdar_json'] ?? '[]')) as { m: string; status: string }[])
           .map((m) => ({ ar: m.m, basis: (m.status === 'attested' ? 'attested' : 'ours') as Basis }));
       } catch { masadir = []; }
-      const pp = (x['passive_participle_ar'] as string) ?? null;
-      const unused = pp !== null && /غير مستعمل/.test(pp);
+      const pj = parFor.get(f);
+      const pp = (pj?.['passive_participle'] as string) ?? (x['passive_participle_ar'] as string) ?? null;
+      const ppSlot = slot(pp);
+      const sarf: SarfSaghir | null = pj ? {
+        past: (pj['past'] as string) ?? (x['verb_ar'] as string) ?? null,
+        present: (pj['present'] as string) ?? null,
+        masadir: Array.isArray(pj['masadir']) ? (pj['masadir'] as string[])
+               : masadir.map((m) => m.ar),
+        active_participle: (pj['active_participle'] as string)
+                        ?? (x['active_participle_ar'] as string) ?? null,
+        passive_participle: ppSlot,
+        passive_present: (pj['passive_present'] as string) ?? null,
+        elative: slot(pj['elative']),
+        intensive: slot(pj['intensive']),
+        noun_of_place_time: slot(pj['noun_of_place_time']),
+        notes: Object.entries(pj)
+          .filter(([k, v]) => !NOTE_KEYS.has(k) && typeof v === 'string' && v)
+          .map(([k, v]) => ({ key: k, text: String(v) })),
+        by: String(pj['source_ref'] ?? '').split(';').map((t) => t.trim()).filter(Boolean),
+      } : null;
       return {
         roman: f,
-        verb_ar: (x['verb_ar'] as string) ?? null,
+        verb_ar: (pj?.['past'] as string) ?? (x['verb_ar'] as string) ?? null,
         chain_ar: null,
+        sarf_saghir: sarf,
         masadir,
-        active_participle: (x['active_participle_ar'] as string) ?? null,
-        passive_participle: unused ? null : pp,
-        passive_note: unused ? pp : null,
+        active_participle: sarf?.active_participle ?? (x['active_participle_ar'] as string) ?? null,
+        passive_participle: ppSlot?.state === 'attested' ? ppSlot.value : null,
+        passive_note: ppSlot?.state === 'not_built' ? ppSlot.value : null,
         // form carrier first, government carrier for the English it lacks
         meaning: tri(x['meaning_ar'] ?? g[0]?.['meaning_ar'],
                      x['meaning_en'] ?? g[0]?.['meaning_en'],
