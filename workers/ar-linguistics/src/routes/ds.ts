@@ -21,6 +21,7 @@ import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import type { ArLinguisticsEnv } from '../env';
 import { DsRepo } from '../repositories/ds.repo';
+import { RootDocRepo } from '../repositories/root-doc.repo';
 import type { DsForm } from '../../../shared/src/contracts/ds';
 
 const FORMS = new Set(['desktop', 'mobile']);
@@ -51,5 +52,18 @@ export function dsRoutes(router: Router<ArLinguisticsEnv>) {
 
     const repo = new DsRepo(env.DB_AL);
     return ok(await repo.root(root, form as DsForm, scope === 'context' ? 'word' : scope));
+  });
+
+  // GET /al/root-doc/:root
+  //
+  // The same carriers as the spec above, shaped for a reader instead of a
+  // builder: a form owns its government and the lemmas built from it, a sense
+  // owns its witnesses and the path that reaches it. Band codes, carrier names
+  // and fill states stay on `/al/ds`; nothing technical crosses into this one
+  // except `gaps`, which is how the document declines to guess.
+  router.get('/al/root-doc/:root', async (_req, env, { root }) => {
+    if (!root) return badRequest('root required');
+    const doc = await new RootDocRepo(env.DB_AL).doc(root);
+    return doc ? ok(doc) : badRequest(`no root ${root}`);
   });
 }
