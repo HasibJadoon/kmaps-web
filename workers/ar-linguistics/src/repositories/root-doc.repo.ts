@@ -21,6 +21,23 @@ import { query, queryOne } from '../../../shared/src/db';
 /** Two witnesses is the floor. A sense with one is a sense with an anecdote. */
 const WITNESSES_PER_SENSE = 2;
 
+/**
+ * What counts as published.
+ *
+ * `status` is not one vocabulary. Across the carriers it takes at least nine
+ * values — live, active, draft, candidate, extracted, raw, na,
+ * migrated_to_lemma_arc, superseded_duplicate — and only the first two mean the
+ * row is ready to be read. `ar_ling_root_asl` holds 1,626 rows of which **8**
+ * are live; `ar_ling_root_sense` holds 552 draft against 354 live.
+ *
+ * A reader must never see a draft, and a row marked superseded must never
+ * outlive the thing that superseded it. So every carrier read is gated here,
+ * and a layer whose rows all fail the gate reports as unpublished rather than
+ * as absent — the difference matters to a builder and to nobody else, which is
+ * why it lands in `gaps`.
+ */
+const PUBLISHED = "('live','active')";
+
 export interface RootDoc {
   root: RootIdentity;
   asl: Statement[];
@@ -148,6 +165,25 @@ const tri = (a: unknown, e: unknown, u: unknown): Tri => ({
 export class RootDocRepo {
   constructor(private readonly db: D1Database) {}
 
+  /** Rows a layer holds that the publication gate withholds. */
+  private async unpublished(root: string): Promise<Gap[]> {
+    const rows = await query<{ layer: string; n: number; states: string }>(this.db,
+      `SELECT 'asl' AS layer, COUNT(*) AS n, GROUP_CONCAT(DISTINCT status) AS states
+         FROM ar_ling_root_asl WHERE root_norm = ?1 AND status NOT IN ${PUBLISHED}
+        HAVING n > 0
+        UNION ALL
+       SELECT 'senses', COUNT(*), GROUP_CONCAT(DISTINCT status)
+         FROM ar_ling_root_sense
+        WHERE root_norm = ?1 AND label_ar IS NOT NULL AND status NOT IN ${PUBLISHED}
+       HAVING COUNT(*) > 0`, [root]);
+    return rows.map((r) => ({
+      at: r.layer,
+      what: `${r.n} row(s) held back by the publication gate`,
+      why: `status is ${r.states} — not published. They exist and are not shown; promoting them `
+         + 'is an editorial act, not a rendering one.',
+    }));
+  }
+
   async doc(rootRef: string): Promise<RootDoc | null> {
     const r = await queryOne<Record<string, unknown>>(this.db,
       `SELECT id, root_text, root_normalized, buckwalter, root_type, weak_pattern,
@@ -263,7 +299,7 @@ export class RootDocRepo {
               COALESCE(a.death_hijri, s.author_death_ah) AS died, s.title_ar AS work
          FROM ar_ling_root_asl a
          LEFT JOIN ar_ling_source s ON s.slug = a.source_slug
-        WHERE a.root_norm = ?
+        WHERE a.root_norm = ? AND a.status IN ${PUBLISHED}
         ORDER BY COALESCE(a.death_hijri, s.author_death_ah, 9999), a.is_primary DESC`, [root]))
       .map((x) => ({
         ar: (x['statement_ar'] as string) ?? null,
@@ -294,7 +330,7 @@ export class RootDocRepo {
       `SELECT id, sense_key, label_ar, label_en, label_ur, gloss_ar, gloss_en, gloss_ur,
               is_core, sort_order, source_slug
          FROM ar_ling_root_sense
-        WHERE root_norm = ? AND label_ar IS NOT NULL
+        WHERE root_norm = ? AND label_ar IS NOT NULL AND status IN ${PUBLISHED}
         ORDER BY sort_order`, [root]);
     if (!rows.length) return [];
 
