@@ -12,6 +12,17 @@
 -- real word in the muṣḥaf and therefore the thing that makes tier `sourced` reachable
 -- in qr_word_term.
 --
+-- ONLY text_match IS A CITATION. Checked against km_quran independently of the muṣḥaf
+-- file the resolver matched on: rows resolved by text_match verified 50/50; rows resolved
+-- by entry_majority verified 19/50. The majority rule assumes an entry is internally
+-- consistent AND that the {...} nearest before a bracket belongs to it; in dense entries
+-- the second assumption fails. Those rows are state='inferred' and must not be read as
+-- citations, counted in a frequency, or promoted into qr_word_term until confirmed.
+--
+--   resolved   22,119   text_match, over 4,672 distinct verses
+--   inferred   13,415   entry_majority / unique_valid
+--   unresolved  4,650
+--
 -- ORIENTATION. ʿAḍīma's bracket order is not uniform in this transcription:
 --   {فأذن مؤذن بينهم أن لعنة الله على الظالمين} [7: 44]  -> al-Aʿrāf 7:44   surah:ayah
 --   {الذين يجعلون مع الله إلها آخر}            [96:15]  -> al-Ḥijr 15:96   ayah:surah
@@ -33,7 +44,7 @@ CREATE TABLE IF NOT EXISTS ar_ling_gram_chunk_citation (
   orientation    TEXT CHECK (orientation IN ('surah_ayah','ayah_surah')),
   resolved_by    TEXT CHECK (resolved_by IN ('text_match','entry_majority','unique_valid')),
   state          TEXT NOT NULL DEFAULT 'unresolved'
-                 CHECK (state IN ('unresolved','resolved','ambiguous','rejected')),
+                 CHECK (state IN ('unresolved','inferred','resolved','ambiguous','rejected')),
   qr_ayah_ref    TEXT,                  -- typed cross-domain ref: QR:<ayah id>
   created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
