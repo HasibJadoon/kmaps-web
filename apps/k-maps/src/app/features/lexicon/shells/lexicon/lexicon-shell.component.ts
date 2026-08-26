@@ -130,14 +130,22 @@ export class LexiconShellComponent implements AfterViewInit {
   readonly fontSizeClass     = computed(() =>
     ['fs-xs', 'fs-sm', 'fs-md', 'fs-lg', 'fs-xl'][this.fontSize()]);
 
-  // Entry-head hero letters: prefer the canonical spaced `root_letters`, else
-  // space out the raw root text so every root gets the big letter display.
+  // Entry-head hero root. `canonical.root_letters` is a JSON ARRAY in D1
+  // (["ث","ب","ر"]) — not a spaced string — so using it as-is printed the
+  // brackets and quotes on screen. Take the root straight from the data and
+  // show it combined: ثبر.
   readonly entryLetters = computed(() => {
     const v = this.view();
+    const raw = (v?.entry.root_text ?? this.currentRoot()).trim().replace(/\s+/g, '');
+    if (raw) return raw;
+    // Only if the root text is absent: recover the letters from the JSON array.
     const letters = v?.canonical?.root_letters?.trim();
-    if (letters) return letters;
-    const raw = (v?.entry.root_text ?? this.currentRoot()).trim();
-    return raw.replace(/\s+/g, '').split('').join(' ');
+    if (!letters) return '';
+    try {
+      const arr: unknown = JSON.parse(letters);
+      if (Array.isArray(arr)) return arr.join('');
+    } catch { /* not JSON — fall through to the strip below */ }
+    return letters.replace(/[\[\]",\s]/g, '');
   });
 
   readonly indexWidth     = signal(RAIL.INDEX_DEFAULT);

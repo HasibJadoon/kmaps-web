@@ -144,17 +144,24 @@ export class MufradatShellComponent implements AfterViewInit {
   readonly fontSizeClass     = computed(() =>
     ['fs-xs', 'fs-sm', 'fs-md', 'fs-lg', 'fs-xl'][this.fontSize()]);
 
-  // Entry-head hero letters: prefer the authored spaced form ("ب ي ن"),
-  // then the canonical `root_letters`, then space out the raw root text so
-  // every root gets the big letter-spaced display even without synthesis.
+  // Entry-head hero root. `canonical.root_letters` is a JSON ARRAY in D1
+  // (["ث","ب","ر"]) — not a spaced string — so using it as-is printed the
+  // brackets and quotes on screen. Take the root straight from the data and
+  // show it combined: ثبر.
   readonly entryLetters = computed(() => {
     const v = this.view();
     const spaced = v?.entry_gloss?.letters_spaced?.trim();
-    if (spaced) return spaced;
+    if (spaced) return spaced.replace(/\s+/g, '');
+    const raw = (v?.entry.root_text ?? this.currentRoot()).trim().replace(/\s+/g, '');
+    if (raw) return raw;
+    // Only if the root text is absent: recover the letters from the JSON array.
     const letters = v?.canonical?.root_letters?.trim();
-    if (letters) return letters;
-    const raw = (v?.entry.root_text ?? this.currentRoot()).trim();
-    return raw.replace(/\s+/g, '').split('').join(' ');
+    if (!letters) return '';
+    try {
+      const arr: unknown = JSON.parse(letters);
+      if (Array.isArray(arr)) return arr.join('');
+    } catch { /* not JSON — fall through to the strip below */ }
+    return letters.replace(/[\[\]",\s]/g, '');
   });
 
   // User-chosen rail widths (drag-resize). The effective width animated
