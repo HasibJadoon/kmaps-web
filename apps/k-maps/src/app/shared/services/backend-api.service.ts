@@ -3,7 +3,7 @@ import { HttpClient, HttpContext, HttpHeaders, HttpParams } from '@angular/commo
 import { Observable, map } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
-export type BackendModule = 'qr' | 'wv' | 'ar' | 'al' | 'cm' | 'pl' | 'core';
+export type BackendModule = 'qr' | 'wv' | 'ar' | 'al' | 'cm' | 'core';
 export type BackendPathSegment = string | number;
 
 export interface BackendApiResponse<T> {

@@ -30,10 +30,6 @@ binding = "CONTENT"
 service = "km-content-worker"
 
 [[services]]
-binding = "PLANNER"
-service = "km-planner-worker"
-
-[[services]]
 binding = "STUDIO"
 service = "km-studio-worker"
 

@@ -170,7 +170,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 
   // ── Production ──────────────────────────────────────────
   {
-    title: 'Task', description: 'Action item linked to planner', icon: '☑', group: 'Production',
+    title: 'Task', description: 'Action item checklist block', icon: '☑', group: 'Production',
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).run();
       editor.commands.insertContent({ type: 'task_block', attrs: { title: '', due_date: null, priority: 2, status: 'pending', plan_item_id: null } });

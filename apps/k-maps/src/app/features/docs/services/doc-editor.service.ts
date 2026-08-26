@@ -128,7 +128,6 @@ export class DocEditorService {
           {
             extractToTopic: (t) => this.extractSvc.extractToWvTopic(t),
             extractToVocab: (t) => this.extractSvc.extractToVocab(t),
-            extractToTask:  (t) => this.extractSvc.extractToTask(t),
             createSrsCard:  (t) => this.extractSvc.createSrsCard(t),
           },
         );

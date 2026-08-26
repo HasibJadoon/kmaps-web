@@ -217,7 +217,6 @@ export class HomeComponent implements AfterViewInit, OnDestroy {
     {
       id: 'workspace', label: 'Workspace', route: '', icon: '▦', glyph: '⊞',
       children: [
-        { id: 'planner', label: 'Planner', route: '/planner', icon: '▦', glyph: '⊞' },
         { id: 'srs', label: 'SRS', route: '/srs', icon: '↻', glyph: '↻' },
         { id: 'content', label: 'Content', route: '/content', icon: '▷', glyph: '▶' },
         { id: 'studio', label: 'Studio', route: '/studio', icon: '♪', glyph: '♪' },

@@ -12,7 +12,6 @@ import type { Editor } from '@tiptap/core';
 export interface BubbleMenuCallbacks {
   extractToTopic: (text: string) => void;
   extractToVocab: (text: string) => void;
-  extractToTask:  (text: string) => void;
   createSrsCard:  (text: string) => void;
 }
 
@@ -267,7 +266,6 @@ export function createBubbleMenuElement(
     const actions = [
       { icon: '🌍', label: 'WV Topic',   fn: callbacks.extractToTopic },
       { icon: 'ع',  label: 'Vocabulary', fn: callbacks.extractToVocab },
-      { icon: '☑',  label: 'Task',       fn: callbacks.extractToTask },
       { icon: '🃏', label: 'SRS Card',   fn: callbacks.createSrsCard },
     ];
     for (const a of actions) {
