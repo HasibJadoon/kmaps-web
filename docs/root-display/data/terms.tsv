@@ -1,0 +1,399 @@
+pos	ism	اِسْم	noun	N
+pos	alam	اسم عَلَم	proper noun	PN
+pos	sifa	صِفَة	adjective	ADJ
+pos	adad	عَدَد	number word	NUM
+pos	fil	فِعْل	verb	V
+pos	damir	ضَمِير	pronoun	PRON
+pos	ishara	اسم إشارة	demonstrative	DEM
+pos	mawsul	اسم موصول	relative pronoun	REL
+pos	harf_jarr	حرف جرّ	preposition	P
+pos	harf_atf	حرف عطف	conjunction	CONJ
+pos	harf_masdari	حرف مصدري	subordinating particle	SUB
+pos	istifham_harf	حرف استفهام	interrogative particle	INTG
+pos	nafy_harf	حرف نفي	negative particle	NEG
+pos	nida_harf	حرف نداء	vocative particle	VOC
+pos	shart_harf	حرف شرط	conditional particle	COND
+pos	fa_sababiyya	فاء السببية	causative fa	
+pos	lam_qasam	لام القسم	lam of the oath	
+pos	laqad	اللام مع قد	laqad (oath lam with qad)	
+jumud	jamid	جامد	primitive / underived noun	
+jumud	mushtaqq	مُشتقّ	derived noun	
+jumud	fil	فِعْل	verb	
+derivation_type	masdar	مَصْدَر	verbal noun	VN
+derivation_type	active_participle	اسم الفاعل	active participle	ACT|PCPL
+derivation_type	passive_participle	اسم المفعول	passive participle	PASS|PCPL
+derivation_type	sifa_mushabbaha	الصفة المشبّهة	quasi-participle	
+derivation_type	mubalagha	صيغة المبالغة	intensive	
+derivation_type	tafdil	اسم التفضيل	elative	
+derivation_type	zaman	اسم الزمان	noun of time	
+derivation_type	makan	اسم المكان	noun of place	
+derivation_type	ala	اسم الآلة	noun of instrument	
+derivation_type	masdar_bi_mana_al_maful	مصدر بمعنى المفعول	verbal noun in the sense of the passive participle	
+derivation_type	masdar_mimi	المصدر الميمي	the mīm-prefixed verbal noun	
+derivation_type	ism_marra	اسم المرة	noun of single occurrence	
+derivation_type	ism_hayaa	اسم الهيئة	noun of manner	
+noun_process	tasghir	التصغير	the diminutive	
+noun_process	nasab	النسب	the relative adjective (nisba)	
+noun_process	jam_taksir	جمع التكسير	the broken plural	
+noun_process	maqsur_mamdud	المقصور والممدود	shortened and extended finals	
+noun_process	dhu_al_ziyada	ذو الزيادة	augmented forms and their letters	
+root_type	sound	صحيح سالم	sound	
+root_type	hamzated	مهموز	hamzated	
+root_type	doubled	مُضَعَّف	doubled	
+root_type	assimilated_w	مثال واوي	assimilated (w)	
+root_type	assimilated_y	مثال يائي	assimilated (y)	
+root_type	hollow	أجوف	hollow	
+root_type	hollow_w	أجوف واوي	hollow (w)	
+root_type	hollow_y	أجوف يائي	hollow (y)	
+root_type	defective	ناقص	defective	
+root_type	defective_w	ناقص واوي	defective (w)	
+root_type	defective_y	ناقص يائي	defective (y)	
+root_type	lafif	لفيف	doubly weak	
+root_type	rubai_mudaaf	رباعي مضاعف	reduplicated quadriliteral	
+root_type	rubai_mujarrad	رباعي مجرّد	quadriliteral	
+root_type	khumasi	خماسي	quinqueliteral	
+form_tier	thulathi_mujarrad	الثلاثي المجرّد	triliteral, bare	
+form_tier	thulathi_mazeed	الثلاثي المزيد فيه	triliteral, augmented	
+form_tier	rubai_mujarrad	الرباعي المجرّد	quadriliteral, bare	
+form_tier	rubai_mazeed	الرباعي المزيد فيه	quadriliteral, augmented	
+form_tier	mizan_sarfi	الميزان الصرفي	the morphological scale (f-ʿ-l)	
+form_tier	maani_al_siyagh	معاني الصيغ	the meanings carried by the patterns	
+form_family	bab_nasara	بابُ نَصَرَ	Form I — naṣara (fatḥa/ḍamma)	
+form_family	bab_daraba	بابُ ضَرَبَ	Form I — ḍaraba (fatḥa/kasra)	
+form_family	bab_fataha	بابُ فَتَحَ	Form I — fataḥa (fatḥa/fatḥa)	
+form_family	bab_samia	بابُ سَمِعَ	Form I — samiʿa (kasra/fatḥa)	
+form_family	bab_karuma	بابُ كَرُمَ	Form I — karuma (ḍamma/ḍamma)	
+form_family	bab_hasiba	بابُ حَسِبَ	Form I — ḥasiba (kasra/kasra)	
+form_family	form_i	مُجَرَّد	Form I — bare trilateral	(I)
+form_family	form_ii	تَفْعِيل	Form II — tafʿīl	(II)
+form_family	form_iii	مُفَاعَلَة	Form III — mufāʿala	(III)
+form_family	form_iv	إِفْعَال	Form IV — ifʿāl	(IV)
+form_family	form_v	تَفَعُّل	Form V — tafaʿʿul	(V)
+form_family	form_vi	تَفَاعُل	Form VI — tafāʿul	(VI)
+form_family	form_vii	اِنْفِعَال	Form VII — infiʿāl	(VII)
+form_family	form_viii	اِفْتِعَال	Form VIII — iftiʿāl	(VIII)
+form_family	form_ix	اِفْعِلَال	Form IX — ifʿilāl	(IX)
+form_family	form_x	اِسْتِفْعَال	Form X — istifʿāl	(X)
+form_family	form_xi	اِفْعِيلَال	Form XI — ifʿīlāl	(XI)
+form_family	form_xii	اِفْعِيعَال	Form XII — ifʿīʿāl	(XII)
+form_family	form_xiii	الافعوّال	Form XIII	
+form_family	rubai_faalala	فَعْلَلَ	quadriliteral I	
+form_family	rubai_tafaalala	تَفَعْلَلَ	quadriliteral II	
+form_family	rubai_ifanlala	الافعنلال	quadriliteral III	
+form_family	rubai_ifalalla	الافعللال	quadriliteral IV	
+form_family	rubai_mudaaf_fafaa	الرباعيّ المضاعف	reduplicative quadriliteral I	
+form_family	rubai_mudaaf_tafafaa	التفعفع	reduplicative quadriliteral II	
+form_family	rubai_mudaaf_ifanfaa	الافعنفاع	reduplicative quadriliteral III	
+form_family	rubai_mudaaf_ifafaa	الافعفعال	reduplicative quadriliteral IV	
+form_family	noun_derivatives	المشتقّات	nominal derivatives	
+inflection_class	ilal_qalb	إعلال بالقلب	vowel substitution	
+inflection_class	ilal_naql	إعلال بالنقل	vowel transfer	
+inflection_class	ilal_hadhf	إعلال بالحذف	elision	
+inflection_class	ibdal	إبدال	consonant substitution	
+inflection_class	idgham	إدغام	assimilation	
+phonotactic	iltiqa_sakinayn	التقاء الساكنين	the meeting of two quiescents	
+phonotactic	ibtida	الابتداء	onset, and the connecting hamza	
+phonotactic	waqf	الوقف	pausal form	
+phonotactic	imala	الإمالة	inclination of ā toward ī	
+phonotactic	takhfif_hamza	تخفيف الهمزة	lightening of the hamza	
+phonotactic	hadhf_sarfi	الحذف	morphological elision	
+phonotactic	qalb_makani	القلب المكاني	metathesis	
+phonotactic	khatt	الخط	orthography	
+transitivity	intransitive	لَازِم	intransitive	
+transitivity	transitive	مُتَعَدٍّ	transitive	
+transitivity	transitive_by_harf	مُتَعَدٍّ بِحَرْف	transitive via particle	
+transitivity	ditransitive	مُتَعَدٍّ إلى مفعولين	ditransitive	
+transitivity	mutaaddi_mafulayn	المتعدي إلى مفعولين	doubly transitive	
+taddiya_route	lazim	لازم	no route (intransitive)	
+taddiya_route	binafsihi	متعدٍّ بنفسه	transitive by naṣb	
+taddiya_route	biharf	متعدٍّ بحرف	transitive by particle	
+taddiya_route	bitadeef	تعدية بالتضعيف	causativization by gemination, Form II	
+taddiya_route	bihamza	تعدية بالهمزة	causativization by hamza, Form IV	
+tense	perfect	مَاضٍ	perfect	PERF
+tense	imperfect	مُضَارِع	imperfect	IMPF
+tense	imperative	أَمْر	imperative	IMPV
+mood	indicative	مَرْفُوع	indicative	
+mood	subjunctive	مَنْصُوب	subjunctive	MOOD:SUBJ
+mood	jussive	مَجْزُوم	jussive	MOOD:JUS
+voice	active	مَعْلُوم	active	ACT
+voice	passive	مَجْهُول	passive	PASS
+person	first	مُتَكَلِّم	first person	1
+person	second	مُخَاطَب	second person	2
+person	third	غَائِب	third person	3
+number	singular	مُفْرَد	singular	S
+number	dual	مُثَنَّى	dual	D
+number	plural	جَمْع	plural	P
+gender	masculine	مُذَكَّر	masculine	M
+gender	feminine	مُؤَنَّث	feminine	F
+definiteness	definite	مَعْرِفَة	definite	DET
+definiteness	indefinite	نَكِرَة	indefinite	INDEF
+case	nominative	مَرْفُوع	nominative	NOM
+case	accusative	مَنْصُوب	accusative	ACC
+case	genitive	مَجْرُور	genitive	GEN
+mahall	la_mahall	لا محلّ لها من الإعراب	no syntactic position	
+mahall	raf	في محلّ رفع	in position of rafʿ	
+mahall	nasb	في محلّ نصب	in position of naṣb	
+mahall	jarr	في محلّ جرّ	in position of jarr	
+mahall	jazm	في محلّ جزم	in position of jazm	
+irab_role	mubtada	مبتدأ	topic (subject of nominal sentence)	
+irab_role	khabar	خبر	predicate	
+irab_role	fail	فاعل	agent (subject of verb)	
+irab_role	naib_fail	نائب فاعل	deputy agent (passive subject)	
+irab_role	maful_bih	مفعول به	direct object	
+irab_role	maful_mutlaq	مفعول مطلق	cognate object	
+irab_role	maful_fih	مفعول فيه	locative object	
+irab_role	maful_liajlih	مفعول لأجله	object of purpose	
+irab_role	maful_maah	مفعول معه	comitative object	
+irab_role	mudaf_ilayh	مضاف إليه	genitive annex	
+irab_role	naat	نعت	adjective (naʿt)	
+irab_role	badal	بدل	apposition	
+irab_role	atf	عطف	conjunction (ʿaṭf)	
+irab_role	tawkid	توكيد	emphasis	
+irab_role	hal	حال	circumstantial accusative	
+irab_role	tamyiz	تمييز	specifier	
+irab_role	mustathna	مستثنى	excepted element	
+irab_role	munada	منادى	vocative	
+irab_role	jarr_majrur	جار ومجرور	preposition + genitive	
+irab_role	zarf	ظرف	adverbial	
+irab_role	mutaalliq	متعلق	attachment (taʿalluq)	
+irab_role	silat_mawsul	صلة الموصول	relative clause	
+irab_role	jawab_shart	جواب الشرط	apodosis	
+irab_role	jawab_qasam	جواب القسم	oath complement	
+irab_role	jawab_nida	جواب النداء	vocative response	
+nawasikh	kana_wa_akhawatuha	كان وأخواتها	kāna and its sisters	
+nawasikh	inna_wa_akhawatuha	إنّ وأخواتها	inna and its sisters	
+nawasikh	zanna_wa_akhawatuha	ظنّ وأخواتها	ẓanna and its sisters	
+nawasikh	kada_wa_akhawatuha	كاد وأخواتها	kāda and its sisters	
+nawasikh	la_nafiya_lil_jins	لا النافية للجنس	lā of absolute negation	
+sentence_class	ismiyya	الجملة الاسمية	nominal sentence	
+sentence_class	filiyya	الجملة الفعلية	verbal sentence	
+sentence_class	shartiyya	الجملة الشرطية	conditional sentence	
+sentence_class	istifhamiyya	الجملة الاستفهامية	interrogative sentence	
+sentence_class	manfiyya	الجملة المنفية	negated sentence	
+sentence_class	nida	جملة النداء	vocative sentence	
+sentence_class	amr	جملة الأمر	command sentence	
+sentence_class	taajjub	جملة التعجّب	exclamatory sentence	
+sentence_class	adat_shart	أداة الشرط	conditional particle	
+sentence_class	fil_shart	فعل الشرط	protasis verb	
+sentence_class	jawab_shart	جواب الشرط	apodosis	
+sentence_class	istinafiyya	الجملة الاستئنافية	resumptive sentence	
+sentence_class	itiradiyya	الجملة الاعتراضية	parenthetical sentence	
+shart_tool	in	إِنْ	if	
+shart_tool	man	مَنْ	whoever	
+shart_tool	ma	مَا	whatever	
+shart_tool	mahma	مَهْمَا	whatever	
+shart_tool	mata	مَتَى	whenever	
+shart_tool	ayyana	أَيَّانَ	whenever	
+shart_tool	ayna_ma	أَيْنَمَا	wherever	
+shart_tool	haythuma	حَيْثُمَا	wherever	
+shart_tool	idha	إِذَا	when (realis)	
+shart_tool	law	لَوْ	if (counterfactual)	
+shart_tool	lawla	لَوْلَا	were it not for	
+shart_tool	amma	أَمَّا	as for	
+kalam_kind	khabar	الخَبَر	assertion	
+kalam_kind	insha	الإنشاء	performance	
+kalam_kind	khabar_ibtidai	ابتدائي	assertion to an open mind	
+kalam_kind	khabar_talabi	طلبي	assertion to a doubting mind	
+kalam_kind	khabar_inkari	إنكاري	assertion to a denying mind	
+kalam_kind	amr	الأَمْر	command	
+kalam_kind	nahy	النَّهْي	prohibition	
+kalam_kind	istifham	الاسْتِفْهَام	interrogation	
+kalam_kind	tamanni	التَّمَنِّي	wishing (the impossible)	
+kalam_kind	nida	النِّدَاء	vocative	
+kalam_kind	taajjub	التَّعَجُّب	exclamation	
+kalam_kind	qasam	القَسَم	oath	
+kalam_kind	madh_dhamm	المدح والذمّ	praise & blame	
+kalam_kind	raja	الرَّجَاء	hoping (the attainable)	
+harf_maani	istinafiyya	اِسْتِئْنَافِيَّة	resumption — begins a new sentence	REM
+harf_maani	haliyya	حَالِيَّة	circumstantial wāw — introduces a ḥāl clause	CIRC
+harf_maani	taliliyya	تَعْلِيلِيَّة	causal — gives the reason	CAUS
+harf_maani	tawkid	تَوْكِيد	emphatic lām	EMPH
+harf_maani	tahqiq	تَحْقِيق	certainty — qad with the perfect	CERT
+harf_maani	hasr	حَصْر	restriction — illā, innamā	RES
+harf_maani	istidrak	اِسْتِدْرَاك	amendment — lākinna	AMD
+harf_maani	idrab	إِضْرَاب	retraction — bal	RET
+harf_maani	fujaiyya	فُجَائِيَّة	surprise — idhā al-fujāʾiyya	SUR
+harf_maani	rad	رَدْع	aversion — kallā	AVR
+harf_maani	talil_lam	لَام التَّعْلِيل	purpose lām	PRP
+harf_maani	jawabiyya	جَوَابِيَّة	answer — naʿam, balā	ANS
+harf_maani	lam_jawab	لَام الجَوَاب	result lām — apodosis of law/lawlā	RSLT
+harf_maani	tafsiliyya	تَفْصِيلِيَّة	explanation — ay	EXL
+harf_maani	tafsiriyya	تَفْسِيرِيَّة	exposition — an	EXP
+harf_maani	tahdid	تَحْضِيض	exhortation — lawlā, hallā	EXH
+harf_maani	istiqbal	اِسْتِقْبَال	futurity — sa-, sawfa	FUT
+harf_maani	nahiya	نَاهِيَة	prohibitive lā	PRO
+harf_maani	kaffa	كَافَّة	preventive mā	PREV
+harf_maani	zaida	زَائِدَة	pleonastic	INC
+harf_maani	masdariyya	مَصْدَرِيَّة	subordinating — recasts the clause as a maṣdar	SUP
+harf_maani	taswiya	تَسْوِيَة	equalisation — sawāʾun ʿalayhim	EQ
+harf_maani	zarf_zaman	ظَرْف زَمَان	adverb of time	T
+harf_maani	zarf_makan	ظَرْف مَكَان	adverb of place	LOC
+harf_maani	harf_nasb	حَرْف نَصْب	accusative particle — inna and its sisters	ACC
+harf_maani	istinkariyya	اِسْتِنْكَارِيَّة	rhetorical interrogative	INT
+harf_maani	maiyya	مَعِيَّة	comitative wāw	COM
+harf_maani	amriyya	لَام الأَمْر	imperative lām	IMPN
+harf_maani	muqattaa	حُرُوف مُقَطَّعَة	the disjoined letters opening certain sūras	INL
+balagha_maani	musnad	المُسْنَد	predicate	
+balagha_maani	musnad_ilayh	المُسْنَد إليه	subject of predication	
+balagha_maani	taqdim_takhir	التقديم والتأخير	fronting & postponement	
+balagha_maani	tarif	التعريف	definiteness (rhetorical)	
+balagha_maani	tankir	التنكير	indefiniteness (rhetorical)	
+balagha_maani	hadhf	الحذف	ellipsis	
+balagha_maani	dhikr	الذِّكْر	explicit mention	
+balagha_maani	qasr	القَصْر	restriction	
+balagha_maani	qasr_nafy_istithna	القصر بالنفي والاستثناء	restriction by negation + exception	
+balagha_maani	qasr_innama	القصر بإنّما	restriction by innamā	
+balagha_maani	qasr_atf	القصر بالعطف	restriction by conjunction	
+balagha_maani	qasr_taqdim	القصر بالتقديم	restriction by fronting	
+balagha_maani	qasr_qalb	قصر القلب	reversal-restriction	
+balagha_maani	shurut_qasr	شروط القصر	the conditions of restriction	
+balagha_maani	fasl	الفَصْل	disjunction	
+balagha_maani	wasl	الوَصْل	conjunction	
+balagha_maani	jami	الجامع	the uniting factor licensing conjunction	
+balagha_maani	muhassinat_wasl	محسنات الوصل	what makes conjunction apt	
+balagha_maani	ijaz	الإيجَاز	conciseness	
+balagha_maani	ijaz_qasr	الإيجاز بالقصر	concision by compression	
+balagha_maani	ijaz_hadhf	الإيجاز بالحذف	concision by omission	
+balagha_maani	ijaz_hadhf_qissa	إيجاز حذف القصة	narrative ellipsis	
+balagha_maani	itnab	الإطْنَاب	elaboration	
+balagha_maani	itnab_tadhyil	الإطناب بالتذييل	elaboration by coda	
+balagha_maani	itnab_itirad	الإطناب بالاعتراض	elaboration by parenthesis	
+balagha_maani	itnab_takrar	الإطناب بالتكرار	elaboration by repetition	
+balagha_maani	musawat	المُسَاوَاة	equivalence	
+balagha_maani	iltifat	الالْتِفَات	grammatical shift	
+balagha_maani	tadmin_maani	التضمين	implication	
+balagha_maani	tanzil_manzila	تنزيل الشيء منزلة غيره	placing one thing at the rank of another	
+balagha_maani	tanzil_ghayr_al_sail_manzilat_al_sail	تنزيل غير السائل منزلة السائل	treating a non-asker as an asker	
+balagha_maani	tanzil_ghayr_al_munkir_manzilat_al_munkir	تنزيل غير المنكر منزلة المنكر	treating a non-denier as a denier	
+balagha_maani	tanzil_al_munkir_manzilat_ghayr_al_munkir	تنزيل المنكر منزلة غير المنكر	treating a denier as a non-denier	
+balagha_maani	tanzil_alim_jahil	تنزيل العالم منزلة الجاهل	placing the knower at the rank of the ignorant	
+balagha_maani	hadhf_musnad	حذف المسند	omission of the predicate	
+balagha_maani	dhikr_musnad	ذكر المسند	mention of the predicate	
+balagha_maani	ifrad_musnad	إفراد المسند	single-word predicate	
+balagha_maani	filiyyat_ismiyyat_musnad	فعلية المسند واسميته	verbal versus nominal predicate	
+balagha_maani	takhsis_musnad	تخصيص المسند	narrowing the predicate	
+balagha_maani	jumliyyat_musnad	جملية المسند	a clause as predicate	
+balagha_maani	hadhf_musnad_ilayh	حذف المسند إليه	ellipsis of the subject	
+balagha_maani	wasf_musnad_ilayh	وصف المسند إليه	qualifying the subject	
+balagha_maani	tawkid_musnad_ilayh	توكيد المسند إليه	emphasising the subject	
+balagha_maani	bayan_musnad_ilayh	بيان المسند إليه	explicative apposition to the subject	
+balagha_maani	ibdal_musnad_ilayh	الإبدال من المسند إليه	substitution for the subject	
+balagha_maani	atf_musnad_ilayh	العطف على المسند إليه	coordination onto the subject	
+balagha_maani	taqyid_fil	تقييد الفعل وعدمه	qualifying the verb, or not	
+balagha_maani	taqyid_bil_shart	تقييد الفعل بالشرط	qualifying the verb by a condition	
+balagha_maani	in_idha_shartiyyatan	إنْ وإذا الشرطيتان	the conditional in and idhā contrasted	
+balagha_maani	law_shartiyya	لو الشرطية	the conditional law	
+balagha_maani	hadhf_maful	حذف المفعول	omission of the object	
+balagha_maani	taqdim_maful	تقديم المفعول على الفعل	fronting the object before the verb	
+balagha_maani	taqdim_mamulat	تقديم بعض معمولات الفعل على بعض	ordering the verb's complements among themselves	
+balagha_maani	idrab_intiqali	الإضراب الانتقالي	transitional retraction	
+balagha_maani	idrab_ibtali	الإضراب الإبطالي	annulling retraction	
+balagha_maani	tarajji	الترجي	hoping for the attainable	
+balagha_maani	izhar_mawdi_idmar	الإظهار في موضع الإضمار	overt noun where a pronoun was due	
+balagha_maani	mudari_istimrar	المضارع للاستمرار	imperfect for continuity	
+balagha_maani	mudari_istihdar	المضارع للاستحضار	imperfect for vivid presentation	
+balagha_maani	nahy_irshad	النهي للإرشاد	prohibition for guidance	
+balagha_maani	tafdil_mutlaq	التفضيل المطلق	absolute preference	
+balagha_maani	ikhtiyar_sigha	اختيار الصيغة	marked choice of form	
+balagha_maani	tawkid_inna_lam	التوكيد بإن واللام	emphasis by inna with the lām	
+balagha_maani	takhallus	التخلّص	graceful transition to the purpose	
+balagha_maani	fadhlaka	الفذلكة	closing epitome of aims	
+balagha_maani	damir_fasl	ضمير الفصل	separating pronoun	
+balagha_maani	istinaf_bayani	الاستئناف البياني	clarifying resumption	
+balagha_maani	tanwih	التنويه	indirect extolling	
+balagha_maani	tashwiq	التشويق	withholding to excite desire	
+balagha_maani	tafkhim	التفخيم	magnification	
+balagha_maani	mukhalafat_muqtada_zahir	مخالفة مقتضى الظاهر	departure from expected usage	
+balagha_maani	illat_al_illa	علّة العلّة	cause of the cause	
+balagha_maani	ihtimam_khabar	الاهتمام بالخبر	emphasis for salience not denial	
+balagha_maani	ilzam	الإلزام	binding by conceded premises	
+balagha_maani	tasjil	التسجيل	placing on record against	
+balagha_maani	munasaba	المناسبة	coherence linkage	
+balagha_maani	taliil	التعليل	justification	
+balagha_maani	tarif_bil_idmar	التعريف بالإضمار	definiteness by pronoun	
+balagha_maani	tarif_bil_alamiyya	التعريف بالعلمية	definiteness by proper name	
+balagha_maani	tarif_bil_mawsuliyya	التعريف بالموصولية	definiteness by relative clause	
+balagha_maani	tarif_bil_ishara	التعريف بالإشارة	definiteness by demonstrative	
+balagha_maani	tarif_bil_lam	التعريف باللام	definiteness by the article	
+balagha_maani	tarif_bil_idafa	التعريف بالإضافة	definiteness by annexation	
+balagha_maani	tabir_mustaqbal_bil_madi	التعبير عن المستقبل بلفظ الماضي	the future expressed in perfect form	
+balagha_maani	qalb	القلب	inversion of the expected relation	
+balagha_maani	jumla_haliyya	الجملة الحالية	the circumstantial clause	
+balagha_maani	tafsil	التفصيل	itemised elaboration	
+balagha_maani	insha_talabi	الإنشاء الطلبي	requestive non-declarative speech	
+balagha_maani	amr	الأمر	the imperative	
+balagha_maani	khuruj_amr	خروج الأمر عن معناه الحقيقي	the imperative used for other than command	
+balagha_maani	amr_tathbit	الأمر للتثبيت	the imperative used to steady, not to command	
+balagha_maani	amr_tahdid	الأمر للتهديد	the imperative used as a threat	
+balagha_maani	amr_dua	الأمر للدعاء	the imperative used in supplication	
+balagha_maani	nahy	النهي	prohibition	
+balagha_maani	istifham_balaghi	الاستفهام وأغراضه البلاغية	the interrogative and its rhetorical purposes	
+balagha_maani	istifham_ihala	الاستفهام للإحالة	the interrogative used to rule out as impossible	
+balagha_maani	tamanni	التمني	wishing for what is not expected	
+balagha_maani	nida	النداء	the vocative	
+balagha_maani	tarakhi_rutbi	التراخي الرتبي	rank-distance rather than time-distance	
+balagha_bayan	tashbih	التَّشْبِيه	simile	
+balagha_bayan	mushabbah	المُشَبَّه	tenor	
+balagha_bayan	mushabbah_bih	المُشَبَّه به	vehicle	
+balagha_bayan	adat_tashbih	أداة التشبيه	simile particle	
+balagha_bayan	wajh_shabah	وجه الشَّبَه	ground of comparison	
+balagha_bayan	tashbih_mursal	التشبيه المرسل	simile with particle	
+balagha_bayan	tashbih_muakkad	التشبيه المؤكّد	particle omitted	
+balagha_bayan	tashbih_mujmal	التشبيه المجمل	ground omitted	
+balagha_bayan	tashbih_mufassal	التشبيه المفصّل	ground stated	
+balagha_bayan	tashbih_baligh	التشبيه البليغ	both omitted	
+balagha_bayan	tashbih_tamthili	التشبيه التمثيلي	compound simile	
+balagha_bayan	tashbih_dimni	التشبيه الضمني	implicit simile	
+balagha_bayan	istiara	الاسْتِعَارَة	metaphor	
+balagha_bayan	istiara_tasrihiyya	الاستعارة التصريحية	explicit (vehicle stated)	
+balagha_bayan	istiara_makniyya	الاستعارة المكنيّة	implicit (tenor stated)	
+balagha_bayan	istiara_asliyya	الاستعارة الأصلية	primary (in a noun)	
+balagha_bayan	istiara_tabaiyya	الاستعارة التبعية	secondary (in verb/particle)	
+balagha_bayan	istiara_murashshaha	الاستعارة المرشّحة	reinforced	
+balagha_bayan	istiara_mujarrada	الاستعارة المجرّدة	stripped	
+balagha_bayan	istiara_mutlaqa	الاستعارة المطلقة	absolute	
+balagha_bayan	istiara_tamthiliyya	الاستعارة التمثيلية	composite metaphor drawn from a whole scene	
+balagha_bayan	majaz	المَجَاز	trope	
+balagha_bayan	majaz_mursal	المجاز المرسل	metonymic trope	
+balagha_bayan	majaz_aqli	المجاز العقلي	conceptual trope	
+balagha_bayan	majaz_murakkab	المجاز المركّب	composite figurative usage	
+balagha_bayan	kinaya	الكِنَايَة	metonymy	
+balagha_bayan	kinaya_sifa	الكناية عن صفة	metonymy of an attribute	
+balagha_bayan	kinaya_mawsuf	الكناية عن موصوف	metonymy of a subject	
+balagha_bayan	kinaya_ramziyya	الكناية الرمزية	symbolic allusion	
+balagha_bayan	tarid	التعريض	oblique address	
+balagha_bayan	alaqa_sababiyya	السببية	cause for effect	
+balagha_bayan	alaqa_musabbabiyya	المسبّبية	effect for cause	
+balagha_bayan	alaqa_juziyya	الجزئية	part for whole	
+balagha_bayan	alaqa_kulliyya	الكلّية	whole for part	
+balagha_bayan	alaqa_ma_kana	اعتبار ما كان	what it was	
+balagha_bayan	alaqa_ma_yakun	اعتبار ما يكون	what it will be	
+balagha_bayan	alaqa_mahalliyya	المحلّية	place for occupant	
+balagha_bayan	alaqa_halliyya	الحالّية	occupant for place	
+balagha_bayan	alaqa_aliyya	الآلية	instrument for product	
+balagha_badi	tibaq	الطِّبَاق	antithesis	
+balagha_badi	tibaq_ijab	طباق الإيجاب	positive antithesis	
+balagha_badi	tibaq_salb	طباق السَّلْب	negative antithesis	
+balagha_badi	muqabala	المُقَابَلَة	parallel antithesis	
+balagha_badi	tawriya	التَّوْرِيَة	double entendre	
+balagha_badi	husn_talil	حُسْن التعليل	fanciful causation	
+balagha_badi	taakid_madh	تأكيد المدح بما يشبه الذمّ	praise feigning blame	
+balagha_badi	taakid_dhamm	تأكيد الذمّ بما يشبه المدح	blame feigning praise	
+balagha_badi	uslub_hakim	أُسْلُوب الحَكِيم	the wise redirection	
+balagha_badi	mushakala	المُشَاكَلَة	conformity	
+balagha_badi	muraat_nazir	مُرَاعَاة النَّظِير	congruence	
+balagha_badi	laff_nashr	اللَّفّ والنَّشْر	wrapping & unfolding	
+balagha_badi	jam	الجَمْع	grouping	
+balagha_badi	tafriq	التَّفْرِيق	differentiation	
+balagha_badi	taqsim	التَّقْسِيم	division	
+balagha_badi	mubalagha_badi	المُبَالَغَة	hyperbole	
+balagha_badi	istikhdam	الاسْتِخْدَام	zeugma of reference	
+balagha_badi	idmaj	الإدْمَاج	embedding	
+balagha_badi	jinas	الجِنَاس	paronomasia	
+balagha_badi	jinas_tamm	الجناس التامّ	perfect paronomasia	
+balagha_badi	jinas_naqis	الجناس الناقص	imperfect paronomasia	
+balagha_badi	saj	السَّجْع	rhymed prose	
+balagha_badi	radd_ajz	ردّ العجز على الصدر	epanalepsis	
+balagha_badi	iqtibas	الاقْتِبَاس	scriptural quotation	
+balagha_badi	muwazana	المُوَازَنَة	metrical balance	
+balagha_badi	baraat_istihlal	براعة الاستهلال	apt prologue	
