@@ -19,6 +19,7 @@ import { srsRegistryRoutes } from './routes/srs-registry';
 import { dsRoutes } from './routes/ds';
 import { cybRoutes } from './routes/cyb';
 import { studySessionRoutes } from './routes/study-session';
+import { logRoutes } from './routes/logs';
 
 const router = new Router<CoreEnv>();
 
@@ -40,6 +41,7 @@ srsRegistryRoutes(router);   // GET/POST/DELETE /core/srs/registry — SRS enrol
 cybRoutes(router);
 dsRoutes(router);                // /core/ds/* — the composed display spec: layers + plane + cards           // GET /core/cyb/* — cybernetics control plane (monitor · tree · jobs)
 studySessionRoutes(router);  // /core/study/sessions — the study axis's one carrier
+logRoutes(router);           // GET /core/logs/* — the activity log, read-only
 
 export default {
   fetch: (request: Request, env: CoreEnv) => router.handle(request, env),
