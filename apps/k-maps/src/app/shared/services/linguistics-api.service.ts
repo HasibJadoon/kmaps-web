@@ -54,7 +54,7 @@ export interface GramPagesResult { pages: GramPage[]; page: number; limit: numbe
 
 export interface GramSearchHit {
   id: string; source_slug: string; discipline: Discipline; discipline_label: DiscLabel;
-  title_ar: string; page_no: number | null; volume_no: number | null; snippet: string;
+  title_ar: string; bab_id: string | null; page_no: number | null; volume_no: number | null; snippet: string;
 }
 export interface GramSearchResult { query: string; count: number; results: GramSearchHit[]; }
 

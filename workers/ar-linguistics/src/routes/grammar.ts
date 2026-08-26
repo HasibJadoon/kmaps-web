@@ -173,15 +173,17 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
 
     // enrich with page anchor + book title (single round-trip)
     const ids = rows.map(r => r.id);
-    let anchors: Record<string, { page_no: number | null; volume_no: number | null; title_ar: string }> = {};
+    // bab_id rides along so a hit can OPEN its section — without it the client
+    // can show a snippet but has nowhere to send you.
+    let anchors: Record<string, { bab_id: string | null; page_no: number | null; volume_no: number | null; title_ar: string }> = {};
     if (ids.length) {
       const ph = ids.map(() => '?').join(',');
       const a = (await env.DB_AL.prepare(
-        `SELECT c.id, c.page_no, c.volume_no, s.title_ar
+        `SELECT c.id, c.bab_id, c.page_no, c.volume_no, s.title_ar
            FROM ar_ling_gram_chunk c
            JOIN ar_ling_source s ON s.slug = c.source_slug
           WHERE c.id IN (${ph})`,
-      ).bind(...ids).all<{ id: string; page_no: number | null; volume_no: number | null; title_ar: string }>()).results ?? [];
+      ).bind(...ids).all<{ id: string; bab_id: string | null; page_no: number | null; volume_no: number | null; title_ar: string }>()).results ?? [];
       anchors = Object.fromEntries(a.map(x => [x.id, x]));
     }
 
@@ -191,6 +193,7 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
       discipline: r.discipline,
       discipline_label: DISC_LABEL[r.discipline] ?? DISC_LABEL.SF,
       title_ar: anchors[r.id]?.title_ar ?? '',
+      bab_id: anchors[r.id]?.bab_id ?? null,
       page_no: anchors[r.id]?.page_no ?? null,
       volume_no: anchors[r.id]?.volume_no ?? null,
       snippet: r.snippet,
