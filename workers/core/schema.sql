@@ -1,9 +1,9 @@
 -- Schema for km_core.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-24.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-28.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (67) ──────────────────────────────────────────────────
+-- ── Tables (70) ──────────────────────────────────────────────────
 
 CREATE TABLE core_activity_events (
   id              TEXT PRIMARY KEY,               -- ULID
@@ -66,6 +66,26 @@ CREATE TABLE core_auth_tokens (
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (user_id) REFERENCES core_users(id)
 );
+
+CREATE TABLE core_daily_log (
+  id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(8)))),
+  log_date        TEXT NOT NULL DEFAULT (date('now')),
+  project         TEXT NOT NULL,
+  focus           TEXT NOT NULL DEFAULT 'other'
+                    CHECK (focus IN ('registry','sources','morphology','cards','schema','app','docs','other')),
+  unit_kind       TEXT CHECK (unit_kind IS NULL OR unit_kind IN ('source_root','gram_term','adima_toc','ayah','root','lemma','table','other')),
+  unit_ref        TEXT,
+  source_slug     TEXT,
+  whats_new       TEXT NOT NULL,
+  state           TEXT NOT NULL DEFAULT 'done' CHECK (state IN ('done','partial','blocked','abandoned','exploring')),
+  next_step       TEXT,
+  already_checked TEXT,
+  minutes         INTEGER CHECK (minutes IS NULL OR minutes >= 0),
+  energy          INTEGER CHECK (energy IS NULL OR energy BETWEEN 1 AND 5),
+  felt            TEXT,
+  session_url     TEXT,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+, user_ref TEXT);
 
 CREATE TABLE core_external_refs (
   id              TEXT PRIMARY KEY,
@@ -211,6 +231,24 @@ CREATE TABLE core_root_build_stat (root_ar TEXT PRIMARY KEY, freq_quran INTEGER 
 CREATE TABLE core_root_surah_map (root_uid TEXT PRIMARY KEY, spread TEXT, n_surahs INTEGER, total_occur INTEGER);
 
 CREATE TABLE core_root_uid_map (root_ar TEXT PRIMARY KEY, root_uid TEXT NOT NULL, synced_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')));
+
+CREATE TABLE core_source_log (
+  id            TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(8)))),
+  title         TEXT NOT NULL,
+  author        TEXT,
+  domain        TEXT NOT NULL DEFAULT 'other' CHECK (domain IN ('arabic','quran','worldview','other')),
+  source_kind   TEXT,
+  source_slug   TEXT,
+  locator       TEXT,
+  explore_state TEXT NOT NULL DEFAULT 'want' CHECK (explore_state IN ('want','exploring','explored','parked','rejected')),
+  priority      INTEGER CHECK (priority IS NULL OR priority BETWEEN 1 AND 5),
+  why           TEXT,
+  found_what    TEXT,
+  verdict       TEXT,
+  first_seen    TEXT NOT NULL DEFAULT (date('now')),
+  last_touched  TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+, registered_in TEXT NOT NULL DEFAULT 'none', user_ref TEXT);
 
 CREATE TABLE "core_srs_card" (
   id             TEXT PRIMARY KEY,
@@ -554,6 +592,15 @@ CREATE TABLE core_workspaces (
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (owner_id) REFERENCES core_users(id)
+);
+
+CREATE TABLE cyb_card (
+  id        TEXT PRIMARY KEY,
+  node_id   TEXT NOT NULL REFERENCES cyb_node(id) ON DELETE CASCADE,
+  card_kind TEXT NOT NULL,
+  front_md  TEXT,
+  back_md   TEXT,
+  tags_json TEXT
 );
 
 CREATE TABLE cyb_card_type (
@@ -1264,7 +1311,7 @@ WHERE s.source_table IS NULL
    OR s.state = 'pending_carrier';
 
 
--- ── Indexes (65) ─────────────────────────────────────────────────
+-- ── Indexes (77) ─────────────────────────────────────────────────
 
 CREATE INDEX core_srs_card_deck ON core_srs_card(deck_id);
 
@@ -1370,11 +1417,35 @@ CREATE INDEX idx_core_wpo_ws ON core_workspace_policies(workspace_id);
 
 CREATE INDEX idx_core_wr_ws ON core_workspace_roles(workspace_id);
 
+CREATE INDEX idx_cyb_card_node ON cyb_card(node_id);
+
 CREATE INDEX idx_cyb_skill_loop ON cyb_skill(loop_key);
+
+CREATE INDEX idx_daily_log_date ON core_daily_log(log_date DESC);
+
+CREATE INDEX idx_daily_log_focus ON core_daily_log(focus, log_date DESC);
+
+CREATE INDEX idx_daily_log_source ON core_daily_log(source_slug);
+
+CREATE INDEX idx_daily_log_unit ON core_daily_log(unit_ref);
+
+CREATE INDEX idx_daily_log_user ON core_daily_log(user_ref, log_date DESC);
 
 CREATE UNIQUE INDEX idx_process_step_layer_unique ON cyb_process_step_layer (step_uid, layer_uid, COALESCE(skill_slug,''));
 
+CREATE INDEX idx_source_log_registered ON core_source_log(registered_in, explore_state);
+
+CREATE INDEX idx_source_log_slug ON core_source_log(source_slug);
+
+CREATE INDEX idx_source_log_state ON core_source_log(explore_state, domain);
+
+CREATE INDEX idx_source_log_title ON core_source_log(title);
+
+CREATE INDEX idx_source_log_user ON core_source_log(user_ref, explore_state);
+
 CREATE INDEX idx_srs_card_kind ON core_srs_card (user_ref, module, card_kind, concept_domain);
+
+CREATE INDEX idx_srs_card_surah_surah ON core_srs_card_surah(surah);
 
 CREATE INDEX idx_srs_lib_author
   ON core_srs_library_card (author_ref, status);

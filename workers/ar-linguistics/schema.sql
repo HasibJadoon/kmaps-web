@@ -1,9 +1,9 @@
 -- Schema for km_arabic_linguistic.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-24.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-28.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (125) ─────────────────────────────────────────────────
+-- ── Tables (137) ─────────────────────────────────────────────────
 
 CREATE TABLE ar_ling_concept_block (
   id                TEXT PRIMARY KEY,
@@ -267,12 +267,20 @@ CREATE TABLE "ar_ling_gram_chunk" (
   page_id      INTEGER,
   status       TEXT NOT NULL DEFAULT 'raw',
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))
-, edition_id TEXT REFERENCES "ar_ling_source_edition"(id), layer_code TEXT NOT NULL DEFAULT 'AL:010-SRC:--:00-CORE:P', translation_en TEXT, translation_ur TEXT);
+, edition_id TEXT REFERENCES "ar_ling_source_edition"(id), layer_code TEXT NOT NULL DEFAULT 'AL:010-SRC:--:00-CORE:P', translation_en TEXT, translation_ur TEXT, text_norm TEXT);
+
+CREATE TABLE ar_ling_gram_chunk_citation ( id TEXT PRIMARY KEY, chunk_id TEXT NOT NULL, source_slug TEXT NOT NULL, seq INTEGER NOT NULL, num_a INTEGER NOT NULL, num_b INTEGER NOT NULL, surah INTEGER, ayah INTEGER, ayah_text_ar TEXT, orientation TEXT CHECK (orientation IN ('surah_ayah','ayah_surah')), resolved_by TEXT CHECK (resolved_by IN ('text_match','entry_majority','unique_valid')), state TEXT NOT NULL DEFAULT 'unresolved' CHECK (state IN ('unresolved','resolved','ambiguous','rejected')), qr_ayah_ref TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) );
+
+CREATE TABLE ar_ling_gram_chunk_term ( chunk_id TEXT NOT NULL, term_id TEXT NOT NULL, match_kind TEXT NOT NULL CHECK (match_kind IN ('exact','prefix','contains','manual')), state TEXT NOT NULL DEFAULT 'auto' CHECK (state IN ('auto','confirmed','rejected')), note TEXT, PRIMARY KEY (chunk_id, term_id) );
 
 CREATE VIRTUAL TABLE ar_ling_gram_chunks_fts USING fts5(
   id UNINDEXED, discipline UNINDEXED, source_slug UNINDEXED,
   heading_norm, text_ar, footnotes_ar,
   tokenize='unicode61 remove_diacritics 2');
+
+CREATE TABLE ar_ling_gram_external_toc ( source_slug TEXT NOT NULL, section TEXT NOT NULL, entry_no INTEGER NOT NULL, title_ar TEXT NOT NULL, url TEXT GENERATED ALWAYS AS ('https://jamharah.net/archive/index.php/t-'||entry_no||'.html') VIRTUAL, id TEXT GENERATED ALWAYS AS ('adima:'||section||':'||entry_no) VIRTUAL, bab_ref     TEXT REFERENCES ar_ling_gram_bab(id), chunk_ref   TEXT REFERENCES ar_ling_gram_chunk(id), match_kind  TEXT, match_score REAL, PRIMARY KEY (source_slug, section, entry_no) );
+
+CREATE TABLE ar_ling_gram_source_toc_rank ( source_slug TEXT PRIMARY KEY, source_rank INTEGER NOT NULL, tier TEXT NOT NULL, note TEXT );
 
 CREATE TABLE "ar_ling_gram_term" (
   id             TEXT PRIMARY KEY,
@@ -287,7 +295,7 @@ CREATE TABLE "ar_ling_gram_term" (
   badge_color TEXT, icon TEXT,
   version     INTEGER NOT NULL DEFAULT 1,
   superseded_by TEXT,
-  status      TEXT NOT NULL DEFAULT 'live', discipline TEXT, is_default_when_absent INTEGER NOT NULL DEFAULT 0, uid TEXT,
+  status      TEXT NOT NULL DEFAULT 'live', discipline TEXT, is_default_when_absent INTEGER NOT NULL DEFAULT 0, uid TEXT, qac_scope TEXT, applies_when TEXT,
   UNIQUE (category_key, term_key),
   UNIQUE (category_key, qac_flag),
   FOREIGN KEY (category_key)   REFERENCES "ar_ling_gram_category"(category_key),
@@ -314,12 +322,27 @@ CREATE TABLE "ar_ling_gram_term_relation" (
   PRIMARY KEY (from_term_id, to_term_id, relation_kind)
 );
 
+CREATE TABLE ar_ling_gram_term_rule (
+  id TEXT PRIMARY KEY,
+  term_id TEXT NOT NULL,
+  statement_ar TEXT, statement_en TEXT, statement_ur TEXT,
+  caveat_ar TEXT, caveat_en TEXT, caveat_ur TEXT,
+  applies_when TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'live',
+  note_md TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (term_id) REFERENCES "ar_ling_gram_term"(id)
+);
+
 CREATE TABLE "ar_ling_gram_term_source" (
   term_id     TEXT NOT NULL,
   source_slug TEXT NOT NULL,
   page_ref    TEXT,
   PRIMARY KEY (term_id, source_slug)
 );
+
+CREATE TABLE ar_ling_gram_term_toc ( id TEXT PRIMARY KEY, term_id TEXT NOT NULL, category_key TEXT, source_slug TEXT NOT NULL, source_rank INTEGER NOT NULL, discipline TEXT, bab_id TEXT NOT NULL, bab_title_ar TEXT, page_start INTEGER, match_kind TEXT NOT NULL CHECK (match_kind IN ('exact','prefix','contains')), match_rank INTEGER NOT NULL, state TEXT NOT NULL DEFAULT 'auto' CHECK (state IN ('auto','confirmed','rejected')), note TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), external_url TEXT, UNIQUE (term_id, bab_id) );
 
 CREATE TABLE "ar_ling_learn_example" (
   id             TEXT PRIMARY KEY,
@@ -934,6 +957,22 @@ CREATE TABLE ar_ling_reg_conformance_check (
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE ar_ling_reg_decision (
+  decision_id TEXT PRIMARY KEY,
+  decided_on TEXT NOT NULL,
+  decided_by TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  title_ar TEXT, title_en TEXT, title_ur TEXT,
+  statement_ar TEXT, statement_en TEXT, statement_ur TEXT,
+  rationale_en TEXT,
+  supersedes TEXT,
+  data_state TEXT,
+  application_state TEXT,
+  enforced_by TEXT,
+  status TEXT NOT NULL DEFAULT 'live',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE ar_ling_reg_discipline (
   discipline_key  TEXT PRIMARY KEY,
   uid             TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(13)))),
@@ -1029,7 +1068,7 @@ CREATE TABLE ar_ling_reg_table_map (
   table_name  TEXT NOT NULL,
   cluster     TEXT NOT NULL,
   layer_code  TEXT,
-  role        TEXT, sub_code TEXT, role_code TEXT, code_full TEXT, discipline TEXT, provenance_role TEXT, sensor_class TEXT NOT NULL DEFAULT 'none', scope_types_json TEXT NOT NULL DEFAULT '[]', row_count_at_audit INTEGER, audited_at TEXT, root_bind TEXT NOT NULL DEFAULT 'unset', root_bind_col TEXT, root_bind_note TEXT,
+  role        TEXT, sub_code TEXT, role_code TEXT, code_full TEXT, discipline TEXT, provenance_role TEXT, sensor_class TEXT NOT NULL DEFAULT 'none', scope_types_json TEXT NOT NULL DEFAULT '[]', row_count_at_audit INTEGER, audited_at TEXT, root_bind TEXT NOT NULL DEFAULT 'unset', root_bind_col TEXT, root_bind_note TEXT, root_bind_via_json TEXT CHECK (root_bind_via_json IS NULL OR json_valid(root_bind_via_json)),
   PRIMARY KEY (db, table_name)
 );
 
@@ -1176,7 +1215,7 @@ CREATE TABLE "ar_ling_root_form_family" (
   source_ref      TEXT,
   status          TEXT NOT NULL DEFAULT 'live',
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-, example_gloss_ar TEXT, example_gloss_en TEXT, example_gloss_ur TEXT);
+, example_gloss_ar TEXT, example_gloss_en TEXT, example_gloss_ur TEXT, gram_term_ref TEXT REFERENCES ar_ling_gram_term(id));
 
 CREATE TABLE "ar_ling_root_form_masmu" (
   id                    TEXT PRIMARY KEY,
@@ -1257,7 +1296,7 @@ CREATE TABLE "ar_ling_root_lemma" (
   frequency_quran INTEGER NOT NULL DEFAULT 0,
   note_md         TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now')), root_status TEXT NOT NULL DEFAULT 'pending',
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now')), root_status TEXT NOT NULL DEFAULT 'pending', verb_form_ref TEXT REFERENCES ar_ling_gram_term(id), bab_ref TEXT REFERENCES ar_ling_gram_term(id), record_status TEXT NOT NULL DEFAULT 'live', merged_into TEXT REFERENCES ar_ling_root_lemma(id),
   FOREIGN KEY (root_id) REFERENCES "ar_ling_roots"(id)
 );
 
@@ -1351,7 +1390,25 @@ CREATE TABLE "ar_ling_root_lemma_ilal" (
   example_before  TEXT,
   example_after   TEXT,
   note_md         TEXT
-, bab_key     TEXT, source_slug TEXT, source_ref  TEXT, edition_id  TEXT REFERENCES "ar_ling_source_edition"(id), page_ref    TEXT, is_qiyasi   INTEGER NOT NULL DEFAULT 1, status      TEXT NOT NULL DEFAULT 'raw', layer_code  TEXT NOT NULL DEFAULT 'AL:150-FORM:SF:24-ILAL:P', name_ar TEXT, name_en TEXT, name_ur TEXT, rule_ar TEXT, rule_en TEXT, rule_ur TEXT);
+, bab_key     TEXT, source_slug TEXT, source_ref  TEXT, edition_id  TEXT REFERENCES "ar_ling_source_edition"(id), page_ref    TEXT, is_qiyasi   INTEGER NOT NULL DEFAULT 1, status      TEXT NOT NULL DEFAULT 'raw', layer_code  TEXT NOT NULL DEFAULT 'AL:150-FORM:SF:24-ILAL:P', name_ar TEXT, name_en TEXT, name_ur TEXT, rule_ar TEXT, rule_en TEXT, rule_ur TEXT, bind_weak TEXT, bind_verb_form TEXT, bind_pos TEXT, bind_state TEXT NOT NULL DEFAULT 'bindable', bind_note TEXT);
+
+CREATE TABLE ar_ling_root_lemma_ilal_apply (
+  id TEXT PRIMARY KEY,
+  root_norm TEXT NOT NULL,
+  lemma_id TEXT NOT NULL REFERENCES ar_ling_root_lemma(id),
+  rule_id TEXT NOT NULL REFERENCES ar_ling_root_lemma_ilal(id),
+  step_no INTEGER NOT NULL DEFAULT 1,
+  surface_before TEXT, surface_after TEXT,
+  note_ar TEXT, note_en TEXT, note_ur TEXT,
+  claim_basis TEXT NOT NULL DEFAULT 'derived' CHECK (claim_basis IN ('attested','derived')),
+  source_slug TEXT, source_ref TEXT,
+  confidence TEXT NOT NULL DEFAULT 'high',
+  generated_by TEXT,
+  status TEXT NOT NULL DEFAULT 'live',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (lemma_id, rule_id, step_no),
+  CHECK (claim_basis = 'derived' OR source_ref IS NOT NULL)
+);
 
 CREATE TABLE "ar_ling_root_lemma_link" (
   id              TEXT PRIMARY KEY,
@@ -1437,6 +1494,39 @@ CREATE TABLE "ar_ling_root_lemma_taswib" (
   created_at      TEXT NOT NULL DEFAULT (datetime('now')), rationale_ar TEXT, rationale_ur TEXT,
   UNIQUE (upstream_slug, scope, key_bw, field)
 );
+
+CREATE TABLE ar_ling_root_lemma_wazn (
+  id             TEXT PRIMARY KEY,
+  lemma_id       TEXT NOT NULL REFERENCES ar_ling_root_lemma(id),
+  wazn_id        TEXT NOT NULL REFERENCES ar_ling_sarf_wazn(id),
+  gram_term_ref  TEXT NOT NULL REFERENCES ar_ling_gram_term(id),
+  rule_id        TEXT REFERENCES ar_ling_sarf_wazn_rule(id),
+  base_verb      TEXT,
+  base_bab       TEXT,
+  transitivity   TEXT,
+  basis          TEXT NOT NULL DEFAULT 'derived',
+  confidence     TEXT NOT NULL DEFAULT 'medium',
+  is_disputed    INTEGER NOT NULL DEFAULT 0,
+  dispute_note   TEXT,
+  source_slug    TEXT,
+  source_ref     TEXT,
+  quote_ar       TEXT,
+  status         TEXT NOT NULL DEFAULT 'live',
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (lemma_id, gram_term_ref, rule_id)
+);
+
+CREATE TABLE ar_ling_root_lemma_wazn_detect (
+  lemma_id       TEXT PRIMARY KEY REFERENCES ar_ling_root_lemma(id),
+  wazn_id        TEXT NOT NULL REFERENCES ar_ling_sarf_wazn(id),
+  lemma_bare     TEXT NOT NULL,
+  root_text      TEXT NOT NULL,
+  method         TEXT NOT NULL DEFAULT 'skeleton_match_v1',
+  is_forked      INTEGER NOT NULL DEFAULT 0,
+  class_status   TEXT NOT NULL DEFAULT 'needs_source',
+  frequency_quran INTEGER NOT NULL DEFAULT 0,
+  detected_at    TEXT NOT NULL DEFAULT (datetime('now'))
+, root_verb_forms TEXT, route TEXT NOT NULL DEFAULT 'mushtaqq', root_verb_any INTEGER NOT NULL DEFAULT 0);
 
 CREATE TABLE "ar_ling_root_lemma_word_quran_link" (
   id              TEXT PRIMARY KEY,
@@ -1729,6 +1819,36 @@ CREATE VIRTUAL TABLE ar_ling_roots_fts USING fts5(
   tokenize = "unicode61 remove_diacritics 2"
 );
 
+CREATE TABLE ar_ling_sarf_wazn (
+  id            TEXT PRIMARY KEY,
+  wazn_key      TEXT NOT NULL UNIQUE,
+  wazn_ar       TEXT NOT NULL,
+  tier          TEXT NOT NULL DEFAULT 'thulathi_mujarrad',
+  applies_to    TEXT NOT NULL DEFAULT 'ism',
+  name_en       TEXT,
+  name_ur       TEXT,
+  wazn_order    INTEGER NOT NULL DEFAULT 0,
+  note_md       TEXT,
+  status        TEXT NOT NULL DEFAULT 'live',
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE ar_ling_sarf_wazn_rule (
+  id              TEXT PRIMARY KEY,
+  wazn_id         TEXT NOT NULL REFERENCES ar_ling_sarf_wazn(id),
+  gram_term_ref   TEXT NOT NULL REFERENCES ar_ling_gram_term(id),
+  condition_key   TEXT NOT NULL DEFAULT 'any',
+  strength        TEXT NOT NULL DEFAULT 'qiyasi',
+  source_slug     TEXT,
+  source_chunk_id TEXT REFERENCES ar_ling_gram_chunk(id),
+  quote_ar        TEXT,
+  confidence      TEXT NOT NULL DEFAULT 'high',
+  note_md         TEXT,
+  status          TEXT NOT NULL DEFAULT 'live',
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (wazn_id, gram_term_ref, condition_key, source_slug)
+);
+
 CREATE TABLE ar_ling_sense_arc (
   id            TEXT PRIMARY KEY,
   scope_level   TEXT NOT NULL CHECK (scope_level IN ('root','lemma')),
@@ -1901,7 +2021,15 @@ CREATE TABLE "ar_ling_term_dictionary" (
 CREATE TABLE tmp_qroot (root TEXT PRIMARY KEY);
 
 
--- ── Views (21) ───────────────────────────────────────────────────
+-- ── Views (23) ───────────────────────────────────────────────────
+
+CREATE VIEW ar_ling_gram_term_signature AS
+ SELECT COUNT(*) AS term_count,
+        COUNT(DISTINCT category_key) AS category_count,
+        SUM(version) AS version_sum,
+        SUM(CASE WHEN status='live' THEN 1 ELSE 0 END) AS live_count,
+        COUNT(*)||'.'||COUNT(DISTINCT category_key)||'.'||SUM(version)||'.'||SUM(length(id)+length(name_ar)+length(name_en)+length(COALESCE(name_ur,''))) AS signature
+ FROM ar_ling_gram_term;
 
 CREATE VIEW ar_ling_reg_band_carrier AS
 SELECT
@@ -1989,6 +2117,8 @@ SELECT m.table_name, m.sub_code, m.root_bind, m.root_bind_col
                     WHERE s.sub_code = m.sub_code
                       AND s.tables_json LIKE '%"' || m.table_name || '"%');
 
+CREATE VIEW v_ar_ling_quran_lemma AS SELECT * FROM ar_ling_root_lemma WHERE is_quran_word=1 AND record_status='live';
+
 CREATE VIEW v_balagha_bab AS SELECT * FROM ar_ling_gram_bab   WHERE discipline='BL';
 
 CREATE VIEW v_balagha_pages AS SELECT * FROM "ar_ling_gram_chunk" WHERE discipline='BL';
@@ -2075,7 +2205,7 @@ UNION ALL SELECT 'ar_ling_form_paradigms', id, paradigm_name FROM "ar_ling_root_
 UNION ALL SELECT 'ar_ling_conjugation_templates', id, template_form FROM "ar_ling_root_form_template" WHERE source_slug IS NULL;
 
 
--- ── Indexes (200) ────────────────────────────────────────────────
+-- ── Indexes (213) ────────────────────────────────────────────────
 
 CREATE INDEX idx_albk_book_page
   ON "ar_ling_lexicon_block"(book_page_id);
@@ -2300,9 +2430,13 @@ CREATE INDEX idx_arl_exp_type  ON "ar_ling_root_lemma_tabir"(expression_type_id)
 
 CREATE INDEX idx_arl_fp_type ON "ar_ling_root_form_paradigm"(paradigm_type);
 
+CREATE INDEX idx_arl_lem_bare ON "ar_ling_root_lemma"(lemma_text_bare);
+
 CREATE INDEX idx_arl_lem_pos  ON "ar_ling_root_lemma"(part_of_speech);
 
 CREATE INDEX idx_arl_lem_qrn  ON "ar_ling_root_lemma"(is_quran_word);
+
+CREATE INDEX idx_arl_lem_qrn_live ON "ar_ling_root_lemma"(record_status, is_quran_word);
 
 CREATE INDEX idx_arl_lem_root ON "ar_ling_root_lemma"(root_id);
 
@@ -2394,6 +2528,8 @@ CREATE INDEX idx_arl_src_type ON "ar_ling_source"(source_type);
 
 CREATE INDEX idx_arl_toc_source ON ar_ling_source_toc(source_id);
 
+CREATE INDEX idx_ext_toc_title ON ar_ling_gram_external_toc (source_slug, title_ar);
+
 CREATE INDEX idx_gbab_book ON ar_ling_gram_bab(book_id, matn_order);
 
 CREATE INDEX idx_gbab_disc ON ar_ling_gram_bab(discipline, source_slug, matn_order);
@@ -2405,6 +2541,14 @@ CREATE INDEX idx_gpg_bab ON "ar_ling_gram_chunk"(bab_id);
 CREATE INDEX idx_gpg_book ON "ar_ling_gram_chunk"(book_id, seq);
 
 CREATE INDEX idx_gpg_disc ON "ar_ling_gram_chunk"(discipline, source_slug, seq);
+
+CREATE INDEX idx_gram_chunk_term_term ON ar_ling_gram_chunk_term (term_id, state);
+
+CREATE INDEX idx_gram_cite_ayah ON ar_ling_gram_chunk_citation (surah, ayah) WHERE state='resolved';
+
+CREATE INDEX idx_gram_cite_chunk ON ar_ling_gram_chunk_citation (chunk_id, seq);
+
+CREATE INDEX idx_gram_cite_source ON ar_ling_gram_chunk_citation (source_slug, state);
 
 CREATE INDEX idx_ilal_bab ON "ar_ling_root_lemma_ilal"(bab_key);
 
@@ -2458,6 +2602,12 @@ CREATE INDEX idx_synbl_root ON "ar_ling_root_backlink"(root_norm, display_code);
 
 CREATE INDEX idx_synbl_to   ON "ar_ling_root_backlink"(to_kind, to_row_id);
 
+CREATE INDEX idx_term_toc_best ON ar_ling_gram_term_toc (term_id, match_rank, source_rank);
+
+CREATE INDEX idx_term_toc_disc ON ar_ling_gram_term_toc (discipline, term_id, match_rank);
+
+CREATE INDEX idx_term_toc_source ON ar_ling_gram_term_toc (source_slug, term_id);
+
 CREATE INDEX idx_ws_lemma ON "ar_ling_root_lemma_word_silsila"(lemma_ref);
 
 CREATE INDEX idx_ws_root ON "ar_ling_root_lemma_word_silsila"(root_norm, bab_key);
@@ -2497,6 +2647,12 @@ CREATE INDEX ix_cxl_from ON ar_ling_concept_external_link(from_uid, to_db, to_ki
 CREATE INDEX ix_cxl_ref  ON ar_ling_concept_external_link(from_ref);
 
 CREATE INDEX ix_cxl_to   ON ar_ling_concept_external_link(to_uid);
+
+CREATE INDEX ix_ilal_apply_lemma ON ar_ling_root_lemma_ilal_apply(lemma_id);
+
+CREATE INDEX ix_ilal_apply_root ON ar_ling_root_lemma_ilal_apply(root_norm);
+
+CREATE INDEX ix_ilal_apply_rule ON ar_ling_root_lemma_ilal_apply(rule_id);
 
 CREATE INDEX ix_lexicon_display_profile_order
   ON ar_ling_lexicon_display_profile (display_order);
