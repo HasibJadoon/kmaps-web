@@ -12,7 +12,8 @@
 //   JSON hydration + ordering.
 
 import { query, queryOne } from '../../../shared/src/db';
-import { buildFeats, rangeOf, waznOf } from '../lib/morph-card';
+import { buildFeats, registryFeats, rangeOf, waznOf } from '../lib/morph-card';
+import type { RegistryFeat } from '../lib/morph-card';
 import type { AlClient, ResolvedLemma } from '../clients/al.client';
 
 function hydrate(v: unknown): unknown {
@@ -80,6 +81,32 @@ interface SourceRow {
   author_name_ar: string | null; author_name_en: string | null; author_name_ur: string | null;
   death_year_hijri: number | null; register: string | null; badge_color: string | null;
   badge_glyph: string | null; display_order: number;
+}
+
+/**
+ * The bāb / form-family chip — نَصَرَ for a Form I verb, إِفْعَال for a derived
+ * one. It is the one chip `features_json` cannot produce: the family is a
+ * property of the *lemma* (qr_morph_form_family, or AL's form block), not of a
+ * QAC stem flag, and no `json_each` over `$.stem.flags` can reach it. Building
+ * it here keeps that correlated lookup out of the view.
+ *
+ * `ref` stays null until the form families are registered as GT terms; the
+ * chip renders, and the missing id is visible as work to do rather than hidden
+ * behind an invented one.
+ */
+function familyChip(
+  al: ResolvedLemma | undefined,
+  w: { f_name_ar: string | null; f_roman: string | null },
+): RegistryFeat[] {
+  const ar = al?.form?.name_ar ?? w.f_name_ar;
+  if (!ar) return [];
+  return [{
+    cat: 'form_family',
+    ar,
+    en: al?.form?.roman ?? w.f_roman ?? null,
+    ur: null,
+    ref: null,
+  }];
 }
 
 export class MorphDisplayRepo {
@@ -243,7 +270,12 @@ export class MorphDisplayRepo {
    *  wins over the display-table columns. Those columns are the transitional
    *  fallback and go away with the tables; AL is the source. If the AL call
    *  fails the card degrades to what km_quran holds rather than going blank. */
-  async grid(surah: number, from?: number, to?: number): Promise<unknown[]> {
+  async grid(
+    surah: number,
+    from?: number,
+    to?: number,
+    opts: { includeLemma?: boolean } = {},
+  ): Promise<unknown[]> {
     type GridRow = WordRow & LemmaTierRow & {
       sense_arc_en: string | null;
       sense_range_en: string | null;
@@ -262,9 +294,24 @@ export class MorphDisplayRepo {
     // id and resolves to nothing on the AL side. `qr_lemma.lx_lemma_ref` is the
     // registered global id ('AL:{26-hex}'), populated on all 4,817 rows, and it
     // is the only thing that crosses the database boundary.
+    // Name the columns instead of `d.*`. `qr_morph_display_word` is a view over
+    // a view (003_morph_view_swap) and every column is a computed expression —
+    // ten json_each/json_extract passes per row. Selecting the twenty-six the
+    // card actually reads lets SQLite skip the rest instead of materialising
+    // them for a mapper that throws them away.
     const rows = await query<GridRow>(
       this.db,
-      `SELECT d.*, o.morphology_tag_json AS morphology_tag_json,
+      `SELECT d.id, d.surah_no, d.ayah_no, d.word_index,
+              d.surface_ar, d.lemma_ar, d.lemma_ref,
+              d.root_ar, d.root_display, d.word_group,
+              d.pos_ar, d.pos_en,
+              d.gloss_ar, d.gloss_en, d.gloss_ur,
+              d.derived_type_ar, d.derived_type_en,
+              d.wazn_ar, d.form_roman, d.form_ar, d.features_json,
+              d.badge_color, d.is_anchor, d.frequency_quran,
+              d.root_meaning_ar, d.root_meaning_en, d.quran_meanings_json,
+              d.sense_arc_en, d.sense_range_en, d.verb_form_ar,
+              o.morphology_tag_json AS morphology_tag_json,
               q.lx_lemma_ref AS lemma_uid,${LEMMA_TIER_SELECT}
          FROM qr_morph_display_word d
          LEFT JOIN qr_word_occurrence o
@@ -328,15 +375,22 @@ export class MorphDisplayRepo {
         quran_meanings: meanings,
         badge_color: w.badge_color, is_anchor: !!w.is_anchor,
         frequency_quran: al?.frequency_quran ?? w.frequency_quran,
-        feats: buildFeats(bucket, w.morphology_tag_json, derivedAr, derivedEn,
+        // Chips come from the grammar registry, not from strings written here.
+        // `features_json` is built in the view by joining qr_morph_flag_decomp
+        // to qr_gram_term_ref, so every chip arrives with its category, its
+        // Urdu, and its `GT:` id — the id a chip taps through to. buildFeats is
+        // the fallback for rows the registry cannot yet decompose, and it emits
+        // no ref: an unref'd chip is a term to author, not a term to invent.
+        feats: registryFeats(w.features_json, familyChip(al, w))
+            ?? buildFeats(bucket, w.morphology_tag_json, derivedAr, derivedEn,
                           al?.form?.example_ar ?? w.f_model_ar ?? w.l_verb_form_ar ?? w.verb_form_ar ?? null,
                           al?.form?.name_ar ?? w.f_name_ar, al?.form?.roman ?? w.f_roman),
         sense_arc_en: primaryArc?.arc_en ?? w.sense_arc_en ?? null,
         sense_range_en: rangeOf(w.sense_range_en, meanings),
-        // The rest of the lemma tier, untouched: governance, furūq, expressions
-        // and every sense/arc with its status. The card decides what it renders;
-        // nothing here is stored on the Qurʾān side.
-        lemma: al ?? null,
+        // The lemma tier — governance, furūq, expressions, every sense and arc.
+        // Opt-in (`?include=lemma`): it was 62% of this response and no client
+        // decoded it. Everything the card shows is already folded in above.
+        ...(opts.includeLemma ? { lemma: al ?? null } : {}),
       };
     });
   }

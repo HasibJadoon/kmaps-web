@@ -34,16 +34,28 @@ function parseSurahPassage(
   return { s, p };
 }
 
+/**
+ * Study content is authored, not live: a passage's reading, morphology, iʿrāb
+ * and balāgha change when someone builds them and not otherwise. Four hours in
+ * the browser, a day at the edge — and the ETag in `cached()` makes the
+ * revalidation after that free.
+ */
+const CORPUS_TTL = { browser: 14400, edge: 86400 };
+
 export function studyRoutes(router: Router<QuranEnv>) {
 
   // ── Study grid — passage list enriched with task-type flags and vocab counts ─
 
-  router.get('/qr/study/surahs/:surahId', async (_req, env, { surahId }) => {
-    const s = parseIntParam(surahId);
-    if (!s) return badRequest('Invalid surahId');
-    const data = await new StudyRepo(env.DB_QR).grid(s);
-    return data ? ok(data) : notFound(`study grid for surah ${s}`);
-  });
+  // Corpus content: it changes on an authoring run, not per request. Edge-cached
+  // like the morph grid, with `?refresh=1` as the bypass.
+  router.get('/qr/study/surahs/:surahId', (req, env, { surahId }) =>
+    cached(req, async () => {
+      const s = parseIntParam(surahId);
+      if (!s) return badRequest('Invalid surahId');
+      const data = await new StudyRepo(env.DB_QR).grid(s);
+      return data ? ok(data) : notFound(`study grid for surah ${s}`);
+    }, CORPUS_TTL),
+  );
 
   // ── Passage list ─────────────────────────────────────────────────────────────
 
@@ -147,9 +159,16 @@ export function studyRoutes(router: Router<QuranEnv>) {
       const url = new URL(req.url);
       const from = parseIntParam(url.searchParams.get('from') ?? '');
       const to = parseIntParam(url.searchParams.get('to') ?? '');
+      // The full resolved lemma tier — senses, arcs, governance, furūq, taʿbīr —
+      // was 62% of this response's bytes and no client decoded it: a passage of
+      // 106 words shipped 104 copies of 70 distinct lemmas. It is opt-in now.
+      // The tier is still *resolved* either way; gloss, wazn, form and
+      // root_meaning are all derived from it. Only the echo is gone.
+      const includeLemma = (url.searchParams.get('include') ?? '')
+        .split(',').map((s) => s.trim()).includes('lemma');
       const repo = new MorphDisplayRepo(env.DB_QR, createAlClient(env));
-      return ok(await repo.grid(s, from ?? undefined, to ?? undefined));
-    }),
+      return ok(await repo.grid(s, from ?? undefined, to ?? undefined, { includeLemma }));
+    }, CORPUS_TTL),
   );
 
   router.get(
@@ -226,18 +245,19 @@ export function studyRoutes(router: Router<QuranEnv>) {
 
   router.get(
     '/qr/study/surahs/:surahId/passages/:passageNo/steps/:stepType',
-    async (_req, env, { surahId, passageNo, stepType }) => {
-      const sp = parseSurahPassage(surahId, passageNo);
-      if (!sp) return badRequest('Invalid surahId or passageNo');
-      if (!stepType) return badRequest('stepType is required');
+    (req, env, { surahId, passageNo, stepType }) =>
+      cached(req, async () => {
+        const sp = parseSurahPassage(surahId, passageNo);
+        if (!sp) return badRequest('Invalid surahId or passageNo');
+        if (!stepType) return badRequest('stepType is required');
 
-      const result = await new StudyRepo(env.DB_QR).stepData(
-        sp.s, sp.p, stepType, createAlClient(env),
-      );
-      if (result === null)      return notFound(`passage ${sp.s}:${sp.p}`);
-      if (result === undefined) return notFound(`step '${stepType}' in passage ${sp.s}:${sp.p}`);
-      return ok(result);
-    },
+        const result = await new StudyRepo(env.DB_QR).stepData(
+          sp.s, sp.p, stepType, createAlClient(env),
+        );
+        if (result === null)      return notFound(`passage ${sp.s}:${sp.p}`);
+        if (result === undefined) return notFound(`step '${stepType}' in passage ${sp.s}:${sp.p}`);
+        return ok(result);
+      }, CORPUS_TTL),
   );
 
   // ── Tasks by step type ────────────────────────────────────────────────────────

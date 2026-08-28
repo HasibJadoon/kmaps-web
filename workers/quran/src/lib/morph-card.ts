@@ -11,6 +11,54 @@ import { parseQacMorphology } from './qac-morph';
 export type FeatCat = 'status' | 'state' | 'number' | 'gender' | 'type' | 'tense' | 'voice' | 'form';
 export interface MorphFeat { cat: FeatCat; ar: string; en: string | null }
 
+/**
+ * A chip as the grammar registry serves it: the category is a registry
+ * `category_key` (`case`, `definiteness`, `derivation_type`, `form_family` …),
+ * not one of the eight names invented below, and it carries the Urdu and the
+ * `GT:` id. Every term in the system is addressed this way; a chip with no
+ * `ref` is a term nobody has authored yet.
+ */
+export interface RegistryFeat {
+  cat: string;
+  ar: string;
+  en: string | null;
+  ur: string | null;
+  ref: string | null;
+}
+
+/** Rows from the view's `features_json`, which may be a string or pre-parsed. */
+export function registryFeats(
+  featuresJson: unknown,
+  extra: RegistryFeat[] = [],
+): RegistryFeat[] | null {
+  const raw = typeof featuresJson === 'string'
+    ? (() => { try { return JSON.parse(featuresJson); } catch { return null; } })()
+    : featuresJson;
+  if (!Array.isArray(raw)) return null;
+
+  const feats: RegistryFeat[] = [];
+  const seen = new Set<string>();
+  for (const r of [...raw, ...extra]) {
+    if (!r || typeof r !== 'object') continue;
+    const f = r as Record<string, unknown>;
+    const ar = typeof f.ar === 'string' ? f.ar : '';
+    if (!ar) continue;
+    // The registry keys a term once per category; a word carrying the same
+    // term twice (via two flags that decompose to it) shows one chip.
+    const key = typeof f.ref === 'string' && f.ref ? f.ref : `${String(f.cat)}:${ar}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    feats.push({
+      cat: typeof f.cat === 'string' ? f.cat : 'unknown',
+      ar,
+      en: typeof f.en === 'string' ? f.en : null,
+      ur: typeof f.ur === 'string' ? f.ur : null,
+      ref: typeof f.ref === 'string' ? f.ref : null,
+    });
+  }
+  return feats.length ? feats : null;
+}
+
 type Bucket = 'noun' | 'verb';
 
 /** Augmented verb forms (II–X) → model verb. Form I is authored per word (its

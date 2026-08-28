@@ -268,14 +268,18 @@ export class StudyRepo {
     const passages = await this._passages(surahId);
     if (!passages.length) return null;
 
-    const [typeFlags, wordCounts] = await Promise.all([
+    const [typeFlags, wordCounts, dataFlags] = await Promise.all([
       this._taskTypeFlags(surahId),
       this._wordCounts(surahId, passages),
+      this._dataFlags(surahId, passages),
     ]);
 
     const units = passages.map(p => {
       const flags = typeFlags.get(p.id) ?? new Set<string>();
+      const data  = dataFlags.get(p.id) ?? new Set<string>();
       const wc    = wordCounts.get(p.id) ?? { total: 0, nouns: 0, verbs: 0 };
+      const has   = (...steps: string[]) =>
+        steps.some(s => flags.has(s) || data.has(s)) ? 1 : 0;
       return {
         passage_id:  p.id,
         passage_no:  p.passage_no,
@@ -290,20 +294,23 @@ export class StudyRepo {
         // passages were invisible in the grid — not because the app dropped them
         // but because the server never sent them. A legacy task_type counts
         // towards the step that now owns it.
-        reading:             { has: flags.has('reading') ? 1 : 0 },
+        //
+        // `has` used to mean "somebody authored a task row", which is a
+        // different question from the one the pill is asked: is there anything
+        // to open? Surah 40 has iʿrāb for two passages and content words for all
+        // twenty, and reported 0 for every step of every one. It is now task OR
+        // data — the tab opens if either says there is something there.
+        reading:             { has: has('reading') },
         vocabulary:          {
           nouns: wc.nouns, verbs: wc.verbs, total: wc.total,
-          has: (flags.has('vocabulary') || flags.has('morphology')
-                || flags.has('expressions')) ? 1 : 0,
+          // The count sitting next to it already proves the case.
+          has: (wc.total > 0 || has('vocabulary', 'morphology', 'expressions') === 1) ? 1 : 0,
         },
-        sentence_structure:  { has: flags.has('sentence_structure') ? 1 : 0 },
-        passage_structure:   { has: flags.has('passage_structure')  ? 1 : 0 },
-        tafsir:              {
-          has: (flags.has('tafsir') || flags.has('comprehension')
-                || flags.has('scholarship')) ? 1 : 0,
-        },
-        worldview:           { has: flags.has('worldview') ? 1 : 0 },
-        surah_structure:     { has: flags.has('surah_structure') ? 1 : 0 },
+        sentence_structure:  { has: has('sentence_structure') },
+        passage_structure:   { has: has('passage_structure') },
+        tafsir:              { has: has('tafsir', 'comprehension', 'scholarship') },
+        worldview:           { has: has('worldview') },
+        surah_structure:     { has: has('surah_structure') },
       };
     });
 
@@ -708,6 +715,26 @@ export class StudyRepo {
     if (!passage) return null;
     const { surah_id: surah, ayah_from: from, ayah_to: to } = passage;
 
+    // Probe for sentences first. Everything below is keyed to them, so with
+    // none there is nothing any of the other ten queries could return — and
+    // most passages are in that state while the corpus is still being built
+    // (surah 40 has iʿrāb for two of its twenty). Answering "not built yet"
+    // used to cost eleven unlimited queries including two full scans of
+    // qr_irab_book_entry; it now costs this one indexed lookup.
+    const sentProbe = await query<{ id: string }>(
+      this.db,
+      `SELECT id FROM qr_ss_occ_sentence
+        WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ? LIMIT 1`,
+      [surah, from, to],
+    ).catch(() => []);
+    if (!sentProbe.length) {
+      return {
+        step: 'sentence_structure', surah, passage: passageNo,
+        ayahFrom: from, ayahTo: to,
+        termColors: {}, terms: [], sentences: [],
+      };
+    }
+
     const [sentRows, clauseRows, wordRows, irabRows, balaghaRows, ellipsisRows, tafsirRows, treeRows, nodeRows, termRows, irabAyahRows] =
       await Promise.all([
         query<{ id: string; ayah_from: number; ayah_to: number; word_start_index: number | null;
@@ -762,8 +789,16 @@ export class StudyRepo {
           `SELECT scope_type, scope_id, lx_balagha_ref AS ref,
                   balagha_category AS category, rhetorical_effect AS effect, note_md AS note
            FROM qr_ss_scope_balagha_link
-           WHERE scope_id IN (SELECT id FROM qr_ss_occ_clause   WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?)
-              OR scope_id IN (SELECT id FROM qr_ss_occ_sentence WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?)`,
+           WHERE scope_id IN (SELECT id FROM qr_ss_occ_clause WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?)
+           UNION ALL
+           SELECT scope_type, scope_id, lx_balagha_ref AS ref,
+                  balagha_category AS category, rhetorical_effect AS effect, note_md AS note
+           FROM qr_ss_scope_balagha_link
+           WHERE scope_id IN (SELECT id FROM qr_ss_occ_sentence WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?)`,
+          // Two indexed arms, not one OR. SQLite will not use idx_qrsbl_scope
+          // for an OR across two IN-subqueries and scans the whole link table;
+          // as a UNION ALL each branch takes the index. The arms are disjoint —
+          // a scope_id is a clause id or a sentence id, never both.
           [surah, from, to, surah, from, to],
         ).catch(() => []),
         query<{ sentence_id: string; scope_type: string | null; scope_id: string | null;
@@ -1445,6 +1480,57 @@ export class StudyRepo {
    * Word counts per passage — vocabulary stats for the grid. Aggregated by ayah
    * in SQL (one row per ayah, not per word), then bucketed into passage ranges.
    */
+  /**
+   * Step availability derived from the *content*, not from the task tree —
+   * the other half of `has`. One āyah-range query per content-bearing step,
+   * folded onto the passage ranges in memory the way `_wordCounts` does, so
+   * this costs three indexed scans and no per-passage round trip.
+   *
+   * A step missing from this map simply has no content table to ask (the task
+   * tree is still authoritative for those); a step present here is one the
+   * reader can open regardless of whether anyone wrote a task for it.
+   */
+  private async _dataFlags(
+    surahId: number,
+    passages: PassageRow[],
+  ): Promise<Map<string, Set<string>>> {
+    const out = new Map<string, Set<string>>();
+    if (!passages.length) return out;
+
+    const spans = await Promise.all([
+      query<{ ayah_from: number; ayah_to: number }>(
+        this.db,
+        `SELECT DISTINCT ayah_from, ayah_to FROM qr_ss_occ_sentence WHERE surah = ?`,
+        [surahId],
+      ).catch(() => []).then(rows => ['sentence_structure', rows] as const),
+      query<{ ayah_from: number; ayah_to: number }>(
+        this.db,
+        `SELECT DISTINCT ayah_from, ayah_to FROM qr_tafsir_entry WHERE surah = ?`,
+        [surahId],
+      ).catch(() => []).then(rows => ['tafsir', rows] as const),
+      // Every passage has āyāt, so reading is available wherever the surah has
+      // word rows at all — one query answers it for the whole surah.
+      query<{ ayah_from: number; ayah_to: number }>(
+        this.db,
+        `SELECT DISTINCT ayah AS ayah_from, ayah AS ayah_to
+           FROM qr_word_occurrence WHERE surah = ?`,
+        [surahId],
+      ).catch(() => []).then(rows => ['reading', rows] as const),
+    ]);
+
+    for (const p of passages) {
+      const steps = new Set<string>();
+      for (const [step, rows] of spans) {
+        // Any overlap between the content's range and the passage's counts.
+        if (rows.some(r => r.ayah_from <= p.ayah_to && r.ayah_to >= p.ayah_from)) {
+          steps.add(step);
+        }
+      }
+      out.set(p.id, steps);
+    }
+    return out;
+  }
+
   private async _wordCounts(
     surahId: number,
     passages: PassageRow[],
