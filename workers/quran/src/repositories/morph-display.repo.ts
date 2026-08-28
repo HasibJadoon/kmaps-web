@@ -13,7 +13,6 @@
 
 import { query, queryOne } from '../../../shared/src/db';
 import { buildFeats, registryFeats, rangeOf, waznOf } from '../lib/morph-card';
-import type { RegistryFeat } from '../lib/morph-card';
 import type { AlClient, ResolvedLemma } from '../clients/al.client';
 
 function hydrate(v: unknown): unknown {
@@ -81,32 +80,6 @@ interface SourceRow {
   author_name_ar: string | null; author_name_en: string | null; author_name_ur: string | null;
   death_year_hijri: number | null; register: string | null; badge_color: string | null;
   badge_glyph: string | null; display_order: number;
-}
-
-/**
- * The bāb / form-family chip — نَصَرَ for a Form I verb, إِفْعَال for a derived
- * one. It is the one chip `features_json` cannot produce: the family is a
- * property of the *lemma* (qr_morph_form_family, or AL's form block), not of a
- * QAC stem flag, and no `json_each` over `$.stem.flags` can reach it. Building
- * it here keeps that correlated lookup out of the view.
- *
- * `ref` stays null until the form families are registered as GT terms; the
- * chip renders, and the missing id is visible as work to do rather than hidden
- * behind an invented one.
- */
-function familyChip(
-  al: ResolvedLemma | undefined,
-  w: { f_name_ar: string | null; f_roman: string | null },
-): RegistryFeat[] {
-  const ar = al?.form?.name_ar ?? w.f_name_ar;
-  if (!ar) return [];
-  return [{
-    cat: 'form_family',
-    ar,
-    en: al?.form?.roman ?? w.f_roman ?? null,
-    ur: null,
-    ref: null,
-  }];
 }
 
 export class MorphDisplayRepo {
@@ -381,7 +354,12 @@ export class MorphDisplayRepo {
         // Urdu, and its `GT:` id — the id a chip taps through to. buildFeats is
         // the fallback for rows the registry cannot yet decompose, and it emits
         // no ref: an unref'd chip is a term to author, not a term to invent.
-        feats: registryFeats(w.features_json, familyChip(al, w))
+        // The registry is the only source of a chip. familyChip used to bolt
+        // the bāb on here from the lemma row, with no id and no Urdu, because
+        // the family is not a QAC flag; 015 resolved the families to GT terms
+        // and put them on the word row, so the view names them like everything
+        // else and there is nothing left for the worker to invent.
+        feats: registryFeats(w.features_json)
             ?? buildFeats(bucket, w.morphology_tag_json, derivedAr, derivedEn,
                           al?.form?.example_ar ?? w.f_model_ar ?? w.l_verb_form_ar ?? w.verb_form_ar ?? null,
                           al?.form?.name_ar ?? w.f_name_ar, al?.form?.roman ?? w.f_roman),
