@@ -22,7 +22,15 @@ export interface LemmaInfo {
  *  filtering, and the caller decides what it will show.
  *
  *  This is the whole point of the tier: the sense of كتاب is one row in AL, and
- *  all 260 occurrences resolve to it. Nothing is copied into km_quran. */
+ *  all 260 occurrences resolve to it. No lemma content is copied into km_quran.
+ *
+ *  The one deliberate exception is the grammatical term registry, which km_quran
+ *  replicates wholesale as qr_gram_term. Lemma content is unbounded and read one
+ *  word at a time, so resolving it live is right. The registry is 435 fixed rows
+ *  read on EVERY word of every passage, and D1 cannot join across databases —
+ *  resolving it live would put a second round trip on the hot path. It is
+ *  generated, never authored, and refreshed by scripts/sync_gt_mirror.py; see
+ *  workers/quran/migrations/0010_gt_mirror.sql for the contract. */
 export interface ResolvedLemma {
   id: string;
   lemma_ar: string;
