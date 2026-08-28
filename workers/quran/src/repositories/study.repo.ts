@@ -735,7 +735,7 @@ export class StudyRepo {
       };
     }
 
-    const [sentRows, clauseRows, wordRows, irabRows, balaghaRows, ellipsisRows, tafsirRows, treeRows, nodeRows, termRows, irabAyahRows] =
+    const [sentRows, clauseRows, wordRows, irabRows, balaghaRows, ellipsisRows, tafsirRows, treeRows, nodeRows, termRows, irabAyahRows, grammarRows, sarfRows] =
       await Promise.all([
         query<{ id: string; ayah_from: number; ayah_to: number; word_start_index: number | null;
                 word_end_index: number | null; sentence_kind: string | null;
@@ -843,10 +843,20 @@ export class StudyRepo {
            ORDER BY n.depth, n.node_order`,
           [surah, from, to],
         ).catch(() => []),
-        query<{ term_key: string; label_ar: string | null; label_en: string | null;
-                color: string | null; category: string }>(
+        // The grammar registry, which is where every term in the system lives.
+        // This used to read qr_ss_term — a table that does not exist in the
+        // deployed database, so the query threw, the .catch() swallowed it, and
+        // the tab has been shipping `terms: []` and `termColors: {}` for its
+        // whole life. Nothing on the board could be named or coloured.
+        //
+        // Keyed by `id` (the GT: global id) as well as `term_key`, so a node
+        // referring to a term either way resolves.
+        query<{ id: string; term_key: string; category_key: string;
+                name_ar: string | null; name_en: string | null; name_ur: string | null;
+                badge_color: string | null }>(
           this.db,
-          `SELECT term_key, label_ar, label_en, color, category FROM qr_ss_term`,
+          `SELECT id, term_key, category_key, name_ar, name_en, name_ur, badge_color
+             FROM ar_ling_gram_term WHERE status = 'live'`,
           [],
         ).catch(() => []),
         // Ayah-level iʿrāb from EVERY classical book, even where the entries are
@@ -864,6 +874,50 @@ export class StudyRepo {
            WHERE surah = ? AND ayah_from BETWEEN ? AND ?
              AND irab_text_ar IS NOT NULL AND TRIM(irab_text_ar) <> ''
            ORDER BY ayah_from, source_slug, entry_order`,
+          [surah, from, to],
+        ).catch(() => []),
+        // ── the two layers that were never sent ──────────────────────────────
+        // Grammar (naḥw) and ṣarf, scope by scope. Balāgha was already read
+        // above but flattened onto the sentence; these three together are what
+        // the board hangs under each node.
+        //
+        // Both are keyed by scope_id, which is a sentence, clause, phrase or
+        // word id depending on what the claim is about — so a node can ask for
+        // its own and get exactly what was said about it, rather than about the
+        // sentence it happens to sit in.
+        query<{ scope_type: string; scope_id: string; ref: string;
+                note: string | null; gloss: string | null }>(
+          this.db,
+          `SELECT scope_type, scope_id, lx_grammar_ref AS ref,
+                  COALESCE(application_note, note_md) AS note, gloss_json AS gloss
+             FROM qr_ss_scope_grammar_link
+            WHERE scope_id IN (SELECT id FROM qr_ss_occ_sentence WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?)
+            UNION ALL
+           SELECT scope_type, scope_id, lx_grammar_ref AS ref,
+                  COALESCE(application_note, note_md) AS note, gloss_json AS gloss
+             FROM qr_ss_scope_grammar_link
+            WHERE scope_id IN (SELECT id FROM qr_ss_occ_clause WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?)
+            UNION ALL
+           SELECT scope_type, scope_id, lx_grammar_ref AS ref,
+                  COALESCE(application_note, note_md) AS note, gloss_json AS gloss
+             FROM qr_ss_scope_grammar_link
+            WHERE scope_id IN (SELECT id FROM qr_word_occurrence WHERE surah = ? AND ayah BETWEEN ? AND ?)`,
+          [surah, from, to, surah, from, to, surah, from, to],
+        ).catch(() => []),
+        // The word layer: 620 rows where the whole grammar layer is 115. This
+        // is the per-word iʿrāb the board puts under a leaf node — its
+        // syntactic function, where the case sits and what marks it, and
+        // whether the grammarians disagree about it at all.
+        query<{ scope_type: string; scope_id: string; ref: string;
+                fn: string | null; position: string | null; sign: string | null;
+                disputed: number; dispute: string | null; note: string | null }>(
+          this.db,
+          `SELECT m.scope_type, m.scope_id, m.lx_morph_ref AS ref,
+                  m.syntactic_function AS fn, m.irab_position AS position,
+                  m.irab_sign AS sign, m.is_disputed AS disputed,
+                  m.dispute_note AS dispute, m.note_md AS note
+             FROM qr_ss_scope_morph_link m
+            WHERE m.scope_id IN (SELECT id FROM qr_word_occurrence WHERE surah = ? AND ayah BETWEEN ? AND ?)`,
           [surah, from, to],
         ).catch(() => []),
       ]);
@@ -1051,10 +1105,60 @@ export class StudyRepo {
       }
     }
 
+    // ── the layers, keyed by what they are about ──────────────────────────────
+    //
+    // Until now these arrived flattened onto the sentence: every iʿrāb reading,
+    // every balāgha figure and every tafsīr note for the whole sentence in four
+    // long lists, which the reader then had to match back to words by eye. The
+    // claims were never sentence-wide — the tables have carried
+    // (scope_type, scope_id) all along, pointing at the sentence, the clause,
+    // the phrase or the single word each one is actually about.
+    //
+    // Sending them keyed by scope is what lets a tree node ask "what was said
+    // about *me*" and get an answer. The flat arrays stay on the sentence for
+    // the release that has not moved yet.
+    interface ScopeLayers {
+      nahw:    { ref: string; note: string | null; gloss: unknown }[];
+      balagha: { ref: string | null; category: string | null; effect: string | null; note: string | null }[];
+      irab:    { ref: string; fn: string | null; position: string | null; sign: string | null;
+                 disputed: boolean; dispute: string | null; note: string | null }[];
+    }
+    const layersByScope: Record<string, ScopeLayers> = {};
+    const layersFor = (scopeId: string): ScopeLayers =>
+      (layersByScope[scopeId] ??= { nahw: [], balagha: [], irab: [] });
+
+    for (const g of grammarRows) {
+      layersFor(g.scope_id).nahw.push({
+        ref: g.ref, note: g.note, gloss: parseJson(g.gloss),
+      });
+    }
+    for (const b of balaghaRows) {
+      layersFor(b.scope_id).balagha.push({
+        ref: b.ref, category: b.category, effect: b.effect, note: b.note,
+      });
+    }
+    for (const m of sarfRows) {
+      layersFor(m.scope_id).irab.push({
+        ref: m.ref, fn: m.fn, position: m.position, sign: m.sign,
+        disputed: !!m.disputed, dispute: m.dispute, note: m.note,
+      });
+    }
+
+    // A term is addressable by its global id and by its bare key, because the
+    // tree nodes still carry bare keys (`muqattaat`) while the scope links
+    // already carry global ones (`GT:irab_role:mubtada`). Both resolve to the
+    // same row until 013 finishes retiring the bare form.
     const termColors: Record<string, string> = {};
     const terms = termRows.map((t) => {
-      if (t.color) termColors[t.term_key] = t.color;
-      return { key: t.term_key, labelAr: t.label_ar, labelEn: t.label_en, color: t.color, category: t.category };
+      if (t.badge_color) {
+        termColors[t.id] = t.badge_color;
+        termColors[t.term_key] = t.badge_color;
+      }
+      return {
+        key: t.term_key, ref: t.id, category: t.category_key,
+        labelAr: t.name_ar, labelEn: t.name_en, labelUr: t.name_ur,
+        color: t.badge_color,
+      };
     });
 
     return {
@@ -1065,6 +1169,7 @@ export class StudyRepo {
       ayahTo:    to,
       termColors,
       terms,
+      layersByScope,
       sentences,
     };
   }

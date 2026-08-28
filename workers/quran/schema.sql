@@ -1,9 +1,63 @@
--- Schema for km_quran.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-24.
--- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
--- Regenerate with scripts/regen_schemas.py — do not hand-edit.
+-- km_quran · schema, dumped from the live D1 database.
+--
+-- This file had drifted far enough from production to be misleading rather
+-- than merely stale: it described qr_gram_term_ref and qr_ss_term, neither of
+-- which exists in the live database, and omitted ar_ling_gram_term, which the
+-- morphology view has been joining all along. Code was being read against a
+-- schema that was not the one running.
+--
+-- It is a DUMP. Do not hand-edit it — write a migration in
+-- kmaps-ios/tools/migrations and re-dump:
+--
+--   npx wrangler d1 execute km_quran --remote --json \
+--     --command "SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL"
+--
+-- 207 tables · 28 views · 176 indexes
 
--- ── Tables (151) ─────────────────────────────────────────────────
+-- ==========================================================================
+-- TABLES (207)
+-- ==========================================================================
+
+CREATE TABLE _cf_KV (
+        key TEXT PRIMARY KEY,
+        value BLOB
+      ) WITHOUT ROWID;
+
+CREATE TABLE "ar_ling_gram_category" (
+  category_key   TEXT PRIMARY KEY,
+  name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
+  discipline     TEXT NOT NULL,
+  applies_to     TEXT NOT NULL,
+  is_closed      INTEGER NOT NULL DEFAULT 1,
+  display_order  INTEGER NOT NULL DEFAULT 0,
+  icon           TEXT
+);
+
+CREATE TABLE "ar_ling_gram_term" (
+  id             TEXT PRIMARY KEY,
+  category_key   TEXT NOT NULL,
+  term_key       TEXT NOT NULL,
+  qac_flag       TEXT,
+  parent_term_id TEXT,
+  term_order     INTEGER NOT NULL DEFAULT 0,
+  name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
+  short_ar TEXT, short_en TEXT, short_ur TEXT,
+  definition_ar TEXT, definition_en TEXT, definition_ur TEXT,
+  badge_color TEXT, icon TEXT,
+  version     INTEGER NOT NULL DEFAULT 1,
+  superseded_by TEXT,
+  status      TEXT NOT NULL DEFAULT 'live', discipline TEXT, is_default_when_absent INTEGER NOT NULL DEFAULT 0, uid TEXT, qac_scope TEXT, applies_when TEXT,
+  UNIQUE (category_key, term_key),
+  UNIQUE (category_key, qac_flag),
+  FOREIGN KEY (category_key)   REFERENCES "ar_ling_gram_category"(category_key),
+  FOREIGN KEY (parent_term_id) REFERENCES "ar_ling_gram_term"(id)
+);
+
+CREATE TABLE d1_migrations(
+		id         INTEGER PRIMARY KEY AUTOINCREMENT,
+		name       TEXT UNIQUE,
+		applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
 
 CREATE TABLE "qr_analysis_claim" (
   id                   TEXT PRIMARY KEY,
@@ -19,6 +73,16 @@ CREATE TABLE "qr_analysis_claim" (
 );
 
 CREATE VIRTUAL TABLE qr_analysis_claims_fts USING fts5(scope_id UNINDEXED, claim_type, claim_text, claim_text_ar);
+
+CREATE TABLE 'qr_analysis_claims_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'qr_analysis_claims_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3);
+
+CREATE TABLE 'qr_analysis_claims_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'qr_analysis_claims_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'qr_analysis_claims_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 
 CREATE TABLE "qr_analysis_scope" (
   id                   TEXT PRIMARY KEY,
@@ -139,6 +203,16 @@ CREATE TABLE "qr_evidence" (
 
 CREATE VIRTUAL TABLE qr_evidence_items_fts USING fts5(evidence_type, provenance, content_text, content_text_ar);
 
+CREATE TABLE 'qr_evidence_items_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'qr_evidence_items_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3);
+
+CREATE TABLE 'qr_evidence_items_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'qr_evidence_items_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'qr_evidence_items_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+
 CREATE TABLE "qr_historical_context" (
   surah                INTEGER PRIMARY KEY,
   arabian_milieu       TEXT,
@@ -233,6 +307,16 @@ USING fts5 (
   raw_text,
   tokenize = "unicode61 remove_diacritics 2"
 );
+
+CREATE TABLE "qr_irab_book_display_block_fts_config"(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE "qr_irab_book_display_block_fts_content"(id INTEGER PRIMARY KEY, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11);
+
+CREATE TABLE "qr_irab_book_display_block_fts_data"(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE "qr_irab_book_display_block_fts_docsize"(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE "qr_irab_book_display_block_fts_idx"(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 
 CREATE TABLE "qr_irab_book_display_link" (
   id            TEXT PRIMARY KEY,
@@ -478,6 +562,16 @@ CREATE TABLE "qr_morph_display_block" (
       OR (is_synthesis = 0 AND source_slug NOT LIKE 'kmaps_%' AND source_ref IS NOT NULL))
 );
 
+CREATE TABLE qr_morph_display_build (
+  build_id TEXT PRIMARY KEY,
+  built_at TEXT NOT NULL DEFAULT (datetime('now')),
+  gt_signature TEXT NOT NULL,
+  gt_term_count INTEGER,
+  row_count INTEGER,
+  generator TEXT NOT NULL,
+  note_md TEXT
+);
+
 CREATE TABLE "qr_morph_display_lemma" (
   id            TEXT PRIMARY KEY,            -- 'MDL:{bare}#{qr_lemmas.id[:8]}'
   lemma_ref     TEXT NOT NULL UNIQUE,        -- qr_lemmas.id (the real key)
@@ -498,7 +592,7 @@ CREATE TABLE "qr_morph_display_lemma" (
   meta_json     JSON,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
-, form_roman TEXT, form_ar TEXT, verb_form_ar TEXT);
+, form_roman TEXT, form_ar TEXT, verb_form_ar TEXT, sense_arc_en TEXT, sense_range_en TEXT, quran_meanings_json JSON);
 
 CREATE TABLE qr_morph_display_media (
   id                 TEXT PRIMARY KEY,               -- 'MDM:بين:root_dna'
@@ -557,18 +651,28 @@ CREATE TABLE "qr_morph_display_source" (
   meta_json JSON, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 , title_ur TEXT, author_name_ur TEXT, icon TEXT);
 
-CREATE TABLE "qr_morph_display_word" (
-  id TEXT PRIMARY KEY, word_occ_ref TEXT, surah_no INTEGER NOT NULL, ayah_no INTEGER NOT NULL,
-  word_index INTEGER NOT NULL, ayah_key TEXT, surface_ar TEXT NOT NULL, surface_bare TEXT,
-  lemma_ar TEXT, root_ar TEXT, root_display TEXT, root_ref TEXT, word_group TEXT NOT NULL,
-  pos_ar TEXT, pos_en TEXT, gloss_ar TEXT, gloss_en TEXT, badge_color TEXT,
-  derived_type_ar TEXT, derived_type_en TEXT, wazn_ar TEXT, form_roman TEXT, features_json JSON,
-  is_promoted INTEGER NOT NULL DEFAULT 1, is_content_word INTEGER NOT NULL DEFAULT 1,
-  importance INTEGER NOT NULL DEFAULT 3, difficulty INTEGER, frequency_quran INTEGER,
-  status TEXT NOT NULL DEFAULT 'live', display_order INTEGER NOT NULL DEFAULT 0, meta_json JSON,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), gloss_ur TEXT, derived_type_ur TEXT, pos_ur TEXT, is_anchor INTEGER NOT NULL DEFAULT 0, quran_meanings_json JSON, root_meaning_ar TEXT, root_meaning_en TEXT, form_ar TEXT, sense_arc_en   TEXT, sense_range_en TEXT, verb_form_ar TEXT, lemma_ref TEXT,
-  UNIQUE(surah_no, ayah_no, word_index)
+CREATE TABLE qr_morph_editorial (
+  surah_no INTEGER NOT NULL,
+  ayah_no INTEGER NOT NULL,
+  word_index INTEGER NOT NULL,
+  is_anchor INTEGER,
+  importance INTEGER,
+  difficulty INTEGER,
+  promote INTEGER,
+  pos_ar_override TEXT,
+  derived_type_ar_override TEXT,
+  derived_type_en_override TEXT,
+  wazn_ar_override TEXT,
+  note_md TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (surah_no, ayah_no, word_index)
 );
+
+CREATE TABLE qr_morph_flag_decomp (
+  flag TEXT NOT NULL,
+  gram_term_ref TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 50, requires_flag TEXT, derived_from TEXT NOT NULL DEFAULT 'ar_ling_gram_term',
+  PRIMARY KEY (flag, gram_term_ref));
 
 CREATE TABLE "qr_morph_form_family" (
   id            TEXT PRIMARY KEY,          -- 'FORM:IV' · 'BAB:nasara'
@@ -593,6 +697,59 @@ CREATE TABLE "qr_morph_form_tier" (
   english_name TEXT,
   urdu_name    TEXT,
   icon         TEXT
+);
+
+CREATE TABLE qr_morph_pos_rule (
+  pos TEXT PRIMARY KEY, word_group TEXT NOT NULL, pos_ar TEXT NOT NULL, pos_en TEXT NOT NULL,
+  pos_ur TEXT, is_content_word INTEGER NOT NULL DEFAULT 0, badge_color TEXT,
+  status TEXT NOT NULL DEFAULT 'live', gram_term_ref TEXT, requires_root INTEGER NOT NULL DEFAULT 1);
+
+CREATE TABLE qr_morph_word_override(
+  id TEXT,
+  word_occ_ref TEXT,
+  surah_no INT,
+  ayah_no INT,
+  word_index INT,
+  ayah_key TEXT,
+  surface_ar TEXT,
+  surface_bare TEXT,
+  lemma_ar TEXT,
+  root_ar TEXT,
+  root_display TEXT,
+  root_ref TEXT,
+  word_group TEXT,
+  pos_ar TEXT,
+  pos_en TEXT,
+  gloss_ar TEXT,
+  gloss_en TEXT,
+  badge_color TEXT,
+  derived_type_ar TEXT,
+  derived_type_en TEXT,
+  wazn_ar TEXT,
+  form_roman TEXT,
+  features_json NUM,
+  is_promoted INT,
+  is_content_word INT,
+  importance INT,
+  difficulty INT,
+  frequency_quran INT,
+  status TEXT,
+  display_order INT,
+  meta_json NUM,
+  created_at TEXT,
+  updated_at TEXT,
+  gloss_ur TEXT,
+  derived_type_ur TEXT,
+  pos_ur TEXT,
+  is_anchor INT,
+  quran_meanings_json NUM,
+  root_meaning_ar TEXT,
+  root_meaning_en TEXT,
+  form_ar TEXT,
+  sense_arc_en TEXT,
+  sense_range_en TEXT,
+  verb_form_ar TEXT,
+  lemma_ref TEXT
 );
 
 CREATE TABLE "qr_mushaf_layout_line" (
@@ -779,6 +936,9 @@ CREATE TABLE "qr_quran_bil_quran_link" (
   FOREIGN KEY (to_surah)   REFERENCES "qr_surah"(id)
 );
 
+CREATE TABLE qr_root_freq (
+  root_ar TEXT PRIMARY KEY, n INTEGER NOT NULL, computed_at TEXT NOT NULL DEFAULT (datetime('now')));
+
 CREATE TABLE qr_root_raw (
   id TEXT PRIMARY KEY, root_uid TEXT NOT NULL, root_norm TEXT, source_code TEXT NOT NULL,
   discipline TEXT NOT NULL, fetch_strategy TEXT NOT NULL, origin_db TEXT NOT NULL DEFAULT 'km_quran',
@@ -916,6 +1076,16 @@ CREATE TABLE "qr_scholar_position" (
 
 CREATE VIRTUAL TABLE qr_scholar_positions_fts USING fts5(scholar_id UNINDEXED, surah UNINDEXED, position_type, position_text_ar, position_text_en, position_summary);
 
+CREATE TABLE 'qr_scholar_positions_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'qr_scholar_positions_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3, c4, c5);
+
+CREATE TABLE 'qr_scholar_positions_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'qr_scholar_positions_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'qr_scholar_positions_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+
 CREATE TABLE "qr_scholar_profile" (
   id                   TEXT PRIMARY KEY,
   name_ar              TEXT NOT NULL,
@@ -938,6 +1108,16 @@ CREATE TABLE "qr_scholar_profile" (
 );
 
 CREATE VIRTUAL TABLE qr_scholar_profiles_fts USING fts5(name_ar, name_en, laqab, nisba, biography_md);
+
+CREATE TABLE 'qr_scholar_profiles_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'qr_scholar_profiles_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3, c4);
+
+CREATE TABLE 'qr_scholar_profiles_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'qr_scholar_profiles_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'qr_scholar_profiles_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 
 CREATE TABLE "qr_scholar_work" (
   id                   TEXT PRIMARY KEY,
@@ -1219,6 +1399,16 @@ CREATE TABLE qr_ss_scope_nuance (
 
 CREATE VIRTUAL TABLE qr_ss_scope_nuance_fts USING fts5(scope_type UNINDEXED, scope_id UNINDEXED, nuance_type, nuance_text, nuance_text_ar);
 
+CREATE TABLE 'qr_ss_scope_nuance_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'qr_ss_scope_nuance_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3, c4);
+
+CREATE TABLE 'qr_ss_scope_nuance_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'qr_ss_scope_nuance_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'qr_ss_scope_nuance_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+
 CREATE TABLE qr_ss_scope_reading (
   id                   TEXT PRIMARY KEY,
   scope_type           TEXT NOT NULL,
@@ -1246,6 +1436,16 @@ CREATE TABLE qr_ss_scope_reading_evidence_link (
 );
 
 CREATE VIRTUAL TABLE qr_ss_scope_reading_fts USING fts5(scope_type UNINDEXED, scope_id UNINDEXED, reading_type, reading_text, reading_text_ar);
+
+CREATE TABLE 'qr_ss_scope_reading_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'qr_ss_scope_reading_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3, c4);
+
+CREATE TABLE 'qr_ss_scope_reading_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'qr_ss_scope_reading_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'qr_ss_scope_reading_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 
 CREATE TABLE qr_ss_source_register (
   band_code     TEXT NOT NULL,
@@ -1279,16 +1479,6 @@ CREATE TABLE "qr_ss_syntax_link" (
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (head_word_id) REFERENCES "qr_word_occurrence"(id),
   FOREIGN KEY (dep_word_id)  REFERENCES "qr_word_occurrence"(id)
-);
-
-CREATE TABLE qr_ss_term (
-  term_key    TEXT PRIMARY KEY,
-  label_ar    TEXT,
-  label_en    TEXT,
-  color       TEXT,
-  category    TEXT NOT NULL DEFAULT 'constituent',
-  sort_order  INTEGER NOT NULL DEFAULT 0,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE qr_ss_translation_buildup (
@@ -2019,6 +2209,21 @@ CREATE TABLE "qr_surah_worldview_profile" (
   FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
+CREATE VIRTUAL TABLE qr_tafsir_block_norm_fts USING fts5(
+  block_id UNINDEXED, source_slug UNINDEXED, surah_no UNINDEXED, ayah_no UNINDEXED,
+  ayah_key UNINDEXED, block_type UNINDEXED, text_norm,
+  tokenize = "unicode61 remove_diacritics 2");
+
+CREATE TABLE 'qr_tafsir_block_norm_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'qr_tafsir_block_norm_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3, c4, c5, c6);
+
+CREATE TABLE 'qr_tafsir_block_norm_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'qr_tafsir_block_norm_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'qr_tafsir_block_norm_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+
 CREATE TABLE "qr_tafsir_book_display_block" (
   id                       TEXT PRIMARY KEY,
   -- Provenance --------------------------------------------------------------
@@ -2081,7 +2286,7 @@ CREATE TABLE "qr_tafsir_book_display_block" (
   -- Audit -----------------------------------------------------------------
   created_at               TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at               TEXT NOT NULL DEFAULT (datetime('now'))
-);
+, text_norm TEXT);
 
 CREATE VIRTUAL TABLE qr_tafsir_book_display_blocks_fts
 USING fts5 (
@@ -2100,6 +2305,16 @@ USING fts5 (
   raw_text,
   tokenize = "unicode61 remove_diacritics 2"
 );
+
+CREATE TABLE 'qr_tafsir_book_display_blocks_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'qr_tafsir_book_display_blocks_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14);
+
+CREATE TABLE 'qr_tafsir_book_display_blocks_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'qr_tafsir_book_display_blocks_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'qr_tafsir_book_display_blocks_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 
 CREATE TABLE "qr_tafsir_book_display_link" (
   id              TEXT PRIMARY KEY,
@@ -2306,8 +2521,38 @@ CREATE TABLE qr_word_sense_link (
   UNIQUE (word_occ_id, al_sense_id)
 );
 
+CREATE TABLE qr_word_term (
+  id TEXT PRIMARY KEY,
+  word_ref TEXT NOT NULL REFERENCES "qr_word_occurrence"(id),
+  surah INTEGER NOT NULL, ayah INTEGER NOT NULL, word_index INTEGER NOT NULL,
+  gram_term_ref TEXT NOT NULL, category_key TEXT NOT NULL,
+  tier TEXT NOT NULL CHECK (tier IN ('qac','rule','sourced')),
+  basis TEXT NOT NULL DEFAULT 'derived' CHECK (basis IN ('attested','derived')),
+  rule_id TEXT, source_slug TEXT, source_ref TEXT,
+  confidence TEXT NOT NULL DEFAULT 'high',
+  note_ar TEXT, note_en TEXT, note_ur TEXT,
+  state TEXT NOT NULL DEFAULT 'live' CHECK (state IN ('live','draft','retired')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (word_ref, gram_term_ref),
+  CHECK (tier <> 'rule' OR rule_id IS NOT NULL),
+  CHECK (basis <> 'attested' OR source_ref IS NOT NULL)
+);
 
--- ── Views (22) ───────────────────────────────────────────────────
+CREATE TABLE sqlite_sequence(name,seq);
+
+-- ==========================================================================
+-- VIEWS (28)
+-- ==========================================================================
+
+CREATE VIEW ar_ling_gram_term_signature AS
+ SELECT COUNT(*) AS term_count,
+        COUNT(DISTINCT category_key) AS category_count,
+        SUM(version) AS version_sum,
+        SUM(CASE WHEN status='live' THEN 1 ELSE 0 END) AS live_count,
+        COUNT(*)||'.'||COUNT(DISTINCT category_key)||'.'||SUM(version)||'.'||SUM(length(id)+length(name_ar)+length(name_en)+length(COALESCE(name_ur,''))) AS signature
+ FROM ar_ling_gram_term;
+
+CREATE VIEW qr_morph_display_word AS SELECT * FROM v_morph_display_word;
 
 CREATE VIEW qr_nazm_group_openings AS
 SELECT g.slug, m.member_index, m.surah, s.name_ar AS surah_ar, s.name_transliteration AS surah_translit,
@@ -2408,6 +2653,31 @@ SELECT '310-75-RABT','gloss_missing','medium', NULL, NULL,'scope_link', id, rela
 UNION ALL
 SELECT '310-10-JUMLA','gloss_missing','medium', surah, ayah_from,'occ_sentence', id, sentence_kind
   FROM qr_ss_occ_sentence WHERE gloss_json IS NULL AND is_virtual=0;
+
+CREATE VIEW qr_ss_gt_ref_cols AS
+ SELECT 'lx_grammar_ref' col, 'qr_ss_scope_grammar_link' tbl, id row_id, lx_grammar_ref val FROM qr_ss_scope_grammar_link
+ UNION ALL SELECT 'lx_balagha_ref','qr_ss_scope_balagha_link', id, lx_balagha_ref FROM qr_ss_scope_balagha_link
+ UNION ALL SELECT 'lx_sentence_kind_ref','qr_ss_occ_sentence', id, lx_sentence_kind_ref FROM qr_ss_occ_sentence
+ UNION ALL SELECT 'lx_clause_type_ref','qr_ss_occ_clause', id, lx_clause_type_ref FROM qr_ss_occ_clause
+ UNION ALL SELECT 'lx_clause_func_ref','qr_ss_occ_clause', id, lx_clause_func_ref FROM qr_ss_occ_clause;
+
+CREATE VIEW qr_ss_gt_ref_cols2 AS
+ SELECT 'lx_phrase_type_ref' col, 'qr_ss_occ_phrase' tbl, id row_id, lx_phrase_type_ref val FROM qr_ss_occ_phrase
+ UNION ALL SELECT 'lx_phrase_func_ref','qr_ss_occ_phrase', id, lx_phrase_func_ref FROM qr_ss_occ_phrase
+ UNION ALL SELECT 'lx_particle_ref','qr_ss_occ_segment', id, lx_particle_ref FROM qr_ss_occ_segment
+ UNION ALL SELECT 'lx_rel_type_ref','qr_ss_syntax_link', id, lx_rel_type_ref FROM qr_ss_syntax_link
+ UNION ALL SELECT 'sarf_term_ref','qr_ss_tree_node', id, sarf_term_ref FROM qr_ss_tree_node;
+
+CREATE VIEW qr_ss_gt_violations AS
+ SELECT col kind, val key, tbl, row_id, 'grammar term ref is not a GT id from ar_ling_gram_term' problem FROM qr_ss_gt_ref_cols WHERE val IS NOT NULL AND val NOT LIKE 'GT:_%:_%'
+ UNION ALL
+ SELECT col, val, tbl, row_id, 'grammar term ref is not a GT id from ar_ling_gram_term' FROM qr_ss_gt_ref_cols2 WHERE val IS NOT NULL AND val NOT LIKE 'GT:_%:_%'
+ UNION ALL
+ SELECT 'grammar_concept_ref', e.grammar_concept_ref, 'qr_irab_book_entry', e.id, 'grammar term ref is not a GT id from ar_ling_gram_term' FROM qr_irab_book_entry e WHERE e.grammar_concept_ref IS NOT NULL AND e.grammar_concept_ref NOT LIKE 'GT:_%:_%'
+ UNION ALL
+ SELECT 'gram_term_id', v.kind||'/'||v.key, 'qr_ss_vocab_register', v.kind||':'||v.key, 'canonical key in use but not bound to a GT term' FROM qr_ss_vocab_register v WHERE v.status='canonical' AND v.gram_term_id IS NULL AND v.mapping_status NOT IN ('n/a','gap') AND v.kind IN ('term_key','clause_function','clause_type','segment_type','relation_label') AND (v.key IN (SELECT term_key FROM qr_ss_tree_node WHERE term_key IS NOT NULL) OR v.key IN (SELECT clause_function FROM qr_ss_occ_clause WHERE clause_function IS NOT NULL) OR v.key IN (SELECT clause_type FROM qr_ss_occ_clause) OR v.key IN (SELECT segment_type FROM qr_ss_occ_segment) OR v.key IN (SELECT relation_label FROM qr_ss_syntax_link))
+ UNION ALL
+ SELECT 'gram_term_id', v.kind||'/'||v.key, 'qr_ss_vocab_register', v.kind||':'||v.key, 'bound value is not a GT id' FROM qr_ss_vocab_register v WHERE v.gram_term_id IS NOT NULL AND v.gram_term_id NOT LIKE 'GT:_%:_%';
 
 CREATE VIEW qr_ss_node_anchor AS
 SELECT n.id, n.tree_id, t.sentence_id, s.surah, s.ayah_from ayah, n.node_label, n.term_key, n.depth,
@@ -2518,6 +2788,97 @@ FROM "qr_surah_study_task" t
 JOIN "qr_surah_study_passage" p ON p.id = t.passage_id
 LEFT JOIN "qr_surah_study_task" parent ON parent.id = t.parent_task_id;
 
+CREATE VIEW v_morph_display_word AS
+SELECT
+  'MDW:' || w.surah || ':' || w.ayah || ':' || w.word_index AS id,
+  w.id AS word_occ_ref, w.surah AS surah_no, w.ayah AS ayah_no, w.word_index AS word_index,
+  w.surah || ':' || w.ayah AS ayah_key,
+  w.word_text AS surface_ar, w.word_text_bare AS surface_bare,
+  COALESCE(o.lemma_ar, dl.lemma_ar, w.lemma) AS lemma_ar,
+  COALESCE(o.root_ar, json_extract(w.morphology_tag_json,'$.stem.root_ar'), w.root) AS root_ar,
+  COALESCE(o.root_display, dr.root_display, CASE length(COALESCE(w.root,''))
+      WHEN 2 THEN substr(w.root,1,1)||' '||substr(w.root,2,1)
+      WHEN 3 THEN substr(w.root,1,1)||' '||substr(w.root,2,1)||' '||substr(w.root,3,1)
+      WHEN 4 THEN substr(w.root,1,1)||' '||substr(w.root,2,1)||' '||substr(w.root,3,1)||' '||substr(w.root,4,1)
+      WHEN 5 THEN substr(w.root,1,1)||' '||substr(w.root,2,1)||' '||substr(w.root,3,1)||' '||substr(w.root,4,1)||' '||substr(w.root,5,1)
+      ELSE w.root END) AS root_display,
+  COALESCE(o.root_ref, w.root_uid) AS root_ref,
+  COALESCE(o.word_group, r.word_group) AS word_group,
+  COALESCE(e.pos_ar_override, o.pos_ar, r.pos_ar) AS pos_ar,
+  COALESCE(o.pos_en, r.pos_en) AS pos_en,
+  COALESCE(o.gloss_ar, dl.gloss_ar) AS gloss_ar,
+  COALESCE(o.gloss_en, dl.gloss_en) AS gloss_en,
+  COALESCE(o.badge_color, r.badge_color) AS badge_color,
+  COALESCE(e.derived_type_ar_override, o.derived_type_ar, dl.derived_type_ar,
+    (SELECT t.name_ar FROM ar_ling_gram_term t WHERE t.id =
+       CASE WHEN EXISTS (SELECT 1 FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) a WHERE a.value='PCPL')
+             AND EXISTS (SELECT 1 FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) b WHERE b.value='ACT')
+            THEN 'GT:derivation_type:active_participle'
+            WHEN EXISTS (SELECT 1 FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) a WHERE a.value='PCPL')
+             AND EXISTS (SELECT 1 FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) b WHERE b.value='PASS')
+            THEN 'GT:derivation_type:passive_participle'
+            WHEN EXISTS (SELECT 1 FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) a WHERE a.value='VN')
+            THEN 'GT:derivation_type:masdar' END)) AS derived_type_ar,
+  COALESCE(e.derived_type_en_override, o.derived_type_en, dl.derived_type_en,
+    (SELECT t.name_en FROM ar_ling_gram_term t WHERE t.id =
+       CASE WHEN EXISTS (SELECT 1 FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) a WHERE a.value='PCPL')
+             AND EXISTS (SELECT 1 FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) b WHERE b.value='ACT')
+            THEN 'GT:derivation_type:active_participle'
+            WHEN EXISTS (SELECT 1 FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) a WHERE a.value='PCPL')
+             AND EXISTS (SELECT 1 FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) b WHERE b.value='PASS')
+            THEN 'GT:derivation_type:passive_participle'
+            WHEN EXISTS (SELECT 1 FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) a WHERE a.value='VN')
+            THEN 'GT:derivation_type:masdar' END)) AS derived_type_en,
+  COALESCE(e.wazn_ar_override, o.wazn_ar, dl.wazn_ar) AS wazn_ar,
+  COALESCE(o.form_roman, dl.form_roman, (SELECT replace(replace(f.value,'(',''),')','')
+       FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) f
+      WHERE f.value LIKE '(%)' LIMIT 1)) AS form_roman,
+  (SELECT json_group_array(json_object('cat',t.category_key,'ar',t.name_ar,'en',t.name_en,'ur',t.name_ur,'ref',t.id))
+     FROM (
+       SELECT d.gram_term_ref AS gref, MIN(d.sort_order) AS so
+         FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) f
+         JOIN qr_morph_flag_decomp d ON d.flag = f.value GROUP BY d.gram_term_ref
+       UNION SELECT 'GT:definiteness:definite', 20
+        WHERE EXISTS (SELECT 1 FROM json_each(json_extract(w.morphology_tag_json,'$.segments')) s WHERE json_extract(s.value,'$.tag')='DET')
+       UNION SELECT 'GT:derivation_type:active_participle', 50
+        WHERE EXISTS (SELECT 1 FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) a WHERE a.value='ACT')
+          AND EXISTS (SELECT 1 FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) b WHERE b.value='PCPL')
+       UNION SELECT 'GT:derivation_type:passive_participle', 50
+        WHERE EXISTS (SELECT 1 FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) a WHERE a.value='PASS')
+          AND EXISTS (SELECT 1 FROM json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) b WHERE b.value='PCPL')
+       ORDER BY 2
+     ) x JOIN ar_ling_gram_term t ON t.id = x.gref) AS features_json,
+  1 AS is_promoted, r.is_content_word AS is_content_word,
+  COALESCE(e.importance, o.importance, 3) AS importance,
+  COALESCE(e.difficulty, o.difficulty) AS difficulty,
+  COALESCE(o.frequency_quran, rf.n) AS frequency_quran,
+  'live' AS status, COALESCE(o.display_order, 0) AS display_order,
+  o.meta_json AS meta_json,
+  COALESCE(o.created_at, w.created_at) AS created_at,
+  COALESCE(o.updated_at, w.created_at) AS updated_at,
+  COALESCE(o.gloss_ur, dl.gloss_ur) AS gloss_ur,
+  COALESCE(o.derived_type_ur, dl.derived_type_ur) AS derived_type_ur,
+  COALESCE(o.pos_ur, r.pos_ur) AS pos_ur,
+  COALESCE(e.is_anchor, o.is_anchor, 0) AS is_anchor,
+  COALESCE(o.quran_meanings_json, dl.quran_meanings_json) AS quran_meanings_json,
+  COALESCE(o.root_meaning_ar, dr.meaning_core_ar) AS root_meaning_ar,
+  COALESCE(o.root_meaning_en, dr.meaning_core_en) AS root_meaning_en,
+  COALESCE(o.form_ar, dl.form_ar) AS form_ar,
+  COALESCE(o.sense_arc_en, dl.sense_arc_en) AS sense_arc_en,
+  COALESCE(o.sense_range_en, dl.sense_range_en) AS sense_range_en,
+  COALESCE(o.verb_form_ar, dl.verb_form_ar) AS verb_form_ar,
+  COALESCE(o.lemma_ref, w.lemma_ref) AS lemma_ref
+FROM qr_word_occurrence w
+JOIN qr_morph_pos_rule r ON r.pos = TRIM(json_extract(w.morphology_tag_json,'$.stem.pos'))
+LEFT JOIN qr_morph_word_override o ON o.surah_no=w.surah AND o.ayah_no=w.ayah AND o.word_index=w.word_index AND o.status='live'
+LEFT JOIN qr_morph_editorial e ON e.surah_no=w.surah AND e.ayah_no=w.ayah AND e.word_index=w.word_index
+LEFT JOIN qr_morph_display_lemma dl ON dl.lemma_ref = COALESCE(o.lemma_ref, w.lemma_ref) AND dl.status='live'
+LEFT JOIN qr_morph_display_root  dr ON dr.root_ar = w.root AND dr.status='live'
+LEFT JOIN qr_root_freq rf ON rf.root_ar = w.root
+WHERE COALESCE(e.promote,
+        CASE WHEN r.is_content_word = 1
+              AND (w.root_uid IS NOT NULL OR r.requires_root = 0) THEN 1 ELSE 0 END) = 1;
+
 CREATE VIEW v_root_lemma_word AS
 SELECT w.root, w.root_uid, w.lemma_ref, w.lemma AS lemma_surface,
        w.id AS word_occ_id, w.surah, w.ayah, w.word_index,
@@ -2563,8 +2924,9 @@ SELECT w.root, w.root_uid, w.lemma_ref, w.lemma AS lemma_surface,
    AND w.ayah BETWEEN s.ayah_from AND s.ayah_to
    AND (s.word_start IS NULL OR w.word_index BETWEEN s.word_start AND s.word_end);
 
-
--- ── Indexes (175) ────────────────────────────────────────────────
+-- ==========================================================================
+-- INDEXES (176)
+-- ==========================================================================
 
 CREATE INDEX idx_iraab_block_ayah       ON "qr_irab_book_display_block" (surah_no, ayah_no);
 
@@ -2625,12 +2987,6 @@ CREATE INDEX idx_morph_media_root ON qr_morph_display_media(root_ar, block_type)
 
 CREATE INDEX idx_morph_media_word ON qr_morph_display_media(surah_no, ayah_no, word_index);
 
-CREATE INDEX idx_morph_words_grid ON "qr_morph_display_word"(surah_no, is_promoted, word_group, display_order);
-
-CREATE INDEX idx_morph_words_passage ON "qr_morph_display_word"(surah_no, ayah_no, word_index);
-
-CREATE INDEX idx_morph_words_root ON "qr_morph_display_word"(root_ar);
-
 CREATE INDEX idx_qr_irab_book_entries_chunk
   ON "qr_irab_book_entry"(source_chunk_id);
 
@@ -2658,8 +3014,6 @@ CREATE INDEX idx_qr_mushaf_layout_surah
   ON "qr_mushaf_layout_line"(layout_key, surah_number);
 
 CREATE INDEX idx_qr_passage_sections_passage ON "qr_passage_section"(passage_id, sort_order);
-
-CREATE INDEX idx_qr_ss_term_cat ON qr_ss_term(category, sort_order);
 
 CREATE INDEX idx_qr_ss_tree_node_term ON qr_ss_tree_node(term_key);
 
@@ -2919,6 +3273,14 @@ CREATE INDEX ix_qwo_root_uid ON "qr_word_occurrence"(root_uid);
 
 CREATE INDEX ix_spx_reading ON qr_scholar_passage_xref(reading_id, section_id);
 
+CREATE INDEX ix_wt_ayah ON qr_word_term(surah, ayah, word_index);
+
+CREATE INDEX ix_wt_cat ON qr_word_term(category_key, tier);
+
+CREATE INDEX ix_wt_term ON qr_word_term(gram_term_ref);
+
+CREATE INDEX ix_wt_word ON qr_word_term(word_ref);
+
 CREATE INDEX qr_root_raw_root ON qr_root_raw(root_uid, source_code);
 
 CREATE UNIQUE INDEX uq_iraab_block_natural
@@ -2938,6 +3300,8 @@ CREATE UNIQUE INDEX uq_tafsir_link_natural
 
 CREATE UNIQUE INDEX uq_tafsir_tag_natural
   ON "qr_tafsir_book_display_tag" (block_id, tag_kind, tag_value);
+
+CREATE UNIQUE INDEX ux_gram_term_uid ON ar_ling_gram_term(uid);
 
 CREATE UNIQUE INDEX ux_qr_irab_entry_dedupe
   ON "qr_irab_book_entry"(source_slug, source_chunk_id, entry_order, target_text_bare, source_quote_hash);

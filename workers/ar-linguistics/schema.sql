@@ -1,9 +1,22 @@
--- Schema for km_arabic_linguistic.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-24.
--- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
--- Regenerate with scripts/regen_schemas.py — do not hand-edit.
+-- km_arabic_linguistic · schema, dumped from the live D1 database.
+--
+-- A DUMP, kept identical to production so code is never read against a schema
+-- that is not the one running. Do not hand-edit — write a migration in
+-- kmaps-ios/tools/migrations and re-dump:
+--
+--   npx wrangler d1 execute km_arabic_linguistic --remote --json \
+--     --command "SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL"
+--
+-- 176 tables · 23 views · 213 indexes · 13 triggers
 
--- ── Tables (125) ─────────────────────────────────────────────────
+-- ==========================================================================
+-- TABLES (176)
+-- ==========================================================================
+
+CREATE TABLE _cf_KV (
+        key TEXT PRIMARY KEY,
+        value BLOB
+      ) WITHOUT ROWID;
 
 CREATE TABLE ar_ling_concept_block (
   id                TEXT PRIMARY KEY,
@@ -42,6 +55,16 @@ CREATE VIRTUAL TABLE ar_ling_concept_block_fts USING fts5(
   title_ar, title_en, title_ur, text_plain, translation_en, translation_ur,
   tokenize = 'unicode61 remove_diacritics 2'
 );
+
+CREATE TABLE 'ar_ling_concept_block_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'ar_ling_concept_block_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9);
+
+CREATE TABLE 'ar_ling_concept_block_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'ar_ling_concept_block_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'ar_ling_concept_block_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 
 CREATE TABLE ar_ling_concept_block_link (
   id                TEXT PRIMARY KEY,
@@ -267,12 +290,30 @@ CREATE TABLE "ar_ling_gram_chunk" (
   page_id      INTEGER,
   status       TEXT NOT NULL DEFAULT 'raw',
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))
-, edition_id TEXT REFERENCES "ar_ling_source_edition"(id), layer_code TEXT NOT NULL DEFAULT 'AL:010-SRC:--:00-CORE:P', translation_en TEXT, translation_ur TEXT);
+, edition_id TEXT REFERENCES "ar_ling_source_edition"(id), layer_code TEXT NOT NULL DEFAULT 'AL:010-SRC:--:00-CORE:P', translation_en TEXT, translation_ur TEXT, text_norm TEXT);
+
+CREATE TABLE ar_ling_gram_chunk_citation ( id TEXT PRIMARY KEY, chunk_id TEXT NOT NULL, source_slug TEXT NOT NULL, seq INTEGER NOT NULL, num_a INTEGER NOT NULL, num_b INTEGER NOT NULL, surah INTEGER, ayah INTEGER, ayah_text_ar TEXT, orientation TEXT CHECK (orientation IN ('surah_ayah','ayah_surah')), resolved_by TEXT CHECK (resolved_by IN ('text_match','entry_majority','unique_valid')), state TEXT NOT NULL DEFAULT 'unresolved' CHECK (state IN ('unresolved','resolved','ambiguous','rejected')), qr_ayah_ref TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) );
+
+CREATE TABLE ar_ling_gram_chunk_term ( chunk_id TEXT NOT NULL, term_id TEXT NOT NULL, match_kind TEXT NOT NULL CHECK (match_kind IN ('exact','prefix','contains','manual')), state TEXT NOT NULL DEFAULT 'auto' CHECK (state IN ('auto','confirmed','rejected')), note TEXT, PRIMARY KEY (chunk_id, term_id) );
 
 CREATE VIRTUAL TABLE ar_ling_gram_chunks_fts USING fts5(
   id UNINDEXED, discipline UNINDEXED, source_slug UNINDEXED,
   heading_norm, text_ar, footnotes_ar,
   tokenize='unicode61 remove_diacritics 2');
+
+CREATE TABLE 'ar_ling_gram_chunks_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'ar_ling_gram_chunks_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3, c4, c5);
+
+CREATE TABLE 'ar_ling_gram_chunks_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'ar_ling_gram_chunks_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'ar_ling_gram_chunks_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+
+CREATE TABLE ar_ling_gram_external_toc ( source_slug TEXT NOT NULL, section TEXT NOT NULL, entry_no INTEGER NOT NULL, title_ar TEXT NOT NULL, url TEXT GENERATED ALWAYS AS ('https://jamharah.net/archive/index.php/t-'||entry_no||'.html') VIRTUAL, id TEXT GENERATED ALWAYS AS ('adima:'||section||':'||entry_no) VIRTUAL, bab_ref     TEXT REFERENCES ar_ling_gram_bab(id), chunk_ref   TEXT REFERENCES ar_ling_gram_chunk(id), match_kind  TEXT, match_score REAL, PRIMARY KEY (source_slug, section, entry_no) );
+
+CREATE TABLE ar_ling_gram_source_toc_rank ( source_slug TEXT PRIMARY KEY, source_rank INTEGER NOT NULL, tier TEXT NOT NULL, note TEXT );
 
 CREATE TABLE "ar_ling_gram_term" (
   id             TEXT PRIMARY KEY,
@@ -287,7 +328,7 @@ CREATE TABLE "ar_ling_gram_term" (
   badge_color TEXT, icon TEXT,
   version     INTEGER NOT NULL DEFAULT 1,
   superseded_by TEXT,
-  status      TEXT NOT NULL DEFAULT 'live', discipline TEXT, is_default_when_absent INTEGER NOT NULL DEFAULT 0, uid TEXT,
+  status      TEXT NOT NULL DEFAULT 'live', discipline TEXT, is_default_when_absent INTEGER NOT NULL DEFAULT 0, uid TEXT, qac_scope TEXT, applies_when TEXT,
   UNIQUE (category_key, term_key),
   UNIQUE (category_key, qac_flag),
   FOREIGN KEY (category_key)   REFERENCES "ar_ling_gram_category"(category_key),
@@ -314,12 +355,27 @@ CREATE TABLE "ar_ling_gram_term_relation" (
   PRIMARY KEY (from_term_id, to_term_id, relation_kind)
 );
 
+CREATE TABLE ar_ling_gram_term_rule (
+  id TEXT PRIMARY KEY,
+  term_id TEXT NOT NULL,
+  statement_ar TEXT, statement_en TEXT, statement_ur TEXT,
+  caveat_ar TEXT, caveat_en TEXT, caveat_ur TEXT,
+  applies_when TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'live',
+  note_md TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (term_id) REFERENCES "ar_ling_gram_term"(id)
+);
+
 CREATE TABLE "ar_ling_gram_term_source" (
   term_id     TEXT NOT NULL,
   source_slug TEXT NOT NULL,
   page_ref    TEXT,
   PRIMARY KEY (term_id, source_slug)
 );
+
+CREATE TABLE ar_ling_gram_term_toc ( id TEXT PRIMARY KEY, term_id TEXT NOT NULL, category_key TEXT, source_slug TEXT NOT NULL, source_rank INTEGER NOT NULL, discipline TEXT, bab_id TEXT NOT NULL, bab_title_ar TEXT, page_start INTEGER, match_kind TEXT NOT NULL CHECK (match_kind IN ('exact','prefix','contains')), match_rank INTEGER NOT NULL, state TEXT NOT NULL DEFAULT 'auto' CHECK (state IN ('auto','confirmed','rejected')), note TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), external_url TEXT, UNIQUE (term_id, bab_id) );
 
 CREATE TABLE "ar_ling_learn_example" (
   id             TEXT PRIMARY KEY,
@@ -590,6 +646,14 @@ CREATE VIRTUAL TABLE ar_ling_lexicon_block_fts USING fts5(
   content='ar_ling_lexicon_block', content_rowid='rowid'
 );
 
+CREATE TABLE 'ar_ling_lexicon_block_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'ar_ling_lexicon_block_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'ar_ling_lexicon_block_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'ar_ling_lexicon_block_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+
 CREATE TABLE "ar_ling_lexicon_block_link" (
   id                TEXT PRIMARY KEY,
   from_block_id     TEXT NOT NULL,
@@ -663,6 +727,14 @@ CREATE VIRTUAL TABLE ar_ling_lexicon_book_page_fts USING fts5(
   clean_text, source_slug, root_norm,
   content='ar_ling_lexicon_book_page', content_rowid='rowid'
 );
+
+CREATE TABLE 'ar_ling_lexicon_book_page_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'ar_ling_lexicon_book_page_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'ar_ling_lexicon_book_page_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'ar_ling_lexicon_book_page_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 
 CREATE TABLE ar_ling_lexicon_display_block_kind (
   kind_code    TEXT PRIMARY KEY,
@@ -796,6 +868,14 @@ CREATE VIRTUAL TABLE ar_ling_lexicon_entry_fts USING fts5(
   content_rowid='rowid'
 );
 
+CREATE TABLE 'ar_ling_lexicon_entry_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'ar_ling_lexicon_entry_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'ar_ling_lexicon_entry_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'ar_ling_lexicon_entry_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+
 CREATE TABLE "ar_ling_lexicon_entry_section" (
   id                        TEXT PRIMARY KEY,
 
@@ -854,6 +934,14 @@ CREATE VIRTUAL TABLE ar_ling_lexicon_entry_section_fts USING fts5(
   content='ar_ling_lexicon_entry_section',
   content_rowid='rowid'
 );
+
+CREATE TABLE 'ar_ling_lexicon_entry_section_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'ar_ling_lexicon_entry_section_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'ar_ling_lexicon_entry_section_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'ar_ling_lexicon_entry_section_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 
 CREATE TABLE "ar_ling_lexicon_entry_source" (
   id                TEXT PRIMARY KEY,
@@ -932,6 +1020,22 @@ CREATE TABLE ar_ling_reg_conformance_check (
   auto_fixable INTEGER NOT NULL DEFAULT 0,
   status       TEXT NOT NULL DEFAULT 'live',
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE ar_ling_reg_decision (
+  decision_id TEXT PRIMARY KEY,
+  decided_on TEXT NOT NULL,
+  decided_by TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  title_ar TEXT, title_en TEXT, title_ur TEXT,
+  statement_ar TEXT, statement_en TEXT, statement_ur TEXT,
+  rationale_en TEXT,
+  supersedes TEXT,
+  data_state TEXT,
+  application_state TEXT,
+  enforced_by TEXT,
+  status TEXT NOT NULL DEFAULT 'live',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE ar_ling_reg_discipline (
@@ -1029,7 +1133,7 @@ CREATE TABLE ar_ling_reg_table_map (
   table_name  TEXT NOT NULL,
   cluster     TEXT NOT NULL,
   layer_code  TEXT,
-  role        TEXT, sub_code TEXT, role_code TEXT, code_full TEXT, discipline TEXT, provenance_role TEXT, sensor_class TEXT NOT NULL DEFAULT 'none', scope_types_json TEXT NOT NULL DEFAULT '[]', row_count_at_audit INTEGER, audited_at TEXT, root_bind TEXT NOT NULL DEFAULT 'unset', root_bind_col TEXT, root_bind_note TEXT,
+  role        TEXT, sub_code TEXT, role_code TEXT, code_full TEXT, discipline TEXT, provenance_role TEXT, sensor_class TEXT NOT NULL DEFAULT 'none', scope_types_json TEXT NOT NULL DEFAULT '[]', row_count_at_audit INTEGER, audited_at TEXT, root_bind TEXT NOT NULL DEFAULT 'unset', root_bind_col TEXT, root_bind_note TEXT, root_bind_via_json TEXT CHECK (root_bind_via_json IS NULL OR json_valid(root_bind_via_json)),
   PRIMARY KEY (db, table_name)
 );
 
@@ -1176,7 +1280,7 @@ CREATE TABLE "ar_ling_root_form_family" (
   source_ref      TEXT,
   status          TEXT NOT NULL DEFAULT 'live',
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-, example_gloss_ar TEXT, example_gloss_en TEXT, example_gloss_ur TEXT);
+, example_gloss_ar TEXT, example_gloss_en TEXT, example_gloss_ur TEXT, gram_term_ref TEXT REFERENCES ar_ling_gram_term(id));
 
 CREATE TABLE "ar_ling_root_form_masmu" (
   id                    TEXT PRIMARY KEY,
@@ -1257,7 +1361,7 @@ CREATE TABLE "ar_ling_root_lemma" (
   frequency_quran INTEGER NOT NULL DEFAULT 0,
   note_md         TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now')), root_status TEXT NOT NULL DEFAULT 'pending',
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now')), root_status TEXT NOT NULL DEFAULT 'pending', verb_form_ref TEXT REFERENCES ar_ling_gram_term(id), bab_ref TEXT REFERENCES ar_ling_gram_term(id), record_status TEXT NOT NULL DEFAULT 'live', merged_into TEXT REFERENCES ar_ling_root_lemma(id),
   FOREIGN KEY (root_id) REFERENCES "ar_ling_roots"(id)
 );
 
@@ -1351,7 +1455,25 @@ CREATE TABLE "ar_ling_root_lemma_ilal" (
   example_before  TEXT,
   example_after   TEXT,
   note_md         TEXT
-, bab_key     TEXT, source_slug TEXT, source_ref  TEXT, edition_id  TEXT REFERENCES "ar_ling_source_edition"(id), page_ref    TEXT, is_qiyasi   INTEGER NOT NULL DEFAULT 1, status      TEXT NOT NULL DEFAULT 'raw', layer_code  TEXT NOT NULL DEFAULT 'AL:150-FORM:SF:24-ILAL:P', name_ar TEXT, name_en TEXT, name_ur TEXT, rule_ar TEXT, rule_en TEXT, rule_ur TEXT);
+, bab_key     TEXT, source_slug TEXT, source_ref  TEXT, edition_id  TEXT REFERENCES "ar_ling_source_edition"(id), page_ref    TEXT, is_qiyasi   INTEGER NOT NULL DEFAULT 1, status      TEXT NOT NULL DEFAULT 'raw', layer_code  TEXT NOT NULL DEFAULT 'AL:150-FORM:SF:24-ILAL:P', name_ar TEXT, name_en TEXT, name_ur TEXT, rule_ar TEXT, rule_en TEXT, rule_ur TEXT, bind_weak TEXT, bind_verb_form TEXT, bind_pos TEXT, bind_state TEXT NOT NULL DEFAULT 'bindable', bind_note TEXT);
+
+CREATE TABLE ar_ling_root_lemma_ilal_apply (
+  id TEXT PRIMARY KEY,
+  root_norm TEXT NOT NULL,
+  lemma_id TEXT NOT NULL REFERENCES ar_ling_root_lemma(id),
+  rule_id TEXT NOT NULL REFERENCES ar_ling_root_lemma_ilal(id),
+  step_no INTEGER NOT NULL DEFAULT 1,
+  surface_before TEXT, surface_after TEXT,
+  note_ar TEXT, note_en TEXT, note_ur TEXT,
+  claim_basis TEXT NOT NULL DEFAULT 'derived' CHECK (claim_basis IN ('attested','derived')),
+  source_slug TEXT, source_ref TEXT,
+  confidence TEXT NOT NULL DEFAULT 'high',
+  generated_by TEXT,
+  status TEXT NOT NULL DEFAULT 'live',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (lemma_id, rule_id, step_no),
+  CHECK (claim_basis = 'derived' OR source_ref IS NOT NULL)
+);
 
 CREATE TABLE "ar_ling_root_lemma_link" (
   id              TEXT PRIMARY KEY,
@@ -1437,6 +1559,39 @@ CREATE TABLE "ar_ling_root_lemma_taswib" (
   created_at      TEXT NOT NULL DEFAULT (datetime('now')), rationale_ar TEXT, rationale_ur TEXT,
   UNIQUE (upstream_slug, scope, key_bw, field)
 );
+
+CREATE TABLE ar_ling_root_lemma_wazn (
+  id             TEXT PRIMARY KEY,
+  lemma_id       TEXT NOT NULL REFERENCES ar_ling_root_lemma(id),
+  wazn_id        TEXT NOT NULL REFERENCES ar_ling_sarf_wazn(id),
+  gram_term_ref  TEXT NOT NULL REFERENCES ar_ling_gram_term(id),
+  rule_id        TEXT REFERENCES ar_ling_sarf_wazn_rule(id),
+  base_verb      TEXT,
+  base_bab       TEXT,
+  transitivity   TEXT,
+  basis          TEXT NOT NULL DEFAULT 'derived',
+  confidence     TEXT NOT NULL DEFAULT 'medium',
+  is_disputed    INTEGER NOT NULL DEFAULT 0,
+  dispute_note   TEXT,
+  source_slug    TEXT,
+  source_ref     TEXT,
+  quote_ar       TEXT,
+  status         TEXT NOT NULL DEFAULT 'live',
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (lemma_id, gram_term_ref, rule_id)
+);
+
+CREATE TABLE ar_ling_root_lemma_wazn_detect (
+  lemma_id       TEXT PRIMARY KEY REFERENCES ar_ling_root_lemma(id),
+  wazn_id        TEXT NOT NULL REFERENCES ar_ling_sarf_wazn(id),
+  lemma_bare     TEXT NOT NULL,
+  root_text      TEXT NOT NULL,
+  method         TEXT NOT NULL DEFAULT 'skeleton_match_v1',
+  is_forked      INTEGER NOT NULL DEFAULT 0,
+  class_status   TEXT NOT NULL DEFAULT 'needs_source',
+  frequency_quran INTEGER NOT NULL DEFAULT 0,
+  detected_at    TEXT NOT NULL DEFAULT (datetime('now'))
+, root_verb_forms TEXT, route TEXT NOT NULL DEFAULT 'mushtaqq', root_verb_any INTEGER NOT NULL DEFAULT 0);
 
 CREATE TABLE "ar_ling_root_lemma_word_quran_link" (
   id              TEXT PRIMARY KEY,
@@ -1729,6 +1884,46 @@ CREATE VIRTUAL TABLE ar_ling_roots_fts USING fts5(
   tokenize = "unicode61 remove_diacritics 2"
 );
 
+CREATE TABLE 'ar_ling_roots_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'ar_ling_roots_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3, c4, c5);
+
+CREATE TABLE 'ar_ling_roots_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'ar_ling_roots_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'ar_ling_roots_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+
+CREATE TABLE ar_ling_sarf_wazn (
+  id            TEXT PRIMARY KEY,
+  wazn_key      TEXT NOT NULL UNIQUE,
+  wazn_ar       TEXT NOT NULL,
+  tier          TEXT NOT NULL DEFAULT 'thulathi_mujarrad',
+  applies_to    TEXT NOT NULL DEFAULT 'ism',
+  name_en       TEXT,
+  name_ur       TEXT,
+  wazn_order    INTEGER NOT NULL DEFAULT 0,
+  note_md       TEXT,
+  status        TEXT NOT NULL DEFAULT 'live',
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE ar_ling_sarf_wazn_rule (
+  id              TEXT PRIMARY KEY,
+  wazn_id         TEXT NOT NULL REFERENCES ar_ling_sarf_wazn(id),
+  gram_term_ref   TEXT NOT NULL REFERENCES ar_ling_gram_term(id),
+  condition_key   TEXT NOT NULL DEFAULT 'any',
+  strength        TEXT NOT NULL DEFAULT 'qiyasi',
+  source_slug     TEXT,
+  source_chunk_id TEXT REFERENCES ar_ling_gram_chunk(id),
+  quote_ar        TEXT,
+  confidence      TEXT NOT NULL DEFAULT 'high',
+  note_md         TEXT,
+  status          TEXT NOT NULL DEFAULT 'live',
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (wazn_id, gram_term_ref, condition_key, source_slug)
+);
+
 CREATE TABLE ar_ling_sense_arc (
   id            TEXT PRIMARY KEY,
   scope_level   TEXT NOT NULL CHECK (scope_level IN ('root','lemma')),
@@ -1815,6 +2010,16 @@ CREATE TABLE "ar_ling_source_chunk" (
 
 CREATE VIRTUAL TABLE ar_ling_source_chunks_fts USING fts5(heading_norm, text_ar, text_en);
 
+CREATE TABLE 'ar_ling_source_chunks_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+
+CREATE TABLE 'ar_ling_source_chunks_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2);
+
+CREATE TABLE 'ar_ling_source_chunks_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
+
+CREATE TABLE 'ar_ling_source_chunks_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
+
+CREATE TABLE 'ar_ling_source_chunks_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+
 CREATE TABLE "ar_ling_source_citation" (
   id TEXT PRIMARY KEY, root_norm TEXT, from_layer TEXT NOT NULL, from_id TEXT NOT NULL,
   to_ref TEXT NOT NULL, to_kind TEXT NOT NULL, relation TEXT NOT NULL DEFAULT 'grounds',
@@ -1898,10 +2103,27 @@ CREATE TABLE "ar_ling_term_dictionary" (
   PRIMARY KEY (term_text, root_norm)
 );
 
+CREATE TABLE d1_migrations(
+		id         INTEGER PRIMARY KEY AUTOINCREMENT,
+		name       TEXT UNIQUE,
+		applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE sqlite_sequence(name,seq);
+
 CREATE TABLE tmp_qroot (root TEXT PRIMARY KEY);
 
+-- ==========================================================================
+-- VIEWS (23)
+-- ==========================================================================
 
--- ── Views (21) ───────────────────────────────────────────────────
+CREATE VIEW ar_ling_gram_term_signature AS
+ SELECT COUNT(*) AS term_count,
+        COUNT(DISTINCT category_key) AS category_count,
+        SUM(version) AS version_sum,
+        SUM(CASE WHEN status='live' THEN 1 ELSE 0 END) AS live_count,
+        COUNT(*)||'.'||COUNT(DISTINCT category_key)||'.'||SUM(version)||'.'||SUM(length(id)+length(name_ar)+length(name_en)+length(COALESCE(name_ur,''))) AS signature
+ FROM ar_ling_gram_term;
 
 CREATE VIEW ar_ling_reg_band_carrier AS
 SELECT
@@ -1989,6 +2211,8 @@ SELECT m.table_name, m.sub_code, m.root_bind, m.root_bind_col
                     WHERE s.sub_code = m.sub_code
                       AND s.tables_json LIKE '%"' || m.table_name || '"%');
 
+CREATE VIEW v_ar_ling_quran_lemma AS SELECT * FROM ar_ling_root_lemma WHERE is_quran_word=1 AND record_status='live';
+
 CREATE VIEW v_balagha_bab AS SELECT * FROM ar_ling_gram_bab   WHERE discipline='BL';
 
 CREATE VIEW v_balagha_pages AS SELECT * FROM "ar_ling_gram_chunk" WHERE discipline='BL';
@@ -2074,480 +2298,9 @@ UNION ALL SELECT 'ar_ling_word_sums', id, lemma_ar FROM "ar_ling_root_lemma_word
 UNION ALL SELECT 'ar_ling_form_paradigms', id, paradigm_name FROM "ar_ling_root_form_paradigm" WHERE source_slug IS NULL
 UNION ALL SELECT 'ar_ling_conjugation_templates', id, template_form FROM "ar_ling_root_form_template" WHERE source_slug IS NULL;
 
-
--- ── Indexes (200) ────────────────────────────────────────────────
-
-CREATE INDEX idx_albk_book_page
-  ON "ar_ling_lexicon_block"(book_page_id);
-
-CREATE INDEX idx_albk_origin
-  ON "ar_ling_lexicon_block"(origin);
-
-CREATE INDEX idx_albk_parent
-  ON "ar_ling_lexicon_block"(parent_block_id);
-
-CREATE INDEX idx_albk_root_entry_seq
-  ON "ar_ling_lexicon_block"(root_entry_id, block_seq);
-
-CREATE INDEX idx_albk_root_norm
-  ON "ar_ling_lexicon_block"(root_norm);
-
-CREATE INDEX idx_albk_section
-  ON "ar_ling_lexicon_block"(section_id);
-
-CREATE INDEX idx_albk_source_root
-  ON "ar_ling_lexicon_block"(source_slug, root_norm);
-
-CREATE INDEX idx_albk_type
-  ON "ar_ling_lexicon_block"(block_type);
-
-CREATE INDEX idx_albka_block
-  ON "ar_ling_lexicon_block_annotation"(block_id);
-
-CREATE INDEX idx_albka_kind
-  ON "ar_ling_lexicon_block_annotation"(annotation_kind);
-
-CREATE INDEX idx_albka_user
-  ON "ar_ling_lexicon_block_annotation"(user_id);
-
-CREATE INDEX idx_albka_visibility
-  ON "ar_ling_lexicon_block_annotation"(visibility);
-
-CREATE INDEX idx_albl_auth
-  ON "ar_ling_lexicon_block_link"(to_authority_code);
-
-CREATE INDEX idx_albl_ayah
-  ON "ar_ling_lexicon_block_link"(to_surah, to_ayah, link_kind);
-
-CREATE INDEX idx_albl_block
-  ON "ar_ling_lexicon_block_link"(to_block_id);
-
-CREATE INDEX idx_albl_from
-  ON "ar_ling_lexicon_block_link"(from_block_id);
-
-CREATE INDEX idx_albl_kind
-  ON "ar_ling_lexicon_block_link"(link_kind);
-
-CREATE INDEX idx_albl_root
-  ON "ar_ling_lexicon_block_link"(to_root_norm, link_kind);
-
-CREATE INDEX idx_albl_source
-  ON "ar_ling_lexicon_block_link"(source_slug);
-
-CREATE INDEX idx_albp_import_batch
-  ON "ar_ling_lexicon_book_page"(import_batch_id);
-
-CREATE INDEX idx_albp_printed_page
-  ON "ar_ling_lexicon_book_page"(source_slug, printed_page_start);
-
-CREATE INDEX idx_albp_root_norm
-  ON "ar_ling_lexicon_book_page"(source_slug, root_norm);
-
-CREATE INDEX idx_albp_source_slug
-  ON "ar_ling_lexicon_book_page"(source_slug);
-
-CREATE INDEX idx_albp_volume_seq
-  ON "ar_ling_lexicon_book_page"(source_slug, volume_no, page_seq);
-
-CREATE INDEX idx_albt_source
-  ON "ar_ling_lexicon_block_tag"(source);
-
-CREATE INDEX idx_albt_tag
-  ON "ar_ling_lexicon_block_tag"(tag);
-
-CREATE INDEX idx_alc_from   ON "ar_ling_source_citation"(from_layer, from_id);
-
-CREATE INDEX idx_alc_root   ON "ar_ling_source_citation"(root_norm);
-
-CREATE INDEX idx_alc_slug   ON "ar_ling_source_citation"(source_slug);
-
-CREATE INDEX idx_alc_tokind ON "ar_ling_source_citation"(to_kind);
-
-CREATE INDEX idx_alc_toref  ON "ar_ling_source_citation"(to_ref);
-
-CREATE INDEX idx_ales_heading_norm
-  ON "ar_ling_lexicon_entry_section"(heading_norm);
-
-CREATE INDEX idx_ales_page
-  ON "ar_ling_lexicon_entry_section"(page_no);
-
-CREATE INDEX idx_ales_root_entry
-  ON "ar_ling_lexicon_entry_section"(root_entry_id);
-
-CREATE INDEX idx_ales_root_norm
-  ON "ar_ling_lexicon_entry_section"(root_norm);
-
-CREATE INDEX idx_ales_source_root
-  ON "ar_ling_lexicon_entry_section"(source_slug, root_norm);
-
-CREATE INDEX idx_allee_collection
-  ON "ar_ling_lexicon_entry_embedding"(collection_name);
-
-CREATE INDEX idx_allee_hash
-  ON "ar_ling_lexicon_entry_embedding"(embedding_text_hash);
-
-CREATE INDEX idx_allee_model
-  ON "ar_ling_lexicon_entry_embedding"(embedding_model);
-
-CREATE INDEX idx_allee_status
-  ON "ar_ling_lexicon_entry_embedding"(status);
-
-CREATE INDEX idx_alqr_ayah
-  ON "ar_ling_lexicon_quran_ref"(surah, ayah);
-
-CREATE INDEX idx_alqr_block
-  ON "ar_ling_lexicon_quran_ref"(block_id);
-
-CREATE INDEX idx_alqr_root_entry
-  ON "ar_ling_lexicon_quran_ref"(root_entry_id);
-
-CREATE INDEX idx_alqr_root_norm
-  ON "ar_ling_lexicon_quran_ref"(root_norm);
-
-CREATE INDEX idx_alqr_source_ayah
-  ON "ar_ling_lexicon_quran_ref"(source_slug, surah, ayah);
-
-CREATE INDEX idx_alre_import_batch
-  ON "ar_ling_lexicon_entry"(import_batch_id);
-
-CREATE INDEX idx_alre_root_norm
-  ON "ar_ling_lexicon_entry"(root_norm);
-
-CREATE INDEX idx_alre_source_root
-  ON "ar_ling_lexicon_entry"(source_slug, root_norm);
-
-CREATE INDEX idx_alre_source_slug
-  ON "ar_ling_lexicon_entry"(source_slug);
-
-CREATE INDEX idx_alre_status
-  ON "ar_ling_lexicon_entry"(status);
-
-CREATE INDEX idx_alres_kind
-  ON "ar_ling_lexicon_entry_source"(source_kind);
-
-CREATE INDEX idx_alres_root_entry
-  ON "ar_ling_lexicon_entry_source"(root_entry_id);
-
-CREATE INDEX idx_alres_slug
-  ON "ar_ling_lexicon_entry_source"(source_slug);
-
-CREATE INDEX idx_alx_ayah       ON "ar_ling_root_lemma_tabir"(surah, ayah);
-
-CREATE INDEX idx_alx_confidence ON "ar_ling_root_lemma_tabir"(confidence);
-
-CREATE INDEX idx_alx_root       ON "ar_ling_root_lemma_tabir"(root_ar);
-
-CREATE INDEX idx_alx_source     ON "ar_ling_root_lemma_tabir"(source_slug);
-
-CREATE INDEX idx_alx_type       ON "ar_ling_root_lemma_tabir"(expression_type_id);
-
-CREATE INDEX idx_aql_al_entity
-  ON "ar_ling_root_lemma_word_quran_link"(al_entity_ref, al_entity_type);
-
-CREATE INDEX idx_aql_al_type
-  ON "ar_ling_root_lemma_word_quran_link"(al_entity_type);
-
-CREATE INDEX idx_aql_link_type
-  ON "ar_ling_root_lemma_word_quran_link"(link_type);
-
-CREATE INDEX idx_aql_qr_scope
-  ON "ar_ling_root_lemma_word_quran_link"(qr_scope_ref);
-
-CREATE INDEX idx_ar_ling_sources_origin
-  ON "ar_ling_source"(origin);
-
-CREATE UNIQUE INDEX idx_ar_ling_sources_slug
-  ON "ar_ling_source"(slug) WHERE slug IS NOT NULL;
-
-CREATE INDEX idx_ar_ling_sources_source_order
-  ON "ar_ling_source"(source_order) WHERE source_order IS NOT NULL;
-
-CREATE INDEX idx_ar_rant_root ON "ar_ling_root_didd"(root_norm, sort_order);
-
-CREATE INDEX idx_ar_root_antonyms_rid ON "ar_ling_root_didd"(root_id);
-
-CREATE INDEX idx_ar_root_devstages_rid ON "ar_ling_root_tatawwur"(root_id);
-
-CREATE INDEX idx_ar_root_fields_field ON "ar_ling_root_haql"(field_id);
-
-CREATE INDEX idx_ar_root_fields_root ON "ar_ling_root_haql"(root_norm, is_primary);
-
-CREATE INDEX idx_ar_root_rel_from ON "ar_ling_root_relation"(from_root_norm, relation_kind, sort_order);
-
-CREATE INDEX idx_ar_root_rel_kind ON "ar_ling_root_relation"(relation_kind);
-
-CREATE INDEX idx_ar_root_rel_to ON "ar_ling_root_relation"(to_root_norm, relation_kind);
-
-CREATE INDEX idx_ar_root_sense_axes_rid ON "ar_ling_root_sense_axis"(root_id);
-
-CREATE INDEX idx_ar_root_senses_core ON ar_ling_root_sense(root_norm, is_core);
-
-CREATE INDEX idx_ar_root_senses_root ON ar_ling_root_sense(root_norm, sort_order);
-
-CREATE INDEX idx_ar_root_senses_scope ON ar_ling_root_sense(scope_level, scope_key, sort_order);
-
-CREATE INDEX idx_ar_vgov_root ON "ar_ling_root_lemma_tadiya"(root_norm, sort_order);
-
-CREATE INDEX idx_arc_step_sense ON ar_ling_sense_arc_step(sense_id);
-
-CREATE INDEX idx_arl_ct_paradigm ON "ar_ling_root_form_template"(paradigm_id);
-
-CREATE INDEX idx_arl_ei_type ON "ar_ling_source_evidence"(evidence_type);
-
-CREATE INDEX idx_arl_exp_lemma ON "ar_ling_root_lemma_tabir"(primary_lemma_id);
-
-CREATE INDEX idx_arl_exp_type  ON "ar_ling_root_lemma_tabir"(expression_type_id);
-
-CREATE INDEX idx_arl_fp_type ON "ar_ling_root_form_paradigm"(paradigm_type);
-
-CREATE INDEX idx_arl_lem_pos  ON "ar_ling_root_lemma"(part_of_speech);
-
-CREATE INDEX idx_arl_lem_qrn  ON "ar_ling_root_lemma"(is_quran_word);
-
-CREATE INDEX idx_arl_lem_root ON "ar_ling_root_lemma"(root_id);
-
-CREATE INDEX idx_arl_lemrootlink_root ON "ar_ling_root_lemma_link"(root_id);
-
-CREATE INDEX idx_arl_lexrootentry_root ON "ar_ling_lexicon_entry"(root_id);
-
-CREATE INDEX idx_arl_lrl_lemma ON "ar_ling_root_lemma_link"(lemma_id);
-
-CREATE INDEX idx_arl_lrl_root  ON "ar_ling_root_lemma_link"(root_id);
-
-CREATE INDEX idx_arl_morph_pattern ON "ar_ling_root_lemma_sarf"(pattern);
-
-CREATE INDEX idx_arl_nse_member_id     ON "ar_ling_root_lemma_furuq_evidence"(member_id);
-
-CREATE INDEX idx_arl_nse_qr_ref        ON "ar_ling_root_lemma_furuq_evidence"(qr_ref);
-
-CREATE INDEX idx_arl_nse_set_id        ON "ar_ling_root_lemma_furuq_evidence"(set_id);
-
-CREATE INDEX idx_arl_nse_surah_ayah    ON "ar_ling_root_lemma_furuq_evidence"(surah, ayah);
-
-CREATE INDEX idx_arl_nsm_arabic_bare   ON "ar_ling_root_lemma_furuq_member"(arabic_bare);
-
-CREATE INDEX idx_arl_nsm_lemma ON "ar_ling_root_lemma_furuq_member"(lemma_id);
-
-CREATE INDEX idx_arl_nsm_lemma_id      ON "ar_ling_root_lemma_furuq_member"(lemma_id);
-
-CREATE INDEX idx_arl_nsm_set   ON "ar_ling_root_lemma_furuq_member"(set_id);
-
-CREATE INDEX idx_arl_nsm_set_id        ON "ar_ling_root_lemma_furuq_member"(set_id);
-
-CREATE INDEX idx_arl_nss_domain        ON "ar_ling_root_lemma_furuq_set"(semantic_domain_id);
-
-CREATE INDEX idx_arl_nss_slug          ON "ar_ling_root_lemma_furuq_set"(slug);
-
-CREATE INDEX idx_arl_ql_entity ON "ar_ling_root_lemma_word_quran_link"(al_entity_ref);
-
-CREATE INDEX idx_arl_ql_qr     ON "ar_ling_root_lemma_word_quran_link"(qr_scope_ref);
-
-CREATE INDEX idx_arl_root_freq ON "ar_ling_roots"(frequency_quran);
-
-CREATE INDEX idx_arl_root_type ON "ar_ling_roots"(root_type);
-
-CREATE INDEX idx_arl_rootschol_root ON ar_ling_root_scholarship(root_id);
-
-CREATE INDEX idx_arl_rootvariants_root ON "ar_ling_root_lugha"(root_id);
-
-CREATE INDEX idx_arl_rv_root ON "ar_ling_root_lugha"(root_id);
-
-CREATE INDEX idx_arl_sc_embedded ON "ar_ling_source_chunk"(is_embedded);
-
-CREATE INDEX idx_arl_sc_heading
-  ON "ar_ling_source_chunk"(heading_norm);
-
-CREATE INDEX idx_arl_sc_kind     ON "ar_ling_source_chunk"(chunk_kind);
-
-CREATE INDEX idx_arl_sc_root_id
-  ON "ar_ling_source_chunk"(root_id);
-
-CREATE INDEX idx_arl_sc_root_source
-  ON "ar_ling_source_chunk"(heading_norm, source_slug);
-
-CREATE INDEX idx_arl_sc_slug
-  ON "ar_ling_source_chunk"(source_slug);
-
-CREATE INDEX idx_arl_sc_source   ON "ar_ling_source_chunk"(source_id);
-
-CREATE INDEX idx_arl_sc_surah
-  ON "ar_ling_source_chunk"(surah_no, ayah_start);
-
-CREATE INDEX idx_arl_se_source ON "ar_ling_source_edition"(source_id);
-
-CREATE INDEX idx_arl_ser_buck
-  ON "ar_ling_source_entry_ref"(source_id, buck);
-
-CREATE INDEX idx_arl_ser_chunk
-  ON "ar_ling_source_entry_ref"(source_chunk_id);
-
-CREATE INDEX idx_arl_ser_headword
-  ON "ar_ling_source_entry_ref"(source_id, headword_ar);
-
-CREATE INDEX idx_arl_ser_page
-  ON "ar_ling_source_entry_ref"(source_id, page_no);
-
-CREATE INDEX idx_arl_ser_source_node
-  ON "ar_ling_source_entry_ref"(source_id, external_node_id);
-
-CREATE INDEX idx_arl_src_type ON "ar_ling_source"(source_type);
-
-CREATE INDEX idx_arl_toc_source ON ar_ling_source_toc(source_id);
-
-CREATE INDEX idx_gbab_book ON ar_ling_gram_bab(book_id, matn_order);
-
-CREATE INDEX idx_gbab_disc ON ar_ling_gram_bab(discipline, source_slug, matn_order);
-
-CREATE INDEX idx_gbab_parent ON ar_ling_gram_bab(parent_id);
-
-CREATE INDEX idx_gpg_bab ON "ar_ling_gram_chunk"(bab_id);
-
-CREATE INDEX idx_gpg_book ON "ar_ling_gram_chunk"(book_id, seq);
-
-CREATE INDEX idx_gpg_disc ON "ar_ling_gram_chunk"(discipline, source_slug, seq);
-
-CREATE INDEX idx_ilal_bab ON "ar_ling_root_lemma_ilal"(bab_key);
-
-CREATE INDEX idx_letters_illa ON "ar_ling_root_letter"(is_illa);
-
-CREATE INDEX idx_letters_makhraj ON "ar_ling_root_letter"(makhraj_key, makhraj_order);
-
-CREATE INDEX idx_memlets_lemma ON "ar_ling_learn_memlet"(lemma_ref);
-
-CREATE INDEX idx_memlets_root  ON "ar_ling_learn_memlet"(root_id);
-
-CREATE INDEX idx_paradigm_rt ON "ar_ling_root_form_paradigm"(root_type, weak_pattern);
-
-CREATE INDEX idx_reg_tmap_cluster ON ar_ling_reg_table_map(cluster);
-
-CREATE INDEX idx_reg_tmap_layer ON ar_ling_reg_table_map(layer_code, db);
-
-CREATE INDEX idx_rfa_form ON "ar_ling_root_form_masmu"(verb_form);
-
-CREATE INDEX idx_rfa_root ON "ar_ling_root_form_masmu"(root_norm);
-
-CREATE INDEX idx_rfa_rootid ON "ar_ling_root_form_masmu"(root_id);
-
-CREATE INDEX idx_rl_bw      ON "ar_ling_roots"(buckwalter);
-
-CREATE INDEX idx_rl_norm    ON "ar_ling_roots"(root_normalized);
-
-CREATE INDEX idx_rl_simple  ON "ar_ling_roots"(simple_lat);
-
-CREATE INDEX idx_root_scholarship_kind      ON "ar_ling_root_scholarship"(reading_kind);
-
-CREATE INDEX idx_root_scholarship_root_norm ON "ar_ling_root_scholarship"(root_norm);
-
-CREATE INDEX idx_root_scholarship_slug_root ON "ar_ling_root_scholarship"(source_slug, root_norm);
-
-CREATE INDEX idx_root_scholarship_source    ON "ar_ling_root_scholarship"(source_id);
-
-CREATE INDEX idx_sense_arc_scope ON ar_ling_sense_arc(scope_level, scope_key);
-
-CREATE INDEX idx_sense_arc_term ON ar_ling_sense_arc(terminal_sense_id);
-
-CREATE INDEX idx_sense_att_source ON ar_ling_sense_attestation(source_slug);
-
-CREATE INDEX idx_sense_att_target ON ar_ling_sense_attestation(target_type, target_id);
-
-CREATE INDEX idx_sublayer_band ON ar_ling_reg_sub_layer(band, display_order);
-
-CREATE INDEX idx_synbl_from ON "ar_ling_root_backlink"(from_table, from_row_id);
-
-CREATE INDEX idx_synbl_root ON "ar_ling_root_backlink"(root_norm, display_code);
-
-CREATE INDEX idx_synbl_to   ON "ar_ling_root_backlink"(to_kind, to_row_id);
-
-CREATE INDEX idx_ws_lemma ON "ar_ling_root_lemma_word_silsila"(lemma_ref);
-
-CREATE INDEX idx_ws_root ON "ar_ling_root_lemma_word_silsila"(root_norm, bab_key);
-
-CREATE INDEX idx_ws_stepof ON "ar_ling_root_lemma_word_silsila"(step_of, step_seq);
-
-CREATE INDEX ix_arc_lemma ON ar_ling_lemma_arc(lemma_id);
-
-CREATE INDEX ix_arc_root ON ar_ling_lemma_arc(root_norm, status);
-
-CREATE INDEX ix_arcex_arc ON ar_ling_lemma_arc_example(arc_id, seq);
-
-CREATE INDEX ix_arcex_qr ON ar_ling_lemma_arc_example(surah, ayah);
-
-CREATE INDEX ix_cb_sense ON ar_ling_concept_block(sense_id);
-
-CREATE INDEX ix_cb_term  ON ar_ling_concept_block(term_id, block_type, block_seq);
-
-CREATE INDEX ix_cbl_from ON ar_ling_concept_block_link(from_block_id, link_kind);
-
-CREATE INDEX ix_cbl_qr   ON ar_ling_concept_block_link(to_surah, to_ayah);
-
-CREATE INDEX ix_ce_term ON ar_ling_concept_entry(term_id, source_slug);
-
-CREATE INDEX ix_ceq_term ON ar_ling_concept_equivalent(term_id, tradition, sort_order);
-
-CREATE INDEX ix_cg_disc  ON ar_ling_concept_group(discipline_key, group_kind, seq);
-
-CREATE INDEX ix_cgm_term ON ar_ling_concept_group_member(term_id);
-
-CREATE INDEX ix_cse_qr    ON ar_ling_concept_sense_example(qr_surah, qr_ayah);
-
-CREATE INDEX ix_cse_sense ON ar_ling_concept_sense_example(sense_id, sort_order);
-
-CREATE INDEX ix_cxl_from ON ar_ling_concept_external_link(from_uid, to_db, to_kind);
-
-CREATE INDEX ix_cxl_ref  ON ar_ling_concept_external_link(from_ref);
-
-CREATE INDEX ix_cxl_to   ON ar_ling_concept_external_link(to_uid);
-
-CREATE INDEX ix_lexicon_display_profile_order
-  ON ar_ling_lexicon_display_profile (display_order);
-
-CREATE INDEX ix_lexicon_display_rule_slug_key
-  ON ar_ling_lexicon_display_rule (source_slug, rule_key, seq);
-
-CREATE INDEX ix_lexicon_display_section_kind
-  ON ar_ling_lexicon_display_section (kind_code);
-
-CREATE INDEX ix_lexicon_display_section_slug_seq
-  ON ar_ling_lexicon_display_section (source_slug, seq);
-
-CREATE INDEX ix_rlf_sub ON "ar_ling_root_layer_fill_dep_20260815"(sub_code, n);
-
-CREATE INDEX ix_root_asl_death   ON ar_ling_root_asl(root_norm, death_hijri);
-
-CREATE INDEX ix_root_asl_primary ON ar_ling_root_asl(root_norm, is_primary);
-
-CREATE INDEX ix_root_asl_root    ON ar_ling_root_asl(root_norm);
-
-CREATE INDEX ix_root_letter_slot_letter ON ar_ling_root_letter_slot (letter_ar, slot_role);
-
-CREATE INDEX ix_root_letter_slot_root  ON ar_ling_root_letter_slot (root_norm, slot_index);
-
-CREATE INDEX ix_root_naw_sawti_agree ON ar_ling_root_naw_sawti (agrees_with_legacy);
-
-CREATE INDEX ix_root_naw_sawti_cat   ON ar_ling_root_naw_sawti (category, soundness);
-
-CREATE INDEX ix_root_taqalib_group ON ar_ling_root_taqalib (group_key, perm_index);
-
-CREATE INDEX ix_root_taqalib_perm  ON ar_ling_root_taqalib (permutation);
-
-CREATE INDEX ix_root_taqalib_used  ON ar_ling_root_taqalib (is_used, family_size);
-
-CREATE INDEX ix_roots_canonical ON ar_ling_roots(canonical_id);
-
-CREATE INDEX ix_roots_normalized ON ar_ling_roots(root_normalized);
-
-CREATE UNIQUE INDEX ux_ar_ling_roots_root_normalized ON ar_ling_roots(root_normalized);
-
-CREATE UNIQUE INDEX ux_cb_entry_path ON ar_ling_concept_block(concept_entry_id, block_path) WHERE concept_entry_id IS NOT NULL;
-
-CREATE UNIQUE INDEX ux_gram_term_uid ON ar_ling_gram_term(uid);
-
-CREATE UNIQUE INDEX ux_morph_flags ON "ar_ling_root_lemma_sarf"(qac_flags, pos);
-
-CREATE UNIQUE INDEX ux_roots_norm ON "ar_ling_roots"(root_normalized);
-
-
--- ── Triggers (13) ────────────────────────────────────────────────
+-- ==========================================================================
+-- TRIGGERS (13)
+-- ==========================================================================
 
 CREATE TRIGGER trg_root_lemma_no_typed_prefix
 BEFORE INSERT ON ar_ling_root_lemma
@@ -2779,3 +2532,502 @@ AFTER UPDATE ON ar_ling_lexicon_entry BEGIN
     COALESCE(new.raw_text, '')
   );
 END;
+
+-- ==========================================================================
+-- INDEXES (213)
+-- ==========================================================================
+
+CREATE INDEX idx_albk_book_page
+  ON "ar_ling_lexicon_block"(book_page_id);
+
+CREATE INDEX idx_albk_origin
+  ON "ar_ling_lexicon_block"(origin);
+
+CREATE INDEX idx_albk_parent
+  ON "ar_ling_lexicon_block"(parent_block_id);
+
+CREATE INDEX idx_albk_root_entry_seq
+  ON "ar_ling_lexicon_block"(root_entry_id, block_seq);
+
+CREATE INDEX idx_albk_root_norm
+  ON "ar_ling_lexicon_block"(root_norm);
+
+CREATE INDEX idx_albk_section
+  ON "ar_ling_lexicon_block"(section_id);
+
+CREATE INDEX idx_albk_source_root
+  ON "ar_ling_lexicon_block"(source_slug, root_norm);
+
+CREATE INDEX idx_albk_type
+  ON "ar_ling_lexicon_block"(block_type);
+
+CREATE INDEX idx_albka_block
+  ON "ar_ling_lexicon_block_annotation"(block_id);
+
+CREATE INDEX idx_albka_kind
+  ON "ar_ling_lexicon_block_annotation"(annotation_kind);
+
+CREATE INDEX idx_albka_user
+  ON "ar_ling_lexicon_block_annotation"(user_id);
+
+CREATE INDEX idx_albka_visibility
+  ON "ar_ling_lexicon_block_annotation"(visibility);
+
+CREATE INDEX idx_albl_auth
+  ON "ar_ling_lexicon_block_link"(to_authority_code);
+
+CREATE INDEX idx_albl_ayah
+  ON "ar_ling_lexicon_block_link"(to_surah, to_ayah, link_kind);
+
+CREATE INDEX idx_albl_block
+  ON "ar_ling_lexicon_block_link"(to_block_id);
+
+CREATE INDEX idx_albl_from
+  ON "ar_ling_lexicon_block_link"(from_block_id);
+
+CREATE INDEX idx_albl_kind
+  ON "ar_ling_lexicon_block_link"(link_kind);
+
+CREATE INDEX idx_albl_root
+  ON "ar_ling_lexicon_block_link"(to_root_norm, link_kind);
+
+CREATE INDEX idx_albl_source
+  ON "ar_ling_lexicon_block_link"(source_slug);
+
+CREATE INDEX idx_albp_import_batch
+  ON "ar_ling_lexicon_book_page"(import_batch_id);
+
+CREATE INDEX idx_albp_printed_page
+  ON "ar_ling_lexicon_book_page"(source_slug, printed_page_start);
+
+CREATE INDEX idx_albp_root_norm
+  ON "ar_ling_lexicon_book_page"(source_slug, root_norm);
+
+CREATE INDEX idx_albp_source_slug
+  ON "ar_ling_lexicon_book_page"(source_slug);
+
+CREATE INDEX idx_albp_volume_seq
+  ON "ar_ling_lexicon_book_page"(source_slug, volume_no, page_seq);
+
+CREATE INDEX idx_albt_source
+  ON "ar_ling_lexicon_block_tag"(source);
+
+CREATE INDEX idx_albt_tag
+  ON "ar_ling_lexicon_block_tag"(tag);
+
+CREATE INDEX idx_alc_from   ON "ar_ling_source_citation"(from_layer, from_id);
+
+CREATE INDEX idx_alc_root   ON "ar_ling_source_citation"(root_norm);
+
+CREATE INDEX idx_alc_slug   ON "ar_ling_source_citation"(source_slug);
+
+CREATE INDEX idx_alc_tokind ON "ar_ling_source_citation"(to_kind);
+
+CREATE INDEX idx_alc_toref  ON "ar_ling_source_citation"(to_ref);
+
+CREATE INDEX idx_ales_heading_norm
+  ON "ar_ling_lexicon_entry_section"(heading_norm);
+
+CREATE INDEX idx_ales_page
+  ON "ar_ling_lexicon_entry_section"(page_no);
+
+CREATE INDEX idx_ales_root_entry
+  ON "ar_ling_lexicon_entry_section"(root_entry_id);
+
+CREATE INDEX idx_ales_root_norm
+  ON "ar_ling_lexicon_entry_section"(root_norm);
+
+CREATE INDEX idx_ales_source_root
+  ON "ar_ling_lexicon_entry_section"(source_slug, root_norm);
+
+CREATE INDEX idx_allee_collection
+  ON "ar_ling_lexicon_entry_embedding"(collection_name);
+
+CREATE INDEX idx_allee_hash
+  ON "ar_ling_lexicon_entry_embedding"(embedding_text_hash);
+
+CREATE INDEX idx_allee_model
+  ON "ar_ling_lexicon_entry_embedding"(embedding_model);
+
+CREATE INDEX idx_allee_status
+  ON "ar_ling_lexicon_entry_embedding"(status);
+
+CREATE INDEX idx_alqr_ayah
+  ON "ar_ling_lexicon_quran_ref"(surah, ayah);
+
+CREATE INDEX idx_alqr_block
+  ON "ar_ling_lexicon_quran_ref"(block_id);
+
+CREATE INDEX idx_alqr_root_entry
+  ON "ar_ling_lexicon_quran_ref"(root_entry_id);
+
+CREATE INDEX idx_alqr_root_norm
+  ON "ar_ling_lexicon_quran_ref"(root_norm);
+
+CREATE INDEX idx_alqr_source_ayah
+  ON "ar_ling_lexicon_quran_ref"(source_slug, surah, ayah);
+
+CREATE INDEX idx_alre_import_batch
+  ON "ar_ling_lexicon_entry"(import_batch_id);
+
+CREATE INDEX idx_alre_root_norm
+  ON "ar_ling_lexicon_entry"(root_norm);
+
+CREATE INDEX idx_alre_source_root
+  ON "ar_ling_lexicon_entry"(source_slug, root_norm);
+
+CREATE INDEX idx_alre_source_slug
+  ON "ar_ling_lexicon_entry"(source_slug);
+
+CREATE INDEX idx_alre_status
+  ON "ar_ling_lexicon_entry"(status);
+
+CREATE INDEX idx_alres_kind
+  ON "ar_ling_lexicon_entry_source"(source_kind);
+
+CREATE INDEX idx_alres_root_entry
+  ON "ar_ling_lexicon_entry_source"(root_entry_id);
+
+CREATE INDEX idx_alres_slug
+  ON "ar_ling_lexicon_entry_source"(source_slug);
+
+CREATE INDEX idx_alx_ayah       ON "ar_ling_root_lemma_tabir"(surah, ayah);
+
+CREATE INDEX idx_alx_confidence ON "ar_ling_root_lemma_tabir"(confidence);
+
+CREATE INDEX idx_alx_root       ON "ar_ling_root_lemma_tabir"(root_ar);
+
+CREATE INDEX idx_alx_source     ON "ar_ling_root_lemma_tabir"(source_slug);
+
+CREATE INDEX idx_alx_type       ON "ar_ling_root_lemma_tabir"(expression_type_id);
+
+CREATE INDEX idx_aql_al_entity
+  ON "ar_ling_root_lemma_word_quran_link"(al_entity_ref, al_entity_type);
+
+CREATE INDEX idx_aql_al_type
+  ON "ar_ling_root_lemma_word_quran_link"(al_entity_type);
+
+CREATE INDEX idx_aql_link_type
+  ON "ar_ling_root_lemma_word_quran_link"(link_type);
+
+CREATE INDEX idx_aql_qr_scope
+  ON "ar_ling_root_lemma_word_quran_link"(qr_scope_ref);
+
+CREATE INDEX idx_ar_ling_sources_origin
+  ON "ar_ling_source"(origin);
+
+CREATE UNIQUE INDEX idx_ar_ling_sources_slug
+  ON "ar_ling_source"(slug) WHERE slug IS NOT NULL;
+
+CREATE INDEX idx_ar_ling_sources_source_order
+  ON "ar_ling_source"(source_order) WHERE source_order IS NOT NULL;
+
+CREATE INDEX idx_ar_rant_root ON "ar_ling_root_didd"(root_norm, sort_order);
+
+CREATE INDEX idx_ar_root_antonyms_rid ON "ar_ling_root_didd"(root_id);
+
+CREATE INDEX idx_ar_root_devstages_rid ON "ar_ling_root_tatawwur"(root_id);
+
+CREATE INDEX idx_ar_root_fields_field ON "ar_ling_root_haql"(field_id);
+
+CREATE INDEX idx_ar_root_fields_root ON "ar_ling_root_haql"(root_norm, is_primary);
+
+CREATE INDEX idx_ar_root_rel_from ON "ar_ling_root_relation"(from_root_norm, relation_kind, sort_order);
+
+CREATE INDEX idx_ar_root_rel_kind ON "ar_ling_root_relation"(relation_kind);
+
+CREATE INDEX idx_ar_root_rel_to ON "ar_ling_root_relation"(to_root_norm, relation_kind);
+
+CREATE INDEX idx_ar_root_sense_axes_rid ON "ar_ling_root_sense_axis"(root_id);
+
+CREATE INDEX idx_ar_root_senses_core ON ar_ling_root_sense(root_norm, is_core);
+
+CREATE INDEX idx_ar_root_senses_root ON ar_ling_root_sense(root_norm, sort_order);
+
+CREATE INDEX idx_ar_root_senses_scope ON ar_ling_root_sense(scope_level, scope_key, sort_order);
+
+CREATE INDEX idx_ar_vgov_root ON "ar_ling_root_lemma_tadiya"(root_norm, sort_order);
+
+CREATE INDEX idx_arc_step_sense ON ar_ling_sense_arc_step(sense_id);
+
+CREATE INDEX idx_arl_ct_paradigm ON "ar_ling_root_form_template"(paradigm_id);
+
+CREATE INDEX idx_arl_ei_type ON "ar_ling_source_evidence"(evidence_type);
+
+CREATE INDEX idx_arl_exp_lemma ON "ar_ling_root_lemma_tabir"(primary_lemma_id);
+
+CREATE INDEX idx_arl_exp_type  ON "ar_ling_root_lemma_tabir"(expression_type_id);
+
+CREATE INDEX idx_arl_fp_type ON "ar_ling_root_form_paradigm"(paradigm_type);
+
+CREATE INDEX idx_arl_lem_bare ON "ar_ling_root_lemma"(lemma_text_bare);
+
+CREATE INDEX idx_arl_lem_pos  ON "ar_ling_root_lemma"(part_of_speech);
+
+CREATE INDEX idx_arl_lem_qrn  ON "ar_ling_root_lemma"(is_quran_word);
+
+CREATE INDEX idx_arl_lem_qrn_live ON "ar_ling_root_lemma"(record_status, is_quran_word);
+
+CREATE INDEX idx_arl_lem_root ON "ar_ling_root_lemma"(root_id);
+
+CREATE INDEX idx_arl_lemrootlink_root ON "ar_ling_root_lemma_link"(root_id);
+
+CREATE INDEX idx_arl_lexrootentry_root ON "ar_ling_lexicon_entry"(root_id);
+
+CREATE INDEX idx_arl_lrl_lemma ON "ar_ling_root_lemma_link"(lemma_id);
+
+CREATE INDEX idx_arl_lrl_root  ON "ar_ling_root_lemma_link"(root_id);
+
+CREATE INDEX idx_arl_morph_pattern ON "ar_ling_root_lemma_sarf"(pattern);
+
+CREATE INDEX idx_arl_nse_member_id     ON "ar_ling_root_lemma_furuq_evidence"(member_id);
+
+CREATE INDEX idx_arl_nse_qr_ref        ON "ar_ling_root_lemma_furuq_evidence"(qr_ref);
+
+CREATE INDEX idx_arl_nse_set_id        ON "ar_ling_root_lemma_furuq_evidence"(set_id);
+
+CREATE INDEX idx_arl_nse_surah_ayah    ON "ar_ling_root_lemma_furuq_evidence"(surah, ayah);
+
+CREATE INDEX idx_arl_nsm_arabic_bare   ON "ar_ling_root_lemma_furuq_member"(arabic_bare);
+
+CREATE INDEX idx_arl_nsm_lemma ON "ar_ling_root_lemma_furuq_member"(lemma_id);
+
+CREATE INDEX idx_arl_nsm_lemma_id      ON "ar_ling_root_lemma_furuq_member"(lemma_id);
+
+CREATE INDEX idx_arl_nsm_set   ON "ar_ling_root_lemma_furuq_member"(set_id);
+
+CREATE INDEX idx_arl_nsm_set_id        ON "ar_ling_root_lemma_furuq_member"(set_id);
+
+CREATE INDEX idx_arl_nss_domain        ON "ar_ling_root_lemma_furuq_set"(semantic_domain_id);
+
+CREATE INDEX idx_arl_nss_slug          ON "ar_ling_root_lemma_furuq_set"(slug);
+
+CREATE INDEX idx_arl_ql_entity ON "ar_ling_root_lemma_word_quran_link"(al_entity_ref);
+
+CREATE INDEX idx_arl_ql_qr     ON "ar_ling_root_lemma_word_quran_link"(qr_scope_ref);
+
+CREATE INDEX idx_arl_root_freq ON "ar_ling_roots"(frequency_quran);
+
+CREATE INDEX idx_arl_root_type ON "ar_ling_roots"(root_type);
+
+CREATE INDEX idx_arl_rootschol_root ON ar_ling_root_scholarship(root_id);
+
+CREATE INDEX idx_arl_rootvariants_root ON "ar_ling_root_lugha"(root_id);
+
+CREATE INDEX idx_arl_rv_root ON "ar_ling_root_lugha"(root_id);
+
+CREATE INDEX idx_arl_sc_embedded ON "ar_ling_source_chunk"(is_embedded);
+
+CREATE INDEX idx_arl_sc_heading
+  ON "ar_ling_source_chunk"(heading_norm);
+
+CREATE INDEX idx_arl_sc_kind     ON "ar_ling_source_chunk"(chunk_kind);
+
+CREATE INDEX idx_arl_sc_root_id
+  ON "ar_ling_source_chunk"(root_id);
+
+CREATE INDEX idx_arl_sc_root_source
+  ON "ar_ling_source_chunk"(heading_norm, source_slug);
+
+CREATE INDEX idx_arl_sc_slug
+  ON "ar_ling_source_chunk"(source_slug);
+
+CREATE INDEX idx_arl_sc_source   ON "ar_ling_source_chunk"(source_id);
+
+CREATE INDEX idx_arl_sc_surah
+  ON "ar_ling_source_chunk"(surah_no, ayah_start);
+
+CREATE INDEX idx_arl_se_source ON "ar_ling_source_edition"(source_id);
+
+CREATE INDEX idx_arl_ser_buck
+  ON "ar_ling_source_entry_ref"(source_id, buck);
+
+CREATE INDEX idx_arl_ser_chunk
+  ON "ar_ling_source_entry_ref"(source_chunk_id);
+
+CREATE INDEX idx_arl_ser_headword
+  ON "ar_ling_source_entry_ref"(source_id, headword_ar);
+
+CREATE INDEX idx_arl_ser_page
+  ON "ar_ling_source_entry_ref"(source_id, page_no);
+
+CREATE INDEX idx_arl_ser_source_node
+  ON "ar_ling_source_entry_ref"(source_id, external_node_id);
+
+CREATE INDEX idx_arl_src_type ON "ar_ling_source"(source_type);
+
+CREATE INDEX idx_arl_toc_source ON ar_ling_source_toc(source_id);
+
+CREATE INDEX idx_ext_toc_title ON ar_ling_gram_external_toc (source_slug, title_ar);
+
+CREATE INDEX idx_gbab_book ON ar_ling_gram_bab(book_id, matn_order);
+
+CREATE INDEX idx_gbab_disc ON ar_ling_gram_bab(discipline, source_slug, matn_order);
+
+CREATE INDEX idx_gbab_parent ON ar_ling_gram_bab(parent_id);
+
+CREATE INDEX idx_gpg_bab ON "ar_ling_gram_chunk"(bab_id);
+
+CREATE INDEX idx_gpg_book ON "ar_ling_gram_chunk"(book_id, seq);
+
+CREATE INDEX idx_gpg_disc ON "ar_ling_gram_chunk"(discipline, source_slug, seq);
+
+CREATE INDEX idx_gram_chunk_term_term ON ar_ling_gram_chunk_term (term_id, state);
+
+CREATE INDEX idx_gram_cite_ayah ON ar_ling_gram_chunk_citation (surah, ayah) WHERE state='resolved';
+
+CREATE INDEX idx_gram_cite_chunk ON ar_ling_gram_chunk_citation (chunk_id, seq);
+
+CREATE INDEX idx_gram_cite_source ON ar_ling_gram_chunk_citation (source_slug, state);
+
+CREATE INDEX idx_ilal_bab ON "ar_ling_root_lemma_ilal"(bab_key);
+
+CREATE INDEX idx_letters_illa ON "ar_ling_root_letter"(is_illa);
+
+CREATE INDEX idx_letters_makhraj ON "ar_ling_root_letter"(makhraj_key, makhraj_order);
+
+CREATE INDEX idx_memlets_lemma ON "ar_ling_learn_memlet"(lemma_ref);
+
+CREATE INDEX idx_memlets_root  ON "ar_ling_learn_memlet"(root_id);
+
+CREATE INDEX idx_paradigm_rt ON "ar_ling_root_form_paradigm"(root_type, weak_pattern);
+
+CREATE INDEX idx_reg_tmap_cluster ON ar_ling_reg_table_map(cluster);
+
+CREATE INDEX idx_reg_tmap_layer ON ar_ling_reg_table_map(layer_code, db);
+
+CREATE INDEX idx_rfa_form ON "ar_ling_root_form_masmu"(verb_form);
+
+CREATE INDEX idx_rfa_root ON "ar_ling_root_form_masmu"(root_norm);
+
+CREATE INDEX idx_rfa_rootid ON "ar_ling_root_form_masmu"(root_id);
+
+CREATE INDEX idx_rl_bw      ON "ar_ling_roots"(buckwalter);
+
+CREATE INDEX idx_rl_norm    ON "ar_ling_roots"(root_normalized);
+
+CREATE INDEX idx_rl_simple  ON "ar_ling_roots"(simple_lat);
+
+CREATE INDEX idx_root_scholarship_kind      ON "ar_ling_root_scholarship"(reading_kind);
+
+CREATE INDEX idx_root_scholarship_root_norm ON "ar_ling_root_scholarship"(root_norm);
+
+CREATE INDEX idx_root_scholarship_slug_root ON "ar_ling_root_scholarship"(source_slug, root_norm);
+
+CREATE INDEX idx_root_scholarship_source    ON "ar_ling_root_scholarship"(source_id);
+
+CREATE INDEX idx_sense_arc_scope ON ar_ling_sense_arc(scope_level, scope_key);
+
+CREATE INDEX idx_sense_arc_term ON ar_ling_sense_arc(terminal_sense_id);
+
+CREATE INDEX idx_sense_att_source ON ar_ling_sense_attestation(source_slug);
+
+CREATE INDEX idx_sense_att_target ON ar_ling_sense_attestation(target_type, target_id);
+
+CREATE INDEX idx_sublayer_band ON ar_ling_reg_sub_layer(band, display_order);
+
+CREATE INDEX idx_synbl_from ON "ar_ling_root_backlink"(from_table, from_row_id);
+
+CREATE INDEX idx_synbl_root ON "ar_ling_root_backlink"(root_norm, display_code);
+
+CREATE INDEX idx_synbl_to   ON "ar_ling_root_backlink"(to_kind, to_row_id);
+
+CREATE INDEX idx_term_toc_best ON ar_ling_gram_term_toc (term_id, match_rank, source_rank);
+
+CREATE INDEX idx_term_toc_disc ON ar_ling_gram_term_toc (discipline, term_id, match_rank);
+
+CREATE INDEX idx_term_toc_source ON ar_ling_gram_term_toc (source_slug, term_id);
+
+CREATE INDEX idx_ws_lemma ON "ar_ling_root_lemma_word_silsila"(lemma_ref);
+
+CREATE INDEX idx_ws_root ON "ar_ling_root_lemma_word_silsila"(root_norm, bab_key);
+
+CREATE INDEX idx_ws_stepof ON "ar_ling_root_lemma_word_silsila"(step_of, step_seq);
+
+CREATE INDEX ix_arc_lemma ON ar_ling_lemma_arc(lemma_id);
+
+CREATE INDEX ix_arc_root ON ar_ling_lemma_arc(root_norm, status);
+
+CREATE INDEX ix_arcex_arc ON ar_ling_lemma_arc_example(arc_id, seq);
+
+CREATE INDEX ix_arcex_qr ON ar_ling_lemma_arc_example(surah, ayah);
+
+CREATE INDEX ix_cb_sense ON ar_ling_concept_block(sense_id);
+
+CREATE INDEX ix_cb_term  ON ar_ling_concept_block(term_id, block_type, block_seq);
+
+CREATE INDEX ix_cbl_from ON ar_ling_concept_block_link(from_block_id, link_kind);
+
+CREATE INDEX ix_cbl_qr   ON ar_ling_concept_block_link(to_surah, to_ayah);
+
+CREATE INDEX ix_ce_term ON ar_ling_concept_entry(term_id, source_slug);
+
+CREATE INDEX ix_ceq_term ON ar_ling_concept_equivalent(term_id, tradition, sort_order);
+
+CREATE INDEX ix_cg_disc  ON ar_ling_concept_group(discipline_key, group_kind, seq);
+
+CREATE INDEX ix_cgm_term ON ar_ling_concept_group_member(term_id);
+
+CREATE INDEX ix_cse_qr    ON ar_ling_concept_sense_example(qr_surah, qr_ayah);
+
+CREATE INDEX ix_cse_sense ON ar_ling_concept_sense_example(sense_id, sort_order);
+
+CREATE INDEX ix_cxl_from ON ar_ling_concept_external_link(from_uid, to_db, to_kind);
+
+CREATE INDEX ix_cxl_ref  ON ar_ling_concept_external_link(from_ref);
+
+CREATE INDEX ix_cxl_to   ON ar_ling_concept_external_link(to_uid);
+
+CREATE INDEX ix_ilal_apply_lemma ON ar_ling_root_lemma_ilal_apply(lemma_id);
+
+CREATE INDEX ix_ilal_apply_root ON ar_ling_root_lemma_ilal_apply(root_norm);
+
+CREATE INDEX ix_ilal_apply_rule ON ar_ling_root_lemma_ilal_apply(rule_id);
+
+CREATE INDEX ix_lexicon_display_profile_order
+  ON ar_ling_lexicon_display_profile (display_order);
+
+CREATE INDEX ix_lexicon_display_rule_slug_key
+  ON ar_ling_lexicon_display_rule (source_slug, rule_key, seq);
+
+CREATE INDEX ix_lexicon_display_section_kind
+  ON ar_ling_lexicon_display_section (kind_code);
+
+CREATE INDEX ix_lexicon_display_section_slug_seq
+  ON ar_ling_lexicon_display_section (source_slug, seq);
+
+CREATE INDEX ix_rlf_sub ON "ar_ling_root_layer_fill_dep_20260815"(sub_code, n);
+
+CREATE INDEX ix_root_asl_death   ON ar_ling_root_asl(root_norm, death_hijri);
+
+CREATE INDEX ix_root_asl_primary ON ar_ling_root_asl(root_norm, is_primary);
+
+CREATE INDEX ix_root_asl_root    ON ar_ling_root_asl(root_norm);
+
+CREATE INDEX ix_root_letter_slot_letter ON ar_ling_root_letter_slot (letter_ar, slot_role);
+
+CREATE INDEX ix_root_letter_slot_root  ON ar_ling_root_letter_slot (root_norm, slot_index);
+
+CREATE INDEX ix_root_naw_sawti_agree ON ar_ling_root_naw_sawti (agrees_with_legacy);
+
+CREATE INDEX ix_root_naw_sawti_cat   ON ar_ling_root_naw_sawti (category, soundness);
+
+CREATE INDEX ix_root_taqalib_group ON ar_ling_root_taqalib (group_key, perm_index);
+
+CREATE INDEX ix_root_taqalib_perm  ON ar_ling_root_taqalib (permutation);
+
+CREATE INDEX ix_root_taqalib_used  ON ar_ling_root_taqalib (is_used, family_size);
+
+CREATE INDEX ix_roots_canonical ON ar_ling_roots(canonical_id);
+
+CREATE INDEX ix_roots_normalized ON ar_ling_roots(root_normalized);
+
+CREATE UNIQUE INDEX ux_ar_ling_roots_root_normalized ON ar_ling_roots(root_normalized);
+
+CREATE UNIQUE INDEX ux_cb_entry_path ON ar_ling_concept_block(concept_entry_id, block_path) WHERE concept_entry_id IS NOT NULL;
+
+CREATE UNIQUE INDEX ux_gram_term_uid ON ar_ling_gram_term(uid);
+
+CREATE UNIQUE INDEX ux_morph_flags ON "ar_ling_root_lemma_sarf"(qac_flags, pos);
+
+CREATE UNIQUE INDEX ux_roots_norm ON "ar_ling_roots"(root_normalized);
