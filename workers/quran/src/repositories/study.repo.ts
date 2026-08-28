@@ -130,7 +130,7 @@ export interface AyahWordToken {
 export interface SsConstituencyNode {
   name:      string;                 // the Arabic text span
   id:        string;
-  term_id?:  string;                 // qr_ss_term key (colour + label)
+  term_id?:  string;                 // GT: id — the registry names and colours it
   label_ar?: string;                 // grammatical role label, e.g. 'مبتدأ'
   note?:     string;
   word_id?:  string;                 // leaf → its word occurrence (lexicon cross-ref)
@@ -735,7 +735,7 @@ export class StudyRepo {
       };
     }
 
-    const [sentRows, clauseRows, wordRows, irabRows, balaghaRows, ellipsisRows, tafsirRows, treeRows, nodeRows, termRows, irabAyahRows, grammarRows, sarfRows] =
+    const [sentRows, clauseRows, wordRows, irabRows, balaghaRows, ellipsisRows, tafsirRows, treeRows, nodeRows, termRows, irabAyahRows, grammarRows, readingRows, foldRows, sarfRows] =
       await Promise.all([
         query<{ id: string; ayah_from: number; ayah_to: number; word_start_index: number | null;
                 word_end_index: number | null; sentence_kind: string | null;
@@ -834,7 +834,13 @@ export class StudyRepo {
                 term_key: string | null; label_ar: string | null; note_md: string | null;
                 word_occurrence_id: string | null; depth: number; node_order: number }>(
           this.db,
-          `SELECT n.id, n.tree_id, n.parent_node_id, n.node_label, n.term_key, n.label_ar,
+          `SELECT n.id, n.tree_id, n.parent_node_id, n.node_label,
+                  -- 014 resolved every node's term onto gram_term_ref; the bare
+                  -- term_key stays only as the fallback for a row it could not
+                  -- place. Sending the resolved id is what lets the board name
+                  -- and colour the node from the registry instead of printing
+                  -- a bare mudaf_ilayh at a reader.
+                  COALESCE(n.gram_term_ref, n.term_key) AS term_key, n.label_ar,
                   n.note_md, n.word_occurrence_id, n.depth, n.node_order
            FROM qr_ss_tree_node n
            WHERE n.tree_id IN (
@@ -908,6 +914,48 @@ export class StudyRepo {
         // is the per-word iʿrāb the board puts under a leaf node — its
         // syntactic function, where the case sits and what marks it, and
         // whether the grammarians disagree about it at all.
+        // ── the readings ledger ──────────────────────────────────────────
+        // Every position a source takes, with who takes it and how many. This
+        // is the band that answers "why do they disagree" — is_contested marks
+        // the ones where they do, is_minority the lone voice, is_selected the
+        // one the translation was folded from.
+        query<{ id: string; scope_type: string; scope_id: string; type: string | null;
+                ref: string | null; paradigm: string | null; en: string | null;
+                ar: string | null; scholars: string | null; minority: number;
+                contested: number; selected: number; witnesses: number | null;
+                why: string | null }>(
+          this.db,
+          `SELECT r.id, r.scope_type, r.scope_id, r.reading_type AS type,
+                  r.lx_reading_type_ref AS ref, r.paradigm_ref AS paradigm,
+                  r.reading_text AS en, r.reading_text_ar AS ar,
+                  r.scholar_ref AS scholars, r.is_minority AS minority,
+                  r.is_contested AS contested, r.is_selected AS selected,
+                  r.witness_count AS witnesses,
+                  r.selection_rationale_json AS why
+             FROM qr_ss_scope_reading r
+            WHERE r.scope_id IN (SELECT id FROM qr_ss_occ_sentence WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?)
+               OR r.scope_id IN (SELECT id FROM qr_word_occurrence   WHERE surah = ? AND ayah BETWEEN ? AND ?)`,
+          [surah, from, to, surah, from, to],
+        ).catch(() => []),
+        // ── the fold ─────────────────────────────────────────────────────
+        // The derived translation, step by step: the structural track is the
+        // grammar-only reading, the fluent one is grammar folded with balagha.
+        // Where the two part is where a rendering decision was made, and
+        // reading_ref names the reading it was made on.
+        query<{ id: string; scope_id: string; seq: number; ayah_from: number; ayah_to: number;
+                structural: string | null; fluent_en: string | null; fluent_ar: string | null;
+                gloss: string | null; note_ar: string | null; synthesis: string | null;
+                reading_ref: string | null; rejected: string | null }>(
+          this.db,
+          `SELECT id, scope_id, seq, ayah_from, ayah_to,
+                  structural_literal_en AS structural, fluent_en, fluent_ar,
+                  gloss_json AS gloss, decision_note_ar AS note_ar,
+                  synthesis_md AS synthesis, reading_ref, rejected_readings_json AS rejected
+             FROM qr_ss_translation_unit
+            WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ? AND status = 'live'
+            ORDER BY ayah_from, seq`,
+          [surah, from, to],
+        ).catch(() => []),
         query<{ scope_type: string; scope_id: string; ref: string;
                 fn: string | null; position: string | null; sign: string | null;
                 disputed: number; dispute: string | null; note: string | null }>(
@@ -1144,6 +1192,49 @@ export class StudyRepo {
       });
     }
 
+    // ── the readings, keyed by scope, and the questions they answer ──────────
+    //
+    // The artifact groups these by the QUESTION each answers rather than by
+    // source, because that is how a reader uses them: not "what does al-Razi
+    // say" but "where does the sentence sit, and who disagrees". reading_type
+    // is that grouping, and the weight is the witness count — 9 · all, or
+    // 1 · minority.
+    const readings = readingRows.map((r) => ({
+      id: r.id,
+      scopeType: r.scope_type,
+      scopeId: r.scope_id,
+      question: r.type,
+      ref: r.ref,
+      paradigm: r.paradigm,
+      en: r.en,
+      ar: r.ar,
+      // scholar_ref is a semicolon-joined list; the board renders one chip each.
+      sources: (r.scholars ?? '').split(';').map((x) => x.trim()).filter(Boolean),
+      isMinority: !!r.minority,
+      isContested: !!r.contested,
+      isSelected: !!r.selected,
+      witnesses: r.witnesses ?? null,
+      why: parseJson(r.why),
+    }));
+
+    // ── the fold ─────────────────────────────────────────────────────────────
+    const fold = foldRows.map((f) => ({
+      id: f.id,
+      scopeId: f.scope_id,
+      seq: f.seq,
+      ayah: f.ayah_from,
+      ayahTo: f.ayah_to,
+      structural: f.structural,
+      fluentEn: f.fluent_en,
+      fluentAr: f.fluent_ar,
+      gloss: parseJson(f.gloss),
+      noteAr: f.note_ar,
+      // The 'finding' band: why the English says what it says.
+      synthesis: f.synthesis,
+      readingRef: f.reading_ref,
+      rejected: parseJson(f.rejected),
+    }));
+
     // A term is addressable by its global id and by its bare key, because the
     // tree nodes still carry bare keys (`muqattaat`) while the scope links
     // already carry global ones (`GT:irab_role:mubtada`). Both resolve to the
@@ -1170,6 +1261,8 @@ export class StudyRepo {
       termColors,
       terms,
       layersByScope,
+      readings,
+      fold,
       sentences,
     };
   }
