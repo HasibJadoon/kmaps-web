@@ -126,66 +126,109 @@
           @if (s.note) { <p class="ssm-irab__text" dir="rtl">{{ s.note }}</p> }
         </section>
 
-        <!-- Grammarian details (ayah-level iʿrāb, every book) -->
-        @if (s.irabAnalysis.length) {
-          <section class="ssm-card">
-            <p class="ssm-label">Grammarian details · {{ s.irabAnalysis.length }}</p>
-            @for (ia of s.irabAnalysis; track $index) {
-              <div class="ssm-irab">
-                <div class="ssm-irab__head">
-                  <span class="ssm-irab__book" dir="rtl">{{ ia.book }}</span>
-                  @if (ia.role) { <span class="ssm-irab__role" dir="rtl">{{ ia.role }}</span> }
-                  @if (ia.case) { <span class="ssm-pill ssm-pill--ghost" dir="rtl">{{ ia.case }}</span> }
+        <!-- ── The layers, under the scope they are about ──────────────────
+             The four cards that stood here — Grammarian details, Balāgha,
+             Ellipsis, Mufassir input — were flat lists for the whole sentence,
+             and every entry in them belonged to one word, clause or phrase. -->
+        @if (layersFor(s.id); as L) {
+          <section class="ssm-card ssm-doc">
+            <p class="ssm-label" dir="rtl">ما قيل في الجملة</p>
+            @if (L.nahw?.length) {
+              <div class="ssm-lay ssm-lay--nahw">
+                <span class="ssm-lay__tag">تفسير</span>
+                <div class="ssm-lay__body">
+                  @for (n of L.nahw; track $index) {
+                    <div class="ssm-lay__row">
+                      @if (n.gloss?.ar) { <p class="ssm-lay__ar" dir="rtl">{{ n.gloss?.ar }}</p> }
+                      @if (n.gloss?.en || n.note) { <p class="ssm-lay__en">{{ n.gloss?.en || n.note }}</p> }
+                      @if (termLabel(n.ref); as t) { <span class="ssm-chip ssm-chip--nahw" dir="rtl">{{ t }}</span> }
+                    </div>
+                  }
                 </div>
-                @if (ia.phrase) { <p class="ssm-irab__phrase" dir="rtl">{{ ia.phrase }}</p> }
-                @if (ia.text)   { <p class="ssm-irab__text" dir="rtl">{{ ia.text }}</p> }
+              </div>
+            }
+            @if (L.balagha?.length) {
+              <div class="ssm-lay ssm-lay--bal">
+                <span class="ssm-lay__tag">بلاغة</span>
+                <div class="ssm-lay__body">
+                  @for (b of L.balagha; track $index) {
+                    <div class="ssm-lay__row">
+                      @if (b.note) { <p class="ssm-lay__ar" dir="rtl">{{ b.note }}</p> }
+                      @if (b.category) { <span class="ssm-chip ssm-chip--bal" dir="rtl">{{ b.category }}</span> }
+                      @if (b.effect) { <span class="ssm-chip ssm-chip--bal" dir="rtl">{{ b.effect }}</span> }
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+            @if (L.irab?.length) {
+              <div class="ssm-lay ssm-lay--sarf">
+                <span class="ssm-lay__tag">صرف</span>
+                <div class="ssm-lay__body">
+                  @for (i of L.irab; track $index) {
+                    <div class="ssm-lay__row">
+                      @if (i.fn) { <span class="ssm-chip ssm-chip--sarf" dir="rtl">{{ i.fn }}</span> }
+                      @if (i.position) { <span class="ssm-chip ssm-chip--ghost" dir="rtl">{{ i.position }}</span> }
+                      @if (i.disputed) { <span class="ssm-chip ssm-chip--bal" dir="rtl">مختلف فيه</span> }
+                      @if (i.dispute) { <p class="ssm-lay__ar" dir="rtl">{{ i.dispute }}</p> }
+                    </div>
+                  }
+                </div>
               </div>
             }
           </section>
         }
 
-        <!-- Balāgha -->
-        @if (s.balagha.length) {
-          <section class="ssm-card">
-            <p class="ssm-label">Balāgha</p>
-            @for (b of s.balagha; track $index) {
-              <div class="ssm-irab">
-                <div class="ssm-irab__head">
-                  @if (b.category) { <span class="ssm-irab__role" dir="rtl">{{ b.category }}</span> }
-                  @if (b.effect)   { <span class="ssm-pill ssm-pill--ghost" dir="rtl">{{ b.effect }}</span> }
+        <!-- ── Readings, grouped by the question each answers ───────────────── -->
+        @if (readingGroups().length) {
+          <section class="ssm-card ssm-doc">
+            <p class="ssm-label" dir="rtl">أوجه الإعراب</p>
+            @for (g of readingGroups(); track g.question) {
+              <p class="ssm-q" dir="rtl">{{ questionAr(g.question) }}</p>
+              @for (r of g.rows; track r.id) {
+                <div class="ssm-read" (click)="toggleReading(r.id)">
+                  <div class="ssm-read__head">
+                    <span class="ssm-read__en">{{ r.en || r.ar }}</span>
+                    <span class="ssm-read__w" [class.is-min]="r.isMinority">{{ weight(r) }}</span>
+                  </div>
+                  @if (openReadings().has(r.id)) {
+                    @if (r.ar) { <p class="ssm-lay__ar" dir="rtl">{{ r.ar }}</p> }
+                    @for (src of r.sources; track $index) {
+                      <span class="ssm-chip ssm-chip--nahw">{{ src }}</span>
+                    }
+                  }
                 </div>
-                @if (b.note) { <p class="ssm-irab__text" dir="rtl">{{ b.note }}</p> }
+              }
+            }
+          </section>
+        }
+
+        <!-- ── The fold ─────────────────────────────────────────────────────── -->
+        @if (foldSteps().length) {
+          <section class="ssm-card ssm-doc">
+            <p class="ssm-label" dir="rtl">الطَّيّ</p>
+            @for (f of foldSteps(); track f.id) {
+              <div class="ssm-step" [class.is-diverge]="diverges(f)">
+                <span class="ssm-step__n">{{ f.seq }} · {{ f.ayah }}</span>
+                @if (f.structural) {
+                  <div class="ssm-track"><span class="ssm-track__lab" dir="rtl">حرفيّة</span>
+                    <span class="ssm-track__txt is-muted">{{ f.structural }}</span></div>
+                }
+                @if (f.fluentEn) {
+                  <div class="ssm-track"><span class="ssm-track__lab" dir="rtl">فصيحة</span>
+                    <span class="ssm-track__txt">{{ f.fluentEn }}</span></div>
+                }
+                @if (f.fluentAr) { <p class="ssm-lay__ar" dir="rtl">{{ f.fluentAr }}</p> }
+                @if (f.noteAr) { <p class="ssm-step__note" dir="rtl">{{ f.noteAr }}</p> }
               </div>
             }
           </section>
         }
 
-        <!-- Ellipsis -->
-        @if (s.ellipsis.length) {
-          <section class="ssm-card">
-            <p class="ssm-label">Ellipsis (ḥadhf)</p>
-            @for (el of s.ellipsis; track $index) {
-              <div class="ssm-irab">
-                <div class="ssm-irab__head">
-                  <span class="ssm-irab__role" dir="rtl">{{ el.type }}</span>
-                  @if (el.elided) { <span class="ssm-pill ssm-pill--ghost" dir="rtl">{{ el.elided }}</span> }
-                </div>
-                @if (el.note) { <p class="ssm-irab__text" dir="rtl">{{ el.note }}</p> }
-              </div>
-            }
-          </section>
-        }
-
-        <!-- Mufassir input -->
-        @if (s.tafsir.length) {
-          <section class="ssm-card">
-            <p class="ssm-label">Mufassir input · {{ s.tafsir.length }}</p>
-            @for (tf of s.tafsir; track $index) {
-              <div class="ssm-irab">
-                @if (tf.work) { <span class="ssm-irab__book" dir="rtl">{{ tf.work }}</span> }
-                @if (tf.text) { <p class="ssm-irab__text" dir="rtl">{{ tf.text }}</p> }
-              </div>
-            }
+        @if (finding(); as fnd) {
+          <section class="ssm-finding">
+            <p class="ssm-finding__eyebrow" dir="rtl">وجه الاختيار في الترجمة</p>
+            <p>{{ fnd }}</p>
           </section>
         }
       }

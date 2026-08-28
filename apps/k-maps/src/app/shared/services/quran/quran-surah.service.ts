@@ -418,9 +418,55 @@ export interface SsSentenceVm {
   tafsir: SsTafsirVm[];                   // mufassir input
 }
 
+/** What was said about one scope — a sentence, clause, phrase or word id. */
+export interface SsScopeLayersVm {
+  /** The word's own iʿrāb: function, where the case sits, what marks it. */
+  irab: { ref: string; fn: string | null; position: string | null; sign: string | null;
+          disputed: boolean; dispute: string | null; note: string | null }[];
+  /** Naḥw claims, trilingual through gloss. */
+  nahw: { ref: string; note: string | null;
+          gloss: { ar?: string; en?: string; ur?: string } | null }[];
+  balagha: SsBalaghaVm[];
+}
+
+/** One position on a contested point, with its witnesses. */
+export interface SsReadingVm {
+  id: string;
+  scopeType: string | null;
+  scopeId: string | null;
+  /** What question this answers — the ledger is grouped by it. */
+  question: string | null;
+  ref: string | null;
+  en: string | null;
+  ar: string | null;
+  sources: string[];
+  isMinority: boolean;
+  isContested: boolean;
+  isSelected: boolean;
+  witnesses: number | null;
+}
+
+/** One step of the derived translation. The tracks part where a decision was made. */
+export interface SsFoldStepVm {
+  id: string;
+  scopeId: string | null;
+  seq: number;
+  ayah: number;
+  structural: string | null;
+  fluentEn: string | null;
+  fluentAr: string | null;
+  noteAr: string | null;
+  synthesis: string | null;
+}
+
 export interface SsStepData {
   termColors: Record<string, string>;
   terms: SsTermVm[];
+  /** Keyed by scope id, so a tree node can ask what was said about itself
+   *  rather than the reader matching flat lists back to words by eye. */
+  layersByScope: Record<string, SsScopeLayersVm>;
+  readings: SsReadingVm[];
+  fold: SsFoldStepVm[];
   sentences: SsSentenceVm[];
 }
 
@@ -1011,6 +1057,9 @@ export class QuranSurahService {
         ayahTo?: number;
         termColors?: Record<string, string>;
         terms?: SsTermVm[];
+        layersByScope?: Record<string, SsScopeLayersVm>;
+        readings?: SsReadingVm[];
+        fold?: SsFoldStepVm[];
         sentences?: SsSentenceVm[];
       }>('qr', ['study', 'surahs', surahId, 'passages', passageNo, 'steps', 'sentence_structure'])
       .pipe(
@@ -1032,6 +1081,9 @@ export class QuranSurahService {
             sentenceStructure: {
               termColors: data.termColors ?? {},
               terms: data.terms ?? [],
+              layersByScope: data.layersByScope ?? {},
+              readings: data.readings ?? [],
+              fold: data.fold ?? [],
               sentences: data.sentences ?? [],
             },
           };

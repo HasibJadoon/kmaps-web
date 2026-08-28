@@ -20,6 +20,7 @@ import { CommonModule } from '@angular/common';
 import { hierarchy, tree as d3Tree, HierarchyPointNode } from 'd3-hierarchy';
 import type {
   SsStepData, SsSentenceVm, SsClauseNodeVm, SsClauseWordVm, SsConstituencyNodeVm,
+  SsScopeLayersVm, SsReadingVm, SsFoldStepVm, SsTermVm,
 } from '../../../../../../../shared/services/quran/quran-surah.service';
 
 // ── Layout node — the unified hierarchy fed to d3-tree ────────────────────────
@@ -84,6 +85,96 @@ export class SentenceStructureMiroComponent {
   readonly current   = computed<SsSentenceVm | null>(() => this.sentences()[this.activeIdx()] ?? null);
 
   private readonly termColors = computed<Record<string, string>>(() => this._data()?.termColors ?? {});
+
+  // ── The document bands ──────────────────────────────────────────────────────
+  //
+  // The four cards that used to sit beside the board — Grammarian details,
+  // Balāgha, Ellipsis, Mufassir input — were four flat lists for the whole
+  // sentence, and every entry in them actually belonged to a particular word,
+  // clause or phrase. The scope tables have always carried what each claim is
+  // about; the server now sends them keyed that way, so a node can ask what was
+  // said about ITSELF.
+
+  private readonly layers = computed<Record<string, SsScopeLayersVm>>(
+    () => this._data()?.layersByScope ?? {});
+
+  /** A term answers to its global id and to its bare key, because trees carry
+   *  one and scope links carry the other until 013 finishes the retirement. */
+  readonly termIndex = computed<Record<string, SsTermVm>>(() => {
+    const out: Record<string, SsTermVm> = {};
+    for (const t of this.terms()) {
+      if (t.key) out[t.key] = t;
+      const ref = (t as unknown as { ref?: string }).ref;
+      if (ref) out[ref] = t;
+    }
+    return out;
+  });
+
+  /** What was said about one scope, or null. Word nodes look up by their word
+   *  id, the root by the sentence's. */
+  layersFor(scopeId: string | null | undefined): SsScopeLayersVm | null {
+    if (!scopeId) return null;
+    const l = this.layers()[scopeId];
+    if (!l) return null;
+    const empty = !l.irab?.length && !l.nahw?.length && !l.balagha?.length;
+    return empty ? null : l;
+  }
+
+  termLabel(ref: string | null | undefined): string {
+    if (!ref) return '';
+    return this.termIndex()[ref]?.labelAr ?? ref;
+  }
+
+  /** The ledger, grouped by the question each reading answers. */
+  readonly readingGroups = computed<{ question: string; rows: SsReadingVm[] }[]>(() => {
+    const s = this.current();
+    const rows = (this._data()?.readings ?? []).filter(
+      (r) => !s || r.scopeId === s.id || r.scopeType === 'word');
+    const by = new Map<string, SsReadingVm[]>();
+    for (const r of rows) {
+      const q = r.question ?? '—';
+      by.set(q, [...(by.get(q) ?? []), r]);
+    }
+    return [...by.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([question, rows]) => ({ question, rows }));
+  });
+
+  /** The ledger groups by reading_type, which the corpus stores as a slug. The
+   *  board is Arabic, so the slug is named in Arabic — and an unrecognised one
+   *  is shown as it came rather than guessed at. */
+  questionAr(key: string): string {
+    return ({
+      irab: 'الإعراب', synthesis: 'الخلاصة', balagha: 'البلاغة', sarf: 'الصرف',
+      qiraah: 'القراءة', tafsir: 'التفسير', dalala: 'الدلالة', tarjama: 'الترجمة',
+    } as Record<string, string>)[key] ?? key;
+  }
+
+  /** "9 · all", "1 · minority", or the bare count. */
+  weight(r: SsReadingVm): string {
+    const n = r.witnesses ?? r.sources?.length ?? 0;
+    return r.isMinority ? `${n} · minority` : `${n}`;
+  }
+
+  readonly foldSteps = computed<SsFoldStepVm[]>(() => {
+    const s = this.current();
+    return (this._data()?.fold ?? []).filter((f) => !s || !f.scopeId || f.scopeId === s.id);
+  });
+
+  /** Where the two tracks part, the step had a choice in it. */
+  diverges(f: SsFoldStepVm): boolean {
+    return !!f.structural && !!f.fluentEn && f.structural !== f.fluentEn;
+  }
+
+  readonly finding = computed<string | null>(
+    () => this.foldSteps().find((f) => !!f.synthesis)?.synthesis ?? null);
+
+  readonly openReadings = signal<Set<string>>(new Set());
+  toggleReading(id: string): void {
+    const next = new Set(this.openReadings());
+    next.has(id) ? next.delete(id) : next.add(id);
+    this.openReadings.set(next);
+  }
+
 
   // ── Layout (recomputed per active sentence) ─────────────────────────────────
 
