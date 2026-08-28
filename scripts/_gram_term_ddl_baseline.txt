@@ -1,0 +1,26 @@
+-- The registry DDL as it stands in km_arabic_linguistic, verbatim from
+-- sqlite_master. The replica in workers/quran/migrations/0010_gt_mirror.sql must
+-- match this modulo IF NOT EXISTS and identifier quoting; scripts/
+-- test_sync_gt_mirror.py asserts it. Refresh from AL when the registry changes:
+--   wrangler d1 execute km_arabic_linguistic --remote --json \
+--     --config workers/ar-linguistics/wrangler.toml \
+--     --command "SELECT sql FROM sqlite_master WHERE name='ar_ling_gram_term'"
+CREATE TABLE "ar_ling_gram_term" (
+  id             TEXT PRIMARY KEY,
+  category_key   TEXT NOT NULL,
+  term_key       TEXT NOT NULL,
+  qac_flag       TEXT,
+  parent_term_id TEXT,
+  term_order     INTEGER NOT NULL DEFAULT 0,
+  name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
+  short_ar TEXT, short_en TEXT, short_ur TEXT,
+  definition_ar TEXT, definition_en TEXT, definition_ur TEXT,
+  badge_color TEXT, icon TEXT,
+  version     INTEGER NOT NULL DEFAULT 1,
+  superseded_by TEXT,
+  status      TEXT NOT NULL DEFAULT 'live', discipline TEXT, is_default_when_absent INTEGER NOT NULL DEFAULT 0, uid TEXT, qac_scope TEXT, applies_when TEXT,
+  UNIQUE (category_key, term_key),
+  UNIQUE (category_key, qac_flag),
+  FOREIGN KEY (category_key)   REFERENCES "ar_ling_gram_category"(category_key),
+  FOREIGN KEY (parent_term_id) REFERENCES "ar_ling_gram_term"(id)
+);

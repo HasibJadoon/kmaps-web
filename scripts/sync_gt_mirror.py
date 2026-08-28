@@ -3,8 +3,10 @@
 
 D1 cannot join across databases, so the morphology display path cannot reach
 km_arabic_linguistic.ar_ling_gram_term at serve time. km_quran therefore keeps a
-complete local replica — qr_gram_term / qr_gram_category — and every read stays
-a single query against one database.
+complete local replica under the SAME names and structure — ar_ling_gram_term
+and ar_ling_gram_category, same columns, same constraints, same ids — so a query
+written against the registry in AL runs verbatim against the copy in QR, and
+every read stays a single query against one database.
 
 GT is the only authored copy. This script is the only thing that writes the
 replica; nothing in km_quran is ever hand-edited. It also regenerates
@@ -13,7 +15,8 @@ into the atomic terms the registry holds ('3', 'M', 'S'), so that table is
 derived from GT too rather than separately maintained.
 
 Why this exists: the table it replaces, qr_gram_term_ref, was a hand-maintained
-PARTIAL projection — 325 of GT's 435 terms. By 2026-08 it had drifted in both
+PARTIAL projection under a local name and a local column shape — 325 of GT's
+435 terms. By 2026-08 it had drifted in both
 directions: 110 terms missing, and six categories serving stale label text.
 
 Usage:
@@ -160,7 +163,11 @@ def main() -> None:
     print(f"  {len(terms)} terms · {len(cats)} categories · signature {live_sig}")
 
     print("reading km_quran …")
-    have_sig = d1(QR_CFG, "SELECT signature FROM qr_gram_term_signature")[0]["signature"]
+    # Not a copy-paste of the line above: the replica defines the same view
+    # under the same name, so the identical query answers "what does the copy
+    # hold?" when pointed at km_quran. Comparable signatures are the whole
+    # reason the names match.
+    have_sig = d1(QR_CFG, "SELECT signature FROM ar_ling_gram_term_signature")[0]["signature"]
     flags = [r["flag"] for r in d1(QR_CFG,
              "SELECT DISTINCT j.value AS flag FROM qr_word_occurrence w,"
              " json_each(json_extract(w.morphology_tag_json,'$.stem.flags')) j")]
@@ -187,13 +194,16 @@ def main() -> None:
     term_cat = {t["id"]: t["category_key"] for t in terms}
 
     rows = 0
-    parts = ["DELETE FROM qr_gram_term;", "DELETE FROM qr_gram_category;",
+    # Terms carry a foreign key onto categories, so they go first. D1 does not
+    # enforce FKs at runtime, but the order should still be correct.
+    parts = ['DELETE FROM "ar_ling_gram_term";',
+             'DELETE FROM "ar_ling_gram_category";',
              "DELETE FROM qr_morph_flag_decomp;"]
     for c in cats:
-        parts.append(f"INSERT INTO qr_gram_category ({','.join(CAT_COLS)}) VALUES "
+        parts.append(f"INSERT INTO ar_ling_gram_category ({','.join(CAT_COLS)}) VALUES "
                      f"({','.join(q(c[k]) for k in CAT_COLS)});")
     for t in terms:
-        parts.append(f"INSERT INTO qr_gram_term ({','.join(TERM_COLS)}) VALUES "
+        parts.append(f"INSERT INTO ar_ling_gram_term ({','.join(TERM_COLS)}) VALUES "
                      f"({','.join(q(t[k]) for k in TERM_COLS)});")
     for flag, ids in sorted(decomp.items()):
         for gid in ids:
@@ -202,7 +212,7 @@ def main() -> None:
             parts.append(
                 "INSERT INTO qr_morph_flag_decomp (flag, gram_term_ref, sort_order,"
                 f" requires_flag, derived_from) VALUES ({q(flag)}, {q(gid)},"
-                f" {order}, {q(requires)}, 'qr_gram_term');")
+                f" {order}, {q(requires)}, 'ar_ling_gram_term');")
             rows += 1
     parts.append(
         "INSERT OR REPLACE INTO qr_morph_display_build (build_id, built_at,"
@@ -210,8 +220,8 @@ def main() -> None:
         f"{q('MDB:' + date.today().isoformat())}, {q(date.today().isoformat())},"
         f" {q(live_sig)}, {len(terms)},"
         " (SELECT COUNT(*) FROM v_morph_display_word),"
-        " 'scripts/sync_gt_mirror.py (full GT replica in km_quran; no cross-db read at serve time)',"
-        f" {q('Replica refreshed from ar_ling_gram_term. Serving reads qr_gram_term only.')});")
+        " 'scripts/sync_gt_mirror.py (full GT replica in km_quran under AL's own names; no cross-db read at serve time)',"
+        f" {q('Replica refreshed from km_arabic_linguistic. Serving reads km_quran only.')});")
 
     print(f"\n  {len(cats)} categories · {len(terms)} terms · {rows} decomposition rows")
     print(f"  signature {have_sig} → {live_sig}")
@@ -223,7 +233,7 @@ def main() -> None:
     print("\nwriting the replica …")
     d1_file(QR_CFG, "\n".join(parts))
 
-    after = d1(QR_CFG, "SELECT signature FROM qr_gram_term_signature")[0]["signature"]
+    after = d1(QR_CFG, "SELECT signature FROM ar_ling_gram_term_signature")[0]["signature"]
     if after != live_sig:
         sys.exit(f"replica did not land: {after} != {live_sig}")
     print(f"done — replica signature {after} matches the registry.")

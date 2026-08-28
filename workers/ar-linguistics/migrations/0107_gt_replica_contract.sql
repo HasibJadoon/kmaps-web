@@ -16,7 +16,8 @@
 UPDATE ar_ling_reg_conformance_check
    SET description = 'The km_quran replica of this registry must be current. '
                      'Step 1: SELECT signature FROM ar_ling_gram_term_signature (this db). '
-                     'Step 2: SELECT signature FROM qr_gram_term_signature (km_quran). '
+                     'Step 2: SELECT signature FROM ar_ling_gram_term_signature (km_quran — the '
+                     'replica defines the same view under the same name). '
                      'Equal means current. Unequal means the replica is behind and '
                      'scripts/sync_gt_mirror.py must be re-run before its labels are trusted. '
                      'Do NOT compare against qr_morph_display_build.gt_signature: that column '
@@ -40,7 +41,9 @@ UPDATE ar_ling_reg_conformance_check
                      '(c) it exposes a signature view computing the identical formula to '
                      'ar_ling_gram_term_signature, so staleness is detectable; and (d) it is '
                      'reproducible — dropping and re-syncing it changes nothing. '
-                     'km_quran.qr_gram_term is the one such replica today '
+                     'km_quran.ar_ling_gram_term is the one such replica today — same table name, '
+                     'same structure and same ids as this database, so a query written here '
+                     'runs verbatim there '
                      '(scripts/sync_gt_mirror.py). Anything else matching %gram_term% or '
                      '%vocab% outside the allowed set is an offender: drop it and point its '
                      'refs at ar_ling_gram_term.',
@@ -79,9 +82,10 @@ UPDATE ar_ling_reg_decision
                     'that 1.8M feature objects were checked was a misread of the query '
                     'planner''s rows_read; the real count is 184,734.',
        application_state =
-         'done — km_quran holds a complete generated replica, qr_gram_term (all 435 terms, '
-         '30 categories), refreshed by scripts/sync_gt_mirror.py and verified by comparing '
-         'qr_gram_term_signature against ar_ling_gram_term_signature. Serving reads km_quran '
+         'done — km_quran holds a complete generated replica under this database''s own '
+         'names and structure: ar_ling_gram_term (all 435 terms, same ids) and '
+         'ar_ling_gram_category (30), refreshed by scripts/sync_gt_mirror.py and verified by '
+         'comparing the two ar_ling_gram_term_signature views. Serving reads km_quran '
          'only: no cross-database join and no worker-to-worker call on the read path. '
          'qr_morph_flag_decomp is regenerated from the replica rather than maintained: 82 '
          'rows, differing from the previous 84 by exactly the two PCPL rows, dropped on purpose. '
@@ -97,6 +101,6 @@ UPDATE ar_ling_reg_decision
          'the widest query in the app (al-Baqara, 3,897 words) in ~42ms, so baking 50,171 '
          'rows would add a staleness surface and buy nothing.',
        enforced_by = 'qr_ss_gt_violations (km_quran); ar_ling_reg_conformance_check GT-* rows; '
-                     'ar_ling_reg_ref_namespace prefix GT; qr_gram_term_signature vs '
-                     'ar_ling_gram_term_signature (GT-008)'
+                     'ar_ling_reg_ref_namespace prefix GT; the two ar_ling_gram_term_signature '
+                     'views, here and in km_quran (GT-008)'
  WHERE decision_id = 'DEC:GT:001';

@@ -54,3 +54,36 @@ print("differs from baseline by exactly the 2 intended PCPL rows  OK")
 assert m.decompose(["P"], terms)["P"] == ["GT:number:plural"], "P resolved to harf_jarr!"
 assert m.decompose(["ACC"], terms)["ACC"] == ["GT:case:accusative"], "ACC resolved to harf_nasb!"
 print("collision guards: P -> number:plural, ACC -> case:accusative  OK")
+
+
+# ── the replica must stay structurally identical to the registry ─────────────
+# "Same table name and structure" is the requirement; this is what enforces it.
+# Both sides are built in a real database and read back out of sqlite_master, so
+# the comparison is between what SQLite actually created, not what the files
+# appear to say.
+import re, sqlite3
+
+CATEGORY = """CREATE TABLE "ar_ling_gram_category" (
+  category_key TEXT PRIMARY KEY, name_ar TEXT NOT NULL, name_en TEXT NOT NULL,
+  name_ur TEXT NOT NULL, discipline TEXT NOT NULL, applies_to TEXT NOT NULL,
+  is_closed INTEGER NOT NULL DEFAULT 1, display_order INTEGER NOT NULL DEFAULT 0,
+  icon TEXT);"""
+
+def _norm(ddl):
+    return re.sub(r"\s+", " ", ddl.replace("IF NOT EXISTS ", "").replace('"', "")).strip().rstrip(";")
+
+def _built(script):
+    db = sqlite3.connect(":memory:")
+    db.executescript(CATEGORY + "\n" + script)
+    return db.execute("SELECT sql FROM sqlite_master WHERE name='ar_ling_gram_term'").fetchone()[0]
+
+_here = pathlib.Path(__file__).parent
+want = _built(_here.joinpath("_gram_term_ddl_baseline.txt").read_text())
+
+mig = (_here.parent / "workers/quran/migrations/0010_gt_mirror.sql").read_text()
+got = _built(re.search(r'CREATE TABLE IF NOT EXISTS "ar_ling_gram_term".*?\n\);', mig, re.S).group(0))
+
+assert _norm(got) == _norm(want), (
+    "the replica DDL has diverged from the registry\n"
+    f"  registry: {_norm(want)}\n  replica:  {_norm(got)}")
+print("replica DDL structurally identical to the registry  OK")

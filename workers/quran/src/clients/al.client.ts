@@ -25,12 +25,13 @@ export interface LemmaInfo {
  *  all 260 occurrences resolve to it. No lemma content is copied into km_quran.
  *
  *  The one deliberate exception is the grammatical term registry, which km_quran
- *  replicates wholesale as qr_gram_term. Lemma content is unbounded and read one
- *  word at a time, so resolving it live is right. The registry is 435 fixed rows
- *  read on EVERY word of every passage, and D1 cannot join across databases —
- *  resolving it live would put a second round trip on the hot path. It is
- *  generated, never authored, and refreshed by scripts/sync_gt_mirror.py; see
- *  workers/quran/migrations/0010_gt_mirror.sql for the contract. */
+ *  replicates wholesale, under AL's own table names and structure and with the
+ *  same ids — so ar_ling_gram_term is queryable from either side identically.
+ *  Lemma content is unbounded and read one word at a time, so resolving it live
+ *  is right. The registry is 435 fixed rows read on EVERY word of every passage,
+ *  and D1 cannot join across databases, so resolving it live would put a second
+ *  round trip on the hot path. It is generated, never authored, and refreshed by
+ *  scripts/sync_gt_mirror.py; see workers/quran/migrations/0010_gt_mirror.sql. */
 export interface ResolvedLemma {
   id: string;
   lemma_ar: string;
