@@ -235,7 +235,11 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
       .attr('class', 'wv-hull')
       .attr('fill', (slug) => this.clusterColors.get(slug)?.hull ?? 'transparent')
       .attr('stroke', (slug) => this.clusterColors.get(slug)?.hullStroke ?? 'transparent')
-      .attr('stroke-width', 1.5)
+      .attr('stroke-width', 1.25)
+      // Dashed, because the boundary of a cluster is an inference and not a
+      // border. A solid outline around a set of nodes reads as an enclosure
+      // someone drew deliberately; a dashed one reads as a grouping.
+      .attr('stroke-dasharray', '5 5')
       .attr('stroke-linejoin', 'round')
       .attr('pointer-events', 'none');
     this.hullLabelSel = hullG.selectAll<SVGTextElement, string>('text')

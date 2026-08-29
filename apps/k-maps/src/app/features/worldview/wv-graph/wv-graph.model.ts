@@ -107,7 +107,7 @@ export interface ClusterColor {
   stroke: string; // node ring + label
   fill: string;   // node body
   glow: string;   // focus glow
-  hull: string;   // territory backdrop fill
+  hull: string;   // territory fill — 'none'; the outline carries the grouping
   hullStroke: string;
 }
 
@@ -116,11 +116,14 @@ function family(h: number, s: number, l: number): ClusterColor {
     stroke: `hsl(${h} ${s}% ${l}%)`,
     fill:   `hsl(${h} ${s}% ${l}% / 0.16)`,
     glow:   `hsl(${h} ${s}% ${l}% / 0.4)`,
-    // A hull now only appears when it is telling the truth about a region, so
-    // it can afford to be seen. At 0.07 fill it was a rumour — the eye read the
-    // shape as a rendering artefact rather than as a group.
-    hull:   `hsl(${h} ${s}% ${l}% / 0.13)`,
-    hullStroke: `hsl(${h} ${s}% ${l}% / 0.5)`,
+    // No fill. A tinted polygon sits on top of the thing it is describing —
+    // it washes the nodes and edges inside it and competes with the node
+    // colours, which are what actually carry the grouping. An outline says
+    // "these belong together" and then gets out of the way.
+    //
+    // The stroke carries the whole signal now, so it is drawn at strength.
+    hull:   'none',
+    hullStroke: `hsl(${h} ${s}% ${l}% / 0.55)`,
   };
 }
 
