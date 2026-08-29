@@ -89,7 +89,22 @@ export function cmSourceRoutes(router: Router<ContentEnv>) {
       isbn: typeof b['isbn'] === 'string' ? b['isbn'] : null,
       doi: typeof b['doi'] === 'string' ? b['doi'] : null,
       url: typeof b['url'] === 'string' ? b['url'] : null,
+      // An episode says which channel emitted it. Nothing validates that the
+      // parent is of type 'channel' — a lecture series inside a course is the
+      // same relation, and refusing it would be inventing a rule.
+      parent_source_ref: typeof b['parent_source_ref'] === 'string' ? b['parent_source_ref'] : null,
+      episode_no: typeof b['episode_no'] === 'number' ? b['episode_no'] : null,
+      published_at: typeof b['published_at'] === 'string' ? b['published_at'] : null,
     }));
+  });
+
+  // GET /cm/sources/:id/episodes — a channel and what it has emitted.
+  router.get('/cm/sources/:id/episodes', async (req, env, { id }) => {
+    const user = actor(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const result = await new CmSourceRepo(env.DB_CM).channel(id);
+    if (!result || result.channel.core_user_ref !== user) return notFound(`source ${id}`);
+    return ok(result);
   });
 
   // POST /cm/sources/:id/promote — reading has begun.

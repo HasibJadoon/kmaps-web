@@ -36,6 +36,10 @@ export interface CmSource {
   status: string;
   /** The wv_sources row this was promoted into, once reading began. */
   wv_source_ref: string | null;
+  /** The channel, show or series this belongs to, when it is an episode. */
+  parent_source_ref: string | null;
+  episode_no: number | null;
+  published_at: string | null;
   workspace_ref: string | null;
   meta_json: string;
   created_at: string;
@@ -61,6 +65,9 @@ export interface CmSourceCreate {
   language?: string;
   workspace_ref?: string | null;
   wv_source_ref?: string | null;
+  parent_source_ref?: string | null;
+  episode_no?: number | null;
+  published_at?: string | null;
   meta_json?: string | null;
 
   // Optional bibliography, written to cm_source_details in the same call.
@@ -74,6 +81,7 @@ export interface CmSourceCreate {
 
 const S = `s.source_id, s.core_user_ref, s.source_type, s.title, s.title_ar,
            s.subtitle, s.language, s.status, s.wv_source_ref, s.workspace_ref,
+           s.parent_source_ref, s.episode_no, s.published_at,
            s.meta_json, s.created_at, s.updated_at`;
 const D = `d.author_names_json, d.publisher, d.publication_year, d.isbn, d.doi,
            d.url, d.pages_total, d.abstract`;
@@ -113,8 +121,9 @@ export class CmSourceRepo {
       this.db,
       `INSERT INTO cm_sources
          (source_id, core_user_ref, source_type, title, title_ar, subtitle,
-          language, workspace_ref, wv_source_ref, meta_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          language, workspace_ref, wv_source_ref, parent_source_ref,
+          episode_no, published_at, meta_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         input.core_user_ref,
@@ -125,6 +134,9 @@ export class CmSourceRepo {
         input.language ?? 'en',
         input.workspace_ref ?? null,
         input.wv_source_ref ?? null,
+        input.parent_source_ref ?? null,
+        input.episode_no ?? null,
+        input.published_at ?? null,
         input.meta_json ?? '{}',
       ],
     );
@@ -154,6 +166,26 @@ export class CmSourceRepo {
     }
 
     return (await this.findById(id))!;
+  }
+
+  /** A channel and everything it has emitted, in order.
+   *
+   *  A channel is not a separate kind of thing — it is a source whose type is
+   *  'channel', and an episode is a source that points at it. That means a
+   *  show gets bibliography, capture, promotion and collections for free,
+   *  where a dedicated table would have had to reimplement all of them to
+   *  express one edge. */
+  async channel(id: string): Promise<{ channel: CmSource; episodes: CmSource[] } | null> {
+    const channel = await this.findById(id);
+    if (!channel) return null;
+    const { rows } = await paginate<CmSource>(
+      this.db,
+      `SELECT ${S}, ${D} ${FROM} WHERE s.parent_source_ref = ?
+        ORDER BY s.episode_no IS NULL, s.episode_no, s.published_at`,
+      `SELECT COUNT(*) AS count FROM cm_sources s WHERE s.parent_source_ref = ?`,
+      [id], { per_page: 500 },
+    );
+    return { channel, episodes: rows };
   }
 
   /** Record that this resource has become something being read. Both sides are

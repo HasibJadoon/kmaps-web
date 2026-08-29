@@ -10,6 +10,8 @@ import type { PaginateOptions } from '../../../shared/src/types';
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface WvPerson {
+  /** The PN: registry entry this figure is, when they have one. */
+  person_ref?: string | null;
   id: string;                    // WV:ULID
   slug: string | null;
   name: string;
@@ -170,7 +172,7 @@ export interface AffiliationCreate {
 const PERSON_COLS =
   `id, slug, name, name_ar, person_type, tradition_id, era, birth_year, death_year, ` +
   `birth_location_id, death_location_id, nationality, affiliation, bio_md, ` +
-  `visibility, meta_json, created_at, updated_at`;
+  `visibility, meta_json, person_ref, created_at, updated_at`;
 
 const ALIAS_COLS =
   `id, person_id, alias, alias_type, language, created_at`;
