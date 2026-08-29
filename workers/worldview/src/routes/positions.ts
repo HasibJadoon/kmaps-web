@@ -8,6 +8,7 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, created, badRequest, notFound } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
+import { query } from '../../../shared/src/db';
 import type { WorldviewEnv } from '../env';
 import { PositionRepo } from '../repositories/position.repo';
 
@@ -76,4 +77,99 @@ export function positionRoutes(router: Router<WorldviewEnv>) {
     });
     return row ? created(row) : notFound('position after insert');
   });
+  // GET /wv/positions/contrast/:surah/:range — the facing pairs.
+  //
+  // The contrast does NOT live in wv_value_positions. Grouping those by
+  // concept_ref produces twenty-four one-sided columns and no argument at all,
+  // because Islam's concepts and secular naturalism's concepts are disjoint
+  // sets — no concept is held by both.
+  //
+  // It lives in the graph. The al-Rūm nodes carry twenty-seven `rebuts` edges
+  // pairing a counter-claim (wck*) to the claim it answers (wcl*), and that
+  // pairing was lost when the positions were lifted out: the lift renumbered
+  // everything sequentially into wcl001–wcl028, so the two sides now look like
+  // one undifferentiated list.
+  //
+  // So the pairs are read from where they still exist. Restoring the link on
+  // wv_value_positions is the proper repair; until then this reads the truth
+  // rather than presenting a contrast the positions table cannot support.
+  router.get('/wv/positions/contrast/:surah/:range', async (_req, env, { surah, range }) => {
+    const [fromStr, toStr] = String(range).split('-');
+    const ayahFrom = Number(fromStr);
+    const ayahTo   = Number(toStr ?? fromStr);
+    if (!Number.isFinite(ayahFrom)) return badRequest('range must look like 2-6');
+
+    const rows = await query<{
+      claim_id: string; claim: string; claim_summary: string | null;
+      counter_id: string; counter: string; counter_summary: string | null;
+    }>(
+      env.DB_WV,
+      `SELECT l.id AS claim_id,   l.title AS claim,   l.summary AS claim_summary,
+              k.id AS counter_id, k.title AS counter, k.summary AS counter_summary
+         FROM wv_node_edges e
+         JOIN wv_nodes k ON k.id = e.from_node_id
+         JOIN wv_nodes l ON l.id = e.to_node_id
+        WHERE e.relation_type = 'rebuts'
+          AND l.id LIKE ?
+        ORDER BY l.id`,
+      [`wv_node_qs${surah}_${ayahFrom}_${ayahTo}_%`],
+    );
+
+    return ok({
+      surah: Number(surah), ayahFrom, ayahTo,
+      scopeRef: `${surah}:${ayahFrom}-${ayahTo}`,
+      pairs: rows,
+      // Named so a client can label the two columns without hardcoding them.
+      sides: { claim: 'Qurʾānic reading', counter: 'Secular reading' },
+    });
+  });
+
+
+  // GET /wv/positions/contrast/:surah/:range — the facing pairs.
+  //
+  // The contrast does NOT live in wv_value_positions. Grouping those by
+  // concept_ref produces twenty-four one-sided columns and no argument at all,
+  // because Islam's concepts and secular naturalism's concepts are disjoint
+  // sets — no concept is held by both.
+  //
+  // It lives in the graph. The al-Rūm nodes carry twenty-seven `rebuts` edges
+  // pairing a counter-claim (wck*) to the claim it answers (wcl*), and that
+  // pairing was lost when the positions were lifted out: the lift renumbered
+  // everything sequentially into wcl001–wcl028, so the two sides now look like
+  // one undifferentiated list.
+  //
+  // So the pairs are read from where they still exist. Restoring the link on
+  // wv_value_positions is the proper repair; until then this reads the truth
+  // rather than presenting a contrast the positions table cannot support.
+  router.get('/wv/positions/contrast/:surah/:range', async (_req, env, { surah, range }) => {
+    const [fromStr, toStr] = String(range).split('-');
+    const ayahFrom = Number(fromStr);
+    const ayahTo   = Number(toStr ?? fromStr);
+    if (!Number.isFinite(ayahFrom)) return badRequest('range must look like 2-6');
+
+    const rows = await query<{
+      claim_id: string; claim: string; claim_summary: string | null;
+      counter_id: string; counter: string; counter_summary: string | null;
+    }>(
+      env.DB_WV,
+      `SELECT l.id AS claim_id,   l.title AS claim,   l.summary AS claim_summary,
+              k.id AS counter_id, k.title AS counter, k.summary AS counter_summary
+         FROM wv_node_edges e
+         JOIN wv_nodes k ON k.id = e.from_node_id
+         JOIN wv_nodes l ON l.id = e.to_node_id
+        WHERE e.relation_type = 'rebuts'
+          AND l.id LIKE ?
+        ORDER BY l.id`,
+      [`wv_node_qs${surah}_${ayahFrom}_${ayahTo}_%`],
+    );
+
+    return ok({
+      surah: Number(surah), ayahFrom, ayahTo,
+      scopeRef: `${surah}:${ayahFrom}-${ayahTo}`,
+      pairs: rows,
+      // Named so a client can label the two columns without hardcoding them.
+      sides: { claim: 'Qurʾānic reading', counter: 'Secular reading' },
+    });
+  });
+
 }

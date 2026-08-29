@@ -107,13 +107,29 @@ export function domainRoutes(router: Router<WorldviewEnv>) {
 
     const traditions = await query<Record<string, unknown>>(
       env.DB_WV,
-      `SELECT id, slug, title, title_ar, tradition_type, founded_period,
+      `SELECT id, slug, title, title_ar, tradition_type, parent_id, founded_period,
               geographic_origin, description_md
          FROM wv_traditions WHERE domain_id = ? ORDER BY title`,
       [domain.id],
     );
     const ids = traditions.map(t => String(t.id));
     const holes = ids.length ? ids.map(() => '?').join(',') : "''";
+
+    // Branches are the second level of the hierarchy — Ashʿarī against
+    // Muʿtazilī, Catholic against Reformed, first wave against third. The
+    // table is empty today and `wv_traditions.parent_id` is NULL on all 17, so
+    // the tree is one level deep. It is served as a tree anyway: the shape is
+    // right, and a screen written against a tree deepens on its own the day a
+    // branch is authored, where a screen written against a flat list would
+    // have to be rewritten.
+    const branches = ids.length ? await query<Record<string, unknown>>(
+      env.DB_WV,
+      `SELECT id, slug, title, title_ar, tradition_id, branch_type, parent_id,
+              period_range, description_md
+         FROM wv_tradition_branches WHERE tradition_id IN (${holes})
+        ORDER BY title`,
+      ids,
+    ) : [];
 
     const [people, nodes, sources] = await Promise.all([
       query<Record<string, unknown>>(
@@ -136,14 +152,31 @@ export function domainRoutes(router: Router<WorldviewEnv>) {
       ),
     ]);
 
+    // Nest by parent_id. Roots first, each carrying its children and the
+    // branches declared under it.
+    const byParent = new Map<string | null, Record<string, unknown>[]>();
+    for (const t of traditions) {
+      const key = (t.parent_id as string | null) ?? null;
+      (byParent.get(key) ?? byParent.set(key, []).get(key)!).push(t);
+    }
+    const branchesFor = (tid: string) => branches.filter(b => b.tradition_id === tid);
+    const nest = (parent: string | null): Record<string, unknown>[] =>
+      (byParent.get(parent) ?? []).map(t => ({
+        ...t,
+        branches: branchesFor(String(t.id)),
+        children: nest(String(t.id)),
+      }));
+
     return ok({
       domain: { ...domain, traditions: traditions.length },
-      traditions,
+      traditions: nest(null),
+      traditionsFlat: traditions,
       people,
       sources,
       nodesByTradition: Object.fromEntries(nodes.map(n => [n.tradition_id, n.n])),
       filled: {
         traditions: traditions.length,
+        branches: branches.length,
         people: people.length,
         sources: sources.length,
         nodes: nodes.reduce((sum, n) => sum + Number(n.n), 0),

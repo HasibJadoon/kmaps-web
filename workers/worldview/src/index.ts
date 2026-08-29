@@ -29,6 +29,7 @@ import { peopleRoutes }      from './routes/people';
 import { moralRoutes }       from './routes/moral';
 import { mapRoutes }         from './routes/maps';
 import { graphRoutes }       from './routes/graphs';
+import { termRoutes }        from './routes/terms';
 
 const router = new Router<WorldviewEnv>();
 
@@ -43,6 +44,7 @@ countsRoutes(router);      // GET /worldview/counts — worldviews/sources/units
 traditionRoutes(router);   // GET/POST /wv/traditions, by-slug
 peopleRoutes(router);      // GET/POST /wv/people — and the /wv/thinkers aliases
 domainRoutes(router);      // GET /wv/domains, /domains/facets, /domains/:slug, periods, regions
+termRoutes(router);        // GET /wv/terms, /terms/tree, /terms/kinds, /terms/:id
 moralRoutes(router);       // GET /wv/moral/axes, /axes/:id, /virtues, /vices
 
 // ── Views over the corpus ────────────────────────────────────────────────────
