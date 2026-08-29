@@ -22,7 +22,13 @@
       <!-- List View -->
       @if (!detailView()) {
         <div class="wvc__list-view" #listView>
-          @if (loading()) {
+          @if (failure()) {
+            <div class="wvc__empty">
+              <div class="wvc__empty-glyph">⚠</div>
+              <h2 class="wvc__empty-title">Couldn’t load</h2>
+              <p class="wvc__empty-desc">{{ failure() }}</p>
+            </div>
+          } @else if (loading()) {
             <div class="wvc__center">
               <span class="wvc__spinner"></span>
               <span class="wvc__loading-text">Loading comparisons…</span>
@@ -41,16 +47,16 @@
                   <div class="wvc__card-glow"></div>
                   <div class="wvc__card-header">
                     <span class="wvc__card-title">{{ comp.title || 'Untitled Comparison' }}</span>
-                    @if (comp.status) {
-                      <span class="wvc__status-badge" [class]="'wvc__status-badge--' + comp.status">
-                        {{ comp.status }}
+                    @if (comp.comparison_type) {
+                      <span class="wvc__status-badge" [class]="'wvc__status-badge--' + comp.comparison_type">
+                        {{ comp.comparison_type }}
                       </span>
                     }
                   </div>
-                  @if (comp.tab_count !== undefined) {
+                  @if (comp.description_md) {
                     <div class="wvc__card-meta">
                       <span class="wvc__meta-icon">⊞</span>
-                      <span>{{ comp.tab_count }} tab{{ comp.tab_count === 1 ? '' : 's' }}</span>
+                      <span>{{ comp.description_md }}</span>
                     </div>
                   }
                   @if (comp.updated_at) {
@@ -69,9 +75,9 @@
         <div class="wvc__detail-view" #detailViewEl>
           <div class="wvc__detail-header">
             <h2 class="wvc__detail-title">{{ detail()!.comparison.title || 'Untitled Comparison' }}</h2>
-            @if (detail()!.comparison.status) {
-              <span class="wvc__status-badge" [class]="'wvc__status-badge--' + detail()!.comparison.status">
-                {{ detail()!.comparison.status }}
+            @if (detail()!.comparison.comparison_type) {
+              <span class="wvc__status-badge" [class]="'wvc__status-badge--' + detail()!.comparison.comparison_type">
+                {{ detail()!.comparison.comparison_type }}
               </span>
             }
           </div>
@@ -89,7 +95,7 @@
                   [class.wvc__tab-btn--active]="activeTab()?.id === tab.id"
                   (click)="setActiveTab(tab)"
                 >
-                  {{ tab.label || ('Tab ' + ($index + 1)) }}
+                  {{ tab.axis_label || ('Column ' + ($index + 1)) }}
                 </button>
               }
             </div>
@@ -99,11 +105,11 @@
               @for (tab of detail()!.tabs; track tab.id) {
                 @if (activeTab()?.id === tab.id) {
                   <div class="wvc__column">
-                    <div class="wvc__column-header">{{ tab.label || ('Tab ' + ($index + 1)) }}</div>
+                    <div class="wvc__column-header">{{ tab.axis_label || ('Column ' + ($index + 1)) }}</div>
                     @for (row of detail()!.rows; track row.id) {
                       <div class="wvc__row">
-                        @if (row.label) {
-                          <div class="wvc__row-label">{{ row.label }}</div>
+                        @if (row.row_label) {
+                          <div class="wvc__row-label">{{ row.row_label }}</div>
                         }
                         <div class="wvc__row-content">
                           {{ getCellContent(tab.id, row.id) || '—' }}

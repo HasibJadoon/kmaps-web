@@ -11,7 +11,10 @@ import { RouterLink } from '@angular/router';
 import gsap from 'gsap';
 import { environment } from '../../../../environments/environment';
 
-const WV_ORIGIN = 'https://k-maps.com';
+// See worldview-compare: this pointed at the Pages origin without the gateway's
+// required `/api` prefix, inside a `catch {}`, so the screen has always been an
+// empty list that looked like an empty corpus.
+const WV_API = `${environment.apiBase}/wv`;
 
 interface BrainstormSession {
   id: number | string;
@@ -36,6 +39,7 @@ export class WorldviewBrainstormComponent implements OnInit, AfterViewInit {
 
   readonly loading = signal(true);
   readonly creating = signal(false);
+  readonly failure = signal<string | null>(null);
   readonly sessions = signal<BrainstormSession[]>([]);
   readonly selectedSession = signal<BrainstormSession | null>(null);
   readonly showCreateForm = signal(false);
@@ -70,20 +74,20 @@ export class WorldviewBrainstormComponent implements OnInit, AfterViewInit {
     if (!title.trim()) return;
     this.creating.set(true);
     try {
-      const res = await fetch(`${WV_ORIGIN}/wv/brainstorm`, {
+      const res = await fetch(`${WV_API}/brainstorm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: title.trim(), topic: topic.trim() || undefined, worldview: worldview.trim() || undefined, content: content.trim() || undefined }),
       });
-      if (!res.ok) { this.creating.set(false); return; }
-      const data = await res.json() as { ok: boolean; session: BrainstormSession };
-      if (data.ok && data.session) {
-        this.sessions.update(list => [data.session, ...list]);
-        this.selectedSession.set(data.session);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = await res.json() as { ok: boolean; data: BrainstormSession };
+      if (body.data) {
+        this.sessions.update(list => [body.data, ...list]);
+        this.selectedSession.set(body.data);
         this.showCreateForm.set(false);
       }
     } catch {
-      // silently ignore
+      this.failure.set('The session could not be created.');
     } finally {
       this.creating.set(false);
     }
@@ -100,14 +104,12 @@ export class WorldviewBrainstormComponent implements OnInit, AfterViewInit {
   private async loadSessions(): Promise<void> {
     this.loading.set(true);
     try {
-      const res = await fetch(`${WV_ORIGIN}/wv/brainstorm?limit=30`);
-      if (!res.ok) { this.loading.set(false); return; }
-      const data = await res.json() as { ok: boolean; sessions: BrainstormSession[] };
-      if (data.ok && Array.isArray(data.sessions)) {
-        this.sessions.set(data.sessions);
-      }
+      const res = await fetch(`${WV_API}/brainstorm?limit=30`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = await res.json() as { ok: boolean; data: BrainstormSession[] };
+      this.sessions.set(Array.isArray(body.data) ? body.data : []);
     } catch {
-      // silently ignore
+      this.failure.set('The sessions could not be loaded.');
     } finally {
       this.loading.set(false);
     }

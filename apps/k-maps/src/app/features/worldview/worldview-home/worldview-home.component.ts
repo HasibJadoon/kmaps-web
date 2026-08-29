@@ -86,12 +86,16 @@ export class WorldviewHomeComponent implements OnInit, AfterViewInit {
 
   private async loadCounts(): Promise<void> {
     try {
-      const res = await fetch(`${environment.apiBase}/hub/counts`);
+      // `hub` is not a routable module — the gateway answers "Unknown module"
+      // — so these counters have sat at their em-dash placeholder since they
+      // were written. The worldview worker has served exactly these four keys
+      // all along, under its own name.
+      const res = await fetch(`${environment.apiBase}/worldview/counts`);
       if (!res.ok) return;
-      const data = await res.json() as { ok: boolean; counts: Record<string, number> };
-      if (!data.ok || !data.counts) return;
+      const body = await res.json() as { ok: boolean; data: Record<string, number> };
+      if (!body.ok || !body.data) return;
 
-      const c = data.counts;
+      const c = body.data;
       const current = this.stats();
       const updated = current.map(s => ({
         ...s,

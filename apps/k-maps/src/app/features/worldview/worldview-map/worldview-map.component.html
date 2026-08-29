@@ -7,6 +7,20 @@
     </div>
   </header>
 
+  @if (periods().length) {
+    <!-- Cumulative, not exclusive: choosing an era shows everything up to it,
+         because the claim this layer makes is about accumulation. -->
+    <nav class="mp-eras" aria-label="Era">
+      <button type="button" class="mp-era" [class.is-active]="activePeriod() === null"
+              (click)="setPeriod(null)">All</button>
+      @for (p of periods(); track p) {
+        <button type="button" class="mp-era" [class.is-active]="activePeriod() === p"
+                (click)="setPeriod(p)">{{ p }}</button>
+      }
+    </nav>
+  }
+  @if (failure()) { <p class="mp-failure">{{ failure() }}</p> }
+
   <p class="mp-sub">
     The trope radiates from a medieval Christian center outward — to the Ottoman East, the Americas,
     and the Barbary Coast. Monstrosity rises with distance from the center.
@@ -28,7 +42,9 @@
         <line [attr.x1]="g.x1" [attr.y1]="g.y1" [attr.x2]="g.x2" [attr.y2]="g.y2" class="mp-grid" />
       }
       @for (r of rings(); track $index) {
-        <circle [attr.cx]="center().x" [attr.cy]="center().y" [attr.r]="r" class="mp-ring" />
+        @if (center(); as c) {
+          <circle [attr.cx]="c.x" [attr.cy]="c.y" [attr.r]="r" class="mp-ring" />
+        }
       }
       @for (a of arcs(); track $index) {
         <path [attr.d]="a.d" class="mp-arc" marker-end="url(#mpd-arrow)" />
@@ -48,7 +64,9 @@
   <ol class="mp-stops">
     <li class="mp-stop">
       <span class="mp-stop__dot" style="--c:#c9a84c"></span>
-      <span><strong>{{ center().label }}</strong> — {{ center().sub }}</span>
+      @if (center(); as c) {
+        <span><strong>{{ c.label }}</strong> — {{ c.sub }}</span>
+      }
     </li>
     @for (s of stops(); track s.id) {
       <li class="mp-stop">
