@@ -10,6 +10,7 @@ import {
 import type { StudioEnv } from '../env';
 import {
   EpisodeRepo, EPISODE_FORMATS, EPISODE_STATUSES, SECTION_TYPES, PARTICIPANT_ROLES,
+  type EpisodePatch, type SectionPatch, type PointPatch,
   type TemplateStructure,
 } from '../repositories/episode.repo';
 import { TemplateRepo } from '../repositories/template.repo';
@@ -32,6 +33,19 @@ function isObj(v: unknown): v is Record<string, unknown> {
 
 function trimmedString(v: unknown): string | undefined {
   return typeof v === 'string' ? v.trim() : undefined;
+}
+
+function numberOrNull(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+/** A beat's scene payload. Accepted as an object or as the JSON text it is
+ *  stored as, so an author can PATCH either without thinking about it. */
+function overlayJson(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'string') return v.trim() || null;
+  if (typeof v === 'object') return JSON.stringify(v);
+  return null;
 }
 
 function parseStructure(raw: string): TemplateStructure {
@@ -93,6 +107,15 @@ export function episodeRoutes(router: Router<StudioEnv>) {
       title,
       format,
       template_ref: templateRef,
+      // What the episode belongs to and what it is about. `source_ref` is the
+      // scope — 'QR:SP:44:1-9' — and is the same string as cyb_node.target_ref,
+      // which is what lets cybernetics measure an episode against the study it
+      // renders. Optional: a podcast has no scope.
+      ecosystem: trimmedString(body['ecosystem']) ?? null,
+      series_ref: trimmedString(body['series_ref']) ?? null,
+      session_no: numberOrNull(body['session_no']),
+      output_kind: trimmedString(body['output_kind']) ?? null,
+      source_ref: trimmedString(body['source_ref']) ?? null,
     });
     await repo.applyStructure(episode.id, structure);
 
@@ -118,7 +141,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     return ok(await repo.findAggregate(id));
   });
 
-  // PATCH /st/episodes/:id — update title / format / status
+  // PATCH /st/episodes/:id — title / format / status, and what the episode
+  // belongs to and is about (ecosystem, series, session_no, output_kind, source_ref)
   router.patch('/st/episodes/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -130,7 +154,7 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     if (!episode) return notFound(`episode ${id}`);
     if (episode.core_user_ref !== user) return forbidden('Not your episode');
 
-    const patch: { title?: string; format?: string; status?: string } = {};
+    const patch: EpisodePatch = {};
     if (body['title'] !== undefined) {
       const title = trimmedString(body['title']);
       if (!title) return badRequest('title must be a non-empty string');
@@ -150,6 +174,10 @@ export function episodeRoutes(router: Router<StudioEnv>) {
       }
       patch.status = status;
     }
+    for (const key of ['ecosystem', 'series_ref', 'output_kind', 'source_ref'] as const) {
+      if (body[key] !== undefined) patch[key] = trimmedString(body[key]) ?? null;
+    }
+    if (body['session_no'] !== undefined) patch.session_no = numberOrNull(body['session_no']);
     return ok(await repo.patchEpisode(id, patch));
   });
 
@@ -277,7 +305,13 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     if (type !== undefined && !(SECTION_TYPES as readonly string[]).includes(type)) {
       return badRequest(`type must be one of: ${SECTION_TYPES.join(', ')}`);
     }
-    return created(await repo.createSection(id, { heading, type }));
+    return created(await repo.createSection(id, {
+      heading, type,
+      // The scene's renderer, and the provenance of its content. d1_query is
+      // recorded, never executed — it is an editable SQL string.
+      overlay_kind: trimmedString(body['overlay_kind']) ?? null,
+      d1_query: trimmedString(body['d1_query']) ?? null,
+    }));
   });
 
   // PATCH /st/sections/:id
@@ -285,7 +319,7 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     const body = await readJson(req);
     if (!isObj(body)) return badRequest('Request body must be a JSON object');
 
-    const patch: { type?: string; heading?: string; seq?: number } = {};
+    const patch: SectionPatch = {};
     if (body['heading'] !== undefined) {
       const heading = trimmedString(body['heading']);
       if (!heading) return badRequest('heading must be a non-empty string');
@@ -331,6 +365,7 @@ export function episodeRoutes(router: Router<StudioEnv>) {
       speaker_ref: speakerRef,
       est_seconds: estSeconds,
       bridge,
+      overlay_json: overlayJson(body['overlay_json']),
     }));
   });
 
@@ -339,13 +374,7 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     const body = await readJson(req);
     if (!isObj(body)) return badRequest('Request body must be a JSON object');
 
-    const patch: {
-      text?: string;
-      speaker_ref?: string | null;
-      bridge?: string | null;
-      est_seconds?: number | null;
-      seq?: number;
-    } = {};
+    const patch: PointPatch = {};
     if (body['text'] !== undefined) {
       patch.text = typeof body['text'] === 'string' ? body['text'] : '';
     }
@@ -367,6 +396,7 @@ export function episodeRoutes(router: Router<StudioEnv>) {
       else if (typeof value === 'string') patch.bridge = value;
       else return badRequest('bridge must be a string or null');
     }
+    if ('overlay_json' in body) patch.overlay_json = overlayJson(body['overlay_json']);
     if (typeof body['seq'] === 'number') patch.seq = body['seq'];
 
     const row = await new EpisodeRepo(env.DB_ST).patchPoint(id, patch);
