@@ -24,6 +24,7 @@ import { brainstormRoutes }  from './routes/brainstorms';
 import { comparisonRoutes }  from './routes/comparisons';
 import { insightRoutes }     from './routes/insights';
 import { distillRoutes }     from './routes/distill';
+import { positionRoutes }    from './routes/positions';
 
 const router = new Router<WorldviewEnv>();
 
@@ -98,6 +99,7 @@ brainstormRoutes(router);
 // (+ /wv/brainstorms plural aliases)
 
 // ── Comparisons ──────────────────────────────────────────────────────────────
+positionRoutes(router);    // GET/POST /wv/positions — worldview × concept
 comparisonRoutes(router);
 // GET    /wv/comparisons                  list
 // GET    /wv/comparisons/:id              detail (axes + rows + cells)
