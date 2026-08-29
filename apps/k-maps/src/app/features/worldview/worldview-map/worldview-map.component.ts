@@ -57,7 +57,7 @@ const LABEL_DIR: Record<string, LabelDir> = {
   'London': 'up',
   'New York': 'left',
   'Guantanamo': 'down',
-  'Abu Ghraib': 'right',
+  'Abu Ghraib': 'down',   // right-anchored, its label ran off the frame
 };
 const VB_W = 1000, VB_H = 560, LON_MIN = -92, LON_MAX = 52, LAT_MIN = 6, LAT_MAX = 54;
 
@@ -100,7 +100,10 @@ export class WorldviewMapComponent implements OnInit {
           id: f.id,
           kind: isCentre ? 'center' : 'stop',
           label: f.title,
-          sub: f.label ?? f.period_label ?? '',
+          // `label` duplicates `title` on every row, so it printed the place
+          // name twice. The era band is the second line worth having: it is
+          // what the stepper moves through.
+          sub: f.period_label ?? '',
           lon: Number(f.longitude), lat: Number(f.latitude),
           order: i,
           year: null,

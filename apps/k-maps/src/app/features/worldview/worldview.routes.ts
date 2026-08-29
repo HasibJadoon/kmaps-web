@@ -62,6 +62,22 @@ export const WORLDVIEW_ROUTES: Routes = [
         title: 'Reader — Worldview',
       },
       {
+        path: 'lens',
+        loadComponent: () =>
+          import('./worldview-lens/worldview-lens.component').then(
+            (m) => m.WorldviewLensComponent,
+          ),
+        title: 'Quranic lens — Worldview',
+      },
+      {
+        path: 'lens/:surah/:range',
+        loadComponent: () =>
+          import('./worldview-lens/worldview-lens.component').then(
+            (m) => m.WorldviewLensComponent,
+          ),
+        title: 'Quranic lens — Worldview',
+      },
+      {
         path: 'compare',
         loadComponent: () =>
           import('./worldview-compare/worldview-compare.component').then(

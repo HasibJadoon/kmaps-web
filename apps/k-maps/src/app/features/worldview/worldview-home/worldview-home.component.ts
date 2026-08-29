@@ -54,6 +54,13 @@ export class WorldviewHomeComponent implements OnInit, AfterViewInit {
 
   readonly cards: FeatureCard[] = [
     {
+      glyph: '◫',
+      title: 'Quranic lens',
+      desc: 'Two readings of one passage, set against each other line by line — each with its source.',
+      route: '/worldview/lens',
+      tag: 'Contrast',
+    },
+    {
       glyph: '§',
       title: 'Library',
       desc: 'Source library — books, notes, highlights and distillations across all your reading.',

@@ -112,7 +112,16 @@
                           <div class="wvc__row-label">{{ row.row_label }}</div>
                         }
                         <div class="wvc__row-content">
-                          {{ getCellContent(tab.id, row.id) || '—' }}
+                          @if (getCellIntensity(tab.id, row.id); as level) {
+                            <span class="wvc__intensity" [attr.aria-label]="'intensity ' + level + ' of 3'">
+                              @for (step of intensitySteps; track step) {
+                                <i class="wvc__pip" [class.is-lit]="step <= level"></i>
+                              }
+                              <span class="wvc__intensity-n">{{ level }}</span>
+                            </span>
+                          } @else {
+                            {{ getCellContent(tab.id, row.id) || '—' }}
+                          }
                         </div>
                       </div>
                     }

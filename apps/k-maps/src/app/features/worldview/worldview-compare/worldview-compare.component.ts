@@ -115,6 +115,21 @@ export class WorldviewCompareComponent implements OnInit, AfterViewInit {
     this.activeTab.set(tab);
   }
 
+  /** The cell as an intensity 0–3, or null when it is prose.
+   *
+   *  This matrix stores a bare digit and repeats it in `stance` as
+   *  "intensity-N" — it is a heatmap, and printing "3" throws away the one
+   *  thing a heatmap is for. Comparisons that hold real text fall through and
+   *  render as text. */
+  getCellIntensity(tabId: string, rowId: string): number | null {
+    const raw = this.getCellContent(tabId, rowId).trim();
+    if (!/^[0-3]$/.test(raw)) return null;
+    return Number(raw);
+  }
+
+  /** [1,2,3] — the steps of the scale, for the template to draw. */
+  readonly intensitySteps = [1, 2, 3];
+
   getCellContent(tabId: number | string, rowId: number | string): string {
     const d = this.detail();
     if (!d) return '';

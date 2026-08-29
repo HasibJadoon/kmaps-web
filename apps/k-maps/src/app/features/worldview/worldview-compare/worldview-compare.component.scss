@@ -384,3 +384,19 @@
       to { transform: rotate(360deg); }
     }
   
+
+/* Intensity as a scale, not a digit — this matrix stores 0–3 and that is the
+   whole content of a cell. The number stays alongside for exactness. */
+.wvc__intensity { display: inline-flex; align-items: center; gap: 4px; }
+.wvc__pip {
+  width: 14px; height: 4px; border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: background var(--km-duration-fast, 120ms) var(--km-ease, ease);
+  &.is-lit { background: var(--km-gold, #c9a84c); }
+}
+.wvc__intensity-n {
+  margin-left: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--km-text-2);
+}

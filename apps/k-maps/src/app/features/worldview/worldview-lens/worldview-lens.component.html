@@ -1,0 +1,61 @@
+<div class="lens">
+  <header class="lens__nav">
+    <button type="button" class="lens__back" (click)="goBack()">← Worldview</button>
+    @if (passages.length > 1) {
+      <nav class="lens__passages">
+        @for (p of passages; track p.label) {
+          <button type="button" class="lens__passage"
+                  [class.is-active]="p.surah === active().surah && p.from === active().from"
+                  (click)="select(p)">{{ p.label }}</button>
+        }
+      </nav>
+    }
+  </header>
+
+  @if (loading()) {
+    <p class="lens__note">Loading…</p>
+  } @else if (failure()) {
+    <p class="lens__note lens__note--fail">{{ failure() }}</p>
+  } @else if (contrast(); as c) {
+    <header class="lens__head">
+      <span class="lens__scope">{{ c.scopeRef }}</span>
+      <h1 class="lens__title">{{ c.pairs.length }} readings, answered</h1>
+      <div class="lens__key">
+        <span class="lens__key-item"><i class="lens__rail lens__rail--claim"></i>{{ c.sides.claim }}</span>
+        <span class="lens__key-sep"></span>
+        <span class="lens__key-item"><i class="lens__rail lens__rail--counter"></i>{{ c.sides.counter }}</span>
+      </div>
+    </header>
+
+    <ol class="lens__pairs">
+      @for (pair of c.pairs; track pair.claim_id; let i = $index) {
+        <li class="lens__pair">
+          <div class="lens__num-row">
+            <span class="lens__num">{{ i + 1 }}</span>
+            <span class="lens__rule"></span>
+          </div>
+          <div class="lens__readings">
+            <div class="lens__reading lens__reading--claim">
+              <i class="lens__rail lens__rail--claim"></i>
+              <div>
+                <span class="lens__label">{{ c.sides.claim }}</span>
+                <p class="lens__text">{{ pair.claim }}</p>
+                @if (note(pair.claim, pair.claim_summary); as n) { <p class="lens__note-sm">{{ n }}</p> }
+              </div>
+            </div>
+            <div class="lens__reading lens__reading--counter">
+              <i class="lens__rail lens__rail--counter"></i>
+              <div>
+                <span class="lens__label">{{ c.sides.counter }}</span>
+                <p class="lens__text">{{ pair.counter }}</p>
+                @if (note(pair.counter, pair.counter_summary); as n) { <p class="lens__note-sm">{{ n }}</p> }
+              </div>
+            </div>
+          </div>
+        </li>
+      }
+    </ol>
+  } @else {
+    <p class="lens__note">Nothing has been set against this passage yet.</p>
+  }
+</div>

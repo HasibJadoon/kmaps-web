@@ -22,8 +22,12 @@
   @if (failure()) { <p class="mp-failure">{{ failure() }}</p> }
 
   <p class="mp-sub">
-    The trope radiates from a medieval Christian center outward — to the Ottoman East, the Americas,
-    and the Barbary Coast. Monstrosity rises with distance from the center.
+    The trope radiates from a medieval Christian centre outward, and hardens as it travels.
+    @if (activePeriod(); as p) {
+      Showing everything up to <strong>{{ p }}</strong> — {{ points().length }} places.
+    } @else {
+      {{ points().length }} places across {{ periods().length }} eras.
+    }
   </p>
 
   <div class="mp-map-wrap">

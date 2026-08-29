@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "k-maps-web",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["start", "-w", "apps/k-maps"],
+      "name": "k-maps",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["ng", "serve", "--project", "k-maps", "--port", "4200"],
       "port": 4200
     }
   ]
