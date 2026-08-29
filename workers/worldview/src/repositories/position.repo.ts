@@ -92,7 +92,14 @@ export class PositionRepo {
            OR c.label_en IN (SELECT v.title FROM wv_ayah_coverage v
                               WHERE v.node_type = 'concept' AND v.surah = ?
                                 AND (v.ayah_from IS NULL OR (v.ayah_from <= ? AND v.ayah_to >= ?)))
-        ORDER BY held_by DESC, c.label_en`,
+           -- A passage nobody has read yet binds no concepts, and an empty list
+           -- is the one state where this screen has to work: it is a reader
+           -- opening a fresh passage. The fifteen axes are exactly the concepts
+           -- every worldview has a position on whether or not anyone has
+           -- written it down, which is what makes them the axes — so they are
+           -- the right thing to offer when there is nothing else.
+           OR c.origin = 'axis'
+        ORDER BY held_by DESC, (c.origin = 'axis'), c.label_en`,
       [surah, to, from, surah, to, from],
     ).catch(() => []);
   }
