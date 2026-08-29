@@ -38,6 +38,8 @@ import {
   type RatingValue, type StoredParams,
 } from '../srs/fsrs';
 import type { FSRSParameters } from 'ts-fsrs';
+import { storedOf } from '../srs/stored-params';
+import { answerCard } from '../srs/answer';
 
 const MODULES = new Set(['AR', 'AL', 'QR', 'WV', 'EN', 'other']);
 
@@ -79,25 +81,6 @@ async function readJson(req: Request): Promise<Record<string, unknown> | undefin
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 
-/** The learner's stored settings, or nothing — `buildParams` supplies and
- *  validates the defaults. */
-function storedOf(row: SrsParams | null): StoredParams | null {
-  if (!row) return null;
-  const json = <T>(raw: string | null, fallback: T): T => {
-    if (!raw) return fallback;
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? (parsed as T) : fallback;
-    } catch { return fallback; }
-  };
-  return {
-    w: json<number[] | null>(row.weights_json, null),
-    request_retention: row.desired_retention,
-    maximum_interval: row.maximum_interval,
-    learning_steps: json<string[] | null>(row.learning_steps, null),
-    relearning_steps: json<string[] | null>(row.relearning_steps, null),
-  };
-}
 
 /** A stored JSON column, or null — a malformed one is not a crash. */
 function parseJson(raw: string | null): unknown {
@@ -1394,23 +1377,8 @@ export function srsRoutes(router: Router<CoreEnv>) {
       ? Math.round(body['duration_secs'] as number) : null;
 
     const params = buildParams(storedOf(await repo.params(ctx.userId)));
-    const now = new Date();
-    const next = gradeCard(c, rating, now, params);
-
-    // The log is written first: it is the record, and the card is only its
-    // latest projection. A log without an update can be replayed; an update
-    // without a log cannot be explained.
-    await repo.logReview({
-      card_id: id, user_ref: ctx.userId, rating,
-      state_before: next.state_before,
-      stability_after: next.columns.stability, difficulty_after: next.columns.difficulty,
-      elapsed_days: next.columns.elapsed_days,
-      scheduled_days_after: next.columns.scheduled_days,
-      state_after: next.columns.card_state, review_duration_secs: duration,
-      reviewed_at: now.toISOString(),
-    });
-    const updated = await repo.applySchedule(id, next.columns);
-    return ok(cardToApi(updated!, params));
+    const updated = await answerCard(repo, c, ctx.userId, rating, duration);
+    return ok(cardToApi(updated, params));
   });
 
   // ── The queue ──────────────────────────────────────────────────────────────

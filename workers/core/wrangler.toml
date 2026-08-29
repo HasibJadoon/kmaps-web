@@ -64,3 +64,15 @@ GOOGLE_CLIENT_ID = "246205307788-iig05bvkiclr3oggcfnkk96s1frds8h8.apps.googleuse
 # Secrets (set via wrangler secret put):
 #   JWT_SECRET      — shared with km-backend-worker
 #   INTERNAL_SECRET — shared with km-backend-worker
+
+# ─── Reviewing together ───────────────────────────────────────────────────────
+# One shared question on every screen; each person's own card is scheduled from
+# their own rating. The object holds only the shared half — which card is up and
+# whether the back has been shown.
+[[durable_objects.bindings]]
+name = "REVIEW_SESSION"
+class_name = "ReviewSession"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ReviewSession"]

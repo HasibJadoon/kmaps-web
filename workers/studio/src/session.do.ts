@@ -53,10 +53,11 @@ export class EpisodeSession {
     const { 0: client, 1: server } = new WebSocketPair();
     this.state.acceptWebSocket(server, [role]);
 
-    const [episode, cursor, paused] = await Promise.all([
+    const [episode, cursor, paused, played] = await Promise.all([
       this.getSnapshot(),
       this.getCursor(),
       this.getPaused(),
+      this.getPlayed(),
     ]);
 
     // Identify the joiner: match their account to one of the episode's cast.
@@ -77,6 +78,9 @@ export class EpisodeSession {
       episode,
       cursor,
       paused,
+      // Someone joining halfway needs the discard pile, or their hand shows
+      // every card as still unplayed.
+      played,
       viewers: this.state.getWebSockets().length,
       you: identity,
       roster: this.rosterOf(this.state.getWebSockets()),
@@ -88,7 +92,7 @@ export class EpisodeSession {
 
   // ── Hibernatable WebSocket handlers ─────────────────────────────────────────
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    let msg: { t?: string; section?: number; point?: number };
+    let msg: { t?: string; section?: number; point?: number; card?: string };
     try {
       const text = typeof message === 'string' ? message : new TextDecoder().decode(message);
       msg = JSON.parse(text);
@@ -98,6 +102,21 @@ export class EpisodeSession {
     if (msg.t === 'ping') return;
 
     const isHost = this.state.getTags(ws).includes('host');
+
+    // ── Playing a card ────────────────────────────────────────────────────────
+    //
+    // The session is a shared card game rather than a slide deck. Each person
+    // holds the points assigned to them, and plays one when they are ready to
+    // speak — so the order is decided by the room in the moment, not fixed in
+    // advance by whoever authored the episode.
+    //
+    // The rule that makes it a game rather than a free-for-all: you may play
+    // your OWN card. The host may play anyone's, because someone has to be able
+    // to unstick a room where a person has stepped away.
+    if (msg.t === 'play' && msg.card) {
+      await this.play(ws, msg.card, isHost);
+      return;
+    }
 
     // Relay control: the host can always advance; otherwise only the cast
     // member who is the speaker of the current card may push it forward.
@@ -152,6 +171,47 @@ export class EpisodeSession {
     if (match) await this.setCursor(match);
   }
 
+  /** Put a specific card on the table.
+   *
+   *  Played cards accumulate rather than being removed: a hand that empties as
+   *  it is played is a hand you cannot look back at, and the point of keeping
+   *  the running order visible is that a room can see what has been covered.
+   *  The client greys a spent card; the card itself stays. */
+  private async play(ws: WebSocket, cardId: string, isHost: boolean): Promise<void> {
+    const episode = await this.getSnapshot();
+    if (!episode) return;
+
+    let found: Cursor | null = null;
+    let speakerRef: string | null = null;
+    episode.sections.forEach((section, s) => {
+      section.points.forEach((point, p) => {
+        if (point.id === cardId) {
+          found = { section: s, point: p };
+          speakerRef = point.speaker_ref ?? null;
+        }
+      });
+    });
+    if (!found) return;
+
+    const identity = ws.deserializeAttachment() as Identity | null;
+    const mine = speakerRef !== null && speakerRef === identity?.participantId;
+    // An unassigned card belongs to whoever reaches for it — a question nobody
+    // was given is one anybody may ask.
+    const unclaimed = speakerRef === null;
+    if (!isHost && !mine && !unclaimed) return;
+
+    const played = await this.getPlayed();
+    if (!played.includes(cardId)) {
+      played.push(cardId);
+      await this.state.storage.put('played', played);
+    }
+    await this.setCursor(found);
+  }
+
+  private async getPlayed(): Promise<string[]> {
+    return (await this.state.storage.get<string[]>('played')) ?? [];
+  }
+
   /** True when this socket's cast member is the speaker of the current card. */
   private async ownsCurrentCard(ws: WebSocket): Promise<boolean> {
     const identity = ws.deserializeAttachment() as Identity | null;
@@ -204,6 +264,7 @@ export class EpisodeSession {
       episode,
       cursor: await this.getCursor(),
       paused: await this.getPaused(),
+      played: await this.getPlayed(),
       viewers: this.state.getWebSockets().length,
     });
   }
@@ -218,7 +279,16 @@ export class EpisodeSession {
 
   private async setCursor(cursor: Cursor): Promise<void> {
     await this.state.storage.put('cursor', cursor);
-    this.broadcast({ t: 'cursor', cursor, paused: await this.getPaused() });
+    // `played` rides along with every cursor change. A client could track it
+    // locally from its own plays, but then two screens that saw different
+    // subsets of the session would disagree about which cards are spent — and
+    // the whole reason this state lives in the Durable Object is so they cannot.
+    this.broadcast({
+      t: 'cursor',
+      cursor,
+      paused: await this.getPaused(),
+      played: await this.getPlayed(),
+    });
   }
 
   private async setPaused(paused: boolean): Promise<void> {

@@ -8,6 +8,9 @@ export interface CoreEnv {
   // Owned database
   DB_CORE: D1Database;
 
+  // Reviewing together: one shared question, each person's own card scheduled.
+  REVIEW_SESSION: DurableObjectNamespace;
+
   // Sensor-engine readers (internal routes on the carrier owners)
   QURAN: Fetcher;
   AR_LINGUISTICS: Fetcher;

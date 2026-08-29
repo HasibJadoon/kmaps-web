@@ -159,6 +159,43 @@ export class SrsRepo {
     return queryOne<SrsCard>(this.db, `SELECT ${CARD_COLS} WHERE id = ?`, [id]);
   }
 
+  /** The same question in a given learner's own collection.
+   *
+   *  A shared review session shows one front to everyone, but a card belongs to
+   *  a person: `core_srs_card` is keyed by `user_ref`, and scheduling one
+   *  person's card from another person's answer would be nonsense. So each
+   *  participant's rating is applied to THEIR row for the same question.
+   *
+   *  Two ways to be the same question, in order of confidence. `library_ref` is
+   *  explicit — both cards were taken from one library card, so it is the same
+   *  question by construction. Failing that, the natural key the whole store is
+   *  anchored on: (module, resource_type, resource_ref, card_template). Two
+   *  people who enrolled 44:3 independently never share a library_ref, and
+   *  refusing to match them would make the group session useless for exactly
+   *  the people most likely to use it.
+   *
+   *  Suspended cards are skipped: a card someone has put aside should not come
+   *  back because a study partner asked about it. */
+  counterpart(userRef: string, askedCardId: string): Promise<SrsCard | null> {
+    return queryOne<SrsCard>(
+      this.db,
+      `SELECT ${CARD_COLS}
+        WHERE user_ref = ? AND suspended = 0
+          AND EXISTS (
+            SELECT 1 FROM core_srs_card asked
+             WHERE asked.id = ?
+               AND ((asked.library_ref IS NOT NULL
+                     AND core_srs_card.library_ref = asked.library_ref)
+                 OR (core_srs_card.module        = asked.module
+                 AND core_srs_card.resource_type = asked.resource_type
+                 AND core_srs_card.resource_ref  = asked.resource_ref
+                 AND core_srs_card.card_template = asked.card_template)))
+        ORDER BY next_review_at IS NULL, next_review_at
+        LIMIT 1`,
+      [userRef, askedCardId],
+    );
+  }
+
   cardsInDeck(deckId: string): Promise<SrsCard[]> {
     return query<SrsCard>(this.db,
       `SELECT ${CARD_COLS} WHERE deck_id = ? ORDER BY created_at`, [deckId]);

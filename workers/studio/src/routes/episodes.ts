@@ -48,6 +48,22 @@ function overlayJson(v: unknown): string | null {
   return null;
 }
 
+/** The beats under a main point. Accepted as an array of strings or as the
+ *  JSON text it is stored as. Empties are dropped rather than stored: a card
+ *  with one blank sub-point would draw a bullet with nothing beside it. */
+function subsJson(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'string') return v.trim() || null;
+  if (Array.isArray(v)) {
+    const items = v
+      .filter((x): x is string => typeof x === 'string')
+      .map((x) => x.trim())
+      .filter(Boolean);
+    return items.length ? JSON.stringify(items) : null;
+  }
+  return null;
+}
+
 function parseStructure(raw: string): TemplateStructure {
   try {
     const parsed = JSON.parse(raw);
@@ -372,6 +388,7 @@ export function episodeRoutes(router: Router<StudioEnv>) {
       est_seconds: estSeconds,
       bridge,
       overlay_json: overlayJson(body['overlay_json']),
+      subs_json: subsJson(body['subs'] ?? body['subs_json']),
     }));
   });
 
@@ -403,6 +420,9 @@ export function episodeRoutes(router: Router<StudioEnv>) {
       else return badRequest('bridge must be a string or null');
     }
     if ('overlay_json' in body) patch.overlay_json = overlayJson(body['overlay_json']);
+    if ('subs' in body || 'subs_json' in body) {
+      patch.subs_json = subsJson(body['subs'] ?? body['subs_json']);
+    }
     if (typeof body['seq'] === 'number') patch.seq = body['seq'];
 
     const row = await new EpisodeRepo(env.DB_ST).patchPoint(id, patch);

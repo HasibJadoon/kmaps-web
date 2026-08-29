@@ -98,6 +98,10 @@ export interface PointRow {
    *  the overlay stage. Frozen deliberately: a take must not depend on a live
    *  fetch. */
   overlay_json: string | null;
+  /** The beats under the main point, as a JSON array of strings. Sub-points
+   *  have no identity of their own — never assigned, never played separately —
+   *  so they are the card's body rather than rows of their own. */
+  subs_json: string | null;
   seq: number;
   created_at: string;
   updated_at: string;
@@ -173,6 +177,7 @@ export interface PointInput {
   bridge?: string | null;
   est_seconds?: number | null;
   overlay_json?: string | null;
+  subs_json?: string | null;
   seq?: number;
 }
 
@@ -182,6 +187,7 @@ export interface PointPatch {
   bridge?: string | null;
   est_seconds?: number | null;
   overlay_json?: string | null;
+  subs_json?: string | null;
   seq?: number;
 }
 
@@ -207,7 +213,7 @@ const PA_COLS = `id, episode_ref, display_name, color, role, seq, core_user_ref,
 const SE_COLS = `id, episode_ref, type, heading, seq, overlay_kind, d1_query,
                  created_at, updated_at`;
 const PT_COLS = `id, section_ref, episode_ref, text, speaker_ref, bridge, est_seconds,
-                 overlay_json, seq, created_at, updated_at`;
+                 overlay_json, subs_json, seq, created_at, updated_at`;
 
 export class EpisodeRepo {
   constructor(private db: D1Database) {}
@@ -456,8 +462,8 @@ export class EpisodeRepo {
       this.db,
       `INSERT INTO st_talking_points
          (id, section_ref, episode_ref, text, speaker_ref, bridge, est_seconds,
-          overlay_json, seq, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          overlay_json, subs_json, seq, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         sectionId,
@@ -467,6 +473,7 @@ export class EpisodeRepo {
         input.bridge ?? null,
         input.est_seconds ?? null,
         input.overlay_json ?? null,
+        input.subs_json ?? null,
         seq,
         now,
         now,
@@ -484,6 +491,7 @@ export class EpisodeRepo {
     if (patch.est_seconds !== undefined) { sets.push('est_seconds = ?'); vals.push(patch.est_seconds); }
     if (patch.seq !== undefined)         { sets.push('seq = ?');         vals.push(patch.seq); }
     if (patch.overlay_json !== undefined) { sets.push('overlay_json = ?'); vals.push(patch.overlay_json); }
+    if (patch.subs_json !== undefined)    { sets.push('subs_json = ?');    vals.push(patch.subs_json); }
     if (sets.length === 0) return this.findPoint(id);
     sets.push('updated_at = ?');
     vals.push(new Date().toISOString());
