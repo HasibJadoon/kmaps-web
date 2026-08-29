@@ -61,6 +61,13 @@ export class WorldviewHomeComponent implements OnInit, AfterViewInit {
       tag: 'Contrast',
     },
     {
+      glyph: '⏳',
+      title: 'The record',
+      desc: 'Every dated claim in order — and the centuries where the record is thin.',
+      route: '/worldview/timeline',
+      tag: 'Timeline',
+    },
+    {
       glyph: '§',
       title: 'Library',
       desc: 'Source library — books, notes, highlights and distillations across all your reading.',

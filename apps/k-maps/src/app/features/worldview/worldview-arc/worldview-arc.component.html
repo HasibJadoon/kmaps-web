@@ -1,0 +1,63 @@
+<div class="arc">
+  <header class="arc__nav">
+    <button type="button" class="arc__back" (click)="goBack()">← Worldview</button>
+  </header>
+
+  <header class="arc__head">
+    <div class="arc__mark">
+      <span class="arc__mark-top"></span>
+      <span class="arc__mark-n">{{ visible().length }}</span>
+    </div>
+    <div class="arc__rule-v"></div>
+    <div>
+      <h1 class="arc__title">THE RECORD</h1>
+      <p class="arc__sub">
+        @if (span(); as s) { {{ year(s.from) }} — {{ year(s.to) }} · }
+        what has been dated so far
+      </p>
+    </div>
+  </header>
+
+  @if (types().length) {
+    <nav class="arc__filters" aria-label="Event type">
+      <button type="button" class="arc__filter" [class.is-active]="activeType() === null"
+              (click)="setType(null)">all</button>
+      @for (t of types(); track t.key) {
+        <button type="button" class="arc__filter" [class.is-active]="activeType() === t.key"
+                (click)="setType(t.key)">{{ t.key }} {{ t.count }}</button>
+      }
+    </nav>
+  }
+
+  @if (loading()) {
+    <p class="arc__note">Loading…</p>
+  } @else if (failure()) {
+    <p class="arc__note arc__note--fail">{{ failure() }}</p>
+  } @else {
+    <div class="arc__bands">
+      @for (row of visible(); track row.id) {
+        @if (row.firstOfCentury) {
+          <div class="arc__century">{{ ordinal(row.century) }}</div>
+        }
+        <article class="arc__band" [style.--hue]="row.hue">
+          <div class="arc__left">
+            <div class="arc__year">{{ row.label }}</div>
+            <div class="arc__kind">{{ row.event_type }}</div>
+          </div>
+          <span class="arc__rule" aria-hidden="true"></span>
+          <div class="arc__right">
+            <h2 class="arc__claim">{{ row.title }}</h2>
+            @if (row.note) { <p class="arc__note-sm">{{ row.note }}</p> }
+            @if (row.isBand) {
+              <p class="arc__band-flag">a span, not a moment</p>
+            }
+          </div>
+        </article>
+      }
+    </div>
+
+    @if (undated() > 0) {
+      <p class="arc__note">{{ undated() }} undated, not shown</p>
+    }
+  }
+</div>

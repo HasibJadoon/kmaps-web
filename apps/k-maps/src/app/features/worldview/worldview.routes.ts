@@ -62,6 +62,14 @@ export const WORLDVIEW_ROUTES: Routes = [
         title: 'Reader — Worldview',
       },
       {
+        path: 'timeline',
+        loadComponent: () =>
+          import('./worldview-arc/worldview-arc.component').then(
+            (m) => m.WorldviewArcComponent,
+          ),
+        title: 'The record — Worldview',
+      },
+      {
         path: 'lens',
         loadComponent: () =>
           import('./worldview-lens/worldview-lens.component').then(
