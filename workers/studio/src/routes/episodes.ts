@@ -71,7 +71,13 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   router.get('/st/episodes', async (req, env) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
-    const rows = await new EpisodeRepo(env.DB_ST).listEpisodes(user);
+    // ?series=<id> draws one arc, in station order. Without it, everything the
+    // user owns, newest first.
+    const series = new URL(req.url).searchParams.get('series');
+    const repo = new EpisodeRepo(env.DB_ST);
+    const rows = series
+      ? await repo.listSeriesEpisodes(user, series)
+      : await repo.listEpisodes(user);
     return ok(rows);
   });
 

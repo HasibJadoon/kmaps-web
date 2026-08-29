@@ -224,6 +224,19 @@ export class EpisodeRepo {
     );
   }
 
+  /** The episodes of one series, in the order they are meant to be worked
+   *  through. This is the arc: a series screen draws its stations from here,
+   *  and `session_no` is the station number, not a sort convenience. */
+  listSeriesEpisodes(userRef: string, seriesRef: string): Promise<EpisodeRow[]> {
+    return query<EpisodeRow>(
+      this.db,
+      `SELECT ${EP_COLS} FROM st_episodes
+       WHERE core_user_ref = ? AND series_ref = ?
+       ORDER BY COALESCE(session_no, 1e9), created_at`,
+      [userRef, seriesRef],
+    );
+  }
+
   findEpisode(id: string): Promise<EpisodeRow | null> {
     return queryOne<EpisodeRow>(
       this.db, `SELECT ${EP_COLS} FROM st_episodes WHERE id = ?`, [id],

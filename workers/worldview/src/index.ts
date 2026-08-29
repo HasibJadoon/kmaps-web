@@ -19,12 +19,16 @@ import { illustrationRoutes } from './routes/illustrations';
 import { readingSessionRoutes } from './routes/reading-sessions';
 import { timelineRoutes }    from './routes/timeline';
 import { questionRoutes }    from './routes/questions';
-import { thinkerRoutes }     from './routes/thinkers';
 import { brainstormRoutes }  from './routes/brainstorms';
 import { comparisonRoutes }  from './routes/comparisons';
 import { insightRoutes }     from './routes/insights';
 import { distillRoutes }     from './routes/distill';
 import { positionRoutes }    from './routes/positions';
+import { domainRoutes }      from './routes/domains';
+import { peopleRoutes }      from './routes/people';
+import { moralRoutes }       from './routes/moral';
+import { mapRoutes }         from './routes/maps';
+import { graphRoutes }       from './routes/graphs';
 
 const router = new Router<WorldviewEnv>();
 
@@ -37,7 +41,16 @@ countsRoutes(router);      // GET /worldview/counts — worldviews/sources/units
 
 // ── Core reference data ───────────────────────────────────────────────────────
 traditionRoutes(router);   // GET/POST /wv/traditions, by-slug
-thinkerRoutes(router);     // GET/POST /wv/thinkers
+peopleRoutes(router);      // GET/POST /wv/people — and the /wv/thinkers aliases
+domainRoutes(router);      // GET /wv/domains, /domains/facets, /domains/:slug, periods, regions
+moralRoutes(router);       // GET /wv/moral/axes, /axes/:id, /virtues, /vices
+
+// ── Views over the corpus ────────────────────────────────────────────────────
+// Six repositories were written, typed and never given a route, so the data
+// they read — ten map features, nine clusters, fifteen moral axes, eleven
+// domains — was unreachable over HTTP by either app. These are those routes.
+mapRoutes(router);         // GET /wv/maps, /maps/:id
+graphRoutes(router);       // GET /wv/graphs, /graphs/:id, /clusters
 
 // ── Knowledge graph ──────────────────────────────────────────────────────────
 nodeRoutes(router);         // GET/POST /wv/nodes, edges, node-edges
