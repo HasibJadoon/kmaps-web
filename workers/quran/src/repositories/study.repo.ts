@@ -739,10 +739,15 @@ export class StudyRepo {
       await Promise.all([
         query<{ id: string; ayah_from: number; ayah_to: number; word_start_index: number | null;
                 word_end_index: number | null; sentence_kind: string | null;
-                discourse_role: string | null; note_md: string | null }>(
+                discourse_role: string | null; note_md: string | null;
+                gt_sentence_class: string | null; gt_kalam_kind: string | null }>(
           this.db,
           `SELECT id, ayah_from, ayah_to, word_start_index, word_end_index,
-                  sentence_kind, discourse_role, note_md
+                  sentence_kind, discourse_role, note_md,
+                  -- A sentence is classified twice, on two different questions:
+                  -- what it is BUILT from (اسمية / فعلية / شرطية) and what it
+                  -- DOES (خبرية / إنشائية). Both are GT ids as of 018.
+                  gt_sentence_class, gt_kalam_kind
            FROM qr_ss_occ_sentence
            WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?
            ORDER BY ayah_from, COALESCE(word_start_index, 0)`,
@@ -859,10 +864,17 @@ export class StudyRepo {
         // referring to a term either way resolves.
         query<{ id: string; term_key: string; category_key: string;
                 name_ar: string | null; name_en: string | null; name_ur: string | null;
-                badge_color: string | null }>(
+                badge_color: string | null; sources: string | null }>(
           this.db,
-          `SELECT id, term_key, category_key, name_ar, name_en, name_ur, badge_color
-             FROM ar_ling_gram_term WHERE status = 'live'`,
+          // …and where the classical books define it. A figure the board names
+          // should be able to say where it is defined — al-Qazwini's Talkhis,
+          // Ibn Hisham's Shudhur, Ibn Ashur — which is what turns a chip from a
+          // label into a reference. 144 of the balagha terms are attested.
+          `SELECT g.id, g.term_key, g.category_key, g.name_ar, g.name_en, g.name_ur,
+                  g.badge_color,
+                  (SELECT group_concat(s.source_slug, '|')
+                     FROM ar_ling_gram_term_source s WHERE s.term_id = g.id) AS sources
+             FROM ar_ling_gram_term g WHERE g.status = 'live'`,
           [],
         ).catch(() => []),
         // Ayah-level iʿrāb from EVERY classical book, even where the entries are
@@ -1128,6 +1140,12 @@ export class StudyRepo {
         ayahTo:    s.ayah_to,
         kind:      s.sentence_kind ?? null,
         mode:      parseDiscourseMode(s.note_md),
+        // The two classifications as registry references. `kind` and `mode`
+        // stay for the release that has not moved yet, and the note keeps the
+        // nuance a column cannot hold — 'khabariyya + shart' is a real remark
+        // about a sentence declarative in form and conditional in structure.
+        sentenceClassRef: s.gt_sentence_class ?? null,
+        kalamKindRef:     s.gt_kalam_kind ?? null,
         note:      stripModePrefix(s.note_md),
         clauseTree: buildClauseTree(s.id, s.ayah_from),     // grounded clause hierarchy + iʿrāb
         irabAnalysis: irabAyahByAyah.get(s.ayah_from) ?? [], // grammarian detail, per book
@@ -1249,6 +1267,9 @@ export class StudyRepo {
         key: t.term_key, ref: t.id, category: t.category_key,
         labelAr: t.name_ar, labelEn: t.name_en, labelUr: t.name_ur,
         color: t.badge_color,
+        // The books that define this term, so a chip can be followed back to
+        // where the definition lives.
+        sources: (t.sources ?? '').split('|').filter(Boolean),
       };
     });
 
