@@ -116,8 +116,11 @@ function family(h: number, s: number, l: number): ClusterColor {
     stroke: `hsl(${h} ${s}% ${l}%)`,
     fill:   `hsl(${h} ${s}% ${l}% / 0.16)`,
     glow:   `hsl(${h} ${s}% ${l}% / 0.4)`,
-    hull:   `hsl(${h} ${s}% ${l}% / 0.07)`,
-    hullStroke: `hsl(${h} ${s}% ${l}% / 0.28)`,
+    // A hull now only appears when it is telling the truth about a region, so
+    // it can afford to be seen. At 0.07 fill it was a rumour — the eye read the
+    // shape as a rendering artefact rather than as a group.
+    hull:   `hsl(${h} ${s}% ${l}% / 0.13)`,
+    hullStroke: `hsl(${h} ${s}% ${l}% / 0.5)`,
   };
 }
 
@@ -141,7 +144,11 @@ const PINNED_CLUSTER_COLORS: Record<string, ClusterColor> = {
   'modernity_critique': family(2, 58, 58),    // crimson — what is under attack
   'retrieval':          family(168, 46, 52),  // teal — what answers it
   'evidence':           family(210, 55, 60),  // blue — what shows it
-  'response':           family(40, 14, 80),   // near-white — where it leaves you
+  // Violet, not the near-white this first was. Near-white works for a node on a
+  // dark ground and is hopeless as a territory: at any usable fill alpha a
+  // desaturated hue has no colour left to show. A role's colour has to work in
+  // both places or it is not the role's colour.
+  'response':           family(280, 48, 66),  // violet — where it leaves you
 };
 
 // Fallback hues (evenly spaced) for any unpinned cluster slug.
