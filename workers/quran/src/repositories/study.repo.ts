@@ -706,7 +706,7 @@ export class StudyRepo {
    *     (qr_ss_ellipsis_event) scoped to the sentence/clause;
    *   • the mufassir discussion for the ayah (qr_tafsir_entry), attributed.
    * Colours + Arabic/English labels come from the global term dictionary
-   * (qr_ss_term). The per-word `root` lets the UI cross-reference the Five-Lens
+   * (ar_ling_gram_term). The per-word `root` lets the UI cross-reference the Five-Lens
    * lexicon lazily on tap.
    */
   async sentenceStructureStep(surahId: number, passageNo: number) {
@@ -1303,7 +1303,7 @@ export class StudyRepo {
 
   /**
    * Full per-word morphology for a passage, built from qr_word_occurrence (QAC)
-   * + qr_ss_scope_morph_link (iʿrāb) × qr_ss_term (labels) + qr_ss_occ_segment.
+   * + qr_ss_scope_morph_link (iʿrāb) × ar_ling_gram_term (labels) + qr_ss_occ_segment.
    * Every word emits a card, so this works for any surah (SML/segments fill in
    * where present). Returns the distinct root list for AL enrichment.
    */
@@ -1387,9 +1387,17 @@ export class StudyRepo {
          ORDER BY ayah, word_index`,
         [surahId, ayahFrom, ayahTo],
       ).catch(() => [] as WordOccRow[]),
+      // The grammar registry. This read qr_ss_term, which does not exist in the
+      // deployed database — the query threw, the .catch swallowed it, and every
+      // word card has been built with an empty label map. Same bug as the
+      // sentence-structure step had, in a second place.
       query<{ term_key: string; label_ar: string | null; color: string | null }>(
         this.db,
-        `SELECT term_key, label_ar, color FROM qr_ss_term`,
+        `SELECT id AS term_key, name_ar AS label_ar, badge_color AS color
+           FROM ar_ling_gram_term WHERE status = 'live'
+          UNION ALL
+         SELECT term_key, name_ar, badge_color
+           FROM ar_ling_gram_term WHERE status = 'live'`,
       ).catch(() => []),
       query<SmlRow>(
         this.db,
