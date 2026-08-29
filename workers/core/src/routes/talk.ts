@@ -37,16 +37,23 @@ export function talkRoutes(router: Router<CoreEnv>): void {
   router.get('/core/talk/decks', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
+    const workspace = new URL(req.url).searchParams.get('workspace');
     const rows = await query(
       env.DB_CORE,
       `SELECT d.id, d.title, d.description, d.audience, d.language, d.is_shared,
-              d.owner_ref, d.created_at,
+              d.owner_ref, d.workspace_ref, d.created_at,
+              COALESCE(u.display_name, u.email) AS owner_name,
               (SELECT COUNT(*) FROM core_talk_card c WHERE c.deck_ref = d.id) AS cards,
+              (SELECT COUNT(*) FROM core_talk_card c
+                WHERE c.deck_ref = d.id AND c.asked_at IS NULL) AS unasked,
               (d.owner_ref = ?) AS is_mine
          FROM core_talk_deck d
-        WHERE d.owner_ref = ? OR d.is_shared = 1
+         LEFT JOIN core_users u ON u.id = d.owner_ref
+        WHERE d.owner_ref = ?
+           OR d.is_shared = 1
+           ${workspace ? 'OR d.workspace_ref = ?' : ''}
         ORDER BY d.created_at DESC`,
-      [ctx.userId, ctx.userId],
+      workspace ? [ctx.userId, ctx.userId, workspace] : [ctx.userId, ctx.userId],
     );
     return ok(rows);
   });
@@ -65,10 +72,12 @@ export function talkRoutes(router: Router<CoreEnv>): void {
     const id = typedId('TLD');
     await execute(
       env.DB_CORE,
-      `INSERT INTO core_talk_deck (id, owner_ref, title, description, audience, language, is_shared)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO core_talk_deck
+         (id, owner_ref, title, description, audience, language, is_shared, workspace_ref)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, ctx.userId, title, str(body?.['description']), audience,
-       str(body?.['language']) ?? 'en', body?.['is_shared'] ? 1 : 0],
+       str(body?.['language']) ?? 'en', body?.['is_shared'] ? 1 : 0,
+       str(body?.['workspace_ref'])],
     );
     return created({ id, title, audience, cards: 0 });
   });
@@ -81,17 +90,25 @@ export function talkRoutes(router: Router<CoreEnv>): void {
       `SELECT id, owner_ref, title, description, audience, language, is_shared, created_at
          FROM core_talk_deck WHERE id = ?`, [id]);
     if (!deck) return notFound(`deck ${id}`);
-    if (deck['owner_ref'] !== ctx.userId && !deck['is_shared']) {
-      return forbidden('Not your deck');
-    }
-    // Ordered by depth then sequence, so a client that deals straight through
-    // opens light and ends deep. Shuffling is the client's choice; the order
-    // stored is the one the deck was written in.
-    const cards = await query(
-      env.DB_CORE,
-      `SELECT id, prompt, depth, tags, seq FROM core_talk_card
-        WHERE deck_ref = ? ORDER BY depth, seq, created_at`, [id]);
-    return ok({ deck, cards });
+
+    // THE PROMPTS ARE THE OWNER'S. Everyone at the table can see that a deck
+    // exists and how much is waiting in it — that is what makes a table work —
+    // but not what is written in it. A question you know is coming is not the
+    // same question, and half the point is being asked something you did not
+    // see coming.
+    const mine = deck['owner_ref'] === ctx.userId;
+    if (!mine && !deck['is_shared']) return forbidden('Not your deck');
+
+    const cards = mine
+      ? await query(
+          env.DB_CORE,
+          // Ordered by depth then sequence, so dealing straight through opens
+          // light and ends deep. Shuffling is the client's choice.
+          `SELECT id, prompt, depth, tags, seq, for_name, for_ref, asked_at
+             FROM core_talk_card
+            WHERE deck_ref = ? ORDER BY depth, seq, created_at`, [id])
+      : [];
+    return ok({ deck, cards, visible: mine });
   });
 
   /** Add prompts. Accepts one `prompt` or a `prompts` array — pasting a page of
@@ -126,15 +143,86 @@ export function talkRoutes(router: Router<CoreEnv>): void {
       const cardId = typedId('TLC');
       await execute(
         env.DB_CORE,
-        `INSERT INTO core_talk_card (id, deck_ref, prompt, depth, tags, seq)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO core_talk_card
+           (id, deck_ref, prompt, depth, tags, seq, for_name, for_ref)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [cardId, id, prompt,
          Number.isInteger(depth) && depth >= 1 && depth <= 3 ? depth : 1,
-         str(body?.['tags']), seq++],
+         str(body?.['tags']), seq++,
+         str(body?.['for_name']), str(body?.['for_ref'])],
       );
       made.push({ id: cardId, prompt });
     }
     return created({ added: made.length, cards: made });
+  });
+
+  /** Mark a card as asked. Not a delete: the point of keeping it is that at
+   *  the end of a week you can see what was actually asked, and a card that
+   *  vanishes when it is played leaves no record of the evening. */
+  router.post('/core/talk/cards/:cardId/asked', async (req, env, { cardId }) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    // Scoped through the deck's owner, so one person cannot mark another
+    // person's card as asked — including cards they were never able to read.
+    await execute(
+      env.DB_CORE,
+      `UPDATE core_talk_card
+          SET asked_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
+        WHERE id = ?
+          AND deck_ref IN (SELECT id FROM core_talk_deck WHERE owner_ref = ?)`,
+      [cardId, ctx.userId],
+    );
+    return ok({ id: cardId });
+  });
+
+  /** Tonight: every card waiting to be asked, across the decks this person can
+   *  see, grouped by who is asking.
+   *
+   *  Cross-deck on purpose. Each person prepares their own during the day, and
+   *  at the table nobody wants to hand the phone round four times — one screen
+   *  deals from everybody's, in turn. */
+  router.get('/core/talk/tonight', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const url = new URL(req.url);
+    // Everything unasked by default; `all=1` for a table that wants the lot.
+    const all = url.searchParams.get('all') === '1';
+    const workspace = url.searchParams.get('workspace');
+
+    // YOUR cards only. Each person prepares their own and asks from their own
+    // phone; nobody reads anybody else's deck, which is the whole reason the
+    // question lands.
+    const rows = await query(
+      env.DB_CORE,
+      `SELECT c.id, c.prompt, c.depth, c.for_name, c.for_ref, c.asked_at,
+              d.id AS deck_id, d.title AS deck_title
+         FROM core_talk_card c
+         JOIN core_talk_deck d ON d.id = c.deck_ref
+        WHERE d.owner_ref = ?
+          ${all ? '' : 'AND c.asked_at IS NULL'}
+        ORDER BY c.depth, c.seq`,
+      [ctx.userId],
+    );
+
+    // Who else is at the table and how much they are holding — a count, never
+    // a prompt. It is what tells the room whether everybody came prepared.
+    const table = workspace
+      ? await query(
+          env.DB_CORE,
+          `SELECT d.owner_ref AS user_id,
+                  COALESCE(u.display_name, u.email) AS name,
+                  COUNT(c.id) AS waiting
+             FROM core_talk_deck d
+             LEFT JOIN core_talk_card c
+               ON c.deck_ref = d.id AND c.asked_at IS NULL
+             LEFT JOIN core_users u ON u.id = d.owner_ref
+            WHERE d.workspace_ref = ?
+            GROUP BY d.owner_ref
+            ORDER BY name`,
+          [workspace])
+      : [];
+
+    return ok({ cards: rows, table });
   });
 
   router.delete('/core/talk/decks/:id/cards/:cardId', async (req, env, { id, cardId }) => {
