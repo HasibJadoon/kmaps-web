@@ -6,7 +6,7 @@
 //         qr_surah_study_task_chunk, qr_word_occurrence, qr_ayah,
 //         qr_surah, qr_translation, qr_translation_source
 
-import { query } from '../../../shared/src/db';
+import { query, queryOne } from '../../../shared/src/db';
 import type { AlClient } from '../clients/al.client';
 import { parseQacMorphology, posGroup as qacPosGroup, QacMorphology } from '../lib/qac-morph';
 
@@ -264,6 +264,20 @@ export class StudyRepo {
    * table, and vocab counts from one aggregate over the word table. The full
    * passage payload is fetched only when a passage (or a step) is opened.
    */
+  /// The corpus build. Falls back to a stamp derived from the newest authored
+  /// row when the version table has not been seeded, so a client always gets an
+  /// answer it can compare — an absent version would mean "never invalidate".
+  async corpusVersion(): Promise<{ version: string; built_at: string | null }> {
+    const row = await queryOne<{ version: string; built_at: string | null }>(
+      this.db, `SELECT version, built_at FROM qr_corpus_version WHERE id = 1`,
+    ).catch(() => null);
+    if (row?.version) return row;
+    const fallback = await queryOne<{ v: string | null }>(
+      this.db, `SELECT MAX(created_at) AS v FROM qr_ss_occ_sentence`,
+    ).catch(() => null);
+    return { version: `qr-derived-${fallback?.v ?? 'unknown'}`, built_at: fallback?.v ?? null };
+  }
+
   async grid(surahId: number) {
     const passages = await this._passages(surahId);
     if (!passages.length) return null;

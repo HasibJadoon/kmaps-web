@@ -44,6 +44,20 @@ const CORPUS_TTL = { browser: 14400, edge: 86400 };
 
 export function studyRoutes(router: Router<QuranEnv>) {
 
+  // ── What build the corpus is on ─────────────────────────────────────────────
+  // The client keeps authored content on disk indefinitely — it does not go
+  // stale on a clock, because it does not change on a clock. This is what tells
+  // it when the corpus HAS changed, so a phone holding last month's build drops
+  // it on the next launch instead of showing it until someone pulls to refresh.
+  //
+  // Short TTL on purpose: it is a few bytes and it gates everything else.
+  router.get('/qr/corpus-version', (req, env) =>
+    cached(req, async () => {
+      const row = await new StudyRepo(env.DB_QR).corpusVersion();
+      return ok(row);
+    }, { browser: 300, edge: 300 }),
+  );
+
   // ── Study grid — passage list enriched with task-type flags and vocab counts ─
 
   // Corpus content: it changes on an authoring run, not per request. Edge-cached
