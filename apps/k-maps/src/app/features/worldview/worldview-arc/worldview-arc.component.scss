@@ -72,7 +72,51 @@
 
 // ── Bands ────────────────────────────────────────────────────────────────────
 
-.arc__bands { max-width: 1088px; margin: 0 auto; padding: 0 24px; }
+.arc__bands {
+  max-width: 1088px; margin: 0 auto;
+  padding: 0 24px 0 72px;    // room for the rail
+  position: relative;
+}
+
+// ── The rail ─────────────────────────────────────────────────────────────────
+
+.arc__rail {
+  position: absolute; left: 40px; top: 0; bottom: 0; width: 2px;
+}
+.arc__rail-track,
+.arc__rail-live {
+  position: absolute; inset: 0; border-radius: 1px;
+}
+.arc__rail-track { background: var(--km-border); }
+.arc__rail-live {
+  background: linear-gradient(180deg,
+    var(--km-gold, #c9a84c), #8bbf3e, #4c9fc9, #e0803a);
+  transform-origin: top center;
+  transform: scaleY(0);      // GSAP scrubs this; 0 is honest before it does
+}
+
+.arc__century { position: relative; }
+.arc__century-mark {
+  position: absolute; left: -38px; top: 50%;
+  width: 11px; height: 11px; margin-top: -5px; margin-left: -4px;
+  border-radius: 50%;
+  background: var(--km-bg);
+  border: 2px solid var(--hue);
+}
+
+.arc__band { position: relative; }
+// One pip per event, on the rail, at the height of its own band.
+.arc__pip {
+  position: absolute; left: -54px; top: 34px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--hue);
+  box-shadow: 0 0 0 3px var(--km-bg);
+}
+@media (max-width: 720px) {
+  .arc__bands { padding-left: 24px; }
+  .arc__rail { display: none; }
+  .arc__pip, .arc__century-mark { display: none; }
+}
 
 .arc__century {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

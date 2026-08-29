@@ -35,11 +35,22 @@
     <p class="arc__note arc__note--fail">{{ failure() }}</p>
   } @else {
     <div class="arc__bands">
+      <!-- The rail. Two lines in the same place: a dim one for the whole span,
+           and a lit one scaled by scroll position, so how far you are through
+           the record is legible without a scrollbar. -->
+      <div class="arc__rail" aria-hidden="true">
+        <span class="arc__rail-track"></span>
+        <span class="arc__rail-live"></span>
+      </div>
       @for (row of visible(); track row.id) {
         @if (row.firstOfCentury) {
-          <div class="arc__century">{{ ordinal(row.century) }}</div>
+          <div class="arc__century">
+            <span class="arc__century-mark" [style.--hue]="row.hue"></span>
+            {{ ordinal(row.century) }}
+          </div>
         }
         <article class="arc__band" [style.--hue]="row.hue">
+          <span class="arc__pip" aria-hidden="true"></span>
           <div class="arc__left">
             <div class="arc__year">{{ row.label }}</div>
             <div class="arc__kind">{{ row.event_type }}</div>
