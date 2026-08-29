@@ -17,6 +17,7 @@ import { grantRoutes } from './routes/grants';
 import { srsRoutes } from './routes/srs';
 import { srsRegistryRoutes } from './routes/srs-registry';
 import { srsSessionRoutes } from './routes/srs-session';
+import { quizRoutes } from './routes/quiz';
 import { dsRoutes } from './routes/ds';
 import { cybRoutes } from './routes/cyb';
 import { studySessionRoutes } from './routes/study-session';
@@ -39,11 +40,13 @@ grantRoutes(router);
 srsRoutes(router);           // /core/srs/* — the one spaced-repetition engine (FSRS)
 srsRegistryRoutes(router);   // GET/POST/DELETE /core/srs/registry — SRS enrollment index
 srsSessionRoutes(router);    // /core/srs/sessions/* — reviewing together, one shared question
+quizRoutes(router);          // /core/quiz/* — a question asked to a room, scored on speed
 cybRoutes(router);
 dsRoutes(router);                // /core/ds/* — the composed display spec: layers + plane + cards           // GET /core/cyb/* — cybernetics control plane (monitor · tree · jobs)
 studySessionRoutes(router);  // /core/study/sessions — the study axis's one carrier
 
 export { ReviewSession } from './review-session.do';
+export { QuizSession } from './quiz-session.do';
 
 export default {
   fetch: (request: Request, env: CoreEnv) => router.handle(request, env),

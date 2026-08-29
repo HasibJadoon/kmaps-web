@@ -76,3 +76,14 @@ class_name = "ReviewSession"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ReviewSession"]
+
+# ─── A question asked to a room ───────────────────────────────────────────────
+# The host pushes a question, the room answers at once, speed is half the score.
+# The correct answer never leaves this object before the reveal.
+[[durable_objects.bindings]]
+name = "QUIZ_SESSION"
+class_name = "QuizSession"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["QuizSession"]

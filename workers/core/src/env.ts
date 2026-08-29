@@ -11,6 +11,10 @@ export interface CoreEnv {
   // Reviewing together: one shared question, each person's own card scheduled.
   REVIEW_SESSION: DurableObjectNamespace;
 
+  // Kahoot-style live quiz: one question, a room full of answers, scored on
+  // correctness and speed.
+  QUIZ_SESSION: DurableObjectNamespace;
+
   // Sensor-engine readers (internal routes on the carrier owners)
   QURAN: Fetcher;
   AR_LINGUISTICS: Fetcher;
