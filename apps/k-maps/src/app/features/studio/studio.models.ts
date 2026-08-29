@@ -78,6 +78,9 @@ export interface TalkingPoint {
   bridge: string | null;
   est_seconds: number | null;
   seq: number;
+  /** The beats under the main point. A sub-point has no identity of its own —
+   *  never assigned, never played separately — so it rides on the card. */
+  subs_json?: string[] | string | null;
 }
 
 export interface Section {

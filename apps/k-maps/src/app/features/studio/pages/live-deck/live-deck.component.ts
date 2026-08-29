@@ -18,10 +18,15 @@ interface LiveMessage {
   viewers?: number;
   roster?: RosterEntry[];
   you?: RosterEntry;
+  /** Every card played this session. It rides on sync AND on every cursor
+   *  change rather than being tracked locally, so two screens that saw
+   *  different subsets cannot disagree about which cards are spent. */
+  played?: string[];
 }
 
 /** One card in the live deck — a flattened talking point. */
 interface DeckCard {
+  id: string;
   index: number;
   section: string;
   text: string;
@@ -29,6 +34,33 @@ interface DeckCard {
   speakerName: string | null;
   speakerColor: string | null;
   speakerRef: string | null;
+  /** The beats you say while holding the card — one turn to speak, so they are
+   *  on the card rather than being cards of their own. */
+  subs: string[];
+}
+
+/** Someone else at the table: their colour, and how much they still hold. */
+interface Seat {
+  ref: string;
+  name: string;
+  color: string;
+  remaining: number;
+  speaking: boolean;
+  /** Capped for drawing; the number underneath carries the rest. */
+  pips: number[];
+}
+
+/** Sub-points arrive as an array or as the JSON text of one, depending on
+ *  whether they came from a PATCH or straight out of the column. */
+function subsOf(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.filter((x): x is string => typeof x === 'string');
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [raw];
+    } catch { return [raw]; }
+  }
+  return [];
 }
 
 @Component({
@@ -112,6 +144,98 @@ interface DeckCard {
           </div>
         }
       } @else {
+        <div class="deck-switch">
+          <button type="button" [class.on]="view() === 'table'"
+                  (click)="view.set('table')">Table</button>
+          <button type="button" [class.on]="view() === 'order'"
+                  (click)="view.set('order')">Running order</button>
+        </div>
+
+        @if (view() === 'table') {
+          <div class="tbl">
+            <!-- Everyone else, with what they still hold face down beside them.
+                 The thickness IS the information: you can see across a table
+                 who has a lot left to get through. -->
+            @if (seats().length) {
+              <div class="tbl-seats">
+                @for (seat of seats(); track seat.ref) {
+                  <div class="tbl-seat" [class.tbl-seat--on]="seat.speaking"
+                       [style.--seat]="seat.color">
+                    <div class="tbl-backs">
+                      @for (pip of seat.pips; track pip) {
+                        <span class="tbl-back"
+                              [style.transform]="'rotate(' + backAngle(seat.pips.length, pip)
+                                + 'deg) translateX(' + backShift(seat.pips.length, pip) + 'px)'">
+                        </span>
+                      }
+                    </div>
+                    <div class="tbl-seatname">{{ seat.name }}</div>
+                    <div class="tbl-seatleft">
+                      {{ seat.remaining === 1 ? '1 left' : seat.remaining + ' left' }}
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+
+            <!-- The middle: the card that was played, bigger. Not a panel about
+                 the card — the point of a table is that it is lying there. -->
+            @if (liveCard(); as live) {
+              <div class="tbl-mid" [style.--seat]="live.speakerColor || '#c9a84c'">
+                <div class="tbl-mid-top">
+                  <span class="tbl-mid-who">{{ live.speakerName || 'Open' }}</span>
+                  <span class="tbl-mid-sec">{{ live.section }}</span>
+                </div>
+                <p class="tbl-mid-text" dir="auto">{{ live.text || live.section }}</p>
+                @if (live.subs.length) {
+                  <ul class="tbl-mid-subs" dir="auto">
+                    @for (sub of live.subs; track $index) { <li>{{ sub }}</li> }
+                  </ul>
+                }
+                @if (live.bridge) { <div class="tbl-mid-bridge" dir="auto">↪ {{ live.bridge }}</div> }
+              </div>
+            } @else {
+              <div class="tbl-mid tbl-mid--empty">Nobody has played a card yet.</div>
+            }
+
+            <!-- Your hand. Fanned, because a list of talking points is a script
+                 and a script makes three people take turns reading it. -->
+            <div class="tbl-handhead">
+              <span>Your hand</span>
+              <span>{{ hand().length === 1 ? '1 card' : hand().length + ' cards' }}</span>
+            </div>
+            @if (hand().length) {
+              <div class="tbl-fan">
+                @for (card of hand(); track card.id) {
+                  <button type="button" class="tbl-card"
+                          [style.--seat]="card.speakerColor || '#c9a84c'"
+                          [style.transform]="'rotate(' + fanAngle($index) + 'deg) translate('
+                            + fanShift($index) + 'px,' + fanLift($index) + 'px)'"
+                          [style.zIndex]="$index"
+                          (click)="play(card)">
+                    <span class="tbl-card-sec">{{ card.section }}</span>
+                    <span class="tbl-card-text" dir="auto">{{ card.text }}</span>
+                    @if (card.subs.length) {
+                      <ul class="tbl-card-subs" dir="auto">
+                        @for (sub of card.subs.slice(0, 3); track $index) { <li>{{ sub }}</li> }
+                      </ul>
+                    }
+                    @if (card.speakerRef === null) { <span class="tbl-card-open">Open</span> }
+                  </button>
+                }
+              </div>
+              <div class="tbl-hint">Tap a card to put it on the table</div>
+            } @else {
+              <div class="tbl-hint tbl-hint--empty">
+                {{ spent().length ? 'You have played every card in your hand.'
+                                  : 'No points are assigned to you in this episode.' }}
+              </div>
+            }
+            @if (spent().length) {
+              <div class="tbl-spent">{{ spent().length }} played</div>
+            }
+          </div>
+        } @else {
         <div class="deck-strip" #strip>
           @for (card of cards(); track card.index) {
             <div class="deck-card"
@@ -132,13 +256,14 @@ interface DeckCard {
                   🎙 {{ card.speakerName }}
                 </div>
               }
-              <p class="deck-card-text">{{ card.text || 'Section break' }}</p>
+              <p class="deck-card-text" dir="auto">{{ card.text || 'Section break' }}</p>
               @if (card.bridge) {
-                <div class="deck-card-bridge">↪ {{ card.bridge }}</div>
+                <div class="deck-card-bridge" dir="auto">↪ {{ card.bridge }}</div>
               }
             </div>
           }
         </div>
+        }
         @if (paused()) { <div class="deck-pausedbar">Paused</div> }
         <div class="deck-progress">
           <div class="deck-progress-bar"><span [style.width.%]="progressPct()"></span></div>
@@ -195,6 +320,121 @@ interface DeckCard {
     }
     .deck-title { flex: 1; font-size: 0.92rem; font-weight: 600; }
     .deck-viewers { font-size: 0.8rem; color: rgba(255,255,255,0.55); }
+
+    /* ── The table ──────────────────────────────────────────────────────────
+       Seats at the top with their remaining cards face down, the played card
+       in the middle, your own hand fanned along the bottom. The board answers
+       three questions from across a room without anyone saying them: whose
+       turn it is, who has a lot left, and what is being talked about now. */
+    .deck-switch {
+      display: flex; gap: 6px; justify-content: center; padding: 10px 0 2px;
+    }
+    .deck-switch button {
+      background: transparent; border: 1px solid rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.55); border-radius: 999px;
+      padding: 4px 14px; font-size: 0.72rem; cursor: pointer;
+    }
+    .deck-switch button.on {
+      color: #c9a84c; border-color: rgba(201,168,76,0.55);
+      background: rgba(201,168,76,0.1);
+    }
+
+    .tbl {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      gap: 14px; padding: 10px 16px 20px; overflow-y: auto;
+    }
+    .tbl-seats { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; }
+    .tbl-seat {
+      width: 108px; text-align: center; padding: 8px 6px;
+      border: 1px solid transparent; border-radius: 12px;
+    }
+    .tbl-seat--on {
+      border-color: color-mix(in srgb, var(--seat) 55%, transparent);
+      background: color-mix(in srgb, var(--seat) 12%, transparent);
+    }
+    .tbl-backs { position: relative; height: 46px; }
+    .tbl-back {
+      position: absolute; left: 50%; bottom: 0; margin-left: -13px;
+      width: 26px; height: 38px; border-radius: 4px;
+      background: #161616;
+      border: 1px solid color-mix(in srgb, var(--seat) 45%, transparent);
+      transform-origin: bottom center;
+    }
+    .tbl-seatname { margin-top: 6px; font-size: 0.72rem; font-weight: 600; color: var(--seat); }
+    .tbl-seatleft { font-size: 0.62rem; color: rgba(255,255,255,0.4); }
+
+    .tbl-mid {
+      width: min(320px, 92%); min-height: 190px; padding: 16px;
+      border-radius: 14px; background: #121212;
+      border: 1.6px solid var(--seat, rgba(255,255,255,0.12));
+      box-shadow: 0 10px 28px rgba(0,0,0,0.55);
+      display: flex; flex-direction: column; gap: 9px;
+    }
+    .tbl-mid--empty {
+      align-items: center; justify-content: center; color: rgba(255,255,255,0.4);
+      font-size: 0.82rem; border-style: dashed; box-shadow: none;
+    }
+    .tbl-mid-top { display: flex; justify-content: space-between; gap: 8px; }
+    .tbl-mid-who {
+      font-size: 0.66rem; font-weight: 700; letter-spacing: 0.09em;
+      text-transform: uppercase; color: var(--seat);
+    }
+    .tbl-mid-sec {
+      font-size: 0.6rem; letter-spacing: 0.09em; text-transform: uppercase;
+      color: rgba(255,255,255,0.38);
+    }
+    .tbl-mid-text { margin: 0; font-size: 1.12rem; font-weight: 600; line-height: 1.35; }
+    .tbl-mid-subs { margin: 0; padding-left: 16px; display: grid; gap: 5px; }
+    .tbl-mid-subs li { font-size: 0.84rem; color: rgba(255,255,255,0.72); }
+    .tbl-mid-bridge { margin-top: auto; font-size: 0.74rem; font-style: italic; color: rgba(255,255,255,0.42); }
+
+    .tbl-handhead {
+      width: min(520px, 100%); display: flex; justify-content: space-between;
+      font-size: 0.64rem; letter-spacing: 0.13em; text-transform: uppercase;
+      color: #c9a84c; margin-top: 4px;
+    }
+    .tbl-handhead span:last-child { color: rgba(255,255,255,0.4); letter-spacing: 0.04em; }
+
+    /* Each card is rotated about a pivot below it, the way you hold them. */
+    .tbl-fan { position: relative; height: 236px; width: 100%; }
+    .tbl-card {
+      position: absolute; left: 50%; bottom: 22px; margin-left: -66px;
+      width: 132px; height: 186px; padding: 11px; cursor: pointer;
+      display: flex; flex-direction: column; gap: 6px; text-align: left;
+      border-radius: 10px; background: #131313;
+      border: 1px solid color-mix(in srgb, var(--seat) 45%, transparent);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      transform-origin: bottom center;
+      transition: transform 180ms ease, box-shadow 180ms ease;
+      color: inherit; font: inherit;
+    }
+    .tbl-card:hover, .tbl-card:focus-visible {
+      box-shadow: 0 12px 26px rgba(0,0,0,0.62);
+      border-color: var(--seat);
+      z-index: 100 !important;
+    }
+    .tbl-card-sec {
+      font-size: 0.56rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--seat);
+    }
+    .tbl-card-text {
+      font-size: 0.78rem; font-weight: 600; line-height: 1.3;
+      display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .tbl-card-subs { margin: 0; padding-left: 13px; display: grid; gap: 2px; }
+    .tbl-card-subs li {
+      font-size: 0.6rem; color: rgba(255,255,255,0.55);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .tbl-card-open {
+      margin-top: auto; font-size: 0.55rem; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.4);
+    }
+    .tbl-hint { font-size: 0.68rem; color: rgba(255,255,255,0.35); }
+    .tbl-hint--empty { padding: 30px 0; font-style: italic; }
+    .tbl-spent { font-size: 0.66rem; color: rgba(255,255,255,0.35); }
 
     .deck-center {
       flex: 1; display: flex; flex-direction: column; align-items: center;
@@ -360,6 +600,10 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
   viewers = signal(1);
   roster = signal<RosterEntry[]>([]);
   you = signal<RosterEntry | null>(null);
+  /** Ids of every card played. Authoritative — it comes from the session. */
+  played = signal<ReadonlySet<string>>(new Set<string>());
+  /** The table is what you play from; the running order is for reading ahead. */
+  view = signal<'table' | 'order'>('table');
 
   private ws: WebSocket | null = null;
   private leaving = false;
@@ -436,8 +680,9 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
     for (const section of ep.sections) {
       if (section.points.length === 0) {
         out.push({
+          id: 'section-' + section.id,
           index: i++, section: section.heading, text: '', bridge: null,
-          speakerName: null, speakerColor: null, speakerRef: null,
+          speakerName: null, speakerColor: null, speakerRef: null, subs: [],
         });
       } else {
         for (const point of section.points) {
@@ -445,9 +690,11 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
             ? ep.participants.find((p) => p.id === point.speaker_ref) ?? null
             : null;
           out.push({
+            id: point.id,
             index: i++, section: section.heading, text: point.text,
             bridge: point.bridge, speakerName: speaker?.display_name ?? null,
             speakerColor: speaker?.color ?? null, speakerRef: point.speaker_ref,
+            subs: subsOf(point.subs_json),
           });
         }
       }
@@ -456,6 +703,104 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
   });
 
   activeIndex = computed(() => this.position().index);
+
+  /** The card in the middle — what is being spoken now. */
+  liveCard = computed<DeckCard | null>(() => this.cards()[this.activeIndex()] ?? null);
+
+  /** Your hand: your own cards, plus any nobody was assigned. An unclaimed
+   *  question belongs to whoever reaches for it — the same rule the Durable
+   *  Object enforces, so a card is never offered for a play it would refuse. */
+  hand = computed<DeckCard[]>(() => {
+    const me = this.you()?.participantId ?? null;
+    const played = this.played();
+    return this.cards().filter((c) => {
+      if (played.has(c.id) || !c.text) return false;
+      return c.speakerRef === null || c.speakerRef === me;
+    });
+  });
+
+  /** Yours that are spent. They stay: mid-session the useful question is often
+   *  what you have already said. */
+  spent = computed<DeckCard[]>(() => {
+    const me = this.you()?.participantId ?? null;
+    const played = this.played();
+    return this.cards().filter(
+      (c) => played.has(c.id) && (c.speakerRef === me || c.speakerRef === null));
+  });
+
+  /** Everyone else, in the order they first speak. Seats come from the cards
+   *  rather than the roster, so somebody holding no points does not get a chair
+   *  with nothing on it. */
+  seats = computed<Seat[]>(() => {
+    const me = this.you()?.participantId ?? null;
+    const played = this.played();
+    const live = this.liveCard();
+    const order: string[] = [];
+    const info = new Map<string, { name: string; color: string }>();
+    for (const card of this.cards()) {
+      const ref = card.speakerRef;
+      if (!ref || ref === me) continue;
+      if (!info.has(ref)) {
+        order.push(ref);
+        info.set(ref, { name: card.speakerName ?? '—', color: card.speakerColor || '#c9a84c' });
+      }
+    }
+    return order.map((ref) => {
+      const remaining = this.cards()
+        .filter((c) => c.speakerRef === ref && !played.has(c.id) && !!c.text).length;
+      return {
+        ref,
+        name: info.get(ref)!.name,
+        color: info.get(ref)!.color,
+        remaining,
+        speaking: live?.speakerRef === ref,
+        pips: Array.from({ length: Math.min(remaining, 6) }, (_, i) => i),
+      };
+    });
+  });
+
+  /** How far each card in the fan is rotated and pushed out from the middle.
+   *  The gap is a fraction of the card width rather than a fixed pixel value:
+   *  at a fixed one a two-card hand sat almost exactly on top of itself. */
+  fanAngle(i: number): number {
+    const n = this.hand().length;
+    if (n < 2) return 0;
+    const step = Math.min(11, 64 / (n - 1));
+    return (i - (n - 1) / 2) * step;
+  }
+
+  fanShift(i: number): number {
+    const n = this.hand().length;
+    if (n < 2) return 0;
+    const gap = Math.max(30, Math.min(58, 320 / (n - 1)));
+    return (i - (n - 1) / 2) * gap;
+  }
+
+  /** How far apart a seat's face-down cards sit. Same trap as the hand: at a
+   *  fixed offset a two-card pile reads as one thick card. */
+  backShift(count: number, i: number): number {
+    if (count < 2) return 0;
+    const gap = Math.max(8, Math.min(17, 62 / (count - 1)));
+    return (i - (count - 1) / 2) * gap;
+  }
+
+  backAngle(count: number, i: number): number {
+    if (count < 2) return 0;
+    return (i - (count - 1) / 2) * 9;
+  }
+
+  fanLift(i: number): number {
+    const n = this.hand().length;
+    if (n < 2) return 0;
+    return Math.abs(i - (n - 1) / 2) * 5;
+  }
+
+  /** Put a card on the table. The session decides whether it is yours to play,
+   *  so nothing is changed locally first — a refused play simply does nothing
+   *  rather than moving and snapping back. */
+  play(card: DeckCard): void {
+    this.send({ t: 'play', card: card.id });
+  }
 
   /** True when the current card is assigned to this viewer — their turn to push. */
   isMyTurn = computed(() => {
@@ -537,11 +882,13 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
         if (msg.role) this.role.set(msg.role);
         if (msg.roster) this.roster.set(msg.roster);
         if (msg.you) this.you.set(msg.you);
+        if (msg.played) this.played.set(new Set(msg.played));
         this.loading.set(false);
         break;
       case 'cursor':
         if (msg.cursor) this.cursor.set(msg.cursor);
         if (typeof msg.paused === 'boolean') this.paused.set(msg.paused);
+        if (msg.played) this.played.set(new Set(msg.played));
         break;
       case 'presence':
         if (typeof msg.viewers === 'number') this.viewers.set(msg.viewers);
@@ -622,8 +969,9 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
 
   // ── Host actions ─────────────────────────────────────────────────────────────
 
-  private send(t: string): void {
-    try { this.ws?.send(JSON.stringify({ t })); } catch { /* socket gone */ }
+  private send(msg: string | Record<string, unknown>): void {
+    const payload = typeof msg === 'string' ? { t: msg } : msg;
+    try { this.ws?.send(JSON.stringify(payload)); } catch { /* socket gone */ }
   }
 
   next(): void { this.send('next'); }
