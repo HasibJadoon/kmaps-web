@@ -18,6 +18,7 @@ import { srsRoutes } from './routes/srs';
 import { srsRegistryRoutes } from './routes/srs-registry';
 import { srsSessionRoutes } from './routes/srs-session';
 import { quizRoutes } from './routes/quiz';
+import { learnRoutes } from './routes/learn';
 import { dsRoutes } from './routes/ds';
 import { cybRoutes } from './routes/cyb';
 import { studySessionRoutes } from './routes/study-session';
@@ -41,6 +42,7 @@ srsRoutes(router);           // /core/srs/* — the one spaced-repetition engine
 srsRegistryRoutes(router);   // GET/POST/DELETE /core/srs/registry — SRS enrollment index
 srsSessionRoutes(router);    // /core/srs/sessions/* — reviewing together, one shared question
 quizRoutes(router);          // /core/quiz/* — a question asked to a room, scored on speed
+learnRoutes(router);         // /core/learn/* — the path: where you are, unit by unit
 cybRoutes(router);
 dsRoutes(router);                // /core/ds/* — the composed display spec: layers + plane + cards           // GET /core/cyb/* — cybernetics control plane (monitor · tree · jobs)
 studySessionRoutes(router);  // /core/study/sessions — the study axis's one carrier
