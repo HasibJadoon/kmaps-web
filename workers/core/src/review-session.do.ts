@@ -177,13 +177,21 @@ export class ReviewSession {
 
   /** One person's honest verdict on how they did, applied to their own card.
    *
-   *  Rating before the reveal is refused. Not to police anyone — to keep the
-   *  log meaningful: FSRS reads a rating as "how well did you recall this when
-   *  you saw the answer", and a rating entered before the answer was shown is
-   *  measuring something else entirely. */
+   *  Two refusals, both for the same reason — a review log is only worth
+   *  keeping if every row means the same thing.
+   *
+   *  Rating before the reveal: FSRS reads a rating as "how well did you recall
+   *  this once you saw the answer", and one entered before the answer was shown
+   *  is measuring something else.
+   *
+   *  Rating your own question: the asker is holding the card. They picked it
+   *  from their queue and read it out — whatever they know about it now, they
+   *  did not recall it, and scheduling their copy on that would quietly poison
+   *  their own queue. The person asking is running the round, not sitting it. */
   private async rate(me: Identity, rating: RatingValue, secs: number | null): Promise<void> {
     const asked = await this.getAsked();
     if (!asked || asked.back === null) return;
+    if (asked.askedBy === me.userId) return;
 
     const answers = await this.getAnswers();
     if (answers.some((a) => a.userId === me.userId)) return;   // one verdict each
