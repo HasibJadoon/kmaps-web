@@ -491,6 +491,15 @@ export function srsRoutes(router: Router<CoreEnv>) {
   /// Who may publish into the shared library. Approving a card puts it under a
   /// surah for everyone, which is an editorial act, so the list is explicit
   /// rather than "any admin". CARD_APPROVERS is a comma-separated email list.
+  /// Who runs this installation. The same list that may publish into the
+  /// shared library — the people trusted with the corpus — plus anyone the
+  /// platform genuinely marks as an admin.
+  async function isOwner(
+    env: CoreEnv, ctx: { userId: string; isAdmin: boolean },
+  ): Promise<boolean> {
+    return ctx.isAdmin || await isApprover(env, ctx.userId);
+  }
+
   async function isApprover(env: CoreEnv, userId: string): Promise<boolean> {
     const allowed = (env.CARD_APPROVERS ?? '')
       .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
@@ -720,6 +729,66 @@ export function srsRoutes(router: Router<CoreEnv>) {
 
   // GET /core/srs/library?surah=44 — what the library offers, and how much of
   // it this user has already taken.
+  // ── The owner's view of everything ─────────────────────────────────────────
+  //
+  // GET /core/srs/all — every card in the system, whoever holds it.
+  //
+  // READ ONLY, and that is the whole design. A card is not just text: it
+  // carries `stability`, `difficulty` and `next_review_at`, which are one
+  // person's memory of it. Pulling somebody else's card into your queue would
+  // rewrite their schedule when you rated it, so this endpoint shows cards and
+  // never schedules them. Reviewing stays exactly as it was — your own rows.
+  //
+  // Gated on `isOwner` rather than `isAdmin`: the platform role is not where
+  // this project actually records who runs it (the owner's account is a
+  // 'member' and the test account is an 'admin'), whereas CARD_APPROVERS is a
+  // deliberately configured list of the people trusted with the shared corpus.
+  // Using it avoids granting anyone a role they did not ask for.
+  router.get('/core/srs/all', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    if (!(await isOwner(env, ctx))) return forbidden('Not available for this account');
+
+    const url = new URL(req.url);
+    const module = url.searchParams.get('module') ?? undefined;
+    const search = (url.searchParams.get('q') ?? '').trim();
+    const limit = Math.min(500, Math.max(1, Number(url.searchParams.get('limit') ?? '200')));
+    const offset = Math.max(0, Number(url.searchParams.get('offset') ?? '0'));
+
+    const conds: string[] = [];
+    const params: unknown[] = [];
+    if (module) { conds.push('c.module = ?'); params.push(module); }
+    if (search) {
+      conds.push('(c.front_text LIKE ? OR c.back_text LIKE ? OR c.resource_ref LIKE ?)');
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+
+    const [rows, counted] = await Promise.all([
+      query(
+        env.DB_CORE,
+        `SELECT c.id, c.module, c.resource_type, c.resource_ref, c.card_template,
+                c.front_text, c.back_text, c.card_state, c.reps, c.lapses,
+                c.suspended, c.next_review_at, c.deck_id,
+                d.title AS deck_title,
+                u.email AS owner_email, u.display_name AS owner_name,
+                (c.user_ref = ?) AS is_mine
+           FROM core_srs_card c
+           LEFT JOIN core_srs_deck d ON d.id = c.deck_id
+           LEFT JOIN core_users u ON u.id = c.user_ref
+           ${where}
+          ORDER BY u.email, c.module, c.resource_ref
+          LIMIT ? OFFSET ?`,
+        [ctx.userId, ...params, limit, offset],
+      ),
+      query<{ n: number }>(
+        env.DB_CORE, `SELECT COUNT(*) AS n FROM core_srs_card c ${where}`, params,
+      ),
+    ]);
+
+    return ok({ cards: rows, total: counted[0]?.n ?? 0, limit, offset });
+  });
+
   router.get('/core/srs/library', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
