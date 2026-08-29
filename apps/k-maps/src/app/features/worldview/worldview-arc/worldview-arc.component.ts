@@ -205,13 +205,7 @@ export class WorldviewArcComponent implements OnInit, AfterViewInit, OnDestroy {
 
     // Nothing to undo under reduced motion — the settled state is what the CSS
     // already renders.
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      // The lit rail is the one thing CSS leaves at zero, since it is a scroll
-      // indicator rather than an entrance. Fill it rather than leaving a dead
-      // gutter.
-      gsap.set(root.querySelectorAll('.arc__rail-live'), { scaleY: 1 });
-      return;
-    }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     // Nor if the page is not being looked at. A hidden tab throttles
     // requestAnimationFrame to about one frame a second, so an entrance that
@@ -219,21 +213,8 @@ export class WorldviewArcComponent implements OnInit, AfterViewInit, OnDestroy {
     // mid-fade. It recovers on focus, but showing the settled page is better
     // than showing a half-played one. Animate the next time it is opened.
     if (document.hidden) {
-      gsap.set(root.querySelectorAll('.arc__rail-live'), { scaleY: 1 });
       document.addEventListener('visibilitychange', () => this.animate(), { once: true });
       return;
-    }
-
-    // The lit rail tracks scroll position over the whole list. `scrub` rather
-    // than a triggered tween, because this is a position indicator and not an
-    // entrance — it should follow the reader rather than play at them.
-    const rail = root.querySelector('.arc__rail-live');
-    const list = root.querySelector('.arc__bands');
-    if (rail && list) {
-      gsap.fromTo(rail, { scaleY: 0 }, {
-        scaleY: 1, ease: 'none',
-        scrollTrigger: { trigger: list, start: 'top 70%', end: 'bottom bottom', scrub: 0.4 },
-      });
     }
 
     for (const band of bands) {

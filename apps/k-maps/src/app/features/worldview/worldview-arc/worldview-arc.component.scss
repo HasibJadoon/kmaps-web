@@ -88,29 +88,54 @@
   position: absolute; inset: 0; border-radius: 1px;
 }
 .arc__rail-track { background: var(--km-border); }
+// One lit filament for the whole span, matching iOS. This was a dim track under
+// a progress line scrubbed by scroll position — clever, and it made the rail
+// mean two things at once: where you are AND what the palette is. The gradient
+// alone says the second, which is the one worth saying.
 .arc__rail-live {
   background: linear-gradient(180deg,
     var(--km-gold, #c9a84c), #8bbf3e, #4c9fc9, #e0803a);
-  transform-origin: top center;
-  transform: scaleY(0);      // GSAP scrubs this; 0 is honest before it does
+  filter: blur(0.4px);
+  box-shadow:
+    0 0 7px rgba(201, 168, 76, 0.5),
+    0 0 18px rgba(201, 168, 76, 0.22);
 }
 
 .arc__century { position: relative; }
+// A dot, like every other marker on the rail — it was a hollow ring, which made
+// a century opening look like a different kind of thing from the events under
+// it. It is the same kind of thing, larger and brighter.
 .arc__century-mark {
   position: absolute; left: -38px; top: 50%;
   width: 11px; height: 11px; margin-top: -5px; margin-left: -4px;
   border-radius: 50%;
-  background: var(--km-bg);
-  border: 2px solid var(--hue);
+  background: var(--hue);
+  box-shadow:
+    0 0 0 3px var(--km-bg),
+    0 0 10px var(--hue),
+    0 0 20px var(--hue);
 }
 
-.arc__band { position: relative; }
-// One pip per event, on the rail, at the height of its own band.
+.arc__band {
+  position: relative;
+  // The card lifts off the page — the depth is what separates one band from the
+  // next without needing a divider. Two shadows, a tight one for the edge and a
+  // wide soft one for the lift, because a single blur at this size reads as fog.
+  box-shadow:
+    0 2px 3px rgba(0, 0, 0, 0.6),
+    0 10px 22px rgba(0, 0, 0, 0.5);
+}
+// The marker sits just inside the card's own leading edge. It was out on the
+// rail, where it read as a satellite the card happened to be near; inside, the
+// card is plainly the thing the rail is marking. No ring of page colour here —
+// that only makes sense over the line.
 .arc__pip {
-  position: absolute; left: -54px; top: 34px;
-  width: 7px; height: 7px; border-radius: 50%;
+  position: absolute; left: 9px; top: 11px;
+  width: 5px; height: 5px; border-radius: 50%;
   background: var(--hue);
-  box-shadow: 0 0 0 3px var(--km-bg);
+  box-shadow:
+    0 0 5px var(--hue),
+    0 0 12px var(--hue);
 }
 @media (max-width: 720px) {
   .arc__bands { padding-left: 24px; }
@@ -132,7 +157,9 @@
   align-items: start;
   padding: 22px 0;
   background: var(--km-surface-2);
-  border-radius: 10px;
+  // Square, not rounded — a rounded card reads as a chip, and these are bands
+  // of a record. The depth comes from the shadow instead.
+  border-radius: 0;
   margin-bottom: 10px;
   padding-inline: 22px;
   // Deliberately NOT hidden here.
