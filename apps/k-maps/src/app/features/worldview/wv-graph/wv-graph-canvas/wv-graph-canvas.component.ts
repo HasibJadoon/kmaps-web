@@ -485,16 +485,55 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
 
     this.hullSel.attr('d', (slug: string) => {
       if (this.activeClusters && !this.activeClusters.has(slug)) return '';
+      const own: [number, number][] = [];
       const pts: [number, number][] = [];
       for (const node of this.renderedNodes) {
         if (node.cluster !== slug || !this.nodeVisible(node)) continue;
         const x = node.x ?? 0;
         const y = node.y ?? 0;
+        own.push([x, y]);
         pts.push([x - PAD, y - PAD], [x + PAD, y - PAD], [x + PAD, y + PAD], [x - PAD, y + PAD]);
       }
       if (pts.length < 3) return '';
       const hull = d3.polygonHull(pts);
       if (!hull) return '';
+
+      // A hull is only worth drawing when the cluster occupies a region. When
+      // a corpus is grouped by theme its clusters do; when a chapter is grouped
+      // by the ROLE each claim plays in an argument they do not — roles are
+      // connected across the whole graph, so their convex hulls sprawl over one
+      // another and six translucent polygons become soup.
+      //
+      // The test is whether the shape tells the truth: a territory that visibly
+      // encloses ANOTHER CLUSTER'S nodes is claiming ground it does not hold. A
+      // few strays are tolerable, a majority is not.
+      //
+      // Only rival clusters count. Unclustered nodes are not a competing claim
+      // — in Arjana's chapter 1 only 12 of 56 nodes carry a cluster at all, and
+      // counting the other 44 as trespassers suppressed both hulls on a graph
+      // where they were perfectly honest.
+      let rival = 0;
+      for (const node of this.renderedNodes) {
+        if (!node.cluster || node.cluster === slug || !this.nodeVisible(node)) continue;
+        if (d3.polygonContains(hull, [node.x ?? 0, node.y ?? 0])) rival += 1;
+      }
+      if (rival > Math.max(1, own.length * 0.34)) return '';
+
+      // And it must be compact. Five nodes scattered across the whole canvas
+      // have a convex hull covering most of it, which is a smear rather than a
+      // territory even when no rival sits inside it. A cluster may occupy
+      // roughly its own share of the plot, with generous slack; beyond that it
+      // is drawing the graph, not a part of it.
+      const visible = this.renderedNodes.filter((n) => this.nodeVisible(n));
+      if (visible.length > 0) {
+        const xs = visible.map((n) => n.x ?? 0);
+        const ys = visible.map((n) => n.y ?? 0);
+        const plot = Math.max(1, (Math.max(...xs) - Math.min(...xs)) *
+                                 (Math.max(...ys) - Math.min(...ys)));
+        const share = own.length / visible.length;
+        if (Math.abs(d3.polygonArea(hull)) / plot > Math.max(0.12, share * 2.5)) return '';
+      }
+
       return `M${hull.map((p) => `${p[0]},${p[1]}`).join('L')}Z`;
     });
 

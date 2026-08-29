@@ -130,21 +130,47 @@ const PINNED_CLUSTER_COLORS: Record<string, ClusterColor> = {
   'arjana-toolkit': family(168, 46, 52),  // teal — conceptual toolkit
   'arjana-eras':    family(28, 62, 56),   // amber — eras / timeline
   'arjana-bodies':  family(326, 46, 62),  // rose — body-fantasy substrate
+
+  // Roles in an argument, not themes in a corpus. These recur across every
+  // book that argues a thesis, so they are pinned rather than left to the
+  // fallback — which assigns a hue by the cluster's POSITION in the list, so
+  // the same role changed colour whenever another cluster appeared before it.
+  // The same six hues are used by the iOS graph.
+  'thesis':             family(44, 62, 58),   // gold — what is being claimed
+  'causes':             family(28, 62, 56),   // amber — what produced it
+  'modernity_critique': family(2, 58, 58),    // crimson — what is under attack
+  'retrieval':          family(168, 46, 52),  // teal — what answers it
+  'evidence':           family(210, 55, 60),  // blue — what shows it
+  'response':           family(40, 14, 80),   // near-white — where it leaves you
 };
 
 // Fallback hues (evenly spaced) for any unpinned cluster slug.
 const FALLBACK_HUES = [44, 2, 210, 280, 168, 28, 326, 130, 192, 256];
 
+/** FNV-1a over the slug, so an unpinned cluster keeps its colour no matter
+ *  what else is in the graph or what order it arrives in. */
+function slugHue(slug: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < slug.length; i++) {
+    h ^= slug.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return FALLBACK_HUES[(h >>> 0) % FALLBACK_HUES.length];
+}
+
 const NEUTRAL_CLUSTER: ClusterColor = family(0, 0, 62);
 
 /**
- * Resolve a stable color family for a cluster slug. `orderIndex` is the slug's
- * position in the graph's cluster list, used to pick a fallback hue when the
- * slug isn't pinned.
+ * Resolve a stable colour family for a cluster slug.
+ *
+ * `orderIndex` is accepted for call-site compatibility and deliberately unused:
+ * deriving the fallback hue from a slug's POSITION meant the same cluster
+ * changed colour when another was added before it, which is exactly what made
+ * a six-role graph look arbitrary. The hue now comes from the slug itself.
  */
-export function clusterColor(slug: string | null | undefined, orderIndex = 0): ClusterColor {
+export function clusterColor(slug: string | null | undefined, _orderIndex = 0): ClusterColor {
   if (!slug) return NEUTRAL_CLUSTER;
-  return PINNED_CLUSTER_COLORS[slug] ?? family(FALLBACK_HUES[orderIndex % FALLBACK_HUES.length], 50, 60);
+  return PINNED_CLUSTER_COLORS[slug] ?? family(slugHue(slug), 50, 60);
 }
 
 // ── Base node radius ──────────────────────────────────────────────────────────

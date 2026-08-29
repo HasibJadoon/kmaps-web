@@ -65,6 +65,7 @@ const ISLANDS = [
   { id: 'arjana',      title: 'Muslims in the Western Imagination',      prefix: 'node-arjana-' },
   { id: 'orientalism', title: 'Orientalism §I — the character map',      prefix: 'wvn-orient-s1-' },
   { id: 'yusuf',       title: 'Sūrat Yūsuf — distillation',              prefix: 'wv_node_q12_' },
+  { id: 'hallaq',      title: 'The Impossible State — ch. 1, Premises',   prefix: 'wvn-hallaq-ch1-' },
 ] as const;
 
 export function graphRoutes(router: Router<WorldviewEnv>) {
