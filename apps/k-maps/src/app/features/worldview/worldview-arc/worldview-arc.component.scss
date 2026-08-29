@@ -125,17 +125,21 @@
     0 2px 3px rgba(0, 0, 0, 0.6),
     0 10px 22px rgba(0, 0, 0, 0.5);
 }
-// The marker sits just inside the card's own leading edge. It was out on the
-// rail, where it read as a satellite the card happened to be near; inside, the
-// card is plainly the thing the rail is marking. No ring of page colour here —
-// that only makes sense over the line.
+// On the rail, outside the card. It sat inside the card's leading edge for a
+// while, which is tidier and loses the thing that matters: on the rail the dots
+// form a column you can read down on their own, and the gap between them IS the
+// gap between the events. Inside, each one only ever describes its own card.
+//
+// The ring of page colour comes first, so the dot reads as sitting ON the line
+// rather than behind it; the glow goes outside that.
 .arc__pip {
-  position: absolute; left: 9px; top: 11px;
-  width: 5px; height: 5px; border-radius: 50%;
+  position: absolute; left: -54px; top: 34px;
+  width: 7px; height: 7px; border-radius: 50%;
   background: var(--hue);
   box-shadow:
-    0 0 5px var(--hue),
-    0 0 12px var(--hue);
+    0 0 0 3px var(--km-bg),
+    0 0 8px var(--hue),
+    0 0 16px var(--hue);
 }
 @media (max-width: 720px) {
   .arc__bands { padding-left: 24px; }
