@@ -59,6 +59,8 @@ export function quizRoutes(router: Router<CoreEnv>): void {
     const from = Number(url.searchParams.get('from') ?? '0');
     const to = Number(url.searchParams.get('to') ?? '0');
     const step = url.searchParams.get('step');
+    const topic = url.searchParams.get('topic');
+    const concept = url.searchParams.get('concept');
     const search = (url.searchParams.get('q') ?? '').trim();
     const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') ?? '100')));
 
@@ -78,13 +80,15 @@ export function quizRoutes(router: Router<CoreEnv>): void {
       params.push(to, from);
     }
     if (step) { conds.push('step_key = ?'); params.push(step); }
+    if (topic) { conds.push('topic = ?'); params.push(topic); }
+    if (concept) { conds.push('concept_ref = ?'); params.push(concept); }
     if (search) { conds.push('(prompt LIKE ? OR options_json LIKE ?)'); params.push(`%${search}%`, `%${search}%`); }
 
     const rows = await query(
       env.DB_CORE,
       `SELECT id, module, domain, resource_ref, prompt, options_json, seconds,
               difficulty, tags, author_ref, created_at,
-              surah, ayah_from, ayah_to, passage_ref, step_key
+              surah, ayah_from, ayah_to, passage_ref, step_key, topic, concept_ref
          FROM core_quiz_question
         WHERE ${conds.join(' AND ')}
         ORDER BY created_at DESC
@@ -132,14 +136,15 @@ export function quizRoutes(router: Router<CoreEnv>): void {
       `INSERT INTO core_quiz_question
          (id, author_ref, module, domain, resource_ref, prompt, options_json,
           correct_index, explanation, seconds, difficulty, tags,
-          surah, ayah_from, ayah_to, passage_ref, step_key)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          surah, ayah_from, ayah_to, passage_ref, step_key, topic, concept_ref)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, ctx.userId, module, str(body['domain']), str(body['resource_ref']),
        prompt, JSON.stringify(options), correct, str(body['explanation']),
        Number.isFinite(seconds) && seconds > 0 ? Math.min(300, Math.round(seconds)) : 20,
        str(body['difficulty']), str(body['tags']),
        num(body['surah']), num(body['ayah_from']), num(body['ayah_to']),
-       str(body['passage_ref']), str(body['step_key'])],
+       str(body['passage_ref']), str(body['step_key']),
+       str(body['topic']), str(body['concept_ref'])],
     );
     return created({ id, prompt, options, correct_index: correct, module });
   });
@@ -150,7 +155,7 @@ export function quizRoutes(router: Router<CoreEnv>): void {
   router.get('/core/quiz/scope', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const [modules, surahs, steps] = await Promise.all([
+    const [modules, surahs, steps, topics, passages] = await Promise.all([
       query(env.DB_CORE,
         `SELECT module, COUNT(*) AS n FROM core_quiz_question
           WHERE status = 'active' GROUP BY module ORDER BY n DESC`, []),
@@ -164,8 +169,20 @@ export function quizRoutes(router: Router<CoreEnv>): void {
         `SELECT step_key, COUNT(*) AS n FROM core_quiz_question
           WHERE status = 'active' AND step_key IS NOT NULL
           GROUP BY step_key ORDER BY n DESC`, []),
+      query(env.DB_CORE,
+        `SELECT topic, COUNT(*) AS n FROM core_quiz_question
+          WHERE status = 'active' AND topic IS NOT NULL
+          GROUP BY topic ORDER BY n DESC LIMIT 40`, []),
+      // The passages the bank actually has questions for — a scope in its own
+      // right, not a rung you must pass through to reach a step.
+      query(env.DB_CORE,
+        `SELECT surah, ayah_from, ayah_to, COUNT(*) AS n
+           FROM core_quiz_question
+          WHERE status = 'active' AND surah IS NOT NULL AND ayah_from IS NOT NULL
+          GROUP BY surah, ayah_from, ayah_to
+          ORDER BY surah, ayah_from`, []),
     ]);
-    return ok({ modules, surahs, steps });
+    return ok({ modules, surahs, steps, topics, passages });
   });
 
   // ── The room ───────────────────────────────────────────────────────────────
