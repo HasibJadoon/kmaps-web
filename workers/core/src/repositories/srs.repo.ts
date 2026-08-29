@@ -216,6 +216,10 @@ export class SrsRepo {
   due(userRef: string, opts: {
     module?: string; limit?: number; ahead?: number;
     surah?: number; kind?: string; domain?: string;
+    /** An āyah range inside `surah` — what makes a passage reviewable.
+     *  Only ever applied together with `surah`: "āyāt 1 to 9" means nothing on
+     *  its own, and applying it alone would draw 44:1-9 and 40:1-9 together. */
+    from?: number; to?: number;
     /** One deck, or a whole subtree — selecting a parent studies its children,
      *  which is the entire point of nesting them. A parent deck usually holds
      *  no cards of its own, so matching a single deck_id served nothing. */
@@ -261,6 +265,19 @@ export class SrsRepo {
                       OR id IN (SELECT card_id FROM core_srs_card_surah
                                  WHERE surah = ?))`;
       args.push(String(opts.surah), `${opts.surah}:%`, opts.surah);
+    }
+    // A passage: the āyah cards inside the range, plus the root and lemma cards
+    // first met there. The second half matters as much as the first — a
+    // passage's vocabulary is most of what there is to review about it, and
+    // those cards carry the lemma as their ref, not the āyah.
+    if (opts.surah && opts.surah > 0 && opts.from && opts.to) {
+      where += ` AND (
+        (resource_ref GLOB ? AND CAST(substr(resource_ref, instr(resource_ref, ':') + 1)
+              AS INTEGER) BETWEEN ? AND ?)
+        OR id IN (SELECT card_id FROM core_srs_card WHERE intro_surah = ?
+                    AND intro_ayah BETWEEN ? AND ?))`;
+      args.push(`${opts.surah}:*`, opts.from, opts.to,
+                opts.surah, opts.from, opts.to);
     }
     if (opts.kind) { where += ` AND card_kind = ?`; args.push(opts.kind); }
     if (opts.domain) { where += ` AND concept_domain = ?`; args.push(opts.domain); }

@@ -1466,6 +1466,9 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const module = url.searchParams.get('module') ?? undefined;
     const limit = Number(url.searchParams.get('limit') ?? '50');
     const surah = Number(url.searchParams.get('surah') ?? '0');
+    // A passage is a range inside a surah. Both ends or neither.
+    const from = Number(url.searchParams.get('from') ?? '0');
+    const to = Number(url.searchParams.get('to') ?? '0');
     const kind = url.searchParams.get('kind') ?? undefined;
     const domain = url.searchParams.get('domain') ?? undefined;
     const deck = url.searchParams.get('deck') ?? undefined;
@@ -1485,6 +1488,8 @@ export function srsRoutes(router: Router<CoreEnv>) {
         limit: Math.min(500, Math.max(Number.isFinite(limit) ? limit : 50, 200)),
         ahead: Number.isFinite(ahead) ? ahead : 0,
         surah: surah > 0 ? surah : undefined,
+        from: from > 0 && to > 0 ? from : undefined,
+        to: from > 0 && to > 0 ? to : undefined,
         kind, domain, deck, deckIds: caps.deckIds,
       }),
       repo.dueCounts(ctx.userId),

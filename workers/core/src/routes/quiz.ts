@@ -39,6 +39,13 @@ async function readJson(req: Request): Promise<Record<string, unknown> | null> {
 const str = (v: unknown): string | null =>
   typeof v === 'string' && v.trim() ? v.trim() : null;
 
+/** A positive integer, or nothing. Zero is not a sūrah or an āyah, and storing
+ *  it as one would make "unscoped" and "sūrah 0" the same row. */
+const num = (v: unknown): number | null => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+
 export function quizRoutes(router: Router<CoreEnv>): void {
   // ── The bank ───────────────────────────────────────────────────────────────
 
@@ -48,6 +55,10 @@ export function quizRoutes(router: Router<CoreEnv>): void {
     const url = new URL(req.url);
     const module = url.searchParams.get('module');
     const ref = url.searchParams.get('ref');
+    const surah = Number(url.searchParams.get('surah') ?? '0');
+    const from = Number(url.searchParams.get('from') ?? '0');
+    const to = Number(url.searchParams.get('to') ?? '0');
+    const step = url.searchParams.get('step');
     const search = (url.searchParams.get('q') ?? '').trim();
     const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') ?? '100')));
 
@@ -57,12 +68,23 @@ export function quizRoutes(router: Router<CoreEnv>): void {
     // A prefix, so "44" finds every question on the sūrah and "44:3" narrows to
     // the āyah — the same convention the SRS queue uses for a surah scope.
     if (ref) { conds.push('(resource_ref = ? OR resource_ref LIKE ?)'); params.push(ref, `${ref}:%`); }
+    if (surah > 0) { conds.push('surah = ?'); params.push(surah); }
+    // Verse to verse: any question whose own range overlaps the one asked for.
+    // Overlap rather than containment, because a question about 44:8–10 belongs
+    // in a session on 44:1–9 — it is partly about it, and a host narrowing to a
+    // passage wants everything that touches it.
+    if (from > 0 && to > 0) {
+      conds.push('(ayah_from IS NULL OR (ayah_from <= ? AND ayah_to >= ?))');
+      params.push(to, from);
+    }
+    if (step) { conds.push('step_key = ?'); params.push(step); }
     if (search) { conds.push('(prompt LIKE ? OR options_json LIKE ?)'); params.push(`%${search}%`, `%${search}%`); }
 
     const rows = await query(
       env.DB_CORE,
       `SELECT id, module, domain, resource_ref, prompt, options_json, seconds,
-              difficulty, tags, author_ref, created_at
+              difficulty, tags, author_ref, created_at,
+              surah, ayah_from, ayah_to, passage_ref, step_key
          FROM core_quiz_question
         WHERE ${conds.join(' AND ')}
         ORDER BY created_at DESC
@@ -109,14 +131,41 @@ export function quizRoutes(router: Router<CoreEnv>): void {
       env.DB_CORE,
       `INSERT INTO core_quiz_question
          (id, author_ref, module, domain, resource_ref, prompt, options_json,
-          correct_index, explanation, seconds, difficulty, tags)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          correct_index, explanation, seconds, difficulty, tags,
+          surah, ayah_from, ayah_to, passage_ref, step_key)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, ctx.userId, module, str(body['domain']), str(body['resource_ref']),
        prompt, JSON.stringify(options), correct, str(body['explanation']),
        Number.isFinite(seconds) && seconds > 0 ? Math.min(300, Math.round(seconds)) : 20,
-       str(body['difficulty']), str(body['tags'])],
+       str(body['difficulty']), str(body['tags']),
+       num(body['surah']), num(body['ayah_from']), num(body['ayah_to']),
+       str(body['passage_ref']), str(body['step_key'])],
     );
     return created({ id, prompt, options, correct_index: correct, module });
+  });
+
+  /** What the bank actually holds, so a picker can offer only branches that
+   *  lead somewhere. Offering all 114 sūrahs when questions exist for two is
+   *  how a picker becomes a scrolling exercise. */
+  router.get('/core/quiz/scope', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const [modules, surahs, steps] = await Promise.all([
+      query(env.DB_CORE,
+        `SELECT module, COUNT(*) AS n FROM core_quiz_question
+          WHERE status = 'active' GROUP BY module ORDER BY n DESC`, []),
+      query(env.DB_CORE,
+        `SELECT surah, COUNT(*) AS n,
+                MIN(ayah_from) AS ayah_from, MAX(ayah_to) AS ayah_to
+           FROM core_quiz_question
+          WHERE status = 'active' AND surah IS NOT NULL
+          GROUP BY surah ORDER BY surah`, []),
+      query(env.DB_CORE,
+        `SELECT step_key, COUNT(*) AS n FROM core_quiz_question
+          WHERE status = 'active' AND step_key IS NOT NULL
+          GROUP BY step_key ORDER BY n DESC`, []),
+    ]);
+    return ok({ modules, surahs, steps });
   });
 
   // ── The room ───────────────────────────────────────────────────────────────

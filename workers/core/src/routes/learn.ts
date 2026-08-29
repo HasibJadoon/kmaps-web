@@ -169,13 +169,23 @@ export function learnRoutes(router: Router<CoreEnv>): void {
       due: Number(m?.due ?? 0),
     });
 
+    // Three domains, and everything else is a level inside one of them. The
+    // Qurʾān is not two tracks ("the corpus" and "one sūrah") — it is one, and
+    // a sūrah is a level down it.
+    const ar = byModule.get('AR');
+    const al = byModule.get('AL');
+    const arabic = {
+      module: 'AR',
+      cards: Number(ar?.cards ?? 0) + Number(al?.cards ?? 0),
+      known: Number(ar?.known ?? 0) + Number(al?.known ?? 0),
+      due: Number(ar?.due ?? 0) + Number(al?.due ?? 0),
+    };
+
     return ok({
       tracks: [
-        track('corpus', 'The Qurʾān', 'Sūrah by sūrah', qr),
-        track('surah', 'One sūrah', 'Passage by passage', qr),
+        track('quran', 'The Qurʾān', 'Sūrah · passage · step', qr),
         track('worldview', 'Worldviews', 'Concept by concept', byModule.get('WV')),
-        track('arabic', 'Arabic', 'Grammar and vocabulary',
-              byModule.get('AR') ?? byModule.get('AL')),
+        track('arabic', 'Arabic', 'Grammar and vocabulary', arabic),
       ],
       surahs: surahs.map((s) => ({
         surah: Number(s.surah), cards: Number(s.cards), known: Number(s.known),
@@ -191,13 +201,25 @@ export function learnRoutes(router: Router<CoreEnv>): void {
     const url = new URL(req.url);
     const track = url.searchParams.get('track') ?? 'corpus';
 
+    // One track, three depths. Which level you get is decided by how much of
+    // the scope you named — the same way you would say it out loud: "the
+    // Qurʾān", "sūrah 44", "44:1–9".
+    const surah = Number(url.searchParams.get('surah') ?? '0');
+    const from = Number(url.searchParams.get('from') ?? '0');
+    const to = Number(url.searchParams.get('to') ?? '0');
+
     switch (track) {
+      case 'quran':
+      case 'corpus':                                   // the old name, still answered
+        if (surah > 0 && from > 0 && to > 0) {
+          return ok(await stepPath(env, ctx.userId, surah, from, to));
+        }
+        if (surah > 0) return ok(await surahPath(env, ctx.userId, surah));
+        return ok(await corpusPath(env, ctx.userId));
       case 'surah': {
-        const surah = Number(url.searchParams.get('surah') ?? '0');
         if (!(surah > 0)) return badRequest('surah is required for this track');
         return ok(await surahPath(env, ctx.userId, surah));
       }
-      case 'corpus':    return ok(await corpusPath(env, ctx.userId));
       case 'worldview': return ok(await modulePath(env, ctx.userId, 'WV', 'Worldviews'));
       case 'arabic':    return ok(await arabicPath(env, ctx.userId));
       default:          return badRequest(`unknown track: ${track}`);
@@ -248,7 +270,80 @@ export function learnRoutes(router: Router<CoreEnv>): void {
         previousDone = state === 'done';
       }
     }
-    return { track: 'surah', scope: String(surah), units };
+    return { track: 'quran', scope: String(surah), units, level: 'passage' };
+  }
+
+  /** One passage, step by step — the level below a passage.
+   *
+   *  The steps are the study bands the reader already knows from the passage
+   *  screen. Which cards belong to which step is a mapping of card kinds onto
+   *  those bands, written out here rather than stored: the kinds were authored
+   *  by several different builders over months, and a stored mapping would be a
+   *  second place to correct every time a new kind appears. `other` catches
+   *  what has not been mapped, so a card is never silently dropped from a
+   *  learner's own path. */
+  async function stepPath(
+    env: CoreEnv, userId: string, surah: number, from: number, to: number,
+  ) {
+    const rows = await query<{
+      step: string; cards: number; known: number; due: number;
+    }>(
+      env.DB_CORE,
+      `SELECT CASE
+                WHEN module = 'WV' THEN 'worldview'
+                WHEN card_kind IN ('translation','context') THEN 'reading'
+                WHEN resource_type IN ('lemma','word','root')
+                  OR card_kind IN ('morphology','vocabulary','senses','root_dna',
+                                   'root_sense','root_gov','sarf')
+                  THEN 'vocabulary'
+                WHEN card_kind IN ('nahw','irab','structure') THEN 'sentence_structure'
+                WHEN card_kind IN ('balagha','expression','furuq') THEN 'tafsir'
+                ELSE 'other'
+              END AS step,
+              COUNT(*) AS cards,
+              SUM(CASE WHEN card_state = 'review' THEN 1 ELSE 0 END) AS known,
+              SUM(CASE WHEN suspended = 0
+                        AND (next_review_at IS NULL
+                             OR datetime(next_review_at) <= datetime('now'))
+                       THEN 1 ELSE 0 END) AS due
+         FROM core_srs_card
+        WHERE user_ref = ?
+          AND ((resource_ref GLOB ?
+                AND CAST(substr(resource_ref, instr(resource_ref, ':') + 1) AS INTEGER)
+                    BETWEEN ? AND ?)
+            OR (intro_surah = ? AND intro_ayah BETWEEN ? AND ?))
+        GROUP BY step`,
+      [userId, `${surah}:*`, from, to, surah, from, to],
+    );
+
+    // Fixed order, and every step shown whether or not it holds anything — the
+    // path is the shape of studying a passage, and a missing band is a real
+    // state worth seeing rather than an absence to hide.
+    const ORDER: Array<[string, string]> = [
+      ['reading', 'Reading'],
+      ['vocabulary', 'Vocabulary'],
+      ['sentence_structure', 'Sentence structure'],
+      ['tafsir', 'Tafsīr and balāgha'],
+      ['worldview', 'Worldview'],
+      ['other', 'Everything else'],
+    ];
+    const found = new Map(rows.map((r) => [r.step, r]));
+    const units: Unit[] = [];
+    let previousDone = true;
+    for (const [key, title] of ORDER) {
+      const r = found.get(key);
+      const cards = Number(r?.cards ?? 0), known = Number(r?.known ?? 0);
+      if (key === 'other' && cards === 0) continue;   // not a band, just a catch
+      const state = stateOf(cards, known, previousDone);
+      units.push({
+        key: `${surah}:${from}-${to}:${key}`,
+        title,
+        subtitle: cards === 0 ? 'nothing here yet' : `${cards} ${cards === 1 ? 'card' : 'cards'}`,
+        cards, known, due: Number(r?.due ?? 0), state,
+      });
+      previousDone = state === 'done';
+    }
+    return { track: 'quran', scope: `${surah}:${from}-${to}`, units, level: 'step' };
   }
 
   /** Sūrah to sūrah. */
@@ -275,7 +370,7 @@ export function learnRoutes(router: Router<CoreEnv>): void {
       });
       previousDone = state === 'done';
     }
-    return { track: 'corpus', scope: null, units };
+    return { track: 'quran', scope: null, units, level: 'surah' };
   }
 
   /** A module grouped by whatever it files cards under — the concept domain for
@@ -311,7 +406,8 @@ export function learnRoutes(router: Router<CoreEnv>): void {
       });
       previousDone = state === 'done';
     }
-    return { track: module === 'WV' ? 'worldview' : module.toLowerCase(), scope: null, units };
+    return { track: module === 'WV' ? 'worldview' : module.toLowerCase(),
+             scope: null, units, level: 'group' };
   }
 
   /** Arabic spans two modules — AR is the language, AL is the linguistics of
@@ -347,6 +443,6 @@ export function learnRoutes(router: Router<CoreEnv>): void {
       });
       previousDone = state === 'done';
     }
-    return { track: 'arabic', scope: null, units };
+    return { track: 'arabic', scope: null, units, level: 'group' };
   }
 }
