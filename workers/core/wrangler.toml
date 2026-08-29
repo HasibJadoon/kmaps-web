@@ -59,7 +59,7 @@ CARD_APPROVERS = "hasibjadoon@gmail.com,system@test.com"
 #
 # The iOS id stays second: verifyGoogleIdToken accepts any listed audience, so
 # kmaps-ios keeps working. Neither is a secret (public clients, PKCE).
-GOOGLE_CLIENT_ID = "246205307788-iig05bvkiclr3oggcfnkk96s1frds8h8.apps.googleusercontent.com,246205307788-tl2pl1rah47t980o219p007p4650kg5s.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = "246205307788-iig05bvkiclr3oggcfnkk96s1frds8h8.apps.googleusercontent.com,246205307788-tl2pl1rah47t980o219p007p4650kg5s.apps.googleusercontent.com,246205307788-mg182lpe759521r5manlfh367givil8v.apps.googleusercontent.com"
 
 # Secrets (set via wrangler secret put):
 #   JWT_SECRET      — shared with km-backend-worker
