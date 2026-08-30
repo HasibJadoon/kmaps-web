@@ -84,6 +84,14 @@ new_sqlite_classes = ["ReviewSession"]
 name = "QUIZ_SESSION"
 class_name = "QuizSession"
 
+[[durable_objects.bindings]]
+name = "TABLE_SESSION"
+class_name = "TableSession"
+
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["QuizSession"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["TableSession"]

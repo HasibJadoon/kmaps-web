@@ -50,6 +50,7 @@ for (let i = 0; i < lines.length; i++) {
 }
 
 const ddl = [];
+for (const table of [...TABLES].reverse()) ddl.push(`DROP TABLE IF EXISTS ${table};`);
 for (const table of TABLES) {
   const stmt = statements.get(table);
   if (stmt) ddl.push(stmt.replace('CREATE TABLE ', 'CREATE TABLE IF NOT EXISTS '));

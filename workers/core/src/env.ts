@@ -5,6 +5,7 @@ export interface CoreEnv {
   REVIEW_SESSION: DurableObjectNamespace;
 
   QUIZ_SESSION: DurableObjectNamespace;
+  TABLE_SESSION: DurableObjectNamespace;
 
   QURAN: Fetcher;
   AR_LINGUISTICS: Fetcher;

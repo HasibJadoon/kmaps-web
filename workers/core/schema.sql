@@ -188,7 +188,7 @@ CREATE TABLE core_bank_item (
                   CHECK (status IN ('draft','live','retired')),
   meta_json     TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json)),
   created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
-  updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')), addressed_to_ref TEXT, addressed_to_name TEXT,
   UNIQUE (pack_ref, slug)
 );
 
@@ -288,7 +288,8 @@ CREATE TABLE core_bank_response (
   respondent_name TEXT,
   answered_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-);
+, asker_rating INTEGER
+  CHECK (asker_rating IS NULL OR asker_rating BETWEEN 1 AND 5), asker_ref TEXT);
 
 CREATE TABLE core_bank_unit (
   id            TEXT PRIMARY KEY,
@@ -1719,7 +1720,7 @@ WHERE s.source_table IS NULL
    OR s.state = 'pending_carrier';
 
 
--- ── Indexes (117) ────────────────────────────────────────────────
+-- ── Indexes (120) ────────────────────────────────────────────────
 
 CREATE INDEX core_srs_card_deck ON core_srs_card(deck_id);
 
@@ -1903,6 +1904,9 @@ CREATE INDEX ix_bank_attempt_user
 CREATE INDEX ix_bank_import_pack
   ON core_bank_import (pack_ref);
 
+CREATE INDEX ix_bank_item_addressed
+  ON core_bank_item (addressed_to_ref) WHERE addressed_to_ref IS NOT NULL;
+
 CREATE INDEX ix_bank_item_pack ON core_bank_item (pack_ref, status);
 
 CREATE INDEX ix_bank_item_scope
@@ -1912,11 +1916,18 @@ CREATE INDEX ix_bank_pack_app ON core_bank_pack (app, status);
 
 CREATE INDEX ix_bank_pack_owner ON core_bank_pack (owner_ref);
 
+CREATE INDEX ix_bank_pack_owner_app
+  ON core_bank_pack (owner_ref, app) WHERE owner_ref IS NOT NULL;
+
 CREATE INDEX ix_bank_response_attempt
   ON core_bank_response (attempt_ref, seq);
 
 CREATE INDEX ix_bank_response_item
   ON core_bank_response (item_ref);
+
+CREATE INDEX ix_bank_response_rated
+  ON core_bank_response (respondent_ref, asker_rating)
+  WHERE asker_rating IS NOT NULL;
 
 CREATE INDEX ix_bank_response_user
   ON core_bank_response (user_ref, answered_at DESC);

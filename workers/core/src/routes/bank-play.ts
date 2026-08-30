@@ -269,6 +269,134 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
   const starsFor = (accuracy: number): number =>
     accuracy >= 92 ? 5 : accuracy >= 80 ? 4 : accuracy >= 66 ? 3 : accuracy >= 50 ? 2 : 1;
 
+  router.post('/core/bank/cards', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const body = await readJson(req);
+
+    const en = str(body['prompt_en']);
+    const ar = str(body['prompt_ar']);
+    const ur = str(body['prompt_ur']);
+    if (!en) return badRequest('prompt_en is required');
+
+    const depth = Number(body['difficulty'] ?? 2);
+    if (!Number.isInteger(depth) || depth < 1 || depth > 3) {
+      return badRequest('difficulty must be 1, 2 or 3');
+    }
+    const form = str(body['form']) ?? 'about them';
+    if (!['about them', 'about you', 'finish the sentence', 'everyone answers']
+        .includes(form)) {
+      return badRequest('unknown form');
+    }
+
+    const forRef = str(body['addressed_to_ref']);
+    let forName = str(body['addressed_to_name']);
+    if (forRef) {
+      const person = await queryOne<{ name: string | null }>(
+        env.DB_CORE,
+        `SELECT COALESCE(display_name, substr(email, 1, instr(email, '@') - 1), id) AS name
+           FROM core_users WHERE id = ?`, [forRef]);
+      if (!person) return notFound(`person ${forRef}`);
+      forName = forName ?? person.name;
+    }
+
+    let pack = await queryOne<{ id: string }>(
+      env.DB_CORE,
+      `SELECT id FROM core_bank_pack
+        WHERE owner_ref = ? AND app = 'table' LIMIT 1`, [ctx.userId]);
+    if (!pack) {
+      const packId = typedId('BPK');
+      await execute(
+        env.DB_CORE,
+        `INSERT INTO core_bank_pack
+           (id, slug, app, title, owner_ref, visibility, status, audience)
+         VALUES (?,?,'table',?,?,'private','live','family')`,
+        [packId, `table-${ctx.userId.toLowerCase()}`, 'My cards', ctx.userId]);
+      pack = { id: packId };
+    }
+
+    const id = typedId('BIT');
+    await execute(
+      env.DB_CORE,
+      `INSERT INTO core_bank_item
+         (id, pack_ref, slug, prompt_en, prompt_ar, prompt_ur, stimulus_md,
+          interaction, scoring, difficulty, module, tags, status,
+          addressed_to_ref, addressed_to_name, source)
+       VALUES (?,?,?,?,?,?,?,'open_prompt','none',?,'other',?,'live',?,?,'authored')`,
+      [id, pack.id, `own-${id.slice(-10).toLowerCase()}`, en, ar, ur, form,
+       depth, form, forRef, forName]);
+
+    return created({ id, pack_ref: pack.id, addressed_to_name: forName });
+  });
+
+  router.delete('/core/bank/cards/:id', async (req, env, { id }) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const row = await queryOne<{ owner_ref: string | null }>(
+      env.DB_CORE,
+      `SELECT p.owner_ref FROM core_bank_item i
+         JOIN core_bank_pack p ON p.id = i.pack_ref WHERE i.id = ?`, [id]);
+    if (!row) return notFound(`card ${id}`);
+    if (row.owner_ref !== ctx.userId) return forbidden('Not your card');
+    await execute(
+      env.DB_CORE,
+      `UPDATE core_bank_item SET status = 'retired' WHERE id = ?`, [id]);
+    return ok({ id, retired: true });
+  });
+
+  router.get('/core/bank/table/rooms/:code/live', async (req, env, { code }) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const room = code.toUpperCase();
+
+    const person = await queryOne<{ name: string | null }>(
+      env.DB_CORE,
+      `SELECT COALESCE(display_name, substr(email, 1, instr(email, '@') - 1), id) AS name
+         FROM core_users WHERE id = ?`, [ctx.userId]);
+
+    const headers = new Headers(req.headers);
+    headers.set('X-KM-User-Id', ctx.userId);
+    headers.set('X-KM-User-Name', person?.name ?? ctx.userId);
+    headers.set('X-KM-Room-Code', room);
+
+    const stub = env.TABLE_SESSION.get(env.TABLE_SESSION.idFromName(`TABLE:${room}`));
+    return stub.fetch(new Request(req.url, { method: 'GET', headers }));
+  });
+
+  router.get('/core/bank/table/tonight', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+
+    const mine = await query(
+      env.DB_CORE,
+      `SELECT i.id, i.prompt_en, i.prompt_ar, i.prompt_ur, i.stimulus_md,
+              i.difficulty, i.addressed_to_ref, i.addressed_to_name,
+              (SELECT COUNT(*) FROM core_bank_response r WHERE r.item_ref = i.id) AS asked
+         FROM core_bank_item i
+         JOIN core_bank_pack p ON p.id = i.pack_ref
+        WHERE p.owner_ref = ? AND p.app = 'table' AND i.status = 'live'
+        ORDER BY i.difficulty, i.created_at`,
+      [ctx.userId]);
+
+    const table = await query(
+      env.DB_CORE,
+      `SELECT p.owner_ref AS user_id,
+              COALESCE(u.display_name,
+                       substr(u.email, 1, instr(u.email, '@') - 1), u.id) AS name,
+              COUNT(i.id) AS waiting
+         FROM core_bank_pack p
+         JOIN core_users u ON u.id = p.owner_ref
+         LEFT JOIN core_bank_item i
+           ON i.pack_ref = p.id AND i.status = 'live'
+          AND NOT EXISTS (SELECT 1 FROM core_bank_response r WHERE r.item_ref = i.id)
+        WHERE p.app = 'table' AND p.owner_ref IS NOT NULL AND p.owner_ref != ?
+        GROUP BY p.owner_ref
+        ORDER BY name`,
+      [ctx.userId]);
+
+    return ok({ cards: mine, table, viewer: ctx.userId });
+  });
+
   router.get('/core/bank/people', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -311,8 +439,7 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
         `SELECT COUNT(*) AS attempts,
                 COUNT(CASE WHEN a.finished_at IS NOT NULL
                             AND p.app != 'table' THEN 1 END) AS innings,
-                COUNT(CASE WHEN a.finished_at IS NOT NULL
-                            AND p.app = 'table' THEN 1 END) AS conversations,
+                COUNT(CASE WHEN p.app = 'table' THEN 1 END) AS conversations,
                 COUNT(CASE WHEN passed_at IS NOT NULL THEN 1 END) AS passed,
                 COALESCE(SUM(CASE WHEN p.app != 'table' THEN points END), 0) AS runs,
                 -- Cricket's fifty is worth having because an innings has no
@@ -493,8 +620,7 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
                 -- Recorded, never ranked. The Table app has no score by
                 -- design, so its evenings are counted on their own rather
                 -- than folded into a number people compare.
-                COUNT(DISTINCT CASE WHEN a.finished_at IS NOT NULL
-                                     AND p.app = 'table' THEN a.id END) AS conversations,
+                COUNT(DISTINCT CASE WHEN p.app = 'table' THEN a.id END) AS conversations,
                 COUNT(DISTINCT CASE WHEN a.passed_at IS NOT NULL THEN a.unit_ref END) AS units_passed,
                 COALESCE(SUM(a.points), 0) AS points,
                 COALESCE(SUM(a.xp), 0) AS xp,

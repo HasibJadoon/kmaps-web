@@ -49,6 +49,7 @@ studySessionRoutes(router);
 
 export { ReviewSession } from './review-session.do';
 export { QuizSession } from './quiz-session.do';
+export { TableSession } from './table-session.do';
 
 export default {
   fetch: (request: Request, env: CoreEnv) => router.handle(request, env),
