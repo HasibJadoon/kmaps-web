@@ -1,24 +1,3 @@
--- 0062 — proper Arabic display names for the lexicon sources.
---
--- Two problems this fixes, both surfaced by the iOS lexicon port:
---
--- 1. There was no short name. Every client that needed a spine label (the
---    reader's book strip, the library rows) was deriving one by truncating
---    `title_ar`, which gives "المفردات في" for المفردات and "الصحاح تاج" for
---    الصحاح. The short form is editorial data, not something a client can
---    compute, so it becomes a column.
---
--- 2. Several rows carried a bare shuhra where the catalogue wants the full
---    name (الجوهري → أبو نصر إسماعيل بن حمّاد الجوهري), and three carried a
---    Latin-script author into an Arabic-primary UI (Edward William Lane,
---    Nicolai Sinai, K-Maps). The reader is Arabic-primary, so the author
---    column is now Arabic throughout.
---
--- Titles are the full canonical titles as the printed editions carry them —
--- الصحاح تاج اللغة وصحاح العربية rather than الصحاح, تاج العروس من جواهر
--- القاموس rather than تاج العروس — with the short form beside it. Verified
--- against al-Maktaba al-Shamela and the standard editions.
-
 ALTER TABLE ar_ling_source ADD COLUMN title_short_ar TEXT;
 
 UPDATE ar_ling_source SET

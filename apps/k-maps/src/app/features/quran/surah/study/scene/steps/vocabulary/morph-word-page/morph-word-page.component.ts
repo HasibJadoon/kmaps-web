@@ -18,13 +18,6 @@ const REG_LABELS: Record<string, string> = {
 };
 const REG_ORDER = ['quran', 'classical', 'msa', 'linguistic', 'modern', 'tafsir'];
 
-/**
- * Full-page WORD study — the "Morph Display Layer". Header (back · word · font ·
- * lang · pager) + TOC rail (register filter · Core/Temporal sections) + main
- * reader (hero · Core band · context switcher · Temporal band). Layer class is
- * data-driven off each block's `tier`: root → Core (static), occurrence/ayah →
- * Temporal (this verse). Pure presentation; no content logic.
- */
 @Component({
   selector: 'km-morph-word-page',
   standalone: true,
@@ -38,7 +31,7 @@ export class MorphWordPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly svc = inject(QuranSurahService);
-  /** The one real scroll container (.mw-main) — window never scrolls on this page. */
+
   @ViewChild('mwMain') private mwMain?: ElementRef<HTMLElement>;
   readonly view = signal<MorphWordView | null>(null);
   readonly loading = signal(true);
@@ -49,7 +42,7 @@ export class MorphWordPageComponent implements OnInit {
   readonly reg = signal<string>('all');
   readonly coreOpen = signal(true);
   readonly ctxOpen = signal(true);
-  readonly ctxKey = signal<string>('');   // selected context (ayah_key); '' = focus/default
+  readonly ctxKey = signal<string>('');
 
   private surahId = 0; private passageNo = 1; private fromGrid = false;
 
@@ -59,7 +52,6 @@ export class MorphWordPageComponent implements OnInit {
     { key: 'all', label: 'All' }, { key: 'en', label: 'EN' }, { key: 'ar', label: 'ع' }, { key: 'ur', label: 'UR' },
   ];
 
-  /** Bare lemma (harakāt stripped) for the giant hero glyph. */
   readonly lemmaBare = computed(() => {
     const w = this.word();
     return (w?.lemma_ar || w?.surface_ar || '').replace(/[ً-ْٰـ]/g, '');
@@ -69,7 +61,6 @@ export class MorphWordPageComponent implements OnInit {
     return (b.registers && b.registers.length) ? b.registers : (b.register ? [b.register] : []);
   }
 
-  /** Register options — language-worlds present in this word (+ "All"). */
   readonly regOptions = computed<RegOption[]>(() => {
     const v = this.view();
     const present = new Set<string>(v?.registers_available ?? []);
@@ -84,27 +75,22 @@ export class MorphWordPageComponent implements OnInit {
     return this.reg() === 'all' || this.regsOf(b).includes(this.reg());
   }
 
-  /** CORE band — root-scope blocks (shared by every context), register-filtered. */
   readonly coreBlocks = computed<MorphBlockVm[]>(() =>
     (this.view()?.blocks ?? []).filter(b => this.regOk(b)),
   );
 
-  /** Every Qurʾānic occurrence of the word — the context switcher. */
   readonly contexts = computed(() => this.view()?.contexts ?? []);
 
-  /** The selected context (defaults to the focus occurrence). */
   readonly activeContext = computed<MorphContextVm | null>(() => {
     const cs = this.contexts();
     const key = this.ctxKey();
     return cs.find(c => c.ayah_key === key) ?? cs.find(c => c.focus) ?? cs[0] ?? null;
   });
 
-  /** TEMPORAL band — the active context's verse-bound blocks (iʿrāb, balāgha …). */
   readonly temporalBlocks = computed<MorphBlockVm[]>(() =>
     (this.activeContext()?.blocks ?? []).filter(b => this.regOk(b)),
   );
 
-  /** The active verse that heads the Temporal band. */
   readonly contextVerse = computed<{ text_ar: string; note: string; ayah_key: string } | null>(() => {
     const c = this.activeContext();
     return c ? { text_ar: c.text_ar, note: c.note, ayah_key: c.ayah_key } : null;
@@ -117,7 +103,7 @@ export class MorphWordPageComponent implements OnInit {
     const hot = b.type === 'usage_map' || b.type === 'master_story' || b.type === 'constellation';
     const l = this.lang();
     const title = (l === 'ar' ? b.title.ar : l === 'ur' ? b.title.ur : b.title.en)
-      || b.title.en || b.title.ar || b.type;   // 'all' → English caption (Arabic shown beneath)
+      || b.title.en || b.title.ar || b.type;
     return {
       ord: String(i + 1).padStart(2, '0'),
       title,
@@ -162,16 +148,14 @@ export class MorphWordPageComponent implements OnInit {
   stepFont(dir: 1 | -1): void {
     const next = Math.min(1.8, Math.max(0.8, +(this.fontScale() + dir * 0.1).toFixed(2)));
     this.fontScale.set(next);
-    try { localStorage?.setItem('km.morph.fontScale', String(next)); } catch { /* ignore */ }
+    try { localStorage?.setItem('km.morph.fontScale', String(next)); } catch {  }
   }
 
   back(): void {
     if (this.fromGrid) { this.router.navigate(['/quran/surahs', this.surahId, 'morphology']); return; }
     this.router.navigate(['/quran/surahs', this.surahId, 'study', this.passageNo], { queryParams: { step: 'morphology' } });
   }
-  /** Open the lexicon on this word's root — the root's own page, with a way into
-   *  every book that treats it. See `surah-morphology` for why the root is sent
-   *  as typed. */
+
   openRoot(): void {
     const r = (this.word()?.root_ar ?? '').replace(/\s+/g, '').trim();
     if (r) this.router.navigate(['/lexicon/root', r]);
@@ -182,7 +166,6 @@ export class MorphWordPageComponent implements OnInit {
     this.router.navigate(['/quran/surahs', this.surahId, 'study', this.passageNo, 'word', n.ayah, n.word_index]);
   }
 
-  /** Reset the reader to the top — .mw-main scrolls, never the window. */
   private scrollTop(): void {
     this.mwMain?.nativeElement.scrollTo({ top: 0 });
   }

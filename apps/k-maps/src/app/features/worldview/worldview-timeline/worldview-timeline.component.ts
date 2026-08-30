@@ -5,10 +5,6 @@ import { firstValueFrom } from 'rxjs';
 
 import { WorldviewLibraryApiService } from '../../../shared/services/worldview/worldview-library-api.service';
 
-// Desktop dual-register timeline. Mirrors the mobile WorldviewTimelinePage logic
-// (era ranges as a long tail + dated incidents clustering into a modern spike),
-// reading the same /units/:id/annotations payload. Plain-Angular chrome.
-
 interface TlIncident { year: number; title: string; kind: 'spine' | 'modern'; }
 interface TlEra {
   id: string; title: string; yearStart: number; yearEnd: number;

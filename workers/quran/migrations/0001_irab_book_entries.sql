@@ -32,9 +32,6 @@ CREATE INDEX IF NOT EXISTS idx_qr_irab_ayah ON qr_irab_book_entries(surah, ayah_
 CREATE INDEX IF NOT EXISTS idx_qr_irab_concept ON qr_irab_book_entries(grammar_concept_ref);
 CREATE INDEX IF NOT EXISTS idx_qr_irab_status ON qr_irab_book_entries(al_mapping_status);
 
--- This source has historically appeared in local SQLite as a table named
--- "tafsir", but its content is i'rab. Remove only this i'rab-shaped material
--- from tafsir storage before loading it into qr_irab_book_entries.
 DELETE FROM qr_tafsir_entries
 WHERE work_id IN (
     'QR:WORK:MAHMUD_SAFI:JADWAL_IRAB',

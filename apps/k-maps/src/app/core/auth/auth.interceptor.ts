@@ -6,11 +6,6 @@ import { environment } from '../../../environments/environment';
 
 const TOKEN_KEY = 'km_token';
 
-/**
- * Attaches the stored bearer token to API requests and, on a 401, clears the
- * token and redirects to the login screen. Login / bootstrap endpoints are
- * left untouched so they remain reachable while signed out.
- */
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
   const isApi = req.url.startsWith(environment.apiBase) || req.url.startsWith('/api');

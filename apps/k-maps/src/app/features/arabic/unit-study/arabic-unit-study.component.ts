@@ -121,7 +121,6 @@ export class ArabicUnitStudyComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-
   private formatSlug(slug: string): string {
     return slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }

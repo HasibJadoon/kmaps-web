@@ -35,10 +35,8 @@ export class SurahLinguisticsComponent implements OnInit, AfterViewInit, OnDestr
     const els = this.cardEls.toArray().map(e => e.nativeElement as HTMLElement);
     if (!els.length) return;
 
-    // Staggered reveal on load
     this.gsap.revealCards(els, 0.08);
 
-    // Hover lift + press feedback on each card
     for (const el of els) {
       this.cleanups.push(this.gsap.setupIconHover(el));
       this.cleanups.push(this.gsap.setupIconPress(el));

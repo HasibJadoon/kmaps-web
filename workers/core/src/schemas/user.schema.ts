@@ -1,16 +1,12 @@
-// ─── User schemas & types ─────────────────────────────────────────────────────
-// `role` / `status` are exposed as clean names; the repository maps them to the
-// real core_users columns `platform_role` / `account_status`.
-
 export interface User {
-  id: string;             // CORE:ULID
+  id: string;
   email: string;
   display_name: string;
   username: string | null;
   avatar_url: string | null;
   user_type: string;
-  role: string;           // platform_role — admin | member | guest
-  status: string;         // account_status — active | suspended | pending
+  role: string;
+  status: string;
   created_at: string;
 }
 

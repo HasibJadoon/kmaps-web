@@ -1,15 +1,12 @@
-// ─── ThinkerRepo — wv_thinkers ────────────────────────────────────────────────
-// Scholars, philosophers, theologians — the intellectual actors in worldview.
-
 import { queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface Thinker {
-  id: string;               // WV:ULID
+  id: string;
   name_en: string;
   name_ar: string | null;
-  tradition_id: string | null; // WV:ULID
+  tradition_id: string | null;
   birth_year: number | null;
   death_year: number | null;
   bio_summary: string | null;

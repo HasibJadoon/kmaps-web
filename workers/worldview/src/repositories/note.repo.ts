@@ -1,18 +1,6 @@
-// ─── NoteRepo — L10 tables ────────────────────────────────────────────────────
-// wv_notes, wv_note_relations
-//
-// wv_notes columns (from SQL):
-//   id, note_type, title, body_md, tradition_id, topic_id, moral_axis_id,
-//   core_user_ref, core_ws_ref, is_pinned, meta_json, created_at, updated_at
-//
-// wv_note_relations columns:
-//   id, note_id, target_type, target_id, relation_role, created_at
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ─── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface WvNote {
   id: string;
@@ -39,8 +27,6 @@ export interface WvNoteRelation {
   created_at: string;
 }
 
-// ─── Create/patch input types ──────────────────────────────────────────────────
-
 export interface NoteCreate {
   note_type: string;
   title?: string | null;
@@ -63,12 +49,8 @@ export interface NoteRelationCreate {
   relation_role?: string | null;
 }
 
-// ─── Column lists ──────────────────────────────────────────────────────────────
-
 const NOTE_COLS = `id, note_type, title, body_md, tradition_id, topic_id, moral_axis_id, core_user_ref, core_ws_ref, is_pinned, meta_json, created_at, updated_at`;
 const NR_COLS   = `id, note_id, target_type, target_id, relation_role, created_at`;
-
-// ─── Patch helper ──────────────────────────────────────────────────────────────
 
 function buildPatch(patch: Record<string, unknown>): { setClauses: string; values: unknown[] } {
   const keys = Object.keys(patch).filter(k => patch[k] !== undefined);
@@ -77,14 +59,8 @@ function buildPatch(patch: Record<string, unknown>): { setClauses: string; value
   return { setClauses, values };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// NoteRepo
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export class NoteRepo {
   constructor(private db: D1Database) {}
-
-  // ── Notes ──────────────────────────────────────────────────────────────────
 
   list(
     coreUserRef: string | null,
@@ -142,8 +118,6 @@ export class NoteRepo {
   async delete(id: string): Promise<void> {
     await execute(this.db, `DELETE FROM wv_notes WHERE id = ?`, [id]);
   }
-
-  // ── Note Relations ─────────────────────────────────────────────────────────
 
   relations(noteId: string): Promise<WvNoteRelation[]> {
     return query<WvNoteRelation>(

@@ -1,22 +1,6 @@
-// ─── ModernityRepo — L4C + L4D + L4E tables ───────────────────────────────────
-// Covers:
-//   L4C: wv_modernity_streams, wv_enlightenment_currents, wv_epistemic_regimes,
-//        wv_authority_models, wv_human_image_profiles, wv_psychology_schools,
-//        wv_identity_regimes, wv_ideology_profiles, wv_secular_moralities,
-//        wv_civilizational_crises
-//   L4D: wv_colonial_projects, wv_colonial_methods, wv_orientalist_frames,
-//        wv_image_regimes, wv_propaganda_systems, wv_media_regimes,
-//        wv_narrative_scripts, wv_memory_rewrites
-//   L4E: wv_spiritual_agents, wv_adversarial_patterns, wv_temptation_modes,
-//        wv_moral_inversion_patterns, wv_deception_signatures,
-//        wv_false_transcendence_profiles, wv_counterfeit_redemption_claims,
-//        wv_discernment_rules
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ─── L4C interfaces ────────────────────────────────────────────────────────────
 
 export interface WvModernityStream {
   id: string;
@@ -149,8 +133,6 @@ export interface WvCivilizationalCrisis {
   created_at: string;
 }
 
-// ─── L4D interfaces ────────────────────────────────────────────────────────────
-
 export interface WvColonialProject {
   id: string;
   slug: string;
@@ -249,8 +231,6 @@ export interface WvMemoryRewrite {
   created_at: string;
 }
 
-// ─── L4E interfaces ────────────────────────────────────────────────────────────
-
 export interface WvSpiritualAgent {
   id: string;
   slug: string;
@@ -344,8 +324,6 @@ export interface WvDiscernmentRule {
   created_at: string;
 }
 
-// ─── Create input interfaces ───────────────────────────────────────────────────
-
 export type ModernityStreamCreate = Omit<WvModernityStream, 'id' | 'created_at'>;
 export type EnlightenmentCurrentCreate = Omit<WvEnlightenmentCurrent, 'id' | 'created_at'>;
 export type EpistemicRegimeCreate = Omit<WvEpistemicRegime, 'id' | 'created_at'>;
@@ -372,8 +350,6 @@ export type DeceptionSignatureCreate = Omit<WvDeceptionSignature, 'id' | 'create
 export type FalseTranscendenceProfileCreate = Omit<WvFalseTranscendenceProfile, 'id' | 'created_at'>;
 export type CounterfeitRedemptionClaimCreate = Omit<WvCounterfeitRedemptionClaim, 'id' | 'created_at'>;
 export type DiscernmentRuleCreate = Omit<WvDiscernmentRule, 'id' | 'created_at'>;
-
-// ─── Column lists ──────────────────────────────────────────────────────────────
 
 const MS_COLS   = `id, slug, title, stream_type, origin_period_id, description_md, key_values, key_tensions, meta_json, created_at`;
 const EC_COLS   = `id, slug, title, stream_id, key_thinkers, key_texts, period_range, origin_region, description_md, successor_of, meta_json, created_at`;
@@ -404,8 +380,6 @@ const FTP_COLS  = `id, slug, title, profile_type, stream_id, description_md, how
 const CRC_COLS  = `id, title, claim_text, stream_id, project_type, redemption_promise, displacement_mechanism, description_md, created_at`;
 const DR_COLS   = `id, slug, title, tradition_id, rule_type, rule_text, scriptural_basis, warning_indicators, created_at`;
 
-// ─── Patch helpers ─────────────────────────────────────────────────────────────
-
 function buildPatch(patch: Record<string, unknown>): { setClauses: string; values: unknown[] } {
   const keys = Object.keys(patch).filter(k => patch[k] !== undefined);
   const setClauses = keys.map(k => `${k} = ?`).join(', ');
@@ -413,14 +387,8 @@ function buildPatch(patch: Record<string, unknown>): { setClauses: string; value
   return { setClauses, values };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ModernityRepo
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export class ModernityRepo {
   constructor(private db: D1Database) {}
-
-  // ── L4C: Modernity Streams ─────────────────────────────────────────────────
 
   streams(streamType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -463,8 +431,6 @@ export class ModernityRepo {
     await execute(this.db, `UPDATE wv_modernity_streams SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findStreamById(id);
   }
-
-  // ── L4C: Enlightenment Currents ────────────────────────────────────────────
 
   enlightenmentCurrents(streamId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -509,8 +475,6 @@ export class ModernityRepo {
     return this.findEnlightenmentCurrentById(id);
   }
 
-  // ── L4C: Epistemic Regimes ─────────────────────────────────────────────────
-
   epistemicRegimes(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -551,8 +515,6 @@ export class ModernityRepo {
     return this.findEpistemicRegimeById(id);
   }
 
-  // ── L4C: Authority Models ──────────────────────────────────────────────────
-
   authorityModels(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -592,8 +554,6 @@ export class ModernityRepo {
     await execute(this.db, `UPDATE wv_authority_models SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findAuthorityModelById(id);
   }
-
-  // ── L4C: Human Image Profiles ──────────────────────────────────────────────
 
   humanImageProfiles(streamId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -636,8 +596,6 @@ export class ModernityRepo {
     await execute(this.db, `UPDATE wv_human_image_profiles SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findHumanImageProfileById(id);
   }
-
-  // ── L4C: Psychology Schools ────────────────────────────────────────────────
 
   psychologySchools(humanImageId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -682,8 +640,6 @@ export class ModernityRepo {
     return this.findPsychologySchoolById(id);
   }
 
-  // ── L4C: Identity Regimes ──────────────────────────────────────────────────
-
   identityRegimes(streamId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -723,8 +679,6 @@ export class ModernityRepo {
     await execute(this.db, `UPDATE wv_identity_regimes SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findIdentityRegimeById(id);
   }
-
-  // ── L4C: Ideology Profiles ─────────────────────────────────────────────────
 
   ideologyProfiles(ideologyType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -768,8 +722,6 @@ export class ModernityRepo {
     return this.findIdeologyProfileById(id);
   }
 
-  // ── L4C: Secular Moralities ────────────────────────────────────────────────
-
   secularMoralities(streamId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -809,8 +761,6 @@ export class ModernityRepo {
     await execute(this.db, `UPDATE wv_secular_moralities SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findSecularMoralityById(id);
   }
-
-  // ── L4C: Civilizational Crises ─────────────────────────────────────────────
 
   civilizationalCrises(crisisType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -852,8 +802,6 @@ export class ModernityRepo {
     await execute(this.db, `UPDATE wv_civilizational_crises SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findCivilizationalCrisisById(id);
   }
-
-  // ── L4D: Colonial Projects ─────────────────────────────────────────────────
 
   colonialProjects(projectType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -898,8 +846,6 @@ export class ModernityRepo {
     return this.findColonialProjectById(id);
   }
 
-  // ── L4D: Colonial Methods ──────────────────────────────────────────────────
-
   colonialMethods(opts: PaginateOptions = {}) {
     return paginate<WvColonialMethod>(
       this.db,
@@ -932,8 +878,6 @@ export class ModernityRepo {
     await execute(this.db, `UPDATE wv_colonial_methods SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findColonialMethodById(id);
   }
-
-  // ── L4D: Orientalist Frames ────────────────────────────────────────────────
 
   orientalistFrames(opts: PaginateOptions = {}) {
     return paginate<WvOrientalistFrame>(
@@ -972,8 +916,6 @@ export class ModernityRepo {
     await execute(this.db, `UPDATE wv_orientalist_frames SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findOrientalistFrameById(id);
   }
-
-  // ── L4D: Image Regimes ─────────────────────────────────────────────────────
 
   imageRegimes(regimeType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -1016,8 +958,6 @@ export class ModernityRepo {
     return this.findImageRegimeById(id);
   }
 
-  // ── L4D: Propaganda Systems ────────────────────────────────────────────────
-
   propagandaSystems(systemType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -1057,8 +997,6 @@ export class ModernityRepo {
     await execute(this.db, `UPDATE wv_propaganda_systems SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findPropagandaSystemById(id);
   }
-
-  // ── L4D: Media Regimes ─────────────────────────────────────────────────────
 
   mediaRegimes(regimeType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -1100,8 +1038,6 @@ export class ModernityRepo {
     return this.findMediaRegimeById(id);
   }
 
-  // ── L4D: Narrative Scripts ─────────────────────────────────────────────────
-
   narrativeScripts(propagandaSystemId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -1142,8 +1078,6 @@ export class ModernityRepo {
     await execute(this.db, `UPDATE wv_narrative_scripts SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findNarrativeScriptById(id);
   }
-
-  // ── L4D: Memory Rewrites ───────────────────────────────────────────────────
 
   memoryRewrites(rewriteType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -1187,8 +1121,6 @@ export class ModernityRepo {
     return this.findMemoryRewriteById(id);
   }
 
-  // ── L4E: Spiritual Agents ──────────────────────────────────────────────────
-
   spiritualAgents(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -1228,8 +1160,6 @@ export class ModernityRepo {
     await execute(this.db, `UPDATE wv_spiritual_agents SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findSpiritualAgentById(id);
   }
-
-  // ── L4E: Adversarial Patterns ──────────────────────────────────────────────
 
   adversarialPatterns(traditionId: string | null, patternType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -1272,8 +1202,6 @@ export class ModernityRepo {
     return this.findAdversarialPatternById(id);
   }
 
-  // ── L4E: Temptation Modes ──────────────────────────────────────────────────
-
   temptationModes(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -1312,8 +1240,6 @@ export class ModernityRepo {
     await execute(this.db, `UPDATE wv_temptation_modes SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findTemptationModeById(id);
   }
-
-  // ── L4E: Moral Inversion Patterns ─────────────────────────────────────────
 
   moralInversionPatterns(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -1357,8 +1283,6 @@ export class ModernityRepo {
     return this.findMoralInversionPatternById(id);
   }
 
-  // ── L4E: Deception Signatures ──────────────────────────────────────────────
-
   deceptionSignatures(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -1398,8 +1322,6 @@ export class ModernityRepo {
     await execute(this.db, `UPDATE wv_deception_signatures SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findDeceptionSignatureById(id);
   }
-
-  // ── L4E: False Transcendence Profiles ─────────────────────────────────────
 
   falseTranscendenceProfiles(streamId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -1441,8 +1363,6 @@ export class ModernityRepo {
     return this.findFalseTranscendenceProfileById(id);
   }
 
-  // ── L4E: Counterfeit Redemption Claims ────────────────────────────────────
-
   counterfeitRedemptionClaims(streamId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -1483,8 +1403,6 @@ export class ModernityRepo {
     await execute(this.db, `UPDATE wv_counterfeit_redemption_claims SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findCounterfeitRedemptionClaimById(id);
   }
-
-  // ── L4E: Discernment Rules ─────────────────────────────────────────────────
 
   discernmentRules(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];

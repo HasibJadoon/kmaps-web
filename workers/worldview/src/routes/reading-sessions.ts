@@ -1,32 +1,13 @@
-// ─── /worldview/reading-sessions routes ───────────────────────────────────────
-// Focused reading passes over a wv_sources book (optionally a chapter unit).
-// Table: wv_reading_sessions (002_add_wv_reading_sessions.sql).
-//
-// Plural GET paths match the source/unit reader convention; singular
-// POST/PUT/DELETE match /worldview/source + /worldview/unit. /wv/* aliases
-// are kept for Hub / internal callers.
-//
-// GET    /worldview/reading-sessions?source_id=&user=&status=&limit=  — list
-// GET    /worldview/reading-sessions/active?source_id=&user=          — active one (or null)
-// GET    /worldview/reading-sessions/:id                              — detail
-// POST   /worldview/reading-session                                   — create (body.source_id required)
-// PUT    /worldview/reading-session                                   — update (body.id required)
-// DELETE /worldview/reading-session/:id                              — delete
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
 import type { WorldviewEnv } from '../env';
 import { ReadingSessionRepo } from '../repositories/reading-session.repo';
 
-// Live worldview reading data (highlights/notes) uses these refs; default to
-// them so sessions line up with existing rows when no auth context is present.
 const DEFAULT_USER = '1';
 const DEFAULT_WS   = 'ws_user_1';
 
 export function readingSessionRoutes(router: Router<WorldviewEnv>) {
-
-  // ── List ────────────────────────────────────────────────────────────────────
 
   router.get('/worldview/reading-sessions', async (req, env) => {
     const url = new URL(req.url);
@@ -40,8 +21,6 @@ export function readingSessionRoutes(router: Router<WorldviewEnv>) {
     );
   });
 
-  // ── Active session for a source (convenience for the reader) ─────────────────
-
   router.get('/worldview/reading-sessions/active', async (req, env) => {
     const url = new URL(req.url);
     const sourceId = url.searchParams.get('source_id');
@@ -51,14 +30,10 @@ export function readingSessionRoutes(router: Router<WorldviewEnv>) {
     return ok(row ?? null);
   });
 
-  // ── Detail ───────────────────────────────────────────────────────────────────
-
   router.get('/worldview/reading-sessions/:id', async (_req, env, { id }) => {
     const row = await new ReadingSessionRepo(env.DB_WV).findById(id);
     return row ? ok(row) : notFound(`reading session ${id}`);
   });
-
-  // ── Create (singular — UI path) ──────────────────────────────────────────────
 
   router.post('/worldview/reading-session', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
@@ -78,8 +53,6 @@ export function readingSessionRoutes(router: Router<WorldviewEnv>) {
     }));
   });
 
-  // ── Update (singular — body.id required) ─────────────────────────────────────
-
   router.put('/worldview/reading-session', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.id) return badRequest('id required');
@@ -98,14 +71,10 @@ export function readingSessionRoutes(router: Router<WorldviewEnv>) {
     return row ? ok(row) : notFound(`reading session ${b.id}`);
   });
 
-  // ── Delete (singular) ────────────────────────────────────────────────────────
-
   router.delete('/worldview/reading-session/:id', async (_req, env, { id }) => {
     await new ReadingSessionRepo(env.DB_WV).delete(id);
     return ok({ id, deleted: true });
   });
-
-  // ── /wv/* aliases (Hub / internal) ───────────────────────────────────────────
 
   router.get('/wv/reading-sessions', async (req, env) => {
     const url = new URL(req.url);

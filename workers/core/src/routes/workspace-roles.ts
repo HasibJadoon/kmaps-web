@@ -1,5 +1,3 @@
-// ─── /core/workspaces/:id/roles routes — workspace role management ────────────
-
 import type { Router } from '../../../shared/src/router';
 import { ok, created, badRequest, noContent, notFound } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
@@ -18,7 +16,6 @@ async function readJson(req: Request): Promise<Record<string, unknown> | null> {
   }
 }
 
-/** Best-effort activity log — never let an audit write break the action. */
 async function logEvent(
   env: CoreEnv,
   workspaceId: string,
@@ -36,18 +33,16 @@ async function logEvent(
       payloadJson: payload ? JSON.stringify(payload) : undefined,
     });
   } catch {
-    /* audit logging is non-critical */
+
   }
 }
 
 export function workspaceRoleRoutes(router: Router<CoreEnv>) {
 
-  // GET /core/workspaces/:id/roles — roles defined in a workspace
   router.get('/core/workspaces/:id/roles', async (_req, env, { id }) => {
     return ok(await new WorkspaceRoleRepo(env.DB_CORE).list(id));
   });
 
-  // POST /core/workspaces/:id/roles — define a role
   router.post('/core/workspaces/:id/roles', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -70,7 +65,6 @@ export function workspaceRoleRoutes(router: Router<CoreEnv>) {
     return created(role);
   });
 
-  // PATCH /core/workspaces/:id/roles/:roleId — update role permissions
   router.patch('/core/workspaces/:id/roles/:roleId', async (req, env, { id, roleId }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -85,7 +79,6 @@ export function workspaceRoleRoutes(router: Router<CoreEnv>) {
     return ok(await repo.findById(roleId));
   });
 
-  // DELETE /core/workspaces/:id/roles/:roleId
   router.delete('/core/workspaces/:id/roles/:roleId', async (req, env, { id, roleId }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -94,12 +87,10 @@ export function workspaceRoleRoutes(router: Router<CoreEnv>) {
     return noContent();
   });
 
-  // GET /core/workspaces/:id/members/:memberId/roles — a member's effective roles
   router.get('/core/workspaces/:id/members/:memberId/roles', async (_req, env, { memberId }) => {
     return ok(await new WorkspaceRoleRepo(env.DB_CORE).memberRolesFull(memberId));
   });
 
-  // POST /core/workspaces/:id/members/:memberId/roles — assign a role to a member
   router.post('/core/workspaces/:id/members/:memberId/roles', async (req, env, { id, memberId }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -115,7 +106,6 @@ export function workspaceRoleRoutes(router: Router<CoreEnv>) {
     return created(assignment);
   });
 
-  // DELETE /core/workspaces/:id/members/:memberId/roles/:roleId — revoke a role
   router.delete(
     '/core/workspaces/:id/members/:memberId/roles/:roleId',
     async (req, env, { id, memberId, roleId }) => {

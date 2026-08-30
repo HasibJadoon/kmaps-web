@@ -307,7 +307,6 @@ export class DocsShellComponent implements OnInit, OnDestroy {
   private openNodes   = signal<Set<string>>(new Set());
   private routerSub!: Subscription;
 
-  // Build a map: domain → tree of root nodes
   private treeByDomain = computed<Map<string, DocNode[]>>(() => {
     const all = this.docs();
     const nodeMap = new Map<string, DocNode>();
@@ -331,7 +330,6 @@ export class DocsShellComponent implements OnInit, OnDestroy {
     return byDomain;
   });
 
-  // Flatten to visible rows (domain headers + visible doc nodes)
   flatRows = computed<FlatRow[]>(() => {
     const result: FlatRow[] = [];
     const openDoms = this.openDomains();
@@ -367,7 +365,6 @@ export class DocsShellComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadDocs();
 
-    // Track active doc from URL
     this.syncActiveFromUrl();
     this.routerSub = this.router.events
       .pipe(filter(e => e instanceof NavigationEnd))

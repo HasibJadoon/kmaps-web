@@ -79,10 +79,6 @@ export class MushafRepo {
         )
       : [];
 
-    // Bulk-fetch morphology+plain text for every word token on this page.
-    // tokens_json only carries QPC PUA codepoints — the human-readable
-    // Arabic + root/lemma live in qr_word_occurrence, keyed by
-    // (surah, ayah, word_index). One query for the whole page beats N queries.
     const wordTokens = allTokens.filter(t => t.char_type === 'word');
     const wordMap = await this.fetchWordOccurrences(wordTokens);
 
@@ -135,8 +131,6 @@ export class MushafRepo {
   ): Promise<Map<string, WordOccurrenceRow>> {
     if (!wordTokens.length) return new Map();
 
-    // Distinct ayahs on the page — typically 1-15. Fetch all words for
-    // those ayahs in a single query, then index by surah:ayah:word_index.
     const ayahKeys = new Set<string>();
     for (const t of wordTokens) ayahKeys.add(`${t.surah}:${t.ayah}`);
     const ayahPairs = [...ayahKeys].map(k => k.split(':').map(Number) as [number, number]);

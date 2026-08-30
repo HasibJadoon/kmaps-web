@@ -1,19 +1,16 @@
-// ─── Podcast schemas & types ───────────────────────────────────────────────────
-
-// core_podcasts
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface Podcast {
-  id: string;                                           // CORE:ULID
-  workspace_id: string;                                 // CORE:ULID → core_workspaces
+  id: string;
+  workspace_id: string;
   title: string;
   description_md: string | null;
   podcast_type: 'discussion' | 'lecture' | 'interview' | 'reading_session' | 'other';
   status: 'planned' | 'recorded' | 'published' | 'archived';
   recorded_at: string | null;
   duration_secs: number | null;
-  media_ref: string | null;                             // 'CM:<media_asset_id>'
-  host_user_ref: string | null;                         // 'CORE:<user_id>'
+  media_ref: string | null;
+  host_user_ref: string | null;
   visibility: string;
   meta_json: string | null;
   created_at: string;
@@ -41,12 +38,11 @@ export interface PodcastPatch {
   meta_json?: string | null;
 }
 
-// core_podcast_participants
 export interface PodcastParticipant {
-  id: string;                                           // CORE:ULID
-  podcast_id: string;                                   // CORE:ULID → core_podcasts
-  person_id: string | null;                             // → core_people.id (private) or NULL
-  user_ref: string | null;                              // 'CORE:<user_id>' if has account
+  id: string;
+  podcast_id: string;
+  person_id: string | null;
+  user_ref: string | null;
   role: 'host' | 'guest' | 'moderator' | 'producer';
   display_name: string | null;
   created_at: string;
@@ -59,14 +55,13 @@ export interface ParticipantAdd {
   display_name?: string;
 }
 
-// core_talking_points
 export interface TalkingPoint {
-  id: string;                                           // CORE:ULID
-  podcast_id: string;                                   // CORE:ULID → core_podcasts
-  speaker_ref: string | null;                           // participant or user
+  id: string;
+  podcast_id: string;
+  speaker_ref: string | null;
   timestamp_secs: number | null;
   content: string;
-  topic_ref: string | null;                             // typed ref to WV topic or QR scope
+  topic_ref: string | null;
   sort_order: number;
   created_at: string;
 }
@@ -78,8 +73,6 @@ export interface TalkingPointAdd {
   topic_ref?: string;
   sort_order?: number;
 }
-
-// ─── Validators ────────────────────────────────────────────────────────────────
 
 export function validatePodcastCreate(
   body: unknown,
@@ -161,7 +154,6 @@ export function validateParticipantAdd(
   if (typeof body !== 'object' || body === null) return { error: 'Body must be an object' };
   const b = body as Record<string, unknown>;
 
-  // At least one of person_id or user_ref is needed in practice, but both are optional here
   const data: ParticipantAdd = {};
 
   if (typeof b.person_id === 'string') data.person_id = b.person_id;
@@ -199,8 +191,6 @@ export function validateTalkingPointAdd(
   return { data };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface PodcastListOptions extends PaginateOptions {
   status?: Podcast['status'];
 }
@@ -219,8 +209,6 @@ export interface TalkingPointInput {
   topicRef?: string;
   sortOrder?: number;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

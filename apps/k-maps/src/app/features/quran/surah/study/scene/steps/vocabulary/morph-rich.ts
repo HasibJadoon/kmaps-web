@@ -1,10 +1,3 @@
-// Shared inline-markup renderer for the Morph Display Layer.
-//   ==critical==  → pink/red glowing (the one most-critical concept)
-//   **key**       → gold semibold
-//   → ← ⟶         → glowing gold connector
-//   embedded Arabic → Amiri, coloured by tier
-// Returns an HTML string (caller sanitizes with bypassSecurityTrustHtml).
-
 const esc = (s: string): string =>
   s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
 

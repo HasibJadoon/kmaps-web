@@ -1,7 +1,5 @@
-// ─── Block schemas & types ────────────────────────────────────────────────────
-
 export interface CmBlock {
-  block_id: string;           // CM:ULID
+  block_id: string;
   doc_id: string;
   parent_block_id: string | null;
   block_type: 'paragraph' | 'heading' | 'quote' | 'code' | 'list' | 'divider' | 'embed' | 'other';
@@ -17,7 +15,7 @@ export interface CmBlock {
 }
 
 export interface CmBlockRef {
-  ref_id: string;             // CM:ULID
+  ref_id: string;
   block_id: string;
   target_ref: string;
   ref_type: 'citation' | 'footnote' | 'link' | 'note';
@@ -28,7 +26,7 @@ export interface CmBlockRef {
 }
 
 export interface CmBlockEmbed {
-  embed_id: string;           // CM:ULID
+  embed_id: string;
   block_id: string;
   embed_type: 'media' | 'source' | 'chart' | 'other';
   target_ref: string | null;
@@ -117,8 +115,6 @@ export function validateCmBlockCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface CmBlockInput {
   doc_id: string;
   parent_block_id?: string | null;
@@ -148,8 +144,6 @@ export interface CmBlockEmbedInput {
   caption?: string | null;
   meta_json?: string;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

@@ -1,10 +1,8 @@
-// ─── Comparison schemas & types ───────────────────────────────────────────────
-
 export interface WvComparison {
-  id: string;              // WV:ULID
+  id: string;
   slug: string;
   title: string;
-  comparison_type: string; // tradition|school|period|person|text|institution|practice|other
+  comparison_type: string;
   description_md: string | null;
   meta_json: string | null;
   created_at: string;
@@ -24,7 +22,7 @@ export interface ComparisonAxis {
 export interface ComparisonRow {
   id: string;
   comparison_id: string;
-  entity_type: string;    // tradition|school|person|period|text
+  entity_type: string;
   entity_id: string;
   row_label: string;
   sort_order: number;
@@ -37,8 +35,8 @@ export interface ComparisonCell {
   row_id: string;
   axis_id: string;
   cell_text: string | null;
-  stance: string | null;  // affirms|denies|nuances|absent|contested
-  evidence_ids: string | null;  // JSON [evidence_item_id]
+  stance: string | null;
+  evidence_ids: string | null;
   tension_note: string | null;
   created_at: string;
   updated_at: string;
@@ -82,8 +80,6 @@ export interface CellUpsert {
   evidence_ids?: string | null;
   tension_note?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

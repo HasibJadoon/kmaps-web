@@ -1,11 +1,9 @@
-// ─── Distill schemas & types ───────────────────────────────────────────────
-
 export interface DistillBatch {
-  id: string;              // WV:ULID
+  id: string;
   title: string;
-  batch_type: string;      // manual|ai_extraction|auto_cluster|review_run
+  batch_type: string;
   source_id: string | null;
-  status: string;          // pending|running|complete|failed
+  status: string;
   item_count: number;
   approved_count: number;
   rejected_count: number;
@@ -16,13 +14,13 @@ export interface DistillBatch {
 }
 
 export interface DistillItem {
-  id: string;              // WV:ULID
+  id: string;
   batch_id: string;
-  item_type: string;       // insight|claim|node|evidence|question|connection|other
+  item_type: string;
   source_note_id: string | null;
   source_highlight_id: string | null;
   content_md: string;
-  status: string;          // pending|approved|edited|rejected|saved
+  status: string;
   approved_as_type: string | null;
   approved_as_id: string | null;
   core_user_ref: string | null;
@@ -33,7 +31,7 @@ export interface DistillItem {
 export interface InsightDecision {
   id: string;
   suggestion_id: string;
-  decision: string;        // approved|edited|rejected
+  decision: string;
   original_json: string | null;
   final_json: string | null;
   decision_note: string | null;
@@ -48,7 +46,7 @@ export interface BatchWithItems extends DistillBatch {
 export interface GenerateBatchInput {
   title: string;
   source_id?: string | null;
-  source_unit_id?: string | null;  // filter items to this unit
+  source_unit_id?: string | null;
   batch_type?: string;
   items: Array<{
     item_type?: string;
@@ -63,12 +61,10 @@ export interface GenerateBatchInput {
 export interface DecisionInput {
   item_id: string;
   decision: 'approved' | 'edited' | 'rejected';
-  final_content?: string | null;  // for edited decisions — updated content_md
+  final_content?: string | null;
   decision_note?: string | null;
   core_user_ref: string;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

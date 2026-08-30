@@ -1,18 +1,14 @@
-// ─── Activity & Notification schemas & types ──────────────────────────────────
-
-// core_activity_events
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface ActivityEvent {
-  id: string;                                           // CORE:ULID
+  id: string;
   workspace_id: string | null;
-  actor_user_ref: string;                               // 'CORE:<user_id>'
+  actor_user_ref: string;
   event_type: string;
-    // 'resource_created'|'resource_updated'|'resource_deleted'|'member_joined'|
-    // 'comment_added'|'suggestion_approved'|'plan_completed'|'session_logged'|'other'
-  resource_ref: string | null;                          // typed ref to affected resource
+
+  resource_ref: string | null;
   resource_type: string | null;
-  payload_json: string | null;                          // contextual data snapshot
+  payload_json: string | null;
   created_at: string;
 }
 
@@ -25,18 +21,16 @@ export interface ActivityEventLog {
   payload_json?: string;
 }
 
-// core_notifications
 export interface Notification {
-  id: string;                                           // CORE:ULID
-  user_ref: string;                                     // 'CORE:<user_id>'
+  id: string;
+  user_ref: string;
   workspace_id: string | null;
   notif_type: string;
-    // 'mention'|'comment'|'approval_request'|'assignment'|'milestone'|
-    // 'suggestion'|'system'|'review'|'other'
+
   title: string;
   body_md: string | null;
   resource_ref: string | null;
-  is_read: boolean;                                     // DB: INTEGER 0|1
+  is_read: boolean;
   read_at: string | null;
   created_at: string;
 }
@@ -49,8 +43,6 @@ export interface NotificationCreate {
   body_md?: string;
   resource_ref?: string;
 }
-
-// ─── Validators ────────────────────────────────────────────────────────────────
 
 export function validateActivityLog(
   body: unknown,
@@ -104,8 +96,6 @@ export function validateNotificationCreate(
   return { data };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface ActivityEventInput {
   workspaceId?: string;
   actorUserRef: string;
@@ -133,8 +123,6 @@ export interface ActivityListOptions extends PaginateOptions {
 export interface NotifListOptions extends PaginateOptions {
   unreadOnly?: boolean;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

@@ -1,5 +1,3 @@
-// ─── Study schemas & types ───────────────────────────────────────────────
-
 export interface StudyTask {
   task_id: string;
   parent_task_id: string | null;

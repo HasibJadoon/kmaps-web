@@ -1,9 +1,6 @@
-// ─── Auth schemas & types ──────────────────────────────────────────────────────
-
-// core_auth_sessions
 export interface AuthSession {
-  id: string;                                           // CORE:ULID
-  user_id: string;                                      // CORE:ULID → core_users
+  id: string;
+  user_id: string;
   session_token: string;
   session_type: 'web' | 'mobile' | 'api' | 'service';
   device_info: string | null;
@@ -11,7 +8,7 @@ export interface AuthSession {
   user_agent: string | null;
   last_seen_at: string;
   expires_at: string;
-  is_revoked: boolean;                                  // DB: INTEGER 0|1
+  is_revoked: boolean;
   created_at: string;
 }
 
@@ -25,14 +22,13 @@ export interface AuthSessionCreate {
   expires_at?: string;
 }
 
-// core_auth_tokens
 export interface AuthToken {
-  id: string;                                           // CORE:ULID
-  user_id: string;                                      // CORE:ULID → core_users
-  token_hash: string;                                   // SHA-256 hash of raw token
+  id: string;
+  user_id: string;
+  token_hash: string;
   token_type: 'api_key' | 'invitation' | 'password_reset' | 'email_verify' | 'link_share' | 'password';
   name: string | null;
-  scopes_json: string | null;                           // JSON [string] — granted scopes
+  scopes_json: string | null;
   workspace_id: string | null;
   expires_at: string | null;
   used_at: string | null;
@@ -49,8 +45,6 @@ export interface AuthTokenCreate {
   workspace_id?: string;
   expires_at?: string;
 }
-
-// ─── Validators ────────────────────────────────────────────────────────────────
 
 export function validateAuthSessionCreate(
   body: unknown,

@@ -1,12 +1,3 @@
-// ─── The play routes' SQL, run for real ───────────────────────────────────────
-//
-// Every statement in bank-play.ts, executed against remote D1 in the order the
-// routes execute them, with judge() deciding each answer. This is the coverage
-// that does not need a token — the SQL either runs or it does not, and that is
-// exactly the class of bug the owner gate has been hiding.
-//
-// The rows it writes are removed at the end, by id.
-
 import { execFileSync } from 'node:child_process';
 const { judge } = await import(process.cwd() + '/workers/core/src/bank/score.ts');
 
@@ -32,7 +23,6 @@ const USER = 'system@test.com';
 const id = (p) => `${p}:TEST${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 const written = { attempts: [], responses: [] };
 
-// ── the unit the phone would open ────────────────────────────────────────────
 const [unit] = sql(`SELECT u.id, u.pack_ref, u.hearts, u.pass_threshold, u.xp_award, u.title
                       FROM core_bank_unit u JOIN core_bank_pack p ON p.id=u.pack_ref
                      WHERE p.slug='quran-40-path' AND u.unit_index=0`);
@@ -44,7 +34,6 @@ const items = sql(`SELECT i.id, i.slug, i.interaction, i.scoring, i.response_jso
                     WHERE ui.unit_ref=? AND i.status='live' ORDER BY ui.seq, i.slug`, [unit.id]);
 check(items.length === 6, 'it serves six live items', `got ${items.length}`);
 
-// ── POST /attempts ───────────────────────────────────────────────────────────
 const attemptId = id('BAT');
 sql(`INSERT INTO core_bank_attempt (id, user_ref, unit_ref, pack_ref, mode, room_code, hearts_left)
      VALUES (?,?,?,?,?,?,?)`, [attemptId, USER, unit.id, unit.pack_ref, 'solo', null, unit.hearts]);
@@ -52,8 +41,6 @@ written.attempts.push(attemptId);
 check(sql('SELECT id FROM core_bank_attempt WHERE id=?', [attemptId]).length === 1,
       'the attempt is written');
 
-// ── POST /attempts/:id/answer, once per item ─────────────────────────────────
-// Answered the way a person does: knowing five, guessing the sixth.
 let right = 0;
 for (const [seq, item] of items.entries()) {
   const options = sql(`SELECT id, role, is_correct, pair_key, credit, sort_order
@@ -79,7 +66,6 @@ for (const [seq, item] of items.entries()) {
 }
 check(right === 5, 'five of six judged correct', `${right}/6`);
 
-// ── POST /attempts/:id/finish ────────────────────────────────────────────────
 const [tally] = sql(`SELECT COUNT(is_correct) AS scored, COALESCE(SUM(is_correct),0) AS correct,
                             COALESCE(SUM(points),0) AS points
                        FROM core_bank_response WHERE attempt_ref=?`, [attemptId]);
@@ -99,7 +85,6 @@ const [done] = sql('SELECT score, points, xp, passed_at, finished_at FROM core_b
 check(done.finished_at !== null && done.passed_at === null,
       'the attempt closes without a pass', `points ${done.points}`);
 
-// ── the path state the next screen derives ───────────────────────────────────
 const states = sql(`SELECT u.unit_index, u.node_type, u.title,
                            (SELECT COUNT(*) FROM core_bank_attempt a
                              WHERE a.unit_ref=u.id AND a.user_ref=?) AS attempts,
@@ -114,7 +99,6 @@ for (const s of states) {
     + `attempts ${s.attempts}  passed ${s.passes}`);
 }
 
-// ── clean up: these are synthetic rows, not history ──────────────────────────
 for (const r of written.responses) sql('DELETE FROM core_bank_response WHERE id=?', [r]);
 for (const a of written.attempts) sql('DELETE FROM core_bank_attempt WHERE id=?', [a]);
 const left = sql('SELECT COUNT(*) AS n FROM core_bank_attempt WHERE user_ref=? AND id LIKE ?',

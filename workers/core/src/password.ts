@@ -1,6 +1,3 @@
-// ─── Password hashing (PBKDF2 via SubtleCrypto) ───────────────────────────────
-// Stored format: "pbkdf2:sha256:<iterations>:<saltHex>:<hashHex>"
-
 const ITERATIONS = 100_000;
 const KEY_BITS = 256;
 
@@ -32,14 +29,12 @@ async function derive(password: string, salt: Uint8Array, iterations: number): P
   return toHex(bits);
 }
 
-/** Hash a plaintext password for storage. */
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const hash = await derive(password, salt, ITERATIONS);
   return `pbkdf2:sha256:${ITERATIONS}:${toHex(salt)}:${hash}`;
 }
 
-/** Verify a plaintext password against a stored pbkdf2 string. */
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parts = stored.split(':');
   if (parts.length !== 5 || parts[0] !== 'pbkdf2') return false;

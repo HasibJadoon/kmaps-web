@@ -1,7 +1,5 @@
-// ─── Media schemas & types ────────────────────────────────────────────────────
-
 export interface CmMediaAsset {
-  asset_id: string;           // CM:ULID
+  asset_id: string;
   core_user_ref: string;
   asset_type: 'audio' | 'video' | 'image' | 'document' | 'other';
   title: string;
@@ -25,7 +23,7 @@ export interface CmMediaAsset {
 }
 
 export interface CmMediaTranscript {
-  transcript_id: string;      // CM:ULID
+  transcript_id: string;
   asset_id: string;
   language: string;
   transcript_text: string;
@@ -37,7 +35,7 @@ export interface CmMediaTranscript {
 }
 
 export interface CmAudioScene {
-  scene_id: string;           // CM:ULID
+  scene_id: string;
   asset_id: string;
   transcript_id: string | null;
   scene_index: number;
@@ -53,7 +51,7 @@ export interface CmAudioScene {
 }
 
 export interface CmMediaChapter {
-  chapter_id: string;         // CM:ULID
+  chapter_id: string;
   asset_id: string;
   chapter_index: number;
   title: string;
@@ -162,8 +160,6 @@ export function validateCmMediaAssetCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface CmMediaAssetInput {
   core_user_ref: string;
   asset_type: string;
@@ -219,8 +215,6 @@ export interface CmMediaChapterInput {
   description?: string | null;
   meta_json?: string;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

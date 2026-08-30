@@ -1,11 +1,7 @@
-// ─── Document schemas & types ─────────────────────────────────────────────────
-// Tables: cm_documents, cm_document_versions, cm_blocks, cm_block_refs,
-//         cm_block_embeds, cm_resource_links.
-
 export type CmPublicationState = 'draft' | 'review' | 'published' | 'archived';
 
 export interface CmDocument {
-  doc_id: string;             // CM:ULID
+  doc_id: string;
   core_user_ref: string;
   doc_type: string;
   title: string;
@@ -25,7 +21,7 @@ export interface CmDocument {
 }
 
 export interface CmDocumentVersion {
-  version_id: string;         // CM:ULID
+  version_id: string;
   doc_id: string;
   version_number: number;
   version_label: string | null;
@@ -57,7 +53,7 @@ export interface CmDocumentBlockEmbed {
 }
 
 export interface CmDocumentBlock {
-  block_id: string;           // CM:ULID
+  block_id: string;
   doc_id: string;
   parent_block_id: string | null;
   block_type: string;
@@ -274,8 +270,6 @@ function validateBlockPayload(body: unknown, requireAny = false): SchemaValidati
   if (!isRecord(body)) return { error: 'Block body must be an object' };
   const data: CmDocumentBlockCreate = {};
 
-  // Client-supplied block_id keeps parent/child references resolvable across a
-  // bulk replaceBlocks() write. When omitted the repository mints a typed id.
   const blockId = readOptionalString(body, 'block_id', false);
   if (isValidationError(blockId)) return blockId;
   if (blockId !== undefined && !blockId) return { error: 'block_id must be non-empty when provided' };

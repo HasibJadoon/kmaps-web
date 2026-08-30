@@ -1,24 +1,3 @@
--- 0057 — Rename ar_ling_lexicon_entry_sections and repoint its FTS index (phase 5).
---
--- 101,201 rows. THIS IS THE ONLY PART OF THE REFACTOR THAT RENAME CANNOT DO
--- ON ITS OWN.
---
--- fts5 stores its external-content pointer as a module argument, not a parsed
--- table reference, so ALTER TABLE RENAME leaves `content='ar_ling_lexicon_entry_sections'`
--- pointing at a table that no longer exists. Measured consequences (D1 pragmas,
--- dryrun/rename_test_d1mode.py section B):
---     MATCH               still works
---     bm25() ranking      still works
---     reading a column    FAILS  — no such table
---     snippet()/highlight FAILS  — SQL logic error
---     'rebuild'           FAILS  — no such table
--- So search keeps finding rows and then errors when it tries to show them. The
--- index must be dropped and recreated against the new name.
---
--- Triggers are dropped first: RENAME would rewrite their ON clause to the new
--- table, but they also name the FTS table in their bodies, and that table is
--- being replaced.
-
 DROP TRIGGER IF EXISTS trig_ales_fts_ad;
 DROP TRIGGER IF EXISTS trig_ales_fts_ai;
 DROP TRIGGER IF EXISTS trig_ales_fts_au;

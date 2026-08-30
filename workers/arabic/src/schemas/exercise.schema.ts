@@ -1,5 +1,3 @@
-// ─── Exercise schemas & types ─────────────────────────────────────────────────
-
 export type ArExerciseType =
   | 'multiple_choice'
   | 'fill_blank'
@@ -11,18 +9,18 @@ export type ArExerciseType =
 export type ArExerciseDifficulty = 'easy' | 'medium' | 'hard';
 
 export interface ArExercise {
-  id: string;                        // AR:ULID
+  id: string;
   lesson_id: string | null;
   unit_id: string | null;
   exercise_type: ArExerciseType;
   prompt_ar: string | null;
   prompt_en: string | null;
-  options_json: string | null;       // JSON [{text, is_correct}] for MCQ
-  answer_json: string | null;        // correct answer payload
+  options_json: string | null;
+  answer_json: string | null;
   explanation_md: string | null;
   vocab_id: string | null;
   grammar_id: string | null;
-  al_concept_ref: string | null;     // AL:<concept_id>
+  al_concept_ref: string | null;
   qr_scope_ref: string | null;
   level: string | null;
   skill_focus: string | null;
@@ -65,12 +63,10 @@ export interface ArExercisePatch {
   meta_json?: string | null;
 }
 
-// ─── Exercise Attempt ─────────────────────────────────────────────────────────
-
 export interface ArExerciseAttempt {
-  id: string;                        // AR:ULID
+  id: string;
   exercise_id: string;
-  core_user_ref: string;             // CORE:<user_id>
+  core_user_ref: string;
   response_json: string | null;
   is_correct: boolean;
   score: number | null;
@@ -88,8 +84,6 @@ export interface ArExerciseAttemptCreate {
   time_spent_secs?: number | null;
   attempt_number?: number;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 const VALID_EXERCISE_TYPES: ArExerciseType[] = [
   'multiple_choice', 'fill_blank', 'translation', 'parsing', 'matching', 'free_write',
@@ -160,15 +154,13 @@ export function validateArExerciseAttemptCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface Exercise {
-  id: string;               // AR:ULID
-  lesson_id: string;        // AR:ULID
-  exercise_type: string;    // flashcard | fill-blank | mcq | translation | parsing
+  id: string;
+  lesson_id: string;
+  exercise_type: string;
   prompt: string;
   answer: string | null;
-  options_json: string | null; // JSON array of MCQ choices
+  options_json: string | null;
   sort_order: number;
   status: string;
   created_at: string;
@@ -182,8 +174,6 @@ export interface ExerciseCreate {
   options_json?: string | null;
   sort_order?: number;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

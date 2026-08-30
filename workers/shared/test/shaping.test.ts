@@ -1,16 +1,3 @@
-// ─── shaping — the pinned behaviour ──────────────────────────────────────────
-//
-// These rules are about to move out of the clients and into the display-spec
-// builder. Nothing in the repo failed when they changed, because nothing tested
-// them: the iOS per-layer views have 7 tests and none of them covers the
-// shaping. So they are pinned here first, and the builder is written against
-// them afterwards.
-//
-// Each test names the behaviour it protects, not the function it calls — if one
-// of these fails, the message should tell you what the reader would see.
-//
-//   npm test          (node --test, via tsx — no new dependencies)
-
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -30,8 +17,7 @@ describe('uṣūl are ordered oldest witness first', () => {
   });
 
   test('an undated witness sorts LAST, never first', () => {
-    // The bug this guards: treating a NULL death date as 0 puts an unknown
-    // source at the head of the ledger, where it reads as the earliest source.
+
     const out = byDeathHijri([
       { source_slug: 'undated', death_hijri: null },
       { source_slug: 'jamhara', death_hijri: 321 },
@@ -120,7 +106,7 @@ describe('the sense arc is the path its arc_key spells', () => {
   });
 
   test('a rung naming a sense the root lacks is kept and flagged, not dropped', () => {
-    // Silently dropping it would make a broken arc look complete.
+
     const nodes = arcNodes({ ...arc, arc_key: 'gathering>missing>scripture' }, senses);
     assert.equal(nodes.length, 3);
     assert.equal(nodes[1].unresolved, true);
@@ -180,9 +166,7 @@ describe('unknown is not empty', () => {
   });
 
   test('an unread sub-layer never reports as a measured zero', () => {
-    // This is the distinction the whole registry reader exists to preserve:
-    // "nobody bound a carrier here" and "the carrier holds nothing" are
-    // different findings, and only the second is a measurement.
+
     assert.notEqual(fillState(null), fillState(0));
   });
 });
@@ -194,8 +178,7 @@ describe('an uncalibrated sensor has no opinion', () => {
   });
 
   test('expected = 0 yields null, NOT a perfect score', () => {
-    // The control plane currently scores this case at 100%; iOS excludes it.
-    // Pinning the excluding definition so the builder cannot inherit the other.
+
     assert.equal(sensorFraction(1, 0), null);
     assert.equal(sensorFraction(0, 0), null);
     assert.notEqual(sensorFraction(1, 0), 1);

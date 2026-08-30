@@ -1,14 +1,6 @@
-// ─── MediaRepo — cm_media_assets + cm_media_transcripts + cm_audio_scenes + cm_media_chapters ──
-// Media asset lifecycle: upload tracking, transcript storage, scene segmentation,
-// and chapter markers for audio/video content.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ---------------------------------------------------------------------------
-// cm_media_assets
-// ---------------------------------------------------------------------------
 
 export interface CmMediaAsset {
   asset_id: string;
@@ -24,7 +16,7 @@ export interface CmMediaAsset {
   cdn_url: string | null;
   thumbnail_url: string | null;
   language: string;
-  is_transcribed: number;       // 0 | 1
+  is_transcribed: number;
   publication_state: string;
   policy_ref: string | null;
   workspace_ref: string | null;
@@ -78,17 +70,13 @@ const ASSET_COLS = `asset_id, core_user_ref, asset_type, title, title_ar,
   thumbnail_url, language, is_transcribed, publication_state, policy_ref,
   workspace_ref, tags_json, meta_json, created_at, updated_at`;
 
-// ---------------------------------------------------------------------------
-// cm_media_transcripts
-// ---------------------------------------------------------------------------
-
 export interface CmMediaTranscript {
   transcript_id: string;
   asset_id: string;
   language: string;
   transcript_text: string;
-  is_auto_generated: number;    // 0 | 1
-  is_reviewed: number;          // 0 | 1
+  is_auto_generated: number;
+  is_reviewed: number;
   word_timestamps_json: string | null;
   meta_json: string;
   created_at: string;
@@ -106,10 +94,6 @@ export interface CmMediaTranscriptInput {
 
 const TRANSCRIPT_COLS = `transcript_id, asset_id, language, transcript_text,
   is_auto_generated, is_reviewed, word_timestamps_json, meta_json, created_at`;
-
-// ---------------------------------------------------------------------------
-// cm_audio_scenes
-// ---------------------------------------------------------------------------
 
 export interface CmAudioScene {
   scene_id: string;
@@ -146,10 +130,6 @@ const SCENE_COLS = `scene_id, asset_id, transcript_id, scene_index, scene_type,
   title, description, start_ms, end_ms, speaker_ref, transcript_excerpt,
   tags_json, meta_json`;
 
-// ---------------------------------------------------------------------------
-// cm_media_chapters
-// ---------------------------------------------------------------------------
-
 export interface CmMediaChapter {
   chapter_id: string;
   asset_id: string;
@@ -176,14 +156,8 @@ export interface CmMediaChapterInput {
 const CHAPTER_COLS = `chapter_id, asset_id, chapter_index, title, title_ar,
   start_ms, end_ms, description, meta_json`;
 
-// ---------------------------------------------------------------------------
-// Repository
-// ---------------------------------------------------------------------------
-
 export class MediaRepo {
   constructor(private db: D1Database) {}
-
-  // ── cm_media_assets ──────────────────────────────────────────────────────
 
   list(workspaceRef: string | null, opts: PaginateOptions = {}) {
     const where  = workspaceRef ? 'WHERE workspace_ref = ?' : '';
@@ -262,8 +236,6 @@ export class MediaRepo {
     return this.findById(assetId);
   }
 
-  // ── cm_media_transcripts ─────────────────────────────────────────────────
-
   transcript(assetId: string): Promise<CmMediaTranscript | null> {
     return queryOne<CmMediaTranscript>(
       this.db,
@@ -299,8 +271,6 @@ export class MediaRepo {
       [transcript_id],
     ))!;
   }
-
-  // ── cm_audio_scenes ──────────────────────────────────────────────────────
 
   scenes(assetId: string, opts: PaginateOptions = {}) {
     return paginate<CmAudioScene>(
@@ -342,8 +312,6 @@ export class MediaRepo {
       [scene_id],
     ))!;
   }
-
-  // ── cm_media_chapters ────────────────────────────────────────────────────
 
   chapters(assetId: string): Promise<CmMediaChapter[]> {
     return query<CmMediaChapter>(

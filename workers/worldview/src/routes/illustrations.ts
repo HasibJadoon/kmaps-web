@@ -1,24 +1,9 @@
-// ─── /worldview/illustrations routes ──────────────────────────────────────────
-// Per-source-unit visual illustrations (wv_source_unit_illustrations). A unit
-// owns 1..N illustrations, each a complete self-contained HTML document stored
-// verbatim and served as-is. Plural GET paths match the source/unit reader
-// convention; singular POST/PUT/DELETE match /worldview/source + /worldview/unit.
-//
-// GET    /worldview/units/:id/illustrations        — list for a unit (no html_content)
-// GET    /worldview/sources/:id/illustrations      — list for a whole source
-// GET    /worldview/illustrations/:id              — JSON detail (includes html_content)
-// GET    /worldview/illustrations/:id/page         — raw HTML document (text/html)
-// POST   /worldview/illustration                   — create (body.source_unit_id + html_content)
-// PUT    /worldview/illustration                   — update (body.id required)
-// DELETE /worldview/illustration/:id               — delete
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
 import type { WorldviewEnv } from '../env';
 import { IllustrationRepo } from '../repositories/illustration.repo';
 
-/** Serve a full HTML document verbatim. */
 function htmlPage(html: string): Response {
   return new Response(html, {
     headers: {
@@ -31,8 +16,6 @@ function htmlPage(html: string): Response {
 
 export function illustrationRoutes(router: Router<WorldviewEnv>) {
 
-  // ── List for a unit ───────────────────────────────────────────────────────────
-
   router.get('/worldview/units/:id/illustrations', async (req, env, { id }) => {
     const url = new URL(req.url);
     return paginated(
@@ -40,15 +23,12 @@ export function illustrationRoutes(router: Router<WorldviewEnv>) {
     );
   });
 
-  // Legacy alias for Hub / internal callers.
   router.get('/wv/units/:id/illustrations', async (req, env, { id }) => {
     const url = new URL(req.url);
     return paginated(
       await new IllustrationRepo(env.DB_WV).listByUnit(id, parsePagination(url)),
     );
   });
-
-  // ── List for a reading session (the reading block within a chapter) ───────────
 
   router.get('/worldview/reading-sessions/:id/illustrations', async (req, env, { id }) => {
     const url = new URL(req.url);
@@ -57,8 +37,6 @@ export function illustrationRoutes(router: Router<WorldviewEnv>) {
     );
   });
 
-  // ── List for a whole source ───────────────────────────────────────────────────
-
   router.get('/worldview/sources/:id/illustrations', async (req, env, { id }) => {
     const url = new URL(req.url);
     return paginated(
@@ -66,22 +44,16 @@ export function illustrationRoutes(router: Router<WorldviewEnv>) {
     );
   });
 
-  // ── Detail (JSON, includes html_content) ──────────────────────────────────────
-
   router.get('/worldview/illustrations/:id', async (_req, env, { id }) => {
     const row = await new IllustrationRepo(env.DB_WV).findById(id);
     return row ? ok(row) : notFound(`illustration ${id}`);
   });
-
-  // ── Rendered page (raw HTML — for <iframe> embedding or opening directly) ──────
 
   router.get('/worldview/illustrations/:id/page', async (_req, env, { id }) => {
     const row = await new IllustrationRepo(env.DB_WV).findById(id);
     if (!row) return notFound(`illustration ${id}`);
     return htmlPage(row.html_content);
   });
-
-  // ── Create (singular — UI path) ──────────────────────────────────────────────
 
   router.post('/worldview/illustration', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
@@ -101,8 +73,6 @@ export function illustrationRoutes(router: Router<WorldviewEnv>) {
     }));
   });
 
-  // ── Update (singular — body.id required) ─────────────────────────────────────
-
   router.put('/worldview/illustration', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.id) return badRequest('id required');
@@ -120,8 +90,6 @@ export function illustrationRoutes(router: Router<WorldviewEnv>) {
     });
     return row ? ok(row) : notFound(`illustration ${b.id}`);
   });
-
-  // ── Delete (singular) ────────────────────────────────────────────────────────
 
   router.delete('/worldview/illustration/:id', async (_req, env, { id }) => {
     await new IllustrationRepo(env.DB_WV).delete(id);

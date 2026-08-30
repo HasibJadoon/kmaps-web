@@ -1,25 +1,7 @@
-// ─── /qr/surahs/:id/reader — combined reader payload ──────────────────────────
-// Primary endpoint for the Angular QuranTextComponent.
-//
-// Returns surah header + paginated ayah window + translations in one response.
-// Surah, count, translation source, ayahs, and translations are all resolved
-// in parallel with Promise.all — one network RTT to the database layer.
-//
-// Design:
-//  - ?source=QR:ULID  select any installed translation edition
-//    (no source given → uses DB-flagged default; no default → translations null)
-//  - ?from=1&to=7     explicit ayah range (precise slice, ignores page/limit)
-//  - ?page=1&limit=300 offset pagination (default: 300 ayahs — full short surah)
-//  - Text column priority: text_uthmani_clean → text_uthmani → text_bare → text
-//  - verse_mark: plain Arabic-Indic digits only; U+06DD never used.
-//  - translation field: source translation row → built-in column → null
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, badRequest, internalError } from '../../../shared/src/response';
 import { parseIntParam } from '../../../shared/src/validate';
 import type { QuranEnv } from '../env';
-
-// ── Row types ─────────────────────────────────────────────────────────────────
 
 interface SurahRow {
   id: number;
@@ -35,11 +17,11 @@ interface SurahRow {
 interface AyahRow {
   surah: number;
   ayah: number;
-  text_display: string;         // COALESCE result — canonical display text
+  text_display: string;
   text_uthmani_clean: string | null;
   text_uthmani: string | null;
   text_bare: string | null;
-  translation: string | null;   // built-in column (secondary fallback)
+  translation: string | null;
   verse_mark: string | null;
   page_number: number | null;
   juz: number | null;
@@ -63,8 +45,6 @@ interface TranslationRow {
 
 interface CountRow { total: number }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
@@ -74,30 +54,8 @@ function toInt(raw: string | null, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-// ── Route ─────────────────────────────────────────────────────────────────────
-
 export function readerRoutes(router: Router<QuranEnv>) {
 
-  /**
-   * GET /qr/surahs/:id/reader
-   *
-   * Query params:
-   *   source  — QR:ULID of a translation edition (optional; uses DB default)
-   *   page    — 1-based page number (default 1, ignored when from/to given)
-   *   limit   — ayahs per page, 1–500 (default 300)
-   *   from    — start ayah for a precise range slice
-   *   to      — end ayah for a precise range slice
-   *
-   * Response:
-   * {
-   *   ok: true,
-   *   data: {
-   *     surah, translation_source,
-   *     meta: { total, page, per_page, has_more },
-   *     ayahs: [{ surah, ayah, verse_key, text, verse_mark, translation, … }]
-   *   }
-   * }
-   */
   router.get('/qr/surahs/:id/reader', async (req, env, { id }) => {
     const surahId = parseIntParam(id);
     if (!surahId || surahId < 1 || surahId > 114) {
@@ -113,8 +71,7 @@ export function readerRoutes(router: Router<QuranEnv>) {
     const limit       = clamp(toInt(url.searchParams.get('limit'), 300), 1, 500);
 
     try {
-      // ── Phase 1: resolve metadata in parallel ─────────────────────────────
-      // Three queries fly simultaneously: surah row, ayah count, translation source.
+
       const sourceSQL = sourceParam
         ? env.DB_QR.prepare(
             `SELECT id,
@@ -169,7 +126,6 @@ export function readerRoutes(router: Router<QuranEnv>) {
 
       const total = countRow?.total ?? 0;
 
-      // ── Phase 2: determine ayah window ───────────────────────────────────
       let ayahFrom: number;
       let ayahTo: number;
       let effectivePage: number;
@@ -188,7 +144,6 @@ export function readerRoutes(router: Router<QuranEnv>) {
         windowSize    = limit;
       }
 
-      // ── Phase 3: fetch ayahs + translations in parallel ───────────────────
       const ayahSQL = `
         SELECT surah, ayah,
                COALESCE(text_uthmani_clean, text_uthmani, text_bare, text) AS text_display,
@@ -198,7 +153,6 @@ export function readerRoutes(router: Router<QuranEnv>) {
         WHERE surah = ? AND ayah BETWEEN ? AND ?
         ORDER BY ayah`;
 
-      // Only query translations when a source is available
       const [ayahResult, trResult] = await Promise.all([
         env.DB_QR
           .prepare(ayahSQL)
@@ -221,11 +175,9 @@ export function readerRoutes(router: Router<QuranEnv>) {
       const ayahRows = ayahResult.results ?? [];
       const trRows   = trResult.results   ?? [];
 
-      // Index translations by ayah number for O(1) lookup
       const trMap = new Map<number, string>();
       for (const tr of trRows) trMap.set(tr.ayah, tr.text);
 
-      // ── Phase 4: build response ───────────────────────────────────────────
       return ok({
         surah: {
           id:                   surahRow.id,
@@ -267,7 +219,7 @@ export function readerRoutes(router: Router<QuranEnv>) {
           juz:                null,
           hizb:               null,
           ruku:               null,
-          // Translation precedence: selected source → built-in column → null
+
           translation: trMap.get(row.ayah) ?? row.translation ?? null,
         })),
       });

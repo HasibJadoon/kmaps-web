@@ -1,5 +1,3 @@
-// ─── Curriculum schemas & types ───────────────────────────────────────────────
-
 export type ArCurriculumDiscipline =
   | 'nahw'
   | 'sarf'
@@ -9,11 +7,11 @@ export type ArCurriculumDiscipline =
   | 'custom';
 
 export interface ArCurriculum {
-  id: string;                        // AR:ULID
+  id: string;
   slug: string;
   title: string;
   discipline: ArCurriculumDiscipline;
-  level: string | null;              // A1–C2
+  level: string | null;
   track_id: string | null;
   container_id: string | null;
   description_md: string | null;
@@ -42,17 +40,15 @@ export interface ArCurriculumPatch {
   sort_order?: number;
 }
 
-// ─── Curriculum Unit ──────────────────────────────────────────────────────────
-
 export interface ArCurriculumUnit {
-  id: string;                        // AR:ULID
+  id: string;
   curriculum_id: string;
   parent_id: string | null;
   title: string;
-  al_concept_ref: string | null;     // AL:<nahw|sarf|balagha_concept_id>
+  al_concept_ref: string | null;
   unit_index: number;
   description_md: string | null;
-  examples_json: string | null;      // JSON [{arabic, translation, notes}]
+  examples_json: string | null;
   created_at: string;
 }
 
@@ -74,8 +70,6 @@ export interface ArCurriculumUnitPatch {
   examples_json?: string | null;
   parent_id?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 const VALID_DISCIPLINES: ArCurriculumDiscipline[] = [
   'nahw', 'sarf', 'balagha', 'vocabulary', 'reading', 'custom',
@@ -138,14 +132,12 @@ export function validateArCurriculumUnitCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface Curriculum {
   id: string;
   slug: string;
   title: string;
-  discipline: string;         // sarf|nahw|balagha|combined|vocab|reading|other
-  level: string | null;       // A1–C2
+  discipline: string;
+  level: string | null;
   track_id: string | null;
   container_id: string | null;
   description_md: string | null;
@@ -169,10 +161,10 @@ export interface CurriculumUnit {
   curriculum_id: string;
   parent_id: string | null;
   title: string;
-  al_concept_ref: string | null;  // AL:<ar_ling_nahw|sarf|balagha_concept_id>
+  al_concept_ref: string | null;
   unit_index: number;
   description_md: string | null;
-  examples_json: string | null;   // JSON [{arabic, translation, notes}]
+  examples_json: string | null;
   created_at: string;
 }
 
@@ -193,8 +185,6 @@ export interface CurriculumUnitPatch {
   description_md?: string | null;
   examples_json?: string | null;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

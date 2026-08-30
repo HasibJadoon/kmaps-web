@@ -1,13 +1,3 @@
-// ─── /wv/people — the thinkers ────────────────────────────────────────────────
-//
-// This replaces `/wv/thinkers`, which has never worked: `thinker.repo.ts`
-// queries `wv_thinkers`, a table that does not exist in km_worldview, so all
-// three of its routes throw. The people are in `wv_people`, and always were.
-//
-// The old paths are kept as aliases rather than deleted, because a 500 that
-// becomes a 200 is a fix and a 500 that becomes a 404 is just a different
-// failure.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -36,9 +26,7 @@ export function peopleRoutes(router: Router<WorldviewEnv>) {
       repo.aliases(person.id),
       repo.relations(person.id),
     ]);
-    // The registry entry, where there is one. wv_people is this corpus's own
-    // record of a figure; core_person is the identity shared with the content
-    // library and anything else that names the same person.
+
     const registry = person.person_ref
       ? await queryOne<Record<string, unknown>>(
           env.DB_WV, `SELECT * FROM core_person WHERE id = ?`, [person.person_ref])
@@ -46,8 +34,6 @@ export function peopleRoutes(router: Router<WorldviewEnv>) {
     return ok({ person, registry, aliases, relations });
   };
 
-  // GET /wv/registry/people — the shared registry itself, not this corpus's
-  // view of it. Everything that has a PN:, whoever first named them.
   dual(router, 'get', '/registry/people', async (req, env) => {
     const url = new URL(req.url);
     const conds = ["status = 'live'"];
@@ -73,7 +59,6 @@ export function peopleRoutes(router: Router<WorldviewEnv>) {
   dual(router, 'get', '/people', list);
   dual(router, 'get', '/people/:id', detail);
 
-  // The old, broken paths — same handlers, so a client on either survives.
   router.get('/wv/thinkers', list);
   router.get('/wv/thinkers/:id', detail);
 

@@ -1,16 +1,9 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 
-/** One TOC entry — mirrors a rendered block, scrolls to it. */
 export interface TocItem { ord: string; title: string; titleAr: string; domId: string; hot: boolean; isUr?: boolean; }
 
-/** Register filter option, derived from the blocks actually present. */
 export interface RegOption { key: string; label: string; }
 
-/**
- * Presentational TOC rail for the Morph Display Layer — register filter plus
- * collapsible Core / Temporal sections. Pure renderer; emits register changes,
- * section toggles, and scroll-to requests.
- */
 @Component({
   selector: 'km-morph-toc-rail',
   standalone: true,

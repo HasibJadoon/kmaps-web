@@ -22,7 +22,7 @@ export const QURAN_ROUTES: Routes = [
     title: 'Word — K-MAPS',
   },
   {
-    // Passage-agnostic entry from the standalone Morphology grid.
+
     path: 'surahs/:surahId/morphology/word/:ayah/:wordIndex',
     loadComponent: () =>
       import('./surah/study/scene/steps/vocabulary/morph-word-page/morph-word-page.component').then((m) => m.MorphWordPageComponent),
@@ -192,7 +192,6 @@ export const QURAN_ROUTES: Routes = [
     ],
   },
 
-  // Legacy redirects.
   { path: 'sura/:surahId/study/:passageNo', redirectTo: 'surahs/:surahId/study/:passageNo', pathMatch: 'full' },
   { path: 'sura/:surahId/study', redirectTo: 'surahs/:surahId/study', pathMatch: 'full' },
   { path: 'sura/:surahId/notes', redirectTo: 'surahs/:surahId/notes', pathMatch: 'full' },

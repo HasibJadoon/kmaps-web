@@ -1,25 +1,17 @@
-// ─── BrainstormRepo — wv_brainstorm_sessions ──────────────────────────────────
-// Loose ideation and research capture sessions (freeform markdown + tags).
-//
-// Canonical columns per 001_wv_schema.sql §10.4.
-// Table name: wv_brainstorm_sessions (NOT wv_brainstorms — that was legacy).
-
 import { queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
 export interface BrainstormSession {
-  id: string;              // WV:ULID
+  id: string;
   title: string;
   topic_id: string | null;
   tradition_id: string | null;
   moral_axis_id: string | null;
-  status: string;          // active|paused|complete|archived
+  status: string;
   body_md: string | null;
-  tags_json: string | null; // JSON [string]
-  core_user_ref: string;   // CORE:ULID
+  tags_json: string | null;
+  core_user_ref: string;
   core_ws_ref: string | null;
   created_at: string;
   updated_at: string;
@@ -45,14 +37,10 @@ export interface BrainstormPatch {
   status?: 'active' | 'paused' | 'complete' | 'archived';
 }
 
-// ── Column list ───────────────────────────────────────────────────────────────
-
 const COLS = `
   id, title, topic_id, tradition_id, moral_axis_id, status,
   body_md, tags_json, core_user_ref, core_ws_ref, created_at, updated_at
 `.trim().replace(/\n\s+/g, ' ');
-
-// ── Repo ──────────────────────────────────────────────────────────────────────
 
 export class BrainstormRepo {
   constructor(private db: D1Database) {}

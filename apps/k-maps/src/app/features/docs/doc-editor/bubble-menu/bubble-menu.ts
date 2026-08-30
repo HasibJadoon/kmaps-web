@@ -1,12 +1,3 @@
-/**
- * Native TipTap bubble-menu element.
- *
- * Returned from createBubbleMenuElement() and passed directly to
- * BubbleMenu.configure({ element }). TipTap / tippy.js handles all
- * show / hide / positioning — we never call preventDefault() on the
- * editor, so text selection and keyboard shortcuts are never blocked.
- */
-
 import type { Editor } from '@tiptap/core';
 
 export interface BubbleMenuCallbacks {
@@ -16,13 +7,11 @@ export interface BubbleMenuCallbacks {
 }
 
 export interface BubbleMenuRef {
-  /** DOM element passed to BubbleMenu.configure({ element }). */
+
   element: HTMLElement;
-  /** Call this on selectionUpdate to refresh active-state classes. */
+
   update: () => void;
 }
-
-// ── Colour palettes ───────────────────────────────────────────────────────
 
 const HIGHLIGHT_COLORS = [
   { color: 'rgba(201,168,76,0.4)',  label: 'Gold' },
@@ -42,8 +31,6 @@ const TEXT_COLORS = [
   { color: 'rgba(255,255,255,0.85)', label: 'Default' },
 ];
 
-// ── Factory ───────────────────────────────────────────────────────────────
-
 export function createBubbleMenuElement(
   getEditor: () => Editor | null,
   callbacks?: BubbleMenuCallbacks,
@@ -53,14 +40,12 @@ export function createBubbleMenuElement(
   const root = document.createElement('div');
   root.className = 'km-bm';
 
-  // ── Type button ─────────────────────────────────────────────────────────
   const typeBtn   = btn('km-bm__type');
   const typeLabel = document.createElement('span');
   typeLabel.textContent = 'T';
   const typeChevron = chevron();
   typeBtn.append(typeLabel, typeChevron);
 
-  // ── Formatting buttons ──────────────────────────────────────────────────
   const boldBtn      = btn('km-bm__btn km-bm__btn--bold',      'B');
   const italicBtn    = btn('km-bm__btn km-bm__btn--italic',    'I');
   const underlineBtn = btn('km-bm__btn km-bm__btn--underline', 'U');
@@ -80,7 +65,6 @@ export function createBubbleMenuElement(
   codeBtn.title      = 'Inline code';
   linkBtn.title      = 'Link';
 
-  // ── Colour pickers ──────────────────────────────────────────────────────
   const hlBtn  = colorWrap('Highlight');
   const hlA    = document.createElement('span');
   hlA.className = 'km-bm__color-a km-bm__color-a--hl';
@@ -93,10 +77,8 @@ export function createBubbleMenuElement(
   tcA.textContent = 'A';
   tcBtn.prepend(tcA);
 
-  // ── More button ─────────────────────────────────────────────────────────
   const moreBtn = btn('km-bm__btn km-bm__btn--more', '···');
 
-  // ── Assemble ────────────────────────────────────────────────────────────
   root.append(
     typeBtn, sep(),
     boldBtn, italicBtn, underlineBtn, strikeBtn, codeBtn, linkBtn,
@@ -106,7 +88,6 @@ export function createBubbleMenuElement(
     moreBtn,
   );
 
-  // ── Active-state updater ─────────────────────────────────────────────────
   function update(): void {
     const ed = getEditor();
     if (!ed) return;
@@ -128,7 +109,6 @@ export function createBubbleMenuElement(
     else                                            typeLabel.textContent = 'T';
   }
 
-  // ── Dropdown state ───────────────────────────────────────────────────────
   let activeMenu: HTMLElement | null = null;
 
   function closeMenu(): void {
@@ -160,7 +140,6 @@ export function createBubbleMenuElement(
     document.addEventListener('mousedown', onOutside, true);
   }
 
-  // ── Type dropdown ────────────────────────────────────────────────────────
   typeBtn.addEventListener('mousedown', e => {
     e.preventDefault();
     const ed = getEditor(); if (!ed) return;
@@ -183,7 +162,6 @@ export function createBubbleMenuElement(
     openMenu(typeBtn, menu);
   });
 
-  // ── Format buttons ───────────────────────────────────────────────────────
   boldBtn.addEventListener('mousedown', e => {
     e.preventDefault(); getEditor()?.chain().focus().toggleBold().run(); update();
   });
@@ -210,7 +188,6 @@ export function createBubbleMenuElement(
     update();
   });
 
-  // ── Highlight dropdown ───────────────────────────────────────────────────
   hlBtn.addEventListener('mousedown', e => {
     e.preventDefault();
     const ed = getEditor(); if (!ed) return;
@@ -233,7 +210,6 @@ export function createBubbleMenuElement(
     openMenu(hlBtn, menu);
   });
 
-  // ── Text color dropdown ──────────────────────────────────────────────────
   tcBtn.addEventListener('mousedown', e => {
     e.preventDefault();
     const ed = getEditor(); if (!ed) return;
@@ -256,7 +232,6 @@ export function createBubbleMenuElement(
     openMenu(tcBtn, menu);
   });
 
-  // ── More dropdown ────────────────────────────────────────────────────────
   moreBtn.addEventListener('mousedown', e => {
     e.preventDefault();
     if (!callbacks) return;
@@ -283,8 +258,6 @@ export function createBubbleMenuElement(
 
   return { element: root, update };
 }
-
-// ── DOM helpers ──────────────────────────────────────────────────────────
 
 function btn(cls: string, text?: string): HTMLButtonElement {
   const b = document.createElement('button');
@@ -360,8 +333,6 @@ function clearSwatch(): HTMLButtonElement {
   b.title = 'Clear';
   return b;
 }
-
-// ── Styles ───────────────────────────────────────────────────────────────
 
 function injectStyles(): void {
   if (document.getElementById('km-bm-styles')) return;

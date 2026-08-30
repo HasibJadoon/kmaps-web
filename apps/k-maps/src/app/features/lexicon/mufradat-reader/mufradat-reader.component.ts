@@ -17,9 +17,7 @@ import { SafeHtmlPipe } from '../../../shared/pipes/safe-html.pipe';
 })
 export class MufradatReaderComponent {
   view = input.required<MufradatReadView>();
-  // 'both' shows the EN/UR synthesis under each verbatim passage; 'ar'
-  // collapses to Arabic-only. Also collapses automatically when a section
-  // has no authored translations (graceful AR-only fallback).
+
   trans = input<'both' | 'ar'>('both');
 
   readonly showTrans = computed(() => this.trans() === 'both');
@@ -32,9 +30,6 @@ export class MufradatReaderComponent {
   trackParagraph = (i: number, _p: MufradatParagraph) => i;
   trackToken = (i: number, _t: MufradatProseToken) => i;
 
-  // Split a plain-text token on ornate ayah brackets ﴿…﴾ so the quoted verse
-  // runs can be tinted verse-green (`.qq`) inline, matching the design, while
-  // the surrounding exposition stays in the reading ink.
   splitQuoted(value: string): { q: boolean; t: string }[] {
     const parts: { q: boolean; t: string }[] = [];
     const re = /﴿[^﴾]*﴾/gu;

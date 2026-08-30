@@ -259,14 +259,12 @@ export class LinguisticsBookReaderComponent {
 
   clearSearch(): void { this.q.set(''); this.hits.set([]); this.searched.set(false); }
 
-  /** A hit opens the bāb it sits in; without bab_id there is nowhere to go. */
   openHit(h: GramSearchHit): void {
     const n = this.flat().find(f => f.id === h.bab_id);
     if (n) this.openBab(n); else this.showAll();
     this.railOpen.set(false);
   }
 
-  /** FTS returns ‹mark›…‹/mark› around the match. Split rather than inject HTML. */
   segs(snippet: string): { t: string; hit: boolean }[] {
     return (snippet ?? '').split(/‹mark›|‹\/mark›/)
       .map((t, i) => ({ t, hit: i % 2 === 1 }))

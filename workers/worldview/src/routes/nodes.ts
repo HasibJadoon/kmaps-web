@@ -1,6 +1,3 @@
-// ─── /wv/nodes routes ─────────────────────────────────────────────────────────
-// Knowledge graph nodes + edges. The civilizational reasoning ontology lives here.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -9,7 +6,6 @@ import { NodeRepo } from '../repositories/node.repo';
 
 export function nodeRoutes(router: Router<WorldviewEnv>) {
 
-  // GET /wv/nodes?type=concept&tradition=WV:ULID
   router.get('/wv/nodes', async (req, env) => {
     const url = new URL(req.url);
     return paginated(
@@ -21,18 +17,15 @@ export function nodeRoutes(router: Router<WorldviewEnv>) {
     );
   });
 
-  // GET /wv/nodes/:id
   router.get('/wv/nodes/:id', async (_req, env, { id }) => {
     const node = await new NodeRepo(env.DB_WV).findById(id);
     return node ? ok(node) : notFound(`node ${id}`);
   });
 
-  // GET /wv/nodes/:id/edges — outgoing edges from this node
   router.get('/wv/nodes/:id/edges', async (_req, env, { id }) => {
     return ok(await new NodeRepo(env.DB_WV).edges(id));
   });
 
-  // POST /wv/nodes
   router.post('/wv/nodes', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.node_type || !b.title) return badRequest('node_type and title required');
@@ -44,7 +37,6 @@ export function nodeRoutes(router: Router<WorldviewEnv>) {
     }));
   });
 
-  // POST /wv/node-edges — connect two nodes
   router.post('/wv/node-edges', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.from_node_id || !b.to_node_id || !b.relation_type)

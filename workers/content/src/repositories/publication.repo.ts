@@ -1,14 +1,6 @@
-// ─── PublicationRepo — cm_publications + cm_share_links + cm_distributions ───
-// Publication lifecycle: draft → published, shareable token links, and
-// channel-based distribution tracking.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ---------------------------------------------------------------------------
-// cm_publications
-// ---------------------------------------------------------------------------
 
 export interface CmPublication {
   pub_id: string;
@@ -69,10 +61,6 @@ const PUB_COLS = `pub_id, core_user_ref, doc_ref, asset_ref, pub_type, title, sl
   excerpt, cover_image_url, publication_state, published_at, policy_ref,
   workspace_ref, tags_json, canonical_url, meta_json, created_at, updated_at`;
 
-// ---------------------------------------------------------------------------
-// cm_share_links
-// ---------------------------------------------------------------------------
-
 export interface CmShareLink {
   link_id: string;
   resource_ref: string;
@@ -82,7 +70,7 @@ export interface CmShareLink {
   expires_at: string | null;
   max_uses: number | null;
   use_count: number;
-  is_active: number;            // 0 | 1
+  is_active: number;
   meta_json: string;
   created_at: string;
 }
@@ -99,10 +87,6 @@ export interface CmShareLinkInput {
 
 const LINK_COLS = `link_id, resource_ref, core_user_ref, token, access_level,
   expires_at, max_uses, use_count, is_active, meta_json, created_at`;
-
-// ---------------------------------------------------------------------------
-// cm_distributions
-// ---------------------------------------------------------------------------
 
 export interface CmDistribution {
   dist_id: string;
@@ -127,14 +111,8 @@ export interface CmDistributionInput {
 const DIST_COLS = `dist_id, pub_id, channel, channel_config_json, sent_at,
   status, recipient_count, error_json, meta_json, created_at`;
 
-// ---------------------------------------------------------------------------
-// Repository
-// ---------------------------------------------------------------------------
-
 export class PublicationRepo {
   constructor(private db: D1Database) {}
-
-  // ── cm_publications ──────────────────────────────────────────────────────
 
   list(workspaceRef: string | null, opts: PaginateOptions = {}) {
     const where  = workspaceRef ? 'WHERE workspace_ref = ?' : '';
@@ -230,8 +208,6 @@ export class PublicationRepo {
     return this.findById(pubId);
   }
 
-  // ── cm_share_links ───────────────────────────────────────────────────────
-
   shareLinks(resourceRef: string): Promise<CmShareLink[]> {
     return query<CmShareLink>(
       this.db,
@@ -279,8 +255,6 @@ export class PublicationRepo {
       [token],
     );
   }
-
-  // ── cm_distributions ─────────────────────────────────────────────────────
 
   distributions(pubId: string): Promise<CmDistribution[]> {
     return query<CmDistribution>(

@@ -1,10 +1,6 @@
-// ─── PodcastRepo — core_podcasts + core_podcast_participants + core_talking_points ─
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface Podcast {
   id: string;
@@ -79,8 +75,6 @@ export interface TalkingPointInput {
   sortOrder?: number;
 }
 
-// ── Column fragments ──────────────────────────────────────────────────────────
-
 const PODCAST_COLS = `
   id, workspace_id, title, description_md, podcast_type, status,
   recorded_at, duration_secs, media_ref, host_user_ref, visibility,
@@ -96,12 +90,8 @@ const TP_COLS = `
   sort_order, created_at
 FROM core_talking_points`;
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class PodcastRepo {
   constructor(private db: D1Database) {}
-
-  // ── Podcasts ──
 
   list(workspaceId: string, opts: PodcastListOptions = {}) {
     const conditions: string[] = ['workspace_id = ?'];
@@ -186,8 +176,6 @@ export class PodcastRepo {
     return this.findById(id);
   }
 
-  // ── Participants ──
-
   participants(podcastId: string): Promise<PodcastParticipant[]> {
     return query<PodcastParticipant>(
       this.db,
@@ -231,8 +219,6 @@ export class PodcastRepo {
       [participantId],
     );
   }
-
-  // ── Talking Points ──
 
   talkingPoints(podcastId: string): Promise<TalkingPoint[]> {
     return query<TalkingPoint>(

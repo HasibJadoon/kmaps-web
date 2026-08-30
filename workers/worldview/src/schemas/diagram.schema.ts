@@ -1,5 +1,3 @@
-// ─── Diagram schemas & types ───────────────────────────────────────────────
-
 export interface WvComparisonTemplate {
   id: string;
   slug: string;
@@ -235,8 +233,6 @@ export type OrientalismImageChainCreate = Omit<WvOrientalismImageChain, 'id' | '
 export type ExemplarCaseTimelineCreate = Omit<WvExemplarCaseTimeline, 'id' | 'created_at'>;
 
 export type DiscernmentDiagramViewCreate = Omit<WvDiscernmentDiagramView, 'id' | 'created_at'>;
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

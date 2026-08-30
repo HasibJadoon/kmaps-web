@@ -1,8 +1,6 @@
 import type { LaneGroupedRow } from '../../../../../shared/services/al-dictionary-api.service';
 import type { LaneDisplayEntry, LaneStatus } from './lane-display.types';
 
-// ── Arabic-script helpers ─────────────────────────────────────────────────────
-
 const ARABIC_RE = /[؀-ۿ]/;
 const TASHKIL_RE = /[ً-ٰٟـ]/g;
 
@@ -22,8 +20,6 @@ function firstArabic(...values: Array<string | null | undefined>): string | null
   }
   return null;
 }
-
-// ── Form parsing ──────────────────────────────────────────────────────────────
 
 function parseArabicForms(text: string | null | undefined): string[] {
   if (!text) return [];
@@ -57,14 +53,11 @@ function pickSynonymForm(forms: string[], infinitive: string | null): string | n
   return forms.find(f => f !== infinitive) ?? null;
 }
 
-// ── Definition display repair ─────────────────────────────────────────────────
-
 const MISSING_AR = '[صيغة ناقصة]';
 
 export function buildLaneDefinitionDisplay(raw: string, forms: string[]): string {
   let t = raw.trim();
 
-  // Step 1: HTML entity decode
   t = t
     .replace(/&amp;/g, '&')
     .replace(/&nbsp;/g, ' ')
@@ -72,31 +65,22 @@ export function buildLaneDefinitionDisplay(raw: string, forms: string[]): string
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>');
 
-  // Step 2: normalise existing placeholder variants to empty-paren sentinel
-  // so all downstream rules see a single pattern
   t = t.replace(/\[◌\]|\[form missing\]/g, '( )');
 
-  // Step 3: Rule E — "and and" → "and"
   t = t.replace(/\band\s+and\b/g, 'and');
 
-  // Step 4: form slot repairs — requires at least one form
   const aorist    = pickAoristForm(forms);
   const infinitive = pickInfinitiveForm(forms);
   const synonym   = pickSynonymForm(forms, infinitive);
 
-  // Rule A — "aor. ," or "aor. ( ),"
   t = t.replace(/\baor\.\s+(?:\(\s*\)\s*)?(,)/g, `aor. ${aorist ?? MISSING_AR}$1`);
 
-  // Rule B — "inf. n. ," or "inf. n. ( ),"
   t = t.replace(/\binf\.\s*n\.\s+(?:\(\s*\)\s*)?(,)/g, `inf. n. ${infinitive ?? MISSING_AR}$1`);
 
-  // Rule C — "syn. :" or "syn. ( ):"
   t = t.replace(/\bsyn\.\s+(?:\(\s*\)\s*)?(:)/g, `syn. ${synonym ?? MISSING_AR}$1`);
 
-  // Rule D — remaining empty parens
   t = t.replace(/\(\s*\)/g, MISSING_AR);
 
-  // Rule F — punctuation cleanup
   t = t.replace(/,\s*,+/g, ',');
   t = t.replace(/;\s*;+/g, ';');
   t = t.replace(/(\w)\s+:/g, '$1:');
@@ -104,8 +88,6 @@ export function buildLaneDefinitionDisplay(raw: string, forms: string[]): string
 
   return t.trim();
 }
-
-// ── Source reference extraction ───────────────────────────────────────────────
 
 const LANE_ABBREVS = new Set([
   'S', 'M', 'K', 'T', 'A', 'L', 'O', 'TA', 'Msb', 'Mgh', 'KL',
@@ -120,7 +102,7 @@ function extractLaneSourceRefs(definitionRaw: string, cleanerJsonStr: string | n
       const cj = JSON.parse(cleanerJsonStr) as Record<string, unknown>;
       const citations = cj['citations'] as string[] | undefined;
       if (citations && citations.length > 0) return citations;
-    } catch { /* */ }
+    } catch {  }
   }
   const found = new Set<string>();
   for (const match of definitionRaw.matchAll(/\(([^)]{1,80})\)/g)) {
@@ -131,16 +113,12 @@ function extractLaneSourceRefs(definitionRaw: string, cleanerJsonStr: string | n
   return [...found];
 }
 
-// ── Preview ───────────────────────────────────────────────────────────────────
-
 function makeLanePreview(text: string, maxLen = 200): string {
   if (!text) return '';
   const compact = text.replace(/\[صيغة ناقصة\]/g, '…');
   if (compact.length <= maxLen) return compact;
   return compact.slice(0, maxLen).trimEnd() + '…';
 }
-
-// ── Warning detection ─────────────────────────────────────────────────────────
 
 interface WarningArgs {
   headingAr: string;
@@ -191,8 +169,6 @@ export const WARNING_LABELS: Record<string, string> = {
   duplicate_and:         'تكرار لغوي أُصلح للعرض',
   remaining_missing_form:'بقيت صيغة ناقصة',
 };
-
-// ── Main mapping function ─────────────────────────────────────────────────────
 
 export function mapLaneGroupedRow(row: LaneGroupedRow): LaneDisplayEntry {
   const headingAr =

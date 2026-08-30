@@ -1,61 +1,32 @@
-// ─── ReviewSession — reviewing together ───────────────────────────────────────
-//
-// One person asks. The front of a card appears on every screen. Everyone
-// guesses the back — out loud, in the room — and then each person rates how
-// they actually did, and THEIR OWN card is scheduled from THEIR OWN answer.
-//
-// The two halves of that are what the design turns on:
-//
-//   the question is shared   — one card, one front, one reveal, one moment
-//   the review is not        — a card belongs to a person, and so does a rating
-//
-// So this object holds the shared half only: which card is up, whether the back
-// has been shown, and who has rated. The scheduling half goes straight through
-// `answerCard`, the same path a solo review takes, against each rater's own
-// row for the same question (`SrsRepo.counterpart`). There is deliberately no
-// second scheduler here — a group session must not be able to disagree with the
-// solo queue about when a card is due.
-//
-// THE BACK IS WITHHELD SERVER-SIDE. Not sent-but-hidden: not sent. A guessing
-// game where the answer is already in the client and merely not drawn is not a
-// guessing game, it is a trust exercise — and the first person to open a web
-// inspector ends it.
-
 import type { CoreEnv } from './env';
 import { SrsRepo, type SrsCard } from './repositories/srs.repo';
 import { answerCard } from './srs/answer';
 import { isRating, type RatingValue } from './srs/fsrs';
 
-/** Who a connected socket is. There are no guests: a rating has to land on
- *  somebody's card, so an unauthenticated socket could only ever watch. */
 interface Identity {
   userId: string;
   name: string | null;
   isHost: boolean;
 }
 
-/** The card currently on the table, as everyone sees it. */
 interface Asked {
-  cardId: string;          // the ASKER's card id — each rater resolves their own
-  askedBy: string;         // user id
+  cardId: string;
+  askedBy: string;
   askedByName: string | null;
   front: string;
-  back: string | null;     // null until revealed — see the note above
+  back: string | null;
   module: string;
   resourceRef: string;
   askedAt: string;
 }
 
-/** What one person did with the card that is up. */
 interface Answered {
   userId: string;
   name: string | null;
   rating: RatingValue;
-  /** False when this person has no card of their own for this question: they
-   *  still guessed, nothing was scheduled, and the room should be told which
-   *  it was rather than shown a rating that quietly did nothing. */
+
   scheduled: boolean;
-  /** Days until it comes back, when something was scheduled. */
+
   nextInDays: number | null;
 }
 
@@ -65,7 +36,7 @@ export class ReviewSession {
       this.state.setWebSocketAutoResponse(
         new WebSocketRequestResponsePair('ping', 'pong'),
       );
-    } catch { /* older runtime — keepalive just wakes the object */ }
+    } catch {  }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -76,13 +47,8 @@ export class ReviewSession {
     const title = request.headers.get('X-KM-Session-Title') || null;
     if (!userId) return new Response('Authenticated user required', { status: 401 });
 
-    // Resolved here rather than passed in a header: the name is shown beside
-    // every rating in the room, and reading it from the account is the one way
-    // a client cannot decide what it is called.
     const name = await this.displayNameOf(userId);
 
-    // The first person through the door owns the session. There is no separate
-    // create step: a code is a room, and the room exists once someone is in it.
     const host = await this.state.storage.get<string>('host');
     if (!host) {
       await this.state.storage.put('host', userId);
@@ -134,11 +100,6 @@ export class ReviewSession {
     this.broadcastPresence(ws);
   }
 
-  // ── Asking ─────────────────────────────────────────────────────────────────
-
-  /** Put a card up. Anyone may ask — that is the point of studying together —
-   *  but only from their own collection, because the card id is theirs and the
-   *  front is read from their row. */
   private async ask(me: Identity, cardId: string): Promise<void> {
     const repo = new SrsRepo(this.env.DB_CORE);
     const card = await repo.findCard(cardId);
@@ -155,14 +116,11 @@ export class ReviewSession {
       askedAt: new Date().toISOString(),
     };
     await this.state.storage.put('asked', asked);
-    // A new question clears the previous round's ratings. They are not lost —
-    // every one of them is already a row in core_srs_review_log, which is the
-    // record; this map is only what the room is currently looking at.
+
     await this.state.storage.put('answers', [] as Answered[]);
     this.broadcast({ t: 'asked', asked, answers: [] });
   }
 
-  /** Show the back. Only now does it cross the wire. */
   private async reveal(): Promise<void> {
     const asked = await this.getAsked();
     if (!asked || asked.back !== null) return;
@@ -173,28 +131,13 @@ export class ReviewSession {
     this.broadcast({ t: 'revealed', asked: revealed });
   }
 
-  // ── Rating ─────────────────────────────────────────────────────────────────
-
-  /** One person's honest verdict on how they did, applied to their own card.
-   *
-   *  Two refusals, both for the same reason — a review log is only worth
-   *  keeping if every row means the same thing.
-   *
-   *  Rating before the reveal: FSRS reads a rating as "how well did you recall
-   *  this once you saw the answer", and one entered before the answer was shown
-   *  is measuring something else.
-   *
-   *  Rating your own question: the asker is holding the card. They picked it
-   *  from their queue and read it out — whatever they know about it now, they
-   *  did not recall it, and scheduling their copy on that would quietly poison
-   *  their own queue. The person asking is running the round, not sitting it. */
   private async rate(me: Identity, rating: RatingValue, secs: number | null): Promise<void> {
     const asked = await this.getAsked();
     if (!asked || asked.back === null) return;
     if (asked.askedBy === me.userId) return;
 
     const answers = await this.getAnswers();
-    if (answers.some((a) => a.userId === me.userId)) return;   // one verdict each
+    if (answers.some((a) => a.userId === me.userId)) return;
 
     const repo = new SrsRepo(this.env.DB_CORE);
     const mine: SrsCard | null = await repo.counterpart(me.userId, asked.cardId);
@@ -212,8 +155,6 @@ export class ReviewSession {
     this.broadcast({ t: 'answers', answers });
   }
 
-  // ── State ──────────────────────────────────────────────────────────────────
-
   private async displayNameOf(userId: string): Promise<string | null> {
     try {
       const row = await this.env.DB_CORE
@@ -222,7 +163,7 @@ export class ReviewSession {
         .first<{ display_name: string | null }>();
       return row?.display_name ?? null;
     } catch {
-      return null;   // a missing name costs a label, not the session
+      return null;
     }
   }
 
@@ -240,12 +181,10 @@ export class ReviewSession {
       .filter((i): i is Identity => !!i);
   }
 
-  // ── Fan-out ────────────────────────────────────────────────────────────────
-
   private broadcast(payload: unknown): void {
     const data = JSON.stringify(payload);
     for (const ws of this.state.getWebSockets()) {
-      try { ws.send(data); } catch { /* dropped socket */ }
+      try { ws.send(data); } catch {  }
     }
   }
 
@@ -253,11 +192,11 @@ export class ReviewSession {
     const sockets = this.state.getWebSockets().filter((ws) => ws !== excluding);
     const data = JSON.stringify({ t: 'presence', roster: this.roster(sockets) });
     for (const ws of sockets) {
-      try { ws.send(data); } catch { /* dropped socket */ }
+      try { ws.send(data); } catch {  }
     }
   }
 
   private sendTo(ws: WebSocket, payload: unknown): void {
-    try { ws.send(JSON.stringify(payload)); } catch { /* dropped socket */ }
+    try { ws.send(JSON.stringify(payload)); } catch {  }
   }
 }

@@ -1,28 +1,13 @@
-// ─── DistillRepo — wv_distill_batches + wv_distill_items + wv_insight_decisions ──
-// Distillation workflow: generate batches of candidate insights from source content,
-// then let the user approve/edit/reject each item in the Hub Review Queue.
-//
-// Canonical columns per 001_wv_schema.sql §10.5-10.8.
-//
-// Workflow:
-//   POST /worldview/distill/generate        → create batch + items
-//   GET  /worldview/distill/batch?batchId=  → poll batch progress
-//   GET  /worldview/distill/by-unit         → find batch for a unit
-//   POST /worldview/distill/decision        → approve|edit|reject one item
-//   POST /worldview/distill/approve         → bulk-approve all pending items
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 export interface DistillBatch {
-  id: string;              // WV:ULID
+  id: string;
   title: string;
-  batch_type: string;      // manual|ai_extraction|auto_cluster|review_run
+  batch_type: string;
   source_id: string | null;
-  status: string;          // pending|running|complete|failed
+  status: string;
   item_count: number;
   approved_count: number;
   rejected_count: number;
@@ -33,13 +18,13 @@ export interface DistillBatch {
 }
 
 export interface DistillItem {
-  id: string;              // WV:ULID
+  id: string;
   batch_id: string;
-  item_type: string;       // insight|claim|node|evidence|question|connection|other
+  item_type: string;
   source_note_id: string | null;
   source_highlight_id: string | null;
   content_md: string;
-  status: string;          // pending|approved|edited|rejected|saved
+  status: string;
   approved_as_type: string | null;
   approved_as_id: string | null;
   core_user_ref: string | null;
@@ -50,7 +35,7 @@ export interface DistillItem {
 export interface InsightDecision {
   id: string;
   suggestion_id: string;
-  decision: string;        // approved|edited|rejected
+  decision: string;
   original_json: string | null;
   final_json: string | null;
   decision_note: string | null;
@@ -65,7 +50,7 @@ export interface BatchWithItems extends DistillBatch {
 export interface GenerateBatchInput {
   title: string;
   source_id?: string | null;
-  source_unit_id?: string | null;  // filter items to this unit
+  source_unit_id?: string | null;
   batch_type?: string;
   items: Array<{
     item_type?: string;
@@ -80,12 +65,10 @@ export interface GenerateBatchInput {
 export interface DecisionInput {
   item_id: string;
   decision: 'approved' | 'edited' | 'rejected';
-  final_content?: string | null;  // for edited decisions — updated content_md
+  final_content?: string | null;
   decision_note?: string | null;
   core_user_ref: string;
 }
-
-// ── Column lists ──────────────────────────────────────────────────────────────
 
 const BATCH_COLS = `
   id, title, batch_type, source_id, status,
@@ -99,12 +82,8 @@ const ITEM_COLS = `
   core_user_ref, created_at, updated_at
 `.trim().replace(/\n\s+/g, ' ');
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class DistillRepo {
   constructor(private db: D1Database) {}
-
-  // ── Generate (create batch + items atomically) ────────────────────────────
 
   async generate(input: GenerateBatchInput): Promise<BatchWithItems> {
     const batchId = typedId('WV');
@@ -150,7 +129,6 @@ export class DistillRepo {
       );
     }
 
-    // Mark running
     await execute(
       this.db,
       `UPDATE wv_distill_batches SET status = 'running', updated_at = ? WHERE id = ?`,
@@ -159,8 +137,6 @@ export class DistillRepo {
 
     return (await this.batchById(batchId))!;
   }
-
-  // ── Fetch ─────────────────────────────────────────────────────────────────
 
   async batchById(batchId: string): Promise<BatchWithItems | null> {
     const batch = await queryOne<DistillBatch>(
@@ -179,12 +155,11 @@ export class DistillRepo {
     return { ...batch, items };
   }
 
-  /** Find the most recent batch for a given source (+ optional unit). */
   async batchByUnit(
     sourceId: string,
     sourceUnitId?: string | null,
   ): Promise<BatchWithItems | null> {
-    // Batches are keyed to source_id; we look for the most recent one
+
     const batch = await queryOne<DistillBatch>(
       this.db,
       `SELECT ${BATCH_COLS} FROM wv_distill_batches
@@ -193,9 +168,6 @@ export class DistillRepo {
     );
     if (!batch) return null;
 
-    // If caller wants unit-scoped items, filter by source_highlight_id or source_note_id
-    // (items don't have source_unit_id directly — they link via notes/highlights)
-    // Return all items and let the client filter, OR join through highlights
     const items = sourceUnitId
       ? await query<DistillItem>(
           this.db,
@@ -216,12 +188,9 @@ export class DistillRepo {
     return { ...batch, items };
   }
 
-  // ── Decision (approve / edit / reject one item) ───────────────────────────
-
   async recordDecision(input: DecisionInput): Promise<DistillItem | null> {
     const now = new Date().toISOString();
 
-    // Update the item status
     const newStatus = input.decision === 'approved'
       ? 'approved'
       : input.decision === 'edited'
@@ -240,7 +209,6 @@ export class DistillRepo {
       vals,
     );
 
-    // Refresh batch counts
     await this._refreshBatchCounts(input.item_id, now);
 
     return queryOne<DistillItem>(
@@ -249,8 +217,6 @@ export class DistillRepo {
       [input.item_id],
     );
   }
-
-  // ── Bulk approve all pending items in a batch ─────────────────────────────
 
   async approveBatch(batchId: string, coreUserRef: string): Promise<DistillBatch | null> {
     const now = new Date().toISOString();
@@ -277,8 +243,6 @@ export class DistillRepo {
       [batchId],
     );
   }
-
-  // ── Internal: refresh batch progress counters ─────────────────────────────
 
   private async _refreshBatchCounts(itemId: string, now: string): Promise<void> {
     const item = await queryOne<{ batch_id: string }>(

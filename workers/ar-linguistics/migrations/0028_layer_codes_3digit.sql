@@ -1,11 +1,3 @@
--- 0028_layer_codes_3digit.sql
--- Re-code the layer registry to 3-DIGIT codes (000..900, room to expand) and
--- extend coverage to ALL domain tables across km_arabic / km_quran /
--- km_arabic_linguistic — including the Surah-study pipeline: ss (310), passage
--- (320), structures (330), illustration (340), surah analysis (350), reception
--- (360). Also records the fold: nahw/balagha/sentence concept tables dropped as
--- redundant (already present in ar_ling_reg_term).
-
 DELETE FROM ar_ling_reg_build_layer;
 DELETE FROM ar_ling_reg_table_map;
 

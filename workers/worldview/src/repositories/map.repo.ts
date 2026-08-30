@@ -1,15 +1,6 @@
-// ─── MapRepo — L6 + L6C tables ────────────────────────────────────────────────
-// L6:  wv_map_layers, wv_map_features, wv_route_segments,
-//      wv_location_role_links, wv_geo_timeline_links
-// L6C: wv_century_profiles, wv_transition_sequences, wv_thinker_period_links,
-//      wv_geocultural_zones, wv_route_layers, wv_route_features,
-//      wv_expansion_maps, wv_timeline_events
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ─── L6 interfaces ─────────────────────────────────────────────────────────────
 
 export interface WvMapLayer {
   id: string;
@@ -75,8 +66,6 @@ export interface WvGeoTimelineLink {
   note: string | null;
   created_at: string;
 }
-
-// ─── L6C interfaces ────────────────────────────────────────────────────────────
 
 export interface WvCenturyProfile {
   id: string;
@@ -183,8 +172,6 @@ export interface WvTimelineEvent {
   created_at: string;
 }
 
-// ─── Create input types ────────────────────────────────────────────────────────
-
 export type MapLayerCreate = Omit<WvMapLayer, 'id' | 'created_at'>;
 export type MapFeatureCreate = Omit<WvMapFeature, 'id' | 'created_at'>;
 export type RouteSegmentCreate = Omit<WvRouteSegment, 'id' | 'created_at'>;
@@ -198,8 +185,6 @@ export type RouteLayerCreate = Omit<WvRouteLayer, 'id' | 'created_at'>;
 export type RouteFeatureCreate = Omit<WvRouteFeature, 'id' | 'created_at'>;
 export type ExpansionMapCreate = Omit<WvExpansionMap, 'id' | 'created_at'>;
 export type TimelineEventCreate = Omit<WvTimelineEvent, 'id' | 'created_at'>;
-
-// ─── Column lists ──────────────────────────────────────────────────────────────
 
 const ML_COLS  = `id, slug, title, layer_type, tradition_id, period_id, description_md, renderer_hint, meta_json, created_at`;
 const MF_COLS  = `id, map_layer_id, feature_type, title, location_id, latitude, longitude, geometry_json, linked_entity, period_label, label, meta_json, created_at`;
@@ -216,8 +201,6 @@ const RF_COLS  = `id, route_layer_id, feature_type, title, location_id, latitude
 const EM_COLS  = `id, slug, title, map_type, tradition_id, colonial_project_id, period_range, description_md, map_features_json, created_at`;
 const TE_COLS  = `id, title, event_type, year_exact, year_start, year_end, is_approximate, century, location_id, tradition_id, person_id, wv_event_id, description_md, significance, meta_json, created_at`;
 
-// ─── Patch helper ──────────────────────────────────────────────────────────────
-
 function buildPatch(patch: Record<string, unknown>): { setClauses: string; values: unknown[] } {
   const keys = Object.keys(patch).filter(k => patch[k] !== undefined);
   const setClauses = keys.map(k => `${k} = ?`).join(', ');
@@ -225,14 +208,8 @@ function buildPatch(patch: Record<string, unknown>): { setClauses: string; value
   return { setClauses, values };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MapRepo
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export class MapRepo {
   constructor(private db: D1Database) {}
-
-  // ── L6: Map Layers ─────────────────────────────────────────────────────────
 
   layers(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -276,8 +253,6 @@ export class MapRepo {
     return this.findLayerById(id);
   }
 
-  // ── L6: Map Features ───────────────────────────────────────────────────────
-
   features(layerId: string, opts: PaginateOptions = {}) {
     return paginate<WvMapFeature>(
       this.db,
@@ -315,8 +290,6 @@ export class MapRepo {
     await execute(this.db, `UPDATE wv_map_features SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findFeatureById(id);
   }
-
-  // ── L6: Route Segments ─────────────────────────────────────────────────────
 
   routes(layerId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -361,8 +334,6 @@ export class MapRepo {
     return this.findRouteById(id);
   }
 
-  // ── L6: Location Role Links ────────────────────────────────────────────────
-
   locationRoleLinks(locationId: string): Promise<WvLocationRoleLink[]> {
     return query<WvLocationRoleLink>(
       this.db,
@@ -387,8 +358,6 @@ export class MapRepo {
     ))!;
   }
 
-  // ── L6: Geo Timeline Links ─────────────────────────────────────────────────
-
   geoTimelineLinks(locationId: string): Promise<WvGeoTimelineLink[]> {
     return query<WvGeoTimelineLink>(
       this.db,
@@ -411,8 +380,6 @@ export class MapRepo {
       this.db, `SELECT ${GTL_COLS} FROM wv_geo_timeline_links WHERE id = ?`, [id],
     ))!;
   }
-
-  // ── L6C: Century Profiles ──────────────────────────────────────────────────
 
   centuryProfiles(opts: PaginateOptions = {}) {
     return paginate<WvCenturyProfile>(
@@ -456,8 +423,6 @@ export class MapRepo {
     return this.findCenturyProfileById(id);
   }
 
-  // ── L6C: Transition Sequences ──────────────────────────────────────────────
-
   transitionSequences(opts: PaginateOptions = {}) {
     return paginate<WvTransitionSequence>(
       this.db,
@@ -496,8 +461,6 @@ export class MapRepo {
     return this.findTransitionSequenceById(id);
   }
 
-  // ── L6C: Thinker Period Links ──────────────────────────────────────────────
-
   thinkerPeriodLinks(personId: string): Promise<WvThinkerPeriodLink[]> {
     return query<WvThinkerPeriodLink>(
       this.db,
@@ -521,8 +484,6 @@ export class MapRepo {
       this.db, `SELECT ${TPL_COLS} FROM wv_thinker_period_links WHERE id = ?`, [id],
     ))!;
   }
-
-  // ── L6C: Geocultural Zones ─────────────────────────────────────────────────
 
   geoculturalZones(zoneType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -566,8 +527,6 @@ export class MapRepo {
     return this.findGeoculturalZoneById(id);
   }
 
-  // ── L6C: Route Layers ──────────────────────────────────────────────────────
-
   routeLayers(routeCategory: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -608,8 +567,6 @@ export class MapRepo {
     return this.findRouteLayerById(id);
   }
 
-  // ── L6C: Route Features ────────────────────────────────────────────────────
-
   routeFeatures(routeLayerId: string, opts: PaginateOptions = {}) {
     return paginate<WvRouteFeature>(
       this.db,
@@ -639,8 +596,6 @@ export class MapRepo {
     );
     return (await this.findRouteFeatureById(id))!;
   }
-
-  // ── L6C: Expansion Maps ────────────────────────────────────────────────────
 
   expansionMaps(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -683,8 +638,6 @@ export class MapRepo {
     await execute(this.db, `UPDATE wv_expansion_maps SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findExpansionMapById(id);
   }
-
-  // ── L6C: Timeline Events ───────────────────────────────────────────────────
 
   timelineEvents(century: number | null, traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];

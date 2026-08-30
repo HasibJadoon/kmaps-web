@@ -1,14 +1,5 @@
 import { Extension } from '@tiptap/core';
 
-/**
- * Adds `dir` and `lang` attributes to block nodes so Arabic paragraphs
- * render RTL with the correct font automatically.
- *
- * Usage:
- *   editor.chain().focus().setTextDirection('rtl').run()
- *   editor.chain().focus().setTextDirection('ltr').run()
- */
-
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     textDirection: {

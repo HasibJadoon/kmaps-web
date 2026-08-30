@@ -4,8 +4,6 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { BackendApiService } from '../backend-api.service';
 
-// ── View models ───────────────────────────────────────────
-
 export interface LessonListItemVm {
   id: string;
   title: string;
@@ -147,10 +145,6 @@ export interface ReviewItemVm {
   completed_at?: string;
 }
 
-// ── Response wrappers ─────────────────────────────────────
-
-// ── Lesson grid (Layer 1) ────────────────────────────────────────────────────
-
 export interface UnitTaskPresence {
   has: boolean;
   count: number;
@@ -182,15 +176,13 @@ export interface UnitGridItemVm {
 
 export interface UnitGridResponse { ok: boolean; surahId: number; containerId: string; total: number; units: UnitGridItemVm[]; }
 
-// ── Lesson detail (Layer 2) ──────────────────────────────────────────────────
-
 export interface AyahWordToken {
   id?: number;
   position: number;
   verse_key?: string;
-  text?: string;        // with diacritics (harakāt)
-  simple?: string;      // plain text, no diacritics
-  char_type?: string;   // 'word' | 'end'
+  text?: string;
+  simple?: string;
+  char_type?: string;
   translation?: string;
   lemma?: string;
   root?: string;
@@ -208,7 +200,7 @@ export interface AyahVm {
   juz?: number;
   text: string;
   text_simple?: string;
-  words?: AyahWordToken[];  // word-by-word tokens from ar_quran_ayah.words
+  words?: AyahWordToken[];
   translation_haleem?: string;
   translation_asad?: string;
   translation_sahih?: string;
@@ -258,8 +250,6 @@ export interface LessonDetailResponse {
   tasks: UnitTaskVm[];
   vocabulary: { nouns: WordVm[]; verbs: WordVm[] };
 }
-
-// ── Study API (new layer 1 + 2) ───────────────────────────────────────────────
 
 export interface StudySurahMeta {
   container_id: string;
@@ -312,7 +302,6 @@ export interface StudyWordVm {
   morphology?: { verb_form?: string; derived_pattern?: string; noun_number?: string; transitivity?: string };
 }
 
-/** Lean expression row — table-sourced (ar_ling_root_lemma_tabir), one per match. */
 export interface StudyExpressionVm {
   id: string;
   ayah: number;
@@ -334,8 +323,6 @@ export interface StudyUnitVm {
   theme?: string;
 }
 
-// ── Sentence-structure (grounded, table-sourced) view models ──────────────────
-
 export interface SsTermVm {
   key: string;
   labelAr: string | null;
@@ -344,7 +331,6 @@ export interface SsTermVm {
   category: string;
 }
 
-/** One book's iʿrāb of a single word — the grammarian detail, attributed. */
 export interface SsIrabSourceVm {
   book: string;
   role: string | null;
@@ -357,14 +343,13 @@ export interface SsClauseWordVm {
   index: number;
   text: string;
   simple?: string;
-  root?: string;          // Five-Lens lexicon cross-ref key (lazy)
+  root?: string;
   lemma?: string;
   pos?: string;
-  role: string | null;    // reconciled iʿrāb role (majority across books)
+  role: string | null;
   irab: SsIrabSourceVm[];
 }
 
-/** Grounded clause node — clause hierarchy + words decorated with iʿrāb. */
 export interface SsClauseNodeVm {
   id: string;
   order: number;
@@ -377,7 +362,6 @@ export interface SsClauseNodeVm {
   children: SsClauseNodeVm[];
 }
 
-/** Authored word-level constituency node (mubtadaʾ/khabar/iḍāfa/naʿt…). */
 export interface SsConstituencyNodeVm {
   name: string;
   id: string;
@@ -388,7 +372,6 @@ export interface SsConstituencyNodeVm {
   children?: SsConstituencyNodeVm[];
 }
 
-/** Ayah-level iʿrāb of a parsed phrase, per classical book. */
 export interface SsIrabAnalysisVm {
   book: string;
   phrase: string | null;
@@ -410,31 +393,29 @@ export interface SsSentenceVm {
   mode: string | null;
   note: string | null;
   grounding: string | null;
-  tree: SsConstituencyNodeVm | null;     // authored constituency parse
-  clauseTree: SsClauseNodeVm[];          // grounded clause hierarchy + iʿrāb
-  irabAnalysis: SsIrabAnalysisVm[];      // grammarian details (per book)
+  tree: SsConstituencyNodeVm | null;
+  clauseTree: SsClauseNodeVm[];
+  irabAnalysis: SsIrabAnalysisVm[];
   balagha: SsBalaghaVm[];
   ellipsis: SsEllipsisVm[];
-  tafsir: SsTafsirVm[];                   // mufassir input
+  tafsir: SsTafsirVm[];
 }
 
-/** What was said about one scope — a sentence, clause, phrase or word id. */
 export interface SsScopeLayersVm {
-  /** The word's own iʿrāb: function, where the case sits, what marks it. */
+
   irab: { ref: string; fn: string | null; position: string | null; sign: string | null;
           disputed: boolean; dispute: string | null; note: string | null }[];
-  /** Naḥw claims, trilingual through gloss. */
+
   nahw: { ref: string; note: string | null;
           gloss: { ar?: string; en?: string; ur?: string } | null }[];
   balagha: SsBalaghaVm[];
 }
 
-/** One position on a contested point, with its witnesses. */
 export interface SsReadingVm {
   id: string;
   scopeType: string | null;
   scopeId: string | null;
-  /** What question this answers — the ledger is grouped by it. */
+
   question: string | null;
   ref: string | null;
   en: string | null;
@@ -446,7 +427,6 @@ export interface SsReadingVm {
   witnesses: number | null;
 }
 
-/** One step of the derived translation. The tracks part where a decision was made. */
 export interface SsFoldStepVm {
   id: string;
   scopeId: string | null;
@@ -462,8 +442,7 @@ export interface SsFoldStepVm {
 export interface SsStepData {
   termColors: Record<string, string>;
   terms: SsTermVm[];
-  /** Keyed by scope id, so a tree node can ask what was said about itself
-   *  rather than the reader matching flat lists back to words by eye. */
+
   layersByScope: Record<string, SsScopeLayersVm>;
   readings: SsReadingVm[];
   fold: SsFoldStepVm[];
@@ -523,8 +502,6 @@ export interface StudyVocabularyResponse {
 }
 
 export type StudyMorphologyResponse = StudyVocabularyResponse;
-
-// ─── Word Backbone 360 — API shapes (built server-side; consumed verbatim) ─────
 
 export interface TermRefVm { key: string; label_ar: string | null; color: string | null; }
 
@@ -598,8 +575,6 @@ export interface WordDetailResponse {
   root_analysis: RootAnalysisVm | null;
 }
 
-// ── Morphology display layer (trilingual, tier-merged word view) ───────────────
-
 export type Lang = 'en' | 'ar' | 'ur';
 export interface Tri { ar: string | null; en: string | null; ur: string | null; }
 
@@ -619,7 +594,7 @@ export interface MorphBlockVm {
   title: Tri; text: Tri; data: any;
   source_slug: string | null; source_ref: string | null; source_page: string | null;
   is_synthesis: boolean; register: string | null; registers?: string[] | null;
-  icon?: string | null;          // Lucide icon token (data-driven, per word)
+  icon?: string | null;
   illustration?: MorphIllustration | null;
 }
 export interface MorphSourceVm {
@@ -629,18 +604,18 @@ export interface MorphSourceVm {
   badge_color: string | null; badge_glyph: string | null; order: number;
 }
 export interface MorphNavRef { surah: number; ayah: number; word_index: number; surface_ar: string; }
-/** One Qurʾānic occurrence of the word — a context the switcher can select. */
+
 export interface MorphContextVm {
   key: string; ayah_key: string; kind_ar: string; en: string;
   text_ar: string; note: string; source: string; focus: boolean;
-  blocks: MorphBlockVm[];        // this context's TEMPORAL layers (re-scoped on switch)
+  blocks: MorphBlockVm[];
 }
 export interface MorphWordView {
   nav: { prev: MorphNavRef | null; next: MorphNavRef | null; index: number; total: number };
   word: MorphWordVm;
   registers_available?: string[];
-  blocks: MorphBlockVm[];        // CORE (scope root) — shared by every context
-  contexts?: MorphContextVm[];   // one per occurrence; each carries its temporal blocks
+  blocks: MorphBlockVm[];
+  contexts?: MorphContextVm[];
   sources: Record<string, MorphSourceVm>;
 }
 
@@ -652,9 +627,9 @@ export interface MorphGridCard {
   root_meaning: { ar: string | null; en: string | null };
   quran_meanings: { ar: string; en: string }[] | null;
   badge_color: string | null; is_anchor: boolean; frequency_quran: number | null;
-  feats: { cat: string; ar: string; en: string | null }[];   // case/number/gender/type · tense/voice
-  sense_arc_en: string | null;                                // 360° semantic arc
-  sense_range_en: string | null;                              // compact range of meanings
+  feats: { cat: string; ar: string; en: string | null }[];
+  sense_arc_en: string | null;
+  sense_range_en: string | null;
 }
 
 export interface StudyExpressionsResponse {
@@ -681,21 +656,19 @@ export interface StudyTasksResponse {
   tasks: UnitTaskVm[];
 }
 
-// ── Node-note types ───────────────────────────────────────────────────────────
-
 export interface NodeNotePayload {
   body_md:      string;
   title?:       string;
   note_type?:   string;
-  target_type:  string;   // e.g. 'ss_node'
-  target_id:    string;   // node id / term_id
-  relation?:    string;   // default 'about'
-  ref?:         string;   // unit_id:nodeId
+  target_type:  string;
+  target_id:    string;
+  relation?:    string;
+  ref?:         string;
   container_id?: string;
   unit_id?:     string;
   edge_note?:   string;
   share_scope?: string;
-  // Extra context stored in extra_json for fast access:
+
   task_id?:     string;
   step_no?:     number;
   node_depth?:  number;
@@ -818,12 +791,10 @@ export class QuranSurahService {
     return ['quran', 'surah', surahId, ...segments];
   }
 
-  // Layer 1 — unit grid for a surah
   getSurahLessonGrid(surahId: number): Observable<UnitGridResponse> {
     return this.api.getRaw<UnitGridResponse>(this.legacySurahPath(surahId, 'lessons'));
   }
 
-  // Layer 2 — full detail for one unit
   getLessonDetail(unitId: string): Observable<LessonDetailResponse> {
     return this.api.getRaw<LessonDetailResponse>(['quran', 'lesson', unitId]);
   }
@@ -861,8 +832,6 @@ export class QuranSurahService {
     );
   }
 
-  // ── Worldview ─────────────────────────────────────────────────────
-
   getWorldviewHub(surahId: number): Observable<WorldviewHubResponse> {
     return this.api.getData<WorldviewHubResponse>('qr', ['surahs', surahId, 'worldview']);
   }
@@ -891,8 +860,6 @@ export class QuranSurahService {
     return this.api.getData<WorldviewLinksResponse>('qr', ['surahs', surahId, 'worldview', 'links']);
   }
 
-  // ── Study API ────────────────────────────────────────────────────────────────
-
   getStudyGrid(surahId: number): Observable<StudyGridResponse> {
     return this.api.getData<WorkerStudyGrid>('qr', ['study', 'surahs', surahId]).pipe(
       map((data) => this.normalizeStudyGrid(surahId, data)),
@@ -906,9 +873,7 @@ export class QuranSurahService {
   }
 
   getStudyReading(surahId: number, passageNo: number): Observable<StudyReadingResponse> {
-    // Lazy, table-sourced: hits the per-step reading endpoint, which builds the
-    // ayahs (both diacritic and non-diacritic forms + word tokens + muṣḥaf meta)
-    // straight from qr_ayah / qr_word_occurrence / qr_translation — not task_json.
+
     return this.api
       .getData<{ ayah_from?: number; ayah_to?: number; ayahs?: Record<string, unknown>[] }>(
         'qr',
@@ -938,10 +903,7 @@ export class QuranSurahService {
   }
 
   getStudyMorphology(surahId: number, passageNo: number): Observable<StudyMorphologyResponse> {
-    // Lazy, table-sourced: hits the per-step morphology endpoint, which builds
-    // each word's ṣarf (root/lemma/pos + QAC features), iʿrāb, qirāʾāt readings,
-    // synthesis and per-ayah tafsīr straight from qr_word_occurrence /
-    // qr_irab_book_entry / qr_ss_scope_reading / qr_tafsir_entry — not task_json.
+
     return this.api
       .getData<{
         surah?: number;
@@ -979,7 +941,6 @@ export class QuranSurahService {
     return this.getStudyMorphology(surahId, passageNo);
   }
 
-  /** API 1 — every word in the passage as a built morphology card. */
   getPassageMorphology(surahId: number, passageNo: number): Observable<PassageMorphologyResponse> {
     return this.api.getData<PassageMorphologyResponse>(
       'qr',
@@ -987,25 +948,20 @@ export class QuranSurahService {
     );
   }
 
-  /** API 2 — the deep word backbone for the modal (occurrence + tafsīr + root). */
   getWordDetail(wordId: string): Observable<WordDetailResponse> {
     return this.api.getData<WordDetailResponse>('qr', ['study', 'words', wordId]);
   }
 
-  /** Morphology display layer — the trilingual, tier-merged WORD view (blocks). */
   getMorphWord(surah: number, ayah: number, wordIndex: number): Observable<MorphWordView> {
     return this.api.getData<MorphWordView>('qr', ['study', 'morph', 'word', surah, ayah, wordIndex]);
   }
 
-  /** Curated grid of promoted content-word cards for a surah (nouns/verbs). */
   getMorphGrid(surah: number): Observable<MorphGridCard[]> {
     return this.api.getData<MorphGridCard[]>('qr', ['study', 'morph', 'grid', surah]);
   }
 
   getStudyExpressions(surahId: number, passageNo: number): Observable<StudyExpressionsResponse> {
-    // Lazy, table-sourced: hits the per-step expressions endpoint, which reads
-    // ar_ling_root_lemma_tabir (over the AR_LINGUISTICS binding) for the passage's
-    // ayah range — not task_json. Lean payload: { ayahFrom, ayahTo, items[] }.
+
     return this.api
       .getData<{
         surah?: number;
@@ -1044,11 +1000,7 @@ export class QuranSurahService {
   }
 
   getStudySentenceStructure(surahId: number, passageNo: number): Observable<StudySentenceStructureResponse> {
-    // Lazy, table-sourced + grounded: hits the per-step sentence-structure
-    // endpoint, which fuses the clause hierarchy, per-word iʿrāb (reconciled +
-    // attributed), ayah-level iʿrāb from every classical book, the authored
-    // constituency tree, balāgha/ellipsis, and the mufassir discussion — all
-    // from canonical tables, no task_json.
+
     return this.api
       .getData<{
         surah?: number;
@@ -1157,9 +1109,7 @@ export class QuranSurahService {
         nouns: (data.vocabulary?.nouns ?? []).map((word) => this.normalizeStudyWord(word, 'noun')),
         verbs: (data.vocabulary?.verbs ?? []).map((word) => this.normalizeStudyWord(word, 'verb')),
       },
-      // New study flow uses the dedicated table-sourced step endpoint; the
-      // legacy /lesson payload is normalized into the same lean shape so older
-      // consumers keep compiling and rendering.
+
       expressions: (data.expressions ?? []).map((raw) => {
         const e = raw as unknown as Record<string, unknown>;
         return {
@@ -1346,8 +1296,6 @@ export class QuranSurahService {
     return Number.isFinite(parsed) ? parsed : undefined;
   }
 
-  // ── Node notes ──────────────────────────────────────────────────────────────
-
   createNodeNote(payload: NodeNotePayload): Observable<NodeNoteCreateResponse> {
     return this.api.postRaw<NodeNoteCreateResponse>(
       ['ar', 'quran', 'node-notes'],
@@ -1382,8 +1330,6 @@ export class QuranSurahService {
     );
   }
 
-  // ── Patch task tree (lightweight — updates only task_json.tree) ──────────────
-
   patchTaskTree(
     taskId:     string,
     tree:       unknown,
@@ -1397,8 +1343,6 @@ export class QuranSurahService {
     );
   }
 
-  // ── Near synonyms by surah ───────────────────────────────────────────────────
-
   getNearSynonymsBySurah(surahId: number): Observable<NearSynonymsBySurahVm> {
     return this.api.getData<NearSynonymsBySurahVm>('al', ['near-synonyms', 'by-surah', surahId]);
   }
@@ -1410,8 +1354,6 @@ export class QuranSurahService {
     return this.api.patchData<NearSynonymSetVm>('al', ['near-synonyms', setId], payload);
   }
 }
-
-// ── Near-synonym view models ──────────────────────────────────────────────────
 
 export interface NearSynonymMemberVm {
   id: string;

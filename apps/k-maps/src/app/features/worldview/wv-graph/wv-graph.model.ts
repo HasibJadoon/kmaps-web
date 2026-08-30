@@ -1,7 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-//  WvGraph — shared data model, color tokens, and mock seed data
-// ─────────────────────────────────────────────────────────────────────────────
-
 export type WvNodeType =
   | 'claim'
   | 'principle'
@@ -20,7 +16,6 @@ export type WvEdgeRelation =
 
 export type WvGraphMode = 'force' | 'focus' | 'cluster';
 
-// ── Node ──────────────────────────────────────────────────────────────────────
 export interface WvGraphNode {
   id: string;
   label: string;
@@ -28,17 +23,17 @@ export interface WvGraphNode {
   displayLabelShort?: string | null;
   displayLabelMedium?: string | null;
   type: WvNodeType;
-  /** Cluster (community) membership slug, e.g. 'arjana-figures'. */
+
   cluster?: string | null;
-  /** Human label for the cluster, e.g. 'Named Figures'. */
+
   clusterTitle?: string | null;
   summary?: string;
   chapterRole?: string;
-  /** computed by D3 — how many edges touch this node */
+
   degree?: number;
-  /** base radius — scaled by degree */
+
   size?: number;
-  /** D3 simulation positions (mutable) */
+
   x?: number;
   y?: number;
   vx?: number;
@@ -47,23 +42,20 @@ export interface WvGraphNode {
   fy?: number | null;
 }
 
-// ── Edge ─────────────────────────────────────────────────────────────────────
 export interface WvGraphEdge {
   id: string;
   source: string | WvGraphNode;
   target: string | WvGraphNode;
   relation: WvEdgeRelation;
-  /** 0–1, controls link distance in simulation */
+
   strength?: number;
 }
 
-// ── Graph data bundle ─────────────────────────────────────────────────────────
 export interface WvGraphData {
   nodes: WvGraphNode[];
   edges: WvGraphEdge[];
 }
 
-// ── Color tokens per node type ────────────────────────────────────────────────
 export const WV_NODE_COLORS: Record<WvNodeType, { stroke: string; fill: string; glow: string }> = {
   claim:     { stroke: '#c9a84c', fill: 'rgba(201,168,76,0.12)',  glow: 'rgba(201,168,76,0.35)' },
   principle: { stroke: '#d4b87a', fill: 'rgba(212,184,122,0.1)', glow: 'rgba(212,184,122,0.28)' },
@@ -97,17 +89,11 @@ export const WV_NODE_LABELS: Record<WvNodeType, string> = {
   insight:   'Insight',
 };
 
-// ── Cluster color families ─────────────────────────────────────────────────────
-// Each cluster (community) gets its own hue family so the constellation reads as
-// grouped territories rather than one undifferentiated cloud. Known worldview
-// clusters are pinned; any other slug is assigned deterministically from the
-// fallback palette so the scheme generalises to other sources.
-
 export interface ClusterColor {
-  stroke: string; // node ring + label
-  fill: string;   // node body
-  glow: string;   // focus glow
-  hull: string;   // territory fill — 'none'; the outline carries the grouping
+  stroke: string;
+  fill: string;
+  glow: string;
+  hull: string;
   hullStroke: string;
 }
 
@@ -116,49 +102,32 @@ function family(h: number, s: number, l: number): ClusterColor {
     stroke: `hsl(${h} ${s}% ${l}%)`,
     fill:   `hsl(${h} ${s}% ${l}% / 0.16)`,
     glow:   `hsl(${h} ${s}% ${l}% / 0.4)`,
-    // No fill. A tinted polygon sits on top of the thing it is describing —
-    // it washes the nodes and edges inside it and competes with the node
-    // colours, which are what actually carry the grouping. An outline says
-    // "these belong together" and then gets out of the way.
-    //
-    // The stroke carries the whole signal now, so it is drawn at strength.
+
     hull:   'none',
     hullStroke: `hsl(${h} ${s}% ${l}% / 0.55)`,
   };
 }
 
-// Pinned families for the Arjana "Muslim monster" genealogy clusters.
 const PINNED_CLUSTER_COLORS: Record<string, ClusterColor> = {
-  'arjana-frame':   family(44, 60, 56),   // gold — thesis & frame
-  'arjana-figures': family(2, 58, 58),    // crimson — named figures (spine)
-  'arjana-forms':   family(210, 55, 60),  // blue — monster forms
-  'arjana-tropes':  family(280, 48, 64),  // violet — tropes & anxieties
-  'arjana-toolkit': family(168, 46, 52),  // teal — conceptual toolkit
-  'arjana-eras':    family(28, 62, 56),   // amber — eras / timeline
-  'arjana-bodies':  family(326, 46, 62),  // rose — body-fantasy substrate
+  'arjana-frame':   family(44, 60, 56),
+  'arjana-figures': family(2, 58, 58),
+  'arjana-forms':   family(210, 55, 60),
+  'arjana-tropes':  family(280, 48, 64),
+  'arjana-toolkit': family(168, 46, 52),
+  'arjana-eras':    family(28, 62, 56),
+  'arjana-bodies':  family(326, 46, 62),
 
-  // Roles in an argument, not themes in a corpus. These recur across every
-  // book that argues a thesis, so they are pinned rather than left to the
-  // fallback — which assigns a hue by the cluster's POSITION in the list, so
-  // the same role changed colour whenever another cluster appeared before it.
-  // The same six hues are used by the iOS graph.
-  'thesis':             family(44, 62, 58),   // gold — what is being claimed
-  'causes':             family(28, 62, 56),   // amber — what produced it
-  'modernity_critique': family(2, 58, 58),    // crimson — what is under attack
-  'retrieval':          family(168, 46, 52),  // teal — what answers it
-  'evidence':           family(210, 55, 60),  // blue — what shows it
-  // Violet, not the near-white this first was. Near-white works for a node on a
-  // dark ground and is hopeless as a territory: at any usable fill alpha a
-  // desaturated hue has no colour left to show. A role's colour has to work in
-  // both places or it is not the role's colour.
-  'response':           family(280, 48, 66),  // violet — where it leaves you
+  'thesis':             family(44, 62, 58),
+  'causes':             family(28, 62, 56),
+  'modernity_critique': family(2, 58, 58),
+  'retrieval':          family(168, 46, 52),
+  'evidence':           family(210, 55, 60),
+
+  'response':           family(280, 48, 66),
 };
 
-// Fallback hues (evenly spaced) for any unpinned cluster slug.
 const FALLBACK_HUES = [44, 2, 210, 280, 168, 28, 326, 130, 192, 256];
 
-/** FNV-1a over the slug, so an unpinned cluster keeps its colour no matter
- *  what else is in the graph or what order it arrives in. */
 function slugHue(slug: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < slug.length; i++) {
@@ -170,20 +139,11 @@ function slugHue(slug: string): number {
 
 const NEUTRAL_CLUSTER: ClusterColor = family(0, 0, 62);
 
-/**
- * Resolve a stable colour family for a cluster slug.
- *
- * `orderIndex` is accepted for call-site compatibility and deliberately unused:
- * deriving the fallback hue from a slug's POSITION meant the same cluster
- * changed colour when another was added before it, which is exactly what made
- * a six-role graph look arbitrary. The hue now comes from the slug itself.
- */
 export function clusterColor(slug: string | null | undefined, _orderIndex = 0): ClusterColor {
   if (!slug) return NEUTRAL_CLUSTER;
   return PINNED_CLUSTER_COLORS[slug] ?? family(slugHue(slug), 50, 60);
 }
 
-// ── Base node radius ──────────────────────────────────────────────────────────
 export const NODE_BASE_RADIUS = 9;
 export const NODE_MAX_RADIUS  = 20;
 
@@ -192,7 +152,6 @@ export function nodeRadius(node: WvGraphNode): number {
   return Math.min(NODE_MAX_RADIUS, NODE_BASE_RADIUS + Math.sqrt(deg) * 2.2);
 }
 
-// ── Mock seed graph — Hallaq, The Impossible State, Chapter 1 ─────────────────
 export const MOCK_WV_GRAPH: WvGraphData = {
   nodes: [
     { id: 'n1',  label: 'Modern Islamic State', type: 'claim',     summary: 'The modern Islamic state is a structural impossibility — not merely a political failure but a conceptual one rooted in category error.', chapterRole: 'thesis' },

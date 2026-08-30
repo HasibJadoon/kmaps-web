@@ -1,14 +1,11 @@
-// ─── Workspace schemas & types ────────────────────────────────────────────────
-// Mirrors the core_workspaces table.
-
 export interface Workspace {
-  id: string;                 // CORE:ULID
+  id: string;
   slug: string;
   title: string;
   description_md: string | null;
-  workspace_type: string;     // personal | team | class | org | …
-  owner_id: string;           // CORE:ULID → core_users
-  status: string;             // active | archived
+  workspace_type: string;
+  owner_id: string;
+  status: string;
   allow_guests: number;
   allow_public_publish: number;
   default_visibility: string;

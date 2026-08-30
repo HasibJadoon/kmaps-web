@@ -1,12 +1,3 @@
-// ─── Scholarship shell ─────────────────────────────────────────────────────
-// Wraps academic / archaeological / comparative-Semitic readings (e.g.
-// Al-Jallad) in a reader that mirrors the LaneShell layout: top toolbar,
-// left rail (root index for THIS source), main scroller (the note + any
-// peer notes for the same root), right rail (source metadata).
-//
-// Data lives in `ar_ling_root_scholarship` — a separate table family
-// from the classical lexicon corpus.
-
 import {
   ChangeDetectionStrategy, Component, DestroyRef, ElementRef, HostListener,
   ViewChild, computed, inject, signal,
@@ -21,16 +12,6 @@ import {
 } from '../../../../shared/services/al-dictionary-api.service';
 import { BookStripComponent } from '../../components/book-strip/book-strip.component';
 import { SarfPanelComponent } from '../../components/sarf-panel/sarf-panel.component';
-
-// This shell renders ANY academic source — Al-Jallad's "Excavating the
-// Quran" and Sinai's key terms today, but also future epigraphic /
-// archaeological / comparative-Semitic articles by other authors. The root
-// dispatcher uses a NEGATIVE filter (no `/read/` composer → fall through here) so
-// adding a new source to `ar_ling_root_scholarship` requires zero code changes.
-//
-// To opt a source OUT of the academic shell, add its slug to
-// `COMPOSER_BACKED_SLUGS` in `data/lexicon-sources.service.ts` once the backend
-// has a composer for it.
 
 @Component({
   selector: 'km-scholarship-shell',
@@ -79,24 +60,20 @@ export class ScholarshipShellComponent {
       r.root_norm.includes(q) || (r.root_text ?? '').includes(q));
   });
 
-  // UI prefs
   readonly darkMode      = signal(true);
   readonly showIndex     = signal(true);
   readonly showMeta      = signal(true);
-  readonly fontSize      = signal(1);              // 0=small, 1=normal, 2=large
+  readonly fontSize      = signal(1);
   readonly copyState     = signal<'idle' | 'copied' | 'failed'>('idle');
 
   constructor() {
     combineLatest([this.route.paramMap, this.route.queryParamMap])
       .pipe(takeUntilDestroyed())
       .subscribe(([params, query]) => {
-        // Root-centric URL: /lexicon/root/:root?book=<slug>.
+
         const book = query.get('book') ?? '';
         if (!book) return;
-        // No allowlist — render whatever academic source the URL points
-        // at. The roots-list query returns empty for unknown slugs, so
-        // the shell degrades gracefully (left rail is empty, main panel
-        // shows "Pick a root").
+
         if (book !== this.slug()) {
           this.slug.set(book);
           this.rootList.set([]);
@@ -135,9 +112,7 @@ export class ScholarshipShellComponent {
       this.loading.set(false);
       queueMicrotask(() => this.contentRef?.nativeElement.scrollTo({ top: 0 }));
     });
-    // A modern source can still carry a ṣarf tree on the index, so the panel is
-    // fetched here for the same reason as in the other readers. Runs in parallel;
-    // a late response for an abandoned root must not land.
+
     this.api.getSarfFamily(slug, root_norm).pipe(
       takeUntilDestroyed(this.destroyRef),
     ).subscribe(f => {
@@ -145,7 +120,6 @@ export class ScholarshipShellComponent {
     });
   }
 
-  // ── Navigation
   goToRoot(root_norm: string) {
     this.router.navigate(['/lexicon/root', root_norm], {
       queryParams: { book: this.slug() },
@@ -167,12 +141,6 @@ export class ScholarshipShellComponent {
   toggleMeta()      { this.showMeta.update(v => !v); }
   changeFont(d: number) { this.fontSize.set(Math.max(0, Math.min(2, this.fontSize() + d))); }
 
-  // ── Body segmentation: split prose into text + clickable Q s:a refs
-  //
-  // Academic bodies frequently cite Qur'an verses inline as "Q 93:3" or
-  // "Q. 2:255" — same surface area as the Lane reader's inline quran
-  // tokens. The shell parses these into segments so the template can
-  // render the `Q s:a` form as a clickable pill that opens the mushaf.
   bodySegments(text: string | null | undefined): {
     kind: 'text' | 'qref';
     value: string;
@@ -180,8 +148,7 @@ export class ScholarshipShellComponent {
     ayah?: number;
   }[] {
     if (!text) return [];
-    // Match `Q [optional .] [optional space] surah[: or -]ayah`. Tolerates
-    // both ASCII and U+002D / U+2013 hyphen, optional dot after Q.
+
     const RX = /\bQ\.?\s*(\d{1,3})\s*[:\-–]\s*(\d{1,3})\b/g;
     const out: { kind: 'text' | 'qref'; value: string; surah?: number; ayah?: number }[] = [];
     let cur = 0;
@@ -199,7 +166,6 @@ export class ScholarshipShellComponent {
     return out;
   }
 
-  // Open the ayah in the mushaf reader (matches Lane shell behavior).
   openAyah(surah: number, ayah: number) {
     if (!surah || !ayah) return;
     this.router.navigate(['/quran/al-quran'], {
@@ -207,7 +173,6 @@ export class ScholarshipShellComponent {
     });
   }
 
-  // ── Copy: full entry as bilingual text
   copyEntry() {
     const v = this.view();
     if (!v || !v.source) return;
@@ -244,7 +209,6 @@ export class ScholarshipShellComponent {
     } catch { finish('failed'); }
   }
 
-  // ── Keyboard
   @HostListener('window:keydown', ['$event'])
   onKey(e: KeyboardEvent) {
     if ((e.target as HTMLElement)?.tagName === 'INPUT' ||

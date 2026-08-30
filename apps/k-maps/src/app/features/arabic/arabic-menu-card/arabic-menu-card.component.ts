@@ -86,7 +86,7 @@ export class ArabicMenuCardComponent implements OnInit {
         }
       },
       error: () => {
-        // silently fail
+
       },
     });
   }

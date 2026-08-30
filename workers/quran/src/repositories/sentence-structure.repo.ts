@@ -1,25 +1,6 @@
-// ─── SentenceStructureRepo — all qr_ss_* tables (Layer 6) ────────────────────
-//
-// Tables covered:
-//   qr_ss_occ_segment, qr_ss_occ_sentence, qr_ss_occ_clause, qr_ss_occ_phrase
-//   qr_ss_scope_member_map, qr_ss_scope_link, qr_ss_syntax_link
-//   qr_ss_scope_morph_link, qr_ss_scope_grammar_link, qr_ss_scope_balagha_link
-//   qr_ss_scope_nuance, qr_ss_ellipsis_event, qr_ss_scope_reading,
-//   qr_ss_scope_reading_evidence_link, qr_ss_tree, qr_ss_tree_node,
-//   qr_ss_tree_edge, qr_ss_tree_layout
-//
-// ARCHITECTURE RULES (do not violate):
-//   • qr_word_occurrence = single canonical word owner; no qr_ss_occ_word
-//   • qr_ss_occ_segment = sub-word attached elements only
-//   • Scope rows populate BEFORE tree rows are generated
-//   • Tree rows are downstream projections, NOT the primary store of truth
-// ─────────────────────────────────────────────────────────────────────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Row shapes ─────────────────────────────────────────────────────────────────
 
 export interface OccSegment {
   id: string;
@@ -411,12 +392,8 @@ export interface TreeLayoutCache {
   generated_at: string;
 }
 
-// ── Repo ───────────────────────────────────────────────────────────────────────
-
 export class SentenceStructureRepo {
   constructor(private db: D1Database) {}
-
-  // ── qr_ss_occ_sentence ─────────────────────────────────────────────────────
 
   sentences(surah: number, ayah?: number, opts: PaginateOptions = {}) {
     const whereClause = ayah != null
@@ -468,8 +445,6 @@ export class SentenceStructureRepo {
       [id],
     );
   }
-
-  // ── qr_ss_occ_clause ───────────────────────────────────────────────────────
 
   clauses(sentenceId: string, opts: PaginateOptions = {}) {
     return paginate<OccClause>(
@@ -530,8 +505,6 @@ export class SentenceStructureRepo {
     );
   }
 
-  // ── qr_ss_occ_phrase ───────────────────────────────────────────────────────
-
   phrases(clauseId: string): Promise<OccPhrase[]> {
     return query<OccPhrase>(
       this.db,
@@ -582,8 +555,6 @@ export class SentenceStructureRepo {
     );
   }
 
-  // ── qr_ss_occ_segment ──────────────────────────────────────────────────────
-
   segments(wordOccId: string): Promise<OccSegment[]> {
     return query<OccSegment>(
       this.db,
@@ -627,8 +598,6 @@ export class SentenceStructureRepo {
     );
   }
 
-  // ── qr_ss_scope_member_map ─────────────────────────────────────────────────
-
   scopeMembers(scopeRef: { scope_type: string; scope_id: string }): Promise<ScopeMemberMap[]> {
     return query<ScopeMemberMap>(
       this.db,
@@ -658,8 +627,6 @@ export class SentenceStructureRepo {
       [input.word_occurrence_id, input.scope_type, input.scope_id],
     );
   }
-
-  // ── qr_ss_scope_link ──────────────────────────────────────────────────
 
   scopeRelations(scopeRef: { from_scope_type: string; from_scope_id: string }, opts: PaginateOptions = {}) {
     return paginate<ScopeRelation>(
@@ -705,8 +672,6 @@ export class SentenceStructureRepo {
     );
   }
 
-  // ── qr_ss_syntax_link ─────────────────────────────────────────────────
-
   syntaxRelations(surah: number, opts: PaginateOptions = {}) {
     return paginate<SyntaxRelation>(
       this.db,
@@ -749,8 +714,6 @@ export class SentenceStructureRepo {
       [id],
     );
   }
-
-  // ── qr_ss_scope_morph_link ─────────────────────────────────────────────────
 
   morphLinks(scopeRef: { scope_type: string; scope_id: string }): Promise<ScopeMorphLink[]> {
     return query<ScopeMorphLink>(
@@ -795,8 +758,6 @@ export class SentenceStructureRepo {
     );
   }
 
-  // ── qr_ss_scope_grammar_link ───────────────────────────────────────────────
-
   grammarLinks(scopeRef: { scope_type: string; scope_id: string }): Promise<ScopeGrammarLink[]> {
     return query<ScopeGrammarLink>(
       this.db,
@@ -832,8 +793,6 @@ export class SentenceStructureRepo {
       [id],
     );
   }
-
-  // ── qr_ss_scope_balagha_link ───────────────────────────────────────────────
 
   balaghaLinks(scopeRef: { scope_type: string; scope_id: string }): Promise<ScopeBalaghaLink[]> {
     return query<ScopeBalaghaLink>(
@@ -873,8 +832,6 @@ export class SentenceStructureRepo {
       [id],
     );
   }
-
-  // ── qr_ss_scope_nuance ─────────────────────────────────────────────────────
 
   nuances(scopeRef: { scope_type: string; scope_id: string }, opts: PaginateOptions = {}) {
     return paginate<ScopeNuance>(
@@ -919,8 +876,6 @@ export class SentenceStructureRepo {
       [id],
     );
   }
-
-  // ── qr_ss_ellipsis_event ───────────────────────────────────────────────────
 
   ellipsisEvents(surah: number, opts: PaginateOptions = {}) {
     return paginate<EllipsisEvent>(
@@ -968,8 +923,6 @@ export class SentenceStructureRepo {
       [id],
     );
   }
-
-  // ── qr_ss_scope_reading ────────────────────────────────────────────────────
 
   scopeReadings(scopeRef: { scope_type: string; scope_id: string }, opts: PaginateOptions = {}) {
     return paginate<ScopeReading>(
@@ -1022,8 +975,6 @@ export class SentenceStructureRepo {
     );
   }
 
-  // ── qr_ss_scope_reading_evidence_link ──────────────────────────────────────
-
   scopeReadingEvidenceLinks(readingId: string): Promise<ScopeReadingEvidenceLink[]> {
     return query<ScopeReadingEvidenceLink>(
       this.db,
@@ -1044,8 +995,6 @@ export class SentenceStructureRepo {
     );
     return true;
   }
-
-  // ── qr_ss_tree ─────────────────────────────────────────────────────────────
 
   trees(surah: number, opts: PaginateOptions = {}) {
     return paginate<Tree>(
@@ -1083,8 +1032,6 @@ export class SentenceStructureRepo {
 
     return this.findTreeById(id);
   }
-
-  // ── qr_ss_tree_node ────────────────────────────────────────────────────────
 
   treeNodes(treeId: string): Promise<TreeNode[]> {
     return query<TreeNode>(
@@ -1127,8 +1074,6 @@ export class SentenceStructureRepo {
     );
   }
 
-  // ── qr_ss_tree_edge ────────────────────────────────────────────────────────
-
   treeEdges(treeId: string): Promise<TreeEdge[]> {
     return query<TreeEdge>(
       this.db,
@@ -1156,8 +1101,6 @@ export class SentenceStructureRepo {
       [id],
     );
   }
-
-  // ── qr_ss_tree_layout ────────────────────────────────────────────────
 
   treeLayoutCache(treeId: string): Promise<TreeLayoutCache | null> {
     return queryOne<TreeLayoutCache>(

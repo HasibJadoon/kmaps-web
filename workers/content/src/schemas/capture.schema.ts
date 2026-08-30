@@ -1,7 +1,5 @@
-// ─── Capture schemas & types ──────────────────────────────────────────────────
-
 export interface CmCapture {
-  capture_id: string;         // CM:ULID
+  capture_id: string;
   core_user_ref: string;
   capture_type: 'text' | 'url' | 'image' | 'audio' | 'other';
   raw_text: string | null;
@@ -19,7 +17,7 @@ export interface CmCapture {
 }
 
 export interface CmCaptureLink {
-  link_id: string;            // CM:ULID
+  link_id: string;
   capture_id: string;
   target_ref: string;
   link_type: string;
@@ -78,14 +76,12 @@ export function validateCmCaptureCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface Capture {
-  id: string;              // CM:ULID
-  capture_type: string;    // highlight | quote | bookmark | excerpt
+  id: string;
+  capture_type: string;
   text: string;
-  source_ref: string | null; // typed ref to origin resource
-  color: string | null;    // UI highlight colour tag
+  source_ref: string | null;
+  color: string | null;
   created_at: string;
 }
 
@@ -95,8 +91,6 @@ export interface CaptureCreate {
   source_ref?: string | null;
   color?: string | null;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

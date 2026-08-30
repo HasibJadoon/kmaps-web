@@ -1,6 +1,3 @@
-// Closed layer registry — the layer vocabulary is fixed, so this map is a known set.
-// `block.type` selects the component exactly as `block.icon` selects the glyph.
-// Heavy SVG/ceremonial layers are lazy `() => import()`; the rest are eager.
 import { Type } from '@angular/core';
 import { MorphBlockBody } from './morph-block.types';
 
@@ -36,7 +33,7 @@ export const MORPH_BLOCK_REGISTRY: Record<string, RegistryEntry> = {
   development:  { cmp: DevelopmentBlock },
   tafsir:       { cmp: TafsirBlock },
   attestations: { cmp: AttestationsBlock },
-  // heavy → lazy-loaded on demand
+
   synthesis:     { load: () => import('./blocks/synthesis/synthesis-block.component').then(m => m.SynthesisBlock) },
   constellation: { load: () => import('./blocks/constellation/constellation-block.component').then(m => m.ConstellationBlock) },
   usage_map:     { load: () => import('./blocks/usage-map/usage-map-block.component').then(m => m.UsageMapBlock) },

@@ -1,20 +1,18 @@
-// ─── Node schemas & types ───────────────────────────────────────────────
-
 export interface WvNode {
-  id: string;               // WV:ULID
-  node_type: string;        // concept|claim|theme|tafsir_view|event|institution
+  id: string;
+  node_type: string;
   title: string;
   summary: string | null;
-  tradition_id: string | null; // WV:ULID
+  tradition_id: string | null;
   status: string;
   created_at: string;
 }
 
 export interface WvEdge {
-  id: string;               // WV:ULID
+  id: string;
   from_node_id: string;
   to_node_id: string;
-  relation_type: string;    // supports|contradicts|related_to|part_of|etc.
+  relation_type: string;
   note: string | null;
   created_at: string;
 }
@@ -32,8 +30,6 @@ export interface EdgeCreate {
   relation_type: string;
   note?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

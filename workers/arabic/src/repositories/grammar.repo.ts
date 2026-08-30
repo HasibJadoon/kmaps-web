@@ -1,16 +1,12 @@
-// ─── GrammarRepo — ar_grammar ─────────────────────────────────────────────────
-// Learner grammar items tied to nahw/sarf concepts in km_arabic_linguistic.
-// lx_nahw_ref → AL:ULID in ar_ling_nahw_concepts (never duplicate definitions).
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface GrammarItem {
-  id: string;             // AR:ULID
-  container_id: string;   // AR:ULID
-  lx_nahw_ref: string;    // AL:ULID → ar_ling_nahw_concepts
-  label: string;          // short display label (e.g. "فاعل")
+  id: string;
+  container_id: string;
+  lx_nahw_ref: string;
+  label: string;
   example_ar: string | null;
   explanation: string | null;
   sort_order: number;
@@ -43,7 +39,6 @@ export class GrammarRepo {
     );
   }
 
-  /** All grammar items for a specific nahw concept across all containers. */
   byNahwRef(lxNahwRef: string, opts: PaginateOptions = {}) {
     return paginate<GrammarItem>(
       this.db,

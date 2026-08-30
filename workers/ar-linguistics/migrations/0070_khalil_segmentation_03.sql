@@ -1,6 +1,3 @@
--- Kitab al-Ayn: authored block headings, corrected block types,
--- and the الأمثلة section wrapper. Part 3. text_plain is never written.
-
 UPDATE ar_ling_lexicon_block SET title_ar = 'حاشية ٢', block_type = 'footnote' WHERE id = 'blk_kay_f51f4d1832fa1f17' AND origin = 'book_native' AND (title_ar IS NULL OR title_ar LIKE '«%');
 UPDATE ar_ling_lexicon_block SET title_ar = 'شاهد قرآني', block_type = 'quran_quote', parent_block_id = 'blk_kay_ex_44e4367761ca0ba6', depth = 2 WHERE id = 'blk_kay_f521aa70fdee7779' AND origin = 'book_native' AND (title_ar IS NULL OR title_ar LIKE '«%');
 UPDATE ar_ling_lexicon_block SET title_ar = 'الفَرْعُ: أوّل نِتاجِ الغنم أو الإبل', block_type = 'definition', parent_block_id = 'blk_kay_ex_dea963960d8a0771', depth = 2 WHERE id = 'blk_kay_f522ee78afcdb9af' AND origin = 'book_native' AND (title_ar IS NULL OR title_ar LIKE '«%');

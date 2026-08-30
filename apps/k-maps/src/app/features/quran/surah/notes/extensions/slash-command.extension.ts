@@ -9,13 +9,6 @@ export interface SlashCommandState {
 
 export const SLASH_KEY = new PluginKey<SlashCommandState>('slashCommand');
 
-/**
- * Detects `/` typed at the start of a paragraph (or after whitespace),
- * then emits a `km-slash-open` custom event on the editor's host element
- * and a `km-slash-close` event when the menu should close.
- *
- * No @tiptap/suggestion dependency required.
- */
 export const SlashCommand = Extension.create({
   name: 'slashCommand',
 
@@ -109,7 +102,7 @@ export const SlashCommand = Extension.create({
             if (!pluginState?.active) return false;
 
             if (event.key === 'Escape' || event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'Enter') {
-              // Let Angular component handle these
+
               return false;
             }
 

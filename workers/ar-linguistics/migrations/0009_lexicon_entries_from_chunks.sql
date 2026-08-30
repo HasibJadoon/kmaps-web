@@ -1,11 +1,3 @@
--- 0009_lexicon_entries_from_chunks.sql
--- Promote classical lexical source chunks into canonical lexicon entries.
---
--- ar_ling_source_chunks remains the source text table for page/chunk navigation.
--- ar_ling_lexicon_entries becomes the major structured lexicon table, with direct
--- source, locator, root, and embedding columns so every imported lexicon source
--- can be queried from one place.
-
 ALTER TABLE ar_ling_lexicon_entries ADD COLUMN root_id TEXT;
 ALTER TABLE ar_ling_lexicon_entries ADD COLUMN source_id TEXT;
 ALTER TABLE ar_ling_lexicon_entries ADD COLUMN source_slug TEXT;

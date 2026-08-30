@@ -1,15 +1,3 @@
-// iraab-display.schema.ts
-//
-// TypeScript surface for the qr_iraab_book_display_* projection (migration 011).
-// Two flavors per table:
-//   - <Row>       : raw D1 row shape, JSON columns as `string | null`
-//   - <Parsed>    : UI-facing shape with JSON columns hydrated to typed arrays
-//
-// Mirrors `irab.schema.ts` conventions (one interface per table, no enums; the
-// vocab unions below are for editor help and can be widened without a migration).
-
-// ─── Vocab unions (soft — DB columns are TEXT) ───────────────────────────────
-
 export type IraabBlockType =
   | 'heading' | 'subheading'
   | 'arabic_quote' | 'source_quote'
@@ -52,21 +40,18 @@ export type IraabLinkKind =
 
 export type IraabNoteKind = 'author' | 'teaching' | 'footnote' | 'reviewer';
 
-// ─── JSON column payloads (hydrated forms) ───────────────────────────────────
-
 export interface QuranRef {
   surah: number | null;
   ayah?: number | null;
   ayah_to?: number | null;
-  ayah_key?: string | null;          // "2:3"
-  ayah_group_key?: string | null;    // "2:1-5"
-  ayah_keys?: string[] | null;       // ["2:1","2:2","2:3","2:4","2:5"]
+  ayah_key?: string | null;
+  ayah_group_key?: string | null;
+  ayah_keys?: string[] | null;
   word_index?: number | null;
   word_text?: string | null;
   label?: string | null;
 }
 
-/** Payload of `external_resource_json` for dependency_graph blocks. */
 export interface ExternalResource {
   r2_key: string;
   kind: 'svg' | 'image' | 'pdf' | 'audio' | 'other';
@@ -83,12 +68,10 @@ export interface BlockLink {
 }
 
 export interface BlockMeta {
-  highlights?: string[];                 // <span class="hlt">…</span> picked from raw HTML
-  alternatives?: string[];               // [[…]] aside content
+  highlights?: string[];
+  alternatives?: string[];
   [k: string]: unknown;
 }
-
-// ─── 1. SOURCES ──────────────────────────────────────────────────────────────
 
 export interface QrIraabBookDisplaySourceRow {
   id: string;
@@ -110,13 +93,11 @@ export interface QrIraabBookDisplaySourceRow {
   updated_at: string;
 }
 
-// ─── 2. BLOCKS ───────────────────────────────────────────────────────────────
-
 export interface QrIraabBookDisplayBlockRow {
   id: string;
   source_id: string | null;
-  source_chunk_id: string | null;       // → qr_irab_source_chunk.id  (Phase B/C)
-  source_entry_id: string | null;       // → qr_irab_book_entry.id   (Phase A)
+  source_chunk_id: string | null;
+  source_entry_id: string | null;
   source_slug: string;
   book_title: string | null;
   author: string | null;
@@ -124,9 +105,9 @@ export interface QrIraabBookDisplayBlockRow {
   surah_no: number | null;
   ayah_no: number | null;
   ayah_to: number | null;
-  ayah_key: string | null;              // "2:3"
-  ayah_group_key: string | null;        // "2:1-5"
-  ayah_keys_json: string | null;        // JSON-encoded string[]
+  ayah_key: string | null;
+  ayah_group_key: string | null;
+  ayah_keys_json: string | null;
   is_grouped: 0 | 1;
   word_index: number | null;
   word_text: string | null;
@@ -161,14 +142,13 @@ export interface QrIraabBookDisplayBlockRow {
   updated_at: string;
 }
 
-/** UI-facing shape: JSON columns hydrated to typed arrays/objects. */
 export interface QrIraabBookDisplayBlock
   extends Omit<QrIraabBookDisplayBlockRow,
     | 'ayah_keys_json'
     | 'tags_json' | 'grammar_tags_json' | 'sarf_tags_json' | 'balagha_tags_json'
     | 'quran_refs_json' | 'backlinks_json' | 'related_links_json'
     | 'external_resource_json' | 'meta_json'> {
-  ayah_keys: string[];                  // hydrated from ayah_keys_json
+  ayah_keys: string[];
   tags: string[];
   grammar_tags: string[];
   sarf_tags: string[];
@@ -180,8 +160,6 @@ export interface QrIraabBookDisplayBlock
   meta: BlockMeta;
 }
 
-// ─── 3. TAGS ─────────────────────────────────────────────────────────────────
-
 export interface QrIraabBookDisplayTagRow {
   id: string;
   block_id: string;
@@ -191,8 +169,6 @@ export interface QrIraabBookDisplayTagRow {
   display_order: number;
   created_at: string;
 }
-
-// ─── 4. REFS ─────────────────────────────────────────────────────────────────
 
 export interface QrIraabBookDisplayRefRow {
   id: string;
@@ -210,8 +186,6 @@ export interface QrIraabBookDisplayRefRow {
   created_at: string;
 }
 
-// ─── 5. LINKS ────────────────────────────────────────────────────────────────
-
 export interface QrIraabBookDisplayLinkRow {
   id: string;
   from_block_id: string;
@@ -222,8 +196,6 @@ export interface QrIraabBookDisplayLinkRow {
   meta_json: string | null;
   created_at: string;
 }
-
-// ─── 6. NOTES ────────────────────────────────────────────────────────────────
 
 export interface QrIraabBookDisplayNoteRow {
   id: string;
@@ -243,8 +215,6 @@ export interface QrIraabBookDisplayNoteRow {
   created_at: string;
   updated_at: string;
 }
-
-// ─── Hydration helpers ───────────────────────────────────────────────────────
 
 const parseArr = <T = unknown>(s: string | null): T[] => {
   if (!s) return [];
@@ -283,23 +253,15 @@ export function hydrateBlock(r: QrIraabBookDisplayBlockRow): QrIraabBookDisplayB
   };
 }
 
-// ─── Aggregate response shape for the UI ─────────────────────────────────────
-//
-// iʿrāb books group analysis across ayah ranges (e.g. Al-Jadwal's 3:131 entry
-// covers 3:131-3:133 as a single unit). The natural payload shape is therefore
-// a GROUP envelope. A request for surah=N&ayah=M resolves on the worker side
-// to the enclosing group per source, and the response carries the group's
-// canonical key + full ayah list so the UI can render the range header.
-
 export interface QrIraabGroupDisplayPayload {
-  /** Canonical group key, e.g. "2:1-5" or "2:3" for singletons. */
+
   ayah_group_key: string;
-  /** Convenience: parsed group span. */
+
   surah_no: number;
   ayah_no: number;
   ayah_to: number;
   ayah_keys: string[];
-  /** The requesting ayah the resolver was called with (may be inside the group). */
+
   requested_ayah_no?: number;
   sources: QrIraabBookDisplaySourceRow[];
   blocks: QrIraabBookDisplayBlock[];
@@ -309,6 +271,4 @@ export interface QrIraabGroupDisplayPayload {
   notes: QrIraabBookDisplayNoteRow[];
 }
 
-/** @deprecated Use `QrIraabGroupDisplayPayload`. Kept for transitional callers
- *  that addressed iʿrāb per-ayah. */
 export type QrIraabAyahDisplayPayload = QrIraabGroupDisplayPayload;

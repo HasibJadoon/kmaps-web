@@ -1,10 +1,8 @@
-// ─── Bridge schemas & types ───────────────────────────────────────────────
-
 export interface QuranLink {
   id: string;
-  al_entity_ref: string;   // AL:<ULID>
+  al_entity_ref: string;
   al_entity_type: string;
-  qr_scope_ref: string;    // QR:<ULID> or QR:surah:ayah
+  qr_scope_ref: string;
   link_type: string;
   note_md: string | null;
   confidence: number;
@@ -22,9 +20,9 @@ export interface QuranLinkCreate {
 
 export interface ArabicLink {
   id: string;
-  al_entity_ref: string;   // AL:<ULID>
+  al_entity_ref: string;
   al_entity_type: string;
-  ar_entity_ref: string;   // AR:<ULID>
+  ar_entity_ref: string;
   ar_entity_type: string;
   link_type: string;
   note_md: string | null;
@@ -42,9 +40,9 @@ export interface ArabicLinkCreate {
 
 export interface ContentLink {
   id: string;
-  al_entity_ref: string;   // AL:<ULID>
+  al_entity_ref: string;
   al_entity_type: string;
-  cm_entity_ref: string;   // CM:<ULID>
+  cm_entity_ref: string;
   cm_entity_type: string;
   link_type: string;
   note_md: string | null;
@@ -69,8 +67,6 @@ export interface ProjectionCache {
   expires_at: string | null;
   created_at: string;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

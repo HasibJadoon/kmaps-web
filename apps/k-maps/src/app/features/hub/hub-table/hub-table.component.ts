@@ -61,7 +61,7 @@ export class HubTableComponent implements OnInit {
         this.totalCount.set(data.total ?? items.length);
         this.hasMore.set(items.length === 50);
       }
-    } catch { /* silent */ } finally {
+    } catch {  } finally {
       this.loading.set(false);
     }
   }

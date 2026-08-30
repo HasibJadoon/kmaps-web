@@ -1,10 +1,6 @@
-// ─── AuditRepo — core_audit_log + core_feature_flags + core_platform_config ───
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export type AuditAction =
   | 'policy_changed'
@@ -71,8 +67,6 @@ export interface PlatformConfig {
   updated_at: string;
 }
 
-// ── Column fragments ──────────────────────────────────────────────────────────
-
 const AUDIT_COLS = `
   id, workspace_id, actor_user_ref, action, resource_ref,
   before_json, after_json, ip_address, user_agent, created_at
@@ -88,12 +82,8 @@ const CONFIG_COLS = `
   updated_by_ref, updated_at
 FROM core_platform_config`;
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class AuditRepo {
   constructor(private db: D1Database) {}
-
-  // ── Audit Log ──
 
   async logAudit(input: AuditLogInput): Promise<AuditLogEntry> {
     const id = typedId('CORE');
@@ -151,8 +141,6 @@ export class AuditRepo {
     );
   }
 
-  // ── Feature Flags ──
-
   getFlag(key: string): Promise<FeatureFlag | null> {
     return queryOne<FeatureFlag>(
       this.db,
@@ -205,7 +193,6 @@ export class AuditRepo {
     return this.getFlag(key);
   }
 
-  /** Update the enabled_for JSON list for a flag. */
   async setFlagEnabledFor(key: string, enabledFor: string[], updatedByRef?: string): Promise<void> {
     await execute(
       this.db,
@@ -215,8 +202,6 @@ export class AuditRepo {
       [JSON.stringify(enabledFor), updatedByRef ?? null, key],
     );
   }
-
-  // ── Platform Config ──
 
   getConfig(key: string): Promise<PlatformConfig | null> {
     return queryOne<PlatformConfig>(

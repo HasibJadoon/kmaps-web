@@ -1,12 +1,3 @@
-// ─── /worldview/questions + /worldview/topics routes ──────────────────────────
-// Read access to wv_questions + wv_topics.
-//
-// GET /worldview/questions?source_id=   — questions for a source
-// GET /worldview/questions?unit_id=     — questions for a source unit
-// GET /worldview/questions/:id          — single question
-// GET /worldview/topics                 — topic taxonomy
-// GET /worldview/topics/:id             — single topic
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, badRequest } from '../../../shared/src/response';
 import type { WorldviewEnv } from '../env';

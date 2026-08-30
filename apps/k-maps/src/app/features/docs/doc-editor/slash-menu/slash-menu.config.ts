@@ -10,7 +10,7 @@ export interface SlashCommand {
 }
 
 export const SLASH_COMMANDS: SlashCommand[] = [
-  // ── Text ────────────────────────────────────────────────
+
   {
     title: 'Text', description: 'Plain paragraph', icon: 'T', group: 'Style',
     command: ({ editor, range }) =>
@@ -69,19 +69,17 @@ export const SLASH_COMMANDS: SlashCommand[] = [
       editor.chain().focus().deleteRange(range).setHorizontalRule().run(),
   },
 
-  // ── Pages ───────────────────────────────────────────────
   {
     title: 'New Page', description: 'Create a linked sub-document', icon: '📄', group: 'Pages',
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).run();
-      // Dispatch a custom event — DocEditorService listens and creates the page
+
       editor.view.dom.dispatchEvent(
         new CustomEvent('km:create-page', { bubbles: true, detail: { pos: editor.state.selection.from } })
       );
     },
   },
 
-  // ── Quran ───────────────────────────────────────────────
   {
     title: 'Ayah Embed', description: 'Insert a Quran verse block', icon: 'آ', group: 'Quran',
     command: ({ editor, range }) => {
@@ -90,7 +88,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
       if (!ref) return;
       const [s, a] = ref.split(':').map(Number);
       if (!s || !a) return;
-      // API returns `verses` array; use limit=1 + offset=ayah-1 to get the specific verse
+
       fetch(`/api/ar/quran/ayahs?surah=${s}&limit=1&offset=${a - 1}`)
         .then(r => r.json())
         .then((data: { verses?: Array<{ text_uthmani_clean?: string; text_uthmani?: string; text?: string; translation?: string }> }) => {
@@ -115,7 +113,6 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     },
   },
 
-  // ── Arabic ──────────────────────────────────────────────
   {
     title: 'Vocabulary', description: 'Insert a vocab card with root & meanings', icon: 'ع', group: 'Arabic',
     command: ({ editor, range }) => {
@@ -145,7 +142,6 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     },
   },
 
-  // ── Worldview ───────────────────────────────────────────
   {
     title: 'Claim', description: 'State a scholarly claim or thesis', icon: '⚡', group: 'Worldview',
     command: ({ editor, range }) => {
@@ -168,7 +164,6 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     },
   },
 
-  // ── Production ──────────────────────────────────────────
   {
     title: 'Task', description: 'Action item checklist block', icon: '☑', group: 'Production',
     command: ({ editor, range }) => {
@@ -191,7 +186,6 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     },
   },
 
-  // ── Learning ────────────────────────────────────────────
   {
     title: 'Comprehension Q', description: 'Comprehension question with answer', icon: '?', group: 'Learning',
     command: ({ editor, range }) => {

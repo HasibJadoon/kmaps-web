@@ -20,7 +20,6 @@ import { DocContextService } from '../../../docs/services/doc-context.service';
 
 export type ViewMode = 'verse' | 'arabic' | 'translation';
 
-// Shown for every surah except At-Tawbah (9) which has no Bismillah
 const BISMILLAH = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ';
 
 @Component({
@@ -41,24 +40,18 @@ export class SurahReaderComponent implements OnInit, AfterViewInit {
 
   readonly bismillah = BISMILLAH;
 
-  /** U+06DD glyph only — the ornate empty circle frame from UthmanicHafs.
-   *  Rendered large so the arabesque border is visible; digit overlaid via CSS. */
   getVerseMarkFrame(): string {
     return '\u06DD';
   }
 
-  /** Arabic-Indic digits only, stripped of U+06DD prefix.
-   *  Positioned absolutely in the centre of the U+06DD frame. */
   getVerseMarkDigits(ayah: QuranAyah): string {
     return (ayah.verse_mark ?? '').replace(/^\u06DD/, '');
   }
 
-  /** Arabic-Indic digits from DB (U+06DD already stripped at DB level). */
   getVerseMark(ayah: QuranAyah): string {
     return ayah.verse_mark ?? '';
   }
 
-  /** @deprecated */
   verseMarker(_n: number): string {
     return '';
   }
@@ -98,12 +91,10 @@ export class SurahReaderComponent implements OnInit, AfterViewInit {
   }
 
   get shouldShowBismillah(): boolean {
-    // At-Tawbah (9) is the only surah without a Bismillah opening
+
     return this.surahId() !== 9;
   }
 
-  // Group ayahs by Mushaf page number for the paginated Arabic view.
-  // Ayahs with no page_number fall into page 0 (no divider shown).
   get ayahsByPage(): { page: number; ayahs: QuranAyah[] }[] {
     const map = new Map<number, QuranAyah[]>();
     for (const ayah of this.ayahs()) {
@@ -116,25 +107,22 @@ export class SurahReaderComponent implements OnInit, AfterViewInit {
       .map(([page, ayahs]) => ({ page, ayahs }));
   }
 
-  // Prepared for morphology / lexicon lookup — full logic to be added later
   onWordClick(_word: string, _ayah: QuranAyah): void {}
 
   newDoc(): void {
     this.docCtx.openNewDocWithContext(`quran/${this.surahId()}`);
   }
 
-  /** Clean verse body — text_uthmani_clean has no verse number or U+06DD. */
   getAyahBody(ayah: QuranAyah): string {
     return (ayah.text_uthmani_clean ?? ayah.text_uthmani ?? ayah.text ?? '').trimEnd();
   }
 
-  /** @deprecated verse_mark is now served directly from DB via getVerseMark(). */
   getAyahMarker(ayah: QuranAyah): string {
     return ayah.verse_mark ?? '';
   }
 
   getWords(ayah: QuranAyah): string[] {
-    // text_uthmani_clean is pre-stripped (no verse number, no U+06DD)
+
     const src = ayah.text_uthmani_clean ?? ayah.text_uthmani ?? ayah.text ?? '';
     return src.split(/\s+/).filter(w => w.length > 0);
   }
@@ -168,14 +156,14 @@ export class SurahReaderComponent implements OnInit, AfterViewInit {
   }
 
   private animateContent(): void {
-    // Wait one frame so Angular has flushed the DOM update
+
     setTimeout(() => {
       if (!this.contentEl?.nativeElement) return;
       const el = this.contentEl.nativeElement;
       const mode = this.viewMode();
 
       if (mode === 'arabic') {
-        // Fade in the mushaf text block
+
         const wrap = el.querySelector('.mushaf-wrap');
         if (wrap) {
           gsap.fromTo(wrap, { opacity: 0, y: 14 }, {
@@ -183,7 +171,6 @@ export class SurahReaderComponent implements OnInit, AfterViewInit {
           });
         }
 
-        // Animate each page-break: lines grow from center, badge fades in
         const breaks = el.querySelectorAll<HTMLElement>('.page-break');
         breaks.forEach((pb, i) => {
           const lines = pb.querySelectorAll<HTMLElement>('.page-break__line');
@@ -218,7 +205,6 @@ export class SurahReaderComponent implements OnInit, AfterViewInit {
           { opacity: 1, y: 0, duration: 0.48, stagger: 0.038, ease: 'power2.out', clearProps: 'transform' }
         );
 
-        // Animate page-break dividers after rows
         const breaks = el.querySelectorAll<HTMLElement>('.page-break');
         breaks.forEach((pb, i) => {
           const lines = pb.querySelectorAll<HTMLElement>('.page-break__line');

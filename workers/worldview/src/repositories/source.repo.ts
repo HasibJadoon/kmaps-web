@@ -1,23 +1,14 @@
-// ─── SourceRepo — wv_sources, wv_source_units, wv_source_chunks ───────────────
-// Sources = books, lectures, articles, manuscripts, classical texts.
-// Units   = chapters, sections, paragraphs within a source.
-// Chunks  = embedding-ready text segments for the AI pipeline.
-//
-// Canonical columns per 001_wv_schema.sql §2.8-2.9 + §S.1.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
 export interface WvSource {
-  id: string;            // WV:ULID
+  id: string;
   slug: string | null;
   title: string;
   title_ar: string | null;
-  source_type: string;   // book|article|lecture|talk|manuscript|video|podcast|classical_text|fatwa|document|other
-  source_domain: string; // general|classical_text|academic|journalistic|media|other
+  source_type: string;
+  source_domain: string;
   tradition_id: string | null;
   language: string | null;
   published_year: number | null;
@@ -33,7 +24,7 @@ export interface WvSourceUnit {
   id: string;
   source_id: string;
   parent_id: string | null;
-  unit_type: string;     // volume|chapter|section|paragraph|footnote|appendix|other
+  unit_type: string;
   title: string | null;
   unit_index: number | null;
   page_start: number | null;
@@ -54,7 +45,7 @@ export interface WvSourceChunk {
   token_count: number | null;
   text_content: string;
   chunk_kind: string | null;
-  is_embedded: number;   // 0|1
+  is_embedded: number;
   created_at: string;
 }
 
@@ -108,8 +99,6 @@ export interface UnitPatch {
   description_md?: string | null;
 }
 
-// ── Column lists ─────────────────────────────────────────────────────────────
-
 const SRC_COLS = `
   id, slug, title, title_ar, source_type, source_domain,
   tradition_id, language, published_year, publisher, doi, url,
@@ -126,12 +115,8 @@ const CHUNK_COLS = `
   page_no, token_count, text_content, chunk_kind, is_embedded, created_at
 `.trim().replace(/\n\s+/g, ' ');
 
-// ── Repo ─────────────────────────────────────────────────────────────────────
-
 export class SourceRepo {
   constructor(private db: D1Database) {}
-
-  // ── Sources ──────────────────────────────────────────────────────────────
 
   list(opts: {
     domain?: string | null;
@@ -221,8 +206,6 @@ export class SourceRepo {
     return this.findById(id);
   }
 
-  // ── Source units ─────────────────────────────────────────────────────────
-
   units(sourceId: string, opts: PaginateOptions = {}) {
     return paginate<WvSourceUnit>(
       this.db,
@@ -288,9 +271,6 @@ export class SourceRepo {
     return this.findUnitById(id);
   }
 
-  // ── Chunks (source content for AI pipeline + reader) ─────────────────────
-
-  /** All chunks for a source, optionally filtered to a single unit. */
   chunksBySource(
     sourceId: string,
     sourceUnitId?: string | null,
@@ -308,9 +288,6 @@ export class SourceRepo {
     );
   }
 
-  // ── Workflow summary (lightweight list — used by /worldview/workflow) ─────
-
-  /** Return all sources with their unit count, ordered by most recent. */
   async workflowSources(): Promise<(WvSource & { unit_count: number })[]> {
     return query<WvSource & { unit_count: number }>(
       this.db,

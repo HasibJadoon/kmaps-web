@@ -1,19 +1,13 @@
-// ─── JWT auth helpers (Cloudflare Workers SubtleCrypto) ───────────────────────
-// All Workers validate tokens here. CORE is the authority; other Workers verify
-// tokens but do not issue them.
-
 import type { AuthContext } from './types';
 import { unauthorized } from './response';
 
 interface JwtPayload {
-  sub: string;         // CORE:ULID — the user
-  wid?: string;        // active workspace CORE:ULID
-  role?: string;       // 'admin' | 'member' | 'guest'
+  sub: string;
+  wid?: string;
+  role?: string;
   iat: number;
   exp: number;
 }
-
-// ── Low-level JWT verification ─────────────────────────────────────────────────
 
 async function importKey(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey(
@@ -55,17 +49,12 @@ export async function verifyJwt(
   }
 }
 
-// ── Request helpers ────────────────────────────────────────────────────────────
-
 export function extractBearerToken(request: Request): string | null {
   const auth = request.headers.get('Authorization');
   if (!auth?.startsWith('Bearer ')) return null;
   return auth.slice(7).trim() || null;
 }
 
-/**
- * Authenticate a request and return an AuthContext, or null if no valid token.
- */
 export async function authenticate(
   request: Request,
   jwtSecret: string,
@@ -84,9 +73,6 @@ export async function authenticate(
   };
 }
 
-/**
- * Require authentication. Returns AuthContext or a 401 Response.
- */
 export async function requireAuth(
   request: Request,
   jwtSecret: string,
@@ -96,9 +82,6 @@ export async function requireAuth(
   return ctx;
 }
 
-/**
- * Require admin role. Returns AuthContext or a 401/403 Response.
- */
 export async function requireAdmin(
   request: Request,
   jwtSecret: string,

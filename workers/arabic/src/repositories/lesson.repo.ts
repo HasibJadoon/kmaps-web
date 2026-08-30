@@ -1,16 +1,14 @@
-// ─── LessonRepo — ar_curriculum_lesson ──────────────────────────────────────────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface Lesson {
-  id: string;           // AR:ULID
-  container_id: string; // AR:ULID
+  id: string;
+  container_id: string;
   title: string;
-  lesson_type: string;  // vocabulary | grammar | reading | exercise
+  lesson_type: string;
   sort_order: number;
-  status: string;       // draft | published | archived
+  status: string;
   created_at: string;
 }
 

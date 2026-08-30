@@ -1,7 +1,3 @@
-// ─── Lightweight Workers Router ────────────────────────────────────────────────
-// URLPattern-based router that handles CORS preflight and wraps all handlers
-// in a top-level error boundary.  No framework dependency.
-
 import { internalError, err } from './response';
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -18,7 +14,6 @@ interface Route<Env> {
   handler: RouteHandler<Env>;
 }
 
-// Applied to every response so the Angular frontend can reach any worker.
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
@@ -27,21 +22,19 @@ const CORS_HEADERS: Record<string, string> = {
 };
 
 function withCors(response: Response): Response {
-  // WebSocket upgrade responses (101) carry a live `webSocket` handle that is
-  // lost when the Response is rebuilt — pass them straight through untouched.
+
   if (response.status === 101) return response;
   const headers = new Headers(response.headers);
   for (const [k, v] of Object.entries(CORS_HEADERS)) headers.set(k, v);
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
-/** Best-effort URL-decode for a single path segment captured by URLPattern. */
 function decodePathParam(value: string): string {
   if (!value.includes('%')) return value;
   try {
     return decodeURIComponent(value);
   } catch {
-    // Malformed escape — leave as-is so handlers can decide how to respond.
+
     return value;
   }
 }
@@ -71,7 +64,7 @@ export class Router<Env = unknown> {
   }
 
   async handle(request: Request, env: Env): Promise<Response> {
-    // CORS preflight — no auth needed
+
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
@@ -83,10 +76,6 @@ export class Router<Env = unknown> {
       const match = route.pattern.exec({ pathname: url.pathname });
       if (!match) continue;
 
-      // Extract named path params (e.g. :id → params.id). URLPattern keeps the
-      // captured value in its URL-encoded form (e.g. ":" arrives as "%3A"),
-      // which would never match the literal value stored in D1. Decode here so
-      // every route handler sees the original value.
       const params = Object.fromEntries(
         Object.entries(match.pathname.groups).map(([k, v]) => [k, decodePathParam(v ?? '')]),
       );

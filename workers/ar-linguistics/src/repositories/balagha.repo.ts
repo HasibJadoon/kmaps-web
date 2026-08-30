@@ -1,23 +1,21 @@
-// ─── BalaghaRepo — ar_ling_balagha_concepts + branches + examples ─────────────
-
 import { query, queryOne, paginate } from '../../../shared/src/db';
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface BalaghaConcept {
-  id: string;           // AL:ULID
-  concept_key: string;  // e.g. 'tashbih', 'istiara', 'majaz'
+  id: string;
+  concept_key: string;
   label_ar: string;
   label_en: string;
-  branch: string;       // bayan | badi | maani
+  branch: string;
   description: string | null;
   parent_id: string | null;
 }
 
 export interface BalaghaExample {
-  id: string;           // AL:ULID
-  concept_id: string;   // AL:ULID
+  id: string;
+  concept_id: string;
   text_ar: string;
-  source_ref: string | null;  // QR:surah:ayah or CM:ULID
+  source_ref: string | null;
   explanation: string | null;
 }
 

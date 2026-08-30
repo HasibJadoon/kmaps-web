@@ -1,13 +1,1 @@
--- ─── A talking point is a main point and its sub-points ──────────────────────
---
--- A card carries one thing to say and the two or three beats underneath it —
--- the examples, the counter, the line you do not want to forget. Until now the
--- only way to express that was three separate points, which then had to be
--- played three times and read on the table as three unrelated cards.
---
--- Stored as a JSON array of strings rather than a child table: sub-points have
--- no identity of their own. They are never scheduled, never assigned to a
--- different speaker and never played separately — they are the body of the
--- card, and a table would invite all three of those and then have to forbid
--- them.
 ALTER TABLE st_talking_points ADD COLUMN subs_json TEXT;

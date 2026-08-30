@@ -1,9 +1,3 @@
--- Retire staging, part 3: 52-SCHOL → ar_ling_root_scholarship.
---
--- 34 scholarship claims. The carrier keys `source_id` NOT NULL and the claims
--- carry a slug rather than an id, so the source is resolved through
--- ar_ling_source; a claim whose source is not registered is left behind rather
--- than given a fabricated one.
 INSERT OR IGNORE INTO ar_ling_root_scholarship (
   id, source_id, source_slug, source_native_id, root_id, root_norm,
   reading_kind, title_en, body_md, body_plain, page_no, status

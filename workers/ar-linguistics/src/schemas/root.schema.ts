@@ -1,11 +1,9 @@
-// ─── Root schemas & types ─────────────────────────────────────────────────────
-
 export interface Root {
-  id: string;                  // AL:ULID
-  root_text: string;           // trilateral/quadrilateral Arabic root
-  root_normalized: string;     // stripped diacritics, consistent form
-  letter_count: number;        // 3 | 4
-  frequency: number | null;    // Quran occurrence count
+  id: string;
+  root_text: string;
+  root_normalized: string;
+  letter_count: number;
+  frequency: number | null;
   notes: string | null;
 }
 

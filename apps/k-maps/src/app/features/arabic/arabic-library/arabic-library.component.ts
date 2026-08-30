@@ -51,7 +51,6 @@ export class ArabicLibraryComponent implements OnInit, AfterViewInit {
 
   readonly skeletons = [1, 2, 3, 4, 5, 6, 7, 8];
 
-  // Quran is a separate section — excluded from Arabic Hub
   private readonly nonQuranContainers = computed(() =>
     this.containers().filter(c => c.container_type !== 'quran')
   );

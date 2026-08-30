@@ -1,8 +1,3 @@
-// ─── WorkspaceApiService — CORE workspace / user / role adapter ───────────────
-// Single integration point for the workspace feature. Targets the CORE gateway
-// routes (/api/core/...), unwraps the { ok, data } envelope, and maps the CORE
-// wire shapes onto the UI-facing models.
-
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
@@ -69,8 +64,6 @@ export class WorkspaceApiService {
   private readonly http = inject(HttpClient);
   private readonly base = environment.apiBase;
 
-  // ── Workspaces ──────────────────────────────────────────────────────────────
-
   listWorkspaces(): Observable<WorkspaceSummary[]> {
     return this.http
       .get<Paged<CoreWorkspace>>(`${this.base}/core/workspaces/mine?per_page=100`)
@@ -95,7 +88,6 @@ export class WorkspaceApiService {
       .pipe(map((res) => toDetail(res.data)));
   }
 
-  /** Activity lives outside CORE; degrade to empty if the endpoint is absent. */
   getActivity(id: string): Observable<WorkspaceActivity[]> {
     return this.http
       .get<{ data?: WorkspaceActivity[]; activity?: WorkspaceActivity[] }>(
@@ -106,8 +98,6 @@ export class WorkspaceApiService {
         catchError(() => of([])),
       );
   }
-
-  // ── Users (admin) ───────────────────────────────────────────────────────────
 
   listUsers(): Observable<AdminUser[]> {
     return this.http
@@ -133,8 +123,6 @@ export class WorkspaceApiService {
       .pipe(map(() => undefined));
   }
 
-  // ── Roles ───────────────────────────────────────────────────────────────────
-
   listRoles(workspaceId: string): Observable<WorkspaceRole[]> {
     return this.http
       .get<Envelope<CoreRole[]>>(`${this.base}/core/workspaces/${workspaceId}/roles`)
@@ -153,8 +141,6 @@ export class WorkspaceApiService {
       .pipe(map(() => undefined));
   }
 }
-
-// ── Adapters ──────────────────────────────────────────────────────────────────
 
 function toSummary(w: CoreWorkspace): WorkspaceSummary {
   return {

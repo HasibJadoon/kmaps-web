@@ -1,10 +1,6 @@
-// ─── DisciplinaryRepo — ar_ling_discipline_containers + units + relations ────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Types ────────────────────────────────────────────────────────────────────
 
 export interface DisciplineContainer {
   id: string;
@@ -63,12 +59,8 @@ export interface DisciplineRelationCreate {
   note_md?: string | null;
 }
 
-// ── Repo ─────────────────────────────────────────────────────────────────────
-
 export class DisciplinaryRepo {
   constructor(private db: D1Database) {}
-
-  // ── Containers ─────────────────────────────────────────────────────────────
 
   containers(opts: PaginateOptions = {}) {
     return paginate<DisciplineContainer>(
@@ -103,7 +95,7 @@ export class DisciplinaryRepo {
   }
 
   findContainerBySlug(nameEn: string): Promise<DisciplineContainer | null> {
-    // Containers have no slug column — match by normalised name_en
+
     return queryOne<DisciplineContainer>(
       this.db,
       `SELECT id, name_ar, name_en, parent_id, discipline, description_md
@@ -169,8 +161,6 @@ export class DisciplinaryRepo {
     return this.findContainerById(id);
   }
 
-  // ── Units ──────────────────────────────────────────────────────────────────
-
   units(containerId: string, opts: PaginateOptions = {}) {
     return paginate<DisciplineUnit>(
       this.db,
@@ -217,9 +207,6 @@ export class DisciplinaryRepo {
     return (await this.findUnitById(id))!;
   }
 
-  // ── Relations ──────────────────────────────────────────────────────────────
-
-  /** All relations where unitId is from_unit_id or to_unit_id. */
   relations(unitId: string): Promise<DisciplineRelation[]> {
     return query<DisciplineRelation>(
       this.db,
@@ -231,7 +218,6 @@ export class DisciplinaryRepo {
     );
   }
 
-  /** Outbound relations only (from_unit_id = unitId). */
   outboundRelations(unitId: string): Promise<DisciplineRelation[]> {
     return query<DisciplineRelation>(
       this.db,

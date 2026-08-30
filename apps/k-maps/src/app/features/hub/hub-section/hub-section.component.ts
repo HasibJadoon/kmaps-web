@@ -68,7 +68,7 @@ export class HubSectionComponent implements OnInit, AfterViewInit {
       const res = await fetch('/hub/counts');
       const data = await res.json() as { ok: boolean; counts: Record<string, number> };
       if (data.ok) this.counts.set(data.counts);
-    } catch { /* silent */ }
+    } catch {  }
   }
 
   openCard(card: HubCard): void {

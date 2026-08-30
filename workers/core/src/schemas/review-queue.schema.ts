@@ -1,19 +1,16 @@
-// ─── Review Queue schemas & types ─────────────────────────────────────────────
-
-// core_review_queue
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface ReviewQueueItem {
-  id: string;                                           // CORE:ULID
-  workspace_id: string;                                 // CORE:ULID → core_workspaces
-  reviewer_ref: string | null;                          // 'CORE:<user_id>'
-  source_module: string;                                // 'WV'|'QR'|'AL'|'AR'|'CM'|'PL'
-  suggestion_ref: string;                               // typed ref to module's insight_suggestion
+  id: string;
+  workspace_id: string;
+  reviewer_ref: string | null;
+  source_module: string;
+  suggestion_ref: string;
   entity_type: string;
-    // 'node'|'edge'|'claim'|'evidence'|'cluster'|'map'|'diagram'|'other'
+
   title: string | null;
   status: 'pending' | 'in_review' | 'approved' | 'edited' | 'rejected' | 'deferred';
-  priority: number;                                     // 1=critical, 5=low
+  priority: number;
   due_at: string | null;
   resolved_at: string | null;
   note: string | null;
@@ -35,8 +32,6 @@ export interface ReviewQueueStatusUpdate {
   status: 'pending' | 'approved' | 'rejected' | 'deferred';
   note?: string;
 }
-
-// ─── Validators ────────────────────────────────────────────────────────────────
 
 export function validateReviewQueueCreate(
   body: unknown,
@@ -96,8 +91,6 @@ export function validateStatusUpdate(
 
   return { data };
 }
-
-// ─── Repository-compatible contracts ─────────────────────────────────────────
 
 export type ReviewStatus =
   | 'pending'

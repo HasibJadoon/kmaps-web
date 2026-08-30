@@ -1,11 +1,9 @@
-// ─── Moral schemas & types ───────────────────────────────────────────────
-
 export interface WvMoralAxis {
   id: string;
   slug: string;
   title: string;
   title_ar: string | null;
-  axis_type: string;         // relational|virtue|obligation|eschatological|structural|other
+  axis_type: string;
   description_md: string | null;
   domain_id: string | null;
   sort_order: number;
@@ -17,8 +15,8 @@ export interface WvMoralNorm {
   moral_axis_id: string | null;
   tradition_id: string | null;
   title: string;
-  norm_type: string;         // duty|prohibition|ideal|counsel|custom|taboo|other
-  scope: string | null;      // universal|community|individual|ritual
+  norm_type: string;
+  scope: string | null;
   description_md: string | null;
   created_at: string;
 }
@@ -26,8 +24,8 @@ export interface WvMoralNorm {
 export interface WvNormSource {
   id: string;
   norm_id: string;
-  source_type: string;       // scripture|commentary|institution|thinker|tradition|legal
-  source_ref: string;        // WV:source_id or external ref
+  source_type: string;
+  source_ref: string;
   locator: string | null;
   excerpt: string | null;
   note: string | null;
@@ -42,7 +40,7 @@ export interface WvVirtueProfile {
   tradition_id: string | null;
   moral_axis_id: string | null;
   description_md: string | null;
-  scripture_refs: string | null; // JSON [ref_string]
+  scripture_refs: string | null;
   created_at: string;
 }
 
@@ -62,14 +60,14 @@ export interface WvCovenantFramework {
   slug: string;
   title: string;
   tradition_id: string | null;
-  parties: string | null;         // JSON [{role,identity}]
-  covenant_type: string;          // unilateral|bilateral|universal|communal|conditional|eternal
+  parties: string | null;
+  covenant_type: string;
   key_sign: string | null;
   key_obligation: string | null;
   memory_practice: string | null;
   renewal_pattern: string | null;
   description_md: string | null;
-  corpus_refs: string | null;     // JSON [corpus_unit_id]
+  corpus_refs: string | null;
   meta_json: string | null;
   created_at: string;
 }
@@ -79,7 +77,7 @@ export interface WvSacrificeFramework {
   slug: string;
   title: string;
   tradition_id: string | null;
-  sacrifice_type: string;         // ritual|moral|communal|testing|substitution|atonement|surrender|remembrance|other
+  sacrifice_type: string;
   key_example: string | null;
   theological_role: string | null;
   description_md: string | null;
@@ -92,9 +90,9 @@ export interface WvRevelationModel {
   slug: string;
   title: string;
   tradition_id: string | null;
-  revelation_type: string;        // prophetic|scriptural|incarnational|recitational|mystical|legal|natural|spirit_based|other
-  medium: string | null;          // word|law|person|spirit|scripture
-  continuity: string | null;      // ongoing|closed|progressive|final
+  revelation_type: string;
+  medium: string | null;
+  continuity: string | null;
   description_md: string | null;
   meta_json: string | null;
   created_at: string;
@@ -105,8 +103,8 @@ export interface WvPropheticModel {
   slug: string;
   title: string;
   tradition_id: string | null;
-  model_role: string;             // messenger|exemplar|mediator|lawgiver|suffering_servant|reformer|warner|intercessor|other
-  key_attributes: string | null;  // JSON [string]
+  model_role: string;
+  key_attributes: string | null;
   description_md: string | null;
   meta_json: string | null;
   created_at: string;
@@ -117,8 +115,8 @@ export interface WvDivineHumanRelation {
   slug: string;
   title: string;
   tradition_id: string | null;
-  relation_type: string;          // covenantal|filial|servant|mystical|contractual|fearful|other
-  key_qualities: string | null;   // JSON [string]
+  relation_type: string;
+  key_qualities: string | null;
   description_md: string | null;
   created_at: string;
 }
@@ -128,7 +126,7 @@ export interface WvLawMoralityLink {
   tradition_id: string | null;
   law_system: string;
   morality_domain: string;
-  link_type: string;              // grounds|expresses|teaches|enforces|supplements|transcends|other
+  link_type: string;
   description_md: string | null;
   created_at: string;
 }
@@ -138,7 +136,7 @@ export interface WvSalvationRedemptionModel {
   slug: string;
   title: string;
   tradition_id: string | null;
-  model_type: string;             // moral|substitutionary|participatory|progressive|restorative|covenantal|mystical|other
+  model_type: string;
   sin_diagnosis: string | null;
   remedy: string | null;
   final_hope: string | null;
@@ -269,8 +267,6 @@ export interface SalvationModelCreate {
   description_md?: string | null;
   meta_json?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

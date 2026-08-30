@@ -1,19 +1,13 @@
-// ─── LearningTrackRepo — ar_curriculum_track + ar_learn_track_profile ──────────
-// Fluency tracks (Quranic, Classical, MSA, Sarf, Nahw, Balagha) and per-user
-// learner state. XP accumulates per track; current_level is a CEFR band.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface LearningTrack {
   id: string;
   slug: string;
   title: string;
   title_ar: string | null;
-  track_type: string;         // classical|quranic|msa|dialect|academic|custom
+  track_type: string;
   cefr_from: string | null;
   cefr_to: string | null;
   description_md: string | null;
@@ -38,7 +32,7 @@ export interface LearningTrackCreate {
 
 export interface UserTrackProfile {
   id: string;
-  core_user_ref: string;      // CORE:<user_id>
+  core_user_ref: string;
   track_id: string;
   current_level: string | null;
   started_at: string;
@@ -53,20 +47,14 @@ export interface UserTrackProfilePatch {
   meta_json?: string | null;
 }
 
-// ── Column lists ──────────────────────────────────────────────────────────────
-
 const TRACK_COLS = `id, slug, title, title_ar, track_type, cefr_from, cefr_to,
   description_md, prerequisites_json, sort_order, is_public, created_at`;
 
 const PROFILE_COLS = `id, core_user_ref, track_id, current_level,
   started_at, last_activity_at, total_xp, meta_json`;
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class LearningTrackRepo {
   constructor(private db: D1Database) {}
-
-  // ── Tracks ──────────────────────────────────────────────────────────────────
 
   list(opts: PaginateOptions = {}) {
     return paginate<LearningTrack>(
@@ -121,8 +109,6 @@ export class LearningTrackRepo {
     return (await this.findById(id))!;
   }
 
-  // ── User track profiles ──────────────────────────────────────────────────────
-
   userProfile(userRef: string, trackId: string): Promise<UserTrackProfile | null> {
     return queryOne<UserTrackProfile>(
       this.db,
@@ -138,7 +124,7 @@ export class LearningTrackRepo {
     patch: UserTrackProfilePatch,
   ): Promise<UserTrackProfile> {
     const now = new Date().toISOString();
-    // Try to find existing profile
+
     const existing = await this.userProfile(userRef, trackId);
     if (existing) {
       const sets: string[] = [];
@@ -156,7 +142,7 @@ export class LearningTrackRepo {
       }
       return (await this.userProfile(userRef, trackId))!;
     }
-    // Insert fresh profile
+
     const id = typedId('AR');
     await execute(
       this.db,
@@ -176,10 +162,9 @@ export class LearningTrackRepo {
     return (await this.userProfile(userRef, trackId))!;
   }
 
-  /** Add XP to a user's track profile. Inserts a profile row if absent. */
   async addXp(userRef: string, trackId: string, xp: number): Promise<UserTrackProfile> {
     const now = new Date().toISOString();
-    // Upsert ensures row exists
+
     await this.upsertProfile(userRef, trackId, { last_activity_at: now });
     await execute(
       this.db,

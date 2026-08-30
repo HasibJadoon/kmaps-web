@@ -1,24 +1,17 @@
-// Typed contracts for the Morph Display Layer.
-// The layer VOCABULARY is fixed (component); the CONTENT is data. Each layer casts
-// `block.data as XData` — closing the `data: any` gap on the wire.
-
 import { MorphBlockVm, Lang, Tri } from '../../../../../../../shared/services/quran/quran-surah.service';
 
-/** The page language selector — the three languages plus 'all' (stack every language). */
 export type LangSel = Lang | 'all';
 
-/** Inputs every per-layer body component receives (from the host). */
 export interface MorphBlockBody {
   block: MorphBlockVm;
   lang: LangSel;
-  heroWord?: string;   // bare lemma — used by the synthesis weave centre
+  heroWord?: string;
 }
 
-// ── per-layer data shapes ─────────────────────────────────────────────────────
 export interface RootDnaData { letters: string[]; core_ar?: string; frequency_quran?: number; }
 export interface SarfData {
   pattern_ar?: string; from_ar?: string; to_ar?: string; rule?: string; rule_ur?: string;
-  plural_ar?: string; plural_en?: string;   // nouns: the broken/sound plural (jamʿ)
+  plural_ar?: string; plural_en?: string;
   features?: { k: string; v: string }[];
 }
 export interface DerivationsData { groups?: { form_ar: string; items: { ar: string; en: string; ur?: string }[] }[]; }

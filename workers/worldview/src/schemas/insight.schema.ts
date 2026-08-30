@@ -1,12 +1,10 @@
-// ─── Insight schemas & types ───────────────────────────────────────────────
-
 export interface InsightSuggestion {
-  id: string;               // WV:ULID
-  suggestion_type: string;  // node | edge | cluster
-  payload_json: string;     // JSON: the extracted knowledge payload
-  status: string;           // suggested | approved | edited | rejected | saved
-  batch_id: string | null;  // WV:ULID → wv_distill_batches
-  source_chunk_ref: string | null; // AL:ULID → ar_ling_source_chunk
+  id: string;
+  suggestion_type: string;
+  payload_json: string;
+  status: string;
+  batch_id: string | null;
+  source_chunk_ref: string | null;
   created_at: string;
   reviewed_at: string | null;
 }
@@ -17,8 +15,6 @@ export interface SuggestionCreate {
   batch_id?: string | null;
   source_chunk_ref?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

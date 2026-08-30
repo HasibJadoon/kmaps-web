@@ -1,15 +1,3 @@
-// ─── Answering a card, in one place ───────────────────────────────────────────
-//
-// Grading used to live inside the POST /core/srs/cards/:id/grade handler. It
-// now has a second caller — the shared review session, where several people
-// answer the same question and each one's own card is scheduled — and a
-// scheduler that exists twice is a scheduler that will eventually disagree with
-// itself about when a card is due.
-//
-// So the order below is the contract, not an implementation detail: the log is
-// written FIRST and the card is only its latest projection. A log without an
-// update can be replayed; an update without a log cannot be explained.
-
 import { SrsRepo, type SrsCard } from '../repositories/srs.repo';
 import { grade as gradeCard, buildParams, type RatingValue } from './fsrs';
 import { storedOf } from './stored-params';

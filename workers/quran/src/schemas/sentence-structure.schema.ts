@@ -1,5 +1,3 @@
-// ─── Sentence Structure schemas & types ───────────────────────────────────────────────
-
 export interface OccSegment {
   id: string;
   surah: number;
@@ -389,8 +387,6 @@ export interface TreeLayoutCache {
   renderer: string;
   generated_at: string;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

@@ -1,33 +1,3 @@
-// ─── FSRS · scheduling, via ts-fsrs ──────────────────────────────────────────
-//
-// The scheduler is `ts-fsrs` — the open-source reference implementation from the
-// `open-spaced-repetition` org, MIT, and the same algorithm family Anki ships.
-// v5.4.1 implements **FSRS-6**: twenty-one weights and a learnable decay.
-//
-// Nothing in this file implements the algorithm. It is an adapter, and it is
-// deliberately thin, because a hand-written port of FSRS is a liability: the
-// weights and the stability formulas change between versions, and a subtly
-// wrong constant produces schedules that look plausible and are wrong for
-// months. Upgrading the algorithm here is `npm update ts-fsrs`.
-//
-// What this file owns is the seam between the library's `Card` and our
-// `core_srs_card` row, and nothing else:
-//
-//   ts-fsrs Card          core_srs_card
-//   ──────────────────    ─────────────────────────
-//   due                   next_review_at   (ISO text)
-//   last_review           last_review_at   (ISO text)
-//   stability             stability
-//   difficulty            difficulty
-//   scheduled_days        scheduled_days
-//   elapsed_days          elapsed_days
-//   learning_steps        learning_step
-//   reps / lapses         reps / lapses
-//   state (0…3)           card_state ('new'|'learning'|'review'|'relearning')
-//
-// Grading, previews, retrievability and replay all go through the library:
-// `next`, `repeat`, `get_retrievability`, `reschedule`.
-
 import {
   fsrs, generatorParameters, createEmptyCard, forgetting_curve,
   Rating, State, default_w, FSRS6_DEFAULT_DECAY,
@@ -37,7 +7,6 @@ import {
 export { Rating, State, default_w, FSRS6_DEFAULT_DECAY };
 export type { Card, FSRSParameters, Grade };
 
-/** 1 Again · 2 Hard · 3 Good · 4 Easy — the library's own numbering. */
 export type RatingValue = 1 | 2 | 3 | 4;
 
 export const isRating = (v: unknown): v is RatingValue =>
@@ -61,9 +30,6 @@ const STATE_VALUES: Record<CardStateName, State> = {
 
 export const stateName = (s: State): CardStateName => STATE_NAMES[s] ?? 'new';
 
-// ── Parameters ───────────────────────────────────────────────────────────────
-
-/** What a learner's stored settings look like before the library normalises them. */
 export interface StoredParams {
   w?: number[] | null;
   request_retention?: number | null;
@@ -73,11 +39,6 @@ export interface StoredParams {
   enable_fuzz?: boolean | null;
 }
 
-/**
- * Builds library parameters from what is stored. `generatorParameters` does the
- * validation and clamping — a short or corrupt weight vector falls back to the
- * library's defaults rather than being repaired by hand here.
- */
 export function buildParams(stored?: StoredParams | null): FSRSParameters {
   const w = Array.isArray(stored?.w) && stored!.w!.length === default_w.length
     ? stored!.w!
@@ -94,9 +55,6 @@ export function buildParams(stored?: StoredParams | null): FSRSParameters {
 
 export const scheduler = (params?: FSRSParameters) => fsrs(params ?? generatorParameters());
 
-// ── The row ↔ Card seam ──────────────────────────────────────────────────────
-
-/** The subset of `core_srs_card` the scheduler reads. */
 export interface CardRow {
   stability: number | null;
   difficulty: number | null;
@@ -110,7 +68,6 @@ export interface CardRow {
   next_review_at: string | null;
 }
 
-/** A row as a library Card. A card that has never been answered starts empty. */
 export function toCard(row: CardRow, now: Date = new Date()): Card {
   if (row.stability == null || row.difficulty == null || row.card_state === 'new') {
     return createEmptyCard(row.next_review_at ? new Date(row.next_review_at) : now);
@@ -129,7 +86,6 @@ export function toCard(row: CardRow, now: Date = new Date()): Card {
   };
 }
 
-/** A library Card as the columns to write back. */
 export function toColumns(card: Card) {
   return {
     stability: card.stability,
@@ -145,15 +101,12 @@ export function toColumns(card: Card) {
   };
 }
 
-// ── Grading ──────────────────────────────────────────────────────────────────
-
 export interface GradeResult {
   columns: ReturnType<typeof toColumns>;
   state_before: CardStateName;
   card: Card;
 }
 
-/** One answer. The library schedules; this only translates the row. */
 export function grade(
   row: CardRow, rating: RatingValue, now: Date, params?: FSRSParameters,
 ): GradeResult {
@@ -162,12 +115,6 @@ export function grade(
   return { columns: toColumns(card), state_before: stateName(before.state), card };
 }
 
-/**
- * What each button would schedule, in days. `repeat` previews all four grades
- * in one pass, so a client never reimplements the algorithm to label them.
- * Cards inside a learning step come back in minutes, which is reported as a
- * fraction of a day rather than rounded up to one.
- */
 export function previewDays(
   row: CardRow, now: Date = new Date(), params?: FSRSParameters,
 ): Record<RatingValue, number> {
@@ -186,15 +133,12 @@ export function previewDays(
   };
 }
 
-/** The probability the learner would recall this card right now. */
 export function retrievabilityOf(
   row: CardRow, now: Date = new Date(), params?: FSRSParameters,
 ): number | null {
   if (row.stability == null || !row.last_review_at) return null;
   return scheduler(params).get_retrievability(toCard(row, now), now, false);
 }
-
-// ── Scoring the parameters ───────────────────────────────────────────────────
 
 export interface ReviewPoint {
   card_id: string;
@@ -204,13 +148,12 @@ export interface ReviewPoint {
 
 export interface Evaluation {
   reviews: number;
-  /** Mean binary cross-entropy — what FSRS's optimiser minimises. */
+
   log_loss: number;
   rmse: number;
   mean_predicted: number;
   mean_observed: number;
-  /** Positive means recall is predicted more often than it happens, so
-   *  intervals are running long. */
+
   bias: number;
 }
 
@@ -218,14 +161,6 @@ const EMPTY_EVAL: Evaluation = {
   reviews: 0, log_loss: 0, rmse: 0, mean_predicted: 0, mean_observed: 0, bias: 0,
 };
 
-/**
- * Replays each card's log through the library, scoring every prediction before
- * applying it. The prediction comes from the library's own `forgetting_curve`,
- * so this measures the real algorithm rather than a re-derivation of it.
- *
- * Only genuine tests count: a same-day repeat and a card's first sight had no
- * prior interval, so there was nothing to predict.
- */
 export function evaluate(
   reviews: ReviewPoint[], params?: FSRSParameters,
   window?: { after?: Date; before?: Date },
@@ -282,18 +217,6 @@ export function evaluate(
   };
 }
 
-// ── Fitting the weights ──────────────────────────────────────────────────────
-//
-// The canonical optimiser is `fsrs-rs` (Rust) / `fsrs-optimizer` (Python), and
-// neither runs on a Worker. `ts-fsrs` ships the scheduler only.
-//
-// So this is a deliberate stand-in: a coordinate search that scores candidate
-// weight vectors with the library's own scheduler and forgetting curve. Every
-// number it judges comes from ts-fsrs; only the search loop is ours. It will
-// find a reasonable local optimum on a modest log and will not match a proper
-// gradient fit over tens of thousands of reviews — when the history is large
-// enough to deserve that, run `fsrs-rs` offline and store the result.
-
 export interface OptimizeResult {
   weights: number[];
   accepted: boolean;
@@ -326,8 +249,7 @@ export function optimize(
   }
 
   const cutoff = new Date(ordered[cut].reviewed_at);
-  // `generatorParameters` re-validates each candidate, so a search step that
-  // wanders out of range is corrected by the library rather than by us.
+
   const withW = (w: number[]) => generatorParameters({ ...base, w });
   const trainLoss = (w: number[]) => evaluate(ordered, withW(w), { before: cutoff }).log_loss;
   const holdout = (w: number[]) => evaluate(ordered, withW(w), { after: cutoff });

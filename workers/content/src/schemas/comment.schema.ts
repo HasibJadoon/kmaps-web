@@ -1,7 +1,5 @@
-// ─── Comment schemas & types ──────────────────────────────────────────────────
-
 export interface CmComment {
-  comment_id: string;         // CM:ULID
+  comment_id: string;
   core_user_ref: string;
   target_ref: string;
   parent_comment_id: string | null;
@@ -19,7 +17,7 @@ export interface CmComment {
 }
 
 export interface CmCommentReaction {
-  reaction_id: string;        // CM:ULID
+  reaction_id: string;
   comment_id: string;
   core_user_ref: string;
   emoji: string;
@@ -78,8 +76,6 @@ export function validateCmCommentCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface CmCommentInput {
   core_user_ref: string;
   target_ref: string;
@@ -90,8 +86,6 @@ export interface CmCommentInput {
   workspace_ref?: string | null;
   meta_json?: string;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

@@ -17,14 +17,6 @@ interface GrammarTagItem { label: string; count: number; }
 interface FootnoteItem { id: string; text_ar: string; kind: string; from_block_id: string | null; }
 interface RelatedSourceItem { source_slug: string; label: string; ayah_key: string; }
 
-/**
- * Right-side references panel. Aggregates citations/refs/footnotes/etc out of
- * a tafsir or iʿrāb display payload and presents them as collapsible sections.
- *
- * Mirrors the lexicon drawer aesthetic but lives as a persistent right column
- * rather than a modal. Sections with zero items don't render — so on a sparse
- * ayah you only see what's actually there.
- */
 @Component({
   selector: 'km-refs-panel',
   standalone: true,
@@ -36,16 +28,12 @@ interface RelatedSourceItem { source_slug: string; label: string; ayah_key: stri
 export class RefsPanelComponent {
   private readonly router = inject(Router);
 
-  /** The full display payload for the current ayah-group. */
   readonly payload = input<QrIraabGroupDisplayPayload | QrTafsirGroupDisplayPayload | null>(null);
-  /** Mode determines which sections are visible. */
+
   readonly mode = input<'iraab' | 'tafsir'>('iraab');
-  /** Current ayah_key the page is centered on — used to exclude self-refs. */
+
   readonly currentAyahKey = input<string | null>(null);
 
-  // ── Aggregations ─────────────────────────────────────────────────────────
-
-  /** Distinct Qur'an cross-refs cited from blocks (excludes the current ayah). */
   readonly quranRefs = computed<QuranRefItem[]>(() => {
     const p = this.payload();
     if (!p) return [];
@@ -55,7 +43,7 @@ export class RefsPanelComponent {
       for (const r of (b.quran_refs ?? [])) {
         const key = r.ayah_key ?? (r.surah && r.ayah ? `${r.surah}:${r.ayah}` : null);
         if (!key) continue;
-        // Skip refs that just point at the current ayah-group (not interesting)
+
         if (self && (key === self || (p.ayah_keys ?? []).includes(key))) continue;
         counts.set(key, (counts.get(key) ?? 0) + 1);
       }
@@ -65,7 +53,6 @@ export class RefsPanelComponent {
       .sort((a, b) => b.count - a.count);
   });
 
-  /** Hadith sources detected (book + optional volume/page). Tafsir-rich. */
   readonly hadithRefs = computed<HadithRefItem[]>(() => {
     const p = this.payload();
     if (!p) return [];
@@ -77,9 +64,9 @@ export class RefsPanelComponent {
       else counts.set(k, { book, volume_page: vol, count: 1 });
     };
     for (const b of p.blocks as Array<QrTafsirDisplayBlock>) {
-      // narration_tags vocab (e.g. "صحيح مسلم", "صحيح البخاري", "المسند")
+
       for (const t of (b.narration_tags ?? [])) add(t);
-      // hadith_source_chip blocks carry structured book+volume in meta
+
       if (b.block_type === 'hadith_source_chip') {
         const meta = (b.meta ?? {}) as { hadith_book?: string; volume_page?: string };
         if (meta.hadith_book) add(meta.hadith_book, meta.volume_page);
@@ -88,7 +75,6 @@ export class RefsPanelComponent {
     return [...counts.values()].sort((a, b) => b.count - a.count);
   });
 
-  /** Scholars cited or quoted across blocks. */
   readonly scholarRefs = computed<ScholarRefItem[]>(() => {
     const p = this.payload();
     if (!p) return [];
@@ -100,7 +86,7 @@ export class RefsPanelComponent {
         else counts.set(s.scholar_id, { scholar_id: s.scholar_id, label: s.label ?? s.scholar_id, count: 1 });
       }
     }
-    // Also surface refs of kind 'scholar' from the side-table
+
     for (const r of ((p.refs ?? []) as Array<{ ref_kind?: string; typed_ref?: string; label?: string }>)) {
       if (r.ref_kind === 'scholar' && r.typed_ref) {
         const cur = counts.get(r.typed_ref);
@@ -111,7 +97,6 @@ export class RefsPanelComponent {
     return [...counts.values()].sort((a, b) => b.count - a.count);
   });
 
-  /** Paradigm chips (Muʿtazilī, Ashʿarī, …) — Zamakhsharī rebuttal markers etc. */
   readonly paradigmRefs = computed<ParadigmItem[]>(() => {
     const p = this.payload();
     if (!p) return [];
@@ -125,7 +110,6 @@ export class RefsPanelComponent {
       .sort((a, b) => b.count - a.count);
   });
 
-  /** Iʿrāb grammar concepts aggregated. */
   readonly grammarTags = computed<GrammarTagItem[]>(() => {
     const p = this.payload();
     if (!p) return [];
@@ -140,7 +124,6 @@ export class RefsPanelComponent {
       .slice(0, 50);
   });
 
-  /** Footnotes / editorial asides / source citations. */
   readonly footnotes = computed<FootnoteItem[]>(() => {
     const p = this.payload();
     if (!p) return [];
@@ -149,7 +132,6 @@ export class RefsPanelComponent {
       .map(n => ({ id: n.id, text_ar: n.note_text_ar!, kind: n.note_kind, from_block_id: n.block_id }));
   });
 
-  /** Other sources on the same ayah — derived from the payload's sources list. */
   readonly relatedSources = computed<RelatedSourceItem[]>(() => {
     const p = this.payload();
     if (!p) return [];
@@ -163,7 +145,6 @@ export class RefsPanelComponent {
     });
   });
 
-  // ── Collapse state per section ─────────────────────────────────────────────
   readonly collapsedSections = signal<Set<string>>(new Set());
   isCollapsed(key: string): boolean { return this.collapsedSections().has(key); }
   toggle(key: string): void {
@@ -174,11 +155,9 @@ export class RefsPanelComponent {
     });
   }
 
-  // ── Panel extend state (the whole panel collapses to a slim header) ───────
   readonly panelOpen = signal(true);
   togglePanel(): void { this.panelOpen.update(v => !v); }
 
-  /** Has at least one section with any data — for empty-state rendering. */
   readonly hasAnyContent = computed(() => {
     return this.quranRefs().length > 0
       || this.hadithRefs().length > 0
@@ -189,7 +168,6 @@ export class RefsPanelComponent {
       || this.relatedSources().length > 1;
   });
 
-  // ── Navigation ────────────────────────────────────────────────────────────
   goToAyah(ayahKey: string): void {
     const [s, a] = ayahKey.split(':').map(Number);
     if (!s || !a) return;

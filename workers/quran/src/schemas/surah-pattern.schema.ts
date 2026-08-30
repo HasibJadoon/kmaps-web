@@ -1,5 +1,3 @@
-// ─── Surah Pattern schemas & types ───────────────────────────────────────────────
-
 export interface SurahSymmetryPattern {
   id: string;
   surah: number;
@@ -176,8 +174,6 @@ export interface SurahEllipsisPatternsUpsert {
   notable_instances?: string | null;
   note_md?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

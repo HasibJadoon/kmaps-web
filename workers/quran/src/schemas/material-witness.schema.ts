@@ -1,5 +1,3 @@
-// ─── Material Witness schemas & types ───────────────────────────────────────────────
-
 export interface MaterialWitness {
   id: string;
   witness_type: string;
@@ -70,8 +68,6 @@ export interface WitnessObservationCreate {
   source_ref?: string | null;
   note_md?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

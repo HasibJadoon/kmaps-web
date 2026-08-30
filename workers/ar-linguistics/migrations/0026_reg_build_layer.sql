@@ -1,20 +1,14 @@
--- 0026_reg_build_layer.sql
--- Layer-code register (master data): 00 Register · 10 Root · 20 Lemma · 30 Context
--- · 40 Kindred · 50 Expression · 60 Memlet · 70 Question · 80 Mastery · 90 Media.
--- Data-driven mining: a fill task reads its layer → knows the tables + the ONLY
--- source slugs it may cite (L1) + fill order. Additive, non-breaking.
-
 CREATE TABLE IF NOT EXISTS ar_ling_reg_build_layer (
-  layer_code   TEXT PRIMARY KEY,          -- '00' Register · '10' Root · '20' Lemma …
+  layer_code   TEXT PRIMARY KEY,
   layer_key    TEXT NOT NULL UNIQUE,
   name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
-  cluster      TEXT NOT NULL,             -- reg|morph|syn|expr|learn|display
-  scope_level  TEXT NOT NULL,             -- global|root|lemma|context|user|any
+  cluster      TEXT NOT NULL,
+  scope_level  TEXT NOT NULL,
   fill_order   INTEGER NOT NULL,
   once_only    INTEGER NOT NULL DEFAULT 1,
-  mode         TEXT NOT NULL,             -- authored|projection|synthesis|generated|ingested|runtime
-  primary_tables_json       TEXT NOT NULL,-- tables filled at this layer
-  allowed_source_slugs_json TEXT NOT NULL,-- L1: the only sources a row here may cite
+  mode         TEXT NOT NULL,
+  primary_tables_json       TEXT NOT NULL,
+  allowed_source_slugs_json TEXT NOT NULL,
   note_en TEXT
 );
 INSERT OR REPLACE INTO ar_ling_reg_build_layer (layer_code,layer_key,name_ar,name_en,name_ur,cluster,scope_level,fill_order,once_only,mode,primary_tables_json,allowed_source_slugs_json) VALUES ('00','register','السِّجِل','Register (master data)','رجسٹر','reg','global',0,1,'authored','["ar_ling_reg_category", "ar_ling_reg_term", "ar_ling_reg_term_relation", "ar_ling_reg_term_example", "ar_ling_reg_term_source", "ar_ling_reg_inflection_rule", "ar_ling_reg_semantic_field"]','["ibn_hisham_shudhur", "qazwini_talkhis", "jurjani_asrar", "QAC-0.4"]');

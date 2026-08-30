@@ -1,16 +1,3 @@
-// ─── /wv/comparisons routes ───────────────────────────────────────────────────
-// Parallel comparison grids — the /worldview/compare/:cid experience screen.
-// Schema: wv_comparisons + wv_comparison_axes + wv_comparison_rows + cells.
-//
-// GET  /wv/comparisons?limit=20              — list comparisons
-// GET  /wv/comparisons/:id                   — full detail (axes + rows + cells)
-// POST /wv/comparisons                        — create comparison
-// PATCH /wv/comparisons/:id                  — patch title / type
-// POST /wv/comparisons/:id/axes             — add an axis (what is compared)
-// POST /wv/comparisons/:id/rows             — add a row (entity being compared)
-// PUT  /wv/comparisons/cells                 — upsert a cell (row × axis)
-// PATCH /wv/comparisons/cells/:cellId        — update cell content
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -19,9 +6,6 @@ import { ComparisonRepo } from '../repositories/comparison.repo';
 
 export function comparisonRoutes(router: Router<WorldviewEnv>) {
 
-  // ── List ──────────────────────────────────────────────────────────────────
-
-  // GET /wv/comparisons?comparison_type=matrix&unit_id=sru-arjana-mwi-ch2&limit=20
   router.get('/wv/comparisons', async (req, env) => {
     const url = new URL(req.url);
     return paginated(
@@ -34,17 +18,11 @@ export function comparisonRoutes(router: Router<WorldviewEnv>) {
     );
   });
 
-  // ── Detail ────────────────────────────────────────────────────────────────
-
-  // GET /wv/comparisons/:id — full comparison with axes + rows + cells
   router.get('/wv/comparisons/:id', async (_req, env, { id }) => {
     const detail = await new ComparisonRepo(env.DB_WV).findById(id);
     return detail ? ok(detail) : notFound(`comparison ${id}`);
   });
 
-  // ── Create ────────────────────────────────────────────────────────────────
-
-  // POST /wv/comparisons
   router.post('/wv/comparisons', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.title) return badRequest('title required');
@@ -56,9 +34,6 @@ export function comparisonRoutes(router: Router<WorldviewEnv>) {
     }));
   });
 
-  // ── Patch ─────────────────────────────────────────────────────────────────
-
-  // PATCH /wv/comparisons/:id
   router.patch('/wv/comparisons/:id', async (req, env, { id }) => {
     const b = await req.json() as Record<string, unknown>;
     const row = await new ComparisonRepo(env.DB_WV).patch(id, {
@@ -69,9 +44,6 @@ export function comparisonRoutes(router: Router<WorldviewEnv>) {
     return row ? ok(row) : notFound(`comparison ${id}`);
   });
 
-  // ── Axes (what is being compared) ─────────────────────────────────────────
-
-  // POST /wv/comparisons/:id/axes — add comparison axis
   router.post('/wv/comparisons/:id/axes', async (req, env, { id }) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.axis_label) return badRequest('axis_label required');
@@ -84,9 +56,6 @@ export function comparisonRoutes(router: Router<WorldviewEnv>) {
     }));
   });
 
-  // ── Rows (entities being compared — appear as columns in the UI) ──────────
-
-  // POST /wv/comparisons/:id/rows — add a comparison row (tradition/school/etc.)
   router.post('/wv/comparisons/:id/rows', async (req, env, { id }) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.entity_type || !b.entity_id || !b.row_label)
@@ -100,9 +69,6 @@ export function comparisonRoutes(router: Router<WorldviewEnv>) {
     }));
   });
 
-  // ── Cells ─────────────────────────────────────────────────────────────────
-
-  // PUT /wv/comparisons/cells — upsert a cell (row × axis)
   router.put('/wv/comparisons/cells', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.comparison_id || !b.row_id || !b.axis_id)
@@ -119,7 +85,6 @@ export function comparisonRoutes(router: Router<WorldviewEnv>) {
     return ok(cell);
   });
 
-  // PATCH /wv/comparisons/cells/:cellId — edit cell content
   router.patch('/wv/comparisons/cells/:cellId', async (req, env, { cellId }) => {
     const b    = await req.json() as Record<string, unknown>;
     const cell = await new ComparisonRepo(env.DB_WV).patchCell(cellId, {

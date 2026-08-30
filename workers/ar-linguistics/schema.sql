@@ -1,10 +1,3 @@
--- Schema for km_arabic_linguistic.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-30.
--- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
--- Regenerate with scripts/regen_schemas.py — do not hand-edit.
-
--- ── Tables (137) ─────────────────────────────────────────────────
-
 CREATE TABLE ar_ling_concept_block (
   id                TEXT PRIMARY KEY,
   uid               TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(13)))),
@@ -551,13 +544,11 @@ CREATE TABLE "ar_ling_lexicon_block" (
   book_page_id      TEXT,
   root_norm         TEXT NOT NULL,
 
-  -- tree
   parent_block_id   TEXT,
   block_path        TEXT NOT NULL,
   block_seq         INTEGER NOT NULL,
   depth             INTEGER NOT NULL DEFAULT 0,
 
-  -- content
   block_type        TEXT NOT NULL,
   lang              TEXT,
   title_ar          TEXT,
@@ -567,11 +558,9 @@ CREATE TABLE "ar_ling_lexicon_block" (
   data_json         TEXT NOT NULL DEFAULT '{}'
                     CHECK (json_valid(data_json)),
 
-  -- provenance
   origin            TEXT NOT NULL DEFAULT 'book_native',
   origin_ref        TEXT,
 
-  -- printed-page anchor
   printed_page      INTEGER,
   printed_anchor    TEXT,
 
@@ -589,7 +578,6 @@ CREATE TABLE "ar_ling_lexicon_block_annotation" (
   id                TEXT PRIMARY KEY,
   block_id          TEXT NOT NULL,
   annotation_kind   TEXT NOT NULL,
-  -- 'callout' | 'sidenote' | 'learner_card' | 'user_note' | 'user_highlight'
 
   title_ar          TEXT,
   title_en          TEXT,
@@ -619,8 +607,6 @@ CREATE TABLE "ar_ling_lexicon_block_link" (
   source_slug       TEXT NOT NULL,
 
   link_kind         TEXT NOT NULL,
-  -- 'root' | 'quran_ayah' | 'quran_range' | 'block'
-  -- 'authority' | 'lemma' | 'concept' | 'external_url'
 
   to_root_norm      TEXT,
   to_surah          INTEGER,
@@ -689,9 +675,9 @@ CREATE VIRTUAL TABLE ar_ling_lexicon_book_page_fts USING fts5(
 
 CREATE TABLE ar_ling_lexicon_display_block_kind (
   kind_code    TEXT PRIMARY KEY,
-  kind_family  TEXT NOT NULL,                      
-  panel_key    TEXT NOT NULL,                      
-  style_key    TEXT NOT NULL,                      
+  kind_family  TEXT NOT NULL,
+  panel_key    TEXT NOT NULL,
+  style_key    TEXT NOT NULL,
   name_ar      TEXT NOT NULL,
   name_en      TEXT NOT NULL,
   name_ur      TEXT NOT NULL,
@@ -705,11 +691,11 @@ CREATE TABLE ar_ling_lexicon_display_block_kind (
 );
 
 CREATE TABLE ar_ling_lexicon_display_profile (
-  source_slug       TEXT PRIMARY KEY,              
-  composer_key      TEXT NOT NULL,                 
+  source_slug       TEXT PRIMARY KEY,
+  composer_key      TEXT NOT NULL,
   is_bilingual      INTEGER NOT NULL DEFAULT 0,
-  footnote_mode     TEXT NOT NULL DEFAULT 'none',  
-  quran_cue_mode    TEXT NOT NULL DEFAULT 'none',  
+  footnote_mode     TEXT NOT NULL DEFAULT 'none',
+  quran_cue_mode    TEXT NOT NULL DEFAULT 'none',
   headword_mode     TEXT NOT NULL DEFAULT 'root_header',
   page_anchor_mode  TEXT NOT NULL DEFAULT 'printed_page',
   script_key        TEXT NOT NULL DEFAULT 'amiri_quran',
@@ -723,8 +709,8 @@ CREATE TABLE ar_ling_lexicon_display_profile (
 
 CREATE TABLE ar_ling_lexicon_display_rule (
   id          TEXT PRIMARY KEY,
-  source_slug TEXT NOT NULL,                       
-  rule_key    TEXT NOT NULL,                       
+  source_slug TEXT NOT NULL,
+  rule_key    TEXT NOT NULL,
   pattern     TEXT,
   flags       TEXT,
   replacement TEXT,
@@ -738,16 +724,16 @@ CREATE TABLE ar_ling_lexicon_display_rule (
 
 CREATE TABLE ar_ling_lexicon_display_section (
   id           TEXT PRIMARY KEY,
-  source_slug  TEXT NOT NULL,                      
-  kind_code    TEXT NOT NULL,                      
+  source_slug  TEXT NOT NULL,
+  kind_code    TEXT NOT NULL,
   panel_key    TEXT NOT NULL,
   seq          INTEGER NOT NULL,
-  label_ar     TEXT,                               
+  label_ar     TEXT,
   label_en     TEXT,
   label_ur     TEXT,
-  is_visible   INTEGER,                            
-  is_collapsed INTEGER,                            
-  block_count  INTEGER NOT NULL DEFAULT 0,         
+  is_visible   INTEGER,
+  is_collapsed INTEGER,
+  block_count  INTEGER NOT NULL DEFAULT 0,
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (source_slug, kind_code)
@@ -907,8 +893,8 @@ CREATE TABLE "ar_ling_lexicon_quran_ref" (
   root_norm       TEXT NOT NULL,
   surah           INTEGER NOT NULL CHECK (surah BETWEEN 1 AND 114),
   ayah            INTEGER NOT NULL CHECK (ayah >= 1),
-  raw_ref         TEXT NOT NULL,           -- e.g. 'Kur viii. 62'
-  context_snippet TEXT,                    -- short surrounding string
+  raw_ref         TEXT NOT NULL,
+  context_snippet TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (root_entry_id) REFERENCES "ar_ling_lexicon_entry"(id),
   FOREIGN KEY (section_id)    REFERENCES "ar_ling_lexicon_entry_section"(id),
@@ -1083,28 +1069,20 @@ CREATE TABLE ar_ling_root_asl (
   root_norm     TEXT NOT NULL,
   root_id       TEXT,
 
-  -- The claim, in the words of the witness. statement_ar is quoted, never
-  -- paraphrased: an aṣl reported in our own voice is not an attestation.
   statement_ar  TEXT NOT NULL,
   statement_en  TEXT,
   statement_ur  TEXT,
 
-  -- Who said it and when. death_hijri is what makes "oldest" decidable
-  -- rather than a matter of reputation — Ibn Durayd (321) outranks Ibn Fāris
-  -- (395) on this axis even though Maqāyīs is the famous one.
   authority_ar  TEXT,
   authority_en  TEXT,
   death_hijri   INTEGER,
 
-  -- Where it is, so the claim can be checked.
   source_slug   TEXT,
   source_id     TEXT,
   lexicon_entry_id TEXT REFERENCES "ar_ling_lexicon_entry"(id),
   page_ref      TEXT,
   volume_no     INTEGER,
 
-  -- A narrower or competing statement from a later witness, kept rather than
-  -- discarded: al-Rāghib narrowing Ibn Durayd is evidence, not noise.
   is_primary    INTEGER NOT NULL DEFAULT 1,
   narrows_id    TEXT REFERENCES ar_ling_root_asl(id),
   note_md       TEXT,
@@ -1151,7 +1129,7 @@ CREATE TABLE "ar_ling_root_didd" (
   antonym_ar TEXT NOT NULL,
   antonym_root TEXT,
   antonym_en TEXT,
-  relation_kind TEXT NOT NULL DEFAULT 'antonym',  
+  relation_kind TEXT NOT NULL DEFAULT 'antonym',
   note TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0,
   source_ref TEXT,
@@ -1462,8 +1440,8 @@ CREATE TABLE "ar_ling_root_lemma_tadiya" (
   root_norm TEXT NOT NULL,
   verb_form TEXT,
   verb_ar TEXT NOT NULL,
-  transitivity TEXT NOT NULL,          
-  harf TEXT,                           
+  transitivity TEXT NOT NULL,
+  harf TEXT,
   meaning_en TEXT,
   meaning_ar TEXT,
   qr_ref TEXT,
@@ -1589,12 +1567,12 @@ CREATE TABLE "ar_ling_root_letter" (
 
 CREATE TABLE ar_ling_root_letter_slot (
   id          TEXT PRIMARY KEY,
-  root_id     TEXT,                       
+  root_id     TEXT,
   root_norm   TEXT NOT NULL,
-  slot_index  INTEGER NOT NULL,           
-  slot_role   TEXT NOT NULL,              
-  letter_ar   TEXT NOT NULL,              
-  is_weak     INTEGER NOT NULL DEFAULT 0, 
+  slot_index  INTEGER NOT NULL,
+  slot_role   TEXT NOT NULL,
+  letter_ar   TEXT NOT NULL,
+  is_weak     INTEGER NOT NULL DEFAULT 0,
   is_hamza    INTEGER NOT NULL DEFAULT 0,
   derived_by  TEXT NOT NULL DEFAULT 'computed',
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1620,15 +1598,15 @@ CREATE TABLE "ar_ling_root_lugha" (
 
 CREATE TABLE ar_ling_root_naw_sawti (
   root_norm     TEXT PRIMARY KEY,
-  root_id       TEXT,                     
-  radical_count INTEGER NOT NULL,         
-  soundness     TEXT NOT NULL,            
-  category      TEXT NOT NULL,            
-                                          
-  hamza_slot    TEXT,                     
-  weak_letter   TEXT,                     
-  legacy_weak_pattern TEXT,               
-  agrees_with_legacy  INTEGER,            
+  root_id       TEXT,
+  radical_count INTEGER NOT NULL,
+  soundness     TEXT NOT NULL,
+  category      TEXT NOT NULL,
+
+  hamza_slot    TEXT,
+  weak_letter   TEXT,
+  legacy_weak_pattern TEXT,
+  agrees_with_legacy  INTEGER,
   derived_by    TEXT NOT NULL DEFAULT 'computed',
   confidence    REAL NOT NULL DEFAULT 0.9,
   note_en       TEXT,
@@ -1672,46 +1650,31 @@ CREATE TABLE ar_ling_root_sarf_form_index (
 CREATE TABLE "ar_ling_root_scholarship" (
   id              TEXT PRIMARY KEY,
 
-  
-  source_id       TEXT NOT NULL,             
-  source_slug     TEXT,                       
-  source_native_id TEXT,                      
+  source_id       TEXT NOT NULL,
+  source_slug     TEXT,
+  source_native_id TEXT,
 
-  
-  root_id         TEXT,                       
-  root_norm       TEXT NOT NULL,              
-  root_text       TEXT,                       
+  root_id         TEXT,
+  root_norm       TEXT NOT NULL,
+  root_text       TEXT,
 
-  
   reading_kind    TEXT NOT NULL DEFAULT 'general',
-                                              
-                                              
-                                              
-                                              
-                                              
-                                              
-                                              
-                                              
 
-  
   title_en        TEXT,
   title_ar        TEXT,
-  body_md         TEXT,                       
-  body_html       TEXT,                       
-  body_plain      TEXT,                       
+  body_md         TEXT,
+  body_html       TEXT,
+  body_plain      TEXT,
 
-  
-  comparanda_json TEXT,                       
-  inscriptions_json TEXT,                     
-  glosses_json    TEXT,                       
-  citations_json  TEXT,                       
+  comparanda_json TEXT,
+  inscriptions_json TEXT,
+  glosses_json    TEXT,
+  citations_json  TEXT,
 
-  
   page_no         INTEGER,
-  page_range      TEXT,                       
-  section_label   TEXT,                       
+  page_range      TEXT,
+  section_label   TEXT,
 
-  
   parser_version  TEXT,
   import_batch_id TEXT,
   status          TEXT DEFAULT 'raw',
@@ -1755,12 +1718,12 @@ CREATE TABLE "ar_ling_root_sense" (
 );
 
 CREATE TABLE "ar_ling_root_sense_axis" (
-  id          TEXT PRIMARY KEY,               -- 'RSA:نذر:speech_act'
+  id          TEXT PRIMARY KEY,
   root_norm   TEXT NOT NULL,
   axis_key    TEXT NOT NULL,
   axis_ar TEXT, axis_en TEXT, axis_ur TEXT,
   weight      INTEGER NOT NULL DEFAULT 0 CHECK (weight BETWEEN 0 AND 3),
-  basis_json  TEXT CHECK (basis_json IS NULL OR json_valid(basis_json)),   -- the āyāt scored
+  basis_json  TEXT CHECK (basis_json IS NULL OR json_valid(basis_json)),
   note_en     TEXT,
   source_slug TEXT NOT NULL DEFAULT 'kmaps_usage_map',
   status      TEXT NOT NULL DEFAULT 'draft', root_id TEXT, confidence REAL DEFAULT 0.8, generated_by TEXT, name_ur TEXT, note_ar TEXT, note_ur TEXT,
@@ -1768,13 +1731,13 @@ CREATE TABLE "ar_ling_root_sense_axis" (
 );
 
 CREATE TABLE ar_ling_root_taqalib (
-  id            TEXT PRIMARY KEY,          
-  group_key     TEXT NOT NULL,             
-  permutation   TEXT NOT NULL,             
-  perm_index    INTEGER NOT NULL,          
+  id            TEXT PRIMARY KEY,
+  group_key     TEXT NOT NULL,
+  permutation   TEXT NOT NULL,
+  perm_index    INTEGER NOT NULL,
   is_used       INTEGER NOT NULL DEFAULT 0,
-  used_root_id  TEXT,                      
-  family_size   INTEGER NOT NULL,          
+  used_root_id  TEXT,
+  family_size   INTEGER NOT NULL,
   derived_by    TEXT NOT NULL DEFAULT 'computed',
   note_en       TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1783,12 +1746,12 @@ CREATE TABLE ar_ling_root_taqalib (
 );
 
 CREATE TABLE "ar_ling_root_tatawwur" (
-  id          TEXT PRIMARY KEY,               -- 'RDS:نذر:1'
+  id          TEXT PRIMARY KEY,
   root_norm   TEXT NOT NULL,
   stage_no    INTEGER NOT NULL,
   stage_ar    TEXT NOT NULL, stage_en TEXT, stage_ur TEXT,
   note_en     TEXT,
-  source_ref  TEXT,                            -- Maqāyīs block id etc. when grounded
+  source_ref  TEXT,
   source_slug TEXT NOT NULL DEFAULT 'kmaps_development',
   status      TEXT NOT NULL DEFAULT 'draft', root_id TEXT, confidence REAL DEFAULT 0.8, generated_by TEXT, name_ur TEXT, note_ar TEXT, note_ur TEXT, display_json TEXT,
   UNIQUE (root_norm, stage_no)
@@ -2020,9 +1983,6 @@ CREATE TABLE "ar_ling_term_dictionary" (
 
 CREATE TABLE tmp_qroot (root TEXT PRIMARY KEY);
 
-
--- ── Views (23) ───────────────────────────────────────────────────
-
 CREATE VIEW ar_ling_gram_term_signature AS
  SELECT COUNT(*) AS term_count,
         COUNT(DISTINCT category_key) AS category_count,
@@ -2203,9 +2163,6 @@ SELECT 'ar_ling_inflection_rules' AS tbl, id, name_ar AS label FROM "ar_ling_roo
 UNION ALL SELECT 'ar_ling_word_sums', id, lemma_ar FROM "ar_ling_root_lemma_word_silsila" WHERE source_ref IS NULL
 UNION ALL SELECT 'ar_ling_form_paradigms', id, paradigm_name FROM "ar_ling_root_form_paradigm" WHERE source_slug IS NULL
 UNION ALL SELECT 'ar_ling_conjugation_templates', id, template_form FROM "ar_ling_root_form_template" WHERE source_slug IS NULL;
-
-
--- ── Indexes (213) ────────────────────────────────────────────────
 
 CREATE INDEX idx_albk_book_page
   ON "ar_ling_lexicon_block"(book_page_id);
@@ -2701,9 +2658,6 @@ CREATE UNIQUE INDEX ux_gram_term_uid ON ar_ling_gram_term(uid);
 CREATE UNIQUE INDEX ux_morph_flags ON "ar_ling_root_lemma_sarf"(qac_flags, pos);
 
 CREATE UNIQUE INDEX ux_roots_norm ON "ar_ling_roots"(root_normalized);
-
-
--- ── Triggers (13) ────────────────────────────────────────────────
 
 CREATE TRIGGER trg_root_lemma_no_typed_prefix
 BEFORE INSERT ON ar_ling_root_lemma

@@ -27,7 +27,6 @@ export class QuranApiService {
     return this.api.getResponse<QrReaderPayload>('qr', ['surahs', surah, 'reader'], { params });
   }
 
-  /** Per-word morphology grid for a surah — fully shaped, reading order, content words only. */
   getSurahMorphology(surah: number): Observable<QrApiResponse<QrMorphologyPayload>> {
     return this.api.getResponse<QrMorphologyPayload>('qr', ['surahs', surah, 'morphology']);
   }
@@ -46,7 +45,6 @@ export class QuranApiService {
     return this.api.getResponse<QrPassage[]>('qr', ['passages'], { params });
   }
 
-  /** Ayah list — GET /qr/ayahs?surah=X[&from=F&to=T][&words=1] */
   getSurahAyahs(surah: number, opts: { from?: number; to?: number; words?: boolean } = {}): Observable<QrAyah[]> {
     let params = new HttpParams().set('surah', String(surah));
     if (opts.from  !== undefined) params = params.set('from',  String(opts.from));

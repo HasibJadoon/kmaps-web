@@ -1,19 +1,11 @@
-// ─── WordAnalysisRepo — the deep root layer for the word modal ────────────────
-// Assembles a RootAnalysis per root_norm from the vocab suite + lexicon + roots.
-// Read-only. Batched by root so km-quran can enrich a whole passage in one call.
-
 import { query } from '../../../shared/src/db';
 
 export interface LensEntry { source: string; heading: string | null; text: string; page: number | null; dirty?: boolean; }
 export interface FiveLens { sarf: string | null; irab: string | null; dalala: string | null; balagha: string | null; tarjama: string | null; }
 export interface FamilyLemma { lemma_ar: string; pos: string | null; verb_form: string | null; is_quran_word: boolean; }
-/** Sinai key-terms, parsed from the stored JSON blob into a clean shape.
- *  terms_ar maps a transliterated term to its lemma-verified Arabic (may be partial). */
+
 export interface SinaiTerms { terms: string[]; terms_ar: Record<string, string>; type: string | null; weak_pattern: string | null; epigraphic: boolean; }
 
-/** A node of the modelled sense graph — `ar_ling_root_sense` at root scope.
- *  Distinct from `RootAnalysis.senses`, which is the learner-facing gloss list
- *  out of `ar_ling_learn_vocab` and carries no ids, no status and no structure. */
 export interface RootSenseNode {
   id: string; sense_key: string; gloss_ar: string | null; gloss_en: string | null;
   gloss_ur: string | null; label_ar: string | null; label_en: string | null;
@@ -39,9 +31,7 @@ export interface RootAnalysis {
   meaning_core_en: string | null;
   hook: string | null;
   senses: string[];
-  /** The structured sense graph and its arcs, both filtered to root scope —
-   *  the tables hold lemma rows alongside root rows in the same columns, so a
-   *  read by root_norm alone would fold a sibling lemma's senses into the root. */
+
   sense_map: RootSenseNode[];
   sense_arcs: RootSenseArcNode[];
   examples: string[];
@@ -57,9 +47,6 @@ export interface RootAnalysis {
   coverage: Record<string, boolean>;
 }
 
-// The four NAMED lenses are a back-compat contract for existing consumers; every
-// other lexicon in ar_ling_lexicon_entry surfaces through `lenses.others`.
-// Nothing here decides WHICH lexicons render — qr_morph_display_source does that.
 const LENS_SLUG = {
   maqayis: 'maqayis_lugha',
   mufradat: 'raghib_mufradat',
@@ -68,11 +55,9 @@ const LENS_SLUG = {
 } as const;
 const FIVE_LENS_SLUG = 'kmaps_five_lens';
 const MAX_LEN = 1400;
-/** live first, then review, then draft — the order a caller wants to take from. */
+
 const STATUS_RANK = `CASE status WHEN 'live' THEN 0 WHEN 'review' THEN 1 ELSE 2 END`;
-// D1 binds at most 100 parameters per statement and several queries below bind
-// the root list twice (root_text OR root_normalized), so a whole surah's roots
-// have to arrive in chunks rather than as one IN list.
+
 const CHUNK = 40;
 
 function chunked<T>(xs: T[], size: number): T[][] {
@@ -85,7 +70,6 @@ function placeholders(n: number): string { return Array(n).fill('?').join(','); 
 function jsonArr(v: unknown): unknown[] { if (v == null) return []; if (Array.isArray(v)) return v; try { const p = JSON.parse(String(v)); return Array.isArray(p) ? p : []; } catch { return []; } }
 function jsonStrArr(v: unknown): string[] { return jsonArr(v).filter((x): x is string => typeof x === 'string'); }
 
-/** Clip to MAX_LEN, but break on the last sentence/clause boundary — never mid-word. */
 function clip(s: string | null): string {
   if (!s) return '';
   const t = s.trim();
@@ -95,7 +79,6 @@ function clip(s: string | null): string {
   return (stop > MAX_LEN * 0.6 ? head.slice(0, stop) : head).trimEnd() + '…';
 }
 
-/** Strip Lane's TEI/XML markup down to readable text; collapse whitespace. */
 function stripMarkup(s: string): string {
   return s
     .replace(/<[^>]+>/g, ' ')
@@ -103,8 +86,7 @@ function stripMarkup(s: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
-/** A structured payload rather than prose (Sinai's key-term index). Parse to decide —
- *  al-Ṣiḥāḥ opens its entries with a bracketed headword like `[بين]`, which is prose. */
+
 function isJsonBlob(s: string): boolean {
   const t = s.trim();
   if (t[0] !== '{' && t[0] !== '[') return false;
@@ -112,7 +94,6 @@ function isJsonBlob(s: string): boolean {
 }
 function looksDirty(s: string): boolean { return /<[a-z][^>]*>/i.test(s) || isJsonBlob(s); }
 
-/** Sinai key-terms are stored as a JSON blob; parse to a clean shape or null. */
 function parseSinai(raw: string | null): SinaiTerms | null {
   if (!raw) return null;
   try {
@@ -139,8 +120,6 @@ function parseSinai(raw: string | null): SinaiTerms | null {
 export class WordAnalysisRepo {
   constructor(private db: D1Database) {}
 
-  /** Resolve any number of roots; chunks internally to stay inside D1's
-   *  bound-parameter limit, and runs the chunks concurrently. */
   async byRoots(roots: string[]): Promise<Record<string, RootAnalysis>> {
     const uniq = [...new Set(roots.filter(r => !!r))];
     if (!uniq.length) return {};
@@ -174,10 +153,6 @@ export class WordAnalysisRepo {
         this.db, `SELECT root_norm, heading_norm, text_ar FROM ar_ling_lexicon_entry_section WHERE root_norm IN (${ph}) AND source_slug = ?`, [...uniq, FIVE_LENS_SLUG]).catch(() => []),
     ]);
 
-    // The sense graph. Both tables are scope-mixed — root rows and lemma rows
-    // share the columns — so scope_level='root' is not optional here. Status is
-    // returned rather than filtered: most of this layer is still draft, and
-    // hiding it would render an empty arc where a drafted one exists.
     const [senseNodes, arcNodes, arcSteps] = await Promise.all([
       query<{ root_norm: string } & RootSenseNode>(
         this.db,
@@ -211,9 +186,6 @@ export class WordAnalysisRepo {
     const arcByRoot = groupBy(arcNodes, a => a.root_norm);
     const stepByArc = groupBy(arcSteps, s => s.arc_id);
 
-    // Derivation family (مشتقّات) — Quranic lemmas of each root. Root rows are
-    // duplicated across formats (بين / ب-ي-ن), so match through ar_ling_roots
-    // by both root_text and root_normalized and dedupe by lemma surface.
     const familyRows = await query<{ root_text: string; root_normalized: string | null; lemma_text: string; part_of_speech: string | null; verb_form: string | null; is_quran_word: number }>(
       this.db,
       `SELECT r.root_text, r.root_normalized,
@@ -236,9 +208,6 @@ export class WordAnalysisRepo {
       famByRoot.set(key, list);
     }
 
-    // Root rows are duplicated across formats (بين / ب-ي-ن): key by both
-    // root_text and root_normalized, preferring the row that carries a curated
-    // meaning_core so duplicates never shadow the richer row.
     const rootMap = new Map<string, (typeof rootsRows)[number]>();
     for (const r of rootsRows) {
       for (const k of [r.root_text, r.root_normalized]) {
@@ -264,12 +233,10 @@ export class WordAnalysisRepo {
       const lensList = lensByRoot.get(root) ?? [];
       type LensRow = (typeof lensList)[number];
       const entryOf = (e: LensRow): LensEntry => {
-        // Sinai is an English lexicon: its article lives in entry_text_en, while
-        // raw_text holds only the key-term index stub it was first imported as.
+
         const raw = e.entry_text_ar || e.entry_text_en || e.raw_text;
         const dirty = !!raw && looksDirty(raw);
-        // Lane arrives as TEI/XML; a bare index stub has no prose to show and reaches
-        // the caller through `sinai` instead.
+
         const text = !raw ? '' : isJsonBlob(raw) ? '' : clip(dirty ? stripMarkup(raw) : raw);
         return { source: e.source_slug, heading: null, text, page: e.page_start, ...(dirty ? { dirty: true } : {}) };
       };
@@ -328,7 +295,6 @@ export class WordAnalysisRepo {
   }
 }
 
-/** root_letters is stored as a JSON array string — render it as 'ب ي ن'. */
 function shapeRootLetters(v: string | null): string | null {
   if (!v) return null;
   try { const a = JSON.parse(v); return Array.isArray(a) ? a.join(' ') : v; } catch { return v; }
@@ -350,7 +316,6 @@ function groupBy<T>(rows: T[], key: (r: T) => string): Map<string, T[]> {
 }
 function safeJson(v: string | null): unknown { if (!v) return null; try { return JSON.parse(v); } catch { return v; } }
 
-/** Split the five-lens raw_text (SARF:/IRAB:/DALALA:/BALAGHA:/TARJAMA:) into fields. */
 function buildFiveLens(sections: { heading_norm: string | null; text_ar: string | null }[], raw: string | null): FiveLens | null {
   if (!raw && !sections.length) return null;
   const out: FiveLens = { sarf: null, irab: null, dalala: null, balagha: null, tarjama: null };

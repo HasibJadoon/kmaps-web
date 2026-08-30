@@ -1,7 +1,3 @@
-// ─── UserRepo — all SQL for core_users ────────────────────────────────────────
-// The DB columns are `platform_role` / `account_status`; they are aliased to
-// `role` / `status` so the rest of the worker sees stable names.
-
 import { queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
@@ -12,8 +8,6 @@ const SELECT = `
   platform_role AS role, account_status AS status, created_at
 FROM core_users`;
 
-// Legacy auto-seeded admin. It does not count as a "real" admin, so first-run
-// setup stays available until an operator-created admin exists.
 const LEGACY_ADMIN_EMAIL = 'admin@k-maps.local';
 
 export class UserRepo {
@@ -33,11 +27,6 @@ export class UserRepo {
     return queryOne<User>(this.db, `SELECT ${SELECT} WHERE id = ?`, [id]);
   }
 
-  /**
-   * True once a real (operator-created) administrator exists. The legacy
-   * auto-seeded admin@k-maps.local is excluded, so first-run setup remains
-   * available on databases that still carry the old placeholder account.
-   */
   async adminExists(): Promise<boolean> {
     const row = await queryOne<{ n: number }>(
       this.db,
@@ -48,7 +37,6 @@ export class UserRepo {
     return (row?.n ?? 0) > 0;
   }
 
-  /** Neutralise the legacy seeded admin once a real admin has been created. */
   async retireLegacyAdmin(): Promise<void> {
     await execute(
       this.db,
@@ -75,10 +63,6 @@ export class UserRepo {
     );
     return (await this.findById(id))!;
   }
-
-  // ── OAuth provisioning ──
-  // Provider linkage is kept in core_users.meta_json under `oauth.<provider>`,
-  // so no extra table is needed. Email remains the primary identity key.
 
   findByOAuthSubject(provider: 'google' | 'apple', subject: string): Promise<User | null> {
     return queryOne<User>(
@@ -120,10 +104,6 @@ export class UserRepo {
     return (await this.findById(id))!;
   }
 
-  // ── Forced password change ──
-  // Stored in meta_json so no schema migration is needed. Set when an admin
-  // provisions a user with a password; cleared when the user picks their own.
-
   async getMustChangePassword(userId: string): Promise<boolean> {
     const row = await queryOne<{ meta_json: string | null }>(
       this.db,
@@ -159,7 +139,6 @@ export class UserRepo {
     );
   }
 
-  /** Record a provider linkage on an existing account (idempotent). */
   async linkOAuth(
     userId: string,
     provider: 'google' | 'apple',

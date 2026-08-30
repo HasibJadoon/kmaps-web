@@ -30,7 +30,7 @@ export class TranscriptPanelComponent implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['activeLineId'] && this.activeLineId) {
-      // Defer to next tick so the DOM has been updated
+
       setTimeout(() => this.scrollActiveIntoView(), 0);
     }
   }

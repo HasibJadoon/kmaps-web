@@ -26,8 +26,6 @@ import type {
 export class QuranResearchApiService {
   private readonly api = inject(BackendApiService);
 
-  // ── Tafsir ────────────────────────────────────────────────────────────────
-
   getScholars(): Observable<{ scholars: QrScholar[] }> {
     return this.api.getData('qr', ['scholars']);
   }
@@ -50,8 +48,6 @@ export class QuranResearchApiService {
     return this.api.getData('qr', ['tafsir'], { params });
   }
 
-  // ── Iraab ─────────────────────────────────────────────────────────────────
-
   getIrabSources(): Observable<{ sources: QrIrabSource[] }> {
     return this.api.getData('qr', ['irab', 'book-sources']);
   }
@@ -68,8 +64,6 @@ export class QuranResearchApiService {
     if (sourceSlug)         params = params.set('source_slug', sourceSlug);
     return this.api.getData('qr', ['irab', 'book-entries'], { params });
   }
-
-  // ── Lexicon ───────────────────────────────────────────────────────────────
 
   searchRoots(q: string): Observable<{ roots: QrRoot[] }> {
     const params = new HttpParams().set('q', q);
@@ -94,8 +88,6 @@ export class QuranResearchApiService {
     const params = new HttpParams().set('page', String(page)).set('limit', String(limit));
     return this.api.getData('qr', ['lexicon', 'lemmas', lemmaId, 'occurrences'], { params });
   }
-
-  // ── Tafsir display layer (migration 012) ──────────────────────────────────
 
   getTafsirDisplaySources(): Observable<{ sources: QrTafsirDisplaySource[] }> {
     return this.api.getData('qr', ['tafsir', 'display', 'sources']);
@@ -138,8 +130,6 @@ export class QuranResearchApiService {
       .set('scholar_ids', scholarIds.join(','));
     return this.api.getData('qr', ['tafsir', 'display', 'compare'], { params });
   }
-
-  // ── Iʿrāb display layer (migration 011) ───────────────────────────────────
 
   getIraabDisplaySources(): Observable<{ sources: QrIraabDisplaySource[] }> {
     return this.api.getData('qr', ['iraab', 'display', 'sources']);

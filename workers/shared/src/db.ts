@@ -1,12 +1,5 @@
-// ─── D1 query helpers ──────────────────────────────────────────────────────────
-// All SQL execution in domain repositories should go through these helpers.
-// Never call db.prepare() directly in route handlers.
-
 import type { PaginateOptions, PaginatedRows } from './types';
 
-/**
- * Execute a SELECT and return all matching rows.
- */
 export async function query<T = Record<string, unknown>>(
   db: D1Database,
   sql: string,
@@ -16,9 +9,6 @@ export async function query<T = Record<string, unknown>>(
   return result.results ?? [];
 }
 
-/**
- * Execute a SELECT and return the first row, or null if no match.
- */
 export async function queryOne<T = Record<string, unknown>>(
   db: D1Database,
   sql: string,
@@ -28,10 +18,6 @@ export async function queryOne<T = Record<string, unknown>>(
   return row ?? null;
 }
 
-/**
- * Execute an INSERT / UPDATE / DELETE statement.
- * Returns the raw D1Result (includes meta.last_row_id, meta.changes).
- */
 export async function execute(
   db: D1Database,
   sql: string,
@@ -40,9 +26,6 @@ export async function execute(
   return db.prepare(sql).bind(...params).run();
 }
 
-/**
- * Execute a batch of INSERT / UPDATE / DELETE statements atomically.
- */
 export async function executeBatch(
   db: D1Database,
   statements: Array<{ sql: string; params?: unknown[] }>,
@@ -53,14 +36,6 @@ export async function executeBatch(
   return db.batch(prepared);
 }
 
-/**
- * Paginated SELECT.
- *
- * @param sql        - SELECT without LIMIT/OFFSET
- * @param countSql   - SELECT COUNT(*) AS count ... (same WHERE clause)
- * @param params     - bind params for both sql and countSql
- * @param opts       - page / per_page
- */
 export async function paginate<T = Record<string, unknown>>(
   db: D1Database,
   sql: string,
@@ -81,9 +56,6 @@ export async function paginate<T = Record<string, unknown>>(
   return { rows, total, page, per_page, has_more: offset + rows.length < total };
 }
 
-/**
- * Check whether a row exists.
- */
 export async function exists(
   db: D1Database,
   sql: string,

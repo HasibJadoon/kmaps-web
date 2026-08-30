@@ -1,23 +1,6 @@
-// ─── /al/source-rag routes ────────────────────────────────────────────────────
-// Serves pre-embedded source chunks for Quran word/ayah study.
-//
-// This worker owns DB_AL (km_arabic_linguistic) only.
-// It covers:
-//   - ar_ling_source_chunk  → lexicon / irab / balagha / near-synonym chunks
-//   - ar_ling_infra_vector → links to qr_tafsir_entry + qr_translation
-//     (text for those lives in km_quran, resolved by the backend proxy)
-//
-// Endpoints:
-//   GET /al/source-rag/health
-//   GET /al/source-rag/al-chunks      → lexicon/irab/balagha text (DB_AL)
-//   GET /al/source-rag/vector-links   → vector record refs for all source types
-//   GET /al/source-rag/bundle         → combined: al-chunks + tafsir/trans refs
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, badRequest } from '../../../shared/src/response';
 import type { ArLinguisticsEnv } from '../env';
-
-// ── types ─────────────────────────────────────────────────────────────────────
 
 interface AlChunk {
   id: string;
@@ -48,8 +31,6 @@ interface VectorLink {
   ayah_end: number | null;
 }
 
-// ── helpers ───────────────────────────────────────────────────────────────────
-
 function parseAyah(url: URL): { surah: number | null; ayah: number | null } {
   const surah = parseInt(url.searchParams.get('surah') || '');
   const ayah  = parseInt(url.searchParams.get('ayah')  || '');
@@ -79,11 +60,8 @@ function extractSourceSlug(metaJson: string | null): string | null {
   }
 }
 
-// ── route registration ────────────────────────────────────────────────────────
-
 export function sourceRagRoutes(router: Router<ArLinguisticsEnv>) {
 
-  // ── health ─────────────────────────────────────────────────────────────────
   router.get('/al/source-rag/health', async (_req, env) => {
     const row = await env.DB_AL
       .prepare('SELECT COUNT(*) as cnt FROM ar_ling_source_chunk WHERE is_embedded=1')
@@ -98,14 +76,6 @@ export function sourceRagRoutes(router: Router<ArLinguisticsEnv>) {
     });
   });
 
-  // ── GET /al/source-rag/al-chunks ───────────────────────────────────────────
-  // Returns lexicon / irab / balagha / near-synonym chunks from DB_AL.
-  // Query params:
-  //   surah        (required)
-  //   ayah         (optional — if omitted returns whole surah range)
-  //   kind         (optional) — filter by chunk_kind
-  //   source_slug  (optional) — filter by source
-  //   limit        (default 50)
   router.get('/al/source-rag/al-chunks', async (req, env) => {
     const url = new URL(req.url);
     const { surah, ayah } = parseAyah(url);
@@ -123,7 +93,7 @@ export function sourceRagRoutes(router: Router<ArLinguisticsEnv>) {
     const params: (number | string)[] = [surah];
 
     if (ayah !== null) {
-      // Match chunks whose range overlaps the requested ayah
+
       conditions.push('ayah_start <= ? AND ayah_end >= ?');
       params.push(ayah, ayah);
     }
@@ -170,16 +140,6 @@ export function sourceRagRoutes(router: Router<ArLinguisticsEnv>) {
     return ok({ surah, ayah, chunks, total: chunks.length });
   });
 
-  // ── GET /al/source-rag/vector-links ────────────────────────────────────────
-  // Returns ar_ling_infra_vector for surah/ayah — includes refs to
-  // qr_tafsir_entry and qr_translation in km_quran.
-  // The backend proxy uses these to fetch actual text from km_quran worker.
-  // Query params:
-  //   surah        (required)
-  //   ayah         (optional)
-  //   target_table (optional) — e.g. 'qr_tafsir_entry'
-  //   work_id      (optional) — filter to one tafsir work
-  //   limit        (default 100)
   router.get('/al/source-rag/vector-links', async (req, env) => {
     const url = new URL(req.url);
     const { surah, ayah } = parseAyah(url);
@@ -224,24 +184,6 @@ export function sourceRagRoutes(router: Router<ArLinguisticsEnv>) {
     return ok({ surah, ayah, links: results, total: results.length });
   });
 
-  // ── GET /al/source-rag/bundle ──────────────────────────────────────────────
-  // Combined endpoint: returns al-chunks (text included) +
-  // tafsir/translation refs (text to be fetched from km_quran by caller).
-  // This is the primary endpoint for the study panel.
-  //
-  // Query params:
-  //   surah  (required)
-  //   ayah   (optional — omit for whole-surah balagha/thematic chunks)
-  //   kinds  (optional, comma-sep) — filter chunk_kinds to return
-  //          default: lexical_entry,lexical_word_entry,irab,irab_tafsir,semantic,balagha_concept
-  //
-  // Response shape:
-  //   {
-  //     surah, ayah,
-  //     al_chunks:       AlChunk[],          -- text in DB_AL (lexicon, irab, etc.)
-  //     tafsir_refs:     VectorLink[],       -- caller fetches from km_quran
-  //     translation_refs: VectorLink[],      -- caller fetches from km_quran
-  //   }
   router.get('/al/source-rag/bundle', async (req, env) => {
     const url  = new URL(req.url);
     const { surah, ayah } = parseAyah(url);
@@ -257,7 +199,6 @@ export function sourceRagRoutes(router: Router<ArLinguisticsEnv>) {
       : '';
     const ayahParams: number[] = ayah !== null ? [ayah, ayah] : [];
 
-    // 1. AL chunks (text in DB_AL)
     const kindPlaceholders = kinds.map(() => '?').join(',');
     const alSql = `
       SELECT id, chunk_kind, heading_norm, text_ar, text_en,
@@ -272,7 +213,6 @@ export function sourceRagRoutes(router: Router<ArLinguisticsEnv>) {
     `;
     const alParams: (number | string)[] = [surah, ...ayahParams, ...kinds];
 
-    // 2. Tafsir refs (km_quran)
     const tafsirSql = `
       SELECT id, target_db, target_table, target_id,
              work_id, scholar_id, chunk_kind, source_slug,
@@ -284,7 +224,6 @@ export function sourceRagRoutes(router: Router<ArLinguisticsEnv>) {
       LIMIT 100
     `;
 
-    // 3. Translation refs (km_quran)
     const transSql = `
       SELECT id, target_db, target_table, target_id,
              work_id, scholar_id, chunk_kind, source_slug,

@@ -1,10 +1,3 @@
-// ─── the composed display spec ───────────────────────────────────────────────
-//
-// km_core assembles four things that live in four places. The tests worth
-// having are about what happens at the seams: a spread stored per card and
-// asked for per root, an axis nobody has measured, and a domain worker that
-// does not answer.
-
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import type Database from 'better-sqlite3';
@@ -14,9 +7,6 @@ import type { DisplaySpec, DsSection } from '../src/contracts/ds';
 
 const ROOT = 'بين';
 
-/** Five cards for one root, every one of them carrying the SAME spread — which
- *  is how core_srs_card_surah actually stores it, and the reason the reader has
- *  to collect surahs DISTINCT. */
 function seedCore(db: Database.Database): void {
   db.exec(`
     CREATE TABLE cyb_node (
@@ -33,10 +23,9 @@ function seedCore(db: Database.Database): void {
       card_id TEXT, surah INTEGER, n_occur INTEGER, is_intro INTEGER);
   `);
 
-  // The root's canonical node keys on meta_json; target_ref holds the ULID.
   db.prepare(`INSERT INTO cyb_node VALUES (?,?,?,?,?)`).run(
     'CYB:arabic:root:بين', 'arabic', 'root', 'AL01BYN', JSON.stringify({ root_ar: ROOT }));
-  // A decoy: same scale, different root, whose target_ref must not be matched.
+
   db.prepare(`INSERT INTO cyb_node VALUES (?,?,?,?,?)`).run(
     'CYB:arabic:root:other', 'arabic', 'root', ROOT, JSON.stringify({ root_ar: 'زخرف' }));
 
@@ -53,11 +42,10 @@ function seedCore(db: Database.Database): void {
     'بين', 'to separate and make clear', i === 0 ? 'review' : 'new',
     i === 0 ? '2026-09-01T00:00:00Z' : null, i, 0, null, null));
 
-  // Every card repeats the same three sūras.
   const spread = db.prepare(`INSERT INTO core_srs_card_surah VALUES (?,?,?,?)`);
   kinds.forEach((_, i) => {
     spread.run(`CARD${i}`, 2,  40, 0);
-    spread.run(`CARD${i}`, 44,  9, 1);   // where it was first met
+    spread.run(`CARD${i}`, 44,  9, 1);
     spread.run(`CARD${i}`, 12, 15, 0);
   });
 }
@@ -98,8 +86,7 @@ const find = (s: DisplaySpec, code: string): DsSection => {
 describe('the plane is read for the right node', () => {
   test('the root is matched on meta_json, not on target_ref', async () => {
     const s = await repo({ ok: true, body: LAYERS }).root(ROOT);
-    // A decoy node carries this root in target_ref; matching that would read
-    // another root's sensors entirely.
+
     assert.equal(s.plane?.node_id, 'CYB:arabic:root:بين');
   });
 
@@ -114,7 +101,7 @@ describe('the plane is read for the right node', () => {
 
     assert.equal(study?.measured, false);
     assert.equal(study?.sensors, 0);
-    // The number is 0 and the flag is what stops a screen printing "0%".
+
     assert.equal(study?.pct, 0);
   });
 });
@@ -129,7 +116,7 @@ describe('a spread stored per card is reported per root', () => {
     if (b.kind !== 'bars') throw new Error('shape');
     assert.equal(b.bars.length, 3);
     assert.match(String(b.hint), /3 sūras/);
-    // 40 + 9 + 15 counted once each, not five times over.
+
     assert.match(String(b.hint), /64 occurrences/);
   });
 
@@ -173,7 +160,7 @@ describe('the cards built from this root', () => {
 describe('one source failing costs one section', () => {
   test('the layers worker being down does not blank the spec', async () => {
     const s = await repo({ ok: false }).root(ROOT);
-    // The plane, cards and distribution still arrive.
+
     assert.ok(s.plane?.node_id);
     assert.equal(find(s, '90-CARD').state, 'filled');
     assert.equal(find(s, '91-QURAN').state, 'filled');

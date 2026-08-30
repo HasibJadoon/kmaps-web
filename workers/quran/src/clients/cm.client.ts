@@ -1,10 +1,8 @@
-// ─── CONTENT service client (from QR) ────────────────────────────────────────
-
 import { callService } from '../../../shared/src/service-client';
 import type { QuranEnv } from '../env';
 
 export interface DocumentMeta {
-  id: string;         // CM:ULID
+  id: string;
   title: string;
   doc_type: string;
   created_at: string;

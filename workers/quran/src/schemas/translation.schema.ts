@@ -1,12 +1,8 @@
-// ─── Translation schemas & types ──────────────────────────────────────────────
-
-// ── qr_translation_source ───────────────────────────────────────────────────
-
 export interface QrTranslationSource {
-  id: string;                         // QR:ULID
-  source_code: string;                // e.g. 'haleem'|'sahih_intl'|'yusuf_ali'
+  id: string;
+  source_code: string;
   translator_name: string;
-  language: string;                   // default 'en'
+  language: string;
   edition: string | null;
   is_default: boolean;
   created_at: string;
@@ -27,10 +23,8 @@ export interface QrTranslationSourcePatch {
   is_default?: boolean;
 }
 
-// ── qr_translation ───────────────────────────────────────────────────────────
-
 export interface QrTranslation {
-  id: string;                         // QR:ULID
+  id: string;
   source_id: string;
   surah: number;
   ayah: number;
@@ -53,10 +47,8 @@ export interface QrTranslationPatch {
   footnote_md?: string | null;
 }
 
-// ── qr_translation_passage ───────────────────────────────────────────────────
-
 export interface QrTranslationPassage {
-  id: string;                         // QR:ULID
+  id: string;
   source_id: string;
   surah: number;
   ayah_from: number;
@@ -79,8 +71,6 @@ export interface QrTranslationPassagePatch {
   passage_translation?: string;
   note_md?: string | null;
 }
-
-// ── Validators ────────────────────────────────────────────────────────────────
 
 export function validateQrTranslationSourceCreate(
   body: unknown,
@@ -183,26 +173,22 @@ export function validateQrTranslationPassageCreate(
   return { data };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface TranslationSource {
-  id: string;          // QR:ULID
+  id: string;
   slug: string;
   language: string;
   author: string;
   title: string;
-  is_default: number;  // 1 | 0
+  is_default: number;
 }
 
 export interface Translation {
-  id: string;          // QR:ULID
+  id: string;
   surah: number;
   ayah: number;
   source_id: string;
   text: string;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

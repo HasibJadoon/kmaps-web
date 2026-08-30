@@ -1,8 +1,3 @@
-// ─── /core/srs/registry routes — cross-domain SRS enrollment index ───────────
-// CORE tracks which user is learning which resource, in which module. The
-// actual card data (FSRS state, front/back) lives in the AR worker; this is
-// the lookup that answers "is this verse / concept already in my SRS?".
-
 import type { Router } from '../../../shared/src/router';
 import { ok, created, badRequest, notFound } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
@@ -12,7 +7,6 @@ import { validateSrsCardInput } from '../schemas/srs-registry.schema';
 
 export function srsRegistryRoutes(router: Router<CoreEnv>) {
 
-  // GET /core/srs/registry?module=QR — the user's enrolled resources
   router.get('/core/srs/registry', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -21,7 +15,6 @@ export function srsRegistryRoutes(router: Router<CoreEnv>) {
     return ok(rows);
   });
 
-  // POST /core/srs/registry — enroll a resource (idempotent on resource_ref)
   router.post('/core/srs/registry', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -32,7 +25,7 @@ export function srsRegistryRoutes(router: Router<CoreEnv>) {
     } catch {
       return badRequest('Request body must be valid JSON');
     }
-    // The authenticated user always owns the enrollment — never trust a body userRef.
+
     const merged = {
       ...(body && typeof body === 'object' ? body as Record<string, unknown> : {}),
       userRef: ctx.userId,
@@ -46,7 +39,6 @@ export function srsRegistryRoutes(router: Router<CoreEnv>) {
     return existing ? ok(card) : created(card);
   });
 
-  // DELETE /core/srs/registry/:id — un-enroll a resource
   router.delete('/core/srs/registry/:id', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;

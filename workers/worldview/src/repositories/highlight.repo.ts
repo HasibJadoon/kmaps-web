@@ -1,28 +1,20 @@
-// ─── HighlightRepo — wv_highlights ────────────────────────────────────────────
-// Anchored reading highlights from sources and corpus units.
-// Used for the /worldview/units/:unitId/annotations endpoint.
-//
-// Canonical columns per 001_wv_schema.sql §10.1.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 export interface WvHighlight {
-  id: string;              // WV:ULID
+  id: string;
   source_id: string | null;
   source_unit_id: string | null;
   corpus_unit_id: string | null;
-  locator: string | null;  // page, verse, timestamp
+  locator: string | null;
   text_excerpt: string;
   note: string | null;
-  highlight_type: string;  // general|key_claim|evidence|question|contradiction|insight
+  highlight_type: string;
   color: string | null;
   moral_axis_id: string | null;
   topic_id: string | null;
-  core_user_ref: string;   // CORE:ULID
+  core_user_ref: string;
   core_ws_ref: string | null;
   created_at: string;
 }
@@ -42,20 +34,15 @@ export interface HighlightCreate {
   core_ws_ref?: string | null;
 }
 
-// ── Column list ───────────────────────────────────────────────────────────────
-
 const COLS = `
   id, source_id, source_unit_id, corpus_unit_id, locator,
   text_excerpt, note, highlight_type, color,
   moral_axis_id, topic_id, core_user_ref, core_ws_ref, created_at
 `.trim().replace(/\n\s+/g, ' ');
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class HighlightRepo {
   constructor(private db: D1Database) {}
 
-  /** All highlights for a source unit (used as "annotations" in the reader). */
   byUnit(sourceUnitId: string): Promise<WvHighlight[]> {
     return query<WvHighlight>(
       this.db,
@@ -64,7 +51,6 @@ export class HighlightRepo {
     );
   }
 
-  /** All highlights for a source (all units). */
   bySource(sourceId: string, opts: PaginateOptions = {}) {
     return paginate<WvHighlight>(
       this.db,

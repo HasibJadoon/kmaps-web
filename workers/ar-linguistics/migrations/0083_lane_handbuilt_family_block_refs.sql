@@ -1,6 +1,3 @@
--- The two Lane families that were hand-authored keep their glosses and gain
--- the same block references the generated ones carry, matched by form number.
-
 UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[0].section_id', 'sec_lane_ece86bc4a87b016e', '$.forms[0].block_ids', json('[]'), '$.forms[0].lemma', 'بَانَ') WHERE id = 'blk_lane2_fam';
 UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[1].section_id', 'sec_lane_3746dfe35c9f974e', '$.forms[1].block_ids', json('[]'), '$.forms[1].lemma', 'بيّن') WHERE id = 'blk_lane2_fam';
 UPDATE ar_ling_lexicon_block SET data_json = json_set(data_json, '$.forms[2].section_id', 'sec_lane_c70c7beb4d597bef', '$.forms[2].block_ids', json('[]'), '$.forms[2].lemma', 'باينهُ') WHERE id = 'blk_lane2_fam';

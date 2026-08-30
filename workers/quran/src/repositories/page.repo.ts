@@ -1,8 +1,3 @@
-// ─── PageRepo — Mushaf page rendering ──────────────────────────────────────────
-// Loads one mushaf page: ayahs, words, surahs, layout lines, default translation.
-// Tables: qr_ayah, qr_word_occurrence, qr_surah, qr_mushaf_layout_line,
-//         qr_translation, qr_translation_source
-
 import { query, queryOne } from '../../../shared/src/db';
 import {
   QR_MAX_PAGE,
@@ -13,8 +8,6 @@ import {
   type QrPageSurah,
   type QrPageWord,
 } from '../schemas/page.schema';
-
-// ─── constants ─────────────────────────────────────────────────────────────────
 
 const BISMILLAH_ARABIC = 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ';
 const BISMILLAH_CLEAN  = 'بسم الله الرحمن الرحيم';
@@ -28,8 +21,6 @@ function toLineKind(raw: string): QrPageLineKind {
   if (raw === 'surah_name' || raw === 'basmallah') return raw;
   return 'ayah';
 }
-
-// ─── DB row shapes ──────────────────────────────────────────────────────────────
 
 interface PageAyah {
   surah: number;
@@ -56,21 +47,13 @@ interface LayoutLineRow {
   word_to_index?: number | null;
 }
 
-// The only mushaf layout present in km_quran. Kept explicit so a second layout
-// can never be silently mixed into one page.
 const QPC_LAYOUT_KEY = 'qpc-v2-15-lines';
-
-// ─── PageRepo ───────────────────────────────────────────────────────────────────
 
 export class PageRepo {
   constructor(private db: D1Database) {}
 
-  /**
-   * Load a complete mushaf page with ayahs, words, surahs, and layout lines.
-   * Returns null if the page number has no ayahs.
-   */
   async byPageNumber(pageNo: number): Promise<QrPage | null> {
-    // 1. Ayahs on this page — drives everything else
+
     const ayahs = await query<PageAyah>(
       this.db,
       `SELECT surah, ayah,
@@ -86,8 +69,6 @@ export class PageRepo {
     const surahIds = [...new Set(ayahs.map(r => r.surah))];
     const surahPh  = surahIds.map(() => '?').join(', ');
 
-    // 2. Parallel: words (JOIN on page so we get all words for all ayahs in one query),
-    //    surahs present on this page, layout lines, default translation source
     const [words, surahs, layoutRows, defaultSrc] = await Promise.all([
       query<PageWord>(
         this.db,
@@ -119,10 +100,7 @@ export class PageRepo {
       ).catch(() => []),
       query<LayoutLineRow>(
         this.db,
-        // Real carrier is qr_mushaf_layout_line (9,046 lines / 604 pages, one
-        // layout: qpc-v2-15-lines). It stores ayah refs as refs_json rather than
-        // ayah_from/ayah_to columns, so the range is derived here and the shape
-        // consumed below is unchanged.
+
         `SELECT line_number,
                 line_type,
                 is_centered,
@@ -148,7 +126,6 @@ export class PageRepo {
       ).catch(() => null),
     ]);
 
-    // 3. Load default translations (may be empty if no default source is configured)
     const translations = defaultSrc
       ? await query<{ surah: number; ayah: number; text: string }>(
           this.db,
@@ -161,7 +138,6 @@ export class PageRepo {
         ).catch(() => [])
       : [];
 
-    // 4. Build lookup maps
     const wordsByVerse = new Map<string, PageWord[]>();
     for (const w of words) {
       const k = `${w.surah}:${w.ayah}`;
@@ -169,10 +145,6 @@ export class PageRepo {
       wordsByVerse.get(k)!.push(w);
     }
 
-    // maxPosByAyah lets us detect the true last word of each ayah on this page.
-    // Because qr_ayah.page_number identifies which page an ayah belongs to,
-    // ALL words of each ayah on this page appear in `words`. This means
-    // the maximum word_position we see for each ayah is the genuine last word.
     const maxPosByAyah = new Map<string, number>();
     for (const w of words) {
       const k = `${w.surah}:${w.ayah}`;
@@ -183,7 +155,6 @@ export class PageRepo {
     const ayahByVerse   = new Map<string, PageAyah>(ayahs.map(a => [`${a.surah}:${a.ayah}`, a]));
     const surahById     = new Map<number, PageSurah>(surahs.map(s => [s.id, s]));
 
-    // 5. Build ayah response objects
     const ayahObjs = ayahs.map(a => {
       const k = `${a.surah}:${a.ayah}`;
       return {
@@ -197,7 +168,6 @@ export class PageRepo {
       };
     });
 
-    // 6. Build layout lines
     const layout: QrPageLayoutLine[] = layoutRows
       .map(line => {
         const kind = line.line_type ? toLineKind(line.line_type) : 'ayah';
@@ -213,9 +183,7 @@ export class PageRepo {
           text_arabic = BISMILLAH_ARABIC;
           text_clean  = BISMILLAH_CLEAN;
         } else if (line.first_word_id && line.last_word_id) {
-          // ULID range comparison works because word ULIDs are inserted in
-          // corpus order (surah → ayah → word_position) and ULIDs encode
-          // timestamp monotonically — lexicographic >= / <= is correct.
+
           lineWords   = words.filter(
             w => w.id >= line.first_word_id! && w.id <= line.last_word_id!,
           );
@@ -262,10 +230,6 @@ export class PageRepo {
     };
   }
 
-  /**
-   * Distinct, ordered page numbers for every ayah in a surah.
-   * Use for "surah pages" navigation.
-   */
   pagesBySurah(surahId: number): Promise<{ page_number: number }[]> {
     return query<{ page_number: number }>(
       this.db,
@@ -277,13 +241,6 @@ export class PageRepo {
     );
   }
 
-  // ─── private helpers ──────────────────────────────────────────────────────────
-
-  /**
-   * Build the diacritical and clean text for a layout line.
-   * Verse markers are appended only after the TRUE last word of each ayah
-   * (detected via maxPosByAyah).
-   */
   private _lineText(
     lineWords: PageWord[],
     ayahByVerse: Map<string, PageAyah>,
@@ -299,8 +256,6 @@ export class PageRepo {
       if (w.text_uthmani) arabic.push(w.text_uthmani);
       clean.push(w.text_clean ?? w.text_uthmani);
 
-      // Append verse marker only when this is the last word of its ayah
-      // AND it is truly the final word (not mid-ayah at end of line).
       const endOfAyahInLine = !next || next.surah !== w.surah || next.ayah !== w.ayah;
       const isLastWord      = endOfAyahInLine &&
         w.word_position === maxPosByAyah.get(`${w.surah}:${w.ayah}`);
@@ -317,10 +272,6 @@ export class PageRepo {
     return [t, c !== t ? c : null];
   }
 
-  /**
-   * Group the words of a layout line into per-ayah segments.
-   * Used by the frontend to render word-level tooltips and tapable words.
-   */
   private _lineAyahs(
     lineWords: PageWord[],
     ayahByVerse: Map<string, PageAyah>,

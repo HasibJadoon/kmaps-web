@@ -1,8 +1,3 @@
-/**
- * Block handle — Notion-style ⋮⋮ drag grip + context menu + block picker.
- * Uses a mutable editorRef so render() can be called before the editor is ready.
- */
-
 import type { Editor } from '@tiptap/core';
 
 export interface EditorRef {
@@ -12,11 +7,9 @@ export interface EditorRef {
 }
 
 export interface BlockHandleCallbacks {
-  /** Called when user selects "New Page" from the block picker. */
+
   onCreatePage?: (afterPos: number) => void;
 }
-
-// ── Block picker definitions ───────────────────────────────────────────────
 
 interface PickerItem {
   group: string;
@@ -27,7 +20,7 @@ interface PickerItem {
 }
 
 const PICKER_ITEMS: PickerItem[] = [
-  // Text
+
   { group: 'Text', icon: 'T',    title: 'Text',         desc: 'Plain paragraph',
     run: (ed, p) => insertBlock(ed, p, { type: 'paragraph', content: [] }) },
   { group: 'Text', icon: 'H1',   title: 'Heading 1',    desc: 'Large heading',
@@ -37,13 +30,11 @@ const PICKER_ITEMS: PickerItem[] = [
   { group: 'Text', icon: 'H3',   title: 'Heading 3',    desc: 'Small heading',
     run: (ed, p) => insertBlock(ed, p, { type: 'heading', attrs: { level: 3 }, content: [] }) },
 
-  // Lists
   { group: 'Lists', icon: '•≡',  title: 'Bullet List',  desc: 'Unordered list',
     run: (ed, p) => { insertBlock(ed, p, { type: 'paragraph', content: [] }); ed.chain().focus().toggleBulletList().run(); } },
   { group: 'Lists', icon: '1≡',  title: 'Numbered List', desc: 'Ordered list',
     run: (ed, p) => { insertBlock(ed, p, { type: 'paragraph', content: [] }); ed.chain().focus().toggleOrderedList().run(); } },
 
-  // Blocks
   { group: 'Blocks', icon: '❝',  title: 'Quote',        desc: 'Indented blockquote',
     run: (ed, p) => { insertBlock(ed, p, { type: 'paragraph', content: [] }); ed.chain().focus().setBlockquote().run(); } },
   { group: 'Blocks', icon: '</>', title: 'Code Block',   desc: 'Monospace code',
@@ -83,8 +74,6 @@ function getSelectionTarget(editor: Editor): BlockTarget {
   };
 }
 
-// DragHandle already resolves the exact hovered block for us. Reuse it so block
-// actions apply to the visible handle target instead of a stale text cursor.
 function getTargetBlock(editorRef: EditorRef, editor: Editor): BlockTarget {
   if (typeof editorRef.hoveredBlockPos === 'number' && editorRef.hoveredBlockPos >= 0) {
     const node = editor.state.doc.nodeAt(editorRef.hoveredBlockPos);
@@ -117,8 +106,6 @@ function runOnTargetBlock(
   const chain = editor.chain().focus().setTextSelection(target.selectionPos);
   command(chain, target).run();
 }
-
-// ── Block picker state ─────────────────────────────────────────────────────
 
 let pickerEl: HTMLElement | null = null;
 let pickerSelectedIdx = 0;
@@ -158,7 +145,6 @@ function pickerKeydown(e: KeyboardEvent) {
 function rerenderPicker() {
   if (!pickerEl) return;
 
-  // Rebuild content area (keep header)
   const content = pickerEl.querySelector('.km-bp__content') as HTMLElement;
   if (!content) return;
   content.innerHTML = '';
@@ -212,7 +198,6 @@ function openBlockPicker(
   closeBlockPicker();
   pickerSelectedIdx = 0;
 
-  // Build items list — include Page if callback provided
   pickerItems = [...PICKER_ITEMS];
   if (onCreatePage) {
     pickerItems.push({
@@ -230,7 +215,6 @@ function openBlockPicker(
   menu.className = 'km-bp__menu';
   pickerEl = menu;
 
-  // Search bar
   const searchWrap = document.createElement('div');
   searchWrap.className = 'km-bp__search-wrap';
   const searchInput = document.createElement('input');
@@ -249,7 +233,6 @@ function openBlockPicker(
     item.run(editor, afterPos);
   };
 
-  // Filter on input
   searchInput.addEventListener('input', () => {
     const q = searchInput.value.toLowerCase();
     pickerItems = (q
@@ -269,7 +252,6 @@ function openBlockPicker(
     rerenderPicker();
   });
 
-  // Prevent arrow keys from moving editor cursor while picker is open
   searchInput.addEventListener('keydown', (e) => {
     if (['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) {
       e.preventDefault();
@@ -281,7 +263,6 @@ function openBlockPicker(
   document.body.appendChild(menu);
   rerenderPicker();
 
-  // Position menu
   let top = anchor.bottom + window.scrollY + 6;
   let left = anchor.left + window.scrollX;
   menu.style.top  = `${top}px`;
@@ -369,13 +350,11 @@ function injectPickerStyles() {
   document.head.appendChild(style);
 }
 
-// ── Main factory ───────────────────────────────────────────────────────────
-
 export function createBlockHandleElement(
   editorRef: EditorRef,
   callbacks?: BlockHandleCallbacks,
 ): HTMLElement {
-  // ── Styles ─────────────────────────────────────────────────────────────────
+
   if (!document.getElementById('km-block-handle-styles')) {
     const style = document.createElement('style');
     style.id = 'km-block-handle-styles';
@@ -456,12 +435,10 @@ export function createBlockHandleElement(
     document.head.appendChild(style);
   }
 
-  // ── Root ───────────────────────────────────────────────────────────────────
   const root = document.createElement('div');
   root.className = 'km-bh';
   root.setAttribute('data-drag-handle', '');
 
-  // ── + Add button ───────────────────────────────────────────────────────────
   const addBtn = document.createElement('button');
   addBtn.className = 'km-bh__add';
   addBtn.title = 'Add block below';
@@ -480,7 +457,6 @@ export function createBlockHandleElement(
     openBlockPicker(btnRect, editor, getTargetBlock(editorRef, editor).afterPos, callbacks?.onCreatePage);
   });
 
-  // ── Grip ⋮⋮ ───────────────────────────────────────────────────────────────
   const grip = document.createElement('button');
   grip.className = 'km-bh__grip';
   grip.title = 'Click for options · Drag to reorder';
@@ -494,7 +470,6 @@ export function createBlockHandleElement(
   root.appendChild(addBtn);
   root.appendChild(grip);
 
-  // ── Context menu ───────────────────────────────────────────────────────────
   let menuEl: HTMLElement | null = null;
 
   function closeMenu() {
@@ -519,7 +494,6 @@ export function createBlockHandleElement(
     menu.className = 'km-bh__menu';
     menuEl = menu;
 
-    // — Turn into ————————————————————————
     const turnLabel = document.createElement('div');
     turnLabel.className = 'km-bh__menu-label';
     turnLabel.textContent = 'Turn into';
@@ -548,7 +522,6 @@ export function createBlockHandleElement(
     }
     menu.appendChild(grid);
 
-    // — Actions ——————————————————————————
     const sep = document.createElement('div');
     sep.className = 'km-bh__sep';
     menu.appendChild(sep);
@@ -595,7 +568,6 @@ export function createBlockHandleElement(
       menu.appendChild(item);
     }
 
-    // Position
     menu.style.top  = `${anchorRect.bottom + 5}px`;
     menu.style.left = `${anchorRect.left - 4}px`;
     document.body.appendChild(menu);
@@ -610,14 +582,11 @@ export function createBlockHandleElement(
     document.addEventListener('keydown', onEsc);
   }
 
-  // Click grip = open menu; drag = native DnD handled by DragHandle extension.
-  // NOTE: do NOT call stopPropagation on mousedown — the DragHandle extension
-  // must receive the event on its wrapper to initiate drag correctly.
   let clickTimer: ReturnType<typeof setTimeout> | null = null;
   grip.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
-    // Don't stopPropagation — DragHandle needs the event to bubble up
-    e.preventDefault(); // prevent text selection while dragging
+
+    e.preventDefault();
     const rect = grip.getBoundingClientRect();
     clickTimer = setTimeout(() => openMenu(rect), 150);
   });
@@ -625,8 +594,6 @@ export function createBlockHandleElement(
     if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
     closeMenu();
   });
-  // If the user releases the mouse without dragging, the timer fires → menu opens.
-  // If the user drags, dragstart fires first → timer cleared, no menu.
 
   return root;
 }

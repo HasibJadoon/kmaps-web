@@ -1,10 +1,6 @@
-// ─── ReviewQueueRepo — core_review_queue ──────────────────────────────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export type ReviewStatus =
   | 'pending'
@@ -50,15 +46,11 @@ export interface ReviewQueueListOptions extends PaginateOptions {
   priority?: number;
 }
 
-// ── Column fragment ───────────────────────────────────────────────────────────
-
 const COLS = `
   id, workspace_id, reviewer_ref, source_module, suggestion_ref,
   entity_type, title, status, priority, due_at, resolved_at,
   note, created_at, updated_at
 FROM core_review_queue`;
-
-// ── Repo ──────────────────────────────────────────────────────────────────────
 
 export class ReviewQueueRepo {
   constructor(private db: D1Database) {}
@@ -176,7 +168,6 @@ export class ReviewQueueRepo {
     );
   }
 
-  /** Counts by status for a workspace (dashboard summary). */
   statusCounts(workspaceId: string): Promise<Array<{ status: string; count: number }>> {
     return query(
       this.db,

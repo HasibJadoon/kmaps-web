@@ -1,18 +1,3 @@
-// ─── Importing a pack ─────────────────────────────────────────────────────────
-//
-// Idempotent by three mechanisms, generalising what migration 028 established
-// for generated questions:
-//
-//   1. `UNIQUE (pack_ref, slug)` — the slug is hand-authored and stable, so a
-//      re-import UPSERTs. It is to a written item what `generated_from` is to a
-//      generated one: the identity the author controls.
-//   2. `content_digest` — an unchanged item is counted and skipped, not
-//      rewritten. This is what makes re-importing a hundred cards cheap and a
-//      dry run's diff worth reading.
-//   3. A slug present in the bank and absent from the document is RETIRED,
-//      never deleted, because responses point at it and deleting an item
-//      deletes the history of everyone who answered it.
-
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type {
@@ -27,9 +12,6 @@ const num = (v: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-/** A stable digest of everything that decides what this item IS. Deliberately
- *  excludes ids and timestamps: re-importing an unchanged document must produce
- *  an unchanged digest, or the skip never fires. */
 async function digestOf(item: ItemDoc): Promise<string> {
   const normalised = JSON.stringify({
     i: item.interaction ?? 'choice',
@@ -52,7 +34,6 @@ async function digestOf(item: ItemDoc): Promise<string> {
   return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** Every item in the document, whether written under a unit or at pack level. */
 function collectItems(doc: PackDoc): Array<{ item: ItemDoc; unitSlugs: string[] }> {
   const out: Array<{ item: ItemDoc; unitSlugs: string[] }> = [];
   for (const item of doc.items ?? []) {
@@ -66,11 +47,6 @@ function collectItems(doc: PackDoc): Array<{ item: ItemDoc; unitSlugs: string[] 
   return out;
 }
 
-/** What the document says before anything is written.
- *
- *  Validation is deliberately strict about the two things that cannot be fixed
- *  later without a data migration: a duplicate slug (which would silently make
- *  two items one) and a scored item with no way to be right. */
 export function validate(doc: PackDoc): string[] {
   const errors: string[] = [];
   if (!doc?.pack?.slug) errors.push('pack.slug is required');
@@ -106,20 +82,15 @@ export function validate(doc: PackDoc): string[] {
       }
     }
 
-    // A scored item that nothing can answer correctly is the failure this
-    // catches: it looks fine in the file and is unanswerable in the room.
     const scoring = item.scoring ?? 'match_correct';
     const interaction = item.interaction ?? 'choice';
     if (scoring !== 'none') {
       const hasCorrectOption = (item.options ?? []).some((o) => o.correct);
       const hasDeclared = item.response !== undefined && item.response !== null;
-      // An ordering carries its answer in the sequence itself: `judge()` reads
-      // the tokens by `sort_order` and never looks at `is_correct`. Requiring a
-      // correct option here made every `order` and `tap_word` item unimportable
-      // — the file looked wrong and the validator was.
+
       const ordered = (interaction === 'order' || interaction === 'tap_word')
         && (item.options ?? []).some((o) => (o.role ?? 'choice') === 'order_token');
-      // Matching says which side answers which through `pair_key`, likewise.
+
       const paired = (interaction === 'match' || interaction === 'associate'
                       || interaction === 'gap_match')
         && (item.options ?? []).some((o) => o.pair_key);
@@ -134,11 +105,6 @@ export function validate(doc: PackDoc): string[] {
   return errors;
 }
 
-/** Refuse a document whose unlock edges form a cycle.
- *
- *  Checked HERE rather than at render time: a cycle discovered while drawing a
- *  path is an infinite loop in a Worker, and a cycle discovered at import is a
- *  message naming the units involved. */
 export function findCycle(doc: PackDoc): string[] | null {
   const edges = new Map<string, string[]>();
   for (const unit of doc.units ?? []) {
@@ -192,7 +158,6 @@ export async function importPack(
     return { import_id: importId, pack_ref: null, dry_run: opts.dryRun, ...counts, errors };
   }
 
-  // ── the pack ───────────────────────────────────────────────────────────────
   const p = doc.pack;
   const existing = await queryOne<{ id: string }>(
     db, 'SELECT id FROM core_bank_pack WHERE slug = ?', [p.slug]);
@@ -225,7 +190,6 @@ export async function importPack(
     }
   }
 
-  // ── units ──────────────────────────────────────────────────────────────────
   const unitIds = new Map<string, string>();
   const units = doc.units ?? [];
   for (const [index, unit] of units.entries()) {
@@ -264,7 +228,6 @@ export async function importPack(
     }
   }
 
-  // Parents in a second pass: a unit may name a parent written after it.
   if (!opts.dryRun) {
     for (const unit of units) {
       if (!unit.parent) continue;
@@ -277,7 +240,6 @@ export async function importPack(
     }
   }
 
-  // ── items ──────────────────────────────────────────────────────────────────
   const seenSlugs = new Set<string>();
   for (const { item, unitSlugs } of collectItems(doc)) {
     seenSlugs.add(item.slug);
@@ -336,8 +298,6 @@ export async function importPack(
         [itemId, packId, item.slug, ...cols]);
     }
 
-    // Options are replaced wholesale: their identity is (item, role, order), and
-    // reconciling them one by one buys nothing an author would ever notice.
     await execute(db, 'DELETE FROM core_bank_item_option WHERE item_ref=?', [itemId]);
     for (const [i, option] of (item.options ?? []).entries()) {
       await writeOption(db, itemId, option, i);
@@ -345,7 +305,6 @@ export async function importPack(
     await linkUnits(db, itemId, unitSlugs, unitIds, item.seq);
   }
 
-  // ── retire what the document no longer contains ────────────────────────────
   if (!opts.dryRun && seenSlugs.size > 0) {
     const live = await query<{ id: string; slug: string }>(
       db, `SELECT id, slug FROM core_bank_item WHERE pack_ref=? AND status != 'retired'`,
@@ -359,10 +318,6 @@ export async function importPack(
     }
   }
 
-  // A dry run reports the id the pack WOULD get but must not cite it in the
-  // ledger: nothing was inserted, and core_bank_import.pack_ref is a real
-  // foreign key. Citing it failed every dry run of a pack that did not already
-  // exist — which is every first dry run, the only one anybody needs.
   await ledger(db, importId, opts.dryRun && !existing ? null : packId,
                actorRef, opts, fileDigest, counts, [], raw);
   return { import_id: importId, pack_ref: packId, dry_run: opts.dryRun, ...counts, errors: [] };
@@ -403,8 +358,7 @@ async function ledger(
   opts: { dryRun: boolean; filePath?: string | null }, fileDigest: string,
   counts: Record<string, number>, errors: string[], raw: string,
 ): Promise<void> {
-  // The ledger row is written even for a dry run and even for a failure — that
-  // is what makes "what did the last import say" answerable.
+
   await execute(db,
     `INSERT INTO core_bank_import
        (id, pack_ref, actor_ref, file_path, file_digest, dry_run, units_created,

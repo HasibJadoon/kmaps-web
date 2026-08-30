@@ -1,16 +1,3 @@
-// ─── MorphDisplayRepo — the word view, straight from the display layer ────────
-// The Morphology step is WORD-focused. This repo reads the render-ready display
-// tables (qr_morph_display_word / _lemmas / _blocks / _sources) and merges the
-// block tiers for one word so the UI renders a dumb list of typed blocks:
-//   context (this occurrence's iʿrāb + word-focused tafsīr, keyed word-level
-//   s:a:w) · lemma (ṣarf — wazn/form live on qr_morph_display_lemma, joined
-//   via words.lemma_ref) · root (universal meaning, family, hook, five-lens,
-//   lexicon shades, senses, SS-grounded examples). Everything trilingual
-//   (en/ar/ur); Arabic terms stay Arabic. Tier-2 facts (wazn, derived type,
-//   form, gloss) are served from the lemma tier — the word-row copies are
-//   transitional fallbacks slated to be nulled. No shaping logic here beyond
-//   JSON hydration + ordering.
-
 import { query, queryOne } from '../../../shared/src/db';
 import { buildFeats, registryFeats, rangeOf, waznOf } from '../lib/morph-card';
 import type { AlClient, ResolvedLemma } from '../clients/al.client';
@@ -34,10 +21,7 @@ interface WordRow {
   is_anchor: number; importance: number; difficulty: number | null; frequency_quran: number | null;
   root_meaning_ar: string | null; root_meaning_en: string | null; quran_meanings_json: string | null;
 }
-// Tier-2 (lemma) facts joined from qr_morph_display_lemma via words.lemma_ref,
-// plus the form-family master row (qr_morph_form_family via form_family_id) —
-// the bāb: نَصَرَ … for Form I, the form name (إِفْعَال …) for derived forms.
-// These win over the word-row copies (which are transitional and get nulled).
+
 interface LemmaTierRow {
   l_wazn_ar: string | null; l_form_roman: string | null; l_form_ar: string | null;
   l_verb_form_ar: string | null;
@@ -83,13 +67,9 @@ interface SourceRow {
 }
 
 export class MorphDisplayRepo {
-  /** `al` is optional so every existing caller keeps working: without it the
-   *  repo serves the word layer alone, which is complete in km_quran. With it,
-   *  the lemma tier is resolved by global id and no lemma content needs to be
-   *  stored here at all. */
+
   constructor(private db: D1Database, private al: AlClient | null = null) {}
 
-  /** Full word view: head + ordered tier-merged blocks + the sources they cite. */
   async wordView(surah: number, ayah: number, wordIndex: number): Promise<unknown | null> {
     const w = await queryOne<WordRow & LemmaTierRow>(
       this.db,
@@ -102,11 +82,6 @@ export class MorphDisplayRepo {
     );
     if (!w) return null;
 
-    // All display blocks for this root: scope_level='root' → CORE (static, shared by every
-    // context); scope_level='lemma' → CORE too, but only the rows for THIS word's lemma
-    // (scope_key = words.lemma_ref — ṣarf of a sibling lemma must not leak in);
-    // scope_level='context' → TEMPORAL (belongs to one Qurʾānic occurrence, keyed
-    // word-level: scope_key = 's:a:w'). Legacy 'occurrence'/'ayah' rows fold into TEMPORAL too.
     const blocks = await query<BlockRow>(
       this.db,
       `SELECT scope_level, scope_key, ayah_key, block_type, block_subtype, display_order,
@@ -132,7 +107,6 @@ export class MorphDisplayRepo {
       ).catch(() => []);
     }
 
-    // Prev/next promoted word in the surah (for full-page word navigation).
     const sibs = await query<{ ayah_no: number; word_index: number; surface_ar: string }>(
       this.db,
       `SELECT ayah_no, word_index, surface_ar FROM qr_morph_display_word
@@ -144,7 +118,6 @@ export class MorphDisplayRepo {
     const mkNav = (s: { ayah_no: number; word_index: number; surface_ar: string } | undefined) =>
       s ? { surah, ayah: s.ayah_no, word_index: s.word_index, surface_ar: s.surface_ar } : null;
 
-    // ── shape one block for the client ──
     const isCore = (b: BlockRow): boolean =>
       b.scope_level === 'root' || (b.scope_level === 'lemma' && b.scope_key === w.lemma_ref);
     const mapBlock = (b: BlockRow) => ({
@@ -162,10 +135,6 @@ export class MorphDisplayRepo {
         : ((hydrate(b.meta_json) as { illustration?: unknown })?.illustration ?? null),
     });
 
-    // CORE (root + this word's lemma tier) renders top; TEMPORAL (context) is
-    // grouped by ayah — context scope_keys are word-level ('s:a:w') while the
-    // occurrence items are ayah-keyed, so group on ayah_key (else the 's:a'
-    // prefix of scope_key). Sibling-lemma blocks (same root, other lemma) drop.
     const coreBlocks = blocks.filter(isCore).map(mapBlock);
     const ayahOf = (b: BlockRow): string => {
       if (b.ayah_key) return b.ayah_key;
@@ -180,7 +149,6 @@ export class MorphDisplayRepo {
       tempByKey.get(key)!.push(mapBlock(b));
     }
 
-    // The occurrences block enumerates the contexts; attach each context's temporal blocks.
     const occ = coreBlocks.find(b => b.type === 'occurrences');
     const occItems: any[] = (occ?.data as { items?: any[] })?.items ?? [];
     const contexts = occItems.map(it => ({
@@ -189,7 +157,6 @@ export class MorphDisplayRepo {
       blocks: tempByKey.get(it.ayah_key) ?? [],
     }));
 
-    // Distinct language-world registers present (drives the sidebar filter).
     const regsAvail = [...new Set(
       [...coreBlocks, ...contexts.flatMap(c => c.blocks)].flatMap(b => b.registers ?? []),
     )];
@@ -207,8 +174,7 @@ export class MorphDisplayRepo {
                 derived_ur: w.l_derived_type_ur ?? w.derived_type_ur,
                 wazn_ar: w.l_wazn_ar ?? w.wazn_ar,
                 form_roman: w.f_roman ?? w.l_form_roman ?? w.form_roman,
-                // the bāb, always from the master family when linked: باب نَصَرَ
-                // (Form I) · باب إِفْعَال (derived) — the hero chip renders it
+
                 form_ar: w.f_name_ar ?? w.l_form_ar ?? w.form_ar,
                 features: hydrate(w.features_json) },
         family: w.f_name_ar ? {
@@ -230,19 +196,6 @@ export class MorphDisplayRepo {
     };
   }
 
-  /** Grid: promoted content words for a surah (noun/verb cards, never ḥarf).
-   *  The card matches the full-surah morphology grid: the QAC occurrence tag is
-   *  joined so the same grammatical-feature chips + range synopsis are shaped.
-   *
-   *  `from`/`to` narrow to one passage's āyāt. The client used to fetch the whole
-   *  surah and filter locally, which is affordable for word rows but not once
-   *  each row's lemma is resolved across a service boundary: surah 40 is ~400
-   *  distinct lemmas against a passage's ~13.
-   *
-   *  When an AlClient is supplied, the lemma tier is resolved by global id and
-   *  wins over the display-table columns. Those columns are the transitional
-   *  fallback and go away with the tables; AL is the source. If the AL call
-   *  fails the card degrades to what km_quran holds rather than going blank. */
   async grid(
     surah: number,
     from?: number,
@@ -254,7 +207,7 @@ export class MorphDisplayRepo {
       sense_range_en: string | null;
       verb_form_ar: string | null;
       morphology_tag_json: string | null;
-      /** The AL global id ('AL:{26-hex}'), from qr_lemma.lx_lemma_ref. */
+
       lemma_uid: string | null;
     };
     const args: unknown[] = [surah];
@@ -263,15 +216,7 @@ export class MorphDisplayRepo {
       range = ' AND d.ayah_no BETWEEN ? AND ?';
       args.push(Math.min(from, to), Math.max(from, to));
     }
-    // `d.lemma_ref` is km_quran's OWN lemma key (qr_lemma.id) — it is NOT an AL
-    // id and resolves to nothing on the AL side. `qr_lemma.lx_lemma_ref` is the
-    // registered global id ('AL:{26-hex}'), populated on all 4,817 rows, and it
-    // is the only thing that crosses the database boundary.
-    // Name the columns instead of `d.*`. `qr_morph_display_word` is a view over
-    // a view (003_morph_view_swap) and every column is a computed expression —
-    // ten json_each/json_extract passes per row. Selecting the twenty-six the
-    // card actually reads lets SQLite skip the rest instead of materialising
-    // them for a mapper that throws them away.
+
     const rows = await query<GridRow>(
       this.db,
       `SELECT d.id, d.surah_no, d.ayah_no, d.word_index,
@@ -305,9 +250,6 @@ export class MorphDisplayRepo {
       const derivedAr = al?.form?.name_ar ?? w.l_derived_type_ar ?? w.derived_type_ar;
       const derivedEn = al?.form?.name_en ?? w.l_derived_type_en ?? w.derived_type_en;
 
-      // The sense list IS the meaning range — one row per sense in AL, ordered
-      // live-first and core-first. The display table's pre-joined JSON stands in
-      // only while a lemma has no senses modelled yet.
       const alMeanings = (al?.senses ?? [])
         .filter(s => s.gloss_ar || s.gloss_en)
         .map(s => ({ ar: s.gloss_ar ?? '', en: s.gloss_en ?? '' }));
@@ -323,10 +265,7 @@ export class MorphDisplayRepo {
         lemma_ar: al?.lemma_ar ?? w.lemma_ar,
         root_ar: al?.root?.root_text ?? w.root_ar,
         root_display: w.root_display,
-        // `lemma_ref` stays km_quran's local key (existing consumers bind to it);
-        // `lemma_uid` / `root_uid` are the registered global ids the tiers are
-        // actually addressed by, so a client follows a reference instead of
-        // being handed a second copy of the lemma or root.
+
         lemma_ref: w.lemma_ref,
         lemma_uid: w.lemma_uid,
         root_uid: al?.root?.id ? `AL:${al.root.id}` : null,
@@ -348,34 +287,19 @@ export class MorphDisplayRepo {
         quran_meanings: meanings,
         badge_color: w.badge_color, is_anchor: !!w.is_anchor,
         frequency_quran: al?.frequency_quran ?? w.frequency_quran,
-        // Chips come from the grammar registry, not from strings written here.
-        // `features_json` is built in the view by joining qr_morph_flag_decomp
-        // to qr_gram_term_ref, so every chip arrives with its category, its
-        // Urdu, and its `GT:` id — the id a chip taps through to. buildFeats is
-        // the fallback for rows the registry cannot yet decompose, and it emits
-        // no ref: an unref'd chip is a term to author, not a term to invent.
-        // The registry is the only source of a chip. familyChip used to bolt
-        // the bāb on here from the lemma row, with no id and no Urdu, because
-        // the family is not a QAC flag; 015 resolved the families to GT terms
-        // and put them on the word row, so the view names them like everything
-        // else and there is nothing left for the worker to invent.
+
         feats: registryFeats(w.features_json)
             ?? buildFeats(bucket, w.morphology_tag_json, derivedAr, derivedEn,
                           al?.form?.example_ar ?? w.f_model_ar ?? w.l_verb_form_ar ?? w.verb_form_ar ?? null,
                           al?.form?.name_ar ?? w.f_name_ar, al?.form?.roman ?? w.f_roman),
         sense_arc_en: primaryArc?.arc_en ?? w.sense_arc_en ?? null,
         sense_range_en: rangeOf(w.sense_range_en, meanings),
-        // The lemma tier — governance, furūq, expressions, every sense and arc.
-        // Opt-in (`?include=lemma`): it was 62% of this response and no client
-        // decoded it. Everything the card shows is already folded in above.
+
         ...(opts.includeLemma ? { lemma: al ?? null } : {}),
       };
     });
   }
 
-  /** Resolve the distinct lemma ids of a row set through AR_LINGUISTICS.
-   *  Returns an empty map — not an error — when the binding is absent or the
-   *  call fails, so a grid still renders its word layer without AL. */
   private async resolveLemmaTier(
     refs: Array<string | null>,
   ): Promise<Record<string, ResolvedLemma>> {

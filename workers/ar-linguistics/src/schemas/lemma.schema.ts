@@ -1,11 +1,9 @@
-// ─── Lemma schemas & types ────────────────────────────────────────────────────
-
 export interface Lemma {
-  id: string;               // AL:ULID
+  id: string;
   lemma_ar: string;
-  root_id: string | null;   // AL:ULID → ar_ling_roots
-  root_text: string | null; // denormalized for joins
-  pos: string | null;       // noun | verb | particle | ...
+  root_id: string | null;
+  root_text: string | null;
+  pos: string | null;
   gloss_en: string | null;
   gloss_ar: string | null;
   frequency: number | null;

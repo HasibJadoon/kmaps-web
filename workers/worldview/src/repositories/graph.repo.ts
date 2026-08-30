@@ -1,12 +1,6 @@
-// ─── GraphRepo — L7 tables ─────────────────────────────────────────────────────
-// wv_clusters, wv_cluster_members, wv_graph_projections,
-// wv_graph_views, wv_node_scope_links
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ─── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface WvCluster {
   id: string;
@@ -65,23 +59,17 @@ export interface WvNodeScopeLink {
   created_at: string;
 }
 
-// ─── Create input types ────────────────────────────────────────────────────────
-
 export type ClusterCreate = Omit<WvCluster, 'id' | 'created_at'>;
 export type ClusterMemberCreate = Omit<WvClusterMember, 'id' | 'created_at'>;
 export type GraphProjectionCreate = Omit<WvGraphProjection, 'id' | 'created_at'>;
 export type GraphViewCreate = Omit<WvGraphView, 'id' | 'created_at'>;
 export type NodeScopeLinkCreate = Omit<WvNodeScopeLink, 'id' | 'created_at'>;
 
-// ─── Column lists ──────────────────────────────────────────────────────────────
-
 const CL_COLS  = `id, slug, title, cluster_type, description_md, tradition_id, meta_json, created_at`;
 const CM_COLS  = `id, cluster_id, entity_type, entity_id, role, note, created_at`;
 const GP_COLS  = `id, slug, title, projection_type, root_entity, filter_json, node_ids_json, edge_ids_json, description_md, meta_json, created_at`;
 const GV_COLS  = `id, projection_id, title, layout_type, renderer_hint, filter_json, viewport_json, meta_json, created_at`;
 const NSL_COLS = `id, node_id, scope_type, scope_ref, link_role, note, created_at`;
-
-// ─── Patch helper ──────────────────────────────────────────────────────────────
 
 function buildPatch(patch: Record<string, unknown>): { setClauses: string; values: unknown[] } {
   const keys = Object.keys(patch).filter(k => patch[k] !== undefined);
@@ -90,14 +78,8 @@ function buildPatch(patch: Record<string, unknown>): { setClauses: string; value
   return { setClauses, values };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// GraphRepo
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export class GraphRepo {
   constructor(private db: D1Database) {}
-
-  // ── Clusters ───────────────────────────────────────────────────────────────
 
   clusters(traditionId: string | null, clusterType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -140,8 +122,6 @@ export class GraphRepo {
     return this.findClusterById(id);
   }
 
-  // ── Cluster Members ────────────────────────────────────────────────────────
-
   members(clusterId: string): Promise<WvClusterMember[]> {
     return query<WvClusterMember>(
       this.db,
@@ -170,8 +150,6 @@ export class GraphRepo {
   async removeMember(id: string): Promise<void> {
     await execute(this.db, `DELETE FROM wv_cluster_members WHERE id = ?`, [id]);
   }
-
-  // ── Graph Projections ──────────────────────────────────────────────────────
 
   projections(projectionType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -215,8 +193,6 @@ export class GraphRepo {
     return this.findProjectionById(id);
   }
 
-  // ── Graph Views ────────────────────────────────────────────────────────────
-
   views(projectionId: string): Promise<WvGraphView[]> {
     return query<WvGraphView>(
       this.db,
@@ -252,8 +228,6 @@ export class GraphRepo {
     await execute(this.db, `UPDATE wv_graph_views SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findViewById(id);
   }
-
-  // ── Node Scope Links ───────────────────────────────────────────────────────
 
   nodeScopeLinks(nodeId: string): Promise<WvNodeScopeLink[]> {
     return query<WvNodeScopeLink>(

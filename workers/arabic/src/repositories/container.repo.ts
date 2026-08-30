@@ -1,18 +1,14 @@
-// ─── ContainerRepo — ar_curriculum_container ────────────────────────────────────────────
-// Curriculum containers: courses, books, units, chapters.
-// Owned by AR worker. Cross-module content referenced via typed refs only.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface Container {
-  id: string;               // AR:ULID
+  id: string;
   title: string;
-  container_type: string;   // course | book | unit | chapter
-  parent_id: string | null; // AR:ULID of parent container
+  container_type: string;
+  parent_id: string | null;
   sort_order: number;
-  status: string;           // active | archived | draft
+  status: string;
   created_at: string;
 }
 

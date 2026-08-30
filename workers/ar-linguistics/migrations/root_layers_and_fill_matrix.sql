@@ -1,38 +1,22 @@
--- Root layers and sub-layers: the missing carrier, and the fill matrix.
---
--- Sub-layer 12-ASL declares carrier_hint 'ar_ling_root_asl' and tables_json
--- '[]' — the table was never created. That is the carrier for the aṣl
--- statement, which is the root card's load-bearing field ("the OLDEST
--- witness, not the famous one"), so the layer model had a hole exactly where
--- the most important claim goes.
-
 CREATE TABLE IF NOT EXISTS ar_ling_root_asl (
   id            TEXT PRIMARY KEY,
   root_norm     TEXT NOT NULL,
   root_id       TEXT,
 
-  -- The claim, in the words of the witness. statement_ar is quoted, never
-  -- paraphrased: an aṣl reported in our own voice is not an attestation.
   statement_ar  TEXT NOT NULL,
   statement_en  TEXT,
   statement_ur  TEXT,
 
-  -- Who said it and when. death_hijri is what makes "oldest" decidable
-  -- rather than a matter of reputation — Ibn Durayd (321) outranks Ibn Fāris
-  -- (395) on this axis even though Maqāyīs is the famous one.
   authority_ar  TEXT,
   authority_en  TEXT,
   death_hijri   INTEGER,
 
-  -- Where it is, so the claim can be checked.
   source_slug   TEXT,
   source_id     TEXT,
   lexicon_entry_id TEXT REFERENCES "ar_ling_lexicon_entry"(id),
   page_ref      TEXT,
   volume_no     INTEGER,
 
-  -- A narrower or competing statement from a later witness, kept rather than
-  -- discarded: al-Rāghib narrowing Ibn Durayd is evidence, not noise.
   is_primary    INTEGER NOT NULL DEFAULT 1,
   narrows_id    TEXT REFERENCES ar_ling_root_asl(id),
   note_md       TEXT,
@@ -48,18 +32,10 @@ CREATE INDEX IF NOT EXISTS ix_root_asl_root    ON ar_ling_root_asl(root_norm);
 CREATE INDEX IF NOT EXISTS ix_root_asl_death   ON ar_ling_root_asl(root_norm, death_hijri);
 CREATE INDEX IF NOT EXISTS ix_root_asl_primary ON ar_ling_root_asl(root_norm, is_primary);
 
--- Register the carrier that now exists.
 UPDATE ar_ling_reg_sub_layer
    SET tables_json = '["ar_ling_root_asl"]', carrier_state = 'empty'
  WHERE sub_code = '12-ASL';
 
--- ── The reduplicative four ───────────────────────────────────────────────
---
--- ذبذب صرصر كبكب هدهد are the only Qurʾānic roots with no lexicon entry, and
--- they are all reduplicated quadriliterals. The lexica do carry them — under
--- the biliteral base (ذبب صرر كبب هدد), which is where a reader of al-ʿAyn
--- would look. So this is a lookup rule, not missing data, and it belongs in
--- the root key registry rather than being hardcoded in a query.
 CREATE TABLE IF NOT EXISTS ar_ling_root_lexicon_alias (
   root_norm     TEXT PRIMARY KEY,
   lookup_norm   TEXT NOT NULL,
@@ -73,24 +49,6 @@ INSERT OR REPLACE INTO ar_ling_root_lexicon_alias (root_norm, lookup_norm, reaso
   ('كبكب','كبب','reduplicated quadriliteral — lexica index under the biliteral base'),
   ('هدهد','هدد','reduplicated quadriliteral — lexica index under the biliteral base');
 
-
-
--- ── The fill matrix ──────────────────────────────────────────────────────
---
--- One row per (Qurʾānic root × root-scope sub-layer), saying how much that
--- band holds. The registry's own fill_state is global per sub-layer, so it
--- can say "senses exist" but never which of 1,642 roots is short of them.
--- This can.
---
--- Written as a table filled band by band rather than one UNION view for two
--- reasons: the carriers key on three different columns (root_norm, root_id,
--- root_text), and D1 will not parse 17 compound SELECT terms.
---
--- Note 03-ASWAT: the registry's carrier list names ar_ling_root_letter, but
--- that table is the 29-letter registry (makhraj and sifat per LETTER, 29
--- rows). The per-root carrier is ar_ling_root_letter_slot, 89,812 rows —
--- one per root per slot. Counting the wrong one would have reported the
--- phonology band empty for every root.
 DROP TABLE IF EXISTS ar_ling_root_layer_fill;
 CREATE TABLE ar_ling_root_layer_fill (
   root TEXT NOT NULL, sub_code TEXT NOT NULL, band TEXT NOT NULL,

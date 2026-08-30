@@ -4,13 +4,10 @@ import {
 } from '@angular/core';
 import { StudyLessonResponse, AyahVm, AyahWordToken } from '../../../../../../../shared/services/quran/quran-surah.service';
 
-// Arabic diacritic codepoints (harakat + Quranic marks) — fallback stripping
 const DIACRITICS_RE = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED]/g;
-// Quranic structural ornament characters we always strip (we render our own markers):
-//   U+06DD = Arabic End of Ayah       (ornamental circle with ayah number)
-//   U+06DE = Arabic Start of Rub El Hizb (large ornamental circle, quarter-division marker)
+
 const END_MARKER_RE = /[\u06DD\u06DE][\u0660-\u0669]*/g;
-// Arabic-Indic digit-only tokens (٠١٢٣٤٥٦٧٨٩) — ayah numbers embedded in text without U+06DD prefix
+
 const ARABIC_INDIC_ONLY_RE = /^[\u0660-\u0669]+$/;
 
 @Component({
@@ -33,8 +30,6 @@ export class StudyReadingStepComponent implements OnChanges {
     }
   }
 
-  // ── Word token helpers ────────────────────────────────────
-
   hasWordTokens(ayah: AyahVm): boolean {
     return Array.isArray(ayah.words) && ayah.words.length > 0;
   }
@@ -44,12 +39,11 @@ export class StudyReadingStepComponent implements OnChanges {
       if (w.char_type === 'end') return false;
       const display = (w.text || w.simple || '').replace(END_MARKER_RE, '').trim();
       if (!display) return false;
-      if (ARABIC_INDIC_ONLY_RE.test(display)) return false; // bare ayah-number digit
+      if (ARABIC_INDIC_ONLY_RE.test(display)) return false;
       return true;
     });
   }
 
-  /** Get the display text for a single word token — always strip U+06DD */
   wordText(word: AyahWordToken): string {
     const raw = (this.showDiacritics() ? word.text : word.simple) ?? '';
     return raw.replace(END_MARKER_RE, '').trim();
@@ -65,7 +59,7 @@ export class StudyReadingStepComponent implements OnChanges {
     return src
       .split(/\s+/)
       .filter(w => w.length > 0)
-      .filter(w => !ARABIC_INDIC_ONLY_RE.test(w)); // drop bare ayah-number digits
+      .filter(w => !ARABIC_INDIC_ONLY_RE.test(w));
   }
 
   toArabicIndic(n: number): string {

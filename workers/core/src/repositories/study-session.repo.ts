@@ -1,13 +1,3 @@
-// ─── StudySessionRepo — the study axis's one carrier ──────────────────────────
-// Study is the axis nothing in the corpus can measure: whether a passage has
-// been recited, listened to, taught or discussed is an act, not content. This
-// table is where that act is recorded, so the study sensors read a real row
-// rather than the app self-reporting a number it owns on the device.
-//
-// One table, all three domains — quran | arabic | wv — keyed the way the rest
-// of the plane is keyed: domain + lane + layer_id (cyb_layer.id).
-// Table: core_study_session
-
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 
@@ -57,7 +47,6 @@ const COLS =
 export class StudySessionRepo {
   constructor(private db: D1Database) {}
 
-  /** One user's sessions for a scope, newest first. */
   forScope(userRef: string, scopeKind: string, scopeRef: string): Promise<StudySessionRow[]> {
     return query<StudySessionRow>(
       this.db,
@@ -68,11 +57,6 @@ export class StudySessionRepo {
     );
   }
 
-  /**
-   * The tally the study sensors read: how many sessions, when the last one was,
-   * and how many distinct layers have been touched. Counted per activity so a
-   * band can ask only for the activities it owns (tilāwa reads read|listen).
-   */
   tally(userRef: string, scopeKind: string, scopeRef: string, activities: string[]) {
     const ph = activities.map(() => '?').join(',');
     return queryOne<{ sessions: number; layers: number; last_at: string | null; secs: number }>(

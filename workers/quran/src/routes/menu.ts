@@ -1,10 +1,3 @@
-// ─── /qr/menu — Quran navigation dataset ──────────────────────────────────────
-// Returns all 114 surahs with juz groupings and page stats.
-// Primary data source for the Angular navigation sidebar and Quran index page.
-//
-// New architecture advantage: qr_surah stores juz_start and page_start
-// directly, so no JOIN to qr_ayah is needed (unlike the legacy implementation).
-
 import type { Router } from '../../../shared/src/router';
 import { ok, internalError } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
@@ -44,19 +37,6 @@ interface JuzEntry {
 
 export function menuRoutes(router: Router<QuranEnv>) {
 
-  /**
-   * GET /qr/menu
-   *
-   * Returns the complete Quran navigation dataset:
-   * - `surahs[]`  — all 114 surahs with id, names, revelation type, ayah count,
-   *                 juz_start and page_start
-   * - `juzs[]`    — 30 entries, each with the list of surahs that begin in that juz
-   * - `stats`     — total_pages, total_surahs, total_juzs, total_ayahs
-   *
-   * Response is safe to cache aggressively on the client (Quran text never changes).
-   */
-  // The Quran is immutable; cache aggressively. Use a 30-minute edge TTL
-  // since this is the most frequently called endpoint in the shell.
   router.get('/qr/menu', (req, env) => cached(req, async () => {
     try {
       const [surahs, stats] = await Promise.all([
@@ -74,7 +54,6 @@ export function menuRoutes(router: Router<QuranEnv>) {
         ),
       ]);
 
-      // Build juz index: 30 juz buckets, each listing its member surahs
       const juzMap = new Map<number, JuzMember[]>();
       for (const s of surahs) {
         if (s.juz_start == null) continue;
@@ -91,7 +70,6 @@ export function menuRoutes(router: Router<QuranEnv>) {
         juzMap.set(s.juz_start, bucket);
       }
 
-      // Emit all 30 juzs in order (even if empty — robustness)
       const juzs: JuzEntry[] = [];
       for (let juz = 1; juz <= 30; juz++) {
         juzs.push({ juz, surahs: juzMap.get(juz) ?? [] });
@@ -100,7 +78,7 @@ export function menuRoutes(router: Router<QuranEnv>) {
       return ok({
         stats: {
           total_surahs: surahs.length,
-          total_juzs:   30,             // canonical — the Quran always has 30 juzs
+          total_juzs:   30,
           total_pages:  stats?.total_pages ?? 0,
           total_ayahs:  stats?.total_ayahs ?? 0,
         },

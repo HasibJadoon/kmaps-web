@@ -1,13 +1,10 @@
-// ─── Workspace Group schemas & types ──────────────────────────────────────────
-
-// core_workspace_groups
 export interface WorkspaceGroup {
-  id: string;                                           // CORE:ULID
-  workspace_id: string;                                 // CORE:ULID → core_workspaces
+  id: string;
+  workspace_id: string;
   name: string;
   group_type: 'team' | 'class' | 'cohort' | 'role_group' | 'other';
   description: string | null;
-  created_by_id: string;                                // CORE:ULID → core_users
+  created_by_id: string;
   meta_json: string | null;
   created_at: string;
 }
@@ -20,11 +17,10 @@ export interface WorkspaceGroupCreate {
   created_by_id?: string;
 }
 
-// core_workspace_group_members
 export interface WorkspaceGroupMember {
-  id: string;                                           // CORE:ULID
-  group_id: string;                                     // CORE:ULID → core_workspace_groups
-  user_id: string;                                      // CORE:ULID → core_users
+  id: string;
+  group_id: string;
+  user_id: string;
   role: 'admin' | 'member';
   joined_at: string;
 }
@@ -33,8 +29,6 @@ export interface GroupMemberAdd {
   user_id: string;
   role?: 'admin' | 'member';
 }
-
-// ─── Validators ────────────────────────────────────────────────────────────────
 
 export function validateWorkspaceGroupCreate(
   body: unknown,

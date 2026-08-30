@@ -1,16 +1,12 @@
-// ─── BridgeRepo — ar_ling_root_lemma_word_quran_link + arabic_links + content_links + projection_cache ──
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
 export interface QuranLink {
   id: string;
-  al_entity_ref: string;   // AL:<ULID>
+  al_entity_ref: string;
   al_entity_type: string;
-  qr_scope_ref: string;    // QR:<ULID> or QR:surah:ayah
+  qr_scope_ref: string;
   link_type: string;
   note_md: string | null;
   confidence: number;
@@ -28,9 +24,9 @@ export interface QuranLinkCreate {
 
 export interface ArabicLink {
   id: string;
-  al_entity_ref: string;   // AL:<ULID>
+  al_entity_ref: string;
   al_entity_type: string;
-  ar_entity_ref: string;   // AR:<ULID>
+  ar_entity_ref: string;
   ar_entity_type: string;
   link_type: string;
   note_md: string | null;
@@ -48,9 +44,9 @@ export interface ArabicLinkCreate {
 
 export interface ContentLink {
   id: string;
-  al_entity_ref: string;   // AL:<ULID>
+  al_entity_ref: string;
   al_entity_type: string;
-  cm_entity_ref: string;   // CM:<ULID>
+  cm_entity_ref: string;
   cm_entity_type: string;
   link_type: string;
   note_md: string | null;
@@ -76,12 +72,8 @@ export interface ProjectionCache {
   created_at: string;
 }
 
-// ── Repo ─────────────────────────────────────────────────────────────────────
-
 export class BridgeRepo {
   constructor(private db: D1Database) {}
-
-  // ── Quran Links ────────────────────────────────────────────────────────────
 
   quranLinks(alRef: string, opts: PaginateOptions = {}) {
     return paginate<QuranLink>(
@@ -97,7 +89,6 @@ export class BridgeRepo {
     );
   }
 
-  /** All AL entities linked to a specific QR scope (reverse lookup). */
   quranLinksByQrRef(qrRef: string, opts: PaginateOptions = {}) {
     return paginate<QuranLink>(
       this.db,
@@ -147,8 +138,6 @@ export class BridgeRepo {
     );
   }
 
-  // ── Arabic Links ───────────────────────────────────────────────────────────
-
   arabicLinks(alRef: string): Promise<ArabicLink[]> {
     return query<ArabicLink>(
       this.db,
@@ -195,8 +184,6 @@ export class BridgeRepo {
       [id],
     );
   }
-
-  // ── Content Links ──────────────────────────────────────────────────────────
 
   contentLinks(alRef: string): Promise<ContentLink[]> {
     return query<ContentLink>(
@@ -245,9 +232,6 @@ export class BridgeRepo {
     );
   }
 
-  // ── Projection Cache ───────────────────────────────────────────────────────
-
-  /** Fetch a cache entry by (cache_key = entityRef + ':' + projectionType). */
   getCache(
     entityRef: string,
     projectionType: string,
@@ -264,7 +248,6 @@ export class BridgeRepo {
     );
   }
 
-  /** Upsert a cache entry. */
   async setCache(
     entityRef: string,
     projectionType: string,
@@ -302,7 +285,6 @@ export class BridgeRepo {
     ))!;
   }
 
-  /** Invalidate all cache entries for a given entity ref. */
   async invalidateCache(entityRef: string): Promise<void> {
     await execute(
       this.db,
@@ -311,7 +293,6 @@ export class BridgeRepo {
     );
   }
 
-  /** Invalidate all expired cache entries. */
   async purgeExpired(): Promise<void> {
     await execute(
       this.db,
@@ -321,7 +302,6 @@ export class BridgeRepo {
     );
   }
 
-  /** List all cached entries for an entity ref (including expired). */
   listCache(entityRef: string): Promise<ProjectionCache[]> {
     return query<ProjectionCache>(
       this.db,

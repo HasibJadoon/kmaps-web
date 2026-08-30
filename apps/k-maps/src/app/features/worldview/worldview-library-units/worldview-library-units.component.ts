@@ -293,7 +293,6 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
   private tocResizePointerId: number | null = null;
   private removeTocResizeListeners: (() => void) | null = null;
 
-  // Panel column resize (highlights / notes / wv)
   private panelResizeIndex: number | null = null;
   private panelResizeStartX = 0;
   private panelResizeStartWidths: number[] = [];
@@ -308,7 +307,6 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
   readonly source = signal<WvSource | null>(null);
   readonly rawUnits = signal<WvUnit[]>([]);
 
-  // Reading session state
   readonly session = signal<WvReadingSession | null>(null);
   readonly sessionBusy = signal(false);
   readonly hasOpenSession = computed(() => {
@@ -345,7 +343,6 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
     this.readerSections.filter((section) => this.tabCount(section.id) > 0),
   );
 
-  // Widths (percentages) for the visible reader section columns
   readonly panelWidths = signal<number[]>([]);
   readonly resolvedWidths = computed(() => {
     const sections = this.visibleReaderSections();
@@ -407,7 +404,6 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
   readonly summaryBlocks = computed(() => this.buildPassageBlocks(this.selectedSummary()));
   readonly derivedPassageBlocks = computed(() => this.buildHighlightPassageBlocks(this.highlights()));
 
-  // Per-section attachments (documents / content / episodes)
   readonly attachmentGroups = computed(() => {
     const d = this.selectedDetail();
     return [
@@ -430,7 +426,6 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
     if (url) window.open(url, '_blank', 'noopener');
   }
 
-  // ── Poetry ──────────────────────────────────────────────────────
   readonly poem = computed<PoemMeta | null>(() => this.selectedDetail()?.poem ?? null);
   readonly isPoem = computed(() => this.passageBlocks().some((b) => b.kind === 'couplet'));
   readonly poemLayers = computed(() => {
@@ -980,7 +975,6 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
     });
   }
 
-  // ── Reading session ──────────────────────────────────────────────────────────
   private async loadSession(sourceId: string): Promise<void> {
     try {
       this.session.set(await firstValueFrom(this.libraryApi.getActiveSession(sourceId)));
@@ -1030,7 +1024,7 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
       );
       if (created) this.session.set(created);
     } catch {
-      // leave UI as-is
+
     } finally {
       this.sessionBusy.set(false);
       this.cdr.markForCheck();
@@ -1054,7 +1048,7 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
       const updated = await firstValueFrom(this.libraryApi.updateSession({ id: current.id, ...fields }));
       if (updated) this.session.set(updated);
     } catch {
-      // ignore
+
     } finally {
       this.sessionBusy.set(false);
       this.cdr.markForCheck();
@@ -1076,7 +1070,7 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
       );
       if (updated) { this.session.set(updated); this.cdr.markForCheck(); }
     } catch {
-      // ignore — navigation already proceeded
+
     }
   }
 
@@ -1087,9 +1081,6 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
     };
   }
 
-  // Maps the current worldview worker schema (parent_id, unit_index, page_*,
-  // text_excerpt, description_md) onto the reader's unit model, while still
-  // honouring any legacy field names a future endpoint might send.
   private normalizeUnit(unit: any): WvUnit {
     const sourceId = typeof unit.source_id === 'string' ? unit.source_id.trim() : '';
     const parentRaw = unit.parent_unit_id ?? unit.parent_id;
@@ -1576,7 +1567,6 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
     }
   }
 
-  /** Escape HTML then render inline markdown (code, links, bold, italic). */
   private inlineHtml(text: string): SafeHtml {
     let html = text
       .replace(/&/g, '&amp;')

@@ -1,18 +1,3 @@
-// ─── /worldview/sources + /worldview/units routes ─────────────────────────────
-// These are the PRIMARY UI-facing endpoints used by both Ionic and Desktop apps.
-// Paths match what the frontend services call exactly:
-//
-// GET    /worldview/sources              — list (also: /wv/sources legacy)
-// GET    /worldview/sources/:id          — source detail with units
-// POST   /worldview/source               — create (note: singular in UI)
-// PUT    /worldview/source               — update (note: singular in UI, body.id required)
-// GET    /worldview/units/:id            — unit detail
-// POST   /worldview/unit                 — create unit
-// PUT    /worldview/unit                 — update unit (body.id required)
-// GET    /worldview/units/:id/annotations — highlights for a unit
-// GET    /worldview/source-content        — chunks (?source_id=&source_unit_id=)
-// GET    /worldview/workflow              — composite: sources + people + notes summary
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -23,9 +8,6 @@ import { HighlightRepo } from '../repositories/highlight.repo';
 
 export function sourceRoutes(router: Router<WorldviewEnv>) {
 
-  // ── Source list ───────────────────────────────────────────────────────────
-
-  // GET /worldview/sources?domain=&source_type=&limit=
   router.get('/worldview/sources', async (req, env) => {
     const url = new URL(req.url);
     return paginated(
@@ -37,7 +19,6 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     );
   });
 
-  // Legacy alias: GET /wv/sources (same behaviour)
   router.get('/wv/sources', async (req, env) => {
     const url = new URL(req.url);
     return paginated(
@@ -48,9 +29,6 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     );
   });
 
-  // ── Source detail ─────────────────────────────────────────────────────────
-
-  // GET /worldview/sources/:id  — source row + all units
   router.get('/worldview/sources/:id', async (_req, env, { id }) => {
     const repo   = new SourceRepo(env.DB_WV);
     const source = await repo.findById(id);
@@ -60,7 +38,6 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     return ok({ ...source, units: unitsPage.rows });
   });
 
-  // Legacy alias: GET /wv/sources/:id
   router.get('/wv/sources/:id', async (_req, env, { id }) => {
     const repo   = new SourceRepo(env.DB_WV);
     const source = await repo.findById(id);
@@ -69,9 +46,6 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     return ok({ ...source, units: unitsPage.rows });
   });
 
-  // ── Source CRUD ───────────────────────────────────────────────────────────
-
-  // POST /worldview/source — create
   router.post('/worldview/source', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.title) return badRequest('title required');
@@ -90,7 +64,6 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     }));
   });
 
-  // PUT /worldview/source — update (body must include id)
   router.put('/worldview/source', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.id) return badRequest('id required');
@@ -110,23 +83,15 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     return row ? ok(row) : notFound(`source ${b.id}`);
   });
 
-  // ── Unit detail ───────────────────────────────────────────────────────────
-
-  // GET /worldview/units/:id
   router.get('/worldview/units/:id', async (_req, env, { id }) => {
     const unit = await new SourceRepo(env.DB_WV).findUnitById(id);
     if (!unit) return notFound(`unit ${id}`);
 
-    // Structured reader content (headings, paragraphs, quotes, …) is stored in
-    // meta_json so the reader can render real blocks instead of guessing types
-    // heuristically from flat text.
     let meta: Record<string, unknown> | null = null;
     if (typeof unit.meta_json === 'string') {
       try { meta = JSON.parse(unit.meta_json) as Record<string, unknown>; } catch { meta = null; }
     }
 
-    // Node-based reading content: assemble readingBlocks from the normalized
-    // wv_unit_blocks rows when present; fall back to the meta_json blob.
     const blockRows = await query<Record<string, unknown>>(
       env.DB_WV,
       `SELECT id, parent_block_id, block_type, heading_level, order_index, text, cite,
@@ -142,8 +107,7 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
       try { return JSON.parse(v); } catch { return undefined; }
     };
     const assembledBlocks = blockRows.map((r) => {
-      // Lossless rows store the full original block (e.g. couplets with
-      // hemistichs + translation layers) in meta_json — use it verbatim.
+
       const full = parseJson(r['meta_json']);
       if (full && typeof full === 'object' && !Array.isArray(full)) return full;
       const table = parseJson(r['table_json']) as { headerRow?: unknown; rows?: unknown } | undefined;
@@ -164,7 +128,6 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
       };
     });
 
-    // Attached documents / content / episodes for this section (typed CM refs).
     const attachments = await query<Record<string, unknown>>(
       env.DB_WV,
       `SELECT id, attachment_type, target_ref, target_kind, title, subtitle, summary,
@@ -177,9 +140,6 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
 
     const byType = (type: string) => attachments.filter((a) => a['attachment_type'] === type);
 
-    // Poetry: the canonical form is meta_json.poem.couplets ({ n, m1, m2, ur?, en? }).
-    // Synthesize couplet reading blocks from it so the whole poem renders (not
-    // just the first line), and normalise poem meta (recitation from video).
     const poemMeta = (meta?.['poem'] && typeof meta['poem'] === 'object'
       ? meta['poem'] as Record<string, unknown>
       : null);
@@ -241,9 +201,6 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     });
   });
 
-  // ── Unit CRUD ─────────────────────────────────────────────────────────────
-
-  // POST /worldview/unit — create
   router.post('/worldview/unit', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.source_id) return badRequest('source_id required');
@@ -260,7 +217,6 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     }));
   });
 
-  // PUT /worldview/unit — update (body must include id)
   router.put('/worldview/unit', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.id) return badRequest('id required');
@@ -276,9 +232,6 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     return unit ? ok(unit) : notFound(`unit ${b.id}`);
   });
 
-  // ── Unit attachments (documents / content / episodes per section) ─────────
-
-  // POST /worldview/unit-attachment — attach a CM document/content/episode to a section
   router.post('/worldview/unit-attachment', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.source_unit_id) return badRequest('source_unit_id required');
@@ -316,13 +269,10 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     return created({ id });
   });
 
-  // DELETE /worldview/unit-attachment/:id
   router.delete('/worldview/unit-attachment/:id', async (_req, env, { id }) => {
     await query(env.DB_WV, `DELETE FROM wv_unit_attachments WHERE id = ?`, [id]);
     return ok({ id, deleted: true });
   });
-
-  // ── Legacy: /wv/sources/:id/units ────────────────────────────────────────
 
   router.get('/wv/sources/:id/units', async (req, env, { id }) => {
     const url  = new URL(req.url);
@@ -330,9 +280,6 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     return paginated(page);
   });
 
-  // ── Annotations (highlights for a unit) ──────────────────────────────────
-
-  // GET /worldview/units/:id/annotations
   router.get('/worldview/units/:id/annotations', async (_req, env, { id }) => {
     const nodeScopeSql = `
       SELECT n.id
@@ -431,9 +378,6 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     });
   });
 
-  // ── Source content (chunks) ───────────────────────────────────────────────
-
-  // GET /worldview/source-content?source_id=&source_unit_id=&limit=
   router.get('/worldview/source-content', async (req, env) => {
     const url          = new URL(req.url);
     const source_id    = url.searchParams.get('source_id');
@@ -446,16 +390,10 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     return paginated(page);
   });
 
-  // ── Workflow composite ────────────────────────────────────────────────────
-
-  // GET /worldview/workflow — sources list enriched with unit counts
-  // Used by the Ionic WorldviewApiService to bootstrap the whole workflow screen.
   router.get('/worldview/workflow', async (_req, env) => {
     const sources = await new SourceRepo(env.DB_WV).workflowSources();
     return ok({ sources });
   });
-
-  // ── POST /wv/sources (legacy) ─────────────────────────────────────────────
 
   router.post('/wv/sources', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;

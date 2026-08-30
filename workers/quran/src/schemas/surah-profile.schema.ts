@@ -1,7 +1,3 @@
-// ─── Surah Profile schemas & types ────────────────────────────────────────────
-
-// ── qr_surah_profile ─────────────────────────────────────────────────────────
-
 export type SurahProfileAddresseeType =
   | 'believers'
   | 'prophet'
@@ -17,7 +13,7 @@ export type SurahProfileToneType =
   | 'consolatory';
 
 export interface QrSurahProfile {
-  surah: number;                          // PK — 1–114
+  surah: number;
   governing_movement: string | null;
   central_claim: string | null;
   opening_force: string | null;
@@ -39,8 +35,6 @@ export interface QrSurahProfileUpsert {
   note_md?: string | null;
 }
 
-// ── qr_surah_atomic_profile ──────────────────────────────────────────────────
-
 export type SurahStructuralType =
   | 'linear_escalation'
   | 'ring_concentric'
@@ -52,7 +46,7 @@ export type SurahStructuralType =
   | 'mixed';
 
 export interface QrSurahAtomicProfile {
-  surah: number;                          // PK — 1–114
+  surah: number;
   atomic_center: string;
   atomic_center_ar: string | null;
   structural_type: SurahStructuralType | string;
@@ -74,8 +68,6 @@ export interface QrSurahAtomicProfileUpsert {
   note_md?: string | null;
 }
 
-// ── qr_surah_ayah_meta (from 001_corpus_base.sql) ────────────────────────────
-
 export interface QrSurahAyahMeta {
   surah: number;
   ayah: number;
@@ -93,8 +85,6 @@ export interface QrSurahAyahMetaUpsert {
   manzil?: number | null;
   sajda?: boolean;
 }
-
-// ── Validators ────────────────────────────────────────────────────────────────
 
 export function validateQrSurahProfileUpsert(
   body: unknown,
@@ -213,8 +203,6 @@ export function validateQrSurahAyahMetaUpsert(
   return { data };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface SurahProfile {
   surah: number;
   governing_movement: string | null;
@@ -278,8 +266,6 @@ export interface SurahAyahMetaUpsert {
   manzil?: number | null;
   sajda?: number;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

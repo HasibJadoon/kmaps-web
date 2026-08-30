@@ -1,12 +1,3 @@
--- Retire staging, part 2: 12-ASL → ar_ling_root_asl.
---
--- 248 aṣl claims, all distinct (root, source) pairs. 181 of them already exist
--- in the carrier — promoted at some point without the trail being recorded — so
--- 67 are genuinely new. INSERT OR IGNORE lets the carrier's own
--- UNIQUE (root_norm, source_slug) settle which is which rather than a guess here.
---
--- statement_ar is the claim's quote_ar: an aṣl reported in our own voice is not
--- an attestation, and the quote is the witness's own words.
 INSERT OR IGNORE INTO ar_ling_root_asl (
   id, root_norm, root_id, statement_ar, statement_en, statement_ur,
   source_slug, source_id, page_ref, volume_no, note_md, confidence, status

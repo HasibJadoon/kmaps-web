@@ -1,7 +1,5 @@
-// ─── Resource Link schemas & types ────────────────────────────────────────────
-
 export interface CmResourceLink {
-  link_id: string;            // CM:ULID
+  link_id: string;
   source_ref: string;
   target_ref: string;
   link_type: 'references' | 'expands' | 'contradicts' | 'illustrates' | 'translates' | 'other';
@@ -78,8 +76,6 @@ export function validateCmResourceLinkCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface CmResourceLinkInput {
   source_ref: string;
   target_ref: string;
@@ -91,8 +87,6 @@ export interface CmResourceLinkInput {
   is_ai_suggested?: number;
   meta_json?: string;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

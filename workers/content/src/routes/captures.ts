@@ -1,14 +1,3 @@
-// ─── /cm/captures — the inbox ─────────────────────────────────────────────────
-//
-// Capture first, decide later. A link, a passage, a photo, a voice note; the
-// only required field is that there is something. Triage happens afterwards, on
-// the vocabulary core_source_log has been using by hand for 69 entries.
-//
-// Ownership comes from the gateway's verified X-KM-User-Id, never from the
-// body — the same rule docspace.ts follows. cm_capture_entries.core_user_ref is
-// NOT NULL and the old version never set it, which is one of the reasons no
-// capture has ever been written.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated, unauthorized } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -23,7 +12,6 @@ function actor(req: Request): string | null {
 
 export function cmCaptureRoutes(router: Router<ContentEnv>) {
 
-  // GET /cm/captures?type=url&state=want&processed=0
   router.get('/cm/captures', async (req, env) => {
     const user = actor(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -38,8 +26,6 @@ export function cmCaptureRoutes(router: Router<ContentEnv>) {
     }));
   });
 
-  // GET /cm/captures/states — the triage vocabulary, so a client offers the
-  // same five words the log has always used rather than inventing its own.
   router.get('/cm/captures/states', async (_req, _env) =>
     ok({ states: EXPLORE_STATES, types: CAPTURE_TYPES }));
 
@@ -53,7 +39,6 @@ export function cmCaptureRoutes(router: Router<ContentEnv>) {
     return ok({ capture: row, links: (await repo.links(id)).rows });
   });
 
-  // POST /cm/captures
   router.post('/cm/captures', async (req, env) => {
     const user = actor(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -62,8 +47,7 @@ export function cmCaptureRoutes(router: Router<ContentEnv>) {
     const text = typeof b['raw_text'] === 'string' ? b['raw_text'].trim() : '';
     const url = typeof b['source_url'] === 'string' ? b['source_url'].trim() : '';
     const asset = typeof b['media_asset_ref'] === 'string' ? b['media_asset_ref'] : '';
-    // One check only: that something was captured. An inbox that argues about
-    // shape is an inbox nobody uses.
+
     if (!text && !url && !asset) {
       return badRequest('raw_text, source_url or media_asset_ref required');
     }
@@ -89,7 +73,6 @@ export function cmCaptureRoutes(router: Router<ContentEnv>) {
     }));
   });
 
-  // PATCH /cm/captures/:id — triage. What state it is in, and what you concluded.
   router.patch('/cm/captures/:id', async (req, env, { id }) => {
     const user = actor(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -113,11 +96,6 @@ export function cmCaptureRoutes(router: Router<ContentEnv>) {
     return ok(await repo.triage(id, patch));
   });
 
-  // POST /cm/captures/:id/promote — this became something worth keeping.
-  //
-  // Creates the cm_source and marks the capture as having become it. The
-  // capture is kept rather than deleted: what you noticed and what it turned
-  // into are different facts, and the first is worth being able to look back at.
   router.post('/cm/captures/:id/promote', async (req, env, { id }) => {
     const user = actor(req);
     if (!user) return unauthorized('Authenticated user required');

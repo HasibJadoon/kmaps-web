@@ -1,10 +1,6 @@
-// ─── PeopleRepo — core_people ─────────────────────────────────────────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface Person {
   id: string;
@@ -40,14 +36,10 @@ export interface PeopleListOptions extends PaginateOptions {
   relationship?: string;
 }
 
-// ── Column fragment ───────────────────────────────────────────────────────────
-
 const COLS = `
   id, workspace_id, name, name_ar, email, relationship, linked_user_id,
   visibility, notes_md, meta_json, created_at, updated_at
 FROM core_people`;
-
-// ── Repo ──────────────────────────────────────────────────────────────────────
 
 export class PeopleRepo {
   constructor(private db: D1Database) {}
@@ -146,7 +138,6 @@ export class PeopleRepo {
     await execute(this.db, `DELETE FROM core_people WHERE id = ?`, [id]);
   }
 
-  /** All workspace-visible people (for podcast participant picker etc.). */
   workspaceVisible(workspaceId: string): Promise<Person[]> {
     return query<Person>(
       this.db,

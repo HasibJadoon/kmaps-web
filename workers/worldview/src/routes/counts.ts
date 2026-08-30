@@ -1,9 +1,3 @@
-// ─── /worldview/counts route ──────────────────────────────────────────────────
-// Lightweight aggregate counts backing the Worldview home stat strip
-// (Worldviews · Sources · Units · People).
-//
-// GET /worldview/counts → { worldviews, sources, source_units, people }
-
 import type { Router } from '../../../shared/src/router';
 import { ok } from '../../../shared/src/response';
 import { queryOne } from '../../../shared/src/db';

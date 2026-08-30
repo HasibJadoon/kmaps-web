@@ -1,15 +1,12 @@
-// ─── NoteRepo — cm_notes ──────────────────────────────────────────────────────
-// Atomic margin notes and annotations linked to any typed ref.
-
 import { queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface Note {
-  id: string;               // CM:ULID
+  id: string;
   title: string | null;
   content_md: string;
-  resource_ref: string | null; // typed ref (QR:, WV:, AL:, etc.)
+  resource_ref: string | null;
   created_at: string;
   updated_at: string | null;
 }

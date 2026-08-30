@@ -1,14 +1,3 @@
-// ─── The document a pack is fed from ──────────────────────────────────────────
-//
-// One shape for all three apps. A Duolingo lesson, a Kahoot round and a
-// dinner-table deck differ in which fields they fill, not in their grammar —
-// which is the whole bet of this design, and the reason there is one importer
-// rather than three.
-//
-// JSON on the wire. YAML is the convenience of the file on disk; it is parsed
-// to this before it reaches the worker, so the worker carries no YAML parser
-// and the stored document is queryable with json_extract.
-
 export interface PackDoc {
   pack: {
     slug: string;
@@ -22,14 +11,13 @@ export interface PackDoc {
     cefr_to?: string;
     visibility?: 'private' | 'workspace' | 'public';
     workspace_ref?: string;
-    /** Omit for the published bank. Set to make it one person's private deck. */
+
     owner_ref?: string | null;
     status?: 'draft' | 'live' | 'retired';
     sort_order?: number;
   };
   units?: UnitDoc[];
-  /** Items that belong to the pack but to no unit yet — a bank you draw from
-   *  rather than walk through. The Quiz app lives here. */
+
   items?: ItemDoc[];
 }
 
@@ -39,7 +27,7 @@ export interface UnitDoc {
   title_ar?: string;
   subtitle?: string;
   node_type?: string;
-  parent?: string;                 // another unit's slug
+  parent?: string;
   unit_index?: number;
   item_count?: number;
   item_order?: 'fixed' | 'shuffle' | 'weighted';
@@ -54,11 +42,10 @@ export interface UnitDoc {
   skill_focus?: string;
   level?: string;
   status?: 'draft' | 'live' | 'retired';
-  /** Explicit unlock edges. Omit for the linear default: a unit with no inbound
-   *  edge is gated on its previous sibling. Edges are for the exceptions. */
+
   unlocks_from?: string[];
   items?: ItemDoc[];
-  /** Cards to put in the learner's SRS when this unit is first passed. */
+
   enrols?: EnrolDoc[];
 }
 
@@ -71,7 +58,7 @@ export interface ItemDoc {
   prompt_ur?: string;
   stimulus_md?: string;
   media_r2_key?: string;
-  response?: unknown;              // → response_json
+  response?: unknown;
   seconds?: number;
   points_style?: 'standard' | 'double' | 'none';
   speed_bonus?: boolean;
@@ -94,7 +81,7 @@ export interface ItemDoc {
   tags?: string;
   status?: 'draft' | 'live' | 'retired';
   options?: OptionDoc[];
-  /** Which unit(s) this item belongs to, when written at pack level. */
+
   units?: string[];
   seq?: number;
 }

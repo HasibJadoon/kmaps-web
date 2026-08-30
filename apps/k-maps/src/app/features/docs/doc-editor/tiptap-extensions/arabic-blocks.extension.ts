@@ -1,6 +1,5 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 
-// ── vocab_block ─────────────────────────────────────────────────────────────
 export const VocabBlock = Node.create({
   name: 'vocab_block',
   group: 'block',
@@ -27,7 +26,7 @@ export const VocabBlock = Node.create({
       const update = () => {
         const { word, root, meanings } = node.attrs;
         let parsedMeanings: string[] = [];
-        try { parsedMeanings = JSON.parse(meanings); } catch { /* ignore */ }
+        try { parsedMeanings = JSON.parse(meanings); } catch {  }
         dom.innerHTML = `
           <div class="kb-vocab-word" dir="rtl">${word}</div>
           <div class="kb-vocab-root">Root: ${root}</div>
@@ -40,7 +39,6 @@ export const VocabBlock = Node.create({
   },
 });
 
-// ── morphology_block ────────────────────────────────────────────────────────
 export const MorphologyBlock = Node.create({
   name: 'morphology_block',
   group: 'block',
@@ -85,7 +83,6 @@ export const MorphologyBlock = Node.create({
   },
 });
 
-// ── nahw_block ───────────────────────────────────────────────────────────────
 export const NahwBlock = Node.create({
   name: 'nahw_block',
   group: 'block',
@@ -95,7 +92,7 @@ export const NahwBlock = Node.create({
   addAttributes() {
     return {
       sentence:  { default: '' },
-      analysis:  { default: '[]' }, // JSON: [{word, term_ar, term_en}]
+      analysis:  { default: '[]' },
     };
   },
 
@@ -110,7 +107,7 @@ export const NahwBlock = Node.create({
       const update = () => {
         const { sentence, analysis } = node.attrs;
         let parsed: Array<{ word: string; term_ar: string; term_en: string }> = [];
-        try { parsed = JSON.parse(analysis); } catch { /* ignore */ }
+        try { parsed = JSON.parse(analysis); } catch {  }
         const words = parsed.length
           ? parsed.map(w => `<span class="kb-nahw-word"><span class="kb-nahw-term">${w.term_ar}</span><span dir="rtl">${w.word}</span></span>`).join('')
           : `<span dir="rtl">${sentence}</span>`;
@@ -122,7 +119,6 @@ export const NahwBlock = Node.create({
   },
 });
 
-// ── root_analysis_block ──────────────────────────────────────────────────────
 export const RootAnalysisBlock = Node.create({
   name: 'root_analysis_block',
   group: 'block',
@@ -132,7 +128,7 @@ export const RootAnalysisBlock = Node.create({
   addAttributes() {
     return {
       root:        { default: '' },
-      derivatives: { default: '[]' }, // JSON: [{word, meaning, occurrences}]
+      derivatives: { default: '[]' },
     };
   },
 
@@ -147,7 +143,7 @@ export const RootAnalysisBlock = Node.create({
       const update = () => {
         const { root, derivatives } = node.attrs;
         let parsed: Array<{ word: string; meaning: string; occurrences?: number }> = [];
-        try { parsed = JSON.parse(derivatives); } catch { /* ignore */ }
+        try { parsed = JSON.parse(derivatives); } catch {  }
         dom.innerHTML = `
           <div class="kb-root-title" dir="rtl">ج: ${root}</div>
           <div class="kb-root-grid">

@@ -1,6 +1,3 @@
-// ─── AR_LINGUISTICS client (from AR) ──────────────────────────────────────────
-// Used by vocabulary and grammar routes to resolve lemma/root data.
-
 import { callService } from '../../../shared/src/service-client';
 import type { ArabicEnv } from '../env';
 

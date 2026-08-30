@@ -1,5 +1,3 @@
-// ─── /ar/lessons routes ───────────────────────────────────────────────────────
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -8,7 +6,6 @@ import { LessonRepo } from '../repositories/lesson.repo';
 
 export function lessonRoutes(router: Router<ArabicEnv>) {
 
-  // GET /ar/lessons?container=AR:ULID
   router.get('/ar/lessons', async (req, env) => {
     const url         = new URL(req.url);
     const containerId = url.searchParams.get('container');
@@ -18,13 +15,11 @@ export function lessonRoutes(router: Router<ArabicEnv>) {
     );
   });
 
-  // GET /ar/lessons/:id
   router.get('/ar/lessons/:id', async (_req, env, { id }) => {
     const row = await new LessonRepo(env.DB_AR).findById(id);
     return row ? ok(row) : notFound(`lesson ${id}`);
   });
 
-  // POST /ar/lessons
   router.post('/ar/lessons', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.container_id || !b.title || !b.lesson_type)
@@ -37,7 +32,6 @@ export function lessonRoutes(router: Router<ArabicEnv>) {
     }));
   });
 
-  // POST /ar/lessons/:id/publish
   router.post('/ar/lessons/:id/publish', async (_req, env, { id }) => {
     const row = await new LessonRepo(env.DB_AR).publish(id);
     return row ? ok(row) : notFound(`lesson ${id}`);

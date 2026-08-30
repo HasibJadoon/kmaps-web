@@ -1,13 +1,13 @@
 export type HubSection = 'quran' | 'arabic' | 'worldview' | 'workspace';
 
 export type HubPanelMode =
-  // Quran
+
   | 'surah' | 'passage' | 'surah-note'
-  // Arabic
+
   | 'ar-container' | 'ar-unit' | 'ar-task' | 'ar-grammar' | 'ar-balagha' | 'ar-domain' | 'ar-domain-phrase' | 'ar-vocab' | 'ar-srs'
-  // Worldview
+
   | 'wv-worldview' | 'wv-topic' | 'wv-source' | 'wv-source-unit' | 'wv-highlight' | 'wv-note' | 'wv-brainstorm' | 'wv-comparison' | 'wv-person' | 'wv-podcast' | 'wv-plan' | 'wv-plan-item'
-  // Workspace
+
   | 'workspace' | 'ws-member' | 'ws-task' | 'ws-doc' | 'ws-activity'
   | 'none';
 

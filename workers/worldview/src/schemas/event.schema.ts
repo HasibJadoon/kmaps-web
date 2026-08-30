@@ -1,5 +1,3 @@
-// ─── Event schemas & types ───────────────────────────────────────────────
-
 export interface WvPropheticEpisode {
   id: string;
   slug: string;
@@ -253,8 +251,6 @@ export type HouseholdModelCreate = Omit<WvHouseholdModel, 'id' | 'created_at'>;
 export type CharityInfrastructureCreate = Omit<WvCharityInfrastructure, 'id' | 'created_at'>;
 
 export type MemoryTraditionCreate = Omit<WvMemoryTradition, 'id' | 'created_at'>;
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

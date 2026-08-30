@@ -9,8 +9,6 @@ import {
   ViewChild,
 } from '@angular/core';
 
-// ─── Minimal YT IFrame API typings ───────────────────────────────────────────
-
 interface YTPlayerOptions {
   height: string | number;
   width: string | number;
@@ -34,8 +32,6 @@ interface YTNamespace {
   Player: new (el: HTMLElement | string, opts: YTPlayerOptions) => YTPlayer;
   PlayerState: { PLAYING: number; PAUSED: number; ENDED: number };
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Component({
   selector: 'km-youtube-player',
@@ -66,8 +62,6 @@ export class YoutubePlayerComponent implements AfterViewInit, OnDestroy {
     this.player = null;
   }
 
-  // ─── Public control API ───────────────────────────────────────────────────
-
   play(): void {
     this.player?.playVideo();
   }
@@ -84,15 +78,13 @@ export class YoutubePlayerComponent implements AfterViewInit, OnDestroy {
     return this.player?.getCurrentTime() ?? 0;
   }
 
-  // ─── Private ──────────────────────────────────────────────────────────────
-
   private isApiLoaded(): boolean {
     return typeof (window as unknown as { YT?: YTNamespace }).YT !== 'undefined';
   }
 
   private loadApiScript(): void {
     if (document.getElementById('yt-iframe-api')) {
-      // Script tag already injected — wait for the callback
+
       this.waitForApi();
       return;
     }
@@ -128,7 +120,7 @@ export class YoutubePlayerComponent implements AfterViewInit, OnDestroy {
       },
       events: {
         onReady: () => {
-          // Player is ready; no action needed — parent polls getCurrentTime()
+
         },
       },
     });

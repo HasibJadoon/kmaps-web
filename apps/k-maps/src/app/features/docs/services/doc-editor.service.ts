@@ -44,7 +44,6 @@ export interface DocContext {
   workspaceId: number | null;
 }
 
-/** True on any touch-primary device (iPhone, iPad, Android). */
 function isMobile(): boolean {
   return (
     typeof window !== 'undefined' &&
@@ -110,17 +109,12 @@ export class DocEditorService {
       hoveredBlockNodeSize: null,
     };
 
-    // ── Desktop-only: drag handle ──────────────────────────────────────────
-    // On mobile, DragHandle intercepts pointer/touch events and blocks typing.
     const handleEl = mobile
       ? null
       : createBlockHandleElement(editorRef, {
           onCreatePage: (afterPos) => this.createPageBlock(afterPos),
         });
 
-    // ── Desktop-only: bubble menu ──────────────────────────────────────────
-    // On iOS the native selection toolbar already handles text actions.
-    // Our bubble menu fights it and can block the caret entirely.
     const bubbleRef = mobile
       ? null
       : createBubbleMenuElement(
@@ -132,7 +126,6 @@ export class DocEditorService {
           },
         );
 
-    // Build extension list — drop heavy desktop-only extensions on mobile
     const desktopExtensions = mobile ? [] : [
       DragHandle.configure({
         render: () => handleEl!,
@@ -153,7 +146,7 @@ export class DocEditorService {
           }
         },
       }),
-      // Native bubble menu — TipTap handles all positioning + show/hide
+
       BubbleMenu.configure({
         element: bubbleRef!.element,
         updateDelay: 0,
@@ -166,9 +159,9 @@ export class DocEditorService {
           return from !== to && !editor.isActive('image');
         },
       }),
-      // UniqueId is expensive (appendTransaction on every block) — skip on mobile
+
       UniqueId.configure({ types: ['heading', 'paragraph', 'blockquote', 'listItem', 'codeBlock'] }),
-      // CharacterCount adds overhead on every keystroke — skip on mobile
+
       CharacterCount,
     ];
 
@@ -178,17 +171,17 @@ export class DocEditorService {
       extensions: [
         StarterKit.configure({ link: false, underline: false }),
         ...desktopExtensions,
-        // Quran
+
         AyahEmbed,
         PassageEmbed,
-        // Media
+
         ImageBlock,
-        // Arabic
+
         VocabBlock,
         MorphologyBlock,
         NahwBlock,
         RootAnalysisBlock,
-        // Worldview + Production + Learning
+
         ClaimBlock,
         EvidenceBlock,
         ReflectionBlock,
@@ -197,13 +190,13 @@ export class DocEditorService {
         TimelineBlock,
         ComprehensionBlock,
         ChildrenBlock,
-        // Rich text
+
         Underline,
         Highlight.configure({ multicolor: true }),
         Link.configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer' } }),
         TextStyle,
         Color,
-        // Core UX
+
         Placeholder.configure({ placeholder: 'Start writing, or type / for commands…' }),
         TextDirection.configure({ types: ['heading', 'paragraph', 'blockquote', 'listItem'] }),
         AutoDirection,
@@ -227,7 +220,7 @@ export class DocEditorService {
       onUpdate: ({ editor }) => {
         this.isDirty.set(true);
         this.saveFn?.();
-        // Word count: debounced, skip entirely on mobile
+
         if (!mobile) {
           if (this._wordCountTimer) clearTimeout(this._wordCountTimer);
           this._wordCountTimer = setTimeout(() => {
@@ -240,7 +233,6 @@ export class DocEditorService {
 
     editorRef.current = this._editor;
 
-    // rAF-debounced bubble active-state refresh — desktop only
     if (!mobile && bubbleRef) {
       const scheduleUpdate = () => {
         if (this._bubbleUpdateRaf !== null) cancelAnimationFrame(this._bubbleUpdateRaf);

@@ -5,19 +5,6 @@ import { CybService } from '../data/cyb.service';
 import { CybTopbarComponent } from '../shared/cyb-topbar.component';
 import type { CybNode, CybNodeTree, CybLayerRow, Surah, StudyUnit, PassageRoot } from '../data/cyb.models';
 
-// Quran Ladder — the Qurʾān as one recursion, rung by rung.
-// Every rung is a viable system: a sensor that reads its own state and feeds it
-// UP the recursion, so a parent is only as built as its children report:
-//   Entire Qurʾān → Surah → Passage → Stream → Root
-// It walks the same path as the map and takes the same route shape, so a URL in
-// one view opens the same place in the other. Only the path in the URL expands.
-// The stream-systems are NOT listed here. `cyb_layer` is the one taxonomy
-// (GET /core/cyb/layers). This file used to carry its own list of six, which
-// had already fallen three behind the registry — translation, cards and srs
-// existed on the plane and could never appear in the ladder — and a layer the
-// registry retires has to stop rendering. The map fixed this; the ladder is
-// the copy that was left.
-
 interface Rung {
   depth: number;
   kind: 'quran' | 'surah' | 'passage' | 'stream' | 'piece';
@@ -25,19 +12,18 @@ interface Rung {
   scope: string; reportsTo: string;
   b: number; s: number; c: number; r: number;
   open: boolean; hasKids: boolean;
-  /** live = this rung's sensor is reading build; sel = it is what the URL names. */
+
   live: boolean; sel: boolean;
   nav: (string | number)[] | null;
-  /** Leaf pieces, grouped and laid out by their nature rather than as rows. */
+
   blocks?: LeafBlock[];
 }
 
 interface LeafBlock { layout: 'grid' | 'seq' | 'chips'; title: string; wide?: boolean; cells: PieceCell[] }
 
-/** One unopened sibling — a surah, a passage, a root, an expression. */
 interface PieceCell {
   ar: string; label: string; sub: string; meta: string;
-  /** The same four outputs a rung carries — a card is a sensor too. */
+
   b: number; s: number; c: number; r: number;
   sel: boolean; nav: (string | number)[] | null;
 }
@@ -360,19 +346,12 @@ export class CybLadderComponent {
     return pieces.find((n) => n.piece_kind === 'root') ?? pieces[0];
   }
 
-  /**
-   * A stream's leaves, grouped by kind and given the shape that kind wants.
-   *   • roots — 27 short Arabic tokens in āyah order → a scannable grid
-   *   • iʿrāb sentences — an ordered s1…s12 run that is done or not → a sequence
-   *   • expressions, nuances — a handful of named things → chips
-   */
   private leafBlocks(stage: CybNodeTree, key: string, sid: number, pno: number, rootSel: string | null): LeafBlock[] {
     const blocks: LeafBlock[] = [];
     const refTail = (n: CybNode) => (n.target_ref ?? '').split(':').pop() ?? '';
 
     if (key === 'vocabulary') {
-      // The roots come from the āyāt themselves, so every unique root shows up
-      // whether or not the control plane has instantiated a node for it yet.
+
       const roots = this.verseRoots();
       if (roots.length) {
         blocks.push({
@@ -388,7 +367,7 @@ export class CybLadderComponent {
           }),
         });
       }
-      // Expressions and nuances live alongside the roots but are not roots.
+
       const others = stage.children.filter((c) => c.piece_kind && c.piece_kind !== 'root');
       for (const kind of [...new Set(others.map((c) => c.piece_kind!))]) {
         const of = others.filter((c) => c.piece_kind === kind);
@@ -427,7 +406,6 @@ export class CybLadderComponent {
     return blocks;
   }
 
-  /** The four outputs of a card, in the ladder's own order. */
   outs(c: PieceCell) {
     return [
       { k: 'B', v: c.b, col: 'var(--build)' },
@@ -437,10 +415,6 @@ export class CybLadderComponent {
     ];
   }
 
-  /** A node's four readings, or four zeros where nothing is instantiated yet. */
-  /** The registry's label for a layer, falling back to the raw key so a layer
-   *  the plane instantiated ahead of the registry still renders under its own
-   *  name rather than vanishing. */
   private streamMeta(key: string): { ar: string; en: string; scope: string } {
     const l = this.layerRegistry().find((x) => x.layer_key === key);
     return {
@@ -454,7 +428,6 @@ export class CybLadderComponent {
     return { b: n?.build_pct ?? 0, s: n?.study_pct ?? 0, c: n?.content_pct ?? 0, r: n?.retention_pct ?? 0 };
   }
 
-  /** A rung that carries grids instead of a sensor card. */
   private gridRung(depth: number, id: string, blocks: LeafBlock[]): Rung {
     return {
       depth, kind: 'piece', ar: '', en: id, num: '', scope: '', reportsTo: '',
@@ -463,16 +436,13 @@ export class CybLadderComponent {
     };
   }
 
-  /** "s10" → 10, so the sentence run sorts in reading order, not lexically. */
   private seqNo(ref: string): number { return Number(ref.replace(/\D/g, '')) || 0; }
 
-  /** The ladder flattened to rungs — only the path in the URL is expanded. */
   readonly rungs = computed<Rung[]>(() => {
     const out: Rung[] = [];
     const sid = this.surahId(); const pno = this.passageNo(); const st = this.stream();
     const rootSel = this.rootParam();
-    // The Qurʾān rung is the rollup over ALL 114 surahs — an un-instantiated
-    // surah reports 0, so the parent cannot read higher than its children.
+
     const perSurah = this.surahs().map((su) => this.surahNode(su.id));
 
     out.push({
@@ -487,9 +457,6 @@ export class CybLadderComponent {
       nav: sid ? ['/cybernetics/ladder'] : null,
     });
 
-    // Unopened siblings ride as a grid — 114 surahs or 7 passages as full-width
-    // rungs would bury the descent. Opening one turns it back into a rung, with
-    // its sensor and its four outputs, and its own siblings fold into the grid.
     if (!sid) {
       out.push(this.gridRung(1, 'surahs', [{
         layout: 'grid', title: `114 surahs · ${this.builtSurahs()} instantiated`,
@@ -590,18 +557,15 @@ export class CybLadderComponent {
     return out;
   });
 
-  // Kept unrounded: the Qurʾān rung averages over all 114 surahs, so real work at
-  // a leaf lands well under 1% up top — rounding it would report a built root as 0.
   private avg(v: number[]): number { return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; }
 
-  /** Shows the smallest real reading rather than collapsing it to 0. */
   fmt(v: number): string {
     if (!v) return '0';
     if (v >= 10) return String(Math.round(v));
     if (v >= 1) return v.toFixed(1);
     return v.toFixed(2);
   }
-  /** A sliver so a non-zero rollup is visible on the track too. */
+
   bar(v: number): number { return v > 0 ? Math.max(0.9, Math.min(100, v)) : 0; }
 
   go(nav: (string | number)[] | null) { if (nav) this.router.navigate(nav); }

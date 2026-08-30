@@ -1,16 +1,8 @@
-// ─── CaptureRepo — st_capture_sessions + st_capture_markers ───────────────────
-// A capture session is one recording pass over an episode's talking points. Each
-// marker is one take of one point, with in/out timecodes and a good/redo/skip
-// verdict — the editor's shot log. The episode authoring tables are the source
-// of truth; this table only references them.
-
 import { query, queryOne, execute, executeBatch } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 
 export const CAPTURE_CONCEPTS = ['talking_head', 'continuity', 'log_only'] as const;
 export const MARKER_STATUSES = ['good', 'redo', 'skip'] as const;
-
-// ── Row shapes ────────────────────────────────────────────────────────────────
 
 export interface CaptureSessionRow {
   id: string;
@@ -42,8 +34,6 @@ export interface CaptureMarkerRow {
 export interface CaptureSessionAggregate extends CaptureSessionRow {
   markers: CaptureMarkerRow[];
 }
-
-// ── Input shapes ──────────────────────────────────────────────────────────────
 
 export interface CaptureSessionPatch {
   ended_at?: string | null;
@@ -83,8 +73,6 @@ const CM_COLS = `id, session_ref, point_ref, section_ref, take_number, start_tc,
 export class CaptureRepo {
   constructor(private db: D1Database) {}
 
-  // ── Sessions ──────────────────────────────────────────────────────────────
-
   async create(episodeRef: string, userRef: string, concept: string): Promise<CaptureSessionRow> {
     const id = typedId('ST');
     const now = new Date().toISOString();
@@ -104,7 +92,6 @@ export class CaptureRepo {
     );
   }
 
-  /** A capture session plus its markers, ordered by seq. */
   async findById(id: string): Promise<CaptureSessionAggregate | null> {
     const session = await this.findSession(id);
     if (!session) return null;
@@ -134,8 +121,6 @@ export class CaptureRepo {
     return this.findSession(id);
   }
 
-  // ── Markers ───────────────────────────────────────────────────────────────
-
   listMarkers(sessionId: string): Promise<CaptureMarkerRow[]> {
     return query<CaptureMarkerRow>(
       this.db,
@@ -150,7 +135,6 @@ export class CaptureRepo {
     );
   }
 
-  /** Replace this session's markers wholesale (delete + bulk insert), atomically. */
   async replaceMarkers(sessionId: string, markers: MarkerInput[]): Promise<CaptureMarkerRow[]> {
     const now = new Date().toISOString();
     const statements: Array<{ sql: string; params?: unknown[] }> = [

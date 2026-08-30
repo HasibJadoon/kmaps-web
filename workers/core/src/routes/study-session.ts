@@ -1,17 +1,9 @@
-// ─── /core/study/sessions — the study axis's write path ───────────────────────
-// The one place a study act is recorded. Reading, listening, teaching and
-// discussing are things a person does, not rows a miner can produce, so the
-// reader confirms them here and the study sensors read the result.
-//
-// Domain is a closed set — quran | arabic | wv — matching cyb_layer.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, created, badRequest, notFound } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
 import type { CoreEnv } from '../env';
 import { StudySessionRepo, type StudySessionCreate } from '../repositories/study-session.repo';
 
-/** Same shape as the helper in srs.ts — a non-object body reads as absent. */
 async function readJson(req: Request): Promise<Record<string, unknown> | undefined> {
   try {
     const body = await req.json();
@@ -34,7 +26,6 @@ const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFi
 
 export function studySessionRoutes(router: Router<CoreEnv>) {
 
-  // GET /core/study/sessions?scope_kind=passage&scope_ref=QR:SP:40:1-3
   router.get('/core/study/sessions', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -66,7 +57,6 @@ export function studySessionRoutes(router: Router<CoreEnv>) {
     });
   });
 
-  // POST /core/study/sessions — record one study act.
   router.post('/core/study/sessions', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -108,7 +98,6 @@ export function studySessionRoutes(router: Router<CoreEnv>) {
     return created(row);
   });
 
-  // DELETE /core/study/sessions/:id — undo a confirmation.
   router.delete('/core/study/sessions/:id', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;

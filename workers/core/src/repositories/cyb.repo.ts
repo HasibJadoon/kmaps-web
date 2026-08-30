@@ -1,16 +1,3 @@
-// ─── CybRepo — the cross-domain cybernetics control plane (cyb_*) ─────────────
-// CORE owns the control loop that drives the three knowledge domains
-// (Qurʾān · classical Arabic · WorldViews) to a built · studied · retained state.
-//
-// Every node (cyb_node) is a point in the recursion tree — domain → surah →
-// passage → stage → piece — carrying four outputs (build/study/content/
-// retention _pct) and a typed reference (target_ref) into the owning domain DB.
-// Sensors read those domains; the comparator raises disturbances; the controller
-// queues jobs; the actuator (a skill) mines; the plant is D1; feedback re-senses.
-//
-// This repo is READ-ONLY. It only reads cyb_* tables in DB_CORE — it never
-// touches a domain DB (that stays the domain worker's job) and never mutates.
-
 import { query, queryOne } from '../../../shared/src/db';
 
 export interface ProcessRow {
@@ -32,8 +19,6 @@ export interface ProcessStepLayerRow {
   skill_name: string | null; skill_stages: string | null;
 }
 
-/** One module of the console — a domain that runs its own B·S·C·R loop.
- *  `cyb_domain` is the registry; nothing about a module is authored in the app. */
 export interface CybDomainRow {
   slug: string;
   lane: string;
@@ -65,11 +50,6 @@ export interface CybLayerRow {
   display_order: number;
 }
 
-// ── Row interfaces (snake_case — match the live columns exactly) ───────────────
-
-// The wire shapes live in the shared contract so the apps import the same
-// declaration instead of keeping a hand-copy. Re-exported here because every
-// repo and route in this worker already imports them from this file.
 import type {
   CybNode, CybNodeTree, CybNodeDetail, CybNodeReading,
   CybSensor, CybJob, CybGauge, CybAxis,
@@ -80,7 +60,6 @@ export type {
   CybSensor, CybJob, CybGauge, CybAxis,
 };
 export { KNOWN_CYB_SCALES, CYB_AXES } from '../../../shared/src/contracts/cyb';
-
 
 export interface CybTick {
   id: string;
@@ -109,7 +88,6 @@ export interface CybSource {
 
 export interface CountRow { key: string; n: number }
 
-/** One table a process step writes into, reached through the bridge. */
 export interface StepCarrierRow {
   step_uid: string;
   db_name: string;
@@ -117,8 +95,6 @@ export interface StepCarrierRow {
   band_code: string;
   scope_kind: string;
 }
-
-// ── Column fragments ──────────────────────────────────────────────────────────
 
 const NODE_COLS = `
   id, domain, lane, parent_id, scale, target_kind, target_ref, layer, piece_kind,
@@ -138,12 +114,9 @@ const SENSOR_COLS = `
   state, health, trend, error_val, read_count, source_table, source_slug, last_read_at
 FROM cyb_sensor`;
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class CybRepo {
   constructor(private db: D1Database) {}
 
-  /** v_cyb_node_reading for one node — the one definition of a reading. */
   readings(nodeID: string) {
     return query<Record<string, unknown>>(
       this.db,
@@ -152,8 +125,6 @@ export class CybRepo {
       [nodeID],
     );
   }
-
-  // ── Nodes / tree ──
 
   allNodes(lane?: string): Promise<CybNode[]> {
     if (lane) {
@@ -166,11 +137,6 @@ export class CybRepo {
     return queryOne<CybNode>(this.db, `SELECT ${NODE_COLS} WHERE id = ?`, [id]);
   }
 
-  /**
-   * Build the descendant tree of `rootId` (inclusive). When `rootId` is null,
-   * returns a synthetic forest under a virtual root, grouped by top-level nodes.
-   * Only 54 nodes live in the table, so we load once and assemble in memory.
-   */
   async tree(rootId?: string, lane?: string): Promise<CybNodeTree[]> {
     const nodes = await this.allNodes(lane);
     const byParent = new Map<string | null, CybNode[]>();
@@ -187,28 +153,11 @@ export class CybRepo {
       const root = nodes.find((n) => n.id === rootId);
       return root ? [build(root)] : [];
     }
-    // Forest: every node whose parent is null (or whose parent is absent).
+
     const ids = new Set(nodes.map((n) => n.id));
     return nodes.filter((n) => !n.parent_id || !ids.has(n.parent_id)).map(build);
   }
 
-  /**
-   * The layer registry — what a domain's streams actually are.
-   *
-   * Nothing served this table before, so every client that needed the list had
-   * to author its own: iOS carries a seven-case `CybStream` enum and renders all
-   * seven on every passage regardless of what the plane declares. A taxonomy
-   * kept in two places drifts, and it did — the enum has `worldview` and `cards`
-   * that the registry lacked, the registry has `translation` that the enum
-   * lacks. This is the one list.
-   */
-  /**
-   * The module registry — the domains the console watches, in display order.
-   *
-   * Retired rows are excluded the way `layers()` excludes them: a module the
-   * registry has retired must stop rendering, and filtering in the app would
-   * put that decision in the wrong place.
-   */
   domains(): Promise<CybDomainRow[]> {
     return query<CybDomainRow>(
       this.db,
@@ -232,14 +181,6 @@ export class CybRepo {
     );
   }
 
-  /**
-   * The study process register — the ordered work, and what does it.
-   *
-   * A **layer** is what gets built; a **step** is how you work through a passage.
-   * They are different axes, so a step reaches its tables through its layer
-   * (cyb_process_step_layer → cyb_layer → cyb_carrier_binding) rather than
-   * declaring them a second time. Skills hang off the same bridge.
-   */
   async process(domain?: string) {
     const where = domain ? "WHERE p.status = 'live' AND p.domain = ?" : "WHERE p.status = 'live'";
     const args = domain ? [domain] : [];
@@ -275,11 +216,7 @@ export class CybRepo {
           ${where}`,
         args,
       ),
-      // What each step actually writes into, derived through the one bridge —
-      // step → layer → cyb_carrier_binding → table. Documentation that cannot
-      // go stale, because it is the same registry the sensors read by. A step
-      // with a skill and no carriers (worldview, today) is a step that cannot
-      // be built, and says so here rather than in prose.
+
       query<StepCarrierRow>(
         this.db,
         `SELECT DISTINCT b.step_uid, c.db_name, c.table_name, c.band_code, c.scope_kind
@@ -312,8 +249,6 @@ export class CybRepo {
     return query<CountRow>(this.db, `SELECT scale AS key, COUNT(*) AS n FROM cyb_node GROUP BY scale ORDER BY n DESC`);
   }
 
-  // ── Sensors ──
-
   nodeSensors(nodeId: string): Promise<CybSensor[]> {
     return query<CybSensor>(this.db, `SELECT ${SENSOR_COLS} WHERE node_id = ? ORDER BY axis, band_code`, [nodeId]);
   }
@@ -331,10 +266,8 @@ export class CybRepo {
     return row?.n ?? 0;
   }
 
-  // ── Jobs ──
-
   allJobs(): Promise<CybJob[]> {
-    // Order the queue: ready first, then blocked, then done; newest job wins ties.
+
     return query<CybJob>(
       this.db,
       `SELECT ${JOB_COLS}
@@ -351,8 +284,6 @@ export class CybRepo {
     return query<CountRow>(this.db, `SELECT readiness AS key, COUNT(*) AS n FROM cyb_job GROUP BY readiness`);
   }
 
-  // ── Gauges ──
-
   gauges(): Promise<CybGauge[]> {
     return query<CybGauge>(
       this.db,
@@ -368,8 +299,6 @@ export class CybRepo {
     );
   }
 
-  // ── Ticks (feedback log) ──
-
   ticks(limit = 12): Promise<CybTick[]> {
     return query<CybTick>(
       this.db,
@@ -378,8 +307,6 @@ export class CybRepo {
       [limit],
     );
   }
-
-  // ── Disturbances (the error ledger) ──
 
   async disturbanceTotal(): Promise<number> {
     const row = await queryOne<{ n: number }>(this.db, `SELECT COUNT(*) AS n FROM cyb_disturbance WHERE resolved = 0`);
@@ -401,8 +328,6 @@ export class CybRepo {
        FROM cyb_disturbance WHERE resolved = 0 GROUP BY kind ORDER BY n DESC`,
     );
   }
-
-  // ── Sources (the mining registry) ──
 
   sources(loopKey?: string): Promise<CybSource[]> {
     if (loopKey) {
@@ -428,8 +353,6 @@ export class CybRepo {
       `SELECT coverage_state AS key, COUNT(*) AS n FROM cyb_source_registry GROUP BY coverage_state ORDER BY n DESC`,
     );
   }
-
-  // ── Config (the control law) ──
 
   config(): Promise<{ key: string; value: string; note: string | null }[]> {
     return query<{ key: string; value: string; note: string | null }>(

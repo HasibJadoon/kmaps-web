@@ -1,5 +1,3 @@
-// ─── Source Detail, TOC, Unit & Chunk schemas & types ────────────────────────
-
 export interface CmSourceDetail {
   detail_id: string;
   source_id: string;
@@ -23,7 +21,7 @@ export interface CmSourceDetail {
 }
 
 export interface CmSourceToc {
-  toc_id: string;             // CM:ULID
+  toc_id: string;
   source_id: string;
   parent_toc_id: string | null;
   seq_order: number;
@@ -37,7 +35,7 @@ export interface CmSourceToc {
 }
 
 export interface CmSourceUnit {
-  unit_id: string;            // CM:ULID
+  unit_id: string;
   source_id: string;
   parent_unit_id: string | null;
   toc_id: string | null;
@@ -57,7 +55,7 @@ export interface CmSourceUnit {
 }
 
 export interface CmSourceChunk {
-  chunk_id: string;           // CM:ULID
+  chunk_id: string;
   source_id: string;
   unit_id: string | null;
   chunk_index: number;
@@ -222,8 +220,6 @@ export function validateCmSourceTocCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface CmSourceDetailInput {
   author_names_json?: string;
   editor_names_json?: string;
@@ -286,8 +282,6 @@ export interface CmSourceChunkInput {
   token_count?: number | null;
   meta_json?: string;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

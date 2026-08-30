@@ -1,11 +1,8 @@
-// ─── RootRepo — all SQL for ar_ling_roots ─────────────────────────────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 import type { Root, RootCreate } from '../schemas/root.schema';
 
-/** One root's identity card, as `ar_ling_roots` stores it. */
 export interface RootGloss {
   root_normalized: string;
   root_text: string;
@@ -56,15 +53,6 @@ export class RootRepo {
     );
   }
 
-  /**
-   * The identity card of many roots at once — what a grid of root tiles needs
-   * to say anything about a root beyond its three letters.
-   *
-   * The Quran worker can name a passage's roots but not gloss them: the glosses
-   * live in DB_AL. Rather than let a caller fetch one root at a time (a passage
-   * of twelve roots meant twelve round trips), this reads them in one pass and
-   * keys the result by the normalized form the caller asked for.
-   */
   glosses(roots: string[]): Promise<RootGloss[]> {
     if (!roots.length) return Promise.resolve([]);
     const marks = roots.map(() => '?').join(',');
@@ -80,7 +68,7 @@ export class RootRepo {
 
   async create(input: RootCreate): Promise<Root> {
     const id = typedId('AL');
-    const normalized = input.root_text.replace(/[\u064B-\u065F]/g, ''); // strip diacritics
+    const normalized = input.root_text.replace(/[\u064B-\u065F]/g, '');
     await execute(
       this.db,
       `INSERT INTO ar_ling_roots (id, root_text, root_normalized, letter_count, notes)

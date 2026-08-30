@@ -6,8 +6,6 @@ import {
   VocabItem,
 } from './reaction.models';
 
-// ─── Vocab pools per scene ────────────────────────────────────────────────────
-
 const vocabScene1: VocabItem[] = [
   { id: 'v1', word: 'اللغة', meaning: 'language', root: 'ل-غ-و', example: 'اللغة العربية لغة القرآن' },
   { id: 'v2', word: 'التعلّم', meaning: 'learning / acquisition', root: 'ع-ل-م', example: 'التعلّم يحتاج إلى صبر' },
@@ -29,8 +27,6 @@ const vocabScene3: VocabItem[] = [
   { id: 'v12', word: 'التدبّر', meaning: 'reflection / pondering', root: 'د-ب-ر', example: 'تدبّر القرآن يُعمّق الفهم' },
 ];
 
-// ─── Idioms per scene ─────────────────────────────────────────────────────────
-
 const idiomsScene1: IdiomItem[] = [
   { id: 'i1', phrase: 'من طلب العلى سهر الليالي', meaning: 'He who seeks greatness must endure sleepless nights', context: 'classical proverb' },
   { id: 'i2', phrase: 'لا تؤجّل عمل اليوم إلى الغد', meaning: "Don't put off today's work until tomorrow", context: 'common saying' },
@@ -45,8 +41,6 @@ const idiomsScene3: IdiomItem[] = [
   { id: 'i5', phrase: 'من جدّ وجد', meaning: 'Who works hard will find (success)', context: 'proverb' },
   { id: 'i6', phrase: 'الصبر مفتاح الفرج', meaning: 'Patience is the key to relief', context: 'classical saying' },
 ];
-
-// ─── Key sentences per scene ──────────────────────────────────────────────────
 
 const sentencesScene1: SentenceItem[] = [
   {
@@ -91,8 +85,6 @@ const sentencesScene3: SentenceItem[] = [
   },
 ];
 
-// ─── Scene content bundles ────────────────────────────────────────────────────
-
 const sceneContents: SceneContent[] = [
   {
     sceneId: 'scene-1',
@@ -117,12 +109,10 @@ const sceneContents: SceneContent[] = [
   },
 ];
 
-// ─── Full lesson ──────────────────────────────────────────────────────────────
-
 export const MOCK_REACTION_LESSON: ReactionLessonData = {
   unitId: 'mock-unit-001',
   title: 'كيف تتعلّم العربية — محاضرة تعليمية',
-  // Public domain educational video used as a placeholder
+
   youtubeId: 'dQw4w9WgXcQ',
   scenes: [
     { id: 'scene-1', title: 'المقدّمة — لماذا العربية؟', start: 0,   end: 60  },

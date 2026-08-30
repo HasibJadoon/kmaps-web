@@ -1,11 +1,6 @@
-// ─── AlSourceRepo — ar_ling_source + editions + chunks + toc + index + evidence
-//                   + tokens + sentences + token_lexicon_link ──────────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Types ────────────────────────────────────────────────────────────────────
 
 export interface AlSource {
   id: string;
@@ -178,12 +173,8 @@ export interface TokenLexiconLink {
   confidence: number;
 }
 
-// ── Repo ─────────────────────────────────────────────────────────────────────
-
 export class AlSourceRepo {
   constructor(private db: D1Database) {}
-
-  // ── Sources ────────────────────────────────────────────────────────────────
 
   list(opts: PaginateOptions = {}) {
     return paginate<AlSource>(
@@ -269,8 +260,6 @@ export class AlSourceRepo {
     return this.findById(id);
   }
 
-  // ── Editions ───────────────────────────────────────────────────────────────
-
   editions(sourceId: string): Promise<AlSourceEdition[]> {
     return query<AlSourceEdition>(
       this.db,
@@ -306,8 +295,6 @@ export class AlSourceRepo {
       [id],
     ))!;
   }
-
-  // ── Chunks ─────────────────────────────────────────────────────────────────
 
   chunks(sourceId: string, opts: PaginateOptions = {}) {
     return paginate<AlSourceChunk>(
@@ -382,8 +369,6 @@ export class AlSourceRepo {
     ))!;
   }
 
-  // ── Table of Contents ──────────────────────────────────────────────────────
-
   toc(sourceId: string): Promise<AlSourceToc[]> {
     return query<AlSourceToc>(
       this.db,
@@ -421,15 +406,11 @@ export class AlSourceRepo {
     ))!;
   }
 
-  // ── Evidence Items ─────────────────────────────────────────────────────────
-
   evidence(
     opts: { conceptRef?: string | null; lemmaRef?: string | null } & PaginateOptions = {},
   ) {
     const { conceptRef, lemmaRef, ...page } = opts;
 
-    // evidence_items doesn't have a concept_ref column; filter by source_ref or qr_ref
-    // The instruction says conceptRef/lemmaRef are optional filters — map to source_ref / qr_ref heuristics
     const conditions: string[] = [];
     const params: unknown[] = [];
 
@@ -485,8 +466,6 @@ export class AlSourceRepo {
     ))!;
   }
 
-  // ── Tokens ─────────────────────────────────────────────────────────────────
-
   tokens(sourceRef: string, opts: PaginateOptions = {}) {
     return paginate<AlToken>(
       this.db,
@@ -529,8 +508,6 @@ export class AlSourceRepo {
     ))!;
   }
 
-  // ── Sentences ──────────────────────────────────────────────────────────────
-
   sentences(sourceRef: string): Promise<AlSentence[]> {
     return query<AlSentence>(
       this.db,
@@ -571,8 +548,6 @@ export class AlSourceRepo {
       [id],
     ))!;
   }
-
-  // ── Token ↔ Lexicon Links ──────────────────────────────────────────────────
 
   tokenLexiconLinks(tokenId: string): Promise<TokenLexiconLink[]> {
     return query<TokenLexiconLink>(

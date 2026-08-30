@@ -2,10 +2,6 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-// Placeholder shell for the K-MAPS cross-source synthesis of a root. The real
-// synthesis view (meaning-core, semantic poles, development stages, five-lens
-// analysis — kmaps_five_lens / kmaps_usage_map / kmaps_development) is a
-// separate design still to be built; this page reserves the route and root.
 @Component({
   selector: 'km-lexicon-synthesis',
   standalone: true,

@@ -1,7 +1,3 @@
-// ─── /core/workspaces/:id/activity — workspace audit feed ─────────────────────
-// Read-only view over core_activity_events for a single workspace. Admin,
-// the workspace owner, or any active member may read it.
-
 import type { Router } from '../../../shared/src/router';
 import { paginated, notFound, forbidden } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -12,7 +8,6 @@ import { ActivityRepo } from '../repositories/activity.repo';
 
 export function activityRoutes(router: Router<CoreEnv>) {
 
-  // GET /core/workspaces/:id/activity
   router.get('/core/workspaces/:id/activity', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;

@@ -1,9 +1,5 @@
-// ─── AuthRepo — core_auth_sessions + core_auth_tokens ─────────────────────────
-
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface AuthSession {
   id: string;
@@ -53,8 +49,6 @@ export interface AuthTokenCreate {
   expiresAt?: string;
 }
 
-// ── Column fragments ──────────────────────────────────────────────────────────
-
 const SESSION_COLS = `
   id, user_id, session_token, session_type, device_info, ip_address,
   user_agent, last_seen_at, expires_at, is_revoked, created_at
@@ -65,12 +59,8 @@ const TOKEN_COLS = `
   expires_at, used_at, revoked_at, created_at
 FROM core_auth_tokens`;
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class AuthRepo {
   constructor(private db: D1Database) {}
-
-  // ── Sessions ──
 
   findSession(token: string): Promise<AuthSession | null> {
     return queryOne<AuthSession>(
@@ -118,7 +108,6 @@ export class AuthRepo {
     );
   }
 
-  /** Touch last_seen_at on an active session. */
   async touchSession(id: string): Promise<void> {
     await execute(
       this.db,
@@ -127,7 +116,6 @@ export class AuthRepo {
     );
   }
 
-  /** All non-revoked sessions for a user. */
   userSessions(userId: string): Promise<AuthSession[]> {
     return query<AuthSession>(
       this.db,
@@ -136,8 +124,6 @@ export class AuthRepo {
       [userId],
     );
   }
-
-  // ── Tokens ──
 
   findToken(hash: string): Promise<AuthToken | null> {
     return queryOne<AuthToken>(
@@ -184,7 +170,6 @@ export class AuthRepo {
     );
   }
 
-  /** Mark token as used (e.g. one-time invitation or reset token). */
   async markTokenUsed(id: string): Promise<void> {
     await execute(
       this.db,
@@ -193,7 +178,6 @@ export class AuthRepo {
     );
   }
 
-  /** List all active (non-revoked, non-expired) tokens for a user. */
   userTokens(userId: string): Promise<AuthToken[]> {
     return query<AuthToken>(
       this.db,
@@ -202,9 +186,6 @@ export class AuthRepo {
       [userId],
     );
   }
-
-  // ── Password credentials ──
-  // A user's password is stored as a single token_type='password' row.
 
   async findPasswordHash(userId: string): Promise<string | null> {
     const row = await queryOne<{ token_hash: string }>(
@@ -217,7 +198,6 @@ export class AuthRepo {
     return row?.token_hash ?? null;
   }
 
-  /** Replace any existing password credential for the user. */
   async setPassword(userId: string, passwordHash: string): Promise<void> {
     await execute(
       this.db,

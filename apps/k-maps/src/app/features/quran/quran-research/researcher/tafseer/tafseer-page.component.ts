@@ -21,16 +21,6 @@ interface ScholarColumn {
   blocks: QrTafsirDisplayBlock[];
 }
 
-/**
- * Tafseer page — rewritten to consume the new qr_tafsir_book_display_* layer
- * (migration 012) via /qr/tafsir/display/sources + /qr/tafsir/display.
- *
- * All data (sources, surah list, ayah counts, blocks, scholar metadata,
- * madhab/era labels) is fetched from D1. The page presents:
- *   - source catalog grid (when no scholar selected)
- *   - single-scholar deep view OR multi-scholar side-by-side comparison
- *     (driven by selectedScholarIds set)
- */
 @Component({
   selector: 'km-tafseer-page',
   standalone: true,
@@ -42,14 +32,12 @@ export class TafseerPageComponent implements OnInit, AfterViewInit {
   @ViewChild('grid')   grid?: ElementRef<HTMLElement>;
   @ViewChild('reader') reader?: ElementRef<HTMLElement>;
 
-  // ── Book-style chrome state (mirrors lexicon-shell pattern) ───────────────
   readonly showRail = signal(true);
   readonly darkMode = signal(true);
   readonly fontSize = signal(1);
   readonly fontSizeClass = computed(() => ['fs-sm', 'fs-md', 'fs-lg'][this.fontSize()]);
   private readonly RAIL_W = 300;
 
-  /** GSAP-driven rail toggle (animates --w-rail CSS var on .reader host). */
   toggleRail(): void {
     const willShow = !this.showRail();
     this.showRail.set(willShow);
@@ -68,23 +56,19 @@ export class TafseerPageComponent implements OnInit, AfterViewInit {
   private readonly api      = inject(QuranResearchApiService);
   private readonly quranApi = inject(QuranApiService);
 
-  // ── Source catalog ────────────────────────────────────────────────────────
   readonly sources       = signal<QrTafsirDisplaySource[]>([]);
   readonly loading       = signal(true);
   readonly searchTerm    = signal('');
   readonly selectedSource = signal<QrTafsirDisplaySource | null>(null);
 
-  // ── Surah/ayah navigation (D1) ────────────────────────────────────────────
   readonly surahMenu     = signal<QrMenuSurah[]>([]);
   readonly selectedSurah = signal<number>(1);
   readonly selectedAyah  = signal<number>(1);
 
-  // ── Modern surah/ayah picker UI state (mirrors uloom) ─────────────────────
   readonly surahPickerOpen = signal(false);
   readonly surahFilter     = signal('');
   readonly goToInput       = signal('');
 
-  /** Filtered surah list for the picker dropdown. */
   readonly filteredSurahs = computed(() => {
     const q = this.surahFilter().trim().toLowerCase();
     const list = this.surahMenu();
@@ -108,13 +92,11 @@ export class TafseerPageComponent implements OnInit, AfterViewInit {
     this.closeSurahPicker();
   }
 
-  /** Set ayah from a direct number input. */
   onAyahInput(value: string): void {
     const n = parseInt(value, 10);
     if (Number.isFinite(n)) this.setAyah(n);
   }
 
-  /** Parse "S:A" or "S A" quick-jump input and navigate. */
   submitGoTo(): void {
     const raw = this.goToInput().trim();
     if (!raw) return;
@@ -128,12 +110,10 @@ export class TafseerPageComponent implements OnInit, AfterViewInit {
     this.goToInput.set('');
   }
 
-  // ── Display payload + filters ─────────────────────────────────────────────
   readonly payload         = signal<QrTafsirGroupDisplayPayload | null>(null);
   readonly payloadLoading  = signal(false);
   readonly payloadError    = signal<string | null>(null);
 
-  // Optional multi-scholar mode (when no source selected, show all)
   readonly madhabFilter    = signal<string | null>(null);
   readonly eraFilter       = signal<string | null>(null);
 
@@ -150,7 +130,6 @@ export class TafseerPageComponent implements OnInit, AfterViewInit {
   );
   readonly ayahCount = computed(() => this.currentSurahMeta()?.ayah_count ?? 1);
 
-  /** Multi-scholar column layout. */
   readonly columns = computed<ScholarColumn[]>(() => {
     const p = this.payload();
     if (!p) return [];
@@ -187,7 +166,7 @@ export class TafseerPageComponent implements OnInit, AfterViewInit {
 
   constructor() {
     effect(() => {
-      // When source selected: bootstrap to ayah 1 of surah 1, then load.
+
       const src = this.selectedSource();
       if (!src) return;
       const surah = this.selectedSurah();

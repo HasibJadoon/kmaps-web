@@ -1,15 +1,3 @@
-// ─── Loading a pack without the HTTP route ────────────────────────────────────
-//
-// POST /core/bank/import is owner-gated and this script does not authenticate.
-// Rather than re-implement the importer's upsert, digest and retire rules — two
-// copies of that logic would drift, and the copy nobody exercises would be the
-// wrong one — this runs the REAL importPack() against remote D1 through a shim
-// that speaks the D1 binding's shape and executes with wrangler.
-//
-// So the code path under test here is production's. What is NOT exercised is
-// the route in front of it: auth, the body parse, the dry-run rollback. Use the
-// curl in the README for that.
-
 import { execFileSync } from 'node:child_process';
 import { writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -21,8 +9,6 @@ const DRY = process.env.DRY_RUN === '1';
 const dir = mkdtempSync(join(tmpdir(), 'bankload-'));
 let calls = 0;
 
-/** SQL literal. Everything is bound as text or a number; nothing is concatenated
- *  from user input, and the values here are ours. */
 const lit = (v) => {
   if (v === null || v === undefined) return 'NULL';
   if (typeof v === 'number') return Number.isFinite(v) ? String(v) : 'NULL';
@@ -33,10 +19,8 @@ const lit = (v) => {
 function run(sql, params) {
   let i = 0;
   const inlined = sql.replace(/\?/g, () => lit(params[i++]));
-  // --command, never --file: with a file wrangler reports a SUMMARY row
-  // ("Total queries executed") in place of the results, so every SELECT comes
-  // back as one truthy row and every existence check says yes.
-  writeFileSync(join(dir, `s${calls++}.sql`), inlined);   // kept for reading back
+
+  writeFileSync(join(dir, `s${calls++}.sql`), inlined);
   const out = execFileSync('npx', [
     'wrangler', 'd1', 'execute', DB, '--remote', '--json', '--command', inlined,
   ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 << 20 });
@@ -44,7 +28,6 @@ function run(sql, params) {
   return parsed[0]?.results ?? [];
 }
 
-/** Enough of the D1 binding for the importer, and nothing more. */
 const db = {
   prepare(sql) {
     return {

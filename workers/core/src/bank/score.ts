@@ -1,13 +1,3 @@
-// ─── Scoring an answer ────────────────────────────────────────────────────────
-//
-// One function, four templates — QTI's responseProcessing, which is why all
-// three apps can be scored the same way. The scoring rule is a property of the
-// ITEM, so a poll and an MCQ can sit in the same round and the room does not
-// have to know which is which.
-//
-// Every judgement here happens on the server, and so does every clock. A
-// client-reported elapsed is a client-chosen score.
-
 export interface ScorableItem {
   interaction: string;
   scoring: string;
@@ -27,26 +17,12 @@ export interface ScorableOption {
 }
 
 export interface Judgement {
-  /** null ONLY when the item is unscored — not a missing value, the kind of
-   *  item. A partially correct answer is `false` with `credit` between 0 and 1. */
+
   isCorrect: boolean | null;
   credit: number;
   points: number;
 }
 
-/** What one perfect answer is worth.
- *
- *  Ten, not Kahoot's thousand. Kahoot's scale is built for a scoreboard that
- *  is thrown away at the end of the evening, where a big number is part of the
- *  fun. This ledger is not thrown away: it accumulates across three apps for
- *  as long as somebody keeps studying, and at a thousand a question a few
- *  years of daily practice runs into the millions — a total nobody can hold in
- *  their head, compare, or read off a card. At ten, a lesson is worth about
- *  sixty, a good year a few thousand, and a decade still fits on the screen.
- *
- *  With the speed bonus a right answer lands between 5 and 10, which is also
- *  the whole visible range — deliberately coarse, because the difference
- *  between 8 and 9 was never information anybody could act on. */
 export const BASE_POINTS = 10;
 
 function parse(json: string | null): Record<string, unknown> | null {
@@ -57,20 +33,14 @@ function parse(json: string | null): Record<string, unknown> | null {
   } catch { return null; }
 }
 
-/** Text answers are compared with the differences a learner should not lose a
- *  point for: case, surrounding space, and Arabic diacritics — which are
- *  frequently absent from a keyboard and never the thing being tested. */
 function normalise(text: string): string {
   return text
     .trim()
     .toLowerCase()
-    .replace(/[ً-ْٰـ]/g, '')   // ḥarakāt, dagger alif, taṭwīl
+    .replace(/[ً-ْٰـ]/g, '')
     .replace(/\s+/g, ' ');
 }
 
-/** Kahoot's shape: a right answer is worth more the sooner it lands, and a
- *  late-but-right answer is still worth half. Wrong is worth nothing —
- *  guessing fast must never beat thinking. */
 export function speedPoints(
   credit: number, latencyMs: number | null, seconds: number | null,
   multiplier = 1,
@@ -97,8 +67,7 @@ export function judge(
   answer: unknown,
   latencyMs: number | null,
 ): Judgement {
-  // An unscored item still records the answer. That is the whole point of a
-  // poll, a word cloud and a conversation card: the response is the content.
+
   if (item.scoring === 'none') {
     return { isCorrect: null, credit: 0, points: 0 };
   }
@@ -122,7 +91,7 @@ export function judge(
         break;
       }
       if (item.interaction === 'tap_word') {
-        // The word bank: the tokens, in order, with the pool ignored.
+
         const wanted = options
           .filter((o) => o.role === 'order_token')
           .sort((a, b) => a.sort_order - b.sort_order)
@@ -131,9 +100,7 @@ export function judge(
         credit = wanted.length > 0 && wanted.join('|') === given.join('|') ? 1 : 0;
         break;
       }
-      // choice, choice_multi, inline_choice, gap_match: the whole correct set,
-      // and nothing else. A partially correct multi-select is wrong here —
-      // `map_response` is the template for giving it part marks.
+
       const correct = new Set(options.filter((o) => o.is_correct === 1).map((o) => o.id));
       const given = new Set(
         Array.isArray(answer) ? answer.map(String)
@@ -151,8 +118,7 @@ export function judge(
           .sort((a, b) => a.sort_order - b.sort_order)
           .map((o) => o.id);
         const given = Array.isArray(answer) ? answer.map(String) : [];
-        // Partial credit by position, so getting most of an ordering right is
-        // worth most of the marks.
+
         const hits = wanted.filter((id, i) => given[i] === id).length;
         credit = wanted.length ? hits / wanted.length : 0;
         break;
@@ -170,7 +136,7 @@ export function judge(
         credit = pairs.size ? hits / pairs.size : 0;
         break;
       }
-      // Per-option credit as declared on the rows.
+
       const given = new Set(
         Array.isArray(answer) ? answer.map(String)
           : typeof answer === 'string' ? [answer] : []);
@@ -183,7 +149,7 @@ export function judge(
     }
 
     case 'nearest': {
-      // A slider or a pin: right within a tolerance, and nothing beyond it.
+
       const target = Number(declared?.['correct'] ?? NaN);
       const tolerance = Number(declared?.['tolerance'] ?? 0);
       const given = Number(answer);
@@ -198,10 +164,7 @@ export function judge(
   }
 
   return {
-    // Fully right, or not. Partial credit is carried by `credit`, never by a
-    // third value here: NULL already means "this item has no correct answer",
-    // and letting it also mean "half right" would make every accuracy figure
-    // in the scorecard quietly wrong.
+
     isCorrect: credit >= 1,
     credit,
     points: pointsFor(item, credit, latencyMs),

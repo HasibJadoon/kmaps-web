@@ -1,5 +1,3 @@
-// ─── SurahRepo — all SQL for qr_surah ────────────────────────────────────────
-
 import { query, queryOne, execute } from '../../../shared/src/db';
 import type { Surah, SurahPatch } from '../schemas/surah.schema';
 

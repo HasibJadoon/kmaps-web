@@ -1,5 +1,3 @@
-// ─── /core/workspaces routes ──────────────────────────────────────────────────
-
 import type { Router } from '../../../shared/src/router';
 import {
   ok, notFound, created, badRequest, forbidden, conflict, noContent, paginated,
@@ -27,7 +25,6 @@ async function readJson(req: Request): Promise<Record<string, unknown> | null> {
   }
 }
 
-/** Best-effort activity log — never let an audit write break the action. */
 async function logEvent(
   env: CoreEnv,
   workspaceId: string,
@@ -45,13 +42,12 @@ async function logEvent(
       payloadJson: payload ? JSON.stringify(payload) : undefined,
     });
   } catch {
-    /* audit logging is non-critical */
+
   }
 }
 
 export function workspaceRoutes(router: Router<CoreEnv>) {
 
-  // GET /core/workspaces/mine — workspaces for the authenticated user
   router.get('/core/workspaces/mine', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -60,7 +56,6 @@ export function workspaceRoutes(router: Router<CoreEnv>) {
     );
   });
 
-  // GET /core/workspaces — every workspace (admin only)
   router.get('/core/workspaces', async (req, env) => {
     const ctx = await requireAdmin(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -69,24 +64,20 @@ export function workspaceRoutes(router: Router<CoreEnv>) {
     );
   });
 
-  // GET /core/workspaces/:id
   router.get('/core/workspaces/:id', async (_req, env, { id }) => {
     const ws = await new WorkspaceRepo(env.DB_CORE).findById(id);
     return ws ? ok(ws) : notFound(`workspace ${id}`);
   });
 
-  // GET /core/workspaces/slug/:slug
   router.get('/core/workspaces/slug/:slug', async (_req, env, { slug }) => {
     const ws = await new WorkspaceRepo(env.DB_CORE).findBySlug(slug);
     return ws ? ok(ws) : notFound(`workspace ${slug}`);
   });
 
-  // GET /core/workspaces/:id/members
   router.get('/core/workspaces/:id/members', async (_req, env, { id }) => {
     return ok(await new WorkspaceRepo(env.DB_CORE).members(id));
   });
 
-  // POST /core/workspaces — create a workspace
   router.post('/core/workspaces', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -99,7 +90,6 @@ export function workspaceRoutes(router: Router<CoreEnv>) {
     return created(ws);
   });
 
-  // PATCH /core/workspaces/:id — update / archive a workspace (admin or owner)
   router.patch('/core/workspaces/:id', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -118,7 +108,6 @@ export function workspaceRoutes(router: Router<CoreEnv>) {
     return ok(updated);
   });
 
-  // POST /core/workspaces/:id/members — add a member (admin or owner)
   router.post('/core/workspaces/:id/members', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -153,7 +142,6 @@ export function workspaceRoutes(router: Router<CoreEnv>) {
     return created(member);
   });
 
-  // PATCH /core/workspaces/:id/members/:memberId — change role / status
   router.patch('/core/workspaces/:id/members/:memberId', async (req, env, { id, memberId }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -187,7 +175,6 @@ export function workspaceRoutes(router: Router<CoreEnv>) {
     return ok(member);
   });
 
-  // DELETE /core/workspaces/:id/members/:memberId — remove a member
   router.delete('/core/workspaces/:id/members/:memberId', async (req, env, { id, memberId }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;

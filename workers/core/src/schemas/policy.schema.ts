@@ -1,17 +1,14 @@
-// ─── Policy schemas & types ────────────────────────────────────────────────────
-
-// core_workspace_policies
 export interface WorkspacePolicy {
-  id: string;                                           // CORE:ULID
-  workspace_id: string;                                 // CORE:ULID → core_workspaces (UNIQUE)
+  id: string;
+  workspace_id: string;
   max_visibility: 'private' | 'workspace' | 'link_share' | 'public';
-  allow_public_publish: boolean;                        // DB: INTEGER 0|1
-  allow_link_share: boolean;                            // DB: INTEGER 0|1
-  allow_guest_access: boolean;                          // DB: INTEGER 0|1
+  allow_public_publish: boolean;
+  allow_link_share: boolean;
+  allow_guest_access: boolean;
   guest_max_visibility: 'private' | 'workspace' | 'link_share' | 'public';
   default_discovery: 'hidden' | 'workspace_searchable' | 'public_indexed';
-  allow_member_invitations: boolean;                    // DB: INTEGER 0|1
-  review_required_for_publish: boolean;                 // DB: INTEGER 0|1
+  allow_member_invitations: boolean;
+  review_required_for_publish: boolean;
   comment_policy: 'members' | 'workspace' | 'public' | 'disabled';
   extra_json: string | null;
   created_at: string;
@@ -31,20 +28,19 @@ export interface WorkspacePolicyPatch {
   extra_json?: string | null;
 }
 
-// core_resource_policies
 export interface ResourcePolicy {
-  id: string;                                           // CORE:ULID
-  resource_ref: string;                                 // typed ref: 'CM:xx'|'WV:xx'|etc. (UNIQUE)
+  id: string;
+  resource_ref: string;
   resource_type: 'document' | 'note' | 'source' | 'media' | 'comparison' | 'plan' | 'session' | 'other';
-  owner_user_ref: string;                               // 'CORE:<user_id>'
-  workspace_ref: string | null;                         // 'CORE:<workspace_id>'
+  owner_user_ref: string;
+  workspace_ref: string | null;
   visibility_scope: 'private' | 'workspace' | 'link_share' | 'public';
   publication_state: 'draft' | 'review' | 'published' | 'archived' | 'rejected';
-  is_discoverable: boolean;                             // DB: INTEGER 0|1
+  is_discoverable: boolean;
   allow_comments: 'none' | 'workspace' | 'public';
-  allow_downloads: boolean;                             // DB: INTEGER 0|1
-  inherits_from_ref: string | null;                     // parent container resource_ref
-  override_flag: boolean;                               // DB: INTEGER 0|1 — 1 = breaks inheritance
+  allow_downloads: boolean;
+  inherits_from_ref: string | null;
+  override_flag: boolean;
   meta_json: string | null;
   created_at: string;
   updated_at: string;
@@ -65,17 +61,16 @@ export interface ResourcePolicyCreate {
   meta_json?: string;
 }
 
-// core_resource_grants
 export interface ResourceGrant {
-  id: string;                                           // CORE:ULID
-  resource_ref: string;                                 // typed ref to resource
-  subject_ref: string;                                  // 'CORE:<user_id>' or 'CORE:<group_id>'
+  id: string;
+  resource_ref: string;
+  subject_ref: string;
   subject_type: 'user' | 'group' | 'role' | 'anyone';
   access_role: 'viewer' | 'commenter' | 'editor' | 'manager' | 'owner';
-  granted_by_ref: string;                               // 'CORE:<user_id>'
+  granted_by_ref: string;
   granted_at: string;
   expires_at: string | null;
-  is_inheritance_break: boolean;                        // DB: INTEGER 0|1
+  is_inheritance_break: boolean;
   revoked_at: string | null;
   note: string | null;
 }
@@ -88,8 +83,6 @@ export interface ResourceGrantCreate {
   granted_by_ref: string;
   expires_at?: string;
 }
-
-// ─── Validators ────────────────────────────────────────────────────────────────
 
 export function validateWorkspacePolicyPatch(
   body: unknown,
@@ -177,8 +170,6 @@ export function validateResourceGrantCreate(
   return { data };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface ResourcePolicyInput {
   resourceRef: string;
   resourceType: ResourcePolicy['resource_type'];
@@ -204,8 +195,6 @@ export interface ResourceGrantInput {
   isInheritanceBreak?: boolean;
   note?: string;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

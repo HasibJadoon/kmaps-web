@@ -1,7 +1,3 @@
-// ─── Response builders ─────────────────────────────────────────────────────────
-// Route handlers return plain Responses. Use these builders — never hand-roll
-// JSON strings or set Content-Type manually.
-
 import { json } from './http';
 import type {
   ApiResponse,
@@ -9,8 +5,6 @@ import type {
   PaginatedResponse,
   PaginatedRows,
 } from './types';
-
-// ── Success ────────────────────────────────────────────────────────────────────
 
 export function ok<T>(data: T, init: ResponseInit = {}): Response {
   const body: ApiResponse<T> = { ok: true, data };
@@ -38,8 +32,6 @@ export function paginated<T>(result: PaginatedRows<T>): Response {
   };
   return json(body);
 }
-
-// ── Errors ─────────────────────────────────────────────────────────────────────
 
 export function err(
   code: string,

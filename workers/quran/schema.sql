@@ -1,10 +1,3 @@
--- Schema for km_quran.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-30.
--- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
--- Regenerate with scripts/regen_schemas.py — do not hand-edit.
-
--- ── Tables (162) ─────────────────────────────────────────────────
-
 CREATE TABLE "ar_ling_gram_category" (
   category_key   TEXT PRIMARY KEY,
   name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
@@ -221,50 +214,50 @@ CREATE TABLE "qr_interpretive_difference" (
 
 CREATE TABLE "qr_irab_book_display_block" (
   id                  TEXT PRIMARY KEY,
-  -- Provenance ----------------------------------------------------------------
+
   source_id           TEXT,
-  source_chunk_id     TEXT,                            -- → qr_irab_source_chunks.id (NULL for Phase A entry-only blocks)
-  source_entry_id     TEXT,                            -- → qr_irab_book_entries.id when projected from entries (Phase A)
+  source_chunk_id     TEXT,
+  source_entry_id     TEXT,
   source_slug         TEXT NOT NULL,
   book_title          TEXT,
   author              TEXT,
-  -- Locator -------------------------------------------------------------------
+
   surah_no            INTEGER,
-  ayah_no             INTEGER,                         -- start ayah (best-effort; trust ayah_keys_json for span)
-  ayah_to             INTEGER,                         -- end ayah of range
-  ayah_key            TEXT,                            -- e.g. "2:3" — singleton anchor
-  ayah_group_key      TEXT,                            -- e.g. "2:1-5" — canonical group form
-  ayah_keys_json      JSON,                            -- e.g. ["2:1","2:2","2:3","2:4","2:5"]
-  is_grouped          INTEGER NOT NULL DEFAULT 0,      -- 1 if span > 1 ayah
+  ayah_no             INTEGER,
+  ayah_to             INTEGER,
+  ayah_key            TEXT,
+  ayah_group_key      TEXT,
+  ayah_keys_json      JSON,
+  is_grouped          INTEGER NOT NULL DEFAULT 0,
   word_index          INTEGER,
-  word_text           TEXT,                            -- bare word as displayed
+  word_text           TEXT,
   phrase_text         TEXT,
   scope_type          TEXT,
-  -- Block identity ------------------------------------------------------------
+
   block_type          TEXT NOT NULL,
-  block_subtype       TEXT,                            -- finer category, free-form
+  block_subtype       TEXT,
   display_order       INTEGER NOT NULL DEFAULT 0,
-  -- Content -------------------------------------------------------------------
+
   title_ar            TEXT,
   title_en            TEXT,
   text_ar             TEXT,
   text_en             TEXT,
-  raw_text            TEXT,                            -- preserved verbatim
-  -- Denormalized arrays for one-shot UI rendering -----------------------------
-  tags_json               JSON,                        -- ["tafsir","2:3","jadwal"]
-  grammar_tags_json       JSON,                        -- ["اسم موصول","مبني","فاعل"]
-  sarf_tags_json          JSON,                        -- ["أفعال خمسة","حذف الهمزة"]
-  balagha_tags_json       JSON,                        -- ["تكرار","تبعيض"]
-  quran_refs_json         JSON,                        -- [{surah,ayah,word_index?}]
-  backlinks_json          JSON,                        -- [{block_id,kind,label}]
-  related_links_json      JSON,                        -- [{block_id,kind,label}]
-  external_resource_json  JSON,                        -- {"r2_key":"…","kind":"svg","bytes":N} for dependency_graph blocks
-  -- Provenance / QA -----------------------------------------------------------
+  raw_text            TEXT,
+
+  tags_json               JSON,
+  grammar_tags_json       JSON,
+  sarf_tags_json          JSON,
+  balagha_tags_json       JSON,
+  quran_refs_json         JSON,
+  backlinks_json          JSON,
+  related_links_json      JSON,
+  external_resource_json  JSON,
+
   confidence          TEXT DEFAULT 'medium',
   review_status       TEXT NOT NULL DEFAULT 'ai_candidate',
   extraction_method   TEXT DEFAULT 'regex_parser',
   meta_json           JSON,
-  -- Audit ---------------------------------------------------------------------
+
   created_at          TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -288,7 +281,7 @@ CREATE TABLE "qr_irab_book_display_link" (
   id            TEXT PRIMARY KEY,
   from_block_id TEXT NOT NULL,
   to_block_id   TEXT NOT NULL,
-  link_kind     TEXT NOT NULL,                         -- 'backlink'|'related'|'same_ayah'|'same_word'|'same_grammar'|'comparison'|'disagreement'
+  link_kind     TEXT NOT NULL,
   label         TEXT,
   weight        INTEGER NOT NULL DEFAULT 1,
   meta_json     JSON,
@@ -297,15 +290,15 @@ CREATE TABLE "qr_irab_book_display_link" (
 
 CREATE TABLE "qr_irab_book_display_note" (
   id              TEXT PRIMARY KEY,
-  block_id        TEXT,                                -- nullable: notes can stand alone
-  note_kind       TEXT NOT NULL,                       -- 'author'|'teaching'|'footnote'|'reviewer'
+  block_id        TEXT,
+  note_kind       TEXT NOT NULL,
   note_text_ar    TEXT,
   note_text_en    TEXT,
-  is_inline       INTEGER NOT NULL DEFAULT 0,          -- inline footnote vs side-note
-  surah_no        INTEGER,                             -- denormalized for filtering
+  is_inline       INTEGER NOT NULL DEFAULT 0,
+  surah_no        INTEGER,
   ayah_no         INTEGER,
-  ayah_key        TEXT,                                -- "2:3"
-  ayah_group_key  TEXT,                                -- "2:1-5" — filter by group quickly
+  ayah_key        TEXT,
+  ayah_group_key  TEXT,
   source_slug     TEXT,
   display_order   INTEGER NOT NULL DEFAULT 0,
   meta_json       JSON,
@@ -317,29 +310,29 @@ CREATE TABLE "qr_irab_book_display_note" (
 CREATE TABLE "qr_irab_book_display_ref" (
   id              TEXT PRIMARY KEY,
   block_id        TEXT NOT NULL,
-  ref_kind        TEXT NOT NULL,                       -- 'ayah'|'word'|'lemma'|'root'|'concept'
+  ref_kind        TEXT NOT NULL,
   surah_no        INTEGER,
   ayah_no         INTEGER,
   ayah_to         INTEGER,
-  ayah_key        TEXT,                                -- "2:3"
-  ayah_group_key  TEXT,                                -- "2:1-5" — filter by group quickly
+  ayah_key        TEXT,
+  ayah_group_key  TEXT,
   word_index      INTEGER,
-  typed_ref       TEXT,                                -- e.g. 'AL:01HX…' | 'QR:2:3:1' | 'LX:…'
-  label           TEXT,                                -- display label for the chip
+  typed_ref       TEXT,
+  label           TEXT,
   meta_json       JSON,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE "qr_irab_book_display_source" (
-  id                TEXT PRIMARY KEY,                  -- mirrors qr_irab_sources.id
+  id                TEXT PRIMARY KEY,
   source_slug       TEXT NOT NULL UNIQUE,
   book_title_ar     TEXT,
   book_title_en     TEXT,
   author_name_ar    TEXT,
   author_name_en    TEXT,
-  author_period     TEXT,                              -- e.g. "Classical (d. 745 AH)"
-  badge_color       TEXT,                              -- UI hint, hex like '#C9A227'
-  badge_glyph       TEXT,                              -- UI hint, short symbol
+  author_period     TEXT,
+  badge_color       TEXT,
+  badge_glyph       TEXT,
   short_description TEXT,
   long_description  TEXT,
   cover_image_url   TEXT,
@@ -352,10 +345,10 @@ CREATE TABLE "qr_irab_book_display_source" (
 
 CREATE TABLE "qr_irab_book_display_tag" (
   id              TEXT PRIMARY KEY,
-  block_id        TEXT NOT NULL,                       -- → qr_iraab_book_display_blocks.id
-  tag_kind        TEXT NOT NULL,                       -- 'general'|'grammar'|'sarf'|'balagha'|'topic'|'review'
-  tag_value       TEXT NOT NULL,                       -- 'اسم موصول' | 'tafsir' | 'needs_review' …
-  tag_value_norm  TEXT,                                -- diacritics-stripped form for matching
+  block_id        TEXT NOT NULL,
+  tag_kind        TEXT NOT NULL,
+  tag_value       TEXT NOT NULL,
+  tag_value_norm  TEXT,
   display_order   INTEGER NOT NULL DEFAULT 0,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -539,14 +532,14 @@ CREATE TABLE qr_morph_display_build (
 );
 
 CREATE TABLE "qr_morph_display_lemma" (
-  id            TEXT PRIMARY KEY,            -- 'MDL:{bare}#{qr_lemmas.id[:8]}'
-  lemma_ref     TEXT NOT NULL UNIQUE,        -- qr_lemmas.id (the real key)
+  id            TEXT PRIMARY KEY,
+  lemma_ref     TEXT NOT NULL UNIQUE,
   lemma_ar      TEXT NOT NULL,
   lemma_bare    TEXT,
   root_ar       TEXT,
-  morphology_id TEXT,                        -- ar_ling_morphology bundle (km_arabic_linguistic)
-  form_family_id TEXT,                       -- qr_morph_form_families.id
-  tier_key      TEXT,                        -- qr_morph_form_tiers.tier_key
+  morphology_id TEXT,
+  form_family_id TEXT,
+  tier_key      TEXT,
   wazn_ar       TEXT,
   derived_type_ar TEXT, derived_type_en TEXT, derived_type_ur TEXT,
   gloss_ar TEXT, gloss_en TEXT, gloss_ur TEXT,
@@ -561,34 +554,34 @@ CREATE TABLE "qr_morph_display_lemma" (
 , form_roman TEXT, form_ar TEXT, verb_form_ar TEXT, sense_arc_en TEXT, sense_range_en TEXT, quran_meanings_json JSON, gid_lemma TEXT);
 
 CREATE TABLE qr_morph_display_media (
-  id                 TEXT PRIMARY KEY,               -- 'MDM:بين:root_dna'
-  r2_key             TEXT NOT NULL UNIQUE,           -- object key inside the bucket
+  id                 TEXT PRIMARY KEY,
+  r2_key             TEXT NOT NULL UNIQUE,
   bucket             TEXT NOT NULL DEFAULT 'kmaps-media',
-  kind               TEXT NOT NULL,                  -- 'image' | 'animation' | 'audio'
-  mime               TEXT,                           -- image/svg+xml · image/webp · video/mp4
-  -- what it illustrates ------------------------------------------------------
+  kind               TEXT NOT NULL,
+  mime               TEXT,
+
   root_ar            TEXT,
   surah_no           INTEGER, ayah_no INTEGER, word_index INTEGER,
-  block_type         TEXT,                           -- links the asset to its block
+  block_type         TEXT,
   alt_en             TEXT, alt_ar TEXT,
-  -- provenance (the "source" of the asset) -----------------------------------
-  source_kind        TEXT,                           -- 'generated' | 'licensed' | 'public_domain'
-  source_url         TEXT,                           -- origin the pipeline fetched from (if any)
+
+  source_kind        TEXT,
+  source_url         TEXT,
   source_attribution TEXT,
   license            TEXT,
-  sha256             TEXT,                           -- integrity of the stored object
+  sha256             TEXT,
   width_px           INTEGER, height_px INTEGER, duration_ms INTEGER,
-  status             TEXT NOT NULL DEFAULT 'pending',-- 'pending' | 'stored' | 'live'
+  status             TEXT NOT NULL DEFAULT 'pending',
   meta_json          JSON,
   created_at         TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE "qr_morph_display_root" (
-  id                 TEXT PRIMARY KEY,             -- 'MDR:بين'
-  root_ar            TEXT NOT NULL UNIQUE,         -- 'بين'
-  root_display       TEXT,                         -- 'ب ي ن'
-  root_type          TEXT,                         -- 'ثلاثي'
+  id                 TEXT PRIMARY KEY,
+  root_ar            TEXT NOT NULL UNIQUE,
+  root_display       TEXT,
+  root_type          TEXT,
   frequency_quran    INTEGER,
   meaning_core_ar    TEXT,
   meaning_core_en    TEXT,
@@ -596,11 +589,11 @@ CREATE TABLE "qr_morph_display_root" (
   hook_ar            TEXT,
   hook_en            TEXT,
   hook_ur            TEXT,
-  family_json        JSON,   -- [{ lemma_ar, pos, pos_icon, verb_form, is_quran_word }]
-  lens_coverage_json JSON,   -- [{ key, label, icon, on }]
-  senses_json        JSON,   -- ["…", …]
+  family_json        JSON,
+  lens_coverage_json JSON,
+  senses_json        JSON,
   semantic_field     TEXT,
-  section_icons_json JSON,   -- { family, senses, hook, freq }  (all lucide names)
+  section_icons_json JSON,
   is_anchor          INTEGER NOT NULL DEFAULT 0,
   status             TEXT NOT NULL DEFAULT 'live',
   display_order      INTEGER NOT NULL DEFAULT 0,
@@ -641,16 +634,16 @@ CREATE TABLE qr_morph_flag_decomp (
   PRIMARY KEY (flag, gram_term_ref));
 
 CREATE TABLE "qr_morph_form_family" (
-  id            TEXT PRIMARY KEY,          -- 'FORM:IV' · 'BAB:nasara'
-  family_order  INTEGER NOT NULL,          -- 1..N display order
-  kind          TEXT NOT NULL,             -- 'form_i_bab' | 'derived_verb' | 'noun'
-  roman         TEXT,                      -- 'I'..'X' (null for bāb/noun)
-  verb_form_key TEXT,                      -- matches ar_ling_lemmas.verb_form (grouping key)
-  arabic_name   TEXT NOT NULL,             -- 'إفعال' · 'تفعيل' · 'نصر'
-  english_name  TEXT,                      -- 'Form IV — ifʿāl'
+  id            TEXT PRIMARY KEY,
+  family_order  INTEGER NOT NULL,
+  kind          TEXT NOT NULL,
+  roman         TEXT,
+  verb_form_key TEXT,
+  arabic_name   TEXT NOT NULL,
+  english_name  TEXT,
   urdu_name     TEXT,
-  wazn          TEXT,                      -- 'أَفْعَلَ' · 'نَصَرَ يَنْصُرُ'
-  example_ar    TEXT,                      -- 'نَصَرَ'
+  wazn          TEXT,
+  example_ar    TEXT,
   note_md       TEXT,
   icon          TEXT,
   status        TEXT NOT NULL DEFAULT 'live'
@@ -1274,10 +1267,10 @@ CREATE TABLE qr_ss_pattern_register (
 
 CREATE TABLE qr_ss_pattern_term_link (
   pattern_key   TEXT NOT NULL,
-  facet         TEXT NOT NULL,          -- 'particle' today; clauses and balagha
-                                        -- are the same shape when they are done
-  raw_key       TEXT NOT NULL,          -- as signature_json spells it
-  gram_term_ref TEXT,                   -- GT: id, or NULL where none exists yet
+  facet         TEXT NOT NULL,
+
+  raw_key       TEXT NOT NULL,
+  gram_term_ref TEXT,
   sort_order    INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (pattern_key, facet, raw_key)
 );
@@ -1850,15 +1843,14 @@ CREATE TABLE "qr_surah_structure_unit" (
 );
 
 CREATE TABLE "qr_surah_study_passage" (
-  id                    TEXT PRIMARY KEY,           -- QR:SP:{surah}:{ayah_from}-{ayah_to}
+  id                    TEXT PRIMARY KEY,
   surah                 INTEGER NOT NULL,
   passage_no            INTEGER NOT NULL,
   ayah_from             INTEGER NOT NULL,
   ayah_to               INTEGER NOT NULL,
 
-  -- Public compatibility identifiers returned to existing clients.
-  public_unit_id        TEXT NOT NULL UNIQUE,       -- U:C:QURAN:{surah}:{range}
-  public_surah_unit_id  TEXT,                       -- U:C:QURAN:{surah}
+  public_unit_id        TEXT NOT NULL UNIQUE,
+  public_surah_unit_id  TEXT,
   legacy_container_id   TEXT,
   legacy_lesson_id      INTEGER,
 
@@ -1882,13 +1874,13 @@ CREATE TABLE "qr_surah_study_passage" (
 );
 
 CREATE TABLE "qr_surah_study_step" (
-  id                    TEXT PRIMARY KEY,           -- QR:STEP:{surah}:{range}:{step_key}
+  id                    TEXT PRIMARY KEY,
   passage_id            TEXT NOT NULL,
-  step_key              TEXT NOT NULL,              -- reading|morphology|sentence_structure|...
+  step_key              TEXT NOT NULL,
   step_no               INTEGER NOT NULL,
   title                 TEXT,
   title_ar              TEXT,
-  intro_task_id         TEXT,                       -- public root task id for compatibility
+  intro_task_id         TEXT,
   status                TEXT NOT NULL DEFAULT 'draft',
   meta_json             TEXT,
   created_at            TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1902,10 +1894,9 @@ CREATE TABLE "qr_surah_study_task" (
   id                    TEXT PRIMARY KEY,
   passage_id            TEXT NOT NULL,
   step_id               TEXT NOT NULL,
-  parent_task_id        TEXT,                       -- internal id; currently same as public_task_id
+  parent_task_id        TEXT,
 
-  -- Public compatibility identifier returned to existing clients.
-  public_task_id        TEXT NOT NULL UNIQUE,       -- UT:C:QURAN:{surah}:{range}:{code}:{step}
+  public_task_id        TEXT NOT NULL UNIQUE,
 
   task_type             TEXT NOT NULL,
   task_name             TEXT,
@@ -2152,64 +2143,64 @@ CREATE VIRTUAL TABLE qr_tafsir_block_norm_fts USING fts5(
 
 CREATE TABLE "qr_tafsir_book_display_block" (
   id                       TEXT PRIMARY KEY,
-  -- Provenance --------------------------------------------------------------
+
   source_id                TEXT,
-  source_tafsir_entry_id   TEXT,                        -- → qr_tafsir_entries.id (Phase A)
+  source_tafsir_entry_id   TEXT,
   source_slug              TEXT NOT NULL,
   book_title               TEXT,
   author                   TEXT,
-  -- Scholar metadata denormalized for fast filter/render --------------------
-  scholar_id               TEXT,                        -- → qr_scholar_profiles.id
-  work_id                  TEXT,                        -- → qr_scholar_works.id
+
+  scholar_id               TEXT,
+  work_id                  TEXT,
   scholar_name_ar          TEXT,
   scholar_name_en          TEXT,
   madhab                   TEXT,
   era                      TEXT,
   kalam_school             TEXT,
   death_year_hijri         INTEGER,
-  -- Locator -----------------------------------------------------------------
+
   surah_no                 INTEGER,
-  ayah_no                  INTEGER,                     -- start ayah
-  ayah_to                  INTEGER,                     -- end ayah (range)
-  ayah_key                 TEXT,                        -- "2:255"
-  ayah_group_key           TEXT,                        -- "3:131-133"
-  ayah_keys_json           JSON,                        -- ["3:131","3:132","3:133"]
+  ayah_no                  INTEGER,
+  ayah_to                  INTEGER,
+  ayah_key                 TEXT,
+  ayah_group_key           TEXT,
+  ayah_keys_json           JSON,
   is_grouped               INTEGER NOT NULL DEFAULT 0,
   word_index               INTEGER,
   word_text                TEXT,
   phrase_text              TEXT,
   scope_type               TEXT,
-  -- Block identity ----------------------------------------------------------
+
   block_type               TEXT NOT NULL,
   block_subtype            TEXT,
   display_order            INTEGER NOT NULL DEFAULT 0,
-  paragraph_index          INTEGER,                     -- for paragraph_section blocks
-  paragraph_count          INTEGER,                     -- total in source entry
-  is_long_form             INTEGER NOT NULL DEFAULT 0,  -- 1 if source >5000 chars
-  -- Content -----------------------------------------------------------------
+  paragraph_index          INTEGER,
+  paragraph_count          INTEGER,
+  is_long_form             INTEGER NOT NULL DEFAULT 0,
+
   title_ar                 TEXT,
   title_en                 TEXT,
-  text_ar                  TEXT,                        -- HTML-stripped
-  text_en                  TEXT,                        -- reserved (NULL today)
-  raw_text                 TEXT,                        -- verbatim with markup
-  markup_tier              TEXT,                        -- copied from source
-  source_page              TEXT,                        -- e.g. '٤' or '39'
-  -- Denormalized arrays for one-shot UI render ------------------------------
-  tags_json                JSON,                        -- ["explanation","tabari","narration"]
-  grammar_tags_json        JSON,                        -- nullable
-  theology_tags_json       JSON,                        -- ["mutazili_rebuttal","ashari_response"]
-  narration_tags_json      JSON,                        -- ["sahih_muslim","sahih_bukhari"]
-  quran_refs_json          JSON,                        -- [{surah,ayah,…}]
-  scholar_refs_json        JSON,                        -- [{scholar_id,role,label}] who's quoted/responded
-  backlinks_json           JSON,                        -- [{block_id,kind,label}]
+  text_ar                  TEXT,
+  text_en                  TEXT,
+  raw_text                 TEXT,
+  markup_tier              TEXT,
+  source_page              TEXT,
+
+  tags_json                JSON,
+  grammar_tags_json        JSON,
+  theology_tags_json       JSON,
+  narration_tags_json      JSON,
+  quran_refs_json          JSON,
+  scholar_refs_json        JSON,
+  backlinks_json           JSON,
   related_links_json       JSON,
-  external_resource_json   JSON,                        -- reserved for audio/scan refs
-  -- QA --------------------------------------------------------------------
+  external_resource_json   JSON,
+
   confidence               TEXT DEFAULT 'medium',
   review_status            TEXT NOT NULL DEFAULT 'ai_candidate',
   extraction_method        TEXT DEFAULT 'entry_projection',
-  meta_json                JSON,                        -- structured payload (isnad_chain, paragraph_offsets, source_quote_hash, …)
-  -- Audit -----------------------------------------------------------------
+  meta_json                JSON,
+
   created_at               TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at               TEXT NOT NULL DEFAULT (datetime('now'))
 , text_norm TEXT);
@@ -2235,9 +2226,9 @@ USING fts5 (
 CREATE TABLE "qr_tafsir_book_display_link" (
   id              TEXT PRIMARY KEY,
   from_block_id   TEXT NOT NULL,
-  to_block_id     TEXT,                                 -- nullable when target is a canonical record
-  to_typed_ref    TEXT,                                 -- 'QR:POSITION:01HX…' | 'QR:INTERPRETIVE_DIFF:…'
-  link_kind       TEXT NOT NULL,                        -- 'backlink'|'related'|'same_ayah'|'same_word'|'same_grammar'|'same_paradigm'|'comparison'|'disagreement'|'scholar_response'|'reception_note'|'isnad_continues'
+  to_block_id     TEXT,
+  to_typed_ref    TEXT,
+  link_kind       TEXT NOT NULL,
   label           TEXT,
   weight          INTEGER NOT NULL DEFAULT 1,
   meta_json       JSON,
@@ -2246,8 +2237,8 @@ CREATE TABLE "qr_tafsir_book_display_link" (
 
 CREATE TABLE "qr_tafsir_book_display_note" (
   id              TEXT PRIMARY KEY,
-  block_id        TEXT,                                 -- nullable: notes can float
-  note_kind       TEXT NOT NULL,                        -- 'author'|'teaching'|'footnote'|'reviewer'|'editorial'|'source_citation'|'mutazili_rebuttal'
+  block_id        TEXT,
+  note_kind       TEXT NOT NULL,
   note_text_ar    TEXT,
   note_text_en    TEXT,
   is_inline       INTEGER NOT NULL DEFAULT 0,
@@ -2256,9 +2247,9 @@ CREATE TABLE "qr_tafsir_book_display_note" (
   ayah_key        TEXT,
   ayah_group_key  TEXT,
   source_slug     TEXT,
-  scholar_id      TEXT,                                 -- which scholar's note this is
+  scholar_id      TEXT,
   display_order   INTEGER NOT NULL DEFAULT 0,
-  meta_json       JSON,                                 -- e.g. {"hadith_book":"المسند","volume":5,"page":133}
+  meta_json       JSON,
   review_status   TEXT NOT NULL DEFAULT 'ai_candidate',
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -2267,24 +2258,24 @@ CREATE TABLE "qr_tafsir_book_display_note" (
 CREATE TABLE "qr_tafsir_book_display_ref" (
   id              TEXT PRIMARY KEY,
   block_id        TEXT NOT NULL,
-  ref_kind        TEXT NOT NULL,                        -- 'ayah'|'word'|'lemma'|'root'|'concept'|'scholar'|'position'|'hadith_source'
+  ref_kind        TEXT NOT NULL,
   surah_no        INTEGER,
   ayah_no         INTEGER,
   ayah_to         INTEGER,
   ayah_key        TEXT,
   ayah_group_key  TEXT,
   word_index      INTEGER,
-  typed_ref       TEXT,                                 -- 'QR:2:3' | 'QR:SCH:TABARI' | 'QR:POSITION:01HX…' | 'HADITH:MUSLIM:V5/P133'
+  typed_ref       TEXT,
   label           TEXT,
   meta_json       JSON,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE "qr_tafsir_book_display_source" (
-  id                 TEXT PRIMARY KEY,                  -- mirrors qr_scholar_works.id
-  source_slug        TEXT NOT NULL UNIQUE,              -- 'tabari','razi','zamakhshari',…
-  scholar_id         TEXT,                              -- → qr_scholar_profiles.id
-  work_id            TEXT,                              -- → qr_scholar_works.id
+  id                 TEXT PRIMARY KEY,
+  source_slug        TEXT NOT NULL UNIQUE,
+  scholar_id         TEXT,
+  work_id            TEXT,
   book_title_ar      TEXT,
   book_title_en      TEXT,
   author_name_ar     TEXT,
@@ -2293,13 +2284,13 @@ CREATE TABLE "qr_tafsir_book_display_source" (
   author_laqab       TEXT,
   death_year_hijri   INTEGER,
   death_year_ce      INTEGER,
-  era                TEXT,                              -- 'classical' | 'modern'
-  madhab             TEXT,                              -- 'sunni'|'maliki'|'shafii'|'hanbali'|'hanafi'|'mutazili'|'ashari'
+  era                TEXT,
+  madhab             TEXT,
   kalam_school       TEXT,
   specialization     TEXT,
-  badge_color        TEXT,                              -- UI hint, hex
-  badge_glyph        TEXT,                              -- UI hint, short symbol
-  markup_tier        TEXT,                              -- 'full' | 'minimal' | 'none'
+  badge_color        TEXT,
+  badge_glyph        TEXT,
+  markup_tier        TEXT,
   short_description  TEXT,
   long_description   TEXT,
   cover_image_url    TEXT,
@@ -2312,10 +2303,10 @@ CREATE TABLE "qr_tafsir_book_display_source" (
 
 CREATE TABLE "qr_tafsir_book_display_tag" (
   id              TEXT PRIMARY KEY,
-  block_id        TEXT NOT NULL,                        -- → blocks.id
-  tag_kind        TEXT NOT NULL,                        -- 'general'|'narration'|'theology'|'paradigm'|'madhab'|'topic'|'review'
+  block_id        TEXT NOT NULL,
+  tag_kind        TEXT NOT NULL,
   tag_value       TEXT NOT NULL,
-  tag_value_norm  TEXT,                                 -- diacritic-stripped
+  tag_value_norm  TEXT,
   display_order   INTEGER NOT NULL DEFAULT 0,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -2454,9 +2445,6 @@ CREATE TABLE qr_word_term (
   CHECK (basis <> 'attested' OR source_ref IS NOT NULL)
 );
 
-
--- ── Views (32) ───────────────────────────────────────────────────
-
 CREATE VIEW ar_ling_gram_term_signature AS
  SELECT COUNT(*) AS term_count,
         COUNT(DISTINCT category_key) AS category_count,
@@ -2547,7 +2535,7 @@ CREATE VIEW qr_ss_balagha_span_candidates AS
     FROM qr_ss_scope_balagha_link b
     LEFT JOIN ar_ling_gram_term g ON g.id = b.lx_balagha_ref
    WHERE b.scope_type = 'sentence'
-     -- the figures that are about relations BETWEEN units by definition
+
      AND b.lx_balagha_ref IN (
        'GT:balagha_badi:iltifat',
        'GT:balagha_badi:muqabala',
@@ -2690,9 +2678,7 @@ CREATE VIEW qr_ss_scope_resolve AS
  SELECT g.id,'segment', s.id, g.surah, g.ayah FROM qr_ss_occ_segment g
    LEFT JOIN qr_ss_occ_sentence s ON s.surah=g.surah AND g.ayah BETWEEN s.ayah_from AND s.ayah_to
  UNION ALL
- -- The scope above the sentence. A figure attached here is a claim about the
- -- span, not about any one sentence in it — which is what iltifāt, muqābala and
- -- a developed istiʿāra actually are.
+
  SELECT id,'passage', NULL, surah, ayah_from FROM qr_surah_study_passage;
 
 CREATE VIEW qr_ss_sentence_type_violations AS
@@ -2797,11 +2783,7 @@ SELECT
     (SELECT t.name_en FROM ar_ling_gram_term t WHERE t.id = w.gt_derivation_type)) AS derived_type_en,
   COALESCE(e.wazn_ar_override, o.wazn_ar, dl.wazn_ar) AS wazn_ar,
   COALESCE(o.form_roman, dl.form_roman, w.form_roman) AS form_roman,
-  -- The chips, from the ten GT columns. One pass over the registry with an IN
-  -- list rather than a ten-way UNION: D1 caps the terms in a compound SELECT,
-  -- and this is a single indexed lookup per term anyway. The CASE is the
-  -- reading order of the card, which is a property of the category, not of the
-  -- row -- iʿrāb first, then what the word IS, then what it was built from.
+
   (SELECT json_group_array(json_object('cat',cat,'ar',ar,'en',en,'ur',ur,'ref',ref))
      FROM (SELECT t.category_key cat, t.name_ar ar, t.name_en en, t.name_ur ur, t.id ref
              FROM ar_ling_gram_term t
@@ -2835,9 +2817,7 @@ SELECT
   COALESCE(o.sense_range_en, dl.sense_range_en) AS sense_range_en,
   COALESCE(o.verb_form_ar, dl.verb_form_ar) AS verb_form_ar,
   COALESCE(o.lemma_ref, w.lemma_ref) AS lemma_ref,
-  -- The registered global ids, carried on the word row by 011 instead of
-  -- being joined for on every request. The grid used to reach qr_lemma just to
-  -- turn its local key into the AL id it actually needed.
+
   w.gid_lemma AS lemma_uid,
   w.gid_root  AS root_uid_global
 FROM qr_word_occurrence w
@@ -2893,9 +2873,6 @@ SELECT w.root, w.root_uid, w.lemma_ref, w.lemma AS lemma_surface,
     ON w.surah = s.surah
    AND w.ayah BETWEEN s.ayah_from AND s.ayah_to
    AND (s.word_start IS NULL OR w.word_index BETWEEN s.word_start AND s.word_end);
-
-
--- ── Indexes (200) ────────────────────────────────────────────────
 
 CREATE INDEX idx_algts_term ON ar_ling_gram_term_source (term_id);
 

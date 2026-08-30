@@ -1,25 +1,3 @@
--- 0023_vocab_morphology_d1_sync.sql
--- =============================================================================
--- Purpose: bring a local km_arabic_linguistic DB (base schema.sql + migrations
---          0001–0022) up to the LIVE D1 shape for the Vocabulary / Morphology
---          domain, audited 2026-07-10.
---
--- Two parts:
---   PART 1 — net-new tables (CREATE TABLE IF NOT EXISTS): the grammatical
---            register, the memlet/question learning layer, word_sums, the D9
---            core tables, and learner state. None of these are produced by any
---            existing migration, so IF NOT EXISTS is purely defensive.
---   PART 2 — ALTER column top-ups on tables that DO exist but lack columns the
---            live schema added later. These target a DB built from the OLD
---            snapshot; if you rebuilt from the updated schema.sql (which already
---            carries these columns) SKIP part 2 — the columns are present.
---
--- SQLite/D1 has no "ADD COLUMN IF NOT EXISTS", so Part 2 must run exactly once.
--- =============================================================================
-
--- ═══════════════════════════ PART 1 — NET-NEW TABLES ════════════════════════
-
--- A. GRAMMATICAL REGISTER (24 categories · ~245 terms · trilingual) -----------
 CREATE TABLE IF NOT EXISTS ar_ling_gram_categories (
   category_key TEXT PRIMARY KEY,
   name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
@@ -54,7 +32,6 @@ CREATE TABLE IF NOT EXISTS ar_ling_gram_term_sources (
   PRIMARY KEY (term_id, source_slug)
 );
 
--- B. SARF ENGINE additions ---------------------------------------------------
 CREATE TABLE IF NOT EXISTS ar_ling_word_sums (
   id TEXT PRIMARY KEY, lemma_ar TEXT NOT NULL UNIQUE, root_norm TEXT NOT NULL,
   root_letters_json TEXT NOT NULL, wazn_ar TEXT NOT NULL, form_family_key TEXT,
@@ -66,7 +43,6 @@ CREATE TABLE IF NOT EXISTS ar_ling_word_sums (
   FOREIGN KEY (root_norm) REFERENCES ar_ling_roots(root_normalized)
 );
 
--- C. D9 CORE TABLES for usage_map / development display blocks ----------------
 CREATE TABLE IF NOT EXISTS ar_ling_root_sense_axes (
   id TEXT PRIMARY KEY, root_norm TEXT NOT NULL, axis_key TEXT NOT NULL,
   axis_ar TEXT, axis_en TEXT, axis_ur TEXT,
@@ -82,7 +58,6 @@ CREATE TABLE IF NOT EXISTS ar_ling_root_development_stages (
   status TEXT NOT NULL DEFAULT 'draft', UNIQUE (root_norm, stage_no)
 );
 
--- D. MEMLET / QUESTION LAYER -------------------------------------------------
 CREATE TABLE IF NOT EXISTS ar_ling_memlet_kinds (
   memlet_key TEXT PRIMARY KEY, name_ar TEXT NOT NULL, name_en TEXT NOT NULL, name_ur TEXT NOT NULL,
   purpose_ar TEXT, purpose_en TEXT, purpose_ur TEXT,
@@ -144,7 +119,6 @@ CREATE TABLE IF NOT EXISTS ar_ling_question_distractors (
   FOREIGN KEY (item_id) REFERENCES ar_ling_question_items(id)
 );
 
--- E. LEARNER STATE -----------------------------------------------------------
 CREATE TABLE IF NOT EXISTS ar_ling_context_passages (
   id TEXT PRIMARY KEY, lemma_ar TEXT NOT NULL, passage_ar TEXT NOT NULL,
   passage_en TEXT, passage_ur TEXT, blank_index INTEGER NOT NULL DEFAULT 1,
@@ -163,10 +137,6 @@ CREATE TABLE IF NOT EXISTS ar_ling_lemma_difficulty (
   computed_level INTEGER NOT NULL DEFAULT 3, computed_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- ═══════════════════════ PART 2 — ALTER COLUMN TOP-UPS ══════════════════════
--- Target: DB built from the OLD snapshot. Skip if rebuilt from updated schema.sql.
-
--- Morphology bundle keys (Gate 3 / D33)
 ALTER TABLE ar_ling_morphology ADD COLUMN verb_form TEXT;
 ALTER TABLE ar_ling_morphology ADD COLUMN root_type TEXT;
 ALTER TABLE ar_ling_morphology ADD COLUMN qac_flags TEXT;
@@ -174,24 +144,19 @@ ALTER TABLE ar_ling_morphology ADD COLUMN pos       TEXT;
 ALTER TABLE ar_ling_morphology ADD COLUMN mood      TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_morph_flags ON ar_ling_morphology(qac_flags, pos);
 
--- Root join key + transliteration (D31)
 ALTER TABLE ar_ling_roots ADD COLUMN buckwalter      TEXT;
 ALTER TABLE ar_ling_roots ADD COLUMN simple_lat      TEXT;
 ALTER TABLE ar_ling_roots ADD COLUMN root_normalized TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_roots_norm ON ar_ling_roots(root_normalized);
 
--- Conjugation template re-keying (Gate 5 / D6)
 ALTER TABLE ar_ling_conjugation_templates ADD COLUMN verb_form    TEXT;
 ALTER TABLE ar_ling_conjugation_templates ADD COLUMN root_type    TEXT;
 ALTER TABLE ar_ling_conjugation_templates ADD COLUMN weak_pattern TEXT;
 
--- verb_government → register link
 ALTER TABLE ar_ling_verb_government ADD COLUMN transitivity_term_id TEXT;
 
--- memory hooks re-scope root → lemma (D26)
 ALTER TABLE ar_ling_vocab_memory_hooks ADD COLUMN lemma_ar TEXT;
 
--- Urdu on the older reference tables (master doc I.5)
 ALTER TABLE ar_ling_semantic_fields  ADD COLUMN field_name_ur   TEXT;
 ALTER TABLE ar_ling_sentence_types   ADD COLUMN name_ur         TEXT;
 ALTER TABLE ar_ling_expression_types ADD COLUMN name_ur         TEXT;
@@ -200,7 +165,6 @@ ALTER TABLE ar_ling_nahw_concepts    ADD COLUMN definition_ur   TEXT;
 ALTER TABLE ar_ling_balagha_concepts ADD COLUMN name_ur         TEXT;
 ALTER TABLE ar_ling_balagha_concepts ADD COLUMN definition_ur   TEXT;
 
--- Urdu on the near-synonym leaves
 ALTER TABLE ar_ling_near_synonym_sets    ADD COLUMN canonical_ur           TEXT;
 ALTER TABLE ar_ling_near_synonym_members ADD COLUMN basic_gloss_ur         TEXT;
 ALTER TABLE ar_ling_near_synonym_members ADD COLUMN contrast_note_ur       TEXT;

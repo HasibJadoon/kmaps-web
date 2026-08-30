@@ -55,7 +55,7 @@ export const SlashCommandExtension = Extension.create({
                 });
                 el.addEventListener('mouseenter', () => {
                   if (selectedIndex === idx) return;
-                  // Update active class directly — no full innerHTML rebuild
+
                   container?.querySelector('.km-slash-item--active')
                     ?.classList.remove('km-slash-item--active');
                   el.classList.add('km-slash-item--active');
@@ -159,7 +159,6 @@ function updatePosition(el: HTMLElement, clientRect: (() => DOMRect) | null): vo
   let top = rect.bottom + window.scrollY + 6;
   let left = rect.left + window.scrollX;
 
-  // Keep inside viewport
   requestAnimationFrame(() => {
     const menuRect = el.getBoundingClientRect();
     if (menuRect.bottom > window.innerHeight - 16) {

@@ -1,5 +1,3 @@
-// ─── Near synonym schemas & types ─────────────────────────────────────────────
-
 export interface NearSynonymSet {
   id: string;
   set_name: string;

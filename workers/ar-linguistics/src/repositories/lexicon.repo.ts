@@ -1,5 +1,3 @@
-// ─── LexiconRepo — ar_ling_lexicon_entries + senses + semantic_fields ─────────
-
 import { query, queryOne, paginate } from '../../../shared/src/db';
 import type { PaginateOptions } from '../../../shared/src/types';
 
@@ -34,8 +32,8 @@ export interface LexiconEntry {
 }
 
 export interface LexiconSense {
-  id: string;           // AL:ULID
-  entry_id: string;     // AL:ULID
+  id: string;
+  entry_id: string;
   sense_number: number;
   definition_ar: string | null;
   definition_en: string | null;

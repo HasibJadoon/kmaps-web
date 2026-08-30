@@ -2,26 +2,10 @@ import { Injectable } from '@angular/core';
 import gsap from 'gsap';
 import { SceneLayer, SceneState } from './atlas.models';
 
-/**
- * AtlasMotionService — owns all GSAP timelines for the atlas experience.
- *
- * Design principles:
- *   • No bouncy / toy easing — all transitions use power2/expo/cubic families
- *   • One single transition style per layer boundary
- *   • Reusable presets called by the orchestrating component
- *   • History arc has its own reveal timeline
- *   • All timelines return a gsap.core.Timeline so callers can chain or kill
- */
 @Injectable({ providedIn: 'root' })
 export class AtlasMotionService {
   private activeTransition: gsap.core.Timeline | null = null;
 
-  // ─── Entry / first-load ──────────────────────────────────────────────────
-
-  /**
-   * Entry animation: sky fades in and the mode indicator resolves.
-   * Optional header elements can still be animated when present.
-   */
   entrySequence(
     starHost: HTMLElement,
     modeIndicatorEl: HTMLElement,
@@ -32,7 +16,6 @@ export class AtlasMotionService {
 
     const tl = gsap.timeline({ defaults: { ease: 'power2.out' } });
 
-    // Starfield fades in slowly
     tl.fromTo(starHost, { opacity: 0 }, { opacity: 1, duration: 2.2 }, 0);
 
     if (titleEl) {
@@ -53,7 +36,6 @@ export class AtlasMotionService {
       );
     }
 
-    // Mode indicator whispers in
     tl.fromTo(
       modeIndicatorEl,
       { opacity: 0, x: -8 },
@@ -65,12 +47,6 @@ export class AtlasMotionService {
     return tl;
   }
 
-  // ─── Layer transitions ───────────────────────────────────────────────────
-
-  /**
-   * Camera dolly into a constellation from sky.
-   * The SVG canvas itself dims briefly as the focus resolves.
-   */
   skyToConstellation(
     svgCanvas: SVGSVGElement,
     focusLabel: HTMLElement,
@@ -83,7 +59,6 @@ export class AtlasMotionService {
       onComplete,
     });
 
-    // Gentle density shift without a flash or blur pulse.
     tl.fromTo(
       svgCanvas,
       { opacity: 0.9 },
@@ -95,7 +70,6 @@ export class AtlasMotionService {
       0.14,
     );
 
-    // Focus label fades in
     tl.fromTo(
       focusLabel,
       { opacity: 0, y: 10, letterSpacing: '0.18em' },
@@ -107,10 +81,6 @@ export class AtlasMotionService {
     return tl;
   }
 
-  /**
-   * Constellation star pattern morphs into node graph.
-   * Stars fade while D3 nodes pulse in with stagger.
-   */
   constellationToNode(
     constellationLayer: SVGGElement | null,
     nodeDots: NodeListOf<SVGCircleElement> | SVGCircleElement[],
@@ -127,7 +97,6 @@ export class AtlasMotionService {
       tl.to(constellationLayer, { opacity: 0, duration: 0.32 }, 0);
     }
 
-    // Node pulse entrance (staggered)
     if (nodeDots.length) {
       tl.fromTo(
         nodeDots,
@@ -141,11 +110,6 @@ export class AtlasMotionService {
     return tl;
   }
 
-  /**
-   * Node expands a temporal arc — brief node pulse, then arc draws itself.
-   * The actual D3 arc path animation is driven by stroke-dashoffset in
-   * AtlasGraphRenderer; this GSAP timeline handles the surrounding UI.
-   */
   nodeToHistory(
     focusedNode: SVGCircleElement | null,
     historyPanel: HTMLElement | null,
@@ -176,12 +140,6 @@ export class AtlasMotionService {
     return tl;
   }
 
-  // ─── Back transitions ────────────────────────────────────────────────────
-
-  /**
-   * Reverse: any inner layer → outer.
-   * Fades the current focus context out, allows navigation.
-   */
   stepBack(
     focusLabel: HTMLElement,
     onComplete?: () => void,
@@ -199,12 +157,6 @@ export class AtlasMotionService {
     return tl;
   }
 
-  // ─── Idle animations ─────────────────────────────────────────────────────
-
-  /**
-   * Continuous very-slow breathing on the Qur'an glow element.
-   * Should be started once and never killed (lives for the entire session).
-   */
   startQuranBreath(glowEl: SVGCircleElement | HTMLElement): gsap.core.Tween {
     return gsap.to(glowEl, {
       scale: 1.04,
@@ -217,9 +169,6 @@ export class AtlasMotionService {
     });
   }
 
-  /**
-   * Slow parallax drift on a single element — used for the skyfield overlay.
-   */
   startDrift(el: HTMLElement, amplitude = 6, period = 14): gsap.core.Tween {
     return gsap.to(el, {
       y: amplitude,
@@ -230,22 +179,12 @@ export class AtlasMotionService {
     });
   }
 
-  // ─── Node focus pulse ────────────────────────────────────────────────────
-
-  /**
-   * Quick pulse on a node when it is selected.
-   */
   pulseNode(nodeEl: SVGCircleElement): gsap.core.Timeline {
     return gsap.timeline()
       .to(nodeEl, { scale: 1.35, duration: 0.14, transformOrigin: 'center center', ease: 'power1.out' })
       .to(nodeEl, { scale: 1.0, duration: 0.22, ease: 'power1.inOut' });
   }
 
-  // ─── Mode indicator ──────────────────────────────────────────────────────
-
-  /**
-   * Cross-fade the mode indicator text between two layer labels.
-   */
   transitionModeLabel(el: HTMLElement, newLabel: string): gsap.core.Timeline {
     return gsap.timeline()
       .to(el, { opacity: 0, y: -4, duration: 0.18, ease: 'power1.in' })
@@ -253,9 +192,6 @@ export class AtlasMotionService {
       .to(el, { opacity: 0.52, y: 0, duration: 0.26, ease: 'power1.out' });
   }
 
-  // ─── Focus card ──────────────────────────────────────────────────────────
-
-  /** Reveal the focus info card with a clean ease-up. */
   revealCard(cardEl: HTMLElement): gsap.core.Tween {
     return gsap.fromTo(
       cardEl,
@@ -264,7 +200,6 @@ export class AtlasMotionService {
     );
   }
 
-  /** Dismiss the focus info card. */
   dismissCard(cardEl: HTMLElement, onComplete?: () => void): gsap.core.Tween {
     return gsap.to(cardEl, {
       opacity: 0,
@@ -276,9 +211,6 @@ export class AtlasMotionService {
     });
   }
 
-  // ─── Module shortcuts ────────────────────────────────────────────────────
-
-  /** Stagger-entrance of bottom module shortcut pills. */
   revealModuleShortcuts(items: HTMLElement[] | NodeListOf<HTMLElement>): gsap.core.Tween {
     return gsap.fromTo(
       items,
@@ -287,9 +219,6 @@ export class AtlasMotionService {
     );
   }
 
-  // ─── Navigation exit ─────────────────────────────────────────────────────
-
-  /** Full-page exit before router navigation — the sky dissolves. */
   exitToApp(host: HTMLElement, onComplete?: () => void): gsap.core.Tween {
     return gsap.to(host, {
       opacity: 0,
@@ -298,8 +227,6 @@ export class AtlasMotionService {
       onComplete,
     });
   }
-
-  // ─── Utility ─────────────────────────────────────────────────────────────
 
   dispose(): void {
     this.kill();
@@ -310,7 +237,6 @@ export class AtlasMotionService {
     this.activeTransition = null;
   }
 
-  /** Layer name formatted for the mode indicator. */
   static layerLabel(layer: SceneLayer): string {
     switch (layer) {
       case 'sky': return 'Sky';

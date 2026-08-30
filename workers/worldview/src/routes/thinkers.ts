@@ -1,6 +1,3 @@
-// ─── /wv/thinkers routes ──────────────────────────────────────────────────────
-// Scholars, philosophers, theologians — intellectual actors in the worldview.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -9,7 +6,6 @@ import { ThinkerRepo } from '../repositories/thinker.repo';
 
 export function thinkerRoutes(router: Router<WorldviewEnv>) {
 
-  // GET /wv/thinkers?tradition=WV:ULID
   router.get('/wv/thinkers', async (req, env) => {
     const url = new URL(req.url);
     return paginated(
@@ -20,13 +16,11 @@ export function thinkerRoutes(router: Router<WorldviewEnv>) {
     );
   });
 
-  // GET /wv/thinkers/:id
   router.get('/wv/thinkers/:id', async (_req, env, { id }) => {
     const row = await new ThinkerRepo(env.DB_WV).findById(id);
     return row ? ok(row) : notFound(`thinker ${id}`);
   });
 
-  // POST /wv/thinkers
   router.post('/wv/thinkers', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.name_en) return badRequest('name_en required');

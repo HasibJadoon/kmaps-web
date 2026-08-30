@@ -1,5 +1,3 @@
-// ─── Learning Track schemas & types ───────────────────────────────────────────
-
 export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 
 export type ArLearningTrackType =
@@ -11,7 +9,7 @@ export type ArLearningTrackType =
   | 'custom';
 
 export interface ArLearningTrack {
-  id: string;                        // AR:ULID
+  id: string;
   slug: string;
   title: string;
   title_ar: string | null;
@@ -19,7 +17,7 @@ export interface ArLearningTrack {
   cefr_from: CefrLevel | null;
   cefr_to: CefrLevel | null;
   description_md: string | null;
-  prerequisites_json: string | null; // JSON [track_id]
+  prerequisites_json: string | null;
   sort_order: number;
   is_public: boolean;
   created_at: string;
@@ -49,11 +47,9 @@ export interface ArLearningTrackPatch {
   is_public?: boolean;
 }
 
-// ─── User Track Profile ────────────────────────────────────────────────────────
-
 export interface ArUserTrackProfile {
-  id: string;                        // AR:ULID
-  core_user_ref: string;             // CORE:<user_id>
+  id: string;
+  core_user_ref: string;
   track_id: string;
   current_level: CefrLevel | null;
   started_at: string;
@@ -68,8 +64,6 @@ export interface ArUserTrackProfileUpsert {
   current_level?: CefrLevel | null;
   total_xp?: number;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 const VALID_TRACK_TYPES: ArLearningTrackType[] = [
   'grammar', 'vocabulary', 'reading', 'conversation', 'quran', 'custom',
@@ -143,14 +137,12 @@ export function validateArUserTrackProfileUpsert(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface LearningTrack {
   id: string;
   slug: string;
   title: string;
   title_ar: string | null;
-  track_type: string;         // classical|quranic|msa|dialect|academic|custom
+  track_type: string;
   cefr_from: string | null;
   cefr_to: string | null;
   description_md: string | null;
@@ -175,7 +167,7 @@ export interface LearningTrackCreate {
 
 export interface UserTrackProfile {
   id: string;
-  core_user_ref: string;      // CORE:<user_id>
+  core_user_ref: string;
   track_id: string;
   current_level: string | null;
   started_at: string;
@@ -189,8 +181,6 @@ export interface UserTrackProfilePatch {
   last_activity_at?: string | null;
   meta_json?: string | null;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

@@ -5,17 +5,6 @@ import { Observable, map } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import { BackendApiResponse } from '../backend-api.service';
 
-// ─── Worldview Library API ────────────────────────────────────────────────────
-// Typed gateway for the worldview source catalogue + reader.
-// Every worldview worker endpoint returns the unified `{ ok, data }` envelope;
-// these methods unwrap `data` so callers never touch the envelope directly.
-//
-//   GET /worldview/sources                  — source catalogue
-//   GET /worldview/sources/:id               — source row + its units
-//   GET /worldview/units/:id                 — single unit row
-//   GET /worldview/units/:id/annotations     — highlights / notes / worldview graph
-
-/** A worldview source row as stored in `wv_sources`. */
 export interface WvSourceRow {
   id: string;
   slug: string | null;
@@ -34,7 +23,6 @@ export interface WvSourceRow {
   updated_at: string | null;
 }
 
-/** A worldview unit row as stored in `wv_source_units`. */
 export interface WvUnitRow {
   id: string;
   source_id: string;
@@ -49,11 +37,6 @@ export interface WvUnitRow {
   created_at: string | null;
 }
 
-/**
- * Unit detail as consumed by the reader. The worker currently returns a plain
- * `WvUnitRow`; the optional rich fields are kept so the reader keeps compiling
- * if/when the endpoint is enriched with document/reading content.
- */
 export interface WvUnitDetailRow extends WvUnitRow {
   locatorLabel?: string | null;
   readingMinutes?: number | null;
@@ -69,12 +52,10 @@ export interface WvUnitDetailRow extends WvUnitRow {
   children?: unknown[];
 }
 
-/** A source together with its full unit list (`GET /worldview/sources/:id`). */
 export interface WvSourceWithUnits extends WvSourceRow {
   units: WvUnitRow[];
 }
 
-/** Reader annotations bundle (`GET /worldview/units/:id/annotations`). */
 export interface WvAnnotationsBundle {
   unit_id: string;
   annotations: unknown[];
@@ -85,7 +66,6 @@ export interface WvAnnotationsBundle {
   wv_evidence_links: unknown[];
 }
 
-/** A reading-session row as stored in `wv_reading_sessions`. */
 export interface WvReadingSession {
   id: string;
   source_id: string;
@@ -122,11 +102,6 @@ export interface WvReadingSessionPatch {
   summary_md?: string | null;
 }
 
-/**
- * A per-source-unit visual illustration (`wv_source_unit_illustrations`). Each
- * illustration is a complete, self-contained HTML document stored verbatim in
- * `html_content`; a unit can own 1..N of them, ordered by `order_index`.
- */
 export interface WvIllustration {
   id: string;
   source_unit_id: string;
@@ -135,15 +110,14 @@ export interface WvIllustration {
   order_index: number;
   title: string | null;
   caption: string | null;
-  theme: string;               // dark | paper
-  html_content: string;        // full standalone HTML document
+  theme: string;
+  html_content: string;
   meta_json: string | null;
   reading_session_id: string | null;
   created_at: string;
   updated_at: string;
 }
 
-/** List rows omit the (potentially large) html_content blob. */
 export type WvIllustrationSummary = Omit<WvIllustration, 'html_content'>;
 
 export interface WvIllustrationCreate {
@@ -176,7 +150,6 @@ export class WorldviewLibraryApiService {
   private readonly http = inject(HttpClient);
   private readonly base = environment.apiBase.replace(/\/+$/, '');
 
-  /** The full worldview source catalogue. */
   listSources(limit = 100): Observable<WvSourceRow[]> {
     return this.http
       .get<BackendApiResponse<WvSourceRow[]>>(`${this.base}/worldview/sources`, {
@@ -185,30 +158,24 @@ export class WorldviewLibraryApiService {
       .pipe(map((res) => (res?.ok ? res.data ?? [] : [])));
   }
 
-  /** A single source with its complete unit tree. */
   getSource(id: string): Observable<WvSourceWithUnits> {
     return this.http
       .get<BackendApiResponse<WvSourceWithUnits>>(`${this.base}/worldview/sources/${id}`)
       .pipe(map((res) => ({ ...res?.data, units: res?.data?.units ?? [] }) as WvSourceWithUnits));
   }
 
-  /** A single unit row. */
   getUnit(id: string): Observable<WvUnitDetailRow> {
     return this.http
       .get<BackendApiResponse<WvUnitDetailRow>>(`${this.base}/worldview/units/${id}`)
       .pipe(map((res) => res?.data));
   }
 
-  /** Highlights, notes and worldview-graph material for a unit. */
   getUnitAnnotations(id: string): Observable<WvAnnotationsBundle> {
     return this.http
       .get<BackendApiResponse<WvAnnotationsBundle>>(`${this.base}/worldview/units/${id}/annotations`)
       .pipe(map((res) => res?.data));
   }
 
-  // ── Reading sessions ────────────────────────────────────────────────────────
-
-  /** The current active reading session for a source, or null. */
   getActiveSession(sourceId: string): Observable<WvReadingSession | null> {
     return this.http
       .get<BackendApiResponse<WvReadingSession | null>>(
@@ -218,7 +185,6 @@ export class WorldviewLibraryApiService {
       .pipe(map((res) => (res?.ok ? res.data ?? null : null)));
   }
 
-  /** All reading sessions for a source, newest first. */
   listSessions(sourceId: string): Observable<WvReadingSession[]> {
     return this.http
       .get<BackendApiResponse<WvReadingSession[]>>(`${this.base}/worldview/reading-sessions`, {
@@ -227,23 +193,18 @@ export class WorldviewLibraryApiService {
       .pipe(map((res) => (res?.ok ? res.data ?? [] : [])));
   }
 
-  /** Start a new reading session. */
   createSession(input: WvReadingSessionCreate): Observable<WvReadingSession> {
     return this.http
       .post<BackendApiResponse<WvReadingSession>>(`${this.base}/worldview/reading-session`, input)
       .pipe(map((res) => res?.data));
   }
 
-  /** Update a reading session (pause / complete / move position). */
   updateSession(input: WvReadingSessionPatch): Observable<WvReadingSession | null> {
     return this.http
       .put<BackendApiResponse<WvReadingSession>>(`${this.base}/worldview/reading-session`, input)
       .pipe(map((res) => (res?.ok ? res.data ?? null : null)));
   }
 
-  // ── Source-unit illustrations ─────────────────────────────────────────────────
-
-  /** All illustrations attached to a single source unit, in display order. */
   listUnitIllustrations(unitId: string): Observable<WvIllustrationSummary[]> {
     return this.http
       .get<BackendApiResponse<WvIllustrationSummary[]>>(
@@ -252,7 +213,6 @@ export class WorldviewLibraryApiService {
       .pipe(map((res) => (res?.ok ? res.data ?? [] : [])));
   }
 
-  /** All illustrations attached to a single reading session, in display order. */
   listReadingSessionIllustrations(sessionId: string): Observable<WvIllustrationSummary[]> {
     return this.http
       .get<BackendApiResponse<WvIllustrationSummary[]>>(
@@ -261,7 +221,6 @@ export class WorldviewLibraryApiService {
       .pipe(map((res) => (res?.ok ? res.data ?? [] : [])));
   }
 
-  /** All illustrations across a whole source. */
   listSourceIllustrations(sourceId: string): Observable<WvIllustrationSummary[]> {
     return this.http
       .get<BackendApiResponse<WvIllustrationSummary[]>>(
@@ -270,33 +229,28 @@ export class WorldviewLibraryApiService {
       .pipe(map((res) => (res?.ok ? res.data ?? [] : [])));
   }
 
-  /** A single illustration including its full html_content. */
   getIllustration(id: string): Observable<WvIllustration | null> {
     return this.http
       .get<BackendApiResponse<WvIllustration>>(`${this.base}/worldview/illustrations/${id}`)
       .pipe(map((res) => (res?.ok ? res.data ?? null : null)));
   }
 
-  /** Absolute URL of the rendered HTML page — use as an <iframe> src. */
   illustrationPageUrl(id: string): string {
     return `${this.base}/worldview/illustrations/${id}/page`;
   }
 
-  /** Create a new illustration on a source unit. */
   createIllustration(input: WvIllustrationCreate): Observable<WvIllustration | null> {
     return this.http
       .post<BackendApiResponse<WvIllustration>>(`${this.base}/worldview/illustration`, input)
       .pipe(map((res) => (res?.ok ? res.data ?? null : null)));
   }
 
-  /** Update an existing illustration (body.id required). */
   updateIllustration(input: WvIllustrationPatch): Observable<WvIllustration | null> {
     return this.http
       .put<BackendApiResponse<WvIllustration>>(`${this.base}/worldview/illustration`, input)
       .pipe(map((res) => (res?.ok ? res.data ?? null : null)));
   }
 
-  /** Delete an illustration. */
   deleteIllustration(id: string): Observable<boolean> {
     return this.http
       .delete<BackendApiResponse<{ deleted: boolean }>>(

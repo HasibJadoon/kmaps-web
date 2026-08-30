@@ -5,36 +5,22 @@ import { CybService } from '../data/cyb.service';
 import { CYB_AXES } from '../data/cyb.models';
 import type { CybAxis, CybDomain, CybMonitor, CybNode, CybNodeTree, CybJob } from '../data/cyb.models';
 
-// ─── The Cybernetics dashboard — the console's front page ────────────────────
-//
-// One screen answering three questions: where is the loop, what are the modules
-// doing, and what is queued for the actuator. Everything on it is a live read:
-//
-//   • the modules              ← cyb_domain (GET /core/cyb/domains)
-//   • each module's B·S·C·R    ← cyb_node   (GET /core/cyb/tree), rolled up
-//   • the loop and the queue   ← the monitor snapshot
-//
-// The four module cards are NOT a list this component keeps. `cyb_domain` is
-// the registry — its slug, colour, Arabic name, hint and unit_kind all come
-// from D1, so retiring a module or adding one is a row, not a deploy.
-
-/** A module's reading on one axis. Unmeasured is not zero — see `rollup`. */
 interface AxisReading {
   axis: CybAxis;
   pct: number;
   measured: boolean;
-  /** How many nodes were actually read on this axis. */
+
   nodes: number;
 }
 
 interface ModuleCard {
   domain: CybDomain;
-  /** The nodes the rollup averaged — the module's own top-level work. */
+
   tops: number;
   readings: AxisReading[];
   jobsReady: number;
   jobsBlocked: number;
-  /** Where the card goes. Only the Qurʾān has a map; the rest open the ladder. */
+
   route: string[];
   routeHint: string;
 }
@@ -313,7 +299,6 @@ export class CybDashboardComponent {
     });
   }
 
-  /** One card per registered module, each rolled up over its own top-level work. */
   readonly modules = computed<ModuleCard[]>(() => {
     const all = this.nodes();
     const jobs = this.monitor()?.jobs.list ?? [];
@@ -321,9 +306,7 @@ export class CybDashboardComponent {
 
     return this.domains().map((domain) => {
       const mine = all.filter((n) => n.domain === domain.slug);
-      // The module's own top-level work: a node whose parent is outside the
-      // module (or absent). Averaging every descendant would let 1,642 leaf
-      // roots outvote the two surahs that actually carry the reading.
+
       const tops = mine.filter((n) => {
         const parent = n.parent_id ? byId.get(n.parent_id) : undefined;
         return !parent || parent.domain !== domain.slug;
@@ -344,7 +327,6 @@ export class CybDashboardComponent {
     });
   });
 
-  /** The whole plane's build: the mean over every module's top-level work. */
   readonly corpusBuild = computed<AxisReading>(() =>
     rollup(this.modules().flatMap((m) => this.nodesFor(m)), 'build'));
 
@@ -360,8 +342,6 @@ export class CybDashboardComponent {
     return tops.length ? tops : mine;
   }
 
-  // ── the monitor's own numbers ──
-  /** Sensors whose state is anything but the untouched default. */
   sensorsRead(m: CybMonitor): number {
     return m.sensors.by_state
       .filter((r) => r.key !== 'empty' && r.key !== 'none' && r.key !== 'unmeasured')
@@ -372,7 +352,6 @@ export class CybDashboardComponent {
   }
   readyJobs(m: CybMonitor): CybJob[] { return m.jobs.list.filter((j) => j.readiness === 'ready'); }
 
-  /** A job's title: the node it stands on, read from the typed ref in its id. */
   jobTitle(j: CybJob): string {
     const tail = j.node_id.split(':').slice(-2).join(' · ');
     return tail || j.node_id;
@@ -386,33 +365,25 @@ export class CybDashboardComponent {
     }
   }
 
-  // ── labels ──
   axisTag(a: CybAxis): string { return a[0].toUpperCase(); }
   axisLabel(a: CybAxis): string { return a[0].toUpperCase() + a.slice(1); }
   axisColor(a: CybAxis): string {
     return a === 'build' ? 'var(--build)' : a === 'study' ? 'var(--study)'
          : a === 'content' ? 'var(--content)' : 'var(--retn)';
   }
-  /** The module's glyph, taken from its Arabic name.
-   *
-   *  The first letter alone is not one: three of the four registered names open
-   *  with the definite article, so القرآن, العربية and الوثائق all rendered as
-   *  a bare ا and the tiles were told apart only by colour. Dropping the ال
-   *  gives ق · ع · و, and رؤية العالم keeps its ر. */
+
   initial(d: CybDomain): string {
     const name = (d.name_ar || d.name_en).trim();
     const bare = name.startsWith('ال') && name.length > 2 ? name.slice(2) : name;
     return bare.charAt(0);
   }
 
-  /** Shows the smallest real reading rather than collapsing it to "0". A leaf's
-   *  work rolled over 1,642 roots lands well under 1% at the top. */
   fmt(v: number): string {
     if (v <= 0) return '0';
     if (v >= 10) return String(Math.round(v));
     return v >= 1 ? v.toFixed(1) : v.toFixed(2);
   }
-  /** A sliver, so a non-zero rollup is still visible on the track. */
+
   barWidth(v: number): number { return v > 0 ? Math.min(100, Math.max(0.9, v)) : 0; }
 
   short(s: string | null): string {
@@ -421,7 +392,6 @@ export class CybDashboardComponent {
   }
 }
 
-/** Every node in the forest, depth-first — the lookup spine for the rollups. */
 function flatten(roots: CybNodeTree[]): CybNodeTree[] {
   const out: CybNodeTree[] = [];
   const walk = (n: CybNodeTree) => { out.push(n); (n.children ?? []).forEach(walk); };
@@ -429,16 +399,6 @@ function flatten(roots: CybNodeTree[]): CybNodeTree[] {
   return out;
 }
 
-/**
- * The mean over the nodes measured on THIS axis.
- *
- * Per axis, because the plane measures per axis: a module with 7,763 build
- * sensors and 21 retention ones is measured on build and *unknown* on
- * retention — not zero on both. Averaging unmeasured nodes in as zero drags
- * every headline down; dropping whole nodes instead would let one measured
- * axis vouch for three unmeasured ones. So each axis averages only the nodes
- * measured on that axis, and reads unmeasured when none was.
- */
 function rollup(nodes: CybNode[], axis: CybAxis): AxisReading {
   const measured = nodes.filter((n) => axisMeasured(n, axis));
   if (!measured.length) return { axis, pct: 0, measured: false, nodes: 0 };

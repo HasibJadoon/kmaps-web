@@ -37,7 +37,6 @@ export class StudyPassageStructureStepComponent implements OnInit, AfterViewInit
   sections: PassageSection[] = [];
   ref = '';
 
-  // ── Card deck state ──────────────────────────────────
   currentIdx = signal(0);
   revealed   = signal(false);
   hintText   = signal('');
@@ -58,12 +57,10 @@ export class StudyPassageStructureStepComponent implements OnInit, AfterViewInit
     'timeline',
   ]);
 
-  // ── Chiasm hover mirror ───────────────────────────────
   chiasmHover = signal<string | null>(null);
   onChiasmEnter(variant: string): void { if (this.revealed()) this.chiasmHover.set(variant); }
   onChiasmLeave(): void { this.chiasmHover.set(null); }
 
-  // ── Font scale ───────────────────────────────────────
   fontScale = signal(PASSAGE_FONT_SCALE_DEFAULT);
   sceneMinHeightRem = computed(() => {
     const renderer = this.currentSection()?.renderer;
@@ -108,7 +105,6 @@ export class StudyPassageStructureStepComponent implements OnInit, AfterViewInit
     const task = this.lesson?.tasks?.find(t => t.task_type === 'passage_structure');
     if (!task) return;
 
-    // 1. Check if root task_json contains all sections
     const rootParsed = this.parsePayload(task.task_json);
     const rootSections = rootParsed?.analysis?.sections ?? rootParsed?.sections ?? [];
     if (Array.isArray(rootSections) && rootSections.length) {
@@ -118,7 +114,6 @@ export class StudyPassageStructureStepComponent implements OnInit, AfterViewInit
       return;
     }
 
-    // 2. Aggregate one section per child
     const aggregated: PassageSection[] = [];
     for (const child of task.children ?? []) {
       const parsed = this.parsePayload(child.task_json);
@@ -142,7 +137,6 @@ export class StudyPassageStructureStepComponent implements OnInit, AfterViewInit
 
   ngOnDestroy(): void {}
 
-  // ── Scene touch/mouse swipe ──────────────────────────
   onSwipeStart(e: TouchEvent | MouseEvent): void {
     const pt = e instanceof TouchEvent ? e.touches[0] : e;
     this.swipeStartX = pt.clientX;
@@ -155,16 +149,15 @@ export class StudyPassageStructureStepComponent implements OnInit, AfterViewInit
     const pt = e instanceof TouchEvent ? e.changedTouches[0] : e;
     const dx = pt.clientX - this.swipeStartX;
     const dy = pt.clientY - this.swipeStartY;
-    // Only count as swipe if mostly horizontal and > 50px
+
     if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx) * 0.8) return;
-    if (dx < 0) { // swipe left → next
+    if (dx < 0) {
       if (this.currentIdx() < this.sections.length - 1) this.goTo(this.currentIdx() + 1, true);
-    } else { // swipe right → prev
+    } else {
       if (this.currentIdx() > 0) this.goTo(this.currentIdx() - 1, false);
     }
   }
 
-  // ── Navigation ───────────────────────────────────────
   goNext(e: Event): void {
     e.stopPropagation();
     if (this.currentIdx() < this.sections.length - 1) this.goTo(this.currentIdx() + 1, true);
@@ -188,7 +181,6 @@ export class StudyPassageStructureStepComponent implements OnInit, AfterViewInit
     });
   }
 
-  // ── GSAP: deal in ────────────────────────────────────
   private dealIn(fromRight: boolean): void {
     if (!this.cardRef) return;
     const el = this.cardRef.nativeElement;
@@ -218,7 +210,6 @@ export class StudyPassageStructureStepComponent implements OnInit, AfterViewInit
     return selection.type === 'Range' || !selection.isCollapsed;
   }
 
-  // ── GSAP: swipe out ───────────────────────────────────
   private swipeOut(toRight: boolean, cb: () => void): void {
     if (!this.cardRef) { cb(); return; }
     const el = this.cardRef.nativeElement;
@@ -231,7 +222,6 @@ export class StudyPassageStructureStepComponent implements OnInit, AfterViewInit
     });
   }
 
-  // ── GSAP: reveal ─────────────────────────────────────
   private doReveal(): void {
     if (!this.cardRef) return;
     const el = this.cardRef.nativeElement;
@@ -336,7 +326,6 @@ export class StudyPassageStructureStepComponent implements OnInit, AfterViewInit
         break;
       }
 
-      // Legacy renderers
       default: {
         const items = Array.from(el.querySelectorAll<HTMLElement>('.pss-anim-item'));
         if (!items.length) return;
@@ -351,7 +340,6 @@ export class StudyPassageStructureStepComponent implements OnInit, AfterViewInit
     }
   }
 
-  // ── Ref helper ───────────────────────────────────────
   private refFromUnit(): string {
     const u = this.lesson?.unit;
     if (!u) return '';
@@ -361,7 +349,6 @@ export class StudyPassageStructureStepComponent implements OnInit, AfterViewInit
     return '';
   }
 
-  // ── Renderer helpers ─────────────────────────────────
   barGradient(tone: string): string {
     const map: Record<string, string> = {
       gold:      'linear-gradient(90deg,transparent,#c9a84c,transparent)',
@@ -371,7 +358,7 @@ export class StudyPassageStructureStepComponent implements OnInit, AfterViewInit
       sky:       'linear-gradient(90deg,transparent,#3a6a9a,transparent)',
       narrative: 'linear-gradient(90deg,transparent,rgba(201,168,76,.5),#a090d8,rgba(201,168,76,.5),transparent)',
       indigo:    'linear-gradient(90deg,transparent,#6070d8,transparent)',
-      // legacy
+
       info:      'linear-gradient(90deg,transparent,rgba(58,106,154,0.85),transparent)',
       primary:   'linear-gradient(90deg,transparent,rgba(160,144,216,0.85),transparent)',
       warning:   'linear-gradient(90deg,transparent,rgba(201,168,76,0.9),transparent)',
@@ -400,7 +387,6 @@ export class StudyPassageStructureStepComponent implements OnInit, AfterViewInit
     return flow.map((text: string, i: number) => ({ text, highlight: highlights.includes(i) }));
   }
 
-  // Legacy helpers kept for backwards compatibility
   kvPairs(data: Record<string, string>): { key: string; value: string }[] {
     return Object.entries(data ?? {}).map(([key, value]) => ({ key, value }));
   }

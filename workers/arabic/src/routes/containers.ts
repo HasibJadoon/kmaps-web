@@ -1,5 +1,3 @@
-// ─── /ar/containers routes ────────────────────────────────────────────────────
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -8,7 +6,6 @@ import { ContainerRepo } from '../repositories/container.repo';
 
 export function containerRoutes(router: Router<ArabicEnv>) {
 
-  // GET /ar/containers?type=course
   router.get('/ar/containers', async (req, env) => {
     const url  = new URL(req.url);
     return paginated(
@@ -18,18 +15,15 @@ export function containerRoutes(router: Router<ArabicEnv>) {
     );
   });
 
-  // GET /ar/containers/:id
   router.get('/ar/containers/:id', async (_req, env, { id }) => {
     const row = await new ContainerRepo(env.DB_AR).findById(id);
     return row ? ok(row) : notFound(`container ${id}`);
   });
 
-  // GET /ar/containers/:id/children
   router.get('/ar/containers/:id/children', async (_req, env, { id }) => {
     return ok(await new ContainerRepo(env.DB_AR).children(id));
   });
 
-  // POST /ar/containers
   router.post('/ar/containers', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.title || !b.container_type)
@@ -42,7 +36,6 @@ export function containerRoutes(router: Router<ArabicEnv>) {
     }));
   });
 
-  // PATCH /ar/containers/:id
   router.patch('/ar/containers/:id', async (req, env, { id }) => {
     const b   = await req.json() as Record<string, unknown>;
     const row = await new ContainerRepo(env.DB_AR).update(id, {

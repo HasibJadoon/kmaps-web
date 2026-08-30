@@ -1,22 +1,3 @@
-// ─── DsRepo — the display spec for one subject ───────────────────────────────
-//
-// Reads what the carriers hold for a root (or lemma, or word) and shapes each
-// sub-layer into the block vocabulary the clients render. The shape decisions
-// live here so the three clients stop making them separately — see the contract
-// in shared/src/contracts/ds.ts for why.
-//
-// Two halves:
-//   the registry  · which sub-layers exist, their band, order, names, icon and
-//                   colour. Static; the same for every subject.
-//   the carriers  · what this subject actually holds. Live; read now, never
-//                   stored — three attempts to store a display projection have
-//                   each stalled at a handful of hand-authored rows.
-//
-// A sub-layer with no builder of its own falls back to a table of what it
-// holds. That is a fallback, not a default: a table is always readable, and it
-// is how a new carrier shows up the day it is bound rather than the day someone
-// writes a view for it.
-
 import { query } from '../../../shared/src/db';
 import {
   byDeathHijri, normaliseWeights, arcNodes, offArcSenses, sortedBy,
@@ -30,9 +11,6 @@ import { RegistryRepo, type CarrierRows } from './registry.repo';
 
 type Row = Record<string, unknown>;
 
-/** How much of a carrier each form factor is willing to carry. A phone is not
- *  a small desktop: it gets fewer rows and shorter text, decided here so the
- *  same cap is not written four different ways in four clients. */
 const CAP: Record<DsForm, { rows: number; cells: number; chars: number }> = {
   desktop: { rows: 8, cells: 24, chars: 220 },
   mobile:  { rows: 3, cells: 12, chars: 90 },
@@ -40,19 +18,6 @@ const CAP: Record<DsForm, { rows: number; cells: number; chars: number }> = {
 
 const AR = /[؀-ۿ]/;
 
-/**
- * The reader's chapters, in the order a reader wants them.
- *
- * The registry organises a root by how it is BUILT — 00-CORE, 12-ASL, 18-STEP.
- * Those codes are right for a build plan and wrong for someone trying to
- * understand a word: nobody opens a root asking what is in sub-layer 18-STEP.
- * They ask what it is, what it means, who says so, what it stands against, and
- * where it turns up.
- *
- * So the sections come back grouped and ordered by that question. The registry
- * codes stay on every section — a builder still needs them, and they are how
- * you find the carrier — but they stop being the organising idea.
- */
 const CHAPTERS: { key: string; title: string; title_ar: string; question: string }[] = [
   { key: 'identity',  title: 'What it is',        title_ar: 'الهوية',
     question: 'The letters, and what kind of root they make.' },
@@ -70,7 +35,6 @@ const CHAPTERS: { key: string; title: string; title_ar: string; question: string
     question: 'The books and pages this came out of.' },
 ];
 
-/** Which chapter a registry sub-layer belongs under. */
 const CHAPTER_OF: Record<string, string> = {
   '00-CORE': 'identity', '02-VARI': 'identity', '03-ASWAT': 'identity', '06-TAQL': 'identity',
   '10-DNA': 'meaning', '14-SENSE': 'meaning', '15-AXIS': 'meaning',
@@ -81,13 +45,10 @@ const CHAPTER_OF: Record<string, string> = {
   '010-SRC': 'sources', '50-META': 'sources',
 };
 
-/** A sub-layer nobody has placed still has to appear somewhere; "where it was
- *  read" is the honest home for an unplaced carrier. */
 const DEFAULT_CHAPTER = 'sources';
 
 const CHAPTER_ORDER = new Map(CHAPTERS.map((c, i) => [c.key, i]));
 
-/** Text plus the script it is in — the client picks the face from this. */
 function t(value: unknown, script?: DsText['script']): DsText {
   const text = str(value);
   return { text, script: script ?? (AR.test(text) ? 'ar' : 'latin') };
@@ -97,12 +58,10 @@ function clamp(value: string, chars: number): string {
   return value.length > chars ? `${value.slice(0, chars)}…` : value;
 }
 
-/** The columns every carrier has and no reader wants to see. */
 const PLUMBING = new Set([
   'id', 'created_at', 'updated_at', 'canonical_id', 'root_id', 'scope_key',
   'generated_by', 'synthesis_version',
 ]);
-
 
 export class DsRepo {
   private readonly registry: RegistryRepo;
@@ -110,25 +69,13 @@ export class DsRepo {
     this.registry = new RegistryRepo(db);
   }
 
-  /**
-   * The whole spec for one root.
-   *
-   * Every declared sub-layer of the scope appears, including the ones holding
-   * nothing — for a typical root that is most of them, and a screen that omits
-   * them implies the root has fewer layers than it does.
-   */
   async root(rootRef: string, form: DsForm = 'desktop', scope = 'root'): Promise<DisplaySpec> {
     const cap = CAP[form] ?? CAP.desktop;
 
     const [model, fill, carriers, bands, coverage] = await Promise.all([
       this.registry.layerModel(),
       this.registry.rootFill(rootRef, { scope }),
-      // skipBookBodies: a root is not the books that mention it. Reading the
-      // muʿjam text itself here pulled entry/section/block/page/chunk rows for
-      // every book holding the root — most of the ~15s this endpoint used to
-      // take — to render what is, on the page, a list of book names. The names
-      // come from one grouped query instead (below), and the text stays where
-      // it belongs, in the Lexicon reader.
+
       this.registry.rootRowsScope(rootRef, scope, cap.rows, { skipBookBodies: true }),
       this.bandColours(),
       this.registry.rootSourceCoverage(rootRef),
@@ -145,11 +92,6 @@ export class DsRepo {
       byCode.set(c.sub_code, list);
     }
 
-    // "Where it was read" is answered by which books hold the root, not by
-    // their contents. One row per book, oldest first — the shape the sources
-    // rail of a printed muʿjam has. Without this the chapter would read as
-    // empty now that the book bodies are not pulled, which would be a lie:
-    // fourteen books hold كتب.
     if (coverage.length) {
       byCode.set('010-SRC', [{
         sub_code: '010-SRC',
@@ -161,14 +103,12 @@ export class DsRepo {
     }
     const fillOf = new Map(fill.map((f) => [f.sub_code, f]));
 
-    // The identity row is the subject's own card; every section can use it.
     const identity = byCode.get('00-CORE')?.[0]?.rows?.[0];
 
     const sections: DsSection[] = subs.map((sl) => {
       const held = byCode.get(sl.sub_code) ?? [];
       const counted = fillOf.get(sl.sub_code);
-      // Three states, and the third is the one a build plan needs: no audited
-      // binding means nothing was ever read here.
+
       const state: DsState = counted === undefined ? 'unknown'
         : counted.rows > 0 ? 'filled' : 'empty';
       const total = counted?.rows ?? held.reduce((a, c) => a + c.total, 0);
@@ -196,9 +136,6 @@ export class DsRepo {
       };
     });
 
-    // Reading order, not build order. Within a chapter the registry's own
-    // display_order still decides, because that IS the order those layers make
-    // sense in relative to each other.
     sections.sort((a, b) =>
       (CHAPTER_ORDER.get(a.chapter) ?? 99) - (CHAPTER_ORDER.get(b.chapter) ?? 99));
 
@@ -221,8 +158,6 @@ export class DsRepo {
     };
   }
 
-  /** `CORE` has no colour row and neither does `SENSE`; a section says so with
-   *  null rather than borrowing another band's. */
   private async bandColours(): Promise<Map<string, string>> {
     const rows = await query<{ band_key: string; color_hex: string }>(
       this.db, 'SELECT band_key, color_hex FROM ar_ling_reg_band_color',
@@ -230,14 +165,11 @@ export class DsRepo {
     return new Map(rows.map((r) => [r.band_key, r.color_hex]));
   }
 
-  /** The root's letters, spaced the way the lexica space them. */
   private heroMark(rootRef: string, identity: Row | undefined): DsText {
     const letters = jsonArrayOf(identity?.['root_letters']);
     if (letters.length) return t(letters.join(' '), 'ar');
     return t(rootRef.replace(/\s+/g, '').split('').join(' '), 'ar');
   }
-
-  // ── one shape per sub-layer ────────────────────────────────────────────────
 
   private blocksFor(
     sub: string, held: CarrierRows[], cap: typeof CAP['desktop'], identity: Row | undefined,
@@ -262,7 +194,6 @@ export class DsRepo {
     }
   }
 
-  /** CORE · the root itself: its letters, what kind it is, and what it means. */
   private identityBlocks(r: Row | undefined, cap: typeof CAP['desktop']): DsBlock[] {
     if (!r) return [];
     const facts: DsFact[] = [];
@@ -285,7 +216,6 @@ export class DsRepo {
     }];
   }
 
-  /** CORE · the three positions every root is described by, plus its soundness. */
   private phonologyBlocks(rowsOf: (t: string) => Row[], cap: typeof CAP['desktop']): DsBlock[] {
     const slots = sortedBy(rowsOf('ar_ling_root_letter_slot'), 'slot_index');
     const nature = rowsOf('ar_ling_root_naw_sawti')[0];
@@ -300,7 +230,7 @@ export class DsRepo {
           id: str(s['id']) || `slot-${i}`,
           mark: t(s['letter_ar'], 'ar'),
           caption: slotName(str(s['slot_role'])),
-          // A weak letter or a hamza is why a root behaves the way it does.
+
           footnote: flag(s, 'is_weak') ? 'weak' : flag(s, 'is_hamza') ? 'hamza' : undefined,
           highlighted: flag(s, 'is_weak') || flag(s, 'is_hamza'),
         })),
@@ -322,7 +252,6 @@ export class DsRepo {
     return out;
   }
 
-  /** CORE · the taqālīb family, and which members the language declined to use. */
   private permutationBlocks(rows: Row[], cap: typeof CAP['desktop']): DsBlock[] {
     if (!rows.length) return [];
     const perms = sortedBy(rows, 'perm_index');
@@ -330,8 +259,7 @@ export class DsRepo {
     return [{
       kind: 'grid',
       title: 'Permutations',
-      // An unused permutation is real information: the family is closed, and
-      // which members the language kept is part of what the root is.
+
       hint: `${used} of ${perms.length} used · taqālīb`,
       cells: perms.slice(0, cap.cells).map((p, i): DsCell => ({
         id: str(p['id']) || `perm-${i}`,
@@ -359,7 +287,6 @@ export class DsRepo {
     }];
   }
 
-  /** SYN · the root's thesis in one line. */
   private dnaBlocks(r: Row | undefined): DsBlock[] {
     if (!r) return [];
     return [{
@@ -372,8 +299,6 @@ export class DsRepo {
     }];
   }
 
-  /** SYN · the witnesses, oldest first — which is the whole reason a death
-   *  date is recorded. */
   private usulBlocks(rows: Row[], cap: typeof CAP['desktop']): DsBlock[] {
     if (!rows.length) return [];
     const ordered = byDeathHijri(rows);
@@ -399,10 +324,9 @@ export class DsRepo {
     }];
   }
 
-  /** SENSE · the inventory, core first. */
   private senseBlocks(rows: Row[], cap: typeof CAP['desktop']): DsBlock[] {
     if (!rows.length) return [];
-    const ordered = offArcSenses(rows, []);   // no arcs here: core first, then order
+    const ordered = offArcSenses(rows, []);
     return [{
       kind: 'card_list',
       title: 'Senses',
@@ -424,13 +348,10 @@ export class DsRepo {
     }];
   }
 
-  /** SENSE · an arc is a path, so it is drawn as one. */
   private arcBlocks(arcs: Row[], cap: typeof CAP['desktop']): DsBlock[] {
     if (!arcs.length) return [];
     return arcs.slice(0, cap.rows).map((arc): DsBlock => {
-      // The senses and steps that resolve this arc live in sibling sub-layers,
-      // which this read does not carry; the path still renders from arc_key and
-      // the unresolved rungs say so honestly.
+
       const nodes = arcNodes(arc, [], []);
       return {
         kind: 'chain',
@@ -449,7 +370,6 @@ export class DsRepo {
     });
   }
 
-  /** A weight is a magnitude, so it is published as a fraction of the largest. */
   private weightBlocks(rows: Row[], kind: 'axis' | 'field', cap: typeof CAP['desktop']): DsBlock[] {
     if (!rows.length) return [];
     const weighted = normaliseWeights(rows, 'weight');
@@ -469,7 +389,6 @@ export class DsRepo {
     }];
   }
 
-  /** GRAPH · an opposition only means something beside what it opposes. */
   private antonymBlocks(rows: Row[], cap: typeof CAP['desktop']): DsBlock[] {
     if (!rows.length) return [];
     const ordered = sortedBy(rows, 'sort_order');
@@ -488,7 +407,6 @@ export class DsRepo {
     }];
   }
 
-  /** SENSE · who stands behind the senses, and whether they agree. */
   private attestationBlocks(rows: Row[], cap: typeof CAP['desktop']): DsBlock[] {
     if (!rows.length) return [];
     return [{
@@ -499,8 +417,7 @@ export class DsRepo {
         id: str(a['id']) || `att-${i}`,
         badges: [{
           label: '', value: str(a['agreement']) || 'attests',
-          // Agreement is a stance, not a score: a source that qualifies a claim
-          // is evidence, and colouring it like a failure would misread it.
+
           tone: (str(a['agreement']).startsWith('sup') ? 'ok' : 'warn') as 'ok' | 'warn',
         }],
         ar: str(a['quote_ar']) ? t(a['quote_ar'], 'ar') : undefined,
@@ -512,12 +429,6 @@ export class DsRepo {
     }];
   }
 
-  /**
-   * The fallback: what the carrier holds, as the columns it holds them in.
-   *
-   * Always readable, and it names the columns that were NULL in every row —
-   * a build gap that becomes invisible the moment a row is rendered as prose.
-   */
   private tableBlock(c: CarrierRows, cap: typeof CAP['desktop']): DsBlock {
     const all = c.rows.length ? Object.keys(c.rows[0]) : [];
     const nulls = all.filter((col) =>
@@ -540,7 +451,6 @@ export class DsRepo {
     };
   }
 
-  /** A synthesis is ours and says so; anything else cites where to check it. */
   private provenanceOf(r: Row): DsRecord['provenance'] {
     const source = str(r['source_slug']);
     if (!source) return undefined;
@@ -553,8 +463,6 @@ export class DsRepo {
     };
   }
 
-  /** The block kinds a sub-layer renders as, so a client can be told what it
-   *  will get before it asks. Used by the route's `?explain=1`. */
   static kindsFor(sub: string): string[] {
     switch (sub) {
       case '00-CORE':  return ['hero'];

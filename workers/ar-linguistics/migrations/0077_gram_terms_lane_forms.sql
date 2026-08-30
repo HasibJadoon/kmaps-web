@@ -1,12 +1,3 @@
--- Registry: the verb families Lane uses that the registry did not carry.
--- Lane states the form himself in `lane_itype`; these are the values that had
--- no GT: id — Form XIII, quadriliteral III/IV, and the reduplicative
--- quadriliteral (R. Q.) family (زَلْزَلَ type, R1R2R1R2).
---
--- Ordering is reflowed so the new rows sort where a reader expects them:
--- triliteral I–XIII, then quadriliteral, then reduplicative quadriliteral,
--- then the nominal derivatives bucket last.
-
 UPDATE ar_ling_gram_term SET term_order = 20 WHERE id = 'GT:form_family:rubai_faalala';
 UPDATE ar_ling_gram_term SET term_order = 21 WHERE id = 'GT:form_family:rubai_tafaalala';
 UPDATE ar_ling_gram_term SET term_order = 28 WHERE id = 'GT:form_family:noun_derivatives';

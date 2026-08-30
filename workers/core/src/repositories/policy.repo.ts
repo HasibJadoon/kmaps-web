@@ -1,9 +1,5 @@
-// ─── PolicyRepo — core_workspace_policies + core_resource_policies + core_resource_grants ─
-
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface WorkspacePolicy {
   id: string;
@@ -82,8 +78,6 @@ export interface ResourceGrantInput {
   note?: string;
 }
 
-// ── Column fragments ──────────────────────────────────────────────────────────
-
 const WP_COLS = `
   id, workspace_id, max_visibility, allow_public_publish, allow_link_share,
   allow_guest_access, guest_max_visibility, default_discovery,
@@ -104,12 +98,8 @@ const RG_COLS = `
   revoked_at, note
 FROM core_resource_grants`;
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class PolicyRepo {
   constructor(private db: D1Database) {}
-
-  // ── Workspace Policies ──
 
   workspacePolicy(workspaceId: string): Promise<WorkspacePolicy | null> {
     return queryOne<WorkspacePolicy>(
@@ -179,8 +169,6 @@ export class PolicyRepo {
     return (await this.workspacePolicy(workspaceId))!;
   }
 
-  // ── Resource Policies ──
-
   resourcePolicy(resourceRef: string): Promise<ResourcePolicy | null> {
     return queryOne<ResourcePolicy>(
       this.db,
@@ -247,7 +235,6 @@ export class PolicyRepo {
     return (await this.resourcePolicy(resourceRef))!;
   }
 
-  /** Policies for multiple resource refs (e.g. for a batch visibility check). */
   resourcePoliciesByRefs(refs: string[]): Promise<ResourcePolicy[]> {
     if (refs.length === 0) return Promise.resolve([]);
     const placeholders = refs.map(() => '?').join(', ');
@@ -257,8 +244,6 @@ export class PolicyRepo {
       refs,
     );
   }
-
-  // ── Resource Grants ──
 
   grants(resourceRef: string): Promise<ResourceGrant[]> {
     return query<ResourceGrant>(
@@ -270,7 +255,6 @@ export class PolicyRepo {
     );
   }
 
-  /** Active grants for a subject (user or group) across all resources. */
   subjectGrants(subjectRef: string): Promise<ResourceGrant[]> {
     return query<ResourceGrant>(
       this.db,

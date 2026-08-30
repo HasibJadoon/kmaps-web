@@ -17,11 +17,6 @@ const REG_CHIP: Record<string, RegChip> = {
   msa:        { label: 'MSA',        cls: 'reg-msa' },
 };
 
-/**
- * Shared block CHROME (icon · order · title · registers · collapse · illustration).
- * The body is a per-layer component resolved from the closed registry by `block.type`
- * and rendered via NgComponentOutlet. No layer logic here.
- */
 @Component({
   selector: 'km-morph-block-host',
   standalone: true,

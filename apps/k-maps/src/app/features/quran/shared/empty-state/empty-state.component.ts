@@ -9,10 +9,10 @@ import { CommonModule } from '@angular/common';
   styleUrl: './empty-state.component.scss',
 })
 export class EmptyStateComponent {
-  /** Main heading — e.g. "No Passages Found" */
+
   title = input<string>('Nothing Here Yet');
-  /** Subtitle / descriptive message */
+
   message = input<string>('');
-  /** Optional Arabic decorative word shown above the ornament */
+
   arabicWord = input<string>('');
 }

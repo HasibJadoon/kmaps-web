@@ -31,7 +31,6 @@ import {
   SacredAtlasScene,
 } from './atlas.models';
 
-/** Module shortcut definition */
 interface ModuleShortcut {
   id: string;
   label: string;
@@ -53,15 +52,11 @@ const MODULE_SHORTCUTS: ModuleShortcut[] = [
 })
 export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
 
-  // ─── ViewChild refs ──────────────────────────────────────────────────────
-
   @ViewChild('host',           { static: true }) private hostRef!:           ElementRef<HTMLElement>;
   @ViewChild('starHost',       { static: true }) private starHostRef!:       ElementRef<HTMLElement>;
   @ViewChild('svgRoot',        { static: true }) private svgRef!:            ElementRef<SVGSVGElement>;
   @ViewChild('modeLabelEl',    { static: true }) private modeLabelRef!:      ElementRef<HTMLElement>;
   @ViewChild('focusCardEl',    { static: false }) private focusCardRef?:     ElementRef<HTMLElement>;
-
-  // ─── Services ────────────────────────────────────────────────────────────
 
   private readonly facade      = inject(AtlasLandingFacade);
   private readonly scene       = inject(AtlasSceneController);
@@ -71,8 +66,6 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
   private readonly adapter     = inject(AtlasDataAdapter);
   private readonly ngZone      = inject(NgZone);
   private readonly router      = inject(Router);
-
-  // ─── Template state (signals) ────────────────────────────────────────────
 
   readonly moduleShortcuts = MODULE_SHORTCUTS;
   readonly sacredScene: SacredAtlasScene = SACRED_ATLAS_SCENE;
@@ -87,8 +80,6 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
   readonly focusCard = signal<AtlasFocusCard | null>(null);
   readonly activeConstellationId = this.scene.activeConstellationId;
 
-  // ─── Internal state ──────────────────────────────────────────────────────
-
   private graphData: AtlasGraphData | null = null;
   private resizeObserver?: ResizeObserver;
   private quranBreathTween?: gsap.core.Tween;
@@ -96,10 +87,8 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
   private focusCardRevealTimerId: number | null = null;
   private initialised = false;
 
-  // ─── Lifecycle ───────────────────────────────────────────────────────────
-
   constructor() {
-    // React to scene state changes to drive graph and motion
+
     effect(() => {
       const state = this.scene.state();
       if (!this.initialised) return;
@@ -116,11 +105,9 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
     this.graphData = await this.facade.loadGraphData();
     const lookups = this.facade.createLookups(this.graphData);
 
-    // Register data with scene controller
     this.scene.registerGraphData(this.graphData);
     this.scene.registerConstellations(this.adapter.getSkyConstellations());
 
-    // Initialise D3 graph renderer
     const host = this.hostRef.nativeElement;
     this.ngZone.runOutsideAngular(() => {
       this.graph.init(this.svgRef.nativeElement, host.clientWidth, host.clientHeight);
@@ -128,11 +115,9 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
       this.graph.resetZoom();
     });
 
-    // Wire node click → scene transition
     this.graph.onNodeClickHandler((node) => this.ngZone.run(() => this.onNodeClick(node)));
     this.graph.onBackgroundClickHandler(() => this.ngZone.run(() => this.onBackgroundClick()));
 
-    // Resize observer
     this.resizeObserver = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
       this.ngZone.runOutsideAngular(() => {
@@ -142,7 +127,6 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
     });
     this.resizeObserver.observe(host);
 
-    // Entry animation — auto-tour begins once it completes
     const entryTl = this.motion.entrySequence(
       this.starHostRef.nativeElement,
       this.modeLabelRef.nativeElement,
@@ -152,11 +136,9 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
       this.ngZone.run(() => this.beginAutoTour());
     });
 
-    // Module shortcuts fade-in
     const shortcuts = host.querySelectorAll<HTMLElement>('.atlas__shortcut');
     if (shortcuts.length) this.motion.revealModuleShortcuts(shortcuts);
 
-    // Initial sky render
     const legacyFocus = this.adapter.toLegacyFocusState(this.scene.state());
     this.graph.renderScene(this.scene.state(), legacyFocus);
 
@@ -179,8 +161,6 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
     this.graphData = null;
   }
 
-  // ─── Scene change handler ────────────────────────────────────────────────
-
   private onSceneChange(state: SceneState): void {
     this.starfield.setSceneLayer(state.layer);
 
@@ -188,13 +168,11 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
     this.graph.setFocusAttr(legacyFocus);
     this.graph.renderScene(state, legacyFocus);
 
-    // Update mode label with animation
     this.motion.transitionModeLabel(
       this.modeLabelRef.nativeElement,
       AtlasMotionService.layerLabel(state.layer),
     );
 
-    // Layer-specific transitions
     switch (state.layer) {
       case 'sky':
         this.focusCard.set(null);
@@ -240,18 +218,12 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  // ─── Auto-tour ───────────────────────────────────────────────────────────
-
-  /**
-   * Starts the auto-tour: Qur'an-first slow zoom through every constellation.
-   * Any user interaction cancels it immediately.
-   */
   private beginAutoTour(): void {
-    // Wait a beat so the sky render settles before moving
+
     const warmup = window.setTimeout(() => {
       this.cancelAutoTour = this.scene.startAutoTour(4000, 1250);
     }, 600);
-    // If destroyed before warmup fires, clear it too
+
     const origCancel = this.cancelAutoTour;
     this.cancelAutoTour = () => {
       window.clearTimeout(warmup);
@@ -259,15 +231,11 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
     };
   }
 
-  /** Cancel the auto-tour on any explicit user interaction. */
   private stopTour(): void {
     this.cancelAutoTour?.();
     this.cancelAutoTour = undefined;
   }
 
-  // ─── User interactions ───────────────────────────────────────────────────
-
-  /** Called when D3 node is clicked. */
   private onNodeClick(node: SimulationNode): void {
     this.stopTour();
     const layer = this.scene.layer();
@@ -296,13 +264,11 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  /** Click a constellation in the sky layer */
   onConstellationClick(constellationId: string): void {
     this.stopTour();
     this.scene.goToConstellation(constellationId);
   }
 
-  /** Back navigation — step out one layer. */
   stepBack(): void {
     this.stopTour();
     const layer = this.scene.layer();
@@ -318,16 +284,12 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
   zoomOut():   void { this.stopTour(); this.graph.zoomOut(); }
   resetView(): void { this.stopTour(); this.graph.resetZoom(); }
 
-  // ─── Navigation exit ─────────────────────────────────────────────────────
-
   navigateTo(route: string): void {
     this.stopTour();
     this.motion.exitToApp(this.hostRef.nativeElement, () => {
       this.router.navigate([route]);
     });
   }
-
-  // ─── Focus card ──────────────────────────────────────────────────────────
 
   private showFocusCard(nodeId: string): void {
     const node = this.graphData?.nodes.find((n) => n.id === nodeId);
@@ -345,7 +307,6 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
       relationToHumanResponse: sacred?.relation_to_human_response ?? '',
     });
 
-    // Animate card in (deferred one frame so the DOM element exists)
     if (this.focusCardRevealTimerId !== null) {
       window.clearTimeout(this.focusCardRevealTimerId);
     }
@@ -364,8 +325,6 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
       this.focusCard.set(null);
     }
   }
-
-  // ─── Getters for template ────────────────────────────────────────────────
 
   get constellations(): ConstellationLayer[] {
     return this.adapter.getSkyConstellations();

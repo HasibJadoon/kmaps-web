@@ -1,7 +1,3 @@
-// ─── CORE worker client ───────────────────────────────────────────────────────
-// Studio links cast members to real accounts. CORE owns identity, so emails are
-// resolved over the CORE service binding rather than by touching its database.
-
 import type { StudioEnv } from './env';
 
 export interface CoreUser {
@@ -10,7 +6,6 @@ export interface CoreUser {
   display_name: string;
 }
 
-/** Resolve an account email to a CORE user, or null when none matches. */
 export async function resolveUserByEmail(
   env: StudioEnv,
   email: string,
@@ -33,7 +28,6 @@ export async function resolveUserByEmail(
     return null;
   }
 
-  // CORE wraps successful responses as { ok, data }.
   const data = (body as { data?: unknown } | null)?.data ?? body;
   if (!data || typeof data !== 'object') return null;
 

@@ -81,7 +81,7 @@ export const routes: Routes = [
     loadChildren: () =>
       import('./features/linguistics/linguistics.routes').then((m) => m.LINGUISTICS_ROUTES),
   },
-  // Backwards-compatible redirects from old /arabic/quran routes
+
   { path: 'arabic/quran', redirectTo: 'quran', pathMatch: 'full' },
   { path: 'arabic/quran/:surahId', redirectTo: 'quran/:surahId', pathMatch: 'full' },
   {

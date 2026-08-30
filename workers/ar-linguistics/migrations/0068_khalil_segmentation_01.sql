@@ -1,6 +1,3 @@
--- Kitab al-Ayn: authored block headings, corrected block types,
--- and the الأمثلة section wrapper. Part 1. text_plain is never written.
-
 INSERT OR IGNORE INTO ar_ling_lexicon_block (id, source_slug, root_entry_id, section_id, root_norm, parent_block_id, block_path, block_seq, depth, block_type, lang, title_ar, origin, printed_page) VALUES ('blk_kay_ex_42b9bfa898e81bf7', 'khalil_kitab_ayn', 're_kay_42b9bfa898e81bf7', NULL, 'بين', 'blk_kay2_exsec', 'e1.ex', 9, 1, 'section', 'ar', 'الأمثلة', 'derived_display', 3151);
 INSERT OR IGNORE INTO ar_ling_lexicon_block (id, source_slug, root_entry_id, section_id, root_norm, parent_block_id, block_path, block_seq, depth, block_type, lang, title_ar, origin, printed_page) VALUES ('blk_kay_ex_22c6dcbd0bfa01e3', 'khalil_kitab_ayn', 're_kay_22c6dcbd0bfa01e3', 'sec_kay_c8c811028a94aae4', 'ره', 'blk_kay_870ac68d7bf71105', 'e1.ex', 9, 1, 'section', 'ar', 'الأمثلة', 'derived_display', 1049);
 INSERT OR IGNORE INTO ar_ling_lexicon_block (id, source_slug, root_entry_id, section_id, root_norm, parent_block_id, block_path, block_seq, depth, block_type, lang, title_ar, origin, printed_page) VALUES ('blk_kay_ex_a384437808afbbfc', 'khalil_kitab_ayn', 're_kay_a384437808afbbfc', 'sec_kay_cafefd5e361f4c08', 'غمز', 'blk_kay_1d4cb06f7bbd144d', 'e1.ex', 9, 1, 'section', 'ar', 'الأمثلة', 'derived_display', 1494);

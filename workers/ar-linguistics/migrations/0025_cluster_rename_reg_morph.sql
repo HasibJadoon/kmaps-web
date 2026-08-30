@@ -1,11 +1,1 @@
--- 0025_cluster_rename_reg_morph.sql  — VOID / SUPERSEDED (2026-07-10)
--- =============================================================================
--- This migration originally renamed the ar_ling_* tables into reg_/morph_/syn_/
--- expr_/learn_ clusters. That decision was REVERSED: to keep all three DBs
--- (km_arabic, km_quran, km_arabic_linguistic) consistent, tables retain their
--- ORIGINAL names, and standardization is carried by the layer registry
--- (ar_ling_reg_build_layer + ar_ling_reg_table_map) instead of physical renames.
---
--- Intentionally a no-op. Do not re-introduce the cluster rename.
--- =============================================================================
 SELECT 'cluster rename reverted — standardization lives in the registry' AS note;

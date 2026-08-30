@@ -1,5 +1,3 @@
-// ─── /st/templates routes — reusable episode skeletons ────────────────────────
-
 import type { Router } from '../../../shared/src/router';
 import { ok, created, notFound, badRequest, unauthorized } from '../../../shared/src/response';
 import type { StudioEnv } from '../env';
@@ -19,7 +17,6 @@ function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-/** DB row → API shape: structure_json is parsed into a structure object. */
 function toApi(row: TemplateRow) {
   let structure: unknown = {};
   try {
@@ -41,7 +38,6 @@ function toApi(row: TemplateRow) {
 
 export function templateRoutes(router: Router<StudioEnv>) {
 
-  // GET /st/templates — built-in templates plus the caller's own
   router.get('/st/templates', async (req, env) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -49,13 +45,11 @@ export function templateRoutes(router: Router<StudioEnv>) {
     return ok(rows.map(toApi));
   });
 
-  // GET /st/templates/:id
   router.get('/st/templates/:id', async (_req, env, { id }) => {
     const row = await new TemplateRepo(env.DB_ST).findById(id);
     return row ? ok(toApi(row)) : notFound(`template ${id}`);
   });
 
-  // POST /st/templates — save a private template (e.g. "save episode as template")
   router.post('/st/templates', async (req, env) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');

@@ -1,19 +1,14 @@
-// ─── Audit, Feature Flags & Platform Config schemas & types ───────────────────
-
-// core_audit_log
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface AuditLogEntry {
-  id: string;                                           // CORE:ULID
+  id: string;
   workspace_id: string | null;
-  actor_user_ref: string;                               // 'CORE:<user_id>'
+  actor_user_ref: string;
   action: string;
-    // 'policy_changed'|'grant_issued'|'grant_revoked'|'member_removed'|
-    // 'visibility_changed'|'publication_state_changed'|'auth_token_issued'|
-    // 'auth_token_revoked'|'user_suspended'|'workspace_archived'|'other'
+
   resource_ref: string | null;
-  before_json: string | null;                           // snapshot before change
-  after_json: string | null;                            // snapshot after change
+  before_json: string | null;
+  after_json: string | null;
   ip_address: string | null;
   user_agent: string | null;
   created_at: string;
@@ -30,14 +25,13 @@ export interface AuditLogInput {
   user_agent?: string;
 }
 
-// core_feature_flags
 export interface FeatureFlag {
-  id: string;                                           // CORE:ULID
-  flag_key: string;                                     // UNIQUE
+  id: string;
+  flag_key: string;
   title: string;
-  is_enabled: boolean;                                  // DB: INTEGER 0|1
-  rollout_percent: number;                              // 0–100
-  enabled_for: string | null;                           // JSON [user_ref or workspace_ref]
+  is_enabled: boolean;
+  rollout_percent: number;
+  enabled_for: string | null;
   description: string | null;
   updated_by_ref: string | null;
   updated_at: string;
@@ -51,10 +45,9 @@ export interface FeatureFlagPatch {
   updated_by_ref?: string;
 }
 
-// core_platform_config
 export interface PlatformConfig {
-  id: string;                                           // CORE:ULID
-  config_key: string;                                   // UNIQUE
+  id: string;
+  config_key: string;
   config_value: string;
   value_type: 'string' | 'integer' | 'boolean' | 'json';
   description: string | null;
@@ -68,8 +61,6 @@ export interface PlatformConfigPatch {
   description?: string | null;
   updated_by_ref?: string;
 }
-
-// ─── Validators ────────────────────────────────────────────────────────────────
 
 export function validateAuditLogInput(
   body: unknown,
@@ -150,8 +141,6 @@ export function validatePlatformConfigPatch(
 
   return { data };
 }
-
-// ─── Repository-compatible contracts ─────────────────────────────────────────
 
 export type AuditAction =
   | 'policy_changed'

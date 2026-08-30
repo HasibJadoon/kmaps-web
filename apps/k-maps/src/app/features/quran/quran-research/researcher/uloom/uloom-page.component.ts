@@ -21,17 +21,13 @@ interface SourceSection {
   groups: SectionGroup[];
 }
 
-/**
- * One section (irab/sarf/balagha/fawaid/…) with its heading + children blocks.
- * Renders as a collapsible parent card with the children as beads on a thread.
- */
 export interface SectionGroup {
   key: string;
   label_ar: string;
   label_en: string;
   heading_block: QrIraabDisplayBlock | null;
   children: QrIraabDisplayBlock[];
-  /** Sort priority for the section. */
+
   order: number;
 }
 
@@ -56,7 +52,6 @@ function sectionOf(b: QrIraabDisplayBlock): string {
   return 'irab';
 }
 
-/** Group flat block list into section parent-child trees. */
 function groupBlocksBySection(blocks: QrIraabDisplayBlock[]): SectionGroup[] {
   const byKey = new Map<string, SectionGroup>();
 
@@ -78,7 +73,6 @@ function groupBlocksBySection(blocks: QrIraabDisplayBlock[]): SectionGroup[] {
     else g.children.push(b);
   }
 
-  // Sort children within each group by display_order
   for (const g of byKey.values()) {
     g.children.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
   }
@@ -86,15 +80,6 @@ function groupBlocksBySection(blocks: QrIraabDisplayBlock[]): SectionGroup[] {
   return [...byKey.values()].sort((a, b) => a.order - b.order);
 }
 
-/**
- * Uloom — iʿrāb reader. Wired to the new qr_iraab_book_display_* layer
- * (migration 011) and consumes /qr/iraab/display + /qr/iraab/display/sources.
- *
- * All data (sources, surah list, ayah counts, blocks, scholar metadata) is
- * fetched from D1 via the worker API. Nothing about the corpus is hardcoded
- * client-side — adding new sources or changing ayah counts only needs an
- * ingestion + the UI updates automatically.
- */
 @Component({
   selector: 'km-uloom-page',
   standalone: true,
@@ -106,25 +91,15 @@ export class UloomPageComponent implements OnInit, AfterViewInit {
   @ViewChild('grid')    grid?: ElementRef<HTMLElement>;
   @ViewChild('reader')  reader?: ElementRef<HTMLElement>;
 
-  // ── Book-style chrome state (mirrors lexicon-shell pattern) ───────────────
-  /** Rail visibility. CSS var `--w-rail` drives the actual width on .reader. */
   readonly showRail   = signal(true);
-  /** Manuscript dark mode — toggles .dark class on the .reader section. */
+
   readonly darkMode   = signal(true);
-  /** Font size step: 0 = small, 1 = medium, 2 = large. */
+
   readonly fontSize   = signal(1);
   readonly fontSizeClass = computed(() => ['fs-sm', 'fs-md', 'fs-lg'][this.fontSize()]);
 
-  /** Default rail width when shown. */
   private readonly RAIL_W = 300;
 
-  /**
-   * GSAP-driven rail toggle. Animates the CSS custom property `--w-rail`
-   * on the .reader host element. The CSS rules use this var to size both
-   * the rail (width) and the content (padding-inline-start), so the
-   * content reflows in lockstep with the rail width. Mirrors the
-   * lexicon-shell pattern but uses GSAP instead of class-toggle transitions.
-   */
   toggleRail(): void {
     const willShow = !this.showRail();
     this.showRail.set(willShow);
@@ -144,26 +119,21 @@ export class UloomPageComponent implements OnInit, AfterViewInit {
   private readonly api      = inject(QuranResearchApiService);
   private readonly quranApi = inject(QuranApiService);
 
-  // ── Source catalog ────────────────────────────────────────────────────────
   readonly sources        = signal<QrIraabDisplaySource[]>([]);
   readonly loading        = signal(true);
   readonly searchTerm     = signal('');
   readonly selectedSource = signal<QrIraabDisplaySource | null>(null);
 
-  // ── Surah/ayah navigation (from D1) ───────────────────────────────────────
   readonly surahMenu     = signal<QrMenuSurah[]>([]);
   readonly selectedSurah = signal<number>(1);
   readonly selectedAyah  = signal<number>(1);
 
-  // ── Modern surah/ayah picker UI state ─────────────────────────────────────
-  /** Whether the surah picker dropdown is open. */
   readonly surahPickerOpen = signal(false);
-  /** Filter text inside the surah picker (matches id or name). */
+
   readonly surahFilter     = signal('');
-  /** Quick-jump input value, accepts forms like "2:255" or "2 255". */
+
   readonly goToInput       = signal('');
 
-  /** Filtered surah list for the picker dropdown. */
   readonly filteredSurahs = computed(() => {
     const q = this.surahFilter().trim().toLowerCase();
     const list = this.surahMenu();
@@ -187,13 +157,11 @@ export class UloomPageComponent implements OnInit, AfterViewInit {
     this.closeSurahPicker();
   }
 
-  /** Set ayah from a direct number input. */
   onAyahInput(value: string): void {
     const n = parseInt(value, 10);
     if (Number.isFinite(n)) this.setAyah(n);
   }
 
-  /** Parse "S:A" or "S A" quick-jump input and navigate. */
   submitGoTo(): void {
     const raw = this.goToInput().trim();
     if (!raw) return;
@@ -203,12 +171,11 @@ export class UloomPageComponent implements OnInit, AfterViewInit {
     const a = parseInt(m[2], 10);
     if (s < 1 || s > 114) return;
     this.setSurah(s);
-    // Wait for surahMenu to provide the new ayah_count, then clamp the ayah
+
     queueMicrotask(() => this.setAyah(a));
     this.goToInput.set('');
   }
 
-  // ── Per-ayah display payload ──────────────────────────────────────────────
   readonly payload         = signal<QrIraabGroupDisplayPayload | null>(null);
   readonly payloadLoading  = signal(false);
   readonly payloadError    = signal<string | null>(null);
@@ -221,15 +188,12 @@ export class UloomPageComponent implements OnInit, AfterViewInit {
     );
   });
 
-  /** Current surah's metadata from the API. */
   readonly currentSurahMeta = computed<QrMenuSurah | null>(
     () => this.surahMenu().find(s => s.id === this.selectedSurah()) ?? null,
   );
 
-  /** Ayah count for the current surah — driven by D1, not hardcoded. */
   readonly ayahCount = computed(() => this.currentSurahMeta()?.ayah_count ?? 1);
 
-  /** Per-source feed grouped into parent-child section groups. */
   readonly sections = computed<SourceSection[]>(() => {
     const p = this.payload();
     if (!p) return [];
@@ -248,8 +212,6 @@ export class UloomPageComponent implements OnInit, AfterViewInit {
       }));
   });
 
-  // ── Collapse state per (source_slug, section_key) ─────────────────────────
-  /** Set of `${source_slug}|${section_key}` for currently-collapsed sections. */
   readonly collapsed = signal<Set<string>>(new Set());
 
   isCollapsed(sourceSlug: string, sectionKey: string): boolean {
@@ -273,7 +235,7 @@ export class UloomPageComponent implements OnInit, AfterViewInit {
   });
 
   constructor() {
-    // Whenever surah or ayah or source filter changes, refetch the payload.
+
     effect(() => {
       const src = this.selectedSource();
       const surah = this.selectedSurah();
@@ -284,12 +246,12 @@ export class UloomPageComponent implements OnInit, AfterViewInit {
   }
 
   ngOnInit(): void {
-    // 1) Source registry from D1
+
     this.api.getIraabDisplaySources().subscribe({
       next: res => { this.sources.set(res.sources); this.loading.set(false); },
       error: () => this.loading.set(false),
     });
-    // 2) Surah list (with ayah counts) from D1 — replaces the hardcoded 1..114
+
     this.quranApi.getMenu().subscribe({
       next: res => { if (res?.data?.surahs) this.surahMenu.set(res.data.surahs); },
     });
@@ -297,8 +259,7 @@ export class UloomPageComponent implements OnInit, AfterViewInit {
 
   ngAfterViewInit(): void {
     this.animateGrid();
-    // Seed the rail-width CSS var on the .reader host so layout is correct
-    // on first paint. Subsequent toggles are GSAP-tweened.
+
     const host = this.reader?.nativeElement;
     if (host) host.style.setProperty('--w-rail', (this.showRail() ? this.RAIL_W : 0) + 'px');
   }

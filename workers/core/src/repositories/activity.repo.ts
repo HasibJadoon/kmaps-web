@@ -1,10 +1,6 @@
-// ─── ActivityRepo — core_activity_events + core_notifications ─────────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface ActivityEvent {
   id: string;
@@ -58,8 +54,6 @@ export interface NotifListOptions extends PaginateOptions {
   unreadOnly?: boolean;
 }
 
-// ── Column fragments ──────────────────────────────────────────────────────────
-
 const EVENT_COLS = `
   id, workspace_id, actor_user_ref, event_type, resource_ref,
   resource_type, payload_json, created_at
@@ -70,12 +64,8 @@ const NOTIF_COLS = `
   resource_ref, is_read, read_at, created_at
 FROM core_notifications`;
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class ActivityRepo {
   constructor(private db: D1Database) {}
-
-  // ── Activity Events ──
 
   async log(input: ActivityEventInput): Promise<ActivityEvent> {
     const id = typedId('CORE');
@@ -131,7 +121,6 @@ export class ActivityRepo {
     );
   }
 
-  /** Events touching a specific resource (cross-workspace). */
   resourceEvents(resourceRef: string, opts: PaginateOptions = {}) {
     return paginate<ActivityEvent>(
       this.db,
@@ -141,8 +130,6 @@ export class ActivityRepo {
       opts,
     );
   }
-
-  // ── Notifications ──
 
   async notify(input: NotificationInput): Promise<Notification> {
     const id = typedId('CORE');

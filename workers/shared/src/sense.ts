@@ -1,53 +1,33 @@
-// ─── The sensor reader, shared by every domain worker ─────────────────────────
-//
-// One internal route per worker executes the five reader kinds against its own
-// database. The whitelist is structural: table and column names must be
-// identifiers AND resolve in this database's sqlite_master; `sql_scalar` (the
-// one reader whose definition IS SQL, held in km_core's registry) must be a
-// single SELECT. The route itself is internal-only — it is never mounted on a
-// public module path, and the backend strips nothing to it.
-//
-// This is the actuator the whole rule implies: a percentage nobody can
-// recompute mechanically is a hand-written number with a sensor's name on it.
-
 export interface SenseRequest {
   reader: 'row_exists' | 'row_ratio' | 'col_fraction' | 'sql_scalar' | 'ref_resolves';
   table?: string;
-  /** Column the scope binds on (e.g. root_norm) — with `value`, narrows the count. */
+
   bind_col?: string;
   bind_value?: string;
-  /** col_fraction: the column whose non-empty share is the reading. */
+
   col?: string;
-  /** `id` means bind_col holds this database's own key, not the scope string.
-   *  The owning worker resolves it — km_core does not hold other databases'
-   *  primary keys, and matching a ULID column against 'نزل' returns zero for
-   *  every root rather than failing. */
+
   bind_kind?: 'text' | 'id';
-  /** The scope the value names: root | lemma | passage … */
+
   scope_kind?: string;
-  /** row_ratio: denominator. */
+
   expected?: number;
-  /** sql_scalar: a single SELECT returning one numeric column. Registry-authored. */
+
   sql?: string;
   params?: (string | number)[];
 }
 
-/** Reading a carrier's actual rows for a scope, through the same bridge the
- *  counts use — so contents and count can never come from different tables. */
 export interface RowsRequest {
   table: string;
   bind_col: string;
   bind_value: string;
-  /** Several scopes at once. A sentence's words are read together — one
-   *  request for twenty words rather than twenty for one sentence. */
+
   bind_values?: string[];
-  /** `a,b` — the scope is a range: bind_col = value AND a >= from AND b <= to. */
+
   bind_via?: string;
   range_from?: number;
   range_to?: number;
-  /** A discriminator column, when one row set serves several kinds of scope.
-   *  `qr_ss_scope_morph_link` holds words and sentences alike, and only the
-   *  pair (scope_type, scope_id) picks out one of them. */
+
   filter_col?: string;
   filter_value?: string;
   limit?: number;
@@ -56,7 +36,7 @@ export interface RowsRequest {
 export interface RowsResult {
   ok: boolean;
   rows?: Record<string, unknown>[];
-  /** What the carrier holds, against `rows.length`, which is what was sent. */
+
   total?: number;
   error?: string;
 }
@@ -69,8 +49,6 @@ export interface SenseResult {
 
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-/** A sentence has tens of words, not hundreds; a request naming more than this
- *  is a caller asking for a table dump under a scope's name. */
 const MAX_BIND_VALUES = 200;
 
 async function tableExists(db: D1Database, table: string): Promise<boolean> {
@@ -122,7 +100,7 @@ export async function sense(db: D1Database, req: SenseRequest): Promise<SenseRes
         return { ok: true, reading: (row?.filled ?? 0) / total };
       }
       case 'ref_resolves': {
-        // A reference resolves when the named table holds a row for the value.
+
         if (!req.table || !IDENT.test(req.table) || !req.bind_col || !IDENT.test(req.bind_col)) {
           return { ok: false, error: 'bad ref target' };
         }
@@ -134,7 +112,7 @@ export async function sense(db: D1Database, req: SenseRequest): Promise<SenseRes
       }
       case 'sql_scalar': {
         const sql = (req.sql ?? '').trim();
-        // Registry-authored, but held to shape: one SELECT, no statement chain.
+
         if (!/^SELECT\b/i.test(sql) || sql.includes(';')) {
           return { ok: false, error: 'sql_scalar must be a single SELECT' };
         }
@@ -151,11 +129,6 @@ export async function sense(db: D1Database, req: SenseRequest): Promise<SenseRes
   }
 }
 
-/**
- * How a carrier is ordered before the limit cuts it. A passage is read in the
- * order its parts occur — ayah by ayah, sentence by sentence, step by step —
- * and every carrier that has such a column names it here.
- */
 const ROW_ORDER_KEYS = [
   'surah', 'ayah', 'ayah_from', 'sentence_seq', 'clause_order', 'step_seq',
   'step_no', 'stage_no', 'block_seq', 'chunk_seq', 'unit_index', 'slot_index',
@@ -174,16 +147,13 @@ async function orderingFor(db: D1Database, table: string): Promise<string> {
   const have = new Set((cols?.results ?? []).map(c => c.name));
 
   const keys = ROW_ORDER_KEYS.filter(k => have.has(k)).slice(0, 2);
-  // `id` last, so rows tying on every ordering column still come back in the
-  // same sequence on every request.
+
   if (have.has('id') && !keys.includes('id')) keys.push('id');
   const clause = keys.length ? ` ORDER BY ${keys.join(', ')}` : '';
   orderCache.set(table, clause);
   return clause;
 }
 
-/** The rows a carrier holds for one scope. Identifiers are checked against
- *  sqlite_master, and the scope value never reaches the SQL text. */
 export async function readRows(db: D1Database, req: RowsRequest): Promise<RowsResult> {
   try {
     if (!IDENT.test(req.table)) return { ok: false, error: 'bad table' };
@@ -201,9 +171,7 @@ export async function readRows(db: D1Database, req: RowsRequest): Promise<RowsRe
       where = `${req.bind_col} = ?`;
       params.push(req.bind_value);
     }
-    // A passage is a range of ayat, not a key: bind_via names the two columns
-    // that carry it. Without this the only readable scope is one with its own
-    // id column, which is why every sentence table sat unbound.
+
     const range = (req.bind_via ?? '').split(',').map(c => c.trim()).filter(Boolean);
     if (range.length === 2 && req.range_from != null && req.range_to != null) {
       if (!range.every(c => IDENT.test(c))) return { ok: false, error: 'bad range columns' };
@@ -216,10 +184,7 @@ export async function readRows(db: D1Database, req: RowsRequest): Promise<RowsRe
       params.push(req.filter_value);
     }
     const limit = Math.min(200, Math.max(1, req.limit ?? 60));
-    // Ordered before the limit, not after: 44:1–9 has 180 tafsīr rows against a
-    // limit of 60, so an unordered read handed the screen an arbitrary third of
-    // the commentary. Sorting on the client cannot recover the rows the limit
-    // already dropped.
+
     const order = await orderingFor(db, req.table);
     const [rows, count] = await Promise.all([
       db.prepare(`SELECT * FROM ${req.table} WHERE ${where}${order} LIMIT ${limit}`)

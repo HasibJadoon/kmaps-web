@@ -1,28 +1,3 @@
-// ─── /al/lex/v2/read/raghib_mufradat/:root_norm ───────────────
-//
-// Reader-ready endpoint for Mufradat al-Quran (al-Raghib al-Isfahani).
-//
-// Why a per-source endpoint:
-//   The generic /al/lex/v2/entry returns raw ingestion blocks — fine for
-//   cross-source comparison, useless for rendering. Each lexicon has its
-//   own discourse conventions (Mufradat: inline [Sura/Aya] brackets +
-//   (( N )) footnote marks + occasional قول الشاعر cues), so each source
-//   gets its own composer that knows how to turn the raw text into typed
-//   reader paragraphs.
-//
-// What this composer fills in over the raw entry:
-//   ▸ All inline Quran citations parsed into structured refs with the
-//     surah name resolved to surah_num (1–114) via the canonical map.
-//     (The quran_refs DB table only covers ~25% of the inline brackets.)
-//   ▸ Footnote markers `(( N ))` collected entry-wide so the reader can
-//     show a notes panel. Backing text is left null when the ingestion
-//     pipeline never captured it.
-//   ▸ Paragraph kinds: prose | poetry | hadith | qira_variant | editorial.
-//     Mufradat ingestion tags poetry_quote / hadith_quote blocks (~2%
-//     of blocks); we honor those when present and detect cue lines
-//     (`قول الشاعر:`, `قال الراجز:`, `وفي الحديث:`) inside prose to
-//     promote the next short line into a poetry/hadith paragraph.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, badRequest } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
@@ -30,8 +5,6 @@ import type { ArLinguisticsEnv } from '../env';
 import { normalizeSurahName } from '../data/surah_names';
 import { SourcesRepo } from '../repositories/sources.repo';
 
-// Slug stays in code — URL path segment, not metadata. SOURCE_META object
-// retired in favour of D1-backed metadata via SourcesRepo.bySlug(SOURCE_SLUG).
 const SOURCE_SLUG = 'raghib_mufradat';
 
 interface MufradatSourceMeta {
@@ -55,25 +28,23 @@ async function fetchMufradatMeta(db: D1Database): Promise<MufradatSourceMeta> {
   };
 }
 
-// ── Response shape ───────────────────────────────────────────────────────────
-
 interface ProseToken_Text { kind: 'text'; value: string; }
 interface ProseToken_Quran {
   kind: 'quran';
-  surah: string;             // raw spelling from source
-  surah_num: number | null;  // canonical 1–114, null if unmappable
+  surah: string;
+  surah_num: number | null;
   ayah: number;
   ayah_to: number | null;
-  raw: string;               // the original bracket, e.g. "[النحل/ ١]"
+  raw: string;
 }
 interface ProseToken_Footnote {
   kind: 'footnote';
   num: number;
   has_text: boolean;
-  text: string | null;        // backing text, or null when not in DB
-  printed_page: number | null; // which printed page this marker sits on
+  text: string | null;
+  printed_page: number | null;
 }
-interface ProseToken_ParenQuote { kind: 'paren_quote'; value: string; }  // (( قراءة ابن مسعود ))
+interface ProseToken_ParenQuote { kind: 'paren_quote'; value: string; }
 interface ProseToken_LineBreak { kind: 'br'; }
 type ProseToken =
   | ProseToken_Text | ProseToken_Quran | ProseToken_Footnote
@@ -92,12 +63,11 @@ interface MufradatSection {
   heading_ar: string | null;
   page_no: number | null;
   paragraphs: MufradatParagraph[];
-  // Optional per-section trilingual synthesis (trusted, class-scoped HTML).
+
   translation_en?: string | null;
   translation_ur?: string | null;
 }
 
-// Family-map (study-aid) synthesis — see Angular MufradatFamily for docs.
 interface MufradatFamilyForm {
   badge: string;
   head_html: string;
@@ -159,19 +129,14 @@ interface MufradatReadView {
   };
 }
 
-// ── Public route ─────────────────────────────────────────────────────────────
-
 export function lexiconMufradatRoutes(router: Router<ArLinguisticsEnv>) {
-  // Edge-cached per (root) — Mufradat entries are immutable post-ingest.
+
   router.get(
     `/al/lex/v2/read/${SOURCE_SLUG}/:root_norm`,
     (req, env, params) => cached(req, async () => {
       const root_norm = (params.root_norm ?? '').trim();
       if (!root_norm) return badRequest('root_norm required');
 
-      // Enriched read (synthesis columns). Falls back to the legacy column
-      // set if the trilingual/family migration hasn't been applied yet, so a
-      // worker deploy that races ahead of the DB migration never 500s.
       let entry = await env.DB_AL.prepare(
         `SELECT id, root_text, root_norm, root_id, raw_text,
                 page_start, page_end, volume_no, source_url, source_native_id,
@@ -230,8 +195,6 @@ export function lexiconMufradatRoutes(router: Router<ArLinguisticsEnv>) {
   );
 }
 
-// ── Composer ─────────────────────────────────────────────────────────────────
-
 function composeView(
   entry: any,
   rawSections: any[],
@@ -239,7 +202,7 @@ function composeView(
   canonical: any | null,
   meta: MufradatSourceMeta,
 ): MufradatReadView {
-  // Footnote backing text from `block_type='footnote'` blocks, if any.
+
   const fnBacking = collectFootnoteBacking(rawBlocks);
 
   const entryStartPage = Number(entry.page_start) || 1;
@@ -249,9 +212,7 @@ function composeView(
       .filter(b => b.section_id === s.id)
       .sort((a, b) => a.block_seq - b.block_seq);
     const paragraphs = composeParagraphs(s.text_ar ?? '', sectionBlocks, fnBacking);
-    // Walk all footnote tokens in reading order. The source restarts
-    // footnote numbering on each printed page, so a marker number that is
-    // less than or equal to the previous one signals a page boundary.
+
     let curPage = entryStartPage;
     let lastN = 0;
     for (const p of paragraphs) {
@@ -261,9 +222,7 @@ function composeView(
         if (tok.num <= lastN) curPage++;
         lastN = tok.num;
         tok.printed_page = curPage;
-        // Prefer the precise (page, num) lookup; fall back to the
-        // legacy num-only map so single-page entries still resolve when
-        // backing rows lack a printed_page value.
+
         const text =
           fnBacking.byPageNum.get(`${curPage}:${tok.num}`) ??
           fnBacking.byNum.get(tok.num) ?? null;
@@ -282,20 +241,11 @@ function composeView(
     };
   });
 
-  // Optional synthesis layers, parsed from the entry's JSON columns.
   const family = parseJsonColumn<MufradatFamily>(entry.family_json);
   const entry_gloss = parseJsonColumn<MufradatEntryGloss>(entry.entry_gloss_json);
 
-  // Seed the footnote apparatus with every authored footnote-backing block,
-  // not only those an inline marker happened to reference. Marker-referenced
-  // rows (below) then overwrite the printed_page/text with their resolved
-  // per-page values; unreferenced authored notes still surface in the panel.
   const seedFootnotes = fnBacking.allRows;
 
-  // Aggregate stats + entry-wide footnote/citation lists.
-  // Footnotes panel: one row per distinct (printed_page, num) actually
-  // referenced inside this entry. Two `(( 5 ))` markers on different pages
-  // produce two rows so the UI can show both backing texts.
   const fnPanelMap = new Map<string, {
     num: number; text: string | null; printed_page: number | null;
   }>();
@@ -356,8 +306,6 @@ function composeView(
   };
 }
 
-// Parse a nullable JSON text column into T, tolerating null/empty/malformed
-// values (returns null rather than throwing so one bad row can't 500 a read).
 function parseJsonColumn<T>(raw: unknown): T | null {
   if (raw == null || raw === '') return null;
   if (typeof raw === 'object') return raw as T;
@@ -366,29 +314,14 @@ function parseJsonColumn<T>(raw: unknown): T | null {
 
 type FnRow = { num: number; text: string | null; printed_page: number | null };
 
-// Union the marker-referenced footnotes with the authored backing rows so a
-// note that was never referenced inline (e.g. the synthesis blocks that
-// dropped their markers) still appears in the apparatus. Referenced rows win
-// on `num`; unreferenced backing rows are appended. Sorted in book order.
 function mergeFootnotes(referenced: FnRow[], backing: FnRow[]): FnRow[] {
   const byNum = new Map<number, FnRow>();
   for (const r of backing)    if (!byNum.has(r.num)) byNum.set(r.num, r);
-  for (const r of referenced) byNum.set(r.num, r);   // referenced overwrites
+  for (const r of referenced) byNum.set(r.num, r);
   return [...byNum.values()].sort((a, b) =>
     (a.printed_page ?? 0) - (b.printed_page ?? 0) || a.num - b.num);
 }
 
-// ── Paragraph composer ───────────────────────────────────────────────────────
-
-/**
- * Walk a section's blocks in order, fusing consecutive `definition` text into
- * prose paragraphs and emitting `poetry`/`hadith` paragraphs when ingestion
- * tagged them. Each prose run is then sentence-split and tokenized.
- *
- * `section.text_ar` is the joined truth, but the block stream tells us
- * *where* the typed blocks land. We use both: blocks for structure, text
- * for fallback when block_type is missing.
- */
 function composeParagraphs(
   _sectionText: string,
   blocks: any[],
@@ -436,14 +369,10 @@ function composeParagraphs(
   return out;
 }
 
-// ── Sentence splitter — same heuristic as section.body, kept local for clarity.
-
 function sentenceSplit(flat: string): string[] {
   if (!flat) return [];
   return flat.split(/(?<=[.!؟۔])\s+/u).map(p => p.trim()).filter(Boolean);
 }
-
-// ── Paragraph classifier — detect poetry/hadith/qira cues in prose
 
 const POETRY_CUE = /(قول الشاعر|قال الشاعر|قال الراجز|وأنشد|قال الفرزدق|قال امرؤ القيس)\s*:?\s*$/u;
 const HADITH_CUE = /(وفي الحديث|الحديث الشريف|روي عن النبي)/u;
@@ -461,11 +390,8 @@ function classifyParagraph(text: string): MufradatParagraph {
   return { kind: 'prose', tokens: tokenizeProse(text) };
 }
 
-// ── Poetry block parser — split couplet halves on common dividers.
-
 function buildPoetry(text: string): MufradatParagraph {
-  // Mufradat poetry blocks usually contain one couplet, sometimes two.
-  // Couplets use "..." separators or simple line breaks; we split on either.
+
   const lines = text
     .split(/\n+|\s+\.{3,}\s+|\s+\*\s+/u)
     .map(s => s.replace(/^\s+|\s+$/g, ''))
@@ -473,22 +399,8 @@ function buildPoetry(text: string): MufradatParagraph {
   return { kind: 'poetry', cue: null, verses: lines, attribution: null };
 }
 
-// ── Editorial-bracket extraction
-//
-// Patterns like "[وخصّ دفع الصدقة في القرآن بالإيتاء]" are al-Raghib's
-// editorial asides inserted by the source. We pull them out as standalone
-// `editorial` paragraphs so the reader can style them as marginalia.
-
 function splitOutEditorial(text: string): { kind: 'prose' | 'editorial'; text: string }[] {
-  // Editorial bracket = `[ TEXT ]` where TEXT is ≥ 4 chars AND does not look
-  // like a Quran ref (would have `/` followed by digits) AND is bounded
-  // (cap at 200 chars to avoid runaway captures across paragraphs).
-  //
-  // Trailing-citation rule: a `(( N ))` footnote marker (and optional
-  // sentence-terminator `.`) that appears immediately after the closing
-  // bracket is the source-author's citation for the editorial aside, not a
-  // standalone fragment. Absorb them into the editorial so the tokenizer
-  // picks them up at the tail of that paragraph.
+
   const re = /\[((?:[^\[\]]){4,200})\](\s*(?:(?:\(\(\s*[0-9٠-٩]+\s*\)\)|«\s*[0-9٠-٩]+\s*»)\s*)*\.?)/gu;
   const out: { kind: 'prose' | 'editorial'; text: string }[] = [];
   let cur = 0;
@@ -496,7 +408,7 @@ function splitOutEditorial(text: string): { kind: 'prose' | 'editorial'; text: s
   while ((m = re.exec(text)) != null) {
     const inner = m[1];
     const trailing = m[2] ?? '';
-    if (/[\/:]\s*[0-9٠-٩]/.test(inner)) continue; // skip Quran refs (slash or colon)
+    if (/[\/:]\s*[0-9٠-٩]/.test(inner)) continue;
     if (m.index > cur) out.push({ kind: 'prose', text: text.slice(cur, m.index) });
     const editorialBody = trailing.trim()
       ? `${inner.trim()} ${trailing.trim()}`.replace(/\s*\.\s*$/, '')
@@ -508,28 +420,13 @@ function splitOutEditorial(text: string): { kind: 'prose' | 'editorial'; text: s
   return out.filter(p => p.text.trim().length > 0);
 }
 
-// ── Prose tokenizer
-//
-// Recognize:
-//   ▸ [SURAH/ AYAH(-AYAH_TO)?]   →  quran token (surah_num normalized)
-//   ▸ (( N ))   →  footnote token (with has_text from fnBacking)
-//   ▸ « N »     →  footnote token (same)
-//   ▸ (( ARABIC ))  →  paren_quote (variant readings / inserted words)
-//
-// Surah-name capture is length-limited so an editorial paragraph containing
-// a real Quran ref can't be misread as a name with a 500-char prefix.
-
 const D = '[0-9٠-٩]';
 const SURAH_NAME = '[\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\u200F\\s]{1,30}?';
-// Accept BOTH ref separators: legacy ingest uses "[سورة/ آية]" (slash); the
-// hand-polished synthesis blocks use "[سورة:آية]" (colon). One regex handles
-// either so both formats tokenize into quran citations.
+
 const Q_RX  = new RegExp(`\\[\\s*(${SURAH_NAME})\\s*[\\/:]\\s*(${D}{1,3})(?:\\s*[-،]\\s*(${D}{1,3}))?\\s*\\]`, 'gu');
 const FN_PAREN = new RegExp(`\\(\\s*\\(\\s*(${D}+)\\s*\\)\\s*\\)`, 'gu');
 const FN_GUIL  = new RegExp(`«\\s*(${D}+)\\s*»`, 'gu');
-// Paren-quote content must contain at least one Arabic letter, never start
-// with a digit (that would be a footnote — see FN_PAREN). The leading
-// negative lookahead rejects "(( 5 ))" before the Arabic-letter requirement.
+
 const PAREN_QT = new RegExp(
   `\\(\\s*\\(\\s*(?![0-9٠-٩\\s]*\\)\\s*\\))([^()]*[\\u0600-\\u06FF][^()]*?)\\)\\s*\\)`,
   'gu',
@@ -570,12 +467,6 @@ function tokenizeProse(text: string, _fnBacking: FootnoteBacking | null = null):
     };
   });
 
-  // Footnotes BEFORE paren-quote. The two patterns overlap on `(( N ))`
-  // (digit content) — earlier-pushed wins on equal span in the overlap
-  // resolver below, so footnote takes priority over paren_quote.
-  // Footnote tokens are emitted with placeholder text/page — a second pass
-  // in composeView walks the section in order, detects page resets, and
-  // patches the right `printed_page` + `text` into each token.
   scan(FN_PAREN, m => {
     const n = parseInt(toAscii(m[1]), 10);
     if (!Number.isFinite(n) || n <= 0) return null;
@@ -588,9 +479,6 @@ function tokenizeProse(text: string, _fnBacking: FootnoteBacking | null = null):
   });
   scan(PAREN_QT, m => ({ kind: 'paren_quote', value: m[1].trim() }));
 
-  // Resolve overlaps: shorter footnote should not collide with paren_quote
-  // because their patterns are distinct (digit vs. Arabic word), but be
-  // defensive — drop any match that overlaps a longer earlier match.
   matches.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
   const accepted: Match[] = [];
   let lastEnd = 0;
@@ -617,17 +505,12 @@ function tokenizeProse(text: string, _fnBacking: FootnoteBacking | null = null):
   return out;
 }
 
-// ── Footnote backing — pulls text out of any block_type='footnote' rows.
-
 interface FootnoteBacking {
-  // Keyed by `${printed_page}:${num}` for precise lookup; multi-page entries
-  // can have two `(( 5 ))` markers referring to two different footnotes.
+
   byPageNum: Map<string, string>;
-  // Fallback: keyed by num alone (last writer wins). Used when the page
-  // tracker can't determine which page a marker sits on (e.g., single-page
-  // entry, or partial data).
+
   byNum: Map<number, string>;
-  // For the entry-level panel: every distinct (page, num) → text.
+
   allRows: Array<{ printed_page: number | null; num: number; text: string }>;
 }
 
@@ -645,7 +528,7 @@ function collectFootnoteBacking(blocks: any[]): FootnoteBacking {
       const rawP = dj.printed_page;
       if (rawN != null) num = parseInt(toAscii(String(rawN)), 10);
       if (rawP != null) page = parseInt(toAscii(String(rawP)), 10);
-    } catch { /* fallthrough */ }
+    } catch {  }
     if (num == null) {
       const probe = (b.title_ar || b.text_plain || '').trim();
       const m = probe.match(/^[(\[«]?\s*([0-9٠-٩]+)/);
@@ -659,7 +542,7 @@ function collectFootnoteBacking(blocks: any[]): FootnoteBacking {
     if (page != null && Number.isFinite(page)) byPageNum.set(`${page}:${num}`, text);
     allRows.push({ printed_page: page ?? null, num, text });
   }
-  // Sort the panel rows by (page, num) so the UI renders them in book order.
+
   allRows.sort((a, b) =>
     (a.printed_page ?? 0) - (b.printed_page ?? 0) || a.num - b.num);
   return { byPageNum, byNum, allRows };

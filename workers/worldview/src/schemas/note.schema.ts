@@ -1,5 +1,3 @@
-// ─── Note schemas & types ───────────────────────────────────────────────
-
 export interface WvNote {
   id: string;
   note_type: string;
@@ -46,8 +44,6 @@ export interface NoteRelationCreate {
   target_id: string;
   relation_role?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

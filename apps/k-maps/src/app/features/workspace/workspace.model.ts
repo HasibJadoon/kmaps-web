@@ -1,7 +1,3 @@
-// ─── Workspace feature models ─────────────────────────────────────────────────
-// UI-facing shapes. The WorkspaceApiService adapts the CORE wire format
-// (core_workspaces / core_users / core_workspace_roles) onto these.
-
 export interface WorkspaceSummary {
   id: string;
   name: string;

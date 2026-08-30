@@ -1,21 +1,19 @@
-// ─── MorphologyRepo — ar_ling_root_lemma_sarf + ar_ling_root_form_paradigm ────────────
-
 import { query, queryOne, paginate } from '../../../shared/src/db';
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface MorphologyEntry {
-  id: string;           // AL:ULID
-  lemma_id: string;     // AL:ULID
+  id: string;
+  lemma_id: string;
   form_ar: string;
-  stem_type: string | null;  // verb_form | noun_pattern | ...
-  pattern: string | null;    // فَعَلَ / فِعَال etc.
-  tags: string | null;       // JSON array of grammatical tags
+  stem_type: string | null;
+  pattern: string | null;
+  tags: string | null;
 }
 
 export interface FormParadigm {
-  id: string;           // AL:ULID
+  id: string;
   paradigm_name: string;
-  category: string;     // verb | noun | adjective | ...
+  category: string;
   pattern: string;
   example_ar: string | null;
 }

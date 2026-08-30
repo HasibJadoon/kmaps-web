@@ -1,17 +1,15 @@
-// ─── Grammar schemas & types ──────────────────────────────────────────────────
-
 export type ArGrammarType = 'nahw' | 'sarf' | 'both';
 
 export interface ArGrammar {
-  id: string;                        // AR:ULID
+  id: string;
   title: string;
   title_ar: string | null;
-  al_nahw_ref: string | null;        // AL:<ar_ling_nahw_concept_id>
-  al_morph_ref: string | null;       // AL:<ar_ling_morphology_id>
+  al_nahw_ref: string | null;
+  al_morph_ref: string | null;
   grammar_type: ArGrammarType;
-  level: string | null;              // A1–C2
+  level: string | null;
   explanation_md: string;
-  examples_json: string | null;      // JSON [{arabic, translation, note}]
+  examples_json: string | null;
   rule_summary: string | null;
   qr_scope_ref: string | null;
   meta_json: string | null;
@@ -46,8 +44,6 @@ export interface ArGrammarPatch {
   meta_json?: string | null;
 }
 
-// ─── Grammar Vocabulary Link ──────────────────────────────────────────────────
-
 export type ArGrammarVocabLinkRole = 'example' | 'applies_to' | 'illustrates';
 
 export interface ArGrammarVocabularyLink {
@@ -64,8 +60,6 @@ export interface ArGrammarVocabularyLinkCreate {
   link_role?: ArGrammarVocabLinkRole;
 }
 
-// ─── Unit Grammar Map ─────────────────────────────────────────────────────────
-
 export interface ArUnitGrammarMap {
   id: string;
   unit_id: string;
@@ -73,8 +67,6 @@ export interface ArUnitGrammarMap {
   sort_order: number;
   created_at: string;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 const VALID_GRAMMAR_TYPES: ArGrammarType[] = ['nahw', 'sarf', 'both'];
 
@@ -109,13 +101,11 @@ export function validateArGrammarCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface GrammarItem {
-  id: string;             // AR:ULID
-  container_id: string;   // AR:ULID
-  lx_nahw_ref: string;    // AL:ULID → ar_ling_nahw_concepts
-  label: string;          // short display label (e.g. "فاعل")
+  id: string;
+  container_id: string;
+  lx_nahw_ref: string;
+  label: string;
   example_ar: string | null;
   explanation: string | null;
   sort_order: number;
@@ -131,8 +121,6 @@ export interface GrammarCreate {
   explanation?: string | null;
   sort_order?: number;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

@@ -13,23 +13,15 @@ import {
   WvReadingSession,
 } from '../../services/worldview/worldview-library-api.service';
 
-/** A reading session (reading block within a chapter) with its content + illustrations. */
 interface Session {
   id: string;
   title: string;
-  summary: string[];   // paragraphs
-  points: string[];    // major points
-  fullText: string[];  // paraphrased reading text, paragraphs
+  summary: string[];
+  points: string[];
+  fullText: string[];
   items: WvIllustrationSummary[];
 }
 
-// ─── Worldview reading-session illustrations ──────────────────────────────────
-// A title-bar icon (visible when the open chapter has reading sessions that
-// carry illustrations). It opens a full-screen modal that first lists the
-// chapter's reading sessions; selecting one shows that session's paraphrased
-// reading text, major points, summary, and its illustrations (swiped 1-by-1).
-// The overlay is teleported to <body> so position:fixed is viewport-relative
-// and never trapped by a transformed ancestor (header/toolbar).
 @Component({
   selector: 'km-wv-illustrations',
   standalone: true,
@@ -274,13 +266,11 @@ export class WvIllustrationsComponent implements OnDestroy {
     this.sessions().find((s) => s.id === this.activeSessionId()) ?? null,
   );
 
-  /** The source the chapter belongs to. */
   @Input() set sourceId(value: string | null | undefined) {
     this.sourceIdSig.set(value ?? null);
     this.reload();
   }
 
-  /** The chapter (source unit) whose reading sessions to show. */
   @Input() set chapterUnitId(value: string | null | undefined) {
     this.chapterIdSig.set(value ?? null);
     this.reload();
@@ -301,7 +291,6 @@ export class WvIllustrationsComponent implements OnDestroy {
     this.overlayRef?.nativeElement?.remove();
   }
 
-  /** Run a GSAP entrance build scoped to the overlay (respects reduced-motion). */
   private animate(build: () => void): void {
     if (typeof window === 'undefined') return;
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return;
@@ -333,8 +322,6 @@ export class WvIllustrationsComponent implements OnDestroy {
     }));
     if (mine !== this.token) return;
 
-    // Each listed reading session must carry illustrations; order sessions by
-    // their first illustration so reading order follows the concept sequence.
     const sessions = built.filter((x) => x.items.length).map((x) => this.buildSession(x.rs, x.items));
     sessions.sort((a, b) => (a.items[0]?.order_index ?? 0) - (b.items[0]?.order_index ?? 0));
     this.sessions.set(sessions);
@@ -349,7 +336,7 @@ export class WvIllustrationsComponent implements OnDestroy {
         if (Array.isArray(m['major_points'])) points = m['major_points'].map((p) => String(p)).filter(Boolean);
         const ft = m['paraphrase_md'] ?? m['full_text_md'] ?? m['full_text'] ?? '';
         fullText = this.paragraphs(String(ft));
-      } catch { /* ignore malformed meta */ }
+      } catch {  }
     }
     return {
       id: rs.id,

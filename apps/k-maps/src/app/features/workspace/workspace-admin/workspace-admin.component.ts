@@ -186,7 +186,6 @@ export class WorkspaceAdminComponent implements OnInit {
 
   readonly tab = signal<AdminTab>('users');
 
-  // ── Users ──
   readonly users = signal<AdminUser[]>([]);
   readonly usersLoading = signal(true);
   readonly usersError = signal<string | null>(null);
@@ -196,7 +195,6 @@ export class WorkspaceAdminComponent implements OnInit {
   newRole = 'member';
   newPassword = '';
 
-  // ── Roles ──
   readonly workspaces = signal<WorkspaceSummary[]>([]);
   readonly selectedWorkspace = signal<string>('');
   readonly roles = signal<WorkspaceRole[]>([]);
@@ -291,7 +289,7 @@ export class WorkspaceAdminComponent implements OnInit {
         void this.loadRoles();
       }
     } catch {
-      /* roles tab simply stays empty */
+
     }
   }
 
@@ -324,7 +322,7 @@ export class WorkspaceAdminComponent implements OnInit {
       this.newRoleTitle = '';
       await this.loadRoles();
     } catch {
-      /* ignore */
+
     }
   }
 
@@ -335,7 +333,7 @@ export class WorkspaceAdminComponent implements OnInit {
       await firstValueFrom(this.api.deleteRole(wid, role.id));
       await this.loadRoles();
     } catch {
-      /* ignore */
+
     }
   }
 }

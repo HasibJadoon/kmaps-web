@@ -16,7 +16,7 @@ export class WvGraphToolbarComponent {
   @Input() showLabels = true;
   @Input() useShortLabels = false;
   @Input() shortLabelsAvailable = false;
-  @Input() compact = false; // mobile: collapse to icons only
+  @Input() compact = false;
 
   @Output() modeChange       = new EventEmitter<WvGraphMode>();
   @Output() typeToggle       = new EventEmitter<WvNodeType>();

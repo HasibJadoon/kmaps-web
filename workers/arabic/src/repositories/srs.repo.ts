@@ -1,21 +1,13 @@
-// ─── SrsRepo — ar_learn_srs_deck + ar_learn_srs_card + ar_learn_srs_review ──────────────────
-// The K-MAPS spaced-repetition engine. Decks hold Anki-style cards (explicit
-// front/back plus a typed resource_ref); each card tracks SM-2 scheduling
-// state. Reviews log every rating event. Scheduling math lives in
-// ../srs/scheduler.ts — this repo is storage only.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
-// ── Interfaces ────────────────────────────────────────────────────────────────
-
 export interface SrsDeck {
   id: string;
-  core_user_ref: string;      // CORE:<user_id>
-  core_ws_ref: string | null; // CORE:<workspace_id>
+  core_user_ref: string;
+  core_ws_ref: string | null;
   title: string;
-  deck_type: string;          // vocabulary|morphology|translation|theology|…
+  deck_type: string;
   description: string | null;
   card_count: number;
   is_shared: number;
@@ -44,9 +36,9 @@ export interface SrsCard {
   id: string;
   deck_id: string;
   core_user_ref: string;
-  resource_ref: string;       // typed ref to the canonical item, or '' for free-form
+  resource_ref: string;
   resource_type: string;
-  card_template: string;      // qr_vocab|qr_morph|wv_concept|freeform|…
+  card_template: string;
   front_text: string;
   back_text: string;
   extra_json: string | null;
@@ -58,7 +50,7 @@ export interface SrsCard {
   scheduled_days: number;
   reps: number;
   lapses: number;
-  card_state: string;         // new|learning|review|relearning
+  card_state: string;
   last_review_at: string | null;
   next_review_at: string | null;
   created_at: string;
@@ -99,7 +91,7 @@ export interface SrsReview {
   id: string;
   card_id: string;
   core_user_ref: string;
-  rating: number;             // 1=Again 2=Hard 3=Good 4=Easy
+  rating: number;
   stability_after: number | null;
   difficulty_after: number | null;
   scheduled_days_after: number | null;
@@ -134,8 +126,6 @@ export interface SrsDeckSummary extends SrsDeck {
   new_count: number;
 }
 
-// ── Column lists ──────────────────────────────────────────────────────────────
-
 const DECK_COLS = `id, core_user_ref, core_ws_ref, title, deck_type,
   description, card_count, is_shared, meta_json, created_at`;
 
@@ -148,12 +138,8 @@ const REVIEW_COLS = `id, card_id, core_user_ref, rating, stability_after,
   difficulty_after, scheduled_days_after, state_after,
   review_duration_secs, reviewed_at`;
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class SrsRepo {
   constructor(private db: D1Database) {}
-
-  // ── Decks ────────────────────────────────────────────────────────────────────
 
   decks(userRef: string, opts: PaginateOptions = {}) {
     return paginate<SrsDeck>(
@@ -165,7 +151,6 @@ export class SrsRepo {
     );
   }
 
-  /** All decks for a user with live due / new counts — drives the dashboard. */
   async decksWithCounts(userRef: string): Promise<SrsDeckSummary[]> {
     const now = new Date().toISOString();
     return query<SrsDeckSummary>(
@@ -232,7 +217,6 @@ export class SrsRepo {
     return this.findDeckById(id);
   }
 
-  /** Delete a deck and every card + review it owns. */
   async deleteDeck(id: string): Promise<void> {
     await execute(
       this.db,
@@ -243,9 +227,6 @@ export class SrsRepo {
     await execute(this.db, `DELETE FROM ar_learn_srs_deck WHERE id = ?`, [id]);
   }
 
-  // ── Cards ────────────────────────────────────────────────────────────────────
-
-  /** Every card in a deck, newest first. */
   cardsInDeck(deckId: string): Promise<SrsCard[]> {
     return query<SrsCard>(
       this.db,
@@ -254,7 +235,6 @@ export class SrsRepo {
     );
   }
 
-  /** Due cards for one deck: not suspended, next_review_at due (or never set). */
   dueCards(deckId: string, userRef: string, limit = 50): Promise<SrsCard[]> {
     const now = new Date().toISOString();
     return query<SrsCard>(
@@ -268,7 +248,6 @@ export class SrsRepo {
     );
   }
 
-  /** Due cards across every deck the user owns — the unified review queue. */
   dueAcrossDecks(userRef: string, limit = 100): Promise<SrsCard[]> {
     const now = new Date().toISOString();
     return query<SrsCard>(
@@ -363,8 +342,6 @@ export class SrsRepo {
     );
   }
 
-  // ── Reviews ──────────────────────────────────────────────────────────────────
-
   async logReview(input: SrsReviewCreate): Promise<SrsReview> {
     const id  = typedId('AR');
     const now = new Date().toISOString();
@@ -394,8 +371,6 @@ export class SrsRepo {
       [id],
     ))!;
   }
-
-  // ── Stats ────────────────────────────────────────────────────────────────────
 
   async stats(userRef: string): Promise<SrsStats> {
     const now = new Date().toISOString();

@@ -11,9 +11,6 @@ import { RouterLink } from '@angular/router';
 import gsap from 'gsap';
 import { environment } from '../../../../environments/environment';
 
-// See worldview-compare: this pointed at the Pages origin without the gateway's
-// required `/api` prefix, inside a `catch {}`, so the screen has always been an
-// empty list that looked like an empty corpus.
 const WV_API = `${environment.apiBase}/wv`;
 
 interface BrainstormSession {

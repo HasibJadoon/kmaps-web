@@ -1,11 +1,3 @@
--- A6 — the step table matches the register.
---
--- The register declares six steps; the table carried five keys (no worldview
--- row anywhere) and surah 44's board was ragged — passage_structure on all
--- seven passages, every other step on two. A passage that has a board has the
--- whole board: every registered key, missing ones seeded as draft. Passages
--- with no board at all (surah 40's twenty) stay untouched — an unstarted
--- curriculum is a real state; a board with holes is not.
 INSERT OR IGNORE INTO qr_surah_study_step (id, passage_id, step_key, step_no, title, status, meta_json)
 SELECT 'QR:STEP:' || p.surah || ':' || p.ayah_from || '-' || p.ayah_to || ':' || k.step_key,
        p.id, k.step_key, k.step_no,

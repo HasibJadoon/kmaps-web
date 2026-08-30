@@ -1,17 +1,13 @@
-// ─── People schemas & types ────────────────────────────────────────────────────
-
-// core_people
-// NOTE: personal address book / social profile — NOT the scholarly/historical registry (wv_people)
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface Person {
-  id: string;                                           // CORE:ULID
-  workspace_id: string;                                 // CORE:ULID → core_workspaces
+  id: string;
+  workspace_id: string;
   name: string;
   name_ar: string | null;
   email: string | null;
-  relationship: string | null;                          // 'family'|'colleague'|'friend'|'contact'|'other'
-  linked_user_id: string | null;                        // CORE:ULID → core_users if they have an account
+  relationship: string | null;
+  linked_user_id: string | null;
   visibility: 'private' | 'workspace' | 'public';
   notes_md: string | null;
   meta_json: string | null;
@@ -38,8 +34,6 @@ export interface PersonPatch {
   notes_md?: string | null;
   meta_json?: string | null;
 }
-
-// ─── Validators ────────────────────────────────────────────────────────────────
 
 export function validatePersonCreate(
   body: unknown,
@@ -116,8 +110,6 @@ export function validatePersonPatch(
 
   return { data };
 }
-
-// ─── Repository-compatible contracts ─────────────────────────────────────────
 
 export interface PeopleListOptions extends PaginateOptions {
   visibility?: 'private' | 'workspace';

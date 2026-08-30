@@ -1,20 +1,12 @@
-// ─── SourceDetailRepo — cm_source_details + cm_source_toc + cm_source_units + cm_source_chunks ──
-// Extended bibliographic metadata, table of contents, hierarchical units, and
-// embedded text chunks (with embedding pipeline tracking) for a cm_source.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
-// ---------------------------------------------------------------------------
-// cm_source_details
-// ---------------------------------------------------------------------------
-
 export interface CmSourceDetail {
   detail_id: string;
   source_id: string;
-  author_names_json: string;       // JSON array of strings
-  editor_names_json: string;       // JSON array of strings
+  author_names_json: string;
+  editor_names_json: string;
   publisher: string | null;
   publication_year: number | null;
   edition: string | null;
@@ -23,12 +15,12 @@ export interface CmSourceDetail {
   url: string | null;
   pages_total: number | null;
   language_original: string | null;
-  translator_names_json: string;   // JSON array of strings
+  translator_names_json: string;
   series_title: string | null;
   volume: string | null;
   issue: string | null;
   abstract: string | null;
-  keywords_json: string;           // JSON array of strings
+  keywords_json: string;
   meta_json: string;
 }
 
@@ -56,10 +48,6 @@ const DETAIL_COLS = `detail_id, source_id, author_names_json, editor_names_json,
   publisher, publication_year, edition, isbn, doi, url, pages_total,
   language_original, translator_names_json, series_title, volume, issue,
   abstract, keywords_json, meta_json`;
-
-// ---------------------------------------------------------------------------
-// cm_source_toc
-// ---------------------------------------------------------------------------
 
 export interface CmSourceToc {
   toc_id: string;
@@ -90,10 +78,6 @@ export interface CmSourceTocInput {
 
 const TOC_COLS = `toc_id, source_id, parent_toc_id, seq_order, depth,
   heading_text, heading_ar, page_start, page_end, unit_id, meta_json`;
-
-// ---------------------------------------------------------------------------
-// cm_source_units
-// ---------------------------------------------------------------------------
 
 export interface CmSourceUnit {
   unit_id: string;
@@ -137,10 +121,6 @@ const UNIT_COLS = `unit_id, source_id, parent_unit_id, toc_id, unit_type,
   seq_order, depth, heading, heading_ar, page_start, page_end, word_count,
   body_text, body_ar, summary, meta_json, created_at`;
 
-// ---------------------------------------------------------------------------
-// cm_source_chunks
-// ---------------------------------------------------------------------------
-
 export interface CmSourceChunk {
   chunk_id: string;
   source_id: string;
@@ -151,7 +131,7 @@ export interface CmSourceChunk {
   heading_norm: string | null;
   text_content: string;
   token_count: number | null;
-  is_embedded: number;         // 0 | 1
+  is_embedded: number;
   qdrant_id: string | null;
   embed_model: string | null;
   meta_json: string;
@@ -174,14 +154,8 @@ const CHUNK_COLS = `chunk_id, source_id, unit_id, chunk_index, chunk_kind,
   page_no, heading_norm, text_content, token_count, is_embedded, qdrant_id,
   embed_model, meta_json, created_at`;
 
-// ---------------------------------------------------------------------------
-// Repository
-// ---------------------------------------------------------------------------
-
 export class SourceDetailRepo {
   constructor(private db: D1Database) {}
-
-  // ── cm_source_details ────────────────────────────────────────────────────
 
   detail(sourceId: string): Promise<CmSourceDetail | null> {
     return queryOne<CmSourceDetail>(
@@ -255,8 +229,6 @@ export class SourceDetailRepo {
     return (await this.detail(sourceId))!;
   }
 
-  // ── cm_source_toc ────────────────────────────────────────────────────────
-
   toc(sourceId: string): Promise<CmSourceToc[]> {
     return query<CmSourceToc>(
       this.db,
@@ -292,8 +264,6 @@ export class SourceDetailRepo {
       this.db, `SELECT ${TOC_COLS} FROM cm_source_toc WHERE toc_id = ?`, [toc_id],
     ))!;
   }
-
-  // ── cm_source_units ──────────────────────────────────────────────────────
 
   units(sourceId: string, opts: PaginateOptions = {}) {
     return paginate<CmSourceUnit>(
@@ -344,8 +314,6 @@ export class SourceDetailRepo {
     );
     return (await this.findUnitById(unit_id))!;
   }
-
-  // ── cm_source_chunks ─────────────────────────────────────────────────────
 
   chunks(sourceId: string, unitId: string | null, opts: PaginateOptions = {}) {
     const where  = unitId ? 'WHERE source_id = ? AND unit_id = ?' : 'WHERE source_id = ?';

@@ -1,22 +1,3 @@
-// ─── Timeline ─────────────────────────────────────────────────────────────────
-//
-// Read access to wv_timeline_events.
-//
-// Until now this answered only "the events of one source" and returned 400
-// otherwise, so a corpus-wide timeline could not be asked for at all — which is
-// why there is no timeline screen outside a book reader. It now takes a year
-// range, a tradition and an event type, and will return everything.
-//
-// WHAT THE DATA ACTUALLY SUPPORTS
-//
-// 66 events, all from one book's arc (Arjana, plus Orientalism), spanning
-// 77–2010 CE. `tradition_id` and `location_id` are NULL on every single row, so
-// those filters are offered but will match nothing until the corpus grows — the
-// response says so rather than leaving a caller to infer it from an empty list.
-//
-// `wv_periods` is empty, so era bands come from the 13 rows that carry
-// year_start/year_end rather than from a period registry.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound } from '../../../shared/src/response';
 import { query, queryOne } from '../../../shared/src/db';
@@ -28,9 +9,6 @@ const COLS = `id, title, event_type, year_exact, year_start, year_end,
               is_approximate, century, location_id, tradition_id, person_id,
               description_md, significance, meta_json`;
 
-/** The one year to place an event on: its exact year, else the start of its
- *  band. An event with neither cannot be plotted and is reported separately
- *  rather than silently dropped at year zero. */
 const PLOT_YEAR = `COALESCE(year_exact, year_start)`;
 
 interface EventRow {
@@ -45,8 +23,6 @@ interface EventRow {
   [k: string]: unknown;
 }
 
-/** `century` holds integers on some rows and strings like "13th c." on others.
- *  Anything that reads it has to cope, so it is normalised once, here. */
 function centuryOf(row: EventRow): number | null {
   const raw = row.century;
   if (typeof raw === 'number') return raw;
@@ -60,12 +36,6 @@ function centuryOf(row: EventRow): number | null {
 
 export function timelineRoutes(router: Router<WorldviewEnv>) {
 
-  // GET /wv/timeline
-  //   ?source_id= | ?unit_id=      the original per-source behaviour
-  //   ?from=&to=                   year range
-  //   ?tradition=&type=            facets
-  //
-  // With none of them: the whole corpus, in order.
   const list = async (req: Request, env: WorldviewEnv) => {
     const url = new URL(req.url);
     const unitId = url.searchParams.get('unit_id');
@@ -76,10 +46,7 @@ export function timelineRoutes(router: Router<WorldviewEnv>) {
 
     const conds: string[] = [];
     const params: unknown[] = [];
-    // `Number(null)` is 0, not NaN — so reading these straight through
-    // Number() filtered an unfiltered request to `year >= 0 AND year <= 0` and
-    // returned nothing, while any explicit range worked fine. Check presence
-    // first.
+
     const num = (key: string): number | null => {
       const raw = url.searchParams.get(key);
       if (raw === null || raw.trim() === '') return null;
@@ -107,7 +74,7 @@ export function timelineRoutes(router: Router<WorldviewEnv>) {
       ...r,
       century: centuryOf(r),
       year: r.year_exact ?? r.year_start ?? null,
-      /** A band rather than a point — 13 of the 66 are eras, not incidents. */
+
       isBand: r.year_start != null && r.year_end != null && r.year_exact == null,
     }));
     const plotted = events.filter(e => e.year != null);
@@ -117,10 +84,7 @@ export function timelineRoutes(router: Router<WorldviewEnv>) {
       span: plotted.length
         ? { from: plotted[0].year, to: Math.max(...plotted.map(e => Number(e.year))) }
         : null,
-      // Facets counted from the rows that came back, so a client offers only
-      // filters that can actually match. tradition_id is NULL on all 66 today,
-      // and this reports that as an empty list rather than a filter that
-      // silently finds nothing.
+
       facets: {
         eventTypes: countBy(events, e => e.event_type),
         traditions: countBy(events, e => e.tradition_id),
@@ -131,7 +95,6 @@ export function timelineRoutes(router: Router<WorldviewEnv>) {
 
   dual(router, 'get', '/timeline', list);
 
-  // GET /wv/timeline/views — the saved arcs. One exists: Orientalism 1798–2003.
   dual(router, 'get', '/timeline/views', async (_req, env) =>
     ok({
       views: await query<Record<string, unknown>>(
@@ -142,7 +105,6 @@ export function timelineRoutes(router: Router<WorldviewEnv>) {
       ),
     }));
 
-  // GET /wv/timeline/centuries — wv_century_profiles, 5 rows, 17th–21st.
   dual(router, 'get', '/timeline/centuries', async (_req, env) =>
     ok({
       centuries: await query<Record<string, unknown>>(
@@ -151,8 +113,6 @@ export function timelineRoutes(router: Router<WorldviewEnv>) {
       ),
     }));
 
-  // Kept last: '/timeline/:id' would otherwise swallow '/timeline/views' and
-  // '/timeline/centuries', since the router matches in registration order.
   dual(router, 'get', '/timeline/:id', async (_req, env, { id }) => {
     const row = await queryOne<EventRow>(
       env.DB_WV, `SELECT ${COLS} FROM wv_timeline_events WHERE id = ?`, [id],

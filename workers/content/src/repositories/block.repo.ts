@@ -1,13 +1,5 @@
-// ─── BlockRepo — cm_blocks + cm_block_refs + cm_block_embeds ─────────────────
-// Structured content blocks inside a document, with typed cross-module refs
-// and embedded media/widget payloads.
-
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
-
-// ---------------------------------------------------------------------------
-// cm_blocks
-// ---------------------------------------------------------------------------
 
 export interface CmBlock {
   block_id: string;
@@ -52,10 +44,6 @@ export interface CmBlockPatch {
 const BLOCK_COLS = `block_id, doc_id, parent_block_id, block_type, seq_order, depth,
   content_text, content_ar, attrs_json, annotations_json, meta_json, created_at, updated_at`;
 
-// ---------------------------------------------------------------------------
-// cm_block_refs
-// ---------------------------------------------------------------------------
-
 export interface CmBlockRef {
   ref_id: string;
   block_id: string;
@@ -78,10 +66,6 @@ export interface CmBlockRefInput {
 
 const REF_COLS = `ref_id, block_id, target_ref, ref_type, anchor_text, note, seq_order, meta_json`;
 
-// ---------------------------------------------------------------------------
-// cm_block_embeds
-// ---------------------------------------------------------------------------
-
 export interface CmBlockEmbed {
   embed_id: string;
   block_id: string;
@@ -102,14 +86,8 @@ export interface CmBlockEmbedInput {
 
 const EMBED_COLS = `embed_id, block_id, embed_type, target_ref, embed_config_json, caption, meta_json`;
 
-// ---------------------------------------------------------------------------
-// Repository
-// ---------------------------------------------------------------------------
-
 export class BlockRepo {
   constructor(private db: D1Database) {}
-
-  // ── cm_blocks ────────────────────────────────────────────────────────────
 
   byDocument(docId: string): Promise<CmBlock[]> {
     return query<CmBlock>(
@@ -176,8 +154,6 @@ export class BlockRepo {
     await execute(this.db, `DELETE FROM cm_blocks WHERE block_id = ?`, [blockId]);
   }
 
-  // ── cm_block_refs ────────────────────────────────────────────────────────
-
   refs(blockId: string): Promise<CmBlockRef[]> {
     return query<CmBlockRef>(
       this.db,
@@ -212,8 +188,6 @@ export class BlockRepo {
   async removeRef(refId: string): Promise<void> {
     await execute(this.db, `DELETE FROM cm_block_refs WHERE ref_id = ?`, [refId]);
   }
-
-  // ── cm_block_embeds ──────────────────────────────────────────────────────
 
   embeds(blockId: string): Promise<CmBlockEmbed[]> {
     return query<CmBlockEmbed>(

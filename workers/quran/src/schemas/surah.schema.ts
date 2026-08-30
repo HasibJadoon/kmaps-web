@@ -1,7 +1,5 @@
-// ─── Surah schemas & types ────────────────────────────────────────────────────
-
 export interface Surah {
-  id: number;                     // 1–114
+  id: number;
   name_ar: string;
   name_en: string;
   name_transliteration: string;
@@ -19,7 +17,6 @@ export interface SurahPatch {
   page_start?: number;
 }
 
-// Minimal Zod-free validator for patch body
 export function validateSurahPatch(body: unknown): { data: SurahPatch } | { error: string } {
   if (typeof body !== 'object' || body === null) return { error: 'Body must be an object' };
   const b = body as Record<string, unknown>;

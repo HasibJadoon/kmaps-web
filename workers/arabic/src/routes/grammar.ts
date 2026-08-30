@@ -1,7 +1,3 @@
-// ─── /ar/grammar routes ───────────────────────────────────────────────────────
-// Learner grammar items. lx_nahw_ref → AL:ULID in ar_ling_nahw_concepts.
-// AR never stores grammar definitions — only pedagogical presentation.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -10,7 +6,6 @@ import { GrammarRepo } from '../repositories/grammar.repo';
 
 export function grammarRoutes(router: Router<ArabicEnv>) {
 
-  // GET /ar/grammar?container=AR:ULID
   router.get('/ar/grammar', async (req, env) => {
     const url         = new URL(req.url);
     const containerId = url.searchParams.get('container');
@@ -20,8 +15,6 @@ export function grammarRoutes(router: Router<ArabicEnv>) {
     );
   });
 
-  // GET /ar/grammar/by-concept?ref=AL:ULID
-  // All grammar items pointing to the same nahw concept across all containers
   router.get('/ar/grammar/by-concept', async (req, env) => {
     const url = new URL(req.url);
     const ref = url.searchParams.get('ref');
@@ -31,13 +24,11 @@ export function grammarRoutes(router: Router<ArabicEnv>) {
     );
   });
 
-  // GET /ar/grammar/:id
   router.get('/ar/grammar/:id', async (_req, env, { id }) => {
     const row = await new GrammarRepo(env.DB_AR).findById(id);
     return row ? ok(row) : notFound(`grammar item ${id}`);
   });
 
-  // POST /ar/grammar
   router.post('/ar/grammar', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.container_id || !b.lx_nahw_ref || !b.label)

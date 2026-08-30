@@ -11,7 +11,6 @@ const prefersReducedMotion = (): boolean =>
 @Injectable({ providedIn: 'root' })
 export class QuranGsapService {
 
-  /** Staggered reveal for icon tile host elements */
   revealIconTiles(elements: HTMLElement[], baseDelay = 0): void {
     if (!elements.length) return;
     if (prefersReducedMotion()) {
@@ -32,7 +31,6 @@ export class QuranGsapService {
     );
   }
 
-  /** Attach hover lift + scale to an element. Returns cleanup fn. */
   setupIconHover(el: HTMLElement): () => void {
     const iconEl = el.querySelector<HTMLElement>('.icon-tile__icon');
 
@@ -63,7 +61,6 @@ export class QuranGsapService {
     };
   }
 
-  /** Attach press-in feedback. Returns cleanup fn. */
   setupIconPress(el: HTMLElement): () => void {
     const onDown = () => {
       if (prefersReducedMotion()) return;
@@ -144,7 +141,6 @@ export class QuranGsapService {
     };
   }
 
-  /** Fade-up reveal for a page panel */
   revealPanel(el: HTMLElement, delay = 0): void {
     if (prefersReducedMotion()) { gsap.set(el, { opacity: 1 }); return; }
     gsap.fromTo(
@@ -154,7 +150,6 @@ export class QuranGsapService {
     );
   }
 
-  /** Slide-open detail panel inside a card. */
   slideInDetailPanel(el: HTMLElement): void {
     const items = Array.from(el.querySelectorAll<HTMLElement>('.syn-member'));
     gsap.killTweensOf([el, ...items]);
@@ -231,7 +226,6 @@ export class QuranGsapService {
     });
   }
 
-  /** Stagger-reveal card grid items (immediate, no scroll) */
   revealCards(elements: Element[], delay = 0): void {
     if (!elements.length) return;
     if (prefersReducedMotion()) { gsap.set(elements, { opacity: 1 }); return; }
@@ -242,13 +236,6 @@ export class QuranGsapService {
     );
   }
 
-  /**
-   * 3D entrance for morphology cards — each card tips up from a back-tilted
-   * plane on mount. Fires immediately (NOT ScrollTrigger): these cards live in
-   * containers that scroll internally (the study panel's overflow:auto), where a
-   * window-scroll trigger never fires and would leave off-screen cards stuck at
-   * opacity 0. An immediate reveal always lands them visible.
-   */
   reveal3dCards(elements: Element[]): void {
     if (!elements.length) return;
     if (prefersReducedMotion()) { gsap.set(elements, { opacity: 1, y: 0 }); return; }
@@ -265,18 +252,13 @@ export class QuranGsapService {
     );
   }
 
-  /**
-   * Pointer-tracked 3D tilt + parallax for one morphology card.
-   * The inner plane rotates toward the cursor; layers marked `[data-depth]`
-   * float at their depth; a gold glare follows the pointer. Returns a cleanup.
-   */
   setup3dCard(el: HTMLElement): () => void {
-    if (prefersReducedMotion()) return () => { /* motion disabled */ };
+    if (prefersReducedMotion()) return () => {  };
 
     const inner  = el.querySelector<HTMLElement>('.wcard__inner') ?? el;
     const glare  = el.querySelector<HTMLElement>('.wcard__glare');
     const layers = Array.from(el.querySelectorAll<HTMLElement>('[data-depth]'));
-    const MAX = 10; // max tilt in degrees
+    const MAX = 10;
 
     const onEnter = (): void => {
       gsap.to(el, {
@@ -288,8 +270,8 @@ export class QuranGsapService {
 
     const onMove = (e: MouseEvent): void => {
       const r  = el.getBoundingClientRect();
-      const px = (e.clientX - r.left) / r.width;   // 0..1
-      const py = (e.clientY - r.top) / r.height;   // 0..1
+      const px = (e.clientX - r.left) / r.width;
+      const py = (e.clientY - r.top) / r.height;
       gsap.to(inner, {
         rotateX: (0.5 - py) * MAX, rotateY: (px - 0.5) * MAX,
         transformPerspective: 720, transformOrigin: 'center',
@@ -325,7 +307,6 @@ export class QuranGsapService {
     };
   }
 
-  /** ScrollTrigger-based reveal: each element fades in as it enters viewport */
   revealOnScroll(elements: Element[]): void {
     if (!elements.length) return;
     if (prefersReducedMotion()) { gsap.set(elements, { opacity: 1, y: 0 }); return; }

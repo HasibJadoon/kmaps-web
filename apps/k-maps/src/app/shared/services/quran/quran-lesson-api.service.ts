@@ -3,8 +3,6 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { BackendApiService } from '../backend-api.service';
 
-// ── Lesson models ───────────────────────────────────────────────────────────
-
 export type TaskType =
   | 'reading'
   | 'morphology'
@@ -91,7 +89,6 @@ type RawLessonTasksResponse = {
 export class QuranLessonApiService {
   private readonly api = inject(BackendApiService);
 
-  // ── v1: Lesson ─────────────────────────────────────────────────────────────
   getLesson(id: number | string): Observable<QuranLesson> {
     return this.api.getRaw<RawLessonResponse>(['arabic', 'lessons', 'quran', id]).pipe(
       map((res) => {
@@ -109,7 +106,6 @@ export class QuranLessonApiService {
     );
   }
 
-  // ── v2: Lesson full detail (surah, range, container) ───────────────────────
   getLessonDetail(id: string | number): Observable<LessonFullDetail> {
     return this.api.getRaw<RawLessonDetailResponse>(['ar', 'quran', 'lessons', id]).pipe(
       map((res) => {
@@ -121,7 +117,6 @@ export class QuranLessonApiService {
         const passageUnit = units.find((u) => u.unit_type === 'passage') ?? units[0] ?? null;
         const meta = lessonJson.meta ?? {};
 
-        // Parse surah from start_ref e.g. "2:5" → 2
         const parseRef = (ref: string | undefined, index: number): number | null => {
           if (!ref) return null;
           const parts = String(ref).split(':');
@@ -151,7 +146,6 @@ export class QuranLessonApiService {
     );
   }
 
-  // ── v2: Lesson tasks ────────────────────────────────────────────────────────
   getLessonTasks(id: string | number): Observable<LessonTask[]> {
     return this.api.getRaw<RawLessonTasksResponse>(['ar', 'quran', 'lessons', id, 'tasks']).pipe(
       map((res) => {

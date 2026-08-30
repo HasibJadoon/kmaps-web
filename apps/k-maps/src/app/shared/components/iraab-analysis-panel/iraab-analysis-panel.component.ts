@@ -4,18 +4,6 @@ import type { QrIraabGroupDisplayPayload, QrIraabDisplayBlock } from '../../mode
 
 interface CountedTag { label: string; count: number; }
 
-/**
- * Iʿrāb analysis panel — aggregates morphology/syntax signals out of the
- * display payload to give the reader a quick overview of:
- *
- *   • Grammar roles      (نعت, خبر, فاعل, مفعول به…)
- *   • Grammatical cases  (مرفوع, منصوب, مجرور, مبني, مجزوم)
- *   • Maḥall types       (في محل رفع/نصب/جر, لا محل لها…)
- *   • Word coverage      (count of distinct target words analyzed)
- *   • Section coverage   (per-source completeness across irab/sarf/balagha)
- *
- * Sits alongside the references panel as the second extendable side panel.
- */
 @Component({
   selector: 'km-iraab-analysis-panel',
   standalone: true,
@@ -27,7 +15,6 @@ interface CountedTag { label: string; count: number; }
 export class IraabAnalysisPanelComponent {
   readonly payload = input<QrIraabGroupDisplayPayload | null>(null);
 
-  // Vocabulary buckets — match what the parser harvests into grammar_tags
   private readonly CASE_VOCAB = new Set(['مرفوع', 'منصوب', 'مجرور', 'مبني', 'مجزوم']);
   private readonly MAHALL_VOCAB_PREFIX = ['في محل', 'لا محل لها'];
   private readonly ROLE_KEYWORDS = [
@@ -43,7 +30,6 @@ export class IraabAnalysisPanelComponent {
   );
   readonly roles = computed<CountedTag[]>(() => this.bucketGrammarTags(t => this.ROLE_KEYWORDS.includes(t)));
 
-  /** Distinct target words analyzed across all irab_card blocks. */
   readonly wordCoverage = computed<{ total: number; unique: number; words: string[] }>(() => {
     const p = this.payload();
     if (!p) return { total: 0, unique: 0, words: [] };
@@ -57,7 +43,6 @@ export class IraabAnalysisPanelComponent {
     return { total: all.length, unique: set.size, words: [...set].slice(0, 24) };
   });
 
-  /** Section coverage across blocks for the selected source(s). */
   readonly sectionCoverage = computed<CountedTag[]>(() => {
     const p = this.payload();
     if (!p) return [];
@@ -76,7 +61,6 @@ export class IraabAnalysisPanelComponent {
       .map(k => ({ label: labels[k], count: counts.get(k)! }));
   });
 
-  // ── Section collapse state ────────────────────────────────────────────────
   readonly collapsed = signal<Set<string>>(new Set());
   isCollapsed(key: string): boolean { return this.collapsed().has(key); }
   toggle(key: string): void {
@@ -87,7 +71,6 @@ export class IraabAnalysisPanelComponent {
     });
   }
 
-  /** Are any signals present? Used to render empty state. */
   readonly hasAnyContent = computed(() =>
     this.cases().length > 0 ||
     this.mahalTypes().length > 0 ||
@@ -96,7 +79,6 @@ export class IraabAnalysisPanelComponent {
     this.sectionCoverage().length > 0,
   );
 
-  // ── helpers ────────────────────────────────────────────────────────────────
   private bucketGrammarTags(match: (t: string) => boolean): CountedTag[] {
     const p = this.payload();
     if (!p) return [];

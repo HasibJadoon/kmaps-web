@@ -1,17 +1,6 @@
-// ─── EventRepo — L5 + L5B tables ──────────────────────────────────────────────
-// L5:  wv_prophetic_episodes, wv_prophetic_episode_links, wv_events,
-//      wv_event_types, wv_event_participants, wv_event_locations,
-//      wv_practices, wv_social_patterns, wv_anthropology_profiles,
-//      wv_institution_profiles, wv_civilizational_contributions,
-//      wv_contribution_evidence_links
-// L5B: wv_exemplar_cases, wv_case_scope_links, wv_moral_case_patterns,
-//      wv_household_models, wv_charity_infrastructures, wv_memory_traditions
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ─── L5 interfaces ─────────────────────────────────────────────────────────────
 
 export interface WvPropheticEpisode {
   id: string;
@@ -162,8 +151,6 @@ export interface WvContributionEvidenceLink {
   created_at: string;
 }
 
-// ─── L5B interfaces ────────────────────────────────────────────────────────────
-
 export interface WvExemplarCase {
   id: string;
   slug: string;
@@ -233,8 +220,6 @@ export interface WvMemoryTradition {
   created_at: string;
 }
 
-// ─── Create input types ────────────────────────────────────────────────────────
-
 export type PropheticEpisodeCreate = Omit<WvPropheticEpisode, 'id' | 'created_at' | 'updated_at'>;
 export type PropheticEpisodeLinkCreate = Omit<WvPropheticEpisodeLink, 'id' | 'created_at'>;
 export type EventCreate = Omit<WvEvent, 'id' | 'created_at' | 'updated_at'>;
@@ -253,8 +238,6 @@ export type MoralCasePatternCreate = Omit<WvMoralCasePattern, 'id' | 'created_at
 export type HouseholdModelCreate = Omit<WvHouseholdModel, 'id' | 'created_at'>;
 export type CharityInfrastructureCreate = Omit<WvCharityInfrastructure, 'id' | 'created_at'>;
 export type MemoryTraditionCreate = Omit<WvMemoryTradition, 'id' | 'created_at'>;
-
-// ─── Column lists ──────────────────────────────────────────────────────────────
 
 const PE_COLS   = `id, slug, title, title_ar, tradition_id, prophet_id, moral_axis_id, episode_type, narrative_text, moral_lesson, qr_scope_ref, corpus_unit_id, meta_json, created_at, updated_at`;
 const PEL_COLS  = `id, episode_id, target_type, target_id, link_role, note, created_at`;
@@ -276,8 +259,6 @@ const HM_COLS   = `id, slug, title, tradition_id, period_id, authority_structure
 const CI_COLS   = `id, slug, title, tradition_id, infra_type, period_id, location_id, institution_id, description_md, created_at`;
 const MT_COLS   = `id, case_id, tradition_id, memory_type, description_md, vehicle, created_at`;
 
-// ─── Patch helper ──────────────────────────────────────────────────────────────
-
 function buildPatch(patch: Record<string, unknown>): { setClauses: string; values: unknown[] } {
   const keys = Object.keys(patch).filter(k => patch[k] !== undefined);
   const setClauses = keys.map(k => `${k} = ?`).join(', ');
@@ -285,14 +266,8 @@ function buildPatch(patch: Record<string, unknown>): { setClauses: string; value
   return { setClauses, values };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// EventRepo
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export class EventRepo {
   constructor(private db: D1Database) {}
-
-  // ── L5: Prophetic Episodes ─────────────────────────────────────────────────
 
   episodes(prophetRef: string | null, traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -356,8 +331,6 @@ export class EventRepo {
     ))!;
   }
 
-  // ── L5: Events ─────────────────────────────────────────────────────────────
-
   events(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -403,8 +376,6 @@ export class EventRepo {
     return this.findEventById(id);
   }
 
-  // ── L5: Event Types ────────────────────────────────────────────────────────
-
   eventTypes(opts: PaginateOptions = {}) {
     return paginate<WvEventType>(
       this.db,
@@ -425,8 +396,6 @@ export class EventRepo {
       this.db, `SELECT ${ET_COLS} FROM wv_event_types WHERE id = ?`, [id],
     ))!;
   }
-
-  // ── L5: Event Participants ─────────────────────────────────────────────────
 
   participants(eventId: string): Promise<WvEventParticipant[]> {
     return query<WvEventParticipant>(
@@ -455,8 +424,6 @@ export class EventRepo {
     await execute(this.db, `DELETE FROM wv_event_participants WHERE id = ?`, [id]);
   }
 
-  // ── L5: Event Locations ────────────────────────────────────────────────────
-
   eventLocations(eventId: string): Promise<WvEventLocation[]> {
     return query<WvEventLocation>(
       this.db,
@@ -478,8 +445,6 @@ export class EventRepo {
       this.db, `SELECT ${EL_COLS} FROM wv_event_locations WHERE id = ?`, [id],
     ))!;
   }
-
-  // ── L5: Practices ──────────────────────────────────────────────────────────
 
   practices(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -523,8 +488,6 @@ export class EventRepo {
     return this.findPracticeById(id);
   }
 
-  // ── L5: Social Patterns ────────────────────────────────────────────────────
-
   socialPatterns(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -564,8 +527,6 @@ export class EventRepo {
     await execute(this.db, `UPDATE wv_social_patterns SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findSocialPatternById(id);
   }
-
-  // ── L5: Anthropology Profiles ──────────────────────────────────────────────
 
   anthropologyProfiles(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -610,10 +571,8 @@ export class EventRepo {
     return this.findAnthropologyProfileById(id);
   }
 
-  // ── L5: Institution Profiles ───────────────────────────────────────────────
-
   institutionProfiles(traditionId: string | null, opts: PaginateOptions = {}) {
-    // Join to wv_institutions to filter by tradition
+
     const conds: string[] = [];
     const params: unknown[] = [];
     let from = `wv_institution_profiles ip`;
@@ -657,8 +616,6 @@ export class EventRepo {
     await execute(this.db, `UPDATE wv_institution_profiles SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findInstitutionProfileById(id);
   }
-
-  // ── L5: Civilizational Contributions ──────────────────────────────────────
 
   contributions(traditionId: string | null, contribType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -727,8 +684,6 @@ export class EventRepo {
     ))!;
   }
 
-  // ── L5B: Exemplar Cases ────────────────────────────────────────────────────
-
   exemplarCases(traditionId: string | null, caseType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -794,8 +749,6 @@ export class EventRepo {
     ))!;
   }
 
-  // ── L5B: Moral Case Patterns ───────────────────────────────────────────────
-
   moralCasePatterns(opts: PaginateOptions = {}) {
     return paginate<WvMoralCasePattern>(
       this.db,
@@ -830,8 +783,6 @@ export class EventRepo {
     await execute(this.db, `UPDATE wv_moral_case_patterns SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findMoralCasePatternById(id);
   }
-
-  // ── L5B: Household Models ──────────────────────────────────────────────────
 
   householdModels(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -873,8 +824,6 @@ export class EventRepo {
     return this.findHouseholdModelById(id);
   }
 
-  // ── L5B: Charity Infrastructures ──────────────────────────────────────────
-
   charityInfrastructures(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -915,8 +864,6 @@ export class EventRepo {
     await execute(this.db, `UPDATE wv_charity_infrastructures SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findCharityInfrastructureById(id);
   }
-
-  // ── L5B: Memory Traditions ─────────────────────────────────────────────────
 
   memoryTraditions(caseId: string | null, traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];

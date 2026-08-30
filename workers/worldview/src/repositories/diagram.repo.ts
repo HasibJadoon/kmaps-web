@@ -1,18 +1,6 @@
-// ─── DiagramRepo — L8 + L9 + L9B tables ──────────────────────────────────────
-// L8:  wv_comparison_templates, wv_moral_arc_views,
-//      wv_civilizational_matrices, wv_prophetic_exemplars
-// L9:  wv_timeline_views, wv_diagram_specs, wv_diagram_instances,
-//      wv_output_artifacts, wv_renderer_presets, wv_storyline_specs
-// L9B: wv_abrahamic_morality_matrices, wv_replacement_bedrock_views,
-//      wv_moral_civilization_maps, wv_propaganda_flow_maps,
-//      wv_orientalism_image_chains, wv_exemplar_case_timelines,
-//      wv_discernment_diagram_views
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ─── L8 interfaces ─────────────────────────────────────────────────────────────
 
 export interface WvComparisonTemplate {
   id: string;
@@ -59,8 +47,6 @@ export interface WvPropheticExemplar {
   description_md: string | null;
   created_at: string;
 }
-
-// ─── L9 interfaces ─────────────────────────────────────────────────────────────
 
 export interface WvTimelineView {
   id: string;
@@ -135,8 +121,6 @@ export interface WvStorylineSpec {
   meta_json: string | null;
   created_at: string;
 }
-
-// ─── L9B interfaces ────────────────────────────────────────────────────────────
 
 export interface WvAbrahamicMoralityMatrix {
   id: string;
@@ -220,8 +204,6 @@ export interface WvDiscernmentDiagramView {
   created_at: string;
 }
 
-// ─── Create input types ────────────────────────────────────────────────────────
-
 export type ComparisonTemplateCreate = Omit<WvComparisonTemplate, 'id' | 'created_at'>;
 export type MoralArcViewCreate = Omit<WvMoralArcView, 'id' | 'created_at'>;
 export type CivilizationalMatrixCreate = Omit<WvCivilizationalMatrix, 'id' | 'created_at'>;
@@ -239,8 +221,6 @@ export type PropagandaFlowMapCreate = Omit<WvPropagandaFlowMap, 'id' | 'created_
 export type OrientalismImageChainCreate = Omit<WvOrientalismImageChain, 'id' | 'created_at'>;
 export type ExemplarCaseTimelineCreate = Omit<WvExemplarCaseTimeline, 'id' | 'created_at'>;
 export type DiscernmentDiagramViewCreate = Omit<WvDiscernmentDiagramView, 'id' | 'created_at'>;
-
-// ─── Column lists ──────────────────────────────────────────────────────────────
 
 const CT_COLS  = `id, slug, title, axes_json, row_types, description_md, created_at`;
 const MAV_COLS = `id, slug, title, moral_axis_id, tradition_id, century_from, century_to, arc_steps_json, description_md, meta_json, created_at`;
@@ -262,8 +242,6 @@ const OIC_COLS = `id, slug, title, orientalist_frame_id, chain_steps_json, diagr
 const ECT_COLS = `id, slug, title, case_ids_json, tradition_ids, timeline_view_id, description_md, created_at`;
 const DDV_COLS = `id, slug, title, tradition_id, adversarial_pattern_ids, moral_inversion_ids, counterfeit_ids, diagram_spec_id, description_md, created_at`;
 
-// ─── Patch helper ──────────────────────────────────────────────────────────────
-
 function buildPatch(patch: Record<string, unknown>): { setClauses: string; values: unknown[] } {
   const keys = Object.keys(patch).filter(k => patch[k] !== undefined);
   const setClauses = keys.map(k => `${k} = ?`).join(', ');
@@ -271,14 +249,8 @@ function buildPatch(patch: Record<string, unknown>): { setClauses: string; value
   return { setClauses, values };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// DiagramRepo
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export class DiagramRepo {
   constructor(private db: D1Database) {}
-
-  // ── L8: Comparison Templates ───────────────────────────────────────────────
 
   comparisonTemplates(opts: PaginateOptions = {}) {
     return paginate<WvComparisonTemplate>(
@@ -314,8 +286,6 @@ export class DiagramRepo {
     await execute(this.db, `UPDATE wv_comparison_templates SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findTemplateById(id);
   }
-
-  // ── L8: Moral Arc Views ────────────────────────────────────────────────────
 
   moralArcViews(moralAxisId: string | null, traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -360,8 +330,6 @@ export class DiagramRepo {
     return this.findMoralArcViewById(id);
   }
 
-  // ── L8: Civilizational Matrices ────────────────────────────────────────────
-
   civilizationalMatrices(opts: PaginateOptions = {}) {
     return paginate<WvCivilizationalMatrix>(
       this.db,
@@ -397,8 +365,6 @@ export class DiagramRepo {
     await execute(this.db, `UPDATE wv_civilizational_matrices SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findCivilizationalMatrixById(id);
   }
-
-  // ── L8: Prophetic Exemplars ────────────────────────────────────────────────
 
   propheticExemplars(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -439,8 +405,6 @@ export class DiagramRepo {
     await execute(this.db, `UPDATE wv_prophetic_exemplars SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findPropheticExemplarById(id);
   }
-
-  // ── L9: Timeline Views ─────────────────────────────────────────────────────
 
   timelineViews(traditionId: string | null, theme: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -486,8 +450,6 @@ export class DiagramRepo {
     return this.findTimelineViewById(id);
   }
 
-  // ── L9: Diagram Specs ──────────────────────────────────────────────────────
-
   diagramSpecs(diagramType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -530,8 +492,6 @@ export class DiagramRepo {
     return this.findSpecById(id);
   }
 
-  // ── L9: Diagram Instances ──────────────────────────────────────────────────
-
   instances(specId: string, opts: PaginateOptions = {}) {
     return paginate<WvDiagramInstance>(
       this.db,
@@ -558,8 +518,6 @@ export class DiagramRepo {
     );
     return (await this.findInstanceById(id))!;
   }
-
-  // ── L9: Output Artifacts ───────────────────────────────────────────────────
 
   artifacts(status: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -603,8 +561,6 @@ export class DiagramRepo {
     return this.findArtifactById(id);
   }
 
-  // ── L9: Renderer Presets ───────────────────────────────────────────────────
-
   rendererPresets(rendererType: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -636,8 +592,6 @@ export class DiagramRepo {
     );
     return (await this.findRendererPresetById(id))!;
   }
-
-  // ── L9: Storyline Specs ────────────────────────────────────────────────────
 
   storylineSpecs(traditionId: string | null, topicId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -680,8 +634,6 @@ export class DiagramRepo {
     return this.findStorylineSpecById(id);
   }
 
-  // ── L9B: Abrahamic Morality Matrices ──────────────────────────────────────
-
   abrahamicMoralityMatrices(opts: PaginateOptions = {}) {
     return paginate<WvAbrahamicMoralityMatrix>(
       this.db,
@@ -716,8 +668,6 @@ export class DiagramRepo {
     await execute(this.db, `UPDATE wv_abrahamic_morality_matrices SET ${setClauses} WHERE id = ?`, [...values, id]);
     return this.findAbrahamicMoralityMatrixById(id);
   }
-
-  // ── L9B: Replacement Bedrock Views ────────────────────────────────────────
 
   replacementBedrockViews(streamId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -759,8 +709,6 @@ export class DiagramRepo {
     return this.findReplacementBedrockViewById(id);
   }
 
-  // ── L9B: Moral Civilization Maps ──────────────────────────────────────────
-
   moralCivilizationMaps(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -793,8 +741,6 @@ export class DiagramRepo {
     );
     return (await this.findMoralCivilizationMapById(id))!;
   }
-
-  // ── L9B: Propaganda Flow Maps ──────────────────────────────────────────────
 
   propagandaFlowMaps(propagandaSystemId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
@@ -829,8 +775,6 @@ export class DiagramRepo {
     return (await this.findPropagandaFlowMapById(id))!;
   }
 
-  // ── L9B: Orientalism Image Chains ─────────────────────────────────────────
-
   orientalismImageChains(orientalistFrameId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];
     const params: unknown[] = [];
@@ -864,8 +808,6 @@ export class DiagramRepo {
     return (await this.findOrientalismImageChainById(id))!;
   }
 
-  // ── L9B: Exemplar Case Timelines ──────────────────────────────────────────
-
   exemplarCaseTimelines(opts: PaginateOptions = {}) {
     return paginate<WvExemplarCaseTimeline>(
       this.db,
@@ -894,8 +836,6 @@ export class DiagramRepo {
     );
     return (await this.findExemplarCaseTimelineById(id))!;
   }
-
-  // ── L9B: Discernment Diagram Views ────────────────────────────────────────
 
   discernmentDiagramViews(traditionId: string | null, opts: PaginateOptions = {}) {
     const conds: string[] = [];

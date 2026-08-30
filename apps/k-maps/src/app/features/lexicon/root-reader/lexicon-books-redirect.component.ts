@@ -3,14 +3,6 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { of, catchError } from 'rxjs';
 import { AlDictionaryApiService } from '../../../shared/services/al-dictionary-api.service';
 
-/**
- * Back-compat + entry redirect for book URLs. The reader is now root-centric
- * (/lexicon/root/:root?book=<slug>), but the library still links to a book
- * without a root (/lexicon/books/:slug), and old bookmarks may carry ?root.
- *
- *   /lexicon/books/:slug?root=R  →  /lexicon/root/R?book=:slug
- *   /lexicon/books/:slug         →  resolve the book's first root, then above
- */
 @Component({
   selector: 'km-lexicon-books-redirect',
   standalone: true,
@@ -33,7 +25,6 @@ export class LexiconBooksRedirectComponent {
       return;
     }
 
-    // No root given — jump to the book's first root so the reader has an entry.
     api.getV2Roots({ source: slug, limit: 1 }).pipe(
       catchError(() => of({ rows: [], total: 0, page: 1, limit: 0, has_more: false })),
     ).subscribe(r => {

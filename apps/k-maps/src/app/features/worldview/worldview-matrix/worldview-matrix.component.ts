@@ -5,13 +5,10 @@ import { firstValueFrom } from 'rxjs';
 
 import { WorldviewLibraryApiService } from '../../../shared/services/worldview/worldview-library-api.service';
 
-// Desktop Era × Trope heatmap. Mirrors the mobile WorldviewMatrixPage.
-
 interface MxEra { slug: string; short: string; title: string; order: number; }
 interface MxCell { value: number; eraSlug: string; }
 interface MxRow { id: string; title: string; cells: MxCell[]; total: number; }
 
-// Compact column labels — the full era title is shown on hover via [title].
 const ERA_SHORT: Record<string, string> = {
   medieval: 'Medieval', renaissance: 'Renaiss.', americas: 'Americas',
   orientalist: 'Orient.', sept11: '9/11 +',
@@ -76,7 +73,7 @@ export class WorldviewMatrixComponent implements OnInit {
       if (type === 'era') {
         const slug = String(data?.['era'] ?? '');
         if (!slug) continue;
-        // Column label comes from the era node (data_json.short); ERA_SHORT is a fallback.
+
         eras.push({ slug, short: String(data?.['short'] ?? ERA_SHORT[slug] ?? String(node['title'] ?? slug).split(/[\s/(]/)[0]), title: String(node['title'] ?? slug), order: num(data?.['order_index']) ?? 999 });
       } else if (type === 'trope') {
         const intensityRaw = parseObj(data?.['era_intensity']);

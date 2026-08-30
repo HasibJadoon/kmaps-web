@@ -1,18 +1,16 @@
-// ─── TranslationRepo — all SQL for qr_translation + qr_translation_source ──
-
 import { query, queryOne } from '../../../shared/src/db';
 
 export interface TranslationSource {
-  id: string;          // QR:ULID
+  id: string;
   slug: string;
   language: string;
   author: string;
   title: string;
-  is_default: number;  // 1 | 0
+  is_default: number;
 }
 
 export interface Translation {
-  id: string;          // QR:ULID
+  id: string;
   surah: number;
   ayah: number;
   source_id: string;
@@ -40,7 +38,6 @@ export class TranslationRepo {
     );
   }
 
-  /** All translations for a single ayah. */
   byAyah(surahId: number, ayahNum: number): Promise<Translation[]> {
     return query<Translation>(
       this.db,
@@ -51,7 +48,6 @@ export class TranslationRepo {
     );
   }
 
-  /** A specific source's translation for a surah range. */
   bySourceAndRange(
     sourceId: string,
     surahId: number,

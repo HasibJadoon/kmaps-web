@@ -1,5 +1,3 @@
-// ─── Class schemas & types ────────────────────────────────────────────────────
-
 export type ArClassType = 'live' | 'self_paced' | 'blended';
 export type ArClassStatus = 'draft' | 'active' | 'completed' | 'archived';
 export type ArClassVisibility = 'private' | 'workspace' | 'public';
@@ -8,18 +6,16 @@ export type ArEnrolmentStatus = 'active' | 'completed' | 'withdrawn';
 export type ArAssignmentStatus = 'draft' | 'active' | 'closed';
 export type ArSubmissionStatus = 'submitted' | 'graded' | 'returned';
 
-// ─── Class ────────────────────────────────────────────────────────────────────
-
 export interface ArClass {
-  id: string;                        // AR:ULID
+  id: string;
   slug: string | null;
   title: string;
   description_md: string | null;
   class_type: ArClassType;
   container_id: string | null;
   curriculum_id: string | null;
-  teacher_ref: string;               // CORE:<user_id>
-  core_ws_ref: string;               // CORE:<workspace_id>
+  teacher_ref: string;
+  core_ws_ref: string;
   status: ArClassStatus;
   start_date: string | null;
   end_date: string | null;
@@ -61,12 +57,10 @@ export interface ArClassPatch {
   meta_json?: string | null;
 }
 
-// ─── Class Enrolment ──────────────────────────────────────────────────────────
-
 export interface ArClassEnrolment {
-  id: string;                        // AR:ULID
+  id: string;
   class_id: string;
-  student_ref: string;               // CORE:<user_id>
+  student_ref: string;
   role: ArEnrolmentRole;
   status: ArEnrolmentStatus;
   enrolled_at: string;
@@ -80,8 +74,6 @@ export interface ArClassEnrolmentCreate {
   role?: ArEnrolmentRole;
   status?: ArEnrolmentStatus;
 }
-
-// ─── Class Resources ──────────────────────────────────────────────────────────
 
 export interface ArClassResource {
   id: string;
@@ -105,14 +97,12 @@ export interface ArClassResourceCreate {
   added_by_ref?: string | null;
 }
 
-// ─── Class Assignment ─────────────────────────────────────────────────────────
-
 export interface ArClassAssignment {
-  id: string;                        // AR:ULID
+  id: string;
   class_id: string;
   title: string;
   instructions_md: string | null;
-  resource_refs: string | null;      // JSON [typed_refs]
+  resource_refs: string | null;
   due_date: string | null;
   weight: number;
   status: ArAssignmentStatus;
@@ -139,15 +129,13 @@ export interface ArAssignmentPatch {
   meta_json?: string | null;
 }
 
-// ─── Assignment Submission ────────────────────────────────────────────────────
-
 export interface ArAssignmentSubmission {
-  id: string;                        // AR:ULID
+  id: string;
   assignment_id: string;
-  student_ref: string;               // CORE:<user_id>
+  student_ref: string;
   submission_type: string;
   content_md: string | null;
-  cm_doc_ref: string | null;         // CM:<doc_id>
+  cm_doc_ref: string | null;
   score: number | null;
   feedback_md: string | null;
   graded_by_ref: string | null;
@@ -174,8 +162,6 @@ export interface ArSubmissionPatch {
   status?: ArSubmissionStatus;
   graded_at?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 const VALID_CLASS_TYPES: ArClassType[] = ['live', 'self_paced', 'blended'];
 const VALID_CLASS_STATUSES: ArClassStatus[] = ['draft', 'active', 'completed', 'archived'];
@@ -303,14 +289,12 @@ export function validateArSubmissionCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface ClassEnrolment {
   id: string;
   class_id: string;
-  student_ref: string;        // CORE:<user_id>
-  role: string;               // student|teacher_assistant|observer|auditor
-  status: string;             // invited|active|paused|withdrawn|completed
+  student_ref: string;
+  role: string;
+  status: string;
   enrolled_at: string;
   completed_at: string | null;
   meta_json: string | null;
@@ -319,8 +303,8 @@ export interface ClassEnrolment {
 export interface ClassResource {
   id: string;
   class_id: string;
-  resource_ref: string;       // typed ref: CM:<doc_id>|AR:<vocab_id>|etc.
-  resource_type: string;      // cm_doc|lesson|exercise_set|vocab_list|grammar_note|media|other
+  resource_ref: string;
+  resource_type: string;
   resource_label: string | null;
   sort_order: number;
   is_required: number;
@@ -342,10 +326,10 @@ export interface ClassAssignment {
   class_id: string;
   title: string;
   instructions_md: string | null;
-  resource_refs: string | null;   // JSON [typed_refs]
+  resource_refs: string | null;
   due_date: string | null;
   weight: number;
-  status: string;             // open|closed|graded
+  status: string;
   meta_json: string | null;
   created_at: string;
 }
@@ -363,13 +347,13 @@ export interface AssignmentSubmission {
   id: string;
   assignment_id: string;
   student_ref: string;
-  submission_type: string;    // text|file|audio|link|other
+  submission_type: string;
   content_md: string | null;
   cm_doc_ref: string | null;
   score: number | null;
   feedback_md: string | null;
   graded_by_ref: string | null;
-  status: string;             // draft|submitted|graded|returned
+  status: string;
   submitted_at: string;
   graded_at: string | null;
 }
@@ -380,8 +364,6 @@ export interface SubmissionInput {
   content_md?: string | null;
   cm_doc_ref?: string | null;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

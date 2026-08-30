@@ -1,8 +1,3 @@
-// ─── Tradition schemas & types ────────────────────────────────────────────────
-// Tables: wv_traditions, wv_tradition_branches, wv_schools, wv_movements
-
-// ── wv_traditions ─────────────────────────────────────────────────────────────
-
 export type WvTraditionType =
   | 'religion'
   | 'philosophy'
@@ -12,7 +7,7 @@ export type WvTraditionType =
   | 'other';
 
 export interface WvTradition {
-  id: string;               // WV:ULID
+  id: string;
   slug: string;
   title: string;
   title_ar: string | null;
@@ -21,8 +16,8 @@ export interface WvTradition {
   parent_id: string | null;
   founded_period: string | null;
   geographic_origin: string | null;
-  scripture_refs: string | null;   // JSON [{title,lang,canon_status}]
-  core_beliefs: string | null;     // JSON [string]
+  scripture_refs: string | null;
+  core_beliefs: string | null;
   description_md: string | null;
   meta_json: string | null;
   created_at: string;
@@ -119,8 +114,6 @@ export function validateWvTraditionPatch(
   return { data: patch };
 }
 
-// ── wv_tradition_branches ──────────────────────────────────────────────────────
-
 export type WvTraditionBranchType =
   | 'doctrinal'
   | 'legal'
@@ -131,7 +124,7 @@ export type WvTraditionBranchType =
   | 'other';
 
 export interface WvTraditionBranch {
-  id: string;               // WV:ULID
+  id: string;
   slug: string;
   title: string;
   title_ar: string | null;
@@ -197,8 +190,6 @@ export function validateWvTraditionBranchCreate(
   };
 }
 
-// ── wv_schools ────────────────────────────────────────────────────────────────
-
 export type WvSchoolType =
   | 'theological'
   | 'legal'
@@ -208,7 +199,7 @@ export type WvSchoolType =
   | 'other';
 
 export interface WvSchool {
-  id: string;               // WV:ULID
+  id: string;
   slug: string;
   title: string;
   title_ar: string | null;
@@ -279,8 +270,6 @@ export function validateWvSchoolCreate(
   };
 }
 
-// ── wv_movements ──────────────────────────────────────────────────────────────
-
 export type WvMovementType =
   | 'revival'
   | 'reform'
@@ -294,7 +283,7 @@ export type WvMovementType =
   | 'other';
 
 export interface WvMovement {
-  id: string;               // WV:ULID
+  id: string;
   slug: string;
   title: string;
   movement_type: WvMovementType;
@@ -358,14 +347,12 @@ export function validateWvMovementCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface Tradition {
-  id: string;           // WV:ULID
+  id: string;
   slug: string;
   label_en: string;
   label_ar: string | null;
-  category: string;     // abrahamic | eastern | secular | tribal | other
+  category: string;
   parent_id: string | null;
   created_at: string;
 }
@@ -377,8 +364,6 @@ export interface TraditionCreate {
   category?: string;
   parent_id?: string | null;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

@@ -1,24 +1,3 @@
--- 0058 — Rename ar_ling_lexicon_blocks and repoint its FTS index (phase 5).
---
--- 1,004,356 rows. THIS IS THE ONLY PART OF THE REFACTOR THAT RENAME CANNOT DO
--- ON ITS OWN.
---
--- fts5 stores its external-content pointer as a module argument, not a parsed
--- table reference, so ALTER TABLE RENAME leaves `content='ar_ling_lexicon_blocks'`
--- pointing at a table that no longer exists. Measured consequences (D1 pragmas,
--- dryrun/rename_test_d1mode.py section B):
---     MATCH               still works
---     bm25() ranking      still works
---     reading a column    FAILS  — no such table
---     snippet()/highlight FAILS  — SQL logic error
---     'rebuild'           FAILS  — no such table
--- So search keeps finding rows and then errors when it tries to show them. The
--- index must be dropped and recreated against the new name.
---
--- Triggers are dropped first: RENAME would rewrite their ON clause to the new
--- table, but they also name the FTS table in their bodies, and that table is
--- being replaced.
-
 DROP TRIGGER IF EXISTS trig_albk_fts_ad;
 DROP TRIGGER IF EXISTS trig_albk_fts_ai;
 DROP TRIGGER IF EXISTS trig_albk_fts_au;
@@ -90,10 +69,3 @@ AFTER UPDATE ON ar_ling_lexicon_block BEGIN
     new.block_type
   );
 END;
-
--- REBUILD IS DELIBERATELY NOT RUN HERE.
--- 1,004,356 rows will not reindex inside a single D1 statement. Run it from the
--- worker in batches instead — kmaps-web/scripts/lane/rebuild-lane-fts.ts is an
--- existing batched driver for exactly this. Until it completes, MATCH returns
--- nothing for this index.
--- INSERT INTO ar_ling_lexicon_block_fts(ar_ling_lexicon_block_fts) VALUES('rebuild');

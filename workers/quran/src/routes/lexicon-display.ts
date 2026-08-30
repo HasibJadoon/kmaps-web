@@ -1,8 +1,3 @@
-// ─── /qr/lexicon/root/:root — the ROOT display record ─────────────────────────
-// Serves qr_morph_display_root verbatim (the render layer). Every icon/label is a
-// data field; the UI is a logic-free renderer. Icons are lucide names, pool-guarded
-// on the client. No aggregation here — this is the materialized display row.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, internalError } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';

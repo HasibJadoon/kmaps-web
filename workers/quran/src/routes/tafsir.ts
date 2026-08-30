@@ -1,7 +1,3 @@
-// ─── /qr/tafsir routes ────────────────────────────────────────────────────────
-// Exposes qr_tafsir_entry for the source-rag bundle endpoint.
-// The backend composite route at /api/quran/:surah/:ayah/sources calls this.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
@@ -11,7 +7,6 @@ import { TafsirRepo } from '../repositories/tafsir.repo';
 
 export function tafsirRoutes(router: Router<QuranEnv>) {
 
-  // GET /qr/scholars — list all scholars with entry counts and works
   router.get('/qr/scholars', async (_req, env) => {
     const { results: scholars } = await env.DB_QR
       .prepare(`
@@ -36,9 +31,6 @@ export function tafsirRoutes(router: Router<QuranEnv>) {
     return ok({ scholars });
   });
 
-  // GET /qr/works?work_type=tafsir|irab — list works joined with scholar info and entry counts
-  // Edge-cached: entry-count aggregate over qr_tafsir_entry (>1M rows) is
-  // the long pole. Works + scholar metadata only change on ingestion.
   router.get('/qr/works', (req, env) => cached(req, async () => {
     const url = new URL(req.url);
     const workType = url.searchParams.get('work_type');
@@ -68,9 +60,6 @@ export function tafsirRoutes(router: Router<QuranEnv>) {
     return ok({ works });
   }));
 
-  // GET /qr/tafsir?surah=X[&ayah=Y][&work_id=Z][&limit=N][&page=N]
-  // Returns tafsir entries joined with qr_ayah.text_uthmani for verse-by-verse display.
-  // Edge-cached per query string — entries only change on ingest.
   router.get('/qr/tafsir', (req, env) => cached(req, async () => {
     const url    = new URL(req.url);
     const surah  = parseInt(url.searchParams.get('surah') ?? '');
@@ -126,7 +115,6 @@ export function tafsirRoutes(router: Router<QuranEnv>) {
     const total = countRes?.count ?? 0;
     const rows  = dataRes.results;
 
-    // Batch-fetch scholar and work metadata
     const scholarIds = [...new Set(rows.map(e => e.scholar_id).filter(Boolean))] as string[];
     const workIds    = [...new Set(rows.map(e => e.work_id).filter(Boolean))] as string[];
 
@@ -159,9 +147,6 @@ export function tafsirRoutes(router: Router<QuranEnv>) {
     return ok({ rows: enriched, total, page, per_page: limit, has_more: offset + rows.length < total });
   }));
 
-  // GET /qr/tafsir/by-ids?ids=id1,id2,...
-  // Batch-fetch specific qr_tafsir_entry rows by ID.
-  // Used by the backend composite endpoint to resolve Qdrant hit target_ids.
   router.get('/qr/tafsir/by-ids', async (req, env) => {
     const url = new URL(req.url);
     const idsParam = url.searchParams.get('ids') ?? '';

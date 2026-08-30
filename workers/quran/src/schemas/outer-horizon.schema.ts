@@ -1,5 +1,3 @@
-// ─── Outer Horizon schemas & types ───────────────────────────────────────────────
-
 export interface ContextTopic {
   id: string;
   topic_key: string;
@@ -139,8 +137,6 @@ export interface AcademicPositionCreate {
   evidence_ids_json?: string | null;
   note_md?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

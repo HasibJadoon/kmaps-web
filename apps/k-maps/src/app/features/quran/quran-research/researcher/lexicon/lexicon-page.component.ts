@@ -20,11 +20,9 @@ interface RootMeta {
   frequency_quran: number | null;
 }
 
-/** Per-source hit summary computed from the search response. Drives the
- *  tafsir.app-style lit-up state and the matched-word chips on each card. */
 interface SourceHit {
-  count:   number;     // total entry rows for this root in this source
-  samples: string[];   // up to ~6 matched headings/forms for chip display
+  count:   number;
+  samples: string[];
 }
 
 @Component({
@@ -48,13 +46,9 @@ export class LexiconPageComponent implements OnInit, AfterViewInit {
   readonly searching      = signal(false);
   readonly rootMeta       = signal<RootMeta | null>(null);
   readonly hitsBySlug     = signal<Map<string, SourceHit>>(new Map());
-  // Academic-scholarship notes for the current root (Al-Jallad et al.).
-  // Separate stream from the classical lexicon hits.
+
   readonly scholarship    = signal<ScholarshipNote[]>([]);
 
-  // Academic readings rendered as one card per source (mirroring the
-  // lit-up lexicon cards). One root may have notes in multiple academic
-  // sources; we aggregate them here.
   readonly scholarshipCards = computed(() => {
     const notes = this.scholarship();
     if (!notes.length) return [];
@@ -69,14 +63,14 @@ export class LexiconPageComponent implements OnInit, AfterViewInit {
       genre_label: { ar: string; en: string };
       url:         string | null;
       notes:       ScholarshipNote[];
-      // Sample chips: lift the first short Arabic forms / root_text from notes.
+
       samples:     string[];
     }>();
     for (const n of notes) {
       const key = n.source.id;
       if (!bySource.has(key)) {
         bySource.set(key, {
-          source_slug: '', // filled below
+          source_slug: '',
           source_id:   n.source_id,
           title_ar:    n.source.title_ar,
           title_en:    n.source.title_en,
@@ -99,8 +93,6 @@ export class LexiconPageComponent implements OnInit, AfterViewInit {
 
   readonly quickRoots = ['كتب', 'علم', 'قرأ', 'رحم', 'حمد', 'أمن', 'نزل', 'خلق'];
 
-  // Sources that have hits for the current root, in roots-descending order
-  // so the richest dictionaries surface first.
   readonly hitSources = computed(() => {
     const hits = this.hitsBySlug();
     if (hits.size === 0) return [];
@@ -126,7 +118,7 @@ export class LexiconPageComponent implements OnInit, AfterViewInit {
         }
         this.searching.set(true);
         return forkJoin({
-          // v2 cross-source compare — same endpoint the dedicated reader uses.
+
           compare:     this.api.getV2RootCompare(t).pipe(catchError(() => of(null))),
           dict:        this.api.getRootEntries(t, 20).pipe(catchError(() => of(null))),
           scholarship: this.api.getRootScholarship(t).pipe(
@@ -146,7 +138,6 @@ export class LexiconPageComponent implements OnInit, AfterViewInit {
       const { compare, dict, scholarship, q } = res;
       this.scholarship.set(scholarship?.notes ?? []);
 
-      // Root metadata block (showed above the result grid).
       if (dict) {
         this.rootMeta.set({
           text_ar: dict.root.text_ar,
@@ -163,9 +154,6 @@ export class LexiconPageComponent implements OnInit, AfterViewInit {
         this.rootMeta.set({ text_ar: q, meaning_ar: null, frequency_quran: null });
       }
 
-      // Build per-source hit map for inline card decoration. v2 compare lists
-      // one row per (root, source) with section/block counts; dict adds any
-      // sources without a root_entries row yet.
       const hits = new Map<string, SourceHit>();
       const SAMPLE_CAP = 6;
 
@@ -177,15 +165,14 @@ export class LexiconPageComponent implements OnInit, AfterViewInit {
       }
 
       for (const src of dict?.sources ?? []) {
-        if (hits.has(src.slug)) continue; // structured wins
+        if (hits.has(src.slug)) continue;
         const samples: string[] = [];
         for (const e of src.entries) {
           const head = (e.heading_norm ?? '').trim();
           if (head && !samples.includes(head)) {
             samples.push(head);
           } else if (e.text_ar) {
-            // Lift first short Arabic token from the chunk so we always
-            // have a visible chip even when heading_norm is null.
+
             const tok = e.text_ar.trim().split(/[\s،,;:.]+/)
               .find(w => /[؀-ۿ]/.test(w) && w.length <= 16);
             if (tok && !samples.includes(tok)) samples.push(tok);
@@ -208,7 +195,6 @@ export class LexiconPageComponent implements OnInit, AfterViewInit {
 
   ngAfterViewInit(): void { this.animateCatalog(); }
 
-  // ── Search controls ─────────────────────────────────────────────────
   setSearch(value: string): void {
     this.searchTerm.set(value);
     this.search$.next(value);
@@ -223,12 +209,10 @@ export class LexiconPageComponent implements OnInit, AfterViewInit {
     queueMicrotask(() => this.searchInputRef?.nativeElement.focus());
   }
 
-  // ── Navigation ──────────────────────────────────────────────────────
-  // Card "View Books" → go to the rich catalog
   openBooks(): void {
     this.router.navigate(['/lexicon/books']);
   }
-  // Source card (with hits) → open that book at the current root
+
   openSourceAtRoot(src: AlDictSource): void {
     const root = this.searchTerm().trim();
     this.router.navigate(['/lexicon/books', src.slug], {
@@ -236,16 +220,13 @@ export class LexiconPageComponent implements OnInit, AfterViewInit {
     });
   }
 
-  // ── Template helpers ────────────────────────────────────────────────
   hit(slug: string): SourceHit | null {
     return this.hitsBySlug().get(slug) ?? null;
   }
   hasResults(): boolean {
     return this.hitsBySlug().size > 0 && this.hitSources().length > 0;
   }
-  // Click on an academic-readings card → open its dedicated shell at
-  // the current root. Backed by `/lexicon/books/:slug` (the slug lookup
-  // in the book-reader dispatches scholarship slugs to a separate shell).
+
   openScholarshipAtRoot(sourceSlug: string): void {
     const root = this.searchTerm().trim();
     this.router.navigate(['/lexicon/books', sourceSlug], {

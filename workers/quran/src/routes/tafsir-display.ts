@@ -1,16 +1,3 @@
-// ─── /qr/tafsir/display routes ────────────────────────────────────────────────
-// Worker API over the qr_tafsir_book_display_* projection (migration 012).
-// Parallel to /qr/iraab/display. DISJOINT from iʿrāb: this layer ONLY serves
-// the 8 tafsir scholars (TABARI, ZAMAKHSHARI, IBN_ATIYYA, RAZI, ABU_HAYYAN,
-// IBN_KATHIR, ALUSI, IBN_ASHUR). DARWISH and SAFI live in /qr/iraab/display.
-//
-// Routes:
-//   GET /qr/tafsir/display/sources             — display-tier source registry
-//   GET /qr/tafsir/display?surah=N&ayah=M      — per-verse × per-scholar payload
-//                                                (optional scholar_id, work_id, madhab)
-//   GET /qr/tafsir/display/search?q=…          — FTS5-backed search (AR+EN, diacritic-folded)
-//   GET /qr/tafsir/display/compare?surah=N&ayah=M&scholar_ids=A,B,C — side-by-side ≤6
-
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest, notFound } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
@@ -64,7 +51,6 @@ type GroupResolverRow = {
 
 export function tafsirDisplayRoutes(router: Router<QuranEnv>) {
 
-  // ── GET /qr/tafsir/display/sources ─────────────────────────────────────────
   router.get('/qr/tafsir/display/sources', (req, env) => cached(req, async () => {
     const { results } = await env.DB_QR
       .prepare(`
@@ -83,7 +69,6 @@ export function tafsirDisplayRoutes(router: Router<QuranEnv>) {
     return ok({ sources: results });
   }));
 
-  // ── GET /qr/tafsir/display?surah=N&ayah=M[&scholar_id=S][&work_id=W][&madhab=M] ──
   router.get('/qr/tafsir/display', (req, env) => cached(req, async () => {
     const url = new URL(req.url);
     const surah = parseInt(url.searchParams.get('surah') ?? '');
@@ -94,13 +79,12 @@ export function tafsirDisplayRoutes(router: Router<QuranEnv>) {
     if (isNaN(surah)) return badRequest('surah param required');
     if (isNaN(ayah))  return badRequest('ayah param required');
 
-    // 1) Resolve groups per scholar (different scholars may anchor differently)
     const groupFilters: string[] = [
       'surah_no = ?',
       'ayah_no <= ?',
       'COALESCE(ayah_to, ayah_no) >= ?',
       "review_status != 'rejected'",
-      "block_type = 'tafsir_card'",          // pin to the card so each scholar gives one anchor row
+      "block_type = 'tafsir_card'",
     ];
     const groupParams: unknown[] = [surah, ayah, ayah];
     if (scholarId) { groupFilters.push('scholar_id = ?'); groupParams.push(scholarId); }
@@ -120,7 +104,6 @@ export function tafsirDisplayRoutes(router: Router<QuranEnv>) {
       return notFound('no tafsir display blocks for this ayah');
     }
 
-    // 2) Pull ALL blocks for the resolved (scholar, group) pairs
     const groupKeys = [...new Set(groupRes.results.map((r: GroupResolverRow) => r.ayah_group_key))];
     const ph = groupKeys.map(() => '?').join(',');
     const blockFilters: string[] = [
@@ -144,7 +127,6 @@ export function tafsirDisplayRoutes(router: Router<QuranEnv>) {
         hydrateBlock(r as Record<string, unknown>) as unknown as Record<string, unknown> & { id: string; source_slug: string });
     if (!blocks.length) return notFound('no display blocks');
 
-    // 3) Side tables
     const blockIds: string[] = blocks.map((b: { id: string }) => b.id);
     const idPh = blockIds.map(() => '?').join(',');
     const [tagsRes, refsRes, notesRes, linksRes] = await Promise.all([
@@ -154,14 +136,12 @@ export function tafsirDisplayRoutes(router: Router<QuranEnv>) {
       env.DB_QR.prepare(`SELECT * FROM qr_tafsir_book_display_link WHERE from_block_id IN (${idPh}) OR to_block_id IN (${idPh})`).bind(...blockIds, ...blockIds).all(),
     ]);
 
-    // 4) Sources actually present
     const presentSlugs: string[] = Array.from(new Set(blocks.map((b: { source_slug: string }) => b.source_slug)));
     const slugPh = presentSlugs.map(() => '?').join(',');
     const sourcesRes = await env.DB_QR
       .prepare(`SELECT * FROM qr_tafsir_book_display_source WHERE source_slug IN (${slugPh}) ORDER BY death_year_hijri ASC NULLS LAST, display_order ASC`)
       .bind(...presentSlugs).all();
 
-    // 5) Envelope
     const minStart = Math.min(...groupRes.results.map((r: GroupResolverRow) => r.group_start));
     const maxEnd   = Math.max(...groupRes.results.map((r: GroupResolverRow) => r.group_end));
     const canonical = minStart === maxEnd ? `${surah}:${minStart}` : `${surah}:${minStart}-${maxEnd}`;
@@ -185,7 +165,6 @@ export function tafsirDisplayRoutes(router: Router<QuranEnv>) {
     });
   }));
 
-  // ── GET /qr/tafsir/display/search?q=…[&surah=N][&scholar_id=S][&madhab=M][&block_type=T][&limit=N] ──
   router.get('/qr/tafsir/display/search', (req, env) => cached(req, async () => {
     const url = new URL(req.url);
     const q          = url.searchParams.get('q')?.trim();
@@ -220,9 +199,6 @@ export function tafsirDisplayRoutes(router: Router<QuranEnv>) {
     return ok({ q, hits: results });
   }));
 
-  // ── GET /qr/tafsir/display/compare?surah=N&ayah=M&scholar_ids=A,B,C ──────
-  // Side-by-side payload for up to 6 scholars on one ayah. Useful for the
-  // multi-column comparison view in the UI.
   router.get('/qr/tafsir/display/compare', (req, env) => cached(req, async () => {
     const url = new URL(req.url);
     const surah = parseInt(url.searchParams.get('surah') ?? '');
@@ -244,7 +220,6 @@ export function tafsirDisplayRoutes(router: Router<QuranEnv>) {
     const { results } = await env.DB_QR.prepare(sql).bind(surah, ayah, ayah, ...scholarIds).all<BlockRow>();
     const blocks = results.map((r: BlockRow) => hydrateBlock(r as Record<string, unknown>));
 
-    // Group blocks by scholar_id for the UI
     const byScholar: Record<string, ReturnType<typeof hydrateBlock>[]> = {};
     for (const b of blocks) {
       const sid = (b as { scholar_id?: string }).scholar_id ?? 'unknown';

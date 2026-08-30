@@ -44,31 +44,26 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
   private zone = inject(NgZone);
   private readonly base = environment.apiBase;
 
-  // ── Data
   container = signal<ArContainer | null>(null);
   units = signal<ArUnit[]>([]);
   selectedUnit = signal<ArUnit | null>(null);
   tasks = signal<ArTask[]>([]);
 
-  // ── Loading
   unitsLoading = signal(true);
   unitTextLoading = signal(false);
   tasksLoading = signal(false);
 
-  // ── Interaction
   activeMode = signal<Mode>('read');
   diacriticsOn = signal(true);
   fontSize = signal(1.22);
   srsOpen = signal(false);
 
-  // ── Overlays
   wordPopup = signal<WordPopup | null>(null);
   captureBar = signal<CaptureBar | null>(null);
   captureToast = signal<string | null>(null);
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // ── Draggable split (read area / tasks)
-  readAreaHeightPct = signal(62); // percent of right panel for reading
+  readAreaHeightPct = signal(62);
   private isDragging = false;
   private dragStartY = 0;
   private dragStartPct = 0;
@@ -76,7 +71,6 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
   readonly skeletons = [1, 2, 3, 4, 5];
   readonly STATUS_ORDER = ['draft', 'ai_generated', 'review', 'approved', 'published'];
 
-  // ── Derived
   readonly fullText = computed(() => {
     const u = this.selectedUnit();
     return u?.full_text ?? u?.text_preview ?? null;
@@ -105,12 +99,11 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) { this.router.navigate(['/arabic/library']); return; }
 
-    // Load units for this container
     this.http.get<any>(`${this.base}/ar/units?container_id=${id}&limit=100`).subscribe({
       next: (res) => {
         if (res?.ok) {
           this.units.set(res.results ?? []);
-          // derive container from first unit or a parallel request
+
           if (res.results?.length) {
             const u = res.results[0];
             this.container.set({
@@ -133,7 +126,6 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
       error: () => { this.unitsLoading.set(false); this.cdr.markForCheck(); },
     });
 
-    // Also load container details
     this.http.get<any>(`${this.base}/ar/containers?limit=100`).subscribe({
       next: (res) => {
         const found = (res.results ?? []).find((c: any) => c.id === id);
@@ -147,11 +139,9 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
     this.removeDragListeners();
   }
 
-  // ── Unit selection
   selectUnit(u: ArUnit): void {
     if (this.selectedUnit()?.id === u.id) return;
 
-    // YouTube video units open Reaction Studio instead of the default reader
     if (u.unit_type === 'youtube_video') {
       this.router.navigate(['/arabic/reaction', u.id]);
       return;
@@ -162,7 +152,6 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
     this.wordPopup.set(null);
     this.captureBar.set(null);
 
-    // Load full text
     this.unitTextLoading.set(true);
     this.http.get<any>(`${this.base}/ar/units/${u.id}`).subscribe({
       next: (res) => {
@@ -184,7 +173,6 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
       error: () => { this.unitTextLoading.set(false); this.cdr.markForCheck(); },
     });
 
-    // Load tasks
     this.tasksLoading.set(true);
     this.http.get<any>(`${this.base}/ar/tasks?unit_id=${u.id}&limit=100`).subscribe({
       next: (res) => {
@@ -196,7 +184,6 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ── Mode
   setMode(mode: Mode): void {
     this.activeMode.set(mode);
     this.wordPopup.set(null);
@@ -207,7 +194,6 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
     this.fontSize.update(v => Math.max(1, Math.min(1.8, +(v + delta * 0.1).toFixed(2))));
   }
 
-  // ── Drag resizer
   startDrag(event: MouseEvent): void {
     event.preventDefault();
     this.isDragging = true;
@@ -247,7 +233,6 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
     document.removeEventListener('mouseup', this.onDragEnd);
   }
 
-  // ── Word popup
   onWordClick(event: MouseEvent, word: string): void {
     event.stopPropagation();
     const rect = (event.target as HTMLElement).getBoundingClientRect();
@@ -271,7 +256,6 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
     this.wordPopup.set(null);
   }
 
-  // ── Selection capture
   onReadAreaMouseUp(): void {
     if (this.activeMode() !== 'read') return;
     setTimeout(() => {
@@ -340,7 +324,6 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
     }
   }
 
-  // ── Helpers
   unitLabel(u: ArUnit): string {
     return u.meta?.title_ar ?? u.meta?.title ?? u.unit_type;
   }

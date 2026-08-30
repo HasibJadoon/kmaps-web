@@ -1,10 +1,6 @@
-// ─── SrsRegistryRepo — core_srs_registry + core_workspace_plans ───────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface SrsRegistryCard {
   id: string;
@@ -71,8 +67,6 @@ export interface WorkspacePlansListOptions extends PaginateOptions {
   ownerUserRef?: string;
 }
 
-// ── Column fragments ──────────────────────────────────────────────────────────
-
 const SRS_COLS = `
   id, user_ref, workspace_id, resource_ref, resource_type, module,
   card_ref, enqueued_at, last_review_at, next_review_at, total_reviews
@@ -83,12 +77,8 @@ const PLAN_COLS = `
   status, visibility, started_at, target_end_at, created_at, updated_at
 FROM core_workspace_plans`;
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class SrsRegistryRepo {
   constructor(private db: D1Database) {}
-
-  // ── SRS Registry ──
 
   findCard(userRef: string, cardRef: string): Promise<SrsRegistryCard | null> {
     return queryOne<SrsRegistryCard>(
@@ -133,7 +123,6 @@ export class SrsRegistryRepo {
       return (await this.findCardByResource(input.userRef, input.resourceRef))!;
     }
 
-    // Update existing — patch card_ref / next_review_at if provided
     const sets: string[] = [];
     const vals: unknown[] = [];
     if (input.cardRef !== undefined)     { sets.push('card_ref = ?');      vals.push(input.cardRef); }
@@ -171,9 +160,7 @@ export class SrsRegistryRepo {
   dueCards(userRef: string, limit = 50): Promise<SrsRegistryCard[]> {
     return query<SrsRegistryCard>(
       this.db,
-      // Normalised for the same reason as core_srs_card.due: `next_review_at`
-      // here is patched by callers and arrives ISO-formatted, which does not
-      // compare as text against SQLite's `datetime('now')` within a single day.
+
       `SELECT ${SRS_COLS}
        WHERE user_ref = ?
          AND (next_review_at IS NULL
@@ -207,15 +194,12 @@ export class SrsRegistryRepo {
     );
   }
 
-  /** Remove an enrollment. Returns true when a row was deleted. */
   async deleteCard(userRef: string, id: string): Promise<boolean> {
     const existing = await this.findCardById(userRef, id);
     if (!existing) return false;
     await execute(this.db, `DELETE FROM core_srs_registry WHERE user_ref = ? AND id = ?`, [userRef, id]);
     return true;
   }
-
-  // ── Workspace Plans ──
 
   workspacePlans(workspaceId: string, opts: WorkspacePlansListOptions = {}) {
     const conditions: string[] = ['workspace_id = ?'];

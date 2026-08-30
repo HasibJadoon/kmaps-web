@@ -1,23 +1,10 @@
-// ─── SRS scheduler ────────────────────────────────────────────────────────────
-// Pure scheduling math. Given a card's current state and a 1-4 rating, returns
-// the next state. No DB access — the route layer persists the result.
-//
-// Classic SM-2, mapped onto the FSRS-shaped columns so the storage layer is
-// ready for an FSRS upgrade later without a schema change:
-//   difficulty     → SM-2 ease factor (1.3 .. 3.0), higher = easier
-//   scheduled_days → current interval in days
-//   stability      → kept equal to the interval (FSRS-forward compatible)
-//   card_state     → new | review | relearning
-//   reps           → successful repetitions in a row (0 after a lapse)
-//   lapses         → total times the card was rated "Again" from review
-
-export type Rating = 1 | 2 | 3 | 4;          // Again · Hard · Good · Easy
+export type Rating = 1 | 2 | 3 | 4;
 export type CardState = 'new' | 'learning' | 'review' | 'relearning';
 
 export interface ScheduleInput {
   card_state: string;
-  difficulty: number;       // ease factor
-  scheduled_days: number;   // last interval in days
+  difficulty: number;
+  scheduled_days: number;
   reps: number;
   lapses: number;
   last_review_at: string | null;
@@ -31,19 +18,19 @@ export interface ScheduleResult {
   elapsed_days: number;
   reps: number;
   lapses: number;
-  next_review_at: string;   // ISO 8601
+  next_review_at: string;
 }
 
 const MIN_EF = 1.3;
 const MAX_EF = 3.0;
 const DEFAULT_EF = 2.5;
-const FIRST_INTERVAL = 1;          // days — first successful review
-const FIRST_EASY_INTERVAL = 4;     // days — first review rated Easy
-const SECOND_INTERVAL = 6;         // days — second successful review
-const HARD_FACTOR = 0.6;           // Hard shortens the computed interval
-const EASY_BONUS = 1.3;            // Easy lengthens it
-const LAPSE_INTERVAL = 1;          // days — interval after a lapse
-const MAX_INTERVAL = 365 * 5;      // days — sanity cap
+const FIRST_INTERVAL = 1;
+const FIRST_EASY_INTERVAL = 4;
+const SECOND_INTERVAL = 6;
+const HARD_FACTOR = 0.6;
+const EASY_BONUS = 1.3;
+const LAPSE_INTERVAL = 1;
+const MAX_INTERVAL = 365 * 5;
 
 const DAY_MS = 86_400_000;
 
@@ -67,13 +54,6 @@ function isoAfterDays(now: Date, days: number): string {
   return new Date(now.getTime() + days * DAY_MS).toISOString();
 }
 
-/**
- * Compute the next schedule for a card given the learner's rating.
- *
- * @param input  current persisted card state
- * @param rating 1 Again · 2 Hard · 3 Good · 4 Easy
- * @param now    review timestamp (injected for testability)
- */
 export function schedule(input: ScheduleInput, rating: Rating, now: Date = new Date()): ScheduleResult {
   let ef = clampEf(input.difficulty || DEFAULT_EF);
   let reps = Math.max(0, Math.trunc(input.reps) || 0);
@@ -84,7 +64,6 @@ export function schedule(input: ScheduleInput, rating: Rating, now: Date = new D
     ? Math.max(0, Math.round((now.getTime() - new Date(input.last_review_at).getTime()) / DAY_MS))
     : 0;
 
-  // ── Again — the card lapsed ────────────────────────────────────────────────
   if (rating === 1) {
     ef = clampEf(ef - 0.2);
     return {
@@ -99,7 +78,6 @@ export function schedule(input: ScheduleInput, rating: Rating, now: Date = new D
     };
   }
 
-  // ── Hard / Good / Easy — a successful review ───────────────────────────────
   let interval: number;
   if (reps <= 0) {
     interval = rating === 4 ? FIRST_EASY_INTERVAL : FIRST_INTERVAL;
@@ -112,7 +90,6 @@ export function schedule(input: ScheduleInput, rating: Rating, now: Date = new D
   if (rating === 2) interval *= HARD_FACTOR;
   if (rating === 4) interval *= EASY_BONUS;
 
-  // SM-2 ease-factor update — quality maps Again·Hard·Good·Easy → 2·3·4·5.
   const quality = rating + 1;
   ef = clampEf(ef + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)));
 
@@ -130,7 +107,6 @@ export function schedule(input: ScheduleInput, rating: Rating, now: Date = new D
   };
 }
 
-/** The interval (in days) each rating would produce — for review-button hints. */
 export function previewIntervals(input: ScheduleInput, now: Date = new Date()): Record<Rating, number> {
   return {
     1: schedule(input, 1, now).scheduled_days,

@@ -1,12 +1,6 @@
-// ─── SurahStructureRepo — qr_surah_opening + qr_surah_closure +
-//     qr_surah_structural_pivot + qr_surah_structure_unit +
-//     qr_surah_structure_link + qr_surah_structure_reading ──────────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Row shapes ─────────────────────────────────────────────────────────────────
 
 export interface SurahOpening {
   surah: number;
@@ -136,12 +130,8 @@ export interface SurahStructureReadingCreate {
   note_md?: string | null;
 }
 
-// ── Repo ───────────────────────────────────────────────────────────────────────
-
 export class SurahStructureRepo {
   constructor(private db: D1Database) {}
-
-  // ── qr_surah_opening ──────────────────────────────────────────────────────
 
   openings(surahId: number): Promise<SurahOpening | null> {
     return queryOne<SurahOpening>(
@@ -193,8 +183,6 @@ export class SurahStructureRepo {
     return this.openings(surahId);
   }
 
-  // ── qr_surah_closure ──────────────────────────────────────────────────────
-
   closures(surahId: number): Promise<SurahClosure | null> {
     return queryOne<SurahClosure>(
       this.db,
@@ -245,8 +233,6 @@ export class SurahStructureRepo {
     return this.closures(surahId);
   }
 
-  // ── qr_surah_structural_pivot ─────────────────────────────────────────────
-
   pivots(surahId: number, opts: PaginateOptions = {}) {
     return paginate<SurahStructuralPivot>(
       this.db,
@@ -285,8 +271,6 @@ export class SurahStructureRepo {
       [id],
     );
   }
-
-  // ── qr_surah_structure_unit ───────────────────────────────────────────────
 
   structureUnits(surahId: number, opts: PaginateOptions = {}) {
     return paginate<SurahStructureUnit>(
@@ -335,8 +319,6 @@ export class SurahStructureRepo {
     return this.findUnitById(id);
   }
 
-  // ── qr_surah_structure_link ───────────────────────────────────────────────
-
   structureLinks(surahId: number, opts: PaginateOptions = {}) {
     return paginate<SurahStructureLink>(
       this.db,
@@ -376,8 +358,6 @@ export class SurahStructureRepo {
       [id],
     );
   }
-
-  // ── qr_surah_structure_reading ────────────────────────────────────────────
 
   readings(surahId: number, opts: PaginateOptions = {}) {
     return paginate<SurahStructureReading>(

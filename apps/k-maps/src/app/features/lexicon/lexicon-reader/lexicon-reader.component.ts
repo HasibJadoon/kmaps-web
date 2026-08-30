@@ -24,8 +24,6 @@ export class LexiconReaderComponent {
   trackParagraph = (i: number, _p: LisanParagraph) => i;
   trackToken     = (i: number, _t: LisanProseToken) => i;
 
-  // Split a plain-text token on ornate ayah brackets ﴿…﴾ so quoted verse runs
-  // tint verse-green (`.qq`) inline while exposition stays in the reading ink.
   splitQuoted(value: string): { q: boolean; t: string }[] {
     const parts: { q: boolean; t: string }[] = [];
     const re = /﴿[^﴾]*﴾/gu;

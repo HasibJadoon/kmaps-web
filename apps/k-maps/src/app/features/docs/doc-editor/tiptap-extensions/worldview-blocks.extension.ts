@@ -1,6 +1,5 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 
-// ── claim_block ──────────────────────────────────────────────────────────────
 export const ClaimBlock = Node.create({
   name: 'claim_block',
   group: 'block',
@@ -10,7 +9,7 @@ export const ClaimBlock = Node.create({
   addAttributes() {
     return {
       claim:      { default: '' },
-      confidence: { default: 'medium' }, // 'low'|'medium'|'high'
+      confidence: { default: 'medium' },
       tags:       { default: '[]' },
     };
   },
@@ -40,7 +39,6 @@ export const ClaimBlock = Node.create({
   },
 });
 
-// ── evidence_block ───────────────────────────────────────────────────────────
 export const EvidenceBlock = Node.create({
   name: 'evidence_block',
   group: 'block',
@@ -79,7 +77,6 @@ export const EvidenceBlock = Node.create({
   },
 });
 
-// ── reflection_block ─────────────────────────────────────────────────────────
 export const ReflectionBlock = Node.create({
   name: 'reflection_block',
   group: 'block',
@@ -110,7 +107,6 @@ export const ReflectionBlock = Node.create({
   },
 });
 
-// ── task_block ───────────────────────────────────────────────────────────────
 export const TaskBlock = Node.create({
   name: 'task_block',
   group: 'block',
@@ -151,7 +147,6 @@ export const TaskBlock = Node.create({
   },
 });
 
-// ── scene_block ──────────────────────────────────────────────────────────────
 export const SceneBlock = Node.create({
   name: 'scene_block',
   group: 'block',
@@ -191,7 +186,6 @@ export const SceneBlock = Node.create({
   },
 });
 
-// ── timeline_block ───────────────────────────────────────────────────────────
 export const TimelineBlock = Node.create({
   name: 'timeline_block',
   group: 'block',
@@ -231,7 +225,6 @@ export const TimelineBlock = Node.create({
   },
 });
 
-// ── comprehension_block ──────────────────────────────────────────────────────
 export const ComprehensionBlock = Node.create({
   name: 'comprehension_block',
   group: 'block',
@@ -280,7 +273,6 @@ export const ComprehensionBlock = Node.create({
   },
 });
 
-// ── children_block ───────────────────────────────────────────────────────────
 export const ChildrenBlock = Node.create({
   name: 'children_block',
   group: 'block',
@@ -315,7 +307,6 @@ export const ChildrenBlock = Node.create({
   },
 });
 
-// ── passage_embed ────────────────────────────────────────────────────────────
 export const PassageEmbed = Node.create({
   name: 'passage_embed',
   group: 'block',

@@ -5,7 +5,6 @@ import {
 import { Router } from '@angular/router';
 import { ActionIconTileComponent, ActionIconVm } from '../action-icon-tile/action-icon-tile.component';
 
-// stroke attrs must live on <svg> itself — Angular encapsulation doesn't pierce innerHTML
 const S = `width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"`;
 
 const SVG = {
@@ -25,8 +24,6 @@ const SVG = {
     <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
   </svg>`,
 
-  // Annotated-text icon: syntax bracket over two text lines with a diacritic dot
-  // — represents Ihrab, morphology, balagha and the layered Arabic linguistic sciences
   arabic: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" ${S}>
     <path d="M5 9 C5 6 8 5 12 5 C16 5 19 6 19 9"/>
     <circle cx="12" cy="3.5" r="1.5" fill="currentColor" stroke="none"/>
@@ -39,7 +36,6 @@ const SVG = {
     <path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
   </svg>`,
 
-  // Surah Structures icon: stacked sections (surah → passages → ayahs)
   structures: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" ${S}>
     <rect x="3" y="3" width="18" height="5" rx="1"/>
     <rect x="3" y="10" width="18" height="5" rx="1"/>
@@ -49,12 +45,12 @@ const SVG = {
 };
 
 const ACTIONS: ActionIconVm[] = [
-  { id: 'vocabulary', label: 'Ling',   svgPath: SVG.arabic,     ariaLabel: 'Linguistics for this surah',       color: '#C084F5' }, // bright purple — first, before Study
-  { id: 'study',      label: 'Study',  svgPath: SVG.study,      ariaLabel: 'Study this surah',                 color: '#E8C060' }, // bright gold
-  { id: 'notes',      label: 'Notes',  svgPath: SVG.notes,      ariaLabel: 'Notes for this surah',             color: '#4DD9A8' }, // bright teal
-  { id: 'worldview',  label: 'World',  svgPath: SVG.worldview,  ariaLabel: 'Worldview for this surah',         color: '#6BBAFF' }, // bright blue
-  { id: 'review',     label: 'Review', svgPath: SVG.review,     ariaLabel: 'Review this surah (includes spaced repetition)', color: '#FF9F6B' }, // bright orange
-  { id: 'structures', label: 'Structure', svgPath: SVG.structures, ariaLabel: 'Surah structures',              color: '#FF7BAC' }, // bright rose
+  { id: 'vocabulary', label: 'Ling',   svgPath: SVG.arabic,     ariaLabel: 'Linguistics for this surah',       color: '#C084F5' },
+  { id: 'study',      label: 'Study',  svgPath: SVG.study,      ariaLabel: 'Study this surah',                 color: '#E8C060' },
+  { id: 'notes',      label: 'Notes',  svgPath: SVG.notes,      ariaLabel: 'Notes for this surah',             color: '#4DD9A8' },
+  { id: 'worldview',  label: 'World',  svgPath: SVG.worldview,  ariaLabel: 'Worldview for this surah',         color: '#6BBAFF' },
+  { id: 'review',     label: 'Review', svgPath: SVG.review,     ariaLabel: 'Review this surah (includes spaced repetition)', color: '#FF9F6B' },
+  { id: 'structures', label: 'Structure', svgPath: SVG.structures, ariaLabel: 'Surah structures',              color: '#FF7BAC' },
 ];
 
 @Component({

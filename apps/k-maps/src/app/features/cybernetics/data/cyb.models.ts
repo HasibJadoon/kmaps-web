@@ -1,12 +1,5 @@
-// ─── Quran Cybernetics — API models ──────────────────────────────────────────
-// Mirror the frozen /core/cyb/* + /al/staging/* contract. Every field is a live
-// read from km_core.cyb_* / km_arabic_linguistic.ar_ling_*. See cyb.service.ts.
-
 export interface CountRow { key: string; n: number }
 
-// The control-plane wire shapes come from the shared contract, not a copy.
-// This file used to declare CybNode itself, with `children` as a required
-// field the API never sends — see the contract's header for what that cost.
 import type {
   CybNode, CybNodeTree, CybNodeDetail, CybNodeReading, CybSensor, CybGauge,
 } from '@kmaps/contracts/cyb';
@@ -29,8 +22,6 @@ export interface CybJob {
   error_val: number;
   created_at: string;
 }
-
-
 
 export interface CybTick {
   id: string;
@@ -57,7 +48,6 @@ export interface CybSource {
   note: string | null;
 }
 
-/** A surah from the QR corpus (GET /qr/surahs) — the Qurʾān-centric spine. */
 export interface Surah {
   id: number;
   name_ar: string;
@@ -69,8 +59,6 @@ export interface Surah {
   page_start?: number;
 }
 
-/** A study passage (unit) from the canonical Surah Study module
- *  (GET /qr/study/surahs/:id). Each carries which study steps exist. */
 export interface StudyUnit {
   passage_id: string;
   passage_no: number;
@@ -80,19 +68,14 @@ export interface StudyUnit {
   end_ref: string;
   label: string;
   theme: string | null;
-  // The SIX registered steps of PRC:quran:surah_passage_study, exactly as the
-  // grid endpoint sends them. This used to declare `expressions`, a legacy
-  // task_type the server folded into `vocabulary` — so `u.expressions.has`
-  // read `.has` of undefined, threw inside the passage @for, and left every
-  // card after the throw rendered blank.
+
   reading: { has: number };
   vocabulary: { nouns: number; verbs: number; total: number; has: number };
   sentence_structure: { has: number };
   passage_structure: { has: number };
   tafsir: { has: number };
   worldview: { has: number };
-  /** Step 700 of PRC:quran:surah_passage_study. The registry declares seven
-   *  steps; this one was missing from the server's list and so from here. */
+
   surah_structure: { has: number };
 }
 export interface StudyGrid {
@@ -100,7 +83,6 @@ export interface StudyGrid {
   units: StudyUnit[];
 }
 
-/** A unique root occurring in a passage's āyāt (GET .../passages/:no/roots). */
 export interface PassageRoot { root: string; occurrences: number; lemmas: number; first_ayah: number; first_word: number }
 
 export interface CybConfigEntry { value: string; note: string | null }
@@ -121,8 +103,6 @@ export interface CybMonitor {
   sources: { by_coverage: CountRow[] };
 }
 
-
-// ── AL staging spine ──
 export interface SubLayer {
   sub_code: string; band: number; band_key: string; band_name_en: string | null;
   name_ar: string; name_en: string; name_ur: string | null;
@@ -140,7 +120,6 @@ export interface StagingSummary {
 }
 export interface StagingMatrix { cells: StageCell[]; sub_layers: SubLayer[]; roots: RootRollup[] }
 
-// ── Deep per-root drill (GET /al/staging/root/:root) ──
 export interface RootClaim {
   id: string; sub_code: string; band: number; source_slug: string;
   claim_type: string; status: string; promoted_to_table: string | null;
@@ -156,26 +135,26 @@ export interface RootQuestion {
   prompt_ar: string | null; prompt_en: string | null; prompt_ur: string | null;
   explanation_en: string | null; answer_json: string | null;
 }
-/** One MCQ option — the correct answer or a typed distractor with why_wrong. */
+
 export interface RootOption {
   id: string; item_id: string;
   option_ar: string; option_en: string | null; option_ur: string | null;
   is_correct: number; distractor_kind: string | null;
   why_wrong_en: string | null; why_wrong_ar: string | null; sort_order: number;
 }
-/** A media asset catalogued against a memlet (image · video · audio). */
+
 export interface RootMedia {
   id: string; memlet_id: string; memlet_key: string | null;
   media_kind: string; r2_key: string; bucket: string;
   mime: string | null; duration_ms: number | null;
   reciter: string | null; qr_ref: string | null; status: string;
 }
-/** Memlet layer family registry (16 kinds). */
+
 export interface MemletKind {
   memlet_key: string; name_ar: string; name_en: string; name_ur: string | null;
   modality: string; scope_level: string; display_order: number;
 }
-/** Question layer family registry (11 kinds). */
+
 export interface QuestionKind {
   question_key: string; name_ar: string; name_en: string;
   memlet_key: string | null; response_kind: string;
@@ -187,12 +166,9 @@ export interface RootDetail {
   sub_layers: SubLayer[]; memlet_kinds: MemletKind[]; question_kinds: QuestionKind[];
 }
 
-// ── The four outputs ─────────────────────────────────────────────────────────
-
 export type CybAxis = 'build' | 'study' | 'content' | 'retention';
 export const CYB_AXES: CybAxis[] = ['build', 'study', 'content', 'retention'];
 
-/** `v_cyb_node_reading` for one axis (GET /core/cyb/reading/:id). */
 export interface NodeReading {
   axis: CybAxis | string;
   pct: number;
@@ -202,10 +178,6 @@ export interface NodeReading {
   read_sensors: number;
 }
 
-// ── The module registry (GET /core/cyb/domains) ──────────────────────────────
-// One row per module of the console. `slug` matches `cyb_node.domain`, so a
-// module's nodes are found by it. The dashboard's cards are this table.
-
 export interface CybDomain {
   slug: string;
   lane: string;
@@ -213,23 +185,17 @@ export interface CybDomain {
   name_en: string;
   name_ur: string | null;
   hint: string | null;
-  /** Where the knowledge is built — Build senses this. */
+
   content_db: string;
-  /** Where the learner's own state lives — Study and Retention sense this. */
+
   learner_db: string;
-  /** What one unit of work is called here: a passage, a root, a concept. */
+
   unit_kind: string;
   color_hex: string | null;
   symbol: string | null;
   display_order: number;
   status: string;
 }
-
-// ── The layer registry (GET /core/cyb/layers) ────────────────────────────────
-// The ONE taxonomy of stream-systems. The app used to carry its own list of
-// six; the registry has `translation` that the list never had, and a layer the
-// registry retires would have gone on rendering. Nothing here is authored in
-// the app.
 
 export interface CybLayerRow {
   id: string;
@@ -246,36 +212,22 @@ export interface CybLayerRow {
   display_order: number;
 }
 
-// ── What the carriers hold ───────────────────────────────────────────────────
-
-/** One carrier's rows for a node, under the band that declares it
- *  (GET /core/cyb/rows/:id?layer=). This is the work itself — āyāt, sentences,
- *  renderings, tafsīr — as opposed to the control plane's own child nodes. */
 export interface NodeCarrierRows {
   band_code: string;
   db_name: string;
   table_name: string;
   bind_col: string;
   rows: Record<string, unknown>[];
-  /** What the carrier holds, against `rows.length`, which is what was sent. A
-   *  truncated read has to say so rather than present a slice as the whole. */
+
   total: number;
 }
 
-// ── The AL carrier registry (GET /al/registry/*) ─────────────────────────────
-// `ar_ling_stg_claim` was dropped on 2026-08-21 and `/al/staging/*` with it.
-// A row is in its carrier or it does not exist, so the per-root reading is a
-// live count off the carrier, never a stored claim count.
-
-/** One registered sub-layer: a named slot with its own carrier table(s). */
 export interface LayerModelSub {
   sub_code: string;
   name_ar: string;
   name_en: string;
   name_ur: string | null;
-  /** The registry's own level, before the fold onto a scope tab: a *form* folds
-   *  under lemma, a *letter* under root, so this can differ from the scope the
-   *  sub-layer appears under. */
+
   scope_level: string;
   discipline: string;
   card: string;
@@ -286,7 +238,6 @@ export interface LayerModelSub {
   display_order: number;
 }
 
-/** One band of sub-layers inside a scope — a row in the Root Dashboard. */
 export interface LayerModelBand {
   scope: string;
   band: number;
@@ -296,7 +247,6 @@ export interface LayerModelBand {
   subs: LayerModelSub[];
 }
 
-/** One scope of the recursion — root · lemma · word — a tab in the dashboard. */
 export interface LayerModelScope {
   key: string;
   code: string;
@@ -313,15 +263,12 @@ export interface LayerModel {
   layers: LayerModelBand[];
 }
 
-/** One carrier's live row count for a root. A sub_code absent from the list has
- *  no audited carrier binding: that is unknown, not zero. */
 export interface RootFillCell {
   sub_code: string;
   carrier_table: string;
   rows: number;
 }
 
-/** A sub-layer carrier's actual rows for one root — the leaf screen. */
 export interface RootCarrierRows {
   sub_code: string;
   carrier_table: string;
@@ -330,11 +277,6 @@ export interface RootCarrierRows {
   total: number;
 }
 
-/** One root's identity card from `ar_ling_roots` (GET /al/roots/glosses).
- *  The Quran worker names a passage's roots but cannot gloss them — the gloss
- *  lives in DB_AL — so the root grid reads all of its tiles' cards in one call.
- *  A root with no row here has no card: the tile says so rather than inventing
- *  one. */
 export interface RootGloss {
   root_normalized: string;
   root_text: string;
@@ -346,7 +288,6 @@ export interface RootGloss {
   meaning_core_ur: string | null;
 }
 
-/** A minted sense of a root (`ar_ling_root_sense`). */
 export interface RootSense {
   id: string;
   root_norm: string;
@@ -358,8 +299,6 @@ export interface RootSense {
   status: string;
 }
 
-/** Who said it — `ar_ling_sense_attestation`. `agreement` is the source's
- *  stance on the claim, not a quality score. */
 export interface SenseAttestation {
   id: string;
   target_type: string;
@@ -372,7 +311,6 @@ export interface SenseAttestation {
   confidence: number | null;
 }
 
-/** GET /al/roots/:root/senses — the 360° sense layer in one read. */
 export interface RootSenseBundle {
   root: string;
   senses: RootSense[];

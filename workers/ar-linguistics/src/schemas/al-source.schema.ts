@@ -1,5 +1,3 @@
-// ─── Al Source schemas & types ───────────────────────────────────────────────
-
 export interface AlSource {
   id: string;
   title_ar: string;
@@ -170,8 +168,6 @@ export interface TokenLexiconLink {
   lexicon_entry_id: string;
   confidence: number;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

@@ -1,13 +1,9 @@
-// ─── TimelineRepo — wv_timeline_events ────────────────────────────────────────
-// Era ranges + dated incidents. Scoped to a source/unit via meta_json so the
-// reader can fetch a book's timeline. Canonical per 001_wv_schema.sql.
-
 import { query, queryOne } from '../../../shared/src/db';
 
 export interface WvTimelineEvent {
   id: string;
   title: string;
-  event_type: string;        // era | incident | historical | ...
+  event_type: string;
   year_exact: number | null;
   year_start: number | null;
   year_end: number | null;
@@ -26,7 +22,6 @@ const COLS = `
 export class TimelineRepo {
   constructor(private db: D1Database) {}
 
-  /** All timeline events scoped to a source (via meta_json.source_id). */
   bySource(sourceId: string): Promise<WvTimelineEvent[]> {
     return query<WvTimelineEvent>(
       this.db,
@@ -37,7 +32,6 @@ export class TimelineRepo {
     );
   }
 
-  /** Events scoped to a specific source unit (via meta_json.source_unit_id). */
   byUnit(unitId: string): Promise<WvTimelineEvent[]> {
     return query<WvTimelineEvent>(
       this.db,

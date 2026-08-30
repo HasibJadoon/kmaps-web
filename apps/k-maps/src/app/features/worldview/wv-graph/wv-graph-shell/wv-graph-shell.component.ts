@@ -27,7 +27,6 @@ export interface WvClusterInfo {
   color: ClusterColor;
 }
 
-// ── API shape types ────────────────────────────────────────────────────────────
 interface WvGraphApiNode {
   id: string;
   node_type: string;
@@ -63,12 +62,11 @@ interface WvGraphApiEvidenceLink {
   display_label_medium?: string | null;
 }
 
-// ── Type maps ──────────────────────────────────────────────────────────────────
 const NODE_TYPE_MAP: Record<string, WvNodeType> = {
   claim: 'claim', principle: 'principle', framework: 'framework',
   cause: 'cause', evidence: 'evidence', insight: 'insight',
   observation: 'insight', distillation: 'principle', note: 'insight',
-  // Worldview genealogy node types (Arjana corpus and similar)
+
   thesis: 'claim', method: 'framework', concept: 'principle',
   era: 'framework', trope: 'cause', monster_figure: 'evidence', motif: 'insight',
 };
@@ -78,13 +76,6 @@ const EDGE_RELATION_MAP: Record<string, WvEdgeRelation> = {
   leads_to: 'leads_to', questions: 'questions', related_to: 'related_to',
   contradicts: 'contrasts_with', causes: 'leads_to', illustrates: 'supports',
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  WvGraphShell — orchestrator
-//  · Fetches / receives graph data
-//  · Manages selected node, mode, type filters, panel width
-//  · Switches between desktop (sidepanel) and mobile (bottomsheet) layouts
-// ─────────────────────────────────────────────────────────────────────────────
 
 const PANEL_MIN = 220;
 const PANEL_MAX = 480;
@@ -107,22 +98,19 @@ const PANEL_DEFAULT = 300;
 export class WvGraphShellComponent implements OnInit, OnChanges {
   @ViewChild('canvasComp') canvasComp?: WvGraphCanvasComponent;
 
-  /** Pass in real data from parent; falls back to mock */
   @Input() graphData: WvGraphData | null = null;
-  /** Force mobile layout regardless of viewport */
+
   @Input() forceMobile = false;
-  /** API nodes — mapped to internal WvGraphNode */
+
   @Input() nodes: WvGraphApiNode[] = [];
-  /** API edges — mapped to internal WvGraphEdge */
+
   @Input() edges: WvGraphApiEdge[] = [];
-  /** API evidence links (stored but not yet rendered in graph) */
+
   @Input() evidenceLinks: WvGraphApiEvidenceLink[] = [];
 
-  // ── Internal signals for inputs ─────────────────────────────────────────────
   private readonly apiNodes  = signal<WvGraphApiNode[]>([]);
   private readonly apiEdges  = signal<WvGraphApiEdge[]>([]);
 
-  // ── State ───────────────────────────────────────────────────────────────────
   readonly selectedNode   = signal<WvGraphNode | null>(null);
   readonly mode           = signal<WvGraphMode>('force');
   readonly activeTypes    = signal<Set<WvNodeType> | null>(null);
@@ -136,7 +124,6 @@ export class WvGraphShellComponent implements OnInit, OnChanges {
     this.apiNodes().some((node) => !!(node.display_label_short || node.display_label_medium)),
   );
 
-  // Resolved graph — build from API inputs, fall back to mock or graphData
   readonly graph = computed((): WvGraphData => {
     const apiNodes = this.apiNodes();
     const apiEdges = this.apiEdges();
@@ -173,7 +160,6 @@ export class WvGraphShellComponent implements OnInit, OnChanges {
     return { nodes, edges };
   });
 
-  /** Distinct clusters present in the graph, in first-seen order, with colors. */
   readonly clusters = computed((): WvClusterInfo[] => {
     const order: string[] = [];
     const titles = new Map<string, string>();
@@ -226,7 +212,6 @@ export class WvGraphShellComponent implements OnInit, OnChanges {
     this.activeClusters.set(next);
   }
 
-  // ── Drag resize state ───────────────────────────────────────────────────────
   private dragging = false;
   private dragStartX = 0;
   private dragStartWidth = 0;
@@ -240,7 +225,6 @@ export class WvGraphShellComponent implements OnInit, OnChanges {
     this.isMobile.set(this.forceMobile || window.innerWidth < 768);
   }
 
-  // ── Node selection ──────────────────────────────────────────────────────────
   onNodeClick(node: WvGraphNode): void {
     const current = this.selectedNode();
     if (current?.id === node.id) {
@@ -260,20 +244,19 @@ export class WvGraphShellComponent implements OnInit, OnChanges {
     this.selectedNode.set(node);
   }
 
-  // ── Mode / filter ───────────────────────────────────────────────────────────
   setMode(m: WvGraphMode): void { this.mode.set(m); }
 
   toggleType(type: WvNodeType): void {
     const current = this.activeTypes();
     if (!current) {
-      // All active → deactivate this one
+
       const allTypes: WvNodeType[] = ['claim','principle','framework','cause','evidence','insight'];
       this.activeTypes.set(new Set(allTypes.filter(t => t !== type)));
     } else {
       const next = new Set(current);
       if (next.has(type)) {
         next.delete(type);
-        // If none left, reset to all
+
         if (next.size === 0) { this.activeTypes.set(null); return; }
       } else {
         next.add(type);
@@ -290,11 +273,9 @@ export class WvGraphShellComponent implements OnInit, OnChanges {
     this.useShortLabels.update((value) => !value);
   }
 
-  // ── Zoom ────────────────────────────────────────────────────────────────────
   resetZoom(): void       { this.canvasComp?.resetZoom(); }
   centerSelected(): void  { this.canvasComp?.centerOnSelected(); }
 
-  // ── Drag-resize panel ───────────────────────────────────────────────────────
   onResizeStart(event: MouseEvent): void {
     this.dragging = true;
     this.dragStartX = event.clientX;
@@ -305,7 +286,7 @@ export class WvGraphShellComponent implements OnInit, OnChanges {
   @HostListener('window:mousemove', ['$event'])
   onMouseMove(event: MouseEvent): void {
     if (!this.dragging) return;
-    // Resize handle is on left edge of panel → dragging left increases width
+
     const delta = this.dragStartX - event.clientX;
     const newW = Math.min(PANEL_MAX, Math.max(PANEL_MIN, this.dragStartWidth + delta));
     this.panelWidth.set(newW);

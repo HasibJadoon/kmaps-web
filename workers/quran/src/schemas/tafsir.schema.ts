@@ -1,5 +1,3 @@
-// ─── Tafsir schemas & types ───────────────────────────────────────────────
-
 export interface TafsirEntry {
   id: string;
   surah: number;
@@ -252,8 +250,6 @@ export interface InterpretiveDiffCreate {
   is_doctrinally_significant?: number;
   note_md?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

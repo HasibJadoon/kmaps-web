@@ -1,17 +1,8 @@
-// ─── /al/scholarship/* — academic notes on Arabic roots & vocabulary ────────
-//
-// Distinct from the classical lexicon corpus (Lane, Lisan, Sihah, …).
-// Holds modern academic readings: epigraphic, comparative-Semitic,
-// archaeological, philological, etc. Backed by `ar_ling_root_scholarship`
-// and `ar_ling_vocab_scholarship` (see migration 0015).
-
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
 import type { ArLinguisticsEnv } from '../env';
 
-// Genre → bilingual label. Adding a new genre here surfaces its label in
-// the UI; the genre values themselves come from `ar_ling_source.genre`.
 const GENRE_LABELS: Record<string, { ar: string; en: string }> = {
   qur_anic_hermeneutic: { ar: 'تأويل قرآني',           en: "Qur'ānic Hermeneutic"        },
   epigraphic:           { ar: 'نقوش',                    en: 'Epigraphic'                  },
@@ -23,11 +14,9 @@ const GENRE_LABELS: Record<string, { ar: string; en: string }> = {
   general:              { ar: 'عام',                     en: 'General'                     },
 };
 
-// Response types ────────────────────────────────────────────────────────────
-
 interface ScholarshipSource {
   id:       string;
-  slug:     string | null;             // url-safe slug for routing
+  slug:     string | null;
   title_ar: string;
   title_en: string;
   author:   string;
@@ -35,7 +24,7 @@ interface ScholarshipSource {
   genre:    string;
   genre_label: { ar: string; en: string };
   url:      string | null;
-  count:    number;        // entries for this source
+  count:    number;
 }
 
 interface ScholarshipNote {
@@ -66,15 +55,12 @@ interface SourceRow {
   note_md:      string | null;
 }
 
-/** Extract a 4-digit year from `period_label` (e.g. "contemporary-2026"
- *  → 2026). Returns null when not present. */
 function yearFrom(period: string | null): number | null {
   if (!period) return null;
   const m = period.match(/\b(1\d{3}|20\d{2}|21\d{2})\b/);
   return m ? parseInt(m[1], 10) : null;
 }
 
-/** Lift a URL out of `note_md` if one is mentioned. */
 function urlFrom(note: string | null): string | null {
   if (!note) return null;
   const m = note.match(/https?:\/\/\S+/);
@@ -102,10 +88,9 @@ function genreLabel(genre: string) {
   return GENRE_LABELS[genre] ?? { ar: genre, en: genre };
 }
 
-/** Pre-fetch the `ar_ling_source` rows the request needs in one round-trip. */
 async function fetchSourceRows(env: ArLinguisticsEnv, ids: string[]): Promise<Map<string, SourceRow>> {
   if (ids.length === 0) return new Map();
-  // De-duplicate; SQLite IN with bound params.
+
   const uniq = [...new Set(ids)];
   const placeholders = uniq.map(() => '?').join(',');
   const rows = (await env.DB_AL.prepare(
@@ -119,10 +104,6 @@ async function fetchSourceRows(env: ArLinguisticsEnv, ids: string[]): Promise<Ma
 
 export function scholarshipRoutes(router: Router<ArLinguisticsEnv>) {
 
-  // ── GET /al/scholarship/sources ─────────────────────────────────────
-  // List all academic sources with at least one root-note. Used by UI
-  // to render a separate "Academic readings" catalog.
-  // Edge-cached — counts only change on ingest.
   router.get('/al/scholarship/sources', (req, env) => cached(req, async () => {
     const rows = (await env.DB_AL.prepare(
       `SELECT source_id,
@@ -149,17 +130,10 @@ export function scholarshipRoutes(router: Router<ArLinguisticsEnv>) {
     return ok({ sources, total: sources.length });
   }));
 
-  // ── GET /al/scholarship/roots/:slug ─────────────────────────────────
-  // Root index for a single scholarship source — used by the shell's
-  // left-rail to let the reader navigate all roots in that source.
   router.get('/al/scholarship/roots/:slug', (req, env, params) => cached(req, async () => {
     const slug = (params.slug ?? '').trim();
     if (!slug) return badRequest('slug required');
 
-    // Order by the ARABIC root, alif → yāʾ. Sinai's book is arranged by the English
-    // transliteration alphabet, so page order is not Arabic order. Unicode code points
-    // already run alif..yāʾ; we only fold the hamza/alif and alif-maqṣūra variants so
-    // أ/إ/آ/ٱ group with ا and ى sorts with ي instead of ahead of the whole block.
     const arabicSort = `replace(replace(replace(replace(replace(root_norm,
       'أ','ا'),'إ','ا'),'آ','ا'),'ٱ','ا'),'ى','ي')`;
     const rows = (await env.DB_AL.prepare(
@@ -173,8 +147,6 @@ export function scholarshipRoutes(router: Router<ArLinguisticsEnv>) {
     return ok({ slug, rows, total: rows.length });
   }));
 
-  // ── GET /al/scholarship/by-source/:slug/:root_norm ──────────────────
-  // All notes for a (source, root) pair — the shell's main panel.
   router.get('/al/scholarship/by-source/:slug/:root_norm', (req, env, params) => cached(req, async () => {
     const slug = (params.slug ?? '').trim();
     const root_norm = (params.root_norm ?? '').trim();
@@ -222,8 +194,6 @@ export function scholarshipRoutes(router: Router<ArLinguisticsEnv>) {
     return ok({ slug, root_norm, source, notes, total: notes.length });
   }));
 
-  // ── GET /al/scholarship/root/:root_norm ─────────────────────────────
-  // All academic notes for a given root, with source metadata expanded.
   router.get('/al/scholarship/root/:root_norm', async (_req, env, params) => {
     const root_norm = (params.root_norm ?? '').trim();
     if (!root_norm) return badRequest('root_norm required');
@@ -237,7 +207,6 @@ export function scholarshipRoutes(router: Router<ArLinguisticsEnv>) {
        ORDER BY source_id, page_no`,
     ).bind(root_norm).all<any>()).results ?? [];
 
-    // Pre-compute per-source counts so each note can carry its source row.
     const counts = new Map<string, number>();
     for (const r of rows) counts.set(r.source_id, (counts.get(r.source_id) ?? 0) + 1);
 
@@ -273,9 +242,6 @@ export function scholarshipRoutes(router: Router<ArLinguisticsEnv>) {
     return ok({ root_norm, notes, total: notes.length });
   });
 
-  // ── GET /al/scholarship/has/:root_norm ──────────────────────────────
-  // Lightweight existence check — used by the hub to decide whether to
-  // render the "Academic readings" section at all.
   router.get('/al/scholarship/has/:root_norm', async (_req, env, params) => {
     const root_norm = (params.root_norm ?? '').trim();
     if (!root_norm) return badRequest('root_norm required');

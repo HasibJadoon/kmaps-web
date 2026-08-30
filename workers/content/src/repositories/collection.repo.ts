@@ -1,14 +1,6 @@
-// ─── CollectionRepo — cm_collections + cm_collection_items ───────────────────
-// Ordered or unordered collections of typed cross-module references —
-// reading lists, playlists, curated sets.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ---------------------------------------------------------------------------
-// cm_collections
-// ---------------------------------------------------------------------------
 
 export interface CmCollection {
   collection_id: string;
@@ -17,7 +9,7 @@ export interface CmCollection {
   title: string;
   title_ar: string | null;
   description: string | null;
-  is_ordered: number;           // 0 | 1
+  is_ordered: number;
   policy_ref: string | null;
   workspace_ref: string | null;
   tags_json: string;
@@ -58,10 +50,6 @@ const COL_COLS = `collection_id, core_user_ref, collection_type, title, title_ar
   description, is_ordered, policy_ref, workspace_ref, tags_json,
   cover_image_url, meta_json, created_at, updated_at`;
 
-// ---------------------------------------------------------------------------
-// cm_collection_items
-// ---------------------------------------------------------------------------
-
 export interface CmCollectionItem {
   item_id: string;
   collection_id: string;
@@ -73,14 +61,8 @@ export interface CmCollectionItem {
 
 const ITEM_COLS = `item_id, collection_id, target_ref, seq_order, item_note, meta_json`;
 
-// ---------------------------------------------------------------------------
-// Repository
-// ---------------------------------------------------------------------------
-
 export class CollectionRepo {
   constructor(private db: D1Database) {}
-
-  // ── cm_collections ───────────────────────────────────────────────────────
 
   list(userRef: string, workspaceRef: string | null, opts: PaginateOptions = {}) {
     let where  = 'WHERE core_user_ref = ?';
@@ -169,8 +151,6 @@ export class CollectionRepo {
     );
   }
 
-  // ── cm_collection_items ──────────────────────────────────────────────────
-
   items(collectionId: string): Promise<CmCollectionItem[]> {
     return query<CmCollectionItem>(
       this.db,
@@ -186,7 +166,7 @@ export class CollectionRepo {
     note?: string | null,
   ): Promise<CmCollectionItem> {
     const item_id = typedId('CM');
-    // Determine next seq_order
+
     const maxRow = await queryOne<{ max_order: number | null }>(
       this.db,
       `SELECT MAX(seq_order) AS max_order FROM cm_collection_items WHERE collection_id = ?`,
@@ -216,7 +196,7 @@ export class CollectionRepo {
   }
 
   async reorder(collectionId: string, orderedItemIds: string[]): Promise<void> {
-    // Execute one UPDATE per item — D1 does not support CTEs with UPDATE in all contexts
+
     for (let i = 0; i < orderedItemIds.length; i++) {
       await execute(
         this.db,

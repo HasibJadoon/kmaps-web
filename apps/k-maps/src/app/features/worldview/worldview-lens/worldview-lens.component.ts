@@ -3,19 +3,6 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { ActivatedRoute, Router } from '@angular/router';
 import { environment } from '../../../../environments/environment';
 
-// ─── The Quranic lens ─────────────────────────────────────────────────────────
-//
-// One passage, two readings, set against each other line by line. Neither is
-// summarised away: each is stated in full, because a contrast the reader cannot
-// disagree with is decoration.
-//
-// The pairing is the content, and it does not come from grouping positions by
-// concept. Doing that yields twenty-four one-sided columns and no argument at
-// all, because the two sides share no concept — Islam's and secular
-// naturalism's concept sets are disjoint. It comes from the graph's `rebuts`
-// edges, which still hold the pairing that was lost when the positions were
-// lifted out of it. `/wv/positions/contrast` reads it from where it survives.
-
 interface ContrastPair {
   claim_id: string;
   claim: string;
@@ -25,9 +12,6 @@ interface ContrastPair {
   counter_summary: string | null;
 }
 
-/** The graph stores `summary` equal to `title` on these nodes, so rendering
- *  both prints the same sentence twice. Show the note only when it says
- *  something the reading does not. */
 export function meaningfulNote(text: string, note: string | null): string | null {
   if (!note) return null;
   const norm = (v: string) => v.trim().replace(/\s+/g, ' ').replace(/[.,;]+$/, '').toLowerCase();
@@ -43,9 +27,6 @@ interface Contrast {
   sides: { claim: string; counter: string };
 }
 
-/** Where the contrast corpus actually has something to show. Listed rather than
- *  offered as a free surah picker, because a picker that returns nothing for
- *  113 of 114 surahs teaches the reader that the feature is broken. */
 const PASSAGES = [
   { label: 'al-Rūm 30:2–6', surah: 30, from: 2, to: 6 },
 ];

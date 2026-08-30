@@ -1,9 +1,3 @@
-// ─── /st capture-log routes — talking-point capture log ───────────────────────
-// A capture session is one recording pass over an episode. Each marker is one
-// take of one talking point, with in/out timecodes and a good/redo/skip verdict
-// — the editor's shot log. The episode owner starts a session; markers are then
-// appended (or replaced wholesale) and individually edited as takes come in.
-
 import type { Router } from '../../../shared/src/router';
 import {
   ok, created, notFound, badRequest, unauthorized, forbidden,
@@ -15,8 +9,6 @@ import {
   type MarkerInput, type MarkerPatch,
 } from '../repositories/capture.repo';
 import { actorRef } from '../auth';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function readJson(req: Request): Promise<unknown> {
   try {
@@ -34,7 +26,6 @@ function trimmedString(v: unknown): string | undefined {
   return typeof v === 'string' ? v.trim() : undefined;
 }
 
-/** Coerce one raw marker object into a MarkerInput, or null when invalid. */
 function toMarkerInput(raw: unknown): MarkerInput | null {
   if (!isObj(raw)) return null;
   const pointRef = trimmedString(raw['point_ref']) || '';
@@ -58,7 +49,6 @@ function toMarkerInput(raw: unknown): MarkerInput | null {
 
 export function captureRoutes(router: Router<StudioEnv>) {
 
-  // POST /st/episodes/:id/captures — start a capture session (owner only)
   router.post('/st/episodes/:id/captures', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -81,7 +71,6 @@ export function captureRoutes(router: Router<StudioEnv>) {
     return created(session);
   });
 
-  // GET /st/episodes/:id/captures — list capture sessions for an episode (owner only)
   router.get('/st/episodes/:id/captures', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -93,7 +82,6 @@ export function captureRoutes(router: Router<StudioEnv>) {
     return ok(await new CaptureRepo(env.DB_ST).listByEpisode(id));
   });
 
-  // GET /st/captures/:id — a capture session plus its markers
   router.get('/st/captures/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -105,7 +93,6 @@ export function captureRoutes(router: Router<StudioEnv>) {
     return ok(session);
   });
 
-  // PATCH /st/captures/:id — update session (ended_at / sync timecode / device)
   router.patch('/st/captures/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -124,7 +111,6 @@ export function captureRoutes(router: Router<StudioEnv>) {
     return ok(await repo.patch(id, patch));
   });
 
-  // POST /st/captures/:id/markers — replace this session's markers wholesale
   router.post('/st/captures/:id/markers', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -135,7 +121,6 @@ export function captureRoutes(router: Router<StudioEnv>) {
     if (!session) return notFound(`capture ${id}`);
     if (session.core_user_ref !== user) return forbidden('Not your capture');
 
-    // Accept either a bare array or { markers: [...] }.
     const rawMarkers = Array.isArray(body)
       ? body
       : isObj(body) && Array.isArray(body['markers']) ? body['markers'] : null;
@@ -151,7 +136,6 @@ export function captureRoutes(router: Router<StudioEnv>) {
     return ok(await repo.replaceMarkers(id, markers));
   });
 
-  // PATCH /st/markers/:id — edit a single marker
   router.patch('/st/markers/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -162,7 +146,6 @@ export function captureRoutes(router: Router<StudioEnv>) {
     const marker = await repo.findMarker(id);
     if (!marker) return notFound(`marker ${id}`);
 
-    // Ownership flows through the marker's session.
     const session = await repo.findSession(marker.session_ref);
     if (!session || session.core_user_ref !== user) return forbidden('Not your marker');
 

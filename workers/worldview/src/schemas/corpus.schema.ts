@@ -1,14 +1,12 @@
-// ─── Corpus schemas & types ───────────────────────────────────────────────
-
 export interface WvScripturalCorpus {
-  id: string;              // WV:ULID
+  id: string;
   slug: string;
   title: string;
   title_ar: string | null;
   tradition_id: string | null;
-  corpus_type: string;     // scripture|hadith|commentary|creed|liturgy|apocrypha|other
+  corpus_type: string;
   language: string | null;
-  canon_status: string | null; // canonical|deuterocanonical|disputed|rejected
+  canon_status: string | null;
   date_range: string | null;
   description_md: string | null;
   meta_json: string | null;
@@ -19,14 +17,14 @@ export interface WvCorpusUnit {
   id: string;
   corpus_id: string;
   parent_id: string | null;
-  unit_type: string;       // book|chapter|passage|pericope|episode|scene|verse_range|other
+  unit_type: string;
   title: string | null;
   unit_index: number | null;
   start_ref: string | null;
   end_ref: string | null;
   text_excerpt: string | null;
   description_md: string | null;
-  qr_scope_ref: string | null; // 'QR:<surah>:<ayah_from>[-<ayah_to>]'
+  qr_scope_ref: string | null;
   meta_json: string | null;
   created_at: string;
 }
@@ -81,8 +79,6 @@ export interface CorpusUnitPatch {
   qr_scope_ref?: string | null;
   meta_json?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

@@ -1,5 +1,3 @@
-// ─── Disciplinary schemas & types ───────────────────────────────────────────────
-
 export interface DisciplineContainer {
   id: string;
   name_ar: string;
@@ -56,8 +54,6 @@ export interface DisciplineRelationCreate {
   relation_type: string;
   note_md?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

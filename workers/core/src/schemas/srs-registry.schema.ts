@@ -1,18 +1,13 @@
-// ─── SRS Registry & Workspace Plans schemas & types ───────────────────────────
-
-// core_srs_registry
-// CORE tracks which user has an SRS card for which resource.
-// Actual card data (stability, difficulty, FSRS state) lives in AR.
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface SrsRegistryCard {
-  id: string;                                           // CORE:ULID
-  user_ref: string;                                     // 'CORE:<user_id>'
+  id: string;
+  user_ref: string;
   workspace_id: string | null;
-  resource_ref: string;                                 // typed ref to the item being learned
+  resource_ref: string;
   resource_type: 'vocabulary' | 'grammar' | 'root' | 'lemma' | 'ayah' | 'concept' | 'other';
   module: 'AR' | 'AL' | 'QR' | 'WV' | 'EN' | 'other';
-  card_ref: string | null;                              // 'AR:<srs_card_id>' once created
+  card_ref: string | null;
   enqueued_at: string;
   last_review_at: string | null;
   next_review_at: string | null;
@@ -29,16 +24,13 @@ export interface SrsCardUpsert {
   next_review_at?: string;
 }
 
-// core_workspace_plans
-// Lightweight metadata linking a PL plan to workspace context.
-// Plan data lives in km_planner; this is the workspace-level handle.
 export interface WorkspacePlan {
-  id: string;                                           // CORE:ULID
-  workspace_id: string;                                 // CORE:ULID → core_workspaces
-  pl_plan_ref: string;                                  // 'PL:<pl_plans.id>' (UNIQUE)
+  id: string;
+  workspace_id: string;
+  pl_plan_ref: string;
   title: string;
   plan_type: 'study' | 'curriculum' | 'class' | 'personal' | 'team' | 'other';
-  owner_user_ref: string;                               // 'CORE:<user_id>'
+  owner_user_ref: string;
   status: 'active' | 'paused' | 'completed' | 'archived';
   visibility: 'private' | 'workspace' | 'public';
   started_at: string | null;
@@ -62,8 +54,6 @@ export interface WorkspacePlanPatch {
   visibility?: 'private' | 'workspace' | 'public';
   target_end_at?: string | null;
 }
-
-// ─── Validators ────────────────────────────────────────────────────────────────
 
 export function validateSrsCardUpsert(
   body: unknown,
@@ -173,8 +163,6 @@ export function validateWorkspacePlanPatch(
   return { data };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface SrsCardInput {
   userRef: string;
   workspaceId?: string;
@@ -196,8 +184,6 @@ export interface WorkspacePlansListOptions extends PaginateOptions {
   status?: WorkspacePlan['status'];
   ownerUserRef?: string;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

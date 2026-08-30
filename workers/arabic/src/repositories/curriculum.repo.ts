@@ -1,19 +1,13 @@
-// ─── CurriculumRepo — ar_curriculum + ar_curriculum_unit ─────────────────────
-// Formal 3-discipline curriculum trees (nahw, sarf, balagha, combined).
-// Units form a tree (parent_id self-ref) and carry AL:ULID concept refs.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface Curriculum {
   id: string;
   slug: string;
   title: string;
-  discipline: string;         // sarf|nahw|balagha|combined|vocab|reading|other
-  level: string | null;       // A1–C2
+  discipline: string;
+  level: string | null;
   track_id: string | null;
   container_id: string | null;
   description_md: string | null;
@@ -37,10 +31,10 @@ export interface CurriculumUnit {
   curriculum_id: string;
   parent_id: string | null;
   title: string;
-  al_concept_ref: string | null;  // AL:<ar_ling_nahw|sarf|balagha_concept_id>
+  al_concept_ref: string | null;
   unit_index: number;
   description_md: string | null;
-  examples_json: string | null;   // JSON [{arabic, translation, notes}]
+  examples_json: string | null;
   created_at: string;
 }
 
@@ -62,20 +56,14 @@ export interface CurriculumUnitPatch {
   examples_json?: string | null;
 }
 
-// ── Column lists ──────────────────────────────────────────────────────────────
-
 const CURR_COLS = `id, slug, title, discipline, level, track_id, container_id,
   description_md, sort_order, created_at`;
 
 const UNIT_COLS = `id, curriculum_id, parent_id, title, al_concept_ref,
   unit_index, description_md, examples_json, created_at`;
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class CurriculumRepo {
   constructor(private db: D1Database) {}
-
-  // ── Curricula ────────────────────────────────────────────────────────────────
 
   list(trackId: string | null = null, opts: PaginateOptions = {}) {
     const where  = trackId ? 'WHERE track_id = ?' : '';
@@ -130,9 +118,6 @@ export class CurriculumRepo {
     return (await this.findById(id))!;
   }
 
-  // ── Curriculum units ─────────────────────────────────────────────────────────
-
-  /** Top-level units for a curriculum, ordered by unit_index. */
   units(curriculumId: string): Promise<CurriculumUnit[]> {
     return query<CurriculumUnit>(
       this.db,

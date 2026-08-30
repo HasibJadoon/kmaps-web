@@ -1,18 +1,3 @@
-// ─── /core/talk/* — cards to start a conversation ─────────────────────────────
-//
-//   GET  /core/talk/decks              — yours, plus anything shared
-//   POST /core/talk/decks              — make one
-//   GET  /core/talk/decks/:id          — the deck with its cards
-//   POST /core/talk/decks/:id/cards    — add prompts, one or many
-//   DELETE /core/talk/decks/:id/cards/:cardId
-//
-// No scoring and no schedule. A prompt that made the room talk for twenty
-// minutes is a good card, and there is nothing to grade about that — which is
-// why this is neither the SRS nor the quiz.
-//
-// Nothing is seeded from any published deck. Import is a paste box for prompts
-// the person owns or wrote; a deck somebody bought is theirs, not ours to copy.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, created, badRequest, notFound, forbidden, noContent } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
@@ -96,19 +81,13 @@ export function talkRoutes(router: Router<CoreEnv>): void {
          FROM core_talk_deck WHERE id = ?`, [id]);
     if (!deck) return notFound(`deck ${id}`);
 
-    // THE PROMPTS ARE THE OWNER'S. Everyone at the table can see that a deck
-    // exists and how much is waiting in it — that is what makes a table work —
-    // but not what is written in it. A question you know is coming is not the
-    // same question, and half the point is being asked something you did not
-    // see coming.
     const mine = deck['owner_ref'] === ctx.userId;
     if (!mine && !deck['is_shared']) return forbidden('Not your deck');
 
     const cards = mine
       ? await query(
           env.DB_CORE,
-          // Ordered by depth then sequence, so dealing straight through opens
-          // light and ends deep. Shuffling is the client's choice.
+
           `SELECT id, prompt, depth, tags, seq, for_name, for_ref, asked_at
              FROM core_talk_card
             WHERE deck_ref = ? ORDER BY depth, seq, created_at`, [id])
@@ -116,9 +95,6 @@ export function talkRoutes(router: Router<CoreEnv>): void {
     return ok({ deck, cards, visible: mine });
   });
 
-  /** Add prompts. Accepts one `prompt` or a `prompts` array — pasting a page of
-   *  your own questions is the normal way a deck gets made, and doing that one
-   *  request at a time is how people give up halfway. */
   router.post('/core/talk/decks/:id/cards', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -161,14 +137,10 @@ export function talkRoutes(router: Router<CoreEnv>): void {
     return created({ added: made.length, cards: made });
   });
 
-  /** Mark a card as asked. Not a delete: the point of keeping it is that at
-   *  the end of a week you can see what was actually asked, and a card that
-   *  vanishes when it is played leaves no record of the evening. */
   router.post('/core/talk/cards/:cardId/asked', async (req, env, { cardId }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    // Scoped through the deck's owner, so one person cannot mark another
-    // person's card as asked — including cards they were never able to read.
+
     await execute(
       env.DB_CORE,
       `UPDATE core_talk_card
@@ -180,23 +152,14 @@ export function talkRoutes(router: Router<CoreEnv>): void {
     return ok({ id: cardId });
   });
 
-  /** Tonight: every card waiting to be asked, across the decks this person can
-   *  see, grouped by who is asking.
-   *
-   *  Cross-deck on purpose. Each person prepares their own during the day, and
-   *  at the table nobody wants to hand the phone round four times — one screen
-   *  deals from everybody's, in turn. */
   router.get('/core/talk/tonight', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
     const url = new URL(req.url);
-    // Everything unasked by default; `all=1` for a table that wants the lot.
+
     const all = url.searchParams.get('all') === '1';
     const workspace = url.searchParams.get('workspace');
 
-    // YOUR cards only. Each person prepares their own and asks from their own
-    // phone; nobody reads anybody else's deck, which is the whole reason the
-    // question lands.
     const rows = await query(
       env.DB_CORE,
       `SELECT c.id, c.prompt, c.depth, c.for_name, c.for_ref, c.asked_at,
@@ -209,8 +172,6 @@ export function talkRoutes(router: Router<CoreEnv>): void {
       [ctx.userId],
     );
 
-    // Who else is at the table and how much they are holding — a count, never
-    // a prompt. It is what tells the room whether everybody came prepared.
     const table = workspace
       ? await query(
           env.DB_CORE,

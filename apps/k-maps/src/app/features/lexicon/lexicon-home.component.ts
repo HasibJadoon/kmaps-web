@@ -28,7 +28,6 @@ export class LexiconHomeComponent {
   readonly searchMode     = signal<SearchMode>('root');
   readonly query          = signal('');
 
-  // Curated quick-pick roots (well-known classical roots).
   readonly quickRoots = ['كتب', 'علم', 'قرأ', 'رحم', 'حمد', 'أمن', 'نزل', 'خلق', 'فتح', 'وحي'];
 
   constructor() {
@@ -38,10 +37,8 @@ export class LexiconHomeComponent {
     });
   }
 
-  // Total roots across all available sources (display stat for the Books card).
   readonly totalRoots = () => this.sources().reduce((s, x) => s + (x.roots ?? 0), 0);
 
-  // Show only the top N books by root count on the home card.
   readonly featuredBooks = () => [...this.sources()]
     .sort((a, b) => (b.roots ?? 0) - (a.roots ?? 0))
     .slice(0, 6);

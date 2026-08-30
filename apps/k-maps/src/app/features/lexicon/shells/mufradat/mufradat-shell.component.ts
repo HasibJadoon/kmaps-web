@@ -1,36 +1,3 @@
-// ─── Mufradat shell — al-Raghib reader, GSAP-driven panel layout ───────────
-//
-// LAYOUT MODEL
-// ════════════
-// The reader is a viewport-sized region with two RTL-natural rails:
-//   • Root index    (.rail--index)     — anchored at the inline-start edge
-//                                        (right side in RTL)
-//   • Quran + notes (.rail--citations) — anchored at the inline-end edge
-//                                        (left side in RTL)
-// The middle column (.content) reserves space for each rail via
-// `padding-inline-start/end`. Toggles + resizers ride the rail's inner
-// edge via the same CSS variables that drive rail width.
-//
-// ANIMATION MODEL
-// ═══════════════
-// Two CSS custom properties on the host are the single source of truth
-// for layout: `--w-index` and `--w-citations`. Everything that depends
-// on rail width — rail itself, content padding, toggle position,
-// resizer position — reads from these vars, so when one var changes the
-// whole UI shifts together.
-//
-// Toggling is animated by a CSS transition that's gated on a temporary
-// `.anim-{side}` class on the host. The TS layer writes the new var
-// value AND adds the class for the transition duration, then removes
-// the class. Drag-resize never touches the class, so resize stays
-// pixel-perfect with zero easing/lag.
-//
-// RESPONSIVE
-// ══════════
-// Below `MOBILE_BREAKPOINT`, the rails become fixed overlays (content
-// padding is reset). The same var still drives rail width, so the
-// animation pipeline is identical on every viewport size.
-
 import {
   AfterViewInit, ChangeDetectionStrategy, Component, DestroyRef, ElementRef,
   HostListener, ViewChild, computed, inject, signal,
@@ -58,10 +25,8 @@ const RAIL = {
   MOBILE_BREAKPOINT: 880,
 };
 
-// Panel motion durations. The CSS transition curve on `.rail` matches
-// the worldview-library reader's `power3.out` decel feel.
-const DUR_WIDTH = 480;   // ms
-const DUR_FADE  = 320;   // ms
+const DUR_WIDTH = 480;
+const DUR_FADE  = 320;
 
 type Side = 'index' | 'citations';
 
@@ -95,19 +60,14 @@ export class MufradatShellComponent implements AfterViewInit {
   private readonly router     = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
-  // ── Reader state ─────────────────────────────────────────────────────
-  readonly bookSlug    = MUFRADAT_SLUG;   // for the toolbar book selector
+  readonly bookSlug    = MUFRADAT_SLUG;
   readonly currentRoot = signal('');
   readonly loading     = signal(false);
   readonly view        = signal<MufradatReadView | null>(null);
   readonly error       = signal<string | null>(null);
 
-  // al-Rāghib's own ṣarf tree. Distinct from this view's pre-baked `family`
-  // map: that is his derived-word list, this is the paradigm — one interval
-  // sense spread over five bābs — and it rides the generic entry endpoint.
   readonly sarf = signal<LexV2SarfFamily | null>(null);
 
-  // ── Root index ───────────────────────────────────────────────────────
   readonly rootList        = signal<LexV2RootRow[]>([]);
   readonly rootListLoading = signal(false);
   readonly rootSearch      = signal('');
@@ -131,55 +91,44 @@ export class MufradatShellComponent implements AfterViewInit {
     return [...out.entries()].sort();
   });
 
-  // ── UI preferences ───────────────────────────────────────────────────
   readonly darkMode          = signal(true);
   readonly showIndex         = signal(true);
   readonly showCitations     = signal(true);
   readonly citationsExpanded = signal(false);
-  // Trilingual toggle: 'both' shows the EN/UR synthesis under each verbatim
-  // passage; 'ar' collapses to Arabic-only (also the graceful fallback when
-  // a root has no authored translations).
+
   readonly trans             = signal<'both' | 'ar'>('both');
-  readonly fontSize          = signal(2);   // 0=xs … 4=xl
+  readonly fontSize          = signal(2);
   readonly fontSizeClass     = computed(() =>
     ['fs-xs', 'fs-sm', 'fs-md', 'fs-lg', 'fs-xl'][this.fontSize()]);
 
-  // Entry-head hero root. `canonical.root_letters` is a JSON ARRAY in D1
-  // (["ث","ب","ر"]) — not a spaced string — so using it as-is printed the
-  // brackets and quotes on screen. Take the root straight from the data and
-  // show it combined: ثبر.
   readonly entryLetters = computed(() => {
     const v = this.view();
     const spaced = v?.entry_gloss?.letters_spaced?.trim();
     if (spaced) return spaced.replace(/\s+/g, '');
     const raw = (v?.entry.root_text ?? this.currentRoot()).trim().replace(/\s+/g, '');
     if (raw) return raw;
-    // Only if the root text is absent: recover the letters from the JSON array.
+
     const letters = v?.canonical?.root_letters?.trim();
     if (!letters) return '';
     try {
       const arr: unknown = JSON.parse(letters);
       if (Array.isArray(arr)) return arr.join('');
-    } catch { /* not JSON — fall through to the strip below */ }
+    } catch {  }
     return letters.replace(/[\[\]",\s]/g, '');
   });
 
-  // User-chosen rail widths (drag-resize). The effective width animated
-  // via GSAP is derived from these + open/closed/expanded state.
   readonly indexWidth     = signal(RAIL.INDEX_DEFAULT);
   readonly citationsWidth = signal(RAIL.CITATIONS_DEFAULT);
 
-  // Drag-resize state (cleared on pointerup)
   private dragSide:   Side | null = null;
   private dragStartX = 0;
   private dragStartW = 0;
 
-  // ── Route subscription ───────────────────────────────────────────────
   constructor() {
     combineLatest([this.route.paramMap, this.route.queryParamMap])
       .pipe(takeUntilDestroyed())
       .subscribe(([params, query]) => {
-        // Root-centric URL: /lexicon/root/:root?book=<slug>.
+
         const book = query.get('book') ?? '';
         if (book !== MUFRADAT_SLUG) return;
         if (this.rootList().length === 0) this.loadRoots();
@@ -191,16 +140,10 @@ export class MufradatShellComponent implements AfterViewInit {
   }
 
   ngAfterViewInit() {
-    // Seed the CSS vars to current widths so the layout matches state
-    // before the first animated toggle.
+
     this.setVar('index',     this.targetWidth('index'));
     this.setVar('citations', this.targetWidth('citations'));
   }
-
-  // ── Animation primitives ─────────────────────────────────────────────
-  // Single source of truth: `--w-{side}` on the host. Everything that
-  // depends on rail width (content padding, toggle position, resizer
-  // position) reads this var, so one tween moves the whole UI together.
 
   private targetWidth(side: Side): number {
     if (side === 'index') return this.showIndex() ? this.indexWidth() : 0;
@@ -213,12 +156,6 @@ export class MufradatShellComponent implements AfterViewInit {
     return typeof window === 'undefined' ? 1280 : window.innerWidth;
   }
 
-  /**
-   * Open or close a rail. Width animation is driven by a CSS transition
-   * on the rail element's `width` (matching `--w-{side}` via the CSS
-   * layout), so it's GPU-friendly and runs even on backgrounded tabs.
-   * Opacity is tweened too so the rail content fades during the slide.
-   */
   private tween(side: Side) {
     const host   = this.hostEl.nativeElement;
     const target = this.targetWidth(side);
@@ -239,20 +176,6 @@ export class MufradatShellComponent implements AfterViewInit {
     }
   }
 
-  /** Apply a width to the rail's CSS var instantly — no animation. */
-
-  /**
-   * Invalidate the reading column's paint once a rail animation finishes.
-   *
-   * `.content` is the scroll container and the toggle transitions its
-   * `padding-inline`, so every rail toggle re-lays-out the column. Chromium can
-   * finish that transition still holding a stale tile for descendants that clip
-   * on a rounded boundary — the ṣarf panel and its form cards — and a band of the
-   * page keeps painting at its old offset. The geometry is already correct at
-   * that point (a forced reflow re-measures identically), so this only nudges the
-   * compositor to re-rasterise; it deliberately does not promote a layer, which
-   * would cost memory on every scroll for the rest of the session.
-   */
   private repaintContent() {
     const el = this.contentRef?.nativeElement;
     if (!el) return;
@@ -266,7 +189,6 @@ export class MufradatShellComponent implements AfterViewInit {
     host.style.setProperty(`--w-${side}`, `${w}px`);
   }
 
-  // ── Toggles ──────────────────────────────────────────────────────────
   toggleDark() { this.darkMode.update(v => !v); }
 
   toggleTrans() { this.trans.update(v => (v === 'both' ? 'ar' : 'both')); }
@@ -295,10 +217,6 @@ export class MufradatShellComponent implements AfterViewInit {
     this.fontSize.set(Math.max(0, Math.min(4, this.fontSize() + d)));
   }
 
-  // ── Drag-to-resize ───────────────────────────────────────────────────
-  // In RTL the index rail is on the viewport's RIGHT — dragging LEFT
-  // grows it (delta-X < 0 ⇒ width up). The citations rail is on the
-  // LEFT — dragging RIGHT grows it (delta-X > 0 ⇒ width up).
   startResize(side: Side, e: PointerEvent) {
     e.preventDefault();
     this.dragSide   = side;
@@ -329,7 +247,6 @@ export class MufradatShellComponent implements AfterViewInit {
     this.dragSide = null;
   }
 
-  // ── Window resize keeps expanded citations rail at viewport width ───
   @HostListener('window:resize')
   onWindowResize() {
     if (this.citationsExpanded() && this.showCitations()) {
@@ -337,7 +254,6 @@ export class MufradatShellComponent implements AfterViewInit {
     }
   }
 
-  // ── Navigation ───────────────────────────────────────────────────────
   goToRoot(root_norm: string) {
     this.router.navigate(['/lexicon/root', root_norm], {
       queryParams: { book: MUFRADAT_SLUG },
@@ -356,7 +272,6 @@ export class MufradatShellComponent implements AfterViewInit {
     if (idx >= 0 && idx < list.length - 1) this.goToRoot(list[idx + 1].root_norm);
   }
 
-  // ── Data loading ─────────────────────────────────────────────────────
   private loadRoots() {
     this.rootListLoading.set(true);
     this.api.getV2Roots({ source: MUFRADAT_SLUG, limit: 10000 }).pipe(
@@ -387,13 +302,12 @@ export class MufradatShellComponent implements AfterViewInit {
       this.loading.set(false);
       queueMicrotask(() => this.contentRef?.nativeElement.scrollTo({ top: 0 }));
     });
-    // In parallel — a late response for an abandoned root must not land.
+
     this.api.getSarfFamily(MUFRADAT_SLUG, root_norm).pipe(
       takeUntilDestroyed(this.destroyRef),
     ).subscribe(f => { if (this.currentRoot() === root_norm) this.sarf.set(f); });
   }
 
-  // ── Cross-feature actions ────────────────────────────────────────────
   openAyah(surah: number, ayah: number) {
     if (!surah || !ayah) return;
     this.router.navigate(['/quran/al-quran'], {
@@ -431,13 +345,12 @@ export class MufradatShellComponent implements AfterViewInit {
     }, 120);
   }
 
-  // ── Keyboard shortcuts ───────────────────────────────────────────────
   @HostListener('window:keydown', ['$event'])
   onKey(e: KeyboardEvent) {
     const tag = (e.target as HTMLElement)?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     switch (e.key) {
-      case 'ArrowLeft':  this.nextRoot(); e.preventDefault(); break; // RTL
+      case 'ArrowLeft':  this.nextRoot(); e.preventDefault(); break;
       case 'ArrowRight': this.prevRoot(); e.preventDefault(); break;
       case 'j': this.contentRef?.nativeElement.scrollBy({ top: 80,  behavior: 'smooth' }); break;
       case 'k': this.contentRef?.nativeElement.scrollBy({ top: -80, behavior: 'smooth' }); break;

@@ -6,16 +6,6 @@ import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 
-// ─── Sign-in is Google / Apple only ──────────────────────────────────────────
-// CORE already implements the whole flow (/core/auth/providers, and
-// /core/auth/oauth/{google,apple} verifying the provider ID token against its
-// JWKS before issuing our session JWT); this screen only obtains that ID token.
-//
-// Which buttons appear is decided by the SERVER, never hardcoded: a provider is
-// live only when its env vars are set, and Apple additionally needs
-// APPLE_REDIRECT_URI. Hardcoding both would render a button that is guaranteed
-// to fail wherever a provider is not configured.
-
 interface ProvidersResponse {
   data?: {
     google?: { enabled?: boolean; client_id?: string };
@@ -30,7 +20,6 @@ interface AppleAuthResponse { authorization?: { id_token?: string }; user?: { na
 const GSI_SRC = 'https://accounts.google.com/gsi/client';
 const APPLE_SRC = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
 
-/** Load a third-party script once; resolve when it is ready. */
 function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
@@ -89,11 +78,10 @@ export class LoginComponent implements AfterViewInit {
     });
   }
 
-  // ── Google ────────────────────────────────────────────────────────────────
   private async initGoogle(): Promise<void> {
     try {
       await loadScript(GSI_SRC);
-      // GSI is injected on window by the script above.
+
       const gsi = (window as unknown as {
         google?: { accounts?: { id?: {
           initialize(o: Record<string, unknown>): void;
@@ -106,10 +94,7 @@ export class LoginComponent implements AfterViewInit {
       gsi.initialize({
         client_id: this.google().clientId,
         callback: (resp: GoogleCredential) => this.exchange('google', resp?.credential ?? ''),
-        // Without this the popup dies showing Google's own error page and this
-        // screen just sits there. The common one is `invalid_client` / "no
-        // registered origin": the current origin is not in the OAuth client's
-        // Authorized JavaScript origins, which is console config, not code.
+
         error_callback: (err: { type?: string }) => {
           this.busy.set(false);
           this.error.set(
@@ -128,7 +113,6 @@ export class LoginComponent implements AfterViewInit {
     }
   }
 
-  // ── Apple ─────────────────────────────────────────────────────────────────
   async signInApple(): Promise<void> {
     this.error.set(null);
     try {
@@ -148,18 +132,16 @@ export class LoginComponent implements AfterViewInit {
       });
       const res = await appleId.signIn();
       const idToken = res?.authorization?.id_token ?? '';
-      // Apple returns the name only on the FIRST authorization — pass it through
-      // so the account is not created nameless.
+
       const n = res?.user?.name;
       const name = [n?.firstName, n?.lastName].filter(Boolean).join(' ').trim() || undefined;
       this.exchange('apple', idToken, name);
     } catch {
-      // A cancelled popup is not an error worth shouting about.
+
       this.busy.set(false);
     }
   }
 
-  // ── Exchange a provider ID token for our session JWT ──────────────────────
   private exchange(provider: 'google' | 'apple', idToken: string, name?: string): void {
     if (!idToken) { this.error.set('No credential returned by the provider.'); return; }
     this.busy.set(true);

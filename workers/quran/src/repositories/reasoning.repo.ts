@@ -1,12 +1,6 @@
-// ─── ReasoningRepo — qr_analysis_scope + qr_analysis_claim + qr_scope_nuance +
-//     qr_evidence + qr_claim_evidence_link + qr_argument +
-//     qr_argument_link + qr_debate_cluster ────────────────────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Row shapes ─────────────────────────────────────────────────────────────────
 
 export interface AnalysisScope {
   id: string;
@@ -185,12 +179,8 @@ export interface DebateClusterCreate {
   note_md?: string | null;
 }
 
-// ── Repo ───────────────────────────────────────────────────────────────────────
-
 export class ReasoningRepo {
   constructor(private db: D1Database) {}
-
-  // ── qr_analysis_scope ─────────────────────────────────────────────────────
 
   scopes(scopeRef?: { surah?: number; scope_type?: string }, opts: PaginateOptions = {}) {
     const conditions: string[] = [];
@@ -251,8 +241,6 @@ export class ReasoningRepo {
 
     return this.findScopeById(id);
   }
-
-  // ── qr_analysis_claim ─────────────────────────────────────────────────────
 
   claims(scopeId?: string, opts: PaginateOptions = {}) {
     const whereClause = scopeId ? 'WHERE scope_id = ?' : '';
@@ -322,8 +310,6 @@ export class ReasoningRepo {
     return this.findClaimById(id);
   }
 
-  // ── qr_scope_nuance ───────────────────────────────────────────────────────
-
   scopeNuances(scopeId: string, opts: PaginateOptions = {}) {
     return paginate<ScopeNuance>(
       this.db,
@@ -366,8 +352,6 @@ export class ReasoningRepo {
       [id],
     );
   }
-
-  // ── qr_evidence ──────────────────────────────────────────────────────
 
   evidence(claimId: string): Promise<EvidenceItem[]> {
     return query<EvidenceItem>(
@@ -432,12 +416,9 @@ export class ReasoningRepo {
     return (result.meta.changes ?? 0) > 0;
   }
 
-  // ── qr_argument ───────────────────────────────────────────────────────────
-
   args(claimId?: string, opts: PaginateOptions = {}) {
     if (claimId) {
-      // Return arguments that contain this claim in claims_json
-      // Note: D1/SQLite JSON_EACH or LIKE-based search
+
       return paginate<Argument>(
         this.db,
         `SELECT id, surah, title, title_ar, argument_type, summary_md,
@@ -495,8 +476,6 @@ export class ReasoningRepo {
     );
   }
 
-  // ── qr_argument_link ──────────────────────────────────────────────────
-
   argRelations(argId: string): Promise<ArgumentRelation[]> {
     return query<ArgumentRelation>(
       this.db,
@@ -532,8 +511,6 @@ export class ReasoningRepo {
       [id],
     );
   }
-
-  // ── qr_debate_cluster ─────────────────────────────────────────────────────
 
   debateClusters(opts: PaginateOptions = {}, filter?: { surah?: number; cluster_type?: string }) {
     const conditions: string[] = [];

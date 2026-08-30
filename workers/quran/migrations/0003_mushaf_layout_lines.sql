@@ -1,6 +1,3 @@
--- Mushaf page layout lines generated from the QUL KFGQPC V2 layout
--- in data/quran-layouts/digital-khatt-15-lines.db plus QPC V2 page tokens.
-
 CREATE TABLE IF NOT EXISTS qr_mushaf_layout_lines (
   id              TEXT PRIMARY KEY,
   layout_key      TEXT NOT NULL,

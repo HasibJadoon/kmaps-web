@@ -1,7 +1,3 @@
-// ─── /qr/lexicon routes ───────────────────────────────────────────────────────
-// Exposes qr_lemma and qr_lemma_occurrence from km_quran D1.
-// Lexicon search is root-primary: search by 3-letter root, then by lemma text.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -9,9 +5,6 @@ import type { QuranEnv } from '../env';
 
 export function lexiconRoutes(router: Router<QuranEnv>) {
 
-  // GET /qr/lexicon/lemmas?root=كتب&q=كتاب&limit=50
-  // Root search is primary — returns all lemmas sharing a root.
-  // If root is absent, falls back to text LIKE search on lemma_text.
   router.get('/qr/lexicon/lemmas', async (req, env) => {
     const url   = new URL(req.url);
     const root  = url.searchParams.get('root')?.trim();
@@ -58,7 +51,6 @@ export function lexiconRoutes(router: Router<QuranEnv>) {
     });
   });
 
-  // GET /qr/lexicon/lemmas/:id/occurrences — all Quran locations for one lemma
   router.get('/qr/lexicon/lemmas/:id/occurrences', async (req, env) => {
     const id = (req as Request & { params?: Record<string, string> }).params?.['id'] ?? '';
     if (!id) return badRequest('lemma id required');
@@ -100,7 +92,6 @@ export function lexiconRoutes(router: Router<QuranEnv>) {
     });
   });
 
-  // GET /qr/lexicon/roots?q=كتب — distinct roots matching a prefix/query
   router.get('/qr/lexicon/roots', async (req, env) => {
     const url = new URL(req.url);
     const q   = url.searchParams.get('q')?.trim();

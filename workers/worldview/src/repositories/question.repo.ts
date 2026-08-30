@@ -1,7 +1,3 @@
-// ─── QuestionRepo — wv_questions + wv_topics ──────────────────────────────────
-// Open questions raised by a source, plus the topic taxonomy. Questions scope to
-// a source/unit via meta_json. Canonical per 001_wv_schema.sql.
-
 import { query, queryOne } from '../../../shared/src/db';
 
 export interface WvQuestion {

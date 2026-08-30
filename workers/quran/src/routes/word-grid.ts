@@ -1,17 +1,3 @@
-// ─── /qr/word-grid — lightweight, scope-based word grid ───────────────────────
-// One endpoint feeds every "words grid" surface (Root, Surah, Passage/Morphology,
-// Lexicon). It returns ONLY the light data a card needs — surface + lemma, root,
-// a short gloss, and the ref for navigation. The heavy morph detail (the 17
-// blocks) is loaded separately by the Word deep-dive, never here.
-//
-// A logic-free renderer paints these cards verbatim (passage-card styling).
-//
-// Data: BASE qr_word_occurrence ⟕ RICH qr_morph_display_word ⟕
-// qr_morph_display_lemma (LEFT JOIN for an authored lemma_ar / gloss / spaced
-// root when the word is promoted; the gloss is a tier-2 lemma fact served from
-// the lemma tier, word-row copy as transitional fallback).
-// Content words only — filtered by `root IS NOT NULL` (particles have no root).
-
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest, internalError } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
@@ -19,27 +5,26 @@ import type { QuranEnv } from '../env';
 
 type Scope = 'root' | 'surah' | 'passage' | 'lexicon';
 
-// One row per UNIQUE base word (lemma), aggregated over its occurrences in scope.
 interface GridRow {
-  base_word: string;        // the lemma (group key) — the "base word"
+  base_word: string;
   root: string | null;
   d_lemma_ar: string | null;
   d_root_display: string | null;
   d_gloss_en: string | null;
-  occurrences: number;      // how many times this word appears in scope
-  first_key: number;        // packed surah*1e6 + ayah*1e3 + wordIndex of first occurrence
-  surface_any: string;      // a representative surface form
+  occurrences: number;
+  first_key: number;
+  surface_any: string;
 }
 
 interface GridCard {
-  id: string;               // first occurrence "surah:ayah:wordIndex" (opens the detail)
-  ar: string;               // BASE word headline — authored lemma, else lemma
-  surface_ar: string;       // a representative occurrence form
-  root: string | null;      // bare root, for navigation
+  id: string;
+  ar: string;
+  surface_ar: string;
+  root: string | null;
   root_display: string | null;
-  gloss: string | null;     // short English gloss (may be null)
-  occurrences: number;      // occurrence count in scope (detail lists them all)
-  surah: number;            // first occurrence — for opening the detail
+  gloss: string | null;
+  occurrences: number;
+  surah: number;
   ayah: number;
   word_index: number;
 }
@@ -54,11 +39,6 @@ const spaceRoot = (root: string | null): string | null =>
 
 export function wordGridRoutes(router: Router<QuranEnv>) {
 
-  /**
-   * GET /qr/word-grid?scope=<root|surah|passage|lexicon>&root=&surahId=&ayahFrom=&ayahTo=
-   *
-   * Response: { ok, data: { scope, params, count, words: GridCard[] } }
-   */
   router.get('/qr/word-grid', async (req, env) => {
     const url = new URL(req.url);
     const scope = (url.searchParams.get('scope') || '').toLowerCase() as Scope;
@@ -93,8 +73,7 @@ export function wordGridRoutes(router: Router<QuranEnv>) {
     }
 
     try {
-      // Base word = lemma. One row per unique lemma; occurrences aggregated.
-      // The detail view (opened from a card) lists every occurrence of that word.
+
       const rows = await query<GridRow>(
         env.DB_QR,
         `SELECT COALESCE(w.lemma, w.word_text) AS base_word,

@@ -287,8 +287,6 @@ export class EpisodeBuilderComponent implements OnInit {
     });
   }
 
-  // ── Episode fields ───────────────────────────────────────────────────────────
-
   onTitleBlur(ev: Event): void {
     const title = this.val(ev).trim();
     if (!title) return;
@@ -302,8 +300,6 @@ export class EpisodeBuilderComponent implements OnInit {
     this.patchEpisodeLocal({ format: format as EpisodeFormat });
     this.studio.updateEpisode(this.episodeId, { format }).subscribe({ error: () => {} });
   }
-
-  // ── Participants ─────────────────────────────────────────────────────────────
 
   addPerson(): void {
     const email = (window.prompt(
@@ -341,7 +337,6 @@ export class EpisodeBuilderComponent implements OnInit {
     });
   }
 
-  /** Pull a worker validation message (e.g. an unknown email) out of an error. */
   private errorMessage(err: unknown): string {
     const detail = (err as { error?: { error?: string; message?: string } } | null)?.error;
     return detail?.error || detail?.message || '';
@@ -352,8 +347,6 @@ export class EpisodeBuilderComponent implements OnInit {
     this.studio.deleteParticipant(person.id)
       .subscribe({ next: () => this.reload(), error: () => {} });
   }
-
-  // ── Sections ─────────────────────────────────────────────────────────────────
 
   addSection(): void {
     this.studio.addSection(this.episodeId, { heading: 'New Section', type: 'custom' })
@@ -372,8 +365,6 @@ export class EpisodeBuilderComponent implements OnInit {
     this.studio.deleteSection(section.id)
       .subscribe({ next: () => this.reload(), error: () => {} });
   }
-
-  // ── Talking points ───────────────────────────────────────────────────────────
 
   addPoint(section: Section): void {
     this.studio.addPoint(section.id, { text: '' })
@@ -397,8 +388,6 @@ export class EpisodeBuilderComponent implements OnInit {
     this.studio.deletePoint(point.id)
       .subscribe({ next: () => this.reload(), error: () => {} });
   }
-
-  // ── Episode actions ──────────────────────────────────────────────────────────
 
   deleteEpisode(): void {
     if (!window.confirm('Delete this episode and all of its sections and talking points?')) return;
@@ -428,7 +417,6 @@ export class EpisodeBuilderComponent implements OnInit {
     });
   }
 
-  /** Convert the loaded episode into a reusable template blueprint. */
   private buildStructure(ep: EpisodeAggregate): TemplateStructure {
     const roleByParticipant = new Map<string, string>();
     const participants = ep.participants.map((p, i) => {
@@ -446,8 +434,6 @@ export class EpisodeBuilderComponent implements OnInit {
     }));
     return { participants, sections };
   }
-
-  // ── Local state + helpers ────────────────────────────────────────────────────
 
   private flash(message: string): void {
     this.toast.set(message);

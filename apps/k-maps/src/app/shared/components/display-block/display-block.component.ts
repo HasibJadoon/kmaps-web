@@ -8,13 +8,6 @@ import type {
   QrDisplayQuranRef,
 } from '../../models/quran/qr.models';
 
-/**
- * Desktop block renderer for qr_*_book_display_blocks.
- *
- * Was mirrored in the retired Ionic client (apps/app-k-maps) — same
- * block-type dispatch, same modern look. Uses native Angular (no Ionic)
- * with GSAP-compatible smooth transitions.
- */
 export type AnyDisplayBlock = QrTafsirDisplayBlock | QrIraabDisplayBlock;
 
 interface MadhabChip { label: string; color: string; }

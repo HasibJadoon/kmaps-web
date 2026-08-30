@@ -1,19 +1,15 @@
-// ─── VocabularyRepo — ar_vocabulary ───────────────────────────────────────────
-// Learner vocabulary cards. Stores AL:ULID refs for lemma truth — never
-// duplicates linguistic data from km_arabic_linguistic.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface VocabCard {
-  id: string;               // AR:ULID
-  container_id: string;     // AR:ULID
-  lx_lemma_ref: string;     // AL:ULID → ar_ling_root_lemma
+  id: string;
+  container_id: string;
+  lx_lemma_ref: string;
   display_ar: string;
   gloss_en: string | null;
   sort_order: number;
-  srs_level: number;        // 0-5
+  srs_level: number;
   next_review_at: string | null;
   created_at: string;
 }
@@ -50,7 +46,6 @@ export class VocabularyRepo {
     );
   }
 
-  /** SRS: cards due for review (srs_level < 5 and next_review_at <= now). */
   dueCards(containerId: string, limit = 20): Promise<VocabCard[]> {
     const now = new Date().toISOString();
     return query<VocabCard>(
@@ -79,7 +74,6 @@ export class VocabularyRepo {
     return (await this.findById(id))!;
   }
 
-  /** Record SRS review result. Exponential back-off: interval = 2^quality days. */
   async recordReview(id: string, quality: number): Promise<VocabCard | null> {
     const q        = Math.max(0, Math.min(5, Math.round(quality)));
     const level    = q;

@@ -46,17 +46,12 @@ export class ReactionScreenComponent implements OnInit, AfterViewInit, OnDestroy
   private cdr = inject(ChangeDetectorRef);
   private zone = inject(NgZone);
 
-  // ── Lesson data ───────────────────────────────────────────────────────────
   lesson = signal<ReactionLessonData | null>(null);
 
-  // ── Left panel ────────────────────────────────────────────────────────────
   leftCollapsed = signal(false);
 
-  // ── Playback state ────────────────────────────────────────────────────────
-  /** Current video time in seconds, updated every 200ms */
   currentTime = signal(0);
 
-  /** ID of the transcript line currently covering currentTime */
   activeLineId = computed<string | null>(() => {
     const t = this.currentTime();
     const data = this.lesson();
@@ -65,7 +60,6 @@ export class ReactionScreenComponent implements OnInit, AfterViewInit, OnDestroy
     return line?.id ?? null;
   });
 
-  /** ID of the scene covering the active transcript line */
   activeSceneId = computed<string | null>(() => {
     const lineId = this.activeLineId();
     const data = this.lesson();
@@ -74,7 +68,6 @@ export class ReactionScreenComponent implements OnInit, AfterViewInit, OnDestroy
     return line?.sceneId ?? null;
   });
 
-  /** SceneContent for the active scene — drives the right panel */
   activeContent = computed<SceneContent | null>(() => {
     const sceneId = this.activeSceneId();
     const data = this.lesson();
@@ -82,16 +75,12 @@ export class ReactionScreenComponent implements OnInit, AfterViewInit, OnDestroy
     return data.content.find((c) => c.sceneId === sceneId) ?? null;
   });
 
-  // ── Polling ───────────────────────────────────────────────────────────────
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   private lastActiveLineId: string | null = null;
 
-  // ─────────────────────────────────────────────────────────────────────────
-
   ngOnInit(): void {
     const unitId = this.route.snapshot.paramMap.get('unitId');
-    // In production: fetch from API using unitId.
-    // For now, use mock data regardless of the id.
+
     const data = { ...MOCK_REACTION_LESSON, unitId: unitId ?? MOCK_REACTION_LESSON.unitId };
     this.lesson.set(data);
   }
@@ -104,15 +93,12 @@ export class ReactionScreenComponent implements OnInit, AfterViewInit, OnDestroy
     this.stopPolling();
   }
 
-  // ── Polling loop ──────────────────────────────────────────────────────────
-
   private startPolling(): void {
     this.zone.runOutsideAngular(() => {
       this.pollInterval = setInterval(() => {
         const time = this.ytPlayer?.getCurrentTime() ?? 0;
         const currentLineId = this.computeActiveLineId(time);
 
-        // Only enter Angular zone (trigger CD) when the active line changes
         if (currentLineId !== this.lastActiveLineId) {
           this.lastActiveLineId = currentLineId;
           this.zone.run(() => {
@@ -120,7 +106,7 @@ export class ReactionScreenComponent implements OnInit, AfterViewInit, OnDestroy
             this.cdr.markForCheck();
           });
         } else {
-          // Still update time silently so computed() values stay fresh
+
           this.currentTime.set(time);
         }
       }, 200);
@@ -139,8 +125,6 @@ export class ReactionScreenComponent implements OnInit, AfterViewInit, OnDestroy
     if (!data) return null;
     return data.transcript.find((l) => t >= l.start && t < l.end)?.id ?? null;
   }
-
-  // ── Event handlers ────────────────────────────────────────────────────────
 
   onSceneSelect(scene: Scene): void {
     this.ytPlayer?.seekTo(scene.start);

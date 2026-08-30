@@ -1,19 +1,3 @@
-// ─── A whole display spec, rendered ──────────────────────────────────────────
-//
-// Grouped into the reader's chapters — what it is, what it means, who says so —
-// because that is the shape of the information, not `00-CORE` and `12-ASL`.
-// Those registry codes are exactly right for a build plan and exactly wrong for
-// someone trying to understand a word, so they stay on the section, small,
-// where a builder can still find the carrier.
-//
-// No sorting, no filtering, no deriving here: the spec already arrives in the
-// order it should be read, chapters and all.
-//
-// Sections holding nothing are drawn, not skipped. For a typical root most of
-// them are empty or unknown — identity and phonology cover the whole corpus,
-// sense arcs cover fifty-three roots — and a screen that quietly omits them
-// tells the reader the root has fewer layers than it has.
-
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { CybDsBlockComponent } from './cyb-ds-block.component';
 import type { DisplaySpec, DsReading, DsSection } from '@kmaps/contracts/ds';
@@ -105,14 +89,10 @@ import type { DisplaySpec, DsReading, DsSection } from '@kmaps/contracts/ds';
 export class CybDsSpecComponent {
   readonly spec = input.required<DisplaySpec>();
 
-  /** The sections of one chapter, in the order they arrived. Grouping only —
-   *  the spec decided which chapter each belongs to and what order they go in. */
   sectionsIn(key: string): DsSection[] {
     return this.spec().sections.filter((s) => s.chapter === key);
   }
 
-  /** Axes the plane has actually measured — used by callers that want a
-   *  headline number rather than the full strip. */
   readonly measured = computed<DsReading[]>(() =>
     (this.spec().plane?.readings ?? []).filter((r) => r.measured));
 }

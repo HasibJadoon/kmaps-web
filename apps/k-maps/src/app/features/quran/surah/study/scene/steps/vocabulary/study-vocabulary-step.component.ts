@@ -10,13 +10,6 @@ import { MorphWordCardComponent, MorphCardVm } from '../../../../../shared/morph
 
 interface AyahGroup { ayah: number; words: MorphGridCard[]; }
 
-/**
- * Morphology step — the curated WORD-CARD grid. Shows only PROMOTED content
- * words (major nouns/verbs, no ḥarf/common words). Renders the shared
- * <km-morph-word-card> so the passage step and the full-surah morphology page
- * paint the identical card (design + 3D). Clicking a card opens the full-page
- * word reader. All data from the display layer; no UI logic.
- */
 @Component({
   selector: 'km-study-vocabulary-step',
   standalone: true,
@@ -69,7 +62,6 @@ export class StudyVocabularyStepComponent implements OnChanges {
 
   setFilter(f: 'all' | 'noun' | 'verb'): void { this.filter.set(f); }
 
-  /** Map a curated grid card onto the shared card view-model. */
   toVm(w: MorphGridCard): MorphCardVm {
     return {
       group: w.group,
@@ -77,12 +69,12 @@ export class StudyVocabularyStepComponent implements OnChanges {
       isAnchor: w.is_anchor,
       arc: w.sense_arc_en,
       rangeText: w.sense_range_en || w.gloss.en,
-      // verbs carry their pattern as the form/family chip → no redundant header wazn
+
       waznAr: w.group === 'verb' ? null : w.wazn_ar,
       rootDisplay: w.root_display,
       rootAr: w.root_ar,
       lemmaAr: w.lemma_ar ?? w.surface_ar,
-      // study step = occurrence context → the contextual band
+
       context: { ref: `${w.surah}:${w.ayah}`, surfaceAr: w.surface_ar, feats: w.feats ?? [] },
     };
   }
@@ -91,9 +83,6 @@ export class StudyVocabularyStepComponent implements OnChanges {
     this.router.navigate(['/quran/surahs', this.lesson.surahId, 'study', this.lesson.passageNo, 'word', w.ayah, w.word_index]);
   }
 
-  /** Open the lexicon on this word's root — the root's own page, with a way into
-   *  every book that treats it. See `surah-morphology` for why the root is sent
-   *  as typed. */
   openRoot(root: string | null): void {
     const r = (root ?? '').replace(/\s+/g, '').trim();
     if (r) this.router.navigate(['/lexicon/root', r]);

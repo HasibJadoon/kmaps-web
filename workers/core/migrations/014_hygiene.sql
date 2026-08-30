@@ -1,7 +1,3 @@
--- A7 — hygiene. The seven bkp_*_20260815 tables were the 15 Aug safety copies
--- of tables that have since moved on under live migrations; six days of
--- divergence make them a trap, not a backup. The dangling
--- core_srs_card_migration sensor named a table that never existed.
 DROP TABLE IF EXISTS bkp_srs_review_20260815;
 DROP TABLE IF EXISTS bkp_srs_card_surah_20260815;
 DROP TABLE IF EXISTS bkp_srs_card_concept_20260815;

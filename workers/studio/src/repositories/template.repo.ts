@@ -1,8 +1,3 @@
-// ─── TemplateRepo — st_templates ──────────────────────────────────────────────
-// Reusable episode skeletons. Built-in templates are seeded by migration and
-// shared across all users (core_user_ref = 'CORE:system'). A user can also save
-// their own episode structure as a private template.
-
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 
@@ -34,7 +29,6 @@ const COLS = `id, core_user_ref, name, description, format, is_builtin,
 export class TemplateRepo {
   constructor(private db: D1Database) {}
 
-  /** Built-in templates plus the caller's own private templates, built-ins first. */
   list(userRef: string): Promise<TemplateRow[]> {
     return query<TemplateRow>(
       this.db,

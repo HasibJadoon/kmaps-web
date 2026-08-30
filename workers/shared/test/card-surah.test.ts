@@ -1,12 +1,3 @@
-// ─── the sūra links a card could never get ───────────────────────────────────
-//
-// `core_srs_card_surah` was read in two places and written in none. That is the
-// whole bug: an āyah card names its sūra in `resource_ref`, a root card's ref is
-// `AL:root:<uid>` and names none, so a root card with no row here is invisible
-// to every sūra-scoped query. Ghāfir has 66 root cards and returned zero.
-//
-// These run the repository's real statement against the real column layout.
-
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { fakeD1, type FakeD1 } from './d1-sqlite';
@@ -29,7 +20,7 @@ const repo = () => {
   const d1 = fakeD1(seed);
   return { repo: new SrsRepo(d1 as any), d1 };
 };
-/** Read back through the same D1 interface the repository writes through. */
+
 type SurahRow = { surah: number; n_occur: number; is_intro: number };
 const rows = async (d1: FakeD1, cardId: string): Promise<SurahRow[]> => {
   const { results } = await d1
@@ -40,7 +31,6 @@ const rows = async (d1: FakeD1, cardId: string): Promise<SurahRow[]> => {
   return results;
 };
 
-// كتب as km_quran actually reports it, shortened.
 const SPREAD = [
   { surah: 2, n_occur: 48 },
   { surah: 3, n_occur: 36 },
@@ -77,8 +67,7 @@ describe('a root card finally gets its sūras', () => {
 
 describe('where it was met is not where it occurs first', () => {
   test('the intro marks the sūra the learner was given, not the lowest', async () => {
-    // كتب occurs in 61 sūras beginning with al-Baqara. A learner who met it in
-    // Ghāfir met it in Ghāfir; marking sūra 2 would invent a memory.
+
     const { repo: r, d1 } = repo();
     await r.linkSurahs('CARD1', SPREAD, 40);
     const intro = (await rows(d1, 'CARD1')).filter((x) => x.is_intro === 1);
@@ -103,11 +92,7 @@ describe('where it was met is not where it occurs first', () => {
 
 describe('one timestamp format reaches the column', () => {
   test('a new card is scheduled in ISO, not SQLite\'s datetime()', async () => {
-    // The two shapes compare as text with 'T' (0x54) against ' ' (0x20), so an
-    // ISO stamp always sorted after a same-day SQLite one and a card due
-    // earlier today never came due — which silently disabled every learning
-    // step. And `cardToApi` hands the raw string to clients, where
-    // `new Date("2026-07-31 19:00:00")` is an Invalid Date in Safari.
+
     const d1 = fakeD1((db) => {
       db.exec(`CREATE TABLE core_srs_card (
         id TEXT, deck_id TEXT, user_ref TEXT, module TEXT, resource_type TEXT,

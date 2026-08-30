@@ -24,7 +24,7 @@ export class VocabPanelComponent implements OnChanges {
   activeTab = signal<Tab>('vocab');
 
   ngOnChanges(changes: SimpleChanges): void {
-    // Reset to vocab tab whenever the scene changes
+
     if (changes['content']) {
       this.activeTab.set('vocab');
     }

@@ -1,25 +1,11 @@
-// ─── EpisodeRepo — st_episodes + participants + sections + talking points ──────
-// An episode is the authored aggregate the builder edits and the live session
-// later broadcasts. Sections own ordered talking points; each point may be
-// assigned to one participant (the person whose turn it is to speak).
-
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 
-// A talking-head episode is solo, driven by talking points. A podcast is two or
-// more people (three today) working from the same points as reference. A lesson
-// is a passage study rendered scene by scene — and a `series` row groups the
-// episodes of one strand, which is why it is a format here and not a table.
 export const EPISODE_FORMATS = [
   'podcast', 'tutorial', 'talking_head', 'conversation', 'solo',
   'lesson_passage', 'lesson_two_person', 'series',
 ] as const;
 
-// A section is a scene, and a scene is a step of the study process. These seven
-// keys are `cyb_process_step.step_key` in km_core, served by
-// `GET /core/cyb/process` — the register of record. They are repeated here only
-// because a worker cannot cross to km_core to validate one field; if the two
-// ever disagree, km_core wins.
 export const PROCESS_STEP_TYPES = [
   'reading', 'vocabulary', 'sentence_structure', 'passage_structure',
   'tafsir', 'worldview', 'surah_structure',
@@ -34,8 +20,6 @@ export const EPISODE_STATUSES = ['draft', 'live', 'done'] as const;
 
 const PALETTE = ['#c9a84c', '#4c9fc9', '#c94c7a', '#5cc94c', '#9b6cc9', '#c97a4c'];
 
-// ── Row shapes ────────────────────────────────────────────────────────────────
-
 export interface EpisodeRow {
   id: string;
   core_user_ref: string;
@@ -45,15 +29,13 @@ export interface EpisodeRow {
   template_ref: string | null;
   status: string;
   meta_json: string | null;
-  /** Which strand this belongs to — 'quran', 'adab', 'worldview'. */
+
   ecosystem: string | null;
-  /** The `st_episodes` row of format 'series' this is an episode of. */
+
   series_ref: string | null;
   session_no: number | null;
   output_kind: string | null;
-  /** The scope this episode is *about* — 'QR:SP:44:1-9', 'QR:SURAH:44'.
-   *  Same string as `cyb_node.target_ref`, which is what lets cybernetics
-   *  measure an episode against the study it renders. */
+
   source_ref: string | null;
   created_at: string;
   updated_at: string;
@@ -73,14 +55,13 @@ export interface ParticipantRow {
 export interface SectionRow {
   id: string;
   episode_ref: string;
-  /** The scene. For a lesson this is a `PROCESS_STEP_TYPES` key. */
+
   type: string;
   heading: string;
   seq: number;
-  /** Which renderer the scene's overlay uses — 'ayah', 'lexeme', 'sentence'. */
+
   overlay_kind: string | null;
-  /** Provenance: the query the scene's content was drawn from. Recorded so the
-   *  authoring can be re-run; never executed — it is an editable SQL string. */
+
   d1_query: string | null;
   created_at: string;
   updated_at: string;
@@ -94,13 +75,9 @@ export interface PointRow {
   speaker_ref: string | null;
   bridge: string | null;
   est_seconds: number | null;
-  /** The scene payload for this beat, frozen at authoring time and rendered by
-   *  the overlay stage. Frozen deliberately: a take must not depend on a live
-   *  fetch. */
+
   overlay_json: string | null;
-  /** The beats under the main point, as a JSON array of strings. Sub-points
-   *  have no identity of their own — never assigned, never played separately —
-   *  so they are the card's body rather than rows of their own. */
+
   subs_json: string | null;
   seq: number;
   created_at: string;
@@ -111,8 +88,6 @@ export interface EpisodeAggregate extends EpisodeRow {
   participants: ParticipantRow[];
   sections: Array<SectionRow & { points: PointRow[] }>;
 }
-
-// ── Input shapes ──────────────────────────────────────────────────────────────
 
 export interface EpisodeCreate {
   core_user_ref: string;
@@ -191,7 +166,6 @@ export interface PointPatch {
   seq?: number;
 }
 
-/** Parsed shape of a template's structure_json blueprint. */
 export interface TemplateStructure {
   participants?: Array<{ role?: string; display_name?: string; color?: string }>;
   sections?: Array<{
@@ -201,11 +175,6 @@ export interface TemplateStructure {
   }>;
 }
 
-// These lists must name every column the row shapes declare. Eight columns —
-// source_ref, overlay_kind, overlay_json among them — existed in D1 and were
-// missing here, so `GET /st/episodes/:id` returned an episode with no scope and
-// scenes with no content, and the app's SessionScript (which reads exactly those
-// three) built a running order that was silently blank.
 const EP_COLS = `id, core_user_ref, core_ws_ref, title, format, template_ref,
                  status, meta_json, ecosystem, series_ref, session_no,
                  output_kind, source_ref, created_at, updated_at`;
@@ -218,8 +187,6 @@ const PT_COLS = `id, section_ref, episode_ref, text, speaker_ref, bridge, est_se
 export class EpisodeRepo {
   constructor(private db: D1Database) {}
 
-  // ── Episodes ────────────────────────────────────────────────────────────────
-
   listEpisodes(userRef: string): Promise<EpisodeRow[]> {
     return query<EpisodeRow>(
       this.db,
@@ -230,9 +197,6 @@ export class EpisodeRepo {
     );
   }
 
-  /** The episodes of one series, in the order they are meant to be worked
-   *  through. This is the arc: a series screen draws its stations from here,
-   *  and `session_no` is the station number, not a sort convenience. */
   listSeriesEpisodes(userRef: string, seriesRef: string): Promise<EpisodeRow[]> {
     return query<EpisodeRow>(
       this.db,
@@ -345,8 +309,6 @@ export class EpisodeRepo {
     };
   }
 
-  // ── Participants ────────────────────────────────────────────────────────────
-
   findParticipant(id: string): Promise<ParticipantRow | null> {
     return queryOne<ParticipantRow>(
       this.db, `SELECT ${PA_COLS} FROM st_participants WHERE id = ?`, [id],
@@ -390,7 +352,7 @@ export class EpisodeRepo {
   }
 
   async deleteParticipant(id: string): Promise<boolean> {
-    // Unassign this speaker from any points before removing them.
+
     await execute(
       this.db,
       `UPDATE st_talking_points SET speaker_ref = NULL WHERE speaker_ref = ?`,
@@ -399,8 +361,6 @@ export class EpisodeRepo {
     const res = await execute(this.db, `DELETE FROM st_participants WHERE id = ?`, [id]);
     return (res.meta.changes ?? 0) > 0;
   }
-
-  // ── Sections ────────────────────────────────────────────────────────────────
 
   findSection(id: string): Promise<SectionRow | null> {
     return queryOne<SectionRow>(
@@ -445,8 +405,6 @@ export class EpisodeRepo {
     const res = await execute(this.db, `DELETE FROM st_sections WHERE id = ?`, [id]);
     return (res.meta.changes ?? 0) > 0;
   }
-
-  // ── Talking points ──────────────────────────────────────────────────────────
 
   findPoint(id: string): Promise<PointRow | null> {
     return queryOne<PointRow>(
@@ -505,9 +463,6 @@ export class EpisodeRepo {
     return (res.meta.changes ?? 0) > 0;
   }
 
-  // ── Template expansion ──────────────────────────────────────────────────────
-
-  /** Materialise a template blueprint into participant / section / point rows. */
   async applyStructure(episodeId: string, structure: TemplateStructure): Promise<void> {
     const roleToId = new Map<string, string>();
 
@@ -544,9 +499,6 @@ export class EpisodeRepo {
     }
   }
 
-  // ── Internal ────────────────────────────────────────────────────────────────
-
-  /** Next append position for a child collection. table / refCol are constants. */
   private async nextSeq(table: string, refCol: string, refVal: string): Promise<number> {
     const row = await queryOne<{ next: number }>(
       this.db,

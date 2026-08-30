@@ -11,11 +11,6 @@ import { RouterLink } from '@angular/router';
 import gsap from 'gsap';
 import { environment } from '../../../../environments/environment';
 
-// The worldview API is reached through the gateway like everything else.
-// This used to be `https://k-maps.com` — the Pages origin, not the backend —
-// and without the `/api` prefix the gateway requires, so every request 404'd
-// into a `catch {}` that swallowed it. The screen has therefore looked built
-// and shown an empty list since the day it was written.
 const WV_API = `${environment.apiBase}/wv`;
 
 interface WvComparison {
@@ -28,8 +23,6 @@ interface WvComparison {
   updated_at?: string;
 }
 
-/** A column. The worker calls these axes; the component's "tab" is the same
- *  thing under an older name, kept so the template does not have to change. */
 interface WvTab {
   id: string;
   axis_label?: string;
@@ -49,8 +42,7 @@ interface WvCell {
   id: string;
   row_id: string;
   axis_id: string;
-  /** For the era × trope matrix this is an intensity digit, "0"–"3", and
-   *  `stance` repeats it as "intensity-N". It is a heatmap, not prose. */
+
   cell_text?: string;
   stance?: string;
   tension_note?: string;
@@ -108,26 +100,19 @@ export class WorldviewCompareComponent implements OnInit, AfterViewInit {
   }
 
   newComparison(): void {
-    // Placeholder: would open a creation modal/form
+
   }
 
   setActiveTab(tab: WvTab): void {
     this.activeTab.set(tab);
   }
 
-  /** The cell as an intensity 0–3, or null when it is prose.
-   *
-   *  This matrix stores a bare digit and repeats it in `stance` as
-   *  "intensity-N" — it is a heatmap, and printing "3" throws away the one
-   *  thing a heatmap is for. Comparisons that hold real text fall through and
-   *  render as text. */
   getCellIntensity(tabId: string, rowId: string): number | null {
     const raw = this.getCellContent(tabId, rowId).trim();
     if (!/^[0-3]$/.test(raw)) return null;
     return Number(raw);
   }
 
-  /** [1,2,3] — the steps of the scale, for the template to draw. */
   readonly intensitySteps = [1, 2, 3];
 
   getCellContent(tabId: number | string, rowId: number | string): string {
@@ -154,8 +139,7 @@ export class WorldviewCompareComponent implements OnInit, AfterViewInit {
       const body = await res.json() as { ok: boolean; data: WvComparison[] };
       this.comparisons.set(Array.isArray(body.data) ? body.data : []);
     } catch {
-      // A failed fetch must read as a failure. Swallowing it is what let this
-      // screen render an empty list for its whole life without anyone noticing.
+
       this.failure.set('The comparisons could not be loaded.');
     } finally {
       this.loading.set(false);

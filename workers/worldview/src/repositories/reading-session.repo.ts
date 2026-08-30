@@ -1,30 +1,21 @@
-// ─── ReadingSessionRepo — wv_reading_sessions ─────────────────────────────────
-// A focused reading pass over a wv_sources book, optionally scoped to a
-// wv_source_units chapter. Tracks status / position and groups the highlights
-// captured during the pass (wv_highlights.reading_session_id).
-//
-// Canonical columns per 002_add_wv_reading_sessions.sql.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 export interface WvReadingSession {
-  id: string;                       // WV:ULID
+  id: string;
   source_id: string;
   source_unit_id: string | null;
   title: string | null;
-  session_type: string;             // reading | extraction | review
-  status: string;                   // active | paused | completed
-  focus_mode: string | null;        // deep_read | skim | extraction
+  session_type: string;
+  status: string;
+  focus_mode: string | null;
   started_at: string;
   ended_at: string | null;
   last_position: string | null;
   duration_secs: number | null;
   summary_md: string | null;
-  core_user_ref: string;            // CORE:ULID
+  core_user_ref: string;
   core_ws_ref: string | null;
   meta_json: string | null;
   created_at: string;
@@ -65,26 +56,20 @@ export interface ReadingSessionListOpts extends PaginateOptions {
   status?: string | null;
 }
 
-// ── Column list ───────────────────────────────────────────────────────────────
-
 const COLS = `
   id, source_id, source_unit_id, title, session_type, status, focus_mode,
   started_at, ended_at, last_position, duration_secs, summary_md,
   core_user_ref, core_ws_ref, meta_json, created_at, updated_at
 `.trim().replace(/\n\s+/g, ' ');
 
-// Mutable columns that PATCH may touch, in a stable order.
 const PATCH_COLS: (keyof ReadingSessionPatch)[] = [
   'source_unit_id', 'title', 'session_type', 'status', 'focus_mode',
   'started_at', 'ended_at', 'last_position', 'duration_secs', 'summary_md', 'meta_json',
 ];
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class ReadingSessionRepo {
   constructor(private db: D1Database) {}
 
-  /** Sessions filtered by any of source / user / status. */
   list(opts: ReadingSessionListOpts = {}) {
     const where: string[] = [];
     const params: unknown[] = [];
@@ -107,7 +92,6 @@ export class ReadingSessionRepo {
     );
   }
 
-  /** The most recent active session for a source/user, if any. */
   activeForSource(sourceId: string, coreUserRef: string): Promise<WvReadingSession | null> {
     return queryOne<WvReadingSession>(
       this.db,
@@ -151,7 +135,6 @@ export class ReadingSessionRepo {
     return (await this.findById(id))!;
   }
 
-  /** Partial update. Only provided fields are written. */
   async patch(id: string, fields: ReadingSessionPatch): Promise<WvReadingSession | null> {
     const sets: string[] = [];
     const params: unknown[] = [];

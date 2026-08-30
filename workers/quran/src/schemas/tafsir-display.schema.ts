@@ -1,18 +1,5 @@
-// tafsir-display.schema.ts
-//
-// TypeScript surface for the qr_tafsir_book_display_* projection (migration 012).
-// Parallel to iraab-display.schema.ts. Two flavors per table:
-//   - <Row>    : raw D1 row shape, JSON columns as `string | null`
-//   - <Parsed> : UI-facing shape with JSON columns hydrated to typed arrays/objects
-//
-// ARCHITECTURE RULE — disjoint from iʿrāb display:
-//   DARWISH and SAFI are excluded. This layer holds the 8 tafsir scholars only:
-//   TABARI, ZAMAKHSHARI, IBN_ATIYYA, RAZI, ABU_HAYYAN, IBN_KATHIR, ALUSI, IBN_ASHUR.
-
-// ─── Vocab unions (soft — DB columns are TEXT) ───────────────────────────────
-
 export type TafsirBlockType =
-  // Tafsir-specific
+
   | 'tafsir_card'
   | 'paragraph_section'
   | 'isnad'
@@ -23,7 +10,7 @@ export type TafsirBlockType =
   | 'reception_note'
   | 'paradigm_chip'
   | 'hadith_source_chip'
-  // Shared with iraab vocab
+
   | 'heading' | 'subheading'
   | 'arabic_quote' | 'source_quote'
   | 'explanation' | 'callout' | 'warning' | 'key_insight'
@@ -75,8 +62,6 @@ export type TafsirMadhab =
 
 export type TafsirEra = 'classical' | 'modern';
 
-// ─── JSON column payloads (hydrated forms) ───────────────────────────────────
-
 export interface QuranRef {
   surah: number | null;
   ayah?: number | null;
@@ -98,26 +83,24 @@ export interface ScholarRef {
 
 export interface BlockLink {
   block_id?: string | null;
-  typed_ref?: string | null;       // e.g. 'QR:POSITION:01HX…'
+  typed_ref?: string | null;
   kind: TafsirLinkKind;
   label?: string | null;
   weight?: number;
 }
 
-/** Structured isnad chain when block_type='isnad'. */
 export interface IsnadChain {
-  /** Raw isnad text from the source */
+
   raw_ar: string;
-  /** Detected chain segments (best-effort regex extraction; may need review) */
+
   links: Array<{
-    narrator_text: string;     // verbatim
+    narrator_text: string;
     relator_verb?: 'حدثنا' | 'أخبرنا' | 'حدثني' | 'سمعت' | 'عن' | 'قال' | string;
     position?: number;
   }>;
   separator?: '⁕' | 'paragraph_break' | 'inline' | string;
 }
 
-/** External resource pointer (reserved for future audio/scan refs). */
 export interface ExternalResource {
   r2_key: string;
   kind: 'svg' | 'image' | 'pdf' | 'audio' | 'other';
@@ -127,21 +110,19 @@ export interface ExternalResource {
 }
 
 export interface BlockMeta {
-  /** Original full-entry paragraph offsets for re-assembly */
+
   paragraph_offsets?: number[];
-  /** Highlighted spans pulled from <span class="hlt"> markup */
+
   highlights?: string[];
-  /** Editorial asides extracted into separate notes */
+
   asides?: string[];
-  /** SHA hash of source_quote for re-import dedup */
+
   source_quote_hash?: string;
-  /** Isnad payload when block_type='isnad' (also mirrored at top level if useful) */
+
   isnad?: IsnadChain;
-  /** Free-form */
+
   [k: string]: unknown;
 }
-
-// ─── 1. SOURCES ──────────────────────────────────────────────────────────────
 
 export interface QrTafsirBookDisplaySourceRow {
   id: string;
@@ -173,8 +154,6 @@ export interface QrTafsirBookDisplaySourceRow {
   updated_at: string;
 }
 
-// ─── 2. BLOCKS ───────────────────────────────────────────────────────────────
-
 export interface QrTafsirBookDisplayBlockRow {
   id: string;
   source_id: string | null;
@@ -183,7 +162,6 @@ export interface QrTafsirBookDisplayBlockRow {
   book_title: string | null;
   author: string | null;
 
-  // Scholar metadata (denormalized)
   scholar_id: string | null;
   work_id: string | null;
   scholar_name_ar: string | null;
@@ -193,7 +171,6 @@ export interface QrTafsirBookDisplayBlockRow {
   kalam_school: string | null;
   death_year_hijri: number | null;
 
-  // Locator
   surah_no: number | null;
   ayah_no: number | null;
   ayah_to: number | null;
@@ -206,7 +183,6 @@ export interface QrTafsirBookDisplayBlockRow {
   phrase_text: string | null;
   scope_type: TafsirScopeType | null;
 
-  // Block identity
   block_type: TafsirBlockType;
   block_subtype: string | null;
   display_order: number;
@@ -214,7 +190,6 @@ export interface QrTafsirBookDisplayBlockRow {
   paragraph_count: number | null;
   is_long_form: 0 | 1;
 
-  // Content
   title_ar: string | null;
   title_en: string | null;
   text_ar: string | null;
@@ -223,7 +198,6 @@ export interface QrTafsirBookDisplayBlockRow {
   markup_tier: TafsirMarkupTier | null;
   source_page: string | null;
 
-  // Denormalized arrays (stored as JSON TEXT)
   tags_json: string | null;
   grammar_tags_json: string | null;
   theology_tags_json: string | null;
@@ -234,7 +208,6 @@ export interface QrTafsirBookDisplayBlockRow {
   related_links_json: string | null;
   external_resource_json: string | null;
 
-  // QA
   confidence: TafsirConfidence | null;
   review_status: TafsirReviewStatus;
   extraction_method: TafsirExtractionMethod | null;
@@ -244,7 +217,6 @@ export interface QrTafsirBookDisplayBlockRow {
   updated_at: string;
 }
 
-/** UI-facing shape: JSON columns hydrated to typed arrays/objects. */
 export interface QrTafsirBookDisplayBlock
   extends Omit<QrTafsirBookDisplayBlockRow,
     | 'ayah_keys_json'
@@ -265,8 +237,6 @@ export interface QrTafsirBookDisplayBlock
   meta: BlockMeta;
 }
 
-// ─── 3. TAGS ─────────────────────────────────────────────────────────────────
-
 export interface QrTafsirBookDisplayTagRow {
   id: string;
   block_id: string;
@@ -276,8 +246,6 @@ export interface QrTafsirBookDisplayTagRow {
   display_order: number;
   created_at: string;
 }
-
-// ─── 4. REFS ─────────────────────────────────────────────────────────────────
 
 export interface QrTafsirBookDisplayRefRow {
   id: string;
@@ -295,8 +263,6 @@ export interface QrTafsirBookDisplayRefRow {
   created_at: string;
 }
 
-// ─── 5. LINKS ────────────────────────────────────────────────────────────────
-
 export interface QrTafsirBookDisplayLinkRow {
   id: string;
   from_block_id: string;
@@ -308,8 +274,6 @@ export interface QrTafsirBookDisplayLinkRow {
   meta_json: string | null;
   created_at: string;
 }
-
-// ─── 6. NOTES ────────────────────────────────────────────────────────────────
 
 export interface QrTafsirBookDisplayNoteRow {
   id: string;
@@ -330,8 +294,6 @@ export interface QrTafsirBookDisplayNoteRow {
   created_at: string;
   updated_at: string;
 }
-
-// ─── Hydration helpers ───────────────────────────────────────────────────────
 
 const parseArr = <T = unknown>(s: string | null): T[] => {
   if (!s) return [];
@@ -371,26 +333,16 @@ export function hydrateTafsirBlock(r: QrTafsirBookDisplayBlockRow): QrTafsirBook
   };
 }
 
-// ─── Aggregate response shapes ───────────────────────────────────────────────
-
-/**
- * Per-verse × per-scholar payload: the central tafsir read API shape.
- * Returned by GET /qr/tafsir/display?surah=N&ayah=M[&scholar_id=…].
- *
- * If the requested ayah is part of a multi-ayah group anchor, the response
- * carries the canonical group key + ayah list. Each block belongs to one
- * scholar; UI groups by scholar_id for side-by-side comparison.
- */
 export interface QrTafsirGroupDisplayPayload {
-  /** Canonical group key for this slice, e.g. "2:255" or "3:131-133". */
+
   ayah_group_key: string;
   surah_no: number;
   ayah_no: number;
   ayah_to: number;
   ayah_keys: string[];
-  /** The requesting ayah the resolver was called with. */
+
   requested_ayah_no?: number;
-  /** Per-scholar group spans, since different scholars may anchor differently. */
+
   source_groups: Array<{
     source_slug: string;
     scholar_id: string;
@@ -406,7 +358,6 @@ export interface QrTafsirGroupDisplayPayload {
   notes: QrTafsirBookDisplayNoteRow[];
 }
 
-/** Search hit shape from FTS5. */
 export interface QrTafsirSearchHit {
   block_id: string;
   source_slug: string;
@@ -418,6 +369,6 @@ export interface QrTafsirSearchHit {
   ayah_key: string | null;
   ayah_group_key: string | null;
   block_type: TafsirBlockType;
-  hit: string;       // snippet() with «…» markers
+  hit: string;
   rank_score: number;
 }

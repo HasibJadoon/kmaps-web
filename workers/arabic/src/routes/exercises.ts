@@ -1,6 +1,3 @@
-// ─── /ar/exercises routes ─────────────────────────────────────────────────────
-// Practice exercises: flashcard, fill-blank, MCQ, translation, parsing.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -9,7 +6,6 @@ import { ExerciseRepo } from '../repositories/exercise.repo';
 
 export function exerciseRoutes(router: Router<ArabicEnv>) {
 
-  // GET /ar/exercises?lesson=AR:ULID
   router.get('/ar/exercises', async (req, env) => {
     const url      = new URL(req.url);
     const lessonId = url.searchParams.get('lesson');
@@ -19,13 +15,11 @@ export function exerciseRoutes(router: Router<ArabicEnv>) {
     );
   });
 
-  // GET /ar/exercises/:id
   router.get('/ar/exercises/:id', async (_req, env, { id }) => {
     const row = await new ExerciseRepo(env.DB_AR).findById(id);
     return row ? ok(row) : notFound(`exercise ${id}`);
   });
 
-  // GET /ar/exercises/sample?lesson=AR:ULID&limit=10 — random practice session
   router.get('/ar/exercises/sample', async (req, env) => {
     const url      = new URL(req.url);
     const lessonId = url.searchParams.get('lesson');
@@ -34,7 +28,6 @@ export function exerciseRoutes(router: Router<ArabicEnv>) {
     return ok(await new ExerciseRepo(env.DB_AR).sample(lessonId, limit));
   });
 
-  // POST /ar/exercises
   router.post('/ar/exercises', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.lesson_id || !b.exercise_type || !b.prompt)

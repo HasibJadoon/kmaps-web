@@ -23,7 +23,6 @@ export const HUB_ROUTES: Routes = [
         title: 'Hub — K-MAPS',
       },
 
-      // ── Quran section ──────────────────────────────────────
       {
         path: 'quran',
         children: [
@@ -37,7 +36,6 @@ export const HUB_ROUTES: Routes = [
         ],
       },
 
-      // ── Arabic section ──────────────────────────────────────
       {
         path: 'arabic',
         children: [
@@ -51,7 +49,6 @@ export const HUB_ROUTES: Routes = [
         ],
       },
 
-      // ── Worldview section ───────────────────────────────────
       {
         path: 'worldview',
         children: [
@@ -65,7 +62,6 @@ export const HUB_ROUTES: Routes = [
         ],
       },
 
-      // ── Workspace section ───────────────────────────────────
       {
         path: 'workspace',
         children: [

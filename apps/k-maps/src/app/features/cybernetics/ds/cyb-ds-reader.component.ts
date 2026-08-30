@@ -1,23 +1,3 @@
-// ─── The desktop root reader ─────────────────────────────────────────────────
-//
-// Design 1b + 1c: a sticky chapter rail on the left, one wide reading column,
-// and the whole root on ONE page — every layer, every lemma, every card.
-//
-// The Almaany move is the stacking. Almaany shows a word as a run of cards, one
-// per book, each in the book's own voice, and you read down them; you are never
-// asked to click through to find out what al-Jawharī said. That is the shape
-// here too, with the section standing where the book stands.
-//
-// What it does NOT copy is Almaany's chrome. The priority is the classical
-// setting — Amiri for Arabic, generous leading, the gold-on-dark manuscript
-// palette this app already uses for the Lexicon reader — so the page reads like
-// a printed muʿjam rather than a web dictionary.
-//
-// Everything here is chrome. The order of the chapters, which sections are in
-// them, what is muted and what is lit, how many rows were held back: all of it
-// arrived decided from the worker. If you want to sort something in this file,
-// the sort belongs in the ds.
-
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import { CybDsBlockComponent } from './cyb-ds-block.component';
 import type { DisplaySpec, DsSection } from '@kmaps/contracts/ds';
@@ -28,7 +8,7 @@ interface ChapterView {
   title_ar?: string;
   question: string;
   sections: DsSection[];
-  /** Held rows across the chapter — what a reader would otherwise not know. */
+
   rows: number;
 }
 
@@ -142,8 +122,6 @@ interface ChapterView {
 export class CybDsReaderComponent {
   readonly spec = input.required<DisplaySpec>();
 
-  /** Chapters with their sections attached. Grouping only — the spec decided
-   *  the order, which chapter each section is in, and what is in each. */
   readonly chapters = computed<ChapterView[]>(() => {
     const s = this.spec();
     return s.chapters.map((c) => {
@@ -159,7 +137,6 @@ export class CybDsReaderComponent {
     });
   });
 
-  /** `unread` rather than `unknown`: the reader's word for "nobody looked". */
   stateLabel(sec: DsSection): string {
     if (sec.state === 'filled') return `${sec.total_rows} rows`;
     return sec.state === 'unknown' ? 'unread' : 'empty';

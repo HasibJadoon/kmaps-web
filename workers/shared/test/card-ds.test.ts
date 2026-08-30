@@ -1,12 +1,3 @@
-// ─── a structured card, rendered ─────────────────────────────────────────────
-//
-// These run against a REAL payload — the كتب card as it is stored in km_core,
-// copied verbatim into fixtures/. A hand-written fixture would have been shaped
-// by my reading of the field schema, and the schema is exactly where the drift
-// is: it documents `masadir[{m,s}]` where every card writes `status`, and
-// describes SenseArc as flat where the data nests `rungs`. Testing against my
-// reading would have tested the misreading.
-
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -33,13 +24,12 @@ const find = (kind: DsBlock['kind'], titleLike?: string): DsBlock => {
 
 describe('the fields become blocks at all', () => {
   test('a card that rendered as two strings now renders as many blocks', () => {
-    // The whole point: front_text and back_text were the entire card.
+
     assert.ok(blocks().length >= 10, `only ${blocks().length} blocks`);
   });
 
   test('an optional field nobody filled produces no block, not an empty one', () => {
-    // filled/empty/unknown is for declared LAYERS, where an absence is a build
-    // signal. An optional note-type field is not a layer.
+
     const sparse = cardBlocks({ Root: 'كتب' });
     assert.equal(sparse.length, 1);
     assert.equal(sparse[0].kind, 'hero');
@@ -56,16 +46,14 @@ describe('the letters carry where they are made', () => {
     const b = find('grid', 'letters');
     if (b.kind !== 'grid') throw new Error('shape');
     assert.deepEqual(b.cells.map((c) => c.mark.text), ['ك', 'ت', 'ب']);
-    // `order` is 5, 3, 1 in the payload — sorting by it, not by array position,
-    // is what puts them in root order.
+
     assert.match(String(b.cells[0].footnote), /مهموس/);
   });
 });
 
 describe('the render hints that are not decoration', () => {
   test('a qiyāsī maṣdar is marked, an attested one is not', () => {
-    // "pattern-supplied, no witness" — showing it unmarked beside an attested
-    // one claims a source it does not have.
+
     const marked = cardBlocks({
       Root: 'كتب',
       FormLadder: [{
@@ -79,8 +67,7 @@ describe('the render hints that are not decoration', () => {
   });
 
   test('the documented key and the stored key both count as a status', () => {
-    // The schema says `s`; every payload writes `status`. A card authored
-    // against the documentation is not wrong.
+
     const bySchemaKey = cardBlocks({
       Root: 'ك', FormLadder: [{ verb: 'x', masadir: [{ m: 'y', s: 'qiyasi' }] }],
     }).find((b) => b.kind === 'card_list');
@@ -94,13 +81,12 @@ describe('the render hints that are not decoration', () => {
     const lit = b.nodes.filter((x) => x.terminal);
     assert.ok(lit.length > 0, 'an arc with no lit rung asserts a thread it cannot show');
     assert.ok(b.nodes.some((x) => x.unresolved), 'the abstract rungs are the claim');
-    // A rung is one or the other, never both and never neither.
+
     assert.ok(b.nodes.every((x) => Boolean(x.terminal) !== Boolean(x.unresolved)));
   });
 
   test('an attested opposite and a derived one never share a tone', () => {
-    // "An inference shown as an attestation launders our reasoning into the
-    // tradition's voice."
+
     const b = cardBlocks({
       Root: 'كتب',
       Addad: [
@@ -116,13 +102,12 @@ describe('the render hints that are not decoration', () => {
     assert.equal(toneOf(1), 'warn');
     assert.notEqual(toneOf(0), toneOf(1));
 
-    // And a derived one does not borrow an authority it has none of.
     assert.equal(b.records[0].provenance?.is_synthesis, false);
     assert.equal(b.records[1].provenance?.is_synthesis, true);
   });
 
   test('the three languages stay three runs', () => {
-    // The note types' own contract: never mix scripts in one string.
+
     const b = find('card_list', 'thread');
     if (b.kind !== 'card_list') throw new Error('shape');
     const r = b.records[0];
@@ -167,7 +152,7 @@ describe('a phone is not a small desktop', () => {
     if (d?.kind !== 'card_list' || m?.kind !== 'card_list') throw new Error('shape');
     assert.ok(m.records.length <= d.records.length);
     assert.equal(typeof m.overflow_count, 'number');
-    // Nothing truncates silently: shown + held back is the whole list.
+
     assert.equal(m.records.length + (m.overflow_count ?? 0),
                  d.records.length + (d.overflow_count ?? 0));
   });
@@ -177,10 +162,7 @@ describe('the card answers the reader\'s questions, not one heading', () => {
   const groups = () => cardSections(FIELDS, 'desktop');
 
   test('its blocks are spread across chapters rather than piled in one', () => {
-    // A card is a synthesis OF the layers. Filing all of it under "Cards" put a
-    // seven-stage sense arc and a scholarly attribution under the same heading,
-    // and away from the layers that carry them — which is what made the richest
-    // content in the system invisible.
+
     const chapters = new Set(groups().map((g) => g[0].chapter));
     assert.ok(chapters.size >= 4, `only ${chapters.size} chapters: ${[...chapters]}`);
     for (const key of ['identity', 'meaning', 'relations', 'evidence', 'quran']) {
@@ -196,8 +178,7 @@ describe('the card answers the reader\'s questions, not one heading', () => {
   });
 
   test('the aṣl is evidence and the lemmas are relations', () => {
-    // Where a block goes is a claim about what it answers: the aṣl is a
-    // WITNESS statement, so it belongs with who says so, not with what it means.
+
     const at = (code: string) => groups().find((g) => g[0].code === code)?.[0];
     assert.equal(at('CARD-ASL')?.chapter, 'evidence');
     assert.equal(at('CARD-SCH')?.chapter, 'evidence');

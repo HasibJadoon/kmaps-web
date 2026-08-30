@@ -1,6 +1,3 @@
-// ─── WordViewRepo — panels for the fused word lens ───────────────────────────
-// verb government + root antonyms (new tables) and verbal idioms by root.
-
 import { query } from '../../../shared/src/db';
 
 export interface VgRow {
@@ -33,7 +30,6 @@ export interface ExpressionItem {
 export class WordViewRepo {
   constructor(private db: D1Database) {}
 
-  /** ar_ling_root_lemma_tadiya — transitivity + preposition government. */
   verbGovernment(root: string) {
     return query<VgRow>(
       this.db,
@@ -46,7 +42,6 @@ export class WordViewRepo {
     );
   }
 
-  /** ar_ling_root_didd — cross-root opposites/contrasts. */
   antonyms(root: string) {
     return query<AntonymRow>(
       this.db,
@@ -58,8 +53,6 @@ export class WordViewRepo {
     );
   }
 
-  /** Expressions whose qr_refs_json falls in surah:ayah-range — table-sourced
-   *  payload for the study Expressions step. */
   expressionsByQuran(surah: number, from: number, to: number) {
     return query<ExpressionItem>(
       this.db,
@@ -76,7 +69,6 @@ export class WordViewRepo {
     );
   }
 
-  /** ar_ling_root_lemma_tabir (Mir verbal idioms) for the root, via lemma → root. */
   expressionsByRoot(root: string) {
     return query<IdiomRow>(
       this.db,

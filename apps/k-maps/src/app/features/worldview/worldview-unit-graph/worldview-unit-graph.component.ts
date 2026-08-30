@@ -285,8 +285,6 @@ export class WorldviewUnitGraphComponent implements OnInit, OnDestroy {
     return map[key] ?? '';
   }
 
-  // Accepts the current worldview worker columns (parent_id, unit_index,
-  // page_start/end, text_excerpt, description_md) as well as legacy names.
   private normalizeUnit(value: unknown): WvUnit {
     const unit = (value ?? {}) as Record<string, unknown>;
     const parentRaw = unit['parent_unit_id'] ?? unit['parent_id'];

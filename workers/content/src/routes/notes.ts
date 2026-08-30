@@ -1,5 +1,3 @@
-// ─── /cm/notes routes ─────────────────────────────────────────────────────────
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -8,7 +6,6 @@ import { NoteRepo } from '../repositories/note.repo';
 
 export function noteRoutes(router: Router<ContentEnv>) {
 
-  // GET /cm/notes?ref=WV:ULID
   router.get('/cm/notes', async (req, env) => {
     const url = new URL(req.url);
     return paginated(
@@ -19,13 +16,11 @@ export function noteRoutes(router: Router<ContentEnv>) {
     );
   });
 
-  // GET /cm/notes/:id
   router.get('/cm/notes/:id', async (_req, env, { id }) => {
     const row = await new NoteRepo(env.DB_CM).findById(id);
     return row ? ok(row) : notFound(`note ${id}`);
   });
 
-  // POST /cm/notes
   router.post('/cm/notes', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.content_md) return badRequest('content_md required');
@@ -36,7 +31,6 @@ export function noteRoutes(router: Router<ContentEnv>) {
     }));
   });
 
-  // PATCH /cm/notes/:id
   router.patch('/cm/notes/:id', async (req, env, { id }) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.content_md) return badRequest('content_md required');

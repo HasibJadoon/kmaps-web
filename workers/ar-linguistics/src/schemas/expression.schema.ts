@@ -1,12 +1,6 @@
-// ─── Expression schemas & types ───────────────────────────────────────────────
-// Tables: ar_ling_root_lemma_tabir_kind, ar_ling_root_lemma_tabir,
-//         ar_ling_expression_tokens, ar_ling_collocations
-
-// ── ar_ling_root_lemma_tabir_kind ──────────────────────────────────────────────────
-
 export interface ArLingExpressionType {
-  id: string;              // AL:ULID
-  type_key: string;        // UNIQUE — 'idiom'|'phrase'|'proverb'|'hadith_phrase'|...
+  id: string;
+  type_key: string;
   name_ar: string;
   name_en: string;
   description_md: string | null;
@@ -49,16 +43,14 @@ export function validateArLingExpressionTypeCreate(
   };
 }
 
-// ── ar_ling_root_lemma_tabir ───────────────────────────────────────────────────────
-
 export interface ArLingExpression {
-  id: string;                         // AL:ULID
+  id: string;
   expression_ar: string;
   expression_en: string;
-  expression_type_id: string | null;  // FK → ar_ling_root_lemma_tabir_kind.id
-  primary_lemma_id: string | null;    // FK → ar_ling_root_lemma.id
+  expression_type_id: string | null;
+  primary_lemma_id: string | null;
   explanation_md: string | null;
-  qr_refs_json: string | null;        // JSON [{qr_ref, note}]
+  qr_refs_json: string | null;
   created_at: string;
 }
 
@@ -108,14 +100,12 @@ export function validateArLingExpressionCreate(
   };
 }
 
-// ── ar_ling_expression_tokens ─────────────────────────────────────────────────
-
 export interface ArLingExpressionToken {
-  id: string;              // AL:ULID
-  expression_id: string;   // FK → ar_ling_root_lemma_tabir.id
+  id: string;
+  expression_id: string;
   token_position: number;
   token_text: string;
-  lemma_id: string | null; // FK → ar_ling_root_lemma.id
+  lemma_id: string | null;
   note_md: string | null;
 }
 
@@ -152,14 +142,12 @@ export function validateArLingExpressionTokenCreate(
   };
 }
 
-// ── ar_ling_collocations ──────────────────────────────────────────────────────
-
 export interface ArLingCollocation {
-  id: string;                  // AL:ULID
-  lemma_a_id: string;          // FK → ar_ling_root_lemma.id
-  lemma_b_id: string;          // FK → ar_ling_root_lemma.id
+  id: string;
+  lemma_a_id: string;
+  lemma_b_id: string;
   collocation_type: string;
-  // 'general'|'verb_object'|'noun_adjective'|'idafa'|'verb_particle'|'other'
+
   frequency_note: string | null;
   note_md: string | null;
 }
@@ -178,8 +166,6 @@ export interface ArLingCollocationPatch {
   note_md?: string | null;
 }
 
-// Repository-compatible aliases. The ArLing* names keep this schema file
-// domain-explicit, while these aliases match expression.repo.ts contracts.
 export type ExpressionType = ArLingExpressionType;
 export type ExpressionTypeCreate = ArLingExpressionTypeCreate;
 export type ExpressionTypePatch = ArLingExpressionTypePatch;
@@ -215,8 +201,6 @@ export function validateArLingCollocationCreate(
     },
   };
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

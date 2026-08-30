@@ -1,22 +1,15 @@
-// ─── PeopleRepo — L2 figures + organizations ─────────────────────────────────
-// Covers: wv_people, wv_people_aliases, wv_people_relations,
-//         wv_organizations, wv_affiliations, wv_source_people
-// Canonical columns per 001_wv_schema.sql §2.3-§2.7, §2.10
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
 export interface WvPerson {
-  /** The PN: registry entry this figure is, when they have one. */
+
   person_ref?: string | null;
-  id: string;                    // WV:ULID
+  id: string;
   slug: string | null;
   name: string;
   name_ar: string | null;
-  person_type: string;           // prophet|companion|scholar|jurist|theologian|philosopher|ruler|reformer|critic|contemporary|historical_figure|other
+  person_type: string;
   tradition_id: string | null;
   era: string | null;
   birth_year: number | null;
@@ -26,7 +19,7 @@ export interface WvPerson {
   nationality: string | null;
   affiliation: string | null;
   bio_md: string | null;
-  visibility: string;            // private|workspace
+  visibility: string;
   meta_json: string | null;
   created_at: string;
   updated_at: string;
@@ -36,7 +29,7 @@ export interface WvPersonAlias {
   id: string;
   person_id: string;
   alias: string;
-  alias_type: string;            // transliteration|honorific|title|kunya|nisba|laqab|other
+  alias_type: string;
   language: string | null;
   created_at: string;
 }
@@ -45,7 +38,7 @@ export interface WvPersonRelation {
   id: string;
   from_person_id: string;
   to_person_id: string;
-  relation_type: string;         // teacher_of|student_of|influenced|opponent_of|successor_of|lineage|contemporary_of|responded_to|collaborated_with|other
+  relation_type: string;
   note: string | null;
   source_ref: string | null;
   created_at: string;
@@ -55,7 +48,7 @@ export interface WvOrganization {
   id: string;
   slug: string;
   title: string;
-  org_type: string;              // religious_body|council|seminary|missionary_agency|court|movement_office|academic|government|media|other
+  org_type: string;
   tradition_id: string | null;
   location_id: string | null;
   period_id: string | null;
@@ -66,11 +59,11 @@ export interface WvOrganization {
 
 export interface WvAffiliation {
   id: string;
-  entity_ref: string;            // WV:id of person|organization|source
-  entity_type: string;           // person|organization|source
-  target_type: string;           // school|tradition|branch|institution|movement
+  entity_ref: string;
+  entity_type: string;
+  target_type: string;
   target_id: string;
-  affil_role: string | null;     // founder|member|critic|convert
+  affil_role: string | null;
   period_label: string | null;
   note: string | null;
   created_at: string;
@@ -80,11 +73,9 @@ export interface WvSourcePerson {
   id: string;
   source_id: string;
   person_id: string;
-  role: string;                  // author|editor|translator|speaker|host|guest|compiler|contributor
+  role: string;
   created_at: string;
 }
-
-// ── Input types ───────────────────────────────────────────────────────────────
 
 export interface PersonCreate {
   name: string;
@@ -167,8 +158,6 @@ export interface AffiliationCreate {
   note?: string | null;
 }
 
-// ── Column lists ─────────────────────────────────────────────────────────────
-
 const PERSON_COLS =
   `id, slug, name, name_ar, person_type, tradition_id, era, birth_year, death_year, ` +
   `birth_location_id, death_location_id, nationality, affiliation, bio_md, ` +
@@ -190,12 +179,8 @@ const AFFIL_COLS =
 const SP_COLS =
   `id, source_id, person_id, role, created_at`;
 
-// ── Repo ─────────────────────────────────────────────────────────────────────
-
 export class PeopleRepo {
   constructor(private db: D1Database) {}
-
-  // ── wv_people ──────────────────────────────────────────────────────────────
 
   list(opts: {
     tradition_id?: string | null;
@@ -301,8 +286,6 @@ export class PeopleRepo {
     await execute(this.db, `DELETE FROM wv_people WHERE id = ?`, [id]);
   }
 
-  // ── wv_people_aliases ──────────────────────────────────────────────────────
-
   aliases(personId: string): Promise<WvPersonAlias[]> {
     return query<WvPersonAlias>(
       this.db,
@@ -328,8 +311,6 @@ export class PeopleRepo {
   async removeAlias(aliasId: string): Promise<void> {
     await execute(this.db, `DELETE FROM wv_people_aliases WHERE id = ?`, [aliasId]);
   }
-
-  // ── wv_people_relations ────────────────────────────────────────────────────
 
   relations(personId: string): Promise<WvPersonRelation[]> {
     return query<WvPersonRelation>(
@@ -367,8 +348,6 @@ export class PeopleRepo {
   async removeRelation(relationId: string): Promise<void> {
     await execute(this.db, `DELETE FROM wv_people_relations WHERE id = ?`, [relationId]);
   }
-
-  // ── wv_organizations ───────────────────────────────────────────────────────
 
   organizations(opts: {
     org_type?: string | null;
@@ -446,8 +425,6 @@ export class PeopleRepo {
     return this.findOrgById(id);
   }
 
-  // ── wv_affiliations ────────────────────────────────────────────────────────
-
   affiliations(entityRef: string): Promise<WvAffiliation[]> {
     return query<WvAffiliation>(
       this.db,
@@ -485,8 +462,6 @@ export class PeopleRepo {
   async removeAffiliation(affiliationId: string): Promise<void> {
     await execute(this.db, `DELETE FROM wv_affiliations WHERE id = ?`, [affiliationId]);
   }
-
-  // ── wv_source_people ───────────────────────────────────────────────────────
 
   sourcePeople(sourceId: string): Promise<WvSourcePerson[]> {
     return query<WvSourcePerson>(

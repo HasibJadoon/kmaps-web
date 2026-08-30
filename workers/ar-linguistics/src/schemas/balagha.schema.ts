@@ -1,12 +1,6 @@
-// ─── Balagha / Rhetoric schemas & types ───────────────────────────────────────
-// Tables: ar_ling_balagha_concepts, ar_ling_balagha_branches,
-//         ar_ling_rhetorical_relations, ar_ling_balagha_examples
-
-// ── ar_ling_balagha_branches ──────────────────────────────────────────────────
-
 export interface ArLingBalaghaBranch {
-  id: string;              // AL:ULID
-  branch_key: string;      // 'bayan'|'mani'|'badi'
+  id: string;
+  branch_key: string;
   name_ar: string;
   name_en: string;
   description_md: string | null;
@@ -47,19 +41,17 @@ export function validateArLingBalaghaBranchCreate(
   };
 }
 
-// ── ar_ling_balagha_concepts ──────────────────────────────────────────────────
-
 export interface ArLingBalaghaConcept {
-  id: string;                        // AL:ULID
-  parent_id: string | null;          // self-ref for hierarchy under Bayan/Mani/Badi
+  id: string;
+  parent_id: string | null;
   name_ar: string;
   name_en: string;
-  branch: string;                    // 'bayan'|'mani'|'badi'
-  concept_type: string;              // 'device'|'principle'|'category'|'phenomenon'|'sub_device'
+  branch: string;
+  concept_type: string;
   definition_ar: string | null;
   definition_en: string | null;
-  effect_md: string | null;          // rhetorical/aesthetic effect
-  discipline_unit_id: string | null; // FK → ar_ling_discipline_units.id
+  effect_md: string | null;
+  discipline_unit_id: string | null;
   note_md: string | null;
   created_at: string;
 }
@@ -118,14 +110,12 @@ export function validateArLingBalaghaConceptCreate(
   };
 }
 
-// ── ar_ling_rhetorical_relations ──────────────────────────────────────────────
-
 export interface ArLingRhetoricalRelation {
-  id: string;                // AL:ULID
-  from_concept_id: string;   // FK → ar_ling_balagha_concepts.id
-  to_concept_id: string;     // FK → ar_ling_balagha_concepts.id
+  id: string;
+  from_concept_id: string;
+  to_concept_id: string;
   relation_type: string;
-  // 'subcategory_of'|'contrasts_with'|'combines_with'|'implies'|'related_to'
+
   note_md: string | null;
 }
 
@@ -157,17 +147,15 @@ export function validateArLingRhetoricalRelationCreate(
   };
 }
 
-// ── ar_ling_balagha_examples ──────────────────────────────────────────────────
-
 export interface ArLingBalaghaExample {
-  id: string;                  // AL:ULID
-  balagha_id: string;          // FK → ar_ling_balagha_concepts.id
+  id: string;
+  balagha_id: string;
   example_ar: string;
   example_en: string | null;
   source_type: string;
-  // 'quran'|'hadith'|'classical_poetry'|'classical_prose'|'modern'|'other'
-  qr_ref: string | null;       // QR:2:255 shorthand or QR:<ULID>
-  source_ref: string | null;   // AL:<ar_ling_source.id>
+
+  qr_ref: string | null;
+  source_ref: string | null;
   analysis_md: string | null;
   note_md: string | null;
 }
@@ -217,27 +205,23 @@ export function validateArLingBalaghaExampleCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface BalaghaConcept {
-  id: string;           // AL:ULID
-  concept_key: string;  // e.g. 'tashbih', 'istiara', 'majaz'
+  id: string;
+  concept_key: string;
   label_ar: string;
   label_en: string;
-  branch: string;       // bayan | badi | maani
+  branch: string;
   description: string | null;
   parent_id: string | null;
 }
 
 export interface BalaghaExample {
-  id: string;           // AL:ULID
-  concept_id: string;   // AL:ULID
+  id: string;
+  concept_id: string;
   text_ar: string;
-  source_ref: string | null;  // QR:surah:ayah or CM:ULID
+  source_ref: string | null;
   explanation: string | null;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

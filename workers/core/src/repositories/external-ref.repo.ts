@@ -1,10 +1,6 @@
-// ─── ExternalRefRepo — core_external_refs ─────────────────────────────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface ExternalRef {
   id: string;
@@ -28,14 +24,10 @@ export interface ExternalRefCreate {
   note?: string;
 }
 
-// ── Column fragment ───────────────────────────────────────────────────────────
-
 const COLS = `
   id, legacy_source, legacy_id, legacy_type, new_module,
   new_typed_ref, migration_batch, note, migrated_at
 FROM core_external_refs`;
-
-// ── Repo ──────────────────────────────────────────────────────────────────────
 
 export class ExternalRefRepo {
   constructor(private db: D1Database) {}
@@ -67,7 +59,6 @@ export class ExternalRefRepo {
     );
   }
 
-  /** All legacy refs that resolve to a given new typed ref. */
   allByNew(typedRef: string): Promise<ExternalRef[]> {
     return query<ExternalRef>(
       this.db,
@@ -100,7 +91,6 @@ export class ExternalRefRepo {
     return (await this.findByLegacy(input.legacySource, input.legacyId, input.legacyType))!;
   }
 
-  /** Paginated list of refs for a module (e.g. all QR legacy mappings). */
   list(module: string, opts: PaginateOptions = {}) {
     return paginate<ExternalRef>(
       this.db,
@@ -111,7 +101,6 @@ export class ExternalRefRepo {
     );
   }
 
-  /** Refs belonging to a migration batch. */
   byBatch(migrationBatch: string): Promise<ExternalRef[]> {
     return query<ExternalRef>(
       this.db,
@@ -120,7 +109,6 @@ export class ExternalRefRepo {
     );
   }
 
-  /** Count unmapped refs per source (useful for migration audit). */
   countBySource(): Promise<Array<{ legacy_source: string; total: number }>> {
     return query(
       this.db,

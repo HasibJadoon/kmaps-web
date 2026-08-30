@@ -1,14 +1,3 @@
-// ─── The display-spec page ───────────────────────────────────────────────────
-//
-// Fetches one composed spec and hands it to the renderer. That is the whole
-// component: no shaping, no ordering, no deriving. Everything this screen shows
-// was decided by km_core and the worker that owns each layer.
-//
-// It asks km_core rather than the linguistics worker directly, because the
-// composed spec is the whole picture — layers, how built they are, the cards
-// made from the root, and where it sits in the muṣḥaf. Asking the domain worker
-// alone is a valid but narrower question.
-
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { BackendApiService } from '../../../shared/services/backend-api.service';
@@ -95,11 +84,9 @@ export class CybDsPageComponent {
     this.api
       .getData<DisplaySpec>('core', ['ds', 'root', root], { params: { form: this.form() } })
       .subscribe({
-        // One conversion, at the boundary: anything this build cannot draw
-        // becomes a note saying so, rather than an empty section.
+
         next: (s) => this.spec.set(normaliseSpec(s)),
-        // The spec is served by workers that may not be deployed yet; saying so
-        // beats an empty page that looks like a root with nothing in it.
+
         error: (e) =>
           this.error.set(
             `Could not read the display spec for ${root}. ` +

@@ -1,24 +1,3 @@
-// ─── CoreDsRepo — the composed display spec ──────────────────────────────────
-//
-// km_core is the management layer: it is the only worker bound to every other
-// one, and the only place the four outputs, the SRS cards and the Qurʾānic
-// distribution live. So the whole picture of a root is assembled here.
-//
-//   the layers      · from the domain worker that owns them. AL knows what
-//                     `ar_ling_root_asl` means; core does not and should not.
-//   the four axes   · from cyb_node, through v_cyb_node_reading — the one
-//                     definition of a reading anywhere in the stack.
-//   the cards       · core_srs_card, what has been built to remember this root.
-//   the distribution· core_srs_card_surah, where in the muṣḥaf the root lives.
-//
-// Core reaches the domain worker through its service binding, never by binding
-// another domain's D1 — the rule the sense engine already follows.
-//
-// A failure in any one part costs that part and nothing else. If AL is down the
-// reader still gets the plane and the cards, each section saying honestly that
-// it could not be read; a composed screen that blanks entirely because one of
-// four sources hiccuped is worse than one that says which part is missing.
-
 import { query, queryOne } from '../../../shared/src/db';
 import { str, num } from '../../../shared/src/shaping';
 import type {
@@ -28,13 +7,8 @@ import type {
 import type { CoreEnv } from '../env';
 import { cardSections, type CardForm } from './card-ds.repo';
 
-/** Where the root's own layers come from. */
 const AL_DS = '/al/ds/root';
 
-/**
- * The chapters core itself introduces, with where they belong in the reading
- * order. km-al owns the model; this is only the part of it core fills.
- */
 const CORE_CHAPTERS: { chapter: DsChapter; after: string }[] = [
   {
     after: 'relations',
@@ -47,15 +21,6 @@ const CORE_CHAPTERS: { chapter: DsChapter; after: string }[] = [
   },
 ];
 
-/**
- * Announce any chapter the composed sections use that the domain worker did not
- * list, inserting it where it reads rather than at the end.
- *
- * Placement matters: appending would put "where it lives in the muṣḥaf" after
- * "where it was read", which reads as a footnote to the bibliography. The
- * sections are sorted by this list's order immediately afterwards, so position
- * here is what decides position on the page.
- */
 function mergeChapters(fromDomain: DsChapter[], sections: { chapter: string }[]): DsChapter[] {
   const out = [...fromDomain];
   const announced = new Set(out.map((c) => c.key));
@@ -71,7 +36,6 @@ function mergeChapters(fromDomain: DsChapter[], sections: { chapter: string }[])
   return out;
 }
 
-/** Cards and distribution are read at the same depth as everything else. */
 const CAP: Record<DsForm, number> = { desktop: 8, mobile: 3 };
 
 interface CardRow {
@@ -81,7 +45,6 @@ interface CardRow {
   note_type_id: string | null; fields_json: string | null;
 }
 
-/** A card's stored fields, or null if it has none or they are malformed. */
 function fieldsOf(card: CardRow): Record<string, unknown> | null {
   if (!card.fields_json) return null;
   try {
@@ -100,7 +63,6 @@ export class CoreDsRepo {
   async root(root: string, form: DsForm = 'desktop'): Promise<DisplaySpec> {
     const cap = CAP[form] ?? CAP.desktop;
 
-    // Each part is allowed to fail on its own — see the header.
     const [layers, plane, cards, spread] = await Promise.all([
       this.layerSpec(root, form),
       this.plane(root),
@@ -122,18 +84,6 @@ export class CoreDsRepo {
       ...(spread ? [spread] : []),
     ];
 
-    // The domain worker owns the chapter model; core adds its own sections to
-    // the chapters they belong in, then re-sorts so the reading order holds
-    // across both sources rather than putting core's contributions last.
-    //
-    // km-al can only ANNOUNCE a chapter its own sections fill — it drops the
-    // empty ones so it never advertises a chapter with nothing under it. The
-    // muṣḥaf sections are added HERE, after that filter has already run, so
-    // 'quran' arrived announced by nobody: three sections (91-QURAN, the verses
-    // a root was met in, its expressions) came out of the API pointing at a
-    // chapter that did not exist in the list beside them, and a chapter-driven
-    // reader rendered none of them. Whoever introduces a section owns
-    // announcing its chapter, so core declares the ones core adds.
     const chapters = mergeChapters(layers?.chapters ?? [], sections);
     const order = new Map(chapters.map((c, i) => [c.key, i]));
     sections.sort((a, b) => (order.get(a.chapter) ?? 99) - (order.get(b.chapter) ?? 99));
@@ -157,7 +107,6 @@ export class CoreDsRepo {
     };
   }
 
-  /** The layers, from the worker that owns them. */
   private async layerSpec(root: string, form: DsForm): Promise<DisplaySpec | null> {
     const al = this.env.AR_LINGUISTICS;
     if (!al) return null;
@@ -173,14 +122,6 @@ export class CoreDsRepo {
     }
   }
 
-  /**
-   * The four outputs for this root's node.
-   *
-   * A root has one canonical node, keyed by the root it measures. The node
-   * prefers `meta_json.$.root_ar` over `target_ref` because `target_ref` on a
-   * root node is the ULID, not the root — the same precedence the sense engine
-   * uses, and getting it backwards finds nothing.
-   */
   private async plane(root: string): Promise<DsPlane> {
     const node = await queryOne<{ id: string }>(
       this.db,
@@ -207,7 +148,7 @@ export class CoreDsRepo {
     const readings: DsReading[] = rows.map((r) => ({
       axis: r.axis,
       pct: num(r.pct),
-      // 0 here means no sensor has read the axis. It is not 0%.
+
       measured: num(r.measured) === 1,
       stale: num(r.stale) === 1,
       sensors: num(r.sensors),
@@ -216,13 +157,6 @@ export class CoreDsRepo {
     return { node_id: node.id, readings };
   }
 
-  /**
-   * What has been built to remember this root.
-   *
-   * `root_norm` is the column meant for this and is populated on almost
-   * nothing, so the match also accepts the typed resource ref the card-building
-   * skills actually write. Both are exact; neither guesses.
-   */
   private async cards(root: string, cap: number, form: DsForm): Promise<DsSection[]> {
     const rows = await query<CardRow>(
       this.db,
@@ -245,7 +179,7 @@ export class CoreDsRepo {
       badges: [
         ...(c.card_kind ? [{ label: '', value: c.card_kind, tone: 'plain' as const }] : []),
         { label: '', value: c.card_state, tone: (c.card_state === 'review' ? 'ok' : 'warn') as 'ok' | 'warn' },
-        // A structured card renders from fields_json; a plain one from its text.
+
         ...(c.note_type_id ? [{ label: 'note type', value: c.note_type_id, tone: 'strong' as const }] : []),
         ...(c.lapses > 0 ? [{ label: 'lapses', value: String(c.lapses), tone: 'warn' as const }] : []),
       ],
@@ -257,20 +191,11 @@ export class CoreDsRepo {
       ],
     }));
 
-    // A structured card holds far more than its two faces: a form ladder, a
-    // sense arc with its physical rungs marked, aḍdād tagged attested or
-    // derived. Rendering only front/back would throw that away, so the richest
-    // card's own fields are drawn, with the list of cards kept beneath it as
-    // the scheduling view it is.
     const richest = rows
       .map((c) => ({ card: c, fields: fieldsOf(c) }))
       .filter((x): x is { card: CardRow; fields: Record<string, unknown> } => x.fields !== null)
       .sort((a, b) => Object.keys(b.fields).length - Object.keys(a.fields).length)[0];
 
-    // The card's own fields become sections in the chapters they answer, so a
-    // sense arc sits under "What it means" beside the layers that carry it,
-    // rather than in a pile labelled "Cards". A card is a synthesis OF those
-    // layers; filing it away from them is what made it invisible.
     const authored: DsSection[] = richest
       ? cardSections(richest.fields, form as CardForm).map((group) => ({
           chapter: group[0].chapter,
@@ -282,8 +207,7 @@ export class CoreDsRepo {
           state: 'filled' as const,
           total_rows: group.length,
           carriers: ['core_srs_card', 'core_srs_note_type'],
-          // The section header already carries the title. Repeating it on the
-          // block prints "The letters" twice, one above the other.
+
           blocks: group.map((p) =>
             p.block.title === group[0].title
               ? { ...p.block, title: undefined }
@@ -291,8 +215,6 @@ export class CoreDsRepo {
         }))
       : [];
 
-    // What is scheduled stays its own section: due dates are not a fact about
-    // the root, they are a fact about this learner's memory of it.
     return [
       ...authored,
       {
@@ -310,14 +232,6 @@ export class CoreDsRepo {
     ];
   }
 
-  /**
-   * Where in the muṣḥaf this root lives.
-   *
-   * `core_srs_card_surah` records the spread per CARD, and every card for a
-   * root carries the same spread — بين's five cards each say 71 surahs. So the
-   * surahs are collected DISTINCT, or a root with five cards would report five
-   * times its real reach.
-   */
   private async distribution(root: string): Promise<DsSection | null> {
     const rows = await query<{ surah: number; n_occur: number; is_intro: number }>(
       this.db,

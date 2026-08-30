@@ -1,5 +1,3 @@
-// ─── NearSynonymRepo — all SQL for ar_ling_near_synonym_* ─────────────────────
-
 import { query, queryOne, paginate, executeBatch } from '../../../shared/src/db';
 import type { PaginateOptions } from '../../../shared/src/types';
 import type {
@@ -157,7 +155,6 @@ export class NearSynonymRepo {
     );
   }
 
-  // All near-synonym sets that have evidence in a specific ayah (e.g. "2:4")
   async byQuranRef(qrRef: string): Promise<QuranNearSynonymResult | null> {
     const [surahStr, ayahStr] = qrRef.split(':');
     const surah = parseInt(surahStr, 10);
@@ -188,8 +185,6 @@ export class NearSynonymRepo {
     };
   }
 
-  // All near-synonym sets that have evidence anywhere in a surah,
-  // restricted to sets that have at least one valid (Arabic) member.
   async bySurah(surah: number): Promise<{ surah: number; sets: NearSynonymSetDetail[] }> {
     const rows = await query<{ set_id: string }>(
       this.db,
@@ -207,12 +202,11 @@ export class NearSynonymRepo {
     const sets = await Promise.all(rows.map(r => this.getSetDetail(r.set_id)));
     return {
       surah,
-      // Belt-and-suspenders: also drop any set that resolved to null or has no members
+
       sets: sets.filter((s): s is NearSynonymSetDetail => s !== null && s.members.length > 0),
     };
   }
 
-  // Near-synonym sets for a lemma
   byLemma(lemmaId: string): Promise<NearSynonymSet[]> {
     return query<NearSynonymSet>(
       this.db,

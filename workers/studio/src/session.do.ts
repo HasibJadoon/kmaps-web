@@ -1,43 +1,36 @@
-// ─── EpisodeSession — live-session Durable Object ─────────────────────────────
-// One instance per live session. It holds the synced cursor — which section and
-// talking point is current — and fans state out to every connected screen over
-// Hibernatable WebSockets. The host drives the cursor; viewers only follow.
-
 import type { StudioEnv } from './env';
 import { EpisodeRepo, type EpisodeAggregate } from './repositories/episode.repo';
 import { SessionRepo } from './repositories/session.repo';
 
 interface Cursor {
-  section: number;   // index into episode.sections; -1 = lobby (not started)
-  point: number;     // index into section.points;  -1 = section heading only
+  section: number;
+  point: number;
 }
 
 const LOBBY: Cursor = { section: -1, point: -1 };
 
-/** Who a connected socket is — resolved from the joiner's account on connect. */
 interface Identity {
   role: 'host' | 'viewer';
-  participantId: string | null;   // ST participant id, or null when not in the cast
-  name: string | null;            // cast display name, or null for an un-named guest
+  participantId: string | null;
+  name: string | null;
   color: string | null;
 }
 
 export class EpisodeSession {
-  /** Episode aggregate cache — rebuilt from D1 after hibernation. */
+
   private snapshot: EpisodeAggregate | null = null;
 
   constructor(private state: DurableObjectState, private env: StudioEnv) {
-    // Auto-reply to client keepalive pings without waking from hibernation.
+
     try {
       this.state.setWebSocketAutoResponse(
         new WebSocketRequestResponsePair('ping', 'pong'),
       );
     } catch {
-      // Older runtimes — keepalive still works, it just wakes the object.
+
     }
   }
 
-  // ── HTTP entry — only ever the WebSocket upgrade ─────────────────────────────
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
       return new Response('Expected WebSocket upgrade', { status: 426 });
@@ -60,7 +53,6 @@ export class EpisodeSession {
       this.getPlayed(),
     ]);
 
-    // Identify the joiner: match their account to one of the episode's cast.
     const cast = episode?.participants.find(
       (p) => !!p.core_user_ref && p.core_user_ref === userId,
     ) ?? null;
@@ -78,8 +70,7 @@ export class EpisodeSession {
       episode,
       cursor,
       paused,
-      // Someone joining halfway needs the discard pile, or their hand shows
-      // every card as still unplayed.
+
       played,
       viewers: this.state.getWebSockets().length,
       you: identity,
@@ -90,7 +81,6 @@ export class EpisodeSession {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  // ── Hibernatable WebSocket handlers ─────────────────────────────────────────
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     let msg: { t?: string; section?: number; point?: number; card?: string };
     try {
@@ -103,29 +93,16 @@ export class EpisodeSession {
 
     const isHost = this.state.getTags(ws).includes('host');
 
-    // ── Playing a card ────────────────────────────────────────────────────────
-    //
-    // The session is a shared card game rather than a slide deck. Each person
-    // holds the points assigned to them, and plays one when they are ready to
-    // speak — so the order is decided by the room in the moment, not fixed in
-    // advance by whoever authored the episode.
-    //
-    // The rule that makes it a game rather than a free-for-all: you may play
-    // your OWN card. The host may play anyone's, because someone has to be able
-    // to unstick a room where a person has stepped away.
     if (msg.t === 'play' && msg.card) {
       await this.play(ws, msg.card, isHost);
       return;
     }
 
-    // Relay control: the host can always advance; otherwise only the cast
-    // member who is the speaker of the current card may push it forward.
     if (msg.t === 'next') {
       if (isHost || await this.ownsCurrentCard(ws)) await this.move(1);
       return;
     }
 
-    // Back / pause / goto / refresh / end stay host-only.
     if (!isHost) return;
     switch (msg.t) {
       case 'prev':    await this.move(-1); break;
@@ -138,15 +115,14 @@ export class EpisodeSession {
   }
 
   async webSocketClose(ws: WebSocket): Promise<void> {
-    // The runtime tears the socket down; just refresh everyone's viewer count.
+
     this.broadcastPresence(ws);
   }
 
   async webSocketError(ws: WebSocket): Promise<void> {
-    try { ws.close(1011, 'error'); } catch { /* already closed */ }
+    try { ws.close(1011, 'error'); } catch {  }
   }
 
-  // ── Cursor navigation ───────────────────────────────────────────────────────
   private async move(delta: number): Promise<void> {
     const episode = await this.getSnapshot();
     if (!episode) return;
@@ -155,7 +131,7 @@ export class EpisodeSession {
 
     const cursor = await this.getCursor();
     let idx = stops.findIndex((c) => c.section === cursor.section && c.point === cursor.point);
-    if (idx < 0) idx = delta > 0 ? -1 : 0;  // from the lobby, "next" → first stop
+    if (idx < 0) idx = delta > 0 ? -1 : 0;
     idx = Math.max(0, Math.min(stops.length - 1, idx + delta));
     await this.setCursor(stops[idx]);
   }
@@ -171,12 +147,6 @@ export class EpisodeSession {
     if (match) await this.setCursor(match);
   }
 
-  /** Put a specific card on the table.
-   *
-   *  Played cards accumulate rather than being removed: a hand that empties as
-   *  it is played is a hand you cannot look back at, and the point of keeping
-   *  the running order visible is that a room can see what has been covered.
-   *  The client greys a spent card; the card itself stays. */
   private async play(ws: WebSocket, cardId: string, isHost: boolean): Promise<void> {
     const episode = await this.getSnapshot();
     if (!episode) return;
@@ -195,8 +165,7 @@ export class EpisodeSession {
 
     const identity = ws.deserializeAttachment() as Identity | null;
     const mine = speakerRef !== null && speakerRef === identity?.participantId;
-    // An unassigned card belongs to whoever reaches for it — a question nobody
-    // was given is one anybody may ask.
+
     const unclaimed = speakerRef === null;
     if (!isHost && !mine && !unclaimed) return;
 
@@ -212,7 +181,6 @@ export class EpisodeSession {
     return (await this.state.storage.get<string[]>('played')) ?? [];
   }
 
-  /** True when this socket's cast member is the speaker of the current card. */
   private async ownsCurrentCard(ws: WebSocket): Promise<boolean> {
     const identity = ws.deserializeAttachment() as Identity | null;
     const participantId = identity?.participantId;
@@ -224,7 +192,6 @@ export class EpisodeSession {
     return !!point && point.speaker_ref === participantId;
   }
 
-  /** Ordered list of every reachable cursor stop across the episode. */
   private flatten(episode: EpisodeAggregate): Cursor[] {
     const stops: Cursor[] = [];
     episode.sections.forEach((section, s) => {
@@ -237,7 +204,6 @@ export class EpisodeSession {
     return stops;
   }
 
-  // ── State ───────────────────────────────────────────────────────────────────
   private async ensureInit(episodeId: string, sessionId: string): Promise<void> {
     if (await this.state.storage.get<string>('episodeId')) return;
     if (!episodeId) return;
@@ -279,10 +245,7 @@ export class EpisodeSession {
 
   private async setCursor(cursor: Cursor): Promise<void> {
     await this.state.storage.put('cursor', cursor);
-    // `played` rides along with every cursor change. A client could track it
-    // locally from its own plays, but then two screens that saw different
-    // subsets of the session would disagree about which cards are spent — and
-    // the whole reason this state lives in the Durable Object is so they cannot.
+
     this.broadcast({
       t: 'cursor',
       cursor,
@@ -300,30 +263,29 @@ export class EpisodeSession {
     const sessionId = await this.state.storage.get<string>('sessionId');
     const episodeId = await this.state.storage.get<string>('episodeId');
     if (sessionId) {
-      // Freeze a recap snapshot — the episode as covered, plus session timing.
+
       const recap = JSON.stringify({
         episode: await this.getSnapshot(),
         started_at: (await this.state.storage.get<string>('startedAt')) ?? null,
         ended_at: new Date().toISOString(),
       });
-      try { await new SessionRepo(this.env.DB_ST).end(sessionId, recap); } catch { /* best effort */ }
+      try { await new SessionRepo(this.env.DB_ST).end(sessionId, recap); } catch {  }
     }
     if (episodeId) {
       try {
         await new EpisodeRepo(this.env.DB_ST).patchEpisode(episodeId, { status: 'done' });
-      } catch { /* best effort */ }
+      } catch {  }
     }
     this.broadcast({ t: 'ended' });
     for (const ws of this.state.getWebSockets()) {
-      try { ws.close(1000, 'Session ended'); } catch { /* already closed */ }
+      try { ws.close(1000, 'Session ended'); } catch {  }
     }
   }
 
-  // ── Fan-out ─────────────────────────────────────────────────────────────────
   private broadcast(payload: unknown): void {
     const data = JSON.stringify(payload);
     for (const ws of this.state.getWebSockets()) {
-      try { ws.send(data); } catch { /* dropped socket */ }
+      try { ws.send(data); } catch {  }
     }
   }
 
@@ -335,11 +297,10 @@ export class EpisodeSession {
       roster: this.rosterOf(sockets),
     });
     for (const ws of sockets) {
-      try { ws.send(data); } catch { /* dropped socket */ }
+      try { ws.send(data); } catch {  }
     }
   }
 
-  /** The identities of the given sockets — drives the lobby roster. */
   private rosterOf(sockets: WebSocket[]): Identity[] {
     return sockets.map((ws) => {
       const attached = ws.deserializeAttachment() as Identity | null;
@@ -353,6 +314,6 @@ export class EpisodeSession {
   }
 
   private sendTo(ws: WebSocket, payload: unknown): void {
-    try { ws.send(JSON.stringify(payload)); } catch { /* dropped socket */ }
+    try { ws.send(JSON.stringify(payload)); } catch {  }
   }
 }

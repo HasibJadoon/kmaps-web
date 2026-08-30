@@ -1,18 +1,12 @@
--- 0027_reg_table_map.sql
--- Cross-DB table registry: every domain table in km_arabic / km_quran /
--- km_arabic_linguistic tagged with (db, cluster, layer_code, role). Plus layers
--- 01 Sources and 05 Curriculum. Mining is now: SELECT table_name,db FROM
--- ar_ling_reg_table_map WHERE layer_code=:layer  JOIN reg_build_layer for sources.
-
 INSERT OR REPLACE INTO ar_ling_reg_build_layer (layer_code,layer_key,name_ar,name_en,name_ur,cluster,scope_level,fill_order,once_only,mode,primary_tables_json,allowed_source_slugs_json) VALUES ('01','source','المَصادر','Sources (lexica & corpus)','مصادر','source','global',1,0,'ingested','["ar_ling_lexicon_entries","ar_ling_lexicon_blocks","ar_ling_sources","ar_ling_source_chunks","ar_ling_senses"]','["lisan","maqayis","sihah","qamus","ayn","misbah","mufradat","lane","tarteel"]');
 INSERT OR REPLACE INTO ar_ling_reg_build_layer (layer_code,layer_key,name_ar,name_en,name_ur,cluster,scope_level,fill_order,once_only,mode,primary_tables_json,allowed_source_slugs_json) VALUES ('05','curriculum','المَنهَج','Curriculum (pedagogy)','نصاب','curriculum','global',1,0,'authored','["ar_curricula","ar_learning_tracks","ar_curriculum_units","ar_containers","ar_lessons","ar_classes","ar_domains","ar_scenarios"]','["kmaps_curriculum"]');
 
 CREATE TABLE IF NOT EXISTS ar_ling_reg_table_map (
-  db          TEXT NOT NULL,       -- km_arabic | km_quran | km_arabic_linguistic
+  db          TEXT NOT NULL,
   table_name  TEXT NOT NULL,
-  cluster     TEXT NOT NULL,       -- reg|morph|syn|expr|learn|display|corpus|source|context_src|syntax|curriculum|infra|other
-  layer_code  TEXT,                -- -> ar_ling_reg_build_layer.layer_code (NULL for infra/other)
-  role        TEXT,                -- canonical|projection|synthesis|generated|ingest|source|link|runtime|pedagogy|learner|analysis|reference
+  cluster     TEXT NOT NULL,
+  layer_code  TEXT,
+  role        TEXT,
   PRIMARY KEY (db, table_name)
 );
 CREATE INDEX IF NOT EXISTS idx_reg_tmap_layer ON ar_ling_reg_table_map(layer_code, db);

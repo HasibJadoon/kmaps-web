@@ -31,12 +31,6 @@ import {
   clusterColor,
 } from '../wv-graph.model';
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  WvGraphCanvas — pure D3 SVG renderer
-//  Angular owns: data in / events out
-//  D3  owns:     simulation, zoom, drag, link/node positioning
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Component({
   selector: 'app-wv-graph-canvas',
   standalone: true,
@@ -71,8 +65,8 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
   @Input() data: WvGraphData | null = null;
   @Input() selectedId: string | null = null;
   @Input() mode: WvGraphMode = 'force';
-  @Input() activeTypes: Set<WvNodeType> | null = null; // null = all visible
-  @Input() activeClusters: Set<string> | null = null;  // null = all visible
+  @Input() activeTypes: Set<WvNodeType> | null = null;
+  @Input() activeClusters: Set<string> | null = null;
   @Input() showLabels = true;
 
   @Output() nodeClick = new EventEmitter<WvGraphNode>();
@@ -89,14 +83,12 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
   private renderedNodes: WvGraphNode[] = [];
   private labelLayouts = new Map<string, WvLabelLayout>();
 
-  // Cluster (community) state
   private clusterOrder: string[] = [];
   private clusterColors = new Map<string, ClusterColor>();
   private clusterTitles = new Map<string, string>();
   private clusterTargets = new Map<string, { x: number; y: number }>();
   private clusterStrength = 0;
 
-  // Live selections updated on tick
   private linkSel!: d3.Selection<SVGLineElement, WvGraphEdge, SVGGElement, unknown>;
   private nodeSel!: d3.Selection<SVGGElement, WvGraphNode, SVGGElement, unknown>;
   private labelSel!: d3.Selection<SVGTextElement, WvGraphNode, SVGGElement, unknown>;
@@ -128,7 +120,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
     this.ro?.disconnect();
   }
 
-  // ── Public API ──────────────────────────────────────────────────────────────
   resetZoom(): void {
     this.fitToGraph(true);
   }
@@ -148,7 +139,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
     );
   }
 
-  // ── Init ────────────────────────────────────────────────────────────────────
   private initSvg(): void {
     this.svg = d3.select(this.svgRef.nativeElement);
     this.g   = d3.select(this.graphGRef.nativeElement);
@@ -171,12 +161,10 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
     this.currentTransform = d3.zoomIdentity;
   }
 
-  // ── Build graph ─────────────────────────────────────────────────────────────
   private build(data: WvGraphData): void {
     this.g.selectAll('*').remove();
     this.sim?.stop();
 
-    // Deep-clone nodes + compute degree
     const nodes: WvGraphNode[] = data.nodes.map(n => ({ ...n }));
     const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
@@ -188,7 +176,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
       }))
       .filter(e => e.source && e.target);
 
-    // Compute degree
     for (const n of nodes) n.degree = 0;
     for (const e of edges) {
       (e.source as WvGraphNode).degree! += 1;
@@ -200,7 +187,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
     this.renderedNodes = nodes;
     this.labelLayouts = new Map(nodes.map((node) => [node.id, getLabelLayout(node)]));
 
-    // ── Simulation ────────────────────────────────────────────────────────────
     this.sim = d3.forceSimulation<WvGraphNode>(nodes)
       .force('link', d3.forceLink<WvGraphNode, WvGraphEdge>(edges)
         .id(d => d.id)
@@ -226,8 +212,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
       .velocityDecay(0.34)
       .alphaDecay(0.03);
 
-    // ── Render layers ─────────────────────────────────────────────────────────
-    // 0. Cluster territory hulls (behind everything)
     const hullG = this.g.append('g').attr('class', 'hulls');
     this.hullSel = hullG.selectAll<SVGPathElement, string>('path')
       .data(this.clusterOrder)
@@ -236,9 +220,7 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
       .attr('fill', (slug) => this.clusterColors.get(slug)?.hull ?? 'transparent')
       .attr('stroke', (slug) => this.clusterColors.get(slug)?.hullStroke ?? 'transparent')
       .attr('stroke-width', 1.25)
-      // Dashed, because the boundary of a cluster is an inference and not a
-      // border. A solid outline around a set of nodes reads as an enclosure
-      // someone drew deliberately; a dashed one reads as a grouping.
+
       .attr('stroke-dasharray', '5 5')
       .attr('stroke-linejoin', 'round')
       .attr('pointer-events', 'none');
@@ -254,7 +236,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
       .attr('pointer-events', 'none')
       .text((slug) => this.clusterTitles.get(slug) ?? slug);
 
-    // 1. Links
     this.linkSel = this.g.append('g').attr('class', 'links')
       .selectAll<SVGLineElement, WvGraphEdge>('line')
       .data(edges)
@@ -269,7 +250,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
           : null
       );
 
-    // 2. Node groups
     this.nodeSel = this.g.append('g').attr('class', 'nodes')
       .selectAll<SVGGElement, WvGraphNode>('g')
       .data(nodes, d => d.id)
@@ -278,7 +258,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
       .attr('cursor', 'pointer')
       .call(this.dragBehavior());
 
-    // Outer glow ring
     this.nodeSel.append('circle')
       .attr('class', 'wv-node__glow')
       .attr('r', d => nodeRadius(d) + 5)
@@ -286,7 +265,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
       .attr('opacity', 0)
       .attr('filter', 'url(#wv-glow)');
 
-    // Main circle
     this.nodeSel.append('circle')
       .attr('class', 'wv-node__circle')
       .attr('r', d => nodeRadius(d))
@@ -294,7 +272,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
       .attr('stroke', d => this.nodeColors(d).stroke)
       .attr('stroke-width', 1.5);
 
-    // Type glyph inside
     this.nodeSel.append('text')
       .attr('class', 'wv-node__glyph')
       .attr('text-anchor', 'middle')
@@ -303,7 +280,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
       .attr('fill', d => this.nodeColors(d).stroke)
       .text(d => typeGlyph(d.type));
 
-    // Click / dblclick
     this.nodeSel
       .on('click', (event: MouseEvent, d: WvGraphNode) => {
         event.stopPropagation();
@@ -314,7 +290,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
         this.nodeDblClick.emit(d);
       });
 
-    // 3. Labels
     this.labelSel = this.g.append('g').attr('class', 'labels')
       .selectAll<SVGTextElement, WvGraphNode>('text')
       .data(nodes, d => d.id)
@@ -332,7 +307,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
         applyWrappedLabel(selection, layout.lines);
       });
 
-    // ── Tick ─────────────────────────────────────────────────────────────────
     this.sim.on('tick', () => {
       this.linkSel
         .attr('x1', d => (d.source as WvGraphNode).x ?? 0)
@@ -371,13 +345,12 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
     this.fitToGraph(false);
   }
 
-  // ── Focus mode ──────────────────────────────────────────────────────────────
   private applyFocus(): void {
     if (!this.nodeSel) return;
     const sel = this.selectedId;
 
     if (!sel || this.mode === 'force') {
-      // All full opacity
+
       this.nodeSel.attr('opacity', 1);
       this.nodeSel.select('.wv-node__glow').attr('opacity', 0);
       this.linkSel?.attr('opacity', 1);
@@ -385,7 +358,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
       return;
     }
 
-    // Build neighbour set
     const neighbours = new Set<string>([sel]);
     this.data?.edges.forEach(e => {
       const s = typeof e.source === 'string' ? e.source : (e.source as WvGraphNode).id;
@@ -412,7 +384,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
     );
   }
 
-  // ── Type + cluster filter ─────────────────────────────────────────────────────
   private nodeVisible(d: WvGraphNode): boolean {
     const typeOk = !this.activeTypes || this.activeTypes.has(d.type);
     const clusterOk = !this.activeClusters || (d.cluster != null && this.activeClusters.has(d.cluster));
@@ -429,12 +400,10 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
     this.updateHulls();
   }
 
-  // ── Label visibility ─────────────────────────────────────────────────────────
   private applyLabelVisibility(): void {
     this.labelSel?.attr('display', this.showLabels ? null : 'none');
   }
 
-  // ── Clusters (communities) ────────────────────────────────────────────────────
   private computeClusters(nodes: WvGraphNode[]): void {
     this.clusterOrder = [];
     this.clusterColors = new Map();
@@ -456,7 +425,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
       this.clusterColors.set(slug, clusterColor(slug, index));
     });
 
-    // Arrange cluster centroids on a ring so communities pull apart in cluster mode.
     const n = this.clusterOrder.length;
     const ring = Math.max(220, n * 64);
     this.clusterOrder.forEach((slug, index) => {
@@ -472,7 +440,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
     return WV_NODE_COLORS[d.type];
   }
 
-  /** Pull cluster grouping strength up in 'cluster' mode and reveal hull territories. */
   private applyClusterMode(): void {
     const clustered = this.mode === 'cluster' && this.clusterOrder.length > 0;
     this.clusterStrength = clustered ? 0.16 : 0.0;
@@ -502,20 +469,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
       const hull = d3.polygonHull(pts);
       if (!hull) return '';
 
-      // A hull is only worth drawing when the cluster occupies a region. When
-      // a corpus is grouped by theme its clusters do; when a chapter is grouped
-      // by the ROLE each claim plays in an argument they do not — roles are
-      // connected across the whole graph, so their convex hulls sprawl over one
-      // another and six translucent polygons become soup.
-      //
-      // The test is whether the shape tells the truth: a territory that visibly
-      // encloses ANOTHER CLUSTER'S nodes is claiming ground it does not hold. A
-      // few strays are tolerable, a majority is not.
-      //
-      // Only rival clusters count. Unclustered nodes are not a competing claim
-      // — in Arjana's chapter 1 only 12 of 56 nodes carry a cluster at all, and
-      // counting the other 44 as trespassers suppressed both hulls on a graph
-      // where they were perfectly honest.
       let rival = 0;
       for (const node of this.renderedNodes) {
         if (!node.cluster || node.cluster === slug || !this.nodeVisible(node)) continue;
@@ -523,11 +476,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
       }
       if (rival > Math.max(1, own.length * 0.34)) return '';
 
-      // And it must be compact. Five nodes scattered across the whole canvas
-      // have a convex hull covering most of it, which is a smear rather than a
-      // territory even when no rival sits inside it. A cluster may occupy
-      // roughly its own share of the plot, with generous slack; beyond that it
-      // is drawing the graph, not a part of it.
       const visible = this.renderedNodes.filter((n) => this.nodeVisible(n));
       if (visible.length > 0) {
         const xs = visible.map((n) => n.x ?? 0);
@@ -558,7 +506,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
     });
   }
 
-  // ── Drag ────────────────────────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private dragBehavior(): any {
     return d3.drag<SVGGElement, WvGraphNode>()
@@ -575,7 +522,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
       });
   }
 
-  // ── Resize ──────────────────────────────────────────────────────────────────
   private onResize(): void {
     if (!this.sim) return;
     this.sim.force('x', d3.forceX(0).strength(0.028));
@@ -666,7 +612,6 @@ export class WvGraphCanvasComponent implements AfterViewInit, OnChanges, OnDestr
   }
 }
 
-// ── Glyph per type ────────────────────────────────────────────────────────────
 function typeGlyph(type: WvNodeType): string {
   return { claim: '◆', principle: '◇', framework: '▣', cause: '▲', evidence: '●', insight: '✦' }[type];
 }

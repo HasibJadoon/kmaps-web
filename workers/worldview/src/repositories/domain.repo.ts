@@ -1,12 +1,6 @@
-// ─── DomainRepo — L1 coordinate ontology ────────────────────────────────────
-// Covers: wv_domains, wv_periods, wv_regions, wv_locations, wv_institutions
-// Canonical columns per 001_wv_schema.sql §1.1, §1.6-§1.9
-
 import { queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Types ────────────────────────────────────────────────────────────────────
 
 export interface WvDomain {
   id: string;
@@ -22,10 +16,10 @@ export interface WvPeriod {
   id: string;
   slug: string;
   title: string;
-  period_type: string;       // era|century|epoch|generation|reign|phase
+  period_type: string;
   start_year: number | null;
   end_year: number | null;
-  is_approximate: number;    // 0|1
+  is_approximate: number;
   civilizational_label: string | null;
   description_md: string | null;
   sort_order: number;
@@ -36,10 +30,10 @@ export interface WvRegion {
   id: string;
   slug: string;
   title: string;
-  region_type: string;       // macro|civilizational|geopolitical|cultural|diaspora
+  region_type: string;
   parent_id: string | null;
   description_md: string | null;
-  bounding_box: string | null; // JSON {north,south,east,west}
+  bounding_box: string | null;
   created_at: string;
 }
 
@@ -48,7 +42,7 @@ export interface WvLocation {
   slug: string;
   title: string;
   title_ar: string | null;
-  location_type: string;     // city|site|institution|pilgrimage_node|debate_center|monastery|seminary|court|university|region|other
+  location_type: string;
   region_id: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -64,7 +58,7 @@ export interface WvInstitution {
   slug: string;
   title: string;
   title_ar: string | null;
-  institution_type: string;  // religious|educational|legal|charitable|political|monastic|missionary|court|council|waqf|other
+  institution_type: string;
   tradition_id: string | null;
   location_id: string | null;
   period_id: string | null;
@@ -75,8 +69,6 @@ export interface WvInstitution {
   created_at: string;
   updated_at: string;
 }
-
-// ── Input types ───────────────────────────────────────────────────────────────
 
 export interface DomainCreate {
   slug: string;
@@ -148,8 +140,6 @@ export interface InstitutionPatch {
   meta_json?: string | null;
 }
 
-// ── Column lists ─────────────────────────────────────────────────────────────
-
 const DOMAIN_COLS =
   `id, slug, title, title_ar, description, sort_order, created_at`;
 
@@ -168,12 +158,8 @@ const INST_COLS =
   `id, slug, title, title_ar, institution_type, tradition_id, location_id, period_id, ` +
   `founded_year, dissolved_year, description_md, meta_json, created_at, updated_at`;
 
-// ── Repo ─────────────────────────────────────────────────────────────────────
-
 export class DomainRepo {
   constructor(private db: D1Database) {}
-
-  // ── wv_domains ─────────────────────────────────────────────────────────────
 
   listDomains(opts: PaginateOptions = {}) {
     return paginate<WvDomain>(
@@ -209,8 +195,6 @@ export class DomainRepo {
     );
     return (await this.findDomainById(id))!;
   }
-
-  // ── wv_periods ─────────────────────────────────────────────────────────────
 
   listPeriods(opts: { period_type?: string | null } & PaginateOptions = {}) {
     const { period_type } = opts;
@@ -256,8 +240,6 @@ export class DomainRepo {
     return (await this.findPeriodById(id))!;
   }
 
-  // ── wv_regions ─────────────────────────────────────────────────────────────
-
   listRegions(opts: { region_type?: string | null; parent_id?: string | null } & PaginateOptions = {}) {
     const { region_type, parent_id } = opts;
     const conds: string[]   = [];
@@ -300,8 +282,6 @@ export class DomainRepo {
     );
     return (await this.findRegionById(id))!;
   }
-
-  // ── wv_locations ───────────────────────────────────────────────────────────
 
   listLocations(opts: {
     location_type?: string | null;
@@ -354,8 +334,6 @@ export class DomainRepo {
     );
     return (await this.findLocationById(id))!;
   }
-
-  // ── wv_institutions ────────────────────────────────────────────────────────
 
   listInstitutions(opts: {
     institution_type?: string | null;

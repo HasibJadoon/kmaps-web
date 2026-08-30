@@ -1,15 +1,3 @@
-// ─── /wv/moral — the axes a worldview can be compared on ──────────────────────
-//
-// The 15 moral axes are the concepts the comparison turns on, and every one
-// already carries a `concept_ref` into the shared `CN:` registry — the same
-// discipline `GT:` uses for grammar terms. That ref is what lets a position
-// stated while reading the Qurʾān and a position stated while reading Hallaq
-// be about the same thing.
-//
-// `domain_id` is NULL on all 15, so axes cannot yet be filtered by field. The
-// route does not offer that filter rather than offering one that returns
-// nothing.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -20,7 +8,6 @@ import { dual } from './prefix';
 
 export function moralRoutes(router: Router<WorldviewEnv>) {
 
-  // GET /wv/moral/axes?axis_type=relational
   dual(router, 'get', '/moral/axes', async (req, env) => {
     const url = new URL(req.url);
     return paginated(await new MoralRepo(env.DB_WV).listAxes({
@@ -29,10 +16,6 @@ export function moralRoutes(router: Router<WorldviewEnv>) {
     }));
   });
 
-  // GET /wv/moral/axes/:id — the axis, and who has actually spoken on it.
-  //
-  // The second half is the point: an axis with no positions is a question
-  // nobody has answered yet, and the screen should be able to say so.
   dual(router, 'get', '/moral/axes/:id', async (_req, env, { id }) => {
     const axis = await new MoralRepo(env.DB_WV).findAxisById(id);
     if (!axis) return notFound(`moral axis ${id}`);

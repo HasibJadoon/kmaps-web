@@ -3,13 +3,6 @@ import { Router } from '@angular/router';
 import { CybService } from '../data/cyb.service';
 import type { CybNode, CybNodeTree, Surah } from '../data/cyb.models';
 
-// Shared top bar for the Map and the Ladder:
-//   • search — a surah by number (44), name (dukhan / Ad-Dukhān) or Arabic (الدخان),
-//     matched diacritic- and orthography-insensitively so any spelling lands.
-//   • top active — ONE active trail, scoped to where you already are. The head is
-//     the thing in build at this level; anything still active below it trails off
-//     thinner; siblings in build at the same level sit on the parallel row. Every
-//     chip routes to its own place, so the strip is also the fastest way back in.
 type Tier = 'head' | 'trail' | 'par';
 
 interface Chip {
@@ -126,25 +119,23 @@ export class CybTopbarComponent {
   private readonly router = inject(Router);
   private readonly svc = inject(CybService);
 
-  /** 'map' | 'ladder' — chips route within the current view. */
   readonly view = input<'map' | 'ladder'>('map');
   readonly surahs = input<Surah[]>([]);
-  /** The flattened cyb tree. */
+
   readonly nodes = input<CybNodeTree[]>([]);
-  /** Where the user already is — the strip never repeats what the URL says. */
+
   readonly surahId = input<number | null>(null);
   readonly passageNo = input<number | null>(null);
   readonly stream = input<string | null>(null);
   readonly root = input<string | null>(null);
 
   readonly q = signal('');
-  /** ayah-range key ("44:1-9") → passage_no, so chips route precisely. */
+
   private readonly passageIndex = signal<Record<string, number>>({});
   private readonly indexed = new Set<number>();
 
   constructor() {
-    // Resolve passage numbers for whichever surahs are in build. Runs whenever
-    // the tree arrives or changes — the nodes input is empty on first paint.
+
     effect(() => {
       for (const n of this.nodes()) {
         if (n.scale !== 'surah' || n.build_pct <= 0) continue;
@@ -163,16 +154,15 @@ export class CybTopbarComponent {
     });
   }
 
-  // ── search ────────────────────────────────────────────────────────────────
   private normEn(v: string): string {
     return (v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
   }
   private normAr(v: string): string {
     return (v ?? '')
-      .replace(/[ً-ْٰـ]/g, '') // ḥarakāt + taṭwīl
-      .replace(/[آأإٱ]/g, 'ا') // آ أ إ ٱ → ا
-      .replace(/ى/g, 'ي')                     // ى → ي
-      .replace(/ة/g, 'ه');                    // ة → ه
+      .replace(/[ً-ْٰـ]/g, '')
+      .replace(/[آأإٱ]/g, 'ا')
+      .replace(/ى/g, 'ي')
+      .replace(/ة/g, 'ه');
   }
 
   readonly matches = computed<Surah[]>(() => {
@@ -195,7 +185,6 @@ export class CybTopbarComponent {
   openSurah(id: number) { this.q.set(''); this.go([`/cybernetics/${this.view()}`, id]); }
   jumpFirst() { const m = this.matches(); if (m.length) this.openSurah(m[0].id); }
 
-  // ── the active trail ──────────────────────────────────────────────────────
   private get base() { return `/cybernetics/${this.view()}`; }
 
   private inBuild(list: CybNodeTree[]): CybNodeTree[] {
@@ -210,7 +199,7 @@ export class CybTopbarComponent {
     if (n) n.children.forEach(walk);
     return out;
   }
-  /** "QR:SP:44:1-9" → "44:1-9" */
+
   private pkey(p: CybNode | undefined) { return (p?.target_ref ?? '').replace(/^QR:SP:/, ''); }
   private pno(p: CybNode | undefined): number | null { return this.passageIndex()[this.pkey(p)] ?? null; }
   private rootName(n: CybNode): string { return (n.target_ref ?? '').split(':').pop() ?? ''; }
@@ -236,17 +225,11 @@ export class CybTopbarComponent {
              route: pno ? [this.base, sid, pno, n.layer!] : null };
   }
   private rootChip(n: CybNodeTree, sid: number, pno: number | null, tier: Tier): Chip {
-    // Stays in the view you are in — the ladder marks the root on its own rung
-    // and hands off to the map only when you open the dashboard itself.
+
     return { kind: 'root', ar: this.rootName(n), label: '', pct: n.build_pct, tier,
              route: pno ? [this.base, sid, pno, 'vocabulary', this.rootName(n)] : null };
   }
 
-  /**
-   * How far down the passage the work has actually reached: which stream-system
-   * is live, and then the root inside it. The stream shown is the one that owns
-   * the leading root, so the trail reads as one continuous descent.
-   */
   private leafChips(p: CybNodeTree, sid: number): Chip[] {
     const pno = this.pno(p);
     const roots = this.inBuild(this.descend(p).filter((n) => n.scale === 'piece' && n.piece_kind === 'root'));
@@ -262,12 +245,10 @@ export class CybTopbarComponent {
     return stages.length ? [this.streamChip(stages[0], sid, pno, 'trail')] : [];
   }
 
-  /** The head + whatever is still active below it, thinner at each step. */
   readonly trail = computed<Chip[]>(() => {
     const sid = this.surahId();
     const su = this.surahNode(sid);
 
-    // Nothing in the URL yet — the whole Qurʾān is the scope.
     if (!sid) {
       const top = this.inBuild(this.nodes().filter((n) => n.scale === 'surah'))[0];
       if (!top) return [];
@@ -281,7 +262,7 @@ export class CybTopbarComponent {
 
     const pno = this.passageNo();
     const passages = this.inBuild(this.kids(su, 'passage'));
-    // At the surah, the passage is the head and the deepest active trails off it.
+
     if (!pno) {
       const p = passages[0];
       if (!p) return [];
@@ -292,17 +273,13 @@ export class CybTopbarComponent {
     if (!here) return [];
     const out: Chip[] = [this.passageChip(here, sid, 'head')];
 
-    // Inside a stream or a root the URL already names them, so the trail just
-    // confirms their readings; at the passage itself it carries on down to the
-    // live stream-system and the root inside it.
     const st = this.stream();
     if (!st) return [...out, ...this.leafChips(here, sid)];
     {
       const stage = this.kids(here, 'stage').find((n) => n.layer === st);
       if (stage) out.push(this.streamChip(stage, sid, pno, 'trail'));
       const rn = this.root();
-      // Standing in a stream, the trail still names the root it is working on —
-      // the one the URL selected, or the leading one on this layer.
+
       const rNode = rn
         ? this.descend(here).find((n) => n.scale === 'piece' && n.piece_kind === 'root' && this.rootName(n) === rn)
         : this.inBuild(this.descend(stage).filter((n) => n.scale === 'piece' && n.piece_kind === 'root'))[0];
@@ -311,7 +288,6 @@ export class CybTopbarComponent {
     return out;
   });
 
-  /** Siblings in build at the head's own level — the genuinely parallel work. */
   readonly parallel = computed<Chip[]>(() => {
     const head = this.trail()[0];
     if (!head) return [];
@@ -330,8 +306,6 @@ export class CybTopbarComponent {
     if (!here) return [];
     const pno = this.pno(here);
 
-    // Deep in a root, the parallel row is its sibling roots; in a stream, the
-    // sibling streams; otherwise the surah's other passages in build.
     if (rn) {
       return this.inBuild(this.descend(here).filter((n) => n.scale === 'piece' && n.piece_kind === 'root'))
         .filter((n) => this.rootName(n) !== rn).slice(0, 8)
@@ -341,8 +315,7 @@ export class CybTopbarComponent {
       return this.inBuild(this.kids(here, 'stage')).filter((n) => n.layer !== st)
         .map((n) => this.streamChip(n, sid, pno, 'par'));
     }
-    // Standing at the passage, the parallel work is its other live streams —
-    // the one already on the trail is not repeated.
+
     if (this.passageNo()) {
       const shown = this.trail().find((c) => c.kind === 'stream')?.label;
       return this.inBuild(this.kids(here, 'stage')).filter((n) => n.layer !== shown)

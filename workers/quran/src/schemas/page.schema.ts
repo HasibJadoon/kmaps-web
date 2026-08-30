@@ -1,5 +1,3 @@
-// ─── Page schemas & types ─────────────────────────────────────────────────────
-
 export type QrPageLineKind = 'ayah' | 'surah_name' | 'basmallah';
 
 export const QR_MIN_PAGE = 1;
@@ -88,8 +86,6 @@ export interface QrSurahPages {
   surah_id: number;
   pages: number[];
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

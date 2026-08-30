@@ -1,8 +1,4 @@
-// ─── SurahProfileRepo — qr_surah_profile + qr_surah_atomic_profile + qr_surah_ayah_meta ─
-
 import { query, queryOne, execute } from '../../../shared/src/db';
-
-// ── Row shapes ─────────────────────────────────────────────────────────────────
 
 export interface SurahProfile {
   surah: number;
@@ -68,12 +64,8 @@ export interface SurahAyahMetaUpsert {
   sajda?: number;
 }
 
-// ── Repo ───────────────────────────────────────────────────────────────────────
-
 export class SurahProfileRepo {
   constructor(private db: D1Database) {}
-
-  // ── qr_surah_profile ──────────────────────────────────────────────────────
 
   findBySurah(surahId: number): Promise<SurahProfile | null> {
     return queryOne<SurahProfile>(
@@ -126,8 +118,6 @@ export class SurahProfileRepo {
     return this.findBySurah(surahId);
   }
 
-  // ── qr_surah_atomic_profile ───────────────────────────────────────────────
-
   findAtomicBySurah(surahId: number): Promise<SurahAtomicProfile | null> {
     return queryOne<SurahAtomicProfile>(
       this.db,
@@ -179,9 +169,6 @@ export class SurahProfileRepo {
     return this.findAtomicBySurah(surahId);
   }
 
-  // ── qr_surah_ayah_meta ─────────────────────────────────────────────────────
-
-  /** All ayah-meta rows for a surah, ordered by ayah number. */
   ayahMeta(surahId: number): Promise<SurahAyahMeta[]> {
     return query<SurahAyahMeta>(
       this.db,

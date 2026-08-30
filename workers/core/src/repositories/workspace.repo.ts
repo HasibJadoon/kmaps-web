@@ -1,16 +1,12 @@
-// ─── WorkspaceRepo — all SQL for core_workspaces ─────────────────────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions, PaginatedRows } from '../../../shared/src/types';
 import type { Workspace, WorkspaceCreate, WorkspacePatch } from '../schemas/workspace.schema';
 
-/** A workspace row plus its member count, used in list views. */
 export interface WorkspaceSummary extends Workspace {
   member_count: number;
 }
 
-/** A workspace member joined with the user's display fields. */
 export interface WorkspaceMemberRow {
   id: string;
   user_id: string;
@@ -50,7 +46,6 @@ export class WorkspaceRepo {
     return queryOne<Workspace>(this.db, `SELECT ${COLS} FROM core_workspaces WHERE slug = ?`, [slug]);
   }
 
-  /** Workspaces the user owns or is a member of, each with a member count. */
   byUser(userId: string, opts: PaginateOptions = {}): Promise<PaginatedRows<WorkspaceSummary>> {
     return paginate<WorkspaceSummary>(
       this.db,
@@ -96,7 +91,6 @@ export class WorkspaceRepo {
       ],
     );
 
-    // Register the creator as the workspace owner-member.
     await execute(
       this.db,
       `INSERT INTO core_workspace_members
@@ -108,7 +102,6 @@ export class WorkspaceRepo {
     return (await this.findById(id))!;
   }
 
-  /** Every workspace, with member counts — admin-wide listing. */
   listAll(opts: PaginateOptions = {}): Promise<PaginatedRows<WorkspaceSummary>> {
     return paginate<WorkspaceSummary>(
       this.db,
@@ -150,8 +143,6 @@ export class WorkspaceRepo {
       [workspaceId],
     );
   }
-
-  // ── Member management ──
 
   findMemberById(memberId: string): Promise<WorkspaceMemberRow | null> {
     return queryOne<WorkspaceMemberRow>(

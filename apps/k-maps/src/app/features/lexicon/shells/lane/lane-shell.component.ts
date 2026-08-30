@@ -1,10 +1,3 @@
-// ─── Lane shell ────────────────────────────────────────────────────────────
-// Wraps the bilingual lane-reader in the same dockview layout (left rail
-// = root index, right rail = authorities + Quran refs + cross-refs).
-// Data shape is genuinely different from the classical-lexicon shell
-// (verb-form-keyed sections, scholarly sigla, English/Arabic interleave)
-// so Lane gets its own shell instead of sharing.
-
 import {
   AfterViewInit, ChangeDetectionStrategy, Component, DestroyRef, ElementRef,
   HostListener, ViewChild, computed, inject, signal,
@@ -65,9 +58,6 @@ export class LaneShellComponent implements AfterViewInit {
   readonly view        = signal<LaneReadView | null>(null);
   readonly error       = signal<string | null>(null);
 
-  // Lane's ṣarf trees are generated from its own `lane_itype` — 3,957 families
-  // over 14,155 forms — and ride the generic entry endpoint, not this shell's
-  // `/read/lane_lexicon` composer, so they are fetched alongside the article.
   readonly sarf = signal<LexV2SarfFamily | null>(null);
 
   readonly rootList        = signal<LexV2RootRow[]>([]);
@@ -113,7 +103,7 @@ export class LaneShellComponent implements AfterViewInit {
     combineLatest([this.route.paramMap, this.route.queryParamMap])
       .pipe(takeUntilDestroyed())
       .subscribe(([params, query]) => {
-        // Root-centric URL: /lexicon/root/:root?book=<slug>.
+
         const book = query.get('book') ?? '';
         if (book !== LANE_SLUG) return;
         if (this.rootList().length === 0) this.loadRoots();
@@ -154,18 +144,6 @@ export class LaneShellComponent implements AfterViewInit {
     }
   }
 
-  /**
-   * Invalidate the reading column's paint once a rail animation finishes.
-   *
-   * `.content` is the scroll container and the toggle transitions its
-   * `padding-inline`, so every rail toggle re-lays-out the column. Chromium can
-   * finish that transition still holding a stale tile for descendants that clip
-   * on a rounded boundary — the ṣarf panel and its form cards — and a band of the
-   * page keeps painting at its old offset. The geometry is already correct at
-   * that point (a forced reflow re-measures identically), so this only nudges the
-   * compositor to re-rasterise; it deliberately does not promote a layer, which
-   * would cost memory on every scroll for the rest of the session.
-   */
   private repaintContent() {
     const el = this.contentRef?.nativeElement;
     if (!el) return;
@@ -264,7 +242,7 @@ export class LaneShellComponent implements AfterViewInit {
       this.loading.set(false);
       queueMicrotask(() => this.contentRef?.nativeElement.scrollTo({ top: 0 }));
     });
-    // In parallel — a late response for an abandoned root must not land.
+
     this.api.getSarfFamily(LANE_SLUG, root_norm).pipe(
       takeUntilDestroyed(this.destroyRef),
     ).subscribe(f => { if (this.currentRoot() === root_norm) this.sarf.set(f); });
@@ -277,16 +255,10 @@ export class LaneShellComponent implements AfterViewInit {
     });
   }
   openCrossRef(target: string) {
-    // Same source, different root
+
     this.goToRoot(target);
   }
 
-  // ── Copy entire root entry as plain text ──────────────────────────────
-  //
-  // Converts the token stream into bilingual Arabic+English prose
-  // suitable for pasting into notes, citations, or Anki cards. Sigla are
-  // surfaced as `(M, Ṣ)`, Quran refs as `[2:143]`, and form/sense headers
-  // get classical numeric labels (I., II., A1., A2.).
   copyRoot() {
     const v = this.view();
     if (!v) return;

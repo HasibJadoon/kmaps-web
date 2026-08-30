@@ -1,23 +1,16 @@
-// ─── Nahw / Syntax schemas & types ────────────────────────────────────────────
-// Tables: ar_ling_nahw_concepts, ar_ling_nahw_relations,
-//         ar_ling_sentence_types, ar_ling_clause_types,
-//         ar_ling_phrase_types, ar_ling_syntax_relation_types
-
-// ── ar_ling_nahw_concepts ─────────────────────────────────────────────────────
-
 export interface ArLingNahwConcept {
-  id: string;                        // typed ref, e.g. AL:nahw:mubtada
-  parent_id: string | null;          // self-ref for hierarchy
+  id: string;
+  parent_id: string | null;
   concept_name_ar: string;
   concept_name_en: string;
   concept_type: string;
-  // 'rule'|'term'|'category'|'function'|'phenomenon'|'irab_case'|'particle_class'
+
   definition_ar: string | null;
   definition_en: string | null;
   example_ar: string | null;
-  irab_label: string | null;         // e.g. 'مبتدأ'|'خبر'|'فاعل'
-  discipline_unit_id: string | null; // FK → ar_ling_discipline_units.id
-  source_ref: string | null;         // AL:<ar_ling_source.id>
+  irab_label: string | null;
+  discipline_unit_id: string | null;
+  source_ref: string | null;
   note_md: string | null;
   created_at: string;
 }
@@ -77,14 +70,12 @@ export function validateArLingNahwConceptCreate(
   };
 }
 
-// ── ar_ling_nahw_relations ────────────────────────────────────────────────────
-
 export interface ArLingNahwRelation {
-  id: string;                // AL:ULID
-  from_concept_id: string;   // FK → ar_ling_nahw_concepts.id
-  to_concept_id: string;     // FK → ar_ling_nahw_concepts.id
+  id: string;
+  from_concept_id: string;
+  to_concept_id: string;
   relation_type: string;
-  // 'governs'|'subcategory_of'|'requires'|'conflicts_with'|'example_of'|'related_to'
+
   note_md: string | null;
 }
 
@@ -116,14 +107,12 @@ export function validateArLingNahwRelationCreate(
   };
 }
 
-// ── ar_ling_sentence_types ────────────────────────────────────────────────────
-
 export interface ArLingSentenceType {
-  id: string;              // AL:ULID
+  id: string;
   name_ar: string;
   name_en: string;
   sentence_class: string;
-  // 'ismiyyah'|'fi_liyyah'|'conditional'|'interrogative'|'nominal_verbless'|'other'
+
   description_md: string | null;
 }
 
@@ -162,14 +151,12 @@ export function validateArLingSentenceTypeCreate(
   };
 }
 
-// ── ar_ling_clause_types ──────────────────────────────────────────────────────
-
 export interface ArLingClauseType {
-  id: string;                     // AL:ULID
+  id: string;
   name_ar: string;
   name_en: string;
   clause_function: string | null;
-  // 'sifah'|'hal'|'maf_ul'|'relative'|'conditional_protasis'|'conditional_apodosis'|'other'
+
   description_md: string | null;
 }
 
@@ -206,14 +193,12 @@ export function validateArLingClauseTypeCreate(
   };
 }
 
-// ── ar_ling_phrase_types ──────────────────────────────────────────────────────
-
 export interface ArLingPhraseType {
-  id: string;                   // AL:ULID
+  id: string;
   name_ar: string;
   name_en: string;
   phrase_class: string | null;
-  // 'idafa'|'na_t'|'tawkid'|'hal_phrase'|'jar_majrur'|'mubtada_khabar'|'other'
+
   description_md: string | null;
 }
 
@@ -250,10 +235,8 @@ export function validateArLingPhraseTypeCreate(
   };
 }
 
-// ── ar_ling_syntax_relation_types ─────────────────────────────────────────────
-
 export interface ArLingSyntaxRelationType {
-  id: string;                   // AL:ULID
+  id: string;
   name_ar: string;
   name_en: string;
   description_md: string | null;
@@ -289,19 +272,15 @@ export function validateArLingSyntaxRelationTypeCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface NahwConcept {
-  id: string;           // AL:ULID
-  concept_key: string;  // e.g. 'mubtada', 'khabar', 'fail'
+  id: string;
+  concept_key: string;
   label_ar: string;
   label_en: string;
-  category: string;     // syntax | morphology | grammar
+  category: string;
   description: string | null;
-  parent_id: string | null;  // AL:ULID (for hierarchical tree)
+  parent_id: string | null;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

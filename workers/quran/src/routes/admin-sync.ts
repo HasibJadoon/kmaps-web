@@ -1,14 +1,3 @@
-// ─── /qr/admin/sync — cross-domain projection sync jobs ───────────────────────
-// Backfills qr_morph_display_root.al_root_ref (added in QR migration 0009) by
-// resolving each display root's canonical AL id through the AR_LINGUISTICS
-// service binding — never by binding AL's D1 database directly (domain rule).
-//
-// AL owns root identity; qr_morph_display_root is a render cache. This job makes
-// the cache carry a typed 'AL:<ar_ling_roots.id>' pointer back to the source of
-// truth and stamps content_synced_at. It does not rewrite the cached content
-// columns (a fuller refresh can fetch /al/roots/:id later) — it establishes the
-// reference so the two can never silently drift.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import type { QuranEnv } from '../env';
@@ -22,18 +11,16 @@ interface AlRoot {
   meaning_core_ar?: string;
 }
 
-/** Pull the first matching AL root for a surface root string. */
 async function resolveAlRoot(al: Fetcher, rootAr: string): Promise<AlRoot | null> {
   const url = `https://al/al/roots/search?q=${encodeURIComponent(rootAr)}&per_page=1`;
   const res = await al.fetch(new Request(url));
   if (!res.ok) return null;
   const body = (await res.json()) as { data?: AlRoot[]; results?: AlRoot[] };
   const rows = body.data ?? body.results ?? [];
-  // Prefer an exact surface match; else fall back to the top hit.
+
   return rows.find((r) => r.root_text === rootAr) ?? rows[0] ?? null;
 }
 
-/** Fetch the full canonical root record by id (for content refresh). */
 async function fetchAlRoot(al: Fetcher, id: string): Promise<AlRoot | null> {
   const res = await al.fetch(new Request(`https://al/al/roots/${encodeURIComponent(id)}`));
   if (!res.ok) return null;
@@ -42,12 +29,7 @@ async function fetchAlRoot(al: Fetcher, id: string): Promise<AlRoot | null> {
 }
 
 export function adminSyncRoutes(router: Router<QuranEnv>) {
-  // POST /qr/admin/sync/al-root-ref?force=1&refresh=1
-  //   force=1   re-resolves rows that already have an al_root_ref.
-  //   refresh=1 also re-projects the cached content columns (meaning_core_*,
-  //             root_type, frequency_quran) from the canonical AL root record.
-  //             (Trilingual hooks / family_json come from AL DNA and need a
-  //             dedicated AL display endpoint — left as a follow-up.)
+
   router.post('/qr/admin/sync/al-root-ref', async (req, env) => {
     const al = env.AR_LINGUISTICS;
     if (!al) return badRequest('AR_LINGUISTICS service binding not configured');

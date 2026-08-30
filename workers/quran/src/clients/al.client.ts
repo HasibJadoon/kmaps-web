@@ -1,28 +1,14 @@
-// ─── AR_LINGUISTICS service client (from QR) ─────────────────────────────────
-// Wraps callService() with typed return shapes for the AL routes QR needs.
-// Rule: QR never binds DB_AL directly — all AL data comes through this client.
-
 import { callService } from '../../../shared/src/service-client';
 import type { QuranEnv } from '../env';
 
 export interface LemmaInfo {
-  id: string;           // AL:ULID
+  id: string;
   root_text: string | null;
   lemma_ar: string;
   pos: string | null;
   gloss_en: string | null;
 }
 
-/** The lemma tier as `/al/lemmas/resolve` returns it, keyed by AL lemma id.
- *
- *  Deliberately structural rather than exhaustive: QR names the few fields the
- *  grid card renders and passes the rest through untouched, so a new field on
- *  the AL side reaches the app without a change here. `status` rides on every
- *  row because most of this layer is still draft — AL returns it rather than
- *  filtering, and the caller decides what it will show.
- *
- *  This is the whole point of the tier: the sense of كتاب is one row in AL, and
- *  all 260 occurrences resolve to it. Nothing is copied into km_quran. */
 export interface ResolvedLemma {
   id: string;
   lemma_ar: string;
@@ -53,7 +39,7 @@ export interface ResolvedLemma {
 }
 
 export interface MorphologyInfo {
-  id: string;           // AL:ULID
+  id: string;
   form_ar: string;
   stem_type: string | null;
   pattern: string | null;
@@ -75,7 +61,6 @@ export class AlClient {
     return callService(this.fetcher, `/al/lemmas/${encodeURIComponent(id)}`);
   }
 
-  /** Table-sourced expressions for a passage's surah:ayah range. */
   getExpressionsByQuran(
     surah: number,
     from: number,
@@ -98,7 +83,6 @@ export class AlClient {
     );
   }
 
-  /** Deep root layer for the word modal — batched by root_norm. */
   getWordAnalysis(roots: string[]): Promise<{ ok: true; data: Record<string, unknown> }> {
     return callService(
       this.fetcher,
@@ -106,9 +90,6 @@ export class AlClient {
     );
   }
 
-  /** Lemma tier for a whole passage in one call — batched by AL lemma id.
-   *  The counterpart to `getWordAnalysis`: that resolves the root tier, this
-   *  the lemma tier, and between them km_quran needs to store neither. */
   resolveLemmas(ids: string[]): Promise<{ ok: true; data: Record<string, ResolvedLemma> }> {
     return callService(
       this.fetcher,
@@ -117,7 +98,6 @@ export class AlClient {
   }
 }
 
-/** Create an AlClient from a QuranEnv, or return null if binding is absent. */
 export function createAlClient(env: QuranEnv): AlClient | null {
   return env.AR_LINGUISTICS ? new AlClient(env.AR_LINGUISTICS) : null;
 }

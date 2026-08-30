@@ -153,7 +153,6 @@ export const PageLink = Node.create<PageLinkOptions>({
       });
       editBtn.addEventListener('click', navigate);
 
-      // Sync latest title from the CM API so renames are reflected
       const docId = node.attrs['doc_id'];
       if (docId) {
         const token = localStorage.getItem('km_token');
@@ -165,7 +164,7 @@ export const PageLink = Node.create<PageLinkOptions>({
             const fetchedTitle = res.data?.title;
             if (fetchedTitle && fetchedTitle !== title.textContent) {
               title.textContent = fetchedTitle;
-              // Update stored attr so it persists on next save
+
               const pos = typeof getPos === 'function' ? getPos() : null;
               if (pos != null) {
                 editor.chain().command(({ tr }) => {

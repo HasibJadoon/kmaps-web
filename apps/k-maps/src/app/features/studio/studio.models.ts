@@ -1,8 +1,3 @@
-// ─── Episode Studio — shared models ───────────────────────────────────────────
-// Mirrors the km-studio (ST) worker API shapes. An episode is the authored
-// aggregate: ordered sections, each owning ordered talking points, with each
-// point optionally assigned to one participant.
-
 export type EpisodeFormat =
   | 'podcast' | 'tutorial' | 'talking_head' | 'conversation' | 'solo';
 
@@ -29,7 +24,6 @@ export interface TemplateStructureParticipant {
   display_name?: string;
 }
 
-/** A template blueprint — expanded into episode rows on create. */
 export interface TemplateStructure {
   participants?: TemplateStructureParticipant[];
   sections?: TemplateStructureSection[];
@@ -64,7 +58,7 @@ export interface Participant {
   color: string;
   role: ParticipantRole;
   seq: number;
-  /** CORE account this cast member is, or null when unlinked. */
+
   core_user_ref: string | null;
 }
 
@@ -74,12 +68,11 @@ export interface TalkingPoint {
   episode_ref: string;
   text: string;
   speaker_ref: string | null;
-  /** Talking-head: the transition / question that bridges into the next card. */
+
   bridge: string | null;
   est_seconds: number | null;
   seq: number;
-  /** The beats under the main point. A sub-point has no identity of its own —
-   *  never assigned, never played separately — so it rides on the card. */
+
   subs_json?: string[] | string | null;
 }
 
@@ -109,8 +102,6 @@ export function formatLabel(format: string): string {
   return EPISODE_FORMATS.find((f) => f.id === format)?.label ?? format;
 }
 
-// ── Live sessions ──────────────────────────────────────────────────────────────
-
 export interface SessionInfo {
   session_id: string;
   room_code: string;
@@ -120,23 +111,19 @@ export interface SessionInfo {
   host: boolean;
 }
 
-/** The synced position broadcast by the EpisodeSession Durable Object.
- *  section / point are -1 in the lobby (before the host starts). */
 export interface LiveCursor {
   section: number;
   point: number;
 }
 
-/** A connected screen in a live session — identified from the joiner's account. */
 export interface RosterEntry {
   role: 'host' | 'viewer';
-  /** ST participant id this connection resolved to, or null for an un-named guest. */
+
   participantId: string | null;
   name: string | null;
   color: string | null;
 }
 
-/** Post-session summary — the episode as covered, plus session timing. */
 export interface SessionRecap {
   session_id: string;
   room_code: string;

@@ -1,6 +1,3 @@
-// ─── /qr/surahs/:id/worldview routes ─────────────────────────────────────────
-// Surah-scoped worldview projection data owned by the Quran worker.
-
 import type { Router } from '../../../shared/src/router';
 import { badRequest, ok } from '../../../shared/src/response';
 import { parseIntParam, parsePagination } from '../../../shared/src/validate';
@@ -12,11 +9,6 @@ function parseSurahId(id: string): number | null {
   return surahId && surahId >= 1 && surahId <= 114 ? surahId : null;
 }
 
-/** The hub's counts, honest by construction: `documents` is a real read;
- *  `nodes`, `sources` and `notes` are null — unmeasured — until the
- *  km_worldview bindings are audited. A fabricated 0 is the one thing this
- *  must never return: three of the four counts were structurally incapable of
- *  being non-zero, and rendered as data for every surah in the corpus. */
 function hub(surahId: number, documents: number) {
   return {
     ok: true,
@@ -72,7 +64,7 @@ export function worldviewRoutes(router: Router<QuranEnv>) {
     if (!surahId) return badRequest('Invalid surah ID');
 
     const repo = new ProjectionRepo(env.DB_QR);
-    // No catch-to-zero: a failed read must surface, not report an empty hub.
+
     const documents = await repo.docLinksForSurah(surahId);
     return ok(hub(surahId, documents.length));
   });
@@ -81,8 +73,6 @@ export function worldviewRoutes(router: Router<QuranEnv>) {
     const surahId = parseSurahId(id);
     if (!surahId) return badRequest('Invalid surah ID');
 
-    // qr_worldview_nodes has never existed; until the worldview bindings are
-    // audited this scope is unmeasured, and says so.
     return ok({ ok: true, surahId, total: null, nodes: [], unmeasured: true });
   });
 

@@ -1,7 +1,5 @@
-// ─── Domain schemas & types ───────────────────────────────────────────────────
-
 export interface ArDomain {
-  id: string;                        // AR:ULID
+  id: string;
   slug: string;
   title: string;
   title_ar: string | null;
@@ -26,16 +24,14 @@ export interface ArDomainPatch {
   sort_order?: number;
 }
 
-// ─── Domain Phrase ────────────────────────────────────────────────────────────
-
 export interface ArDomainPhrase {
-  id: string;                        // AR:ULID
+  id: string;
   domain_id: string;
   arabic: string;
   transliteration: string | null;
   meaning_en: string;
   usage_context: string | null;
-  level: string | null;              // A1–C2
+  level: string | null;
   vocab_id: string | null;
   created_at: string;
 }
@@ -59,17 +55,15 @@ export interface ArDomainPhrasePatch {
   vocab_id?: string | null;
 }
 
-// ─── Scenario ─────────────────────────────────────────────────────────────────
-
 export interface ArScenario {
-  id: string;                        // AR:ULID
+  id: string;
   domain_id: string;
   title: string;
   title_ar: string | null;
   scenario_type: string;
-  level: string | null;              // A1–C2
+  level: string | null;
   description_md: string | null;
-  vocab_set_json: string | null;     // JSON [vocab_id]
+  vocab_set_json: string | null;
   meta_json: string | null;
   created_at: string;
 }
@@ -92,8 +86,6 @@ export interface ArScenarioPatch {
   vocab_set_json?: string | null;
   meta_json?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 export function validateArDomainCreate(
   body: unknown,
@@ -176,8 +168,6 @@ export function validateArScenarioCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface Domain {
   id: string;
   slug: string;
@@ -204,7 +194,7 @@ export interface DomainPhrase {
   meaning_en: string;
   usage_context: string | null;
   level: string | null;
-  vocab_id: string | null;    // link to ar_vocabulary if exists
+  vocab_id: string | null;
   created_at: string;
 }
 
@@ -222,10 +212,10 @@ export interface Scenario {
   domain_id: string;
   title: string;
   title_ar: string | null;
-  scenario_type: string;      // dialogue|reading|listening|writing|speaking|other
+  scenario_type: string;
   level: string | null;
   description_md: string | null;
-  vocab_set_json: string | null;  // JSON [vocab_id]
+  vocab_set_json: string | null;
   meta_json: string | null;
   created_at: string;
 }
@@ -239,8 +229,6 @@ export interface ScenarioCreate {
   vocab_set_json?: string | null;
   meta_json?: string | null;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

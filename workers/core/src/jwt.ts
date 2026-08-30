@@ -1,7 +1,3 @@
-// ─── HS256 JWT signing (SubtleCrypto) ─────────────────────────────────────────
-// CORE is the token authority. Both the password login and the OAuth login
-// issue tokens through signJwt so every token has an identical shape.
-
 function base64url(bytes: Uint8Array): string {
   let str = '';
   for (const b of bytes) str += String.fromCharCode(b);
@@ -26,7 +22,6 @@ export async function signJwt(
   return `${header}.${body}.${base64url(new Uint8Array(sig))}`;
 }
 
-/** Issue a session token for an authenticated user. */
 export async function issueSessionToken(
   user: { id: string; role: string },
   secret: string,
@@ -40,7 +35,7 @@ export async function issueSessionToken(
     iat: now,
     exp: now + expirySeconds,
   };
-  // `mcp` — the holder must set a new password before using the app.
+
   if (opts.mustChangePassword) payload['mcp'] = 1;
   const token = await signJwt(payload, secret);
   return { token, expires_in: expirySeconds };

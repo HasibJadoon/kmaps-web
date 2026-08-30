@@ -1,7 +1,3 @@
-// ─── DocumentRepo — cm_documents aggregate ────────────────────────────────────
-// Canonical document storage for authored CM content. Documents own structured
-// blocks and versions; cross-module relationships are stored as typed refs.
-
 import { execute, executeBatch, paginate, query, queryOne } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';

@@ -1,7 +1,5 @@
-// ─── Publication schemas & types ──────────────────────────────────────────────
-
 export interface CmPublication {
-  pub_id: string;             // CM:ULID
+  pub_id: string;
   core_user_ref: string;
   doc_ref: string | null;
   asset_ref: string | null;
@@ -22,7 +20,7 @@ export interface CmPublication {
 }
 
 export interface CmShareLink {
-  link_id: string;            // CM:ULID
+  link_id: string;
   resource_ref: string;
   core_user_ref: string;
   token: string;
@@ -36,7 +34,7 @@ export interface CmShareLink {
 }
 
 export interface CmDistribution {
-  dist_id: string;            // CM:ULID
+  dist_id: string;
   pub_id: string;
   channel: string;
   channel_config_json: string | null;
@@ -165,8 +163,6 @@ export function validateCmShareLinkCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface CmPublicationInput {
   core_user_ref: string;
   doc_ref?: string | null;
@@ -200,8 +196,6 @@ export interface CmDistributionInput {
   channel_config_json?: string;
   meta_json?: string;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

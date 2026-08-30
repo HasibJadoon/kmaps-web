@@ -1,27 +1,22 @@
-// ─── NodeRepo — wv_nodes + wv_node_edges ──────────────────────────────────────
-// Knowledge graph nodes (concepts, claims, themes) and their edges.
-// node_type and relation_type are the canonical ontology for the civilizational
-// reasoning engine.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface WvNode {
-  id: string;               // WV:ULID
-  node_type: string;        // concept|claim|theme|tafsir_view|event|institution
+  id: string;
+  node_type: string;
   title: string;
   summary: string | null;
-  tradition_id: string | null; // WV:ULID
+  tradition_id: string | null;
   status: string;
   created_at: string;
 }
 
 export interface WvEdge {
-  id: string;               // WV:ULID
+  id: string;
   from_node_id: string;
   to_node_id: string;
-  relation_type: string;    // supports|contradicts|related_to|part_of|etc.
+  relation_type: string;
   note: string | null;
   created_at: string;
 }
@@ -66,7 +61,6 @@ export class NodeRepo {
     );
   }
 
-  /** Outgoing edges from a node. */
   edges(nodeId: string): Promise<WvEdge[]> {
     return query<WvEdge>(
       this.db,

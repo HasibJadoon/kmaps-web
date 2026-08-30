@@ -1,9 +1,3 @@
--- بين is the reference entry, and its hand-written titles sat on the legacy
--- e1.p* blocks, which cover only the بين half of the article — the ناب taqlīb
--- was never blocked. The rendered tree therefore came from the machine cut
--- (e1.a*), which is complete but plainer. Carry the hand-written wording onto
--- the complete cut so the reference entry reads as authored end to end.
-
 UPDATE ar_ling_lexicon_block SET title_ar = 'البائن: أحد الحالبَيْن'
   WHERE id IN (SELECT id FROM ar_ling_lexicon_block WHERE source_slug='khalil_kitab_ayn' AND root_norm='بين' AND block_path='e1.a1');
 UPDATE ar_ling_lexicon_block SET title_ar = 'شاهد الكميت'

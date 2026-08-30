@@ -7,12 +7,6 @@ import {
   QuranSurahService, MorphWordView, MorphBlockVm, Tri, Lang,
 } from '../../../../../../../../shared/services/quran/quran-surah.service';
 
-/**
- * Morphology Word View — the full-screen, GSAP-animated word study surface.
- * Pure renderer: it binds the trilingual, tier-merged blocks the display layer
- * ships (qr_morph_display_*). Arabic terms stay Arabic; the understanding layer
- * switches EN · ع · UR. Zero content logic here — only presentation.
- */
 @Component({
   selector: 'km-morph-word-modal',
   standalone: true,
@@ -37,14 +31,13 @@ export class MorphWordModalComponent implements OnInit, AfterViewInit {
   readonly loading = signal(true);
   readonly error = signal(false);
   readonly lang = signal<Lang>('en');
-  /** Reader font scale (both Arabic & English), persisted per session. */
+
   readonly fontScale = signal(this.readScale());
 
   readonly word = computed(() => this.view()?.word ?? null);
   readonly blocks = computed<MorphBlockVm[]>(() => this.view()?.blocks ?? []);
   readonly sources = computed(() => this.view()?.sources ?? {});
 
-  /** Section nav — one entry per rendered block, its Arabic term as the label. */
   readonly nav = computed(() =>
     this.blocks().map((b, i) => ({ i, label: b.title.ar || b.type, type: b.type })));
 
@@ -88,7 +81,7 @@ export class MorphWordModalComponent implements OnInit, AfterViewInit {
   stepFont(dir: 1 | -1): void {
     const next = Math.min(1.8, Math.max(0.8, +(this.fontScale() + dir * 0.1).toFixed(2)));
     this.fontScale.set(next);
-    try { localStorage?.setItem('km.morph.fontScale', String(next)); } catch { /* ignore */ }
+    try { localStorage?.setItem('km.morph.fontScale', String(next)); } catch {  }
   }
 
   @HostListener('document:keydown.escape')
@@ -106,15 +99,12 @@ export class MorphWordModalComponent implements OnInit, AfterViewInit {
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  // ── trilingual + data helpers (presentation only) ──────────────────────────
-
-  /** Pick the active-language string from a {ar,en,ur} object, EN→AR fallback. */
   t(tri: Tri | null | undefined): string {
     if (!tri) return '';
     const l = this.lang();
     return (tri[l] ?? tri.en ?? tri.ar ?? '') as string;
   }
-  /** Same, for an inline {en,ar,ur} record inside data_json. */
+
   tr(o: any): string {
     if (!o) return '';
     const l = this.lang();
@@ -122,19 +112,17 @@ export class MorphWordModalComponent implements OnInit, AfterViewInit {
   }
   isRtlText(): boolean { return this.lang() !== 'en'; }
 
-  /** Render a hook/emphasis string: *word* → highlighted. */
   emph(s: string | null | undefined): string {
     if (!s) return '';
     return s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
   }
 
-  /** Strip diacritics + normalize alef/wasla so surfaces match across scripts. */
   private norm(s: string): string {
     return s
-      .replace(/[ً-ْٰـ۝]/g, '')  // harakāt, superscript alef, tatweel, end-marker
-      .replace(/[آأإٱ]/g, 'ا');  // آ أ إ ٱ → ا
+      .replace(/[ً-ْٰـ۝]/g, '')
+      .replace(/[آأإٱ]/g, 'ا');
   }
-  /** Split an ayah so the focus surface can be highlighted. */
+
   ayahParts(text: string | null | undefined, surface: string | null | undefined): { t: string; hit: boolean }[] {
     if (!text) return [];
     if (!surface) return [{ t: text, hit: false }];
@@ -149,7 +137,6 @@ export class MorphWordModalComponent implements OnInit, AfterViewInit {
     return (n ?? '').toString().replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[+d]);
   }
 
-  /** Radial layout for the constellation word-web (viewBox 0 0 440 300). */
   constel(data: any): { cx: number; cy: number; nodes: Array<{ x: number; y: number; label: string; kind: string; en: string }> } {
     const cx = 220, cy = 150, nodes = (data?.nodes ?? []) as any[];
     const R = 118;
@@ -166,12 +153,9 @@ export class MorphWordModalComponent implements OnInit, AfterViewInit {
     return kind === 'aspect' ? '#8878e2' : kind === 'anchor' ? '#eacd75' : '#6db3e6';
   }
 
-  /** Active-recall reveal state for exercise cards (by index). */
   private readonly revealed = new Set<number>();
   isRevealed(i: number): boolean { return this.revealed.has(i); }
   toggleReveal(i: number): void { this.revealed.has(i) ? this.revealed.delete(i) : this.revealed.add(i); }
-
-  // ── Draggable board (worldview-style pannable canvas) ──────────────────────
 
   readonly boardView = signal<'list' | 'board'>('list');
   readonly pos = signal<Record<number, { x: number; y: number }>>({});
@@ -188,12 +172,11 @@ export class MorphWordModalComponent implements OnInit, AfterViewInit {
 
   toggleBoard(): void {
     if (this.boardView() === 'board') { this.boardView.set('list'); return; }
-    if ((window.innerWidth || 0) < 900) return;   // responsive: board only on wide screens
+    if ((window.innerWidth || 0) < 900) return;
     this.boardView.set('board');
     queueMicrotask(() => this.layoutBoard());
   }
 
-  /** Masonry auto-layout: pack blocks into columns by measured height. */
   private layoutBoard(): void {
     const board = this.boardEl?.nativeElement;
     if (!board) return;
@@ -250,13 +233,13 @@ export class MorphWordModalComponent implements OnInit, AfterViewInit {
     this.zoom.set(z);
   }
   resetBoard(): void {
-    try { localStorage?.removeItem(this.storeKey()); } catch { /* ignore */ }
+    try { localStorage?.removeItem(this.storeKey()); } catch {  }
     this.panX.set(0); this.panY.set(0); this.zoom.set(1);
     this.layoutBoard();
   }
 
   private saveBoard(): void {
-    try { localStorage?.setItem(this.storeKey(), JSON.stringify({ pos: this.pos(), panX: this.panX(), panY: this.panY(), zoom: this.zoom() })); } catch { /* ignore */ }
+    try { localStorage?.setItem(this.storeKey(), JSON.stringify({ pos: this.pos(), panX: this.panX(), panY: this.panY(), zoom: this.zoom() })); } catch {  }
   }
   private loadBoard(): { pos: Record<number, { x: number; y: number }>; panX: number; panY: number; zoom: number } | null {
     try { const v = localStorage?.getItem(this.storeKey()); return v ? JSON.parse(v) : null; } catch { return null; }

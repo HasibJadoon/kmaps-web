@@ -1,10 +1,3 @@
-// ─── /wv/positions — what each worldview says, and where ──────────────────────
-//
-// Two ends of one question. A reader on a passage asks what has been said about
-// these āyāt; a reader comparing asks what every worldview says about one
-// concept. Both are the same table, and both are one query because the concept
-// id is global.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, created, badRequest, notFound } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
@@ -12,8 +5,6 @@ import { query } from '../../../shared/src/db';
 import type { WorldviewEnv } from '../env';
 import { PositionRepo } from '../repositories/position.repo';
 
-/** Authored content: it changes when someone records a position, not on a
- *  clock. Same TTL the study steps use, and ?refresh=1 bypasses it. */
 const CORPUS_TTL = { browser: 14400, edge: 86400 };
 
 function parseScope(surah: string, range: string) {
@@ -26,7 +17,6 @@ function parseScope(surah: string, range: string) {
 
 export function positionRoutes(router: Router<WorldviewEnv>) {
 
-  // GET /wv/positions/passage/40/1-3 — everything said about these āyāt
   router.get('/wv/positions/passage/:surah/:range', (req, env, { surah, range }) =>
     cached(req, async () => {
       const sc = parseScope(surah, range);
@@ -34,15 +24,13 @@ export function positionRoutes(router: Router<WorldviewEnv>) {
       const repo = new PositionRepo(env.DB_WV);
       const [positions, concepts] = await Promise.all([
         repo.forPassage(sc.s, sc.from, sc.to),
-        // What the passage already touches, so the reader picks a concept
-        // rather than inventing one — the difference between a list and a form.
+
         repo.conceptsForPassage(sc.s, sc.from, sc.to),
       ]);
       return ok({ surah: sc.s, ayahFrom: sc.from, ayahTo: sc.to, concepts, positions });
     }, CORPUS_TTL),
   );
 
-  // GET /wv/positions/concept/CN:theology:tawhid — the comparison itself
   router.get('/wv/positions/concept/:ref', (req, env, { ref }) =>
     cached(req, async () => {
       if (!ref?.startsWith('CN:')) return badRequest('Expected a CN: concept id');
@@ -51,13 +39,11 @@ export function positionRoutes(router: Router<WorldviewEnv>) {
     }, CORPUS_TTL),
   );
 
-  // GET /wv/positions/:id/sources
   router.get('/wv/positions/:id/sources', async (_req, env, { id }) => {
     const rows = await new PositionRepo(env.DB_WV).sources(id);
     return ok(rows);
   });
 
-  // POST /wv/positions — record one, from wherever the reader is
   router.post('/wv/positions', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     const conceptRef  = String(b.concept_ref ?? '');
@@ -77,22 +63,7 @@ export function positionRoutes(router: Router<WorldviewEnv>) {
     });
     return row ? created(row) : notFound('position after insert');
   });
-  // GET /wv/positions/contrast/:surah/:range — the facing pairs.
-  //
-  // The contrast does NOT live in wv_value_positions. Grouping those by
-  // concept_ref produces twenty-four one-sided columns and no argument at all,
-  // because Islam's concepts and secular naturalism's concepts are disjoint
-  // sets — no concept is held by both.
-  //
-  // It lives in the graph. The al-Rūm nodes carry twenty-seven `rebuts` edges
-  // pairing a counter-claim (wck*) to the claim it answers (wcl*), and that
-  // pairing was lost when the positions were lifted out: the lift renumbered
-  // everything sequentially into wcl001–wcl028, so the two sides now look like
-  // one undifferentiated list.
-  //
-  // So the pairs are read from where they still exist. Restoring the link on
-  // wv_value_positions is the proper repair; until then this reads the truth
-  // rather than presenting a contrast the positions table cannot support.
+
   router.get('/wv/positions/contrast/:surah/:range', async (_req, env, { surah, range }) => {
     const [fromStr, toStr] = String(range).split('-');
     const ayahFrom = Number(fromStr);
@@ -119,28 +90,11 @@ export function positionRoutes(router: Router<WorldviewEnv>) {
       surah: Number(surah), ayahFrom, ayahTo,
       scopeRef: `${surah}:${ayahFrom}-${ayahTo}`,
       pairs: rows,
-      // Named so a client can label the two columns without hardcoding them.
+
       sides: { claim: 'Qurʾānic reading', counter: 'Secular reading' },
     });
   });
 
-
-  // GET /wv/positions/contrast/:surah/:range — the facing pairs.
-  //
-  // The contrast does NOT live in wv_value_positions. Grouping those by
-  // concept_ref produces twenty-four one-sided columns and no argument at all,
-  // because Islam's concepts and secular naturalism's concepts are disjoint
-  // sets — no concept is held by both.
-  //
-  // It lives in the graph. The al-Rūm nodes carry twenty-seven `rebuts` edges
-  // pairing a counter-claim (wck*) to the claim it answers (wcl*), and that
-  // pairing was lost when the positions were lifted out: the lift renumbered
-  // everything sequentially into wcl001–wcl028, so the two sides now look like
-  // one undifferentiated list.
-  //
-  // So the pairs are read from where they still exist. Restoring the link on
-  // wv_value_positions is the proper repair; until then this reads the truth
-  // rather than presenting a contrast the positions table cannot support.
   router.get('/wv/positions/contrast/:surah/:range', async (_req, env, { surah, range }) => {
     const [fromStr, toStr] = String(range).split('-');
     const ayahFrom = Number(fromStr);
@@ -167,7 +121,7 @@ export function positionRoutes(router: Router<WorldviewEnv>) {
       surah: Number(surah), ayahFrom, ayahTo,
       scopeRef: `${surah}:${ayahFrom}-${ayahTo}`,
       pairs: rows,
-      // Named so a client can label the two columns without hardcoding them.
+
       sides: { claim: 'Qurʾānic reading', counter: 'Secular reading' },
     });
   });

@@ -1,25 +1,5 @@
-// ─── Tiptap ⇆ cm_blocks mapper ────────────────────────────────────────────────
-// The CM backend stores a document as flat `cm_blocks` rows (block_id,
-// parent_block_id, seq_order, depth, ...). The editor works in Tiptap JSON.
-// This module is the single, pure, lossless bridge between the two.
-//
-//   tiptapToBlocks() — decompose a Tiptap doc into block rows for save.
-//   blocksToTiptap() — recompose block rows back into a Tiptap doc for load.
-//
-// Round-trip fidelity: blocksToTiptap(tiptapToBlocks(doc)) is equivalent to doc.
-//
-// Each block-level Tiptap node becomes one row. A node is one of three kinds:
-//   text      — has inline content (paragraph, heading, codeBlock). The inline
-//               content array is stored verbatim in annotations_json; a plain
-//               text projection goes to content_text so FTS / LIKE search works.
-//   container — has block children (lists, list items, blockquote, callout).
-//               Children become child rows linked by parent_block_id.
-//   atom      — leaf node carrying only attrs (horizontalRule, image, page_link,
-//               ayah_embed and the Arabic / worldview custom blocks).
-
 import type { KmBlock, TiptapDoc, TiptapNode } from '../../../shared/models/document-editor.models';
 
-/** A block row ready to send to the CM API as part of a `blocks[]` payload. */
 export interface BlockPayload {
   block_id: string;
   parent_block_id: string | null;
@@ -38,11 +18,6 @@ const CONTAINER_NODES = new Set([
   'blockquote', 'callout', 'bulletList', 'orderedList', 'listItem', 'taskList', 'taskItem',
 ]);
 
-/**
- * Classify a Tiptap node. Known block/container nodes are matched directly;
- * any unknown node is inferred from the shape of its content so the mapper
- * stays lossless even if the editor gains new node types.
- */
 function classify(node: TiptapNode): BlockKind {
   if (TEXT_NODES.has(node.type)) return 'text';
   if (CONTAINER_NODES.has(node.type)) return 'container';
@@ -55,7 +30,6 @@ function classify(node: TiptapNode): BlockKind {
   return 'atom';
 }
 
-/** Flatten an inline content array into plain text (for content_text / FTS). */
 function inlineText(nodes: readonly TiptapNode[]): string {
   let text = '';
   for (const node of nodes) {
@@ -70,10 +44,6 @@ function str(value: unknown): string {
   return value == null ? '' : String(value);
 }
 
-/**
- * Searchable text for an atom block, so embeds and custom blocks remain
- * findable by the CM document `q` search (which LIKE-matches content_text).
- */
 function atomSearchText(node: TiptapNode): string {
   const a = node.attrs ?? {};
   switch (node.type) {
@@ -102,10 +72,6 @@ function newBlockId(): string {
   return `CM:${crypto.randomUUID()}`;
 }
 
-/**
- * Decompose a Tiptap document into a flat list of block rows in document order
- * (pre-order: every parent precedes its children).
- */
 export function tiptapToBlocks(doc: TiptapDoc | null | undefined): BlockPayload[] {
   const out: BlockPayload[] = [];
 
@@ -166,10 +132,6 @@ function parseArray(raw: string | null | undefined): TiptapNode[] {
   }
 }
 
-/**
- * Recompose flat block rows into a Tiptap document. A block with child rows is
- * rebuilt as a container; otherwise its stored inline content is restored.
- */
 export function blocksToTiptap(blocks: readonly KmBlock[]): TiptapDoc {
   const childrenOf = new Map<string | null, KmBlock[]>();
   for (const block of blocks) {

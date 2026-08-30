@@ -1,7 +1,5 @@
-// ─── Source schemas & types ───────────────────────────────────────────────────
-
 export interface CmSource {
-  source_id: string;          // CM:ULID
+  source_id: string;
   core_user_ref: string;
   source_type: 'book' | 'article' | 'lecture' | 'manuscript' | 'video' | 'podcast' | 'other';
   title: string;
@@ -74,8 +72,6 @@ export function validateCmSourceCreate(
     },
   };
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

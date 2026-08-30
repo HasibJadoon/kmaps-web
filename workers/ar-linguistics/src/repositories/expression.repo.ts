@@ -1,10 +1,6 @@
-// ─── ExpressionRepo — ar_ling_root_lemma_tabir_kind + expressions + tokens + collocations ──
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Types ────────────────────────────────────────────────────────────────────
 
 export interface ExpressionType {
   id: string;
@@ -28,7 +24,7 @@ export interface Expression {
   expression_type_id: string | null;
   primary_lemma_id: string | null;
   explanation_md: string | null;
-  qr_refs_json: string | null;       // JSON [{qr_ref, note}]
+  qr_refs_json: string | null;
   created_at: string;
 }
 
@@ -76,12 +72,8 @@ export interface CollocationCreate {
   note_md?: string | null;
 }
 
-// ── Repo ─────────────────────────────────────────────────────────────────────
-
 export class ExpressionRepo {
   constructor(private db: D1Database) {}
-
-  // ── Expression Types ───────────────────────────────────────────────────────
 
   types(opts: PaginateOptions = {}) {
     return paginate<ExpressionType>(
@@ -129,8 +121,6 @@ export class ExpressionRepo {
     );
     return (await this.findTypeById(id))!;
   }
-
-  // ── Expressions ────────────────────────────────────────────────────────────
 
   list(typeId?: string | null, opts: PaginateOptions = {}) {
     const where = typeId ? 'WHERE expression_type_id = ?' : '';
@@ -215,8 +205,6 @@ export class ExpressionRepo {
     return this.findById(id);
   }
 
-  // ── Expression Tokens ──────────────────────────────────────────────────────
-
   tokens(expressionId: string): Promise<ExpressionToken[]> {
     return query<ExpressionToken>(
       this.db,
@@ -254,8 +242,6 @@ export class ExpressionRepo {
       [id],
     ))!;
   }
-
-  // ── Collocations ───────────────────────────────────────────────────────────
 
   collocations(lemmaRef: string, opts: PaginateOptions = {}) {
     return paginate<Collocation>(

@@ -1,6 +1,3 @@
-// ─── /al/expressions routes ───────────────────────────────────────────────────
-// ar_ling_root_lemma_tabir: idioms, collocations, fixed phrases
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -8,16 +5,15 @@ import { query, queryOne, paginate } from '../../../shared/src/db';
 import type { ArLinguisticsEnv } from '../env';
 
 interface Expression {
-  id: string;             // AL:ULID
+  id: string;
   expression_ar: string;
-  expression_type: string; // idiom | collocation | fixed_phrase | proverb
+  expression_type: string;
   gloss_en: string | null;
   notes: string | null;
 }
 
 export function expressionRoutes(router: Router<ArLinguisticsEnv>) {
 
-  // GET /al/expressions/search?q=&type=idiom
   router.get('/al/expressions/search', async (req, env) => {
     const url = new URL(req.url);
     const q    = url.searchParams.get('q');
@@ -43,7 +39,6 @@ export function expressionRoutes(router: Router<ArLinguisticsEnv>) {
     );
   });
 
-  // GET /al/expressions/:id
   router.get('/al/expressions/:id', async (_req, env, { id }) => {
     const row = await queryOne<Expression>(
       env.DB_AL,

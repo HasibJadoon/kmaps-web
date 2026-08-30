@@ -1,9 +1,7 @@
-// ─── Bridge schemas & types ───────────────────────────────────────────────
-
 export interface WvNodeQuranLink {
   id: string;
   node_id: string;
-  qr_scope_ref: string;   // 'QR:<surah>:<ayah_from>[-<ayah_to>]'
+  qr_scope_ref: string;
   link_type: string;
   note: string | null;
   created_at: string;
@@ -11,9 +9,9 @@ export interface WvNodeQuranLink {
 
 export interface WvTermLink {
   id: string;
-  entity_type: string;    // 'node'|'claim'|'moral_axis'|'topic'|'virtue'|'other'
+  entity_type: string;
   entity_id: string;
-  al_concept_ref: string; // 'AL:<lemma_id>'
+  al_concept_ref: string;
   link_type: string;
   note: string | null;
   created_at: string;
@@ -22,7 +20,7 @@ export interface WvTermLink {
 export interface WvEpisodeQuranLink {
   id: string;
   episode_id: string;
-  qr_scope_ref: string;   // 'QR:<surah>:<ayah_from>[-<ayah_to>]'
+  qr_scope_ref: string;
   link_type: string;
   note: string | null;
   created_at: string;
@@ -31,8 +29,8 @@ export interface WvEpisodeQuranLink {
 export interface WvEvidenceScopeLink {
   id: string;
   evidence_id: string;
-  scope_module: string;   // 'QR'|'AL'|'AR'|'CM'|'PL'
-  scope_ref: string;      // typed ref
+  scope_module: string;
+  scope_ref: string;
   link_role: string;
   created_at: string;
 }
@@ -41,7 +39,7 @@ export interface WvDocLink {
   id: string;
   entity_type: string;
   entity_id: string;
-  cm_doc_ref: string;     // 'CM:<doc_id>'
+  cm_doc_ref: string;
   link_role: string;
   note: string | null;
   created_at: string;
@@ -83,8 +81,6 @@ export interface DocLinkCreate {
   link_role?: string;
   note?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

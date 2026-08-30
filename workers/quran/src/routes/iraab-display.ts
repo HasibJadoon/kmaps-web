@@ -1,18 +1,3 @@
-// ─── /qr/iraab/display routes ─────────────────────────────────────────────────
-// Worker API over the qr_iraab_book_display_* projection layer (migration 011).
-//
-// Routes:
-//   GET /qr/iraab/display/sources            — display-tier source registry
-//   GET /qr/iraab/display?surah=N&ayah=M     — group payload (resolves group
-//                                              containing ayah M per source,
-//                                              returns blocks/tags/refs/notes)
-//   GET /qr/iraab/display/search?q=…         — FTS5-backed Arabic+English search
-//
-// Group resolution: iʿrāb books anchor analysis on the FIRST ayah of a range
-// (e.g. anchor 2:1 covers 2:1-5). When the client asks for ayah=3, we resolve
-// to the enclosing group via `ayah_no <= 3 AND ayah_to >= 3`. If the requesting
-// ayah is not part of any group in a given source, we fall back to exact match.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest, notFound } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
@@ -104,7 +89,6 @@ function hydrateBlock(r: BlockRow) {
 
 export function iraabDisplayRoutes(router: Router<QuranEnv>) {
 
-  // ── GET /qr/iraab/display/sources ──────────────────────────────────────────
   router.get('/qr/iraab/display/sources', (req, env) => cached(req, async () => {
     const { results } = await env.DB_QR
       .prepare(`
@@ -121,7 +105,6 @@ export function iraabDisplayRoutes(router: Router<QuranEnv>) {
     return ok({ sources: results });
   }));
 
-  // ── GET /qr/iraab/display?surah=N&ayah=M[&source_slug=S][&include_raw=1] ───
   router.get('/qr/iraab/display', (req, env) => cached(req, async () => {
     const url = new URL(req.url);
     const surah = parseInt(url.searchParams.get('surah') ?? '');
@@ -130,8 +113,6 @@ export function iraabDisplayRoutes(router: Router<QuranEnv>) {
     if (isNaN(surah)) return badRequest('surah param required');
     if (isNaN(ayah))  return badRequest('ayah param required');
 
-    // 1) Resolve groups: blocks whose [ayah_no, ayah_to] range contains the
-    //    requested ayah. Returned columns reveal each source's group span.
     const groupSql = `
       SELECT DISTINCT source_slug, ayah_group_key,
              MIN(ayah_no) AS group_start, MAX(COALESCE(ayah_to, ayah_no)) AS group_end
@@ -150,7 +131,6 @@ export function iraabDisplayRoutes(router: Router<QuranEnv>) {
       return notFound('no iʿrāb display blocks for this ayah');
     }
 
-    // 2) Pull all blocks for the resolved (source_slug, group_key) pairs.
     const groupKeys = [...new Set(groupRes.results.map((r: GroupResolverRow) => r.ayah_group_key))];
     const placeholders = groupKeys.map(() => '?').join(',');
     const blockSql = `
@@ -168,7 +148,6 @@ export function iraabDisplayRoutes(router: Router<QuranEnv>) {
 
     if (!blocks.length) return notFound('no display blocks');
 
-    // 3) Side tables: tags, refs, notes for these blocks.
     const blockIds: string[] = blocks.map((b: { id: string }) => b.id);
     const idPlaceholders = blockIds.map(() => '?').join(',');
 
@@ -178,16 +157,12 @@ export function iraabDisplayRoutes(router: Router<QuranEnv>) {
       env.DB_QR.prepare(`SELECT * FROM qr_irab_book_display_note WHERE block_id IN (${idPlaceholders}) AND review_status != 'rejected'`).bind(...blockIds).all(),
     ]);
 
-    // 4) Source registry — only the sources actually present.
     const presentSlugs: string[] = Array.from(new Set(blocks.map((b: { source_slug: string }) => b.source_slug)));
     const slugPlaceholders = presentSlugs.map(() => '?').join(',');
     const sourcesRes = await env.DB_QR
       .prepare(`SELECT * FROM qr_irab_book_display_source WHERE source_slug IN (${slugPlaceholders}) ORDER BY display_order ASC`)
       .bind(...presentSlugs).all();
 
-    // 5) Group envelope: pick the widest span across sources for the canonical
-    //    group_key, but keep per-source group_keys in `source_groups` so the UI
-    //    can show "Al-Jadwal: 3:131-133 · Darwish: 3:131-140".
     const minStart = Math.min(...groupRes.results.map((r: GroupResolverRow) => r.group_start));
     const maxEnd   = Math.max(...groupRes.results.map((r: GroupResolverRow) => r.group_end));
     const canonical = minStart === maxEnd ? `${surah}:${minStart}` : `${surah}:${minStart}-${maxEnd}`;
@@ -211,7 +186,6 @@ export function iraabDisplayRoutes(router: Router<QuranEnv>) {
     });
   }));
 
-  // ── GET /qr/iraab/display/search?q=…[&surah=N][&block_type=T][&limit=N] ────
   router.get('/qr/iraab/display/search', (req, env) => cached(req, async () => {
     const url = new URL(req.url);
     const q     = url.searchParams.get('q')?.trim();
@@ -221,8 +195,6 @@ export function iraabDisplayRoutes(router: Router<QuranEnv>) {
     const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') ?? '25', 10) || 25));
     if (!q) return badRequest('q param required');
 
-    // FTS5 with diacritic-folded unicode61 tokenizer (configured in migration).
-    // `snippet()` highlights the matched terms with «…» markers; we cap at 12 tokens.
     const where: string[] = ['qr_irab_book_display_block_fts MATCH ?'];
     const params: unknown[] = [q];
     if (surah)  { where.push('surah_no = ?');     params.push(parseInt(surah, 10)); }

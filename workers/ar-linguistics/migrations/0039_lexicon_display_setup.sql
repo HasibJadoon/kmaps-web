@@ -1,42 +1,8 @@
--- 0039 — Display setup for every lexicon (LEXICON family, cluster 'display').
---
--- Phase 1 of naming convention v2. Purely additive: creates four config tables,
--- seeds them from the live corpus, and closes the block-type vocabulary. No
--- existing table is renamed and no content row is dropped.
---
--- WHY
---   The per-lexicon display contract currently lives in 2,752 lines of worker
---   TypeScript — lexicon_lane.ts (794), lexicon_lisan.ts (938),
---   lexicon_mufradat.ts (666), lexicon_five_lens.ts (354) — plus four ad-hoc
---   columns bolted onto ar_ling_sources (bilingual, footnote_source,
---   quran_block_shape, source_order). Adding a lexicon means writing code.
---   After this migration a lexicon is a row, and one composer reads it.
---   sinai_key_terms (404 entries) gets a display path for the first time.
---
--- VOCABULARY (N15) — block_type ran free with 21 distinct values. Three defects:
---   • `sarf` (kmaps_five_lens, 1 row) and `sarf_family` (25 rows, 8 lexicons)
---     are the same thing under two tokens — merged, N11.
---   • `meta` is filler — renamed lens_meta, N9.
---   • The 10 kmaps_five_lens kinds are namespaced lens_* so a synthesis kind can
---     never collide with a classical one.
---   Net: 21 open values → 20 closed. The 22 affected content rows are updated
---   at the foot of this file; the AFTER UPDATE FTS triggers keep search in sync.
---
--- FK NOTE — ar_ling_sources.slug carries a *partial* unique index
---   (idx_ar_ling_sources_slug ... WHERE slug IS NOT NULL), which SQLite will not
---   accept as a foreign-key target. Referential intent is documented per column
---   and enforced by the writer, matching the house pattern set in 0038.
---
--- SLUG NOTE — seeded with slugs as they stand today. Phase 2 (provider-prefix
---   strip) must include ar_ling_lexicon_display_profile, _section and _rule in
---   its UPDATE sweep.
-
--- ── Closed block-kind vocabulary ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ar_ling_lexicon_display_block_kind (
   kind_code    TEXT PRIMARY KEY,
-  kind_family  TEXT NOT NULL,                      -- classical | synthesis
-  panel_key    TEXT NOT NULL,                      -- default panel this kind lands in
-  style_key    TEXT NOT NULL,                      -- render token; 'mushaf' → UthmanicHafs
+  kind_family  TEXT NOT NULL,
+  panel_key    TEXT NOT NULL,
+  style_key    TEXT NOT NULL,
   name_ar      TEXT NOT NULL,
   name_en      TEXT NOT NULL,
   name_ur      TEXT NOT NULL,
@@ -49,13 +15,12 @@ CREATE TABLE IF NOT EXISTS ar_ling_lexicon_display_block_kind (
   updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- ── One row per lexicon — replaces the per-slug route files ─────────────────
 CREATE TABLE IF NOT EXISTS ar_ling_lexicon_display_profile (
-  source_slug       TEXT PRIMARY KEY,              -- → ar_ling_sources.slug
-  composer_key      TEXT NOT NULL,                 -- classical_prose | lane_entry | synthesis_lens
+  source_slug       TEXT PRIMARY KEY,
+  composer_key      TEXT NOT NULL,
   is_bilingual      INTEGER NOT NULL DEFAULT 0,
-  footnote_mode     TEXT NOT NULL DEFAULT 'none',  -- inline_brackets|footnote_blocks|marker_paren|none
-  quran_cue_mode    TEXT NOT NULL DEFAULT 'none',  -- inline_verse|cue_only_verse_in_braces|refs_table|none
+  footnote_mode     TEXT NOT NULL DEFAULT 'none',
+  quran_cue_mode    TEXT NOT NULL DEFAULT 'none',
   headword_mode     TEXT NOT NULL DEFAULT 'root_header',
   page_anchor_mode  TEXT NOT NULL DEFAULT 'printed_page',
   script_key        TEXT NOT NULL DEFAULT 'amiri_quran',
@@ -67,29 +32,27 @@ CREATE TABLE IF NOT EXISTS ar_ling_lexicon_display_profile (
   updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- ── Ordered panels per lexicon; one row per (lexicon, kind) actually present ─
 CREATE TABLE IF NOT EXISTS ar_ling_lexicon_display_section (
   id           TEXT PRIMARY KEY,
-  source_slug  TEXT NOT NULL,                      -- → ar_ling_lexicon_display_profile.source_slug
-  kind_code    TEXT NOT NULL,                      -- → ar_ling_lexicon_display_block_kind.kind_code
+  source_slug  TEXT NOT NULL,
+  kind_code    TEXT NOT NULL,
   panel_key    TEXT NOT NULL,
   seq          INTEGER NOT NULL,
-  label_ar     TEXT,                               -- NULL = inherit the kind's name_*
+  label_ar     TEXT,
   label_en     TEXT,
   label_ur     TEXT,
-  is_visible   INTEGER,                            -- NULL = inherit
-  is_collapsed INTEGER,                            -- NULL = inherit
-  block_count  INTEGER NOT NULL DEFAULT 0,         -- observed at seed time; advisory only
+  is_visible   INTEGER,
+  is_collapsed INTEGER,
+  block_count  INTEGER NOT NULL DEFAULT 0,
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (source_slug, kind_code)
 );
 
--- ── Per-lexicon parser exceptions the composer cannot infer ─────────────────
 CREATE TABLE IF NOT EXISTS ar_ling_lexicon_display_rule (
   id          TEXT PRIMARY KEY,
-  source_slug TEXT NOT NULL,                       -- → ar_ling_lexicon_display_profile.source_slug
-  rule_key    TEXT NOT NULL,                       -- footnote_marker | quran_cue | poetry_cue | trailing_citation
+  source_slug TEXT NOT NULL,
+  rule_key    TEXT NOT NULL,
   pattern     TEXT,
   flags       TEXT,
   replacement TEXT,
@@ -101,8 +64,6 @@ CREATE TABLE IF NOT EXISTS ar_ling_lexicon_display_rule (
   UNIQUE (source_slug, rule_key, seq)
 );
 
--- Index names follow v2 rule N19: ix_ / ux_ only, table token without the
--- ar_ling_ prefix, columns spelled out.
 CREATE INDEX IF NOT EXISTS ix_lexicon_display_section_slug_seq
   ON ar_ling_lexicon_display_section (source_slug, seq);
 CREATE INDEX IF NOT EXISTS ix_lexicon_display_section_kind
@@ -112,7 +73,6 @@ CREATE INDEX IF NOT EXISTS ix_lexicon_display_rule_slug_key
 CREATE INDEX IF NOT EXISTS ix_lexicon_display_profile_order
   ON ar_ling_lexicon_display_profile (display_order);
 
--- ── Seed: closed block-kind vocabulary (20 values) ──────────────────────────
 INSERT OR REPLACE INTO ar_ling_lexicon_display_block_kind
   (kind_code, kind_family, panel_key, style_key, name_ar, name_en, name_ur,
    is_visible, is_collapsed, sort_weight) VALUES
@@ -137,11 +97,6 @@ INSERT OR REPLACE INTO ar_ling_lexicon_display_block_kind
   ('lens_retention', 'synthesis', 'lens', 'panel', 'التثبيت', 'Retention aid', 'یادداشت', 1, 0, 180),
   ('lens_meta', 'synthesis', 'lens', 'note', 'بيانات', 'Entry metadata', 'میٹا ڈیٹا', 0, 1, 190);
 
--- ── Seed: one profile per populated lexicon (13) ───────────────────────────
--- Values lifted from ar_ling_sources (bilingual, footnote_source,
--- quran_block_shape, source_order) plus the observed corpus: al_raghib_mufradat
--- carries 2,611 footnote blocks and (( N )) markers though footnote_source was
--- NULL; lane_lexicon anchors on its 3,008 page_break blocks, not printed_page.
 INSERT OR REPLACE INTO ar_ling_lexicon_display_profile
   (source_slug, composer_key, is_bilingual, footnote_mode, quran_cue_mode,
    headword_mode, page_anchor_mode, translation_langs, display_order) VALUES
@@ -159,9 +114,6 @@ INSERT OR REPLACE INTO ar_ling_lexicon_display_profile
   ('sinai_key_terms', 'classical_prose', 1, 'none', 'none', 'root_header', 'none', '["en"]', 21),
   ('kmaps_five_lens', 'synthesis_lens', 1, 'none', 'none', 'root_header', 'none', '["en"]', 30);
 
--- ── Seed: sections — one row per (lexicon, kind) present in the corpus ─────
--- 87 rows, generated from the live block_type distribution.
--- block_count is the count observed at seed time; it is advisory, not a constraint.
 INSERT OR REPLACE INTO ar_ling_lexicon_display_section
   (id, source_slug, kind_code, panel_key, seq, block_count) VALUES
   ('LXDS:al_raghib_mufradat:root_header', 'al_raghib_mufradat', 'root_header', 'head', 10, 1534),
@@ -252,19 +204,11 @@ INSERT OR REPLACE INTO ar_ling_lexicon_display_section
   ('LXDS:thahabi_al_khalil_kitab_al_ayn:footnote', 'thahabi_al_khalil_kitab_al_ayn', 'footnote', 'apparatus', 80, 5755),
   ('LXDS:thahabi_al_khalil_kitab_al_ayn:editor_note', 'thahabi_al_khalil_kitab_al_ayn', 'editor_note', 'apparatus', 90, 18);
 
--- ── Seed: parser rules ─────────────────────────────────────────────────────
--- Only patterns read verbatim out of the worker source are seeded here. The
--- other sources are fully described by profile.footnote_mode /
--- profile.quran_cue_mode and need no pattern row; inventing regexes for them
--- would encode guesses as data.
 INSERT OR REPLACE INTO ar_ling_lexicon_display_rule
   (id, source_slug, rule_key, pattern, flags, seq, note_en) VALUES
   ('LXDR:al_raghib_mufradat:footnote_marker:0', 'al_raghib_mufradat', 'footnote_marker', '«\s*([0-9٠-٩]+)\s*»', 'gu', 0, 'Guillemet marker. Verbatim from lexicon_v2.ts computeSectionBody().'),
   ('LXDR:al_raghib_mufradat:footnote_marker:1', 'al_raghib_mufradat', 'footnote_marker', '\(\s*\(\s*([0-9٠-٩]+)\s*\)\s*\)', 'gu', 1, 'Double-paren marker. Numbering restarts per printed page — resolve against printed_page.');
 
--- ── Close the vocabulary on existing content (22 rows) ─────────────────────
--- kmaps_five_lens only. The AFTER UPDATE triggers on ar_ling_lexicon_blocks
--- (trig_albk_fts_au) propagate each change into ar_ling_lexicon_blocks_fts.
 UPDATE ar_ling_lexicon_blocks SET block_type = 'lens_lens', updated_at = datetime('now')
  WHERE block_type = 'lens';
 UPDATE ar_ling_lexicon_blocks SET block_type = 'lens_meaning', updated_at = datetime('now')
@@ -286,10 +230,6 @@ UPDATE ar_ling_lexicon_blocks SET block_type = 'lens_meta', updated_at = datetim
 UPDATE ar_ling_lexicon_blocks SET block_type = 'sarf_family', updated_at = datetime('now')
  WHERE block_type = 'sarf';
 
--- ── Registry (v2 rule N21: a table does not exist until it is mapped) ──────
--- Sub-layer 54-DISP is added under the existing band-50 SOURCE scheme. Phase 3
--- folds every sub_code into one unified band scheme; adding a third scheme
--- here would make that worse.
 INSERT OR REPLACE INTO ar_ling_reg_sub_layer
   (sub_code, band, band_key, band_name_ar, band_name_en, name_ar, name_en, name_ur,
    scope_level, discipline, default_card, display_order, tables_json, produced_by)

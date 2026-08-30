@@ -1,19 +1,15 @@
-// ─── HighlightRepo — cm_highlights ────────────────────────────────────────────
-// Ranged highlights within a source — stored with positional anchors so the UI
-// can re-render them on reload. Distinct from captures (which are extracted text).
-
 import { queryOne, query, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface Highlight {
-  id: string;                // CM:ULID
-  resource_ref: string;      // typed ref — e.g. QR:2:255, WV:ULID
-  anchor_start: string;      // serialised DOM/text position (e.g. "p3:c12")
+  id: string;
+  resource_ref: string;
+  anchor_start: string;
   anchor_end: string;
   text_excerpt: string | null;
-  color: string | null;      // UI colour tag: yellow | green | blue | pink
-  note_ref: string | null;   // CM:ULID → cm_notes (optional linked note)
+  color: string | null;
+  note_ref: string | null;
   created_at: string;
 }
 
@@ -32,7 +28,6 @@ const COLS = `id, resource_ref, anchor_start, anchor_end,
 export class HighlightRepo {
   constructor(private db: D1Database) {}
 
-  /** All highlights for a given resource_ref (e.g. all highlights in one source). */
   byResource(resourceRef: string): Promise<Highlight[]> {
     return query<Highlight>(
       this.db,

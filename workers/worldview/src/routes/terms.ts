@@ -1,17 +1,3 @@
-// ─── /wv/terms — the worldview vocabulary, registered ─────────────────────────
-//
-// The third registry in this project, and deliberately the same shape as the
-// first two: `GT:{category}:{term}` for grammar, `CN:{domain}:{key}` for
-// concepts, `WT:{domain}:{term}` here. A reader who has understood one
-// understands all three.
-//
-// A term is the vocabulary a field or a tradition thinks in — logos, anomie,
-// biopower, ʿaṣabiyya. That is not the same as a concept: a concept is what two
-// worldviews can be set AGAINST each other on. Revelation is a concept, because
-// Islam and secular naturalism both speak to it. Biopower is a term, because it
-// belongs to whoever uses it. A term that turns out to be shared carries
-// `concept_ref` and is both.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest } from '../../../shared/src/response';
 import { query, queryOne, execute } from '../../../shared/src/db';
@@ -36,12 +22,6 @@ interface TermRow {
 
 export function termRoutes(router: Router<WorldviewEnv>) {
 
-  // GET /wv/terms?domain=philosophical&kind=relation_type&q=rebut
-  //
-  // Superseded spellings are returned unless asked for, because a caller
-  // resolving an old value in stored data needs to find it — the row carries
-  // `superseded_by` and says what to use instead. Hiding them would recreate
-  // the silent fall-through this registry exists to end.
   dual(router, 'get', '/terms', async (req, env) => {
     const url = new URL(req.url);
     const conds: string[] = [];
@@ -64,10 +44,6 @@ export function termRoutes(router: Router<WorldviewEnv>) {
     return ok({ terms: rows, total: rows.length });
   });
 
-  // GET /wv/terms/kinds — what the registry holds, and how much of it is still
-  // unassigned to a field. The second number is the editorial backlog, reported
-  // rather than buried: 46 concepts arrived in a bucket called `analysis`,
-  // which is where terms went when nobody chose a field for them.
   dual(router, 'get', '/terms/kinds', async (_req, env) =>
     ok({
       kinds: await query<{ category_key: string; n: number; unassigned: number }>(
@@ -78,12 +54,6 @@ export function termRoutes(router: Router<WorldviewEnv>) {
       ),
     }));
 
-  // GET /wv/terms/tree?domain=philosophical — the hierarchy.
-  //
-  // Roots first, each carrying its children, to whatever depth the data
-  // actually has. `parent_term_id` is unset on every row today, so the tree is
-  // one level — but a client written against a tree deepens on its own the day
-  // a term is placed under another.
   dual(router, 'get', '/terms/tree', async (req, env) => {
     const url = new URL(req.url);
     const domain = url.searchParams.get('domain');
@@ -110,14 +80,10 @@ export function termRoutes(router: Router<WorldviewEnv>) {
     return ok({ tree: nest(null), total: rows.length });
   });
 
-  // GET /wv/terms/:id — the term, its ancestry, its children, and where it is
-  // actually used in the corpus.
   dual(router, 'get', '/terms/:id', async (_req, env, { id }) => {
     const term = await queryOne<TermRow>(env.DB_WV, `SELECT ${COLS} FROM wv_term WHERE id = ?`, [id]);
     if (!term) return notFound(`term ${id}`);
 
-    // Walk up. Bounded rather than recursive-CTE so a cycle introduced by a bad
-    // parent cannot hang the request — it stops and the violations view reports it.
     const ancestry: TermRow[] = [];
     let cursor = term.parent_term_id;
     for (let i = 0; cursor && i < 12; i++) {

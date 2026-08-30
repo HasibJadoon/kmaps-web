@@ -1,15 +1,3 @@
-// ─── km-backend-worker ────────────────────────────────────────────────────────
-// The ONLY public-facing Cloudflare Worker. Exposed at backend.k-maps.com.
-//
-// Responsibilities:
-//   1. CORS — origin-specific headers with credentials support
-//   2. Auth  — validates Bearer JWT; injects user context headers
-//   3. Route — maps /api/{module}/... to the correct internal service binding
-//   4. Proxy — forwards the request and streams the response back
-//
-// All other workers (quran, core, content, …) are internal-only.
-// They must never be given a custom domain or a workers.dev URL.
-
 import type { BackendEnv } from './env';
 import { MODULE_MAP, type ModuleKey } from './modules';
 import { preflight, withCors, corsHeaders } from './cors';
@@ -23,11 +11,9 @@ export default {
     const origin = request.headers.get('Origin') ?? '';
     const co     = env.ALLOWED_ORIGINS ?? '';
 
-    // ── CORS preflight ─────────────────────────────────────────────────────────
     const pre = preflight(request, co);
     if (pre) return pre;
 
-    // ── Root / health ──────────────────────────────────────────────────────────
     if (url.pathname === '/' || url.pathname === '/health') {
       return withCors(
         json({ ok: true, service: 'km-backend', version: '1' }),
@@ -35,15 +21,10 @@ export default {
       );
     }
 
-    // ── Only /api/* is routable ────────────────────────────────────────────────
     if (!url.pathname.startsWith('/api/')) {
       return withCors(err('not_found', 'Not found', 404), origin, co);
     }
 
-    // ── Composite: GET /api/quran/:surah/:ayah/sources ────────────────────────
-    // Fan-out to AR_LINGUISTICS + QURAN workers and return a merged source bundle.
-    // No auth required — public study endpoint.
-    // Optional query param: kinds (comma-sep chunk_kinds to include from DB_AL)
     const sourcesMatch = request.method === 'GET' &&
       url.pathname.match(/^\/api\/quran\/(\d+)\/(\d+)\/sources$/);
 
@@ -93,11 +74,11 @@ export default {
             data: {
               surah:        parseInt(surah),
               ayah:         parseInt(ayah),
-              // Lexicon / irab / balagha / near-synonym chunks (full text, DB_AL)
+
               al_chunks:    alData?.data?.al_chunks  ?? [],
-              // Classical tafsir entries with scholar + work metadata (DB_QR)
+
               tafsir:       tafsirData?.data?.rows   ?? [],
-              // English translations (DB_QR)
+
               translations: transData?.data          ?? [],
             },
           }),
@@ -115,11 +96,6 @@ export default {
       }
     }
 
-    // ── Composite: GET /api/cyb/passage/:surah/:no ────────────────────────────
-    // One passage, one document: identity, the four axes from
-    // v_cyb_node_reading (with measured/stale), the process register, and the
-    // study-grid flags. The app stops deriving; five divergent percentages
-    // collapse into this. Public read, never cached.
     const passageMatch = request.method === 'GET' &&
       url.pathname.match(/^\/api\/cyb\/passage\/(\d+)\/(\d+)$/);
 
@@ -159,8 +135,7 @@ export default {
             node_id: nodeId,
             ayah_from: unit['ayah_from'], ayah_to: unit['ayah_to'],
             label: unit['label'] ?? null,
-            // Absent readings mean the plane has no node here — unmeasured,
-            // carried as null rather than zeros.
+
             readings: readings?.data?.readings ?? null,
             unit,
             process: processBody?.data ?? null,
@@ -175,12 +150,8 @@ export default {
       }
     }
 
-    // ── Identify module: /api/qr/... → 'qr' ───────────────────────────────────
-    // pathname.slice(5) strips the leading '/api/' → 'qr/menu'
-    const remainder  = url.pathname.slice(5);          // 'qr/menu'
-    // Worker-to-worker routes never ride the public API. The sense readers
-    // live under /internal/ and are reached only through service bindings;
-    // an /api path that names them is refused at the edge, before auth.
+    const remainder  = url.pathname.slice(5);
+
     if (remainder.includes('/internal/')) {
       return withCors(err('not_found', 'Not found', 404), origin, co);
     }
@@ -194,17 +165,11 @@ export default {
       );
     }
 
-    // ── Auth ───────────────────────────────────────────────────────────────────
-    // Auth endpoints (login, token issuance, OAuth, first-run setup) must be
-    // reachable without a token. Everything else requires a valid Bearer JWT
-    // unless the module marks GET requests as public.
     const isWebSocket = request.headers.get('Upgrade')?.toLowerCase() === 'websocket';
     const isAuthEndpoint = remainder.startsWith('core/auth/');
     const isPublic = isAuthEndpoint || (mod.publicGet && request.method === 'GET');
     let authCtx = await authenticate(request, env.JWT_SECRET ?? '');
 
-    // Browsers cannot set an Authorization header on a WebSocket handshake, so
-    // the JWT is accepted as a `token` query param for upgrade requests only.
     if (!authCtx && isWebSocket) {
       const wsToken = url.searchParams.get('token');
       if (wsToken) {
@@ -224,19 +189,16 @@ export default {
       return withCors(unauthorized('Valid Bearer token required'), origin, co);
     }
 
-    // ── Build forwarded request ────────────────────────────────────────────────
-    // Rewrite hostname so the internal worker sees /qr/menu, not /api/qr/menu.
     const fwdUrl      = new URL(request.url);
-    fwdUrl.hostname   = 'internal.k-maps.local'; // ignored by service binding
-    fwdUrl.pathname   = '/' + remainder;          // /qr/menu
-    fwdUrl.searchParams.delete('token');          // never forward the WS token internally
+    fwdUrl.hostname   = 'internal.k-maps.local';
+    fwdUrl.pathname   = '/' + remainder;
+    fwdUrl.searchParams.delete('token');
 
     const fwdHeaders = new Headers(request.headers);
-    // Stamp every internal request so domain workers can reject public traffic.
+
     fwdHeaders.set('X-KM-Internal',        '1');
     fwdHeaders.set('X-KM-Internal-Secret', env.INTERNAL_SECRET ?? '');
 
-    // Propagate authenticated user context as structured headers.
     if (authCtx) {
       fwdHeaders.set('X-KM-User-Id', authCtx.userId);
       if (authCtx.workspaceId) fwdHeaders.set('X-KM-Workspace-Id', authCtx.workspaceId);
@@ -248,19 +210,16 @@ export default {
       method:  request.method,
       headers: fwdHeaders,
       body:    hasBody ? request.body : undefined,
-      // Required for streaming request bodies through service bindings
+
       ...(hasBody ? { duplex: 'half' } as RequestInit : {}),
     });
 
-    // ── Dispatch ───────────────────────────────────────────────────────────────
     try {
       const fetcher  = env[mod.binding] as Fetcher;
       const internal = await fetcher.fetch(fwdRequest);
-      // WebSocket upgrades carry a live socket handle — return as-is, never rewrap.
+
       if (isWebSocket || internal.status === 101) return internal;
-      // Control-plane readings must never be cached: a stale reading is a
-      // sensor reporting yesterday, which is the exact untruth the plane
-      // exists to remove. (A cached /al response cost an hour on 2026-08-21.)
+
       const isReading = remainder.startsWith('core/cyb/')
         || remainder.startsWith('core/study/')
         || remainder.startsWith('al/staging/');

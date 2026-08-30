@@ -1,11 +1,6 @@
-// ─── OAuth ID-token verification (Google / Apple) ─────────────────────────────
-// Verifies provider-issued OpenID Connect ID tokens (RS256) against the
-// provider JWKS. No client secret is needed — server-side ID-token
-// verification is the standard "Sign in with Google / Apple" flow.
-
 export interface OAuthIdentity {
   provider: 'google' | 'apple';
-  subject: string;          // provider 'sub' — a stable per-user id
+  subject: string;
   email: string | null;
   emailVerified: boolean;
   name: string | null;
@@ -30,8 +25,6 @@ interface IdTokenClaims {
   picture?: string;
 }
 
-// ── JWKS fetch + per-isolate cache ──────────────────────────────────────────────
-
 const JWKS_TTL_MS = 60 * 60 * 1000;
 const jwksCache = new Map<string, { keys: Jwk[]; fetchedAt: number }>();
 
@@ -47,8 +40,6 @@ async function fetchJwks(url: string): Promise<Jwk[]> {
   return keys;
 }
 
-// ── Base64url decoding ──────────────────────────────────────────────────────────
-
 function b64urlToBytes(s: string): Uint8Array {
   const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
   const padded = b64.padEnd(Math.ceil(b64.length / 4) * 4, '=');
@@ -59,8 +50,6 @@ function b64urlToBytes(s: string): Uint8Array {
 function decodeSegment<T>(seg: string): T {
   return JSON.parse(new TextDecoder().decode(b64urlToBytes(seg))) as T;
 }
-
-// ── RS256 verification ──────────────────────────────────────────────────────────
 
 async function verifyRs256(token: string, jwksUrl: string): Promise<IdTokenClaims | null> {
   const parts = token.split('.');
@@ -107,8 +96,6 @@ function audienceMatches(aud: string | string[] | undefined, allowed: string[]):
   return list.some((a) => allowed.includes(a));
 }
 
-// ── Public verifiers ────────────────────────────────────────────────────────────
-
 const GOOGLE_JWKS = 'https://www.googleapis.com/oauth2/v3/certs';
 const GOOGLE_ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
 const APPLE_JWKS = 'https://appleid.apple.com/auth/keys';
@@ -148,7 +135,7 @@ export async function verifyAppleIdToken(
     provider: 'apple',
     subject: claims.sub,
     email: claims.email ?? null,
-    // Apple only marks email_verified on the relay/real address claim.
+
     emailVerified: claims.email_verified === true || claims.email_verified === 'true',
     name: claims.name ?? null,
     picture: null,

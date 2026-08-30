@@ -1,5 +1,3 @@
-// ─── /qr/ayahs routes ─────────────────────────────────────────────────────────
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination, parseIntParam } from '../../../shared/src/validate';
@@ -9,7 +7,6 @@ import { validateAyahPatch } from '../schemas/ayah.schema';
 
 export function ayahRoutes(router: Router<QuranEnv>) {
 
-  // GET /qr/ayahs?surah=1[&from=1&to=7][&words=1]
   router.get('/qr/ayahs', async (req, env) => {
     const url = new URL(req.url);
     const surah = parseIntParam(url.searchParams.get('surah') ?? '');
@@ -33,7 +30,6 @@ export function ayahRoutes(router: Router<QuranEnv>) {
 
     if (!withWords) return ok(ayahs);
 
-    // Fetch words in a second query and group them by ayah number.
     const rawWords = hasRange
       ? await repo.wordsByRange(surah,
           parseIntParam(fromStr) ?? 1,
@@ -49,7 +45,6 @@ export function ayahRoutes(router: Router<QuranEnv>) {
     return ok(ayahs.map(a => ({ ...a, words: wordMap.get(a.ayah) ?? [] })));
   });
 
-  // GET /qr/ayahs/search?q=...&page=1
   router.get('/qr/ayahs/search', async (req, env) => {
     const url = new URL(req.url);
     const q = url.searchParams.get('q');
@@ -58,7 +53,6 @@ export function ayahRoutes(router: Router<QuranEnv>) {
     return paginated(await new AyahRepo(env.DB_QR).search(q, opts));
   });
 
-  // GET /qr/ayahs/:surah/:ayah — single ayah
   router.get('/qr/ayahs/:surah/:ayah', async (_req, env, { surah, ayah }) => {
     const s = parseIntParam(surah);
     const a = parseIntParam(ayah);
@@ -68,7 +62,6 @@ export function ayahRoutes(router: Router<QuranEnv>) {
     return row ? ok(row) : notFound(`ayah ${surah}:${ayah}`);
   });
 
-  // PATCH /qr/ayahs/:surah/:ayah — admin: update verse mark / translation
   router.patch('/qr/ayahs/:surah/:ayah', async (req, env, { surah, ayah }) => {
     const s = parseIntParam(surah);
     const a = parseIntParam(ayah);

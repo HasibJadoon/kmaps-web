@@ -1,15 +1,3 @@
-// ─── /core/bank/* — the bank ──────────────────────────────────────────────────
-//
-//   GET  /core/bank/packs                 — what exists, for an app
-//   GET  /core/bank/packs/:slug           — the pack with its units
-//   GET  /core/bank/packs/:slug/document  — the JSON it was built from
-//   GET  /core/bank/units/:id/items       — a unit's items, ready to play
-//   POST /core/bank/import[?dry_run=1]    — feed it
-//
-// The bank is owner-less content. A pack with `owner_ref` set is one person's
-// private deck; NULL is the published corpus, and that is what a brand-new
-// account walks into — the reason this exists at all.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, created, badRequest, notFound, forbidden } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
@@ -18,8 +6,6 @@ import type { CoreEnv } from '../env';
 import { importPack } from '../bank/import';
 import type { PackDoc } from '../bank/types';
 
-/** Who may write to the bank. The same list that may publish into the shared
- *  library — the people trusted with the corpus. */
 async function isOwner(env: CoreEnv, ctx: { userId: string; isAdmin: boolean }): Promise<boolean> {
   if (ctx.isAdmin) return true;
   const allowed = (env.CARD_APPROVERS ?? '')
@@ -32,17 +18,7 @@ async function isOwner(env: CoreEnv, ctx: { userId: string; isAdmin: boolean }):
 }
 
 export function bankRoutes(router: Router<CoreEnv>): void {
-  /** What a client may know about the expected response BEFORE answering.
-   *
-   *  `response_json` is the declared correct response — QTI's responseDeclaration
-   *  — and for three of the four scoring templates it IS the answer:
-   *  `{"correct":true}` for true/false, `{"correct":293,"tolerance":25}` for a
-   *  slider, `{"accept":[…]}` for a typed answer. Shipping the column with the
-   *  question handed those away. Stripping the column outright broke the slider,
-   *  which needs its track to exist before anybody can move it.
-   *
-   *  So: the shape, never the answer. Only a slider has anything to declare.
-   */
+
   const publicResponse = (raw: unknown, interaction: unknown): string | null => {
     if (interaction !== 'slider' && interaction !== 'pin') return null;
     if (typeof raw !== 'string' || !raw) return null;
@@ -58,16 +34,12 @@ export function bankRoutes(router: Router<CoreEnv>): void {
     } catch { return null; }
   };
 
-  /** Strip everything a client must not hold, and put back the safe shape. Used
-   *  by both item paths — the unit's items and a pack's loose ones — because
-   *  they were withholding different things from each other. */
   const forClient = (row: Record<string, unknown>): Record<string, unknown> => {
     const { response_json: raw, explanation_en: _en, explanation_ar: _ar,
             explanation_ur: _ur, ...rest } = row;
     return { ...rest, response_public: publicResponse(raw, row['interaction']) };
   };
 
-  /** Fisher-Yates over a copy. Only used where the stored order is the answer. */
   const shuffle = <T,>(rows: T[]): T[] => {
     const out = [...rows];
     for (let i = out.length - 1; i > 0; i--) {
@@ -133,10 +105,6 @@ export function bankRoutes(router: Router<CoreEnv>): void {
       [pack['id']],
     );
 
-    // A quiz round and a table deck have no units — their items hang off the
-    // pack itself, and without this they were unreachable: the only route that
-    // served items asked for a unit id. Same withholding as that route, since
-    // this is the payload a live room is dealt from.
     const loose = await query<Record<string, unknown>>(
       env.DB_CORE,
       `SELECT i.id, i.slug, i.prompt_en, i.prompt_ar, i.prompt_ur, i.stimulus_md,
@@ -180,8 +148,6 @@ export function bankRoutes(router: Router<CoreEnv>): void {
     });
   });
 
-  /** The document the pack was built from. JSON lives in the table, so the bank
-   *  can be re-read, diffed or rebuilt without the file that made it. */
   router.get('/core/bank/packs/:slug/document', async (req, env, { slug }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -195,18 +161,10 @@ export function bankRoutes(router: Router<CoreEnv>): void {
     });
   });
 
-  /** A unit's items, with their options, ready to play.
-   *
-   *  The correct answer is included — this is the authoring/solo read. The live
-   *  quiz room does NOT use it: a room withholds the answer until the reveal,
-   *  and that rule lives in the Durable Object. */
   router.get('/core/bank/units/:id/items', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
 
-    // The pack's own route checks who may read it; this one did not look at the
-    // pack at all, so a private deck was readable by anybody holding a unit id —
-    // and, until the strip above, its answers with it.
     const unit = await queryOne<{ id: string; item_count: number | null; item_order: string;
                                  pack_ref: string; owner_ref: string | null }>(
       env.DB_CORE,
@@ -231,12 +189,6 @@ export function bankRoutes(router: Router<CoreEnv>): void {
       [id],
     );
 
-    // What a client may see. Deliberately NOT is_correct, why_wrong_*, credit
-    // or pair_key: the server grades, so a payload carrying the answer buys
-    // nothing and costs everything — in a live room it hands the answer to
-    // every phone at once, and even alone it turns a lesson into a reading
-    // exercise. The why-wrong sentence comes back with the verdict instead,
-    // which is also when a person is ready to read it.
     const options = items.length
       ? await query<Record<string, unknown>>(
           env.DB_CORE,
@@ -258,8 +210,7 @@ export function bankRoutes(router: Router<CoreEnv>): void {
       items: items.map((i) => {
         const own = byItem.get(String(i['id'])) ?? [];
         const safe = forClient(i);
-        // An ordering's answer IS the order, so serving the tokens sorted
-        // serves the answer. Shuffle them and drop sort_order with the rest.
+
         const shuffled = i['interaction'] === 'order' || i['interaction'] === 'tap_word'
           ? shuffle(own).map(({ sort_order: _drop, ...rest }) => rest)
           : own;
@@ -268,11 +219,6 @@ export function bankRoutes(router: Router<CoreEnv>): void {
     });
   });
 
-  /** Feed the bank.
-   *
-   *  `?dry_run=1` writes the ledger row with the counts and the errors and
-   *  rolls the content back — the review step a hand-written INSERT can never
-   *  give you. */
   router.post('/core/bank/import', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;

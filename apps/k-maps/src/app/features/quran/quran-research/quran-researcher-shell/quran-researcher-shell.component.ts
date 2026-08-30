@@ -30,13 +30,6 @@ export class QuranResearcherShellComponent implements OnInit {
 
   @ViewChild('pageSlot') pageSlot?: ElementRef<HTMLElement>;
 
-  // ── Muṣḥaf navigation ──────────────────────────────────────────────────────
-  //
-  // These controls live in the header but the reader is a routed child, so they
-  // talk to it through the URL: the header writes the query params and the reader
-  // reacts to them. That keeps one source of truth and makes every position the
-  // reader lands on a shareable link.
-
   private readonly params = toSignal(this.route.queryParamMap, { initialValue: null });
 
   readonly currentSurah = computed(() => {
@@ -55,14 +48,6 @@ export class QuranResearcherShellComponent implements OnInit {
   readonly verseCount = computed(() =>
     this.quranState.surahs().find(s => s.surahNumber === this.currentSurah())?.ayahCount ?? 286);
 
-  /**
-   * Only shown on the muṣḥaf tab — the other tabs don't read these params.
-   *
-   * Derived from a navigation signal rather than reading `router.url` inside the
-   * computed: `router.url` is a plain getter, so a computed over it never
-   * re-evaluates and the control would stay stuck in whatever state it had when
-   * the shell was first rendered.
-   */
   private readonly currentUrl = toSignal(
     this.router.events.pipe(
       filter((e): e is NavigationEnd => e instanceof NavigationEnd),
@@ -77,8 +62,7 @@ export class QuranResearcherShellComponent implements OnInit {
 
   goToSurah(raw: string): void {
     const surah = this.clamp(Number(raw), 1, 114);
-    // A new surah starts at its first āyah rather than keeping the old number,
-    // which would land on an āyah the surah may not even have.
+
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { surah, startingVerse: 1, page: null },
@@ -104,17 +88,12 @@ export class QuranResearcherShellComponent implements OnInit {
     });
   }
 
-  /**
-   * Accept a reference typed into the search box: `44:3`, `44 3`, `44.3`, or a
-   * bare `44` for the start of a surah. Arabic-Indic digits are folded so a
-   * reference can be typed on an Arabic keyboard.
-   */
   onSearchSubmit(raw: string): void {
     const text = raw.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
                     .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0))
                     .trim();
     const ref = /^(\d{1,3})\s*(?:[:.\-\s]\s*(\d{1,3}))?$/.exec(text);
-    if (!ref) return;                       // not a reference — leave for text search
+    if (!ref) return;
 
     const surah = this.clamp(Number(ref[1]), 1, 114);
     const verse = ref[2] ? Number(ref[2]) : 1;

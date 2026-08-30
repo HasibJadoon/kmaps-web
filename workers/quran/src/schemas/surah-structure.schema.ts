@@ -1,5 +1,3 @@
-// ─── Surah Structure schemas & types ───────────────────────────────────────────────
-
 export interface SurahOpening {
   surah: number;
   ayah_from: number;
@@ -127,8 +125,6 @@ export interface SurahStructureReadingCreate {
   summary_md: string;
   note_md?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

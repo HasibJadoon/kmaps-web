@@ -1,8 +1,3 @@
-// ─── /st/sessions routes — live synced sessions ───────────────────────────────
-// A session is one live run of an episode. The host starts it, joiners resolve a
-// room code, and the WebSocket route upgrades into the EpisodeSession Durable
-// Object that keeps every screen in sync.
-
 import type { Router } from '../../../shared/src/router';
 import {
   ok, created, badRequest, notFound, unauthorized, forbidden,
@@ -14,7 +9,6 @@ import { actorRef } from '../auth';
 
 export function sessionRoutes(router: Router<StudioEnv>) {
 
-  // POST /st/episodes/:id/sessions — host starts (or rejoins) a live session
   router.post('/st/episodes/:id/sessions', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -39,7 +33,6 @@ export function sessionRoutes(router: Router<StudioEnv>) {
     });
   });
 
-  // GET /st/sessions/:code — resolve a room code (used by the join screen)
   router.get('/st/sessions/:code', async (req, env, { code }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -58,7 +51,6 @@ export function sessionRoutes(router: Router<StudioEnv>) {
     });
   });
 
-  // GET /st/sessions/:id/recap — post-session summary (by session id)
   router.get('/st/sessions/:id/recap', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -77,7 +69,7 @@ export function sessionRoutes(router: Router<StudioEnv>) {
         episode = snap.episode ?? null;
         startedAt = snap.started_at ?? startedAt;
         endedAt = snap.ended_at ?? endedAt;
-      } catch { /* fall back to a live rebuild below */ }
+      } catch {  }
     }
     if (!episode) {
       episode = await new EpisodeRepo(env.DB_ST).findAggregate(session.episode_ref);
@@ -93,7 +85,6 @@ export function sessionRoutes(router: Router<StudioEnv>) {
     });
   });
 
-  // GET /st/sessions/:code/live — WebSocket upgrade → EpisodeSession Durable Object
   router.get('/st/sessions/:code/live', async (req, env, { code }) => {
     if (req.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
       return badRequest('Expected a WebSocket upgrade request');
@@ -109,7 +100,7 @@ export function sessionRoutes(router: Router<StudioEnv>) {
     headers.set('X-KM-Episode-Id', session.episode_ref);
     headers.set('X-KM-Session-Id', session.id);
     headers.set('X-KM-Role', role);
-    headers.set('X-KM-User-Id', user);   // the EpisodeSession matches this to a cast member
+    headers.set('X-KM-User-Id', user);
 
     const stub = env.EPISODE_SESSION.get(env.EPISODE_SESSION.idFromName(session.id));
     return stub.fetch(new Request(req.url, { method: 'GET', headers }));

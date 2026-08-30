@@ -1,29 +1,22 @@
-// ─── ClassRepo — ar_class + ar_class_enrolment + ar_class_resource ────────
-//              + ar_class_assignment + ar_class_assignment_submission
-// Teacher-led delivery shell: class lifecycle, enrolments, resources,
-// assignments and graded submissions.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface ArClass {
   id: string;
   slug: string | null;
   title: string;
   description_md: string | null;
-  class_type: string;         // course|workshop|tutoring|group_study|other
+  class_type: string;
   container_id: string | null;
   curriculum_id: string | null;
-  teacher_ref: string;        // CORE:<user_id>
-  core_ws_ref: string;        // CORE:<workspace_id>
-  status: string;             // draft|active|paused|completed|archived
+  teacher_ref: string;
+  core_ws_ref: string;
+  status: string;
   start_date: string | null;
   end_date: string | null;
   max_enrolments: number | null;
-  visibility: string;         // private|workspace|public
+  visibility: string;
   meta_json: string | null;
   created_at: string;
   updated_at: string;
@@ -60,9 +53,9 @@ export interface ArClassPatch {
 export interface ClassEnrolment {
   id: string;
   class_id: string;
-  student_ref: string;        // CORE:<user_id>
-  role: string;               // student|teacher_assistant|observer|auditor
-  status: string;             // invited|active|paused|withdrawn|completed
+  student_ref: string;
+  role: string;
+  status: string;
   enrolled_at: string;
   completed_at: string | null;
   meta_json: string | null;
@@ -71,8 +64,8 @@ export interface ClassEnrolment {
 export interface ClassResource {
   id: string;
   class_id: string;
-  resource_ref: string;       // typed ref: CM:<doc_id>|AR:<vocab_id>|etc.
-  resource_type: string;      // cm_doc|lesson|exercise_set|vocab_list|grammar_note|media|other
+  resource_ref: string;
+  resource_type: string;
   resource_label: string | null;
   sort_order: number;
   is_required: number;
@@ -94,10 +87,10 @@ export interface ClassAssignment {
   class_id: string;
   title: string;
   instructions_md: string | null;
-  resource_refs: string | null;   // JSON [typed_refs]
+  resource_refs: string | null;
   due_date: string | null;
   weight: number;
-  status: string;             // open|closed|graded
+  status: string;
   meta_json: string | null;
   created_at: string;
 }
@@ -115,13 +108,13 @@ export interface AssignmentSubmission {
   id: string;
   assignment_id: string;
   student_ref: string;
-  submission_type: string;    // text|file|audio|link|other
+  submission_type: string;
   content_md: string | null;
   cm_doc_ref: string | null;
   score: number | null;
   feedback_md: string | null;
   graded_by_ref: string | null;
-  status: string;             // draft|submitted|graded|returned
+  status: string;
   submitted_at: string;
   graded_at: string | null;
 }
@@ -132,8 +125,6 @@ export interface SubmissionInput {
   content_md?: string | null;
   cm_doc_ref?: string | null;
 }
-
-// ── Column lists ──────────────────────────────────────────────────────────────
 
 const CLASS_COLS = `id, slug, title, description_md, class_type,
   container_id, curriculum_id, teacher_ref, core_ws_ref, status,
@@ -153,12 +144,8 @@ const SUB_COLS = `id, assignment_id, student_ref, submission_type,
   content_md, cm_doc_ref, score, feedback_md, graded_by_ref,
   status, submitted_at, graded_at`;
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class ClassRepo {
   constructor(private db: D1Database) {}
-
-  // ── Classes ──────────────────────────────────────────────────────────────────
 
   list(workspaceRef: string, opts: PaginateOptions = {}) {
     return paginate<ArClass>(
@@ -241,8 +228,6 @@ export class ClassRepo {
     return this.findById(id);
   }
 
-  // ── Enrolments ───────────────────────────────────────────────────────────────
-
   enrolments(classId: string): Promise<ClassEnrolment[]> {
     return query<ClassEnrolment>(
       this.db,
@@ -280,8 +265,6 @@ export class ClassRepo {
     );
   }
 
-  // ── Resources ────────────────────────────────────────────────────────────────
-
   resources(classId: string): Promise<ClassResource[]> {
     return query<ClassResource>(
       this.db,
@@ -318,8 +301,6 @@ export class ClassRepo {
       [classId, input.resource_ref],
     ))!;
   }
-
-  // ── Assignments ──────────────────────────────────────────────────────────────
 
   assignments(classId: string, opts: PaginateOptions = {}) {
     return paginate<ClassAssignment>(
@@ -362,8 +343,6 @@ export class ClassRepo {
     );
     return (await this.findAssignment(id))!;
   }
-
-  // ── Submissions ──────────────────────────────────────────────────────────────
 
   submissions(assignmentId: string): Promise<AssignmentSubmission[]> {
     return query<AssignmentSubmission>(

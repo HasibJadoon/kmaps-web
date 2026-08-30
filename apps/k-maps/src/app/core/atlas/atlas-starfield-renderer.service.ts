@@ -2,22 +2,6 @@ import { Injectable, NgZone, inject } from '@angular/core';
 import * as THREE from 'three';
 import { SceneLayer } from './atlas.models';
 
-/**
- * AtlasStarfieldRenderer — realistic multi-layer night sky.
- *
- * Design goals:
- *   • Multiple parallax depth planes (near / mid / far)
- *   • Astronomy-inspired size + brightness distribution
- *   • Subtle cool-to-warm colour temperature variation
- *   • Faint Milky Way banding via an extra dim particle sheet
- *   • Atmospheric vignette handled in CSS, not WebGL
- *   • No fire, no candle, no fantasy effects
- *
- * Usage:
- *   1. Call init(container) once after view is ready.
- *   2. Call resize(w, h) on window resize.
- *   3. Call dispose() on component destroy.
- */
 @Injectable({ providedIn: 'root' })
 export class AtlasStarfieldRenderer {
   private static readonly FRAME_INTERVAL_MS = 1000 / 36;
@@ -45,8 +29,6 @@ export class AtlasStarfieldRenderer {
     lookY: 0,
     roll: 0,
   };
-
-  // ─── Public API ──────────────────────────────────────────────────────────
 
   init(host: HTMLElement): void {
     this.dispose();
@@ -118,16 +100,14 @@ export class AtlasStarfieldRenderer {
     this.targetMotion = { ...STARFIELD_MOTION_PROFILES[layer] };
   }
 
-  // ─── Build helpers ───────────────────────────────────────────────────────
-
   private buildMilkyWay(): void {
-    // Faint elongated band of dust — low-opacity, tiny points
+
     const count = 2200;
     const positions = new Float32Array(count * 3);
     const alphas = new Float32Array(count);
 
     for (let i = 0; i < count; i++) {
-      // Distribute along a tilted band
+
       const bandAngle = (Math.random() - 0.5) * Math.PI * 0.18;
       const t = (Math.random() - 0.5) * 2;
       const perp = (Math.random() - 0.5) * 0.3;
@@ -136,7 +116,6 @@ export class AtlasStarfieldRenderer {
       positions[i * 3 + 1] = t * 600 * Math.sin(bandAngle) - perp * 120 * Math.cos(bandAngle);
       positions[i * 3 + 2] = -400 + Math.random() * 80;
 
-      // Higher density toward centre
       alphas[i] = Math.pow(1 - Math.abs(t), 1.8) * 0.18 + Math.random() * 0.06;
     }
 
@@ -158,7 +137,7 @@ export class AtlasStarfieldRenderer {
   }
 
   private buildLayers(): void {
-    // Three depth layers: far (dense/dim), mid, near (sparse/bright)
+
     const specs: LayerSpec[] = [
       {
         count: 1600,
@@ -208,7 +187,7 @@ export class AtlasStarfieldRenderer {
     const sizes = new Float32Array(spec.count);
 
     for (let i = 0; i < spec.count; i++) {
-      // Spherical distribution
+
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       const r = 340 + Math.random() * 80;
@@ -217,7 +196,6 @@ export class AtlasStarfieldRenderer {
       positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = spec.zRange[0] + Math.random() * (spec.zRange[1] - spec.zRange[0]);
 
-      // Astronomy-like size-brightness correlation with scatter
       const brightness = spec.brightnessRange[0] + Math.random() * (spec.brightnessRange[1] - spec.brightnessRange[0]);
       const colorHex = spec.colorTemps[Math.floor(Math.random() * spec.colorTemps.length)];
       const col = new THREE.Color(colorHex);
@@ -252,8 +230,6 @@ export class AtlasStarfieldRenderer {
       drift: spec.drift,
     };
   }
-
-  // ─── Animation loop ──────────────────────────────────────────────────────
 
   private loop(timestamp?: number): void {
     if (this.disposed) return;
@@ -301,14 +277,12 @@ export class AtlasStarfieldRenderer {
     this.camera.lookAt(this.lookTarget);
     this.camera.rotation.z = this.currentRig.roll;
 
-    // Very slow differential rotation per layer for parallax
     for (let i = 0; i < this.layers.length; i++) {
       const layer = this.layers[i];
       layer.points.rotation.y = elapsed * layer.rotationSpeed * this.activeMotion.parallaxBoost * (i % 2 === 0 ? 1 : -0.6);
       layer.points.rotation.x = elapsed * layer.drift * this.activeMotion.parallaxBoost * (i % 2 === 0 ? 0.35 : 0.82);
     }
 
-    // Milky Way drifts imperceptibly
     if (this.milkyWay) {
       this.milkyWay.rotation.z = elapsed * 0.000008 * this.activeMotion.parallaxBoost;
     }
@@ -316,8 +290,6 @@ export class AtlasStarfieldRenderer {
     this.renderer.render(this.scene, this.camera);
   }
 }
-
-// ─── Internal types ──────────────────────────────────────────────────────────
 
 interface LayerSpec {
   count: number;

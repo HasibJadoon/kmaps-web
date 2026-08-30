@@ -1,16 +1,3 @@
-// ─── /core/bank/play/* — what people actually did ─────────────────────────────
-//
-//   POST /core/bank/attempts                  — start a play of a unit
-//   POST /core/bank/attempts/:id/answer       — answer one item, scored here
-//   POST /core/bank/attempts/:id/finish       — close it, decide the pass
-//   POST /core/bank/items/:id/feedback        — rate the QUESTION
-//   GET  /core/bank/scores                    — the shared scorecard
-//   GET  /core/bank/rooms/:code               — one room's board
-//
-// Everything is scored on the server, from the item's own rule, against a
-// server clock. The client sends what the person picked and nothing else — no
-// correctness, no elapsed, no points.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, created, badRequest, notFound, forbidden } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
@@ -39,10 +26,6 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     const packRef = str(body['pack_ref']);
     const roomCode = str(body['room_code']);
 
-    // A round is scoped by a unit or by a room. The path walks units; a quiz
-    // round and a table evening have none — their items hang off the pack — so
-    // requiring a unit here is what kept two of the three apps out of the one
-    // ledger they were built for.
     if (!unitRef && !packRef) return badRequest('unit_ref or pack_ref is required');
     if (!unitRef && !roomCode) {
       return badRequest('a round with no unit needs a room_code to be named by');
@@ -60,8 +43,7 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
       'SELECT id, owner_ref FROM core_bank_pack WHERE id = ?',
       [unit?.pack_ref ?? packRef]);
     if (!pack) return notFound(`pack ${packRef}`);
-    // Starting a round on somebody's private pack was possible: this route
-    // never looked at the pack at all.
+
     if (pack.owner_ref && pack.owner_ref !== ctx.userId) return forbidden('Not your pack');
 
     const mode = str(body['mode']) ?? 'solo';
@@ -77,8 +59,6 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
                      room_code: roomCode });
   });
 
-  /** One answer. The server decides whether it was right, how long it took and
-   *  what it is worth — none of those are things the client may say. */
   router.post('/core/bank/attempts/:id/answer', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -96,11 +76,6 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     const itemRef = str(body['item_ref']);
     if (!itemRef) return badRequest('item_ref is required');
 
-    // The item has to belong to what is being played. Looked up globally, this
-    // route was an answer oracle: start a one-item attempt on anything, then
-    // post any item id in the bank and read `correct_options` back — including
-    // items in somebody's private pack, and every item of a quiz that is live
-    // in a room at that moment.
     const item = await queryOne<ScorableItem & { id: string }>(
       env.DB_CORE,
       `SELECT i.id, i.interaction, i.scoring, i.response_json, i.seconds,
@@ -109,11 +84,6 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
         WHERE i.id = ? AND i.pack_ref = ?`, [itemRef, attempt.pack_ref]);
     if (!item) return notFound(`item ${itemRef} is not in this attempt`);
 
-    // Answered already? Give back what was recorded rather than scoring it
-    // again. A dropped connection makes the phone retry, and the honest answer
-    // to "I sent this twice" is the first verdict — not a second one that was
-    // silently discarded by the unique index while the client was told it had
-    // scored.
     const prior = await queryOne<{ id: string; is_correct: number | null; credit: number;
                                   points: number; latency_ms: number | null }>(
       env.DB_CORE,
@@ -134,16 +104,6 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
       `SELECT id, role, is_correct, pair_key, credit, sort_order
          FROM core_bank_item_option WHERE item_ref = ? ORDER BY sort_order`, [itemRef]);
 
-    // Both ends of this are the server's. It used to take `shown_at_ms` from the
-    // request body and subtract — so the client chose its own elapsed time and,
-    // through the speed bonus, its own score. The comment then claimed the
-    // stamps were the server's, and the test asserted it while passing a
-    // client-made stamp, which is how it survived review.
-    //
-    // What the server can vouch for is the gap since the person became free to
-    // look at this question: the attempt starting, or their previous answer
-    // landing. That is the reading time, and nothing the client sends can move
-    // it.
     const previous = await queryOne<{ at: string | null }>(
       env.DB_CORE,
       `SELECT MAX(created_at) AS at FROM core_bank_response WHERE attempt_ref = ?`,
@@ -167,8 +127,6 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
        verdict.credit, latency, verdict.points, body['hinted'] ? 1 : 0,
        str(body['respondent_ref']), str(body['respondent_name'])]);
 
-    // The item learns about itself. This is what lets the bank find its own bad
-    // questions later, without anybody having to report one.
     if (verdict.isCorrect !== null) {
       await execute(
         env.DB_CORE,
@@ -179,8 +137,6 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
         [verdict.isCorrect ? 1 : 0, item.id]);
     }
 
-    // The teaching travels with the verdict, not with the question. This is
-    // the only moment it is safe to send and the only moment it is read.
     const chosen = new Set(
       Array.isArray(body['answer']) ? body['answer'].map(String)
         : typeof body['answer'] === 'string' ? [String(body['answer'])] : []);
@@ -197,10 +153,9 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
       credit: verdict.credit,
       points: verdict.points,
       latency_ms: latency,
-      // Which options were right, so the screen can show them — after the
-      // answer is in, and never before.
+
       correct_options: options.filter((o) => o.is_correct === 1).map((o) => o.id),
-      // Why the one they picked was wrong, when it was.
+
       why_wrong: verdict.isCorrect === false
         ? await query<Record<string, unknown>>(
             env.DB_CORE,
@@ -215,7 +170,6 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     });
   });
 
-  /** Close the attempt and decide the pass, once. */
   router.post('/core/bank/attempts/:id/finish', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -230,25 +184,18 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
          FROM core_bank_attempt WHERE id = ?`, [id]);
     if (!attempt) return notFound(`attempt ${id}`);
     if (attempt.user_ref !== ctx.userId) return forbidden('Not your attempt');
-    // Finishing twice used to award the XP twice. `passed_at` was COALESCE-
-    // guarded and `core_bank_attempt.xp` is overwritten, but the profile's xp
-    // accumulates — so N calls meant N × xp in the profile against 1 × xp in
-    // the attempt, two numbers that appear on the same screen.
+
     if (attempt.finished_at) {
       return ok({ id: attempt.id, score: attempt.score, points: attempt.points,
                   xp: attempt.xp, passed: attempt.passed_at !== null, already: true });
     }
 
-    // A room round has no unit, so it has no threshold and no XP award of its
-    // own: it is scored, it is never "passed". Defaults keep one code path.
     const unit = attempt.unit_ref
       ? await queryOne<{ pass_threshold: number; xp_award: number }>(
           env.DB_CORE,
           'SELECT pass_threshold, xp_award FROM core_bank_unit WHERE id = ?', [attempt.unit_ref])
       : null;
 
-    // Scored responses only: a round of conversation cards has no score, and
-    // dividing by zero scored answers would make an evening look like a failure.
     const tally = await queryOne<{ scored: number; correct: number; points: number }>(
       env.DB_CORE,
       `SELECT COUNT(is_correct) AS scored,
@@ -298,7 +245,6 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     return ok({ id: attempt.id, score, points: Number(tally?.points ?? 0), xp, passed });
   });
 
-  /** Rate the question, not the person. */
   router.post('/core/bank/items/:id/feedback', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -318,22 +264,11 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     return created({ item_ref: id });
   });
 
-  /** How many answers before a rating means anything. */
   const MIN_RATED = 20;
 
-  /** Accuracy in stars. The bands are wider at the bottom because the distance
-   *  from 50% to 65% is a real change in what somebody knows, and the distance
-   *  from 96% to 98% is mostly which questions came up. */
   const starsFor = (accuracy: number): number =>
     accuracy >= 92 ? 5 : accuracy >= 80 ? 4 : accuracy >= 66 ? 3 : accuracy >= 50 ? 2 : 1;
 
-  /** Everyone, so anyone can be looked up.
-   *
-   *  The scorecard only knows people who have played, which makes a new
-   *  person invisible until their first round — the moment they would most
-   *  like to be on the board. This lists the whole room, with the few figures
-   *  a card needs, and zeroes for anybody yet to start.
-   */
   router.get('/core/bank/people', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -354,35 +289,11 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     return ok({ people, viewer: ctx.userId });
   });
 
-  /** One person's career, read the way a cricket profile is read.
-   *
-   *  The borrowed vocabulary is not decoration — it is a set of questions that
-   *  sport worked out long ago and that a learning app usually gets wrong:
-   *
-   *    innings   a round played through. Rounds, not attempts: walking away
-   *              is not an innings and should not drag an average down.
-   *    runs      points.
-   *    average   runs per innings — the number that says how a person plays,
-   *              as against how much they have played. A total rewards the
-   *              persistent; an average does not, which is why both are here.
-   *    high      the best single round, with what it was and when. A career
-   *              total cannot tell you somebody once got everything right.
-   *    hundreds  rounds of 100 points or more — a long evening played well.
-   *    perfect   rounds where nothing was missed. This is the one that had to
-   *              replace cricket's fifty: an innings here is capped by its own
-   *              question count, so a half-century was simply average.
-   *    form      the last eight innings, most recent first. Form is the one
-   *              thing a career total actively hides.
-   *    record    W-L-D across matches, and the head-to-head behind it.
-   */
   router.get('/core/bank/profile', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
     const url = new URL(req.url);
-    // Anybody's card is readable by anybody. A shared scorecard whose profiles
-    // are private is a scoreboard you cannot look up — the point of playing in
-    // the same room is being able to see how the others are doing, and every
-    // figure here is already visible on the scorecard in aggregate.
+
     const who = url.searchParams.get('user') ?? ctx.userId;
 
     const [career, best, form, byApp, rooms, profile] = await Promise.all([
@@ -427,8 +338,7 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
                 COALESCE(SUM(a.points), 0) AS runs
            FROM core_bank_attempt a JOIN core_bank_pack p ON p.id = a.pack_ref
           WHERE a.user_ref = ? GROUP BY p.app ORDER BY runs DESC`, [who]),
-      // Every match this person was in, with what everyone scored — the record
-      // and the head-to-head both come out of this one set.
+
       query(
         env.DB_CORE,
         `WITH played AS (
@@ -449,8 +359,6 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
            FROM core_bank_profile WHERE user_ref = ?`, [who]),
     ]);
 
-    // Who this is. A card headed by a raw id is not a profile anybody can
-    // browse, and the name is on the scorecard already.
     const person = await queryOne<{ name: string | null }>(
       env.DB_CORE,
       `SELECT COALESCE(display_name, substr(email, 1, instr(email, '@') - 1), id) AS name
@@ -461,8 +369,6 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
       `SELECT COUNT(is_correct) AS answered, COALESCE(SUM(is_correct), 0) AS correct
          FROM core_bank_response WHERE user_ref = ?`, [who]);
 
-    // The record, from the matches above. A draw is a draw for everyone on the
-    // top score — the same rule the scorecard uses, stated once here too.
     const matchRows = rooms as Record<string, unknown>[];
     const seen = new Set<string>();
     let won = 0, lost = 0, drew = 0;
@@ -501,16 +407,13 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     return ok({
       user_id: who,
       name: person?.name ?? null,
-      // True when this person has never played. A card that renders zeroes is
-      // right; one that 404s makes an empty profile look like a broken link.
+
       unplayed: innings === 0 && Number((career as Record<string, unknown>)?.['attempts'] ?? 0) === 0,
       viewer: ctx.userId,
       is_self: who === ctx.userId,
       career: {
         ...(career ?? {}),
-        // Kept to one decimal: an average of 47.3 is a real difference from
-        // 46.8, and 47.312 is a number pretending to a precision it has not
-        // earned off nine innings.
+
         average: innings > 0 ? Math.round((10 * runs) / innings) / 10 : null,
         accuracy,
         answered,
@@ -530,11 +433,6 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     });
   });
 
-  /** The shared scorecard: everybody, across the three apps, from one ledger.
-   *
-   *  This is the query the whole design exists for. Because every play of every
-   *  app writes the same two rows, "how is everyone doing" is one GROUP BY
-   *  rather than a union of three tables that count different things. */
   router.get('/core/bank/scores', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -588,8 +486,7 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
           GROUP BY a.user_ref, p.app
           ORDER BY points DESC`,
         params),
-      // The questions the room keeps failing — a gap in the teaching, not in
-      // the room, and the reason this is on the scorecard rather than buried.
+
       query(
         env.DB_CORE,
         `SELECT i.id, i.slug, i.prompt_en, i.prompt_ar, i.module, i.surah, i.step_key,
@@ -613,20 +510,7 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
          HAVING asked >= 2
           ORDER BY pct ASC, asked DESC
           LIMIT 20`, []),
-      // ── the record: rounds played, matches, and who won them ──────────────
-      //
-      // A round is one sitting: an attempt somebody finished. A match is a
-      // round other people were in — same room code, two or more players —
-      // and its winner is whoever finished it on the most points.
-      //
-      // A tie is a DRAW, counted on its own and never folded into wins. It was
-      // folded in at first, and the scorecard then showed 4 wins from 4 while
-      // the same person's own profile read 3-0-1 — two screens disagreeing
-      // about one evening. Both now use this rule, stated once.
-      //
-      // Derived, like everything else here. Nothing writes a win: a match is
-      // won by having played it best, and if a round is replayed or a score
-      // corrected the record follows without a second table to repair.
+
       query(
         env.DB_CORE,
         `WITH played AS (
@@ -661,10 +545,7 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
           WHERE s.players > 1
           GROUP BY pl.user_ref, pl.app`,
         params),
-      // XP and the streak are the two numbers that must NOT be recomputed from
-      // attempts: a streak is a claim about days somebody showed up, and it has
-      // to survive the deletion of the round that earned it. This is the one
-      // documented exception to deriving everything.
+
       query(
         env.DB_CORE,
         `SELECT pr.user_ref AS user_id,
@@ -682,9 +563,6 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
                 (SELECT COUNT(*) FROM core_bank_response) AS responses`, []),
     ]);
 
-    // Rounds come off the people query (a finished attempt is a round); the
-    // match record is folded in beside it so a client reads one row per person
-    // per app and never has to join two lists to draw a card.
     const recordFor = new Map<string, Record<string, unknown>>();
     for (const row of record as Record<string, unknown>[]) {
       recordFor.set(`${row['user_id']}\u0000${row['app']}`, row);
@@ -699,19 +577,12 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
         wins,
         draws: Number(own?.['draws'] ?? 0),
         losses: Number(own?.['losses'] ?? 0),
-        // Only meaningful once a match has been played; null rather than 0 so
-        // a card can say "—" instead of implying someone has lost every game.
+
         win_pct: matches > 0 ? Math.round((100 * wins) / matches) : null,
         last_match: own?.['last_match'] ?? null,
       };
     });
 
-    // ── the career figure ────────────────────────────────────────────────
-    //
-    // One row per person, across all three apps: what a profile screen shows.
-    // The per-app rows stay beside it, because "you are strong on the path and
-    // lose every quiz" is the useful half of a scorecard — but the headline is
-    // the total, and a total split three ways is not a total.
     const lifetime = new Map<string, Record<string, unknown>>();
     for (const row of standings) {
       const key = String(row['user_id']);
@@ -746,33 +617,19 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
         xp: Number(row['xp'] ?? 0),
         streak_days: Number(row['streak_days'] ?? 0),
         longest_streak: Number(row['longest_streak'] ?? 0),
-        // Percentages only once there is something to divide by. Zero of zero
-        // is not nought per cent, it is a person who has not started.
+
         accuracy: Number(row['answered']) > 0
           ? Math.round((100 * Number(row['correct'])) / Number(row['answered'])) : null,
         win_pct: Number(row['matches']) > 0
           ? Math.round((100 * Number(row['wins'])) / Number(row['matches'])) : null,
       }))
       .sort((a, b) => Number(b['points']) - Number(a['points']))
-      // ── the standing, and the stars ──────────────────────────────────────
-      //
-      // Two different questions, deliberately kept apart. RANK answers "who is
-      // ahead", and it is points, so it rewards showing up — which is most of
-      // what learning is. STARS answer "how well", and they are accuracy, so
-      // they cannot be climbed by playing more; a person who answers eighty
-      // per cent right keeps four stars whether that is their first week or
-      // their fifth year.
-      //
-      // Collapsing the two would make the star rating a second leaderboard,
-      // and then the person furthest ahead would always be the best, which is
-      // the one thing a rating is for telling you is not true.
+
       .map((row, index) => ({
         ...row,
         rank: index + 1,
         top: index === 0 && Number(row['points']) > 0,
-        // Withheld until there is enough to judge. Five stars off three lucky
-        // answers is worse than no stars: it is a wrong answer to the question
-        // the rating was asked.
+
         stars: Number(row['answered']) >= MIN_RATED
           ? starsFor(Number(row['accuracy'] ?? 0)) : null,
         rating_after: Number(row['answered']) >= MIN_RATED
@@ -783,7 +640,6 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
                 viewer: ctx.userId });
   });
 
-  /** One room's board — the same ledger, narrowed to a code. */
   router.get('/core/bank/rooms/:code', async (req, env, { code }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;

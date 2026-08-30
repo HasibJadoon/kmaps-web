@@ -1,22 +1,15 @@
-// ─── Morphology schemas & types ───────────────────────────────────────────────
-// Tables: ar_ling_root_lemma_sarf, ar_ling_lemma_morphology,
-//         ar_ling_root_form_paradigm, ar_ling_root_lemma_ilal,
-//         ar_ling_root_form_template
-
-// ── ar_ling_root_lemma_sarf ────────────────────────────────────────────────────────
-
 export interface ArLingMorphology {
-  id: string;                    // AL:ULID
-  pattern: string;               // وزن  e.g. فَاعِل
-  gender: string | null;         // 'masculine'|'feminine'|'both'
-  number: string | null;         // 'singular'|'dual'|'plural'|'broken_plural'
-  case_marker: string | null;    // 'triptote'|'diptote'|'indeclinable'
-  tense: string | null;          // 'past'|'present'|'imperative'
-  voice: string | null;          // 'active'|'passive'
-  person: string | null;         // '1st'|'2nd'|'3rd'
-  definiteness: string | null;   // 'definite'|'indefinite'|'both'
+  id: string;
+  pattern: string;
+  gender: string | null;
+  number: string | null;
+  case_marker: string | null;
+  tense: string | null;
+  voice: string | null;
+  person: string | null;
+  definiteness: string | null;
   derivation_type: string | null;
-  // 'masdar'|'ism_fail'|'ism_maf_ul'|'sifah'|'ism_makan'|'ism_zaman'|'ism_alah'|'other'
+
   note_md: string | null;
   created_at: string;
 }
@@ -70,13 +63,11 @@ export function validateArLingMorphologyCreate(
   };
 }
 
-// ── ar_ling_lemma_morphology ──────────────────────────────────────────────────
-
 export interface ArLingLemmaMorphology {
-  id: string;                    // AL:ULID
-  lemma_id: string;              // FK → ar_ling_root_lemma.id
-  morphology_id: string;         // FK → ar_ling_root_lemma_sarf.id
-  inflected_form: string | null; // actual inflected surface form
+  id: string;
+  lemma_id: string;
+  morphology_id: string;
+  inflected_form: string | null;
 }
 
 export interface ArLingLemmaMorphologyCreate {
@@ -103,16 +94,14 @@ export function validateArLingLemmaMorphologyCreate(
   };
 }
 
-// ── ar_ling_root_form_paradigm ────────────────────────────────────────────────────
-
 export interface ArLingFormParadigm {
-  id: string;              // AL:ULID
-  paradigm_name: string;   // e.g. 'فَعَلَ trilateral sound verb'
+  id: string;
+  paradigm_name: string;
   paradigm_type: string;
-  // 'verb_conjugation'|'noun_declension'|'adjective_declension'|'broken_plural_pattern'
-  verb_form: string | null;    // form_i … form_xv
-  root_type: string | null;    // sound/weak/hamzated/doubled
-  paradigm_json: string;       // JSON: {past_3ms, past_3fs, …}
+
+  verb_form: string | null;
+  root_type: string | null;
+  paradigm_json: string;
   note_md: string | null;
   created_at: string;
 }
@@ -158,14 +147,12 @@ export function validateArLingFormParadigmCreate(
   };
 }
 
-// ── ar_ling_root_lemma_ilal ──────────────────────────────────────────────────
-
 export interface ArLingInflectionRule {
-  id: string;                    // AL:ULID
+  id: string;
   rule_name: string;
   rule_type: string;
-  // 'assimilation'|'deletion'|'substitution'|'hamza_rule'|'weak_verb_change'|'nunation'|'other'
-  applies_to: string;            // pattern, root_type, context
+
+  applies_to: string;
   rule_description_md: string;
   example_before: string | null;
   example_after: string | null;
@@ -218,15 +205,13 @@ export function validateArLingInflectionRuleCreate(
   };
 }
 
-// ── ar_ling_root_form_template ─────────────────────────────────────────────
-
 export interface ArLingConjugationTemplate {
-  id: string;              // AL:ULID
-  paradigm_id: string;     // FK → ar_ling_root_form_paradigm.id
-  person: string;          // '3ms'|'3fs'|'3md'|'3mp'|'3fp'|'2ms'|…
-  tense: string;           // 'past'|'present'|'imperative'|'subjunctive'|'jussive'
-  voice: string;           // 'active'|'passive'
-  template_form: string;   // abstract form using ف-ع-ل placeholders
+  id: string;
+  paradigm_id: string;
+  person: string;
+  tense: string;
+  voice: string;
+  template_form: string;
   note_md: string | null;
 }
 
@@ -272,26 +257,22 @@ export function validateArLingConjugationTemplateCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface MorphologyEntry {
-  id: string;           // AL:ULID
-  lemma_id: string;     // AL:ULID
+  id: string;
+  lemma_id: string;
   form_ar: string;
-  stem_type: string | null;  // verb_form | noun_pattern | ...
-  pattern: string | null;    // فَعَلَ / فِعَال etc.
-  tags: string | null;       // JSON array of grammatical tags
+  stem_type: string | null;
+  pattern: string | null;
+  tags: string | null;
 }
 
 export interface FormParadigm {
-  id: string;           // AL:ULID
+  id: string;
   paradigm_name: string;
-  category: string;     // verb | noun | adjective | ...
+  category: string;
   pattern: string;
   example_ar: string | null;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

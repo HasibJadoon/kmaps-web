@@ -1,28 +1,9 @@
-// ─── /cm/sources — the resource repository ────────────────────────────────────
-//
-// Books, articles, podcast episodes, videos, lectures — what you have collected,
-// with enough bibliography to cite it. Distinct from wv_sources, which is a
-// research artefact being read closely; a cm_source becomes one by promotion,
-// and the two then point at each other.
-//
-// Every route here used to throw: the repository selected columns that do not
-// exist and never set the NOT NULL owner. See source.repo.ts.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated, unauthorized } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
 import type { ContentEnv } from '../env';
 import { CmSourceRepo } from '../repositories/source.repo';
 
-/**
- * What a resource can be.
- *
- * The live rows use `course_notes`, `textbook` and `workbook`, none of which
- * were in the old TypeScript union — because that union was only ever checked
- * by a validator the routes never called. Both lists are merged here and the
- * check is real, so the seven existing rows stay valid and the vocabulary stops
- * being two different things.
- */
 export const CM_SOURCE_TYPES = [
   'book', 'article', 'paper', 'lecture', 'manuscript', 'video', 'podcast',
   'channel', 'course_notes', 'textbook', 'workbook', 'thread', 'other',
@@ -35,7 +16,6 @@ function actor(req: Request): string | null {
 
 export function cmSourceRoutes(router: Router<ContentEnv>) {
 
-  // GET /cm/sources?type=book&status=reading
   router.get('/cm/sources', async (req, env) => {
     const user = actor(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -48,8 +28,6 @@ export function cmSourceRoutes(router: Router<ContentEnv>) {
     }));
   });
 
-  // GET /cm/sources/types — the vocabulary, so a client offers what the
-  // database will actually accept.
   router.get('/cm/sources/types', async (_req, _env) =>
     ok({ types: CM_SOURCE_TYPES }));
 
@@ -61,7 +39,6 @@ export function cmSourceRoutes(router: Router<ContentEnv>) {
     return ok(row);
   });
 
-  // POST /cm/sources
   router.post('/cm/sources', async (req, env) => {
     const user = actor(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -89,16 +66,13 @@ export function cmSourceRoutes(router: Router<ContentEnv>) {
       isbn: typeof b['isbn'] === 'string' ? b['isbn'] : null,
       doi: typeof b['doi'] === 'string' ? b['doi'] : null,
       url: typeof b['url'] === 'string' ? b['url'] : null,
-      // An episode says which channel emitted it. Nothing validates that the
-      // parent is of type 'channel' — a lecture series inside a course is the
-      // same relation, and refusing it would be inventing a rule.
+
       parent_source_ref: typeof b['parent_source_ref'] === 'string' ? b['parent_source_ref'] : null,
       episode_no: typeof b['episode_no'] === 'number' ? b['episode_no'] : null,
       published_at: typeof b['published_at'] === 'string' ? b['published_at'] : null,
     }));
   });
 
-  // GET /cm/sources/:id/episodes — a channel and what it has emitted.
   router.get('/cm/sources/:id/episodes', async (req, env, { id }) => {
     const user = actor(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -107,12 +81,6 @@ export function cmSourceRoutes(router: Router<ContentEnv>) {
     return ok(result);
   });
 
-  // POST /cm/sources/:id/promote — reading has begun.
-  //
-  // Records the wv_sources row this became. Only this side is written here;
-  // the caller sets `cm_source_ref` on the worldview side, because there is no
-  // foreign key across two databases and a pair of pointers is the only thing
-  // that makes the link checkable afterwards.
   router.post('/cm/sources/:id/promote', async (req, env, { id }) => {
     const user = actor(req);
     if (!user) return unauthorized('Authenticated user required');

@@ -1,20 +1,12 @@
--- Schema for km_core.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-30.
--- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
--- Regenerate with scripts/regen_schemas.py — do not hand-edit.
-
--- ── Tables (88) ──────────────────────────────────────────────────
-
 CREATE TABLE core_activity_events (
-  id              TEXT PRIMARY KEY,               -- ULID
+  id              TEXT PRIMARY KEY,
   workspace_id    TEXT,
-  actor_user_ref  TEXT NOT NULL,                  -- 'CORE:<user_id>'
+  actor_user_ref  TEXT NOT NULL,
   event_type      TEXT NOT NULL,
-    -- 'resource_created'|'resource_updated'|'resource_deleted'|'member_joined'|
-    -- 'comment_added'|'suggestion_approved'|'plan_completed'|'session_logged'|'other'
-  resource_ref    TEXT,                           -- typed ref to affected resource
+
+  resource_ref    TEXT,
   resource_type   TEXT,
-  payload_json    TEXT,                           -- contextual data snapshot
+  payload_json    TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (workspace_id) REFERENCES core_workspaces(id)
 );
@@ -24,23 +16,21 @@ CREATE TABLE core_audit_log (
   workspace_id    TEXT,
   actor_user_ref  TEXT NOT NULL,
   action          TEXT NOT NULL,
-    -- 'policy_changed'|'grant_issued'|'grant_revoked'|'member_removed'|
-    -- 'visibility_changed'|'publication_state_changed'|'auth_token_issued'|
-    -- 'auth_token_revoked'|'user_suspended'|'workspace_archived'|'other'
+
   resource_ref    TEXT,
-  before_json     TEXT,                           -- snapshot before change
-  after_json      TEXT,                           -- snapshot after change
+  before_json     TEXT,
+  after_json      TEXT,
   ip_address      TEXT,
   user_agent      TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE core_auth_sessions (
-  id              TEXT PRIMARY KEY,               -- ULID
+  id              TEXT PRIMARY KEY,
   user_id         TEXT NOT NULL,
   session_token   TEXT NOT NULL UNIQUE,
   session_type    TEXT NOT NULL DEFAULT 'web',
-    -- 'web'|'mobile'|'api'|'service'
+
   device_info     TEXT,
   ip_address      TEXT,
   user_agent      TEXT,
@@ -54,12 +44,12 @@ CREATE TABLE core_auth_sessions (
 CREATE TABLE core_auth_tokens (
   id              TEXT PRIMARY KEY,
   user_id         TEXT NOT NULL,
-  token_hash      TEXT NOT NULL UNIQUE,           -- SHA-256 hash of raw token
+  token_hash      TEXT NOT NULL UNIQUE,
   token_type      TEXT NOT NULL DEFAULT 'api_key',
-    -- 'api_key'|'invitation'|'password_reset'|'email_verify'|'link_share'
+
   name            TEXT,
-  scopes_json     TEXT,                           -- JSON [string] — granted scopes
-  workspace_id    TEXT,                           -- optional workspace scope
+  scopes_json     TEXT,
+  workspace_id    TEXT,
   expires_at      TEXT,
   used_at         TEXT,
   revoked_at      TEXT,
@@ -70,31 +60,24 @@ CREATE TABLE core_auth_tokens (
 CREATE TABLE core_bank_attempt (
   id            TEXT PRIMARY KEY,
   user_ref      TEXT NOT NULL,
-  
-  
+
   unit_ref      TEXT REFERENCES core_bank_unit(id),
   pack_ref      TEXT NOT NULL REFERENCES core_bank_pack(id),
   mode          TEXT NOT NULL DEFAULT 'solo'
                   CHECK (mode IN ('solo','live','table')),
-  
-  
+
   room_code     TEXT,
   started_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   finished_at   TEXT,
-  score         REAL,                            
-  points        INTEGER NOT NULL DEFAULT 0,      
+  score         REAL,
+  points        INTEGER NOT NULL DEFAULT 0,
   xp            INTEGER NOT NULL DEFAULT 0,
   hearts_left   INTEGER,
-  
-  
-  
+
   passed_at     TEXT,
-  
-  
-  
+
   current_item_ref TEXT REFERENCES core_bank_item(id),
-  
-  
+
   CHECK (unit_ref IS NOT NULL OR room_code IS NOT NULL)
 );
 
@@ -119,15 +102,13 @@ CREATE TABLE core_bank_item (
   id            TEXT PRIMARY KEY,
   pack_ref      TEXT NOT NULL REFERENCES core_bank_pack(id) ON DELETE CASCADE,
   slug          TEXT NOT NULL,
-  -- Trilingual from the start. ar_ling_* already is, and adding _ur later is a
-  -- table rewrite.
+
   prompt_en     TEXT,
   prompt_ar     TEXT,
   prompt_ur     TEXT,
   stimulus_md   TEXT,
   media_r2_key  TEXT,
-  -- QTI's interaction names where QTI has one. A closed list on purpose: an
-  -- open TEXT column is how a bank ends up holding 'mcq', 'MCQ' and 'choice'.
+
   interaction   TEXT NOT NULL CHECK (interaction IN (
                   'choice','choice_multi','true_false','inline_choice',
                   'order','match','associate','gap_match',
@@ -135,18 +116,12 @@ CREATE TABLE core_bank_item (
                   'slider','hotspot','tap_word','pin',
                   'speak','listen',
                   'open_prompt')),
-  -- QTI's responseProcessing template.
-  --   match_correct  exact match against the declared response
-  --   map_response   per-option credit; partial marks
-  --   nearest        numeric distance — a slider, a pin
-  --   none           unscored: a poll, a word cloud, a conversation card
+
   scoring       TEXT NOT NULL DEFAULT 'match_correct'
                   CHECK (scoring IN ('match_correct','map_response','nearest','none')),
-  -- The declared correct response, in whatever shape the template reads. JSON
-  -- because its shape is a function of `interaction`, and a column cannot be.
-  -- Choices and tokens are ROWS, not in here — see core_bank_item_option.
+
   response_json TEXT CHECK (response_json IS NULL OR json_valid(response_json)),
-  seconds       INTEGER,                        -- NULL = untimed
+  seconds       INTEGER,
   points_style  TEXT NOT NULL DEFAULT 'standard'
                   CHECK (points_style IN ('standard','double','none')),
   speed_bonus   INTEGER NOT NULL DEFAULT 0,
@@ -154,9 +129,7 @@ CREATE TABLE core_bank_item (
   explanation_ar TEXT,
   explanation_ur TEXT,
   difficulty    INTEGER NOT NULL DEFAULT 3 CHECK (difficulty BETWEEN 1 AND 5),
-  -- A CLIENT COMPONENT KEY, not a template blob. core_srs_note_type.templates_json
-  -- has never been read by anything — card-ds.repo.ts renders from a hard-coded
-  -- switch instead — so this does not become a second unread template store.
+
   renderer      TEXT,
   module        TEXT NOT NULL DEFAULT 'other'
                   CHECK (module IN ('AR','AL','QR','WV','EN','other')),
@@ -173,14 +146,12 @@ CREATE TABLE core_bank_item (
   tags          TEXT,
   source        TEXT NOT NULL DEFAULT 'authored'
                   CHECK (source IN ('authored','imported','generated','projected')),
-  -- The upstream row this came from: AR:EX:… | AL:Q:… | CORE:QQ:… | QR:SQ:…
+
   origin_ref    TEXT,
   import_ref    TEXT,
-  -- sha256 of the normalised payload, so a re-import can skip what has not
-  -- changed and the dry run can show a diff worth reading.
+
   content_digest TEXT,
-  -- Calibration, copied from ar_ling_learn_question, which already knew that a
-  -- bank should learn which of its own questions are any good.
+
   times_shown   INTEGER NOT NULL DEFAULT 0,
   times_correct INTEGER NOT NULL DEFAULT 0,
   discrimination REAL,
@@ -201,16 +172,14 @@ CREATE TABLE core_bank_item_feedback (
                 ('ambiguous','wrong_answer','too_easy','too_hard','typo','other')),
   note        TEXT,
   created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
-  -- One standing verdict per person per item; saying it again replaces it.
+
   UNIQUE (item_ref, user_ref)
 );
 
 CREATE TABLE core_bank_item_option (
   id            TEXT PRIMARY KEY,
   item_ref      TEXT NOT NULL REFERENCES core_bank_item(id) ON DELETE CASCADE,
-  -- What this row IS inside the interaction. One table serves the choices of an
-  -- MCQ, the movable tokens of an ordering, both sides of a matching pair, and
-  -- the fillers of a gap.
+
   role          TEXT NOT NULL DEFAULT 'choice'
                   CHECK (role IN ('choice','order_token','match_left','match_right',
                                   'gap','distractor_pool')),
@@ -219,8 +188,7 @@ CREATE TABLE core_bank_item_option (
   label_ur      TEXT,
   media_r2_key  TEXT,
   is_correct    INTEGER NOT NULL DEFAULT 0,
-  -- The pairing key: match_left 'a' answers match_right 'a'; gap 'g2' fills
-  -- blank 2. Order tokens use sort_order as their answer.
+
   pair_key      TEXT,
   credit        REAL,
   distractor_kind TEXT,
@@ -233,7 +201,7 @@ CREATE TABLE core_bank_item_option (
 
 CREATE TABLE core_bank_pack (
   id            TEXT PRIMARY KEY,
-  slug          TEXT NOT NULL UNIQUE,          -- hand-authored; the import key
+  slug          TEXT NOT NULL UNIQUE,
   app           TEXT NOT NULL CHECK (app IN ('path','quiz','table')),
   title         TEXT NOT NULL,
   title_ar      TEXT,
@@ -241,13 +209,10 @@ CREATE TABLE core_bank_pack (
   language      TEXT NOT NULL DEFAULT 'en',
   cefr_from     TEXT,
   cefr_to       TEXT,
-  -- Lifted off core_talk_deck, where it described a deck but sat next to
-  -- per-card columns. Who the pack is for is a property of the pack.
+
   audience      TEXT CHECK (audience IS NULL OR audience IN
                   ('family','friends','couples','kids','work','mixed')),
-  -- THE COLUMN THAT MAKES THIS A BANK. NULL is the published corpus, which is
-  -- what a new account walks into. A pack with an owner is somebody's private
-  -- deck living in the same table.
+
   owner_ref     TEXT,
   workspace_ref TEXT,
   visibility    TEXT NOT NULL DEFAULT 'private'
@@ -279,17 +244,13 @@ CREATE TABLE core_bank_response (
   user_ref      TEXT NOT NULL,
   seq           INTEGER NOT NULL DEFAULT 0,
   response_json TEXT CHECK (response_json IS NULL OR json_valid(response_json)),
-  -- NULL when the item is unscored. A poll and a conversation card have
-  -- responses and no correctness, and that is not a missing value — it is the
-  -- kind of item it is.
+
   is_correct    INTEGER,
-  credit        REAL,                            -- partial marks, map_response
-  latency_ms    INTEGER,                         -- server-measured
+  credit        REAL,
+  latency_ms    INTEGER,
   points        INTEGER NOT NULL DEFAULT 0,
   hinted        INTEGER NOT NULL DEFAULT 0,
-  -- The Table app: who this question was ASKED OF. On the response, not on the
-  -- card — which is the bug migrations 026/027 left behind, where a card asked
-  -- of two people on two evenings could only remember the second.
+
   respondent_ref  TEXT,
   respondent_name TEXT,
   answered_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
@@ -300,22 +261,20 @@ CREATE TABLE core_bank_unit (
   id            TEXT PRIMARY KEY,
   pack_ref      TEXT NOT NULL REFERENCES core_bank_pack(id) ON DELETE CASCADE,
   slug          TEXT NOT NULL,
-  -- Self-parenting, like ar_curriculum_container_unit: section → unit → node.
+
   parent_ref    TEXT REFERENCES core_bank_unit(id),
   depth         INTEGER NOT NULL DEFAULT 0,
-  unit_index    INTEGER NOT NULL DEFAULT 0,     -- order among siblings
+  unit_index    INTEGER NOT NULL DEFAULT 0,
   title         TEXT NOT NULL,
   title_ar      TEXT,
   subtitle      TEXT,
-  -- The icon on the path. Duolingo marks each node with what KIND of exercise
-  -- waits there, which is the half a progress ring cannot say.
+
   node_type     TEXT NOT NULL DEFAULT 'lesson'
                   CHECK (node_type IN ('section','unit','lesson','practice',
                                        'review','story','checkpoint','chest','trophy')),
   icon          TEXT,
   colour        TEXT,
-  -- Delivery. A lesson draws `item_count` from a larger membership, which is
-  -- how the same unit stays worth replaying.
+
   item_count    INTEGER,
   item_order    TEXT NOT NULL DEFAULT 'fixed'
                   CHECK (item_order IN ('fixed','shuffle','weighted')),
@@ -323,7 +282,7 @@ CREATE TABLE core_bank_unit (
   hearts        INTEGER,
   xp_award      INTEGER NOT NULL DEFAULT 10,
   estimated_mins INTEGER,
-  -- Scope, in the vocabulary the rest of this database already speaks.
+
   module        TEXT,
   resource_ref  TEXT,
   step_key      TEXT,
@@ -348,13 +307,13 @@ CREATE TABLE core_bank_unit_item (
 );
 
 CREATE TABLE core_concept (
-  id         TEXT PRIMARY KEY,          -- CN:{domain}:{key}
-  uid        TEXT NOT NULL UNIQUE,      -- 26-hex, the convention the other registries use
+  id         TEXT PRIMARY KEY,
+  uid        TEXT NOT NULL UNIQUE,
   concept_key TEXT NOT NULL,
   label_en   TEXT,
   label_ar   TEXT,
   domain     TEXT NOT NULL,
-  origin     TEXT NOT NULL,             -- which side first named it
+  origin     TEXT NOT NULL,
   status     TEXT NOT NULL DEFAULT 'live',
   note_md    TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -393,11 +352,11 @@ CREATE TABLE core_daily_log (
 
 CREATE TABLE core_external_refs (
   id              TEXT PRIMARY KEY,
-  legacy_source   TEXT NOT NULL,                  -- e.g. 'knowledgemap'|'old_wv'|'import_v1'
+  legacy_source   TEXT NOT NULL,
   legacy_id       TEXT NOT NULL,
-  legacy_type     TEXT,                           -- old table/type name
-  new_module      TEXT NOT NULL,                  -- module code: 'QR'|'AL'|'WV'|'CM'|etc.
-  new_typed_ref   TEXT NOT NULL,                  -- 'QR:<id>' | 'AL:<id>' etc.
+  legacy_type     TEXT,
+  new_module      TEXT NOT NULL,
+  new_typed_ref   TEXT NOT NULL,
   migration_batch TEXT,
   note            TEXT,
   migrated_at     TEXT NOT NULL DEFAULT (datetime('now')),
@@ -409,20 +368,19 @@ CREATE TABLE core_feature_flags (
   flag_key        TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   is_enabled      INTEGER NOT NULL DEFAULT 0,
-  rollout_percent INTEGER NOT NULL DEFAULT 0,     -- 0–100
-  enabled_for     TEXT,                           -- JSON [user_ref or workspace_ref]
+  rollout_percent INTEGER NOT NULL DEFAULT 0,
+  enabled_for     TEXT,
   description     TEXT,
   updated_by_ref  TEXT,
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE core_notifications (
-  id              TEXT PRIMARY KEY,               -- ULID
-  user_ref        TEXT NOT NULL,                  -- 'CORE:<user_id>'
+  id              TEXT PRIMARY KEY,
+  user_ref        TEXT NOT NULL,
   workspace_id    TEXT,
   notif_type      TEXT NOT NULL,
-    -- 'mention'|'comment'|'approval_request'|'assignment'|'milestone'|
-    -- 'suggestion'|'system'|'review'|'other'
+
   title           TEXT NOT NULL,
   body_md         TEXT,
   resource_ref    TEXT,
@@ -432,15 +390,15 @@ CREATE TABLE core_notifications (
 );
 
 CREATE TABLE core_people (
-  id              TEXT PRIMARY KEY,               -- ULID
+  id              TEXT PRIMARY KEY,
   workspace_id    TEXT NOT NULL,
   name            TEXT NOT NULL,
   name_ar         TEXT,
   email           TEXT,
-  relationship    TEXT,                           -- 'family'|'colleague'|'friend'|'contact'|'other'
-  linked_user_id  TEXT,                           -- → core_users.id if they have an account
+  relationship    TEXT,
+  linked_user_id  TEXT,
   visibility      TEXT NOT NULL DEFAULT 'private',
-    -- 'private'|'workspace'
+
   notes_md        TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -450,23 +408,22 @@ CREATE TABLE core_people (
 );
 
 CREATE TABLE core_person (
-  id            TEXT PRIMARY KEY,        -- PN:{slug}
-  uid           TEXT NOT NULL UNIQUE,    -- 26-hex, the convention the others use
-  person_key    TEXT NOT NULL,           -- the slug, on its own
+  id            TEXT PRIMARY KEY,
+  uid           TEXT NOT NULL UNIQUE,
+  person_key    TEXT NOT NULL,
   name_en       TEXT NOT NULL,
   name_ar       TEXT,
-  name_native   TEXT,                    -- as written in their own language
-  -- scholar | poet | philosopher | thinker | author | host | guest | figure
+  name_native   TEXT,
+
   person_type   TEXT NOT NULL DEFAULT 'figure',
   birth_year    INTEGER,
   death_year    INTEGER,
-  -- Free text on purpose: "13th century", "fl. 900s", "contemporary". Dates are
-  -- the precise field; this is what you say when precision is not available.
+
   era           TEXT,
   nationality   TEXT,
-  tradition_ref TEXT,                    -- wv_traditions.id, where one applies
+  tradition_ref TEXT,
   bio_md        TEXT,
-  origin        TEXT NOT NULL DEFAULT 'worldview',   -- which side first named them
+  origin        TEXT NOT NULL DEFAULT 'worldview',
   status        TEXT NOT NULL DEFAULT 'live',
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -476,7 +433,7 @@ CREATE TABLE core_platform_config (
   config_key      TEXT NOT NULL UNIQUE,
   config_value    TEXT NOT NULL,
   value_type      TEXT NOT NULL DEFAULT 'string',
-    -- 'string'|'integer'|'boolean'|'json'
+
   description     TEXT,
   updated_by_ref  TEXT,
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -485,9 +442,9 @@ CREATE TABLE core_platform_config (
 CREATE TABLE core_podcast_participants (
   id           TEXT PRIMARY KEY,
   podcast_id   TEXT NOT NULL,
-  person_id    TEXT,                              -- → core_people.id (private) or NULL
-  user_ref     TEXT,                              -- 'CORE:<user_id>' if has account
-  role         TEXT NOT NULL DEFAULT 'guest',     -- 'host'|'guest'|'moderator'|'producer'
+  person_id    TEXT,
+  user_ref     TEXT,
+  role         TEXT NOT NULL DEFAULT 'guest',
   display_name TEXT,
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (podcast_id) REFERENCES core_podcasts(id),
@@ -495,18 +452,18 @@ CREATE TABLE core_podcast_participants (
 );
 
 CREATE TABLE core_podcasts (
-  id              TEXT PRIMARY KEY,               -- ULID
+  id              TEXT PRIMARY KEY,
   workspace_id    TEXT NOT NULL,
   title           TEXT NOT NULL,
   description_md  TEXT,
   podcast_type    TEXT NOT NULL DEFAULT 'discussion',
-    -- 'discussion'|'lecture'|'interview'|'reading_session'|'other'
+
   status          TEXT NOT NULL DEFAULT 'planned',
-    -- 'planned'|'recorded'|'published'|'archived'
+
   recorded_at     TEXT,
   duration_secs   INTEGER,
-  media_ref       TEXT,                           -- 'CM:<media_asset_id>'
-  host_user_ref   TEXT,                           -- 'CORE:<user_id>'
+  media_ref       TEXT,
+  host_user_ref   TEXT,
   visibility      TEXT NOT NULL DEFAULT 'workspace',
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -519,10 +476,9 @@ CREATE TABLE core_quiz_answer (
   session_ref   TEXT NOT NULL REFERENCES core_quiz_session(id) ON DELETE CASCADE,
   question_ref  TEXT NOT NULL,
   user_ref      TEXT NOT NULL,
-  choice        INTEGER,                          -- NULL when they ran out of time
+  choice        INTEGER,
   correct       INTEGER NOT NULL DEFAULT 0,
-  -- Milliseconds from the question appearing to the answer landing. Kept raw so
-  -- the scoring rule can change without losing what actually happened.
+
   ms            INTEGER,
   points        INTEGER NOT NULL DEFAULT 0,
   answered_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
@@ -531,19 +487,17 @@ CREATE TABLE core_quiz_answer (
 
 CREATE TABLE core_quiz_question (
   id            TEXT PRIMARY KEY,
-  author_ref    TEXT NOT NULL,                    -- CORE:ULID → core_users
+  author_ref    TEXT NOT NULL,
   module        TEXT NOT NULL CHECK (module IN ('QR','AL','AR','WV','EN','other')),
-  domain        TEXT,                             -- concept domain, when it has one
-  resource_ref  TEXT,                             -- "44:3", a lemma id, a concept ref
+  domain        TEXT,
+  resource_ref  TEXT,
   prompt        TEXT NOT NULL,
-  -- A JSON array of strings. Two to six of them; the count is what the client
-  -- draws, so it is not fixed at four.
+
   options_json  TEXT NOT NULL CHECK (json_valid(options_json)),
-  -- Index into options_json. Never sent to a player before the reveal.
+
   correct_index INTEGER NOT NULL,
   explanation   TEXT,
-  -- How long the room gets. Speed is half the score, so the limit is part of
-  -- the question rather than a session-wide setting.
+
   seconds       INTEGER NOT NULL DEFAULT 20,
   difficulty    TEXT,
   tags          TEXT,
@@ -554,7 +508,7 @@ CREATE TABLE core_quiz_question (
 
 CREATE TABLE core_quiz_session (
   id           TEXT PRIMARY KEY,
-  code         TEXT NOT NULL UNIQUE,              -- the six letters read out loud
+  code         TEXT NOT NULL UNIQUE,
   host_ref     TEXT NOT NULL,
   title        TEXT,
   module       TEXT,
@@ -566,12 +520,12 @@ CREATE TABLE core_quiz_session (
 
 CREATE TABLE core_resource_grants (
   id              TEXT PRIMARY KEY,
-  resource_ref    TEXT NOT NULL,                  -- typed ref to resource
-  subject_ref     TEXT NOT NULL,                  -- 'CORE:<user_id>' or 'CORE:<group_id>'
-  subject_type    TEXT NOT NULL DEFAULT 'user',   -- 'user'|'group'|'role'|'anyone'
+  resource_ref    TEXT NOT NULL,
+  subject_ref     TEXT NOT NULL,
+  subject_type    TEXT NOT NULL DEFAULT 'user',
   access_role     TEXT NOT NULL DEFAULT 'viewer',
-    -- 'viewer'|'commenter'|'editor'|'manager'|'owner'
-  granted_by_ref  TEXT NOT NULL,                  -- 'CORE:<user_id>'
+
+  granted_by_ref  TEXT NOT NULL,
   granted_at      TEXT NOT NULL DEFAULT (datetime('now')),
   expires_at      TEXT,
   is_inheritance_break INTEGER NOT NULL DEFAULT 0,
@@ -582,21 +536,21 @@ CREATE TABLE core_resource_grants (
 
 CREATE TABLE core_resource_policies (
   id                 TEXT PRIMARY KEY,
-  resource_ref       TEXT NOT NULL UNIQUE,        -- typed ref: 'CM:xx'|'WV:xx'|etc.
+  resource_ref       TEXT NOT NULL UNIQUE,
   resource_type      TEXT NOT NULL,
-    -- 'document'|'note'|'source'|'media'|'comparison'|'plan'|'session'|'other'
-  owner_user_ref     TEXT NOT NULL,               -- 'CORE:<user_id>'
-  workspace_ref      TEXT,                        -- 'CORE:<workspace_id>'
+
+  owner_user_ref     TEXT NOT NULL,
+  workspace_ref      TEXT,
   visibility_scope   TEXT NOT NULL DEFAULT 'workspace',
-    -- 'private'|'workspace'|'link_share'|'public'
+
   publication_state  TEXT NOT NULL DEFAULT 'draft',
-    -- 'draft'|'review'|'published'|'archived'|'rejected'
+
   is_discoverable    INTEGER NOT NULL DEFAULT 1,
   allow_comments     TEXT NOT NULL DEFAULT 'workspace',
-    -- 'none'|'workspace'|'public'
+
   allow_downloads    INTEGER NOT NULL DEFAULT 0,
-  inherits_from_ref  TEXT,                        -- parent container resource_ref
-  override_flag      INTEGER NOT NULL DEFAULT 0,  -- 1 = breaks inheritance explicitly
+  inherits_from_ref  TEXT,
+  override_flag      INTEGER NOT NULL DEFAULT 0,
   meta_json          TEXT,
   created_at         TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
@@ -710,17 +664,17 @@ CREATE TABLE core_srs_deck (
 
 CREATE TABLE core_srs_library_card (
   id            TEXT PRIMARY KEY,
-  author_ref    TEXT NOT NULL,              -- CORE:ULID → core_users
-  module        TEXT NOT NULL,              -- QR | AL | AR | WV | other
+  author_ref    TEXT NOT NULL,
+  module        TEXT NOT NULL,
   resource_type TEXT NOT NULL,
-  resource_ref  TEXT NOT NULL,              -- "44:3", a root, a lemma id
-  card_kind     TEXT,                       -- free label, e.g. ss_nahw_rule
+  resource_ref  TEXT NOT NULL,
+  card_kind     TEXT,
   front_text    TEXT NOT NULL,
   back_text     TEXT,
   tags          TEXT,
-  status        TEXT NOT NULL DEFAULT 'pending',   -- pending | approved | rejected
+  status        TEXT NOT NULL DEFAULT 'pending',
   review_note   TEXT,
-  reviewed_by   TEXT,                       -- CORE:ULID → core_users
+  reviewed_by   TEXT,
   reviewed_at   TEXT,
   created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
@@ -751,14 +705,14 @@ CREATE TABLE core_srs_params (
 , new_per_day INTEGER, review_per_day INTEGER);
 
 CREATE TABLE core_srs_registry (
-  id              TEXT PRIMARY KEY,               -- ULID
-  user_ref        TEXT NOT NULL,                  -- 'CORE:<user_id>'
+  id              TEXT PRIMARY KEY,
+  user_ref        TEXT NOT NULL,
   workspace_id    TEXT,
-  resource_ref    TEXT NOT NULL,                  -- typed ref to the item being learned
+  resource_ref    TEXT NOT NULL,
   resource_type   TEXT NOT NULL,
-    -- 'vocabulary'|'grammar'|'root'|'lemma'|'ayah'|'concept'|'other'
-  module          TEXT NOT NULL,                  -- 'AR'|'AL'|'QR'|'WV'|'other'
-  card_ref        TEXT,                           -- 'AR:<srs_card_id>' once created
+
+  module          TEXT NOT NULL,
+  card_ref        TEXT,
   enqueued_at     TEXT NOT NULL DEFAULT (datetime('now')),
   last_review_at  TEXT,
   next_review_at  TEXT,
@@ -806,7 +760,7 @@ CREATE TABLE core_talk_card (
   id         TEXT PRIMARY KEY,
   deck_ref   TEXT NOT NULL REFERENCES core_talk_deck(id) ON DELETE CASCADE,
   prompt     TEXT NOT NULL,
-  -- 1 light · 2 real · 3 the one you ask last.
+
   depth      INTEGER NOT NULL DEFAULT 1 CHECK (depth BETWEEN 1 AND 3),
   tags       TEXT,
   seq        INTEGER NOT NULL DEFAULT 0,
@@ -815,11 +769,10 @@ CREATE TABLE core_talk_card (
 
 CREATE TABLE core_talk_deck (
   id          TEXT PRIMARY KEY,
-  owner_ref   TEXT NOT NULL,                      -- CORE:ULID → core_users
+  owner_ref   TEXT NOT NULL,
   title       TEXT NOT NULL,
   description TEXT,
-  -- Who it is for. The same question is a different question across a dinner
-  -- table and a long drive with one friend.
+
   audience    TEXT NOT NULL DEFAULT 'friends'
                 CHECK (audience IN ('family','friends','couples','kids','work','mixed')),
   language    TEXT NOT NULL DEFAULT 'en',
@@ -831,33 +784,33 @@ CREATE TABLE core_talk_deck (
 CREATE TABLE core_talking_points (
   id             TEXT PRIMARY KEY,
   podcast_id     TEXT NOT NULL,
-  speaker_ref    TEXT,                            -- participant or user
+  speaker_ref    TEXT,
   timestamp_secs INTEGER,
   content        TEXT NOT NULL,
-  topic_ref      TEXT,                            -- typed ref to WV topic or QR scope
+  topic_ref      TEXT,
   sort_order     INTEGER NOT NULL DEFAULT 0,
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (podcast_id) REFERENCES core_podcasts(id)
 );
 
 CREATE TABLE core_users (
-  id                TEXT PRIMARY KEY,             -- ULID
+  id                TEXT PRIMARY KEY,
   email             TEXT NOT NULL UNIQUE,
   display_name      TEXT NOT NULL,
   username          TEXT UNIQUE,
   avatar_url        TEXT,
   bio_md            TEXT,
   user_type         TEXT NOT NULL DEFAULT 'human',
-    -- 'human'|'service_account'|'api_key'|'other'
+
   platform_role     TEXT NOT NULL DEFAULT 'member',
-    -- 'superadmin'|'admin'|'member'|'guest'
+
   account_status    TEXT NOT NULL DEFAULT 'active',
-    -- 'active'|'inactive'|'suspended'|'pending_verification'|'deleted'
+
   email_verified    INTEGER NOT NULL DEFAULT 0,
   last_active_at    TEXT,
   timezone          TEXT,
   locale            TEXT NOT NULL DEFAULT 'en',
-  preferences_json  TEXT NOT NULL DEFAULT '{}',   -- {theme, lang, notifications, srs_mode}
+  preferences_json  TEXT NOT NULL DEFAULT '{}',
   meta_json         TEXT,
   created_at        TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
@@ -871,7 +824,7 @@ CREATE TABLE core_workspace_group_members (
   id           TEXT PRIMARY KEY,
   group_id     TEXT NOT NULL,
   user_id      TEXT NOT NULL,
-  role         TEXT NOT NULL DEFAULT 'member',   -- 'admin'|'member'
+  role         TEXT NOT NULL DEFAULT 'member',
   joined_at    TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (group_id) REFERENCES core_workspace_groups(id),
   FOREIGN KEY (user_id)  REFERENCES core_users(id),
@@ -883,7 +836,7 @@ CREATE TABLE core_workspace_groups (
   workspace_id    TEXT NOT NULL,
   name            TEXT NOT NULL,
   group_type      TEXT NOT NULL DEFAULT 'team',
-    -- 'team'|'class'|'cohort'|'role_group'|'other'
+
   description     TEXT,
   created_by_id   TEXT NOT NULL,
   meta_json       TEXT,
@@ -906,13 +859,13 @@ CREATE TABLE core_workspace_member_roles (
 );
 
 CREATE TABLE core_workspace_members (
-  id              TEXT PRIMARY KEY,               -- ULID
+  id              TEXT PRIMARY KEY,
   workspace_id    TEXT NOT NULL,
   user_id         TEXT NOT NULL,
   membership_role TEXT NOT NULL DEFAULT 'member',
-    -- 'owner'|'admin'|'member'|'viewer'|'guest'
+
   status          TEXT NOT NULL DEFAULT 'active',
-    -- 'invited'|'active'|'paused'|'left'|'removed'
+
   invited_by_id   TEXT,
   joined_at       TEXT,
   left_at         TEXT,
@@ -927,13 +880,13 @@ CREATE TABLE core_workspace_members (
 CREATE TABLE core_workspace_plans (
   id              TEXT PRIMARY KEY,
   workspace_id    TEXT NOT NULL,
-  pl_plan_ref     TEXT NOT NULL UNIQUE,           -- 'PL:<pl_plans.id>'
+  pl_plan_ref     TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   plan_type       TEXT NOT NULL DEFAULT 'study',
-    -- 'study'|'curriculum'|'class'|'personal'|'team'|'other'
+
   owner_user_ref  TEXT NOT NULL,
   status          TEXT NOT NULL DEFAULT 'active',
-    -- 'active'|'paused'|'completed'|'archived'
+
   visibility      TEXT NOT NULL DEFAULT 'workspace',
   started_at      TEXT,
   target_end_at   TEXT,
@@ -946,17 +899,17 @@ CREATE TABLE core_workspace_policies (
   id                       TEXT PRIMARY KEY,
   workspace_id             TEXT NOT NULL UNIQUE,
   max_visibility           TEXT NOT NULL DEFAULT 'workspace',
-    -- 'private'|'workspace'|'link_share'|'public'
+
   allow_public_publish     INTEGER NOT NULL DEFAULT 0,
   allow_link_share         INTEGER NOT NULL DEFAULT 1,
   allow_guest_access       INTEGER NOT NULL DEFAULT 0,
   guest_max_visibility     TEXT NOT NULL DEFAULT 'workspace',
   default_discovery        TEXT NOT NULL DEFAULT 'workspace_searchable',
-    -- 'hidden'|'workspace_searchable'|'public_indexed'
+
   allow_member_invitations INTEGER NOT NULL DEFAULT 1,
   review_required_for_publish INTEGER NOT NULL DEFAULT 0,
   comment_policy           TEXT NOT NULL DEFAULT 'members',
-    -- 'members'|'workspace'|'public'|'disabled'
+
   extra_json               TEXT,
   created_at               TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at               TEXT NOT NULL DEFAULT (datetime('now')),
@@ -968,27 +921,27 @@ CREATE TABLE core_workspace_roles (
   workspace_id    TEXT NOT NULL,
   role_key        TEXT NOT NULL,
   title           TEXT NOT NULL,
-  permissions_json TEXT NOT NULL DEFAULT '{}',   -- {can_publish, can_invite, can_manage, etc.}
-  is_system_role  INTEGER NOT NULL DEFAULT 0,     -- predefined platform role
+  permissions_json TEXT NOT NULL DEFAULT '{}',
+  is_system_role  INTEGER NOT NULL DEFAULT 0,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (workspace_id) REFERENCES core_workspaces(id),
   UNIQUE (workspace_id, role_key)
 );
 
 CREATE TABLE core_workspaces (
-  id              TEXT PRIMARY KEY,               -- ULID
+  id              TEXT PRIMARY KEY,
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   description_md  TEXT,
   workspace_type  TEXT NOT NULL DEFAULT 'personal',
-    -- 'personal'|'family'|'team'|'study_group'|'class'|'organization'
-  owner_id        TEXT NOT NULL,                  -- → core_users.id
+
+  owner_id        TEXT NOT NULL,
   status          TEXT NOT NULL DEFAULT 'active',
-    -- 'draft'|'active'|'archived'|'suspended'
+
   allow_guests    INTEGER NOT NULL DEFAULT 0,
   allow_public_publish INTEGER NOT NULL DEFAULT 0,
   default_visibility TEXT NOT NULL DEFAULT 'workspace',
-    -- 'private'|'workspace'|'link_share'|'public'
+
   settings_json   TEXT NOT NULL DEFAULT '{}',
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1082,18 +1035,17 @@ CREATE TABLE cyb_doc_band (
   weight REAL NOT NULL DEFAULT 1.0, status TEXT NOT NULL DEFAULT 'live', synced_at TEXT);
 
 CREATE TABLE cyb_domain (
-  slug          TEXT PRIMARY KEY,           -- matches cyb_node.domain
-  lane          TEXT NOT NULL,              -- matches cyb_node.lane
+  slug          TEXT PRIMARY KEY,
+  lane          TEXT NOT NULL,
   name_ar       TEXT NOT NULL,
   name_en       TEXT NOT NULL,
   name_ur       TEXT,
   hint          TEXT,
-  -- Where the knowledge is built. Build senses this.
+
   content_db    TEXT NOT NULL,
-  -- Where the learner's own state lives. Study and Retention sense this.
+
   learner_db    TEXT NOT NULL,
-  -- What one unit of work is called in this domain — the thing a loop closes
-  -- over. Qurʾān works a passage, Arabic a root, Worldview a concept.
+
   unit_kind     TEXT NOT NULL,
   color_hex     TEXT,
   symbol        TEXT,
@@ -1148,19 +1100,18 @@ CREATE TABLE cyb_job (
 );
 
 CREATE TABLE cyb_layer (
-  id            TEXT PRIMARY KEY,           -- "<domain>:<layer_key>"
-  domain        TEXT NOT NULL,              -- quran | arabic | wv | …
+  id            TEXT PRIMARY KEY,
+  domain        TEXT NOT NULL,
   lane          TEXT NOT NULL,
-  layer_key     TEXT NOT NULL,              -- matches cyb_node.layer
+  layer_key     TEXT NOT NULL,
   name_ar       TEXT NOT NULL,
   name_en       TEXT NOT NULL,
   name_ur       TEXT,
-  hint          TEXT,                       -- "tilāwa · tajwīd"
-  -- Which database holds this layer's content. The control plane is in km_core;
-  -- the content never is.
+  hint          TEXT,
+
   db_name       TEXT NOT NULL,
   color_hex     TEXT,
-  symbol        TEXT,                       -- SF Symbol name
+  symbol        TEXT,
   display_order INTEGER NOT NULL DEFAULT 0,
   status        TEXT NOT NULL DEFAULT 'live',
   meta_json     TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json)),
@@ -1413,9 +1364,6 @@ CREATE TABLE cyb_wv_band (
   weight REAL NOT NULL DEFAULT 1.0,
   status TEXT NOT NULL DEFAULT 'live', synced_at TEXT);
 
-
--- ── Views (27) ───────────────────────────────────────────────────
-
 CREATE VIEW core_person_violations AS
   SELECT 'id_shape' AS kind, id AS row_id, id AS wrote FROM core_person
    WHERE id NOT LIKE 'PN:%'
@@ -1423,7 +1371,7 @@ CREATE VIEW core_person_violations AS
   SELECT 'key_mismatch', id, person_key FROM core_person
    WHERE id <> 'PN:' || person_key
   UNION ALL
-  -- Died before born. Cheap to check and the kind of thing a bulk import does.
+
   SELECT 'dates', id, CAST(birth_year AS TEXT) || '–' || CAST(death_year AS TEXT)
     FROM core_person
    WHERE birth_year IS NOT NULL AND death_year IS NOT NULL AND death_year < birth_year;
@@ -1724,9 +1672,6 @@ WHERE s.source_table IS NULL
    OR s.source_table LIKE '%+%'
    OR s.state = 'pending_carrier';
 
-
--- ── Indexes (117) ────────────────────────────────────────────────
-
 CREATE INDEX core_srs_card_deck ON core_srs_card(deck_id);
 
 CREATE INDEX core_srs_card_due ON core_srs_card(user_ref, next_review_at);
@@ -1979,9 +1924,6 @@ CREATE UNIQUE INDEX ux_bank_response_once
 
 CREATE UNIQUE INDEX ux_quiz_generated
   ON core_quiz_question (generated_from) WHERE generated_from IS NOT NULL;
-
-
--- ── Triggers (3) ─────────────────────────────────────────────────
 
 CREATE TRIGGER trg_cyb_sensor_log_read
 AFTER UPDATE OF last_read_at ON cyb_sensor

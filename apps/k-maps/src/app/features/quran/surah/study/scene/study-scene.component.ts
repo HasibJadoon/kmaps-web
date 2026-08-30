@@ -227,7 +227,6 @@ export class StudySceneComponent
   private readonly quranState = inject(QuranStateService);
   private readonly uiSettings = inject(UiSettingsService);
 
-
   @ViewChild('sceneEl') sceneEl?: ElementRef<HTMLElement>;
   @ViewChild('panelEl') panelEl?: ElementRef<HTMLElement>;
   @ViewChild('panelSurfaceEl') panelSurfaceEl?: ElementRef<HTMLElement>;
@@ -1487,7 +1486,5 @@ export class StudySceneComponent
 
     return aliases[normalized] ?? null;
   }
-
-  // ── Push to Weekly Task ────────────────────────────────────────────────────
 
 }

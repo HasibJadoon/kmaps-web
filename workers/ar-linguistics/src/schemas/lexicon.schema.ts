@@ -1,11 +1,3 @@
-// ─── Lexicon / Semantics schemas & types ──────────────────────────────────────
-// Tables: ar_ling_lexicon_entries, ar_ling_senses, ar_ling_sense_relations,
-//         ar_ling_reg_semantic_field, ar_ling_root_lemma_furuq_set,
-//         ar_ling_root_lemma_furuq_member, ar_ling_lexicon_evidence,
-//         ar_ling_lexicon_morphology
-
-// ── ar_ling_lexicon_entries ───────────────────────────────────────────────────
-
 export interface ArLingLexiconEntry {
   id: string;
   lemma_id: string;
@@ -107,16 +99,14 @@ export function validateArLingLexiconEntryCreate(
   };
 }
 
-// ── ar_ling_senses ────────────────────────────────────────────────────────────
-
 export interface ArLingSense {
-  id: string;                      // AL:ULID
-  lexicon_entry_id: string;        // FK → ar_ling_lexicon_entries.id
-  sense_number: number;            // ordering within the entry
+  id: string;
+  lexicon_entry_id: string;
+  sense_number: number;
   gloss_ar: string | null;
   gloss_en: string;
-  context_note: string | null;     // contextual restriction
-  qr_ref: string | null;           // QR:<ULID> if attested in Quran
+  context_note: string | null;
+  qr_ref: string | null;
   note_md: string | null;
 }
 
@@ -163,13 +153,11 @@ export function validateArLingSenseCreate(
   };
 }
 
-// ── ar_ling_sense_relations ───────────────────────────────────────────────────
-
 export interface ArLingSenseRelation {
-  id: string;              // AL:ULID
-  from_sense_id: string;   // FK → ar_ling_senses.id
-  to_sense_id: string;     // FK → ar_ling_senses.id
-  relation_type: string;   // 'synonym'|'near_synonym'|'antonym'|'hyponym'|'hypernym'|'related'
+  id: string;
+  from_sense_id: string;
+  to_sense_id: string;
+  relation_type: string;
   nuance_note: string | null;
 }
 
@@ -201,13 +189,11 @@ export function validateArLingSenseRelationCreate(
   };
 }
 
-// ── ar_ling_reg_semantic_field ───────────────────────────────────────────────────
-
 export interface ArLingSemanticField {
-  id: string;                    // AL:ULID
+  id: string;
   field_name_ar: string;
-  field_name_en: string;         // UNIQUE
-  parent_field_id: string | null; // self-ref
+  field_name_en: string;
+  parent_field_id: string | null;
   description_md: string | null;
 }
 
@@ -245,10 +231,8 @@ export function validateArLingSemanticFieldCreate(
   };
 }
 
-// ── ar_ling_root_lemma_furuq_set ─────────────────────────────────────────────────
-
 export interface ArLingNearSynonymSet {
-  id: string;              // AL:ULID
+  id: string;
   set_name: string;
   description_md: string;
   created_at: string;
@@ -281,13 +265,11 @@ export function validateArLingNearSynonymSetCreate(
   };
 }
 
-// ── ar_ling_root_lemma_furuq_member ──────────────────────────────────────────────
-
 export interface ArLingNearSynonymMember {
-  id: string;              // AL:ULID
-  set_id: string;          // FK → ar_ling_root_lemma_furuq_set.id
-  lemma_id: string;        // FK → ar_ling_root_lemma.id
-  nuance_note: string;     // what distinguishes this word from siblings
+  id: string;
+  set_id: string;
+  lemma_id: string;
+  nuance_note: string;
 }
 
 export interface ArLingNearSynonymMemberCreate {
@@ -316,18 +298,16 @@ export function validateArLingNearSynonymMemberCreate(
   };
 }
 
-// ── ar_ling_lexicon_evidence ──────────────────────────────────────────────────
-
 export interface ArLingLexiconEvidence {
-  id: string;                      // AL:ULID
-  lexicon_entry_id: string;        // FK → ar_ling_lexicon_entries.id
-  sense_id: string | null;         // FK → ar_ling_senses.id (optional)
+  id: string;
+  lexicon_entry_id: string;
+  sense_id: string | null;
   evidence_type: string;
-  // 'quran'|'hadith'|'classical_poetry'|'classical_prose'|'lexicon_citation'|'other'
+
   text_ar: string;
   text_en: string | null;
-  qr_ref: string | null;           // QR:surah:ayah or QR:<ULID>
-  source_ref: string | null;       // AL:<ar_ling_source.id>
+  qr_ref: string | null;
+  source_ref: string | null;
   note_md: string | null;
   created_at: string;
 }
@@ -366,12 +346,10 @@ export function validateArLingLexiconEvidenceCreate(
   };
 }
 
-// ── ar_ling_lexicon_morphology ────────────────────────────────────────────────
-
 export interface ArLingLexiconMorphology {
-  id: string;                  // AL:ULID
-  lexicon_entry_id: string;    // FK → ar_ling_lexicon_entries.id
-  morphology_id: string;       // FK → ar_ling_root_lemma_sarf.id
+  id: string;
+  lexicon_entry_id: string;
+  morphology_id: string;
   inflected_form: string | null;
 }
 
@@ -399,27 +377,23 @@ export function validateArLingLexiconMorphologyCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface LexiconEntry {
-  id: string;           // AL:ULID
-  lemma_id: string;     // AL:ULID
+  id: string;
+  lemma_id: string;
   headword_ar: string;
   pos: string | null;
-  register: string | null;   // classical | modern | quranic
+  register: string | null;
 }
 
 export interface LexiconSense {
-  id: string;           // AL:ULID
-  entry_id: string;     // AL:ULID
+  id: string;
+  entry_id: string;
   sense_number: number;
   definition_ar: string | null;
   definition_en: string | null;
   domain: string | null;
   example_ar: string | null;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

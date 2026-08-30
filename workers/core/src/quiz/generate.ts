@@ -1,32 +1,8 @@
-// ─── Making questions out of what is already known ────────────────────────────
-//
-// ONE question shape, several extractions.
-//
-// `core_quiz_question` stays the single table: prompt, options, answer, scope.
-// That is what lets one bank be browsed by domain, sūrah, passage or step, and
-// one dashboard count all of it. A second table for machine-made questions
-// would split every one of those.
-//
-// What differs is where the material comes from, and it genuinely differs:
-//
-//   plain cards       front/back text — 242 of this learner's
-//   note-typed cards  no front text at all; the content is structured fields
-//                     (root: radicals, makhraj, ṣifa · lemma: wazn)
-//
-// So there is a template per source, each returning the same shape. A template
-// that cannot make a FAIR question returns nothing rather than a bad one: a
-// quiz with a guessable question is worse than a shorter quiz.
-//
-// Nothing here invents Arabic. Every option is a value already stored on one of
-// the learner's own cards.
-
 export interface Draft {
   prompt: string;
   options: string[];
   correctIndex: number;
-  // The registry's spelling, not a shorter one of our own. `structure` matched
-  // no cyb_process_step row, so eleven generated questions were invisible to
-  // every picker built on the registry until migration 031 renamed them.
+
   kind: 'vocabulary' | 'expression' | 'sentence_structure' | 'reading';
   fromCardId: string;
   explanation?: string | null;
@@ -57,8 +33,6 @@ const clean = (v: unknown): string | null => {
   return s.length ? s : null;
 };
 
-/** Deterministic shuffle, seeded on the card. Re-running the generator must not
- *  reshuffle every question, or a regeneration looks like a rewrite. */
 function seededOrder(n: number, seed: string): number[] {
   let h = 2166136261;
   for (const ch of seed) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
@@ -78,8 +52,6 @@ function assemble(correct: string, distractors: string[], seed: string) {
   return { options, correctIndex: options.indexOf(correct) };
 }
 
-/** Three wrong answers or no question. With one distractor a coin flip beats
- *  knowing the material. */
 function distractorsFrom(pool: string[], correct: string, want = 3): string[] {
   const seen = new Set([correct.trim().toLowerCase()]);
   const out: string[] = [];
@@ -93,11 +65,6 @@ function distractorsFrom(pool: string[], correct: string, want = 3): string[] {
   return out;
 }
 
-// ── A plain card ─────────────────────────────────────────────────────────────
-
-/** front → prompt, back → answer, other backs OF THE SAME KIND → distractors.
- *  Same kind matters: three āyah translations beside one grammar term is not a
- *  question, it is a reading test with a hint. */
 function fromPlainCard(card: SourceCard, siblings: SourceCard[]): Draft | null {
   const front = clean(card.front_text);
   const back = clean(card.back_text);
@@ -123,13 +90,8 @@ function fromPlainCard(card: SourceCard, siblings: SourceCard[]): Draft | null {
   };
 }
 
-// ── A root card ──────────────────────────────────────────────────────────────
-
 interface Radical { l?: string; name?: string; makhraj?: string; sifa?: string }
 
-/** `NT:kmaps:root:v1` holds the root and its radicals, each with where it is
- *  articulated from. The distractors are the OTHER letters' makhārij, which are
- *  plausible precisely because they are all real makhārij. */
 function fromRootCard(card: SourceCard, siblings: SourceCard[]): Draft[] {
   const fields = parse(card.fields_json);
   const root = clean(fields?.['Root']);
@@ -167,10 +129,6 @@ function fromRootCard(card: SourceCard, siblings: SourceCard[]): Draft[] {
   return drafts;
 }
 
-// ── A ṣarf lemma ─────────────────────────────────────────────────────────────
-
-/** `NT:kmaps:lemma:sarf:v9` carries the wazn — the question a ṣarf learner is
- *  actually asked, with other lemmas' awzān as distractors. */
 function fromLemmaCard(card: SourceCard, siblings: SourceCard[]): Draft[] {
   const fields = parse(card.fields_json);
   const lemma = clean(fields?.['Lemma']) ?? clean(fields?.['Word']);
@@ -197,13 +155,6 @@ function fromLemmaCard(card: SourceCard, siblings: SourceCard[]): Draft[] {
   }];
 }
 
-// ── The generator ────────────────────────────────────────────────────────────
-
-/** Every question this set of cards can honestly produce.
- *
- *  Cards that cannot make a fair question are counted rather than hidden, so
- *  the caller can say "18 questions from 31 cards" instead of leaving somebody
- *  to wonder why a sūrah with cards produced nothing. */
 export function generateDrafts(cards: SourceCard[]): {
   drafts: Draft[]; skipped: number;
 } {

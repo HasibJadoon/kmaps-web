@@ -1,8 +1,3 @@
-// ─── StudioApiService — km-studio (ST) adapter ────────────────────────────────
-// The integration point between the Episode Studio UI and the ST worker
-// (/api/st/...). Unwraps the `{ ok, data }` envelope and returns plain models.
-// The auth interceptor attaches the Bearer token automatically.
-
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
@@ -18,7 +13,6 @@ interface Envelope<T> {
   data: T;
 }
 
-/** A section row as returned by create/update — without its nested points. */
 type SectionRow = Omit<Section, 'points'>;
 
 @Injectable({ providedIn: 'root' })
@@ -26,15 +20,11 @@ export class StudioApiService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiBase}/st`;
 
-  // ── Templates ────────────────────────────────────────────────────────────────
-
   listTemplates(): Observable<StudioTemplate[]> {
     return this.http
       .get<Envelope<StudioTemplate[]>>(`${this.base}/templates`)
       .pipe(map((res) => res.data));
   }
-
-  // ── Episodes ─────────────────────────────────────────────────────────────────
 
   listEpisodes(): Observable<EpisodeSummary[]> {
     return this.http
@@ -69,8 +59,6 @@ export class StudioApiService {
     return this.http.delete<void>(`${this.base}/episodes/${id}`);
   }
 
-  // ── Participants ─────────────────────────────────────────────────────────────
-
   addParticipant(
     episodeId: string,
     body: { display_name?: string; email?: string; role?: string; color?: string },
@@ -93,8 +81,6 @@ export class StudioApiService {
     return this.http.delete<void>(`${this.base}/participants/${id}`);
   }
 
-  // ── Sections ─────────────────────────────────────────────────────────────────
-
   addSection(episodeId: string, body: { heading: string; type?: string }): Observable<Section> {
     return this.http
       .post<Envelope<SectionRow>>(`${this.base}/episodes/${episodeId}/sections`, body)
@@ -110,8 +96,6 @@ export class StudioApiService {
   deleteSection(id: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/sections/${id}`);
   }
-
-  // ── Talking points ───────────────────────────────────────────────────────────
 
   addPoint(
     sectionId: string,
@@ -135,32 +119,24 @@ export class StudioApiService {
     return this.http.delete<void>(`${this.base}/points/${id}`);
   }
 
-  // ── Live sessions ────────────────────────────────────────────────────────────
-
-  /** Host: start (or rejoin) the live session for an episode. */
   startSession(episodeId: string): Observable<SessionInfo> {
     return this.http
       .post<Envelope<SessionInfo>>(`${this.base}/episodes/${episodeId}/sessions`, {})
       .pipe(map((res) => res.data));
   }
 
-  /** Resolve a typed-in room code to a session. */
   getSession(code: string): Observable<SessionInfo> {
     return this.http
       .get<Envelope<SessionInfo>>(`${this.base}/sessions/${code}`)
       .pipe(map((res) => res.data));
   }
 
-  /** Post-session recap, fetched by session id. */
   getRecap(sessionId: string): Observable<SessionRecap> {
     return this.http
       .get<Envelope<SessionRecap>>(`${this.base}/sessions/${sessionId}/recap`)
       .pipe(map((res) => res.data));
   }
 
-  // ── Templates (save) ─────────────────────────────────────────────────────────
-
-  /** Save an episode structure as a private, reusable template. */
   createTemplate(body: {
     name: string;
     description?: string;

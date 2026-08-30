@@ -1,9 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
-// Shell for the Quran Cybernetics views. Owns the shared dark-gold / Amiri
-// palette (as CSS custom properties that cascade to the child routes) and the
-// Monitor · Map · Ladder tab bar.
 @Component({
   selector: 'km-cybernetics-shell',
   standalone: true,

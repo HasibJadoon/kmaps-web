@@ -1,8 +1,3 @@
-// ─── /qr/irab/dep-graph routes ────────────────────────────────────────────────
-// Serves ayah dependency-graph SVGs from R2 (km-quran-dep-graphs bucket).
-// SVGs were uploaded by scripts/irab-ingestion/upload-dep-graphs-r2.mjs.
-// Key format in R2: dep-graphs/{surah}/{surah}:{ayah}.svg
-
 import type { Router } from '../../../shared/src/router';
 import { badRequest } from '../../../shared/src/response';
 import type { QuranEnv } from '../env';
@@ -13,8 +8,6 @@ function r2Key(surah: number, ayah: number): string {
 
 export function depGraphRoutes(router: Router<QuranEnv>) {
 
-  // GET /qr/irab/dep-graph/:surah/:ayah
-  // Returns the raw SVG for the given ayah. Cache-Control: immutable (SVGs never change).
   router.get('/qr/irab/dep-graph/:surah/:ayah', async (_req, env, params) => {
     const surah = parseInt(params.surah ?? '');
     const ayah  = parseInt(params.ayah  ?? '');
@@ -33,8 +26,6 @@ export function depGraphRoutes(router: Router<QuranEnv>) {
     });
   });
 
-  // GET /qr/irab/dep-graph/:surah/:ayah/meta
-  // Returns chunk metadata (r2_key, svg_bytes, ayah span) from D1 without fetching the SVG.
   router.get('/qr/irab/dep-graph/:surah/:ayah/meta', async (_req, env, params) => {
     const surah = parseInt(params.surah ?? '');
     const ayah  = parseInt(params.ayah  ?? '');
@@ -61,7 +52,7 @@ export function depGraphRoutes(router: Router<QuranEnv>) {
     if (!row) return new Response('Dependency graph not found', { status: 404 });
 
     let meta: Record<string, unknown> = {};
-    try { meta = JSON.parse(row.clean_text ?? '{}'); } catch { /* ignore */ }
+    try { meta = JSON.parse(row.clean_text ?? '{}'); } catch {  }
 
     return Response.json({
       id: row.id,

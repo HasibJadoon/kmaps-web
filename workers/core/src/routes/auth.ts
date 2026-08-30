@@ -1,5 +1,3 @@
-// ─── /core/auth routes — token issuance ───────────────────────────────────────
-
 import type { Router } from '../../../shared/src/router';
 import { ok, created, unauthorized, forbidden, badRequest } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
@@ -9,10 +7,6 @@ import { AuthRepo } from '../repositories/auth.repo';
 import { verifyPassword, hashPassword } from '../password';
 import { issueSessionToken } from '../jwt';
 
-// ── Refresh-token helpers ─────────────────────────────────────────────────────
-// The opaque refresh token is returned to the client once; only its SHA-256
-// hash is stored in core_auth_sessions.session_token, so a DB leak can't be
-// replayed. Default refresh lifetime: 30 days.
 const REFRESH_TTL_DAYS = 30;
 
 function randomToken(): string {
@@ -26,7 +20,6 @@ async function sha256Hex(input: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** Create a refresh session for a user, returning the raw refresh token. */
 async function startSession(
   env: CoreEnv,
   userId: string,
@@ -50,11 +43,8 @@ function deviceInfoOf(b: Record<string, unknown>): string | undefined {
   return typeof b['device_info'] === 'string' ? b['device_info'] : undefined;
 }
 
-// ── Routes ────────────────────────────────────────────────────────────────────
-
 export function authRoutes(router: Router<CoreEnv>) {
 
-  // POST /core/auth/login — email + password → JWT
   const login = async (req: Request, env: CoreEnv): Promise<Response> => {
     let body: unknown;
     try {
@@ -86,9 +76,8 @@ export function authRoutes(router: Router<CoreEnv>) {
   };
 
   router.post('/core/auth/login', login);
-  router.post('/core/auth/token', login); // alias
+  router.post('/core/auth/token', login);
 
-  // POST /core/auth/register — self-service signup → member account + token.
   router.post('/core/auth/register', async (req, env) => {
     let body: unknown;
     try {
@@ -116,7 +105,6 @@ export function authRoutes(router: Router<CoreEnv>) {
     return created({ token, expires_in, refresh_token, user });
   });
 
-  // POST /core/auth/refresh — swap a valid refresh token for a fresh JWT.
   router.post('/core/auth/refresh', async (req, env) => {
     let body: unknown;
     try {
@@ -141,7 +129,6 @@ export function authRoutes(router: Router<CoreEnv>) {
     return ok({ token, expires_in });
   });
 
-  // POST /core/auth/logout — revoke the refresh session.
   router.post('/core/auth/logout', async (req, env) => {
     let body: unknown;
     try {
@@ -159,7 +146,6 @@ export function authRoutes(router: Router<CoreEnv>) {
     return ok({ revoked: true });
   });
 
-  // GET /core/auth/me — the signed-in user (for the account + scope picker).
   router.get('/core/auth/me', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -168,16 +154,12 @@ export function authRoutes(router: Router<CoreEnv>) {
     return ok({ user });
   });
 
-  // POST /core/auth/verify — check token validity and return the auth context
   router.post('/core/auth/verify', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
     return ok(ctx);
   });
 
-  // POST /core/auth/change-password — the signed-in user sets a new password.
-  // Verifies the current password, clears any forced-change flag, and issues
-  // a fresh token so the `mcp` claim is dropped immediately.
   router.post('/core/auth/change-password', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -213,16 +195,11 @@ export function authRoutes(router: Router<CoreEnv>) {
     return ok({ token, expires_in });
   });
 
-  // ── First-run setup ───────────────────────────────────────────────────────
-  // GET /core/auth/bootstrap — is the one-time admin setup still available?
   router.get('/core/auth/bootstrap', async (_req, env) => {
     const adminExists = await new UserRepo(env.DB_CORE).adminExists();
     return ok({ needs_setup: !adminExists });
   });
 
-  // POST /core/auth/bootstrap — create the very first administrator.
-  // Public so a fresh install can be set up, but self-disabling: it refuses
-  // as soon as any admin account exists, so it never needs manual teardown.
   router.post('/core/auth/bootstrap', async (req, env) => {
     const userRepo = new UserRepo(env.DB_CORE);
     if (await userRepo.adminExists()) {
@@ -248,8 +225,7 @@ export function authRoutes(router: Router<CoreEnv>) {
 
     const user = await userRepo.create({ email, display_name: displayName, role: 'admin' });
     await new AuthRepo(env.DB_CORE).setPassword(user.id, await hashPassword(password));
-    // Suspend the legacy admin@k-maps.local placeholder, if present, so the
-    // known default credentials can no longer be used.
+
     await userRepo.retireLegacyAdmin();
 
     const expiry = parseInt(env.JWT_EXPIRY_SECONDS ?? '3600', 10);

@@ -1,10 +1,8 @@
-// ─── WORLDVIEW service client (from QR) ──────────────────────────────────────
-
 import { callService } from '../../../shared/src/service-client';
 import type { QuranEnv } from '../env';
 
 export interface WorldviewNodeSummary {
-  id: string;          // WV:ULID
+  id: string;
   node_type: string;
   title: string;
   summary: string | null;

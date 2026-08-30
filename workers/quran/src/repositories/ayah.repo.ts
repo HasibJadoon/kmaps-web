@@ -1,10 +1,7 @@
-// ─── AyahRepo — all SQL for qr_ayah ───────────────────────────────────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import type { PaginateOptions } from '../../../shared/src/types';
 import type { Ayah, AyahWord, AyahPatch } from '../schemas/ayah.schema';
 
-// Canonical column selection — always use text_uthmani_clean first.
 const SELECT = `
   surah, ayah,
   COALESCE(text_uthmani_clean, text_uthmani, text_bare, text) AS text_display,
@@ -14,7 +11,6 @@ FROM qr_ayah`;
 export class AyahRepo {
   constructor(private db: D1Database) {}
 
-  /** All ayahs of a surah in order. */
   bySurah(surahId: number): Promise<Ayah[]> {
     return query<Ayah>(
       this.db,
@@ -23,7 +19,6 @@ export class AyahRepo {
     );
   }
 
-  /** Range of ayahs within a surah. */
   byRange(surahId: number, from: number, to: number): Promise<Ayah[]> {
     return query<Ayah>(
       this.db,
@@ -32,7 +27,6 @@ export class AyahRepo {
     );
   }
 
-  /** Single ayah. */
   find(surahId: number, ayahNum: number): Promise<Ayah | null> {
     return queryOne<Ayah>(
       this.db,
@@ -41,7 +35,6 @@ export class AyahRepo {
     );
   }
 
-  /** Paginated search (full-text via LIKE on text_bare). */
   search(q: string, opts: PaginateOptions = {}) {
     const pattern = `%${q}%`;
     return paginate<Ayah>(
@@ -53,15 +46,12 @@ export class AyahRepo {
     );
   }
 
-  // ── Word helpers ─────────────────────────────────────────────────────────────
-
   private static readonly WORD_SELECT = `
     surah, ayah, word_index,
     word_text AS text, word_text_bare AS text_bare,
     root, lemma, pos, morphology_tag
   FROM qr_word_occurrence`;
 
-  /** All words for a surah, ordered by ayah then word_index. */
   wordsBySurah(surahId: number): Promise<(AyahWord & { surah: number; ayah: number })[]> {
     return query(
       this.db,
@@ -71,7 +61,6 @@ export class AyahRepo {
     );
   }
 
-  /** Words for an ayah range. */
   wordsByRange(surahId: number, from: number, to: number): Promise<(AyahWord & { surah: number; ayah: number })[]> {
     return query(
       this.db,

@@ -15,10 +15,6 @@ import {
 } from './atlas.models';
 import { ATLAS_CONSTELLATION_LAYERS } from './atlas.data';
 
-// ─── Semantic metadata per legacy constellation id ───────────────────────────
-// Enriches the legacy AtlasConstellationLayer with the new hierarchy fields
-// without touching the 4700-line atlas.data.ts file.
-
 interface ConstellationMeta {
   quran_centrality: number;
   sacred_weight: number;
@@ -31,16 +27,8 @@ interface ConstellationMeta {
   linked_cluster_id?: string;
 }
 
-// Keys match the actual `id` fields from ATLAS_CONSTELLATION_LAYERS in atlas.data.ts:
-// scriptures, prophets, prophetic_attributes, quranic_events,
-// hadith_companions, biblical_events, enlightenment, scholars_books
-//
-// linked_cluster_id maps to clusters in worldview-graph.json:
-// cl_revelation, cl_biblical, cl_jewish, cl_law,
-// cl_power, cl_society, cl_modernity, cl_enlightenment, cl_ancient_egypt
-
 const CONSTELLATION_META: Record<string, ConstellationMeta> = {
-  // ── Tier 1: Qur'an dominant — scriptures constellation holds the Qur'an as primary body ──
+
   'scriptures': {
     quran_centrality:  1,
     sacred_weight:     1.0,
@@ -53,7 +41,6 @@ const CONSTELLATION_META: Record<string, ConstellationMeta> = {
     linked_cluster_id: 'cl_revelation',
   },
 
-  // ── Tier 2: Revelation-linked constellations ──
   'prophets': {
     quran_centrality:  2,
     sacred_weight:     0.92,
@@ -63,7 +50,7 @@ const CONSTELLATION_META: Record<string, ConstellationMeta> = {
     glow:              0.78,
     sky_x:             0.36,
     sky_y:             0.26,
-    linked_cluster_id: 'cl_biblical',   // prophetic critique nodes live here
+    linked_cluster_id: 'cl_biblical',
   },
   'quranic_events': {
     quran_centrality:  3,
@@ -96,10 +83,9 @@ const CONSTELLATION_META: Record<string, ConstellationMeta> = {
     glow:              0.60,
     sky_x:             0.28,
     sky_y:             0.44,
-    linked_cluster_id: 'cl_law',        // fiqh / juristic tradition
+    linked_cluster_id: 'cl_law',
   },
 
-  // ── Tier 3: Worldview territories ──
   'biblical_events': {
     quran_centrality:  6,
     sacred_weight:     0.55,
@@ -135,35 +121,14 @@ const CONSTELLATION_META: Record<string, ConstellationMeta> = {
   },
 };
 
-/** Fallback metadata for any constellation not in the map. */
 const DEFAULT_META: ConstellationMeta = {
   quran_centrality: 10, sacred_weight: 0.3, worldview_weight: 0.6, history_weight: 0.4,
   visual_tier: 3, glow: 0.35, sky_x: 0.5, sky_y: 0.5,
 };
 
-/**
- * AtlasDataAdapter — transforms raw graph data into view-ready shapes
- * for each of the four scene layers.
- *
- * Responsibilities:
- *   • sky view       → sorted ConstellationLayer[] with Qur'an first
- *   • constellation  → the specific ConstellationLayer + linked cluster nodes
- *   • node view      → filtered SimulationNode[] for the active cluster
- *   • history view   → HistoricalWaypoint[] + HistoricalEra[] for a node
- *   • FocusState     → bridging adapter for graph-renderer legacy API
- *
- * This service is pure transform logic — no signals, no subscriptions,
- * no side effects.  All state lives in AtlasSceneController.
- */
 @Injectable({ providedIn: 'root' })
 export class AtlasDataAdapter {
 
-  // ─── Legacy → new type bridge ────────────────────────────────────────────
-
-  /**
-   * Maps a legacy AtlasConstellationLayer to the new ConstellationLayer shape,
-   * merging in semantic metadata from CONSTELLATION_META.
-   */
   private bridge(legacy: AtlasConstellationLayer): ConstellationLayer {
     const meta = CONSTELLATION_META[legacy.id] ?? DEFAULT_META;
 
@@ -193,7 +158,6 @@ export class AtlasDataAdapter {
     };
   }
 
-  /** Memoised mapped layers. */
   private _mappedLayers: ConstellationLayer[] | null = null;
   private getMappedLayers(): ConstellationLayer[] {
     if (!this._mappedLayers) {
@@ -202,35 +166,18 @@ export class AtlasDataAdapter {
     return this._mappedLayers;
   }
 
-  // ─── Sky layer ───────────────────────────────────────────────────────────
-
-  /**
-   * Returns all constellation layers sorted so that Qur'an (quran_centrality=1)
-   * is always first, then by ascending centrality value.
-   */
   getSkyConstellations(): ConstellationLayer[] {
     return [...this.getMappedLayers()].sort((a, b) => a.quran_centrality - b.quran_centrality);
   }
 
-  /**
-   * Returns the visual tier assigned to a constellation:
-   *   1 = Qur'an (dominant), 2 = revelation-linked, 3 = worldview territories
-   */
   getConstellationVisualTier(id: string): number {
     return (CONSTELLATION_META[id] ?? DEFAULT_META).visual_tier;
   }
 
-  // ─── Constellation layer ─────────────────────────────────────────────────
-
-  /** Returns the ConstellationLayer for the given id, or undefined. */
   getConstellation(id: string): ConstellationLayer | undefined {
     return this.getMappedLayers().find((c) => c.id === id);
   }
 
-  /**
-   * Returns all nodes that belong to the cluster linked from a constellation,
-   * sorted by importance descending so the Qur'an-anchored concepts appear first.
-   */
   getConstellationNodes(
     constellationId: string,
     graphData: AtlasGraphData,
@@ -242,26 +189,19 @@ export class AtlasDataAdapter {
     return graphData.nodes
       .filter((n) => n.cluster_id === clusterId)
       .sort((a, b) => {
-        // Sacred-weight nodes rise to the top
+
         const wa = (a.sacred_weight ?? 0) * 2 + a.importance;
         const wb = (b.sacred_weight ?? 0) * 2 + b.importance;
         return wb - wa;
       });
   }
 
-  // ─── Node layer ──────────────────────────────────────────────────────────
-
-  /**
-   * Returns nodes for the active cluster, suitable for D3 simulation.
-   * Nodes with quran_centrality are given a hintX/hintY bias toward centre.
-   */
   getClusterNodes(clusterId: string, graphData: AtlasGraphData): AtlasNode[] {
     return graphData.nodes
       .filter((n) => n.cluster_id === clusterId)
       .sort((a, b) => b.importance - a.importance);
   }
 
-  /** Returns edges where both endpoints are in the given cluster. */
   getClusterEdges(clusterId: string, graphData: AtlasGraphData) {
     const ids = new Set(
       graphData.nodes.filter((n) => n.cluster_id === clusterId).map((n) => n.id),
@@ -269,22 +209,11 @@ export class AtlasDataAdapter {
     return graphData.edges.filter((e) => ids.has(e.source) && ids.has(e.target));
   }
 
-  // ─── History layer ───────────────────────────────────────────────────────
-
-  /**
-   * Derives HistoricalWaypoint[] from nodes that carry time_start metadata,
-   * grouped under the given parent node id.
-   *
-   * In the current schema, historical waypoints are embedded as atlas nodes
-   * with `evidence_type = 'historical'` linked to a concept/claim.
-   * We extract them here and project them onto the timeline arc.
-   */
   getHistoricalWaypoints(
     nodeId: string,
     graphData: AtlasGraphData,
   ): HistoricalWaypoint[] {
-    // Direct: nodes that have `evidence_type='historical'` and a time_start,
-    // that are linked to the given nodeId via an edge.
+
     const linkedIds = new Set<string>();
     for (const e of graphData.edges) {
       if (e.source === nodeId) linkedIds.add(e.target);
@@ -302,29 +231,15 @@ export class AtlasDataAdapter {
       .map((n) => this.nodeToWaypoint(n, nodeId));
   }
 
-  /**
-   * Derives HistoricalEra[] from the range of waypoint timestamps.
-   * Uses the broad Islamic-history era groupings by default.
-   */
   getHistoricalEras(waypoints: HistoricalWaypoint[]): HistoricalEra[] {
     const eraIds = new Set(waypoints.map((w) => w.era_id));
     return PRESET_ERAS.filter((e) => eraIds.has(e.era_id));
   }
 
-  /**
-   * Whether a node has any historical evidence to display.
-   */
   nodeHasHistory(nodeId: string, graphData: AtlasGraphData): boolean {
     return this.getHistoricalWaypoints(nodeId, graphData).length > 0;
   }
 
-  // ─── Legacy FocusState bridge ────────────────────────────────────────────
-
-  /**
-   * Maps the new SceneState to the legacy FocusState used by the graph renderer
-   * and facade visibility helpers.  This keeps backwards compatibility without
-   * rewriting the entire rendering pipeline in one pass.
-   */
   toLegacyFocusState(state: SceneState): FocusState {
     switch (state.layer) {
       case 'sky':
@@ -349,8 +264,6 @@ export class AtlasDataAdapter {
     }
   }
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────
-
   private nodeToWaypoint(node: AtlasNode, parentNodeId: string): HistoricalWaypoint {
     const era = this.resolveEra(node.time_start ?? 0);
     return {
@@ -372,12 +285,10 @@ export class AtlasDataAdapter {
     for (const era of PRESET_ERAS) {
       if (year >= era.time_start && year <= era.time_end) return era;
     }
-    // Default to earliest
+
     return PRESET_ERAS[0];
   }
 }
-
-// ─── Preset era definitions ──────────────────────────────────────────────────
 
 const PRESET_ERAS: HistoricalEra[] = [
   {

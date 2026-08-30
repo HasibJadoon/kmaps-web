@@ -1,11 +1,3 @@
--- 0011_lane_support_tables.sql
--- Support tables for Lane Arabic-English Lexicon import.
--- All tables use CREATE TABLE IF NOT EXISTS for idempotency.
-
--- ── ar_ling_source_entry_refs ───────────────────────────────────────────────
--- Preserves Lane external node IDs, parent IDs, raw XML, Buckwalter, and
--- source identity. One row per Lane source node.
-
 CREATE TABLE IF NOT EXISTS ar_ling_source_entry_refs (
   id                      TEXT PRIMARY KEY,
   source_id               TEXT NOT NULL,
@@ -44,10 +36,6 @@ CREATE INDEX IF NOT EXISTS idx_arl_ser_buck
 
 CREATE INDEX IF NOT EXISTS idx_arl_ser_page
   ON ar_ling_source_entry_refs(source_id, page_no);
-
--- ── ar_ling_source_display_blocks ──────────────────────────────────────────
--- UI-safe display rendering. The UI renders from this table or from
--- ar_ling_lexicon_entries.ui_json, never from raw XML.
 
 CREATE TABLE IF NOT EXISTS ar_ling_source_display_blocks (
   id                TEXT PRIMARY KEY,
@@ -88,9 +76,6 @@ CREATE INDEX IF NOT EXISTS idx_arl_sdb_entry
 CREATE INDEX IF NOT EXISTS idx_arl_sdb_type
   ON ar_ling_source_display_blocks(block_type);
 
--- ── ar_ling_import_runs ──────────────────────────────────────────────────────
--- Tracks Lane imports and makes re-import safe.
-
 CREATE TABLE IF NOT EXISTS ar_ling_import_runs (
   id                TEXT PRIMARY KEY,
   source_id         TEXT NOT NULL,
@@ -110,8 +95,6 @@ CREATE INDEX IF NOT EXISTS idx_arl_import_runs_source
 
 CREATE INDEX IF NOT EXISTS idx_arl_import_runs_status
   ON ar_ling_import_runs(status);
-
--- ── Lane source metadata ─────────────────────────────────────────────────────
 
 INSERT OR IGNORE INTO ar_ling_sources (
   id, title_ar, title_en, source_type, author_name, period_label, note_md

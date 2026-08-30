@@ -146,10 +146,6 @@ export const Callout = Node.create({
         }, 0);
       });
 
-      // Clicking on the outer wrapper padding (not the emoji or content area)
-      // should redirect the cursor inside the callout's paragraph content.
-      // Uses 'click' (fires after mouseup) so ProseMirror's own positioning
-      // has already settled; pos+2 = inside the first child paragraph.
       dom.addEventListener('click', (e) => {
         if (emojiEl.contains(e.target as globalThis.Node)) return;
         if (pickerEl?.contains(e.target as globalThis.Node)) return;

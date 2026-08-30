@@ -11,12 +11,6 @@ import {
 type LensKey = 'five' | 'maqayis' | 'mufradat' | 'lane' | 'sinai';
 interface ConstNode { x: number; y: number; label: string; kind: 'sense' | 'syn' | 'ant'; }
 
-/**
- * Word Backbone 360 — the deep, retention-optimised word modal.
- * Opens on word-click in the morphology step. Renders every layer the API
- * builds from the tables (sarf · iʿrāb · 5 lenses · constellation · hook ·
- * senses · examples · tafsīr) and drives active-recall + SM-2 grading.
- */
 @Component({
   selector: 'km-study-word-modal',
   standalone: true,
@@ -38,12 +32,11 @@ export class StudyWordModalComponent implements OnInit, AfterViewInit {
 
   readonly detail = signal<WordDetailResponse | null>(null);
   readonly loading = signal(true);
-  readonly revealed = signal(false);            // active recall: meaning hidden first
+  readonly revealed = signal(false);
   readonly activeLens = signal<LensKey>('five');
 
   readonly analysis = computed<RootAnalysisVm | null>(() => this.detail()?.root_analysis ?? null);
 
-  /** available lens tabs, curated synthesis first */
   readonly lensTabs = computed(() => {
     const a = this.analysis();
     const tabs: { key: LensKey; ar: string; en: string; modern?: boolean }[] = [];
@@ -55,7 +48,6 @@ export class StudyWordModalComponent implements OnInit, AfterViewInit {
     return tabs;
   });
 
-  /** radial constellation nodes derived from senses + near-synonyms + antonyms */
   readonly constellation = computed<ConstNode[]>(() => {
     const a = this.analysis();
     if (!a) return [];
@@ -82,7 +74,7 @@ export class StudyWordModalComponent implements OnInit, AfterViewInit {
     this.svc.getWordDetail(this.word.word_id).subscribe({
       next: d => {
         this.detail.set(d);
-        // default to first available lens
+
         const first = this.lensTabs()[0]?.key;
         if (first) this.activeLens.set(first);
         this.loading.set(false);

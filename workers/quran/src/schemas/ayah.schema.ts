@@ -1,25 +1,23 @@
-// ─── Ayah schemas & types ─────────────────────────────────────────────────────
-
 export interface AyahWord {
   word_index: number;
-  text: string;           // word_text (with diacritics)
-  text_bare: string;      // word_text_bare (no diacritics)
+  text: string;
+  text_bare: string;
   root: string | null;
   lemma: string | null;
-  pos: string | null;     // N, PN, V, ADJ, P, CONJ, …
+  pos: string | null;
   morphology_tag: string | null;
 }
 
 export interface Ayah {
   surah: number;
   ayah: number;
-  text_display: string;           // COALESCE(text_uthmani_clean, text_uthmani, text_bare, text)
+  text_display: string;
   text_uthmani_clean: string | null;
   text_uthmani: string | null;
   translation: string | null;
-  verse_mark: string | null;      // Arabic-Indic digits only (no U+06DD)
+  verse_mark: string | null;
   page_number: number | null;
-  words?: AyahWord[];             // populated when ?words=1
+  words?: AyahWord[];
 }
 
 export interface AyahPatch {

@@ -1,22 +1,3 @@
-// ─── SenseRepo — the 360° sense layer ────────────────────────────────────────
-//
-// `ar_ling_root_sense` and its arcs are the one part of the root's meaning that
-// is modelled as a graph rather than a list: a sense is a node, an arc is a
-// path from one sense to a terminal sense, and every claim along the way is
-// attested to a named source.
-//
-// SCOPE. `ar_ling_sense_arc.scope_level` is CHECK-constrained to ('root','lemma')
-// — a word-scoped sense is unrepresentable on purpose. A word owns no sense; its
-// meaning is the context it sits in, and `km_quran.qr_word_sense_link` is the
-// join that points an occurrence at one of these. So this repo serves root and
-// lemma, and nothing here has a word variant.
-//
-// `scope_key` is the AL lemma id at lemma scope and the root text at root scope.
-// Some lemma ids embed the Arabic root (`LEM:LEX:شكك`), so a "looks Arabic"
-// test misreads them as strings — always resolve the id.
-//
-// READ-ONLY. Reads only ar_ling_* in DB_AL.
-
 import { query } from '../../../shared/src/db';
 
 export interface RootSense {
@@ -52,7 +33,7 @@ export interface SenseArcStep {
   step_no: number;
   sense_id: string;
   note_md: string | null;
-  /** Joined so a step renders without a second lookup per row. */
+
   gloss_ar: string | null;
   gloss_en: string | null;
 }
@@ -95,7 +76,6 @@ export class SenseRepo {
     );
   }
 
-  /** Every step of every arc for the root, with the step's own sense glossed. */
   steps(rootNorm: string): Promise<SenseArcStep[]> {
     return query<SenseArcStep>(
       this.db,
@@ -110,11 +90,6 @@ export class SenseRepo {
     );
   }
 
-  /**
-   * Attestations for everything this root owns — its senses, its arcs and the
-   * steps of those arcs. `target_type` says which, so one query serves all three
-   * rather than the client asking per row.
-   */
   attestations(rootNorm: string): Promise<SenseAttestation[]> {
     return query<SenseAttestation>(
       this.db,

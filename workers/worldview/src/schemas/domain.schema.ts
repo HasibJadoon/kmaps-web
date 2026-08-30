@@ -1,10 +1,5 @@
-// ─── Domain schemas & types ────────────────────────────────────────────────────
-// Tables: wv_domains, wv_periods, wv_regions, wv_locations, wv_institutions
-
-// ── wv_domains ────────────────────────────────────────────────────────────────
-
 export interface WvDomain {
-  id: string;               // WV:ULID
+  id: string;
   slug: string;
   title: string;
   title_ar: string | null;
@@ -65,12 +60,10 @@ export function validateWvDomainPatch(
   return { data: patch };
 }
 
-// ── wv_periods ────────────────────────────────────────────────────────────────
-
 export type WvPeriodType = 'era' | 'century' | 'epoch' | 'generation' | 'reign' | 'phase';
 
 export interface WvPeriod {
-  id: string;               // WV:ULID
+  id: string;
   slug: string;
   title: string;
   period_type: WvPeriodType;
@@ -135,18 +128,16 @@ export function validateWvPeriodCreate(
   };
 }
 
-// ── wv_regions ────────────────────────────────────────────────────────────────
-
 export type WvRegionType = 'macro' | 'civilizational' | 'geopolitical' | 'cultural' | 'diaspora';
 
 export interface WvRegion {
-  id: string;               // WV:ULID
+  id: string;
   slug: string;
   title: string;
   region_type: WvRegionType;
   parent_id: string | null;
   description_md: string | null;
-  bounding_box: string | null;   // JSON {north,south,east,west}
+  bounding_box: string | null;
   created_at: string;
 }
 
@@ -195,8 +186,6 @@ export function validateWvRegionCreate(
   };
 }
 
-// ── wv_locations ──────────────────────────────────────────────────────────────
-
 export type WvLocationType =
   | 'city'
   | 'site'
@@ -211,7 +200,7 @@ export type WvLocationType =
   | 'other';
 
 export interface WvLocation {
-  id: string;               // WV:ULID
+  id: string;
   slug: string;
   title: string;
   title_ar: string | null;
@@ -287,8 +276,6 @@ export function validateWvLocationCreate(
   };
 }
 
-// ── wv_institutions ───────────────────────────────────────────────────────────
-
 export type WvInstitutionType =
   | 'religious'
   | 'educational'
@@ -303,7 +290,7 @@ export type WvInstitutionType =
   | 'other';
 
 export interface WvInstitution {
-  id: string;               // WV:ULID
+  id: string;
   slug: string;
   title: string;
   title_ar: string | null;
@@ -380,8 +367,6 @@ export function validateWvInstitutionCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface DomainCreate {
   slug: string;
   title: string;
@@ -451,8 +436,6 @@ export interface InstitutionPatch {
   description_md?: string | null;
   meta_json?: string | null;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

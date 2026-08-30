@@ -1,15 +1,13 @@
-// ─── TraditionRepo — wv_traditions ────────────────────────────────────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface Tradition {
-  id: string;           // WV:ULID
+  id: string;
   slug: string;
   label_en: string;
   label_ar: string | null;
-  category: string;     // abrahamic | eastern | secular | tribal | other
+  category: string;
   parent_id: string | null;
   created_at: string;
 }

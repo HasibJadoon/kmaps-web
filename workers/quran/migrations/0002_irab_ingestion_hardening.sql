@@ -1,6 +1,3 @@
--- Harden QUL/OpenITI i'rab ingestion with source chunk provenance,
--- parser audit rows, import quarantine rows, and entry-level fields.
-
 CREATE TABLE IF NOT EXISTS qr_irab_sources (
   id TEXT PRIMARY KEY,
   source_slug TEXT NOT NULL UNIQUE,

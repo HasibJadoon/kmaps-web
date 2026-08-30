@@ -1,13 +1,3 @@
-// ─── Lisan al-Arab shell ──────────────────────────────────────────────────
-// Mirrors the Mufradat shell's dockview layout (CSS-var-driven panel
-// widths, smooth toggles, dark mode, 5-step font scaling, keyboard
-// shortcuts). The right rail hosts FIVE panels instead of Mufradat's two:
-//   footnotes · Quran citations · hadith · poetry shawahid · authorities
-//
-// All cross-cutting layout SCSS is identical to Mufradat — both shells
-// load the same set of CSS custom properties on the host, so the visual
-// system stays consistent across lexicons.
-
 import {
   AfterViewInit, ChangeDetectionStrategy, Component, DestroyRef, ElementRef,
   HostListener, ViewChild, computed, inject, signal,
@@ -30,12 +20,6 @@ import { CLASSICAL_SHELL_SLUGS, LexiconSourcesService } from '../../data/lexicon
 
 export const LISAN_SLUG = 'ibn_manzur_lisan_arab';
 
-// Which books this shell renders now lives in the source registry
-// (`COMPOSER_BACKED_SLUGS`), because the same list was being maintained in three
-// places and had already drifted — the reader, the root dispatcher and the dead
-// book-reader each kept their own copy, two of them with duplicate entries.
-//
-// Re-exported so existing importers keep working.
 export { CLASSICAL_SHELL_SLUGS as CLASSICAL_LEXICON_SLUGS };
 
 const RAIL = {
@@ -78,23 +62,14 @@ export class LexiconShellComponent implements AfterViewInit {
   private readonly router     = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
-  // The source we're currently rendering — set from the route's :slug
-  // param. Defaults to Lisan for back-compat; the route subscription
-  // updates it on every navigation between sources.
   readonly activeSlug  = signal<string>(LISAN_SLUG);
   readonly currentRoot = signal('');
   readonly loading     = signal(false);
   readonly view        = signal<LisanReadView | null>(null);
   readonly error       = signal<string | null>(null);
 
-  // The book's ṣarf tree for this root. Fetched separately because the
-  // `/read/<slug>` composer this shell uses doesn't carry `sarf_families` —
-  // only the generic `/lex/v2/entry` endpoint does. A book with no family
-  // simply renders no panel, so a failure here never blocks the article.
   readonly sarf = signal<LexV2SarfFamily | null>(null);
 
-  // Spine name of the active book, for the ṣarf note's «this book» stamp. The
-  // read composer's meta has no `title_short_ar`, so it comes off the registry.
   private readonly shortTitles = signal<ReadonlyMap<string, string>>(new Map());
   readonly bookShortTitle = computed(() =>
     this.shortTitles().get(this.activeSlug()) ?? this.view()?.meta.title_ar ?? '');
@@ -130,21 +105,17 @@ export class LexiconShellComponent implements AfterViewInit {
   readonly fontSizeClass     = computed(() =>
     ['fs-xs', 'fs-sm', 'fs-md', 'fs-lg', 'fs-xl'][this.fontSize()]);
 
-  // Entry-head hero root. `canonical.root_letters` is a JSON ARRAY in D1
-  // (["ث","ب","ر"]) — not a spaced string — so using it as-is printed the
-  // brackets and quotes on screen. Take the root straight from the data and
-  // show it combined: ثبر.
   readonly entryLetters = computed(() => {
     const v = this.view();
     const raw = (v?.entry.root_text ?? this.currentRoot()).trim().replace(/\s+/g, '');
     if (raw) return raw;
-    // Only if the root text is absent: recover the letters from the JSON array.
+
     const letters = v?.canonical?.root_letters?.trim();
     if (!letters) return '';
     try {
       const arr: unknown = JSON.parse(letters);
       if (Array.isArray(arr)) return arr.join('');
-    } catch { /* not JSON — fall through to the strip below */ }
+    } catch {  }
     return letters.replace(/[\[\]",\s]/g, '');
   });
 
@@ -164,11 +135,10 @@ export class LexiconShellComponent implements AfterViewInit {
     combineLatest([this.route.paramMap, this.route.queryParamMap])
       .pipe(takeUntilDestroyed())
       .subscribe(([params, query]) => {
-        // Root-centric URL: /lexicon/root/:root?book=<slug>.
+
         const book = query.get('book') ?? '';
         if (!CLASSICAL_SHELL_SLUGS.has(book)) return;
-        // If the selector switched to a different classical source, reset the
-        // root index so it reloads for the new book.
+
         if (book !== this.activeSlug()) {
           this.activeSlug.set(book);
           this.rootList.set([]);
@@ -215,18 +185,6 @@ export class LexiconShellComponent implements AfterViewInit {
     }
   }
 
-  /**
-   * Invalidate the reading column's paint once a rail animation finishes.
-   *
-   * `.content` is the scroll container and the toggle transitions its
-   * `padding-inline`, so every rail toggle re-lays-out the column. Chromium can
-   * finish that transition still holding a stale tile for descendants that clip
-   * on a rounded boundary — the ṣarf panel and its form cards — and a band of the
-   * page keeps painting at its old offset. The geometry is already correct at
-   * that point (a forced reflow re-measures identically), so this only nudges the
-   * compositor to re-rasterise; it deliberately does not promote a layer, which
-   * would cost memory on every scroll for the rest of the session.
-   */
   private repaintContent() {
     const el = this.contentRef?.nativeElement;
     if (!el) return;
@@ -334,15 +292,12 @@ export class LexiconShellComponent implements AfterViewInit {
     this.loadSarf(root_norm);
   }
 
-  // Runs in parallel with the article — the panel fills in when it lands rather
-  // than holding the prose behind a second request.
   private loadSarf(root_norm: string) {
     const slug = this.activeSlug();
     this.api.getSarfFamily(slug, root_norm).pipe(
       takeUntilDestroyed(this.destroyRef),
     ).subscribe(f => {
-      // A slower ṣarf response for a root the reader has already navigated away
-      // from must not overwrite the current one.
+
       if (this.activeSlug() === slug && this.currentRoot() === root_norm) {
         this.sarf.set(f);
       }
@@ -356,7 +311,6 @@ export class LexiconShellComponent implements AfterViewInit {
     });
   }
 
-  // Open + scroll-into-view a panel item in the right rail.
   scrollToPanelItem(panel: 'notes' | 'quran' | 'hadith' | 'poetry' | 'authorities',
                     selector: string) {
     if (!this.showCitations()) {

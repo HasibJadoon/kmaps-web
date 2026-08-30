@@ -1,5 +1,3 @@
-// ─── Projection schemas & types ───────────────────────────────────────────────
-
 export interface WorldviewNode {
   id: string;
   surah: number | null;
@@ -108,8 +106,6 @@ export interface PassageAnalysisCache {
   cache_generated_at: string | null;
   payload_json: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

@@ -1,16 +1,13 @@
-// Shared word-grid contract — matches GET /api/qr/word-grid.
-// Lightweight card data only; the heavy morph detail lives on the Word deep-dive.
-
 export type WordGridScope = 'root' | 'surah' | 'passage' | 'lexicon';
 
 export interface WordGridCard {
-  id: string;                 // first-occurrence "surah:ayah:wordIndex"
-  ar: string;                 // BASE word headline (unique lemma)
-  surface_ar: string;         // a representative occurrence form
-  root: string | null;        // bare root, for navigation
+  id: string;
+  ar: string;
+  surface_ar: string;
+  root: string | null;
   root_display: string | null;
-  gloss: string | null;       // short English gloss (may be null)
-  occurrences: number;        // times this word occurs in scope (detail lists them)
+  gloss: string | null;
+  occurrences: number;
   surah: number;
   ayah: number;
   word_index: number;
@@ -23,21 +20,18 @@ export interface WordGridResult {
   words: WordGridCard[];
 }
 
-// ── Root display record (from qr_morph_display_root — the render layer) ───────
-// Every icon is a lucide NAME carried in the data; the UI never chooses icons.
-
 export interface Tri { ar: string | null; en: string | null; ur: string | null; }
 
 export interface FamilyLemmaVm {
   lemma_ar: string; pos: string | null; pos_icon: string; is_quran_word: boolean;
 }
-/** A morphological form-family (الوزن) group — names/icon come from the master table (data). */
+
 export interface FamilyGroupVm {
   key: string; order: number; tier: string; icon: string;
   arabic_name: string | null; english_name: string | null; urdu_name: string | null;
   lemmas: FamilyLemmaVm[];
 }
-/** A tier band (الثلاثي المجرّد / المزيد فيه) holding its form-family groups. */
+
 export interface FamilyTierVm {
   tier: string; icon: string;
   arabic_name: string | null; english_name: string | null; urdu_name: string | null;
@@ -45,11 +39,11 @@ export interface FamilyTierVm {
 }
 export interface LensVm {
   key: string; label: string; icon: string; on: boolean;
-  author?: string | null;                           // "Ibn Fāris", "E. W. Lane" …
-  slug?: string | null; root?: string | null;       // deep-link to the book reader
-  heading?: string | null; summary?: string | null; // card summary
-  text?: string | null; page?: number | null;       // full source entry (depth)
-  dir?: 'rtl' | 'ltr';                              // Lane/Sinai read LTR — direction is data
+  author?: string | null;
+  slug?: string | null; root?: string | null;
+  heading?: string | null; summary?: string | null;
+  text?: string | null; page?: number | null;
+  dir?: 'rtl' | 'ltr';
 }
 
 export interface RootDisplay {
@@ -62,12 +56,11 @@ export interface RootDisplay {
   family: FamilyTierVm[];
   lenses: LensVm[];
   senses: string[];
-  section_icons: Record<string, string>;   // { family, senses, hook, freq } → lucide names
+  section_icons: Record<string, string>;
   semantic_field: string | null;
   is_anchor: boolean;
 }
 
-/** Scope params for a grid request (only the ones the scope needs). */
 export interface WordGridQuery {
   scope: WordGridScope;
   root?: string;

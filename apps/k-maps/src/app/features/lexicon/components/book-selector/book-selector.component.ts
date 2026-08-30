@@ -8,14 +8,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { of, catchError } from 'rxjs';
 import { AlDictionaryApiService } from '../../../../shared/services/al-dictionary-api.service';
 
-/**
- * Universal book (source) switcher for the root-centric reader. Given the
- * current root, it lists every classical source that actually has an entry
- * for it (via the /al/lex/v2/roots/:root compare endpoint) and, on pick,
- * navigates to /lexicon/root/:root?book=<slug> — keeping the root, swapping
- * the book. Lives in the shared toolbar so every lexicon shell offers the
- * same switcher from one component.
- */
 interface BookOption { slug: string; title_ar: string; author: string; sections: number; }
 
 @Component({
@@ -42,7 +34,7 @@ export class BookSelectorComponent {
     this.options().find(o => o.slug === this.currentBook())?.title_ar ?? '…');
 
   constructor() {
-    // Refetch the availability list whenever the root changes.
+
     effect(() => {
       const r = this.root();
       if (!r || r === this.lastRoot) return;

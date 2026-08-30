@@ -1,6 +1,3 @@
-// ─── /qr/irab routes ──────────────────────────────────────────────────────────
-// Exposes qr_irab_source and qr_irab_book_entry from km_quran D1.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
@@ -9,9 +6,6 @@ import type { QuranEnv } from '../env';
 
 export function irabRoutes(router: Router<QuranEnv>) {
 
-  // GET /qr/irab/book-sources — all irab source books with entry counts
-  // Edge-cached: entry-count aggregate over qr_irab_book_entry is the
-  // long pole here (>1.5s cold). Source list changes only on ingest.
   router.get('/qr/irab/book-sources', (req, env) => cached(req, async () => {
     const { results } = await env.DB_QR
       .prepare(`
@@ -36,9 +30,6 @@ export function irabRoutes(router: Router<QuranEnv>) {
     return ok({ sources: results });
   }));
 
-  // GET /qr/irab/book-entries?surah=X[&ayah=Y][&source_slug=S][&limit=N][&page=N]
-  // Returns irab entries for a surah, joined with qr_ayah.text_uthmani for verse-by-verse display.
-  // Edge-cached per query string — entries only change on ingest.
   router.get('/qr/irab/book-entries', (req, env) => cached(req, async () => {
     const url   = new URL(req.url);
     const surah = parseInt(url.searchParams.get('surah') ?? '');

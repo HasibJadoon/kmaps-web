@@ -1,12 +1,6 @@
-// ─── DomainRepo — ar_curriculum_domain + ar_curriculum_domain_phrase + ar_curriculum_scenario ───────────────
-// Semantic domain registry for contextual acquisition.
-// Domains group phrases and scenarios; scenarios carry vocab_set JSON.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface Domain {
   id: string;
@@ -34,7 +28,7 @@ export interface DomainPhrase {
   meaning_en: string;
   usage_context: string | null;
   level: string | null;
-  vocab_id: string | null;    // link to ar_vocabulary if exists
+  vocab_id: string | null;
   created_at: string;
 }
 
@@ -52,10 +46,10 @@ export interface Scenario {
   domain_id: string;
   title: string;
   title_ar: string | null;
-  scenario_type: string;      // dialogue|reading|listening|writing|speaking|other
+  scenario_type: string;
   level: string | null;
   description_md: string | null;
-  vocab_set_json: string | null;  // JSON [vocab_id]
+  vocab_set_json: string | null;
   meta_json: string | null;
   created_at: string;
 }
@@ -70,8 +64,6 @@ export interface ScenarioCreate {
   meta_json?: string | null;
 }
 
-// ── Column lists ──────────────────────────────────────────────────────────────
-
 const DOMAIN_COLS = `id, slug, title, title_ar, description, sort_order, created_at`;
 
 const PHRASE_COLS = `id, domain_id, arabic, transliteration, meaning_en,
@@ -80,12 +72,8 @@ const PHRASE_COLS = `id, domain_id, arabic, transliteration, meaning_en,
 const SCENARIO_COLS = `id, domain_id, title, title_ar, scenario_type,
   level, description_md, vocab_set_json, meta_json, created_at`;
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class DomainRepo {
   constructor(private db: D1Database) {}
-
-  // ── Domains ──────────────────────────────────────────────────────────────────
 
   list(opts: PaginateOptions = {}) {
     return paginate<Domain>(
@@ -134,8 +122,6 @@ export class DomainRepo {
     return (await this.findById(id))!;
   }
 
-  // ── Domain phrases ───────────────────────────────────────────────────────────
-
   phrases(domainId: string, level: string | null = null, opts: PaginateOptions = {}) {
     const where  = level ? 'WHERE domain_id = ? AND level = ?' : 'WHERE domain_id = ?';
     const params = level ? [domainId, level] : [domainId];
@@ -175,8 +161,6 @@ export class DomainRepo {
       [id],
     ))!;
   }
-
-  // ── Scenarios ────────────────────────────────────────────────────────────────
 
   scenarios(domainId: string, opts: PaginateOptions = {}) {
     return paginate<Scenario>(

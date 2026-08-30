@@ -26,7 +26,6 @@ interface KmDoc {
 export class DocumentEditorService {
   private readonly api = inject(BackendApiService);
 
-  // ── State signals ──────────────────────────────────────────────────────────
   documents = signal<DocumentListItem[]>([]);
   activeDocument = signal<DocumentDetail | null>(null);
   loadState = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
@@ -34,8 +33,6 @@ export class DocumentEditorService {
   loadError = signal<string | null>(null);
 
   activeId = computed(() => this.activeDocument()?.id ?? null);
-
-  // ── List — loads from new /api/docs endpoint ──────────────────────────────
 
   async loadDocuments(scope: DocumentEditorScope): Promise<void> {
     this.loadState.set('loading');
@@ -47,7 +44,7 @@ export class DocumentEditorService {
     if (scope.unit_id)          params = params.set('unit_id', scope.unit_id);
 
     try {
-      // New endpoint: GET /api/docs → { docs: [...], total: N }
+
       const res = await firstValueFrom(
         this.api.getRaw<{ docs: KmDoc[]; total: number }>(['docs'], { params })
       );
@@ -75,8 +72,6 @@ export class DocumentEditorService {
     }
   }
 
-  // ── Single document ────────────────────────────────────────────────────────
-
   async loadDocument(id: string): Promise<void> {
     this.loadState.set('loading');
     try {
@@ -94,8 +89,6 @@ export class DocumentEditorService {
       this.loadState.set('error');
     }
   }
-
-  // ── Create ─────────────────────────────────────────────────────────────────
 
   async createDocument(
     title: string,
@@ -132,7 +125,6 @@ export class DocumentEditorService {
         };
         this.documents.update(docs => [newItem, ...docs]);
 
-        // Load full document to set as active
         await this.loadDocument(res.document_id);
         return this.activeDocument();
       }
@@ -141,8 +133,6 @@ export class DocumentEditorService {
       return null;
     }
   }
-
-  // ── Save (PUT — full document_json sync) ───────────────────────────────────
 
   async saveDocument(id: string, doc: TiptapDoc, title?: string): Promise<boolean> {
     this.saveState.set('saving');
@@ -155,7 +145,7 @@ export class DocumentEditorService {
       );
       if (res.ok) {
         this.saveState.set('saved');
-        // Update title in list if changed
+
         if (title) {
           this.documents.update(docs =>
             docs.map(d => d.id === id ? { ...d, title, updated_at: new Date().toISOString() } : d)
@@ -175,8 +165,6 @@ export class DocumentEditorService {
     }
   }
 
-  // ── Upload image/audio to R2 ───────────────────────────────────────────────
-
   async uploadFile(
     documentId: string,
     file: File,
@@ -195,8 +183,6 @@ export class DocumentEditorService {
       return null;
     }
   }
-
-  // ── Select active document ─────────────────────────────────────────────────
 
   selectDocument(id: string): void {
     if (this.activeDocument()?.id === id) return;

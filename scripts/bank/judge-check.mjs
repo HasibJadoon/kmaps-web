@@ -13,9 +13,6 @@ const opts = q(`SELECT o.* FROM core_bank_item_option o JOIN core_bank_item i ON
 const byItem = new Map();
 for (const o of opts) (byItem.get(o.item_ref) ?? byItem.set(o.item_ref, []).get(o.item_ref)).push(o);
 
-// For each item: the answer a person who knows would give, and one who doesn't.
-// An answer is an option ID, never an index — the room sends what it was
-// given, and an index would silently mean a different option after a shuffle.
 const ordered = (os) => os.filter((o) => o.role === 'order_token')
                           .sort((a, b) => a.sort_order - b.sort_order).map((o) => o.id);
 const right = (it, os) => {

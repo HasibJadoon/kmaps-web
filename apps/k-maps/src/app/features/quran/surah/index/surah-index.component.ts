@@ -37,8 +37,6 @@ export class SurahIndexComponent implements OnInit, AfterViewInit {
   filteredSurahs = computed(() => {
     const t = this.typeFilter();
 
-    // Split the query into whitespace-separated tokens so any combination
-    // works — "yusuf 12", "the opening 1", "an nas", "الفاتحة", "114".
     const tokens = this.searchQuery()
       .trim()
       .split(/\s+/)
@@ -46,15 +44,13 @@ export class SurahIndexComponent implements OnInit, AfterViewInit {
 
     return this.quranState.surahs().filter((s) => {
       if (tokens.length > 0) {
-        // Pre-normalize each searchable field once per surah.
+
         const name = normalizeLatin(s.transliteratedName);
         const eng = normalizeLatin(s.englishName ?? '');
         const slug = normalizeLatin(s.slug ?? '');
         const ar = normalizeArabic(s.arabicName ?? '');
         const num = String(s.surahNumber);
 
-        // Every token must match at least one field (AND across tokens,
-        // OR across fields) so mixed queries narrow the results.
         const matchesSearch = tokens.every((tok) => {
           const latin = normalizeLatin(tok);
           const arabic = normalizeArabic(tok);
@@ -109,7 +105,6 @@ export class SurahIndexComponent implements OnInit, AfterViewInit {
   }
 }
 
-/** Lowercase and strip Latin accents/diacritics for forgiving name matching. */
 function normalizeLatin(value: string): string {
   return value
     .normalize('NFD')
@@ -118,16 +113,11 @@ function normalizeLatin(value: string): string {
     .trim();
 }
 
-/**
- * Normalize Arabic so a query matches regardless of harakat or letter
- * variants: strip tashkeel/tatweel, unify alef forms, taa marbuta and
- * alef maqsura. Lets "الفاتحه" or an undiacritized query hit "الفاتِحة".
- */
 function normalizeArabic(value: string): string {
   return value
-    .replace(/[ً-ْٰـ]/g, '') // tashkeel, dagger alef, tatweel
-    .replace(/[آأإٱ]/g, 'ا') // آأإٱ → ا
-    .replace(/ة/g, 'ه') // ة → ه
-    .replace(/ى/g, 'ي') // ى → ي
+    .replace(/[ً-ْٰـ]/g, '')
+    .replace(/[آأإٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
     .trim();
 }

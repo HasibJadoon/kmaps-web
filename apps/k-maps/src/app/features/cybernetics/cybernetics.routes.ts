@@ -19,13 +19,7 @@ export const CYBERNETICS_ROUTES: Routes = [
           import('./monitor/cyb-monitor.component').then((m) => m.CybMonitorComponent),
         title: 'Control Monitor — K-MAPS',
       },
-      // The map's drill is URL-addressable, so browser back/forward and deep
-      // links work at every level:
-      //   /map                                    → the 114 surahs
-      //   /map/:surahId                           → that surah's study passages
-      //   /map/:surahId/:passageNo                → the 6 stream-systems
-      //   /map/:surahId/:passageNo/:stream        → the stream's pieces (roots)
-      //   /map/:surahId/:passageNo/:stream/:root  → that root's dashboard
+
       ...['map', 'map/:surahId', 'map/:surahId/:passageNo',
           'map/:surahId/:passageNo/:stream',
           'map/:surahId/:passageNo/:stream/:root'].map((path) => ({
@@ -34,17 +28,14 @@ export const CYBERNETICS_ROUTES: Routes = [
           import('./map/cyb-map.component').then((m) => m.CybMapComponent),
         title: 'Quran Map — K-MAPS',
       })),
-      // The display spec, rendered. The map's root view will move onto this
-      // once /core/ds is deployed; until then it lives beside it so the
-      // renderer can be exercised without disturbing a working screen.
+
       {
         path: 'ds/:root',
         loadComponent: () =>
           import('./ds/cyb-ds-page.component').then((m) => m.CybDsPageComponent),
         title: 'Root — K-MAPS',
       },
-      // The ladder walks the same recursion as the map, so it takes the same
-      // route shape — a path in one view opens the same path in the other.
+
       ...['ladder', 'ladder/:surahId', 'ladder/:surahId/:passageNo',
           'ladder/:surahId/:passageNo/:stream',
           'ladder/:surahId/:passageNo/:stream/:root'].map((path) => ({

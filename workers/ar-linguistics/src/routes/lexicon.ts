@@ -1,18 +1,3 @@
-// ─── /al/lexicon routes ───────────────────────────────────────────────────────
-//
-// Two sets of routes:
-//
-// 1. Classical source-chunk lexicon (ar_ling_source_chunk):
-//      GET /al/lexicon/dict/sources            — list all lexicon source DBs
-//      GET /al/lexicon/dict/root/:rootText      — entries for one root, grouped by source
-//      GET /al/lexicon/dict/entry/:chunkId      — single chunk by id
-//      GET /al/lexicon/dict/search?q=           — text + root search
-//
-// 2. Structured lexicon entries (ar_ling_lexicon_* tables via LexiconRepo):
-//      GET /al/lexicon/search?q=                — search structured entries
-//      GET /al/lexicon/:id                      — entry + senses
-//      GET /al/lexicon?lemma=                   — entries by lemma
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, badRequest, paginated } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
@@ -21,18 +6,6 @@ import type { ArLinguisticsEnv } from '../env';
 import { LexiconRepo } from '../repositories/lexicon.repo';
 import { SourcesRepo, toResponseMeta, type LexiconSource } from '../repositories/sources.repo';
 
-// ── Source-meta helpers (D1-backed) ──────────────────────────────────────────
-// Source titles / author / period / catalogue ordering used to live in two
-// hardcoded constants here (SOURCE_META + SOURCE_ORDER). Both are now columns
-// on ar_ling_source, queried via SourcesRepo. Migrations 0016 + 0017 added
-// the slug / origin / source_order columns and seeded every row that
-// corresponds to a TS slug.
-//
-// metaFromSources(repo) builds the per-request lookup helpers — a Map keyed
-// by slug for O(1) enrichment, and the ordered slug list for grouping. It's
-// called once at the top of each handler that needs source metadata; the
-// returned helpers close over the repo result so we don't re-query D1 for
-// every row in a results loop.
 async function metaFromSources(repo: SourcesRepo) {
   const sources = await repo.inDisplayOrder();
   const bySlug  = new Map(sources.map(s => [s.slug, s]));
@@ -56,7 +29,7 @@ function extractUrl(metaJson: string | null): string | null {
 
 function normArabic(t: string): string {
   return t
-    .replace(/[ً-ٰٟ]/g, '')  // harakat
+    .replace(/[ً-ٰٟ]/g, '')
     .replace(/[أإآ]/g, 'ا')
     .replace(/ى/g, 'ي')
     .replace(/ة/g, 'ه')
@@ -316,8 +289,6 @@ async function rebuildLaneQualityForRoot(
 
 export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
 
-  // ── /al/lexicon/lane/* — Lane repair inspection/admin ─────────────────────
-
   router.get('/al/lexicon/lane/health', async (_req, env) => {
     const [entries, quality, patches] = await Promise.all([
       env.DB_AL.prepare(`
@@ -423,7 +394,7 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
   router.post('/al/lexicon/lane/quality/rebuild', async (req, env) => {
     const url = new URL(req.url);
     let body: Record<string, unknown> = {};
-    try { body = await req.json<Record<string, unknown>>(); } catch { /* optional body */ }
+    try { body = await req.json<Record<string, unknown>>(); } catch {  }
 
     const rootText = String(body.rootText ?? url.searchParams.get('root') ?? '').trim();
     if (!rootText) return badRequest('rootText is required. Full rebuilds must use npm run lane:quality-index.');
@@ -434,29 +405,8 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
     return ok({ root: rootText, ...result });
   });
 
-  // ── /al/lexicon/dict/* — classical source-chunk dictionary ─────────────────
-
-  // GET /al/lexicon/dict/sources
-  // List all registered lexicon sources with chunk + root counts.
-  // Excludes article-genre sources (e.g. Al-Jallad's archaeological
-  // hermeneutic notes), which live in `ar_ling_root_scholarship` and are
-  // surfaced via `/al/scholarship/*` instead.
-  //
-  // Heavy aggregate (full scan + COUNT DISTINCT over millions of chunk
-  // rows) that previously took 600-800ms per cold call. The data only
-  // changes on ingest, so the response is edge-cached for 10 minutes
-  // via the Workers Cache API. Cache key = full request URL.
   router.get('/al/lexicon/dict/sources', (req, env) => cached(req, async () => {
-    // Single source of truth: ar_ling_lexicon_entry. The legacy
-    // path joined ar_ling_source_chunk which double-misfires here —
-    //   • ibn_durayd_jamharat_lugha has 2,908 chunks but no root_entries
-    //     (legacy import never migrated to v2), so listing it sends
-    //     users to an empty reader.
-    //   • ibn_durayd_jamharat_lugha has 1,229 root_entries
-    //     but no chunks (newer pipeline writes straight to v2), so the
-    //     old query hid it entirely.
-    // Counting from root_entries matches what /al/lex/v2/sources does and
-    // what the reader actually loads.
+
     const { results } = await env.DB_AL
       .prepare(`
         SELECT r.source_slug,
@@ -480,9 +430,6 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
     return ok({ sources, total: sources.length });
   }));
 
-  // GET /al/lexicon/dict/root/:rootText
-  // All lexicon entries for an Arabic root, grouped by source.
-  // Params: sources (comma-sep slugs), limit (per source, default 20)
   router.get('/al/lexicon/dict/root/:rootText', async (req, env, params) => {
     const rootRaw  = decodeURIComponent((params as Record<string, string>).rootText ?? '');
     if (!rootRaw)  return badRequest('rootText required');
@@ -496,12 +443,8 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
     const ph    = slugFilter.length ? `AND source_slug IN (${slugFilter.map(() => '?').join(',')})` : '';
     const params2 = [rootNorm, ...slugFilter];
 
-    // Pull source metadata + ordering from D1 in one query before the chunk
-    // scan. We need the count for the LIMIT (safety bound) and the ordered
-    // slug list for the groupings below.
     const { meta, order: canonicalOrder } = await metaFromSources(new SourcesRepo(env.DB_AL));
-    // The +6 floor preserves the previous behaviour for cases where the
-    // sources table is still being populated (cold ingest, dev environments).
+
     const sourceCount = Math.max(canonicalOrder.length, 6);
 
     const { results } = await env.DB_AL
@@ -518,7 +461,6 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
       .bind(...params2)
       .all<Record<string, unknown>>();
 
-    // Group and order by source
     const bySlug: Record<string, DictEntry[]> = {};
     for (const r of results) {
       const slug = (r.source_slug as string) ?? 'unknown';
@@ -537,9 +479,6 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
       entry_count: bySlug[slug].length,
     }));
 
-    // ── Root + lemma metadata (dictionary-style: root → lemmas → forms) ──
-    // Mirrors quranmorphology.com / lexicon.quranic-research.net layout:
-    //   root header (ر ج ع) → lemmas (رَجَعَ, رَاجِع, مَرْجِع, …) → POS + Quran freq
     const rootRow = await env.DB_AL
       .prepare(`SELECT id, root_text, root_letters, root_type, weak_pattern,
                        frequency_quran, meaning_core_ar, meaning_core_en
@@ -585,7 +524,7 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
       },
       lemmas: lemmas.map(l => ({
         id:              l.id,
-        text_ar:         l.lemma_text,           // vocalized standard Arabic
+        text_ar:         l.lemma_text,
         text_bare:       l.lemma_text_bare,
         part_of_speech:  l.part_of_speech,
         verb_form:       l.verb_form,
@@ -599,8 +538,6 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
     });
   });
 
-  // GET /al/lexicon/dict/entry/:chunkId
-  // Single lexicon chunk by D1 id.
   router.get('/al/lexicon/dict/entry/:chunkId', async (req, env, params) => {
     const chunkId = decodeURIComponent((params as Record<string, string>).chunkId ?? '');
     if (!chunkId) return badRequest('chunkId required');
@@ -623,10 +560,6 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
     });
   });
 
-  // GET /al/lexicon/dict/search?q=
-  // Text search across all lexicon source chunks.
-  // Returns: exact root matches first, then content matches.
-  // Params: q (required), sources (comma-sep), limit (default 30)
   router.get('/al/lexicon/dict/search', async (req, env) => {
     const url   = new URL(req.url);
     const query = (url.searchParams.get('q') ?? '').trim();
@@ -671,32 +604,23 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
     });
   });
 
-  // ── /al/lexicon/entries/* — structured lexicon entries, UI-ready ─────────────
-  //
-  // Reads ar_ling_lexicon_entries + cleaner_json (cleanup pipeline v2).
-  // Returns a flat, display-ready shape — no internal fields.
-  //
-  //   GET /al/lexicon/entries/root/:rootText   ?source=<slug>  ?limit=
-  //   GET /al/lexicon/entries/search           ?q=  ?source=   ?limit=
-  //   GET /al/lexicon/entries/:id
-
   interface CitationChip { abbr: string; label: string; label_ar: string; author: string }
 
   interface LexEntry {
     id:           string;
-    heading_ar:   string | null;  // from heading display block
-    page_label:   string | null;  // "Lane p. 2139" — from page_ref block
+    heading_ar:   string | null;
+    page_label:   string | null;
     page:         number | null;
-    type:         string;          // definition | cross_ref | grammar_note | stub
-    definition:   string | null;   // definition_clean — display-ready
-    has_gaps:     boolean;         // true → [◌] placeholders in definition
-    arabic_forms: string[];        // related Arabic forms from arabic_form block
-    ref_sources:  CitationChip[];  // citation chips for display
+    type:         string;
+    definition:   string | null;
+    has_gaps:     boolean;
+    arabic_forms: string[];
+    ref_sources:  CitationChip[];
   }
 
   function toUiEntry(row: Record<string, unknown>): LexEntry {
     let cj: Record<string, unknown> = {};
-    try { cj = JSON.parse(row.cleaner_json as string ?? '{}') as Record<string, unknown>; } catch { /* */ }
+    try { cj = JSON.parse(row.cleaner_json as string ?? '{}') as Record<string, unknown>; } catch {  }
 
     const details = (cj.citation_details as Array<Record<string, string>> | undefined) ?? [];
     const ref_sources: CitationChip[] = details.map(d => ({
@@ -706,7 +630,6 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
       author:   d.author   ?? '',
     }));
 
-    // arabic_forms_raw comes from the arabic_form display block, dot-separated
     const arabic_forms = ((row.arabic_forms_raw as string) ?? '')
       .split('·').map((f: string) => f.trim()).filter(Boolean);
 
@@ -725,10 +648,6 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
     };
   }
 
-  // GET /al/lexicon/entries/lane/:rootText
-  // Returns raw LaneGroupedRow shape for the Lane table/clean UI.
-  // Runs the canonical grouped SQL: one row per entry, all block pivots.
-  // ?limit=100
   router.get('/al/lexicon/entries/lane/:rootText', async (req, env, params) => {
     const rootRaw = decodeURIComponent((params as Record<string, string>).rootText ?? '');
     if (!rootRaw) return badRequest('rootText required');
@@ -772,16 +691,6 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
     return ok({ root: rootRaw, total: results.length, entries: results });
   });
 
-  // GET /al/lexicon/entries/root/:rootText — REMOVED.
-  // Both apps (Ionic + desktop) now call /al/lex/v2/roots/:root_norm
-  // (handled by lexiconV2Routes). The old route queried the retired
-  // ar_ling_lexicon_entries table and produced a parallel response shape;
-  // removing it prevents accidental re-use and forces a single code path
-  // through ar_ling_lexicon_entry.
-
-  // GET /al/lexicon/entries/search?q=&source=&limit=
-  // Searches heading_ar and definition_clean.
-  // Results are flat (not grouped) — suitable for search results list.
   router.get('/al/lexicon/entries/search', async (req, env) => {
     const url    = new URL(req.url);
     const q      = (url.searchParams.get('q') ?? '').trim();
@@ -827,8 +736,6 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
     });
   });
 
-  // GET /al/lexicon/entries/:id
-  // Single structured entry — full display payload including original text for drawer/detail view.
   router.get('/al/lexicon/entries/:id', async (_req, env, { id }) => {
     const row = await env.DB_AL
       .prepare(`
@@ -850,7 +757,7 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
     if (!row) return notFound(`Entry not found: ${id}`);
 
     let mj: Record<string, unknown> = {};
-    try { mj = JSON.parse(row.meta_json as string ?? '{}') as Record<string, unknown>; } catch { /* */ }
+    try { mj = JSON.parse(row.meta_json as string ?? '{}') as Record<string, unknown>; } catch {  }
 
     const sourceRow = await new SourcesRepo(env.DB_AL).bySlug(row.source_slug as string);
     return ok({
@@ -859,14 +766,11 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
       lexicon:  sourceRow
         ? toResponseMeta(sourceRow)
         : { slug: row.source_slug as string, title_ar: row.source_slug as string, title_en: row.source_slug as string, author: '', period: '' },
-      // Scholarly layer — shown in detail drawer only
+
       definition_scholarly: (mj.definition_original as string) ?? null,
     });
   });
 
-  // ── /al/lexicon/* — structured lexicon (LexiconRepo) ──────────────────────
-
-  // GET /al/lexicon/search?q=كتاب
   router.get('/al/lexicon/search', async (req, env) => {
     const url = new URL(req.url);
     const q = url.searchParams.get('q');
@@ -874,7 +778,6 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
     return paginated(await new LexiconRepo(env.DB_AL).search(q, parsePagination(url)));
   });
 
-  // GET /al/lexicon/:id — entry + senses
   router.get('/al/lexicon/:id', async (_req, env, { id }) => {
     const repo = new LexiconRepo(env.DB_AL);
     const entry = await repo.findById(id);
@@ -883,7 +786,6 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
     return ok({ ...entry, senses });
   });
 
-  // GET /al/lexicon?lemma=AL:ULID — all entries for a lemma
   router.get('/al/lexicon', async (req, env) => {
     const url = new URL(req.url);
     const lemmaId = url.searchParams.get('lemma');

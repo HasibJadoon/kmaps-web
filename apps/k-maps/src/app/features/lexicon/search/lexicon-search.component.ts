@@ -13,7 +13,6 @@ import { deathLabelAr } from '../data/lexicon-sources.service';
 
 type Mode = 'root' | 'word' | 'fts';
 
-// View-model for one dictionary card in the 3D grid.
 interface SourceCard {
   root_norm: string;
   source_slug: string;
@@ -62,11 +61,10 @@ export class LexiconSearchComponent {
 
   readonly q        = signal('');
   readonly mode     = signal<Mode>('root');
-  readonly draft    = signal('');          // the input box value
+  readonly draft    = signal('');
   readonly loading  = signal(false);
   readonly searched = signal(false);
 
-  // Root mode → multi-source compare (hero + 3D grid). Other modes → flat list.
   readonly compare = signal<LexV2RootCompare | null>(null);
   readonly results = signal<LexV2SearchHit[]>([]);
   readonly total   = signal(0);
@@ -85,7 +83,6 @@ export class LexiconSearchComponent {
     }
   });
 
-  // ── Root hero — canonical data, all derived from the compare payload ───────
   readonly hero = computed<RootHero | null>(() => {
     const rc = this.compare();
     if (!rc || !rc.sources?.length) return null;
@@ -96,9 +93,6 @@ export class LexiconSearchComponent {
     catch { letters = []; }
     if (!letters.length) letters = [...(c?.root_text ?? rc.root_norm)];
 
-    // Meaning: prefer the canonical Arabic gloss; otherwise fall back to the
-    // etymological core from Maqāyīs, then any source with a snippet. No
-    // hardcoded text — everything traces to a real entry.
     const maqayis = rc.sources.find(s => /maqayis/.test(s.source_slug));
     const meaning = c?.meaning_core_ar
       || maqayis?.snippet
@@ -116,7 +110,6 @@ export class LexiconSearchComponent {
     };
   });
 
-  // Root normal-form for the K-MAPS synthesis card's own route.
   readonly synthRoot = computed(() => {
     const rc = this.compare();
     return rc?.canonical?.root_text ?? rc?.root_norm ?? this.q();
@@ -125,7 +118,7 @@ export class LexiconSearchComponent {
   readonly cards = computed<SourceCard[]>(() => {
     const rc = this.compare();
     if (!rc) return [];
-    // Worker already returns the sources earliest-author-first.
+
     return rc.sources.map(s => ({
       root_norm: s.root_norm,
       source_slug: s.source_slug,
@@ -206,9 +199,6 @@ export class LexiconSearchComponent {
     });
   }
 
-  // Dated byline fragment: «ت 502 هـ» for Hijri authors, «ت 1876 م» for
-  // CE-dated authors (Lane), or the era label for living scholars. Shared with
-  // the shelf so the two surfaces can't drift apart again.
   private deathLabel(s: { author_death_ah?: number | null; author_death_ce?: number | null; period: string }): string {
     return deathLabelAr(s);
   }
@@ -219,7 +209,6 @@ export class LexiconSearchComponent {
     return [t, w].filter(Boolean).join(' ') || '—';
   }
 
-  // ── Flat-list helpers (word/fts modes) ────────────────────────────────────
   pageOf(h: LexV2SearchHit): number | null {
     return h.page_no ?? h.page_start ?? null;
   }
@@ -227,7 +216,6 @@ export class LexiconSearchComponent {
     return h.snippet || h.preview || '';
   }
 
-  // ── 3D pointer-tilt (mirrors the design prototype) ────────────────────────
   onTilt(e: PointerEvent) {
     const card = e.currentTarget as HTMLElement;
     const r = card.getBoundingClientRect();

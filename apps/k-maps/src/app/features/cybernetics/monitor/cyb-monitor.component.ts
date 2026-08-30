@@ -2,10 +2,6 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { CybService } from '../data/cyb.service';
 import type { CybMonitor, LayerModel, LayerModelBand } from '../data/cyb.models';
 
-// The Cybernetics Control Monitor — the closed loop rendered live from
-// /core/cyb/monitor: reference → sensor → comparator → controller → actuator →
-// plant → feedback, plus gauges, the job queue, the error ledger, the tick feed,
-// and (tab) the AL staging matrix. Logic-free renderer — all data from the API.
 @Component({
   selector: 'km-cyb-monitor',
   standalone: true,
@@ -227,7 +223,7 @@ export class CybMonitorComponent {
   private readonly svc = inject(CybService);
   readonly monitor = signal<CybMonitor | null>(null);
   readonly model = signal<LayerModel | null>(null);
-  /** Which scope of the recursion the registry tab is showing. */
+
   readonly scope = signal('root');
   readonly error = signal<string | null>(null);
   readonly tab = signal<'loop' | 'matrix' | 'law'>('loop');
@@ -258,9 +254,6 @@ export class CybMonitorComponent {
     return lm.layers.filter((b) => b.scope === this.scope());
   }
 
-  /** What to print for a carrier. A slot with one table names it; the catch-all
-   *  slots hold dozens, and naming only the first would read as a claim that the
-   *  rest do not exist. */
   carrierLabel(tables: string[]): string {
     if (!tables.length) return 'no carrier';
     if (tables.length === 1) return tables[0];

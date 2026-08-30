@@ -53,18 +53,16 @@ export const AyahEmbed = Node.create<object, object>({
 
   addNodeView() {
     return ({ node }) => {
-      // ── Outer wrapper (atom — ProseMirror / we set contentEditable=false) ──
+
       const dom = document.createElement('div');
       dom.className = 'km-block km-block--ayah';
       dom.setAttribute('dir', 'rtl');
       dom.contentEditable = 'false';
 
-      // ── Content area (innerHTML updated on attrs change) ───────────────────
       const contentArea = document.createElement('div');
       contentArea.className = 'km-ayah-content';
       dom.appendChild(contentArea);
 
-      // ── Copy button (LTR, positioned top-left physically / top-end for RTL) ─
       const copyBtn = document.createElement('button');
       copyBtn.className = 'km-ayah-copy';
       copyBtn.setAttribute('dir', 'ltr');
@@ -83,12 +81,11 @@ export const AyahEmbed = Node.create<object, object>({
             copyBtn.innerHTML = COPY_ICON;
             copyBtn.classList.remove('km-ayah-copy--done');
           }, 1800);
-        }).catch(() => {/* clipboard unavailable */});
+        }).catch(() => {});
       });
 
       dom.appendChild(copyBtn);
 
-      // ── Render content ─────────────────────────────────────────────────────
       const renderContent = (attrs: AyahEmbedAttrs) => {
         contentArea.innerHTML = `
           <div class="ayah-text">${attrs.text_uthmani ?? ''}</div>

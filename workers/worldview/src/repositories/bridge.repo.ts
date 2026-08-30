@@ -1,19 +1,10 @@
-// ─── BridgeRepo — LB + L10 doc_links cross-module bridge tables ───────────────
-// LB:  wv_node_quran_links, wv_term_links, wv_episode_quran_links,
-//      wv_evidence_scope_links
-// L10: wv_doc_links
-//
-// All cross-module refs use typed string IDs (MODULE:ULID) — no SQL FK.
-
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
-
-// ─── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface WvNodeQuranLink {
   id: string;
   node_id: string;
-  qr_scope_ref: string;   // 'QR:<surah>:<ayah_from>[-<ayah_to>]'
+  qr_scope_ref: string;
   link_type: string;
   note: string | null;
   created_at: string;
@@ -21,9 +12,9 @@ export interface WvNodeQuranLink {
 
 export interface WvTermLink {
   id: string;
-  entity_type: string;    // 'node'|'claim'|'moral_axis'|'topic'|'virtue'|'other'
+  entity_type: string;
   entity_id: string;
-  al_concept_ref: string; // 'AL:<lemma_id>'
+  al_concept_ref: string;
   link_type: string;
   note: string | null;
   created_at: string;
@@ -32,7 +23,7 @@ export interface WvTermLink {
 export interface WvEpisodeQuranLink {
   id: string;
   episode_id: string;
-  qr_scope_ref: string;   // 'QR:<surah>:<ayah_from>[-<ayah_to>]'
+  qr_scope_ref: string;
   link_type: string;
   note: string | null;
   created_at: string;
@@ -41,8 +32,8 @@ export interface WvEpisodeQuranLink {
 export interface WvEvidenceScopeLink {
   id: string;
   evidence_id: string;
-  scope_module: string;   // 'QR'|'AL'|'AR'|'CM'|'PL'
-  scope_ref: string;      // typed ref
+  scope_module: string;
+  scope_ref: string;
   link_role: string;
   created_at: string;
 }
@@ -51,13 +42,11 @@ export interface WvDocLink {
   id: string;
   entity_type: string;
   entity_id: string;
-  cm_doc_ref: string;     // 'CM:<doc_id>'
+  cm_doc_ref: string;
   link_role: string;
   note: string | null;
   created_at: string;
 }
-
-// ─── Create input types ────────────────────────────────────────────────────────
 
 export interface NodeQuranLinkCreate {
   node_id: string;
@@ -96,22 +85,14 @@ export interface DocLinkCreate {
   note?: string | null;
 }
 
-// ─── Column lists ──────────────────────────────────────────────────────────────
-
 const NQL_COLS = `id, node_id, qr_scope_ref, link_type, note, created_at`;
 const TL_COLS  = `id, entity_type, entity_id, al_concept_ref, link_type, note, created_at`;
 const EQL_COLS = `id, episode_id, qr_scope_ref, link_type, note, created_at`;
 const ESL_COLS = `id, evidence_id, scope_module, scope_ref, link_role, created_at`;
 const DL_COLS  = `id, entity_type, entity_id, cm_doc_ref, link_role, note, created_at`;
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// BridgeRepo
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export class BridgeRepo {
   constructor(private db: D1Database) {}
-
-  // ── LB: Node ↔ Quran Links ─────────────────────────────────────────────────
 
   nodeQuranLinks(nodeId: string): Promise<WvNodeQuranLink[]> {
     return query<WvNodeQuranLink>(
@@ -150,8 +131,6 @@ export class BridgeRepo {
   async removeNodeQuranLink(id: string): Promise<void> {
     await execute(this.db, `DELETE FROM wv_node_quran_links WHERE id = ?`, [id]);
   }
-
-  // ── LB: WV ↔ Arabic Linguistic Term Links ─────────────────────────────────
 
   termLinks(entityType: string, entityId: string): Promise<WvTermLink[]> {
     return query<WvTermLink>(
@@ -192,8 +171,6 @@ export class BridgeRepo {
     await execute(this.db, `DELETE FROM wv_term_links WHERE id = ?`, [id]);
   }
 
-  // ── LB: Prophetic Episode ↔ QR Scope ──────────────────────────────────────
-
   episodeQuranLinks(episodeId: string): Promise<WvEpisodeQuranLink[]> {
     return query<WvEpisodeQuranLink>(
       this.db,
@@ -232,8 +209,6 @@ export class BridgeRepo {
   async removeEpisodeQuranLink(id: string): Promise<void> {
     await execute(this.db, `DELETE FROM wv_episode_quran_links WHERE id = ?`, [id]);
   }
-
-  // ── LB: Evidence Items ↔ QR / AL / CM Scope ───────────────────────────────
 
   evidenceScopeLinks(evidenceId: string): Promise<WvEvidenceScopeLink[]> {
     return query<WvEvidenceScopeLink>(
@@ -277,8 +252,6 @@ export class BridgeRepo {
   async removeEvidenceScopeLink(id: string): Promise<void> {
     await execute(this.db, `DELETE FROM wv_evidence_scope_links WHERE id = ?`, [id]);
   }
-
-  // ── L10 / LB: Doc Links ────────────────────────────────────────────────────
 
   docLinks(entityType: string, entityId: string): Promise<WvDocLink[]> {
     return query<WvDocLink>(

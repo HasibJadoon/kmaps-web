@@ -11,7 +11,6 @@ import gsap from 'gsap';
 import { BackButtonComponent } from '../../../shared/components/back-button/back-button.component';
 import { ArabicMenuCardComponent } from '../arabic-menu-card/arabic-menu-card.component';
 
-
 @Component({
   selector: 'km-arabic-home',
   standalone: true,

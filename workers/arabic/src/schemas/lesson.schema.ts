@@ -1,19 +1,17 @@
-// ─── Lesson schemas & types ───────────────────────────────────────────────────
-
 export type ArLessonType = 'explanation' | 'practice' | 'mixed' | 'assessment';
 export type ArSkillFocus = 'reading' | 'writing' | 'listening' | 'speaking' | 'grammar' | 'vocabulary';
 
 export interface ArLesson {
-  id: string;                        // AR:ULID
+  id: string;
   unit_id: string | null;
   title: string;
   title_ar: string | null;
   lesson_type: ArLessonType;
-  level: string | null;              // A1–C2
+  level: string | null;
   skill_focus: ArSkillFocus | null;
   content_md: string;
-  vocab_ids_json: string | null;     // JSON [vocab_id]
-  grammar_ids_json: string | null;   // JSON [grammar_id]
+  vocab_ids_json: string | null;
+  grammar_ids_json: string | null;
   qr_scope_ref: string | null;
   estimated_mins: number | null;
   is_published: boolean;
@@ -50,8 +48,6 @@ export interface ArLessonPatch {
   is_published?: boolean;
   meta_json?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 const VALID_LESSON_TYPES: ArLessonType[] = ['explanation', 'practice', 'mixed', 'assessment'];
 const VALID_SKILL_FOCUSES: ArSkillFocus[] = ['reading', 'writing', 'listening', 'speaking', 'grammar', 'vocabulary'];
@@ -97,15 +93,13 @@ export function validateArLessonCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface Lesson {
-  id: string;           // AR:ULID
-  container_id: string; // AR:ULID
+  id: string;
+  container_id: string;
   title: string;
-  lesson_type: string;  // vocabulary | grammar | reading | exercise
+  lesson_type: string;
   sort_order: number;
-  status: string;       // draft | published | archived
+  status: string;
   created_at: string;
 }
 
@@ -115,8 +109,6 @@ export interface LessonCreate {
   lesson_type: string;
   sort_order?: number;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

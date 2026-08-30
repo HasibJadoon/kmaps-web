@@ -52,31 +52,28 @@ export const ARABIC_ROUTES: Routes = [
           ),
         title: 'Review — Arabic',
       },
-      // ── Independent unit study routes ───────────────────
-      // /arabic/books/:containerId/chapter/:unitId
+
       {
         path: 'books/:containerId/chapter/:unitId',
         loadComponent: () =>
           import('./unit-study/arabic-unit-study.component').then((m) => m.ArabicUnitStudyComponent),
         title: 'Chapter — Arabic',
       },
-      // /arabic/media/:containerId/episode/:unitId
+
       {
         path: 'media/:containerId/episode/:unitId',
         loadComponent: () =>
           import('./unit-study/arabic-unit-study.component').then((m) => m.ArabicUnitStudyComponent),
         title: 'Episode — Arabic',
       },
-      // /arabic/literature/:containerId/section/:unitId
+
       {
         path: 'literature/:containerId/section/:unitId',
         loadComponent: () =>
           import('./unit-study/arabic-unit-study.component').then((m) => m.ArabicUnitStudyComponent),
         title: 'Section — Arabic',
       },
-      // ── Reaction Studio ─────────────────────────────────
-      // Opened automatically when unit.unit_type === 'youtube_video'
-      // /arabic/reaction/:unitId
+
       {
         path: 'reaction/:unitId',
         loadComponent: () =>

@@ -1,7 +1,5 @@
-// ─── Note schemas & types ─────────────────────────────────────────────────────
-
 export interface CmNote {
-  note_id: string;            // CM:ULID
+  note_id: string;
   core_user_ref: string;
   note_type: 'general' | 'annotation' | 'reflection' | 'question' | 'summary';
   title: string | null;
@@ -18,7 +16,7 @@ export interface CmNote {
 }
 
 export interface CmNoteTarget {
-  target_id: string;          // CM:ULID
+  target_id: string;
   note_id: string;
   target_ref: string;
   relation_type: 'about' | 'from' | 'quotes' | 'related';
@@ -96,13 +94,11 @@ export function validateCmNoteCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface Note {
-  id: string;               // CM:ULID
+  id: string;
   title: string | null;
   content_md: string;
-  resource_ref: string | null; // typed ref (QR:, WV:, AL:, etc.)
+  resource_ref: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -112,8 +108,6 @@ export interface NoteCreate {
   title?: string | null;
   resource_ref?: string | null;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

@@ -4,11 +4,6 @@ import { MorphWordVm, MorphContextVm } from '../../../../../../../../../shared/s
 import { LangSel } from '../../morph-block.types';
 import { richMarkup } from '../../morph-rich';
 
-/**
- * Presentational hero for the Morph Display Layer — the giant lemma glyph,
- * occurrence pill, chip row, rich gloss, and reading-in-context line. Pure
- * renderer; emits `openRoot` when the root chip/glyph is tapped.
- */
 @Component({
   selector: 'km-morph-hero',
   standalone: true,
@@ -28,7 +23,6 @@ export class MorphHeroComponent {
     return (this.word?.lemma_ar || this.word?.surface_ar || '').replace(/[ً-ْٰـ]/g, '');
   }
 
-  /** Gloss variants to render — 'all' stacks the three; single mode shows its own (with fallback). */
   glosses(): { text: SafeHtml; cls: 'en' | 'ar' | 'ur' }[] {
     const g = this.word?.gloss;
     if (!g) return [];

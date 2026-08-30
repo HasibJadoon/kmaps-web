@@ -1,18 +1,16 @@
-// ─── Highlight schemas & types ───────────────────────────────────────────────
-
 export interface WvHighlight {
-  id: string;              // WV:ULID
+  id: string;
   source_id: string | null;
   source_unit_id: string | null;
   corpus_unit_id: string | null;
-  locator: string | null;  // page, verse, timestamp
+  locator: string | null;
   text_excerpt: string;
   note: string | null;
-  highlight_type: string;  // general|key_claim|evidence|question|contradiction|insight
+  highlight_type: string;
   color: string | null;
   moral_axis_id: string | null;
   topic_id: string | null;
-  core_user_ref: string;   // CORE:ULID
+  core_user_ref: string;
   core_ws_ref: string | null;
   created_at: string;
 }
@@ -31,8 +29,6 @@ export interface HighlightCreate {
   core_user_ref: string;
   core_ws_ref?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

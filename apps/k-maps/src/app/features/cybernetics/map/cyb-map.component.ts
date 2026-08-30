@@ -15,14 +15,6 @@ import { CybDsReaderComponent } from '../ds/cyb-ds-reader.component';
 import { normaliseSpec } from '@kmaps/contracts/ds';
 import type { DisplaySpec } from '@kmaps/contracts/ds';
 
-// Quran Map — Qurʾān-centric, over the Surah Study module:
-//   Qurʾān(114) → Surah → Study passages → Streams(6) → Roots → Root Dashboard.
-// The cybernetics build/study/content/retention overlays at every level; the
-// deepest level is each root's own dashboard (4 outputs + staged layers +
-// recursion), fed by the live cyb tree + AL staging matrix.
-// The Membean word-page panel layout, mapped onto K-Maps memlet kinds.
-// col 'l' = the learning column (context, hook, examples);
-// col 'r' = the analysis column (ingredients, theater, constellation, related…).
 const MEMBEAN_PANELS: { key: string; en: string; ar: string; col: 'l' | 'r' }[] = [
   { key: 'context',        en: 'Context',            ar: 'السياق',       col: 'l' },
   { key: 'root_image',     en: 'Memory Hook',        ar: 'صورة الجذر',   col: 'l' },
@@ -42,13 +34,6 @@ const MEMBEAN_PANELS: { key: string; en: string; ar: string; col: 'l' | 'r' }[] 
   { key: 'diacritics',     en: 'Vocalisation',       ar: 'الشكل',        col: 'r' },
 ];
 
-// The stream-systems are NOT listed here. `cyb_layer` is the one taxonomy
-// (GET /core/cyb/layers) — it carries `translation`, which this file's own list
-// of six never had, and a layer the registry retires has to stop rendering.
-// `streamLabel` reads the registry and falls back to the raw key so a layer the
-// plane instantiated ahead of the registry still renders under its own name.
-
-/** A stream row: the registry's layer, plus whatever the plane has staged. */
 interface StreamRow {
   layer: string;
   node: CybNodeTree | undefined;
@@ -1069,35 +1054,27 @@ export class CybMapComponent {
   readonly surahs = signal<Surah[]>([]);
   readonly error = signal<string | null>(null);
   private readonly treeRoots = signal<CybNodeTree[]>([]);
-  /** The layer registry — the ONE taxonomy of stream-systems. */
+
   private readonly layerRegistry = signal<CybLayerRow[]>([]);
-  /** The AL carrier registry: scopes → bands → sub-layers. */
+
   readonly layerModel = signal<LayerModel | null>(null);
-  /** Which scope of the recursion the band strip is showing. */
+
   readonly scope = signal('root');
 
-  // ── The root's reader ──────────────────────────────────────────────────────
-  // 'reader' draws the composed display spec; 'audit' keeps the builder's
-  // three-pane carrier browser. The spec is fetched from km_core rather than
-  // the linguistics worker, because only core composes the whole picture —
-  // the AL layers, the cards built off the root, and its spread in the muṣḥaf.
   readonly rootView = signal<'reader' | 'audit'>('reader');
   readonly dsSpec = signal<DisplaySpec | null>(null);
   readonly dsError = signal<string | null>(null);
   private dsLoadedFor: string | null = null;
   private auditLoadedFor: string | null = null;
 
-  /** This root's live carrier counts for the open scope. Null while in flight. */
   readonly rootFill = signal<RootFillCell[] | null>(null);
-  /** What the selected sub-layer's carrier holds. Null while in flight. */
+
   readonly subRows = signal<RootCarrierRows[] | null>(null);
-  /** What a non-vocabulary stream's carriers hold. Null while in flight. */
+
   readonly carrierBands = signal<NodeCarrierRows[] | null>(null);
-  /** Column order is not meaningful across carriers, so it is settled once per
-   *  table from the first row and reused for the rest. */
+
   private readonly columnCache = new Map<string, string[]>();
 
-  // ── URL is the source of truth for where you are in the drill ──
   private readonly route = inject(ActivatedRoute);
   private readonly pm = signal<ParamMap | null>(null);
 
@@ -1131,13 +1108,11 @@ export class CybMapComponent {
   readonly selMemletKind = signal<string | null>(null);
   readonly verseRoots = signal<PassageRoot[]>([]);
   readonly selQuestionKind = signal<string | null>(null);
-  /** The identity cards behind the root tiles, keyed by every spelling the
-   *  carrier answers to. Null until the read returns, so a tile can tell
-   *  "not fetched yet" from "fetched, and this root has no card". */
+
   readonly rootGlosses = signal<Map<string, RootGloss> | null>(null);
   readonly glossesLoaded = computed(() => this.rootGlosses() !== null);
   readonly hoverRoot = signal<string | null>(null);
-  /** The root's own senses and who attested them — the 360° layer. */
+
   readonly senseBundle = signal<RootSenseBundle | null>(null);
 
   private readonly flat = computed<CybNodeTree[]>(() => {
@@ -1152,11 +1127,6 @@ export class CybMapComponent {
   readonly activeCount = computed(() =>
     this.flat().filter((n) => n.scale === 'surah' && n.build_pct > 0).length);
 
-  // The Qurʾān's own reading: the mean over the surahs a sensor has actually
-  // read. Averaging the un-instantiated ones in as zero reported the corpus at
-  // a fraction of what was measured; a surah nobody has sensed is unknown, not
-  // zero. Real work at a leaf lands under 1% up here, so it is shown to two
-  // decimals rather than rounded away to nothing.
   readonly quranBuild = computed<{ pct: number; measured: boolean; n: number }>(() => {
     const read = this.surahs()
       .map((s) => this.surahNode(s.id))
@@ -1180,13 +1150,6 @@ export class CybMapComponent {
     return p ? this.crumbLabel(p) : '';
   });
 
-  /**
-   * The stream-systems for the open passage.
-   *
-   * The registry declares which layers a passage is worked through, so the list
-   * is that — plus any layer the control plane has instantiated that the
-   * registry has not heard of. Drift must render, not vanish.
-   */
   readonly streamRows = computed<StreamRow[]>(() => {
     const reg = this.layerRegistry();
     const staged = this.passageNodeCur()?.children ?? [];
@@ -1199,7 +1162,6 @@ export class CybMapComponent {
     }));
   });
 
-  /** The bands of the open scope, in registry order. */
   readonly scopeBands = computed<LayerModelBand[]>(() =>
     (this.layerModel()?.layers ?? []).filter((b) => b.scope === this.scope()));
 
@@ -1209,7 +1171,7 @@ export class CybMapComponent {
   readonly fillPending = computed(() => this.rootFill() === null);
 
   constructor() {
-    // Every URL change re-derives the view and pulls only what that level needs.
+
     this.route.paramMap.subscribe((pm) => {
       const prevSurah = this.surahId(); const prevRoot = this.rootParam();
       this.pm.set(pm);
@@ -1223,13 +1185,7 @@ export class CybMapComponent {
         this.selMemletKind.set(null); this.selQuestionKind.set(null);
         this.rootDetail.set(null); this.subRows.set(null); this.senseBundle.set(null);
         this.scope.set('root');
-        // Only the view being shown pays for its data. The audit dashboard
-        // needs three more reads — the registry detail (40 sub-layers, the
-        // memlets, the question kinds), the sense bundle (every sense, arc,
-        // step and attestation the root has) and the fill counts — and none of
-        // them appear anywhere in the reader. Landing on a root used to fetch
-        // all of it regardless, so the default view paid for a screen nobody
-        // had asked for yet.
+
         if (this.rootView() === 'audit') this.loadAudit(rn);
         else this.loadDsSpec(rn);
       }
@@ -1238,8 +1194,7 @@ export class CybMapComponent {
         this.dsSpec.set(null); this.dsError.set(null);
         this.dsLoadedFor = null; this.auditLoadedFor = null;
       }
-      // A non-vocabulary stream shows what its carriers hold, not the plane's
-      // own child nodes. The read is per passage node and per layer.
+
       const st = this.streamParam();
       if (st && st !== 'vocabulary' && this.view() === 'pieces') this.loadCarrierBands();
       else this.carrierBands.set(null);
@@ -1266,7 +1221,6 @@ export class CybMapComponent {
     });
   }
 
-  // ── the registries, read per open thing ──
   private loadRootFill(root: string) {
     this.rootFill.set(null);
     this.svc.rootFillScope(root, this.scope()).subscribe({
@@ -1274,7 +1228,7 @@ export class CybMapComponent {
       error: () => this.rootFill.set([]),
     });
   }
-  /** Switching scope re-counts: one scope is still only what is on screen. */
+
   setScope(key: string) {
     if (this.scope() === key) return;
     this.scope.set(key);
@@ -1293,7 +1247,6 @@ export class CybMapComponent {
     });
   }
 
-  // ── cyb overlays ──
   surahNode(id: number): CybNodeTree | undefined {
     return this.flat().find((n) => n.scale === 'surah' && Number(n.target_ref) === id);
   }
@@ -1303,9 +1256,6 @@ export class CybMapComponent {
     return this.flat().find((n) => n.scale === 'passage' && (n.target_ref ?? '').replace(/^QR:SP:/, '') === key);
   }
 
-  // ── the four outputs, read the way the plane measures them ──
-  /** Whether a sensor has actually read this axis. A node with no reading is
-   *  *unknown* on it, which every screen has to say rather than print zero. */
   measured(n: CybNode | null | undefined, axis: CybAxis): boolean {
     if (!n) return false;
     const flag = axis === 'build' ? n.build_measured
@@ -1320,19 +1270,18 @@ export class CybMapComponent {
          : axis === 'content' ? n.content_pct : n.retention_pct;
   }
   axisLabel(a: CybAxis): string { return a === 'retention' ? 'Retn' : a[0].toUpperCase() + a.slice(1); }
-  /** The one-letter form the surah tiles use — B · S · C · R. */
+
   axisInitial(a: CybAxis): string { return a === 'retention' ? 'R' : a[0].toUpperCase(); }
   axisColor(a: CybAxis): string {
     return a === 'build' ? 'var(--build)' : a === 'study' ? 'var(--study)'
          : a === 'content' ? 'var(--content)' : 'var(--retn)';
   }
-  /** What the build line under a cell says. The three cases are different
-   *  claims: never sensed, sensed and found nothing, sensed and found work. */
+
   buildLabel(n: CybNode | null | undefined): string {
     if (!this.measured(n, 'build')) return 'not measured';
     return n!.build_pct > 0 ? `build ${n!.build_pct}%` : 'not started';
   }
-  /** A sliver, so a non-zero rollup is still visible on the track. */
+
   bar(v: number): number { return v > 0 ? Math.min(100, Math.max(0.9, v)) : 0; }
   fmt(v: number): string {
     if (v <= 0) return '0';
@@ -1340,9 +1289,6 @@ export class CybMapComponent {
     return v >= 1 ? v.toFixed(1) : v.toFixed(2);
   }
 
-  // ── the registry's bands, filled off this root's carriers ──
-  /** Null when the sub-layer has no audited carrier binding — unknown, which is
-   *  not the same as a carrier that was read and holds nothing. */
   fillFor(sub: string): RootFillCell | null {
     return (this.rootFill() ?? []).find((f) => f.sub_code === sub) ?? null;
   }
@@ -1357,16 +1303,15 @@ export class CybMapComponent {
   filledSubs(): number {
     return this.scopeSubs().filter((sl) => this.fillState(sl.sub_code) === 'filled').length;
   }
-  /** Read and holds nothing — a measured zero. */
+
   emptySubs(): number {
     return this.scopeSubs().filter((sl) => this.fillState(sl.sub_code) === 'empty').length;
   }
-  /** No audited carrier binding. Nobody has said where these rows would live,
-   *  so the count is unknown — the one state a build plan has to act on. */
+
   unknownSubs(): number {
     return this.scopeSubs().filter((sl) => this.fillState(sl.sub_code) === 'unknown').length;
   }
-  /** The registry row for the open sub-layer, and the band that declares it. */
+
   selSub(): LayerModelSub | undefined {
     const code = this.selLayer();
     return code ? this.scopeSubs().find((sl) => sl.sub_code === code) : undefined;
@@ -1375,28 +1320,23 @@ export class CybMapComponent {
     const code = this.selLayer();
     return code ? this.scopeBands().find((b) => b.subs.some((sl) => sl.sub_code === code)) : undefined;
   }
-  /** What the read actually found on this named table, so the chip is a
-   *  reading rather than a restatement of the registry. */
+
   carrierNote(table: string): string {
     const c = (this.subRows() ?? []).find((x) => x.carrier_table === table);
     if (!c) return 'not read for this root';
     return `${c.bind_col} · ${c.total} row${c.total === 1 ? '' : 's'}`;
   }
-  /** Columns NULL in every row read. Naming them is the point of reading a row
-   *  as columns: a field that is empty everywhere is a build gap, and it is
-   *  invisible once the row is rendered as content. */
+
   nullColumns(c: RootCarrierRows): string[] {
     return this.columnsOfRoot(c).filter((col) =>
       c.rows.every((r) => r[col] === null || r[col] === undefined || r[col] === ''));
   }
-  /** The root's own identity card, when the grid already read it. */
+
   rootCard(): RootGloss | undefined {
     const rn = this.selRootNorm();
     return rn ? this.glossFor(rn) : undefined;
   }
-  /** Who stands behind this root's senses, folded to one line per source.
-   *  A source that both supports and qualifies shows its weaker stance — the
-   *  panel is there to surface disagreement, not to round it away. */
+
   attestSources(): { slug: string; agreement: string; n: number }[] {
     const by = new Map<string, { slug: string; agreement: string; n: number }>();
     for (const a of this.senseBundle()?.attestations ?? []) {
@@ -1408,12 +1348,6 @@ export class CybMapComponent {
     return [...by.values()].sort((a, b) => b.n - a.n || a.slug.localeCompare(b.slug));
   }
 
-  // ── a carrier row, read as content ──
-  // The carriers have no common shape, so this picks the glossed text out of
-  // whatever columns a row happens to have rather than assuming a schema:
-  // *_ar / *_en / *_ur carry the reading, a short flag column becomes a badge,
-  // and everything else that holds a value becomes a field chip. Anything NULL
-  // is left out here and named under the stored table instead.
   readRow(row: Record<string, unknown>): {
     ar: string; en: string; ur: string;
     badges: { k: string; v: string; core: boolean; ok: boolean }[];
@@ -1441,15 +1375,13 @@ export class CybMapComponent {
     });
     return { ar: pick('_ar'), en: pick('_en'), ur: pick('_ur'), badges, fields };
   }
-  /** A slot with one table names it; the catch-all slots hold dozens, and
-   *  naming only the first would read as a claim that the rest do not exist. */
+
   carrierLabel(sl: LayerModelSub): string {
     if (!sl.tables.length) return 'no carrier';
     return sl.tables.length === 1 ? sl.tables[0] : `${sl.tables.length} tables`;
   }
   memletCount(): number { return this.rootDetail()?.memlets.length ?? 0; }
 
-  // ── carrier rows, rendered as the tables they are ──
   columnsOf(b: NodeCarrierRows): string[] { return this.columns(`n:${b.table_name}`, b.rows); }
   columnsOfRoot(c: RootCarrierRows): string[] { return this.columns(`r:${c.carrier_table}`, c.rows); }
   private columns(key: string, rows: Record<string, unknown>[]): string[] {
@@ -1462,7 +1394,7 @@ export class CybMapComponent {
   carrierRowCount(): number {
     return (this.carrierBands() ?? []).reduce((a, b) => a + b.rows.length, 0);
   }
-  /** The whole value, for the cell's tooltip — the visible text is clamped. */
+
   fullText(v: unknown): string {
     if (v === null || v === undefined) return '';
     return typeof v === 'object' ? JSON.stringify(v) : String(v);
@@ -1476,7 +1408,6 @@ export class CybMapComponent {
     return typeof v === 'string' && /[\u0600-\u06FF]/.test(v);
   }
 
-  // ── navigation ──
   private loadStudyGrid(surahId: number) {
     this.units.set([]); this.loadingPassages.set(true);
     this.svc.studyGrid(surahId).subscribe({
@@ -1485,12 +1416,12 @@ export class CybMapComponent {
     });
   }
   openSurah(s: Surah) { this.router.navigate(['/cybernetics/map', s.id]); }
-  /** Clicking a passage card: built → its streams; else open it in Study. */
+
   onPassageCard(u: StudyUnit, pnode: CybNodeTree | undefined) {
     if (pnode && pnode.children.length) this.router.navigate(['/cybernetics/map', this.surahId(), u.passage_no]);
     else this.router.navigate(['/quran/surahs', this.surahId(), 'study', u.passage_no]);
   }
-  /** The passage's UNIQUE roots, straight from its āyāt (no duplicates). */
+
   private loadVerseRoots() {
     const sid = this.surahId(); const pno = this.passageNo();
     if (!sid || !pno) { this.verseRoots.set([]); return; }
@@ -1500,15 +1431,13 @@ export class CybMapComponent {
       error: () => { this.verseRoots.set([]); this.rootGlosses.set(new Map()); },
     });
   }
-  /** One read for every tile's card. A root the carrier has no row for simply
-   *  has no card — the tile says that rather than showing a blank line. */
+
   private loadRootGlosses(roots: string[]) {
     if (!roots.length) { this.rootGlosses.set(new Map()); return; }
     this.svc.rootGlosses(roots).subscribe({
       next: (g) => {
         const m = new Map<string, RootGloss>();
-        // Key on both spellings the carrier stores: the passage's root list is
-        // normalized, the carrier's own root_text may not be.
+
         for (const r of g.roots) {
           if (r.root_normalized) m.set(r.root_normalized, r);
           if (r.root_text) m.set(r.root_text, r);
@@ -1519,30 +1448,27 @@ export class CybMapComponent {
     });
   }
   glossFor(rn: string): RootGloss | undefined { return this.rootGlosses()?.get(rn); }
-  /** What the tile's corner says about build: a percent, or that no sensor
-   *  has read it. Never a bare 0 standing in for unknown. */
+
   pctLabel(n: CybNode | null | undefined): string {
     return this.measured(n, 'build') ? `${n!.build_pct}%` : '—';
   }
-  /** The cyb node carrying this root's outputs — prefer the real root piece. */
+
   cybNodeForRoot(rn: string): CybNodeTree | undefined {
     const pieces = this.flat().filter((n) => n.scale === 'piece' && this.rootNorm(n) === rn);
     return pieces.find((n) => n.piece_kind === 'root') ?? pieces[0];
   }
-  /** Open the Root Dashboard for a root norm (works with or without a cyb node). */
+
   openRootNorm(rn: string) {
     this.router.navigate(['/cybernetics/map', this.surahId(), this.passageNo(),
                           this.streamParam() ?? 'vocabulary', rn]);
   }
   openRoot(n: CybNode) { this.openRootNorm(this.rootNorm(n)); }
-  // breadcrumb targets
+
   goSurahs()  { this.router.navigate(['/cybernetics/map']); }
   goSurah()   { this.router.navigate(['/cybernetics/map', this.surahId()]); }
   goPassage() { this.router.navigate(['/cybernetics/map', this.surahId(), this.passageNo()]); }
   goStream()  { this.router.navigate(['/cybernetics/map', this.surahId(), this.passageNo(), this.streamParam()]); }
-  /** Opening a sub-layer reads its carrier. Deliberately on open: a root screen
-   *  shows one sub-layer at a time, and reading all of them would throw most of
-   *  that work away. */
+
   selectLayer(sub: string) {
     this.rootTab.set('layers');
     const rn = this.rootParam();
@@ -1557,7 +1483,7 @@ export class CybMapComponent {
   showAllLayers() { this.selLayer.set(null); this.subRows.set(null); this.rootTab.set('layers'); }
   showAllMemlets() { this.selMemletKind.set(null); this.rootTab.set('memlets'); }
   showAllQuestions() { this.selQuestionKind.set(null); this.rootTab.set('questions'); }
-  /** What the content pane below the strips is currently showing. */
+
   paneTitle(): string {
     const t = this.rootTab();
     if (t === 'layers') return this.selLayer() ? `Carrier · ${this.selLayer()}` : 'Pick a sub-layer to read its carrier';
@@ -1567,7 +1493,6 @@ export class CybMapComponent {
   selectMemletKind(k: string) { this.selMemletKind.set(k); this.rootTab.set('memlets'); }
   selectQuestionKind(k: string) { this.selQuestionKind.set(k); this.rootTab.set('questions'); }
 
-  // ── family coverage (filled / total), rendered identically for all three ──
   memFilled(): number {
     const d = this.rootDetail();
     return d ? new Set(d.memlets.map((m) => m.memlet_key)).size : 0;
@@ -1585,7 +1510,6 @@ export class CybMapComponent {
   shadeM(v: number): string { return v <= 0 ? '#0d0d0d' : v <= 2 ? '#2f5f86' : v <= 5 ? '#3f83b8' : '#6bbaff'; }
   shadeQ(v: number): string { return v <= 0 ? '#0d0d0d' : v <= 2 ? '#2d6b55' : v <= 5 ? '#3f9c78' : '#4dd9a8'; }
 
-  // ── question bank ──
   visibleQuestions(): RootQuestion[] {
     const d = this.rootDetail();
     if (!d) return [];
@@ -1604,7 +1528,6 @@ export class CybMapComponent {
     return (this.rootDetail()?.question_kinds ?? []).find((k) => k.question_key === key)?.name_en ?? '';
   }
 
-  // ── media catalogued for a memlet kind ──
   mediaFor(key: string): RootMedia[] {
     return (this.rootDetail()?.media ?? []).filter((m) => m.memlet_key === key);
   }
@@ -1612,7 +1535,6 @@ export class CybMapComponent {
     return kind === 'image' ? '🖼' : kind === 'video' ? '🎬' : kind === 'audio' ? '🔊' : '📎';
   }
 
-  /** Membean panels for one column, each carrying its matching memlets. */
   panelsFor(col: 'l' | 'r'): { key: string; en: string; ar: string; items: RootMemlet[] }[] {
     const d = this.rootDetail();
     if (!d) return [];
@@ -1621,7 +1543,7 @@ export class CybMapComponent {
       .map((p) => ({ key: p.key, en: p.en, ar: p.ar, items: d.memlets.filter((m) => m.memlet_key === p.key) }))
       .filter((x) => x.items.length);
   }
-  /** Memlet kinds that have no Membean panel yet. */
+
   otherMemlets(): RootMemlet[] {
     const d = this.rootDetail();
     if (!d) return [];
@@ -1631,7 +1553,6 @@ export class CybMapComponent {
   memletsN(): number { return this.rootDetail()?.memlets.length ?? 0; }
   questionsN(): number { return this.rootDetail()?.questions.length ?? 0; }
 
-  // ── labels · all from cyb_layer, never from a list in this file ──
   streamLabelKey(key: string): { ar: string; en: string; hint: string } {
     const l = this.layerRegistry().find((x) => x.layer_key === key);
     return {
@@ -1644,9 +1565,7 @@ export class CybMapComponent {
   streamColor(layer: string | null): string {
     return this.layerRegistry().find((x) => x.layer_key === layer)?.color_hex ?? 'var(--gold-d)';
   }
-  /** Vocabulary always opens — its roots come from the āyāt, not from a staged
-   *  node. Every other stream opens onto its carriers, which exist or do not,
-   *  and that is answered by opening it. */
+
   openable(r: StreamRow): boolean { return true; }
   drillLayer(layer: string) {
     this.router.navigate(['/cybernetics/map', this.surahId(), this.passageNo(), layer]);
@@ -1668,12 +1587,11 @@ export class CybMapComponent {
     else this.loadAudit(rn);
   }
 
-  /** What only the audit dashboard draws. Fetched when it is actually opened. */
   private loadAudit(rn: string | null) {
     if (!rn || this.auditLoadedFor === rn) return;
     this.auditLoadedFor = rn;
     this.svc.rootDetail(rn).subscribe({ next: (d) => this.rootDetail.set(d), error: () => {} });
-    // Who attested this root's senses — the inspector's 360° panel.
+
     this.svc.rootSenses(rn).subscribe({
       next: (b) => this.senseBundle.set(b),
       error: () => this.senseBundle.set({ root: rn, senses: [], arcs: [], steps: [], attestations: [] }),
@@ -1681,13 +1599,8 @@ export class CybMapComponent {
     this.loadRootFill(rn);
   }
 
-  /** Fetch the composed spec for the root in the URL. Cheap to call twice —
-   *  it no-ops unless the root actually changed. */
   private loadDsSpec(root: string | null) {
-    // Takes the root as an argument rather than reading rootParam(): this runs
-    // inside the paramMap subscription, where the component's own param signal
-    // has not been updated yet, so rootParam() would still hold the previous
-    // route (or null on first landing) and the fetch would never fire.
+
     if (!root) return;
     if (this.dsLoadedFor === root && this.dsSpec()) return;
     this.dsLoadedFor = root;
@@ -1696,8 +1609,7 @@ export class CybMapComponent {
     this.api
       .getData<DisplaySpec>('core', ['ds', 'root', root], { params: { form: 'desktop' } })
       .subscribe({
-        // One conversion at the boundary: anything this build cannot draw
-        // becomes a note saying so, rather than a section that looks empty.
+
         next: (spec) => this.dsSpec.set(normaliseSpec(spec)),
         error: (e) =>
           this.dsError.set(

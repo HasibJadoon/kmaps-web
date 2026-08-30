@@ -1,5 +1,3 @@
-// ─── /qr/mushaf routes — Quran.com-style Mushaf layout pages ─────────────────
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, badRequest, internalError } from '../../../shared/src/response';
 import { parseIntParam } from '../../../shared/src/validate';

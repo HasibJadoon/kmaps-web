@@ -1,18 +1,14 @@
-// ─── ExerciseRepo — ar_exercises ──────────────────────────────────────────────
-// Practice exercises tied to lessons. Prompt/answer pairs with type-specific
-// payload. No linguistic truth stored here — linked via AL:ULID refs.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface Exercise {
-  id: string;               // AR:ULID
-  lesson_id: string;        // AR:ULID
-  exercise_type: string;    // flashcard | fill-blank | mcq | translation | parsing
+  id: string;
+  lesson_id: string;
+  exercise_type: string;
   prompt: string;
   answer: string | null;
-  options_json: string | null; // JSON array of MCQ choices
+  options_json: string | null;
   sort_order: number;
   status: string;
   created_at: string;
@@ -49,7 +45,6 @@ export class ExerciseRepo {
     );
   }
 
-  /** Random sample for a practice session. */
   sample(lessonId: string, limit = 10): Promise<Exercise[]> {
     return query<Exercise>(
       this.db,

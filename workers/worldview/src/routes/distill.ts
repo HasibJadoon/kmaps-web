@@ -1,14 +1,3 @@
-// ─── /worldview/distill routes ────────────────────────────────────────────────
-// Distillation workflow: generate candidate insights from source content,
-// then let users approve/edit/reject each item in the Hub Review Queue.
-//
-// POST /worldview/distill/generate          — create batch + seed items
-// GET  /worldview/distill/batch?batchId=    — poll batch progress + items
-// GET  /worldview/distill/by-unit           — most recent batch for a source unit
-//       ?source_id=&source_unit_id=
-// POST /worldview/distill/decision          — approve | edit | reject one item
-// POST /worldview/distill/approve           — bulk-approve all pending in a batch
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest } from '../../../shared/src/response';
 import type { WorldviewEnv } from '../env';
@@ -18,10 +7,6 @@ const DEFAULT_USER = 'CORE:00000000000000000000000000';
 
 export function distillRoutes(router: Router<WorldviewEnv>) {
 
-  // ── Generate ──────────────────────────────────────────────────────────────
-
-  // POST /worldview/distill/generate
-  // Body: { title, source_id?, source_unit_id?, batch_type?, items: [{ item_type?, content_md }], core_user_ref? }
   router.post('/worldview/distill/generate', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.title)  return badRequest('title required');
@@ -46,9 +31,6 @@ export function distillRoutes(router: Router<WorldviewEnv>) {
     return created(batch);
   });
 
-  // ── Batch detail ──────────────────────────────────────────────────────────
-
-  // GET /worldview/distill/batch?batchId=WV:ULID
   router.get('/worldview/distill/batch', async (req, env) => {
     const url     = new URL(req.url);
     const batchId = url.searchParams.get('batchId');
@@ -58,9 +40,6 @@ export function distillRoutes(router: Router<WorldviewEnv>) {
     return batch ? ok(batch) : notFound(`batch ${batchId}`);
   });
 
-  // ── Batch by unit ─────────────────────────────────────────────────────────
-
-  // GET /worldview/distill/by-unit?source_id=&source_unit_id=
   router.get('/worldview/distill/by-unit', async (req, env) => {
     const url       = new URL(req.url);
     const sourceId  = url.searchParams.get('source_id');
@@ -71,10 +50,6 @@ export function distillRoutes(router: Router<WorldviewEnv>) {
     return batch ? ok(batch) : notFound(`batch for source ${sourceId}`);
   });
 
-  // ── Decision ──────────────────────────────────────────────────────────────
-
-  // POST /worldview/distill/decision
-  // Body: { item_id, decision: 'approved'|'edited'|'rejected', final_content?, decision_note?, core_user_ref? }
   router.post('/worldview/distill/decision', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.item_id)  return badRequest('item_id required');
@@ -95,10 +70,6 @@ export function distillRoutes(router: Router<WorldviewEnv>) {
     return item ? ok(item) : notFound(`item ${b.item_id}`);
   });
 
-  // ── Bulk approve ──────────────────────────────────────────────────────────
-
-  // POST /worldview/distill/approve
-  // Body: { batch_id, core_user_ref? }
   router.post('/worldview/distill/approve', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.batch_id) return badRequest('batch_id required');

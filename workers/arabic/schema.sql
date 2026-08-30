@@ -1,17 +1,10 @@
--- Schema for km_arabic.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-30.
--- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
--- Regenerate with scripts/regen_schemas.py — do not hand-edit.
-
--- ── Tables (26) ──────────────────────────────────────────────────
-
 CREATE TABLE "ar_curriculum" (
   id              TEXT PRIMARY KEY,
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   discipline      TEXT NOT NULL DEFAULT 'nahw',
-    
-  level           TEXT,                           
+
+  level           TEXT,
   track_id        TEXT,
   container_id    TEXT,
   description_md  TEXT,
@@ -22,17 +15,17 @@ CREATE TABLE "ar_curriculum" (
 );
 
 CREATE TABLE "ar_curriculum_container" (
-  id              TEXT PRIMARY KEY,               
+  id              TEXT PRIMARY KEY,
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   title_ar        TEXT,
   container_type  TEXT NOT NULL DEFAULT 'course',
-    
+
   track_id        TEXT,
-  level           TEXT,                           
+  level           TEXT,
   description_md  TEXT,
-  cover_ref       TEXT,                           
-  source_ref      TEXT,                           
+  cover_ref       TEXT,
+  source_ref      TEXT,
   sort_order      INTEGER NOT NULL DEFAULT 0,
   is_published    INTEGER NOT NULL DEFAULT 0,
   meta_json       TEXT,
@@ -48,13 +41,13 @@ CREATE TABLE "ar_curriculum_container_unit" (
   title           TEXT NOT NULL,
   title_ar        TEXT,
   unit_type       TEXT NOT NULL DEFAULT 'lesson',
-    
+
   unit_index      INTEGER NOT NULL DEFAULT 0,
   description_md  TEXT,
   estimated_mins  INTEGER,
-  skill_focus     TEXT,                           
-  al_concept_refs TEXT,                           
-  qr_scope_ref    TEXT,                           
+  skill_focus     TEXT,
+  al_concept_refs TEXT,
+  qr_scope_ref    TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')), uid TEXT, al_group_ref TEXT, al_group_uid TEXT, source_db TEXT NOT NULL DEFAULT 'km_arabic_linguistic', gn_node_id TEXT,
   FOREIGN KEY (container_id) REFERENCES "ar_curriculum_container"(id),
@@ -67,13 +60,12 @@ CREATE TABLE "ar_curriculum_container_unit_task" (
   parent_task_id  TEXT,
   title           TEXT NOT NULL,
   task_type       TEXT NOT NULL DEFAULT 'read',
-    
-    
+
   task_index      INTEGER NOT NULL DEFAULT 0,
   step_no         INTEGER,
   description_md  TEXT,
   estimated_mins  INTEGER,
-  al_concept_ref  TEXT,                           
+  al_concept_ref  TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (unit_id)        REFERENCES "ar_curriculum_container_unit"(id),
@@ -96,17 +88,17 @@ CREATE TABLE "ar_curriculum_domain_phrase" (
   created_at TEXT NOT NULL DEFAULT (datetime('now')), FOREIGN KEY (domain_id) REFERENCES "ar_curriculum_domain"(id));
 
 CREATE TABLE "ar_curriculum_lesson" (
-  id              TEXT PRIMARY KEY,               
+  id              TEXT PRIMARY KEY,
   unit_id         TEXT,
   title           TEXT NOT NULL,
   title_ar        TEXT,
   lesson_type     TEXT NOT NULL DEFAULT 'instruction',
-    
+
   level           TEXT,
-  skill_focus     TEXT,                           
+  skill_focus     TEXT,
   content_md      TEXT NOT NULL,
-  vocab_ids_json  TEXT,                           
-  grammar_ids_json TEXT,                          
+  vocab_ids_json  TEXT,
+  grammar_ids_json TEXT,
   qr_scope_ref    TEXT,
   estimated_mins  INTEGER,
   is_published    INTEGER NOT NULL DEFAULT 0,
@@ -122,10 +114,10 @@ CREATE TABLE "ar_curriculum_scenario" (
   title           TEXT NOT NULL,
   title_ar        TEXT,
   scenario_type   TEXT NOT NULL DEFAULT 'dialogue',
-    
+
   level           TEXT,
   description_md  TEXT,
-  vocab_set_json  TEXT,                           
+  vocab_set_json  TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (domain_id) REFERENCES "ar_curriculum_domain"(id)
@@ -137,11 +129,11 @@ CREATE TABLE "ar_curriculum_track" (
   title           TEXT NOT NULL,
   title_ar        TEXT,
   track_type      TEXT NOT NULL DEFAULT 'classical',
-    
-  cefr_from       TEXT,                           
+
+  cefr_from       TEXT,
   cefr_to         TEXT,
   description_md  TEXT,
-  prerequisites_json TEXT,                        
+  prerequisites_json TEXT,
   sort_order      INTEGER NOT NULL DEFAULT 0,
   is_public       INTEGER NOT NULL DEFAULT 1,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -152,10 +144,10 @@ CREATE TABLE "ar_curriculum_unit" (
   curriculum_id   TEXT NOT NULL,
   parent_id       TEXT,
   title           TEXT NOT NULL,
-  al_concept_ref  TEXT,                           
+  al_concept_ref  TEXT,
   unit_index      INTEGER NOT NULL DEFAULT 0,
   description_md  TEXT,
-  examples_json   TEXT,                           
+  examples_json   TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (curriculum_id) REFERENCES "ar_curriculum"(id),
   FOREIGN KEY (parent_id)     REFERENCES "ar_curriculum_unit"(id)
@@ -248,8 +240,8 @@ CREATE TABLE "ar_learn_mastery" (
   core_user_ref   TEXT NOT NULL,
   track_id        TEXT,
   skill           TEXT NOT NULL,
-    
-  mastery_score   REAL NOT NULL DEFAULT 0,        
+
+  mastery_score   REAL NOT NULL DEFAULT 0,
   items_mastered  INTEGER NOT NULL DEFAULT 0,
   items_learning  INTEGER NOT NULL DEFAULT 0,
   last_assessed_at TEXT,
@@ -285,9 +277,9 @@ CREATE TABLE "ar_learn_task_completion" (
 
 CREATE TABLE "ar_learn_track_profile" (
   id              TEXT PRIMARY KEY,
-  core_user_ref   TEXT NOT NULL,                  
+  core_user_ref   TEXT NOT NULL,
   track_id        TEXT NOT NULL,
-  current_level   TEXT,                           
+  current_level   TEXT,
   started_at      TEXT NOT NULL DEFAULT (datetime('now')),
   last_activity_at TEXT,
   total_xp        INTEGER NOT NULL DEFAULT 0,
@@ -301,8 +293,8 @@ CREATE TABLE "ar_learn_unit_progress" (
   unit_id           TEXT NOT NULL,
   core_user_ref     TEXT NOT NULL,
   status            TEXT NOT NULL DEFAULT 'not_started',
-    
-  progress_pct      REAL NOT NULL DEFAULT 0,      
+
+  progress_pct      REAL NOT NULL DEFAULT 0,
   last_activity_at  TEXT,
   completed_at      TEXT,
   meta_json         TEXT,
@@ -356,9 +348,6 @@ CREATE TABLE ar_teaching_variant (
   status      TEXT NOT NULL DEFAULT 'draft',
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
-
--- ── Indexes (34) ─────────────────────────────────────────────────
 
 CREATE INDEX idx_ar_con_track ON "ar_curriculum_container"(track_id);
 

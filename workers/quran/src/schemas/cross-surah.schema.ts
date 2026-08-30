@@ -1,5 +1,3 @@
-// ─── Cross Surah schemas & types ───────────────────────────────────────────────
-
 export interface SurahRelation {
   id: string;
   surah_a: number;
@@ -103,8 +101,6 @@ export interface CivilizationalClaimCreate {
   debate_cluster_id?: string | null;
   note_md?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

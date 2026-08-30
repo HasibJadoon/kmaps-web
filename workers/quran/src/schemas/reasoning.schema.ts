@@ -1,5 +1,3 @@
-// ─── Reasoning schemas & types ───────────────────────────────────────────────
-
 export interface AnalysisScope {
   id: string;
   scope_type: string;
@@ -176,8 +174,6 @@ export interface DebateClusterCreate {
   summary_md?: string | null;
   note_md?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

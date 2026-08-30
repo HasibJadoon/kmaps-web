@@ -1,17 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-//  SentenceStructureMiroComponent
-//  A modern Miro-style, pan/zoom board for the grounded sentence-structure step.
-//
-//  Renders, per sentence, the clause hierarchy → words as card nodes (coloured
-//  by their reconciled iʿrāb role), connected by edges. Selecting any node opens
-//  a nuance inspector that surfaces ALL the grounding:
-//    • word   → every classical book's iʿrāb (role + full text), root → lexicon
-//    • clause → type / function / governing particle / rhetorical note
-//    • sentence → kind, discourse mode, balāgha, ellipsis, mufassir tafsīr
-//  All data is table-sourced (StudyRepo.sentenceStructureStep); nothing is
-//  authored here.
-// ─────────────────────────────────────────────────────────────────────────────
-
 import {
   ChangeDetectionStrategy, Component, computed, ElementRef,
   EventEmitter, Input, Output, signal, ViewChild, ViewEncapsulation,
@@ -23,17 +9,15 @@ import type {
   SsScopeLayersVm, SsReadingVm, SsFoldStepVm, SsTermVm,
 } from '../../../../../../../shared/services/quran/quran-surah.service';
 
-// ── Layout node — the unified hierarchy fed to d3-tree ────────────────────────
-
 type LayoutKind = 'sentence' | 'clause' | 'word';
 
 interface LayoutNode {
   kind:      LayoutKind;
   id:        string;
-  title:     string;        // primary line (Arabic)
-  subtitle?: string;        // role / function label
-  chip?:     string;        // particle / mode chip
-  color:     string;        // accent colour
+  title:     string;
+  subtitle?: string;
+  chip?:     string;
+  color:     string;
   clause?:   SsClauseNodeVm;
   word?:     SsClauseWordVm;
   children:  LayoutNode[];
@@ -66,7 +50,7 @@ export class SentenceStructureMiroComponent {
     this.selected.set(null);
     queueMicrotask(() => this.fitToScreen());
   }
-  /** Emitted when a learner taps a word's root to open the Five-Lens lexicon. */
+
   @Output() openLexicon = new EventEmitter<{ root: string; word: string }>();
 
   @ViewChild('viewport') viewport?: ElementRef<HTMLDivElement>;
@@ -75,7 +59,6 @@ export class SentenceStructureMiroComponent {
   readonly activeIdx = signal(0);
   readonly selected  = signal<LayoutNode | null>(null);
 
-  // Pan / zoom transform.
   readonly zoom = signal(1);
   readonly panX = signal(0);
   readonly panY = signal(0);
@@ -86,20 +69,9 @@ export class SentenceStructureMiroComponent {
 
   private readonly termColors = computed<Record<string, string>>(() => this._data()?.termColors ?? {});
 
-  // ── The document bands ──────────────────────────────────────────────────────
-  //
-  // The four cards that used to sit beside the board — Grammarian details,
-  // Balāgha, Ellipsis, Mufassir input — were four flat lists for the whole
-  // sentence, and every entry in them actually belonged to a particular word,
-  // clause or phrase. The scope tables have always carried what each claim is
-  // about; the server now sends them keyed that way, so a node can ask what was
-  // said about ITSELF.
-
   private readonly layers = computed<Record<string, SsScopeLayersVm>>(
     () => this._data()?.layersByScope ?? {});
 
-  /** A term answers to its global id and to its bare key, because trees carry
-   *  one and scope links carry the other until 013 finishes the retirement. */
   readonly termIndex = computed<Record<string, SsTermVm>>(() => {
     const out: Record<string, SsTermVm> = {};
     for (const t of this.terms()) {
@@ -110,8 +82,6 @@ export class SentenceStructureMiroComponent {
     return out;
   });
 
-  /** What was said about one scope, or null. Word nodes look up by their word
-   *  id, the root by the sentence's. */
   layersFor(scopeId: string | null | undefined): SsScopeLayersVm | null {
     if (!scopeId) return null;
     const l = this.layers()[scopeId];
@@ -125,7 +95,6 @@ export class SentenceStructureMiroComponent {
     return this.termIndex()[ref]?.labelAr ?? ref;
   }
 
-  /** The ledger, grouped by the question each reading answers. */
   readonly readingGroups = computed<{ question: string; rows: SsReadingVm[] }[]>(() => {
     const s = this.current();
     const rows = (this._data()?.readings ?? []).filter(
@@ -139,9 +108,6 @@ export class SentenceStructureMiroComponent {
       .map(([question, rows]) => ({ question, rows }));
   });
 
-  /** The ledger groups by reading_type, which the corpus stores as a slug. The
-   *  board is Arabic, so the slug is named in Arabic — and an unrecognised one
-   *  is shown as it came rather than guessed at. */
   questionAr(key: string): string {
     return ({
       irab: 'الإعراب', synthesis: 'الخلاصة', balagha: 'البلاغة', sarf: 'الصرف',
@@ -149,7 +115,6 @@ export class SentenceStructureMiroComponent {
     } as Record<string, string>)[key] ?? key;
   }
 
-  /** "9 · all", "1 · minority", or the bare count. */
   weight(r: SsReadingVm): string {
     const n = r.witnesses ?? r.sources?.length ?? 0;
     return r.isMinority ? `${n} · minority` : `${n}`;
@@ -160,7 +125,6 @@ export class SentenceStructureMiroComponent {
     return (this._data()?.fold ?? []).filter((f) => !s || !f.scopeId || f.scopeId === s.id);
   });
 
-  /** Where the two tracks part, the step had a choice in it. */
   diverges(f: SsFoldStepVm): boolean {
     return !!f.structural && !!f.fluentEn && f.structural !== f.fluentEn;
   }
@@ -174,9 +138,6 @@ export class SentenceStructureMiroComponent {
     next.has(id) ? next.delete(id) : next.add(id);
     this.openReadings.set(next);
   }
-
-
-  // ── Layout (recomputed per active sentence) ─────────────────────────────────
 
   private readonly layoutRoot = computed<HierarchyPointNode<LayoutNode> | null>(() => {
     const s = this.current();
@@ -207,11 +168,8 @@ export class SentenceStructureMiroComponent {
   readonly canvasW = computed(() => Math.max(...this.placedNodes().map((p) => p.x + NODE_W), 600) + 80);
   readonly canvasH = computed(() => Math.max(...this.placedNodes().map((p) => p.y + NODE_H), 400) + 80);
 
-  // ── Build the unified hierarchy for one sentence ────────────────────────────
-
   private buildLayout(s: SsSentenceVm): LayoutNode {
-    // Prefer the authored word-level constituency tree (mubtadaʾ/khabar/iḍāfa…);
-    // fall back to the grounded clause hierarchy decorated with iʿrāb.
+
     if (s.tree) {
       return this.constituencyLayout(s.tree, true);
     }
@@ -247,7 +205,7 @@ export class SentenceStructureMiroComponent {
       clause: c,
       children: [],
     };
-    // Child clauses first, then the clause's own words as leaf nodes.
+
     node.children = [
       ...(c.children ?? []).map((k) => this.clauseLayout(k)),
       ...(c.words ?? []).map((w) => this.wordLayout(w)),
@@ -266,8 +224,6 @@ export class SentenceStructureMiroComponent {
     };
   }
 
-  // ── Labels ──────────────────────────────────────────────────────────────────
-
   kindLabel(kind: string | null): string {
     switch (kind) {
       case 'nominal':  return 'جملة اسمية';
@@ -281,8 +237,6 @@ export class SentenceStructureMiroComponent {
   termColor(role: string | null | undefined): string {
     return (role && this.termColors()[role]) || NEUTRAL;
   }
-
-  // ── Interaction ─────────────────────────────────────────────────────────────
 
   selectSentence(i: number): void {
     if (i < 0 || i >= this.sentences().length) return;
@@ -299,13 +253,11 @@ export class SentenceStructureMiroComponent {
     if (w.root) this.openLexicon.emit({ root: w.root, word: w.text });
   }
 
-  // ── Pan / zoom ──────────────────────────────────────────────────────────────
-
   private dragging = false;
   private startX = 0; private startY = 0; private baseX = 0; private baseY = 0;
 
   onPointerDown(e: PointerEvent): void {
-    if ((e.target as HTMLElement).closest('.ssm-node')) return; // let node clicks through
+    if ((e.target as HTMLElement).closest('.ssm-node')) return;
     this.dragging = true;
     this.startX = e.clientX; this.startY = e.clientY;
     this.baseX = this.panX(); this.baseY = this.panY();

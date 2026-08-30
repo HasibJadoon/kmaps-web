@@ -5,12 +5,10 @@ import {
 import type { Editor } from '@tiptap/core';
 import type { CalloutType } from './extensions/callout.extension';
 
-// ── Item & Group types ────────────────────────────────────────────────────────
-
 export interface SlashMenuItem {
   id: string;
   label: string;
-  svg: string;      // rendered via [innerHTML]
+  svg: string;
   keywords: string[];
   run: (editor: Editor) => void;
 }
@@ -19,8 +17,6 @@ export interface SlashMenuGroup {
   label: string;
   items: SlashMenuItem[];
 }
-
-// ── Compact inline SVGs (Notion-style glyph look) ─────────────────────────────
 
 const IC = {
   text: `<svg viewBox="0 0 20 20" fill="currentColor"><text x="2" y="15" font-size="13" font-weight="700" font-family="Georgia,serif">T</text></svg>`,
@@ -38,8 +34,6 @@ const IC = {
   def:  `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 16V4h8l1.5 2H4M4 10h9M12 16l2.5-12h3"/></svg>`,
   rtl:  `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 5h12M2 10h8M2 15h12M16 3l3 3-3 3"/></svg>`,
 };
-
-// ── Groups ────────────────────────────────────────────────────────────────────
 
 function buildGroups(): SlashMenuGroup[] {
   return [
@@ -131,8 +125,6 @@ function buildGroups(): SlashMenuGroup[] {
 
 const ALL_GROUPS = buildGroups();
 const ALL_ITEMS  = ALL_GROUPS.flatMap(g => g.items);
-
-// ── Component ─────────────────────────────────────────────────────────────────
 
 @Component({
   selector: 'km-slash-menu',

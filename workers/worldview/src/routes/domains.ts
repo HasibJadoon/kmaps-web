@@ -1,22 +1,3 @@
-// ─── /wv/domains — entering the corpus by field ───────────────────────────────
-//
-// A reader should be able to start from a field rather than from a book: open
-// philosophy, or psychology, or modernity, and get that field's traditions and
-// what has been said inside it.
-//
-// The words a reader has in mind sit at two levels. Philosophy, psychology and
-// the social are `wv_domains` rows; modernity and postmodernism are
-// `wv_traditions` rows of `tradition_type='movement'` that live inside a domain.
-// So `/facets` returns both levels in one list — a reader should not have to
-// know whether a word was filed as a domain, a movement or a discipline.
-//
-// What is joinable is narrower than it looks. `wv_traditions.domain_id` is set
-// on all 17, so domain → tradition works. `wv_moral_axes.domain_id` is NULL on
-// all 15, and `tradition_id` is unset on every topic, question, claim and
-// timeline event. The counts below therefore report what is actually there,
-// including the zeros, rather than offering a filter that silently finds
-// nothing.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -37,12 +18,6 @@ interface DomainWithCounts {
 
 export function domainRoutes(router: Router<WorldviewEnv>) {
 
-  // GET /wv/domains — every field, each with how many traditions it holds.
-  //
-  // Ordered by that count rather than by `sort_order`, which is 0 on nine of
-  // the eleven rows and so sorts nothing. A domain holding no tradition is
-  // still returned: an empty field is a fact about the corpus, and hiding it
-  // makes the corpus look more complete than it is.
   dual(router, 'get', '/domains', async (_req, env) => {
     return ok(await query<DomainWithCounts>(
       env.DB_WV,
@@ -55,12 +30,6 @@ export function domainRoutes(router: Router<WorldviewEnv>) {
     ));
   });
 
-  // GET /wv/domains/facets — the browsable entry list, both levels at once.
-  //
-  // `kind` says which level a row came from, so a client can group them without
-  // guessing: 'domain' for a field, 'tradition_type' for the kinds a tradition
-  // can be (religion, philosophy, mysticism, ideology, movement, discipline,
-  // era). Modernity and postmodernism are reachable through the second.
   dual(router, 'get', '/domains/facets', async (_req, env) => {
     const [domains, kinds] = await Promise.all([
       query<{ slug: string; title: string; n: number }>(
@@ -91,11 +60,6 @@ export function domainRoutes(router: Router<WorldviewEnv>) {
     });
   });
 
-  // GET /wv/domains/:slug — one field, with everything reachable from it.
-  //
-  // `filled` is the honest part: it reports how much of this field actually
-  // carries data, so a screen can say "3 traditions, no dated events yet"
-  // instead of drawing an empty timeline as though the field were quiet.
   dual(router, 'get', '/domains/:slug', async (_req, env, { slug }) => {
     const domain = await queryOne<DomainWithCounts>(
       env.DB_WV,
@@ -115,13 +79,6 @@ export function domainRoutes(router: Router<WorldviewEnv>) {
     const ids = traditions.map(t => String(t.id));
     const holes = ids.length ? ids.map(() => '?').join(',') : "''";
 
-    // Branches are the second level of the hierarchy — Ashʿarī against
-    // Muʿtazilī, Catholic against Reformed, first wave against third. The
-    // table is empty today and `wv_traditions.parent_id` is NULL on all 17, so
-    // the tree is one level deep. It is served as a tree anyway: the shape is
-    // right, and a screen written against a tree deepens on its own the day a
-    // branch is authored, where a screen written against a flat list would
-    // have to be rewritten.
     const branches = ids.length ? await query<Record<string, unknown>>(
       env.DB_WV,
       `SELECT id, slug, title, title_ar, tradition_id, branch_type, parent_id,
@@ -152,8 +109,6 @@ export function domainRoutes(router: Router<WorldviewEnv>) {
       ),
     ]);
 
-    // Nest by parent_id. Roots first, each carrying its children and the
-    // branches declared under it.
     const byParent = new Map<string | null, Record<string, unknown>[]>();
     for (const t of traditions) {
       const key = (t.parent_id as string | null) ?? null;
@@ -195,12 +150,6 @@ export function domainRoutes(router: Router<WorldviewEnv>) {
       sort_order: typeof b.sort_order === 'number' ? b.sort_order : 0,
     }));
   });
-
-  // ── Periods, regions and locations ─────────────────────────────────────────
-  // All three tables are empty today. The routes exist so a timeline or a map
-  // has somewhere to read from the moment the first row is authored, and so the
-  // emptiness is visible as an empty list rather than as a 404 that reads like
-  // a missing feature.
 
   dual(router, 'get', '/periods', async (req, env) => {
     const url = new URL(req.url);

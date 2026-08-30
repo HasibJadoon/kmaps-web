@@ -1,8 +1,3 @@
--- 0001_st_studio.sql — km_studio initial schema
--- Episode Studio: build podcast / tutorial / talking-head / conversation
--- episodes from reusable templates. Phase 1 covers episode authoring; live
--- sync (Durable Objects) arrives in a later migration.
-
 CREATE TABLE IF NOT EXISTS st_templates (
   id              TEXT PRIMARY KEY,
   core_user_ref   TEXT NOT NULL,
@@ -70,9 +65,6 @@ CREATE TABLE IF NOT EXISTS st_talking_points (
 CREATE INDEX IF NOT EXISTS idx_st_points_section ON st_talking_points(section_ref, seq);
 CREATE INDEX IF NOT EXISTS idx_st_points_episode ON st_talking_points(episode_ref);
 
--- ── Built-in templates ────────────────────────────────────────────────────────
--- Shared across all users (core_user_ref = 'CORE:system'). structure_json holds
--- a { participants[], sections[] } blueprint expanded into rows on episode create.
 INSERT OR IGNORE INTO st_templates (id, core_user_ref, name, description, format, is_builtin, structure_json) VALUES
   ('ST:builtin-solo', 'CORE:system', 'Solo Monologue',
    'A one-person episode that runs straight through a simple arc.', 'solo', 1,

@@ -1,7 +1,3 @@
-// ─── km-core-worker entry point ───────────────────────────────────────────────
-// Owns DB_CORE (km_core). Issues and verifies JWT tokens. Manages users,
-// workspaces, roles, and resource grants. Calls no other domain Worker.
-
 import { Router } from '../../shared/src/router';
 import { dbHealth } from '../../shared/src/http';
 import { ok } from '../../shared/src/response';
@@ -28,12 +24,10 @@ import { studySessionRoutes } from './routes/study-session';
 
 const router = new Router<CoreEnv>();
 
-// Health
 router.get('/health', async (_req, env) =>
   ok({ domain: 'core', db: 'DB_CORE', db_ok: await dbHealth(env.DB_CORE) }),
 );
 
-// Domain routes
 authRoutes(router);
 oauthRoutes(router);
 userRoutes(router);
@@ -41,17 +35,17 @@ workspaceRoutes(router);
 workspaceRoleRoutes(router);
 activityRoutes(router);
 grantRoutes(router);
-srsRoutes(router);           // /core/srs/* — the one spaced-repetition engine (FSRS)
-srsRegistryRoutes(router);   // GET/POST/DELETE /core/srs/registry — SRS enrollment index
-srsSessionRoutes(router);    // /core/srs/sessions/* — reviewing together, one shared question
-quizRoutes(router);          // /core/quiz/* — a question asked to a room, scored on speed
-learnRoutes(router);         // /core/learn/* — the path: where you are, unit by unit
-bankRoutes(router);          // /core/bank/* — owner-less content the three apps are fed from
-bankPlayRoutes(router);      // /core/bank/play — one ledger: attempts, answers, the shared scorecard
-talkRoutes(router);          // /core/talk/* — cards to start a conversation
+srsRoutes(router);
+srsRegistryRoutes(router);
+srsSessionRoutes(router);
+quizRoutes(router);
+learnRoutes(router);
+bankRoutes(router);
+bankPlayRoutes(router);
+talkRoutes(router);
 cybRoutes(router);
-dsRoutes(router);                // /core/ds/* — the composed display spec: layers + plane + cards           // GET /core/cyb/* — cybernetics control plane (monitor · tree · jobs)
-studySessionRoutes(router);  // /core/study/sessions — the study axis's one carrier
+dsRoutes(router);
+studySessionRoutes(router);
 
 export { ReviewSession } from './review-session.do';
 export { QuizSession } from './quiz-session.do';

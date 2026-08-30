@@ -1,16 +1,3 @@
-// ─── /core/cyb/* — cybernetics control-plane read API ─────────────────────────
-// Public, read-only. Powers the three Qurʾān-domain views:
-//   • Control Monitor  → GET /core/cyb/monitor  (the closed loop, live)
-//   • Quran Map        → GET /core/cyb/tree     (drill Qurʾān→Surah→Passage→…)
-//   • Quran Ladder     → GET /core/cyb/tree     (same forest, rendered as a tree)
-//   • node detail      → GET /core/cyb/node/:id (sensors · jobs · gauges · kids)
-//   • module registry  → GET /core/cyb/domains  (the modules, from cyb_domain)
-//   • mining queue     → GET /core/cyb/jobs     (the cyb_job queue)
-//   • source registry  → GET /core/cyb/sources  (per-loop mining sources)
-//
-// Every number is a live read of cyb_* in DB_CORE — no hardcoded data. Domain
-// detail (staging matrix, memlets, SRS) is served by the owning domain workers.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound } from '../../../shared/src/response';
 import type { CoreEnv } from '../env';
@@ -18,31 +5,24 @@ import { CybRepo } from '../repositories/cyb.repo';
 import { SenseRepo, CarrierRowsRepo } from '../repositories/sense.repo';
 
 export function cybRoutes(router: Router<CoreEnv>) {
-  // GET /core/cyb/process?domain=quran — the study process register: the ordered
-  // steps, what each covers, and the layers and skills that do it.
+
   router.get('/core/cyb/process', async (req, env) => {
     const domain = new URL(req.url).searchParams.get('domain') ?? undefined;
     const processes = await new CybRepo(env.DB_CORE).process(domain);
     return ok({ processes });
   });
 
-  // GET /core/cyb/domains — the module registry: the domains the console
-  // watches, each with its Arabic name, its colour, its carrier database and
-  // what one unit of its work is called. The dashboard's module cards render
-  // this; the four of them are not a list the app keeps.
   router.get('/core/cyb/domains', async (_req, env) => {
     const domains = await new CybRepo(env.DB_CORE).domains();
     return ok({ domains });
   });
 
-  // GET /core/cyb/layers?domain=quran — the layer registry, the one taxonomy.
   router.get('/core/cyb/layers', async (req, env) => {
     const domain = new URL(req.url).searchParams.get('domain') ?? undefined;
     const layers = await new CybRepo(env.DB_CORE).layers(domain);
     return ok({ layers });
   });
 
-  // GET /core/cyb/monitor — the whole control loop as one snapshot.
   router.get('/core/cyb/monitor', async (_req, env) => {
     const repo = new CybRepo(env.DB_CORE);
     const [
@@ -64,12 +44,12 @@ export function cybRoutes(router: Router<CoreEnv>) {
     const sum = (rows: { key: string; n: number }[]) => rows.reduce((a, r) => a + r.n, 0);
 
     return ok({
-      // ① reference · setpoint law
+
       config: config.reduce<Record<string, { value: string; note: string | null }>>((acc, c) => {
         acc[c.key] = { value: c.value, note: c.note };
         return acc;
       }, {}),
-      // headline loop counters
+
       loop: {
         sensors: sensorTotal,
         disturbances: distTotal,
@@ -90,8 +70,6 @@ export function cybRoutes(router: Router<CoreEnv>) {
     });
   });
 
-  // GET /core/cyb/tree?node=<id>&lane=<lane> — recursion tree (Map + Ladder).
-  // No node → the full forest (all top-level nodes with descendants).
   router.get('/core/cyb/tree', async (req, env) => {
     const url = new URL(req.url);
     const node = url.searchParams.get('node') ?? undefined;
@@ -100,7 +78,6 @@ export function cybRoutes(router: Router<CoreEnv>) {
     return ok({ roots });
   });
 
-  // GET /core/cyb/node/:id — one node with its sensors, jobs, gauges, children.
   router.get('/core/cyb/node/:id', async (_req, env, { id }) => {
     const repo = new CybRepo(env.DB_CORE);
     const node = await repo.findNode(id);
@@ -111,14 +88,12 @@ export function cybRoutes(router: Router<CoreEnv>) {
     return ok({ node, sensors, jobs, gauges, children: subtree[0]?.children ?? [] });
   });
 
-  // GET /core/cyb/jobs — the mining queue (cyb_job), ready→blocked→done.
   router.get('/core/cyb/jobs', async (_req, env) => {
     const repo = new CybRepo(env.DB_CORE);
     const [list, byReadiness] = await Promise.all([repo.allJobs(), repo.jobsByReadiness()]);
     return ok({ list, by_readiness: byReadiness });
   });
 
-  // GET /core/cyb/sources?loop=<loop_key> — the mining source registry.
   router.get('/core/cyb/sources', async (req, env) => {
     const loop = new URL(req.url).searchParams.get('loop') ?? undefined;
     const repo = new CybRepo(env.DB_CORE);
@@ -126,9 +101,6 @@ export function cybRoutes(router: Router<CoreEnv>) {
     return ok({ list, by_coverage: byCoverage });
   });
 
-  // GET /core/cyb/reading/:id — v_cyb_node_reading for one node: axis →
-  // (pct, measured, stale, sensors, read_sensors). The one definition of a
-  // reading, served as itself.
   router.get('/core/cyb/reading/:id', async (_req, env, { id }) => {
     const repo = new CybRepo(env.DB_CORE);
     const rows = await repo.readings(id);
@@ -136,8 +108,6 @@ export function cybRoutes(router: Router<CoreEnv>) {
     return ok({ node_id: id, readings: rows });
   });
 
-  // GET /core/cyb/rows/:id — what the carriers hold for this node's layer.
-  // The stream screens rendered cyb_node children; this is the work itself.
   router.get('/core/cyb/rows/:id', async (req, env, { id }) => {
     const layer = new URL(req.url).searchParams.get('layer') ?? undefined;
     const rows = await new CarrierRowsRepo(env).rowsForNode(id, layer);
@@ -145,12 +115,6 @@ export function cybRoutes(router: Router<CoreEnv>) {
     return ok({ node_id: id, layer: layer ?? null, carriers: rows });
   });
 
-  // GET /core/cyb/scope/:scopeType/:scopeId — the second hop.
-  //
-  // A passage node reaches carriers keyed on the passage; everything keyed on a
-  // part of it — a sentence, a tree, a note — needs the part named. The reader
-  // asks for one scope when one is selected, rather than the passage dragging
-  // its whole syntactic apparatus along on open.
   router.get('/core/cyb/scope/:scopeType/:scopeId', async (req, env,
                                                            { scopeType, scopeId }) => {
     const params = new URL(req.url).searchParams;
@@ -162,19 +126,12 @@ export function cybRoutes(router: Router<CoreEnv>) {
                 layer: layer ?? null, carriers: rows });
   });
 
-  // POST /core/cyb/sense/:id — the actuator, mechanised. Re-reads the node's
-  // sensors against the real carriers through their owning workers, updates
-  // readings, recomputes the node's per-axis percent, and sets *_measured.
-  // Coverage is honest: what the engine cannot yet bind comes back in
-  // `skipped` with its reason — never as a zero.
   router.post('/core/cyb/sense/:id', async (_req, env, { id }) => {
     const report = await new SenseRepo(env).senseNode(id);
     if (!report) return notFound(`cyb node ${id} not found`);
     return ok(report);
   });
 
-  // GET is the dry run: the same readers against the same carriers, writing
-  // nothing — what the sensors *would* say, before committing them to it.
   router.get('/core/cyb/sense/:id', async (_req, env, { id }) => {
     const report = await new SenseRepo(env).senseNode(id, true);
     if (!report) return notFound(`cyb node ${id} not found`);

@@ -45,7 +45,7 @@ export class SurahPassageComponent implements OnInit {
         this.surahInfo.set(res.surah ?? null);
         this.passage.set(res.passage ?? (res.passages[0] ?? null));
         this.loading.set(false);
-        // Also load all passages for navigation
+
         this.allPassages.set(res.passages);
       },
       error: (err: Error) => {

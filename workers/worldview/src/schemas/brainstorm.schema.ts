@@ -1,15 +1,13 @@
-// ─── Brainstorm schemas & types ───────────────────────────────────────────────
-
 export interface BrainstormSession {
-  id: string;              // WV:ULID
+  id: string;
   title: string;
   topic_id: string | null;
   tradition_id: string | null;
   moral_axis_id: string | null;
-  status: string;          // active|paused|complete|archived
+  status: string;
   body_md: string | null;
-  tags_json: string | null; // JSON [string]
-  core_user_ref: string;   // CORE:ULID
+  tags_json: string | null;
+  core_user_ref: string;
   core_ws_ref: string | null;
   created_at: string;
   updated_at: string;
@@ -34,8 +32,6 @@ export interface BrainstormPatch {
   tags_json?: string | null;
   status?: 'active' | 'paused' | 'complete' | 'archived';
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

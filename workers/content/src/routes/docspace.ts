@@ -1,10 +1,3 @@
-// ─── /cm/docspace routes — owner-scoped Doc Space notes (cm_notes) ────────────
-// The single canonical note surface for the native app. Ownership is derived
-// from the gateway's verified X-KM-User-Id header (never trusted from the body).
-// Visibility: 'private' (owner only) | 'workspace' | 'public'. Optional typed
-// anchor (domain + surah/ayah) turns any content screen's "Add Note" into a
-// filter, not a new table.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, created, notFound, badRequest, unauthorized, noContent } from '../../../shared/src/response';
 import { query, queryOne, execute, executeBatch } from '../../../shared/src/db';
@@ -46,8 +39,6 @@ function intOrNull(v: unknown): number | null {
 
 export function docSpaceRoutes(router: Router<ContentEnv>) {
 
-  // ── Folders (D6.5) — personal, owner-scoped. Registered BEFORE /:id so the
-  //    literal "folders" segment wins over the :id param (router is first-match).
   interface FolderRow {
     id: string; parent_ref: string | null; name: string;
     color: string | null; sort_order: number; created_at: string; updated_at: string;
@@ -56,7 +47,6 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     SELECT id, parent_ref, name, color, sort_order, created_at, updated_at
     FROM cm_folders`;
 
-  // GET /cm/docspace/folders — my folder tree (flat; client builds the tree).
   router.get('/cm/docspace/folders', async (req, env) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');
@@ -68,7 +58,6 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return ok({ folders });
   });
 
-  // POST /cm/docspace/folders { name, parent_ref?, color? }
   router.post('/cm/docspace/folders', async (req, env) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');
@@ -89,7 +78,6 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return created(row);
   });
 
-  // PATCH /cm/docspace/folders/:fid
   router.patch('/cm/docspace/folders/:fid', async (req, env, { fid }) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');
@@ -114,12 +102,10 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return ok(row);
   });
 
-  // DELETE /cm/docspace/folders/:fid — remove folder + descendants; the notes
-  // they held fall back to root (folder_ref = NULL), never deleted.
   router.delete('/cm/docspace/folders/:fid', async (req, env, { fid }) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');
-    // Gather the subtree (one level of nesting is typical; walk to be safe).
+
     const all = await query<{ id: string; parent_ref: string | null }>(
       env.DB_CM, `SELECT id, parent_ref FROM cm_folders WHERE core_user_ref = ?`, [owner]);
     const owned = new Set(all.map(f => f.id));
@@ -143,14 +129,13 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return noContent();
   });
 
-  // GET /cm/docspace?domain=&surah=&visibility=&q=  — my notes (+ public)
   router.get('/cm/docspace', async (req, env) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');
     const url = new URL(req.url);
     const domain = url.searchParams.get('domain');
     const surah = intOrNull(url.searchParams.get('surah'));
-    const scope = url.searchParams.get('visibility'); // 'mine' default | 'public' | 'workspace'
+    const scope = url.searchParams.get('visibility');
     const q = url.searchParams.get('q')?.trim();
 
     const where: string[] = [];
@@ -166,21 +151,20 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     if (domain) { where.push(`domain = ?`); params.push(domain); }
     if (surah !== null) { where.push(`surah = ?`); params.push(surah); }
     const tag = url.searchParams.get('tag')?.trim();
-    // tags_json is a JSON array like ["math","logic"]; match the quoted token.
+
     if (tag) { where.push(`tags_json LIKE ?`); params.push(`%${JSON.stringify(tag)}%`); }
     if (q) {
-      // Match typed body, title, AND recognized handwriting (ocr_text).
+
       where.push(`(title LIKE ? OR body_text LIKE ? OR ocr_text LIKE ?)`);
       params.push(`%${q}%`, `%${q}%`, `%${q}%`);
     }
 
-    // Trash view vs live; default hides soft-deleted notes.
     if (url.searchParams.get('deleted') === '1') {
       where.push(`deleted_at IS NOT NULL`);
     } else {
       where.push(`deleted_at IS NULL`);
     }
-    // Folder scope: 'root' = no folder; an id = that folder; absent = all.
+
     const folder = url.searchParams.get('folder');
     if (folder === 'root') { where.push(`folder_ref IS NULL`); }
     else if (folder) { where.push(`folder_ref = ?`); params.push(folder); }
@@ -198,7 +182,6 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return ok({ notes: rows });
   });
 
-  // GET /cm/docspace/:id
   router.get('/cm/docspace/:id', async (req, env, { id }) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');
@@ -210,7 +193,6 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return row ? ok(row) : notFound(`note ${id}`);
   });
 
-  // POST /cm/docspace
   router.post('/cm/docspace', async (req, env) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');
@@ -242,7 +224,6 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return created(row);
   });
 
-  // PATCH /cm/docspace/:id  (owner only)
   router.patch('/cm/docspace/:id', async (req, env, { id }) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');
@@ -264,7 +245,7 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
       sets.push('tags_json = ?'); params.push(JSON.stringify(tags));
     }
     if (b['folder_ref'] !== undefined) {
-      // null = move to root; an id must be one of my folders.
+
       const fref = b['folder_ref'] === null ? null : String(b['folder_ref']);
       if (fref !== null) {
         const mine = await queryOne(env.DB_CM,
@@ -290,8 +271,6 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return ok(row);
   });
 
-  // DELETE /cm/docspace/:id  (owner only). Soft by default → Recently Deleted.
-  // ?purge=1 hard-deletes and cascades the note's ink rows.
   router.delete('/cm/docspace/:id', async (req, env, { id }) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');
@@ -312,7 +291,6 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return res.meta.changes ? noContent() : notFound(`note ${id}`);
   });
 
-  // POST /cm/docspace/:id/restore — bring a soft-deleted note back.
   router.post('/cm/docspace/:id/restore', async (req, env, { id }) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');
@@ -326,7 +304,6 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return ok(row);
   });
 
-  // ── Ink pages (D3) — handwriting layer, owner-scoped via the parent note ──
   const SELECT_INK = `
     SELECT ink_id AS id, note_id, page_index, kmink_json, pk_drawing_b64,
            pk_stale, width, height, updated_at
@@ -341,7 +318,6 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return !!row;
   }
 
-  // GET /cm/docspace/:id/ink — all ink pages for a note.
   router.get('/cm/docspace/:id/ink', async (req, env, { id }) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');
@@ -350,9 +326,6 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return ok({ pages });
   });
 
-  // PUT /cm/docspace/:id/ink/:page — upsert one ink page.
-  // pk_stale=0 when the native PKDrawing is included; 1 when only KMInk is
-  // (e.g. a web edit), signalling iOS to re-rasterise.
   router.put('/cm/docspace/:id/ink/:page', async (req, env, { id, page }) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');
@@ -386,9 +359,6 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return ok(row);
   });
 
-  // DELETE /cm/docspace/:id/ink/:page — remove one ink page (owner only).
-  // Does NOT renumber remaining pages; the client follows with a reorder if it
-  // wants a dense 0..n-1 sequence.
   router.delete('/cm/docspace/:id/ink/:page', async (req, env, { id, page }) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');
@@ -403,10 +373,6 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return res.meta.changes ? noContent() : notFound(`page ${pageIndex}`);
   });
 
-  // POST /cm/docspace/:id/ink/reorder — body { order: [oldIndex, …] }.
-  // The array position becomes the new page_index. Transactional two-pass to
-  // dodge the UNIQUE(note_id, page_index) constraint: bump all to +1000, then
-  // settle to final indexes — all inside one atomic batch.
   router.post('/cm/docspace/:id/ink/reorder', async (req, env, { id }) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');
@@ -422,7 +388,7 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     const existing = (await query<{ page_index: number }>(
       env.DB_CM, `SELECT page_index FROM cm_doc_ink WHERE note_id = ? ORDER BY page_index`, [id],
     )).map((r) => r.page_index);
-    // `order` must be a permutation of the existing indexes.
+
     const sameSet = order.length === existing.length &&
       [...order].sort((x, y) => x - y).every((v, i) => v === existing[i]);
     if (!sameSet) return badRequest('order must be a permutation of existing page indexes');

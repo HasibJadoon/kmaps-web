@@ -1,8 +1,3 @@
-// ─── /st/episodes routes — episode authoring (builder API) ────────────────────
-// An episode aggregates participants, ordered sections, and ordered talking
-// points. The mobile builder drives these endpoints; a later phase adds the
-// live-session Durable Object on top of the same data.
-
 import type { Router } from '../../../shared/src/router';
 import {
   ok, created, noContent, notFound, badRequest, unauthorized, forbidden,
@@ -16,8 +11,6 @@ import {
 import { TemplateRepo } from '../repositories/template.repo';
 import { actorRef } from '../auth';
 import { resolveUserByEmail } from '../core-client';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function readJson(req: Request): Promise<unknown> {
   try {
@@ -39,8 +32,6 @@ function numberOrNull(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
-/** A beat's scene payload. Accepted as an object or as the JSON text it is
- *  stored as, so an author can PATCH either without thinking about it. */
 function overlayJson(v: unknown): string | null {
   if (v === null || v === undefined) return null;
   if (typeof v === 'string') return v.trim() || null;
@@ -48,9 +39,6 @@ function overlayJson(v: unknown): string | null {
   return null;
 }
 
-/** The beats under a main point. Accepted as an array of strings or as the
- *  JSON text it is stored as. Empties are dropped rather than stored: a card
- *  with one blank sub-point would draw a bullet with nothing beside it. */
 function subsJson(v: unknown): string | null {
   if (v === null || v === undefined) return null;
   if (typeof v === 'string') return v.trim() || null;
@@ -73,7 +61,6 @@ function parseStructure(raw: string): TemplateStructure {
   }
 }
 
-/** Default scaffold for a blank (no-template) episode. */
 const BLANK_STRUCTURE: TemplateStructure = {
   participants: [{ role: 'host', display_name: 'Host' }],
   sections: [{ type: 'intro', heading: 'Intro', points: [{ text: '', speaker_role: 'host' }] }],
@@ -81,14 +68,10 @@ const BLANK_STRUCTURE: TemplateStructure = {
 
 export function episodeRoutes(router: Router<StudioEnv>) {
 
-  // ── Episodes ────────────────────────────────────────────────────────────────
-
-  // GET /st/episodes — the caller's episodes, newest first
   router.get('/st/episodes', async (req, env) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
-    // ?series=<id> draws one arc, in station order. Without it, everything the
-    // user owns, newest first.
+
     const series = new URL(req.url).searchParams.get('series');
     const repo = new EpisodeRepo(env.DB_ST);
     const rows = series
@@ -97,7 +80,6 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     return ok(rows);
   });
 
-  // POST /st/episodes — create an episode, optionally expanded from a template
   router.post('/st/episodes', async (req, env) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -129,10 +111,7 @@ export function episodeRoutes(router: Router<StudioEnv>) {
       title,
       format,
       template_ref: templateRef,
-      // What the episode belongs to and what it is about. `source_ref` is the
-      // scope — 'QR:SP:44:1-9' — and is the same string as cyb_node.target_ref,
-      // which is what lets cybernetics measure an episode against the study it
-      // renders. Optional: a podcast has no scope.
+
       ecosystem: trimmedString(body['ecosystem']) ?? null,
       series_ref: trimmedString(body['series_ref']) ?? null,
       session_no: numberOrNull(body['session_no']),
@@ -141,8 +120,6 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     });
     await repo.applyStructure(episode.id, structure);
 
-    // The episode owner is the host — link the first cast member to their
-    // account so they are identified automatically in any live session.
     const aggregate = await repo.findAggregate(episode.id);
     const host = aggregate?.participants[0];
     if (host && !host.core_user_ref) {
@@ -152,7 +129,6 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     return created(aggregate);
   });
 
-  // GET /st/episodes/:id — full aggregate (participants + sections + points)
   router.get('/st/episodes/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -163,8 +139,6 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     return ok(await repo.findAggregate(id));
   });
 
-  // PATCH /st/episodes/:id — title / format / status, and what the episode
-  // belongs to and is about (ecosystem, series, session_no, output_kind, source_ref)
   router.patch('/st/episodes/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -203,7 +177,6 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     return ok(await repo.patchEpisode(id, patch));
   });
 
-  // DELETE /st/episodes/:id — remove the episode and all of its children
   router.delete('/st/episodes/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -215,9 +188,6 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     return noContent();
   });
 
-  // ── Participants ────────────────────────────────────────────────────────────
-
-  // POST /st/episodes/:id/participants
   router.post('/st/episodes/:id/participants', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -235,8 +205,6 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     }
     const color = trimmedString(body['color']);
 
-    // A cast member may be linked to a real account by email. The account's
-    // own name fills in when no explicit display name is supplied.
     let displayName = trimmedString(body['display_name']) || '';
     let coreUserRef: string | null = null;
     const email = trimmedString(body['email']) || '';
@@ -256,7 +224,6 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     }));
   });
 
-  // PATCH /st/participants/:id
   router.patch('/st/participants/:id', async (req, env, { id }) => {
     const body = await readJson(req);
     if (!isObj(body)) return badRequest('Request body must be a JSON object');
@@ -284,8 +251,6 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     }
     if (typeof body['seq'] === 'number') patch.seq = body['seq'];
 
-    // Link / re-link the cast member to a real account by email — or unlink
-    // when an empty email is sent.
     if (body['email'] !== undefined) {
       const email = trimmedString(body['email']) || '';
       if (!email) {
@@ -302,15 +267,11 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     return row ? ok(row) : notFound(`participant ${id}`);
   });
 
-  // DELETE /st/participants/:id
   router.delete('/st/participants/:id', async (_req, env, { id }) => {
     const deleted = await new EpisodeRepo(env.DB_ST).deleteParticipant(id);
     return deleted ? noContent() : notFound(`participant ${id}`);
   });
 
-  // ── Sections ────────────────────────────────────────────────────────────────
-
-  // POST /st/episodes/:id/sections
   router.post('/st/episodes/:id/sections', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -329,14 +290,12 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     }
     return created(await repo.createSection(id, {
       heading, type,
-      // The scene's renderer, and the provenance of its content. d1_query is
-      // recorded, never executed — it is an editable SQL string.
+
       overlay_kind: trimmedString(body['overlay_kind']) ?? null,
       d1_query: trimmedString(body['d1_query']) ?? null,
     }));
   });
 
-  // PATCH /st/sections/:id
   router.patch('/st/sections/:id', async (req, env, { id }) => {
     const body = await readJson(req);
     if (!isObj(body)) return badRequest('Request body must be a JSON object');
@@ -360,15 +319,11 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     return row ? ok(row) : notFound(`section ${id}`);
   });
 
-  // DELETE /st/sections/:id
   router.delete('/st/sections/:id', async (_req, env, { id }) => {
     const deleted = await new EpisodeRepo(env.DB_ST).deleteSection(id);
     return deleted ? noContent() : notFound(`section ${id}`);
   });
 
-  // ── Talking points ──────────────────────────────────────────────────────────
-
-  // POST /st/sections/:id/points
   router.post('/st/sections/:id/points', async (req, env, { id }) => {
     const body = await readJson(req);
     if (!isObj(body)) return badRequest('Request body must be a JSON object');
@@ -392,7 +347,6 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     }));
   });
 
-  // PATCH /st/points/:id
   router.patch('/st/points/:id', async (req, env, { id }) => {
     const body = await readJson(req);
     if (!isObj(body)) return badRequest('Request body must be a JSON object');
@@ -429,7 +383,6 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     return row ? ok(row) : notFound(`talking point ${id}`);
   });
 
-  // DELETE /st/points/:id
   router.delete('/st/points/:id', async (_req, env, { id }) => {
     const deleted = await new EpisodeRepo(env.DB_ST).deletePoint(id);
     return deleted ? noContent() : notFound(`talking point ${id}`);

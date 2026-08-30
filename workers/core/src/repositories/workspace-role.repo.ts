@@ -1,9 +1,5 @@
-// ─── WorkspaceRoleRepo — core_workspace_roles + core_workspace_member_roles ───
-
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface WorkspaceRole {
   id: string;
@@ -39,8 +35,6 @@ export interface MemberRoleAssign {
   expiresAt?: string;
 }
 
-// ── Column fragments ──────────────────────────────────────────────────────────
-
 const ROLE_COLS = `
   id, workspace_id, role_key, title, permissions_json, is_system_role, created_at
 FROM core_workspace_roles`;
@@ -49,12 +43,8 @@ const MEMBER_ROLE_COLS = `
   id, member_id, role_id, granted_by, granted_at, expires_at
 FROM core_workspace_member_roles`;
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class WorkspaceRoleRepo {
   constructor(private db: D1Database) {}
-
-  // ── Roles ──
 
   list(workspaceId: string): Promise<WorkspaceRole[]> {
     return query<WorkspaceRole>(
@@ -118,8 +108,6 @@ export class WorkspaceRoleRepo {
     await execute(this.db, `DELETE FROM core_workspace_roles WHERE id = ?`, [id]);
   }
 
-  // ── Member role assignments ──
-
   async assignToMember(input: MemberRoleAssign): Promise<WorkspaceMemberRole> {
     const id = typedId('CORE');
     const now = new Date().toISOString();
@@ -160,7 +148,6 @@ export class WorkspaceRoleRepo {
     );
   }
 
-  /** Full role objects for a member (joins roles table). */
   memberRolesFull(memberId: string): Promise<WorkspaceRole[]> {
     return query<WorkspaceRole>(
       this.db,

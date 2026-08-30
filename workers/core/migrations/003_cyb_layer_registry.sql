@@ -1,45 +1,16 @@
--- ─── 003 · the layer registry ────────────────────────────────────────────────
---
--- `cyb_node.domain`, `.lane` and `.layer` are free text, so the control plane
--- could always describe a new domain without a migration. The client could not:
--- the app rendered its six stream cards from a Swift enum
---
---     enum CybStream { case vocabulary, reading, ss, structure, tafsir, worldview }
---
--- so a seventh layer, or anything under Classical Arabic or Worldview, needed a
--- code edit and a build before it could appear. The registry that governs
--- sub-layers already works the other way round — adding the Senses band lit up
--- six new rows in the app with no client change at all — and this table gives
--- layers the same property.
---
--- ONE ROW PER (domain, layer). `db_name` records which database actually holds
--- that layer's content, because the control plane sits in km_core and the
--- content does not:
---
---     quran   → km_quran
---     arabic  → km_arabic_linguistic
---     wv      → km_worldview
---
--- Nothing here is invented. The six Qurʾān layers are the values already live on
--- `cyb_node.layer`; the Arabic bands are `ar_ling_reg_build_layer` as deployed;
--- the Worldview layers are the `wv_nodes.node_type` values that actually have
--- rows. `translation` is the one addition, and it has content behind it
--- (qr_ss_translation_unit · _passage · _decision · _buildup).
-
 CREATE TABLE IF NOT EXISTS cyb_layer (
-  id            TEXT PRIMARY KEY,           -- "<domain>:<layer_key>"
-  domain        TEXT NOT NULL,              -- quran | arabic | wv | …
+  id            TEXT PRIMARY KEY,
+  domain        TEXT NOT NULL,
   lane          TEXT NOT NULL,
-  layer_key     TEXT NOT NULL,              -- matches cyb_node.layer
+  layer_key     TEXT NOT NULL,
   name_ar       TEXT NOT NULL,
   name_en       TEXT NOT NULL,
   name_ur       TEXT,
-  hint          TEXT,                       -- "tilāwa · tajwīd"
-  -- Which database holds this layer's content. The control plane is in km_core;
-  -- the content never is.
+  hint          TEXT,
+
   db_name       TEXT NOT NULL,
   color_hex     TEXT,
-  symbol        TEXT,                       -- SF Symbol name
+  symbol        TEXT,
   display_order INTEGER NOT NULL DEFAULT 0,
   status        TEXT NOT NULL DEFAULT 'live',
   meta_json     TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json)),
@@ -48,9 +19,6 @@ CREATE TABLE IF NOT EXISTS cyb_layer (
 );
 CREATE INDEX IF NOT EXISTS cyb_layer_domain ON cyb_layer(domain, display_order);
 
--- ── Qurʾān · km_quran ────────────────────────────────────────────────────────
--- The six already live on cyb_node.layer, in the order the passage screen shows
--- them, plus translation.
 INSERT OR IGNORE INTO cyb_layer
   (id, domain, lane, layer_key, name_ar, name_en, hint, db_name, color_hex, symbol, display_order)
 VALUES
@@ -64,14 +32,10 @@ VALUES
    'naẓm · coherence', 'km_quran', '#c58ad9', 'square.stack.3d.up', 40),
   ('quran:tafsir', 'quran', 'quran', 'tafsir', 'التفسير', 'Tafsīr',
    'books', 'km_quran', '#4dd9a8', 'books.vertical', 50),
-  -- New. 46 rows across qr_ss_translation_unit · _passage · _decision · _buildup,
-  -- which had content and no layer to be reported under.
+
   ('quran:translation', 'quran', 'quran', 'translation', 'الترجمة', 'Translation',
    'derived · literal → fluent', 'km_quran', '#e0785c', 'character.book.closed', 60);
 
--- ── Classical Arabic · km_arabic_linguistic ──────────────────────────────────
--- The bands of `ar_ling_reg_build_layer` as deployed, including the Senses band
--- added in ar-linguistics 0097.
 INSERT OR IGNORE INTO cyb_layer
   (id, domain, lane, layer_key, name_ar, name_en, hint, db_name, color_hex, symbol, display_order)
 VALUES
@@ -96,22 +60,6 @@ VALUES
   ('arabic:EXPR',   'arabic', 'language', 'EXPR',   'التعابير',     'Expressions',
    'idioms', 'km_arabic_linguistic', '#c58ad9', 'text.quote', 100);
 
--- ── Worldview · km_worldview ─────────────────────────────────────────────────
--- The `wv_nodes.node_type` values that actually carry rows, largest first.
---
--- NOT `wv_domains`, which is the obvious-looking choice and the wrong one. It
--- holds nine curated rows — scriptural · theological · philosophical ·
--- historical · sociological · anthropological · ideological · legal · ethical —
--- but nothing much references them: `wv_nodes` has no `domain_id` at all, and
--- only three low-count tables (wv_traditions, wv_moral_axes,
--- wv_civilizational_contributions) point at them. Nine layers with no content
--- behind them would read as nine gaps.
---
--- `node_type` is where the 360 nodes actually live, so it is what can be sensed.
--- If `wv_domains` is later wired to the graph it becomes the better axis and
--- these rows should be revisited.
---
--- Types with no rows are deliberately not declared.
 INSERT OR IGNORE INTO cyb_layer
   (id, domain, lane, layer_key, name_ar, name_en, hint, db_name, color_hex, symbol, display_order)
 VALUES

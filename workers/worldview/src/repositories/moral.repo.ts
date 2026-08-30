@@ -1,23 +1,13 @@
-// ─── MoralRepo — L3 Abrahamic moral-civilizational ontology ──────────────────
-// Covers: wv_moral_axes, wv_moral_norms, wv_norm_sources,
-//         wv_virtue_profiles, wv_vice_profiles, wv_covenant_frameworks,
-//         wv_sacrifice_frameworks, wv_revelation_models, wv_prophetic_models,
-//         wv_divine_human_relations, wv_law_morality_links,
-//         wv_salvation_redemption_models
-// Canonical columns per 001_wv_schema.sql §3.1-§3.12
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Types ────────────────────────────────────────────────────────────────────
 
 export interface WvMoralAxis {
   id: string;
   slug: string;
   title: string;
   title_ar: string | null;
-  axis_type: string;         // relational|virtue|obligation|eschatological|structural|other
+  axis_type: string;
   description_md: string | null;
   domain_id: string | null;
   sort_order: number;
@@ -29,8 +19,8 @@ export interface WvMoralNorm {
   moral_axis_id: string | null;
   tradition_id: string | null;
   title: string;
-  norm_type: string;         // duty|prohibition|ideal|counsel|custom|taboo|other
-  scope: string | null;      // universal|community|individual|ritual
+  norm_type: string;
+  scope: string | null;
   description_md: string | null;
   created_at: string;
 }
@@ -38,8 +28,8 @@ export interface WvMoralNorm {
 export interface WvNormSource {
   id: string;
   norm_id: string;
-  source_type: string;       // scripture|commentary|institution|thinker|tradition|legal
-  source_ref: string;        // WV:source_id or external ref
+  source_type: string;
+  source_ref: string;
   locator: string | null;
   excerpt: string | null;
   note: string | null;
@@ -54,7 +44,7 @@ export interface WvVirtueProfile {
   tradition_id: string | null;
   moral_axis_id: string | null;
   description_md: string | null;
-  scripture_refs: string | null; // JSON [ref_string]
+  scripture_refs: string | null;
   created_at: string;
 }
 
@@ -74,14 +64,14 @@ export interface WvCovenantFramework {
   slug: string;
   title: string;
   tradition_id: string | null;
-  parties: string | null;         // JSON [{role,identity}]
-  covenant_type: string;          // unilateral|bilateral|universal|communal|conditional|eternal
+  parties: string | null;
+  covenant_type: string;
   key_sign: string | null;
   key_obligation: string | null;
   memory_practice: string | null;
   renewal_pattern: string | null;
   description_md: string | null;
-  corpus_refs: string | null;     // JSON [corpus_unit_id]
+  corpus_refs: string | null;
   meta_json: string | null;
   created_at: string;
 }
@@ -91,7 +81,7 @@ export interface WvSacrificeFramework {
   slug: string;
   title: string;
   tradition_id: string | null;
-  sacrifice_type: string;         // ritual|moral|communal|testing|substitution|atonement|surrender|remembrance|other
+  sacrifice_type: string;
   key_example: string | null;
   theological_role: string | null;
   description_md: string | null;
@@ -104,9 +94,9 @@ export interface WvRevelationModel {
   slug: string;
   title: string;
   tradition_id: string | null;
-  revelation_type: string;        // prophetic|scriptural|incarnational|recitational|mystical|legal|natural|spirit_based|other
-  medium: string | null;          // word|law|person|spirit|scripture
-  continuity: string | null;      // ongoing|closed|progressive|final
+  revelation_type: string;
+  medium: string | null;
+  continuity: string | null;
   description_md: string | null;
   meta_json: string | null;
   created_at: string;
@@ -117,8 +107,8 @@ export interface WvPropheticModel {
   slug: string;
   title: string;
   tradition_id: string | null;
-  model_role: string;             // messenger|exemplar|mediator|lawgiver|suffering_servant|reformer|warner|intercessor|other
-  key_attributes: string | null;  // JSON [string]
+  model_role: string;
+  key_attributes: string | null;
   description_md: string | null;
   meta_json: string | null;
   created_at: string;
@@ -129,8 +119,8 @@ export interface WvDivineHumanRelation {
   slug: string;
   title: string;
   tradition_id: string | null;
-  relation_type: string;          // covenantal|filial|servant|mystical|contractual|fearful|other
-  key_qualities: string | null;   // JSON [string]
+  relation_type: string;
+  key_qualities: string | null;
   description_md: string | null;
   created_at: string;
 }
@@ -140,7 +130,7 @@ export interface WvLawMoralityLink {
   tradition_id: string | null;
   law_system: string;
   morality_domain: string;
-  link_type: string;              // grounds|expresses|teaches|enforces|supplements|transcends|other
+  link_type: string;
   description_md: string | null;
   created_at: string;
 }
@@ -150,7 +140,7 @@ export interface WvSalvationRedemptionModel {
   slug: string;
   title: string;
   tradition_id: string | null;
-  model_type: string;             // moral|substitutionary|participatory|progressive|restorative|covenantal|mystical|other
+  model_type: string;
   sin_diagnosis: string | null;
   remedy: string | null;
   final_hope: string | null;
@@ -158,8 +148,6 @@ export interface WvSalvationRedemptionModel {
   meta_json: string | null;
   created_at: string;
 }
-
-// ── Input types ───────────────────────────────────────────────────────────────
 
 export interface MoralAxisCreate {
   slug: string;
@@ -284,8 +272,6 @@ export interface SalvationModelCreate {
   meta_json?: string | null;
 }
 
-// ── Column lists ─────────────────────────────────────────────────────────────
-
 const AXIS_COLS =
   `id, slug, title, title_ar, axis_type, description_md, domain_id, sort_order, created_at`;
 
@@ -326,12 +312,8 @@ const SRM_COLS =
   `id, slug, title, tradition_id, model_type, sin_diagnosis, remedy, final_hope, ` +
   `description_md, meta_json, created_at`;
 
-// ── Repo ─────────────────────────────────────────────────────────────────────
-
 export class MoralRepo {
   constructor(private db: D1Database) {}
-
-  // ── wv_moral_axes ──────────────────────────────────────────────────────────
 
   listAxes(opts: { axis_type?: string | null } & PaginateOptions = {}) {
     const { axis_type } = opts;
@@ -373,8 +355,6 @@ export class MoralRepo {
     );
     return (await this.findAxisById(id))!;
   }
-
-  // ── wv_moral_norms ─────────────────────────────────────────────────────────
 
   listNorms(opts: {
     moral_axis_id?: string | null;
@@ -422,8 +402,6 @@ export class MoralRepo {
     return (await this.findNormById(id))!;
   }
 
-  // ── wv_norm_sources ────────────────────────────────────────────────────────
-
   normSources(normId: string): Promise<WvNormSource[]> {
     return query<WvNormSource>(
       this.db,
@@ -463,8 +441,6 @@ export class MoralRepo {
   async removeNormSource(id: string): Promise<void> {
     await execute(this.db, `DELETE FROM wv_norm_sources WHERE id = ?`, [id]);
   }
-
-  // ── wv_virtue_profiles ─────────────────────────────────────────────────────
 
   listVirtues(opts: {
     tradition_id?: string | null;
@@ -514,8 +490,6 @@ export class MoralRepo {
     return (await this.findVirtueById(id))!;
   }
 
-  // ── wv_vice_profiles ───────────────────────────────────────────────────────
-
   listVices(opts: {
     tradition_id?: string | null;
     moral_axis_id?: string | null;
@@ -562,8 +536,6 @@ export class MoralRepo {
     );
     return (await this.findViceById(id))!;
   }
-
-  // ── wv_covenant_frameworks ─────────────────────────────────────────────────
 
   listCovenants(opts: { tradition_id?: string | null } & PaginateOptions = {}) {
     const { tradition_id } = opts;
@@ -612,8 +584,6 @@ export class MoralRepo {
     return (await this.findCovenantById(id))!;
   }
 
-  // ── wv_sacrifice_frameworks ────────────────────────────────────────────────
-
   listSacrifice(opts: { tradition_id?: string | null } & PaginateOptions = {}) {
     const { tradition_id } = opts;
     const where  = tradition_id ? 'WHERE tradition_id = ?' : '';
@@ -656,8 +626,6 @@ export class MoralRepo {
     );
     return (await this.findSacrificeById(id))!;
   }
-
-  // ── wv_revelation_models ───────────────────────────────────────────────────
 
   listRevelationModels(opts: {
     tradition_id?: string | null;
@@ -708,8 +676,6 @@ export class MoralRepo {
     return (await this.findRevelationModelById(id))!;
   }
 
-  // ── wv_prophetic_models ────────────────────────────────────────────────────
-
   listPropheticModels(opts: {
     tradition_id?: string | null;
     model_role?: string | null;
@@ -758,8 +724,6 @@ export class MoralRepo {
     return (await this.findPropheticModelById(id))!;
   }
 
-  // ── wv_divine_human_relations ──────────────────────────────────────────────
-
   listDivineHumanRelations(opts: {
     tradition_id?: string | null;
     relation_type?: string | null;
@@ -807,8 +771,6 @@ export class MoralRepo {
     return (await this.findDivineHumanRelationById(id))!;
   }
 
-  // ── wv_law_morality_links ──────────────────────────────────────────────────
-
   listLawMoralityLinks(opts: {
     tradition_id?: string | null;
     link_type?: string | null;
@@ -853,8 +815,6 @@ export class MoralRepo {
     );
     return (await this.findLawMoralityLinkById(id))!;
   }
-
-  // ── wv_salvation_redemption_models ─────────────────────────────────────────
 
   listSalvationModels(opts: {
     tradition_id?: string | null;

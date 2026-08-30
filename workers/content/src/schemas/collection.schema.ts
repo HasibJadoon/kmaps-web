@@ -1,7 +1,5 @@
-// ─── Collection schemas & types ───────────────────────────────────────────────
-
 export interface CmCollection {
-  collection_id: string;      // CM:ULID
+  collection_id: string;
   core_user_ref: string;
   collection_type: 'reading_list' | 'playlist' | 'curriculum' | 'favorites' | 'other';
   title: string;
@@ -18,7 +16,7 @@ export interface CmCollection {
 }
 
 export interface CmCollectionItem {
-  item_id: string;            // CM:ULID
+  item_id: string;
   collection_id: string;
   target_ref: string;
   seq_order: number;
@@ -101,8 +99,6 @@ export function validateCmCollectionCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface CmCollectionInput {
   core_user_ref: string;
   collection_type?: string;
@@ -116,8 +112,6 @@ export interface CmCollectionInput {
   cover_image_url?: string | null;
   meta_json?: string;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

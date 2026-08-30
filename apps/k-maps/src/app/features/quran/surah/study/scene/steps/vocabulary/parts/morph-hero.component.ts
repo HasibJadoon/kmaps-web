@@ -3,11 +3,6 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { MorphWordVm, MorphContextVm, Lang } from '../../../../../../../../shared/services/quran/quran-surah.service';
 import { richMarkup } from '../morph-rich';
 
-/**
- * Presentational hero for the Morph Display Layer — the giant lemma glyph,
- * occurrence pill, chip row, rich gloss, and reading-in-context line. Pure
- * renderer; emits `openRoot` when the root chip/glyph is tapped.
- */
 @Component({
   selector: 'km-morph-hero',
   standalone: true,

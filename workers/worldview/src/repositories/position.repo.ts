@@ -1,15 +1,3 @@
-// ─── PositionRepo — what each worldview says about a concept ──────────────────
-//
-// wv_value_positions is the table the comparison turns on: one row per
-// (worldview, concept, position), with its sources joined rather than parsed
-// out of a JSON column. It sat empty for a long time while the same content was
-// written into wv_nodes.data_json as strings — see migration 024, which lifted
-// the al-Rūm passage out of there.
-//
-// Two reads matter, and they are the same query asked from two ends: what does
-// this PASSAGE say (the reader is on a passage), and what does everyone say
-// about this CONCEPT (the reader is comparing).
-
 import { query, queryOne } from '../../../shared/src/db';
 
 export interface PositionRow {
@@ -47,9 +35,6 @@ const SELECT = `
 export class PositionRepo {
   constructor(private db: D1Database) {}
 
-  /** Everything said about the āyāt of one passage, whoever said it.
-   *  A position covers an āyah when it falls in its range, or when the position
-   *  is about the whole sūra — which is why the range test admits NULL. */
   async forPassage(surah: number, from: number, to: number): Promise<PositionRow[]> {
     return query<PositionRow>(
       this.db,
@@ -60,9 +45,6 @@ export class PositionRepo {
     ).catch(() => []);
   }
 
-  /** The comparison: every worldview that has said something about one concept.
-   *  This is the query the whole registry exists to make possible, and it is
-   *  one SELECT because the concept id is global. */
   async forConcept(conceptRef: string): Promise<PositionRow[]> {
     return query<PositionRow>(
       this.db,
@@ -71,13 +53,6 @@ export class PositionRepo {
     ).catch(() => []);
   }
 
-  /** The concepts a passage already touches, so the reader picks rather than
-   *  types. Two sources, both local: concepts someone has already taken a
-   *  position on here, and the concept nodes the graph binds to these āyāt.
-   *
-   *  Not core_concept_binding — that is the cross-database index and lives in
-   *  km_core alone. A worker reading its own database resolves by label, which
-   *  is exactly how 024 bound these nodes in the first place. */
   async conceptsForPassage(surah: number, from: number, to: number) {
     return query<{ id: string; label_en: string; label_ar: string | null;
                    domain: string; held_by: number }>(
@@ -113,9 +88,6 @@ export class PositionRepo {
     ).catch(() => []);
   }
 
-  /** Record a position. The passage is the citation when one is given, so the
-   *  reader states what the text says and the source follows from where they
-   *  are — the friction this is meant to avoid is being asked to cite by hand. */
   async create(input: {
     conceptRef: string; traditionId: string; title: string; text: string;
     positionType?: string; surah?: number | null;

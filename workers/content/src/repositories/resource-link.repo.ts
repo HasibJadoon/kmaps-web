@@ -1,14 +1,6 @@
-// ─── ResourceLinkRepo — cm_resource_links ────────────────────────────────────
-// Directed typed links between any two domain-name-driven typed refs across
-// all modules. Supports AI-suggested links with confidence scores.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ---------------------------------------------------------------------------
-// cm_resource_links
-// ---------------------------------------------------------------------------
 
 export interface CmResourceLink {
   link_id: string;
@@ -19,7 +11,7 @@ export interface CmResourceLink {
   note: string | null;
   core_user_ref: string | null;
   confidence: number;
-  is_ai_suggested: number;      // 0 | 1
+  is_ai_suggested: number;
   meta_json: string;
   created_at: string;
 }
@@ -39,14 +31,9 @@ export interface CmResourceLinkInput {
 const LINK_COLS = `link_id, source_ref, target_ref, link_type, anchor_text, note,
   core_user_ref, confidence, is_ai_suggested, meta_json, created_at`;
 
-// ---------------------------------------------------------------------------
-// Repository
-// ---------------------------------------------------------------------------
-
 export class ResourceLinkRepo {
   constructor(private db: D1Database) {}
 
-  /** All links whose source_ref matches the given typed ref. */
   fromSource(sourceRef: string, opts: PaginateOptions = {}) {
     return paginate<CmResourceLink>(
       this.db,
@@ -57,7 +44,6 @@ export class ResourceLinkRepo {
     );
   }
 
-  /** All links whose target_ref matches the given typed ref. */
   toTarget(targetRef: string, opts: PaginateOptions = {}) {
     return paginate<CmResourceLink>(
       this.db,

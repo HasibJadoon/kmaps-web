@@ -124,7 +124,6 @@ export interface QrPagePayload {
   layout_lines: QrPageLayoutLine[];
 }
 
-/** Word token returned when ?words=1 is passed to /qr/ayahs */
 export interface QrAyahWord {
   word_index: number;
   text: string;
@@ -135,7 +134,6 @@ export interface QrAyahWord {
   morphology_tag: string | null;
 }
 
-/** Shape returned by GET /qr/ayahs?surah=X[&words=1] */
 export interface QrAyah {
   surah: number;
   ayah: number;
@@ -145,10 +143,8 @@ export interface QrAyah {
   translation: string | null;
   verse_mark: string | null;
   page_number: number | null;
-  words?: QrAyahWord[];  // present only when ?words=1
+  words?: QrAyahWord[];
 }
-
-// ─── Research: Tafsir ─────────────────────────────────────────────────────────
 
 export interface QrScholarWork {
   id: string;
@@ -206,8 +202,6 @@ export interface QrTafsirEntry {
   ayah_text: string | null;
 }
 
-// ─── Research: Iraab ─────────────────────────────────────────────────────────
-
 export interface QrIrabSource {
   id: string;
   source_slug: string;
@@ -238,8 +232,6 @@ export interface QrIrabEntry {
   entry_order: number;
   ayah_text: string | null;
 }
-
-// ─── Research: Lexicon ────────────────────────────────────────────────────────
 
 export interface QrLemma {
   id: string;
@@ -283,9 +275,6 @@ export interface QrPassage {
   discourse_role: string | null;
   note_md: string | null;
 }
-
-// ─── Display-layer types (migrations 011 + 012) ──────────────────────────────
-// Shapes come straight from the worker; the Ionic client that mirrored them is retired.
 
 export type QrDisplayReviewStatus = 'ai_candidate' | 'needs_review' | 'approved' | 'rejected' | 'archived';
 export type QrDisplayConfidence   = 'low' | 'medium' | 'high' | 'verified';
@@ -505,19 +494,13 @@ export interface QrDisplaySearchHit {
   rank_score: number;
 }
 
-// ── Surah Morphology grid ─────────────────────────────────────────────────────
-// Fully shaped by the worker (GET /qr/surahs/:id/morphology). The component is a
-// logic-free renderer: it paints `words[]` and never parses a linguistic token.
-
 export type QrMorphPos = 'noun' | 'verb';
 
-/** One authored Qurʾānic sense of the word (trilingual; ur may be absent). */
 export interface QrMorphMeaning {
   ar: string;
   en: string;
 }
 
-/** Grammatical-feature chip. `cat` picks the card colour; `ar` is the label. */
 export type QrMorphFeatCat = 'status' | 'state' | 'number' | 'gender' | 'type' | 'tense' | 'voice' | 'form';
 export interface QrMorphFeat {
   cat: QrMorphFeatCat;
@@ -525,34 +508,29 @@ export interface QrMorphFeat {
   en: string | null;
 }
 
-/**
- * One morphology card. Fully shaped by the worker: QAC essentials (lemma,
- * surface, root, derived type) for every word, enriched with the curated Memlet
- * layer (gloss, sense list, wazn, root meaning) where a word has been authored.
- */
 export interface QrMorphWord {
   surah: number;
   ayah: number;
   word_index: number;
-  ref: string;                          // "44:2"
-  surface_ar: string;                   // occurrence form
-  lemma_ar: string | null;              // dictionary form — the card headline
-  root_ar: string | null;               // bare root, e.g. "كتب" (for navigation)
-  root_display: string | null;          // spaced root, e.g. "ك ت ب"
-  group: QrMorphPos;                    // filter bucket
-  pos_en: string;                       // Noun | Proper Noun | Verb
-  gloss_en: string | null;              // authored English meaning
-  derived_type_en: string | null;       // e.g. "active participle"
-  derived_type_ar: string | null;       // e.g. "اسم فاعل"
-  wazn_ar: string | null;               // pattern, e.g. "مُفْعِل"
-  form_ar: string | null;               // verb form (باب), e.g. "إفعال"
-  form_roman: string | null;            // e.g. "IV"
-  quran_meanings: QrMorphMeaning[] | null;  // short authored sense list
-  root_meaning_en: string | null;       // authored root gloss, e.g. "clarity"
-  is_anchor: boolean;                   // root anchor word
-  feats: QrMorphFeat[];                 // grammatical-feature chips (case/number/gender/type · tense/voice)
-  sense_arc_en: string | null;          // 360° semantic arc, e.g. "separation → clarity"
-  sense_range_en: string | null;        // compact range of meanings (falls back to sense list)
+  ref: string;
+  surface_ar: string;
+  lemma_ar: string | null;
+  root_ar: string | null;
+  root_display: string | null;
+  group: QrMorphPos;
+  pos_en: string;
+  gloss_en: string | null;
+  derived_type_en: string | null;
+  derived_type_ar: string | null;
+  wazn_ar: string | null;
+  form_ar: string | null;
+  form_roman: string | null;
+  quran_meanings: QrMorphMeaning[] | null;
+  root_meaning_en: string | null;
+  is_anchor: boolean;
+  feats: QrMorphFeat[];
+  sense_arc_en: string | null;
+  sense_range_en: string | null;
 }
 
 export interface QrMorphologyPayload {

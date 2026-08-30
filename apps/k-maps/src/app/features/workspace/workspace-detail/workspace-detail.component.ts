@@ -125,7 +125,7 @@ export class WorkspaceDetailComponent implements OnInit, AfterViewInit {
     try {
       this.members.set(await firstValueFrom(this.api.getMembers(this.workspaceId)));
     } catch {
-      // Members load failure is silent; placeholder shown
+
     } finally {
       this.membersLoading.set(false);
     }
@@ -135,7 +135,7 @@ export class WorkspaceDetailComponent implements OnInit, AfterViewInit {
     try {
       this.activities.set(await firstValueFrom(this.api.getActivity(this.workspaceId)));
     } catch {
-      // Activity load failure is silent; placeholder shown
+
     }
   }
 
@@ -145,7 +145,7 @@ export class WorkspaceDetailComponent implements OnInit, AfterViewInit {
       gsap.fromTo(panel, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: .35, ease: 'power2.out' });
     }
     this.activeTab.set(tab);
-    // Animate new panel in after change detection
+
     setTimeout(() => {
       const newPanel = document.querySelector('.wd__panel');
       if (newPanel) {

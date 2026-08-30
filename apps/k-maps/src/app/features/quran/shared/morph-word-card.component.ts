@@ -4,42 +4,29 @@ import {
 } from '@angular/core';
 import { QuranGsapService } from '../../../shared/services/quran/quran-gsap.service';
 
-/** One run of the semantic arc — arrow runs render gold. */
 interface ArcPart { t: string; arrow: boolean; }
 
-/**
- * Normalised morphology-card view-model. Both grids (full-surah morphology and
- * the passage study step) map their own row into this shape, so the card looks
- * and behaves identically everywhere. Pure data — no source logic.
- */
-/** Occurrence/naḥw band — present ONLY when a word is viewed in an ayah (the
- *  morphology step). Absent in the pure lexicon (universal-only). */
 export interface MorphContextVm {
-  ref: string;                                   // "44:2"
-  surfaceAr: string;                             // the word as it occurs (with case endings)
-  feats: { cat: string; ar: string }[];          // case/definiteness/number/gender · tense/voice
+  ref: string;
+  surfaceAr: string;
+  feats: { cat: string; ar: string }[];
 }
 
 export interface MorphCardVm {
-  // ── universal (ṣarf / lemma-level — always shown) ──────────────────────────
-  group: string;                                 // 'noun' | 'verb'
-  posLabel: string;                              // "Noun" | "Verb" | "Noun (participle)"
+
+  group: string;
+  posLabel: string;
   isAnchor: boolean;
-  arc: string | null;                            // "separation → clarity"
-  rangeText: string | null;                      // compact range of meanings (or gloss)
+  arc: string | null;
+  rangeText: string | null;
   waznAr: string | null;
-  rootDisplay: string | null;                    // "ب ي ن"
-  rootAr: string | null;                         // "بين" (for navigation)
-  lemmaAr: string | null;                        // dictionary form — the headline in the lexicon
-  // ── contextual (naḥw / occurrence — present only in an ayah) ───────────────
+  rootDisplay: string | null;
+  rootAr: string | null;
+  lemmaAr: string | null;
+
   context?: MorphContextVm | null;
 }
 
-/**
- * The morphology word card — a data-driven renderer with a pointer-tracked 3D
- * tilt + parallax and a gold glare (GSAP). Content, feature chips, and the
- * compact 360° synopsis all come from the VM; look-and-feel is fixed here.
- */
 @Component({
   selector: 'km-morph-word-card',
   standalone: true,
@@ -193,7 +180,6 @@ export class MorphWordCardComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void { this.cleanup?.(); }
 
-  /** Split the semantic arc into runs, flagging arrows so they render gold. */
   arcParts(arc: string): ArcPart[] {
     return String(arc)
       .split(/\s*(→|←|⟶|⟵)\s*/)
@@ -201,7 +187,6 @@ export class MorphWordCardComponent implements AfterViewInit, OnDestroy {
       .map(s => ({ t: s, arrow: /^[→←⟶⟵]$/.test(s) }));
   }
 
-  /** True when the POS label is Arabic (so the badge drops uppercase/tracking). */
   posIsAr(): boolean { return /[؀-ۿ]/.test(this.card().posLabel); }
 
   onRoot(e: Event): void { e.stopPropagation(); this.openRoot.emit(); }

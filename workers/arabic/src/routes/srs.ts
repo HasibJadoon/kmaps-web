@@ -1,22 +1,3 @@
-// ─── /ar/srs routes — DEPRECATED, superseded by /core/srs/* ──────────────────
-//
-// Spaced repetition is now one store in km_core: `core_srs_deck`,
-// `core_srs_card`, `core_srs_review`, scheduled by FSRS, beside the
-// `core_srs_registry` index that already spanned every module.
-//
-// This route set put the card state in the *Arabic* database, which made
-// km_arabic the home of the Qurʾān's and the Worldview's cards, and meant no
-// single query could answer "what is due" across subjects — the one question an
-// SRS exists to answer. Its scheduler was also SM-2 filling FSRS-named columns:
-// `stability` held the interval and `difficulty` held the ease factor.
-//
-// Nothing was migrated because ar_learn_srs_card, _deck and _review are all
-// empty. These routes remain only so an old client does not 404; they should be
-// removed once nothing calls them. New work goes to /core/srs/*.
-//
-// Decks, Anki-style cards, the unified review queue and SM-2 grading.
-// Every deck and card is scoped to the authenticated user (X-KM-User-Id).
-
 import type { Router } from '../../../shared/src/router';
 import {
   ok, created, notFound, badRequest, unauthorized, forbidden,
@@ -53,7 +34,6 @@ function str(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
 }
 
-/** Card → API shape: extra_json parsed, tags split into an array. */
 function cardToApi(c: SrsCard) {
   let extra: unknown = null;
   if (c.extra_json) { try { extra = JSON.parse(c.extra_json); } catch { extra = null; } }
@@ -91,16 +71,12 @@ function normalizeTags(v: unknown): string | null {
 
 export function srsRoutes(router: Router<ArabicEnv>) {
 
-  // ── Decks ──────────────────────────────────────────────────────────────────
-
-  // GET /ar/srs/decks — the user's decks with live due / new counts
   router.get('/ar/srs/decks', async (req, env) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
     return ok(await new SrsRepo(env.DB_AR).decksWithCounts(user));
   });
 
-  // POST /ar/srs/decks — create a deck
   router.post('/ar/srs/decks', async (req, env) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -119,7 +95,6 @@ export function srsRoutes(router: Router<ArabicEnv>) {
     return created(deck);
   });
 
-  // GET /ar/srs/decks/:id — deck detail
   router.get('/ar/srs/decks/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -129,7 +104,6 @@ export function srsRoutes(router: Router<ArabicEnv>) {
     return ok(deck);
   });
 
-  // PATCH /ar/srs/decks/:id — rename / retype a deck
   router.patch('/ar/srs/decks/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -149,7 +123,6 @@ export function srsRoutes(router: Router<ArabicEnv>) {
     return ok(updated);
   });
 
-  // DELETE /ar/srs/decks/:id — delete a deck and all its cards
   router.delete('/ar/srs/decks/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -161,7 +134,6 @@ export function srsRoutes(router: Router<ArabicEnv>) {
     return ok({ deleted: id });
   });
 
-  // GET /ar/srs/decks/:id/cards — every card in a deck
   router.get('/ar/srs/decks/:id/cards', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -173,7 +145,6 @@ export function srsRoutes(router: Router<ArabicEnv>) {
     return ok(cards.map(cardToApi));
   });
 
-  // GET /ar/srs/decks/:id/due — the deck's due review queue
   router.get('/ar/srs/decks/:id/due', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -186,9 +157,6 @@ export function srsRoutes(router: Router<ArabicEnv>) {
     return ok(cards.map(cardToApi));
   });
 
-  // ── Cards ──────────────────────────────────────────────────────────────────
-
-  // GET /ar/srs/cards/:id — a single card
   router.get('/ar/srs/cards/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -198,7 +166,6 @@ export function srsRoutes(router: Router<ArabicEnv>) {
     return ok(cardToApi(card));
   });
 
-  // POST /ar/srs/cards — create a card in a deck
   router.post('/ar/srs/cards', async (req, env) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -233,7 +200,6 @@ export function srsRoutes(router: Router<ArabicEnv>) {
     return created(cardToApi(card));
   });
 
-  // PATCH /ar/srs/cards/:id — edit content, retag, suspend / unsuspend
   router.patch('/ar/srs/cards/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -254,7 +220,6 @@ export function srsRoutes(router: Router<ArabicEnv>) {
     return ok(cardToApi(updated!));
   });
 
-  // DELETE /ar/srs/cards/:id
   router.delete('/ar/srs/cards/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -266,7 +231,6 @@ export function srsRoutes(router: Router<ArabicEnv>) {
     return ok({ deleted: id });
   });
 
-  // POST /ar/srs/cards/:id/grade — record a review; SM-2 reschedules the card
   router.post('/ar/srs/cards/:id/grade', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -318,9 +282,6 @@ export function srsRoutes(router: Router<ArabicEnv>) {
     return ok(cardToApi(updated!));
   });
 
-  // ── Review queue & stats ───────────────────────────────────────────────────
-
-  // GET /ar/srs/review — the unified due queue across every deck
   router.get('/ar/srs/review', async (req, env) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -340,14 +301,12 @@ export function srsRoutes(router: Router<ArabicEnv>) {
     })));
   });
 
-  // GET /ar/srs/stats — dashboard counters
   router.get('/ar/srs/stats', async (req, env) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
     return ok(await new SrsRepo(env.DB_AR).stats(user));
   });
 
-  // GET /ar/srs/decks/:id/export — Anki-importable TSV for one deck
   router.get('/ar/srs/decks/:id/export', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -357,7 +316,7 @@ export function srsRoutes(router: Router<ArabicEnv>) {
     if (deck.core_user_ref !== user) return forbidden('Not your deck');
 
     const cards = await repo.cardsInDeck(id);
-    // Anki's text importer: tab-separated, HTML allowed, third column = tags.
+
     const header = ['#separator:tab', '#html:true', '#tags column:3', ''].join('\n');
     const body = cards
       .map((c) => [ankiField(c.front_text), ankiField(c.back_text), (c.tags ?? '').trim()].join('\t'))
@@ -374,7 +333,6 @@ export function srsRoutes(router: Router<ArabicEnv>) {
   });
 }
 
-/** Make a card face safe for one TSV cell: tabs → spaces, newlines → <br>. */
 function ankiField(text: string): string {
   return (text ?? '')
     .replace(/\t/g, '    ')

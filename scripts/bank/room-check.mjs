@@ -1,10 +1,3 @@
-// ─── One live round, end to end ───────────────────────────────────────────────
-//
-// The claim migration 030 makes is that every play of every app writes the same
-// two rows. The quiz room wrote its own table instead, so the shared scorecard
-// had never contained a round. This plays one — host pushes, two people answer,
-// host reveals — and then asks the SCORECARD, not the room, what happened.
-
 import { WebSocket } from 'ws';
 
 const BASE = process.env.KM_BASE ?? 'http://127.0.0.1:8799';
@@ -36,7 +29,6 @@ const open = (code, who) => new Promise((resolve, reject) => {
 });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// A room, and something to ask in it.
 const items = (await api('/core/quiz/questions?surah=40&limit=2', 'HOST')).body ?? [];
 check(items.length >= 1, 'the picker has bank items to ask', `${items.length}`);
 
@@ -73,7 +65,6 @@ console.log('   roster:', JSON.stringify([...host.seen, ...guest.seen]
 host.ws.close(); guest.ws.close();
 await wait(800);
 
-// The point of the exercise: ask the shared scorecard.
 const scores = (await api('/core/bank/scores', 'HOST')).body;
 const players = (scores?.overall ?? []).filter((p) => p.user_id.startsWith('CORE:ROOM'));
 check(players.length === 2, 'both players are on the SHARED scorecard',

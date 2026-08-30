@@ -29,7 +29,7 @@ export class ArabicReviewComponent implements OnInit {
       const res = await fetch('/ar/srs?entity_type=vocab&limit=20');
       const data = await res.json() as { ok: boolean; items?: SrsCard[] };
       if (data.ok && data.items) this.cards.set(data.items);
-    } catch { /* silent */ } finally { this.loading.set(false); }
+    } catch {  } finally { this.loading.set(false); }
   }
 
   flip(): void { this.flipped.set(!this.flipped()); }

@@ -25,8 +25,6 @@ import { QuranAyah } from '../../../../../shared/models/quran/quran.models';
 import { mapQrPassagesToResponse, mapQrReaderToAyahsResponse } from '../../../../../shared/services/quran/quran-api.mapper';
 import { QuranApiService } from '../../../../../shared/services/quran/quran-api.service';
 
-// ── Constants ────────────────────────────────────────────────────────────────
-
 const ARABIC_INDIC = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'] as const;
 const ARABIC_SCRIPT_RE = /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/;
 const ARABIC_DIACRITICS_RE = /[\u064B-\u065F\u0670\u06D6-\u06ED]/g;
@@ -42,8 +40,6 @@ const STUDY_TAB_ORDER: Array<'overview' | TaskType> = [
 ];
 
 const COMPREHENSION_ORDER = ['comprehension', 'reflective', 'analytical', 'morphological', 'grammatical'] as const;
-
-// ── Local types ───────────────────────────────────────────────────────────────
 
 export type StudyActiveTab = 'overview' | TaskType;
 
@@ -128,8 +124,6 @@ export interface PassageSection {
   timeline: PassageTimelineStep[];
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
-
 @Component({
   selector: 'km-lesson-study',
   standalone: true,
@@ -147,7 +141,6 @@ export class LessonStudyComponent implements OnInit, AfterViewInit, OnDestroy {
 
   @ViewChild('panelEl') panelEl!: ElementRef<HTMLElement>;
 
-  // ── State signals ──────────────────────────────────────────────────────────
   lessonId = signal('');
   lesson = signal<LessonFullDetail | null>(null);
   tasks = signal<LessonTask[]>([]);
@@ -156,27 +149,20 @@ export class LessonStudyComponent implements OnInit, AfterViewInit, OnDestroy {
   error = signal<string | null>(null);
   activeTab = signal<StudyActiveTab>('overview');
 
-  // Reading state
   selectedWordLocation = signal<string | null>(null);
 
-  // Morphology dialog
   morphDialogItem = signal<MorphologyItem | null>(null);
 
-  // Sentence expand/collapse
   private expandedSentenceKeys = new Set<string>();
 
-  // Passage collapse
   private collapsedSectionIds = new Set<string>();
 
-  // Caches
   private passageSectionsCache: PassageSection[] = [];
   private passageSectionsCacheKey = '';
   private comprehensionGroupsCache: ComprehensionGroup[] = [];
   private comprehensionGroupsCacheKey = '';
   private expressionCardsCache: ExpressionCard[] = [];
   private expressionCardsCacheKey = '';
-
-  // ── Computed ───────────────────────────────────────────────────────────────
 
   readonly availableTabs = computed(() => {
     const taskTypes = new Set(this.tasks().map((t) => t.task_type));
@@ -192,8 +178,6 @@ export class LessonStudyComponent implements OnInit, AfterViewInit, OnDestroy {
     comprehension: 'Comprehension',
     passage_structure: 'Passage Structure',
   };
-
-  // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('lessonId') ?? '';
@@ -222,8 +206,6 @@ export class LessonStudyComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {}
-
-  // ── Data loading ───────────────────────────────────────────────────────────
 
   private loadAll(id: string): void {
     this.loading.set(true);
@@ -270,8 +252,6 @@ export class LessonStudyComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  // ── Navigation ─────────────────────────────────────────────────────────────
-
   setTab(tab: StudyActiveTab): void {
     if (tab === this.activeTab()) return;
     this.activeTab.set(tab);
@@ -289,8 +269,6 @@ export class LessonStudyComponent implements OnInit, AfterViewInit, OnDestroy {
   back(): void {
     this.router.navigate(['/quran']);
   }
-
-  // ── Lesson overview getters ────────────────────────────────────────────────
 
   get lessonTitle(): string {
     return this.lesson()?.title || `Lesson #${this.lessonId()}`;
@@ -341,8 +319,6 @@ export class LessonStudyComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.pickFirst(this.lessonOverviewPayload, ['scene_aesthetic', 'aesthetic', 'tone']) || '—';
   }
 
-  // ── Reading tab ────────────────────────────────────────────────────────────
-
   get readingAyahGroups(): { ayah: number; words: ReadingWordToken[] }[] {
     return this.ayahs()
       .map((ayah) => {
@@ -366,8 +342,6 @@ export class LessonStudyComponent implements OnInit, AfterViewInit, OnDestroy {
   isWordSelected(location: string): boolean {
     return this.selectedWordLocation() === location;
   }
-
-  // ── Morphology tab ─────────────────────────────────────────────────────────
 
   get morphologyItems(): MorphologyItem[] {
     const payload = this.parseTaskJson('morphology') ?? {};
@@ -407,8 +381,6 @@ export class LessonStudyComponent implements OnInit, AfterViewInit, OnDestroy {
       isFocus: a.ayah === focusAyah,
     }));
   }
-
-  // ── Sentence structure tab ─────────────────────────────────────────────────
 
   get sentenceSentences(): SentenceSentence[] {
     const payload = this.parseTaskJson('sentence_structure');
@@ -477,8 +449,6 @@ export class LessonStudyComponent implements OnInit, AfterViewInit, OnDestroy {
     return ARABIC_SCRIPT_RE.test(this.segmentDescription(seg));
   }
 
-  // ── Comprehension tab ──────────────────────────────────────────────────────
-
   get comprehensionGroups(): ComprehensionGroup[] {
     const raw = this.rawTaskJson('comprehension');
     if (raw === this.comprehensionGroupsCacheKey) return this.comprehensionGroupsCache;
@@ -495,8 +465,6 @@ export class LessonStudyComponent implements OnInit, AfterViewInit, OnDestroy {
       .map((part) => ({ text: part, isArabic: ARABIC_SCRIPT_RE.test(part) }));
   }
 
-  // ── Expressions tab ────────────────────────────────────────────────────────
-
   get expressionCards(): ExpressionCard[] {
     const raw = this.rawTaskJson('expressions');
     if (raw === this.expressionCardsCacheKey) return this.expressionCardsCache;
@@ -505,8 +473,6 @@ export class LessonStudyComponent implements OnInit, AfterViewInit, OnDestroy {
     this.expressionCardsCache = cards;
     return cards;
   }
-
-  // ── Passage structure tab ──────────────────────────────────────────────────
 
   get passageSections(): PassageSection[] {
     const raw = this.rawTaskJson('passage_structure');
@@ -560,15 +526,11 @@ export class LessonStudyComponent implements OnInit, AfterViewInit, OnDestroy {
     document.getElementById(this.sectionDomId(id))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  // ── GSAP ───────────────────────────────────────────────────────────────────
-
   private animatePanel(): void {
     const el = this.panelEl?.nativeElement;
     if (!el) return;
     gsap.fromTo(el, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power2.out', clearProps: 'transform' });
   }
-
-  // ── Utilities ──────────────────────────────────────────────────────────────
 
   toArabicIndic(n: number): string {
     return String(Math.max(0, Math.trunc(n))).split('').map((c) => {
@@ -905,8 +867,6 @@ export class LessonStudyComponent implements OnInit, AfterViewInit, OnDestroy {
       return { id: `${key}_${i + 1}`.toLowerCase().replace(/[^a-z0-9_-]+/g, '_'), title, text };
     }).filter((s) => s.text);
   }
-
-  // ── Generic helpers ────────────────────────────────────────────────────────
 
   private recordFromUnknown(value: unknown): Record<string, unknown> | null {
     if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;

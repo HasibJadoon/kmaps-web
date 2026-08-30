@@ -7,7 +7,6 @@ export class DocExtractService {
   private http     = inject(HttpClient);
   private injector = inject(Injector);
 
-  // Resolved lazily to break the DocEditorService ↔ DocExtractService cycle.
   private get editorSvc(): DocEditorService {
     return this.injector.get(DocEditorService);
   }
@@ -39,9 +38,8 @@ export class DocExtractService {
       });
   }
 
-
   createSrsCard(selectedText: string): void {
-    // POST to SRS endpoint — entity_type='note', entity_id is the doc's row id
+
     this.http.post('/api/quran/srs', {
       entity_type: 'note',
       front: selectedText,

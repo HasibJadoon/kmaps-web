@@ -1,8 +1,3 @@
-// ─── CORS helpers ─────────────────────────────────────────────────────────────
-// The gateway is the only Worker that sets CORS headers visible to browsers.
-// Internal workers use Access-Control-Allow-Origin: * which the gateway strips
-// and replaces with an origin-specific value + credentials support.
-
 function parseOrigins(csv: string): string[] {
   return csv.split(',').map((o) => o.trim()).filter(Boolean);
 }
@@ -32,7 +27,6 @@ export function preflight(request: Request, allowedOriginsCsv: string): Response
   });
 }
 
-/** Clone a response and replace CORS headers with gateway-controlled values. */
 export function withCors(
   response: Response,
   origin: string,

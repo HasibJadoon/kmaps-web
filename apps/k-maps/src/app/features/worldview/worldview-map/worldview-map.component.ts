@@ -3,22 +3,6 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } 
 import { ActivatedRoute, Router } from '@angular/router';
 import { environment } from '../../../../environments/environment';
 
-// Desktop westward-migration map (schematic equirectangular cartography).
-// Directional labels keep the tight Mediterranean cluster readable.
-//
-// The projection, the arcs and the label placement below were always right.
-// The DATA was not: four waypoints were hardcoded in this file and the
-// component made no request at all, while wv_map_features held ten real
-// coordinates — Rome and Jerusalem, al-Andalus, Constantinople, the Americas,
-// the Barbary Coast, Egypt and London, then New York, Guantánamo and Abu
-// Ghraib — every one carrying a `period_label` that matches the era axes of the
-// comparison matrix. So the map and the heatmap are the same argument in two
-// projections, and the map was drawing a sketch of it.
-//
-// It now loads the layer, and steps through the eras cumulatively: choosing
-// "orientalist" shows everything up to and including that band, because the
-// point of a westward imaginaire is the accumulation, not one frame of it.
-
 type LabelDir = 'up' | 'down' | 'right' | 'left';
 
 interface Waypoint {
@@ -32,7 +16,6 @@ interface PlacedPoint extends Waypoint {
 interface Arc { d: string; }
 interface GridLine { x1: number; y1: number; x2: number; y2: number; }
 
-/** One row of wv_map_features. */
 interface MapFeature {
   id: string;
   title: string;
@@ -44,9 +27,6 @@ interface MapFeature {
 
 const LAYER_ID = 'wv-map-arjana-westward';
 
-/** Label direction per point, so the Mediterranean cluster stays legible.
- *  Keyed on the feature title because the table carries no placement hint —
- *  a presentation concern, kept out of the data. */
 const LABEL_DIR: Record<string, LabelDir> = {
   'Christian center': 'up',
   'al-Andalus': 'down',
@@ -57,7 +37,7 @@ const LABEL_DIR: Record<string, LabelDir> = {
   'London': 'up',
   'New York': 'left',
   'Guantanamo': 'down',
-  'Abu Ghraib': 'down',   // right-anchored, its label ran off the frame
+  'Abu Ghraib': 'down',
 };
 const VB_W = 1000, VB_H = 560, LON_MIN = -92, LON_MAX = 52, LAT_MIN = 6, LAT_MAX = 54;
 
@@ -80,12 +60,11 @@ export class WorldviewMapComponent implements OnInit {
 
   readonly features = signal<MapFeature[]>([]);
   readonly periods = signal<string[]>([]);
-  /** The era to show up to. Null means the whole span. */
+
   readonly activePeriod = signal<string | null>(null);
   readonly loading = signal(true);
   readonly failure = signal<string | null>(null);
 
-  /** Features up to and including the chosen era, as waypoints. */
   private readonly waypoints = computed<Waypoint[]>(() => {
     const all = this.features().filter(f => f.latitude != null && f.longitude != null);
     const order = this.periods();
@@ -100,15 +79,12 @@ export class WorldviewMapComponent implements OnInit {
           id: f.id,
           kind: isCentre ? 'center' : 'stop',
           label: f.title,
-          // `label` duplicates `title` on every row, so it printed the place
-          // name twice. The era band is the second line worth having: it is
-          // what the stepper moves through.
+
           sub: f.period_label ?? '',
           lon: Number(f.longitude), lat: Number(f.latitude),
           order: i,
           year: null,
-          // Intensity rises with how late the era is — the imaginaire hardens
-          // as it travels, which is the layer's whole claim.
+
           intensity: order.length > 1 ? (band / (order.length - 1)) * 3 : 0,
           dir: LABEL_DIR[f.title] ?? 'up',
         } as Waypoint;
@@ -126,9 +102,7 @@ export class WorldviewMapComponent implements OnInit {
       };
     }),
   );
-  /** The hub the arcs radiate from. Undefined until the layer loads, and if the
-   *  data ever stops naming a centre the map draws points without arcs rather
-   *  than crashing on a missing one. */
+
   readonly center = computed<PlacedPoint | undefined>(() => this.points().find((p) => p.kind === 'center'));
   readonly arcs = computed<Arc[]>(() => {
     const c = this.center();
@@ -168,9 +142,7 @@ export class WorldviewMapComponent implements OnInit {
         data: { features: MapFeature[]; periods: string[] };
       };
       this.features.set(body.data?.features ?? []);
-      // The era order is derived from the features themselves rather than
-      // declared anywhere — the data carries its own sequence, and a second
-      // list of era names would be a second thing to keep in step.
+
       this.periods.set(body.data?.periods ?? []);
     } catch {
       this.failure.set('The map layer could not be loaded.');

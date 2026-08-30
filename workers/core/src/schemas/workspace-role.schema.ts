@@ -1,13 +1,10 @@
-// ─── Workspace Role schemas & types ───────────────────────────────────────────
-
-// core_workspace_roles
 export interface WorkspaceRole {
-  id: string;                                           // CORE:ULID
-  workspace_id: string;                                 // CORE:ULID → core_workspaces
+  id: string;
+  workspace_id: string;
   role_key: string;
   title: string;
-  permissions_json: string | null;                      // JSON {can_publish, can_invite, can_manage, …}
-  is_system_role: boolean;                              // DB: INTEGER 0|1
+  permissions_json: string | null;
+  is_system_role: boolean;
   created_at: string;
 }
 
@@ -18,12 +15,11 @@ export interface WorkspaceRoleCreate {
   permissions_json?: string;
 }
 
-// core_workspace_member_roles
 export interface WorkspaceMemberRole {
-  id: string;                                           // CORE:ULID
-  member_id: string;                                    // CORE:ULID → core_workspace_members
-  role_id: string;                                      // CORE:ULID → core_workspace_roles
-  granted_by: string | null;                            // CORE:ULID → core_users
+  id: string;
+  member_id: string;
+  role_id: string;
+  granted_by: string | null;
   granted_at: string;
   expires_at: string | null;
 }
@@ -34,8 +30,6 @@ export interface MemberRoleAssign {
   granted_by: string;
   expires_at?: string;
 }
-
-// ─── Validators ────────────────────────────────────────────────────────────────
 
 export function validateWorkspaceRoleCreate(
   body: unknown,

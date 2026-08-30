@@ -1,16 +1,6 @@
-// ─── StudyRepo — Quran study grid and lesson data ──────────────────────────────
-// Ports the previous Quran study implementation into the repository pattern.
-// All SQL targets the deployed qr_* D1 schema.
-//
-// Tables: qr_surah_study_passage, qr_surah_study_step, qr_surah_study_task,
-//         qr_surah_study_task_chunk, qr_word_occurrence, qr_ayah,
-//         qr_surah, qr_translation, qr_translation_source
-
 import { query, queryOne } from '../../../shared/src/db';
 import type { AlClient } from '../clients/al.client';
 import { parseQacMorphology, posGroup as qacPosGroup, QacMorphology } from '../lib/qac-morph';
-
-// ─── types ─────────────────────────────────────────────────────────────────────
 
 export interface TermRef { key: string; label_ar: string | null; color: string | null; }
 
@@ -87,7 +77,7 @@ interface PassageRow {
   title: string | null;
   theme: string | null;
   status: string;
-  name_ar: string | null;   // from qr_surah join
+  name_ar: string | null;
   name_en: string | null;
 }
 
@@ -114,30 +104,26 @@ export interface StudyTask {
   children: StudyTask[];
 }
 
-// One reading token of an ayah, both script forms, sourced from
-// qr_word_occurrence (not from any task_json payload).
 export interface AyahWordToken {
   position: number;
-  text: string;              // diacritic (harakāt)
-  simple?: string;           // non-diacritic (plain)
+  text: string;
+  simple?: string;
   char_type: 'word' | 'end';
   lemma?: string;
   root?: string;
   pos?: string;
 }
 
-// Authored word-level constituency node (reassembled from qr_ss_tree_node).
 export interface SsConstituencyNode {
-  name:      string;                 // the Arabic text span
+  name:      string;
   id:        string;
-  term_id?:  string;                 // GT: id — the registry names and colours it
-  label_ar?: string;                 // grammatical role label, e.g. 'مبتدأ'
+  term_id?:  string;
+  label_ar?: string;
   note?:     string;
-  word_id?:  string;                 // leaf → its word occurrence (lexicon cross-ref)
+  word_id?:  string;
   children?: SsConstituencyNode[];
 }
 
-// Grounded clause node (clause hierarchy + words decorated with iʿrāb).
 export interface SsClauseNode {
   id:        string;
   order:     number;
@@ -159,11 +145,9 @@ export interface SsClauseWord {
   root?:  string;
   lemma?: string;
   pos?:   string;
-  role:   string | null;                                  // reconciled iʿrāb role
+  role:   string | null;
   irab:   { book: string; role: string | null; text: string | null }[];
 }
-
-// ─── micro-helpers ─────────────────────────────────────────────────────────────
 
 function parseJson(v: unknown): unknown {
   if (typeof v !== 'string') return v ?? null;
@@ -182,7 +166,6 @@ function asRec(v: unknown): JsonRecord | null {
   return v && typeof v === 'object' && !Array.isArray(v) ? (v as JsonRecord) : null;
 }
 
-// iʿrāb position / sign Arabic labels (values seen in qr_ss_scope_morph_link)
 const IRAB_POS_AR: Record<string, string> = {
   rafa: 'رفع', raf: 'رفع', nasb: 'نصب', jarr: 'جرّ', jarr_qasam: 'جرّ', jazm: 'جزم',
   mabni: 'مبنيّ', mabni_mahall: 'مبنيّ في محلّ',
@@ -192,7 +175,6 @@ const IRAB_SIGN_AR: Record<string, string> = {
   alif: 'الألف', thubut_nun: 'ثبوت النون', hadhf_nun: 'حذف النون', muqaddara: 'مقدّرة',
 };
 
-/** lx_morph_ref "AL:nahw:naat" / "AL:sarf:x" → term_key "naat". */
 function stripTermPrefix(ref: string | null): string | null {
   if (!ref) return null;
   return ref.replace(/^AL:(nahw|sarf):/i, '');
@@ -203,33 +185,22 @@ function termOf(map: Map<string, TermRef>, key: string | null): TermRef | null {
   return map.get(key) ?? null;
 }
 
-/** parse note_md {"sources":[...]} into a string[] */
 function sourcesFromNote(note: string | null): string[] {
   const rec = asRec(parseJson(note));
   const arr = rec && Array.isArray(rec['sources']) ? rec['sources'] : [];
   return arr.filter((s): s is string => typeof s === 'string');
 }
 
-// Task sort order: explicit display_order wins; fall back to known step type order.
-// The registered study process — cyb_process_step under PRC:quran:surah_passage_study.
-// Six steps in the order the work is done. `morphology` and `expressions` are one
-// step (an idiom cannot be read by parsing it); `comprehension` and `scholarship`
-// are one step. Task rows keep their original task_type, so the distinction
-// survives inside the step — which is why the legacy keys still resolve here.
 const STEP_ORDER: Record<string, number> = {
   reading: 100, vocabulary: 200, sentence_structure: 300,
   passage_structure: 400, tafsir: 500, worldview: 600,
-  // Step 700 of the registered process. It was missing here, so a task of this
-  // type fell to the 99000 default and sorted after everything — and the grid
-  // below never reported it at all. No passage carries one yet, which is the
-  // only reason it has not bitten.
+
   surah_structure: 700,
-  // Legacy task_type values, ordered inside the step that now owns them.
+
   morphology: 200, expressions: 210,
   comprehension: 500, scholarship: 510,
 };
 
-/** The step a legacy key now belongs to. */
 const STEP_ALIAS: Record<string, string> = {
   morphology: 'vocabulary', expressions: 'vocabulary',
   comprehension: 'tafsir', scholarship: 'tafsir',
@@ -243,30 +214,13 @@ function sortTasks(ts: StudyTask[]): StudyTask[] {
   return [...ts].sort((a, b) => taskSortKey(a) - taskSortKey(b) || a.task_id.localeCompare(b.task_id));
 }
 
-// ─── StudyRepo ─────────────────────────────────────────────────────────────────
-
 export class StudyRepo {
   constructor(private db: D1Database) {}
 
-  // ── Public API ──────────────────────────────────────────────────────────────
-
-  /** All study passages for a surah (ordered). */
   passages(surahId: number): Promise<PassageRow[]> {
     return this._passages(surahId);
   }
 
-  /**
-   * Study grid — the lightweight passage LIST: only what the UI needs to pick a
-   * passage (range, label, theme, which study layers exist, vocab counts).
-   *
-   * Lazy by design: it does NOT load the per-passage task trees or parse any
-   * task_json. Step availability comes from one cheap GROUP BY over the tasks
-   * table, and vocab counts from one aggregate over the word table. The full
-   * passage payload is fetched only when a passage (or a step) is opened.
-   */
-  /// The corpus build. Falls back to a stamp derived from the newest authored
-  /// row when the version table has not been seeded, so a client always gets an
-  /// answer it can compare — an absent version would mean "never invalidate".
   async corpusVersion(): Promise<{ version: string; built_at: string | null }> {
     const row = await queryOne<{ version: string; built_at: string | null }>(
       this.db, `SELECT version, built_at FROM qr_corpus_version WHERE id = 1`,
@@ -303,21 +257,11 @@ export class StudyRepo {
         end_ref:     `${p.surah_id}:${p.ayah_to}`,
         label:       p.title ?? `Passage ${p.passage_no}`,
         theme:       p.theme ?? null,
-        // One flag per registered step, all six. This emitted five and omitted
-        // `comprehension` and `scholarship` entirely, so 21 real tasks across 11
-        // passages were invisible in the grid — not because the app dropped them
-        // but because the server never sent them. A legacy task_type counts
-        // towards the step that now owns it.
-        //
-        // `has` used to mean "somebody authored a task row", which is a
-        // different question from the one the pill is asked: is there anything
-        // to open? Surah 40 has iʿrāb for two passages and content words for all
-        // twenty, and reported 0 for every step of every one. It is now task OR
-        // data — the tab opens if either says there is something there.
+
         reading:             { has: has('reading') },
         vocabulary:          {
           nouns: wc.nouns, verbs: wc.verbs, total: wc.total,
-          // The count sitting next to it already proves the case.
+
           has: (wc.total > 0 || has('vocabulary', 'morphology', 'expressions') === 1) ? 1 : 0,
         },
         sentence_structure:  { has: has('sentence_structure') },
@@ -338,10 +282,6 @@ export class StudyRepo {
     };
   }
 
-  /**
-   * Full lesson for a passage: ayahs with translation, task tree,
-   * vocabulary, and expressions extracted from task payloads.
-   */
   async lesson(surahId: number, passageNo: number) {
     const passages = await this._passages(surahId);
     const passage  = passages.find(p => p.passage_no === passageNo);
@@ -373,10 +313,6 @@ export class StudyRepo {
     };
   }
 
-  /**
-   * All tasks for a passage as a tree (does not filter by step type).
-   * Useful for "all tasks" overview.
-   */
   async allTasks(surahId: number, passageNo: number): Promise<StudyTask[] | null> {
     const passages = await this._passages(surahId);
     const passage  = passages.find(p => p.passage_no === passageNo);
@@ -384,10 +320,6 @@ export class StudyRepo {
     return this._tasks(passage.id);
   }
 
-  /**
-   * Root task for a specific step type within a passage.
-   * Returns null if passage not found; undefined if no task of that type.
-   */
   async taskByStepType(
     surahId: number,
     passageNo: number,
@@ -400,17 +332,6 @@ export class StudyRepo {
     return tasks.find(t => t.task_type === stepType) ?? undefined;
   }
 
-  /**
-   * Available step types for a passage, in step order. Cheap — derived from the
-   * task-type flags query (no task_json). Used by the passage-detail endpoint so
-   * picking a passage does not pull the whole task tree.
-   */
-  /**
-   * The UNIQUE roots actually occurring in a passage's āyāt, straight from the
-   * corpus (qr_word_occurrence). One row per root — no duplicates — with how
-   * often it occurs and how many distinct lemmas it takes in this passage.
-   * This is the authoritative vocabulary spine for the passage.
-   */
   async passageRoots(
     surahId: number,
     passageNo: number,
@@ -420,8 +341,7 @@ export class StudyRepo {
     const passages = await this._passages(surahId);
     const passage  = passages.find(p => p.passage_no === passageNo);
     if (!passage) return null;
-    // Ordered by where each root FIRST appears in the passage (āyah, then word),
-    // so the grid reads in the order the verses do.
+
     return query<{ root: string; occurrences: number; lemmas: number; first_ayah: number; first_word: number }>(
       this.db,
       `SELECT root,
@@ -448,11 +368,6 @@ export class StudyRepo {
       .sort((a, b) => (STEP_ORDER[a] ?? 99000) - (STEP_ORDER[b] ?? 99000));
   }
 
-  // ── Lazy per-step loaders ─────────────────────────────────────────────────
-  // Each study step loads ONLY its own data, and from the normalized tables —
-  // not from task_json. The UI calls these when a step is selected.
-
-  /** Reading step — ayahs in both script forms + word tokens + muṣḥaf meta. */
   async readingStep(surahId: number, passageNo: number) {
     const passages = await this._passages(surahId);
     const passage  = passages.find(p => p.passage_no === passageNo);
@@ -470,7 +385,6 @@ export class StudyRepo {
     };
   }
 
-  /** Comprehension step — questions straight from qr_study_question. */
   async comprehensionStep(surahId: number, passageNo: number) {
     const passages = await this._passages(surahId);
     const passage  = passages.find(p => p.passage_no === passageNo);
@@ -495,19 +409,6 @@ export class StudyRepo {
     };
   }
 
-  /**
-   * Morphology step — each word rooted in the source books:
-   *   • ṣarf  : root, lemma, pos and the features parsed from the QAC tag, plus
-   *             the lexicon root key so the per-word Five-Lens lookup resolves.
-   *   • iʿrāb : the parse from every iʿrāb book, attributed per author/book
-   *             (qr_irab_book_entry linked to the word).
-   *   • qirāʾāt / disputed readings : word-scoped qr_ss_scope_reading rows with
-   *             their scholar reference.
-   *   • tafsīr : the mufassir discussion for the verse (qr_tafsir_entry),
-   *             attributed per work, as the deeper discussion layer.
-   * All from the tables — no task_json. Lexicon bodies stay lazy (Five-Lens
-   * lookup per tapped word over the AR_LINGUISTICS binding).
-   */
   async morphologyStep(surahId: number, passageNo: number) {
     const passages = await this._passages(surahId);
     const passage  = passages.find(p => p.passage_no === passageNo);
@@ -531,7 +432,7 @@ export class StudyRepo {
          ORDER BY w.ayah, w.word_index`,
         [surah, from, to],
       ).catch(() => []),
-      // iʿrāb of each word, attributed per book/author.
+
       query<{ wid: string; source_slug: string; source_title: string | null;
               role: string | null; text: string | null }>(
         this.db,
@@ -543,7 +444,7 @@ export class StudyRepo {
            AND (e.grammar_role_ar IS NOT NULL OR e.irab_text_ar IS NOT NULL)`,
         [surah, from, to],
       ).catch(() => []),
-      // word-scoped qirāʾāt / disputed readings, with scholar reference.
+
       query<{ wid: string; reading_type: string | null; scholar_ref: string | null;
               text_ar: string | null; is_contested: number | null; is_minority: number | null }>(
         this.db,
@@ -555,7 +456,7 @@ export class StudyRepo {
            AND w.surah = ? AND w.ayah BETWEEN ? AND ?`,
         [surah, from, to],
       ).catch(() => []),
-      // tafsīr discussion for the verse range, attributed per mufassir/work.
+
       query<{ ayah_from: number; ayah_to: number; scholar_id: string | null;
               work: string | null; text: string | null }>(
         this.db,
@@ -568,7 +469,7 @@ export class StudyRepo {
          ORDER BY t.ayah_from`,
         [surah, to, from],
       ).catch(() => []),
-      // The synthesized per-word reading (ingested sources woven into one analysis).
+
       query<{ wid: string; text: string | null; text_ar: string | null; contested: number | null }>(
         this.db,
         `SELECT r.scope_id AS wid, r.reading_text AS text, r.reading_text_ar AS text_ar, r.is_contested AS contested
@@ -578,7 +479,7 @@ export class StudyRepo {
            AND w.surah = ? AND w.ayah BETWEEN ? AND ?`,
         [surah, from, to],
       ).catch(() => []),
-      // Evidence ingested into each synthesis (ontology + provenance + dispute).
+
       query<{ wid: string; etype: string | null; provenance: string | null;
               locator: string | null; text_ar: string | null; disputed: number | null }>(
         this.db,
@@ -606,14 +507,14 @@ export class StudyRepo {
       list.push({ type: r.reading_type, scholar: r.scholar_ref, text_ar: r.text_ar, contested: !!r.is_contested, minority: !!r.is_minority });
       readingsByWord.set(r.wid, list);
     }
-    // Ingested evidence per synthesized word, with provenance + dispute status.
+
     const synthEvByWord = new Map<string, { type: string | null; provenance: string | null; locator: string | null; text_ar: string | null; disputed: boolean }[]>();
     for (const e of synthEvRows) {
       const list = synthEvByWord.get(e.wid) ?? [];
       list.push({ type: e.etype, provenance: e.provenance, locator: e.locator, text_ar: e.text_ar, disputed: !!e.disputed });
       synthEvByWord.set(e.wid, list);
     }
-    // The woven per-word synthesis (the headline analysis), with its evidence.
+
     const synthByWord = new Map<string, { text: string | null; text_ar: string | null; contested: boolean; evidence: { type: string | null; provenance: string | null; locator: string | null; text_ar: string | null; disputed: boolean }[] }>();
     for (const s of synthRows) {
       synthByWord.set(s.wid, { text: s.text, text_ar: s.text_ar, contested: !!s.contested, evidence: synthEvByWord.get(s.wid) ?? [] });
@@ -636,17 +537,15 @@ export class StudyRepo {
         pattern:   feat.verb_form ? `Form ${feat.verb_form}` : undefined,
         morph_features: feat,
         syntactic_function: r.syntactic_function ?? undefined,
-        // Headline: the woven synthesis (ingested lexicon + iʿrāb + tafsīr),
-        // with its evidence (provenance + dispute). Null until a word is synthesized.
+
         synthesis: synthByWord.get(r.id) ?? null,
-        // Supporting source-rooted detail, attributed:
-        irab:      irabByWord.get(r.id) ?? [],      // per iʿrāb book / author
-        readings:  readingsByWord.get(r.id) ?? [],  // qirāʾāt / disputes per scholar
-        lexicon_root: r.root ?? null,               // Five-Lens lookup key (lazy)
+
+        irab:      irabByWord.get(r.id) ?? [],
+        readings:  readingsByWord.get(r.id) ?? [],
+        lexicon_root: r.root ?? null,
       };
     });
 
-    // Tafsīr discussion grouped per ayah, attributed per mufassir/work.
     const tafsirByAyah = new Map<number, { work: string | null; scholar: string | null; text: string | null }[]>();
     for (const t of tafsirRows) {
       const lo = Math.max(t.ayah_from, from);
@@ -672,15 +571,10 @@ export class StudyRepo {
       verbs:      items.filter(i => i.group === 'verb'),
       particles:  items.filter(i => i.group === 'particle'),
       words:      items,
-      tafsir,     // per-ayah mufassir discussion (deeper layer)
+      tafsir,
     };
   }
 
-  /**
-   * Expressions step — table-sourced (no task_json). Reads ar_ling_root_lemma_tabir
-   * for the passage's surah:ayah range over the AR_LINGUISTICS service binding.
-   * Lean payload: { step, surah, passage, ayahFrom, ayahTo, items[] }.
-   */
   async expressionsStep(surahId: number, passageNo: number, al: AlClient | null) {
     const passages = await this._passages(surahId);
     const p = passages.find((x) => x.passage_no === passageNo);
@@ -705,36 +599,12 @@ export class StudyRepo {
     };
   }
 
-  /**
-   * Sentence-structure step — fully grounded, table-sourced (no task_json).
-   *
-   * Fuses every available analytical layer for the passage, per sentence:
-   *   • the clause hierarchy (qr_ss_occ_clause, nested via parent_clause_id)
-   *     with each clause's words attached by word-index span;
-   *   • per-word iʿrāb grounding (qr_irab_book_entry) — the grammatical role
-   *     reconciled across the classical books by majority vote, with EVERY book's
-   *     role + full iʿrāb text kept and attributed (the grammarian detail);
-   *   • the authored word-level constituency tree (qr_ss_tree / qr_ss_tree_node)
-   *     when one has been curated for the sentence;
-   *   • balāgha annotations (qr_ss_scope_balagha_link) and ellipsis events
-   *     (qr_ss_ellipsis_event) scoped to the sentence/clause;
-   *   • the mufassir discussion for the ayah (qr_tafsir_entry), attributed.
-   * Colours + Arabic/English labels come from the global term dictionary
-   * (ar_ling_gram_term). The per-word `root` lets the UI cross-reference the Five-Lens
-   * lexicon lazily on tap.
-   */
   async sentenceStructureStep(surahId: number, passageNo: number) {
     const passages = await this._passages(surahId);
     const passage  = passages.find((x) => x.passage_no === passageNo);
     if (!passage) return null;
     const { surah_id: surah, ayah_from: from, ayah_to: to } = passage;
 
-    // Probe for sentences first. Everything below is keyed to them, so with
-    // none there is nothing any of the other ten queries could return — and
-    // most passages are in that state while the corpus is still being built
-    // (surah 40 has iʿrāb for two of its twenty). Answering "not built yet"
-    // used to cost eleven unlimited queries including two full scans of
-    // qr_irab_book_entry; it now costs this one indexed lookup.
     const sentProbe = await query<{ id: string }>(
       this.db,
       `SELECT id FROM qr_ss_occ_sentence
@@ -814,10 +684,7 @@ export class StudyRepo {
                   balagha_category AS category, rhetorical_effect AS effect, note_md AS note
            FROM qr_ss_scope_balagha_link
            WHERE scope_id IN (SELECT id FROM qr_ss_occ_sentence WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?)`,
-          // Two indexed arms, not one OR. SQLite will not use idx_qrsbl_scope
-          // for an OR across two IN-subqueries and scans the whole link table;
-          // as a UNION ALL each branch takes the index. The arms are disjoint —
-          // a scope_id is a clause id or a sentence id, never both.
+
           [surah, from, to, surah, from, to],
         ).catch(() => []),
         query<{ sentence_id: string; scope_type: string | null; scope_id: string | null;
@@ -841,7 +708,7 @@ export class StudyRepo {
            ORDER BY t.ayah_from`,
           [surah, to, from],
         ).catch(() => []),
-        // Authored constituency trees curated for these sentences (post-ETL).
+
         query<{ id: string; sentence_id: string; grounding: string | null; note_md: string | null }>(
           this.db,
           `SELECT t.id, t.sentence_id, t.grounding, t.note_md
@@ -868,22 +735,12 @@ export class StudyRepo {
            ORDER BY n.depth, n.node_order`,
           [surah, from, to],
         ).catch(() => []),
-        // The grammar registry, which is where every term in the system lives.
-        // This used to read qr_ss_term — a table that does not exist in the
-        // deployed database, so the query threw, the .catch() swallowed it, and
-        // the tab has been shipping `terms: []` and `termColors: {}` for its
-        // whole life. Nothing on the board could be named or coloured.
-        //
-        // Keyed by `id` (the GT: global id) as well as `term_key`, so a node
-        // referring to a term either way resolves.
+
         query<{ id: string; term_key: string; category_key: string;
                 name_ar: string | null; name_en: string | null; name_ur: string | null;
                 badge_color: string | null; sources: string | null }>(
           this.db,
-          // …and where the classical books define it. A figure the board names
-          // should be able to say where it is defined — al-Qazwini's Talkhis,
-          // Ibn Hisham's Shudhur, Ibn Ashur — which is what turns a chip from a
-          // label into a reference. 144 of the balagha terms are attested.
+
           `SELECT g.id, g.term_key, g.category_key, g.name_ar, g.name_en, g.name_ur,
                   g.badge_color,
                   (SELECT group_concat(s.source_slug, '|')
@@ -891,10 +748,7 @@ export class StudyRepo {
              FROM ar_ling_gram_term g WHERE g.status = 'live'`,
           [],
         ).catch(() => []),
-        // Ayah-level iʿrāb from EVERY classical book, even where the entries are
-        // not word-linked (e.g. S12). This is the grammarian-detail grounding:
-        // each parsed phrase with its role / case / maḥall and full analysis,
-        // attributed per book. Multiple books → multiple granularities kept.
+
         query<{ ayah: number; source_slug: string; source_title: string | null;
                 entry_order: number | null; phrase: string | null; role: string | null;
                 gcase: string | null; mahal: string | null; text: string | null }>(
@@ -908,15 +762,7 @@ export class StudyRepo {
            ORDER BY ayah_from, source_slug, entry_order`,
           [surah, from, to],
         ).catch(() => []),
-        // ── the two layers that were never sent ──────────────────────────────
-        // Grammar (naḥw) and ṣarf, scope by scope. Balāgha was already read
-        // above but flattened onto the sentence; these three together are what
-        // the board hangs under each node.
-        //
-        // Both are keyed by scope_id, which is a sentence, clause, phrase or
-        // word id depending on what the claim is about — so a node can ask for
-        // its own and get exactly what was said about it, rather than about the
-        // sentence it happens to sit in.
+
         query<{ scope_type: string; scope_id: string; ref: string;
                 note: string | null; gloss: string | null }>(
           this.db,
@@ -936,15 +782,7 @@ export class StudyRepo {
             WHERE scope_id IN (SELECT id FROM qr_word_occurrence WHERE surah = ? AND ayah BETWEEN ? AND ?)`,
           [surah, from, to, surah, from, to, surah, from, to],
         ).catch(() => []),
-        // The word layer: 620 rows where the whole grammar layer is 115. This
-        // is the per-word iʿrāb the board puts under a leaf node — its
-        // syntactic function, where the case sits and what marks it, and
-        // whether the grammarians disagree about it at all.
-        // ── the readings ledger ──────────────────────────────────────────
-        // Every position a source takes, with who takes it and how many. This
-        // is the band that answers "why do they disagree" — is_contested marks
-        // the ones where they do, is_minority the lone voice, is_selected the
-        // one the translation was folded from.
+
         query<{ id: string; scope_type: string; scope_id: string; type: string | null;
                 ref: string | null; paradigm: string | null; en: string | null;
                 ar: string | null; scholars: string | null; minority: number;
@@ -963,11 +801,7 @@ export class StudyRepo {
                OR r.scope_id IN (SELECT id FROM qr_word_occurrence   WHERE surah = ? AND ayah BETWEEN ? AND ?)`,
           [surah, from, to, surah, from, to],
         ).catch(() => []),
-        // ── the fold ─────────────────────────────────────────────────────
-        // The derived translation, step by step: the structural track is the
-        // grammar-only reading, the fluent one is grammar folded with balagha.
-        // Where the two part is where a rendering decision was made, and
-        // reading_ref names the reading it was made on.
+
         query<{ id: string; scope_id: string; seq: number; ayah_from: number; ayah_to: number;
                 structural: string | null; fluent_en: string | null; fluent_ar: string | null;
                 gloss: string | null; note_ar: string | null; synthesis: string | null;
@@ -996,7 +830,6 @@ export class StudyRepo {
         ).catch(() => []),
       ]);
 
-    // ── iʿrāb per word: reconcile a primary role by majority, keep all sources ──
     const irabByWord = new Map<string, { book: string; role: string | null; text: string | null }[]>();
     for (const e of irabRows) {
       const list = irabByWord.get(e.wid) ?? [];
@@ -1013,7 +846,6 @@ export class StudyRepo {
       return best;
     };
 
-    // Word lookup by (ayah, index) for clause word-span attachment.
     const wordByPos = new Map<string, typeof wordRows[number]>();
     for (const w of wordRows) wordByPos.set(`${w.ayah}:${w.word_index}`, w);
 
@@ -1023,14 +855,13 @@ export class StudyRepo {
       index:  w.word_index,
       text:   w.word_text,
       simple: w.word_text_bare ?? undefined,
-      root:   w.root ?? undefined,        // Five-Lens lexicon cross-ref key (lazy)
+      root:   w.root ?? undefined,
       lemma:  w.lemma ?? undefined,
       pos:    w.pos ?? undefined,
-      role:   primaryRole(w.id),          // reconciled grammatical role
-      irab:   irabByWord.get(w.id) ?? [], // every book's role + full text, attributed
+      role:   primaryRole(w.id),
+      irab:   irabByWord.get(w.id) ?? [],
     });
 
-    // ── Authored constituency trees, reassembled into SsTreeNode form ──────────
     const nodesByTree = new Map<string, typeof nodeRows>();
     for (const n of nodeRows) {
       const list = nodesByTree.get(n.tree_id) ?? [];
@@ -1056,9 +887,7 @@ export class StudyRepo {
       }
       return root;
     };
-    // Multiple authored trees can hang off one ayah's sentence row (e.g. ayahs
-    // 5–6, which contain several sentences). Keep them all, ordered by tree id
-    // (which carries the authoring step number), and emit one board per tree.
+
     const treesBySentence = new Map<string, { id: string; node: SsConstituencyNode | null; grounding: string | null }[]>();
     for (const t of [...treeRows].sort((a, b) => a.id.localeCompare(b.id))) {
       const list = treesBySentence.get(t.sentence_id) ?? [];
@@ -1066,7 +895,6 @@ export class StudyRepo {
       treesBySentence.set(t.sentence_id, list);
     }
 
-    // ── Clause hierarchy per sentence, words attached by index span ────────────
     const clausesBySentence = new Map<string, typeof clauseRows>();
     for (const c of clauseRows) {
       const list = clausesBySentence.get(c.sentence_id) ?? [];
@@ -1102,7 +930,6 @@ export class StudyRepo {
       return roots;
     };
 
-    // ── balāgha / ellipsis grouped by scope ────────────────────────────────────
     const balaghaByScope = new Map<string, { category: string | null; effect: string | null; note: string | null; ref: string | null }[]>();
     for (const b of balaghaRows) {
       const list = balaghaByScope.get(b.scope_id) ?? [];
@@ -1116,7 +943,6 @@ export class StudyRepo {
       ellipsisBySentence.set(e.sentence_id, list);
     }
 
-    // ── ayah-level iʿrāb (grammarian details), grouped per ayah, per book ──────
     const irabAyahByAyah = new Map<number, { book: string; phrase: string | null; role: string | null;
                                              case: string | null; mahal: string | null; text: string | null }[]>();
     for (const e of irabAyahRows) {
@@ -1128,7 +954,6 @@ export class StudyRepo {
       irabAyahByAyah.set(e.ayah, list);
     }
 
-    // ── tafsīr per ayah, attributed per work/mufassir ──────────────────────────
     const tafsirByAyah = new Map<number, { work: string | null; scholar: string | null; text: string | null }[]>();
     for (const t of tafsirRows) {
       const lo = Math.max(t.ayah_from, from), hi = Math.min(t.ayah_to, to);
@@ -1139,9 +964,6 @@ export class StudyRepo {
       }
     }
 
-    // ── Compose sentences ──────────────────────────────────────────────────────
-    // One board per authored constituency tree where curated; otherwise a single
-    // board built from the grounded clause hierarchy.
     const sentences: unknown[] = [];
     for (const s of sentRows) {
       const clauseIds = (clausesBySentence.get(s.id) ?? []).map((c) => c.id);
@@ -1154,15 +976,12 @@ export class StudyRepo {
         ayahTo:    s.ayah_to,
         kind:      s.sentence_kind ?? null,
         mode:      parseDiscourseMode(s.note_md),
-        // The two classifications as registry references. `kind` and `mode`
-        // stay for the release that has not moved yet, and the note keeps the
-        // nuance a column cannot hold — 'khabariyya + shart' is a real remark
-        // about a sentence declarative in form and conditional in structure.
+
         sentenceClassRef: s.gt_sentence_class ?? null,
         kalamKindRef:     s.gt_kalam_kind ?? null,
         note:      stripModePrefix(s.note_md),
-        clauseTree: buildClauseTree(s.id, s.ayah_from),     // grounded clause hierarchy + iʿrāb
-        irabAnalysis: irabAyahByAyah.get(s.ayah_from) ?? [], // grammarian detail, per book
+        clauseTree: buildClauseTree(s.id, s.ayah_from),
+        irabAnalysis: irabAyahByAyah.get(s.ayah_from) ?? [],
         balagha,
         ellipsis:  ellipsisBySentence.get(s.id) ?? [],
         tafsir:    tafsirByAyah.get(s.ayah_from) ?? [],
@@ -1173,7 +992,7 @@ export class StudyRepo {
           ...base,
           id: trees.length > 1 ? `${s.id}#${i + 1}` : s.id,
           grounding: t.grounding ?? 'authored',
-          tree: t.node,                                      // authored word-level constituency
+          tree: t.node,
         }));
       } else {
         sentences.push({
@@ -1185,18 +1004,6 @@ export class StudyRepo {
       }
     }
 
-    // ── the layers, keyed by what they are about ──────────────────────────────
-    //
-    // Until now these arrived flattened onto the sentence: every iʿrāb reading,
-    // every balāgha figure and every tafsīr note for the whole sentence in four
-    // long lists, which the reader then had to match back to words by eye. The
-    // claims were never sentence-wide — the tables have carried
-    // (scope_type, scope_id) all along, pointing at the sentence, the clause,
-    // the phrase or the single word each one is actually about.
-    //
-    // Sending them keyed by scope is what lets a tree node ask "what was said
-    // about *me*" and get an answer. The flat arrays stay on the sentence for
-    // the release that has not moved yet.
     interface ScopeLayers {
       nahw:    { ref: string; note: string | null; gloss: unknown }[];
       balagha: { ref: string | null; category: string | null; effect: string | null; note: string | null }[];
@@ -1224,13 +1031,6 @@ export class StudyRepo {
       });
     }
 
-    // ── the readings, keyed by scope, and the questions they answer ──────────
-    //
-    // The artifact groups these by the QUESTION each answers rather than by
-    // source, because that is how a reader uses them: not "what does al-Razi
-    // say" but "where does the sentence sit, and who disagrees". reading_type
-    // is that grouping, and the weight is the witness count — 9 · all, or
-    // 1 · minority.
     const readings = readingRows.map((r) => ({
       id: r.id,
       scopeType: r.scope_type,
@@ -1240,7 +1040,7 @@ export class StudyRepo {
       paradigm: r.paradigm,
       en: r.en,
       ar: r.ar,
-      // scholar_ref is a semicolon-joined list; the board renders one chip each.
+
       sources: (r.scholars ?? '').split(';').map((x) => x.trim()).filter(Boolean),
       isMinority: !!r.minority,
       isContested: !!r.contested,
@@ -1249,7 +1049,6 @@ export class StudyRepo {
       why: parseJson(r.why),
     }));
 
-    // ── the fold ─────────────────────────────────────────────────────────────
     const fold = foldRows.map((f) => ({
       id: f.id,
       scopeId: f.scope_id,
@@ -1261,16 +1060,12 @@ export class StudyRepo {
       fluentAr: f.fluent_ar,
       gloss: parseJson(f.gloss),
       noteAr: f.note_ar,
-      // The 'finding' band: why the English says what it says.
+
       synthesis: f.synthesis,
       readingRef: f.reading_ref,
       rejected: parseJson(f.rejected),
     }));
 
-    // A term is addressable by its global id and by its bare key, because the
-    // tree nodes still carry bare keys (`muqattaat`) while the scope links
-    // already carry global ones (`GT:irab_role:mubtada`). Both resolve to the
-    // same row until 013 finishes retiring the bare form.
     const termColors: Record<string, string> = {};
     const terms = termRows.map((t) => {
       if (t.badge_color) {
@@ -1281,8 +1076,7 @@ export class StudyRepo {
         key: t.term_key, ref: t.id, category: t.category_key,
         labelAr: t.name_ar, labelEn: t.name_en, labelUr: t.name_ur,
         color: t.badge_color,
-        // The books that define this term, so a chip can be followed back to
-        // where the definition lives.
+
         sources: (t.sources ?? '').split('|').filter(Boolean),
       };
     });
@@ -1302,13 +1096,6 @@ export class StudyRepo {
     };
   }
 
-  /**
-   * Lazy step dispatcher. Returns the step's data sourced from tables when the
-   * step has been migrated off task_json (reading, morphology, comprehension,
-   * expressions, sentence_structure); otherwise falls back to the task tree.
-   *   null      → passage not found
-   *   undefined → no such step in this passage
-   */
   async stepData(
     surahId: number,
     passageNo: number,
@@ -1317,8 +1104,7 @@ export class StudyRepo {
   ): Promise<unknown> {
     switch (stepType) {
       case 'reading':       return this.readingStep(surahId, passageNo);
-      // `vocabulary` is the registered step; `morphology` is the legacy key for
-      // the same work and still resolves.
+
       case 'vocabulary':
       case 'morphology':    return this.morphologyStep(surahId, passageNo);
       case 'tafsir':
@@ -1334,14 +1120,6 @@ export class StudyRepo {
     }
   }
 
-  // ── Morphology / vocabulary (from the relational tables) ────────────────────
-
-  /**
-   * Full per-word morphology for a passage, built from qr_word_occurrence (QAC)
-   * + qr_ss_scope_morph_link (iʿrāb) × ar_ling_gram_term (labels) + qr_ss_occ_segment.
-   * Every word emits a card, so this works for any surah (SML/segments fill in
-   * where present). Returns the distinct root list for AL enrichment.
-   */
   async passageMorphology(surahId: number, passageNo: number): Promise<PassageMorphology | null> {
     const passages = await this._passages(surahId);
     const passage = passages.find(p => p.passage_no === passageNo);
@@ -1361,7 +1139,6 @@ export class StudyRepo {
     };
   }
 
-  /** Single word card by word-occurrence id (word-hash) — for the detail modal. */
   async wordById(wordId: string): Promise<WordCard | null> {
     const rows = await query<WordOccRow>(
       this.db,
@@ -1374,7 +1151,6 @@ export class StudyRepo {
     return cards.find(c => c.word_id === wordId) ?? cards[0] ?? null;
   }
 
-  /** Ayah text + default translation for the modal's context line. */
   async ayahContext(surah: number, ayah: number): Promise<{ ayah: number; text: string | null; translation: string | null }> {
     const [a] = await query<{ text: string | null }>(
       this.db,
@@ -1392,7 +1168,6 @@ export class StudyRepo {
     return { ayah, text: a?.text ?? null, translation: t?.text ?? null };
   }
 
-  /** Tafsīr snippets covering a single ayah (for the word modal). */
   async tafsirForAyah(surah: number, ayah: number): Promise<{ scholar_id: string; snippet: string }[]> {
     const rows = await query<{ scholar_id: string; content_ar: string | null }>(
       this.db,
@@ -1422,10 +1197,7 @@ export class StudyRepo {
          ORDER BY ayah, word_index`,
         [surahId, ayahFrom, ayahTo],
       ).catch(() => [] as WordOccRow[]),
-      // The grammar registry. This read qr_ss_term, which does not exist in the
-      // deployed database — the query threw, the .catch swallowed it, and every
-      // word card has been built with an empty label map. Same bug as the
-      // sentence-structure step had, in a second place.
+
       query<{ term_key: string; label_ar: string | null; color: string | null }>(
         this.db,
         `SELECT id AS term_key, name_ar AS label_ar, badge_color AS color
@@ -1514,8 +1286,6 @@ export class StudyRepo {
     });
   }
 
-  // ── Private SQL methods ─────────────────────────────────────────────────────
-
   private async _passages(surahId: number): Promise<PassageRow[]> {
     const rows = await query<PassageRow>(
       this.db,
@@ -1555,7 +1325,6 @@ export class StudyRepo {
       [passageId],
     ).catch(() => []);
 
-    // Merge chunked JSON payloads (large task_json split across rows)
     const chunks = await query<{ task_id: string; chunk_index: number; chunk_text: string }>(
       this.db,
       `SELECT task_id, chunk_index, chunk_text
@@ -1589,10 +1358,7 @@ export class StudyRepo {
         text_uthmani: string | null; text_clean: string | null; text_bare: string | null;
       }>(
         this.db,
-        // Reading text is served from the tables in BOTH forms:
-        //   diacritic     → text_uthmani_clean / text_uthmani
-        //   non-diacritic → text_bare
-        // plus the muṣḥaf metadata (page / juz / hizb / ruku / verse mark).
+
         `SELECT surah, ayah, page_number AS page, juz, hizb, ruku, verse_mark,
                 text_uthmani, text_uthmani_clean AS text_clean, text_bare
          FROM qr_ayah
@@ -1610,7 +1376,7 @@ export class StudyRepo {
          ORDER BY t.ayah`,
         [passage.surah_id, passage.ayah_from, passage.ayah_to],
       ),
-      // Per-word tokens, both forms, from the word table (no JSON).
+
       query<{
         ayah: number; position: number;
         text: string; simple: string | null;
@@ -1634,8 +1400,8 @@ export class StudyRepo {
       const list = wordsByAyah.get(w.ayah) ?? [];
       list.push({
         position:  w.position,
-        text:      w.text,                 // diacritic
-        simple:    w.simple ?? undefined,  // non-diacritic
+        text:      w.text,
+        simple:    w.simple ?? undefined,
         char_type: 'word',
         lemma:     w.lemma ?? undefined,
         root:      w.root ?? undefined,
@@ -1655,16 +1421,15 @@ export class StudyRepo {
         hizb:        a.hizb,
         ruku:        a.ruku,
         verse_mark:  a.verse_mark,
-        text:        diacritic,                  // diacritic (mushaf) option
-        text_simple: a.text_bare ?? undefined,   // non-diacritic option
-        text_arabic: diacritic,                  // back-compat alias
+        text:        diacritic,
+        text_simple: a.text_bare ?? undefined,
+        text_arabic: diacritic,
         words:       wordsByAyah.get(a.ayah) ?? [],
         translation: transByAyah.get(a.ayah) ?? null,
       };
     });
   }
 
-  /** Vocabulary from qr_word_occurrence — fallback when morphology tasks lack payloads. */
   private async _wordsAsVocabulary(passage: PassageRow) {
     const rows = await query<{
       word_id: string; ayah: number; position: number;
@@ -1685,18 +1450,13 @@ export class StudyRepo {
        ORDER BY ayah, word_index`,
       [passage.surah_id, passage.ayah_from, passage.ayah_to],
     );
-    // pos is QAC (N/V/PN/ADJ) or lowercase (noun/verb) in curated rows — map both.
+
     return {
       nouns: rows.filter(w => posGroup(w.pos) === 'noun'),
       verbs: rows.filter(w => posGroup(w.pos) === 'verb'),
     };
   }
 
-  /**
-   * Which task types exist per passage, for the whole surah, in one cheap
-   * GROUP BY (no task_json, no per-passage round trips). Used for the grid's
-   * "which layers are available" flags.
-   */
   private async _taskTypeFlags(surahId: number): Promise<Map<string, Set<string>>> {
     const rows = await query<{ passage_id: string; task_type: string }>(
       this.db,
@@ -1717,20 +1477,6 @@ export class StudyRepo {
     return out;
   }
 
-  /**
-   * Word counts per passage — vocabulary stats for the grid. Aggregated by ayah
-   * in SQL (one row per ayah, not per word), then bucketed into passage ranges.
-   */
-  /**
-   * Step availability derived from the *content*, not from the task tree —
-   * the other half of `has`. One āyah-range query per content-bearing step,
-   * folded onto the passage ranges in memory the way `_wordCounts` does, so
-   * this costs three indexed scans and no per-passage round trip.
-   *
-   * A step missing from this map simply has no content table to ask (the task
-   * tree is still authoritative for those); a step present here is one the
-   * reader can open regardless of whether anyone wrote a task for it.
-   */
   private async _dataFlags(
     surahId: number,
     passages: PassageRow[],
@@ -1749,8 +1495,7 @@ export class StudyRepo {
         `SELECT DISTINCT ayah_from, ayah_to FROM qr_tafsir_entry WHERE surah = ?`,
         [surahId],
       ).catch(() => []).then(rows => ['tafsir', rows] as const),
-      // Every passage has āyāt, so reading is available wherever the surah has
-      // word rows at all — one query answers it for the whole surah.
+
       query<{ ayah_from: number; ayah_to: number }>(
         this.db,
         `SELECT DISTINCT ayah AS ayah_from, ayah AS ayah_to
@@ -1762,7 +1507,7 @@ export class StudyRepo {
     for (const p of passages) {
       const steps = new Set<string>();
       for (const [step, rows] of spans) {
-        // Any overlap between the content's range and the passage's counts.
+
         if (rows.some(r => r.ayah_from <= p.ayah_to && r.ayah_to >= p.ayah_from)) {
           steps.add(step);
         }
@@ -1805,10 +1550,6 @@ export class StudyRepo {
   }
 }
 
-// ─── Morphology helpers ─────────────────────────────────────────────────────────
-// Parse the QAC morphology tag and classify part-of-speech into study groups.
-
-// iʿrāb book slugs → readable book / author labels (for source attribution).
 const IRAB_BOOKS: Record<string, string> = {
   qul_irab_muyassar:    'الإعراب الميسر',
   qul_jadwal_irab_quran:'الجدول في إعراب القرآن (صافي)',
@@ -1825,7 +1566,7 @@ const NUMBER: Record<string, string> = { S: 'singular', D: 'dual', P: 'plural' }
 
 export interface MorphFeatures {
   aspect?: string;
-  verb_form?: string;          // roman numeral, e.g. "VIII"
+  verb_form?: string;
   grammatical_case?: string;
   gender?: string;
   number_base?: string;
@@ -1833,7 +1574,6 @@ export interface MorphFeatures {
   raw?: string;
 }
 
-/** Parse a QAC pipe tag, e.g. "STEM|POS:V|PERF|(VIII)|LEM:..|ROOT:Ax*|3MP". */
 export function parseQacTag(raw: string | null | undefined): MorphFeatures {
   if (!raw) return {};
   const out: MorphFeatures = { raw };
@@ -1845,7 +1585,7 @@ export function parseQacTag(raw: string | null | undefined): MorphFeatures {
     else if (tok.startsWith('(') && tok.endsWith(')') && ROMAN.has(tok.slice(1, -1))) {
       out.verb_form = tok.slice(1, -1);
     } else {
-      // person/gender/number token, e.g. 3MP, MS, MP, F
+
       const m = /^([123])?([MF])([SDP])?$/.exec(tok);
       if (m) {
         if (m[1]) out.person = m[1];
@@ -1857,7 +1597,6 @@ export function parseQacTag(raw: string | null | undefined): MorphFeatures {
   return out;
 }
 
-/** Group a QAC part-of-speech code into a study bucket. */
 export function posGroup(pos: string | null | undefined): 'noun' | 'verb' | 'particle' {
   const p = (pos ?? '').toUpperCase();
   if (p === 'V') return 'verb';
@@ -1865,8 +1604,6 @@ export function posGroup(pos: string | null | undefined): 'noun' | 'verb' | 'par
   return 'particle';
 }
 
-// Sentence note_md is authored as "Mode: <discourse-mode>. <Arabic analysis>".
-// Split the machine-readable mode from the human prose.
 export function parseDiscourseMode(note: string | null | undefined): string | null {
   if (!note) return null;
   const m = /^\s*Mode:\s*([^.\n]+)\.?/i.exec(note);
@@ -1877,9 +1614,6 @@ export function stripModePrefix(note: string | null | undefined): string | null 
   if (!note) return null;
   return note.replace(/^\s*Mode:\s*[^.\n]+\.?\s*/i, '').trim() || null;
 }
-
-// ─── Exported task-tree helpers ─────────────────────────────────────────────────
-// These are exported so routes can call them directly if needed.
 
 export function buildTaskTree(rows: RawTaskRow[]): StudyTask[] {
   const byId  = new Map<string, StudyTask>();
@@ -1915,11 +1649,6 @@ export function buildTaskTree(rows: RawTaskRow[]): StudyTask[] {
   return sortTasks(roots);
 }
 
-/**
- * Extract vocabulary (nouns + verbs) from morphology task payloads.
- * Preferred over raw qr_word_occurrence when morphology tasks have payloads
- * (richer data: glosses, verb forms, patterns).
- */
 export function vocabularyFromMorphology(
   tasks: StudyTask[],
 ): { nouns: JsonRecord[]; verbs: JsonRecord[] } {
@@ -1942,9 +1671,6 @@ export function vocabularyFromMorphology(
   };
 }
 
-/**
- * Extract expressions list from expression task payloads.
- */
 export function expressionsFromTasks(tasks: StudyTask[]): JsonRecord[] {
   const expTask = tasks.find(t => t.task_type === 'expressions');
   if (!expTask) return [];

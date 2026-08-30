@@ -20,7 +20,6 @@ export interface LaneDisplayEntry {
   blockCount: number;
   rawLabel: string | null;
 
-  // raw JSON for the debug drawer
   cleanerJson: string | null;
   uiJson: string | null;
 }

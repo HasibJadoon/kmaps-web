@@ -1,18 +1,3 @@
--- The uid check was wrong, not 103 primary keys.
---
--- `BIND:passage:320-00-HUDUD:qr_surah_structure_unit` sits beside
--- `scope_kind = 'surah'`, and the obvious reading — that one of them is stale —
--- is not what the data says. The uid's second segment is the BAND FAMILY: which
--- of the six band tables holds the code. 320-00-HUDUD is in cyb_ps_band (family
--- `passage`); 00-CORE is in cyb_root_band (`root`); 400-20-RIJAL in cyb_wv_band
--- (`wv`); 500-10-QAYD in cyb_doc_band (`doc`). `scope_kind` is a different
--- fact: the scope of the rows themselves, which for a surah-structure table is
--- surah even though its band lives in the passage family.
---
--- Both were right. The check asserted a form the convention never had, and
--- would have had us rewrite 103 keys to satisfy it. It now derives the family
--- the same way the ids were minted, and applies only to carriers — a registry
--- entry is not a scope binding and need not carry the BIND: form.
 DROP VIEW IF EXISTS v_cyb_binding_broken;
 CREATE VIEW v_cyb_binding_broken AS
 SELECT b.uid, b.domain, b.db_name, b.table_name, b.layer_uid, b.band_code, b.role,

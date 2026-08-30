@@ -1,37 +1,9 @@
-// ─── /qr/surahs/:id/morphology — per-word morphology grid ─────────────────────
-// Serves the Surah → Morphology study step (the illuminated word-card grid,
-// arranged by verse).
-//
-// Design philosophy:
-//   The morphology page shows every *content word* of the surah, in reading
-//   order, one card per occurrence. Each card leads with the word's dictionary
-//   form (lemma), the occurrence surface beneath it, an English gloss, a couple
-//   of morphology chips (derived type + wazn), a short sense list, and the root.
-//
-//   ALL shaping happens here — the client is a logic-free renderer. Two data
-//   layers are merged:
-//     • BASE  — qr_word_occurrence (QAC-0.4). Full coverage: every content
-//               word of every surah. Gives lemma, surface, root, POS, and the
-//               derived type (participle / adjective) parsed from the QAC flags.
-//     • RICH  — qr_morph_display_word ⟕ qr_morph_display_lemma (the curated
-//               Memlet display layer). A LEFT JOIN enriches promoted words with
-//               an authored gloss, sense list, wazn/form, and root meaning.
-//               Tier-2 facts (wazn, derived type, form, gloss) come from the
-//               lemma tier via words.lemma_ref — the word-row copies are
-//               transitional fallbacks slated to be nulled. Absent → the card
-//               gracefully shows the QAC essentials only.
-//
-//   Particles are excluded (content words only), matching the All / Nouns /
-//   Verbs filter.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest, internalError } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
 import { parseIntParam } from '../../../shared/src/validate';
 import type { QuranEnv } from '../env';
 import { buildFeats, rangeOf, waznOf, type MorphFeat } from '../lib/morph-card';
-
-// ── Joined row (BASE qr_word_occurrence ⟕ RICH qr_morph_display_word) ────────
 
 interface JoinedRow {
   surah: number;
@@ -42,7 +14,7 @@ interface JoinedRow {
   lemma: string | null;
   pos: string | null;
   morphology_tag_json: string | null;
-  // RICH (null when the word has no curated display row)
+
   d_lemma_ar: string | null;
   d_root_display: string | null;
   d_group: string | null;
@@ -64,8 +36,6 @@ interface JoinedRow {
   l_wazn_ar: string | null;
 }
 
-// ── Shaped output (the client paints this verbatim) ───────────────────────────
-
 type PosBucket = 'noun' | 'verb';
 
 interface QuranMeaning { ar: string; en: string }
@@ -74,28 +44,26 @@ interface MorphWord {
   surah: number;
   ayah: number;
   word_index: number;
-  ref: string;                        // "44:2"
-  surface_ar: string;                 // occurrence form (as it appears in the ayah)
-  lemma_ar: string | null;            // dictionary form — the card headline
-  root_ar: string | null;            // bare root, e.g. "كتب" (for navigation)
-  root_display: string | null;        // spaced root for RTL display, e.g. "ك ت ب"
-  group: PosBucket;                   // filter bucket
-  pos_en: string;                     // Noun | Proper Noun | Verb
-  gloss_en: string | null;            // authored English meaning (Memlet layer)
-  derived_type_en: string | null;     // e.g. "active participle"
-  derived_type_ar: string | null;     // e.g. "اسم فاعل"
-  wazn_ar: string | null;             // pattern, e.g. "مُفْعِل"
-  form_ar: string | null;             // verb form (باب), e.g. "إفعال"
-  form_roman: string | null;          // e.g. "IV"
-  quran_meanings: QuranMeaning[] | null;  // short authored sense list
-  root_meaning_en: string | null;     // authored root gloss, e.g. "clarity"
-  is_anchor: boolean;                 // root anchor word
-  feats: MorphFeat[];                 // grammatical-feature chips (case/number/gender/type · tense/voice)
-  sense_arc_en: string | null;        // 360° semantic arc, e.g. "separation → clarity"
-  sense_range_en: string | null;      // compact range of meanings (falls back to quran_meanings)
+  ref: string;
+  surface_ar: string;
+  lemma_ar: string | null;
+  root_ar: string | null;
+  root_display: string | null;
+  group: PosBucket;
+  pos_en: string;
+  gloss_en: string | null;
+  derived_type_en: string | null;
+  derived_type_ar: string | null;
+  wazn_ar: string | null;
+  form_ar: string | null;
+  form_roman: string | null;
+  quran_meanings: QuranMeaning[] | null;
+  root_meaning_en: string | null;
+  is_anchor: boolean;
+  feats: MorphFeat[];
+  sense_arc_en: string | null;
+  sense_range_en: string | null;
 }
-
-// ── QAC flag → derived-type maps ──────────────────────────────────────────────
 
 interface StemProjection { pos?: string | null; flags?: string[] | null }
 
@@ -108,8 +76,6 @@ function readStem(json: string | null): StemProjection | null {
   }
 }
 
-/** POS bucket + English label from the stem POS tag. Null for particles / non
- *  content words (the grid shows nouns + verbs only). */
 function classifyPos(tag: string | null | undefined): { bucket: PosBucket; label: string } | null {
   if (!tag) return null;
   const t = tag.toUpperCase();
@@ -119,8 +85,6 @@ function classifyPos(tag: string | null | undefined): { bucket: PosBucket; label
   return null;
 }
 
-/** Derived-type (participle / adjective) from the QAC flags — the reliable
- *  fallback when the curated layer has none. Returns null for plain nouns/verbs. */
 function deriveType(pos: string, flags: string[]): { en: string; ar: string } | null {
   const isPcpl = flags.includes('PCPL');
   if (isPcpl && flags.includes('ACT')) return { en: 'active participle', ar: 'اسم فاعل' };
@@ -134,7 +98,6 @@ function spaceRoot(root: string | null): string | null {
   return Array.from(root.trim()).filter((c) => c.trim()).join(' ');
 }
 
-/** Parse the curated sense list (quran_meanings_json) into [{ar,en}]. */
 function parseMeanings(json: string | null): QuranMeaning[] | null {
   if (!json) return null;
   try {
@@ -154,27 +117,8 @@ const clean = (s: string | null | undefined): string | null => {
   return v.length ? v : null;
 };
 
-// ── Route ─────────────────────────────────────────────────────────────────────
-
 export function morphologyRoutes(router: Router<QuranEnv>) {
 
-  /**
-   * GET /qr/surahs/:id/morphology
-   *
-   * Query params:
-   *   ayah_from — restrict to a passage range start (optional)
-   *   ayah_to   — restrict to a passage range end   (optional)
-   *
-   * Response:
-   * {
-   *   ok: true,
-   *   data: {
-   *     surah_id, scope: { ayah_from, ayah_to },
-   *     count: { all, noun, verb },
-   *     words: MorphWord[]   // reading order, content words only
-   *   }
-   * }
-   */
   router.get('/qr/surahs/:id/morphology', async (req, env, { id }) => {
     const surahId = parseIntParam(id);
     if (!surahId || surahId < 1 || surahId > 114) {
@@ -241,7 +185,7 @@ export function morphologyRoutes(router: Router<QuranEnv>) {
         const stem = readStem(row.morphology_tag_json);
         const tag  = stem?.pos ?? row.pos;
         const kind = classifyPos(tag);
-        if (!kind) continue;                       // particles / non-content words
+        if (!kind) continue;
 
         const flags = stem?.flags ?? [];
         const qacType = deriveType((tag ?? '').toUpperCase(), flags);

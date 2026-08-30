@@ -1,15 +1,3 @@
-// ─── Root jump ──────────────────────────────────────────────────────────────
-//
-// The root stepper and the root search in one control: the arrows walk to the
-// neighbouring root, and the root itself is a field you can type into to go
-// straight to any other one. Previously the arrows were the only way to move
-// from the toolbar and the search lived in the index rail, so reaching a distant
-// root meant opening the rail and scrolling a list of several thousand.
-//
-// Shared by every reader shell rather than copied into each, which is also why it
-// takes a minimal row shape: the classical, Lane and Mufradāt shells index roots
-// as `LexV2RootRow` and the scholarship shell as `ScholarshipRootRow`.
-
 import {
   ChangeDetectionStrategy, Component, ElementRef, HostListener,
   computed, input, output, signal, viewChild,
@@ -17,14 +5,12 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-/** The least a row needs for this control to list and pick it. */
 export interface RootJumpItem {
   root_norm: string;
   root_text?: string | null;
   page_start?: number | null;
 }
 
-/** Enough matches to scan, few enough to render on a 9,000-root index. */
 const MAX_MATCHES = 60;
 
 @Component({
@@ -47,14 +33,13 @@ export class RootJumpComponent {
 
   readonly open  = signal(false);
   readonly query = signal('');
-  /** Keyboard cursor within the match list. */
+
   readonly cursor = signal(0);
 
   readonly matches = computed<RootJumpItem[]>(() => {
     const q = this.query().trim();
     const all = this.roots();
-    // With no query the list is a jumping-off point, not a filter: show the
-    // roots around where the reader already is.
+
     if (!q) {
       const i = all.findIndex(r => r.root_norm === this.root());
       const from = i < 0 ? 0 : Math.max(0, i - 2);
@@ -77,7 +62,7 @@ export class RootJumpComponent {
     this.open.set(true);
     this.query.set('');
     this.cursor.set(0);
-    // The input only exists once `open` has rendered it.
+
     setTimeout(() => this.field()?.nativeElement.focus(), 0);
   }
 
@@ -109,13 +94,11 @@ export class RootJumpComponent {
         e.preventDefault();
         break;
       }
-      // Left/right arrows belong to the text cursor while the field is open, so
-      // they are deliberately not bound to prev/next here.
+
       default: break;
     }
   }
 
-  /** A click anywhere else dismisses the list without picking. */
   @HostListener('document:pointerdown', ['$event'])
   onDocPointerDown(e: PointerEvent) {
     if (!this.open()) return;

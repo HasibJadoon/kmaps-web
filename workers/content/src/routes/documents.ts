@@ -1,5 +1,3 @@
-// ─── /cm/documents routes ─────────────────────────────────────────────────────
-
 import type { Router } from '../../../shared/src/router';
 import { badRequest, created, noContent, notFound, ok, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
@@ -115,9 +113,6 @@ export function documentRoutes(router: Router<ContentEnv>) {
       return badRequest('Request body must be valid JSON');
     }
 
-    // Ownership comes from the authenticated gateway header (X-KM-User-Id) when
-    // present. Auth is currently disabled, so requests without that header fall
-    // back to a shared local identity rather than being rejected.
     if (body !== null && typeof body === 'object' && !Array.isArray(body)) {
       const record = body as Record<string, unknown>;
       const headerUser = req.headers.get('X-KM-User-Id');

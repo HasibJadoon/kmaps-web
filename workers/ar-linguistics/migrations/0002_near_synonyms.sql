@@ -1,7 +1,3 @@
--- Near-synonym extension for km_arabic_linguistic
--- Run once against the current AL schema snapshot.
--- Note: SQLite/D1 does not support ALTER TABLE ... ADD COLUMN IF NOT EXISTS.
-
 ALTER TABLE ar_ling_near_synonym_sets ADD COLUMN slug TEXT;
 ALTER TABLE ar_ling_near_synonym_sets ADD COLUMN canonical_en TEXT;
 ALTER TABLE ar_ling_near_synonym_sets ADD COLUMN canonical_ar TEXT;

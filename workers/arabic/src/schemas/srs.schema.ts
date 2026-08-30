@@ -1,15 +1,11 @@
-// ─── SRS (Spaced Repetition System) schemas & types ───────────────────────────
-
 export type ArSrsDeckType = 'vocabulary' | 'grammar' | 'verse' | 'custom';
 export type ArSrsCardState = 'new' | 'learning' | 'review' | 'relearning';
 export type ArSrsRating = 1 | 2 | 3 | 4;
 
-// ─── SRS Deck ─────────────────────────────────────────────────────────────────
-
 export interface ArSrsDeck {
-  id: string;                        // AR:ULID
-  core_user_ref: string;             // CORE:<user_id>
-  core_ws_ref: string | null;        // CORE:<workspace_id>
+  id: string;
+  core_user_ref: string;
+  core_ws_ref: string | null;
   title: string;
   deck_type: ArSrsDeckType;
   description: string | null;
@@ -37,16 +33,14 @@ export interface ArSrsDeckPatch {
   meta_json?: string | null;
 }
 
-// ─── SRS Card ─────────────────────────────────────────────────────────────────
-
 export interface ArSrsCard {
-  id: string;                        // AR:ULID
+  id: string;
   deck_id: string;
-  core_user_ref: string;             // CORE:<user_id>
-  resource_ref: string;              // typed ref to vocab/grammar/ayah/concept
+  core_user_ref: string;
+  resource_ref: string;
   resource_type: string;
-  stability: number;                 // FSRS memory stability S
-  difficulty: number;                // FSRS item difficulty D (0–1)
+  stability: number;
+  difficulty: number;
   elapsed_days: number;
   scheduled_days: number;
   reps: number;
@@ -77,13 +71,11 @@ export interface ArSrsCardPatch {
   next_review_at?: string | null;
 }
 
-// ─── SRS Review ───────────────────────────────────────────────────────────────
-
 export interface ArSrsReview {
-  id: string;                        // AR:ULID
+  id: string;
   card_id: string;
-  core_user_ref: string;             // CORE:<user_id>
-  rating: ArSrsRating;              // FSRS: 1=Again 2=Hard 3=Good 4=Easy
+  core_user_ref: string;
+  rating: ArSrsRating;
   stability_after: number | null;
   difficulty_after: number | null;
   scheduled_days_after: number | null;
@@ -102,8 +94,6 @@ export interface ArSrsReviewLog {
   state_after?: string | null;
   review_duration_secs?: number | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 const VALID_DECK_TYPES: ArSrsDeckType[] = ['vocabulary', 'grammar', 'verse', 'custom'];
 const VALID_RATINGS: ArSrsRating[] = [1, 2, 3, 4];
@@ -201,14 +191,12 @@ export function validateArSrsReviewLog(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface SrsDeck {
   id: string;
-  core_user_ref: string;      // CORE:<user_id>
-  core_ws_ref: string | null; // CORE:<workspace_id>
+  core_user_ref: string;
+  core_ws_ref: string | null;
   title: string;
-  deck_type: string;          // vocabulary|grammar|ayah|balagha|expression|mixed|other
+  deck_type: string;
   description: string | null;
   card_count: number;
   is_shared: number;
@@ -230,15 +218,15 @@ export interface SrsCard {
   id: string;
   deck_id: string;
   core_user_ref: string;
-  resource_ref: string;       // typed ref to vocab/grammar/ayah/concept
-  resource_type: string;      // vocabulary|grammar|ayah|balagha|expression|al_lemma|other
+  resource_ref: string;
+  resource_type: string;
   stability: number;
   difficulty: number;
   elapsed_days: number;
   scheduled_days: number;
   reps: number;
   lapses: number;
-  card_state: string;         // new|learning|review|relearning
+  card_state: string;
   last_review_at: string | null;
   next_review_at: string | null;
   created_at: string;
@@ -271,7 +259,7 @@ export interface SrsReview {
   id: string;
   card_id: string;
   core_user_ref: string;
-  rating: number;             // 1=Again 2=Hard 3=Good 4=Easy
+  rating: number;
   stability_after: number | null;
   difficulty_after: number | null;
   scheduled_days_after: number | null;
@@ -290,8 +278,6 @@ export interface SrsReviewCreate {
   state_after?: string | null;
   review_duration_secs?: number | null;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

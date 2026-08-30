@@ -1,23 +1,3 @@
-// ─── /al/lex/v2/* routes ─────────────────────────────────────────────────────
-//
-// Source-agnostic root-based lexicon API. Reads from the new clean tables:
-//   ar_ling_lexicon_entry
-//   ar_ling_lexicon_entry_section
-//   ar_ling_lexicon_block
-//   ar_ling_lexicon_block_link
-//   ar_ling_lexicon_block_tag
-//   ar_ling_lexicon_quran_ref
-//   ar_ling_lexicon_entry_source
-//
-// Endpoints:
-//   GET /al/lex/v2/sources                                    list of lexicons
-//   GET /al/lex/v2/roots?prefix=&page=&limit=&source=          paginated roots
-//   GET /al/lex/v2/roots/:root_norm                            multi-source compare
-//   GET /al/lex/v2/entry/:source_slug/:root_norm               one root in one source
-//   GET /al/lex/v2/search?q=&mode=root|word|fts&sources=       unified search
-//
-// Response shape is stable across sources — UI never branches on slug.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, badRequest } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
@@ -25,15 +5,6 @@ import type { ArLinguisticsEnv } from '../env';
 import { SourcesRepo, type LexiconSource } from '../repositories/sources.repo';
 import { rootQueryCandidates } from '../lib/root_query';
 
-// ── Per-source display metadata (D1-backed) ──────────────────────────────────
-// SOURCES (a hardcoded Record<slug, {…}>) used to live here. The same data
-// now lives in ar_ling_source after migrations 0016 + 0017, accessed via
-// SourcesRepo. v2RouteMeta() below builds the projection v2 callers expect:
-// { slug, title_ar, title_en, author, period, origin, bilingual? }.
-//
-// Two fields beyond the base toResponseMeta() shape:
-//   - origin: pipeline producer (lane / ketabonline / thahabi / saaid / qomra)
-//   - bilingual: optional flag — true only when the source has English columns
 function v2RouteMeta(s: import('../repositories/sources.repo').LexiconSource) {
   const base = {
     slug:     s.slug,
@@ -46,46 +17,23 @@ function v2RouteMeta(s: import('../repositories/sources.repo').LexiconSource) {
     author_death_ah: s.author_death_ah ?? null,
     author_death_ce: s.author_death_ce ?? null,
   };
-  // Match the previous behaviour: include `bilingual: true` ONLY when set.
-  // Callers downstream check `if (meta.bilingual)` so an absent key signals
-  // monolingual; emitting `bilingual: false` would be a noisier API change.
+
   return s.bilingual ? { ...base, bilingual: true } : base;
 }
-
-// ── Helpers — body normalization & footnote extraction ───────────────────────
 
 const AR_INDIC_TO_ASCII = (s: string) =>
   s.replace(/[٠-٩]/g, ch => String.fromCharCode(0x30 + ch.charCodeAt(0) - 0x660));
 
-/**
- * Turn an ingested `text_ar` (one line per fragment) into reader prose:
- *  - body.text        whitespace-collapsed single string
- *  - body.paragraphs  split at sentence-ending `.`, `؟`, `!`, `۔` — or the whole
- *                     text as one paragraph when `split` is false
- *  - body.footnote_refs   distinct footnote marker numbers found in text
- *  - body.marker_nums     every marker number, in reading order, repeats kept
- *
- * `footnote_refs` is a de-duplicated set because that is what it has always
- * been and the Angular reader iterates it as bare numbers. `marker_nums` is
- * the honest sequence: a page-crossing article really does say «1» twice, and
- * collapsing that is exactly how the two got confused for each other.
- *
- * No content is invented; the function only joins fragments and detects
- * inline markers that the UI already parses (« N », (( N )), [Sura/Aya]).
- */
 function computeSectionBody(text_ar: string | null | undefined, split = true): {
   text: string; paragraphs: string[]; footnote_refs: number[]; marker_nums: number[];
 } {
   if (!text_ar) return { text: '', paragraphs: [], footnote_refs: [], marker_nums: [] };
   const text = text_ar.replace(/\s+/g, ' ').trim();
 
-  // Split at sentence terminators followed by whitespace. The lookbehind
-  // keeps the terminator attached to the preceding paragraph.
   const paragraphs = split
     ? text.split(/(?<=[.!؟۔])\s+/u).map(p => p.trim()).filter(Boolean)
     : [text];
 
-  // Inline footnote markers — « N », (( N )), (N), or "N-" at line start.
   const fnRe = /«\s*([0-9٠-٩]+)\s*»|\(\s*\(\s*([0-9٠-٩]+)\s*\)\s*\)/gu;
   const marker_nums: number[] = [];
   let m: RegExpExecArray | null;
@@ -102,20 +50,8 @@ function computeSectionBody(text_ar: string | null | undefined, split = true): {
   };
 }
 
-// ── Ṣarf family, resolved ────────────────────────────────────────────────────
-//
-// Every book draws its own ṣarf tree for a root — al-Rāghib's بين is not
-// al-Jawharī's — so the family is a *book-scoped block*, one per (source, root),
-// and there are as many of them as there are sources that treat the root.
-//
-// Its `data_json` names grammar terms by id (`GT:form_family:bab_daraba`,
-// `GT:transitivity:intransitive`). Those ids are useless to a renderer, so they
-// are resolved here against `ar_ling_gram_term` into trilingual labels and the
-// block is emitted display-ready. The raw block still rides in `blocks`.
-
 interface TermLabel { id: string; ar: string; en: string; ur: string; short_ar: string | null }
 
-/** Every `GT:` id reachable inside one ṣarf block. */
 function sarfTermRefs(data: any): string[] {
   const out: string[] = [];
   const push = (v: unknown) => { if (typeof v === 'string' && v.startsWith('GT:')) out.push(v); };
@@ -129,7 +65,6 @@ function sarfTermRefs(data: any): string[] {
   return Array.from(new Set(out));
 }
 
-/** `{ar,en,ur}` as stored, with the empties nulled rather than sent as "". */
 function trilingual(v: any): { ar: string | null; en: string | null; ur: string | null } | null {
   if (!v || typeof v !== 'object') return null;
   const pick = (k: string) => (typeof v[k] === 'string' && v[k].trim() ? v[k] : null);
@@ -147,8 +82,6 @@ async function resolveSarfFamilies(env: ArLinguisticsEnv, blocks: any[]) {
     });
   if (!parsed.length) return [];
 
-  // One lookup for the whole entry. A ṣarf block names a couple of dozen terms
-  // at most, well inside D1's bound-parameter cap.
   const ids = Array.from(new Set(parsed.flatMap(p => sarfTermRefs(p.data))));
   const terms = new Map<string, TermLabel>();
   if (ids.length) {
@@ -161,8 +94,7 @@ async function resolveSarfFamilies(env: ArLinguisticsEnv, blocks: any[]) {
       terms.set(r.id, { id: r.id, ar: r.name_ar, en: r.name_en, ur: r.name_ur, short_ar: r.short_ar ?? null });
     }
   }
-  // An id with no registry row reports as itself rather than vanishing — a
-  // missing term is a data gap worth seeing, not worth hiding.
+
   const term = (id: unknown): TermLabel | null =>
     typeof id === 'string' && id.startsWith('GT:')
       ? terms.get(id) ?? { id, ar: id, en: id, ur: id, short_ar: null }
@@ -175,8 +107,7 @@ async function resolveSarfFamilies(env: ArLinguisticsEnv, blocks: any[]) {
     scope: data?.scope ?? 'book',
     root_type: term(data?.root_type),
     core: trilingual(data?.block_meta?.core),
-    // What makes *this book's* reading of the family its own — the reason the
-    // panel is per source at all.
+
     distinctive_note: trilingual(data?.block_meta?.distinctive_note),
     authors_own_words: trilingual(data?.block_meta?.authors_own_words),
     poles: (Array.isArray(data?.poles) ? data.poles : []).map((p: any) => ({
@@ -186,19 +117,14 @@ async function resolveSarfFamilies(env: ArLinguisticsEnv, blocks: any[]) {
     forms: (Array.isArray(data?.forms) ? data.forms : []).map((f: any) => ({
       form_id: f?.form_id ?? null,
       roman: f?.roman ?? '',
-      // The headword this form is filed under, and the blocks that carry the
-      // author's prose for it. A family built this way is an index into the
-      // article rather than a rewrite of it, so the reader can pivot from a
-      // form straight to the passage without the family restating the gloss.
+
       lemma: typeof f?.lemma === 'string' && f.lemma.trim() ? f.lemma : null,
       section_id: f?.section_id ?? null,
       block_ids: (Array.isArray(f?.block_ids) ? f.block_ids : [])
         .filter((x: any) => typeof x === 'string'),
       bab: term(f?.bab),
       bab_alt: (Array.isArray(f?.bab_alt) ? f.bab_alt : []).map(term).filter(Boolean),
-      // Form I carries `bab`, Forms II-XII carry `form_tier`, and a nominal-only
-      // row carries `GT:form_family:noun_derivatives`. Dropping form_tier left
-      // every derived form with no label at all.
+
       form_tier: term(f?.form_tier),
       root_type: term(f?.root_type),
       madi: f?.madi ?? null,
@@ -212,7 +138,7 @@ async function resolveSarfFamilies(env: ArLinguisticsEnv, blocks: any[]) {
       ism_maf: f?.ism_maf ?? null,
       ism_maf_term: term(f?.ism_maf_term),
       trans: (Array.isArray(f?.trans) ? f.trans : []).map(term).filter(Boolean),
-      // Authored trilingually in some books and as a bare string in others.
+
       trans_note: trilingual(f?.trans_note)
         ?? (typeof f?.trans_note === 'string' && f.trans_note.trim()
               ? { ar: f.trans_note, en: null, ur: null } : null),
@@ -228,8 +154,7 @@ async function resolveSarfFamilies(env: ArLinguisticsEnv, blocks: any[]) {
       shahid: trilingual(f?.shahid)
         ?? (typeof f?.shahid === 'string' && f.shahid.trim() ? { ar: f.shahid, en: null, ur: null } : null),
     })),
-    // Where the author says two forms are the same, the claim lives here and the
-    // members cross-link via each form's `levels_with`.
+
     levelling_groups: (Array.isArray(data?.levelling_groups) ? data.levelling_groups : [])
       .map((g: any) => ({
         key: g?.key ?? null,
@@ -244,27 +169,15 @@ async function resolveSarfFamilies(env: ArLinguisticsEnv, blocks: any[]) {
 
 interface Footnote {
   num: number;
-  /** Position of this note's marker in the entry's reading order, 1-based. */
+
   ordinal: number | null;
-  /** The printed page the note sits on — half of its identity. */
+
   printed_page: number | null;
   text: string;
   block_id: string;
   section_id: string | null;
 }
 
-/**
- * Pull footnote backing text from `block_type='footnote'` blocks.
- * The ingestion convention is `data_json.footnote_no` for the marker number
- * and `text_plain` for the body. Missing or malformed entries are skipped.
- *
- * A note is identified by (printed_page, footnote_no), never by the number
- * alone: Shamela restarts footnote numbering on every printed page, so an
- * article that crosses a page boundary carries two «1» markers meaning two
- * different notes. `fn_ordinal` — the marker's index in the entry's reading
- * order — is what tells them apart, and sorting by it puts this list in the
- * same order the markers appear in the prose.
- */
 function collectFootnotes(blocks: any[]): Footnote[] {
   const out: Footnote[] = [];
   for (const b of blocks) {
@@ -278,9 +191,9 @@ function collectFootnotes(blocks: any[]): Footnote[] {
       if (raw != null) num = +AR_INDIC_TO_ASCII(String(raw));
       if (dj.fn_ordinal != null) ordinal = +dj.fn_ordinal;
       if (dj.printed_page != null) printed_page = +dj.printed_page;
-    } catch { /* fallthrough */ }
+    } catch {  }
     if (num == null) {
-      // Fallback: pluck a leading digit from text or title.
+
       const probe = (b.title_ar || b.text_plain || '').trim();
       const m = probe.match(/^[(\[«]?\s*([0-9٠-٩]+)/);
       if (m) num = +AR_INDIC_TO_ASCII(m[1]);
@@ -296,22 +209,11 @@ function collectFootnotes(blocks: any[]): Footnote[] {
       section_id: b.section_id ?? null,
     });
   }
-  // Reading order where ingestion recorded it, printed number otherwise.
+
   return out.sort((a, b) =>
     (a.ordinal ?? Infinity) - (b.ordinal ?? Infinity) || a.num - b.num);
 }
 
-/**
- * Bind every marker in the article to the note it actually refers to.
- *
- * Walks the sections in reading order, counting markers, and pairs the k-th
- * marker with the note whose `fn_ordinal` is k. The pairing is only accepted
- * when the note's printed number matches the marker's — otherwise the ordinals
- * and the prose disagree (a source whose blocks were never page-tagged, or an
- * entry whose text was re-cut since ingestion) and the old number-only lookup
- * is used instead. Which of the two ran is reported as `footnote_binding`, so
- * a book that silently falls back is visible rather than merely plausible.
- */
 function bindFootnoteMarks(sections: any[], footnotes: Footnote[]):
     'ordinal' | 'by_number' {
   const byOrdinal = new Map<number, Footnote>();
@@ -338,8 +240,7 @@ function bindFootnoteMarks(sections: any[], footnotes: Footnote[]):
         ordinal: ordinalHolds ? k : (f?.ordinal ?? null),
         printed_page: f?.printed_page ?? null,
         block_id: f?.block_id ?? null,
-        // A marker the book prints but whose note was never harvested. Kept
-        // rather than dropped: the reader should see that «N» is unbacked.
+
         resolved: !!f,
       };
     });
@@ -348,18 +249,8 @@ function bindFootnoteMarks(sections: any[], footnotes: Footnote[]):
   return ordinalHolds ? 'ordinal' : 'by_number';
 }
 
-// SOURCE_ORDER (the v2-specific catalogue ordering) used to live here as
-// a hardcoded array. The same ordering now lives in ar_ling_source.source_order
-// (seeded by 0017). Note: lexicon.ts uses a slightly different order — qomra
-// editions appear later because lexicon.ts targets the classical/source-chunk
-// reader, while v2 prefers the cleanly imported ketabonline editions. Both
-// orderings come from the same column now; the ordering is opinionated about
-// v2-relevant sources via the seed migration.
-
 export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
 
-  // ── GET /al/lex/v2/sources ──────────────────────────────────────────────
-  // Edge-cached: source list + per-source root counts only change on ingest.
   router.get('/al/lex/v2/sources', (req, env) => cached(req, async () => {
     const rows = (await env.DB_AL.prepare(
       `SELECT source_slug, COUNT(*) AS roots
@@ -379,17 +270,12 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     return ok({ sources, total: sources.length });
   }));
 
-  // ── GET /al/lex/v2/roots?source=&prefix=&page=&limit= ────────────────────
-  // Edge-cached per (source, prefix, page, limit) query — the root index
-  // for big lexicons (Lisan ~9K rows) is requested every time the user
-  // opens a book and only changes on ingest.
   router.get('/al/lex/v2/roots', (req, env) => cached(req, async () => {
     const url = new URL(req.url);
     const source = url.searchParams.get('source');
     const prefix = (url.searchParams.get('prefix') ?? '').trim();
     const page   = Math.max(1, Number(url.searchParams.get('page') ?? '1') | 0);
-    // Up to 10K rows per page — the left-rail root index for the larger
-    // lexicons (Lisan, Taj, Qamus ~9K each) loads in a single request.
+
     const limit  = Math.min(10000, Math.max(1, Number(url.searchParams.get('limit') ?? '50') | 0));
     const offset = (page - 1) * limit;
 
@@ -415,15 +301,10 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     return ok({ rows, total, page, limit, has_more: offset + rows.length < total });
   }));
 
-  // ── GET /al/lex/v2/roots/:root_norm — multi-source compare ───────────────
   router.get('/al/lex/v2/roots/:root_norm', (req, env, params) => cached(req, async () => {
     const requested = (params.root_norm ?? '').trim();
     if (!requested) return badRequest('root_norm required');
 
-    // Exactly what was asked for first, then the folded spelling — بَيْن, أمر
-    // and "byn" all name a root the index stores bare. Exact-first means a
-    // query that already resolves keeps resolving; folding can only add a
-    // fallback, never redirect a working lookup elsewhere.
     let root_norm = requested;
     let entries: any[] = [];
     for (const candidate of rootQueryCandidates(requested)) {
@@ -439,7 +320,6 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
 
     if (!entries.length) return notFound('root not found');
 
-    // Per-source section + block counts for the compare view headers
     const counts = (await env.DB_AL.prepare(
       `SELECT source_slug,
               (SELECT COUNT(*) FROM ar_ling_lexicon_entry_section s
@@ -458,11 +338,6 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
        FROM ar_ling_roots WHERE root_text = ? LIMIT 1`
     ).bind(root_norm).first()) ?? null;
 
-    // Per-source snippet — the first clean prose line the readers would show.
-    // Prefer a `definition` block; fall back to the earliest non-header prose
-    // block. Taken from `text_plain` (composed clean text) so it works for
-    // every origin, including Lane (XML) and Sinai (JSON) whose raw_text is
-    // unreadable. One window-function query, not one per source.
     const snippetRows = (await env.DB_AL.prepare(
       `SELECT source_slug, text_plain FROM (
          SELECT source_slug, text_plain,
@@ -485,15 +360,10 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
       ]),
     );
 
-    // Resolve every source's meta in one bulk D1 query, then map by slug.
     const slugs = entries.map((e: any) => e.source_slug as string);
     const sourceRows = await new SourcesRepo(env.DB_AL).bySlugs(slugs);
     const sourceBySlug = new Map(sourceRows.map(s => [s.slug, s]));
 
-    // Order the sources chronologically — earliest author first. Hijri years
-    // are normalised to CE (H·0.970229 + 621.5643) so classical (AH) and
-    // modern (CE) authors sort on one axis; authors with no death year (living
-    // scholars, K-Maps synthesis) fall to the end.
     const sortYear = (m: { author_death_ce: number | null; author_death_ah: number | null }) =>
       m.author_death_ce != null ? m.author_death_ce
       : m.author_death_ah != null ? Math.round(m.author_death_ah * 0.970229 + 621.5643)
@@ -515,22 +385,15 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     return ok({ root_norm, canonical, sources });
   }));
 
-  // ── GET /al/lex/v2/entry/:source_slug/:root_norm — full block tree ────────
-  // This is the heaviest read in the system — a full entry can be 100s of KB
-  // of blocks + sections + refs + links + tags + footnotes. Edge-cached per
-  // (slug, root) so navigating between roots and re-opening books is instant.
   router.get('/al/lex/v2/entry/:source_slug/:root_norm', (req, env, params) => cached(req, async () => {
     const slug = params.source_slug ?? '';
     const requested = (params.root_norm ?? '').trim();
     if (!slug || !requested) return badRequest('slug + root_norm required');
 
-    // Same exact-then-folded lookup as the compare route above, so a vowelled
-    // or transliterated root opens the reader too rather than only the compare.
     let entry: any = null;
     let root_norm = requested;
     for (const candidate of rootQueryCandidates(requested)) {
-      // Bilingual sources (Lane, Sinai) carry their entry in the *_en columns;
-      // the Arabic lexica use the *_ar ones. Serve both and let the reader pick.
+
       entry = await env.DB_AL.prepare(
         `SELECT id, source_slug, root_text, root_norm, root_id,
                 raw_text, entry_text_ar, entry_text_en,
@@ -562,12 +425,6 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
        ORDER BY block_seq`
     ).bind(slug, root_norm).all()).results ?? [];
 
-    // D1 caps bound parameters at ~100 per prepared statement. For dense
-    // root entries (e.g. Lisan al-Arab's index for the letter `ا`, which
-    // can have thousands of blocks) the old IN-list approach blew past
-    // that limit and crashed the handler — surfacing as a 500. Use a
-    // correlated subquery that re-derives the block set from
-    // (source_slug, root_norm) so we bind only those two params again.
     const links = blocks.length
       ? (await env.DB_AL.prepare(
           `SELECT id, from_block_id, link_kind, to_root_norm, to_surah,
@@ -606,15 +463,6 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
        WHERE source_slug = ? AND root_entry_id = ?`
     ).bind(slug, entry.id).all()).results ?? [];
 
-    // Canonical root metadata (the spine that ties sources together).
-    //
-    // `ar_ling_lexicon_entry.root_id` is NULL for almost every entry — only Lane
-    // and the five-lens rows were ever back-linked — so keying on it alone
-    // returned null canonical for al-Rāghib, al-Jawharī, Ibn Fāris and the rest,
-    // and the reader's whole headword block (shape, Qurʾānic frequency, core
-    // sense) came up empty for the books people actually read. The root row
-    // exists; only the link is missing. Fall back to matching it by the
-    // normalized root, which is what the two tables already agree on.
     const canonicalSelect =
       `SELECT id, root_text, root_letters, root_type, weak_pattern,
               frequency_quran, frequency_hadith, meaning_core_en
@@ -628,18 +476,6 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
            `${canonicalSelect} WHERE root_normalized = ? OR root_text = ? LIMIT 1`
          ).bind(root_norm, root_norm).first();
 
-    // ── Block-first sources ────────────────────────────────────────────
-    // Two ingest shapes reach this route. The Arabic lexica are section-first:
-    // `entry_section.text_ar` holds the article and the blocks are fragments
-    // hanging off it. Lane is block-first: its sections are headword stubs
-    // (text_ar is literally just `بَانَ`) and the whole article — 23 blocks,
-    // 13k characters of English — sits in loose `definition` blocks with a NULL
-    // section_id. A client that renders sections and joins blocks by section_id
-    // therefore showed Lane as a column of empty headings.
-    //
-    // Rather than make every client branch on the slug, sections are synthesised
-    // from those blocks when — and only when — every section is a stub. The
-    // headword is kept as the heading, so the printed structure survives.
     const PROSE_BLOCKS = new Set(['definition', 'entry_header']);
     const isStub = (s: any) => {
         const body = (s.text_ar ?? s.text_en ?? '').trim();
@@ -651,35 +487,20 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     let sections_source: 'sections' | 'blocks' | 'block_tree' = 'sections';
     let effectiveSections = sections;
 
-    // ── Titled block tree, when it provably covers the article ────────
-    // Kitāb al-ʿAyn (and any source segmented the same way) stores the article
-    // twice: once joined in `section.text_ar`, once as ordered leaf blocks that
-    // now carry authored headings. Rendering the leaves is what turns a wall of
-    // Arabic into a headed article — but only if they actually tile the text.
-    // An earlier attempt rendered a block tree that covered ~16% of the entry
-    // and silently dropped the rest, so coverage is *proved* here per request:
-    // the leaves' own text, concatenated in printed order, must reproduce
-    // `text_ar` (whitespace-insensitive). Otherwise we fall through to the
-    // joined section and nothing is lost.
     const LEAF_BLOCKS = new Set(['definition', 'poetry_quote', 'hadith_quote', 'quran_quote']);
-    // Whitespace and the bare lemma colon are separators, not content: ingestion
-    // sometimes keeps a lone ':' in the joined text that no block inherited.
-    // Ignoring both is what lets an otherwise exact tiling compare equal.
+
     const squash = (s: string | null | undefined) => (s ?? '').replace(/[\s:]+/gu, '');
     if (sections.length && !sections.every(isStub)) {
       const built: any[] = [];
       let covered = true;
       for (const s of sections) {
         const leaves = blocks
-          // `book_native` only: derived blocks re-cut the same prose (بين carries
-          // both e1.p3 and hand-written e1.p3.a/b/c), so mixing them would
-          // double-count the text and fail the coverage check below.
+
           .filter((b: any) => b.section_id === s.id && LEAF_BLOCKS.has(b.block_type)
                               && (b.origin === 'book_native' || b.origin === 'derived_segmentation')
                               && (b.title_ar ?? '').trim() && (b.text_plain ?? '').trim())
           .sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
-        // A one-leaf article is still worth rendering from the tree: it gains
-        // its authored heading instead of showing as an untitled wall.
+
         if (!leaves.length
             || squash(leaves.map((b: any) => b.text_plain).join('')) !== squash((s as any).text_ar)) {
           covered = false;
@@ -701,13 +522,7 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
           });
         }
       }
-      // Only render the tree when it earns its place. al-Rāghib already files
-      // one section per idea with a hand-written heading ("قاعدة الاستعمال ·
-      // بين يدي · ذات البين"), and his blocks are one-per-section, so swapping
-      // in the block titles subdivided nothing and replaced the richer heading
-      // with a thinner one. Take the tree only where it actually splits a
-      // section, or where the section heading is the bare headword — which is
-      // the al-Khalīl case this exists for.
+
       const bareHeading = (s: any) => {
         const h = squash(s.heading_ar);
         return !h || h === squash(entry?.root_text) || h === squash(entry?.root_norm);
@@ -719,25 +534,8 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
       }
     }
 
-    // ── No section rows at all, but a titled block tree ───────────────
-    // 13 al-Khalīl roots — the ones hand-seeded first (امر سمع علم ربب حيي
-    // موت سمو ارض اله ابو اول ليل شكك) — were built straight into blocks and
-    // never got `ar_ling_lexicon_entry_section` rows. Every branch above is
-    // gated on `sections.length`, so those entries returned zero sections and
-    // rendered as a blank article: headword, ṣarf panel, colophon, no text.
-    //
-    // There is no `text_ar` to prove coverage against here, so the tiling check
-    // can't run — but it guards against *dropping* text, and the alternative on
-    // this path is showing none at all. Every native leaf that has text is
-    // taken, in printed order, so nothing the book has is left behind.
-    // `root_header` is skipped: it repeats the first definition verbatim.
     if (sections_source === 'sections' && !sections.length) {
-      // A root can carry two parallel cuts of the same prose: the original
-      // `book_native` split and the finer `derived_segmentation` one that
-      // superseded it (al-Khalīl's بين has e1.p1–p5 *and* e1.a1–a7 over the same
-      // 1,221 characters). Where there are sections the two are told apart by
-      // attachment; here there is nothing to attach to, so pick one cut — the
-      // derived one when it exists — or the article renders twice.
+
       const withText = blocks.filter((b: any) => LEAF_BLOCKS.has(b.block_type)
                                                  && (b.text_plain ?? '').trim());
       const preferred = withText.some((b: any) => b.origin === 'derived_segmentation')
@@ -746,8 +544,7 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
         .filter((b: any) => b.origin === preferred)
         .sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
       if (leaves.length) {
-        // Decide the column by script rather than by slug, so this works for an
-        // Arabic book and an English one alike. `lang` downstream reads it back.
+
         const isArabic = (t: string) => /\p{Script=Arabic}/u.test(t);
         sections_source = 'block_tree';
         effectiveSections = leaves.map((b: any, i: number) => {
@@ -769,15 +566,6 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
       }
     }
 
-    // Lane's section rows hold only the headword — `text_ar` for "كَتَبَهُ" is
-    // literally `كَتَبَهُ` — so a stub section is not the article, it is a label
-    // for it. The article lives in the blocks, and Lane's ingestion produced two
-    // shapes: 115 entries leave the prose blocks unattached (section_id NULL,
-    // handled by looseProse below) and 4,949 attach them to the stub section.
-    // Only the first shape was ever rendered, so 97.5% of Lane came back as a
-    // column of headings with no prose at all. When the sections are stubs and
-    // the blocks are attached, fold each section's own blocks into its body:
-    // Lane's headings survive and finally carry his text.
     const attachedProse = new Map<string, any[]>();
     if (sections.length && sections.every(isStub) && !looseProse.length) {
       for (const b of blocks as any[]) {
@@ -817,13 +605,12 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
         return {
           id: b.id,
           section_seq: i + 1,
-          // The lemma the block is about, falling back to the printed headword.
+
           heading_ar: data?.lemma ?? b.title_ar ?? null,
           heading_norm: null,
           heading_bare: null,
           section_type: data?.form ? `form_${data.form}` : 'definition',
-          // Lane's prose is English; keeping it in text_en means `lang` below
-          // resolves the reading direction from data rather than from the slug.
+
           text_ar: null,
           text_en: b.text_plain,
           page_no: b.printed_page ?? null,
@@ -832,38 +619,17 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
       });
     }
 
-    // ── Normalize each section into a reader-ready `body` ──────────────
-    // Ingestion split prose into fragment blocks (one per citation, footnote
-    // marker, even a stray period). `section.text_ar` is the joined truth.
-    // We compute `body.text` (whitespace-collapsed) and `body.paragraphs`
-    // (split at Arabic/Latin sentence terminators) so the UI can render
-    // flowing prose without re-stitching the fragments.
-    // Bilingual sources (Sinai) carry their prose in text_en; `lang` lets the reader
-    // set the reading direction from data rather than assuming Arabic.
     const sectionsWithBody = effectiveSections.map((s: any) => {
       const lang = s.text_ar ? 'ar' : (s.text_en ? 'en' : null);
-      // One paragraph, unsplit — for blocks-sourced sections because one block
-      // *is* one paragraph, and for Latin prose because `.` is not reliably a
-      // sentence terminator in it. Sentence-splitting Lane turns "(M, Mgh,
-      // Msb, K,) [aor. يَبِينُ,] inf. n. …" into a dozen fragments; Sinai fares
-      // worse, because his prose is dense with "cf.", "e.g.", "s.th.", "o.s.",
-      // "ch." and verse references like "(Q 20:114)." — the reader was showing
-      // "…he receives (cf." and "also Q 20:114)." as two separate passages.
-      // Arabic prose is still split: `.` is genuinely rare in it, so the split
-      // lands on real sentence ends and gives the classical books the paragraph
-      // breaks the printed editions have and the ingested text does not.
+
       const split = sections_source !== 'blocks' && lang !== 'en';
       return { ...s, lang, body: computeSectionBody(s.text_ar ?? s.text_en, split) };
     });
 
-    // ── Collect footnote backing text (when ingestion preserved it) ────
     const footnotes = collectFootnotes(blocks);
-    // …and bind each «N» in the prose to the note it means. In al-Khalīl a
-    // page-crossing article prints «1» once per page, so the number alone does
-    // not identify a note; the marker's reading-order position does.
+
     const footnote_binding = bindFootnoteMarks(sectionsWithBody, footnotes);
 
-    // The book's own ṣarf tree for this root, with its term ids resolved.
     const sarf_families = await resolveSarfFamilies(env, blocks);
 
     const sourceRow = await new SourcesRepo(env.DB_AL).bySlug(slug);
@@ -872,8 +638,7 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
       entry,
       canonical,
       sections: sectionsWithBody,
-      // Which shape this entry's article came from, so the difference is visible
-      // rather than silently papered over.
+
       sections_source,
       blocks,
       sarf_families,
@@ -881,8 +646,7 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
       tags,
       quran_refs,
       footnotes,
-      // 'ordinal' when every marker paired with a note of the same printed
-      // number, 'by_number' when the reader fell back to first-match.
+
       footnote_binding,
       sources_of_entry,
       stats: {
@@ -897,10 +661,6 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     });
   }));
 
-  // ── /al/lex/v2/search rows → meta enrichment ──────────────────────────
-  // Three search modes (root / word / fts) all return rows tagged with
-  // source_slug. Centralise the metadata-bulk-fetch + map so each mode
-  // stays a single `rows.map(... meta: bySlug.get(r.source_slug))`.
   async function enrichRowsWithMeta(env: ArLinguisticsEnv, rows: any[]) {
     if (!rows.length) return [];
     const slugs = Array.from(new Set(rows.map(r => r.source_slug as string)));
@@ -914,7 +674,6 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     }));
   }
 
-  // ── GET /al/lex/v2/search?q=&mode=root|word|fts&sources=&limit= ─────────
   router.get('/al/lex/v2/search', async (req, env) => {
     const url = new URL(req.url);
     const q = (url.searchParams.get('q') ?? '').trim();
@@ -964,8 +723,7 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     }
 
     if (mode === 'fts') {
-      // FTS5 on entry_sections (preferred) — falls back to text LIKE if no
-      // FTS5 match. We don't include block FTS yet (heavier query).
+
       try {
         const sql = `SELECT s.id AS section_id, s.source_slug, s.root_text, s.root_norm,
                             s.section_seq, s.heading_ar, s.page_no,

@@ -1,23 +1,21 @@
-// ─── Vocabulary schemas & types ───────────────────────────────────────────────
-
 export type ArWordClass = 'noun' | 'verb' | 'particle' | 'adjective' | 'adverb' | 'other';
 export type ArCefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 
 export interface ArVocabulary {
-  id: string;                        // AR:ULID
+  id: string;
   arabic: string;
   transliteration: string | null;
   meaning_en: string;
   meaning_notes: string | null;
-  al_lemma_ref: string | null;       // AL:<ar_ling_lemma_id>
-  al_root_ref: string | null;        // AL:<ar_ling_root_id>
-  al_morph_ref: string | null;       // AL:<ar_ling_morphology_id>
+  al_lemma_ref: string | null;
+  al_root_ref: string | null;
+  al_morph_ref: string | null;
   word_class: ArWordClass;
   level: ArCefrLevel | null;
   domain_id: string | null;
   frequency_rank: number | null;
   qr_scope_ref: string | null;
-  tags_json: string | null;          // JSON [string]
+  tags_json: string | null;
   meta_json: string | null;
   created_at: string;
   updated_at: string;
@@ -53,14 +51,12 @@ export interface ArVocabularyPatch {
   meta_json?: string | null;
 }
 
-// ─── Vocabulary Evidence ──────────────────────────────────────────────────────
-
 export type ArEvidenceType = 'text' | 'quran' | 'hadith' | 'classical' | 'modern' | 'other';
 
 export interface ArVocabularyEvidence {
-  id: string;                        // AR:ULID
+  id: string;
   vocab_id: string;
-  source_ref: string | null;         // AL:<source_id> | CM:<source_id>
+  source_ref: string | null;
   locator: string | null;
   excerpt_ar: string | null;
   excerpt_en: string | null;
@@ -79,12 +75,10 @@ export interface ArVocabularyEvidenceCreate {
   qr_scope_ref?: string | null;
 }
 
-// ─── Vocabulary Relations ─────────────────────────────────────────────────────
-
 export type ArVocabRelationType = 'synonym' | 'antonym' | 'related' | 'derived';
 
 export interface ArVocabularyRelation {
-  id: string;                        // AR:ULID
+  id: string;
   from_vocab_id: string;
   to_vocab_id: string;
   relation_type: ArVocabRelationType;
@@ -99,8 +93,6 @@ export interface ArVocabularyRelationCreate {
   note?: string | null;
 }
 
-// ─── Unit Vocabulary Map ──────────────────────────────────────────────────────
-
 export interface ArUnitVocabularyMap {
   id: string;
   unit_id: string;
@@ -109,8 +101,6 @@ export interface ArUnitVocabularyMap {
   is_key_word: boolean;
   created_at: string;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 const VALID_WORD_CLASSES: ArWordClass[] = ['noun', 'verb', 'particle', 'adjective', 'adverb', 'other'];
 const VALID_CEFR: ArCefrLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -210,16 +200,14 @@ export function validateArVocabularyRelationCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface VocabCard {
-  id: string;               // AR:ULID
-  container_id: string;     // AR:ULID
-  lx_lemma_ref: string;     // AL:ULID → ar_ling_root_lemma
+  id: string;
+  container_id: string;
+  lx_lemma_ref: string;
   display_ar: string;
   gloss_en: string | null;
   sort_order: number;
-  srs_level: number;        // 0-5
+  srs_level: number;
   next_review_at: string | null;
   created_at: string;
 }
@@ -231,8 +219,6 @@ export interface VocabCreate {
   gloss_en?: string | null;
   sort_order?: number;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

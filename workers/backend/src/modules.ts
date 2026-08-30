@@ -1,9 +1,3 @@
-// ─── Module routing table ─────────────────────────────────────────────────────
-// Maps /api/{key}/... → the correct service-binding Fetcher.
-//
-// publicGet = true  → unauthenticated GET requests are allowed (read-only data)
-// publicGet = false → every request requires a valid Bearer JWT
-
 import type { BackendEnv } from './env';
 
 export type ModuleKey =
@@ -22,8 +16,8 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
   ar:   { binding: 'ARABIC',         publicGet: false },
   al:   { binding: 'AR_LINGUISTICS', publicGet: true  },
   cm:   { binding: 'CONTENT',        publicGet: false },
-  core: { binding: 'CORE',           publicGet: true  }, // login / register are public
-  // Episode Studio — build podcast / tutorial / talking-head episodes.
+  core: { binding: 'CORE',           publicGet: true  },
+
   st:     { binding: 'STUDIO',       publicGet: false },
   studio: { binding: 'STUDIO',       publicGet: false },
 };

@@ -13,22 +13,6 @@ import {
 } from './atlas.models';
 import { AtlasLandingFacade } from './atlas-landing.facade';
 
-/**
- * AtlasGraphRenderer — owns all D3 rendering across three scene layers:
- *
- *   CONSTELLATION  Lightweight star-dot + line rendering (no force simulation)
- *   NODE           Full D3 force-directed graph with stabilised layout
- *   HISTORY        Temporal arc ribbon emerging from a focused node
- *
- * The renderer is stateless regarding navigation — it receives the current
- * SceneState and the resolved graph data and re-renders accordingly.
- *
- * Key decisions:
- *   • Cluster dust halos are rendered as <circle> elements, not random DOM spam
- *   • Force simulation runs briefly then freezes — no continuous re-layout
- *   • Labels use progressive disclosure by zoom level and importance
- *   • History arc uses a monotone cubic path, not a straight line grid
- */
 @Injectable({ providedIn: 'root' })
 export class AtlasGraphRenderer {
   private static readonly CAMERA_TRANSITION_NAME = 'atlas-camera';
@@ -51,8 +35,6 @@ export class AtlasGraphRenderer {
 
   constructor(private readonly facade: AtlasLandingFacade) {}
 
-  // ─── Initialisation ──────────────────────────────────────────────────────
-
   init(svgEl: SVGSVGElement, width: number, height: number): void {
     this.dispose();
 
@@ -61,7 +43,6 @@ export class AtlasGraphRenderer {
     this.svg = d3.select(svgEl);
     this.svg.attr('width', width).attr('height', height);
 
-    // Defs: radial gradient for Qur'an glow, clip paths
     this.buildDefs();
 
     this.root = this.svg.append('g').attr('class', 'atlas-root');
@@ -119,8 +100,6 @@ export class AtlasGraphRenderer {
     this.simulation = undefined as unknown as d3.Simulation<SimulationNode, SimulationLink>;
   }
 
-  // ─── Data load ───────────────────────────────────────────────────────────
-
   loadGraph(data: AtlasGraphData): void {
     this.clusterMap = new Map(data.clusters.map((c) => [c.id, c]));
     this.linksByNode = this.buildAdjacency(data.edges);
@@ -128,8 +107,6 @@ export class AtlasGraphRenderer {
     this.nodes = data.nodes.map((n) => this.facade.toSimulationNode(n, this.clusterMap));
     this.links = data.edges.map((e) => ({ ...e }));
   }
-
-  // ─── Full render entry ───────────────────────────────────────────────────
 
   renderScene(state: SceneState, focusLegacy: FocusState): void {
     switch (state.layer) {
@@ -143,14 +120,11 @@ export class AtlasGraphRenderer {
         this.renderNodeLayer(focusLegacy);
         break;
       case 'history':
-        // History arc is rendered separately via renderHistoryArc
+
         this.renderNodeLayer(focusLegacy);
         break;
     }
   }
-
-  // ─── SKY layer ───────────────────────────────────────────────────────────
-  // At sky scale: only cluster halos + concept nodes are visible.
 
   renderSkyLayer(focus: FocusState): void {
     this.ensureSimulation(focus);
@@ -160,9 +134,6 @@ export class AtlasGraphRenderer {
     this.updateLabels(focus);
   }
 
-  // ─── CONSTELLATION layer ─────────────────────────────────────────────────
-  // Zoomed in on one constellation territory; neighbouring clusters dimmed.
-
   renderConstellationLayer(focus: FocusState): void {
     this.ensureSimulation(focus);
     this.updateClusterHalos(focus);
@@ -170,7 +141,6 @@ export class AtlasGraphRenderer {
     this.updateNodes(focus);
     this.updateLabels(focus);
 
-    // Auto-pan camera to focused cluster
     if (focus.clusterId) {
       const cluster = this.clusterMap.get(focus.clusterId);
       if (cluster) {
@@ -178,9 +148,6 @@ export class AtlasGraphRenderer {
       }
     }
   }
-
-  // ─── NODE layer ──────────────────────────────────────────────────────────
-  // Deep zoom into a single cluster's concept graph.
 
   renderNodeLayer(focus: FocusState): void {
     this.ensureSimulation(focus);
@@ -197,13 +164,6 @@ export class AtlasGraphRenderer {
     }
   }
 
-  // ─── HISTORY arc layer ───────────────────────────────────────────────────
-
-  /**
-   * Draws a temporal arc extending from a focused node.
-   * Waypoints are placed along an arc path in chronological order.
-   * Era boundaries are marked with luminosity breaks.
-   */
   renderHistoryArc(
     nodeId: string,
     waypoints: HistoricalWaypoint[],
@@ -211,7 +171,7 @@ export class AtlasGraphRenderer {
     svgWidth: number,
     svgHeight: number,
   ): void {
-    // Remove any existing history layer
+
     this.root.selectAll('.atlas-history').remove();
 
     const origin = this.nodes.find((n) => n.id === nodeId);
@@ -223,7 +183,6 @@ export class AtlasGraphRenderer {
 
     if (waypoints.length === 0) return;
 
-    // Build arc points radiating from the node
     const arcRadius = 180;
     const angleSpread = Math.PI * 1.1;
     const startAngle = -Math.PI * 0.05;
@@ -239,7 +198,6 @@ export class AtlasGraphRenderer {
       };
     });
 
-    // Draw connecting path (monotone cubic)
     const lineGen = d3.line<typeof points[0]>()
       .x((d) => d.x)
       .y((d) => d.y)
@@ -266,13 +224,11 @@ export class AtlasGraphRenderer {
       .ease(d3.easeCubicOut)
       .attr('stroke-dashoffset', 0);
 
-    // Era group shading
     const eraMap = new Map(eras.map((e) => [e.era_id, e]));
     const timeMin = Math.min(...waypoints.map((w) => w.time_start));
     const timeMax = Math.max(...waypoints.map((w) => w.time_start));
     const timeRange = Math.max(1, timeMax - timeMin);
 
-    // Draw waypoint dots
     const waypointGs = historyG.selectAll<SVGGElement, typeof points[0]>('.atlas-history__wp')
       .data(points)
       .enter()
@@ -281,7 +237,6 @@ export class AtlasGraphRenderer {
       .attr('transform', (d) => `translate(${d.x},${d.y})`)
       .attr('opacity', 0);
 
-    // Era colour lookup
     const getEraColor = (eraId: string): string => {
       return eraMap.get(eraId)?.color ?? 'rgba(180,200,240,0.7)';
     };
@@ -308,7 +263,6 @@ export class AtlasGraphRenderer {
       .attr('fill', 'rgba(150,170,220,0.55)')
       .text((d) => `${d.wp.time_start > 0 ? d.wp.time_start + ' CE' : Math.abs(d.wp.time_start) + ' BCE'}`);
 
-    // Staggered entrance
     waypointGs
       .transition()
       .delay((_, i) => 200 + i * 90)
@@ -316,7 +270,6 @@ export class AtlasGraphRenderer {
       .ease(d3.easeCubicOut)
       .attr('opacity', 1);
 
-    // Pan to show history arc
     this.panTo(
       (origin.x ?? 0) + arcRadius * 0.5,
       (origin.y ?? 0),
@@ -328,8 +281,6 @@ export class AtlasGraphRenderer {
   removeHistoryArc(): void {
     this.root.selectAll('.atlas-history').remove();
   }
-
-  // ─── Zoom controls ───────────────────────────────────────────────────────
 
   zoomIn(): void {
     const current = this.getCurrentTransform();
@@ -369,8 +320,6 @@ export class AtlasGraphRenderer {
     this.transitionCameraTo(this.createCameraTransform(x, y, k), duration, 0.045);
   }
 
-  // ─── Force simulation ────────────────────────────────────────────────────
-
   private ensureSimulation(focus: FocusState): void {
     if (this.simulation) return;
     this.buildSimulation(focus);
@@ -395,7 +344,6 @@ export class AtlasGraphRenderer {
       .on('tick', () => this.onTick(focus))
       .on('end', () => this.onSimulationEnd());
 
-    // Freeze after warmup
     this.simulationStopTimerId = window.setTimeout(() => {
       if (this.simulation) this.simulation.stop();
     }, 4000);
@@ -408,7 +356,7 @@ export class AtlasGraphRenderer {
   }
 
   private onSimulationEnd(): void {
-    // Snapshot settled positions into homeX/homeY for future resets
+
     for (const node of this.nodes) {
       node.homeX = node.x ?? node.homeX;
       node.homeY = node.y ?? node.homeY;
@@ -420,12 +368,9 @@ export class AtlasGraphRenderer {
     return n;
   }
 
-  // ─── D3 join helpers ─────────────────────────────────────────────────────
-
   private buildDefs(): void {
     const defs = this.svg.append('defs');
 
-    // Qur'an radial glow gradient
     const quranGlow = defs.append('radialGradient')
       .attr('id', 'quran-glow')
       .attr('cx', '50%').attr('cy', '50%').attr('r', '50%');
@@ -433,14 +378,12 @@ export class AtlasGraphRenderer {
     quranGlow.append('stop').attr('offset', '60%').attr('stop-color', '#8a6a20').attr('stop-opacity', 0.14);
     quranGlow.append('stop').attr('offset', '100%').attr('stop-color', '#000000').attr('stop-opacity', 0);
 
-    // Star glow (generic)
     const starGlow = defs.append('radialGradient')
       .attr('id', 'star-glow')
       .attr('cx', '50%').attr('cy', '50%').attr('r', '50%');
     starGlow.append('stop').attr('offset', '0%').attr('stop-color', '#ffffff').attr('stop-opacity', 0.22);
     starGlow.append('stop').attr('offset', '100%').attr('stop-color', '#000000').attr('stop-opacity', 0);
 
-    // Blur filter for soft halos
     const blur = defs.append('filter').attr('id', 'halo-blur').attr('x', '-50%').attr('y', '-50%').attr('width', '200%').attr('height', '200%');
     blur.append('feGaussianBlur').attr('in', 'SourceGraphic').attr('stdDeviation', 18);
   }
@@ -451,15 +394,12 @@ export class AtlasGraphRenderer {
 
     const enter = g.enter().append('g').attr('class', 'atlas-territory');
 
-    // Halo circle (blurred)
     enter.append('circle')
       .attr('class', 'atlas-territory__halo')
       .attr('filter', 'url(#halo-blur)');
 
-    // Territory border
     enter.append('circle').attr('class', 'atlas-territory__border');
 
-    // Label
     enter.append('text').attr('class', 'atlas-territory__label')
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central');
@@ -551,8 +491,6 @@ export class AtlasGraphRenderer {
     g.exit().remove();
   }
 
-  // ─── Tick position updates ───────────────────────────────────────────────
-
   private updateEdgePositions(): void {
     this.root.selectAll<SVGLineElement, SimulationLink>('.atlas-edge')
       .attr('x1', (d) => (this.resolveNode(d.source)?.x ?? 0))
@@ -573,10 +511,8 @@ export class AtlasGraphRenderer {
       .attr('y', (d) => (d.y ?? 0) - this.facade.nodeRadius(d) - 5);
   }
 
-  // ─── Zoom-level reactive update ──────────────────────────────────────────
-
   private onZoomUpdate(): void {
-    // Re-apply opacity/size only — no full re-render
+
     const focus = this.getFocusFromDOM();
     this.root.selectAll<SVGCircleElement, SimulationNode>('.atlas-node')
       .attr('opacity', (d) => this.facade.nodeOpacity(d, focus, this.currentScale, this.linksByNode))
@@ -587,9 +523,6 @@ export class AtlasGraphRenderer {
     this.root.selectAll<SVGLineElement, SimulationLink>('.atlas-edge')
       .attr('stroke-width', (d) => this.facade.edgeWidth(d, this.currentScale));
   }
-
-  // ─── Interaction callbacks ────────────────────────────────────────────────
-  // These are dispatched as DOM custom events so the component can handle them.
 
   private nodeClickHandlers: Array<(node: SimulationNode) => void> = [];
   private bgClickHandlers: Array<() => void> = [];
@@ -616,8 +549,6 @@ export class AtlasGraphRenderer {
       .attr('stroke-width', entering ? 2.2 : (d) => (this.getFocusFromDOM().nodeId === d.id ? 1.8 : 0.8));
   }
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────
-
   private buildAdjacency(edges: AtlasEdge[]): Map<string, Set<string>> {
     const map = new Map<string, Set<string>>();
     for (const e of edges) {
@@ -629,10 +560,6 @@ export class AtlasGraphRenderer {
     return map;
   }
 
-  /**
-   * Reads the current focus state from the DOM attribute rather than holding it as
-   * component state — keeps the renderer decoupled from Angular signals.
-   */
   private getFocusFromDOM(): FocusState {
     const attr = this.svg?.node()?.getAttribute('data-focus');
     if (!attr) return { kind: 'world' };

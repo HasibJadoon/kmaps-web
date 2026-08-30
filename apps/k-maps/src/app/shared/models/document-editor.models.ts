@@ -1,5 +1,3 @@
-// ── Scope ─────────────────────────────────────────────────────────────────────
-
 export interface DocumentEditorScope {
   domain: 'quran' | 'arabic' | 'worldview' | 'classical_theology' |
           'jewish_wv' | 'christian_wv' | 'history' | 'planner' | 'workspace' | 'other';
@@ -8,8 +6,6 @@ export interface DocumentEditorScope {
   source_unit_id?: string;
   unit_id?: string;
 }
-
-// ── Doc types ─────────────────────────────────────────────────────────────────
 
 export type QuranDocType =
   | 'running_notes'
@@ -28,8 +24,6 @@ export const QURAN_DOC_TYPES: { value: QuranDocType; label: string }[] = [
   { value: 'draft',          label: 'Draft' },
 ];
 
-// ── Tiptap doc JSON ───────────────────────────────────────────────────────────
-
 export interface TiptapNode {
   type: string;
   attrs?: Record<string, unknown>;
@@ -42,8 +36,6 @@ export interface TiptapDoc {
   type: 'doc';
   content: TiptapNode[];
 }
-
-// ── List item ─────────────────────────────────────────────────────────────────
 
 export interface DocumentListItem {
   id: string;
@@ -61,15 +53,11 @@ export interface DocumentListItem {
   updated_at: string | null;
 }
 
-// ── Full document ─────────────────────────────────────────────────────────────
-
 export interface DocumentDetail extends DocumentListItem {
   document_json: TiptapDoc;
   meta_json: Record<string, unknown>;
   workspace_id: string;
 }
-
-// ── API responses ─────────────────────────────────────────────────────────────
 
 export interface DocumentListResponse {
   ok: boolean;
@@ -110,17 +98,10 @@ export interface DocumentUploadResponse {
   error?: string;
 }
 
-// ── Save state ────────────────────────────────────────────────────────────────
-
 export type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-
-// ── CM (km-content) document API ──────────────────────────────────────────────
-// The CM backend stores a document as structured `cm_blocks` rows. The editor
-// works in Tiptap JSON; `block-mapper.ts` converts between the two.
 
 export type CmPublicationState = 'draft' | 'review' | 'published' | 'archived';
 
-/** A `cm_blocks` row as returned by the CM document aggregate endpoint. */
 export interface KmBlock {
   block_id: string;
   doc_id: string;
@@ -137,7 +118,6 @@ export interface KmBlock {
   updated_at: string;
 }
 
-/** A `cm_documents` row (optionally with its decomposed blocks). */
 export interface CmDocumentRow {
   doc_id: string;
   core_user_ref: string;
@@ -154,10 +134,6 @@ export interface CmDocumentRow {
   blocks?: KmBlock[];
 }
 
-/**
- * App-specific document context. CM has no `domain`/`surah`/parent columns, so
- * this rides in `cm_documents.meta_json` and is parsed back out by the adapter.
- */
 export interface DocMeta {
   domain?: string;
   parent_doc_id?: string | null;
@@ -171,7 +147,6 @@ export interface DocMeta {
   sort_order?: number;
 }
 
-/** A document plus its recomposed Tiptap content, ready for the editor. */
 export interface DocDetail {
   id: string;
   title: string;
@@ -184,7 +159,6 @@ export interface DocDetail {
   updated_at: string;
 }
 
-/** A list-row summary used by the docs sidebar. */
 export interface DocSummaryItem {
   id: string;
   title: string;

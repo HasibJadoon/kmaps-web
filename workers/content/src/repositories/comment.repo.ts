@@ -1,14 +1,6 @@
-// ─── CommentRepo — cm_comments + cm_comment_reactions ────────────────────────
-// Threaded comments on any typed cross-module ref, with emoji reactions.
-// Supports resolve workflow and edit history tracking.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ---------------------------------------------------------------------------
-// cm_comments
-// ---------------------------------------------------------------------------
 
 export interface CmComment {
   comment_id: string;
@@ -18,7 +10,7 @@ export interface CmComment {
   thread_root_id: string | null;
   comment_text: string;
   comment_ar: string | null;
-  is_resolved: number;          // 0 | 1
+  is_resolved: number;
   resolved_by_ref: string | null;
   resolved_at: string | null;
   edit_history_json: string;
@@ -50,10 +42,6 @@ const COMMENT_COLS = `comment_id, core_user_ref, target_ref, parent_comment_id,
   thread_root_id, comment_text, comment_ar, is_resolved, resolved_by_ref,
   resolved_at, edit_history_json, workspace_ref, meta_json, created_at, updated_at`;
 
-// ---------------------------------------------------------------------------
-// cm_comment_reactions
-// ---------------------------------------------------------------------------
-
 export interface CmCommentReaction {
   reaction_id: string;
   comment_id: string;
@@ -64,14 +52,8 @@ export interface CmCommentReaction {
 
 const REACTION_COLS = `reaction_id, comment_id, core_user_ref, emoji, created_at`;
 
-// ---------------------------------------------------------------------------
-// Repository
-// ---------------------------------------------------------------------------
-
 export class CommentRepo {
   constructor(private db: D1Database) {}
-
-  // ── cm_comments ──────────────────────────────────────────────────────────
 
   byTarget(targetRef: string, opts: PaginateOptions = {}) {
     return paginate<CmComment>(
@@ -106,8 +88,7 @@ export class CommentRepo {
   async create(input: CmCommentInput): Promise<CmComment> {
     const comment_id = typedId('CM');
     const now        = new Date().toISOString();
-    // Derive thread_root_id: if replying to a comment that itself has a
-    // thread_root_id use that, otherwise use the parent_comment_id as root.
+
     let thread_root_id = input.thread_root_id ?? null;
     if (!thread_root_id && input.parent_comment_id) {
       const parent = await this.findById(input.parent_comment_id);
@@ -176,8 +157,6 @@ export class CommentRepo {
     );
   }
 
-  // ── cm_comment_reactions ─────────────────────────────────────────────────
-
   reactions(commentId: string): Promise<CmCommentReaction[]> {
     return query<CmCommentReaction>(
       this.db,
@@ -190,7 +169,7 @@ export class CommentRepo {
   async addReaction(commentId: string, userRef: string, emoji: string): Promise<CmCommentReaction> {
     const reaction_id = typedId('CM');
     const now         = new Date().toISOString();
-    // INSERT OR IGNORE respects the UNIQUE(comment_id, core_user_ref, emoji) constraint
+
     await execute(
       this.db,
       `INSERT OR IGNORE INTO cm_comment_reactions

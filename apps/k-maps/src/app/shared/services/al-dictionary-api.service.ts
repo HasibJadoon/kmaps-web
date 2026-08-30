@@ -4,8 +4,6 @@ import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { BackendApiService } from './backend-api.service';
 
-// ─── Types — classical source chunks (/al/lexicon/dict/*) ────────────────────
-
 export interface AlDictSource {
   slug: string;
   title_ar: string;
@@ -49,8 +47,6 @@ export interface AlRootResult {
   lemma_count: number;
 }
 
-// ─── Types — Lane grouped table (/al/lexicon/entries/lane/*) ─────────────────
-
 export interface LaneGroupedRow {
   entry_id: string;
   display_heading_ar: string | null;
@@ -76,8 +72,6 @@ export interface LaneTableResult {
   entries: LaneGroupedRow[];
 }
 
-// ─── Service ─────────────────────────────────────────────────────────────────
-
 @Injectable({ providedIn: 'root' })
 export class AlDictionaryApiService {
   private readonly api = inject(BackendApiService);
@@ -95,8 +89,6 @@ export class AlDictionaryApiService {
     const params = new HttpParams().set('limit', String(limit));
     return this.api.getData<LaneTableResult>('al', ['lexicon', 'entries', 'lane', root], { params });
   }
-
-  // ─── /al/lex/v2/* — clean root-based reader API ────────────────────────────
 
   getV2Sources(): Observable<LexV2SourcesResult> {
     return this.api.getData<LexV2SourcesResult>('al', ['lex', 'v2', 'sources']);
@@ -120,11 +112,6 @@ export class AlDictionaryApiService {
     return this.api.getData<LexV2EntryDetail>('al', ['lex', 'v2', 'entry', source_slug, root_norm]);
   }
 
-  // ── Ṣarf family for one (book, root) ────────────────────────────────────
-  // The per-book `/read/<slug>` composers don't carry `sarf_families`, so the
-  // shells pull it from the generic entry endpoint alongside their own view.
-  // An entry can hold more than one ṣarf block; the first non-empty one is the
-  // family, and a book with none simply has no panel.
   getSarfFamily(source_slug: string, root_norm: string): Observable<LexV2SarfFamily | null> {
     return this.getV2Entry(source_slug, root_norm).pipe(
       map(e => {
@@ -136,11 +123,6 @@ export class AlDictionaryApiService {
     );
   }
 
-  // ── Mufradat-specific reader endpoint ────────────────────────────────────
-  // Mufradat (al-Raghib) has its own composer that fills inline Quran refs,
-  // tokenizes footnote markers, and tags paragraph kinds. Other lexicons
-  // will get their own /read/<slug> endpoints — this one is independent.
-
   getMufradatRead(root_norm: string): Observable<MufradatReadView> {
     return this.api.getData<MufradatReadView>(
       'al',
@@ -148,20 +130,10 @@ export class AlDictionaryApiService {
     );
   }
 
-  // ── Lisan al-Arab (Ibn Manzur) reader endpoint ──────────────────────────
-  // Composer extracts `[[…]]` inline footnotes, reads pre-populated
-  // ar_ling_lexicon_quran_ref (878 rows resolved offline via 5-gram
-  // matching), validates noisy poetry/hadith block typing, and tags
-  // classical authority mentions.
   getLisanRead(root_norm: string): Observable<LisanReadView> {
     return this.getClassicalRead('ibn_manzur_lisan_arab', root_norm);
   }
 
-  // ── Generic classical-lexicon reader ───────────────────────────────────
-  // Serves any source that's registered in the backend's
-  // SOURCE_CONFIGS table (Lisan, al-Sihah, al-Khalil, Maqayis, Ubab).
-  // Response shape is identical for each, so one front-end shell can
-  // render them all.
   getClassicalRead(source_slug: string, root_norm: string): Observable<LisanReadView> {
     return this.api.getData<LisanReadView>(
       'al',
@@ -169,11 +141,6 @@ export class AlDictionaryApiService {
     );
   }
 
-  // ── Lane reader (bilingual XML scholar format) ──────────────────────
-  // Lane's data is structurally different — verb-form-keyed sections,
-  // English/Arabic interleaved prose, scholarly sigla, authority links.
-  // The composer parses Lane's `definition` blocks into bilingual token
-  // streams. Returns LaneReadView which has its own UI shell.
   getLaneRead(root_norm: string): Observable<LaneReadView> {
     return this.api.getData<LaneReadView>(
       'al', ['lex', 'v2', 'read', 'lane_lexicon', root_norm],
@@ -189,10 +156,6 @@ export class AlDictionaryApiService {
     return this.api.getData<LexV2SearchResult>('al', ['lex', 'v2', 'search'], { params: p });
   }
 
-  // ── Academic scholarship (Al-Jallad, epigraphic, comparative-Semitic) ──
-  // Lives in `ar_ling_root_scholarship` — distinct from the classical
-  // lexicon corpus. Surfaced on the hub as an "Academic readings"
-  // section, beside the classical lit-up cards.
   getScholarshipSources(): Observable<{ sources: ScholarshipSource[]; total: number }> {
     return this.api.getData('al', ['scholarship', 'sources']);
   }
@@ -201,19 +164,17 @@ export class AlDictionaryApiService {
       'al', ['scholarship', 'root', root_norm],
     );
   }
-  /** Root index for a scholarship source (left-rail of the shell). */
+
   getScholarshipRoots(slug: string): Observable<{ slug: string; rows: ScholarshipRootRow[]; total: number }> {
     return this.api.getData('al', ['scholarship', 'roots', slug]);
   }
-  /** All notes for a (source, root) pair (main panel of the shell). */
+
   getScholarshipBySource(slug: string, root_norm: string): Observable<ScholarshipShellView> {
     return this.api.getData<ScholarshipShellView>(
       'al', ['scholarship', 'by-source', slug, root_norm],
     );
   }
 }
-
-// ─── v2 result types ─────────────────────────────────────────────────────────
 
 export interface LexV2SourceMeta {
   slug: string;
@@ -271,12 +232,12 @@ export interface LexV2Block {
   block_path: string;
   block_seq: number;
   depth: number;
-  block_type: string;  // root_header | definition | quran_quote | hadith_quote | poetry_quote | chapter_header | footnote | …
+  block_type: string;
   lang: string | null;
   title_ar: string | null;
   text_plain: string | null;
   text_html: string | null;
-  data_json: string;   // JSON string
+  data_json: string;
   origin: string;
   origin_ref: string | null;
   printed_page: number | null;
@@ -285,11 +246,11 @@ export interface LexV2Block {
 export interface LexV2SectionBody {
   text: string;
   paragraphs: string[];
-  /** Distinct marker numbers, sorted. Kept for callers that only want a set. */
+
   footnote_refs: number[];
-  /** Every marker number in reading order, repeats kept. */
+
   marker_nums?: number[];
-  /** Every marker in reading order, bound to its note. */
+
   footnote_marks?: LexV2FootnoteMark[];
 }
 
@@ -311,17 +272,12 @@ export interface LexV2Footnote {
   text: string;
   block_id: string;
   section_id: string | null;
-  /** Reading-order position of this note's marker in the entry, 1-based. */
+
   ordinal?: number | null;
-  /**
-   * The printed page the note sits on. A note is (printed_page, num): Shamela
-   * restarts footnote numbering on every page, so an article crossing a page
-   * break prints «1» twice for two different notes.
-   */
+
   printed_page?: number | null;
 }
 
-/** A «N» in the prose, already bound by the worker to the note it means. */
 export interface LexV2FootnoteMark {
   num: number;
   ordinal: number | null;
@@ -332,7 +288,7 @@ export interface LexV2FootnoteMark {
 export interface LexV2Link {
   id: string;
   from_block_id: string;
-  link_kind: string; // quran_ayah | footnote | cross_ref_reverse | …
+  link_kind: string;
   to_root_norm: string | null;
   to_surah: number | null;
   to_ayah: number | null;
@@ -351,22 +307,10 @@ export interface LexV2QuranRef {
   surah: number; ayah: number; raw_ref: string; context_snippet: string | null;
 }
 
-// ─── Ṣarf family ────────────────────────────────────────────────────────────
-// Every book draws its own ṣarf tree for a root — al-Rāghib's بين is not
-// al-Jawharī's — so the family is book-scoped, one per (source, root), and
-// switching books switches the tree. The worker resolves every `GT:` grammar-
-// term id against ar_ling_gram_term before it reaches us, so these arrive
-// display-ready and a renderer never sees an id.
-//
-// Only `/lex/v2/entry/:slug/:root` carries this. The per-book `/lex/v2/read/…`
-// composers do not, which is why the shells fetch it alongside their own view.
-
-/** A grammar term as the registry names it, already resolved. */
 export interface LexV2TermLabel {
   id: string; ar: string; en: string; ur: string; short_ar: string | null;
 }
 
-/** Authored trilingually; empties arrive as null rather than "". */
 export interface LexV2Tri { ar: string | null; en: string | null; ur: string | null; }
 
 export interface LexV2SarfPole {
@@ -378,15 +322,12 @@ export interface LexV2SarfSense { sense: LexV2Tri | null; example: LexV2Tri | nu
 export interface LexV2SarfForm {
   form_id: string | null;
   roman: string;
-  /** The headword this form is filed under. Lane states it for every form and
-   *  leaves `madi` null, so the card falls back to it or shows a bare numeral. */
+
   lemma: string | null;
   section_id: string | null;
-  /** Blocks carrying the author's prose for this form — the family is an index
-   *  into the article, so a form can pivot straight to the passage. */
+
   block_ids: string[];
-  /** Form I carries `bab`; Forms II–XII and nominal-only rows carry
-   *  `form_tier` instead, so the chip has to fall back or derived forms show bare. */
+
   bab: LexV2TermLabel | null;
   bab_alt: LexV2TermLabel[];
   form_tier: LexV2TermLabel | null;
@@ -424,8 +365,7 @@ export interface LexV2SarfFamily {
   scope: string;
   root_type: LexV2TermLabel | null;
   core: LexV2Tri | null;
-  /** What this book does with the family that the others do not — the reason
-   *  the panel is per source at all. */
+
   distinctive_note: LexV2Tri | null;
   authors_own_words: LexV2Tri | null;
   poles: LexV2SarfPole[];
@@ -455,8 +395,7 @@ export interface LexV2EntryDetail {
   tags: LexV2Tag[];
   quran_refs: LexV2QuranRef[];
   footnotes?: LexV2Footnote[];
-  /** Book-scoped ṣarf trees, resolved display-ready. Present on this endpoint
-   *  only — the `/lex/v2/read/…` composers omit it. */
+
   sarf_families?: LexV2SarfFamily[];
   sources_of_entry: {
     id: string; source_kind: string; source_native_id: string | null; source_url: string | null;
@@ -488,10 +427,6 @@ export interface LexV2SearchResult {
   mode: 'root' | 'word' | 'fts';
   q: string;
 }
-
-// ─── Mufradat (al-Raghib) reader types ───────────────────────────────────────
-// Independent shape — produced by the worker's per-source composer at
-// /al/lex/v2/read/raghib_mufradat/:root_norm
 
 export type MufradatProseToken =
   | { kind: 'text'; value: string }
@@ -526,34 +461,27 @@ export interface MufradatSection {
   heading_ar: string | null;
   page_no: number | null;
   paragraphs: MufradatParagraph[];
-  // Optional per-section trilingual synthesis. Authored in D1; absent for
-  // roots that haven't been translated yet (reader then shows AR-only).
-  // Both fields carry trusted, class-scoped HTML (span.ar / span.r / b / i).
+
   translation_en?: string | null;
   translation_ur?: string | null;
 }
 
-// ── Family map (study-aid synthesis) ─────────────────────────────────────────
-// Optional per-entry "the family at a glance": a meaning-core card, two
-// semantic poles each holding derived verb/noun forms, and al-Raghib's own
-// derivation-chain note. Authored in D1 (family_json); null for un-synthesised
-// roots. All *_html fields are trusted, class-scoped HTML.
 export interface MufradatFamilyForm {
-  badge: string;            // "I · ضَرَبَ", "n.", "II", "IV", "V", "X"
-  head_html: string;        // "بَانَ · <em>يَبِينُ</em>"
-  masdar_html?: string | null;  // "مصادر: بَيْن · بَيْنونة · بُيون"
-  gloss_en?: string | null; // trusted HTML
+  badge: string;
+  head_html: string;
+  masdar_html?: string | null;
+  gloss_en?: string | null;
   gloss_ur?: string | null;
-  citation_html?: string | null;  // "<span class=\"rf\">al-Anʿām 6:94</span> ﴿…﴾"
+  citation_html?: string | null;
 }
 export interface MufradatFamilyPole {
-  key: 'sep' | 'disc' | string;   // color key → --sep / --disc
+  key: 'sep' | 'disc' | string;
   title_ar: string;
   title_en: string;
   forms: MufradatFamilyForm[];
 }
 export interface MufradatFamilyDerivation {
-  quote_ar: string;         // «يقال: بَانَ واسْتَبَانَ…»
+  quote_ar: string;
   en_html: string;
   ur_html: string;
   inferred_en_html?: string | null;
@@ -565,13 +493,11 @@ export interface MufradatFamily {
   derivation?: MufradatFamilyDerivation | null;
 }
 
-// Entry-head trilingual gloss + typographic helpers (spaced/dotted letters,
-// the Arabic root-type label). Optional; falls back to canonical fields.
 export interface MufradatEntryGloss {
-  letters_spaced?: string | null;   // "ب ي ن"
-  letters_dotted?: string | null;   // "ب · ي · ن"
-  root_type_ar?: string | null;     // "جذر ثلاثيّ أجوف يائيّ"
-  gloss_en?: string | null;         // "separation · disclosure · clarity"
+  letters_spaced?: string | null;
+  letters_dotted?: string | null;
+  root_type_ar?: string | null;
+  gloss_en?: string | null;
   gloss_ar?: string | null;
   gloss_ur?: string | null;
 }
@@ -605,7 +531,7 @@ export interface MufradatReadView {
     meaning_core_en: string | null;
   } | null;
   sections: MufradatSection[];
-  // Optional synthesis layers — present only for authored roots.
+
   family?: MufradatFamily | null;
   entry_gloss?: MufradatEntryGloss | null;
   footnotes: { num: number; text: string | null; printed_page: number | null }[];
@@ -626,15 +552,6 @@ export interface MufradatReadView {
     footnote_markers: number;
   };
 }
-
-// ─── Lisan al-Arab (Ibn Manzur) reader types ─────────────────────────────────
-// Shape mirrors MufradatReadView for UI reuse, but:
-//   ▸ Footnote tokens carry an optional `pivot` (the lemma the editor's
-//     marginal note annotates).
-//   ▸ Quran tokens are resolved (surah,ayah) — no surah-name string.
-//   ▸ New `authority` token tags inline scholar mentions.
-//   ▸ Three additional panel arrays: hadith_quotes, poetry_shawahid,
-//     authorities.
 
 export type LisanAuthorityKind =
   | 'lexicographer' | 'grammarian' | 'quran_reader'
@@ -715,11 +632,10 @@ export interface LisanReadView {
   };
 }
 
-// ─── Lane (bilingual XML scholar format) reader types ────────────────────────
 export type LaneToken =
   | { kind: 'text';       value: string }
-  | { kind: 'arabic';     value: string }    // {...} brace form
-  | { kind: 'headword';   value: string }    // text after ⇒
+  | { kind: 'arabic';     value: string }
+  | { kind: 'headword';   value: string }
   | { kind: 'siglum';     code: string; name_en: string; name_ar: string; raw: string }
   | { kind: 'cross_ref';  target: string }
   | { kind: 'quran';      surah: number; ayah: number; raw: string }
@@ -727,7 +643,7 @@ export type LaneToken =
   | { kind: 'br' };
 
 export interface LaneSense {
-  label: string | null;            // 'A', 'A1', 'B', etc.
+  label: string | null;
   kind: 'signification' | 'dissociation' | 'plain' | null;
   tokens: LaneToken[];
 }
@@ -782,16 +698,14 @@ export interface LaneReadView {
   };
 }
 
-// ─── Scholarship — academic notes on roots (Al-Jallad et al.) ────────────────
-
 export interface ScholarshipSource {
   id:          string;
-  slug:        string | null;                  // url-safe slug for routing
+  slug:        string | null;
   title_ar:    string;
   title_en:    string;
   author:      string;
   year:        number | null;
-  genre:       string;                         // qur_anic_hermeneutic | epigraphic | …
+  genre:       string;
   genre_label: { ar: string; en: string };
   url:         string | null;
   count:       number;

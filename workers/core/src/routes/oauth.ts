@@ -1,12 +1,3 @@
-// ─── /core/auth/oauth routes — Google / Apple sign-in ─────────────────────────
-// Backend-ready, config-driven. The frontend obtains a provider ID token
-// (Google Identity Services / Sign in with Apple) and posts it here; CORE
-// verifies it against the provider JWKS and issues its own session JWT.
-//
-// Providers are enabled purely by setting the matching env vars — no code
-// change is needed to turn them on. /core/auth/providers tells the client
-// which providers are live.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest, unauthorized, forbidden } from '../../../shared/src/response';
 import type { CoreEnv } from '../env';
@@ -15,7 +6,6 @@ import { issueSessionToken } from '../jwt';
 import { verifyGoogleIdToken, verifyAppleIdToken, type OAuthIdentity } from '../oauth/verify';
 import type { User } from '../schemas/user.schema';
 
-/** Parse a comma-separated env var into a trimmed, non-empty list. */
 function clientIds(value: string | undefined): string[] {
   return (value ?? '')
     .split(',')
@@ -32,10 +22,6 @@ function displayNameFor(identity: OAuthIdentity): string {
   return 'New user';
 }
 
-/**
- * Resolve an OAuth identity to a session token: link to an existing account
- * (matched by provider subject, then by email) or provision a fresh one.
- */
 async function loginWithIdentity(
   env: CoreEnv,
   identity: OAuthIdentity,
@@ -89,8 +75,6 @@ async function readJson(req: Request): Promise<Record<string, unknown> | null> {
 
 export function oauthRoutes(router: Router<CoreEnv>) {
 
-  // GET /core/auth/providers — which social providers are configured.
-  // Public; lets the login screen show only the buttons that will work.
   router.get('/core/auth/providers', async (_req, env) => {
     const google = clientIds(env.GOOGLE_CLIENT_ID);
     const apple = clientIds(env.APPLE_CLIENT_ID);
@@ -101,7 +85,7 @@ export function oauthRoutes(router: Router<CoreEnv>) {
         client_id: google[0] ?? '',
       },
       apple: {
-        // The web "Sign in with Apple" popup needs a registered redirect URI.
+
         enabled: apple.length > 0 && appleRedirect.length > 0,
         client_id: apple[0] ?? '',
         redirect_uri: appleRedirect,
@@ -110,7 +94,6 @@ export function oauthRoutes(router: Router<CoreEnv>) {
     });
   });
 
-  // POST /core/auth/oauth/google — { id_token } → session JWT
   router.post('/core/auth/oauth/google', async (req, env) => {
     const ids = clientIds(env.GOOGLE_CLIENT_ID);
     if (ids.length === 0) return badRequest('Google sign-in is not configured');
@@ -124,9 +107,6 @@ export function oauthRoutes(router: Router<CoreEnv>) {
     return loginWithIdentity(env, identity);
   });
 
-  // POST /core/auth/oauth/apple — { id_token, name? } → session JWT
-  // Apple only returns the user's name on the very first authorization, so
-  // the client may pass it through separately.
   router.post('/core/auth/oauth/apple', async (req, env) => {
     const ids = clientIds(env.APPLE_CLIENT_ID);
     if (ids.length === 0) return badRequest('Apple sign-in is not configured');

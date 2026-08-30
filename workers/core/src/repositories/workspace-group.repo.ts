@@ -1,9 +1,5 @@
-// ─── WorkspaceGroupRepo — core_workspace_groups + core_workspace_group_members ─
-
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface WorkspaceGroup {
   id: string;
@@ -33,8 +29,6 @@ export interface WorkspaceGroupMember {
   joined_at: string;
 }
 
-// ── Column fragments ──────────────────────────────────────────────────────────
-
 const GROUP_COLS = `
   id, workspace_id, name, group_type, description, created_by_id,
   meta_json, created_at
@@ -44,12 +38,8 @@ const MEMBER_COLS = `
   id, group_id, user_id, role, joined_at
 FROM core_workspace_group_members`;
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class WorkspaceGroupRepo {
   constructor(private db: D1Database) {}
-
-  // ── Groups ──
 
   list(workspaceId: string): Promise<WorkspaceGroup[]> {
     return query<WorkspaceGroup>(
@@ -103,8 +93,6 @@ export class WorkspaceGroupRepo {
     );
   }
 
-  // ── Members ──
-
   members(groupId: string): Promise<WorkspaceGroupMember[]> {
     return query<WorkspaceGroupMember>(
       this.db,
@@ -142,7 +130,6 @@ export class WorkspaceGroupRepo {
     );
   }
 
-  /** Update a member's role within the group. */
   async updateMemberRole(
     groupId: string,
     userId: string,
@@ -155,7 +142,6 @@ export class WorkspaceGroupRepo {
     );
   }
 
-  /** Groups a user belongs to within a workspace. */
   userGroups(workspaceId: string, userId: string): Promise<WorkspaceGroup[]> {
     return query<WorkspaceGroup>(
       this.db,

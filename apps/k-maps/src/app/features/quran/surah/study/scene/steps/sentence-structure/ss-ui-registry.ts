@@ -1,7 +1,3 @@
-// ── K-Maps Sentence Structure UI Registry ────────────────────────────────────
-// Single source of truth for node colours, labels, and icons.
-// Keyed by id_ref from the canonical ui_registry JSON spec.
-
 export interface NodeUiDef {
   bg: string;
   text: string;
@@ -9,16 +5,12 @@ export interface NodeUiDef {
   label_ar: string;
 }
 
-// ── Full flat registry (id_ref → NodeUiDef) ──────────────────────────────────
-
 export const UI_REGISTRY: Record<string, NodeUiDef> = {
 
-  // ── word_types ──────────────────────────────────────────────────────────────
   noun:     { bg: '#34C759', text: '#FFFFFF', border: '#1E7D3A', label_ar: 'اسم' },
   verb:     { bg: '#FF3B30', text: '#FFFFFF', border: '#A61B14', label_ar: 'فعل' },
   particle: { bg: '#AF52DE', text: '#FFFFFF', border: '#6D28A9', label_ar: 'حرف' },
 
-  // ── syntactic_functions ─────────────────────────────────────────────────────
   mubtada:        { bg: '#22C55E', text: '#FFFFFF', border: '#16A34A', label_ar: 'مبتدأ' },
   khabar:         { bg: '#0EA5E9', text: '#FFFFFF', border: '#0369A1', label_ar: 'خبر' },
   ism_kana:       { bg: '#16A34A', text: '#FFFFFF', border: '#15803D', label_ar: 'اسم كان' },
@@ -51,7 +43,6 @@ export const UI_REGISTRY: Record<string, NodeUiDef> = {
   jawab_alshart:  { bg: '#F59E0B', text: '#111827', border: '#B45309', label_ar: 'جواب الشرط' },
   jawab_alqasm:   { bg: '#A16207', text: '#FFFFFF', border: '#713F12', label_ar: 'جواب القسم' },
 
-  // ── particle_types ──────────────────────────────────────────────────────────
   harf_jar:       { bg: '#7C3AED', text: '#FFFFFF', border: '#5B21B6', label_ar: 'حرف جر' },
   harf_nasb:      { bg: '#DC2626', text: '#FFFFFF', border: '#B91C1C', label_ar: 'حرف نصب' },
   harf_jazm:      { bg: '#6D28D9', text: '#FFFFFF', border: '#5B21B6', label_ar: 'حرف جزم' },
@@ -67,7 +58,6 @@ export const UI_REGISTRY: Record<string, NodeUiDef> = {
   harf_tafsir:    { bg: '#10B981', text: '#FFFFFF', border: '#047857', label_ar: 'حرف تفسير' },
   harf_masdari:   { bg: '#14B8A6', text: '#FFFFFF', border: '#0F766E', label_ar: 'حرف مصدري' },
 
-  // ── embedded_clause_functions ───────────────────────────────────────────────
   predicate_clause:          { bg: '#0EA5E9', text: '#FFFFFF', border: '#0369A1', label_ar: 'جملة خبر' },
   circumstantial_clause:     { bg: '#A855F7', text: '#FFFFFF', border: '#7E22CE', label_ar: 'جملة حال' },
   adjectival_clause:         { bg: '#2563EB', text: '#FFFFFF', border: '#1D4ED8', label_ar: 'جملة صفة' },
@@ -81,7 +71,6 @@ export const UI_REGISTRY: Record<string, NodeUiDef> = {
   tafsir_clause:             { bg: '#10B981', text: '#FFFFFF', border: '#047857', label_ar: 'جملة تفسيرية' },
   quoted_speech:             { bg: '#EC4899', text: '#FFFFFF', border: '#BE185D', label_ar: 'مقول القول' },
 
-  // ── phrase_types ────────────────────────────────────────────────────────────
   prepositional_generic: { bg: '#06B6D4', text: '#FFFFFF', border: '#0E7490', label_ar: 'شبه جملة' },
   jar_majrur:            { bg: '#0891B2', text: '#FFFFFF', border: '#0E7490', label_ar: 'جار ومجرور' },
   zarf:                  { bg: '#F59E0B', text: '#111827', border: '#B45309', label_ar: 'ظرف' },
@@ -96,7 +85,6 @@ export const UI_REGISTRY: Record<string, NodeUiDef> = {
   exception_construction:{ bg: '#4B5563', text: '#FFFFFF', border: '#374151', label_ar: 'تركيب استثنائي' },
   masdar_muawwal:        { bg: '#14B8A6', text: '#FFFFFF', border: '#0F766E', label_ar: 'مصدر مؤول' },
 
-  // ── dependent_functions ─────────────────────────────────────────────────────
   naat:         { bg: '#2563EB', text: '#FFFFFF', border: '#1D4ED8', label_ar: 'نعت' },
   mawsuf:       { bg: '#3B82F6', text: '#FFFFFF', border: '#1D4ED8', label_ar: 'منعوت' },
   tawkid:       { bg: '#DC2626', text: '#FFFFFF', border: '#991B1B', label_ar: 'توكيد' },
@@ -106,52 +94,42 @@ export const UI_REGISTRY: Record<string, NodeUiDef> = {
   maatuf:       { bg: '#8B5CF6', text: '#FFFFFF', border: '#6D28D9', label_ar: 'معطوف' },
   maatuf_alayh: { bg: '#6D28D9', text: '#FFFFFF', border: '#5B21B6', label_ar: 'معطوف عليه' },
 
-  // ── case ────────────────────────────────────────────────────────────────────
   raf:   { bg: '#22C55E', text: '#FFFFFF', border: '#16A34A', label_ar: 'مرفوع' },
   nasb:  { bg: '#DC2626', text: '#FFFFFF', border: '#B91C1C', label_ar: 'منصوب' },
   jarr:  { bg: '#7C3AED', text: '#FFFFFF', border: '#5B21B6', label_ar: 'مجرور' },
   jazm:  { bg: '#6D28D9', text: '#FFFFFF', border: '#5B21B6', label_ar: 'مجزوم' },
   mabni: { bg: '#4B5563', text: '#FFFFFF', border: '#374151', label_ar: 'مبني' },
 
-  // ── verb_tense ──────────────────────────────────────────────────────────────
   past:       { bg: '#92400E', text: '#FFFFFF', border: '#78350F', label_ar: 'ماض' },
   present:    { bg: '#EF4444', text: '#FFFFFF', border: '#B91C1C', label_ar: 'مضارع' },
   imperative: { bg: '#22C55E', text: '#FFFFFF', border: '#16A34A', label_ar: 'أمر' },
 
-  // ── verb_voice ──────────────────────────────────────────────────────────────
   active:  { bg: '#22C55E', text: '#FFFFFF', border: '#16A34A', label_ar: 'معلوم' },
   passive: { bg: '#8E8E93', text: '#FFFFFF', border: '#6B6B70', label_ar: 'مجهول' },
 
-  // ── verb_mood ───────────────────────────────────────────────────────────────
   indicative:  { bg: '#22C55E', text: '#FFFFFF', border: '#16A34A', label_ar: 'مرفوع' },
   subjunctive: { bg: '#DC2626', text: '#FFFFFF', border: '#B91C1C', label_ar: 'منصوب' },
   jussive:     { bg: '#6D28D9', text: '#FFFFFF', border: '#5B21B6', label_ar: 'مجزوم' },
 
-  // ── clause_slot_status ──────────────────────────────────────────────────────
   has_i3rab_slot: { bg: '#22C55E', text: '#FFFFFF', border: '#16A34A', label_ar: 'له محل' },
   no_i3rab_slot:  { bg: '#6B7280', text: '#FFFFFF', border: '#4B5563', label_ar: 'لا محل' },
 
-  // ── definiteness ────────────────────────────────────────────────────────────
   definite:   { bg: '#22C55E', text: '#FFFFFF', border: '#16A34A', label_ar: 'معرفة' },
   indefinite: { bg: '#6B7280', text: '#FFFFFF', border: '#4B5563', label_ar: 'نكرة' },
 
-  // ── number ──────────────────────────────────────────────────────────────────
   singular: { bg: '#22C55E', text: '#FFFFFF', border: '#16A34A', label_ar: 'مفرد' },
   dual:     { bg: '#F59E0B', text: '#111827', border: '#B45309', label_ar: 'مثنى' },
   plural:   { bg: '#0EA5E9', text: '#FFFFFF', border: '#0369A1', label_ar: 'جمع' },
 
-  // ── gender ──────────────────────────────────────────────────────────────────
   masculine: { bg: '#2563EB', text: '#FFFFFF', border: '#1D4ED8', label_ar: 'مذكر' },
   feminine:  { bg: '#EC4899', text: '#FFFFFF', border: '#BE185D', label_ar: 'مؤنث' },
   common:    { bg: '#8B5CF6', text: '#FFFFFF', border: '#6D28D9', label_ar: 'مشترك' },
 
-  // ── person ──────────────────────────────────────────────────────────────────
   first_person:  { bg: '#22C55E', text: '#FFFFFF', border: '#16A34A', label_ar: 'متكلم' },
   second_person: { bg: '#F59E0B', text: '#111827', border: '#B45309', label_ar: 'مخاطب' },
   third_person:  { bg: '#6366F1', text: '#FFFFFF', border: '#4338CA', label_ar: 'غائب' },
 };
 
-// ── Color resolution priority (highest → lowest) ─────────────────────────────
 const PRIORITY_KEYS = [
   'word_type',
   'syntactic_function',
@@ -165,21 +143,19 @@ export const DEFAULT_UI: NodeUiDef = {
   bg: '#1e1e1e', text: '#9ca3af', border: '#2a2a2a', label_ar: '',
 };
 
-/** Resolve the primary colour for a node from its registry_refs object. */
 export function resolveNodeUi(refs?: Record<string, string | null> | null): NodeUiDef {
   if (!refs) return DEFAULT_UI;
   for (const key of PRIORITY_KEYS) {
     const val = refs[key];
     if (val && UI_REGISTRY[val]) return UI_REGISTRY[val];
   }
-  // Fallback: first non-null value that matches the registry
+
   for (const val of Object.values(refs)) {
     if (val && UI_REGISTRY[val]) return UI_REGISTRY[val];
   }
   return DEFAULT_UI;
 }
 
-/** Look up a single id_ref (case chip, tense chip, etc.) */
 export function lookupUi(idRef: string | null | undefined): NodeUiDef {
   if (!idRef) return DEFAULT_UI;
   return UI_REGISTRY[idRef] ?? DEFAULT_UI;

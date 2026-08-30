@@ -1,48 +1,39 @@
-// ─── QAC morphology parser ────────────────────────────────────────────────────
-// Pure, I/O-free. Turns the QAC-derived `morphology_tag_json` stored on
-// qr_word_occurrence into a structured sarf card with Arabic + English labels.
-//
-// Input shape (QAC-0.4), e.g. for آيَاتُ:
-//   { source, raw, stem:{ tag:"N", flags:["FP","NOM"], features:{POS,LEM,ROOT},
-//                         lemma_ar, root_ar, pos }, segments:[{kind,form_ar,tag,flags}] }
-// Everything is defensive: the column may be a JSON string, an object, or null.
-
 export interface QacSegment {
-  kind: string;            // PREFIX | STEM | SUFFIX
+  kind: string;
   form_ar: string | null;
-  tag: string | null;      // raw QAC tag (P, DET, N, PRON…)
-  label_ar: string | null; // human label for the segment role
+  tag: string | null;
+  label_ar: string | null;
   role: 'prefix' | 'stem' | 'suffix';
 }
 
 export interface QacMorphology {
-  pos: string | null;           // raw QAC pos code (N, V, PN, ADJ…)
-  pos_ar: string | null;        // اسم / فعل / …
-  pos_en: string | null;        // noun / verb / …
-  case: string | null;          // nom | acc | gen
-  case_ar: string | null;       // مرفوع / منصوب / مجرور
-  state: string | null;         // definite | indefinite
-  state_ar: string | null;      // معرفة / نكرة
-  gender: string | null;        // m | f
-  gender_ar: string | null;     // مذكّر / مؤنّث
-  number: string | null;        // singular | dual | plural
-  number_ar: string | null;     // مفرد / مثنّى / جمع
-  person: string | null;        // 1 | 2 | 3
-  aspect: string | null;        // perfect | imperfect | imperative
-  aspect_ar: string | null;     // ماضٍ / مضارع / أمر
-  voice: string | null;         // active | passive
-  voice_ar: string | null;      // معلوم / مبني للمجهول
-  derived: string | null;       // active_participle | passive_participle | verbal_noun
-  derived_ar: string | null;    // اسم فاعل / اسم مفعول / مصدر
-  derived_en: string | null;    // active participle / passive participle / verbal noun
-  wazn_ar: string | null;       // مُفْعِل / فَاعِل / أَفْعَلَ … (pattern for the form+derivation)
-  form: string | null;          // I..XII (verb form / وزن)
+  pos: string | null;
+  pos_ar: string | null;
+  pos_en: string | null;
+  case: string | null;
+  case_ar: string | null;
+  state: string | null;
+  state_ar: string | null;
+  gender: string | null;
+  gender_ar: string | null;
+  number: string | null;
+  number_ar: string | null;
+  person: string | null;
+  aspect: string | null;
+  aspect_ar: string | null;
+  voice: string | null;
+  voice_ar: string | null;
+  derived: string | null;
+  derived_ar: string | null;
+  derived_en: string | null;
+  wazn_ar: string | null;
+  form: string | null;
   lemma_ar: string | null;
   root_ar: string | null;
   prefixes: QacSegment[];
   stem: QacSegment | null;
   suffixes: QacSegment[];
-  raw: string | null;           // the raw QAC feature string, for provenance
+  raw: string | null;
 }
 
 type Rec = Record<string, unknown>;
@@ -61,8 +52,6 @@ function asStr(v: unknown): string | null {
 function asArr(v: unknown): unknown[] {
   return Array.isArray(v) ? v : [];
 }
-
-// ── label maps ────────────────────────────────────────────────────────────────
 
 const POS_AR: Record<string, string> = {
   N: 'اسم', PN: 'اسم علم', ADJ: 'صفة', IMPN: 'اسم مبني', V: 'فعل', PRON: 'ضمير',
@@ -93,8 +82,6 @@ const SEG_ROLE_AR: Record<string, string> = {
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
 
-// Participle / verb patterns (أوزان) per verb form. Sound-root shapes; weak roots
-// still read correctly as the abstract pattern (مُبِين ← مُفْعِل من أبان).
 const WAZN_ACT_PCPL: Record<string, string> = {
   I: 'فَاعِل', II: 'مُفَعِّل', III: 'مُفَاعِل', IV: 'مُفْعِل', V: 'مُتَفَعِّل',
   VI: 'مُتَفَاعِل', VII: 'مُنْفَعِل', VIII: 'مُفْتَعِل', IX: 'مُفْعَلّ', X: 'مُسْتَفْعِل',
@@ -108,9 +95,6 @@ const WAZN_VERB: Record<string, string> = {
   VI: 'تَفَاعَلَ', VII: 'اِنْفَعَلَ', VIII: 'اِفْتَعَلَ', IX: 'اِفْعَلَّ', X: 'اِسْتَفْعَلَ',
 };
 
-// ── core ──────────────────────────────────────────────────────────────────────
-
-/** Parse the flags array of the STEM segment into structured features. */
 function readFlags(flags: string[]): Partial<QacMorphology> {
   const out: Partial<QacMorphology> = {};
   for (const raw of flags) {
@@ -125,11 +109,9 @@ function readFlags(flags: string[]): Partial<QacMorphology> {
     if (f === 'PCPL') { out.derived = 'participle'; continue; }
     if (f === 'VN') { out.derived = 'verbal_noun'; continue; }
 
-    // Verb form: "(IV)", "(X)"…
     const form = /^\(([IVX]+)\)$/.exec(f);
     if (form) { out.form = form[1]; continue; }
 
-    // Combined gender+number tokens: M, F, MS, FS, MD, FD, MP, FP, S, D, P
     if (/^[MF]?[SDP]$/.test(f) || f === 'M' || f === 'F') {
       if (f.includes('M')) { out.gender = 'm'; out.gender_ar = 'مذكّر'; }
       if (f.includes('F')) { out.gender = 'f'; out.gender_ar = 'مؤنّث'; }
@@ -139,7 +121,6 @@ function readFlags(flags: string[]): Partial<QacMorphology> {
       continue;
     }
 
-    // Person tokens for verbs/pronouns: 1S, 1P, 2MS, 2FP, 3MS, 3FS, 3MP, 3FP, 3D…
     const pgn = /^([123])(M|F)?(S|D|P)?$/.exec(f);
     if (pgn) {
       out.person = pgn[1];
@@ -170,11 +151,6 @@ const EMPTY: QacMorphology = {
   lemma_ar: null, root_ar: null, prefixes: [], stem: null, suffixes: [], raw: null,
 };
 
-/**
- * Resolve the derivation type + wazn once all flags are read.
- * QAC marks participles as ACT|PCPL / PASS|PCPL — for a participle the ACT/PASS
- * token is part of the derivation, not a verbal voice, so voice is folded in.
- */
 function finishDerivation(feats: Partial<QacMorphology>): void {
   const form = feats.form ?? 'I';
   if (feats.derived === 'participle') {
@@ -194,7 +170,6 @@ function finishDerivation(feats: Partial<QacMorphology>): void {
   if (feats.aspect && feats.form) feats.wazn_ar = WAZN_VERB[feats.form] ?? null;
 }
 
-/** Parse a qr_word_occurrence.morphology_tag_json value into a sarf card. */
 export function parseQacMorphology(json: unknown): QacMorphology {
   const obj = asObj(json);
   if (!obj) return { ...EMPTY };
@@ -226,16 +201,11 @@ export function parseQacMorphology(json: unknown): QacMorphology {
   };
 }
 
-/** Normalise "IV" → "IV (form 4)" style is left to the UI; keep the roman as-is. */
 function formLabel(form: string): string {
   const idx = ROMAN.indexOf(form.toUpperCase());
   return idx >= 0 ? form.toUpperCase() : form;
 }
 
-/**
- * Coarse noun/verb classification used by vocabulary grouping.
- * QAC codes: V*→verb; N/PN/ADJ/IMPN→noun; everything else→other.
- */
 export function posGroup(pos: string | null | undefined): 'verb' | 'noun' | 'other' {
   if (!pos) return 'other';
   const t = pos.toUpperCase();

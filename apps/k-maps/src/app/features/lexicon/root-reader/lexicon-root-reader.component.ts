@@ -12,15 +12,6 @@ import { ScholarshipShellComponent } from '../shells/scholarship/scholarship-she
 import { RootComponent } from '../../../shared/quran-lexicon/root/root.component';
 import { CLASSICAL_SHELL_SLUGS } from '../data/lexicon-sources.service';
 
-/**
- * Root-centric lexicon reader. The URL puts the ROOT in the path and the BOOK
- * in a query param — /lexicon/root/:root?book=<slug>. The book selector swaps
- * ?book while keeping the same root. Each shell (Mufradat, classical Lisan +
- * friends, Lane, scholarship) reads root from the path and book from ?book.
- *
- * With no ?book the path falls back to the morphology root view (RootComponent,
- * root → words grid), preserving existing /lexicon/root/:root links.
- */
 @Component({
   selector: 'km-lexicon-root-reader',
   standalone: true,
@@ -50,9 +41,7 @@ export class LexiconRootReaderComponent {
 
   readonly isMufradat  = computed(() => this.book() === MUFRADAT_SLUG);
   readonly isLane      = computed(() => this.book() === LANE_SLUG);
-  // Any other book the backend has registered a `/read/` composer for. Books
-  // without one (Sinai's key terms, the five-lens synthesis) fall to the
-  // scholarship shell, which reads a different endpoint entirely.
+
   readonly isClassical = computed(() => CLASSICAL_SHELL_SLUGS.has(this.book()));
 
   constructor() {

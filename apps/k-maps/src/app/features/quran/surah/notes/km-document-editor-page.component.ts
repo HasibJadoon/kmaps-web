@@ -197,7 +197,7 @@ export class KmDocumentEditorPageComponent implements OnInit, AfterViewInit, OnD
   }
 
   ngAfterViewInit(): void {
-    // Animate page entrance
+
     gsap.fromTo(this.pageRoot.nativeElement, { opacity: 0 }, {
       opacity: 1, duration: 0.4, ease: 'power2.out',
     });
@@ -206,23 +206,17 @@ export class KmDocumentEditorPageComponent implements OnInit, AfterViewInit, OnD
   ngOnDestroy(): void {
     if (this.saveTimer) clearTimeout(this.saveTimer);
     if (this.savedTimer) clearTimeout(this.savedTimer);
-    // Flush any pending save immediately
+
     if (this.pendingDoc && this.svc.activeId()) {
       this.svc.saveDocument(this.svc.activeId()!, this.pendingDoc, this.pendingTitle ?? undefined);
     }
   }
 
-  // ── Sidebar ───────────────────────────────────────────────────────────────
-
   toggleSidebar(): void { this.sidebarCollapsed.update(v => !v); }
-
-  // ── Document selection → navigate to full editor ──────────────────────────
 
   onSelectDocument(id: string): void {
     this.router.navigate(['/docs', id]);
   }
-
-  // ── Document creation → navigate to full editor ───────────────────────────
 
   async onCreateDocument(ev: { title: string; docType: QuranDocType }): Promise<void> {
     try {
@@ -234,26 +228,24 @@ export class KmDocumentEditorPageComponent implements OnInit, AfterViewInit, OnD
       await this.svc.createDocument(ev.title, ev.docType, this.scope);
       this.cdr.markForCheck();
     } catch {
-      // fallback: open create in old system
+
       await this.svc.createDocument(ev.title, ev.docType, this.scope);
       this.cdr.markForCheck();
     }
   }
 
   onNewDocClick(): void {
-    // Quick-create an untitled doc with context and navigate to full editor
+
     this.svc.createDocumentRecord('Untitled', 'running_notes', this.scope)
       .then(docId => {
         if (docId) this.router.navigate(['/docs', docId]);
       })
       .catch(() => {
-        // fallback to sidebar create form
+
         this.sidebarCollapsed.set(false);
         this.createRequest.update((value) => value + 1);
       });
   }
-
-  // ── Title change ───────────────────────────────────────────────────────────
 
   onTitleBlur(e: Event): void {
     const newTitle = (e.target as HTMLInputElement).value.trim();
@@ -262,8 +254,6 @@ export class KmDocumentEditorPageComponent implements OnInit, AfterViewInit, OnD
     this.pendingTitle = newTitle;
     this.scheduleSave();
   }
-
-  // ── Doc change (debounced 1.5 s) ──────────────────────────────────────────
 
   onDocChange(doc: TiptapDoc): void {
     this.pendingDoc = doc;
@@ -300,7 +290,6 @@ export class KmDocumentEditorPageComponent implements OnInit, AfterViewInit, OnD
     this.saveState.set(ok ? 'saved' : 'error');
     this.cdr.markForCheck();
 
-    // Auto-clear "Saved" badge after 2 s
     if (ok) {
       if (this.savedTimer) clearTimeout(this.savedTimer);
       this.savedTimer = setTimeout(() => {
@@ -310,16 +299,12 @@ export class KmDocumentEditorPageComponent implements OnInit, AfterViewInit, OnD
     }
   }
 
-  // ── Media upload ──────────────────────────────────────────────────────────
-
   async onImageUpload(file: File): Promise<void> {
     const id = this.svc.activeId();
     if (!id) return;
     const res = await this.svc.uploadFile(id, file, 'image');
     if (res?.url) {
-      // The editor component will need to insert the image — emit via a child ref
-      // We use a simple approach: child editor's insertImageUrl method
-      // Angular CDK or ViewChild is cleaner, but for simplicity we broadcast via event
+
       document.dispatchEvent(new CustomEvent('km-insert-image', {
         detail: { url: res.url, alt: file.name },
       }));
@@ -331,7 +316,7 @@ export class KmDocumentEditorPageComponent implements OnInit, AfterViewInit, OnD
     if (!id) return;
     const res = await this.svc.uploadFile(id, file, 'audio');
     if (res?.url) {
-      // Insert as a paragraph with a link to the audio
+
       document.dispatchEvent(new CustomEvent('km-insert-audio', {
         detail: { url: res.url, name: file.name },
       }));

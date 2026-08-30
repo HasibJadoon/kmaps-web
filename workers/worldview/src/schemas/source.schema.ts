@@ -1,12 +1,10 @@
-// ─── Source schemas & types ───────────────────────────────────────────────
-
 export interface WvSource {
-  id: string;            // WV:ULID
+  id: string;
   slug: string | null;
   title: string;
   title_ar: string | null;
-  source_type: string;   // book|article|lecture|talk|manuscript|video|podcast|classical_text|fatwa|document|other
-  source_domain: string; // general|classical_text|academic|journalistic|media|other
+  source_type: string;
+  source_domain: string;
   tradition_id: string | null;
   language: string | null;
   published_year: number | null;
@@ -22,7 +20,7 @@ export interface WvSourceUnit {
   id: string;
   source_id: string;
   parent_id: string | null;
-  unit_type: string;     // volume|chapter|section|paragraph|footnote|appendix|other
+  unit_type: string;
   title: string | null;
   unit_index: number | null;
   page_start: number | null;
@@ -42,7 +40,7 @@ export interface WvSourceChunk {
   token_count: number | null;
   text_content: string;
   chunk_kind: string | null;
-  is_embedded: number;   // 0|1
+  is_embedded: number;
   created_at: string;
 }
 
@@ -95,8 +93,6 @@ export interface UnitPatch {
   text_excerpt?: string | null;
   description_md?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

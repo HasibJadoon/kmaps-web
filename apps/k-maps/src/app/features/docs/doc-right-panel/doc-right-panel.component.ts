@@ -232,7 +232,7 @@ export class DocRightPanelComponent implements OnInit {
   headings   = signal<HeadingNode[]>([]);
   pageLinks  = signal<PageLinkItem[]>([]);
   ayahItems  = signal<AyahItem[]>([]);
-  // DB-backed cross-resource links await the CM links feature; populated empty.
+
   wvLinks    = signal<BlockLink[]>([]);
 
   metaDomain   = 'general';
@@ -256,7 +256,7 @@ export class DocRightPanelComponent implements OnInit {
     });
   }
 
-  ngOnInit(): void { /* intentionally empty — init handled in constructor effect */ }
+  ngOnInit(): void {  }
 
   buildOutline(): void {
     const json = this.editorSvc.getJSON() as { content?: Array<{ type: string; attrs?: { level?: number }; content?: Array<{ text?: string }> }> };
@@ -270,7 +270,6 @@ export class DocRightPanelComponent implements OnInit {
     this.headings.set(heads);
   }
 
-  /** Extract page_link and ayah_embed nodes directly from editor content. */
   buildLinks(): void {
     type DocNode = { type: string; attrs?: Record<string, unknown>; content?: DocNode[] };
     const json = this.editorSvc.getJSON() as { content?: DocNode[] };

@@ -1,22 +1,3 @@
--- 0014_lexicon_root_model.sql
---
--- Introduces the canonical root-entry model for all lexicon sources.
---
--- Three new tables:
---   ar_ling_lexicon_root_entries       — one row per source_slug + root_norm
---   ar_ling_lexicon_entry_sections     — internal sections under a root entry
---   ar_ling_lexicon_root_entry_sources — pointers to local SQLite / HTML / chunks / legacy rows
---
--- Also:
---   FTS5 virtual tables for both content tables
---   Insert / update / delete triggers to keep FTS in sync
---   Cleanup block: removes old Lane rows from legacy tables
---   Validation queries at the end (run manually after import)
-
--- ============================================================
--- SECTION 1: ar_ling_lexicon_root_entries
--- ============================================================
-
 CREATE TABLE IF NOT EXISTS ar_ling_lexicon_root_entries (
   id                  TEXT PRIMARY KEY,
 
@@ -73,10 +54,6 @@ CREATE INDEX IF NOT EXISTS idx_alre_status
 
 CREATE INDEX IF NOT EXISTS idx_alre_import_batch
   ON ar_ling_lexicon_root_entries(import_batch_id);
-
--- ============================================================
--- SECTION 2: ar_ling_lexicon_entry_sections
--- ============================================================
 
 CREATE TABLE IF NOT EXISTS ar_ling_lexicon_entry_sections (
   id                        TEXT PRIMARY KEY,
@@ -139,20 +116,6 @@ CREATE INDEX IF NOT EXISTS idx_ales_heading_norm
 CREATE INDEX IF NOT EXISTS idx_ales_page
   ON ar_ling_lexicon_entry_sections(page_no);
 
--- ============================================================
--- SECTION 3: ar_ling_lexicon_root_entry_sources
--- ============================================================
-
--- Allowed source_kind values:
---   legacy_lexicon_entry
---   legacy_source_chunk
---   lane_sqlite_root
---   lane_sqlite_entry
---   quranic_research_html
---   quranic_research_json
---   quranic_research_clean_text
---   quranic_research_chunks
-
 CREATE TABLE IF NOT EXISTS ar_ling_lexicon_root_entry_sources (
   id                TEXT PRIMARY KEY,
 
@@ -182,10 +145,6 @@ CREATE INDEX IF NOT EXISTS idx_alres_kind
 CREATE INDEX IF NOT EXISTS idx_alres_slug
   ON ar_ling_lexicon_root_entry_sources(source_slug);
 
--- ============================================================
--- SECTION 4: FTS5 virtual tables
--- ============================================================
-
 CREATE VIRTUAL TABLE IF NOT EXISTS ar_ling_lexicon_root_entries_fts USING fts5(
   root_text,
   root_norm,
@@ -209,10 +168,6 @@ CREATE VIRTUAL TABLE IF NOT EXISTS ar_ling_lexicon_entry_sections_fts USING fts5
   content='ar_ling_lexicon_entry_sections',
   content_rowid='rowid'
 );
-
--- ============================================================
--- SECTION 5: FTS triggers — ar_ling_lexicon_root_entries
--- ============================================================
 
 CREATE TRIGGER IF NOT EXISTS trig_alre_fts_ai
 AFTER INSERT ON ar_ling_lexicon_root_entries BEGIN
@@ -265,10 +220,6 @@ AFTER UPDATE ON ar_ling_lexicon_root_entries BEGIN
     COALESCE(new.raw_text, '')
   );
 END;
-
--- ============================================================
--- SECTION 6: FTS triggers — ar_ling_lexicon_entry_sections
--- ============================================================
 
 CREATE TRIGGER IF NOT EXISTS trig_ales_fts_ai
 AFTER INSERT ON ar_ling_lexicon_entry_sections BEGIN
@@ -338,14 +289,6 @@ AFTER UPDATE ON ar_ling_lexicon_entry_sections BEGIN
   );
 END;
 
--- ============================================================
--- SECTION 7: Delete old Lane data from legacy tables
---
--- Safe to run multiple times (deletes are idempotent).
--- Does NOT touch non-Lane source slugs.
--- ============================================================
-
--- Lane-only quality/repair tables (full truncate)
 DELETE FROM ar_ling_lane_quality_index
 WHERE lexicon_entry_id IN (
   SELECT id FROM ar_ling_lexicon_entries
@@ -355,14 +298,12 @@ WHERE lexicon_entry_id IN (
 DELETE FROM ar_ling_lane_patch_log
 WHERE source_slug IN ('lane_lexicon', 'lane_quranic_research_perseus');
 
--- Children of ar_ling_source_lexicon_display_blocks (must go first)
 DELETE FROM ar_ling_source_lexicon_display_blocks
 WHERE lexicon_entry_id IN (
   SELECT id FROM ar_ling_lexicon_entries
   WHERE source_slug IN ('lane_lexicon', 'lane_quranic_research_perseus')
 );
 
--- Children of ar_ling_lexicon_entries
 DELETE FROM ar_ling_lexicon_evidence
 WHERE lexicon_entry_id IN (
   SELECT id FROM ar_ling_lexicon_entries
@@ -411,7 +352,6 @@ WHERE rowid IN (
 DELETE FROM ar_ling_lexicon_entries
 WHERE source_slug IN ('lane_lexicon', 'lane_quranic_research_perseus');
 
--- New root-level tables (children before parent)
 DELETE FROM ar_ling_lexicon_entry_sections
 WHERE source_slug IN ('lane_lexicon', 'lane_quranic_research_perseus');
 
@@ -420,96 +360,3 @@ WHERE source_slug IN ('lane_lexicon', 'lane_quranic_research_perseus');
 
 DELETE FROM ar_ling_lexicon_root_entries
 WHERE source_slug IN ('lane_lexicon', 'lane_quranic_research_perseus');
-
--- ============================================================
--- SECTION 8: FTS backfill (run after import scripts complete)
--- ============================================================
-
--- DELETE FROM ar_ling_lexicon_root_entries_fts;
---
--- INSERT INTO ar_ling_lexicon_root_entries_fts(
---   rowid, root_text, root_norm, source_slug,
---   entry_text_ar, entry_text_en, raw_text
--- )
--- SELECT
---   rowid, root_text, root_norm, source_slug,
---   COALESCE(entry_text_ar, ''),
---   COALESCE(entry_text_en, ''),
---   COALESCE(raw_text, '')
--- FROM ar_ling_lexicon_root_entries;
---
--- DELETE FROM ar_ling_lexicon_entry_sections_fts;
---
--- INSERT INTO ar_ling_lexicon_entry_sections_fts(
---   rowid, root_text, root_norm,
---   heading_ar, heading_norm, heading_bare,
---   section_type, text_ar, text_en
--- )
--- SELECT
---   rowid, root_text, root_norm,
---   COALESCE(heading_ar, ''),
---   COALESCE(heading_norm, ''),
---   COALESCE(heading_bare, ''),
---   COALESCE(section_type, ''),
---   COALESCE(text_ar, ''),
---   COALESCE(text_en, '')
--- FROM ar_ling_lexicon_entry_sections;
-
--- ============================================================
--- SECTION 9: Validation queries (run manually)
--- ============================================================
-
--- 1. No duplicate root/source rows:
--- SELECT source_slug, root_norm, COUNT(*) AS count
--- FROM ar_ling_lexicon_root_entries
--- GROUP BY source_slug, root_norm
--- HAVING COUNT(*) > 1;
--- Expected: zero rows.
-
--- 2. Lane علم = exactly one root entry:
--- SELECT source_slug, root_text, root_norm, COUNT(*) AS count
--- FROM ar_ling_lexicon_root_entries
--- WHERE source_slug = 'lane_lexicon' AND root_norm = 'علم'
--- GROUP BY source_slug, root_text, root_norm;
--- Expected: count = 1.
-
--- 3. Lane علم sections:
--- SELECT s.section_seq, s.heading_ar, s.section_type, s.page_no
--- FROM ar_ling_lexicon_entry_sections s
--- JOIN ar_ling_lexicon_root_entries e ON e.id = s.root_entry_id
--- WHERE e.source_slug = 'lane_lexicon' AND e.root_norm = 'علم'
--- ORDER BY s.section_seq;
--- Expected: ~40 rows.
-
--- 4. All sources in root entries:
--- SELECT source_slug, COUNT(*) AS root_count
--- FROM ar_ling_lexicon_root_entries
--- GROUP BY source_slug ORDER BY source_slug;
-
--- 5. Source chunk kinds:
--- SELECT chunk_kind, COUNT(*) AS count
--- FROM ar_ling_source_chunks
--- WHERE chunk_kind IN ('lexicon_root','lexicon_root_html_clean_text','lexicon_root_display_chunk')
--- GROUP BY chunk_kind;
-
--- 6. FTS vs table counts:
--- SELECT 'root_entries' AS t, COUNT(*) FROM ar_ling_lexicon_root_entries UNION ALL
--- SELECT 'root_entries_fts',  COUNT(*) FROM ar_ling_lexicon_root_entries_fts UNION ALL
--- SELECT 'sections',          COUNT(*) FROM ar_ling_lexicon_entry_sections UNION ALL
--- SELECT 'sections_fts',      COUNT(*) FROM ar_ling_lexicon_entry_sections_fts;
-
--- 7. FTS search test (Arabic):
--- SELECT e.source_slug, e.root_text,
---        snippet(ar_ling_lexicon_root_entries_fts, 5, '[', ']', '…', 20) AS snippet
--- FROM ar_ling_lexicon_root_entries_fts
--- JOIN ar_ling_lexicon_root_entries e ON e.rowid = ar_ling_lexicon_root_entries_fts.rowid
--- WHERE ar_ling_lexicon_root_entries_fts MATCH 'علم'
--- LIMIT 20;
-
--- 8. FTS search test (English):
--- SELECT s.source_slug, s.root_text, s.heading_ar,
---        snippet(ar_ling_lexicon_entry_sections_fts, 7, '[', ']', '…', 20) AS snippet
--- FROM ar_ling_lexicon_entry_sections_fts
--- JOIN ar_ling_lexicon_entry_sections s ON s.rowid = ar_ling_lexicon_entry_sections_fts.rowid
--- WHERE ar_ling_lexicon_entry_sections_fts MATCH 'knowledge'
--- LIMIT 20;

@@ -1,5 +1,3 @@
-// ─── Surah Meaning schemas & types ───────────────────────────────────────────────
-
 export interface TopicRegistry {
   id: string;
   topic_key: string;
@@ -142,8 +140,6 @@ export interface SurahWorldviewProfileUpsert {
   worldview_tensions?: string | null;
   note_md?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

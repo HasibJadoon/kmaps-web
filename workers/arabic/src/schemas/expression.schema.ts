@@ -1,12 +1,10 @@
-// ─── Expression schemas & types ───────────────────────────────────────────────
-
 export interface Expression {
   id: string;
   arabic: string;
   transliteration: string | null;
   meaning_en: string;
-  expression_type: string;    // idiom|formula|proverb|collocate|fixed_phrase|other
-  al_expression_ref: string | null;   // AL:<ar_ling_expression_id>
+  expression_type: string;
+  al_expression_ref: string | null;
   domain_id: string | null;
   level: string | null;
   usage_note: string | null;
@@ -26,13 +24,13 @@ export interface ExpressionCreate {
 
 export interface AppliedBalagha {
   id: string;
-  al_balagha_ref: string;     // AL:<ar_ling_balagha_concept_id>
+  al_balagha_ref: string;
   title: string;
   title_ar: string | null;
   explanation_md: string;
   level: string | null;
-  qr_scope_ref: string | null;    // primary Quran example
-  examples_json: string | null;   // JSON [{arabic, source, analysis}]
+  qr_scope_ref: string | null;
+  examples_json: string | null;
   quiz_notes: string | null;
   meta_json: string | null;
   created_at: string;
@@ -49,8 +47,6 @@ export interface AppliedBalaghaCreate {
   quiz_notes?: string | null;
   meta_json?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

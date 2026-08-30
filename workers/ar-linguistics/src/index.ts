@@ -1,8 +1,3 @@
-// ─── km-ar-linguistics-worker entry point ─────────────────────────────────────
-// Owns DB_AL (km_arabic_linguistic). Single prefix: ar_ling_*.
-// QR and AR call this worker for all linguistic truth (roots, lemmas, sarf,
-// nahw, balagha). Never binds DB_QR or DB_AR.
-
 import { Router } from '../../shared/src/router';
 import { sense, readRows, type SenseRequest, type RowsRequest } from '../../shared/src/sense';
 import { dbHealth } from '../../shared/src/http';
@@ -33,12 +28,10 @@ import { dsRoutes } from './routes/ds';
 
 const router = new Router<ArLinguisticsEnv>();
 
-// Health
 router.get('/health', async (_req, env) =>
   ok({ domain: 'ar-linguistics', db: 'DB_AL', db_ok: await dbHealth(env.DB_AL) }),
 );
 
-// Domain routes
 rootRoutes(router);
 lemmaRoutes(router);
 morphologyRoutes(router);
@@ -47,7 +40,7 @@ balaghaRoutes(router);
 lexiconRoutes(router);
 lexiconFiveLensRoutes(router);
 lexiconV2Routes(router);
-lexiconDisplayRoutes(router);    // /al/lex/v2/display/* — per-lexicon render contract (D1-backed, 0039)
+lexiconDisplayRoutes(router);
 lexiconMufradatRoutes(router);
 lexiconLisanRoutes(router);
 lexiconLaneRoutes(router);
@@ -55,23 +48,12 @@ scholarshipRoutes(router);
 expressionRoutes(router);
 nearSynonymRoutes(router);
 sourceRagRoutes(router);
-wordViewRoutes(router);          // /al/verb-government/:root, /al/root-antonyms/:root, /al/expressions/by-root/:root
-wordAnalysisRoutes(router);      // /al/word-analysis?roots= — deep root layer for the word modal
-grammarRoutes(router);           // /al/gram/* — ṣarf/naḥw/balāgha corpus (books, spine, pages, search)
-registryRoutes(router);          // /al/registry/* — the carrier registry and what the carriers hold
-dsRoutes(router);                // /al/ds/* — the display spec: what a layer is, shaped for reading
+wordViewRoutes(router);
+wordAnalysisRoutes(router);
+grammarRoutes(router);
+registryRoutes(router);
+dsRoutes(router);
 
-// Every route here is a live D1 read, and none of them carried a single
-// freshness header — no Cache-Control, no ETag, no Last-Modified. Nothing was
-// caching them server-side (no cf-cache-status on any response), but a client
-// is entitled to *heuristically* cache a response that says nothing about its
-// own freshness, and URLSession does exactly that: the iOS reader could keep
-// serving an article from URLCache long after the worker started returning a
-// corrected one. Say it explicitly instead of relying on the absence of a
-// cache, so a data fix is visible on the next request everywhere.
-// The sensor engine's reader for this database. Internal-only: reached
-// through km-core-worker's service binding, never via a public module path.
-// The rows a carrier holds for one scope — same bridge, same whitelist.
 router.post('/al/internal/rows', async (req, env) => {
   const body = await req.json<RowsRequest>().catch(() => null);
   if (!body) return ok({ ok: false, error: 'bad request' });
@@ -81,9 +63,7 @@ router.post('/al/internal/rows', async (req, env) => {
 router.post('/al/internal/sense', async (req, env) => {
   const body = await req.json<SenseRequest>().catch(() => null);
   if (!body) return ok({ ok: false, error: 'bad request' });
-  // An id-bound carrier keys on this database's own ULID. km_core holds the
-  // scope as a string and cannot resolve it — so the database that owns the
-  // ids does, here, where the mapping actually lives.
+
   if (body.bind_kind === 'id' && body.bind_value) {
     const col = body.scope_kind === 'lemma' ? 'lemma_ar' : 'root_text';
     const table = body.scope_kind === 'lemma' ? 'ar_ling_root_lemma' : 'ar_ling_roots';

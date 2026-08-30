@@ -1,16 +1,8 @@
-// ─── LemmaRepo — all SQL for ar_ling_root_lemma ───────────────────────────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 import type { Lemma, LemmaCreate } from '../schemas/lemma.schema';
 
-// The `Lemma` wire shape and the table's column names diverged: the table has
-// lemma_text / part_of_speech / frequency_quran, and no gloss columns at all.
-// Every SELECT here named the wire fields directly, so all three GET routes
-// failed with `no such column` on every call. Aliasing keeps the published
-// shape while reading what actually exists; the glosses have no home column,
-// so they resolve NULL rather than pretending.
 const SELECT = `
   l.id, l.lemma_text AS lemma_ar,
   l.root_id, r.root_text,
@@ -39,8 +31,6 @@ export class LemmaRepo {
     );
   }
 
-  /** Matches the vocalized surface and its bare form, so a query typed without
-   *  diacritics still finds the lemma — there is no gloss column to search. */
   search(q: string, opts: PaginateOptions = {}) {
     const pattern = `%${q}%`;
     return paginate<Lemma>(
@@ -55,9 +45,6 @@ export class LemmaRepo {
     );
   }
 
-  /** `ar_ling_root_lemma` carries no gloss column, so a create that supplies one
-   *  is rejected rather than silently dropping it. A gloss belongs to a sense
-   *  (`ar_ling_root_sense`), which is where it should be written. */
   async create(input: LemmaCreate): Promise<Lemma> {
     if (input.gloss_en || input.gloss_ar) {
       throw new Error(

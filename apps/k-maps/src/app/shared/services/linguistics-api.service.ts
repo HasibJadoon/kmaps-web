@@ -3,7 +3,6 @@ import { HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { BackendApiService } from './backend-api.service';
 
-// ── Response shapes (mirror /al/gram/* worker responses) ─────────────────────
 export type Discipline = 'SF' | 'NH' | 'BL';
 export interface DiscLabel { ar: string; en: string; }
 

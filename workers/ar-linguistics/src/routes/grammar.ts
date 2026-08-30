@@ -1,20 +1,3 @@
-// ─── /al/gram/* routes ───────────────────────────────────────────────────────
-//
-// Classical Arabic grammar corpus — ṣarf (SF), naḥw (NH), balāgha (BL).
-// Reads the discipline-tagged tables produced by the Shamela4 authority ingest:
-//   ar_ling_gram_bab      — the spine (abwāب tree per book, matn order preserved)
-//   ar_ling_gram_chunk   — page-level verbatim text (page/volume anchored)
-//   ar_ling_gram_chunks_fts — FTS5 (unicode61 remove_diacritics 2)
-//   ar_ling_source       — book + edition metadata (provenance)
-//
-// Endpoints (all under the public `al` gateway → reachable at /api/al/gram/*):
-//   GET /al/gram/books                       all books grouped by discipline
-//   GET /al/gram/book/:slug                  one book: meta + spine tree
-//   GET /al/gram/pages/:slug?bab=&page=&limit=  paginated page text
-//   GET /al/gram/search?q=&discipline=&source=&limit=  diacritic-insensitive FTS
-//
-// Response shapes are stable and slug-agnostic — the UI never branches on source.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
@@ -33,10 +16,9 @@ interface BabRow {
 }
 
 export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
-  // ── Books grouped by discipline ────────────────────────────────────────────
-  // Edge-cached: the corpus only changes on ingest.
+
   router.get('/al/gram/books', (req, env) => cached(req, async () => {
-    // per-book bab counts by discipline (book primary discipline = modal bab discipline)
+
     const babAgg = (await env.DB_AL.prepare(
       `SELECT source_slug, discipline, COUNT(*) AS n
          FROM ar_ling_gram_bab GROUP BY source_slug, discipline`,
@@ -89,7 +71,6 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
     return ok({ groups, total_books: books.length });
   }));
 
-  // ── One book: metadata + full spine tree ───────────────────────────────────
   router.get('/al/gram/book/:slug', (req, env, params) => cached(req, async () => {
     const slug = params.slug;
     const meta = await env.DB_AL.prepare(
@@ -106,7 +87,6 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
          FROM ar_ling_gram_bab WHERE source_slug = ? ORDER BY matn_order`,
     ).bind(slug).all<BabRow>()).results ?? [];
 
-    // nest by parent_id — UI renders the tree directly
     const byId = new Map(babs.map(b => [b.id, { ...b, children: [] as unknown[] }]));
     const roots: unknown[] = [];
     for (const b of byId.values()) {
@@ -121,7 +101,6 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
     return ok({ book: { ...meta, page_count: pageCount?.n ?? 0 }, spine: roots, bab_count: babs.length });
   }));
 
-  // ── Page text (paginated; optional bab filter) ─────────────────────────────
   router.get('/al/gram/pages/:slug', (req, env, params) => cached(req, async () => {
     const url = new URL(req.url);
     const slug = params.slug;
@@ -146,17 +125,14 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
     return ok({ pages: rows, page, limit, total: total?.n ?? 0, has_more: offset + rows.length < (total?.n ?? 0) });
   }));
 
-  // ── Full-text search (diacritic-insensitive) ───────────────────────────────
   router.get('/al/gram/search', async (req, env) => {
     const url = new URL(req.url);
     const q = (url.searchParams.get('q') ?? '').trim();
     if (q.length < 2) return badRequest('q must be at least 2 characters');
-    const discipline = url.searchParams.get('discipline'); // SF | NH | BL
-    const source = url.searchParams.get('source');         // slug
+    const discipline = url.searchParams.get('discipline');
+    const source = url.searchParams.get('source');
     const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit') ?? '25', 10) || 25));
 
-    // FTS query: quote the phrase so punctuation/spaces are literal-ish; callers
-    // can pass explicit OR/NEAR operators themselves.
     const match = /["*]/.test(q) ? q : `"${q}"`;
     const conds = ['ar_ling_gram_chunks_fts MATCH ?'];
     const binds: unknown[] = [match];
@@ -171,10 +147,8 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
         ORDER BY rank LIMIT ?`,
     ).bind(...binds, limit).all<{ id: string; source_slug: string; discipline: string; snippet: string }>()).results ?? [];
 
-    // enrich with page anchor + book title (single round-trip)
     const ids = rows.map(r => r.id);
-    // bab_id rides along so a hit can OPEN its section — without it the client
-    // can show a snippet but has nowhere to send you.
+
     let anchors: Record<string, { bab_id: string | null; page_no: number | null; volume_no: number | null; title_ar: string }> = {};
     if (ids.length) {
       const ph = ids.map(() => '?').join(',');

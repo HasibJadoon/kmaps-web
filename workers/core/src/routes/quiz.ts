@@ -1,16 +1,3 @@
-// ─── /core/quiz/* — a question asked to a room ────────────────────────────────
-//
-//   GET  /core/quiz/questions            — the bank, any domain
-//   POST /core/quiz/questions            — author one
-//   POST /core/quiz/sessions             — open a room, get a code
-//   GET  /core/quiz/sessions/:code/live  — WebSocket → QuizSession
-//   GET  /core/quiz/sessions/:code       — one room's board
-//   GET  /core/quiz/dashboard            — what the scores add up to
-//
-// The bank is shared: a question authored by anyone can be pushed by anyone.
-// That is deliberate — the point of a question bank is that it outlives the
-// session it was written for, and a private bank is just a script.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, created, badRequest, notFound, unauthorized } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
@@ -40,15 +27,12 @@ async function readJson(req: Request): Promise<Record<string, unknown> | null> {
 const str = (v: unknown): string | null =>
   typeof v === 'string' && v.trim() ? v.trim() : null;
 
-/** A positive integer, or nothing. Zero is not a sūrah or an āyah, and storing
- *  it as one would make "unscoped" and "sūrah 0" the same row. */
 const num = (v: unknown): number | null => {
   const n = Number(v);
   return Number.isInteger(n) && n > 0 ? n : null;
 };
 
 export function quizRoutes(router: Router<CoreEnv>): void {
-  // ── The bank ───────────────────────────────────────────────────────────────
 
   router.get('/core/quiz/questions', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
@@ -63,27 +47,18 @@ export function quizRoutes(router: Router<CoreEnv>): void {
     const topic = url.searchParams.get('topic');
     const concept = url.searchParams.get('concept');
     const search = (url.searchParams.get('q') ?? '').trim();
-    // Capped at 90, not 200: the options for these rows are fetched with an
-    // `IN (…)` and D1 binds at most 100 variables per statement. A page of 200
-    // would have thrown on the fetch that makes the list usable.
+
     const limit = Math.min(90, Math.max(1, Number(url.searchParams.get('limit') ?? '50')));
 
-    // The bank, and only what a room can actually ask: a scored item with
-    // options. An unscored poll and an extended-text prompt belong to the
-    // Table app, not to a timed round.
     const conds = ["i.status = 'live'", "i.scoring != 'none'",
                    "EXISTS (SELECT 1 FROM core_bank_item_option o\n"
                    + "                       WHERE o.item_ref = i.id AND o.role = 'choice')"];
     const params: unknown[] = [];
     if (module) { conds.push('i.module = ?'); params.push(module); }
-    // A prefix, so "44" finds every question on the sūrah and "44:3" narrows to
-    // the āyah — the same convention the SRS queue uses for a surah scope.
+
     if (ref) { conds.push('(i.resource_ref = ? OR i.resource_ref LIKE ?)'); params.push(ref, `${ref}:%`); }
     if (surah > 0) { conds.push('i.surah = ?'); params.push(surah); }
-    // Verse to verse: any question whose own range overlaps the one asked for.
-    // Overlap rather than containment, because a question about 44:8–10 belongs
-    // in a session on 44:1–9 — it is partly about it, and a host narrowing to a
-    // passage wants everything that touches it.
+
     if (from > 0 && to > 0) {
       conds.push('(i.ayah_from IS NULL OR (i.ayah_from <= ? AND i.ayah_to >= ?))');
       params.push(to, from);
@@ -114,10 +89,6 @@ export function quizRoutes(router: Router<CoreEnv>): void {
       [...params, ctx.userId, limit],
     );
 
-    // The labels, in stored order, WITHOUT which one is right. is_correct is
-    // not in this SELECT and must never be: every player in the room can call
-    // this endpoint, and the bank is browsable mid-session. The answer lives
-    // in the Durable Object's read path alone.
     const options = rows.length
       ? await query<{ item_ref: string; label: string }>(
           env.DB_CORE,
@@ -182,9 +153,6 @@ export function quizRoutes(router: Router<CoreEnv>): void {
     return created({ id, prompt, options, correct_index: correct, module });
   });
 
-  /** What the bank actually holds, so a picker can offer only branches that
-   *  lead somewhere. Offering all 114 sūrahs when questions exist for two is
-   *  how a picker becomes a scrolling exercise. */
   router.get('/core/quiz/scope', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -206,8 +174,7 @@ export function quizRoutes(router: Router<CoreEnv>): void {
         `SELECT topic, COUNT(*) AS n FROM core_quiz_question
           WHERE status = 'active' AND topic IS NOT NULL
           GROUP BY topic ORDER BY n DESC LIMIT 40`, []),
-      // The passages the bank actually has questions for — a scope in its own
-      // right, not a rung you must pass through to reach a step.
+
       query(env.DB_CORE,
         `SELECT surah, ayah_from, ayah_to, COUNT(*) AS n
            FROM core_quiz_question
@@ -218,14 +185,6 @@ export function quizRoutes(router: Router<CoreEnv>): void {
     return ok({ modules, surahs, steps, topics, passages });
   });
 
-  /** POST /core/quiz/generate — make questions out of the cards you already
-   *  hold, in a scope you name.
-   *
-   *  Scoped the same way everything else is: a whole sūrah, a passage, a step,
-   *  or all of it. The questions land in the same bank as authored ones and are
-   *  marked `source='generated'` with the card they came from, so re-running
-   *  updates in place instead of laying a second copy beside the first. An
-   *  authored question is never touched. */
   router.post('/core/quiz/generate', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -242,8 +201,7 @@ export function quizRoutes(router: Router<CoreEnv>): void {
     const params: unknown[] = [ctx.userId];
     if (module) { conds.push('i.module = ?'); params.push(module); }
     if (surah > 0) {
-      // The same two arms the review queue uses: cards whose ref names the
-      // sūrah, and cards first met in it.
+
       conds.push(`(resource_ref = ? OR resource_ref LIKE ? OR intro_surah = ?)`);
       params.push(String(surah), `${surah}:%`, surah);
     }
@@ -273,12 +231,7 @@ export function quizRoutes(router: Router<CoreEnv>): void {
       try {
         await execute(
           env.DB_CORE,
-          // 'draft', not the column default of 'active'. This reads the
-          // CALLER'S OWN cards — their fronts, backs and fields_json — and
-          // writes them into a table that GET /core/quiz/questions serves to
-          // every authenticated user. Published on generation, that turns
-          // anything a person typed onto a private card into shared content
-          // without their ever being asked.
+
           `INSERT INTO core_quiz_question
              (id, author_ref, module, resource_ref, prompt, options_json,
               correct_index, explanation, seconds, surah, ayah_from, ayah_to,
@@ -300,8 +253,7 @@ export function quizRoutes(router: Router<CoreEnv>): void {
         );
         written++;
       } catch (error) {
-        // One bad row must not lose the batch — but a batch that silently
-        // wrote nothing looked identical to one that wrote everything.
+
         failed.push({ from: draft.fromCardId, why: String(error).slice(0, 160) });
       }
     }
@@ -309,18 +261,13 @@ export function quizRoutes(router: Router<CoreEnv>): void {
     return ok({
       from_cards: cards.length,
       written,
-      // Said out loud rather than hidden: a card with no back text, or with
-      // fewer than three distinct siblings to draw wrong answers from, cannot
-      // make a fair question.
+
       skipped_cards: skipped,
       failed,
-      // They land unpublished. Nothing generated from somebody's own cards is
-      // readable by the room until a person promotes it.
+
       status: 'draft',
     });
   });
-
-  // ── The room ───────────────────────────────────────────────────────────────
 
   router.post('/core/quiz/sessions', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
@@ -356,21 +303,15 @@ export function quizRoutes(router: Router<CoreEnv>): void {
     const headers = new Headers(req.headers);
     headers.set('X-KM-User-Id', ctx.userId);
     headers.set('X-KM-Session-Id', session.id);
-    // Who may push and reveal. Decided here, from the row, rather than by the
-    // socket claiming it — the object trusts this header because nothing
-    // outside this worker can set it.
+
     headers.set('X-KM-Host-Id', session.host_ref);
-    // The room code, so the object can write attempts that carry it. A round's
-    // rows are found by room_code on the shared scorecard, and the object had
-    // no way to know its own code.
+
     headers.set('X-KM-Room-Code', code.toUpperCase());
 
     const stub = env.QUIZ_SESSION.get(env.QUIZ_SESSION.idFromName(session.id));
     return stub.fetch(new Request(req.url, { method: 'GET', headers }));
   });
 
-  /** One room's board, after the fact. The same numbers the live screen showed,
-   *  read from the record rather than from anyone's memory of it. */
   router.get('/core/quiz/sessions/:code', async (req, env, { code }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -397,12 +338,6 @@ export function quizRoutes(router: Router<CoreEnv>): void {
     return ok({ session, board });
   });
 
-  // ── The dashboard ──────────────────────────────────────────────────────────
-  //
-  // Three questions, answered from the answer log: how did each room go, how is
-  // each person doing, and which questions is everybody getting wrong. The last
-  // one is the useful one — a question the room fails is a gap in the teaching,
-  // not in the room.
   router.get('/core/quiz/dashboard', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;

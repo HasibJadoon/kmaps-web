@@ -1,9 +1,3 @@
--- 0013_lane_repair_tables.sql
---
--- Lane-only repair support. These tables do not reload or replace Lane data.
--- They provide source-page cache metadata, a materialized quality index, and
--- an auditable patch log for source-clean Lane repairs.
-
 CREATE TABLE IF NOT EXISTS ar_ling_lane_source_pages (
   id              TEXT PRIMARY KEY,
   root_text       TEXT NOT NULL,

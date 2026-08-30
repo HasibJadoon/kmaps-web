@@ -4,13 +4,6 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
 import { BackButtonComponent } from '../../../shared/components/back-button/back-button.component';
 
-/**
- * Shared placeholder shell for the not-yet-wired lexicon hub destinations
- * (K-Maps synthesized roots, Fix-Display workflow, Root-Synthesis workflow).
- * Title/eyebrow/note come from the route's `data` block so one component
- * serves all three. The live views (D1-backed, verse-by-verse) replace these
- * targets in the next slice.
- */
 @Component({
   selector: 'km-lexicon-workflow-placeholder',
   standalone: true,

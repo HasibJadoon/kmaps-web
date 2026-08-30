@@ -1,17 +1,3 @@
-// ─── One block of a display spec, rendered ───────────────────────────────────
-//
-// Logic-free by construction. Every ordering, join, title choice, weight and
-// count was decided by the worker; this decides layout, chrome and fonts and
-// nothing else. If you find yourself wanting to sort something here, the sort
-// belongs in the spec — that is the whole point of the exercise.
-//
-// The switch is exhaustive over the vocabulary, which is what lets it narrow
-// without a cast in sight. Forward compatibility is handled one layer out: the
-// page runs every spec through `normaliseSpec`, which turns a kind this build
-// has never heard of into a note that says so. By the time a block reaches
-// here it is always one this renderer can draw — and a reader never meets a
-// blank section, which is the failure this design exists to avoid.
-
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import type { DsBlock, DsText } from '@kmaps/contracts/ds';
@@ -218,12 +204,12 @@ import type { DsBlock, DsText } from '@kmaps/contracts/ds';
   styleUrl: './cyb-ds-block.component.scss',
 })
 export class CybDsBlockComponent {
-  /** Whether a grid's marks are Arabic, and so must run right to left. */
+
   isArabicGrid(cells: { mark: { script: string } }[]): boolean {
     return cells.length > 0 && cells.every((c) => c.mark.script === 'ar');
   }
 
   readonly block = input.required<DsBlock>();
-  /** The script a run of text is in — the client's only job is picking a face. */
+
   protected isArabic(x: DsText | undefined): boolean { return x?.script === 'ar'; }
 }

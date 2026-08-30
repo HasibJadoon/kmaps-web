@@ -1,20 +1,5 @@
--- ── 0012_rename_display_blocks ───────────────────────────────────────────────
---
--- Rename ar_ling_source_display_blocks → ar_ling_source_lexicon_display_blocks
--- so every display-block table carries its domain in the name:
---
---   ar_ling_source_lexicon_display_blocks  — Lane / classical lexicon entries
---   ar_ling_source_iraab_display_blocks    — إعراب (syntactic parsing) entries
---   ar_ling_source_tafsir_display_blocks   — تفسير (exegesis) entries
---
--- SQLite RENAME TO automatically updates all index table-references.
--- The existing idx_arl_sdb_* indexes continue to work under their old names.
-
 ALTER TABLE ar_ling_source_display_blocks
   RENAME TO ar_ling_source_lexicon_display_blocks;
-
--- ── ar_ling_source_iraab_display_blocks ──────────────────────────────────────
--- UI-safe display rendering for إعراب (syntactic/grammatical analysis) sources.
 
 CREATE TABLE IF NOT EXISTS ar_ling_source_iraab_display_blocks (
   id                TEXT PRIMARY KEY,
@@ -53,9 +38,6 @@ CREATE INDEX IF NOT EXISTS idx_arl_idb_entry
 
 CREATE INDEX IF NOT EXISTS idx_arl_idb_type
   ON ar_ling_source_iraab_display_blocks(block_type);
-
--- ── ar_ling_source_tafsir_display_blocks ─────────────────────────────────────
--- UI-safe display rendering for تفسير (Quranic exegesis) sources.
 
 CREATE TABLE IF NOT EXISTS ar_ling_source_tafsir_display_blocks (
   id                TEXT PRIMARY KEY,

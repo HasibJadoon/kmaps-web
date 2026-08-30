@@ -1,13 +1,6 @@
-// ─── ProjectionRepo — Layer 10: Projections + Bridges ────────────────────────
-// Tables: qr_worldview_nodes, qr_worldview_edges, qr_diagram_specs,
-//         qr_diagram_instances, qr_doc_link,
-//         qr_surah_analysis, qr_passage_analysis
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ─── Row shapes (aligned to 005_reception_and_projections.sql) ────────────────
 
 export interface WorldviewNode {
   id: string;
@@ -118,8 +111,6 @@ export interface PassageAnalysisCache {
   payload_json: string | null;
 }
 
-// ─── Column SELECT constants ───────────────────────────────────────────────────
-
 const WVN_COLS = `
   id, surah, node_type, label_en, label_ar, summary_md,
   source_claim_id, wv_node_ref, created_at`;
@@ -145,12 +136,8 @@ const SAC_COLS = `
 const PAC_COLS = `
   id, surah, passage_id, cache_version, cache_generated_at, payload_json`;
 
-// ─── ProjectionRepo ───────────────────────────────────────────────────────────
-
 export class ProjectionRepo {
   constructor(private db: D1Database) {}
-
-  // ── Worldview Nodes ─────────────────────────────────────────────────────────
 
   worldviewNodes(scopeRef?: { surah?: number }, opts: PaginateOptions = {}) {
     const where = scopeRef?.surah !== undefined ? 'WHERE surah = ?' : '';
@@ -196,8 +183,6 @@ export class ProjectionRepo {
     );
     return (await this.findNodeById(id))!;
   }
-
-  // ── Worldview Edges ─────────────────────────────────────────────────────────
 
   worldviewEdges(fromNodeId?: string, toNodeId?: string, opts: PaginateOptions = {}) {
     const where: string[] = [];
@@ -247,8 +232,6 @@ export class ProjectionRepo {
     ))!;
   }
 
-  // ── Diagram Specs ───────────────────────────────────────────────────────────
-
   diagramSpecs(opts: PaginateOptions = {}) {
     return paginate<DiagramSpec>(
       this.db,
@@ -296,8 +279,6 @@ export class ProjectionRepo {
     return (await this.findSpecById(id))!;
   }
 
-  // ── Diagram Instances ───────────────────────────────────────────────────────
-
   diagramInstances(specId: string, opts: PaginateOptions = {}) {
     return paginate<DiagramInstance>(
       this.db,
@@ -342,8 +323,6 @@ export class ProjectionRepo {
     );
   }
 
-  // ── Doc Links ───────────────────────────────────────────────────────────────
-
   docLinks(
     qrScopeType: string,
     qrScopeId: string,
@@ -358,10 +337,6 @@ export class ProjectionRepo {
     );
   }
 
-  /** Every doc link that touches a surah, whatever scope its rows use.
-   *  Every row in the corpus is ayah-scoped ("44:3"), and the old surah-scope
-   *  query matched nothing for all 114 surahs — the hub's documents count was
-   *  structurally zero. A surah's documents are its ayat's documents. */
   docLinksForSurah(surahId: number): Promise<DocLink[]> {
     return query<DocLink>(
       this.db,
@@ -401,8 +376,6 @@ export class ProjectionRepo {
     ))!;
   }
 
-  // ── Surah Analysis Cache ────────────────────────────────────────────────────
-
   surahCache(surahId: number): Promise<SurahAnalysisCache | null> {
     return queryOne<SurahAnalysisCache>(
       this.db,
@@ -440,8 +413,6 @@ export class ProjectionRepo {
 
     return (await this.surahCache(surahId))!;
   }
-
-  // ── Passage Analysis Cache ──────────────────────────────────────────────────
 
   passageCache(passageId: string): Promise<PassageAnalysisCache | null> {
     return queryOne<PassageAnalysisCache>(

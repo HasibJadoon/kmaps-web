@@ -34,7 +34,7 @@ export class SurahNearSynonymsComponent implements OnInit, AfterViewInit {
   sets     = signal<NearSynonymSetVm[]>([]);
   loading  = signal(true);
   error    = signal<string | null>(null);
-  expanded = signal<string | null>(null); // set id currently expanded
+  expanded = signal<string | null>(null);
   editMode = signal(false);
   saving = signal(false);
   saveError = signal<string | null>(null);
@@ -96,7 +96,7 @@ export class SurahNearSynonymsComponent implements OnInit, AfterViewInit {
 
   domainLabel(domainId: string | null): string {
     if (!domainId) return '';
-    // "SF:NS:AFTERLIFE" → "Afterlife"
+
     const parts = domainId.split(':');
     const raw = parts[parts.length - 1] ?? '';
     return raw.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());

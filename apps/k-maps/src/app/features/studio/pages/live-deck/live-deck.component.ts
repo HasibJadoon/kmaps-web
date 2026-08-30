@@ -8,7 +8,6 @@ import { EpisodeAggregate, LiveCursor, RosterEntry } from '../../studio.models';
 
 const LOBBY: LiveCursor = { section: -1, point: -1 };
 
-/** A message broadcast by the EpisodeSession Durable Object. */
 interface LiveMessage {
   t: string;
   role?: 'host' | 'viewer';
@@ -18,13 +17,10 @@ interface LiveMessage {
   viewers?: number;
   roster?: RosterEntry[];
   you?: RosterEntry;
-  /** Every card played this session. It rides on sync AND on every cursor
-   *  change rather than being tracked locally, so two screens that saw
-   *  different subsets cannot disagree about which cards are spent. */
+
   played?: string[];
 }
 
-/** One card in the live deck — a flattened talking point. */
 interface DeckCard {
   id: string;
   index: number;
@@ -34,24 +30,20 @@ interface DeckCard {
   speakerName: string | null;
   speakerColor: string | null;
   speakerRef: string | null;
-  /** The beats you say while holding the card — one turn to speak, so they are
-   *  on the card rather than being cards of their own. */
+
   subs: string[];
 }
 
-/** Someone else at the table: their colour, and how much they still hold. */
 interface Seat {
   ref: string;
   name: string;
   color: string;
   remaining: number;
   speaking: boolean;
-  /** Capped for drawing; the number underneath carries the rest. */
+
   pips: number[];
 }
 
-/** Sub-points arrive as an array or as the JSON text of one, depending on
- *  whether they came from a PATCH or straight out of the column. */
 function subsOf(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.filter((x): x is string => typeof x === 'string');
   if (typeof raw === 'string' && raw.trim()) {
@@ -600,9 +592,9 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
   viewers = signal(1);
   roster = signal<RosterEntry[]>([]);
   you = signal<RosterEntry | null>(null);
-  /** Ids of every card played. Authoritative — it comes from the session. */
+
   played = signal<ReadonlySet<string>>(new Set<string>());
-  /** The table is what you play from; the running order is for reading ahead. */
+
   view = signal<'table' | 'order'>('table');
 
   private ws: WebSocket | null = null;
@@ -613,14 +605,11 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
 
   @ViewChild('strip') private strip?: ElementRef<HTMLElement>;
 
-  // ── Derived state ────────────────────────────────────────────────────────────
-
   isHost = computed(() => this.role() === 'host');
   inLobby = computed(() => this.cursor().section < 0);
 
-  /** Identified cast members currently connected (named entries only). */
   namedRoster = computed(() => this.roster().filter((r) => !!r.name));
-  /** Connected screens that did not resolve to a cast member. */
+
   guestCount = computed(() => this.roster().filter((r) => !r.name).length);
 
   currentSection = computed(() => {
@@ -671,7 +660,6 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
     return index >= 0 && index >= total - 1;
   });
 
-  /** Every talking point flattened to an ordered card, for the deck carousel. */
   cards = computed<DeckCard[]>(() => {
     const ep = this.episode();
     if (!ep) return [];
@@ -704,12 +692,8 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
 
   activeIndex = computed(() => this.position().index);
 
-  /** The card in the middle — what is being spoken now. */
   liveCard = computed<DeckCard | null>(() => this.cards()[this.activeIndex()] ?? null);
 
-  /** Your hand: your own cards, plus any nobody was assigned. An unclaimed
-   *  question belongs to whoever reaches for it — the same rule the Durable
-   *  Object enforces, so a card is never offered for a play it would refuse. */
   hand = computed<DeckCard[]>(() => {
     const me = this.you()?.participantId ?? null;
     const played = this.played();
@@ -719,8 +703,6 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
     });
   });
 
-  /** Yours that are spent. They stay: mid-session the useful question is often
-   *  what you have already said. */
   spent = computed<DeckCard[]>(() => {
     const me = this.you()?.participantId ?? null;
     const played = this.played();
@@ -728,9 +710,6 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
       (c) => played.has(c.id) && (c.speakerRef === me || c.speakerRef === null));
   });
 
-  /** Everyone else, in the order they first speak. Seats come from the cards
-   *  rather than the roster, so somebody holding no points does not get a chair
-   *  with nothing on it. */
   seats = computed<Seat[]>(() => {
     const me = this.you()?.participantId ?? null;
     const played = this.played();
@@ -759,9 +738,6 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
     });
   });
 
-  /** How far each card in the fan is rotated and pushed out from the middle.
-   *  The gap is a fraction of the card width rather than a fixed pixel value:
-   *  at a fixed one a two-card hand sat almost exactly on top of itself. */
   fanAngle(i: number): number {
     const n = this.hand().length;
     if (n < 2) return 0;
@@ -776,8 +752,6 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
     return (i - (n - 1) / 2) * gap;
   }
 
-  /** How far apart a seat's face-down cards sit. Same trap as the hand: at a
-   *  fixed offset a two-card pile reads as one thick card. */
   backShift(count: number, i: number): number {
     if (count < 2) return 0;
     const gap = Math.max(8, Math.min(17, 62 / (count - 1)));
@@ -795,21 +769,15 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
     return Math.abs(i - (n - 1) / 2) * 5;
   }
 
-  /** Put a card on the table. The session decides whether it is yours to play,
-   *  so nothing is changed locally first — a refused play simply does nothing
-   *  rather than moving and snapping back. */
   play(card: DeckCard): void {
     this.send({ t: 'play', card: card.id });
   }
 
-  /** True when the current card is assigned to this viewer — their turn to push. */
   isMyTurn = computed(() => {
     const me = this.you();
     const card = this.cards()[this.activeIndex()];
     return !!me?.participantId && !!card && card.speakerRef === me.participantId;
   });
-
-  // ── Lifecycle ────────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
     this.code = (this.route.snapshot.paramMap.get('code') ?? '').toUpperCase();
@@ -836,8 +804,6 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
     this.teardown();
   }
 
-  // ── WebSocket ────────────────────────────────────────────────────────────────
-
   private connect(): void {
     let socket: WebSocket;
     try {
@@ -854,7 +820,7 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
       this.startPing();
     };
     socket.onmessage = (ev: MessageEvent) => this.onMessage(ev);
-    socket.onerror = () => { /* an onclose always follows */ };
+    socket.onerror = () => {  };
     socket.onclose = () => {
       this.connected.set(false);
       this.stopPing();
@@ -905,7 +871,6 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** Centre the live card in the carousel when the synced cursor moves. */
   private scrollToActive(): void {
     const el = this.strip?.nativeElement;
     if (!el) return;
@@ -942,7 +907,7 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
   private startPing(): void {
     this.stopPing();
     this.pingTimer = setInterval(() => {
-      try { this.ws?.send('ping'); } catch { /* socket gone */ }
+      try { this.ws?.send('ping'); } catch {  }
     }, 25000);
   }
 
@@ -957,7 +922,7 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
     if (socket) {
       socket.onclose = null;
       socket.onmessage = null;
-      try { socket.close(); } catch { /* already closed */ }
+      try { socket.close(); } catch {  }
     }
   }
 
@@ -967,11 +932,9 @@ export class LiveDeckComponent implements OnInit, OnDestroy {
     this.closeSocket();
   }
 
-  // ── Host actions ─────────────────────────────────────────────────────────────
-
   private send(msg: string | Record<string, unknown>): void {
     const payload = typeof msg === 'string' ? { t: msg } : msg;
-    try { this.ws?.send(JSON.stringify(payload)); } catch { /* socket gone */ }
+    try { this.ws?.send(JSON.stringify(payload)); } catch {  }
   }
 
   next(): void { this.send('next'); }

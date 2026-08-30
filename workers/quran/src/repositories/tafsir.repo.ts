@@ -1,10 +1,6 @@
-// ─── TafsirRepo — Layer 8: Reception (tafsir, scholars, paradigms, positions, reception) ─
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ─── Row shapes (aligned to 005_reception_and_projections.sql) ────────────────
 
 export interface TafsirEntry {
   id: string;
@@ -259,8 +255,6 @@ export interface InterpretiveDiffCreate {
   note_md?: string | null;
 }
 
-// ─── Column SELECT constants ───────────────────────────────────────────────────
-
 const ENTRY_COLS = `
   id, surah, ayah_from, ayah_to, entry_type,
   scholar_id, work_id, content_ar, content_en,
@@ -297,12 +291,8 @@ const DIFF_COLS = `
   resolution_note, is_doctrinally_significant, note_md,
   created_at, updated_at`;
 
-// ─── TafsirRepo ───────────────────────────────────────────────────────────────
-
 export class TafsirRepo {
   constructor(private db: D1Database) {}
-
-  // ── Tafsir Entries ──────────────────────────────────────────────────────────
 
   entries(
     surahId?: number,
@@ -393,8 +383,6 @@ export class TafsirRepo {
     return this.findEntryById(id);
   }
 
-  // ── Scholar Profiles ────────────────────────────────────────────────────────
-
   scholars(opts: PaginateOptions = {}) {
     return paginate<ScholarProfile>(
       this.db,
@@ -479,8 +467,6 @@ export class TafsirRepo {
     return this.findScholarById(id);
   }
 
-  // ── Scholar Works ───────────────────────────────────────────────────────────
-
   works(scholarId: string, opts: PaginateOptions = {}) {
     return paginate<ScholarWork>(
       this.db,
@@ -527,8 +513,6 @@ export class TafsirRepo {
     return (await this.findWorkById(id))!;
   }
 
-  // ── Scholarly Paradigms ─────────────────────────────────────────────────────
-
   paradigms(opts: PaginateOptions = {}) {
     return paginate<ScholarlyParadigm>(
       this.db,
@@ -566,8 +550,6 @@ export class TafsirRepo {
     return (await this.findParadigmById(id))!;
   }
 
-  // ── Scholar ↔ Paradigm Links ────────────────────────────────────────────────
-
   paradigmLinks(scholarId: string): Promise<ScholarParadigmLink[]> {
     return query<ScholarParadigmLink>(
       this.db,
@@ -601,8 +583,6 @@ export class TafsirRepo {
     );
     return row!;
   }
-
-  // ── Scholar Positions ───────────────────────────────────────────────────────
 
   positions(
     scholarId?: string,
@@ -676,8 +656,6 @@ export class TafsirRepo {
     return (await this.findPositionById(id))!;
   }
 
-  // ── Surah Reception Histories ───────────────────────────────────────────────
-
   receptionHistories(surahId: number): Promise<ReceptionHistory[]> {
     return query<ReceptionHistory>(
       this.db,
@@ -749,8 +727,6 @@ export class TafsirRepo {
       [id],
     ))!;
   }
-
-  // ── Interpretive Differences ────────────────────────────────────────────────
 
   interpretiveDiffs(surahId: number, opts: PaginateOptions = {}) {
     return paginate<InterpretiveDiff>(

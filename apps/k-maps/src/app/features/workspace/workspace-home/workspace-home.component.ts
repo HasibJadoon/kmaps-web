@@ -65,7 +65,7 @@ export class WorkspaceHomeComponent implements OnInit, AfterViewInit {
       this.error.set(e instanceof Error ? e.message : 'Failed to load workspaces');
     } finally {
       this.loading.set(false);
-      // Stagger cards after data loads
+
       setTimeout(() => {
         const cards = document.querySelectorAll('.wh__card');
         if (cards.length > 0) {

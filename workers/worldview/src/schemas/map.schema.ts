@@ -1,5 +1,3 @@
-// ─── Map schemas & types ───────────────────────────────────────────────
-
 export interface WvMapLayer {
   id: string;
   slug: string;
@@ -195,8 +193,6 @@ export type RouteFeatureCreate = Omit<WvRouteFeature, 'id' | 'created_at'>;
 export type ExpansionMapCreate = Omit<WvExpansionMap, 'id' | 'created_at'>;
 
 export type TimelineEventCreate = Omit<WvTimelineEvent, 'id' | 'created_at'>;
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

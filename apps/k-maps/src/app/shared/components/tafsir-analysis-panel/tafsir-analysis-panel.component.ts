@@ -4,19 +4,6 @@ import type { QrTafsirGroupDisplayPayload, QrTafsirDisplayBlock } from '../../mo
 
 interface CountedTag { label: string; count: number; meta?: string; }
 
-/**
- * Tafsir analysis panel — aggregates content signals out of a tafsir
- * display payload to give the reader a quick map of:
- *
- *   • Block-type distribution (isnad, poetry, voice_marker, verse_anchor, …)
- *   • Scholars present in this view + their block counts
- *   • Madhab distribution
- *   • Era distribution (classical / modern)
- *   • Long-form coverage (entries split into paragraph_section blocks)
- *
- * Mirrors the iʿrāb-analysis-panel visual style: dense card-stack with
- * [● dot] + [▾ chevron] + [⊞ expand] + title + count headers.
- */
 @Component({
   selector: 'km-tafsir-analysis-panel',
   standalone: true,
@@ -28,7 +15,6 @@ interface CountedTag { label: string; count: number; meta?: string; }
 export class TafsirAnalysisPanelComponent {
   readonly payload = input<QrTafsirGroupDisplayPayload | null>(null);
 
-  // ── Block type distribution ───────────────────────────────────────────────
   private readonly TYPE_LABELS: Record<string, string> = {
     tafsir_card:        'بطاقات التفسير',
     paragraph_section:  'فقرات مطوّلة',
@@ -41,7 +27,7 @@ export class TafsirAnalysisPanelComponent {
     paradigm_chip:      'مدارس كلامية',
     scholar_response:   'ردود علمائية',
   };
-  /** Order in which to display block types (most interpretive → most cross-ref). */
+
   private readonly TYPE_ORDER = [
     'tafsir_card','paragraph_section','isnad','voice_marker','poetry_quote',
     'verse_anchor','paradigm_chip','scholar_response','hadith_source_chip','quran_ref_chip',
@@ -59,7 +45,6 @@ export class TafsirAnalysisPanelComponent {
       .map(t => ({ label: this.TYPE_LABELS[t] ?? t, count: counts.get(t)!, meta: t }));
   });
 
-  // ── Scholars present ──────────────────────────────────────────────────────
   readonly scholarsPresent = computed<CountedTag[]>(() => {
     const p = this.payload();
     if (!p) return [];
@@ -77,7 +62,6 @@ export class TafsirAnalysisPanelComponent {
       .sort((a, b) => b.count - a.count);
   });
 
-  // ── Madhab distribution ───────────────────────────────────────────────────
   private readonly MADHAB_LABELS: Record<string, string> = {
     sunni: 'سني', maliki: 'مالكي', shafii: 'شافعي', hanbali: 'حنبلي',
     hanafi: 'حنفي', mutazili: 'معتزلي', ashari: 'أشعري', athari: 'أثري',
@@ -95,7 +79,6 @@ export class TafsirAnalysisPanelComponent {
       .sort((a, b) => b.count - a.count);
   });
 
-  // ── Era distribution ──────────────────────────────────────────────────────
   readonly eras = computed<CountedTag[]>(() => {
     const p = this.payload();
     if (!p) return [];
@@ -110,7 +93,6 @@ export class TafsirAnalysisPanelComponent {
       .sort((a, b) => b.count - a.count);
   });
 
-  // ── Long-form coverage ────────────────────────────────────────────────────
   readonly longFormCoverage = computed<{ count: number; paragraphs: number; scholars: string[] } | null>(() => {
     const p = this.payload();
     if (!p) return null;
@@ -128,7 +110,6 @@ export class TafsirAnalysisPanelComponent {
     return { count: longCount, paragraphs, scholars: [...scholars] };
   });
 
-  // ── Collapse state ────────────────────────────────────────────────────────
   readonly collapsed = signal<Set<string>>(new Set());
   isCollapsed(key: string): boolean { return this.collapsed().has(key); }
   toggle(key: string): void {

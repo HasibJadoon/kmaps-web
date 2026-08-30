@@ -1,13 +1,6 @@
-// ─── SurahPatternRepo — qr_surah_symmetry_pattern + qr_surah_diamond_pattern +
-//     qr_surah_sequence_pattern + qr_surah_motif_cluster +
-//     qr_surah_coherence_signal + qr_surah_clause_pattern +
-//     qr_surah_register_shift + qr_surah_ellipsis_pattern ──────────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Row shapes ─────────────────────────────────────────────────────────────────
 
 export interface SurahSymmetryPattern {
   id: string;
@@ -186,12 +179,8 @@ export interface SurahEllipsisPatternsUpsert {
   note_md?: string | null;
 }
 
-// ── Repo ───────────────────────────────────────────────────────────────────────
-
 export class SurahPatternRepo {
   constructor(private db: D1Database) {}
-
-  // ── qr_surah_symmetry_pattern ─────────────────────────────────────────────
 
   symmetryPatterns(surahId: number, opts: PaginateOptions = {}) {
     return paginate<SurahSymmetryPattern>(
@@ -238,8 +227,6 @@ export class SurahPatternRepo {
       [id],
     );
   }
-
-  // ── qr_surah_diamond_pattern ──────────────────────────────────────────────
 
   diamondPatterns(surahId: number): Promise<SurahDiamondPattern[]> {
     return query<SurahDiamondPattern>(
@@ -289,8 +276,6 @@ export class SurahPatternRepo {
     );
   }
 
-  // ── qr_surah_sequence_pattern ─────────────────────────────────────────────
-
   sequencePatterns(surahId: number): Promise<SurahSequencePattern[]> {
     return query<SurahSequencePattern>(
       this.db,
@@ -327,8 +312,6 @@ export class SurahPatternRepo {
       [id],
     );
   }
-
-  // ── qr_surah_motif_cluster ────────────────────────────────────────────────
 
   motifClusters(surahId: number, opts: PaginateOptions = {}) {
     return paginate<SurahMotifCluster>(
@@ -373,8 +356,6 @@ export class SurahPatternRepo {
     );
   }
 
-  // ── qr_surah_coherence_signal ─────────────────────────────────────────────
-
   coherenceSignals(surahId: number, opts: PaginateOptions = {}) {
     return paginate<SurahCoherenceSignal>(
       this.db,
@@ -413,8 +394,6 @@ export class SurahPatternRepo {
       [id],
     );
   }
-
-  // ── qr_surah_clause_pattern (surah-level rollup) ──────────────────────────
 
   clausePatterns(surahId: number): Promise<SurahClausePatterns | null> {
     return queryOne<SurahClausePatterns>(
@@ -470,8 +449,6 @@ export class SurahPatternRepo {
     return this.clausePatterns(surahId);
   }
 
-  // ── qr_surah_register_shift ───────────────────────────────────────────────
-
   registerShifts(surahId: number, opts: PaginateOptions = {}) {
     return paginate<SurahRegisterShift>(
       this.db,
@@ -511,8 +488,6 @@ export class SurahPatternRepo {
       [id],
     );
   }
-
-  // ── qr_surah_ellipsis_pattern (surah-level rollup) ────────────────────────
 
   ellipsisPatterns(surahId: number): Promise<SurahEllipsisPatterns | null> {
     return queryOne<SurahEllipsisPatterns>(

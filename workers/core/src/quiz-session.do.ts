@@ -1,23 +1,3 @@
-// ─── QuizSession — a question asked to a room ─────────────────────────────────
-//
-// The host pushes a question; every screen shows it at the same moment; each
-// person picks an option; the answer is revealed and the board moves.
-//
-// Three rules shape the whole object:
-//
-//   1. THE CORRECT ANSWER NEVER CROSSES THE WIRE BEFORE THE REVEAL. Not sent
-//      and hidden — not sent. A quiz whose answer sits in the client is not a
-//      quiz, and the first person to open an inspector wins every round.
-//
-//   2. SPEED IS SCORED, SO TIME IS MEASURED HERE. A client-reported elapsed is
-//      a client-chosen score. The object stamps when the question went out and
-//      when each answer arrived, and both stamps are its own.
-//
-//   3. ANSWERS ARE WRITTEN TO D1, NOT KEPT IN MEMORY. A Durable Object can be
-//      evicted between questions; a leaderboard that lives only in RAM is one
-//      that will eventually be lost, and the dashboard would have nothing to
-//      read. Storage here is the live copy; D1 is the record.
-
 import type { CoreEnv } from './env';
 import { query, execute } from '../../shared/src/db';
 import { typedId } from '../../shared/src/ulid';
@@ -29,7 +9,6 @@ interface Player {
   isHost: boolean;
 }
 
-/** The question on screen, as the room may see it. */
 interface Live {
   questionId: string;
   prompt: string;
@@ -37,14 +16,13 @@ interface Live {
   seconds: number;
   module: string;
   resourceRef: string | null;
-  /** Server clock when it went out. Every elapsed is measured from this. */
+
   askedAt: number;
-  /** Only ever set once the host reveals. */
+
   correctIndex: number | null;
   explanation: string | null;
 }
 
-/** One person's answer to the question on screen. */
 interface Given {
   userId: string;
   name: string | null;
@@ -54,10 +32,6 @@ interface Given {
   points: number;
 }
 
-/** The room scores on the same scale as everything else. It used to carry its
- *  own copy of the formula with its own literal 1000 — two scorers drifting
- *  apart is exactly what one bank was for, and a point earned in the room has
- *  to be worth a point earned alone or the shared card compares nothing. */
 const scoreFor = (correct: boolean, ms: number, seconds: number): number =>
   speedPoints(correct ? 1 : 0, ms, seconds);
 
@@ -67,7 +41,7 @@ export class QuizSession {
       this.state.setWebSocketAutoResponse(
         new WebSocketRequestResponsePair('ping', 'pong'),
       );
-    } catch { /* older runtime — keepalive just wakes the object */ }
+    } catch {  }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -84,8 +58,7 @@ export class QuizSession {
       await this.state.storage.put('sessionId', sessionId);
       await this.state.storage.put('hostRef', hostRef);
     }
-    // Kept current rather than write-once: an object that outlives a deploy
-    // should not be stuck with an empty code it can never write a round under.
+
     if (roomCode) await this.state.storage.put('code', roomCode);
 
     const { 0: client, 1: server } = new WebSocketPair();
@@ -133,13 +106,8 @@ export class QuizSession {
     this.broadcastPresence(ws);
   }
 
-  // ── Pushing a question ─────────────────────────────────────────────────────
-
   private async push(questionId: string): Promise<void> {
-    // The bank, not core_quiz_question. Migration 030 said this is one ledger
-    // and the room went on writing its own table anyway, so the shared
-    // scorecard has never contained a single live round. An option is a row
-    // now, which is also what lets a wrong answer explain itself.
+
     const rows = await query<{
       id: string; prompt: string; seconds: number | null; module: string;
       resource_ref: string | null; explanation: string | null; pack_ref: string;
@@ -177,7 +145,7 @@ export class QuizSession {
       module: q.module,
       resourceRef: q.resource_ref,
       askedAt: Date.now(),
-      correctIndex: null,      // withheld until reveal — rule 1
+      correctIndex: null,
       explanation: null,
     };
     await this.state.storage.put('live', live);
@@ -187,8 +155,6 @@ export class QuizSession {
     this.broadcast({ t: 'question', live: this.publicLive(live), given: [] });
   }
 
-  /** What a player is allowed to see. The correct index and the explanation are
-   *  stripped until the host reveals — this is the one place that decides it. */
   private publicLive(live: Live | null) {
     if (!live) return null;
     return {
@@ -205,28 +171,17 @@ export class QuizSession {
     };
   }
 
-  // ── Answering ──────────────────────────────────────────────────────────────
-
   private async answer(me: Player, choice: number): Promise<void> {
     const live = await this.getLive();
-    if (!live || live.correctIndex !== null) return;      // no answering after the reveal
+    if (!live || live.correctIndex !== null) return;
     if (choice < 0 || choice >= live.options.length) return;
 
-    // Everything that needs the database happens BEFORE the read-modify-write,
-    // and nothing is awaited between reading `given` and putting it back.
-    //
-    // The other order loses answers. A Durable Object's input gate does not
-    // hold across an outbound D1 call, so with the lookup in the middle two
-    // people answering at once both read the same `given`, both append, and
-    // the second put overwrites the first — silently, and more often the
-    // faster the room is. Two players answering together lost one of them
-    // every time.
     const correctIndex = await this.correctIndexOf(live.questionId);
     const ms = Math.max(0, Date.now() - live.askedAt);
     const correct = correctIndex === choice;
 
     const given = await this.getGiven();
-    if (given.some((g) => g.userId === me.userId)) return; // one answer each, first stands
+    if (given.some((g) => g.userId === me.userId)) return;
 
     given.push({
       userId: me.userId, name: me.name, choice, ms, correct,
@@ -237,7 +192,6 @@ export class QuizSession {
     this.broadcast({ t: 'locked', given: this.lockedSummary(given) });
   }
 
-  /** Who has answered — names only, never what they picked. */
   private lockedSummary(given: Given[]) {
     return given.map((g) => ({ userId: g.userId, name: g.name }));
   }
@@ -245,13 +199,11 @@ export class QuizSession {
   private async givenSummary() {
     const live = await this.getLive();
     const given = await this.getGiven();
-    // After the reveal the full detail is fair game; before it, names only.
+
     return live?.correctIndex !== null && live !== null
       ? given
       : this.lockedSummary(given);
   }
-
-  // ── Revealing ──────────────────────────────────────────────────────────────
 
   private async reveal(): Promise<void> {
     const live = await this.getLive();
@@ -264,9 +216,6 @@ export class QuizSession {
     const revealed: Live = { ...live, correctIndex, explanation };
     await this.state.storage.put('live', revealed);
 
-    // Write the round to D1 before telling anyone. If this object dies in the
-    // next second the board still exists, which is the whole reason the
-    // dashboard can be trusted.
     const given = await this.getGiven();
     await this.persist(live.questionId, given);
 
@@ -291,10 +240,7 @@ export class QuizSession {
 
     for (const g of given) {
       try {
-        // Everyone in the room has an attempt, opened on first answer and
-        // reused for the rest of the round. It carries the room code, which is
-        // what makes the shared scorecard one GROUP BY across three apps
-        // rather than a union of tables that count different things.
+
         const existing = await query<{ id: string }>(
           this.env.DB_CORE,
           `SELECT id FROM core_bank_attempt
@@ -321,7 +267,7 @@ export class QuizSession {
            JSON.stringify(optionIds[g.choice ?? -1] ? [optionIds[g.choice ?? -1]] : []),
            g.correct ? 1 : 0, g.correct ? 1 : 0, g.ms, g.points],
         );
-        // The attempt's own totals, so a room round reads like any other round.
+
         await execute(
           this.env.DB_CORE,
           `UPDATE core_bank_attempt
@@ -332,16 +278,12 @@ export class QuizSession {
             WHERE id = ?`,
           [attemptRef, attemptRef, attemptRef]);
       } catch (error) {
-        // One lost row must not take the round down — but a round that wrote
-        // nothing at all looked exactly like one that wrote everything, which
-        // is how the ledger stayed empty without anybody noticing.
+
         console.error('[quiz] response not persisted', g.userId, String(error));
       }
     }
   }
 
-  /** The board, read back from D1 rather than accumulated in memory — so it is
-   *  the same number the dashboard shows, computed the same way. */
   private async board() {
     const sessionId = await this.state.storage.get<string>('sessionId');
     if (!sessionId) return [];
@@ -369,8 +311,6 @@ export class QuizSession {
     }
   }
 
-  // ── Ending ─────────────────────────────────────────────────────────────────
-
   private async end(): Promise<void> {
     const sessionId = await this.state.storage.get<string>('sessionId');
     if (sessionId) {
@@ -383,11 +323,11 @@ export class QuizSession {
             WHERE id = ?`,
           [sessionId],
         );
-      } catch { /* best effort */ }
+      } catch {  }
     }
     this.broadcast({ t: 'ended', board: await this.board() });
     for (const ws of this.state.getWebSockets()) {
-      try { ws.close(1000, 'Quiz ended'); } catch { /* already closed */ }
+      try { ws.close(1000, 'Quiz ended'); } catch {  }
     }
   }
 
@@ -403,10 +343,8 @@ export class QuizSession {
           WHERE id = ?`,
         [sessionId],
       );
-    } catch { /* best effort */ }
+    } catch {  }
   }
-
-  // ── Reads ──────────────────────────────────────────────────────────────────
 
   private async correctIndexOf(questionId: string): Promise<number | null> {
     const rows = await query<{ n: number }>(
@@ -423,8 +361,6 @@ export class QuizSession {
     if (!marked[0]?.n) return null;
     return rows[0]?.n ?? null;
   }
-
-
 
   private async explanationOf(questionId: string): Promise<string | null> {
     const rows = await query<{ explanation: string | null }>(
@@ -459,12 +395,10 @@ export class QuizSession {
       .filter((p): p is Player => !!p);
   }
 
-  // ── Fan-out ────────────────────────────────────────────────────────────────
-
   private broadcast(payload: unknown): void {
     const data = JSON.stringify(payload);
     for (const ws of this.state.getWebSockets()) {
-      try { ws.send(data); } catch { /* dropped socket */ }
+      try { ws.send(data); } catch {  }
     }
   }
 
@@ -472,11 +406,11 @@ export class QuizSession {
     const sockets = this.state.getWebSockets().filter((ws) => ws !== excluding);
     const data = JSON.stringify({ t: 'presence', roster: this.roster(sockets) });
     for (const ws of sockets) {
-      try { ws.send(data); } catch { /* dropped socket */ }
+      try { ws.send(data); } catch {  }
     }
   }
 
   private sendTo(ws: WebSocket, payload: unknown): void {
-    try { ws.send(JSON.stringify(payload)); } catch { /* dropped socket */ }
+    try { ws.send(JSON.stringify(payload)); } catch {  }
   }
 }

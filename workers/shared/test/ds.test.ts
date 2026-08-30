@@ -1,10 +1,3 @@
-// ─── the display spec, built against real SQL ────────────────────────────────
-//
-// These run the repository's own statements against an in-memory SQLite seeded
-// with the live schema. Mocking the database would hide the bugs worth
-// catching — a filter on the wrong side of a join, an ordering that only looks
-// right until the tenth row, a NULL read as a zero.
-
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { fakeD1 } from './d1-sqlite';
@@ -29,7 +22,7 @@ const block = (s: DsSection, kind: DsBlock['kind']): DsBlock => {
 describe('every declared layer appears, holding rows or not', () => {
   test('a layer that holds nothing is still a section', async () => {
     const s = await spec();
-    // Omitting them would imply the root has fewer layers than it does.
+
     assert.ok(s.sections.length >= 8);
     assert.ok(s.sections.some((x) => x.state === 'filled'));
     assert.ok(s.sections.some((x) => x.state === 'empty'));
@@ -38,9 +31,9 @@ describe('every declared layer appears, holding rows or not', () => {
 
   test('unknown is not empty', async () => {
     const s = await spec();
-    // 30-KIN is bound and audited and holds nothing: a measured zero.
+
     assert.equal(section(s, '30-KIN').state, 'empty');
-    // 72-MEM is declared with no audited binding: nothing was ever read.
+
     assert.equal(section(s, '72-MEM').state, 'unknown');
 
     const empty = block(section(s, '30-KIN'), 'note');
@@ -70,9 +63,7 @@ describe('the presentation follows the reader, not the registry', () => {
     for (const sec of s.sections) {
       if (seen[seen.length - 1] !== sec.chapter) seen.push(sec.chapter);
     }
-    // A reader asks what it is, then what it means, then who says so —
-    // 00-CORE before 14-SENSE before 12-ASL is the registry's order and would
-    // put the witnesses before the meanings they witness.
+
     assert.deepEqual(seen, ['identity', 'meaning', 'evidence', 'relations', 'remember']);
   });
 
@@ -100,7 +91,7 @@ describe('the presentation follows the reader, not the registry', () => {
       assert.ok(c.title.length > 0, `${c.key} has no title`);
       assert.ok(c.question.length > 0, `${c.key} does not say what it answers`);
     }
-    // The reader's words, not the schema's.
+
     const identity = s.chapters.find((c) => c.key === 'identity');
     assert.equal(identity?.title, 'What it is');
   });
@@ -191,7 +182,7 @@ describe('a via binding is read, and its filter is honoured', () => {
     assert.equal(sec.state, 'filled', 'via carriers used to report as unknown');
     const b = block(sec, 'ledger');
     if (b.kind !== 'ledger') throw new Error('shape');
-    // ATT3 targets a lemma, not a sense: the carrier's own filter excludes it.
+
     assert.equal(b.records.length, 2);
     assert.ok(!b.records.some((r) => r.ar?.text.includes('لا ينبغي')));
   });
@@ -217,7 +208,7 @@ describe('a phone is not a small desktop', () => {
 
     assert.ok(m.records.length <= d.records.length);
     assert.equal(m.records.length, 3, 'mobile cap is 3');
-    // The count is what a client shows instead of silently truncating.
+
     assert.equal(typeof m.overflow_count, 'number');
   });
 

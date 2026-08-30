@@ -1,12 +1,6 @@
-// ─── ProgressRepo — ar_learn_task_completion + ar_learn_unit_progress + ar_learn_mastery
-// Learner telemetry: task-level completions, unit-level progress state,
-// and per-skill mastery scores per track.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface TaskCompletion {
   id: string;
@@ -21,8 +15,8 @@ export interface UnitProgress {
   id: string;
   unit_id: string;
   core_user_ref: string;
-  status: string;             // not_started|in_progress|completed|revisiting
-  progress_pct: number;       // 0–100
+  status: string;
+  progress_pct: number;
   last_activity_at: string | null;
   completed_at: string | null;
   meta_json: string | null;
@@ -42,8 +36,8 @@ export interface MasteryProfile {
   id: string;
   core_user_ref: string;
   track_id: string | null;
-  skill: string;              // sarf|nahw|balagha|vocab_size|reading|listening|other
-  mastery_score: number;      // 0–1
+  skill: string;
+  mastery_score: number;
   items_mastered: number;
   items_learning: number;
   last_assessed_at: string | null;
@@ -63,8 +57,6 @@ export interface MasteryInput {
   meta_json?: string | null;
 }
 
-// ── Column lists ──────────────────────────────────────────────────────────────
-
 const TC_COLS = `id, task_id, core_user_ref, completed_at, time_spent_mins, notes`;
 
 const UP_COLS = `id, unit_id, core_user_ref, status, progress_pct,
@@ -74,14 +66,9 @@ const MP_COLS = `id, core_user_ref, track_id, skill, mastery_score,
   items_mastered, items_learning, last_assessed_at, meta_json,
   created_at, updated_at`;
 
-// ── Repo ──────────────────────────────────────────────────────────────────────
-
 export class ProgressRepo {
   constructor(private db: D1Database) {}
 
-  // ── Task completions ─────────────────────────────────────────────────────────
-
-  /** Record (or update) a task completion. Uses INSERT OR REPLACE on (task_id, core_user_ref). */
   async completeTask(
     taskId: string,
     userRef: string,
@@ -90,7 +77,7 @@ export class ProgressRepo {
   ): Promise<TaskCompletion> {
     const id  = typedId('AR');
     const now = new Date().toISOString();
-    // Attempt upsert: unique constraint on (task_id, core_user_ref)
+
     const existing = await queryOne<TaskCompletion>(
       this.db,
       `SELECT ${TC_COLS} FROM ar_learn_task_completion WHERE task_id = ? AND core_user_ref = ?`,
@@ -128,8 +115,6 @@ export class ProgressRepo {
       [taskId],
     );
   }
-
-  // ── Unit progress ────────────────────────────────────────────────────────────
 
   unitProgress(userRef: string, unitId: string): Promise<UnitProgress | null> {
     return queryOne<UnitProgress>(
@@ -181,8 +166,6 @@ export class ProgressRepo {
     }
     return (await this.unitProgress(input.core_user_ref, input.unit_id))!;
   }
-
-  // ── Mastery profiles ─────────────────────────────────────────────────────────
 
   masteryProfile(
     userRef: string,

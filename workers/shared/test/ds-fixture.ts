@@ -1,23 +1,3 @@
-// ─── a small but real AL registry, for the display-spec tests ────────────────
-//
-// Column names and shapes are taken from the live schema, not invented — the
-// point of running real SQL is lost if the tables are not the real ones. Row
-// values are a hand-picked subset chosen to reach every state the spec can
-// report and every builder it has:
-//
-//   00-CORE   filled  · identity, with a JSON letters column
-//   03-ASWAT  filled  · three slots, one of them weak
-//   06-TAQL   filled  · a closed family, two of six used
-//   12-ASL    filled  · witnesses, one of them undated
-//   14-SENSE  filled  · senses, one core
-//   19-ATT    filled  · reached only through a via binding
-//   30-KIN    empty   · bound and audited, holds nothing
-//   72-MEM    unknown · declared, with no audited binding at all
-//
-// The last two are the ones worth having: for a typical root most sub-layers
-// are empty or unknown, and the difference between them is what a build plan
-// is looking for.
-
 import type Database from 'better-sqlite3';
 
 const ROOT = 'نزل';
@@ -88,7 +68,7 @@ export function seedRegistry(db: Database.Database): void {
 
   const sub = db.prepare(`INSERT INTO ar_ling_reg_sub_layer VALUES
     (?,?,?,?,?,?,?,NULL, 'root', ?, 'P', 'ingest', 'has', ?, ?, ?, ?, 'live')`);
-  //   code       band key       band_ar  band_en   name_ar    name_en          disc  carrier    tables_json                              order icon
+
   sub.run('00-CORE', 0, 'CORE',  'الهوية','Identity','الأصل',   'Core identity', 'SF', 'populated', '["ar_ling_roots"]',                    0,  '🧬');
   sub.run('03-ASWAT',0, 'CORE',  'الهوية','Identity','الأصوات', 'Phonology',     'SF', 'populated', '["ar_ling_root_letter_slot","ar_ling_root_naw_sawti"]', 3, '🔤');
   sub.run('06-TAQL', 0, 'CORE',  'الهوية','Identity','التقاليب','Permutation table','SF','partial', '["ar_ling_root_taqalib"]',             6,  '🔁');
@@ -106,20 +86,18 @@ export function seedRegistry(db: Database.Database): void {
   map.run('ar_ling_root_asl',          '12-ASL',   'carrier', 'direct', 'root_norm', null);
   map.run('ar_ling_root_sense',        '14-SENSE', 'carrier', 'direct', 'root_norm', null);
   map.run('ar_ling_root_didd',         '30-KIN',   'carrier', 'direct', 'root_norm', null);
-  // Reached only through the sense it attests — the binding the readers used to drop.
+
   map.run('ar_ling_sense_attestation', '19-ATT',   'carrier', 'via',
     "target_id -> ar_ling_root_sense.id WHERE target_type='sense' -> root_norm",
     JSON.stringify({ col: 'target_id', to_table: 'ar_ling_root_sense', to_col: 'id',
                      root_col: 'root_norm', where_col: 'target_type', where_val: 'sense' }));
-  // 72-MEM is declared but nobody has audited a binding: unknown, not empty.
+
   map.run('ar_ling_learn_memlet',      '72-MEM',   'carrier', 'unset', null, null);
 
   const colour = db.prepare(`INSERT INTO ar_ling_reg_band_color VALUES (?,?,?)`);
   colour.run('CORE', '#c9a24b', 'gold');
   colour.run('SYN',  '#d98c4a', 'copper');
   colour.run('GRAPH','#3f9c8f', 'teal');
-  // SENSE and LEARN deliberately have no colour — the live registry has none
-  // for them either, and a section must say null rather than borrow one.
 
   db.prepare(`INSERT INTO ar_ling_roots VALUES (?,?,?,?,?,?,?,?,?,?,NULL)`).run(
     'AL01NZL', ROOT, ROOT, '["ن","ز","ل"]', 'trilateral', 'sound', 293,
@@ -128,7 +106,7 @@ export function seedRegistry(db: Database.Database): void {
   const slot = db.prepare(`INSERT INTO ar_ling_root_letter_slot VALUES (?,?,?,?,?,?,?)`);
   slot.run('S1', ROOT, 0, 'fa',  'ن', 0, 0);
   slot.run('S2', ROOT, 1, 'ain', 'ز', 0, 0);
-  slot.run('S3', ROOT, 2, 'lam', 'ل', 1, 0);   // weak, so the tile must mark it
+  slot.run('S3', ROOT, 2, 'lam', 'ل', 1, 0);
 
   db.prepare(`INSERT INTO ar_ling_root_naw_sawti VALUES (?,?,?,?,?,?)`)
     .run(ROOT, 3, 'sound', 'salim', null, null);
@@ -144,7 +122,7 @@ export function seedRegistry(db: Database.Database): void {
   asl.run('A2', ROOT, 'أصل يدلّ على هُبوط', 'A root denoting descent',
           'ابن دريد', 321, 'jamhara', 'ج2 ص311', 0, 1);
   asl.run('A3', ROOT, 'قول بلا تأريخ', 'An undated statement',
-          'مجهول', null, 'unknown_src', null, 0, 2);   // must sort LAST
+          'مجهول', null, 'unknown_src', null, 0, 2);
 
   const sense = db.prepare(`INSERT INTO ar_ling_root_sense VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL)`);
   sense.run('SNS1', ROOT, 'descent', 'النزول من عُلوّ', 'descent from a height', null,
@@ -155,7 +133,7 @@ export function seedRegistry(db: Database.Database): void {
   const att = db.prepare(`INSERT INTO ar_ling_sense_attestation VALUES (?,?,?,?,?,?,?,?,?)`);
   att.run('ATT1', 'sense', 'SNS1', 'maqayis', 'ومنه النزول', null, 'ج5 ص417', 'supports', 0.9);
   att.run('ATT2', 'sense', 'SNS2', 'lisan_al_arab', 'النُّزُل: ما يُهيَّأ', null, null, 'partial', 0.7);
-  // Attests something that is not a sense: the via filter must exclude it.
+
   att.run('ATT3', 'lemma', 'SNS1', 'other_src', 'لا ينبغي أن يظهر', null, null, 'supports', 0.5);
 }
 

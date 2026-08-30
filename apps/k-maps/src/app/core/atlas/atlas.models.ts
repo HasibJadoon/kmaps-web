@@ -1,11 +1,7 @@
 import * as d3 from 'd3';
 
-// ─── Scene layers ────────────────────────────────────────────────────────────
-
-/** The four navigation layers. Sky is the outermost; history the innermost. */
 export type SceneLayer = 'sky' | 'constellation' | 'node' | 'history';
 
-/** Legacy focus kinds preserved for backwards-compat with graph-renderer helpers. */
 export type FocusKind =
   | 'world'
   | 'cluster'
@@ -18,8 +14,6 @@ export type FocusKind =
   | 'prophet_ring'
   | 'opposition'
   | 'worldview_ring';
-
-// ─── Node taxonomy ──────────────────────────────────────────────────────────
 
 export type NodeKind = 'concept' | 'claim' | 'evidence';
 
@@ -41,7 +35,6 @@ export type AtlasSemanticNodeType =
 
 export type AtlasSemanticPolarity = 'guidance' | 'warning' | 'corruption' | 'restoration';
 
-/** Extended node role used in the new scene system. */
 export type NodeRole =
   | 'sacred_core'
   | 'constellation_anchor'
@@ -51,8 +44,6 @@ export type NodeRole =
   | 'evidence'
   | 'history_marker'
   | 'timeline_bridge';
-
-// ─── Sacred rings ────────────────────────────────────────────────────────────
 
 export type SacredRingId =
   | 'divine'
@@ -65,18 +56,13 @@ export type SacredRingId =
   | 'opposition'
   | 'worldview';
 
-// ─── Visual tiers ────────────────────────────────────────────────────────────
-
-/** 1 = dominant (Qur'an), 5 = most detail (history). */
 export type VisualTier = 1 | 2 | 3 | 4 | 5;
-
-// ─── Era / history metadata ─────────────────────────────────────────────────
 
 export interface HistoricalEra {
   era_id: string;
   era_label: string;
   era_order: number;
-  time_start: number;   // year (negative = BCE)
+  time_start: number;
   time_end: number;
   color?: string;
 }
@@ -94,8 +80,6 @@ export interface HistoricalWaypoint {
   display_group: string;
   detail?: string;
 }
-
-// ─── Constellation model ─────────────────────────────────────────────────────
 
 export interface ConstellationStar {
   id: string;
@@ -134,8 +118,6 @@ export interface ConstellationLayer {
   linked_cluster_id?: string;
   camera_anchor_star_id?: string;
 }
-
-// ─── Graph data model ────────────────────────────────────────────────────────
 
 export interface AtlasMeta {
   title: string;
@@ -210,8 +192,6 @@ export interface AtlasGraphData {
   zoom_views: AtlasZoomView[];
 }
 
-// ─── Focus / scene state ─────────────────────────────────────────────────────
-
 export interface FocusState {
   kind: FocusKind;
   clusterId?: string;
@@ -220,10 +200,6 @@ export interface FocusState {
   ringId?: SacredRingId;
 }
 
-/**
- * Primary scene state for the 4-layer navigation model.
- * This drives atlas-scene-controller.service and replaces FocusState in the orchestrator.
- */
 export interface SceneState {
   layer: SceneLayer;
   constellationId?: string;
@@ -233,8 +209,6 @@ export interface SceneState {
   cameraTarget?: { x: number; y: number; k: number };
   transitionDir?: 'in' | 'out';
 }
-
-// ─── Simulation (D3) ─────────────────────────────────────────────────────────
 
 export type ZoomTriple = [number, number, number];
 
@@ -268,8 +242,6 @@ export interface SimulationLink extends d3.SimulationLinkDatum<SimulationNode> {
   type: string;
   strength: number;
 }
-
-// ─── Sacred scene model ──────────────────────────────────────────────────────
 
 export interface SacredAtlasRing {
   id: SacredRingId;
@@ -336,8 +308,6 @@ export interface SacredAtlasProjection extends SacredAtlasNode {
   label_anchor: 'start' | 'middle' | 'end';
 }
 
-// ─── Legacy constellation types (preserved for atlas.data.ts compat) ────────
-
 export interface AtlasConstellationBody {
   id: string;
   label: string;
@@ -370,8 +340,6 @@ export interface AtlasConstellationLayer {
   rays?: AtlasConstellationRay[];
 }
 
-// ─── Focus card ──────────────────────────────────────────────────────────────
-
 export interface AtlasFocusCard {
   id: string;
   title: string;
@@ -383,15 +351,11 @@ export interface AtlasFocusCard {
   relationToHumanResponse: string;
 }
 
-// ─── Lookups ─────────────────────────────────────────────────────────────────
-
 export interface AtlasGraphLookups {
   clusterMap: Map<string, AtlasCluster>;
   zoomViews: Map<string, AtlasZoomView>;
   linksByNode: Map<string, Set<string>>;
 }
-
-// ─── Edge word cloud ─────────────────────────────────────────────────────────
 
 export interface EdgeWord {
   text: string;

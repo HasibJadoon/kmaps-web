@@ -1,12 +1,3 @@
-// ─── DocsApiService — CM document adapter ─────────────────────────────────────
-// The single integration point between the desktop document editor and the
-// km-content (CM) backend. The editor speaks Tiptap JSON; CM stores structured
-// `cm_blocks` rows. This service:
-//   • targets the CM gateway routes (/api/cm/documents)
-//   • decomposes / recomposes Tiptap content via block-mapper
-//   • unwraps the CM `{ ok, data, meta }` response envelope
-//   • maps app concepts with no CM column (domain, parent doc, …) onto meta_json
-
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
@@ -39,25 +30,15 @@ export class DocsApiService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiBase}/cm/documents`;
 
-  // ── Reads ───────────────────────────────────────────────────────────────────
-
-  /**
-   * Load a document with its blocks recomposed into Tiptap content.
-   * The id (CM:ULID) is path-safe and passed verbatim — encoding the colon
-   * would break the worker's `/cm/documents/:id` route match.
-   */
   getDoc(id: string): Observable<DocDetail> {
     return this.http
       .get<ApiEnvelope<CmDocumentRow>>(`${this.base}/${id}?include=blocks`)
       .pipe(map((res) => this.toDetail(res.data)));
   }
 
-  /** List every document (CM has no domain column — the sidebar groups them). */
   listAll(): Observable<DocSummaryItem[]> {
     return this.fetchPage(1).pipe(map((rows) => rows.map((row) => this.toSummary(row))));
   }
-
-  // ── Writes ──────────────────────────────────────────────────────────────────
 
   createDoc(input: CreateDocInput): Observable<{ id: string; title: string }> {
     const body = {
@@ -70,7 +51,6 @@ export class DocsApiService {
       .pipe(map((res) => ({ id: res.data.doc_id, title: res.data.title })));
   }
 
-  /** Patch title / word count and (when content is given) replace all blocks. */
   updateDoc(id: string, patch: UpdateDocInput): Observable<void> {
     const body: Record<string, unknown> = {};
     if (patch.title !== undefined) body['title'] = patch.title;
@@ -81,11 +61,6 @@ export class DocsApiService {
       .pipe(map(() => undefined));
   }
 
-  /**
-   * Patch document metadata. `doc_type` is a real column; `domain` and
-   * `target_audience` live in meta_json, so the current meta is read first and
-   * merged to avoid clobbering sibling fields (parent_doc_id, surah, …).
-   */
   patchMeta(id: string, patch: MetaPatchInput): Observable<void> {
     return this.http.get<ApiEnvelope<CmDocumentRow>>(`${this.base}/${id}`).pipe(
       switchMap((res) => {
@@ -99,8 +74,6 @@ export class DocsApiService {
       map(() => undefined),
     );
   }
-
-  // ── Internal ────────────────────────────────────────────────────────────────
 
   private fetchPage(page: number): Observable<CmDocumentRow[]> {
     const url = `${this.base}?publication_state=all&per_page=100&page=${page}`;

@@ -1,18 +1,16 @@
-// ─── Container schemas & types ────────────────────────────────────────────────
-
 export type ArContainerType = 'book' | 'course' | 'lesson_set' | 'custom';
 
 export interface ArContainer {
-  id: string;                        // AR:ULID
+  id: string;
   slug: string;
   title: string;
   title_ar: string | null;
   container_type: ArContainerType;
   track_id: string | null;
-  level: string | null;              // A1–C2
+  level: string | null;
   description_md: string | null;
-  cover_ref: string | null;          // CM:<media_id>
-  source_ref: string | null;         // CM:<source_id> | AL:<source_id>
+  cover_ref: string | null;
+  source_ref: string | null;
   sort_order: number;
   is_published: boolean;
   meta_json: string | null;
@@ -46,12 +44,10 @@ export interface ArContainerPatch {
   meta_json?: string | null;
 }
 
-// ─── Container Unit ───────────────────────────────────────────────────────────
-
 export type ArContainerUnitType = 'chapter' | 'module' | 'lesson' | 'exercise_set';
 
 export interface ArContainerUnit {
-  id: string;                        // AR:ULID
+  id: string;
   container_id: string;
   parent_id: string | null;
   title: string;
@@ -61,7 +57,7 @@ export interface ArContainerUnit {
   description_md: string | null;
   estimated_mins: number | null;
   skill_focus: string | null;
-  al_concept_refs: string | null;    // JSON ['AL:<id>']
+  al_concept_refs: string | null;
   qr_scope_ref: string | null;
   meta_json: string | null;
   created_at: string;
@@ -94,10 +90,8 @@ export interface ArContainerUnitPatch {
   meta_json?: string | null;
 }
 
-// ─── Container Unit Task ──────────────────────────────────────────────────────
-
 export interface ArContainerUnitTask {
-  id: string;                        // AR:ULID
+  id: string;
   unit_id: string;
   parent_task_id: string | null;
   title: string;
@@ -106,7 +100,7 @@ export interface ArContainerUnitTask {
   step_no: number | null;
   description_md: string | null;
   estimated_mins: number | null;
-  al_concept_ref: string | null;     // AL:<concept_id>
+  al_concept_ref: string | null;
   meta_json: string | null;
   created_at: string;
 }
@@ -122,8 +116,6 @@ export interface ArContainerUnitTaskCreate {
   al_concept_ref?: string | null;
   parent_task_id?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 const VALID_CONTAINER_TYPES: ArContainerType[] = ['book', 'course', 'lesson_set', 'custom'];
 const VALID_UNIT_TYPES: ArContainerUnitType[] = ['chapter', 'module', 'lesson', 'exercise_set'];
@@ -223,15 +215,13 @@ export function validateArContainerUnitTaskCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface Container {
-  id: string;               // AR:ULID
+  id: string;
   title: string;
-  container_type: string;   // course | book | unit | chapter
-  parent_id: string | null; // AR:ULID of parent container
+  container_type: string;
+  parent_id: string | null;
   sort_order: number;
-  status: string;           // active | archived | draft
+  status: string;
   created_at: string;
 }
 
@@ -241,8 +231,6 @@ export interface ContainerCreate {
   parent_id?: string | null;
   sort_order?: number;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

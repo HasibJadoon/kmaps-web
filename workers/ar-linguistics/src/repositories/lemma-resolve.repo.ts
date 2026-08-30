@@ -1,28 +1,3 @@
-// ─── LemmaResolveRepo — the lemma tier, resolved in one batched call ──────────
-//
-// This is the read that lets the Qurʾān side hold no lexical content of its own.
-// `qr_word_occurrence.lemma_ref` already carries an `AL:LEMMA` id on every
-// promoted word, so a passage is a set of ids; this repo turns that set into the
-// full lemma layer in a fixed number of queries, and km_quran stores nothing.
-//
-// WHY BATCHED. `/al/lemmas/:id` is singular, so a 14-word passage was 14 service
-// calls, and D1 cannot join across databases — the merge has to happen in the
-// worker either way. Batching by id is the same shape `/al/word-analysis` already
-// uses for roots, so the two tiers resolve alike.
-//
-// SCOPE IS NOT OPTIONAL. `ar_ling_root_sense` and `ar_ling_sense_arc` both carry
-// (scope_level, scope_key) and both hold root rows and lemma rows in the same
-// table. Reading either by `root_norm` alone — as SenseRepo does — mixes a
-// sibling lemma's senses into this one's. Every query here filters
-// scope_level='lemma' AND scope_key = the lemma id.
-//
-// STATUS IS RETURNED, NOT FILTERED. Most of this layer is still `draft`: live
-// coverage is a few percent. Filtering to 'live' would render an empty card and
-// hide the fact that the row exists at all, so rows come back ordered
-// live → review → draft with `status` on each, and the caller decides.
-//
-// READ-ONLY. Reads only ar_ling_* in DB_AL.
-
 import { query } from '../../../shared/src/db';
 
 export interface ResolvedSense {
@@ -42,21 +17,6 @@ export interface ResolvedArc {
   confidence: number | null; status: string; steps: ResolvedArcStep[];
 }
 
-/**
- * One government statement, as the source recorded it.
- *
- * `ar_ling_root_lemma_tadiya` is scraped from Mir's *Verbal Idioms of the
- * Qur'an*, and `verb_ar` holds whatever headword the printed page carried.
- * Despite the column name that is often NOT a verb: of the rows that resolve to
- * a lemma, 81 land on a noun, adjective or 'other', and the strings themselves
- * include elatives, sifa mushabbaha and even inflected forms.
- *
- * That distinction is grammatically load-bearing, so it is reported rather than
- * flattened. اعمال attaches to a verb; a participle or sifa acquires it from the
- * verb it derives from, under its own conditions. Rendering a nominal headword
- * as though the nominal itself governs states something false about Arabic.
- */
-/** The tadiya row as stored — the fields the resolver derives are added later. */
 interface GovernanceRow {
   root_norm: string; verb_ar: string;
   transitivity: string; harf: string | null; verb_form: string | null;
@@ -65,44 +25,33 @@ interface GovernanceRow {
 }
 
 export interface ResolvedGovernance {
-  /** The headword the SOURCE keyed this statement on, verbatim from `verb_ar`. */
+
   headword_ar: string;
-  /** Part of speech of the lemma this row attached to. The headword and the
-   *  lemma are the same string — that is how they matched — so this says what
-   *  the source actually keyed on. */
+
   headword_pos: string | null;
-  /** How this row was matched to the lemma. 'form' means the row is keyed by
-   *  (root, bāb) and states this lemma's own government — the curated
-   *  population. 'headword' means only that the source printed this string. */
+
   match_basis: 'form' | 'headword';
-  /** True when this statement is the lemma's OWN government: matched by bāb, or
-   *  matched by headword where that headword is a verb. False means the source
-   *  keyed a derived nominal and the government belongs to the verb behind it:
-   *  render the construction as attested (عَزِيز + عَلَى, Mir p.235), not as a bāb. */
+
   governs_directly: boolean;
   transitivity: string; harf: string | null;
-  /** The bab. NULL on 17,392 of 17,440 verb lemmas — 99.7% — so treat a null
-   *  as "not recorded", never as "Form I". */
+
   verb_form: string | null;
   meaning_ar: string | null; meaning_en: string | null; meaning_ur: string | null;
   route: string | null; qr_ref: string | null; status: string;
 }
 
-/** A near-synonym set this lemma belongs to, with the distinction it carries. */
 export interface ResolvedFuruq {
   set_id: string; set_name: string; set_summary: string | null;
   gloss: string | null; contrast: string | null; usage_rule: string | null;
   quran_pattern: string | null; nuance: string | null; confidence: string | null;
 }
 
-/** A fixed expression built on this lemma. */
 export interface ResolvedTabir {
   expression_ar: string; expression_en: string | null; construction_ar: string | null;
   explanation_ar: string | null; explanation_en: string | null;
   surah: number | null; ayah: number | null; source_slug: string | null; status: string;
 }
 
-/** The bab / derivation slot this lemma occupies — global vocabulary, not a copy. */
 export interface ResolvedForm {
   roman: string | null; name_ar: string; name_en: string | null; name_ur: string | null;
   wazn: string | null; example_ar: string | null; kind: string; derivation_type: string | null;
@@ -126,7 +75,7 @@ export interface ResolvedLemma {
   governance: ResolvedGovernance[];
   furuq: ResolvedFuruq[];
   tabir: ResolvedTabir[];
-  /** Which layers actually carry something — so a UI can say "not yet" honestly. */
+
   coverage: Record<string, boolean>;
 }
 
@@ -143,12 +92,8 @@ function groupBy<T>(rows: T[], key: (r: T) => string | null): Map<string, T[]> {
   return m;
 }
 
-/** live first, then review, then draft — the order a caller wants to take from. */
 const STATUS_RANK = `CASE status WHEN 'live' THEN 0 WHEN 'review' THEN 1 ELSE 2 END`;
 
-// D1 binds at most 100 parameters per statement, and a full surah reaches a few
-// hundred distinct lemmas — so the id set is chunked rather than passed whole.
-// 80 leaves headroom for the one query that binds a second list alongside it.
 const CHUNK = 80;
 
 function chunked<T>(xs: T[], size: number): T[][] {
@@ -157,39 +102,6 @@ function chunked<T>(xs: T[], size: number): T[][] {
   return out;
 }
 
-/**
- * Drop the registry namespace from a global id.
- *
- * `ar_ling_root_lemma.id` is the bare 26-char key, but the registered global id
- * is `AL:{key}` — and that prefixed form is what km_quran stores in
- * `qr_lemma.lx_lemma_ref`. Accepting both means neither side has to strip it,
- * and a caller that passes the bare key still works.
- *
- * Only the `AL:` namespace is stripped: some lemma ids legitimately contain a
- * colon (`LEM:LEX:شكك`), so a blanket "cut at the first colon" would corrupt
- * them into a key that matches nothing.
- */
-/**
- * Choose the governance rows that belong to one lemma, and say how each matched.
- *
- * `ar_ling_root_lemma_tadiya` holds two populations that need different joins:
- *
- *  · CURATED (79 rows, 70 live) — keyed by (root, bāb); the id literally IS
- *    `VG:{root}:{FORM}`. `verb_form` is populated on every one. Governance is
- *    form-scoped, and this is the population that models it correctly.
- *  · MIR SCRAPE (318 rows, all draft) — `VG:MIR:{root}:{headword}:{harf}`, with
- *    `verb_form` NULL on 317 of them and `verb_ar` holding whatever headword the
- *    printed page carried.
- *
- * Matching on `verb_ar` text alone gets this exactly backwards: it reaches 348
- * of 372 scrape rows and only 29 of 79 curated ones, because the curated rows
- * spell the verb as a dictionary would (أَبَانَ, بَيَّنَ) while the lemma table
- * holds other orthographies of the same word (ابان, بَيَّنُ, بيّن). Hamza seating,
- * shadda spelling and the final vowel all differ, so text equality is the wrong
- * join for the good data.
- *
- * So the bāb is tried first and the headword second, and the basis is reported.
- */
 function pickGovernance(
   rows: GovernanceRow[],
   lemmaText: string,
@@ -212,8 +124,6 @@ function pickGovernance(
   return out;
 }
 
-/** Identity for de-duping a row across the two match passes. The table has no
- *  usable natural key — 83 of its 395 rows repeat a (root, headword) pair. */
 function rowKey(r: GovernanceRow): string {
   return `${r.verb_form ?? ''}::${r.verb_ar}::${r.harf ?? ''}::${r.transitivity}`;
 }
@@ -225,17 +135,10 @@ function stripNamespace(id: string): string {
 export class LemmaResolveRepo {
   constructor(private db: D1Database) {}
 
-  /** Resolve any number of lemma ids; chunks internally to stay inside D1's
-   *  bound-parameter limit, and runs the chunks concurrently.
-   *
-   *  Accepts either the bare primary key or the registered global id that
-   *  carries the `AL:` namespace prefix — which is the form km_quran stores in
-   *  `qr_lemma.lx_lemma_ref`. Results are keyed by the string the caller passed,
-   *  so a caller holding global ids can look them up without re-deriving. */
   async byIds(ids: string[]): Promise<Record<string, ResolvedLemma>> {
     const uniq = [...new Set(ids.filter(Boolean).map(s => s.trim()))];
     if (!uniq.length) return {};
-    // bare pk → every caller-supplied spelling that pointed at it
+
     const aliases = new Map<string, string[]>();
     for (const given of uniq) {
       const pk = stripNamespace(given);
@@ -262,9 +165,6 @@ export class LemmaResolveRepo {
     const out: Record<string, ResolvedLemma> = {};
     const ph = placeholders(uniq.length);
 
-    // The lemma rows come first: governance is keyed by (root_norm, verb_ar)
-    // strings rather than by lemma id, so it cannot be queried until the lemma
-    // texts are known. Everything else keys off the id and runs in one batch.
     const lemmas = await query<{
       id: string; lemma_text: string; lemma_text_bare: string | null;
       part_of_speech: string | null; verb_form: string | null;
@@ -283,15 +183,6 @@ export class LemmaResolveRepo {
     ).catch(() => []);
     if (!lemmas.length) return out;
 
-    // Governance rows name their verb by text, not by id. Matching on the
-    // root's normalized form AND the lemma surface keeps a homograph under a
-    // different root from picking up a valency statement that is not its own.
-    // A lemma with no root cannot be matched at all, and gets none.
-    //
-    // Most rows are verbs, so a derived nominal usually matches nothing: a
-    // participle reaches its government through the verb it derives from, and
-    // that lemma-to-lemma edge is not in the data yet. The rows that do match a
-    // nominal are the sifa mushabbaha entries, which name the adjective itself.
     const govNorms = [...new Set(
       lemmas.map(l => l.root_normalized ?? l.root_text).filter(Boolean),
     )] as string[];
@@ -355,9 +246,6 @@ export class LemmaResolveRepo {
         uniq,
       ).catch(() => []),
 
-      // The form family is GLOBAL vocabulary (Form I..X and the derivation
-      // slots), not a per-root table — so it is fetched whole and matched in
-      // memory rather than joined per lemma.
       query<{
         roman: string | null; verb_form_key: string | null; derivation_type: string | null;
         kind: string; name_ar: string; name_en: string | null; name_ur: string | null;
@@ -433,8 +321,7 @@ export class LemmaResolveRepo {
           headword_ar: verb_ar,
           headword_pos: l.part_of_speech,
           match_basis: basis,
-          // A form match is the row's own key, so it states this lemma's bab.
-          // A headword match only says the source printed this string.
+
           governs_directly: basis === 'form' || l.part_of_speech === 'verb',
         })),
         furuq: myFuruq.map(({ lemma_id: _li, ...f }) => f),
@@ -454,20 +341,6 @@ export class LemmaResolveRepo {
   }
 }
 
-/**
- * Place the lemma in the global form vocabulary.
- *
- * `verb_form` is the bab ('I'..'X') and is what a lemma matches on. It is NULL on
- * 17,392 of 17,440 verb lemmas — 99.7% — and on every single non-verb, so in
- * practice this returns null for almost everything today. That is a data gap,
- * not a bug here: guessing a bab from the surface would be inventing grammar.
- *
- * Two things have to land before this layer carries weight: backfill verb_form
- * on the verb lemmas (the pattern determines it, so it is derivable), and add
- * the lemma-to-lemma derivation edge so a participle or masdar can reach the
- * form of the verb it comes from. Until then `form` is null and `coverage.form`
- * says so.
- */
 function matchForm(
   forms: Array<{
     roman: string | null; verb_form_key: string | null; derivation_type: string | null;

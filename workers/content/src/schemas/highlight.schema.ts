@@ -1,7 +1,5 @@
-// ─── Highlight schemas & types ────────────────────────────────────────────────
-
 export interface CmHighlight {
-  highlight_id: string;       // CM:ULID
+  highlight_id: string;
   core_user_ref: string;
   target_ref: string;
   target_type: string;
@@ -71,16 +69,14 @@ export function validateCmHighlightCreate(
   };
 }
 
-// ─── Repository-compatible contracts ─────────────────────────────────────────
-
 export interface Highlight {
-  id: string;                // CM:ULID
-  resource_ref: string;      // typed ref — e.g. QR:2:255, WV:ULID
-  anchor_start: string;      // serialised DOM/text position (e.g. "p3:c12")
+  id: string;
+  resource_ref: string;
+  anchor_start: string;
   anchor_end: string;
   text_excerpt: string | null;
-  color: string | null;      // UI colour tag: yellow | green | blue | pink
-  note_ref: string | null;   // CM:ULID → cm_notes (optional linked note)
+  color: string | null;
+  note_ref: string | null;
   created_at: string;
 }
 
@@ -92,8 +88,6 @@ export interface HighlightCreate {
   color?: string | null;
   note_ref?: string | null;
 }
-
-// ─── Additional validators ───────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

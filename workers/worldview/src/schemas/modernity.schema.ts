@@ -1,5 +1,3 @@
-// ─── Modernity schemas & types ───────────────────────────────────────────────
-
 export interface WvModernityStream {
   id: string;
   slug: string;
@@ -373,8 +371,6 @@ export type FalseTranscendenceProfileCreate = Omit<WvFalseTranscendenceProfile, 
 export type CounterfeitRedemptionClaimCreate = Omit<WvCounterfeitRedemptionClaim, 'id' | 'created_at'>;
 
 export type DiscernmentRuleCreate = Omit<WvDiscernmentRule, 'id' | 'created_at'>;
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

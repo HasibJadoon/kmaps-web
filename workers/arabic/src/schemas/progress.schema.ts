@@ -1,5 +1,3 @@
-// ─── Progress schemas & types ───────────────────────────────────────────────
-
 export interface TaskCompletion {
   id: string;
   task_id: string;
@@ -13,8 +11,8 @@ export interface UnitProgress {
   id: string;
   unit_id: string;
   core_user_ref: string;
-  status: string;             // not_started|in_progress|completed|revisiting
-  progress_pct: number;       // 0–100
+  status: string;
+  progress_pct: number;
   last_activity_at: string | null;
   completed_at: string | null;
   meta_json: string | null;
@@ -34,8 +32,8 @@ export interface MasteryProfile {
   id: string;
   core_user_ref: string;
   track_id: string | null;
-  skill: string;              // sarf|nahw|balagha|vocab_size|reading|listening|other
-  mastery_score: number;      // 0–1
+  skill: string;
+  mastery_score: number;
   items_mastered: number;
   items_learning: number;
   last_assessed_at: string | null;
@@ -54,8 +52,6 @@ export interface MasteryInput {
   last_assessed_at?: string | null;
   meta_json?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

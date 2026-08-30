@@ -1,10 +1,8 @@
-// ─── Thinker schemas & types ───────────────────────────────────────────────
-
 export interface Thinker {
-  id: string;               // WV:ULID
+  id: string;
   name_en: string;
   name_ar: string | null;
-  tradition_id: string | null; // WV:ULID
+  tradition_id: string | null;
   birth_year: number | null;
   death_year: number | null;
   bio_summary: string | null;
@@ -19,8 +17,6 @@ export interface ThinkerCreate {
   death_year?: number | null;
   bio_summary?: string | null;
 }
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

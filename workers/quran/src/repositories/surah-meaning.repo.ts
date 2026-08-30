@@ -1,12 +1,6 @@
-// ─── SurahMeaningRepo — qr_surah_topic_flow + qr_surah_rhetoric_profile +
-//     qr_topic_registry + qr_scope_topic + qr_surah_theme_profile +
-//     qr_surah_theology_profile + qr_surah_worldview_profile ───────────────
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
-
-// ── Row shapes ─────────────────────────────────────────────────────────────────
 
 export interface TopicRegistry {
   id: string;
@@ -151,12 +145,8 @@ export interface SurahWorldviewProfileUpsert {
   note_md?: string | null;
 }
 
-// ── Repo ───────────────────────────────────────────────────────────────────────
-
 export class SurahMeaningRepo {
   constructor(private db: D1Database) {}
-
-  // ── qr_topic_registry ──────────────────────────────────────────────────────
 
   topicRegistry(opts: PaginateOptions = {}) {
     return paginate<TopicRegistry>(
@@ -211,8 +201,6 @@ export class SurahMeaningRepo {
     return this.findTopicById(id);
   }
 
-  // ── qr_scope_topic ────────────────────────────────────────────────────────
-
   scopeTopics(scopeRef: { surah: number; scope_type?: string }, opts: PaginateOptions = {}) {
     const whereClause = scopeRef.scope_type
       ? 'WHERE surah = ? AND scope_type = ?'
@@ -260,8 +248,6 @@ export class SurahMeaningRepo {
       [id],
     );
   }
-
-  // ── qr_surah_topic_flow ───────────────────────────────────────────────────
 
   topicFlows(surahId: number, opts: PaginateOptions = {}) {
     return paginate<SurahTopicFlow>(
@@ -316,8 +302,6 @@ export class SurahMeaningRepo {
     );
   }
 
-  // ── qr_surah_rhetoric_profile ─────────────────────────────────────────────
-
   rhetoricsProfile(surahId: number): Promise<SurahRhetoricProfile | null> {
     return queryOne<SurahRhetoricProfile>(
       this.db,
@@ -371,8 +355,6 @@ export class SurahMeaningRepo {
     return this.rhetoricsProfile(surahId);
   }
 
-  // ── qr_surah_theme_profile ────────────────────────────────────────────────
-
   themeProfile(surahId: number): Promise<SurahThemeProfile | null> {
     return queryOne<SurahThemeProfile>(
       this.db,
@@ -421,8 +403,6 @@ export class SurahMeaningRepo {
     return this.themeProfile(surahId);
   }
 
-  // ── qr_surah_theology_profile ─────────────────────────────────────────────
-
   theologyProfile(surahId: number): Promise<SurahTheologyProfile | null> {
     return queryOne<SurahTheologyProfile>(
       this.db,
@@ -470,8 +450,6 @@ export class SurahMeaningRepo {
 
     return this.theologyProfile(surahId);
   }
-
-  // ── qr_surah_worldview_profile ────────────────────────────────────────────
 
   worldviewProfile(surahId: number): Promise<SurahWorldviewProfile | null> {
     return queryOne<SurahWorldviewProfile>(

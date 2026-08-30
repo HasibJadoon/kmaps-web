@@ -61,7 +61,7 @@ export class UiSettingsService {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {
-      // Ignore storage failures and keep runtime state only.
+
     }
   }
 }

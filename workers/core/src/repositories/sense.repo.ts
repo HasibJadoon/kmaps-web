@@ -1,15 +1,3 @@
-// ─── The sensor engine — the actuator, mechanised ─────────────────────────────
-//
-// `POST /core/cyb/sense/:nodeID` re-reads a node's sensors against the real
-// carrier tables, through each carrier's owning worker. Until now every
-// `read_count` tick was written by hand in a Claude session; a percentage
-// nobody can recompute mechanically is a hand-written number with a sensor's
-// name on it, and this is the machine that removes that class.
-//
-// Coverage is honest: a sensor whose definition the engine cannot yet bind
-// (no table named, or a scope the reader grammar cannot express) is reported
-// in `skipped` with its reason — never read as zero, never silently dropped.
-
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { sense, type SenseRequest, type SenseResult } from '../../../shared/src/sense';
 import type { CoreEnv } from '../env';
@@ -42,8 +30,6 @@ interface NodeRow {
   meta_json: string | null;
 }
 
-/** One row of the bridge. km_core reaches another database through this and
- *  through nothing else. */
 interface BindingRow {
   db_name: string;
   table_name: string;
@@ -69,11 +55,6 @@ export interface SenseReport {
   axes: Record<string, { pct: number; sensors: number }>;
 }
 
-/** Which worker owns a database. The binding names the database; this maps it
- *  to the worker that owns it. Guessing the owner from a table's name prefix
- *  was a second rule about where data lives, held in code, disagreeing with the
- *  binding table that is supposed to be the only one — `core_study_session` was
- *  bound to km_quran for exactly as long as nobody had to reconcile them. */
 function ownerOfDb(db: string): 'QURAN' | 'AR_LINGUISTICS' | 'CONTENT' | 'LOCAL' | null {
   switch (db) {
     case 'km_quran':             return 'QURAN';
@@ -102,14 +83,13 @@ async function callReader(env: CoreEnv, owner: keyof typeof OWNER_PATH,
   return body?.data ?? { ok: false, error: `reader ${owner} returned no body` };
 }
 
-/** The value the node's scope binds carriers on — a root node binds its root. */
 function scopeValue(node: NodeRow): string | null {
   if (node.scale === 'root') {
     try {
       const meta = JSON.parse(node.meta_json ?? '{}') as Record<string, unknown>;
       const rootAr = meta['root_ar'];
       if (typeof rootAr === 'string' && rootAr) return rootAr;
-    } catch { /* fall through to ref */ }
+    } catch {  }
     return node.target_ref;
   }
   return null;
@@ -135,8 +115,6 @@ export class SenseRepo {
       `${axis}|${band ?? ''}|${metric ?? ''}`;
     const defMap = new Map(defs.map(d => [defKey(d.axis, d.band_code, d.metric), d]));
 
-    // The bridge. Every carrier this node's sensors may read comes from here:
-    // km_core holds no other statement of where another database's data lives.
     const bindings = await query<BindingRow>(
       db,
       `SELECT db_name, table_name, bind_col, bind_kind, band_code, scope_kind
@@ -160,11 +138,9 @@ export class SenseRepo {
         report.skipped.push({ sensor_id: sensor.id, reason: 'no live definition' });
         continue;
       }
-      // The definition says WHAT to measure; the bridge says WHERE the data
-      // is. reader_args used to carry its own carrier list, so a table could be
-      // read that the binding table had never heard of — and the two drifted.
+
       let args: Args = {};
-      try { args = JSON.parse(def.reader_args ?? '{}') as Args; } catch { /* empty */ }
+      try { args = JSON.parse(def.reader_args ?? '{}') as Args; } catch {  }
       const carriers = byBand.get(sensor.band_code ?? '') ?? [];
       if (!carriers.length) {
         report.skipped.push({ sensor_id: sensor.id,
@@ -177,16 +153,12 @@ export class SenseRepo {
         continue;
       }
 
-      // A band carried by several tables reads as their sum (counts) or their
-      // best fraction — matching how the fill readers already merge.
       let reading: number | null = null;
       let failed: string | null = null;
       for (const carrier of carriers) {
         const owner = ownerOfDb(carrier.db_name);
         if (!owner) { failed = `no worker owns ${carrier.db_name}`; break; }
-        // `bind_kind` is why the bridge carries it: nine AL carriers key on a
-        // ULID, and matching an id column against 'نزل' returns zero for every
-        // root in the corpus rather than failing.
+
         const request: SenseRequest = {
           reader: def.reader as SenseRequest['reader'],
           table: carrier.table_name,
@@ -194,13 +166,11 @@ export class SenseRepo {
           bind_value: bindValue ?? undefined,
           col: args.test_col?.split(',')[0]?.trim(),
           expected: args.expected ?? def.expected ?? sensor.expected ?? 1,
-          // The bridge says how the scope binds; the owning worker resolves an
-          // id against its own keys.
+
           bind_kind: carrier.bind_kind === 'id' ? 'id' : 'text',
           scope_kind: carrier.scope_kind,
         };
-        // sql_scalar defs in this registry carry table/test_col like
-        // col_fraction — read them as such rather than shipping SQL text.
+
         if (request.reader === 'sql_scalar') request.reader = 'col_fraction';
         const result = owner === 'LOCAL'
           ? await sense(this.env.DB_CORE, request)
@@ -227,25 +197,8 @@ export class SenseRepo {
       report.read += 1;
     }
 
-    // Recompute the node's per-axis percent from what was actually read, and
-    // mark the axis measured — the flag now states a fact the engine made true.
     if (dryRun) return report;
-    // `expected > 0` is a condition of entry, not a branch inside the sum.
-    //
-    // It used to read `CASE WHEN expected > 0 THEN reading / expected ELSE
-    // reading END`, so a sensor with no denominator contributed its raw
-    // reading — capped at 1.0, which is to say **100%** for any reading at all.
-    // An uncalibrated sensor would have reported a perfect score for a band
-    // nobody had measured, which is the one thing this plane is built not to do,
-    // and the iOS client already excluded them for exactly that reason.
-    //
-    // Every one of the 7,877 sensors in the table is calibrated today (the
-    // smallest `expected` is 0.1), so this changes no percentage now. It closes
-    // the trap before the first uncalibrated sensor arrives.
-    //
-    // A node whose sensors on an axis are all uncalibrated now yields no row
-    // for that axis, so `*_measured` stays 0 and the axis reads as unknown —
-    // which is the truth about it.
+
     const axes = await query<{ axis: string; pct: number; n: number }>(
       db,
       `SELECT axis,
@@ -274,21 +227,13 @@ export class SenseRepo {
   }
 }
 
-// ─── Carrier rows for a node, through the bridge ─────────────────────────────
-//
-// The stream screens showed `cyb_node` children — the control plane's own
-// bookkeeping, rendered as "s1 · B 100 S — C — R —" twelve times over. That is
-// a review of the database, not a view of the work. This returns what the
-// carriers actually hold for a passage, resolved the one way km_core is allowed
-// to reach another database.
-
 export interface CarrierRows {
   band_code: string;
   db_name: string;
   table_name: string;
   bind_col: string;
   rows: Record<string, unknown>[];
-  /** What the carrier holds, against `rows.length`, which is what was sent. */
+
   total: number;
 }
 
@@ -301,7 +246,6 @@ const ROWS_PATH: Record<string, string> = {
 export class CarrierRowsRepo {
   constructor(private env: CoreEnv) {}
 
-  /** Every carrier row a node's layer holds, band by band. */
   async rowsForNode(nodeID: string, layerKey?: string): Promise<CarrierRows[] | null> {
     const db = this.env.DB_CORE;
     const node = await queryOne<NodeRow & { layer: string | null }>(
@@ -310,8 +254,6 @@ export class CarrierRowsRepo {
       [nodeID]);
     if (!node) return null;
 
-    // A passage node's target_ref is `QR:SP:44:1-9`; the carriers bind on the
-    // surah and the ayah range it names.
     const ref = node.target_ref ?? '';
     const match = ref.replace('QR:SP:', '').match(/^(\d+):(\d+)-(\d+)$/);
     const surah = match ? match[1] : null;
@@ -337,18 +279,10 @@ export class CarrierRowsRepo {
     for (const b of bindings) {
       const owner = ownerOfDb(b.db_name);
       if (!owner || owner === 'LOCAL') continue;
-      // The query already excludes these; saying so here is what lets the row
-      // be built without asserting a type the binding does not guarantee.
+
       const bindCol = b.bind_col;
       if (!bindCol) continue;
-      // What the node can name. A carrier keyed on `surah` is narrowed to the
-      // passage's ayat by the range columns the binding carries — without them
-      // a passage would read its whole surah. Anything else keyed by text takes
-      // the node's own ref (`QR:SP:44:1-9`), whatever the column is called:
-      // passage_id, study_passage_id, or the passage table's own id.
-      // An id-bound carrier reached through another table is a second hop the
-      // bridge does not express yet, and is left out rather than read against
-      // the wrong key.
+
       let bindValue: string | null = null;
       let rangeFrom: number | null = null;
       let rangeTo: number | null = null;
@@ -376,25 +310,9 @@ export class CarrierRowsRepo {
     return out;
   }
 
-  /**
-   * The second hop — what a *part* of a passage carries.
-   *
-   * A passage node's ref reaches carriers keyed on the passage and nothing
-   * keyed on a sentence, a tree or a note, which is most of the syntactic
-   * apparatus. 44:1–9 alone is 152 sentence rows and the word-level material is
-   * far larger, so this is deliberately not folded into the passage read: the
-   * caller asks for one scope, when a reader selects it.
-   *
-   * Two binding shapes, both declared in the bridge:
-   *   * `bind_via` names a discriminator column — one row set serves words,
-   *     clauses and sentences, and (scope_type, scope_id) picks one out;
-   *   * `bind_via` is null — the carrier answers a single kind of scope, and
-   *     `scope_kind` says which.
-   */
   async rowsForScope(scopeType: string, scopeID: string,
                      layerKey?: string, domain = 'quran'): Promise<CarrierRows[]> {
-    // A scope may name several ids: the words of one sentence are read
-    // together, so an iʿrāb table costs one request rather than one per word.
+
     const ids = scopeID.split(',').map(v => v.trim()).filter(Boolean);
     if (!ids.length) return [];
     const bindings = await query<{
@@ -425,7 +343,7 @@ export class CarrierRowsRepo {
           body: JSON.stringify({
             table: b.table_name, bind_col: bindCol, bind_value: ids[0],
             bind_values: ids.length > 1 ? ids : undefined,
-            // Only a carrier that mixes scope kinds needs to be told which.
+
             filter_col: b.bind_via ?? undefined,
             filter_value: b.bind_via ? scopeType : undefined,
             limit: 200,

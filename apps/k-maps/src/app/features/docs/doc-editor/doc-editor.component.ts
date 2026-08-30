@@ -32,16 +32,13 @@ export class DocEditorComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.editorSvc.saveFn = () => this.saveSvc.scheduleSave();
 
-    // Handle "New Page" from slash menu via custom event
     this.editorEl.nativeElement.addEventListener('km:create-page', ((e: CustomEvent) => {
       this.editorSvc.createPageBlock(e.detail.pos);
     }) as EventListener);
 
-    // Subscribe to paramMap so switching docs reloads everything
     this.route.paramMap.subscribe(params => {
       const docId = params.get('docId');
 
-      // Tear down previous editor instance
       this.mutationObserver?.disconnect();
       this.mutationObserver = null;
       this.editorSvc.destroyEditor();
@@ -54,7 +51,7 @@ export class DocEditorComponent implements OnInit, OnDestroy {
           this.editorSvc.initEditor(this.editorEl.nativeElement);
           try {
             this.editorSvc.editor?.commands.setContent(doc.content as never);
-          } catch { /* unknown node type — leave the editor empty */ }
+          } catch {  }
           this.cdr.markForCheck();
           requestAnimationFrame(() => {
             this.animateContentIn();
@@ -81,8 +78,7 @@ export class DocEditorComponent implements OnInit, OnDestroy {
       for (const m of mutations) {
         m.addedNodes.forEach(node => {
           if (!(node instanceof HTMLElement)) return;
-          // Only animate explicitly inserted blocks (HR = divider slash command)
-          // Skip paragraph/text re-renders from typing
+
           if (node.tagName === 'HR') {
             if (animatedSet.has(node)) return;
             animatedSet.add(node);
@@ -91,7 +87,7 @@ export class DocEditorComponent implements OnInit, OnDestroy {
               { scaleX: 1, opacity: 1, duration: 0.5, ease: 'power3.out', clearProps: 'transform,opacity' }
             );
           }
-          // Skip all other nodes to avoid per-keystroke GSAP overhead
+
         });
       }
     });
@@ -102,9 +98,9 @@ export class DocEditorComponent implements OnInit, OnDestroy {
   private animateContentIn(): void {
     const pm = this.editorEl.nativeElement.querySelector('.ProseMirror');
     if (!pm) return;
-    // Only animate first 20 blocks — beyond that the page is below the fold
+
     const blocks = (Array.from(pm.children) as HTMLElement[]).slice(0, 20);
-    if (blocks.length <= 1) return; // skip if empty/single placeholder
+    if (blocks.length <= 1) return;
 
     requestAnimationFrame(() => {
       gsap.fromTo(blocks,

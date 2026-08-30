@@ -1,40 +1,9 @@
-// ─── CaptureRepo — cm_capture_entries ─────────────────────────────────────────
-//
-// The inbox. A link, a passage, a photograph, a voice note — whatever you want
-// to keep before you know what it is. Deliberately cheap to add to: a capture
-// needs a type and nothing else, because an inbox with required fields is an
-// inbox nobody uses.
-//
-// A capture is not a resource. It becomes one — `processed_into_ref` records
-// which — and until then it is just something you noticed.
-//
-// WHAT WAS WRONG
-//
-// Every route here threw. The repository queried `cm_captures`, a table that
-// does not exist; the real one is `cm_capture_entries`, with different columns
-// throughout (`capture_id` not `id`, `raw_text` not `text`, `source_url` not
-// `source_ref`, and no `color` at all). It also never set `core_user_ref`, which
-// is NOT NULL. Nothing here has ever run, which is why the table has no rows.
-//
-// TRIAGE
-//
-// `explore_state` and its neighbours are lifted from `core_source_log` in
-// km_core — 69 rows, and the only CHECK-enforced vocabulary in the whole stack:
-// want / exploring / explored / parked / rejected, a priority, and three notes
-// that are the actually useful ones — why you kept it, what you found, and what
-// you concluded. That log has no route and no screen and has been maintained by
-// hand. Rather than invent a second vocabulary for the same act, this uses that
-// one.
-
 import { queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
-/** What a capture is. Free-form on purpose — the inbox should never refuse. */
 export const CAPTURE_TYPES = ['text', 'url', 'image', 'audio', 'other'] as const;
 
-/** Where a capture has got to. Borrowed from core_source_log, where it is
- *  CHECK-enforced and has been used in earnest. */
 export const EXPLORE_STATES = ['want', 'exploring', 'explored', 'parked', 'rejected'] as const;
 
 export interface CmCapture {
@@ -47,7 +16,7 @@ export interface CmCapture {
   source_title: string | null;
   media_asset_ref: string | null;
   is_processed: number;
-  /** The cm_source this became, once it stopped being a note to self. */
+
   processed_into_ref: string | null;
   tags_json: string | null;
   workspace_ref: string | null;
@@ -66,7 +35,7 @@ export interface CmCaptureCreate {
   media_asset_ref?: string | null;
   tags?: string[] | null;
   workspace_ref?: string | null;
-  /** Triage, kept in meta_json rather than as columns — see `triage()`. */
+
   explore_state?: string | null;
   priority?: number | null;
   why?: string | null;
@@ -96,9 +65,7 @@ export class CaptureRepo {
       params.push(opts.processed ? 1 : 0);
     }
     if (opts.state) {
-      // Triage lives in meta_json rather than in columns, because the table is
-      // shared with other capture paths that have no notion of it — adding
-      // NOT NULL columns for one use would make the others carry it.
+
       conds.push(`json_extract(meta_json, '$.explore_state') = ?`);
       params.push(opts.state);
     }
@@ -133,8 +100,7 @@ export class CaptureRepo {
       [
         id,
         input.core_user_ref,
-        // Infer the type from what arrived rather than demanding it. A pasted
-        // link is a url whether or not the caller said so.
+
         input.capture_type ?? (input.source_url ? 'url' : 'text'),
         input.raw_text ?? null,
         input.raw_ar ?? null,
@@ -149,11 +115,6 @@ export class CaptureRepo {
     return (await this.findById(id))!;
   }
 
-  /** Move a capture along: what state it is in, and what you concluded.
-   *
-   *  `found_what` and `verdict` are the two fields of core_source_log that do
-   *  the real work — a list of links with no verdicts is a list you will read
-   *  twice. */
   async triage(
     id: string,
     patch: {
@@ -180,9 +141,6 @@ export class CaptureRepo {
     return this.findById(id);
   }
 
-  /** The capture became a resource. Recorded on the capture rather than
-   *  deleting it: what you kept and what it turned into are different facts,
-   *  and the first is worth being able to look back at. */
   async markProcessed(id: string, sourceRef: string): Promise<CmCapture | null> {
     await execute(
       this.db,

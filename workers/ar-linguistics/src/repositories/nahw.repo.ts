@@ -1,5 +1,3 @@
-// ─── NahwRepo — ar_ling_nahw_concepts + sentence/clause/phrase types ──────────
-
 import { query, queryOne, paginate } from '../../../shared/src/db';
 import type { PaginateOptions } from '../../../shared/src/types';
 

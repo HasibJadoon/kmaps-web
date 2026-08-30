@@ -1,18 +1,14 @@
-// ─── InsightRepo — wv_insight_suggestions ─────────────────────────────────────
-// AI pipeline → Hub Review Queue → approved wv_nodes/edges.
-// Claude writes suggestions here; humans approve/reject in the Hub UI.
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface InsightSuggestion {
-  id: string;               // WV:ULID
-  suggestion_type: string;  // node | edge | cluster
-  payload_json: string;     // JSON: the extracted knowledge payload
-  status: string;           // suggested | approved | edited | rejected | saved
-  batch_id: string | null;  // WV:ULID → wv_distill_batches
-  source_chunk_ref: string | null; // AL:ULID → ar_ling_source_chunk
+  id: string;
+  suggestion_type: string;
+  payload_json: string;
+  status: string;
+  batch_id: string | null;
+  source_chunk_ref: string | null;
   created_at: string;
   reviewed_at: string | null;
 }
@@ -30,7 +26,6 @@ const COLS = `id, suggestion_type, payload_json, status, batch_id,
 export class InsightRepo {
   constructor(private db: D1Database) {}
 
-  /** Paginated review queue — suggestions pending human review. */
   queue(status: string | null, batchId: string | null, opts: PaginateOptions = {}) {
     const conds: string[]  = [];
     const params: unknown[] = [];
@@ -65,7 +60,6 @@ export class InsightRepo {
     return (await this.findById(id))!;
   }
 
-  /** Update status (approve / reject / mark saved). Records reviewed_at timestamp. */
   async setStatus(
     id: string,
     status: 'approved' | 'rejected' | 'edited' | 'saved',

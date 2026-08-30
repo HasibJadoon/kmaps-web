@@ -1,22 +1,13 @@
-// ─── TopicRepo — L4 structured reasoning ─────────────────────────────────────
-// Covers: wv_topics, wv_claims, wv_claim_types, wv_arguments,
-//         wv_argument_relations, wv_evidence_items, wv_claim_evidence_links,
-//         wv_questions, wv_debate_clusters, wv_debate_cluster_members,
-//         wv_value_positions
-// Canonical columns per 001_wv_schema.sql §4.1-§4.10
-
 import { query, queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
 export interface WvTopic {
-  id: string;               // WV:ULID
+  id: string;
   topic_key: string;
   title: string;
   title_ar: string | null;
-  topic_domain: string;     // theology|ethics|anthropology|eschatology|prophethood|law|cosmology|psychology|sociology|history|worldview|modernity|coloniality|discernment|other
+  topic_domain: string;
   parent_id: string | null;
   tradition_id: string | null;
   moral_axis_id: string | null;
@@ -29,14 +20,14 @@ export interface WvClaim {
   id: string;
   title: string;
   claim_text: string;
-  claim_type: string;       // doctrinal|historical|moral|sociological|civilizational|comparative|theological|interpretive|other
+  claim_type: string;
   topic_id: string | null;
   tradition_id: string | null;
   moral_axis_id: string | null;
   person_id: string | null;
   school_id: string | null;
-  certainty_level: string;  // assertion|position|hypothesis|question|consensus|contested
-  status: string;           // active|...
+  certainty_level: string;
+  status: string;
   meta_json: string | null;
   created_at: string;
   updated_at: string;
@@ -54,7 +45,7 @@ export interface WvArgument {
   id: string;
   title: string;
   argument_text: string;
-  argument_type: string;    // deductive|inductive|abductive|analogical|historical|moral|other
+  argument_type: string;
   topic_id: string | null;
   tradition_id: string | null;
   person_id: string | null;
@@ -68,7 +59,7 @@ export interface WvArgumentRelation {
   from_arg_id: string;
   to_arg_id: string | null;
   to_claim_id: string | null;
-  relation_type: string;    // supports|contradicts|reframes|qualifies|synthesizes|inherits|answers|presupposes|other
+  relation_type: string;
   note: string | null;
   created_at: string;
 }
@@ -76,14 +67,14 @@ export interface WvArgumentRelation {
 export interface WvEvidenceItem {
   id: string;
   title: string | null;
-  evidence_type: string;    // scriptural|historical|archaeological|testimonial|logical|statistical|comparative|traditional|other
+  evidence_type: string;
   source_id: string | null;
   source_unit_id: string | null;
   locator: string | null;
   excerpt: string | null;
-  qr_scope_ref: string | null;  // 'QR:<surah>:<ayah_from>[-<ayah_to>]'
-  al_concept_ref: string | null; // 'AL:<lemma_id>'
-  cm_doc_ref: string | null;    // 'CM:<doc_id>'
+  qr_scope_ref: string | null;
+  al_concept_ref: string | null;
+  cm_doc_ref: string | null;
   meta_json: string | null;
   created_at: string;
 }
@@ -92,7 +83,7 @@ export interface WvClaimEvidenceLink {
   id: string;
   claim_id: string;
   evidence_id: string;
-  link_role: string;        // supports|questions|illustrates|cites|counters|contextualizes
+  link_role: string;
   note: string | null;
   created_at: string;
 }
@@ -100,11 +91,11 @@ export interface WvClaimEvidenceLink {
 export interface WvQuestion {
   id: string;
   question_text: string;
-  question_type: string;    // open|comparative|unresolved_tension|research_gap|polemical|other
+  question_type: string;
   topic_id: string | null;
   tradition_id: string | null;
   moral_axis_id: string | null;
-  status: string;           // open|partially_answered|closed
+  status: string;
   meta_json: string | null;
   created_at: string;
 }
@@ -116,16 +107,16 @@ export interface WvDebateCluster {
   description_md: string | null;
   topic_id: string | null;
   moral_axis_id: string | null;
-  status: string;           // active|...
+  status: string;
   created_at: string;
 }
 
 export interface WvDebateClusterMember {
   id: string;
   cluster_id: string;
-  entity_type: string;      // claim|argument|question|value_position
+  entity_type: string;
   entity_id: string;
-  stance: string | null;    // supporting|opposing|neutral|moderating
+  stance: string | null;
   created_at: string;
 }
 
@@ -137,13 +128,11 @@ export interface WvValuePosition {
   person_id: string | null;
   position_title: string;
   position_text: string;
-  position_type: string;    // normative|descriptive|critical|revisionist|comparative
-  evidence_refs: string | null; // JSON [evidence_item_id]
+  position_type: string;
+  evidence_refs: string | null;
   meta_json: string | null;
   created_at: string;
 }
-
-// ── Input types ───────────────────────────────────────────────────────────────
 
 export interface TopicCreate {
   topic_key: string;
@@ -277,8 +266,6 @@ export interface ValuePositionCreate {
   meta_json?: string | null;
 }
 
-// ── Column lists ─────────────────────────────────────────────────────────────
-
 const TOPIC_COLS =
   `id, topic_key, title, title_ar, topic_domain, parent_id, tradition_id, ` +
   `moral_axis_id, description_md, created_at, updated_at`;
@@ -318,12 +305,8 @@ const VP_COLS =
   `id, moral_axis_id, tradition_id, school_id, person_id, position_title, ` +
   `position_text, position_type, evidence_refs, meta_json, created_at`;
 
-// ── Repo ─────────────────────────────────────────────────────────────────────
-
 export class TopicRepo {
   constructor(private db: D1Database) {}
-
-  // ── wv_topics ──────────────────────────────────────────────────────────────
 
   listTopics(opts: {
     topic_domain?: string | null;
@@ -411,8 +394,6 @@ export class TopicRepo {
     return this.findTopicById(id);
   }
 
-  // ── wv_claims ──────────────────────────────────────────────────────────────
-
   listClaims(opts: {
     topic_id?: string | null;
     tradition_id?: string | null;
@@ -495,8 +476,6 @@ export class TopicRepo {
     return this.findClaimById(id);
   }
 
-  // ── wv_claim_types ─────────────────────────────────────────────────────────
-
   listClaimTypes(opts: PaginateOptions = {}) {
     return paginate<WvClaimType>(
       this.db,
@@ -523,8 +502,6 @@ export class TopicRepo {
     );
     return (await this.findClaimTypeById(id))!;
   }
-
-  // ── wv_arguments ───────────────────────────────────────────────────────────
 
   listArguments(opts: {
     topic_id?: string | null;
@@ -575,8 +552,6 @@ export class TopicRepo {
     return (await this.findArgumentById(id))!;
   }
 
-  // ── wv_argument_relations ──────────────────────────────────────────────────
-
   argRelations(argId: string): Promise<WvArgumentRelation[]> {
     return query<WvArgumentRelation>(
       this.db,
@@ -615,8 +590,6 @@ export class TopicRepo {
   async removeArgRelation(id: string): Promise<void> {
     await execute(this.db, `DELETE FROM wv_argument_relations WHERE id = ?`, [id]);
   }
-
-  // ── wv_evidence_items ──────────────────────────────────────────────────────
 
   listEvidence(opts: {
     evidence_type?: string | null;
@@ -685,8 +658,6 @@ export class TopicRepo {
     await execute(this.db, `DELETE FROM wv_evidence_items WHERE id = ?`, [id]);
   }
 
-  // ── wv_claim_evidence_links ────────────────────────────────────────────────
-
   claimEvidenceLinks(claimId: string): Promise<WvClaimEvidenceLink[]> {
     return query<WvClaimEvidenceLink>(
       this.db,
@@ -729,8 +700,6 @@ export class TopicRepo {
   async unlinkEvidenceFromClaim(linkId: string): Promise<void> {
     await execute(this.db, `DELETE FROM wv_claim_evidence_links WHERE id = ?`, [linkId]);
   }
-
-  // ── wv_questions ───────────────────────────────────────────────────────────
 
   listQuestions(opts: {
     topic_id?: string | null;
@@ -783,8 +752,6 @@ export class TopicRepo {
     );
     return (await this.findQuestionById(id))!;
   }
-
-  // ── wv_debate_clusters ─────────────────────────────────────────────────────
 
   listDebateClusters(opts: {
     topic_id?: string | null;
@@ -869,8 +836,6 @@ export class TopicRepo {
   async removeClusterMember(memberId: string): Promise<void> {
     await execute(this.db, `DELETE FROM wv_debate_cluster_members WHERE id = ?`, [memberId]);
   }
-
-  // ── wv_value_positions ─────────────────────────────────────────────────────
 
   listValuePositions(opts: {
     moral_axis_id?: string | null;

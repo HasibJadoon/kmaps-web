@@ -1,9 +1,3 @@
--- 0010_lexicon_entry_embedding_tracking.sql
--- Tracking tables for Level 1 lexicon entry embeddings.
---
--- SQL remains canonical. Qdrant is a semantic index. These tables record which
--- canonical lexicon rows have been embedded into which collection/model.
-
 CREATE TABLE IF NOT EXISTS ar_ling_lexicon_entry_embeddings (
   entry_id TEXT PRIMARY KEY,
   collection_name TEXT NOT NULL,

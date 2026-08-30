@@ -1,8 +1,3 @@
--- A2 — one reading, defined once.
---
--- node × axis → (pct, measured, stale, sensors, read). The app derived a
--- passage's number five different ways; this view is now the only definition
--- of a reading anywhere in the stack, and every serving endpoint selects it.
 DROP VIEW IF EXISTS v_cyb_node_reading;
 CREATE VIEW v_cyb_node_reading AS
 SELECT n.id AS node_id, 'build' AS axis,
@@ -26,8 +21,6 @@ SELECT n.id, 'retention', n.retention_pct, n.retention_measured, 0,
        (SELECT COUNT(*) FROM cyb_sensor s WHERE s.node_id = n.id AND s.axis = 'retention' AND s.read_count > 0)
   FROM cyb_node n;
 
--- A3 conformance — a measured percent must have a sensor behind it, unless the
--- node sits at a declared rollup scale (surah/stage aggregate their bands).
 DROP VIEW IF EXISTS v_cyb_node_unsourced;
 CREATE VIEW v_cyb_node_unsourced AS
 SELECT r.node_id, r.axis, r.pct

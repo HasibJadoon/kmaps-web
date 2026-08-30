@@ -1,5 +1,3 @@
-// ─── Graph schemas & types ───────────────────────────────────────────────
-
 export interface WvCluster {
   id: string;
   slug: string;
@@ -66,8 +64,6 @@ export type GraphProjectionCreate = Omit<WvGraphProjection, 'id' | 'created_at'>
 export type GraphViewCreate = Omit<WvGraphView, 'id' | 'created_at'>;
 
 export type NodeScopeLinkCreate = Omit<WvNodeScopeLink, 'id' | 'created_at'>;
-
-// ─── Validators ───────────────────────────────────────────────────────────────
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 

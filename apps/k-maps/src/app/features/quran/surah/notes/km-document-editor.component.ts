@@ -217,15 +217,13 @@ export class KmDocumentEditorComponent implements AfterViewInit, OnChanges, OnDe
   @Output() audioUpload = new EventEmitter<File>();
 
   editor: Editor | null = null;
-  editorReady$ = signal(false); // triggers bubble menu mount
+  editorReady$ = signal(false);
 
-  // Slash menu state
   slashOpen  = signal(false);
   slashQuery = signal('');
   slashTop   = signal(0);
   slashLeft  = signal(0);
 
-  // Link dialog state
   linkDialogOpen  = signal(false);
   currentLinkUrl  = signal('');
 
@@ -265,7 +263,6 @@ export class KmDocumentEditorComponent implements AfterViewInit, OnChanges, OnDe
       },
     });
 
-    // Listen for slash command events from ProseMirror plugin
     this.editorHost.nativeElement.addEventListener('km-slash-open', (e: Event) => {
       const detail = (e as CustomEvent).detail as { query: string };
       this.slashQuery.set(detail.query ?? '');
@@ -303,8 +300,6 @@ export class KmDocumentEditorComponent implements AfterViewInit, OnChanges, OnDe
     this.editor?.destroy();
   }
 
-  // ── Slash menu ─────────────────────────────────────────────────────────────
-
   private positionSlashMenu(): void {
     if (!this.editor) return;
     const { view } = this.editor;
@@ -326,8 +321,6 @@ export class KmDocumentEditorComponent implements AfterViewInit, OnChanges, OnDe
     this.editor?.commands.focus();
   }
 
-  // ── Link dialog ────────────────────────────────────────────────────────────
-
   openLinkDialog(): void {
     const url = this.editor?.getAttributes('link')['href'] as string ?? '';
     this.currentLinkUrl.set(url);
@@ -344,8 +337,6 @@ export class KmDocumentEditorComponent implements AfterViewInit, OnChanges, OnDe
     this.linkDialogOpen.set(false);
   }
 
-  // ── File upload triggers ───────────────────────────────────────────────────
-
   triggerImageUpload(): void { this.imageInput?.nativeElement.click(); }
   triggerAudioUpload(): void { this.audioInput?.nativeElement.click(); }
 
@@ -359,10 +350,8 @@ export class KmDocumentEditorComponent implements AfterViewInit, OnChanges, OnDe
     if (file) { this.audioUpload.emit(file); (e.target as HTMLInputElement).value = ''; }
   }
 
-  // ── Public API ─────────────────────────────────────────────────────────────
-
   insertImageUrl(url: string, alt = ''): void {
-    // Insert image as an HTML img wrapped in a paragraph since @tiptap/extension-image is not installed
+
     this.editor?.chain().focus().insertContent(`<img src="${url}" alt="${alt}" />`).run();
   }
 

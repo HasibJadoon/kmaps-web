@@ -1,40 +1,15 @@
-// ─── /al/lexicon/five-lens route ──────────────────────────────────────────────
-//
-// Display-only "Five-Lens" lexicon lookup for a single Arabic root. Tapping a
-// word in the Quran reading view surfaces a context menu whose "Five-Lens"
-// action opens a modal that calls this endpoint with the word's normalized
-// root (qr_word_occurrence.root).
-//
-//   GET /al/lexicon/five-lens/:rootNorm
-//   → exposed publicly via the backend gateway as
-//     GET /api/al/lexicon/five-lens/:rootNorm
-//
-// Assembles the full five-lens payload from km_arabic_linguistic (binding
-// DB_AL). The curated, bilingual content lives in ar_ling_lexicon_block as
-// sanitized HTML (text_html) — the ayah (Arabic + gloss) and each of the five
-// lens bodies (Arabic spans inline with English), plus the cross-ref block —
-// so the client renders the manuscript leaf directly. Provenance comes from
-// ar_ling_lexicon_entry_source, grouped by kind. Only the root "زلف" has
-// an entry today (id re_kmaps_zlf_zumar_3); every other root resolves to
-// { found: false } so the modal can paint its empty state. Read-only — never
-// writes, never touches doc-space.
-
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import type { ArLinguisticsEnv } from '../env';
 
 const SOURCE_SLUG = 'kmaps_five_lens';
 
-/** Normalize an Arabic root the same way ingestion stores `root_norm`:
- *  strip harakat and fold alif / ya / ta-marbuta variants. Mirrors the
- *  private helper in routes/lexicon.ts so a tapped word's raw root matches
- *  the stored normalized key. */
 function normArabic(t: string): string {
   return t
-    .replace(/[ً-ٰٟ]/g, '') // harakat / superscript alif
-    .replace(/[أإآ]/g, 'ا') // أ إ آ → ا
-    .replace(/ى/g, 'ي') // ى → ي
-    .replace(/ة/g, 'ه') // ة → ه
+    .replace(/[ً-ٰٟ]/g, '')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
     .trim();
 }
 
@@ -81,8 +56,6 @@ interface LexBlockRow {
   txt: string | null;
 }
 
-// Sources whose imported dictionary text we surface as excerpts, in display
-// order (Lane first — it is in English). Labels are mapped client-side.
 const LEX_ORDER = [
   'lane_lexicon',
   'maqayis_lugha',
@@ -93,9 +66,6 @@ const LEX_ORDER = [
   'khalil_kitab_ayn',
 ];
 
-/** Score a dictionary block by how squarely it states the root's core sense
- *  (nearness / rank / degree / station) so we pick the defining line, not a
- *  tangential digression. Arabic is matched harakat-insensitively. */
 function lexScore(t: string): number {
   const bare = t.replace(/[ً-ْٰ]/g, '');
   let s = 0;
@@ -110,17 +80,9 @@ function isDigitCode(c: number): boolean {
   return (c >= 0x30 && c <= 0x39) || (c >= 0x0660 && c <= 0x0669) || (c >= 0x06f0 && c <= 0x06f9);
 }
 
-/** Trim a dictionary excerpt to a self-contained unit so it never ends mid-word
- *  or mid-clause — even when the imported source block is itself truncated.
- *  Order of preference: (1) the closing ] of a real gloss (Lane gives the core
- *  definition, e.g. "…rank, degree, or station]"); (2) the whole block if it is
- *  short and ends cleanly; (3) the last sentence terminator within `max`;
- *  (4) the last word break. */
 function cleanExcerpt(raw: string, max: number): string {
   const t = raw.trim();
 
-  // (1) cut at the first ] closing a substantial gloss — but not a Qur'an ref
-  //     bracket like "[الملك/ ٢٧]" (preceded by a digit).
   for (let i = 40; i < Math.min(t.length, max + 140); i++) {
     if (t[i] === ']' && !isDigitCode(t.charCodeAt(i - 1))) {
       const head = t.slice(0, i + 1).trim();
@@ -128,10 +90,8 @@ function cleanExcerpt(raw: string, max: number): string {
     }
   }
 
-  // (2) short and already ending on a sentence mark → return whole
   if (t.length <= max && /[.؛۔!?]$/.test(t)) return t;
 
-  // (3)/(4) snap to the last sentence terminator within max, else last word break
   const slice = t.length > max ? t.slice(0, max) : t;
   let cut = -1;
   for (const m of ['. ', '؛ ', '۔ ', '! ', '? ']) {
@@ -139,13 +99,13 @@ function cleanExcerpt(raw: string, max: number): string {
     if (i > cut) cut = i;
   }
   if (cut > max * 0.4) return `${t.slice(0, cut + 1).trim()} …`;
-  if (t.length <= max) return t; // short with no clean break — leave as-is
+  if (t.length <= max) return t;
   const sp = slice.lastIndexOf(' ');
   return `${t.slice(0, sp > 0 ? sp : max).trim()} …`;
 }
 
 export function lexiconFiveLensRoutes(router: Router<ArLinguisticsEnv>) {
-  // GET /al/lexicon/five-lens/:rootNorm
+
   router.get('/al/lexicon/five-lens/:rootNorm', async (_req, env, params) => {
     const raw = decodeURIComponent((params as Record<string, string>).rootNorm ?? '');
     if (!raw) return badRequest('rootNorm required');
@@ -162,8 +122,6 @@ export function lexiconFiveLensRoutes(router: Router<ArLinguisticsEnv>) {
       .bind(SOURCE_SLUG, rootNorm)
       .first<EntryRow>();
 
-    // No curated five-lens entry for this root yet — return a successful
-    // empty payload so the modal renders its (non-error) empty state.
     if (!entry) return ok({ found: false });
 
     const [blocks, sources, lemmaRows, lexBlocks] = await Promise.all([
@@ -184,9 +142,7 @@ export function lexiconFiveLensRoutes(router: Router<ArLinguisticsEnv>) {
         )
         .bind(entry.id)
         .all<SourceRow>(),
-      // Word constellation: the derivational family for this root, pulled live
-      // from the canonical lemma store (same DB_AL). Qur'anic + frequent forms
-      // rank first so the representative of each form/POS is the meaningful one.
+
       env.DB_AL
         .prepare(
           `SELECT l.lemma_text, l.lemma_text_bare, l.part_of_speech, l.is_quran_word
@@ -197,9 +153,7 @@ export function lexiconFiveLensRoutes(router: Router<ArLinguisticsEnv>) {
         )
         .bind(entry.root_text)
         .all<LemmaRow>(),
-      // Real dictionary text for the root, straight from the imported lexica
-      // (same DB_AL). Filtered by root_norm only — adding block_type flips the
-      // query planner off the root_norm index into a full-table scan.
+
       env.DB_AL
         .prepare(
           `SELECT source_slug, substr(coalesce(text_plain, text_html),1,800) txt
@@ -271,14 +225,11 @@ export function lexiconFiveLensRoutes(router: Router<ArLinguisticsEnv>) {
       families: Array.isArray(xrefData.families) ? (xrefData.families as unknown[]) : [],
     };
 
-    // group provenance by kind: { lexicon: [...], tafsir: [...], irab: [...] }
     const grouped: Record<string, string[]> = {};
     for (const r of sources.results ?? []) {
       (grouped[r.source_kind] ??= []).push(r.source_slug);
     }
 
-    // Word constellation: prefer the curated, unique, glossed family; fall back
-    // to the canonical lemma store (deduped per form/POS, no glosses).
     const constData = parseJson(blockRows.find((b) => b.block_type === 'constellation')?.data_json ?? null);
     let constellation: { root: string; rootSpaced: string; nodes: unknown[] } | null = null;
     if (Array.isArray(constData.nodes) && constData.nodes.length) {
@@ -292,7 +243,7 @@ export function lexiconFiveLensRoutes(router: Router<ArLinguisticsEnv>) {
       const nodes: { ar: string; pos: string; isQuran: boolean }[] = [];
       for (const r of lemmaRows.results ?? []) {
         const bare = r.lemma_text_bare ?? r.lemma_text;
-        if (bare.includes(' ')) continue; // drop multiword expressions
+        if (bare.includes(' ')) continue;
         const pos = r.part_of_speech === 'verb' ? 'verb' : 'noun';
         const key = `${pos}|${bare}`;
         if (seen.has(key)) continue;
@@ -305,8 +256,6 @@ export function lexiconFiveLensRoutes(router: Router<ArLinguisticsEnv>) {
         : null;
     }
 
-    // Pick the single most-defining excerpt per lexicon (highest core-sense
-    // score; shorter wins ties for a crisper gloss), then trim for display.
     const bestLex = new Map<string, { txt: string; score: number }>();
     for (const r of lexBlocks.results ?? []) {
       const t = (r.txt ?? '').trim();

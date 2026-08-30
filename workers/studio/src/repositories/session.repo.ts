@@ -1,8 +1,3 @@
-// ─── SessionRepo — st_sessions ────────────────────────────────────────────────
-// A session is one live run of an episode. This table is the durable index that
-// maps a typed-in room code to a session; the live synced cursor lives in the
-// EpisodeSession Durable Object.
-
 import { queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 
@@ -21,7 +16,6 @@ export interface SessionRow {
 const COLS = `id, episode_ref, core_user_ref, room_code, status,
               started_at, ended_at, snapshot_json, created_at`;
 
-// Room-code alphabet — excludes 0/O/1/I/L so codes are unambiguous when typed.
 const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 
 function randomCode(length = 6): string {
@@ -46,7 +40,6 @@ export class SessionRepo {
     );
   }
 
-  /** The episode's current live session, if one is already running. */
   findLiveByEpisode(episodeRef: string): Promise<SessionRow | null> {
     return queryOne<SessionRow>(
       this.db,
@@ -60,7 +53,7 @@ export class SessionRepo {
   async create(episodeRef: string, userRef: string): Promise<SessionRow> {
     const id = typedId('ST');
     const now = new Date().toISOString();
-    // Retry on the (very unlikely) event of a room-code collision.
+
     for (let attempt = 0; attempt < 6; attempt++) {
       const code = randomCode();
       if (await this.findByCode(code)) continue;
