@@ -5,12 +5,13 @@
 // Nothing here reads D1 — if a route is broken this must fail, and a query that
 // went around the route would hide exactly that.
 //
-//   KM_EMAIL=… KM_PASSWORD=… node --import ./scripts/bank/ts-resolve.mjs \
-//     scripts/bank/e2e.mjs
+//   KMAPS_TEST_PASSWORD=… node scripts/bank/e2e.mjs
 //
-// The password is read from the environment and never printed.
+// Same two variables as workers/core/test/srs-e2e.sh, so one export runs both
+// suites. The password stays out of the repo and is never printed.
 
 const BASE = process.env.KM_BASE ?? 'https://backend.k-maps.com';
+const EMAIL = process.env.KMAPS_TEST_EMAIL ?? 'system@test.com';
 const need = (k) => {
   const v = process.env[k];
   if (!v) { console.error(`${k} is not set`); process.exit(2); }
@@ -51,10 +52,10 @@ async function api(path, init = {}) {
 {
   const res = await api('/core/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email: need('KM_EMAIL'), password: need('KM_PASSWORD') }),
+    body: JSON.stringify({ email: EMAIL, password: need('KMAPS_TEST_PASSWORD') }),
   });
   token = res.body?.token ?? res.raw?.token ?? null;
-  if (!check(!!token, 'signed in', `status ${res.status}`)) process.exit(1);
+  if (!check(!!token, `signed in as ${EMAIL}`, `status ${res.status}`)) process.exit(1);
 }
 
 // ── 2 · the packs are there ──────────────────────────────────────────────────
