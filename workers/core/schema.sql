@@ -70,23 +70,32 @@ CREATE TABLE core_auth_tokens (
 CREATE TABLE core_bank_attempt (
   id            TEXT PRIMARY KEY,
   user_ref      TEXT NOT NULL,
-  unit_ref      TEXT NOT NULL REFERENCES core_bank_unit(id),
+  
+  
+  unit_ref      TEXT REFERENCES core_bank_unit(id),
   pack_ref      TEXT NOT NULL REFERENCES core_bank_pack(id),
   mode          TEXT NOT NULL DEFAULT 'solo'
                   CHECK (mode IN ('solo','live','table')),
-  -- The room this play belonged to, when it was shared. Everyone in one round
-  -- carries the same code, which is what makes a shared scorecard one GROUP BY.
+  
+  
   room_code     TEXT,
   started_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   finished_at   TEXT,
-  score         REAL,                            -- 0..1, the fraction correct
-  points        INTEGER NOT NULL DEFAULT 0,      -- speed-weighted
+  score         REAL,                            
+  points        INTEGER NOT NULL DEFAULT 0,      
   xp            INTEGER NOT NULL DEFAULT 0,
   hearts_left   INTEGER,
-  -- The one fact unlocking reads, and the only reason this table is not purely
-  -- derivable from responses: passing is a threshold decision made once, and a
-  -- later change to pass_threshold must not silently re-lock a finished unit.
-  passed_at     TEXT
+  
+  
+  
+  passed_at     TEXT,
+  
+  
+  
+  current_item_ref TEXT REFERENCES core_bank_item(id),
+  
+  
+  CHECK (unit_ref IS NOT NULL OR room_code IS NOT NULL)
 );
 
 CREATE TABLE core_bank_import (
@@ -265,7 +274,7 @@ CREATE TABLE core_bank_profile (
 
 CREATE TABLE core_bank_response (
   id            TEXT PRIMARY KEY,
-  attempt_ref   TEXT NOT NULL REFERENCES core_bank_attempt(id) ON DELETE CASCADE,
+  attempt_ref   TEXT NOT NULL REFERENCES "core_bank_attempt_old"(id) ON DELETE CASCADE,
   item_ref      TEXT NOT NULL REFERENCES core_bank_item(id),
   user_ref      TEXT NOT NULL,
   seq           INTEGER NOT NULL DEFAULT 0,
@@ -1716,7 +1725,7 @@ WHERE s.source_table IS NULL
    OR s.state = 'pending_carrier';
 
 
--- ── Indexes (116) ────────────────────────────────────────────────
+-- ── Indexes (117) ────────────────────────────────────────────────
 
 CREATE INDEX core_srs_card_deck ON core_srs_card(deck_id);
 
@@ -1882,15 +1891,20 @@ CREATE INDEX idx_study_session_node ON core_study_session (node_id, started_at);
 
 CREATE INDEX idx_study_session_scope ON core_study_session (domain, scope_kind, scope_ref);
 
-CREATE INDEX ix_bank_attempt_pack ON core_bank_attempt (pack_ref, user_ref);
+CREATE INDEX ix_bank_attempt_pack
+  ON core_bank_attempt (pack_ref, started_at DESC);
 
 CREATE INDEX ix_bank_attempt_progress
   ON core_bank_attempt (user_ref, unit_ref, passed_at);
 
-CREATE INDEX ix_bank_attempt_room ON core_bank_attempt (room_code);
+CREATE INDEX ix_bank_attempt_room
+  ON core_bank_attempt (room_code) WHERE room_code IS NOT NULL;
 
 CREATE INDEX ix_bank_attempt_unit
   ON core_bank_attempt (unit_ref);
+
+CREATE INDEX ix_bank_attempt_user
+  ON core_bank_attempt (user_ref, started_at DESC);
 
 CREATE INDEX ix_bank_import_pack
   ON core_bank_import (pack_ref);
@@ -1967,7 +1981,7 @@ CREATE UNIQUE INDEX ux_quiz_generated
   ON core_quiz_question (generated_from) WHERE generated_from IS NOT NULL;
 
 
--- ── Triggers (1) ─────────────────────────────────────────────────
+-- ── Triggers (3) ─────────────────────────────────────────────────
 
 CREATE TRIGGER trg_cyb_sensor_log_read
 AFTER UPDATE OF last_read_at ON cyb_sensor
@@ -1984,4 +1998,24 @@ BEGIN
     NULLIF((SELECT value FROM cyb_config WHERE key='cyb.current_tick'),''),
     NEW.last_read_at
   );
+END;
+
+CREATE TRIGGER trg_srs_card_deck_owner_ins
+BEFORE INSERT ON core_srs_card
+FOR EACH ROW
+WHEN (SELECT user_ref FROM core_srs_deck WHERE id = NEW.deck_id) IS NOT NULL
+ AND (SELECT user_ref FROM core_srs_deck WHERE id = NEW.deck_id) <> NEW.user_ref
+BEGIN
+  SELECT RAISE(ABORT,
+    'a card must go in its own owner''s deck — use deckForModule to find or create one');
+END;
+
+CREATE TRIGGER trg_srs_card_deck_owner_upd
+BEFORE UPDATE OF deck_id, user_ref ON core_srs_card
+FOR EACH ROW
+WHEN (SELECT user_ref FROM core_srs_deck WHERE id = NEW.deck_id) IS NOT NULL
+ AND (SELECT user_ref FROM core_srs_deck WHERE id = NEW.deck_id) <> NEW.user_ref
+BEGIN
+  SELECT RAISE(ABORT,
+    'a card must stay in its own owner''s deck');
 END;

@@ -63,43 +63,75 @@ export function quizRoutes(router: Router<CoreEnv>): void {
     const topic = url.searchParams.get('topic');
     const concept = url.searchParams.get('concept');
     const search = (url.searchParams.get('q') ?? '').trim();
-    const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') ?? '100')));
+    // Capped at 90, not 200: the options for these rows are fetched with an
+    // `IN (…)` and D1 binds at most 100 variables per statement. A page of 200
+    // would have thrown on the fetch that makes the list usable.
+    const limit = Math.min(90, Math.max(1, Number(url.searchParams.get('limit') ?? '50')));
 
-    const conds = ["status = 'active'"];
+    // The bank, and only what a room can actually ask: a scored item with
+    // options. An unscored poll and an extended-text prompt belong to the
+    // Table app, not to a timed round.
+    const conds = ["i.status = 'live'", "i.scoring != 'none'",
+                   "EXISTS (SELECT 1 FROM core_bank_item_option o\n"
+                   + "                       WHERE o.item_ref = i.id AND o.role = 'choice')"];
     const params: unknown[] = [];
-    if (module) { conds.push('module = ?'); params.push(module); }
+    if (module) { conds.push('i.module = ?'); params.push(module); }
     // A prefix, so "44" finds every question on the sūrah and "44:3" narrows to
     // the āyah — the same convention the SRS queue uses for a surah scope.
-    if (ref) { conds.push('(resource_ref = ? OR resource_ref LIKE ?)'); params.push(ref, `${ref}:%`); }
-    if (surah > 0) { conds.push('surah = ?'); params.push(surah); }
+    if (ref) { conds.push('(i.resource_ref = ? OR i.resource_ref LIKE ?)'); params.push(ref, `${ref}:%`); }
+    if (surah > 0) { conds.push('i.surah = ?'); params.push(surah); }
     // Verse to verse: any question whose own range overlaps the one asked for.
     // Overlap rather than containment, because a question about 44:8–10 belongs
     // in a session on 44:1–9 — it is partly about it, and a host narrowing to a
     // passage wants everything that touches it.
     if (from > 0 && to > 0) {
-      conds.push('(ayah_from IS NULL OR (ayah_from <= ? AND ayah_to >= ?))');
+      conds.push('(i.ayah_from IS NULL OR (i.ayah_from <= ? AND i.ayah_to >= ?))');
       params.push(to, from);
     }
-    if (step) { conds.push('step_key = ?'); params.push(step); }
-    if (topic) { conds.push('topic = ?'); params.push(topic); }
-    if (concept) { conds.push('concept_ref = ?'); params.push(concept); }
-    if (search) { conds.push('(prompt LIKE ? OR options_json LIKE ?)'); params.push(`%${search}%`, `%${search}%`); }
+    if (step) { conds.push('i.step_key = ?'); params.push(step); }
+    if (topic) { conds.push('i.tags = ?'); params.push(topic); }
+    if (concept) { conds.push('i.concept_ref = ?'); params.push(concept); }
+    if (search) { conds.push(`(COALESCE(i.prompt_en, i.prompt_ar, i.prompt_ur) LIKE ?
+                     OR EXISTS (SELECT 1 FROM core_bank_item_option o
+                                 WHERE o.item_ref = i.id
+                                   AND COALESCE(o.label_en, o.label_ar) LIKE ?))`); params.push(`%${search}%`, `%${search}%`); }
 
     const rows = await query(
       env.DB_CORE,
-      `SELECT id, module, domain, resource_ref, prompt, options_json, seconds,
-              difficulty, tags, author_ref, created_at,
-              surah, ayah_from, ayah_to, passage_ref, step_key, topic, concept_ref
-         FROM core_quiz_question
+      `SELECT i.id, i.module, i.resource_ref,
+              COALESCE(i.prompt_en, i.prompt_ar, i.prompt_ur) AS prompt,
+              i.seconds, i.difficulty, i.tags, i.created_at,
+              i.surah, i.ayah_from, i.ayah_to, i.passage_ref, i.step_key,
+              i.concept_ref, p.slug AS pack,
+              (SELECT COUNT(*) FROM core_bank_item_option o
+                WHERE o.item_ref = i.id AND o.role = 'choice') AS option_count
+         FROM core_bank_item i
+         JOIN core_bank_pack p ON p.id = i.pack_ref
         WHERE ${conds.join(' AND ')}
-        ORDER BY created_at DESC
+          AND (p.owner_ref IS NULL OR p.owner_ref = ?)
+        ORDER BY i.created_at DESC
         LIMIT ?`,
-      [...params, limit],
+      [...params, ctx.userId, limit],
     );
-    // `correct_index` is not in that SELECT and must never be: this endpoint is
-    // reachable by every player in the room, and the bank is browsable during a
-    // session. The answer lives in the Durable Object's read path alone.
-    return ok(rows.map((r) => ({ ...r, options: safeOptions(r.options_json) })));
+
+    // The labels, in stored order, WITHOUT which one is right. is_correct is
+    // not in this SELECT and must never be: every player in the room can call
+    // this endpoint, and the bank is browsable mid-session. The answer lives
+    // in the Durable Object's read path alone.
+    const options = rows.length
+      ? await query<{ item_ref: string; label: string }>(
+          env.DB_CORE,
+          `SELECT item_ref, COALESCE(label_en, label_ar, label_ur) AS label
+             FROM core_bank_item_option
+            WHERE role = 'choice' AND item_ref IN (${rows.map(() => '?').join(',')})
+            ORDER BY sort_order`,
+          rows.map((r) => r['id']))
+      : [];
+    const byItem = new Map<string, string[]>();
+    for (const o of options) {
+      byItem.set(o.item_ref, [...(byItem.get(o.item_ref) ?? []), String(o.label ?? '')]);
+    }
+    return ok(rows.map((r) => ({ ...r, options: byItem.get(String(r['id'])) ?? [] })));
   });
 
   router.post('/core/quiz/questions', async (req, env) => {
@@ -208,7 +240,7 @@ export function quizRoutes(router: Router<CoreEnv>): void {
 
     const conds = ['user_ref = ?', 'suspended = 0'];
     const params: unknown[] = [ctx.userId];
-    if (module) { conds.push('module = ?'); params.push(module); }
+    if (module) { conds.push('i.module = ?'); params.push(module); }
     if (surah > 0) {
       // The same two arms the review queue uses: cards whose ref names the
       // sūrah, and cards first met in it.
@@ -328,6 +360,10 @@ export function quizRoutes(router: Router<CoreEnv>): void {
     // socket claiming it — the object trusts this header because nothing
     // outside this worker can set it.
     headers.set('X-KM-Host-Id', session.host_ref);
+    // The room code, so the object can write attempts that carry it. A round's
+    // rows are found by room_code on the shared scorecard, and the object had
+    // no way to know its own code.
+    headers.set('X-KM-Room-Code', code.toUpperCase());
 
     const stub = env.QUIZ_SESSION.get(env.QUIZ_SESSION.idFromName(session.id));
     return stub.fetch(new Request(req.url, { method: 'GET', headers }));

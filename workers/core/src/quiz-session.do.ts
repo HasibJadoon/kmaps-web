@@ -79,10 +79,14 @@ export class QuizSession {
     const hostRef = request.headers.get('X-KM-Host-Id') ?? '';
     if (!userId) return new Response('Authenticated user required', { status: 401 });
 
+    const roomCode = request.headers.get('X-KM-Room-Code') ?? '';
     if (sessionId && !(await this.state.storage.get<string>('sessionId'))) {
       await this.state.storage.put('sessionId', sessionId);
       await this.state.storage.put('hostRef', hostRef);
     }
+    // Kept current rather than write-once: an object that outlives a deploy
+    // should not be stuck with an empty code it can never write a round under.
+    if (roomCode) await this.state.storage.put('code', roomCode);
 
     const { 0: client, 1: server } = new WebSocketPair();
     const player: Player = {
@@ -132,31 +136,44 @@ export class QuizSession {
   // ── Pushing a question ─────────────────────────────────────────────────────
 
   private async push(questionId: string): Promise<void> {
+    // The bank, not core_quiz_question. Migration 030 said this is one ledger
+    // and the room went on writing its own table anyway, so the shared
+    // scorecard has never contained a single live round. An option is a row
+    // now, which is also what lets a wrong answer explain itself.
     const rows = await query<{
-      id: string; prompt: string; options_json: string; correct_index: number;
-      seconds: number; module: string; resource_ref: string | null; explanation: string | null;
+      id: string; prompt: string; seconds: number | null; module: string;
+      resource_ref: string | null; explanation: string | null; pack_ref: string;
     }>(
       this.env.DB_CORE,
-      `SELECT id, prompt, options_json, correct_index, seconds, module,
-              resource_ref, explanation
-         FROM core_quiz_question WHERE id = ? AND status = 'active'`,
+      `SELECT i.id, COALESCE(i.prompt_en, i.prompt_ar, i.prompt_ur) AS prompt,
+              i.seconds, i.module, i.resource_ref, i.explanation_en AS explanation,
+              i.pack_ref
+         FROM core_bank_item i
+        WHERE i.id = ? AND i.status = 'live'
+          AND i.scoring != 'none'`,
       [questionId],
     );
     const q = rows[0];
     if (!q) return;
 
-    let options: string[] = [];
-    try {
-      const parsed = JSON.parse(q.options_json);
-      if (Array.isArray(parsed)) options = parsed.map(String);
-    } catch { return; }
+    const optionRows = await query<{ id: string; label: string; is_correct: number }>(
+      this.env.DB_CORE,
+      `SELECT id, COALESCE(label_en, label_ar, label_ur) AS label, is_correct
+         FROM core_bank_item_option
+        WHERE item_ref = ? AND role = 'choice'
+        ORDER BY sort_order`,
+      [questionId],
+    );
+    const options = optionRows.map((o) => String(o.label ?? ''));
     if (options.length < 2) return;
+    await this.state.storage.put('optionIds', optionRows.map((o) => o.id));
+    await this.state.storage.put('packRef', q.pack_ref);
 
     const live: Live = {
       questionId: q.id,
       prompt: q.prompt,
       options,
-      seconds: q.seconds,
+      seconds: q.seconds ?? 20,
       module: q.module,
       resourceRef: q.resource_ref,
       askedAt: Date.now(),
@@ -195,15 +212,21 @@ export class QuizSession {
     if (!live || live.correctIndex !== null) return;      // no answering after the reveal
     if (choice < 0 || choice >= live.options.length) return;
 
-    const given = await this.getGiven();
-    if (given.some((g) => g.userId === me.userId)) return; // one answer each, first stands
-
-    // Correctness is computed now but not broadcast now: the room learns only
-    // that this person has locked in, because a live tally of who is right
-    // tells everyone else the answer.
+    // Everything that needs the database happens BEFORE the read-modify-write,
+    // and nothing is awaited between reading `given` and putting it back.
+    //
+    // The other order loses answers. A Durable Object's input gate does not
+    // hold across an outbound D1 call, so with the lookup in the middle two
+    // people answering at once both read the same `given`, both append, and
+    // the second put overwrites the first — silently, and more often the
+    // faster the room is. Two players answering together lost one of them
+    // every time.
     const correctIndex = await this.correctIndexOf(live.questionId);
     const ms = Math.max(0, Date.now() - live.askedAt);
     const correct = correctIndex === choice;
+
+    const given = await this.getGiven();
+    if (given.some((g) => g.userId === me.userId)) return; // one answer each, first stands
 
     given.push({
       userId: me.userId, name: me.name, choice, ms, correct,
@@ -258,18 +281,62 @@ export class QuizSession {
   private async persist(questionId: string, given: Given[]): Promise<void> {
     const sessionId = await this.state.storage.get<string>('sessionId');
     if (!sessionId) return;
+    const packRef = await this.state.storage.get<string>('packRef');
+    const optionIds = (await this.state.storage.get<string[]>('optionIds')) ?? [];
+    const code = await this.state.storage.get<string>('code');
+    if (!packRef || !code) {
+      console.error('[quiz] cannot persist: packRef=%s code=%s', packRef, code);
+      return;
+    }
+
     for (const g of given) {
       try {
+        // Everyone in the room has an attempt, opened on first answer and
+        // reused for the rest of the round. It carries the room code, which is
+        // what makes the shared scorecard one GROUP BY across three apps
+        // rather than a union of tables that count different things.
+        const existing = await query<{ id: string }>(
+          this.env.DB_CORE,
+          `SELECT id FROM core_bank_attempt
+            WHERE user_ref = ? AND room_code = ? AND finished_at IS NULL
+            ORDER BY started_at DESC LIMIT 1`,
+          [g.userId, code]);
+        let attemptRef = existing[0]?.id;
+        if (!attemptRef) {
+          attemptRef = typedId('BAT');
+          await execute(
+            this.env.DB_CORE,
+            `INSERT INTO core_bank_attempt (id, user_ref, unit_ref, pack_ref, mode, room_code)
+             VALUES (?, ?, NULL, ?, 'live', ?)`,
+            [attemptRef, g.userId, packRef, code]);
+        }
         await execute(
           this.env.DB_CORE,
-          `INSERT INTO core_quiz_answer
-             (id, session_ref, question_ref, user_ref, choice, correct, ms, points)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT (session_ref, question_ref, user_ref) DO NOTHING`,
-          [typedId('QZA'), sessionId, questionId, g.userId, g.choice,
-           g.correct ? 1 : 0, g.ms, g.points],
+          `INSERT INTO core_bank_response
+             (id, attempt_ref, item_ref, user_ref, seq, response_json, is_correct,
+              credit, latency_ms, points)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT (attempt_ref, item_ref) DO NOTHING`,
+          [typedId('BRS'), attemptRef, questionId, g.userId, g.choice ?? 0,
+           JSON.stringify(optionIds[g.choice ?? -1] ? [optionIds[g.choice ?? -1]] : []),
+           g.correct ? 1 : 0, g.correct ? 1 : 0, g.ms, g.points],
         );
-      } catch { /* one lost row must not take the round down */ }
+        // The attempt's own totals, so a room round reads like any other round.
+        await execute(
+          this.env.DB_CORE,
+          `UPDATE core_bank_attempt
+              SET points = (SELECT COALESCE(SUM(points),0) FROM core_bank_response
+                             WHERE attempt_ref = ?),
+                  score  = (SELECT AVG(is_correct) FROM core_bank_response
+                             WHERE attempt_ref = ? AND is_correct IS NOT NULL)
+            WHERE id = ?`,
+          [attemptRef, attemptRef, attemptRef]);
+      } catch (error) {
+        // One lost row must not take the round down — but a round that wrote
+        // nothing at all looked exactly like one that wrote everything, which
+        // is how the ledger stayed empty without anybody noticing.
+        console.error('[quiz] response not persisted', g.userId, String(error));
+      }
     }
   }
 
@@ -281,17 +348,21 @@ export class QuizSession {
     try {
       return await query(
         this.env.DB_CORE,
-        `SELECT a.user_ref AS userId,
-                COALESCE(u.display_name, u.email) AS name,
-                SUM(a.points) AS points,
-                SUM(a.correct) AS correct,
+        `SELECT r.user_ref AS userId,
+                -- The local part, not the address: this goes to every socket
+                -- in the room.
+                COALESCE(u.display_name,
+                         substr(u.email, 1, instr(u.email, '@') - 1), u.id) AS name,
+                SUM(r.points) AS points,
+                SUM(r.is_correct) AS correct,
                 COUNT(*) AS answered
-           FROM core_quiz_answer a
-           LEFT JOIN core_users u ON u.id = a.user_ref
-          WHERE a.session_ref = ?
-          GROUP BY a.user_ref
+           FROM core_bank_response r
+           JOIN core_bank_attempt a ON a.id = r.attempt_ref
+           LEFT JOIN core_users u ON u.id = r.user_ref
+          WHERE a.room_code = ?
+          GROUP BY r.user_ref
           ORDER BY points DESC, correct DESC`,
-        [sessionId],
+        [await this.state.storage.get<string>('code') ?? ''],
       );
     } catch {
       return [];
@@ -338,16 +409,28 @@ export class QuizSession {
   // ── Reads ──────────────────────────────────────────────────────────────────
 
   private async correctIndexOf(questionId: string): Promise<number | null> {
-    const rows = await query<{ correct_index: number }>(
+    const rows = await query<{ n: number }>(
       this.env.DB_CORE,
-      'SELECT correct_index FROM core_quiz_question WHERE id = ?', [questionId]);
-    return rows[0]?.correct_index ?? null;
+      `SELECT COUNT(*) AS n FROM core_bank_item_option
+        WHERE item_ref = ? AND role = 'choice' AND is_correct = 0
+          AND sort_order < (SELECT MIN(sort_order) FROM core_bank_item_option
+                             WHERE item_ref = ? AND role = 'choice' AND is_correct = 1)`,
+      [questionId, questionId]);
+    const marked = await query<{ n: number }>(
+      this.env.DB_CORE,
+      `SELECT COUNT(*) AS n FROM core_bank_item_option
+        WHERE item_ref = ? AND role = 'choice' AND is_correct = 1`, [questionId]);
+    if (!marked[0]?.n) return null;
+    return rows[0]?.n ?? null;
   }
+
+
 
   private async explanationOf(questionId: string): Promise<string | null> {
     const rows = await query<{ explanation: string | null }>(
       this.env.DB_CORE,
-      'SELECT explanation FROM core_quiz_question WHERE id = ?', [questionId]);
+      `SELECT COALESCE(explanation_en, explanation_ar) AS explanation
+         FROM core_bank_item WHERE id = ?`, [questionId]);
     return rows[0]?.explanation ?? null;
   }
 

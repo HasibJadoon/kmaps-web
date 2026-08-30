@@ -6,10 +6,10 @@ const q = (sql) => {
   return JSON.parse(out.slice(out.indexOf('[')))[0].results;
 };
 const items = q(`SELECT i.* FROM core_bank_item i JOIN core_bank_pack p ON p.id=i.pack_ref
-                  WHERE p.slug IN ('quran-40-quiz','quran-40-path') ORDER BY i.slug`);
+                  WHERE p.slug LIKE 'quran-40-%' ORDER BY i.slug`);
 const opts = q(`SELECT o.* FROM core_bank_item_option o JOIN core_bank_item i ON i.id=o.item_ref
                 JOIN core_bank_pack p ON p.id=i.pack_ref
-                WHERE p.slug IN ('quran-40-quiz','quran-40-path') ORDER BY o.sort_order`);
+                WHERE p.slug LIKE 'quran-40-%' ORDER BY o.sort_order`);
 const byItem = new Map();
 for (const o of opts) (byItem.get(o.item_ref) ?? byItem.set(o.item_ref, []).get(o.item_ref)).push(o);
 

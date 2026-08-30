@@ -36,12 +36,33 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     if (ctx instanceof Response) return ctx;
     const body = await readJson(req);
     const unitRef = str(body['unit_ref']);
-    if (!unitRef) return badRequest('unit_ref is required');
+    const packRef = str(body['pack_ref']);
+    const roomCode = str(body['room_code']);
 
-    const unit = await queryOne<{ id: string; pack_ref: string; hearts: number | null }>(
+    // A round is scoped by a unit or by a room. The path walks units; a quiz
+    // round and a table evening have none — their items hang off the pack — so
+    // requiring a unit here is what kept two of the three apps out of the one
+    // ledger they were built for.
+    if (!unitRef && !packRef) return badRequest('unit_ref or pack_ref is required');
+    if (!unitRef && !roomCode) {
+      return badRequest('a round with no unit needs a room_code to be named by');
+    }
+
+    const unit = unitRef
+      ? await queryOne<{ id: string; pack_ref: string; hearts: number | null }>(
+          env.DB_CORE,
+          'SELECT id, pack_ref, hearts FROM core_bank_unit WHERE id = ?', [unitRef])
+      : null;
+    if (unitRef && !unit) return notFound(`unit ${unitRef}`);
+
+    const pack = await queryOne<{ id: string; owner_ref: string | null }>(
       env.DB_CORE,
-      'SELECT id, pack_ref, hearts FROM core_bank_unit WHERE id = ?', [unitRef]);
-    if (!unit) return notFound(`unit ${unitRef}`);
+      'SELECT id, owner_ref FROM core_bank_pack WHERE id = ?',
+      [unit?.pack_ref ?? packRef]);
+    if (!pack) return notFound(`pack ${packRef}`);
+    // Starting a round on somebody's private pack was possible: this route
+    // never looked at the pack at all.
+    if (pack.owner_ref && pack.owner_ref !== ctx.userId) return forbidden('Not your pack');
 
     const mode = str(body['mode']) ?? 'solo';
     if (!['solo', 'live', 'table'].includes(mode)) return badRequest('unknown mode');
@@ -51,8 +72,9 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
       env.DB_CORE,
       `INSERT INTO core_bank_attempt (id, user_ref, unit_ref, pack_ref, mode, room_code, hearts_left)
        VALUES (?,?,?,?,?,?,?)`,
-      [id, ctx.userId, unit.id, unit.pack_ref, mode, str(body['room_code']), unit.hearts]);
-    return created({ id, unit_ref: unit.id, pack_ref: unit.pack_ref, mode });
+      [id, ctx.userId, unit?.id ?? null, pack.id, mode, roomCode, unit?.hearts ?? null]);
+    return created({ id, unit_ref: unit?.id ?? null, pack_ref: pack.id, mode,
+                     room_code: roomCode });
   });
 
   /** One answer. The server decides whether it was right, how long it took and
@@ -198,7 +220,8 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
 
-    const attempt = await queryOne<{ id: string; user_ref: string; unit_ref: string;
+    const attempt = await queryOne<{ id: string; user_ref: string;
+                                    unit_ref: string | null;
                                     pack_ref: string; passed_at: string | null;
                                     finished_at: string | null; score: number | null;
                                     points: number; xp: number }>(
@@ -216,9 +239,13 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
                   xp: attempt.xp, passed: attempt.passed_at !== null, already: true });
     }
 
-    const unit = await queryOne<{ pass_threshold: number; xp_award: number }>(
-      env.DB_CORE,
-      'SELECT pass_threshold, xp_award FROM core_bank_unit WHERE id = ?', [attempt.unit_ref]);
+    // A room round has no unit, so it has no threshold and no XP award of its
+    // own: it is scored, it is never "passed". Defaults keep one code path.
+    const unit = attempt.unit_ref
+      ? await queryOne<{ pass_threshold: number; xp_award: number }>(
+          env.DB_CORE,
+          'SELECT pass_threshold, xp_award FROM core_bank_unit WHERE id = ?', [attempt.unit_ref])
+      : null;
 
     // Scored responses only: a round of conversation cards has no score, and
     // dividing by zero scored answers would make an evening look like a failure.
@@ -232,7 +259,8 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     const scored = Number(tally?.scored ?? 0);
     const score = scored > 0 ? Number(tally?.correct ?? 0) / scored : null;
     const threshold = Number(unit?.pass_threshold ?? 1);
-    const passed = scored === 0 ? true : (score ?? 0) >= threshold;
+    const passed = attempt.unit_ref === null ? false
+                 : scored === 0 ? true : (score ?? 0) >= threshold;
     const xp = passed ? Number(unit?.xp_award ?? 10) : 0;
 
     await execute(
