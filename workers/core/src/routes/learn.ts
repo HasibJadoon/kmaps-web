@@ -343,6 +343,31 @@ export function learnRoutes(router: Router<CoreEnv>): void {
       });
       previousDone = state === 'done';
     }
+
+    // The unit review, at the end — Duolingo's trophy node. Everything in the
+    // passage at once, which is a different exercise from each band on its own:
+    // the bands teach the parts, and this is the only place they are mixed.
+    const whole = rows.reduce(
+      (acc, r) => ({
+        cards: acc.cards + Number(r.cards ?? 0),
+        known: acc.known + Number(r.known ?? 0),
+        due: acc.due + Number(r.due ?? 0),
+      }),
+      { cards: 0, known: 0, due: 0 },
+    );
+    if (whole.cards > 0) {
+      units.push({
+        key: `${surah}:${from}-${to}:review`,
+        title: 'Passage review',
+        subtitle: `all ${whole.cards} together`,
+        cards: whole.cards,
+        known: whole.known,
+        due: whole.due,
+        // Open only once every band before it is done — the mixed round is
+        // worth something because the parts are already known.
+        state: previousDone ? stateOf(whole.cards, whole.known, true) : 'locked',
+      });
+    }
     return { track: 'quran', scope: `${surah}:${from}-${to}`, units, level: 'step' };
   }
 

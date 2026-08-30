@@ -17,6 +17,7 @@ import { requireAuth } from '../../../shared/src/auth';
 import { query, execute, queryOne } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { CoreEnv } from '../env';
+import { generateDrafts, type SourceCard } from '../quiz/generate';
 
 const MODULES = ['QR', 'AL', 'AR', 'WV', 'EN', 'other'] as const;
 const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
@@ -183,6 +184,93 @@ export function quizRoutes(router: Router<CoreEnv>): void {
           ORDER BY surah, ayah_from`, []),
     ]);
     return ok({ modules, surahs, steps, topics, passages });
+  });
+
+  /** POST /core/quiz/generate — make questions out of the cards you already
+   *  hold, in a scope you name.
+   *
+   *  Scoped the same way everything else is: a whole sūrah, a passage, a step,
+   *  or all of it. The questions land in the same bank as authored ones and are
+   *  marked `source='generated'` with the card they came from, so re-running
+   *  updates in place instead of laying a second copy beside the first. An
+   *  authored question is never touched. */
+  router.post('/core/quiz/generate', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const body = await readJson(req) ?? {};
+
+    const surah = Number(body['surah'] ?? 0);
+    const from = Number(body['ayah_from'] ?? 0);
+    const to = Number(body['ayah_to'] ?? 0);
+    const step = str(body['step_key']);
+    const module = str(body['module']);
+    const limit = Math.min(200, Math.max(1, Number(body['limit'] ?? 60)));
+
+    const conds = ['user_ref = ?', 'suspended = 0'];
+    const params: unknown[] = [ctx.userId];
+    if (module) { conds.push('module = ?'); params.push(module); }
+    if (surah > 0) {
+      // The same two arms the review queue uses: cards whose ref names the
+      // sūrah, and cards first met in it.
+      conds.push(`(resource_ref = ? OR resource_ref LIKE ? OR intro_surah = ?)`);
+      params.push(String(surah), `${surah}:%`, surah);
+    }
+    if (surah > 0 && from > 0 && to > 0) {
+      conds.push(`((resource_ref GLOB ?
+                    AND CAST(substr(resource_ref, instr(resource_ref, ':') + 1) AS INTEGER)
+                        BETWEEN ? AND ?)
+                   OR (intro_surah = ? AND intro_ayah BETWEEN ? AND ?))`);
+      params.push(`${surah}:*`, from, to, surah, from, to);
+    }
+
+    const cards = await query<SourceCard>(
+      env.DB_CORE,
+      `SELECT id, module, resource_type, resource_ref, card_kind,
+              front_text, back_text, note_type_id, fields_json
+         FROM core_srs_card
+        WHERE ${conds.join(' AND ')}
+        LIMIT ?`,
+      [...params, limit],
+    );
+
+    const { drafts, skipped } = generateDrafts(cards);
+    let written = 0;
+    for (const draft of drafts) {
+      if (step && draft.kind !== step) continue;
+      try {
+        await execute(
+          env.DB_CORE,
+          `INSERT INTO core_quiz_question
+             (id, author_ref, module, resource_ref, prompt, options_json,
+              correct_index, explanation, seconds, surah, ayah_from, ayah_to,
+              step_key, source, generated_from)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', ?)
+           -- The WHERE has to be repeated: the index is partial, and SQLite
+           -- will not match an upsert target to a partial index without it.
+           ON CONFLICT (generated_from) WHERE generated_from IS NOT NULL DO UPDATE SET
+             prompt = excluded.prompt,
+             options_json = excluded.options_json,
+             correct_index = excluded.correct_index,
+             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')`,
+          [typedId('QZQ'), ctx.userId, module ?? 'QR', null,
+           draft.prompt, JSON.stringify(draft.options), draft.correctIndex,
+           draft.explanation ?? null, 20,
+           surah > 0 ? surah : null,
+           from > 0 ? from : null, to > 0 ? to : null,
+           draft.kind, draft.fromCardId],
+        );
+        written++;
+      } catch { /* one bad row must not lose the batch */ }
+    }
+
+    return ok({
+      from_cards: cards.length,
+      written,
+      // Said out loud rather than hidden: a card with no back text, or with
+      // fewer than three distinct siblings to draw wrong answers from, cannot
+      // make a fair question.
+      skipped_cards: skipped,
+    });
   });
 
   // ── The room ───────────────────────────────────────────────────────────────
