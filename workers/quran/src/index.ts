@@ -86,6 +86,26 @@ router.post('/qr/internal/sense', async (req, env) => {
 // This is the only database that can answer it — km_quran owns the word
 // occurrences — so core asks rather than binding a second D1, the same rule
 // the sensor engine follows.
+// Which sūrahs have authored study content, and how much.
+//
+// A learner with no cards yet still needs a path to walk — Duolingo shows the
+// course from day one — and only km_quran knows which sūrahs have been built.
+// CORE asks rather than binding a second D1, the same rule as root-spread.
+router.post('/qr/internal/study-surahs', async (_req, env) => {
+  const { results } = await env.DB_QR
+    .prepare(`SELECT p.surah,
+                     COUNT(*) AS passages,
+                     MIN(s.name_en) AS name_en,
+                     MIN(s.name_ar) AS name_ar,
+                     MIN(s.name_transliteration) AS name_tr
+                FROM qr_surah_study_passage p
+                LEFT JOIN qr_surah s ON s.id = p.surah
+               GROUP BY p.surah
+               ORDER BY p.surah`)
+    .all<{ surah: number; passages: number; name_en: string | null; name_ar: string | null }>();
+  return ok({ ok: true, surahs: results ?? [] });
+});
+
 router.post('/qr/internal/root-spread', async (req, env) => {
   const body = await req.json<{ root?: string }>().catch(() => null);
   const root = typeof body?.root === 'string' ? body.root.trim() : '';

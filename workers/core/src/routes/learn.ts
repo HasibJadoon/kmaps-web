@@ -97,6 +97,41 @@ function foldByPrefix(
   return { cards, known, due };
 }
 
+/** The sūrahs that have been built, from the domain that owns them.
+ *
+ *  THE PATH IS THE CORPUS, not the learner's collection. A new account holds no
+ *  cards, and deriving the path from cards gave it an empty screen saying
+ *  "cards you add show up here" — which is a locked door for the one person who
+ *  most needs an open one. Duolingo shows the whole course on day one and fills
+ *  it in as you go; so does this. The learner's cards are progress ON the path,
+ *  never the source of it. */
+async function builtSurahs(
+  env: CoreEnv,
+): Promise<{ surah: number; passages: number; title: string }[]> {
+  if (!env.QURAN) return [];
+  try {
+    const res = await env.QURAN.fetch(new Request(
+      'http://internal.k-maps.local/qr/internal/study-surahs',
+      { method: 'POST' },
+    ));
+    if (!res.ok) return [];
+    const body = await res.json<{ data?: { surahs?: Array<Record<string, unknown>> } }>();
+    return (body?.data?.surahs ?? []).map((row) => {
+      const surah = Number(row['surah'] ?? 0);
+      const name = typeof row['name_tr'] === 'string' && row['name_tr']
+        ? String(row['name_tr'])
+        : typeof row['name_en'] === 'string' ? String(row['name_en']) : '';
+      return {
+        surah,
+        passages: Number(row['passages'] ?? 0),
+        title: name ? `${surah} · ${name}` : `Sūrah ${surah}`,
+      };
+    }).filter((s) => s.surah > 0);
+  } catch {
+    return [];
+  }
+}
+
 /** The passages of a sūrah, from the domain that owns them. CORE never binds
  *  km_quran directly — it asks the Qurʾān worker, the same rule the sensor
  *  engine follows. A failure costs the passage titles, not the path: the track
@@ -183,6 +218,8 @@ export function learnRoutes(router: Router<CoreEnv>): void {
 
     return ok({
       tracks: [
+        // Offered on an empty account too: the Qurʾān path exists before you
+        // hold a single card, which is the whole point of a path.
         track('quran', 'The Qurʾān', 'Sūrah · passage · step', qr),
         track('worldview', 'Worldviews', 'Concept by concept', byModule.get('WV')),
         track('arabic', 'Arabic', 'Grammar and vocabulary', arabic),
@@ -371,7 +408,8 @@ export function learnRoutes(router: Router<CoreEnv>): void {
     return { track: 'quran', scope: `${surah}:${from}-${to}`, units, level: 'step' };
   }
 
-  /** Sūrah to sūrah. */
+  /** Sūrah to sūrah — every sūrah that has been built, whether or not this
+   *  learner holds a card in it. Their counts are laid over the top. */
   async function corpusPath(env: CoreEnv, userId: string) {
     const counts = await countsByPrefix(env, userId, 'QR');
     const bySurah = new Map<number, { cards: number; known: number; due: number }>();
@@ -383,14 +421,31 @@ export function learnRoutes(router: Router<CoreEnv>): void {
         cards: acc.cards + c.cards, known: acc.known + c.known, due: acc.due + c.due,
       });
     }
+
+    const built = await builtSurahs(env);
+    // The union: every built sūrah, plus any the learner holds cards in that
+    // has not been built yet — losing those would hide their own work.
+    const order = [...new Set([
+      ...built.map((b) => b.surah),
+      ...bySurah.keys(),
+    ])].sort((a, b) => a - b);
+    const titles = new Map(built.map((b) => [b.surah, b.title]));
+    const passages = new Map(built.map((b) => [b.surah, b.passages]));
+
     const units: Unit[] = [];
     let previousDone = true;
-    for (const surah of [...bySurah.keys()].sort((a, b) => a - b)) {
-      const c = bySurah.get(surah)!;
+    for (const surah of order) {
+      const c = bySurah.get(surah) ?? { cards: 0, known: 0, due: 0 };
       const state = stateOf(c.cards, c.known, previousDone);
+      const passageCount = passages.get(surah) ?? 0;
       units.push({
-        key: String(surah), title: `Sūrah ${surah}`,
-        subtitle: `${c.cards} ${c.cards === 1 ? 'card' : 'cards'}`,
+        key: String(surah),
+        title: titles.get(surah) ?? `Sūrah ${surah}`,
+        subtitle: c.cards > 0
+          ? `${c.cards} ${c.cards === 1 ? 'card' : 'cards'}`
+          : passageCount > 0
+            ? `${passageCount} ${passageCount === 1 ? 'passage' : 'passages'}`
+            : 'not built yet',
         ...c, state,
       });
       previousDone = state === 'done';
