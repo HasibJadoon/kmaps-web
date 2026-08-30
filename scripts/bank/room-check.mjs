@@ -65,18 +65,29 @@ console.log('   roster:', JSON.stringify([...host.seen, ...guest.seen]
 host.ws.close(); guest.ws.close();
 await wait(800);
 
+const room0 = (await api(`/core/bank/rooms/${code}`, 'HOST')).body;
 const scores = (await api('/core/bank/scores', 'HOST')).body;
-const players = (scores?.overall ?? []).filter((p) => p.user_id.startsWith('CORE:ROOM'));
+// Whoever actually played THIS room, read off the room board — not a guess
+// from an id prefix, which broke the moment the fixture users were renamed.
+const roomUsers = new Set((room0?.board ?? []).map((b) => b.user_id ?? b.userId));
+const players = (scores?.overall ?? []).filter((p) => roomUsers.has(p.user_id));
 check(players.length === 2, 'both players are on the SHARED scorecard',
       players.map((p) => `${p.user_id.slice(-5)}:${p.points}`).join(' '));
 
-const room = (await api(`/core/bank/rooms/${code}`, 'HOST')).body;
+const room = room0;
 check((room?.board ?? []).length === 2, 'and on the room board', `${room?.board?.length}`);
-const boardPts = (room?.board ?? []).map((b) => b.points).sort();
-const cardPts = players.map((p) => p.points).sort();
-check(JSON.stringify(boardPts) === JSON.stringify(cardPts),
-      'the two boards agree about the same evening',
-      `room ${boardPts} vs card ${cardPts}`);
+// The two boards answer different questions and must not be compared as if
+// they answered the same one: /rooms/:code is THIS evening, /scores is a
+// career across every round the person has ever played. What has to hold is
+// that the evening is contained in the career — same people, and nobody's
+// career smaller than the round that just fed it.
+const roomBy = new Map((room?.board ?? []).map((b) => [b.user_id ?? b.userId, b.points]));
+const cardBy = new Map(players.map((p) => [p.user_id, p.points]));
+check([...roomBy.keys()].every((u) => cardBy.has(u)),
+      'everyone in the room is on the career board');
+check([...roomBy.entries()].every(([u, pts]) => (cardBy.get(u) ?? -1) >= pts),
+      'and the evening is contained in the career',
+      [...roomBy.entries()].map(([u, p]) => `${u.slice(-4)} ${p}→${cardBy.get(u)}`).join('  '));
 
 console.log(failures ? `\n${failures} failed` : '\nthe room writes the one ledger');
 process.exitCode = failures ? 1 : 0;

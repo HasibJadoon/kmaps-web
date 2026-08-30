@@ -299,29 +299,45 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     const [career, best, form, byApp, rooms, profile] = await Promise.all([
       queryOne(
         env.DB_CORE,
+        // The Table app is not scored, and must not be averaged either.
+        //
+        // A conversation evening was landing here as an innings worth nought:
+        // it does not just fail to help, it drags the average down, so the
+        // person who sits and talks the most looks like the worst player. An
+        // evening at the table is not a bad innings — it is not an innings.
+        //
+        // Counted separately as `conversations`, which is the honest figure:
+        // how often somebody showed up to talk.
         `SELECT COUNT(*) AS attempts,
-                COUNT(CASE WHEN finished_at IS NOT NULL THEN 1 END) AS innings,
+                COUNT(CASE WHEN a.finished_at IS NOT NULL
+                            AND p.app != 'table' THEN 1 END) AS innings,
+                COUNT(CASE WHEN a.finished_at IS NOT NULL
+                            AND p.app = 'table' THEN 1 END) AS conversations,
                 COUNT(CASE WHEN passed_at IS NOT NULL THEN 1 END) AS passed,
-                COALESCE(SUM(points), 0) AS runs,
+                COALESCE(SUM(CASE WHEN p.app != 'table' THEN points END), 0) AS runs,
                 -- Cricket's fifty is worth having because an innings has no
                 -- ceiling. A round here does: it is over when its questions
                 -- run out, so "fifty" was just an ordinary evening — it fired
                 -- on thirteen of fourteen and told you nothing. What is rare
                 -- at this scale is a big session and a flawless one, so those
                 -- are the two milestones kept.
-                COUNT(CASE WHEN finished_at IS NOT NULL AND points >= 100 THEN 1 END) AS hundreds,
-                COUNT(CASE WHEN finished_at IS NOT NULL AND score >= 1.0 THEN 1 END) AS perfect,
+                COUNT(CASE WHEN a.finished_at IS NOT NULL AND p.app != 'table'
+                            AND points >= 100 THEN 1 END) AS hundreds,
+                COUNT(CASE WHEN a.finished_at IS NOT NULL AND p.app != 'table'
+                            AND score >= 1.0 THEN 1 END) AS perfect,
                 MIN(started_at) AS debut,
                 MAX(started_at) AS last_played,
                 COUNT(DISTINCT date(started_at)) AS days_played
-           FROM core_bank_attempt WHERE user_ref = ?`, [who]),
+           FROM core_bank_attempt a
+           JOIN core_bank_pack p ON p.id = a.pack_ref
+          WHERE a.user_ref = ?`, [who]),
       queryOne(
         env.DB_CORE,
         `SELECT a.points, a.score, a.started_at, u.title AS unit, p.slug AS pack, p.app
            FROM core_bank_attempt a
            JOIN core_bank_unit u ON u.id = a.unit_ref
            JOIN core_bank_pack p ON p.id = a.pack_ref
-          WHERE a.user_ref = ? AND a.finished_at IS NOT NULL
+          WHERE a.user_ref = ? AND a.finished_at IS NOT NULL AND p.app != 'table'
           ORDER BY a.points DESC, a.started_at ASC LIMIT 1`, [who]),
       query(
         env.DB_CORE,
@@ -330,7 +346,7 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
            FROM core_bank_attempt a
            JOIN core_bank_unit u ON u.id = a.unit_ref
            JOIN core_bank_pack p ON p.id = a.pack_ref
-          WHERE a.user_ref = ? AND a.finished_at IS NOT NULL
+          WHERE a.user_ref = ? AND a.finished_at IS NOT NULL AND p.app != 'table'
           ORDER BY a.started_at DESC LIMIT 8`, [who]),
       query(
         env.DB_CORE,
@@ -373,6 +389,7 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     const seen = new Set<string>();
     let won = 0, lost = 0, drew = 0;
     const versus = new Map<string, { played: number; won: number; lost: number; drew: number }>();
+    const nameOf = new Map<string, string>();
     for (const row of matchRows) {
       const room = String(row['room_code']);
       const players = Number(row['players']);
@@ -395,6 +412,16 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
       const theirs = Number(row['points']);
       if (mine > theirs) head.won++; else if (mine < theirs) head.lost++; else head.drew++;
       versus.set(other, head);
+    }
+
+    const opponents = [...versus.keys()];
+    if (opponents.length) {
+      const rows = await query<{ id: string; name: string | null }>(
+        env.DB_CORE,
+        `SELECT id, COALESCE(display_name, substr(email, 1, instr(email, '@') - 1), id) AS name
+           FROM core_users WHERE id IN (${opponents.map(() => '?').join(',')})`,
+        opponents);
+      for (const row of rows) nameOf.set(row.id, row.name ?? row.id);
     }
 
     const innings = Number((career as Record<string, unknown>)?.['innings'] ?? 0);
@@ -424,7 +451,7 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
       record: { matches, won, lost, drew,
                 win_pct: matches > 0 ? Math.round((100 * won) / matches) : null },
       versus: [...versus.entries()]
-        .map(([user_id, head]) => ({ user_id, ...head }))
+        .map(([user_id, head]) => ({ user_id, name: nameOf.get(user_id) ?? null, ...head }))
         .sort((a, b) => b.played - a.played),
       high: best ?? null,
       form,
@@ -462,7 +489,12 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
                 -- A round is a sitting somebody saw through. An attempt they
                 -- walked away from is not a round and should not read as one.
                 COUNT(DISTINCT CASE WHEN a.finished_at IS NOT NULL
-                                    THEN a.id END) AS rounds,
+                                     AND p.app != 'table' THEN a.id END) AS rounds,
+                -- Recorded, never ranked. The Table app has no score by
+                -- design, so its evenings are counted on their own rather
+                -- than folded into a number people compare.
+                COUNT(DISTINCT CASE WHEN a.finished_at IS NOT NULL
+                                     AND p.app = 'table' THEN a.id END) AS conversations,
                 COUNT(DISTINCT CASE WHEN a.passed_at IS NOT NULL THEN a.unit_ref END) AS units_passed,
                 COALESCE(SUM(a.points), 0) AS points,
                 COALESCE(SUM(a.xp), 0) AS xp,
@@ -575,6 +607,7 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
         ...person,
         matches,
         wins,
+        conversations: Number(person['conversations'] ?? 0),
         draws: Number(own?.['draws'] ?? 0),
         losses: Number(own?.['losses'] ?? 0),
 
@@ -587,12 +620,14 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     for (const row of standings) {
       const key = String(row['user_id']);
       const soFar = lifetime.get(key) ?? {
-        user_id: key, name: row['name'], points: 0, rounds: 0, matches: 0,
-        wins: 0, draws: 0, losses: 0, answered: 0, correct: 0, units_passed: 0,
+        user_id: key, name: row['name'], points: 0, rounds: 0, conversations: 0,
+        matches: 0, wins: 0, draws: 0, losses: 0, answered: 0, correct: 0,
+        units_passed: 0,
         apps: [] as string[], last_played: null as string | null,
       };
-      for (const field of ['points', 'rounds', 'matches', 'wins', 'draws', 'losses',
-                           'answered', 'correct', 'units_passed'] as const) {
+      for (const field of ['points', 'rounds', 'conversations', 'matches', 'wins',
+                           'draws', 'losses', 'answered', 'correct',
+                           'units_passed'] as const) {
         soFar[field] = Number(soFar[field]) + Number(row[field] ?? 0);
       }
       (soFar['apps'] as string[]).push(String(row['app']));
