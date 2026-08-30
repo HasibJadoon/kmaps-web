@@ -62,9 +62,10 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     if (ctx instanceof Response) return ctx;
 
     const attempt = await queryOne<{ id: string; user_ref: string; started_at: string;
-                                    finished_at: string | null }>(
+                                    pack_ref: string; finished_at: string | null }>(
       env.DB_CORE,
-      'SELECT id, user_ref, started_at, finished_at FROM core_bank_attempt WHERE id = ?', [id]);
+      `SELECT id, user_ref, started_at, pack_ref, finished_at
+         FROM core_bank_attempt WHERE id = ?`, [id]);
     if (!attempt) return notFound(`attempt ${id}`);
     if (attempt.user_ref !== ctx.userId) return forbidden('Not your attempt');
     if (attempt.finished_at) return badRequest('That attempt is already finished');
@@ -73,23 +74,60 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     const itemRef = str(body['item_ref']);
     if (!itemRef) return badRequest('item_ref is required');
 
+    // The item has to belong to what is being played. Looked up globally, this
+    // route was an answer oracle: start a one-item attempt on anything, then
+    // post any item id in the bank and read `correct_options` back — including
+    // items in somebody's private pack, and every item of a quiz that is live
+    // in a room at that moment.
     const item = await queryOne<ScorableItem & { id: string }>(
       env.DB_CORE,
-      `SELECT id, interaction, scoring, response_json, seconds, points_style, speed_bonus
-         FROM core_bank_item WHERE id = ?`, [itemRef]);
-    if (!item) return notFound(`item ${itemRef}`);
+      `SELECT i.id, i.interaction, i.scoring, i.response_json, i.seconds,
+              i.points_style, i.speed_bonus
+         FROM core_bank_item i
+        WHERE i.id = ? AND i.pack_ref = ?`, [itemRef, attempt.pack_ref]);
+    if (!item) return notFound(`item ${itemRef} is not in this attempt`);
+
+    // Answered already? Give back what was recorded rather than scoring it
+    // again. A dropped connection makes the phone retry, and the honest answer
+    // to "I sent this twice" is the first verdict — not a second one that was
+    // silently discarded by the unique index while the client was told it had
+    // scored.
+    const prior = await queryOne<{ id: string; is_correct: number | null; credit: number;
+                                  points: number; latency_ms: number | null }>(
+      env.DB_CORE,
+      `SELECT id, is_correct, credit, points, latency_ms
+         FROM core_bank_response WHERE attempt_ref = ? AND item_ref = ?`,
+      [attempt.id, item.id]);
+    if (prior) {
+      return ok({
+        id: prior.id,
+        correct: prior.is_correct === null ? null : prior.is_correct === 1,
+        credit: prior.credit, points: prior.points, latency_ms: prior.latency_ms,
+        replayed: true,
+      });
+    }
 
     const options = await query<ScorableOption>(
       env.DB_CORE,
       `SELECT id, role, is_correct, pair_key, credit, sort_order
          FROM core_bank_item_option WHERE item_ref = ? ORDER BY sort_order`, [itemRef]);
 
-    // Measured from when the item was SHOWN if the caller says so, else from
-    // when the attempt began. Either way the stamps are the server's.
-    const shownAt = Number(body['shown_at_ms'] ?? 0);
-    const latency = shownAt > 0
-      ? Math.max(0, Date.now() - shownAt)
-      : null;
+    // Both ends of this are the server's. It used to take `shown_at_ms` from the
+    // request body and subtract — so the client chose its own elapsed time and,
+    // through the speed bonus, its own score. The comment then claimed the
+    // stamps were the server's, and the test asserted it while passing a
+    // client-made stamp, which is how it survived review.
+    //
+    // What the server can vouch for is the gap since the person became free to
+    // look at this question: the attempt starting, or their previous answer
+    // landing. That is the reading time, and nothing the client sends can move
+    // it.
+    const previous = await queryOne<{ at: string | null }>(
+      env.DB_CORE,
+      `SELECT MAX(created_at) AS at FROM core_bank_response WHERE attempt_ref = ?`,
+      [attempt.id]);
+    const since = Date.parse(previous?.at ?? attempt.started_at);
+    const latency = Number.isFinite(since) ? Math.max(0, Date.now() - since) : null;
 
     const verdict = judge(item, options, body['answer'], latency);
 
@@ -99,7 +137,8 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
       `INSERT INTO core_bank_response
          (id, attempt_ref, item_ref, user_ref, seq, response_json, is_correct,
           credit, latency_ms, points, hinted, respondent_ref, respondent_name)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+       ON CONFLICT (attempt_ref, item_ref) DO NOTHING`,
       [responseId, attempt.id, item.id, ctx.userId, Number(body['seq'] ?? 0),
        body['answer'] === undefined ? null : JSON.stringify(body['answer']),
        verdict.isCorrect === null ? null : (verdict.isCorrect ? 1 : 0),
@@ -160,12 +199,22 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     if (ctx instanceof Response) return ctx;
 
     const attempt = await queryOne<{ id: string; user_ref: string; unit_ref: string;
-                                    pack_ref: string; passed_at: string | null }>(
+                                    pack_ref: string; passed_at: string | null;
+                                    finished_at: string | null; score: number | null;
+                                    points: number; xp: number }>(
       env.DB_CORE,
-      `SELECT id, user_ref, unit_ref, pack_ref, passed_at
+      `SELECT id, user_ref, unit_ref, pack_ref, passed_at, finished_at, score, points, xp
          FROM core_bank_attempt WHERE id = ?`, [id]);
     if (!attempt) return notFound(`attempt ${id}`);
     if (attempt.user_ref !== ctx.userId) return forbidden('Not your attempt');
+    // Finishing twice used to award the XP twice. `passed_at` was COALESCE-
+    // guarded and `core_bank_attempt.xp` is overwritten, but the profile's xp
+    // accumulates — so N calls meant N × xp in the profile against 1 × xp in
+    // the attempt, two numbers that appear on the same screen.
+    if (attempt.finished_at) {
+      return ok({ id: attempt.id, score: attempt.score, points: attempt.points,
+                  xp: attempt.xp, passed: attempt.passed_at !== null, already: true });
+    }
 
     const unit = await queryOne<{ pass_threshold: number; xp_award: number }>(
       env.DB_CORE,
@@ -719,11 +768,21 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
                 -- scoreboard does not need to hand out mailboxes.
                 COALESCE(u.display_name, substr(u.email, 1, instr(u.email, '@') - 1), u.id) AS name,
               COALESCE(SUM(a.points), 0) AS points,
-              COUNT(r.is_correct) AS answered,
-              COALESCE(SUM(r.is_correct), 0) AS correct,
-              ROUND(AVG(r.latency_ms)) AS avg_ms
+              COALESCE(SUM(r.answered), 0) AS answered,
+              COALESCE(SUM(r.correct), 0) AS correct,
+              ROUND(AVG(r.avg_ms)) AS avg_ms
          FROM core_bank_attempt a
-         LEFT JOIN core_bank_response r ON r.attempt_ref = a.id
+         -- Folded to one row per attempt before the join, for the same reason
+         -- /core/bank/scores is: joining the responses directly multiplies
+         -- SUM(a.points) by the number of answers in the attempt. That fix was
+         -- made on the scorecard and not here, so the room board and the
+         -- scorecard reported different totals for the same evening.
+         LEFT JOIN (SELECT attempt_ref,
+                           COUNT(is_correct) AS answered,
+                           COALESCE(SUM(is_correct), 0) AS correct,
+                           AVG(latency_ms) AS avg_ms
+                      FROM core_bank_response
+                     GROUP BY attempt_ref) r ON r.attempt_ref = a.id
          LEFT JOIN core_users u ON u.id = a.user_ref
         WHERE a.room_code = ?
         GROUP BY a.user_ref

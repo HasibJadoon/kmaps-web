@@ -87,11 +87,33 @@ check(items.length === 6, 'the lesson serves six items', `got ${items.length}`);
 check(items.every((i) => (i.options ?? []).length === 4), 'each has four options');
 
 // The answer must not travel with the question. The server grades; a client
-// holding is_correct can score itself, and in a live room, everyone else.
-const leaks = items.filter((i) => (i.options ?? []).some(
+// holding the answer can score itself, and in a live room, everyone else.
+//
+// This used to check the OPTIONS only, which is why it passed for a day while
+// `response_json` — the declared correct response, and for true/false, slider
+// and text-entry items literally the answer — sat in the same payload. Check
+// every way an answer can arrive.
+const optionLeaks = items.filter((i) => (i.options ?? []).some(
   (o) => o.is_correct !== undefined || o.why_wrong_en !== undefined));
-check(leaks.length === 0, 'the payload does not carry the answer',
-      leaks.length ? `${leaks.length} of ${items.length} items expose is_correct/why_wrong` : '');
+check(optionLeaks.length === 0, 'no option carries is_correct or why_wrong',
+      optionLeaks.length ? `${optionLeaks.length} of ${items.length} items` : '');
+
+const declaredLeaks = items.filter((i) => i.response_json !== undefined);
+check(declaredLeaks.length === 0, 'no item carries response_json',
+      declaredLeaks.length ? `${declaredLeaks.length} items expose the declared answer` : '');
+
+const toldLeaks = items.filter((i) => i.explanation_en != null || i.explanation_ar != null);
+check(toldLeaks.length === 0, 'no item carries its explanation before it is answered',
+      toldLeaks.length ? `${toldLeaks.length} items` : '');
+
+// A slider still needs its track. The shape may travel; the answer may not.
+const sliders = items.filter((i) => i.interaction === 'slider');
+for (const s of sliders) {
+  const shape = s.response_public ? JSON.parse(s.response_public) : {};
+  check(shape.min !== undefined && shape.correct === undefined
+        && shape.tolerance === undefined,
+        'a slider gets its range and not its answer', JSON.stringify(shape));
+}
 
 // ── 5 · play it ──────────────────────────────────────────────────────────────
 const attempt = (await api('/core/bank/attempts', {
@@ -105,19 +127,46 @@ for (const [seq, item] of items.entries()) {
   const pick = (item.options ?? [])[seq % 4];
   const res = await api(`/core/bank/attempts/${attempt.id}/answer`, {
     method: 'POST',
-    body: JSON.stringify({ item_ref: item.id, seq, answer: [pick?.id],
-                           shown_at_ms: Date.now() - 4000 }),
+    body: JSON.stringify({ item_ref: item.id, seq, answer: [pick?.id] }),
   });
   if (res.body?.correct) right++;
   if (seq === 0) {
     check(res.status === 201 || res.status === 200, 'an answer is accepted',
           `status ${res.status}`);
     check(typeof res.body?.correct === 'boolean', 'the server returns a verdict');
-    check(typeof res.body?.latency_ms === 'number' && res.body.latency_ms >= 4000,
-          'latency is the server\'s, not the client\'s', `${res.body?.latency_ms}ms`);
+    // The old version of this test sent `shown_at_ms: Date.now() - 4000` and
+    // then asserted the latency came back as 4000 — proving the client chose
+    // it, under a label claiming the opposite. Nothing is sent now, so a
+    // number coming back at all is the server having measured it.
+    check(typeof res.body?.latency_ms === 'number' && res.body.latency_ms >= 0,
+          'the server measures the elapsed time itself', `${res.body?.latency_ms}ms`);
   }
 }
 console.log(`  (answered ${right}/${items.length} correctly by picking blind)`);
+
+// ── 5b · the negative cases ──────────────────────────────────────────────────
+{
+  // An item from another pack must not be answerable through this attempt.
+  const other = (await api('/core/bank/packs/quran-40-quiz')).body?.items ?? [];
+  if (other.length) {
+    const res = await api(`/core/bank/attempts/${attempt.id}/answer`, {
+      method: 'POST',
+      body: JSON.stringify({ item_ref: other[0].id, answer: ['x'] }) });
+    check(res.status === 404 || res.status === 403,
+          'an item from another pack cannot be answered here', `status ${res.status}`);
+    check(res.body?.correct_options === undefined,
+          'and it does not leak the answer while refusing');
+  }
+
+  // The same item twice in one attempt must not score twice.
+  const again = await api(`/core/bank/attempts/${attempt.id}/answer`, {
+    method: 'POST',
+    body: JSON.stringify({ item_ref: items[0].id, seq: 0, answer: [items[0].options[0].id] }) });
+  const after = (await api('/core/bank/attempts')).status;
+  check(again.body?.replayed === true,
+        'a repeated answer replays the first verdict rather than scoring twice',
+        `status ${again.status}`);
+}
 
 const finished = (await api(`/core/bank/attempts/${attempt.id}/finish`, {
   method: 'POST', body: '{}' })).body;
@@ -130,6 +179,14 @@ check(finished?.score !== undefined, 'the attempt finishes with a score',
     method: 'POST', body: JSON.stringify({ item_ref: items[0].id, answer: ['x'] }) });
   check(again.status === 400, 'a finished attempt refuses more answers',
         `status ${again.status}`);
+}
+
+// ── 6b · finishing twice ─────────────────────────────────────────────────────
+{
+  const second = (await api(`/core/bank/attempts/${attempt.id}/finish`, {
+    method: 'POST', body: '{}' })).body;
+  check(second?.already === true, 'a second finish is a no-op, not a second award',
+        `xp ${second?.xp}`);
 }
 
 // ── 7 · the score card ───────────────────────────────────────────────────────

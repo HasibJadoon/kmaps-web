@@ -24,7 +24,10 @@ export interface Draft {
   prompt: string;
   options: string[];
   correctIndex: number;
-  kind: 'vocabulary' | 'expression' | 'structure' | 'reading';
+  // The registry's spelling, not a shorter one of our own. `structure` matched
+  // no cyb_process_step row, so eleven generated questions were invisible to
+  // every picker built on the registry until migration 031 renamed them.
+  kind: 'vocabulary' | 'expression' | 'sentence_structure' | 'reading';
   fromCardId: string;
   explanation?: string | null;
 }
@@ -115,7 +118,7 @@ function fromPlainCard(card: SourceCard, siblings: SourceCard[]): Draft | null {
     correctIndex,
     kind: card.card_kind === 'translation' ? 'reading'
         : card.card_kind === 'expression' ? 'expression'
-        : card.resource_type === 'ayah' ? 'structure' : 'vocabulary',
+        : card.resource_type === 'ayah' ? 'sentence_structure' : 'vocabulary',
     fromCardId: card.id,
   };
 }
@@ -156,7 +159,7 @@ function fromRootCard(card: SourceCard, siblings: SourceCard[]): Draft[] {
       prompt: `في الجذر ${root} — ما مخرج حرف ${letter}؟`,
       options,
       correctIndex,
-      kind: 'structure',
+      kind: 'sentence_structure',
       fromCardId: `${card.id}:makhraj:${letter}`,
       explanation: clean(r.name) ? `${r.name} · ${makhraj}` : makhraj,
     });

@@ -494,16 +494,25 @@ export class SrsRepo {
     const rows = spread.filter((r) => Number.isFinite(r.surah) && r.surah > 0);
     if (!rows.length) return 0;
 
-    // One statement rather than a round trip per sūra: a common root touches
-    // sixty of them, and D1 charges for each call.
-    const values = rows.map(() => '(?, ?, ?, ?)').join(', ');
-    const args = rows.flatMap((r) => [
-      cardId, r.surah, Math.max(0, Math.trunc(r.n_occur)),
-      introSurah !== null && r.surah === introSurah ? 1 : 0,
-    ]);
-    await execute(this.db,
-      `INSERT INTO core_srs_card_surah (card_id, surah, n_occur, is_intro)
-       VALUES ${values}`, args);
+    // One statement rather than a round trip per sūra — but in chunks, because
+    // D1 binds at most 100 variables per statement and this binds four per
+    // sūra. The comment below used to say "a common root touches sixty of
+    // them", which is 240 variables: the statement threw for exactly the roots
+    // it was written to make fast, and the router turned that into an opaque
+    // 500.
+    const PER_ROW = 4;
+    const CHUNK = Math.floor(100 / PER_ROW);   // 25 sūras a statement
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const slice = rows.slice(i, i + CHUNK);
+      const values = slice.map(() => '(?, ?, ?, ?)').join(', ');
+      const args = slice.flatMap((r) => [
+        cardId, r.surah, Math.max(0, Math.trunc(r.n_occur)),
+        introSurah !== null && r.surah === introSurah ? 1 : 0,
+      ]);
+      await execute(this.db,
+        `INSERT INTO core_srs_card_surah (card_id, surah, n_occur, is_intro)
+         VALUES ${values}`, args);
+    }
     return rows.length;
   }
 

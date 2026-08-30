@@ -51,9 +51,14 @@ export function talkRoutes(router: Router<CoreEnv>): void {
          LEFT JOIN core_users u ON u.id = d.owner_ref
         WHERE d.owner_ref = ?
            OR d.is_shared = 1
-           ${workspace ? 'OR d.workspace_ref = ?' : ''}
+           -- Membership, not just a matching string. The workspace arrived as a
+           -- query parameter and was trusted, so anybody could read any table's
+           -- decks by guessing its id. srs.ts:386 already does it this way.
+           ${workspace ? `OR (d.workspace_ref = ? AND d.workspace_ref IN
+                 (SELECT workspace_id FROM core_workspace_members WHERE user_id = ?))` : ''}
         ORDER BY d.created_at DESC`,
-      workspace ? [ctx.userId, ctx.userId, workspace] : [ctx.userId, ctx.userId],
+      workspace ? [ctx.userId, ctx.userId, workspace, ctx.userId]
+                : [ctx.userId, ctx.userId],
     );
     return ok(rows);
   });
@@ -210,16 +215,23 @@ export function talkRoutes(router: Router<CoreEnv>): void {
       ? await query(
           env.DB_CORE,
           `SELECT d.owner_ref AS user_id,
-                  COALESCE(u.display_name, u.email) AS name,
+                  -- The local part, not the address. This is read by everyone
+                  -- at the table, and a seat label does not need a mailbox.
+                  COALESCE(u.display_name,
+                           substr(u.email, 1, instr(u.email, '@') - 1), u.id) AS name,
                   COUNT(c.id) AS waiting
              FROM core_talk_deck d
              LEFT JOIN core_talk_card c
                ON c.deck_ref = d.id AND c.asked_at IS NULL
              LEFT JOIN core_users u ON u.id = d.owner_ref
+            -- Only a table you are actually at: this returned the members and
+            -- their counts for any workspace id a caller cared to type.
             WHERE d.workspace_ref = ?
+              AND d.workspace_ref IN (SELECT workspace_id FROM core_workspace_members
+                                       WHERE user_id = ?)
             GROUP BY d.owner_ref
             ORDER BY name`,
-          [workspace])
+          [workspace, ctx.userId])
       : [];
 
     return ok({ cards: rows, table });

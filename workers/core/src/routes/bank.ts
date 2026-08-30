@@ -32,6 +32,41 @@ async function isOwner(env: CoreEnv, ctx: { userId: string; isAdmin: boolean }):
 }
 
 export function bankRoutes(router: Router<CoreEnv>): void {
+  /** What a client may know about the expected response BEFORE answering.
+   *
+   *  `response_json` is the declared correct response — QTI's responseDeclaration
+   *  — and for three of the four scoring templates it IS the answer:
+   *  `{"correct":true}` for true/false, `{"correct":293,"tolerance":25}` for a
+   *  slider, `{"accept":[…]}` for a typed answer. Shipping the column with the
+   *  question handed those away. Stripping the column outright broke the slider,
+   *  which needs its track to exist before anybody can move it.
+   *
+   *  So: the shape, never the answer. Only a slider has anything to declare.
+   */
+  const publicResponse = (raw: unknown, interaction: unknown): string | null => {
+    if (interaction !== 'slider' && interaction !== 'pin') return null;
+    if (typeof raw !== 'string' || !raw) return null;
+    try {
+      const declared = JSON.parse(raw) as Record<string, unknown>;
+      const shape: Record<string, unknown> = {};
+      for (const key of ['min', 'max', 'step', 'unit']) {
+        if (typeof declared[key] === 'number' || typeof declared[key] === 'string') {
+          shape[key] = declared[key];
+        }
+      }
+      return Object.keys(shape).length ? JSON.stringify(shape) : null;
+    } catch { return null; }
+  };
+
+  /** Strip everything a client must not hold, and put back the safe shape. Used
+   *  by both item paths — the unit's items and a pack's loose ones — because
+   *  they were withholding different things from each other. */
+  const forClient = (row: Record<string, unknown>): Record<string, unknown> => {
+    const { response_json: raw, explanation_en: _en, explanation_ar: _ar,
+            explanation_ur: _ur, ...rest } = row;
+    return { ...rest, response_public: publicResponse(raw, row['interaction']) };
+  };
+
   /** Fisher-Yates over a copy. Only used where the stored order is the answer. */
   const shuffle = <T,>(rows: T[]): T[] => {
     const out = [...rows];
@@ -105,9 +140,9 @@ export function bankRoutes(router: Router<CoreEnv>): void {
     const loose = await query<Record<string, unknown>>(
       env.DB_CORE,
       `SELECT i.id, i.slug, i.prompt_en, i.prompt_ar, i.prompt_ur, i.stimulus_md,
-              i.media_r2_key, i.interaction, i.scoring, i.seconds, i.points_style,
-              i.speed_bonus, i.difficulty, i.renderer, i.module, i.resource_ref,
-              i.surah, i.ayah_from, i.ayah_to, i.step_key
+              i.media_r2_key, i.interaction, i.scoring, i.response_json, i.seconds,
+              i.points_style, i.speed_bonus, i.difficulty, i.renderer, i.module,
+              i.resource_ref, i.surah, i.ayah_from, i.ayah_to, i.step_key
          FROM core_bank_item i
         WHERE i.pack_ref = ? AND i.status = 'live'
           AND NOT EXISTS (SELECT 1 FROM core_bank_unit_item ui WHERE ui.item_ref = i.id)
@@ -136,7 +171,7 @@ export function bankRoutes(router: Router<CoreEnv>): void {
       items: loose.map((i) => {
         const own = byLoose.get(String(i['id'])) ?? [];
         return {
-          ...i,
+          ...forClient(i),
           options: i['interaction'] === 'order' || i['interaction'] === 'tap_word'
             ? shuffle(own).map(({ sort_order: _drop, ...rest }) => rest)
             : own,
@@ -169,11 +204,18 @@ export function bankRoutes(router: Router<CoreEnv>): void {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
 
+    // The pack's own route checks who may read it; this one did not look at the
+    // pack at all, so a private deck was readable by anybody holding a unit id —
+    // and, until the strip above, its answers with it.
     const unit = await queryOne<{ id: string; item_count: number | null; item_order: string;
-                                 pack_ref: string }>(
+                                 pack_ref: string; owner_ref: string | null }>(
       env.DB_CORE,
-      'SELECT id, item_count, item_order, pack_ref FROM core_bank_unit WHERE id = ?', [id]);
+      `SELECT u.id, u.item_count, u.item_order, u.pack_ref, p.owner_ref
+         FROM core_bank_unit u
+         JOIN core_bank_pack p ON p.id = u.pack_ref
+        WHERE u.id = ?`, [id]);
     if (!unit) return notFound(`unit ${id}`);
+    if (unit.owner_ref && unit.owner_ref !== ctx.userId) return forbidden('Not your pack');
 
     const items = await query<Record<string, unknown>>(
       env.DB_CORE,
@@ -215,12 +257,13 @@ export function bankRoutes(router: Router<CoreEnv>): void {
       unit,
       items: items.map((i) => {
         const own = byItem.get(String(i['id'])) ?? [];
+        const safe = forClient(i);
         // An ordering's answer IS the order, so serving the tokens sorted
         // serves the answer. Shuffle them and drop sort_order with the rest.
         const shuffled = i['interaction'] === 'order' || i['interaction'] === 'tap_word'
           ? shuffle(own).map(({ sort_order: _drop, ...rest }) => rest)
           : own;
-        return { ...i, options: shuffled };
+        return { ...safe, options: shuffled };
       }),
     });
   });

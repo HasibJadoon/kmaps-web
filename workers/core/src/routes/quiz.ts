@@ -235,16 +235,23 @@ export function quizRoutes(router: Router<CoreEnv>): void {
 
     const { drafts, skipped } = generateDrafts(cards);
     let written = 0;
+    const failed: Array<{ from: string; why: string }> = [];
     for (const draft of drafts) {
       if (step && draft.kind !== step) continue;
       try {
         await execute(
           env.DB_CORE,
+          // 'draft', not the column default of 'active'. This reads the
+          // CALLER'S OWN cards — their fronts, backs and fields_json — and
+          // writes them into a table that GET /core/quiz/questions serves to
+          // every authenticated user. Published on generation, that turns
+          // anything a person typed onto a private card into shared content
+          // without their ever being asked.
           `INSERT INTO core_quiz_question
              (id, author_ref, module, resource_ref, prompt, options_json,
               correct_index, explanation, seconds, surah, ayah_from, ayah_to,
-              step_key, source, generated_from)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', ?)
+              step_key, source, status, generated_from)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'draft', ?)
            -- The WHERE has to be repeated: the index is partial, and SQLite
            -- will not match an upsert target to a partial index without it.
            ON CONFLICT (generated_from) WHERE generated_from IS NOT NULL DO UPDATE SET
@@ -260,7 +267,11 @@ export function quizRoutes(router: Router<CoreEnv>): void {
            draft.kind, draft.fromCardId],
         );
         written++;
-      } catch { /* one bad row must not lose the batch */ }
+      } catch (error) {
+        // One bad row must not lose the batch — but a batch that silently
+        // wrote nothing looked identical to one that wrote everything.
+        failed.push({ from: draft.fromCardId, why: String(error).slice(0, 160) });
+      }
     }
 
     return ok({
@@ -270,6 +281,10 @@ export function quizRoutes(router: Router<CoreEnv>): void {
       // fewer than three distinct siblings to draw wrong answers from, cannot
       // make a fair question.
       skipped_cards: skipped,
+      failed,
+      // They land unpublished. Nothing generated from somebody's own cards is
+      // readable by the room until a person promotes it.
+      status: 'draft',
     });
   });
 
