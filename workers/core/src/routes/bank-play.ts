@@ -118,12 +118,39 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
         [verdict.isCorrect ? 1 : 0, item.id]);
     }
 
+    // The teaching travels with the verdict, not with the question. This is
+    // the only moment it is safe to send and the only moment it is read.
+    const chosen = new Set(
+      Array.isArray(body['answer']) ? body['answer'].map(String)
+        : typeof body['answer'] === 'string' ? [String(body['answer'])] : []);
+    const explain = await queryOne<{ explanation_en: string | null;
+                                    explanation_ar: string | null;
+                                    explanation_ur: string | null }>(
+      env.DB_CORE,
+      `SELECT explanation_en, explanation_ar, explanation_ur
+         FROM core_bank_item WHERE id = ?`, [item.id]);
+
     return created({
       id: responseId,
       correct: verdict.isCorrect,
       credit: verdict.credit,
       points: verdict.points,
       latency_ms: latency,
+      // Which options were right, so the screen can show them — after the
+      // answer is in, and never before.
+      correct_options: options.filter((o) => o.is_correct === 1).map((o) => o.id),
+      // Why the one they picked was wrong, when it was.
+      why_wrong: verdict.isCorrect === false
+        ? await query<Record<string, unknown>>(
+            env.DB_CORE,
+            `SELECT id, why_wrong_en, why_wrong_ar, why_wrong_ur
+               FROM core_bank_item_option
+              WHERE item_ref = ? AND is_correct = 0`, [item.id])
+            .then((rows) => rows.filter((r) => chosen.has(String(r['id']))))
+        : [],
+      explanation_en: explain?.explanation_en ?? null,
+      explanation_ar: explain?.explanation_ar ?? null,
+      explanation_ur: explain?.explanation_ur ?? null,
     });
   });
 

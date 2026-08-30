@@ -110,6 +110,16 @@ export function bankRoutes(router: Router<CoreEnv>): void {
    *  The correct answer is included — this is the authoring/solo read. The live
    *  quiz room does NOT use it: a room withholds the answer until the reveal,
    *  and that rule lives in the Durable Object. */
+  /** Fisher-Yates over a copy. Only used where the stored order is the answer. */
+  const shuffle = <T,>(rows: T[]): T[] => {
+    const out = [...rows];
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  };
+
   router.get('/core/bank/units/:id/items', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -134,12 +144,17 @@ export function bankRoutes(router: Router<CoreEnv>): void {
       [id],
     );
 
+    // What a client may see. Deliberately NOT is_correct, why_wrong_*, credit
+    // or pair_key: the server grades, so a payload carrying the answer buys
+    // nothing and costs everything — in a live room it hands the answer to
+    // every phone at once, and even alone it turns a lesson into a reading
+    // exercise. The why-wrong sentence comes back with the verdict instead,
+    // which is also when a person is ready to read it.
     const options = items.length
       ? await query<Record<string, unknown>>(
           env.DB_CORE,
           `SELECT o.item_ref, o.id, o.role, o.label_en, o.label_ar, o.label_ur,
-                  o.media_r2_key, o.is_correct, o.pair_key, o.credit,
-                  o.why_wrong_en, o.why_wrong_ar, o.why_wrong_ur, o.sort_order
+                  o.media_r2_key, o.sort_order
              FROM core_bank_item_option o
             WHERE o.item_ref IN (${items.map(() => '?').join(',')})
             ORDER BY o.sort_order`,
@@ -153,7 +168,15 @@ export function bankRoutes(router: Router<CoreEnv>): void {
     }
     return ok({
       unit,
-      items: items.map((i) => ({ ...i, options: byItem.get(String(i['id'])) ?? [] })),
+      items: items.map((i) => {
+        const own = byItem.get(String(i['id'])) ?? [];
+        // An ordering's answer IS the order, so serving the tokens sorted
+        // serves the answer. Shuffle them and drop sort_order with the rest.
+        const shuffled = i['interaction'] === 'order' || i['interaction'] === 'tap_word'
+          ? shuffle(own).map(({ sort_order: _drop, ...rest }) => rest)
+          : own;
+        return { ...i, options: shuffled };
+      }),
     });
   });
 
