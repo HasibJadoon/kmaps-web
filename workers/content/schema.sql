@@ -1,9 +1,9 @@
 -- Schema for km_content.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-24.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-30.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (38) ──────────────────────────────────────────────────
+-- ── Tables (39) ──────────────────────────────────────────────────
 
 CREATE TABLE cm_audio_scenes (
   scene_id           TEXT PRIMARY KEY,
@@ -481,7 +481,7 @@ CREATE TABLE cm_source_details (
   abstract           TEXT,
   keywords_json      TEXT NOT NULL DEFAULT '[]',
   meta_json          TEXT NOT NULL DEFAULT '{}'
-);
+, person_refs_json TEXT);
 
 CREATE TABLE cm_source_toc (
   toc_id             TEXT PRIMARY KEY,
@@ -532,10 +532,32 @@ CREATE TABLE cm_sources (
   meta_json          TEXT NOT NULL DEFAULT '{}',
   created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+, parent_source_ref TEXT, episode_no INTEGER, published_at TEXT);
+
+CREATE TABLE core_person (
+  id            TEXT PRIMARY KEY,        -- PN:{slug}
+  uid           TEXT NOT NULL UNIQUE,    -- 26-hex, the convention the others use
+  person_key    TEXT NOT NULL,           -- the slug, on its own
+  name_en       TEXT NOT NULL,
+  name_ar       TEXT,
+  name_native   TEXT,                    -- as written in their own language
+  -- scholar | poet | philosopher | thinker | author | host | guest | figure
+  person_type   TEXT NOT NULL DEFAULT 'figure',
+  birth_year    INTEGER,
+  death_year    INTEGER,
+  -- Free text on purpose: "13th century", "fl. 900s", "contemporary". Dates are
+  -- the precise field; this is what you say when precision is not available.
+  era           TEXT,
+  nationality   TEXT,
+  tradition_ref TEXT,                    -- wv_traditions.id, where one applies
+  bio_md        TEXT,
+  origin        TEXT NOT NULL DEFAULT 'worldview',   -- which side first named them
+  status        TEXT NOT NULL DEFAULT 'live',
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 
--- ── Views (1) ────────────────────────────────────────────────────
+-- ── Views (2) ────────────────────────────────────────────────────
 
 CREATE VIEW cm_quran_index AS
 SELECT 'asset' AS kind, asset_id AS id, asset_type AS subtype, title, title_ar,
@@ -550,8 +572,20 @@ SELECT 'note', note_id, note_type, title, NULL,
        surah, ayah_from, ayah_to, passage_ref, visibility, tags_json, updated_at
 FROM cm_notes WHERE domain='quran' AND surah IS NOT NULL;
 
+CREATE VIEW core_person_violations AS
+  SELECT 'id_shape' AS kind, id AS row_id, id AS wrote FROM core_person
+   WHERE id NOT LIKE 'PN:%'
+  UNION ALL
+  SELECT 'key_mismatch', id, person_key FROM core_person
+   WHERE id <> 'PN:' || person_key
+  UNION ALL
+  -- Died before born. Cheap to check and the kind of thing a bulk import does.
+  SELECT 'dates', id, CAST(birth_year AS TEXT) || '–' || CAST(death_year AS TEXT)
+    FROM core_person
+   WHERE birth_year IS NOT NULL AND death_year IS NOT NULL AND death_year < birth_year;
 
--- ── Indexes (119) ────────────────────────────────────────────────
+
+-- ── Indexes (124) ────────────────────────────────────────────────
 
 CREATE INDEX idx_cm_engines_kind ON cm_engines(kind);
 
@@ -562,6 +596,11 @@ CREATE INDEX idx_cm_jobs_parent ON cm_engine_jobs(parent_job_id);
 CREATE INDEX idx_cm_jobs_root ON cm_engine_jobs(root_norm);
 
 CREATE INDEX idx_cm_jobs_run ON cm_engine_jobs(status, priority DESC, seq);
+
+CREATE INDEX idx_cm_sources_episode
+  ON cm_sources (parent_source_ref, episode_no, published_at);
+
+CREATE INDEX idx_cm_sources_parent ON cm_sources (parent_source_ref);
 
 CREATE INDEX idx_cmas_asset      ON cm_audio_scenes(asset_id);
 
@@ -783,6 +822,12 @@ CREATE INDEX idx_cmsu_source     ON cm_source_units(source_id);
 CREATE INDEX idx_cmsu_toc        ON cm_source_units(toc_id);
 
 CREATE INDEX idx_cmsu_type       ON cm_source_units(unit_type);
+
+CREATE INDEX idx_core_person_born ON core_person (birth_year);
+
+CREATE INDEX idx_core_person_key  ON core_person (person_key);
+
+CREATE INDEX idx_core_person_type ON core_person (person_type, status);
 
 CREATE INDEX ix_cm_assets_ayah ON cm_media_assets(surah, ayah_from, ayah_to);
 

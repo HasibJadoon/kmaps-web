@@ -1,5 +1,5 @@
 -- Schema for km_studio.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-21.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-30.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
@@ -66,7 +66,7 @@ CREATE TABLE st_talking_points (
   est_seconds   INTEGER,
   seq           INTEGER NOT NULL DEFAULT 0,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at    TEXT NOT NULL DEFAULT (datetime('now')), bridge TEXT, overlay_json TEXT,
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now')), bridge TEXT, overlay_json TEXT, subs_json TEXT,
   FOREIGN KEY (section_ref) REFERENCES st_sections(id),
   FOREIGN KEY (episode_ref) REFERENCES st_episodes(id)
 );
@@ -84,13 +84,17 @@ CREATE TABLE st_templates (
 );
 
 
--- ── Indexes (11) ─────────────────────────────────────────────────
+-- ── Indexes (13) ─────────────────────────────────────────────────
 
 CREATE INDEX idx_st_capture_markers_session ON st_capture_markers(session_ref, seq);
 
 CREATE INDEX idx_st_capture_sessions_episode ON st_capture_sessions(episode_ref);
 
 CREATE INDEX idx_st_episodes_owner ON st_episodes(core_user_ref, created_at);
+
+CREATE INDEX idx_st_episodes_series ON st_episodes (series_ref, session_no);
+
+CREATE INDEX idx_st_episodes_source ON st_episodes (source_ref);
 
 CREATE INDEX idx_st_participants_episode ON st_participants(episode_ref, seq);
 

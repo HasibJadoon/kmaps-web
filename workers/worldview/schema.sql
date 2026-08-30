@@ -1,9 +1,44 @@
 -- Schema for km_worldview.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-24.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-30.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (158) ─────────────────────────────────────────────────
+-- ── Tables (163) ─────────────────────────────────────────────────
+
+CREATE TABLE core_concept (
+  id          TEXT PRIMARY KEY,
+  uid         TEXT NOT NULL UNIQUE,
+  concept_key TEXT NOT NULL,
+  label_en    TEXT,
+  label_ar    TEXT,
+  domain      TEXT NOT NULL,
+  origin      TEXT NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'live',
+  note_md     TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE core_person (
+  id            TEXT PRIMARY KEY,        -- PN:{slug}
+  uid           TEXT NOT NULL UNIQUE,    -- 26-hex, the convention the others use
+  person_key    TEXT NOT NULL,           -- the slug, on its own
+  name_en       TEXT NOT NULL,
+  name_ar       TEXT,
+  name_native   TEXT,                    -- as written in their own language
+  -- scholar | poet | philosopher | thinker | author | host | guest | figure
+  person_type   TEXT NOT NULL DEFAULT 'figure',
+  birth_year    INTEGER,
+  death_year    INTEGER,
+  -- Free text on purpose: "13th century", "fl. 900s", "contemporary". Dates are
+  -- the precise field; this is what you say when precision is not available.
+  era           TEXT,
+  nationality   TEXT,
+  tradition_ref TEXT,                    -- wv_traditions.id, where one applies
+  bio_md        TEXT,
+  origin        TEXT NOT NULL DEFAULT 'worldview',   -- which side first named them
+  status        TEXT NOT NULL DEFAULT 'live',
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
 CREATE TABLE wv_abrahamic_morality_matrices (
   id              TEXT PRIMARY KEY,
@@ -729,7 +764,7 @@ CREATE TABLE wv_evidence_items (
   al_concept_ref  TEXT,                           
   cm_doc_ref      TEXT,                           
   meta_json       TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')), surah     INTEGER, ayah_from INTEGER, ayah_to   INTEGER,
   FOREIGN KEY (source_id)      REFERENCES wv_sources(id),
   FOREIGN KEY (source_unit_id) REFERENCES wv_source_units(id)
 );
@@ -1185,7 +1220,7 @@ CREATE TABLE wv_moral_axes (
   description_md  TEXT,
   domain_id       TEXT,
   sort_order      INTEGER NOT NULL DEFAULT 0,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')), concept_ref TEXT,
   FOREIGN KEY (domain_id) REFERENCES wv_domains(id)
 );
 
@@ -1293,6 +1328,18 @@ CREATE TABLE wv_node_edges (
   FOREIGN KEY (to_node_id)   REFERENCES wv_nodes(id)
 );
 
+CREATE TABLE wv_node_layout (
+  graph_id    TEXT NOT NULL,          -- the island: al-rum | arjana | orientalism | yusuf
+  node_id     TEXT NOT NULL,
+  x           REAL NOT NULL,
+  y           REAL NOT NULL,
+  -- Which arrangement produced these. 'force' today; a saved hand-arranged or
+  -- radial layout would be another, and both can coexist per graph.
+  layout_type TEXT NOT NULL DEFAULT 'force',
+  computed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (graph_id, layout_type, node_id)
+);
+
 CREATE TABLE wv_node_quran_links (
   id              TEXT PRIMARY KEY,
   node_id         TEXT NOT NULL,
@@ -1300,7 +1347,7 @@ CREATE TABLE wv_node_quran_links (
   link_type       TEXT NOT NULL DEFAULT 'illustrates',
     
   note            TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')), surah     INTEGER, ayah_from INTEGER, ayah_to   INTEGER,
   FOREIGN KEY (node_id) REFERENCES wv_nodes(id)
 );
 
@@ -1328,7 +1375,7 @@ CREATE TABLE wv_nodes (
   canonical_ref   TEXT,                           
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now')), person_ref TEXT,
   FOREIGN KEY (tradition_id)  REFERENCES wv_traditions(id),
   FOREIGN KEY (moral_axis_id) REFERENCES wv_moral_axes(id)
 );
@@ -1464,7 +1511,7 @@ CREATE TABLE wv_people (
     
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now')), person_ref TEXT,
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
 );
 
@@ -2036,6 +2083,38 @@ CREATE TABLE wv_temptation_modes (
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
 );
 
+CREATE TABLE wv_term (
+  id             TEXT PRIMARY KEY,          -- WT:{domain_slug|'-'}:{term_key}
+  -- The field this term belongs to, as a wv_domains.slug. NULL is meaningful
+  -- and not a gap: structural vocabulary — what a node is, what an edge means —
+  -- belongs to no field, and forcing it into one would invent a claim.
+  domain_slug    TEXT,
+  -- concept | node_type | relation_type | method | figure | trope | school
+  category_key   TEXT NOT NULL,
+  term_key       TEXT NOT NULL,
+  name_en        TEXT NOT NULL,
+  name_ar        TEXT,
+  name_ur        TEXT,
+  short_en       TEXT,
+  definition_en  TEXT,
+  -- The hierarchy. A term under a term: bare life under biopower, ẓāhirī under
+  -- fiqh. Self-referential so the depth is not fixed by the schema.
+  parent_term_id TEXT REFERENCES wv_term(id),
+  -- Whose term it is, when it belongs to one worldview rather than to a field.
+  tradition_id   TEXT,
+  -- The CN: pivot, when this term IS something worldviews can be compared on.
+  concept_ref    TEXT,
+  badge_color    TEXT,
+  icon           TEXT,
+  term_order     INTEGER NOT NULL DEFAULT 0,
+  version        INTEGER NOT NULL DEFAULT 1,
+  superseded_by  TEXT,
+  status         TEXT NOT NULL DEFAULT 'live',
+  uid            TEXT,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (domain_slug, category_key, term_key)
+);
+
 CREATE TABLE wv_term_links (
   id              TEXT PRIMARY KEY,
   entity_type     TEXT NOT NULL,  
@@ -2234,6 +2313,22 @@ CREATE TABLE wv_unit_blocks (
   FOREIGN KEY (parent_block_id) REFERENCES wv_unit_blocks(id)
 );
 
+CREATE TABLE wv_value_position_source (
+  id             TEXT PRIMARY KEY,
+  position_id    TEXT NOT NULL,
+  source_kind    TEXT NOT NULL,        -- 'quran' | 'book' | 'chunk' | 'external'
+  source_id      TEXT,                 -- wv_sources.id, when it is one of ours
+  source_unit_id TEXT,                 -- wv_source_units.id
+  locator        TEXT,                 -- 'p.15 / Fig 1.1' — the form already in use
+  qr_scope_ref   TEXT,                 -- '40:1-3'
+  excerpt        TEXT,
+  note_md        TEXT,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (position_id)    REFERENCES wv_value_positions(id),
+  FOREIGN KEY (source_id)      REFERENCES wv_sources(id),
+  FOREIGN KEY (source_unit_id) REFERENCES wv_source_units(id)
+);
+
 CREATE TABLE wv_value_positions (
   id              TEXT PRIMARY KEY,
   moral_axis_id   TEXT NOT NULL,
@@ -2246,7 +2341,7 @@ CREATE TABLE wv_value_positions (
     
   evidence_refs   TEXT,                           
   meta_json       TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')), concept_ref TEXT, qr_scope_ref TEXT, surah INTEGER, ayah_from INTEGER, ayah_to INTEGER, status TEXT NOT NULL DEFAULT 'live',
   FOREIGN KEY (moral_axis_id) REFERENCES wv_moral_axes(id),
   FOREIGN KEY (tradition_id)  REFERENCES wv_traditions(id),
   FOREIGN KEY (school_id)     REFERENCES wv_schools(id),
@@ -2281,7 +2376,41 @@ CREATE TABLE wv_virtue_profiles (
 );
 
 
--- ── Views (3) ────────────────────────────────────────────────────
+-- ── Views (6) ────────────────────────────────────────────────────
+
+CREATE VIEW core_person_violations AS
+  SELECT 'id_shape' AS kind, id AS row_id, id AS wrote FROM core_person
+   WHERE id NOT LIKE 'PN:%'
+  UNION ALL
+  SELECT 'key_mismatch', id, person_key FROM core_person
+   WHERE id <> 'PN:' || person_key
+  UNION ALL
+  -- Died before born. Cheap to check and the kind of thing a bulk import does.
+  SELECT 'dates', id, CAST(birth_year AS TEXT) || '–' || CAST(death_year AS TEXT)
+    FROM core_person
+   WHERE birth_year IS NOT NULL AND death_year IS NOT NULL AND death_year < birth_year;
+
+CREATE VIEW wv_ayah_coverage AS
+  SELECT l.node_id, n.node_type, n.title, n.tradition_id,
+         l.surah, l.ayah_from, l.ayah_to, l.link_type, l.qr_scope_ref
+    FROM wv_node_quran_links l
+    JOIN wv_nodes n ON n.id = l.node_id
+   WHERE l.surah IS NOT NULL;
+
+CREATE VIEW wv_term_violations AS
+  SELECT 'parent' AS kind, t.id AS row_id, t.parent_term_id AS wrote
+    FROM wv_term t
+   WHERE t.parent_term_id IS NOT NULL
+     AND t.parent_term_id NOT IN (SELECT id FROM wv_term)
+  UNION ALL
+  SELECT 'domain', t.id, t.domain_slug
+    FROM wv_term t
+   WHERE t.domain_slug IS NOT NULL
+     AND t.domain_slug NOT IN (SELECT slug FROM wv_domains)
+  UNION ALL
+  SELECT 'id_shape', t.id, t.id
+    FROM wv_term t
+   WHERE t.id NOT LIKE 'WT:%';
 
 CREATE VIEW wv_unit_content AS SELECT * FROM wv_unit_attachments WHERE attachment_type = 'content' AND status = 'active' ORDER BY source_unit_id, order_index;
 
@@ -2290,7 +2419,17 @@ CREATE VIEW wv_unit_documents AS SELECT * FROM wv_unit_attachments WHERE attachm
 CREATE VIEW wv_unit_episodes AS SELECT * FROM wv_unit_attachments WHERE attachment_type = 'episode' AND status = 'active' ORDER BY source_unit_id, order_index;
 
 
--- ── Indexes (159) ────────────────────────────────────────────────
+-- ── Indexes (177) ────────────────────────────────────────────────
+
+CREATE INDEX idx_core_concept_domain ON core_concept (domain);
+
+CREATE INDEX idx_core_concept_key    ON core_concept (concept_key);
+
+CREATE INDEX idx_core_person_born ON core_person (birth_year);
+
+CREATE INDEX idx_core_person_key  ON core_person (person_key);
+
+CREATE INDEX idx_core_person_type ON core_person (person_type, status);
 
 CREATE INDEX idx_wv_aff_entity ON wv_affiliations(entity_ref, entity_type);
 
@@ -2464,6 +2603,8 @@ CREATE INDEX idx_wv_ne_rel  ON wv_node_edges(relation_type);
 
 CREATE INDEX idx_wv_ne_to   ON wv_node_edges(to_node_id);
 
+CREATE INDEX idx_wv_nodes_person ON wv_nodes (person_ref);
+
 CREATE INDEX idx_wv_nql_node ON wv_node_quran_links(node_id);
 
 CREATE INDEX idx_wv_nql_qr   ON wv_node_quran_links(qr_scope_ref);
@@ -2501,6 +2642,8 @@ CREATE INDEX idx_wv_pe_type   ON wv_prophetic_episodes(episode_type);
 CREATE INDEX idx_wv_pel_episode ON wv_prophetic_episode_links(episode_id);
 
 CREATE INDEX idx_wv_pel_target  ON wv_prophetic_episode_links(target_type, target_id);
+
+CREATE INDEX idx_wv_people_ref ON wv_people (person_ref);
 
 CREATE INDEX idx_wv_per_years ON wv_periods(start_year, end_year);
 
@@ -2609,3 +2752,25 @@ CREATE INDEX idx_wv_unit_blocks_unit ON wv_unit_blocks (source_unit_id, order_in
 CREATE INDEX idx_wv_vp_axis ON wv_value_positions(moral_axis_id);
 
 CREATE INDEX idx_wv_vp_trad ON wv_virtue_profiles(tradition_id);
+
+CREATE INDEX idx_wvlayout_graph ON wv_node_layout (graph_id, layout_type);
+
+CREATE INDEX idx_wvnql_scope ON wv_node_quran_links (surah, ayah_from, ayah_to);
+
+CREATE INDEX idx_wvterm_concept ON wv_term (concept_ref);
+
+CREATE INDEX idx_wvterm_domain  ON wv_term (domain_slug, category_key, term_order);
+
+CREATE INDEX idx_wvterm_kind    ON wv_term (category_key, status);
+
+CREATE INDEX idx_wvterm_parent  ON wv_term (parent_term_id);
+
+CREATE INDEX idx_wvvp_concept   ON wv_value_positions (concept_ref);
+
+CREATE INDEX idx_wvvp_scope     ON wv_value_positions (surah, ayah_from, ayah_to);
+
+CREATE INDEX idx_wvvp_tradition ON wv_value_positions (tradition_id);
+
+CREATE INDEX idx_wvvps_position ON wv_value_position_source (position_id);
+
+CREATE INDEX idx_wvvps_source   ON wv_value_position_source (source_id);

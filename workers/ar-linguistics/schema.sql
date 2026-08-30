@@ -1,22 +1,9 @@
--- km_arabic_linguistic · schema, dumped from the live D1 database.
---
--- A DUMP, kept identical to production so code is never read against a schema
--- that is not the one running. Do not hand-edit — write a migration in
--- kmaps-ios/tools/migrations and re-dump:
---
---   npx wrangler d1 execute km_arabic_linguistic --remote --json \
---     --command "SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL"
---
--- 176 tables · 23 views · 213 indexes · 13 triggers
+-- Schema for km_arabic_linguistic.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-30.
+-- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
+-- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ==========================================================================
--- TABLES (176)
--- ==========================================================================
-
-CREATE TABLE _cf_KV (
-        key TEXT PRIMARY KEY,
-        value BLOB
-      ) WITHOUT ROWID;
+-- ── Tables (137) ─────────────────────────────────────────────────
 
 CREATE TABLE ar_ling_concept_block (
   id                TEXT PRIMARY KEY,
@@ -55,16 +42,6 @@ CREATE VIRTUAL TABLE ar_ling_concept_block_fts USING fts5(
   title_ar, title_en, title_ur, text_plain, translation_en, translation_ur,
   tokenize = 'unicode61 remove_diacritics 2'
 );
-
-CREATE TABLE 'ar_ling_concept_block_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
-
-CREATE TABLE 'ar_ling_concept_block_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9);
-
-CREATE TABLE 'ar_ling_concept_block_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
-
-CREATE TABLE 'ar_ling_concept_block_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
-
-CREATE TABLE 'ar_ling_concept_block_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 
 CREATE TABLE ar_ling_concept_block_link (
   id                TEXT PRIMARY KEY,
@@ -300,16 +277,6 @@ CREATE VIRTUAL TABLE ar_ling_gram_chunks_fts USING fts5(
   id UNINDEXED, discipline UNINDEXED, source_slug UNINDEXED,
   heading_norm, text_ar, footnotes_ar,
   tokenize='unicode61 remove_diacritics 2');
-
-CREATE TABLE 'ar_ling_gram_chunks_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
-
-CREATE TABLE 'ar_ling_gram_chunks_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3, c4, c5);
-
-CREATE TABLE 'ar_ling_gram_chunks_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
-
-CREATE TABLE 'ar_ling_gram_chunks_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
-
-CREATE TABLE 'ar_ling_gram_chunks_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 
 CREATE TABLE ar_ling_gram_external_toc ( source_slug TEXT NOT NULL, section TEXT NOT NULL, entry_no INTEGER NOT NULL, title_ar TEXT NOT NULL, url TEXT GENERATED ALWAYS AS ('https://jamharah.net/archive/index.php/t-'||entry_no||'.html') VIRTUAL, id TEXT GENERATED ALWAYS AS ('adima:'||section||':'||entry_no) VIRTUAL, bab_ref     TEXT REFERENCES ar_ling_gram_bab(id), chunk_ref   TEXT REFERENCES ar_ling_gram_chunk(id), match_kind  TEXT, match_score REAL, PRIMARY KEY (source_slug, section, entry_no) );
 
@@ -646,14 +613,6 @@ CREATE VIRTUAL TABLE ar_ling_lexicon_block_fts USING fts5(
   content='ar_ling_lexicon_block', content_rowid='rowid'
 );
 
-CREATE TABLE 'ar_ling_lexicon_block_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
-
-CREATE TABLE 'ar_ling_lexicon_block_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
-
-CREATE TABLE 'ar_ling_lexicon_block_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
-
-CREATE TABLE 'ar_ling_lexicon_block_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
-
 CREATE TABLE "ar_ling_lexicon_block_link" (
   id                TEXT PRIMARY KEY,
   from_block_id     TEXT NOT NULL,
@@ -727,14 +686,6 @@ CREATE VIRTUAL TABLE ar_ling_lexicon_book_page_fts USING fts5(
   clean_text, source_slug, root_norm,
   content='ar_ling_lexicon_book_page', content_rowid='rowid'
 );
-
-CREATE TABLE 'ar_ling_lexicon_book_page_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
-
-CREATE TABLE 'ar_ling_lexicon_book_page_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
-
-CREATE TABLE 'ar_ling_lexicon_book_page_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
-
-CREATE TABLE 'ar_ling_lexicon_book_page_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 
 CREATE TABLE ar_ling_lexicon_display_block_kind (
   kind_code    TEXT PRIMARY KEY,
@@ -868,14 +819,6 @@ CREATE VIRTUAL TABLE ar_ling_lexicon_entry_fts USING fts5(
   content_rowid='rowid'
 );
 
-CREATE TABLE 'ar_ling_lexicon_entry_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
-
-CREATE TABLE 'ar_ling_lexicon_entry_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
-
-CREATE TABLE 'ar_ling_lexicon_entry_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
-
-CREATE TABLE 'ar_ling_lexicon_entry_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
-
 CREATE TABLE "ar_ling_lexicon_entry_section" (
   id                        TEXT PRIMARY KEY,
 
@@ -934,14 +877,6 @@ CREATE VIRTUAL TABLE ar_ling_lexicon_entry_section_fts USING fts5(
   content='ar_ling_lexicon_entry_section',
   content_rowid='rowid'
 );
-
-CREATE TABLE 'ar_ling_lexicon_entry_section_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
-
-CREATE TABLE 'ar_ling_lexicon_entry_section_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
-
-CREATE TABLE 'ar_ling_lexicon_entry_section_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
-
-CREATE TABLE 'ar_ling_lexicon_entry_section_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 
 CREATE TABLE "ar_ling_lexicon_entry_source" (
   id                TEXT PRIMARY KEY,
@@ -1884,16 +1819,6 @@ CREATE VIRTUAL TABLE ar_ling_roots_fts USING fts5(
   tokenize = "unicode61 remove_diacritics 2"
 );
 
-CREATE TABLE 'ar_ling_roots_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
-
-CREATE TABLE 'ar_ling_roots_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3, c4, c5);
-
-CREATE TABLE 'ar_ling_roots_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
-
-CREATE TABLE 'ar_ling_roots_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
-
-CREATE TABLE 'ar_ling_roots_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
-
 CREATE TABLE ar_ling_sarf_wazn (
   id            TEXT PRIMARY KEY,
   wazn_key      TEXT NOT NULL UNIQUE,
@@ -2010,16 +1935,6 @@ CREATE TABLE "ar_ling_source_chunk" (
 
 CREATE VIRTUAL TABLE ar_ling_source_chunks_fts USING fts5(heading_norm, text_ar, text_en);
 
-CREATE TABLE 'ar_ling_source_chunks_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
-
-CREATE TABLE 'ar_ling_source_chunks_fts_content'(id INTEGER PRIMARY KEY, c0, c1, c2);
-
-CREATE TABLE 'ar_ling_source_chunks_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
-
-CREATE TABLE 'ar_ling_source_chunks_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
-
-CREATE TABLE 'ar_ling_source_chunks_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
-
 CREATE TABLE "ar_ling_source_citation" (
   id TEXT PRIMARY KEY, root_norm TEXT, from_layer TEXT NOT NULL, from_id TEXT NOT NULL,
   to_ref TEXT NOT NULL, to_kind TEXT NOT NULL, relation TEXT NOT NULL DEFAULT 'grounds',
@@ -2103,19 +2018,10 @@ CREATE TABLE "ar_ling_term_dictionary" (
   PRIMARY KEY (term_text, root_norm)
 );
 
-CREATE TABLE d1_migrations(
-		id         INTEGER PRIMARY KEY AUTOINCREMENT,
-		name       TEXT UNIQUE,
-		applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
-
-CREATE TABLE sqlite_sequence(name,seq);
-
 CREATE TABLE tmp_qroot (root TEXT PRIMARY KEY);
 
--- ==========================================================================
--- VIEWS (23)
--- ==========================================================================
+
+-- ── Views (23) ───────────────────────────────────────────────────
 
 CREATE VIEW ar_ling_gram_term_signature AS
  SELECT COUNT(*) AS term_count,
@@ -2298,244 +2204,8 @@ UNION ALL SELECT 'ar_ling_word_sums', id, lemma_ar FROM "ar_ling_root_lemma_word
 UNION ALL SELECT 'ar_ling_form_paradigms', id, paradigm_name FROM "ar_ling_root_form_paradigm" WHERE source_slug IS NULL
 UNION ALL SELECT 'ar_ling_conjugation_templates', id, template_form FROM "ar_ling_root_form_template" WHERE source_slug IS NULL;
 
--- ==========================================================================
--- TRIGGERS (13)
--- ==========================================================================
 
-CREATE TRIGGER trg_root_lemma_no_typed_prefix
-BEFORE INSERT ON ar_ling_root_lemma
-FOR EACH ROW WHEN NEW.id LIKE 'AL:%'
-BEGIN
-  SELECT RAISE(ABORT, 'ar_ling_root_lemma.id must be bare - the AL: prefix belongs at the reference site (qr_lemma.lx_lemma_ref), not in the primary key');
-END;
-
-CREATE TRIGGER trig_albk_fts_ad
-AFTER DELETE ON ar_ling_lexicon_block BEGIN
-  INSERT INTO ar_ling_lexicon_block_fts(
-    ar_ling_lexicon_block_fts,
-    rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type
-  ) VALUES (
-    'delete', old.rowid,
-    COALESCE(old.text_plain, ''),
-    COALESCE(old.title_ar, ''),
-    COALESCE(old.title_en, ''),
-    old.root_norm,
-    old.source_slug,
-    old.block_type
-  );
-END;
-
-CREATE TRIGGER trig_albk_fts_ai
-AFTER INSERT ON ar_ling_lexicon_block BEGIN
-  INSERT INTO ar_ling_lexicon_block_fts(
-    rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type
-  ) VALUES (
-    new.rowid,
-    COALESCE(new.text_plain, ''),
-    COALESCE(new.title_ar, ''),
-    COALESCE(new.title_en, ''),
-    new.root_norm,
-    new.source_slug,
-    new.block_type
-  );
-END;
-
-CREATE TRIGGER trig_albk_fts_au
-AFTER UPDATE ON ar_ling_lexicon_block BEGIN
-  INSERT INTO ar_ling_lexicon_block_fts(
-    ar_ling_lexicon_block_fts,
-    rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type
-  ) VALUES (
-    'delete', old.rowid,
-    COALESCE(old.text_plain, ''),
-    COALESCE(old.title_ar, ''),
-    COALESCE(old.title_en, ''),
-    old.root_norm,
-    old.source_slug,
-    old.block_type
-  );
-  INSERT INTO ar_ling_lexicon_block_fts(
-    rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type
-  ) VALUES (
-    new.rowid,
-    COALESCE(new.text_plain, ''),
-    COALESCE(new.title_ar, ''),
-    COALESCE(new.title_en, ''),
-    new.root_norm,
-    new.source_slug,
-    new.block_type
-  );
-END;
-
-CREATE TRIGGER trig_albp_fts_ad
-AFTER DELETE ON ar_ling_lexicon_book_page BEGIN
-  INSERT INTO ar_ling_lexicon_book_page_fts(
-    ar_ling_lexicon_book_page_fts,
-    rowid, clean_text, source_slug, root_norm
-  ) VALUES (
-    'delete', old.rowid,
-    COALESCE(old.clean_text, ''),
-    old.source_slug,
-    old.root_norm
-  );
-END;
-
-CREATE TRIGGER trig_albp_fts_ai
-AFTER INSERT ON ar_ling_lexicon_book_page BEGIN
-  INSERT INTO ar_ling_lexicon_book_page_fts(
-    rowid, clean_text, source_slug, root_norm
-  ) VALUES (
-    new.rowid,
-    COALESCE(new.clean_text, ''),
-    new.source_slug,
-    new.root_norm
-  );
-END;
-
-CREATE TRIGGER trig_albp_fts_au
-AFTER UPDATE ON ar_ling_lexicon_book_page BEGIN
-  INSERT INTO ar_ling_lexicon_book_page_fts(
-    ar_ling_lexicon_book_page_fts,
-    rowid, clean_text, source_slug, root_norm
-  ) VALUES (
-    'delete', old.rowid,
-    COALESCE(old.clean_text, ''),
-    old.source_slug,
-    old.root_norm
-  );
-  INSERT INTO ar_ling_lexicon_book_page_fts(
-    rowid, clean_text, source_slug, root_norm
-  ) VALUES (
-    new.rowid,
-    COALESCE(new.clean_text, ''),
-    new.source_slug,
-    new.root_norm
-  );
-END;
-
-CREATE TRIGGER trig_ales_fts_ad
-AFTER DELETE ON ar_ling_lexicon_entry_section BEGIN
-  INSERT INTO ar_ling_lexicon_entry_section_fts(
-    ar_ling_lexicon_entry_section_fts,
-    rowid, root_text, root_norm,
-    heading_ar, heading_norm, heading_bare,
-    section_type, text_ar, text_en
-  ) VALUES (
-    'delete',
-    old.rowid, old.root_text, old.root_norm,
-    COALESCE(old.heading_ar, ''),
-    COALESCE(old.heading_norm, ''),
-    COALESCE(old.heading_bare, ''),
-    COALESCE(old.section_type, ''),
-    COALESCE(old.text_ar, ''),
-    COALESCE(old.text_en, '')
-  );
-END;
-
-CREATE TRIGGER trig_ales_fts_ai
-AFTER INSERT ON ar_ling_lexicon_entry_section BEGIN
-  INSERT INTO ar_ling_lexicon_entry_section_fts(
-    rowid, root_text, root_norm,
-    heading_ar, heading_norm, heading_bare,
-    section_type, text_ar, text_en
-  ) VALUES (
-    new.rowid, new.root_text, new.root_norm,
-    COALESCE(new.heading_ar, ''),
-    COALESCE(new.heading_norm, ''),
-    COALESCE(new.heading_bare, ''),
-    COALESCE(new.section_type, ''),
-    COALESCE(new.text_ar, ''),
-    COALESCE(new.text_en, '')
-  );
-END;
-
-CREATE TRIGGER trig_ales_fts_au
-AFTER UPDATE ON ar_ling_lexicon_entry_section BEGIN
-  INSERT INTO ar_ling_lexicon_entry_section_fts(
-    ar_ling_lexicon_entry_section_fts,
-    rowid, root_text, root_norm,
-    heading_ar, heading_norm, heading_bare,
-    section_type, text_ar, text_en
-  ) VALUES (
-    'delete',
-    old.rowid, old.root_text, old.root_norm,
-    COALESCE(old.heading_ar, ''),
-    COALESCE(old.heading_norm, ''),
-    COALESCE(old.heading_bare, ''),
-    COALESCE(old.section_type, ''),
-    COALESCE(old.text_ar, ''),
-    COALESCE(old.text_en, '')
-  );
-  INSERT INTO ar_ling_lexicon_entry_section_fts(
-    rowid, root_text, root_norm,
-    heading_ar, heading_norm, heading_bare,
-    section_type, text_ar, text_en
-  ) VALUES (
-    new.rowid, new.root_text, new.root_norm,
-    COALESCE(new.heading_ar, ''),
-    COALESCE(new.heading_norm, ''),
-    COALESCE(new.heading_bare, ''),
-    COALESCE(new.section_type, ''),
-    COALESCE(new.text_ar, ''),
-    COALESCE(new.text_en, '')
-  );
-END;
-
-CREATE TRIGGER trig_alre_fts_ad
-AFTER DELETE ON ar_ling_lexicon_entry BEGIN
-  INSERT INTO ar_ling_lexicon_entry_fts(
-    ar_ling_lexicon_entry_fts,
-    rowid, root_text, root_norm, source_slug,
-    entry_text_ar, entry_text_en, raw_text
-  ) VALUES (
-    'delete',
-    old.rowid, old.root_text, old.root_norm, old.source_slug,
-    COALESCE(old.entry_text_ar, ''),
-    COALESCE(old.entry_text_en, ''),
-    COALESCE(old.raw_text, '')
-  );
-END;
-
-CREATE TRIGGER trig_alre_fts_ai
-AFTER INSERT ON ar_ling_lexicon_entry BEGIN
-  INSERT INTO ar_ling_lexicon_entry_fts(
-    rowid, root_text, root_norm, source_slug,
-    entry_text_ar, entry_text_en, raw_text
-  ) VALUES (
-    new.rowid, new.root_text, new.root_norm, new.source_slug,
-    COALESCE(new.entry_text_ar, ''),
-    COALESCE(new.entry_text_en, ''),
-    COALESCE(new.raw_text, '')
-  );
-END;
-
-CREATE TRIGGER trig_alre_fts_au
-AFTER UPDATE ON ar_ling_lexicon_entry BEGIN
-  INSERT INTO ar_ling_lexicon_entry_fts(
-    ar_ling_lexicon_entry_fts,
-    rowid, root_text, root_norm, source_slug,
-    entry_text_ar, entry_text_en, raw_text
-  ) VALUES (
-    'delete',
-    old.rowid, old.root_text, old.root_norm, old.source_slug,
-    COALESCE(old.entry_text_ar, ''),
-    COALESCE(old.entry_text_en, ''),
-    COALESCE(old.raw_text, '')
-  );
-  INSERT INTO ar_ling_lexicon_entry_fts(
-    rowid, root_text, root_norm, source_slug,
-    entry_text_ar, entry_text_en, raw_text
-  ) VALUES (
-    new.rowid, new.root_text, new.root_norm, new.source_slug,
-    COALESCE(new.entry_text_ar, ''),
-    COALESCE(new.entry_text_en, ''),
-    COALESCE(new.raw_text, '')
-  );
-END;
-
--- ==========================================================================
--- INDEXES (213)
--- ==========================================================================
+-- ── Indexes (213) ────────────────────────────────────────────────
 
 CREATE INDEX idx_albk_book_page
   ON "ar_ling_lexicon_block"(book_page_id);
@@ -3031,3 +2701,237 @@ CREATE UNIQUE INDEX ux_gram_term_uid ON ar_ling_gram_term(uid);
 CREATE UNIQUE INDEX ux_morph_flags ON "ar_ling_root_lemma_sarf"(qac_flags, pos);
 
 CREATE UNIQUE INDEX ux_roots_norm ON "ar_ling_roots"(root_normalized);
+
+
+-- ── Triggers (13) ────────────────────────────────────────────────
+
+CREATE TRIGGER trg_root_lemma_no_typed_prefix
+BEFORE INSERT ON ar_ling_root_lemma
+FOR EACH ROW WHEN NEW.id LIKE 'AL:%'
+BEGIN
+  SELECT RAISE(ABORT, 'ar_ling_root_lemma.id must be bare - the AL: prefix belongs at the reference site (qr_lemma.lx_lemma_ref), not in the primary key');
+END;
+
+CREATE TRIGGER trig_albk_fts_ad
+AFTER DELETE ON ar_ling_lexicon_block BEGIN
+  INSERT INTO ar_ling_lexicon_block_fts(
+    ar_ling_lexicon_block_fts,
+    rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type
+  ) VALUES (
+    'delete', old.rowid,
+    COALESCE(old.text_plain, ''),
+    COALESCE(old.title_ar, ''),
+    COALESCE(old.title_en, ''),
+    old.root_norm,
+    old.source_slug,
+    old.block_type
+  );
+END;
+
+CREATE TRIGGER trig_albk_fts_ai
+AFTER INSERT ON ar_ling_lexicon_block BEGIN
+  INSERT INTO ar_ling_lexicon_block_fts(
+    rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type
+  ) VALUES (
+    new.rowid,
+    COALESCE(new.text_plain, ''),
+    COALESCE(new.title_ar, ''),
+    COALESCE(new.title_en, ''),
+    new.root_norm,
+    new.source_slug,
+    new.block_type
+  );
+END;
+
+CREATE TRIGGER trig_albk_fts_au
+AFTER UPDATE ON ar_ling_lexicon_block BEGIN
+  INSERT INTO ar_ling_lexicon_block_fts(
+    ar_ling_lexicon_block_fts,
+    rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type
+  ) VALUES (
+    'delete', old.rowid,
+    COALESCE(old.text_plain, ''),
+    COALESCE(old.title_ar, ''),
+    COALESCE(old.title_en, ''),
+    old.root_norm,
+    old.source_slug,
+    old.block_type
+  );
+  INSERT INTO ar_ling_lexicon_block_fts(
+    rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type
+  ) VALUES (
+    new.rowid,
+    COALESCE(new.text_plain, ''),
+    COALESCE(new.title_ar, ''),
+    COALESCE(new.title_en, ''),
+    new.root_norm,
+    new.source_slug,
+    new.block_type
+  );
+END;
+
+CREATE TRIGGER trig_albp_fts_ad
+AFTER DELETE ON ar_ling_lexicon_book_page BEGIN
+  INSERT INTO ar_ling_lexicon_book_page_fts(
+    ar_ling_lexicon_book_page_fts,
+    rowid, clean_text, source_slug, root_norm
+  ) VALUES (
+    'delete', old.rowid,
+    COALESCE(old.clean_text, ''),
+    old.source_slug,
+    old.root_norm
+  );
+END;
+
+CREATE TRIGGER trig_albp_fts_ai
+AFTER INSERT ON ar_ling_lexicon_book_page BEGIN
+  INSERT INTO ar_ling_lexicon_book_page_fts(
+    rowid, clean_text, source_slug, root_norm
+  ) VALUES (
+    new.rowid,
+    COALESCE(new.clean_text, ''),
+    new.source_slug,
+    new.root_norm
+  );
+END;
+
+CREATE TRIGGER trig_albp_fts_au
+AFTER UPDATE ON ar_ling_lexicon_book_page BEGIN
+  INSERT INTO ar_ling_lexicon_book_page_fts(
+    ar_ling_lexicon_book_page_fts,
+    rowid, clean_text, source_slug, root_norm
+  ) VALUES (
+    'delete', old.rowid,
+    COALESCE(old.clean_text, ''),
+    old.source_slug,
+    old.root_norm
+  );
+  INSERT INTO ar_ling_lexicon_book_page_fts(
+    rowid, clean_text, source_slug, root_norm
+  ) VALUES (
+    new.rowid,
+    COALESCE(new.clean_text, ''),
+    new.source_slug,
+    new.root_norm
+  );
+END;
+
+CREATE TRIGGER trig_ales_fts_ad
+AFTER DELETE ON ar_ling_lexicon_entry_section BEGIN
+  INSERT INTO ar_ling_lexicon_entry_section_fts(
+    ar_ling_lexicon_entry_section_fts,
+    rowid, root_text, root_norm,
+    heading_ar, heading_norm, heading_bare,
+    section_type, text_ar, text_en
+  ) VALUES (
+    'delete',
+    old.rowid, old.root_text, old.root_norm,
+    COALESCE(old.heading_ar, ''),
+    COALESCE(old.heading_norm, ''),
+    COALESCE(old.heading_bare, ''),
+    COALESCE(old.section_type, ''),
+    COALESCE(old.text_ar, ''),
+    COALESCE(old.text_en, '')
+  );
+END;
+
+CREATE TRIGGER trig_ales_fts_ai
+AFTER INSERT ON ar_ling_lexicon_entry_section BEGIN
+  INSERT INTO ar_ling_lexicon_entry_section_fts(
+    rowid, root_text, root_norm,
+    heading_ar, heading_norm, heading_bare,
+    section_type, text_ar, text_en
+  ) VALUES (
+    new.rowid, new.root_text, new.root_norm,
+    COALESCE(new.heading_ar, ''),
+    COALESCE(new.heading_norm, ''),
+    COALESCE(new.heading_bare, ''),
+    COALESCE(new.section_type, ''),
+    COALESCE(new.text_ar, ''),
+    COALESCE(new.text_en, '')
+  );
+END;
+
+CREATE TRIGGER trig_ales_fts_au
+AFTER UPDATE ON ar_ling_lexicon_entry_section BEGIN
+  INSERT INTO ar_ling_lexicon_entry_section_fts(
+    ar_ling_lexicon_entry_section_fts,
+    rowid, root_text, root_norm,
+    heading_ar, heading_norm, heading_bare,
+    section_type, text_ar, text_en
+  ) VALUES (
+    'delete',
+    old.rowid, old.root_text, old.root_norm,
+    COALESCE(old.heading_ar, ''),
+    COALESCE(old.heading_norm, ''),
+    COALESCE(old.heading_bare, ''),
+    COALESCE(old.section_type, ''),
+    COALESCE(old.text_ar, ''),
+    COALESCE(old.text_en, '')
+  );
+  INSERT INTO ar_ling_lexicon_entry_section_fts(
+    rowid, root_text, root_norm,
+    heading_ar, heading_norm, heading_bare,
+    section_type, text_ar, text_en
+  ) VALUES (
+    new.rowid, new.root_text, new.root_norm,
+    COALESCE(new.heading_ar, ''),
+    COALESCE(new.heading_norm, ''),
+    COALESCE(new.heading_bare, ''),
+    COALESCE(new.section_type, ''),
+    COALESCE(new.text_ar, ''),
+    COALESCE(new.text_en, '')
+  );
+END;
+
+CREATE TRIGGER trig_alre_fts_ad
+AFTER DELETE ON ar_ling_lexicon_entry BEGIN
+  INSERT INTO ar_ling_lexicon_entry_fts(
+    ar_ling_lexicon_entry_fts,
+    rowid, root_text, root_norm, source_slug,
+    entry_text_ar, entry_text_en, raw_text
+  ) VALUES (
+    'delete',
+    old.rowid, old.root_text, old.root_norm, old.source_slug,
+    COALESCE(old.entry_text_ar, ''),
+    COALESCE(old.entry_text_en, ''),
+    COALESCE(old.raw_text, '')
+  );
+END;
+
+CREATE TRIGGER trig_alre_fts_ai
+AFTER INSERT ON ar_ling_lexicon_entry BEGIN
+  INSERT INTO ar_ling_lexicon_entry_fts(
+    rowid, root_text, root_norm, source_slug,
+    entry_text_ar, entry_text_en, raw_text
+  ) VALUES (
+    new.rowid, new.root_text, new.root_norm, new.source_slug,
+    COALESCE(new.entry_text_ar, ''),
+    COALESCE(new.entry_text_en, ''),
+    COALESCE(new.raw_text, '')
+  );
+END;
+
+CREATE TRIGGER trig_alre_fts_au
+AFTER UPDATE ON ar_ling_lexicon_entry BEGIN
+  INSERT INTO ar_ling_lexicon_entry_fts(
+    ar_ling_lexicon_entry_fts,
+    rowid, root_text, root_norm, source_slug,
+    entry_text_ar, entry_text_en, raw_text
+  ) VALUES (
+    'delete',
+    old.rowid, old.root_text, old.root_norm, old.source_slug,
+    COALESCE(old.entry_text_ar, ''),
+    COALESCE(old.entry_text_en, ''),
+    COALESCE(old.raw_text, '')
+  );
+  INSERT INTO ar_ling_lexicon_entry_fts(
+    rowid, root_text, root_norm, source_slug,
+    entry_text_ar, entry_text_en, raw_text
+  ) VALUES (
+    new.rowid, new.root_text, new.root_norm, new.source_slug,
+    COALESCE(new.entry_text_ar, ''),
+    COALESCE(new.entry_text_en, ''),
+    COALESCE(new.raw_text, '')
+  );
+END;

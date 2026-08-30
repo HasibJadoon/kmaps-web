@@ -1,9 +1,9 @@
 -- Schema for km_core.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-24.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-30.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (67) ──────────────────────────────────────────────────
+-- ── Tables (78) ──────────────────────────────────────────────────
 
 CREATE TABLE core_activity_events (
   id              TEXT PRIMARY KEY,               -- ULID
@@ -67,6 +67,50 @@ CREATE TABLE core_auth_tokens (
   FOREIGN KEY (user_id) REFERENCES core_users(id)
 );
 
+CREATE TABLE core_concept (
+  id         TEXT PRIMARY KEY,          -- CN:{domain}:{key}
+  uid        TEXT NOT NULL UNIQUE,      -- 26-hex, the convention the other registries use
+  concept_key TEXT NOT NULL,
+  label_en   TEXT,
+  label_ar   TEXT,
+  domain     TEXT NOT NULL,
+  origin     TEXT NOT NULL,             -- which side first named it
+  status     TEXT NOT NULL DEFAULT 'live',
+  note_md    TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE core_concept_binding (
+  concept_ref  TEXT NOT NULL,
+  source_db    TEXT NOT NULL,
+  source_table TEXT NOT NULL,
+  source_id    TEXT NOT NULL,
+  role         TEXT NOT NULL DEFAULT 'expresses',
+  note         TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (concept_ref, source_db, source_table, source_id)
+);
+
+CREATE TABLE core_daily_log (
+  id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(8)))),
+  log_date        TEXT NOT NULL DEFAULT (date('now')),
+  project         TEXT NOT NULL,
+  focus           TEXT NOT NULL DEFAULT 'other'
+                    CHECK (focus IN ('registry','sources','morphology','cards','schema','app','docs','other')),
+  unit_kind       TEXT CHECK (unit_kind IS NULL OR unit_kind IN ('source_root','gram_term','adima_toc','ayah','root','lemma','table','other')),
+  unit_ref        TEXT,
+  source_slug     TEXT,
+  whats_new       TEXT NOT NULL,
+  state           TEXT NOT NULL DEFAULT 'done' CHECK (state IN ('done','partial','blocked','abandoned','exploring')),
+  next_step       TEXT,
+  already_checked TEXT,
+  minutes         INTEGER CHECK (minutes IS NULL OR minutes >= 0),
+  energy          INTEGER CHECK (energy IS NULL OR energy BETWEEN 1 AND 5),
+  felt            TEXT,
+  session_url     TEXT,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+, user_ref TEXT);
+
 CREATE TABLE core_external_refs (
   id              TEXT PRIMARY KEY,
   legacy_source   TEXT NOT NULL,                  -- e.g. 'knowledgemap'|'old_wv'|'import_v1'
@@ -125,6 +169,28 @@ CREATE TABLE core_people (
   FOREIGN KEY (linked_user_id) REFERENCES core_users(id)
 );
 
+CREATE TABLE core_person (
+  id            TEXT PRIMARY KEY,        -- PN:{slug}
+  uid           TEXT NOT NULL UNIQUE,    -- 26-hex, the convention the others use
+  person_key    TEXT NOT NULL,           -- the slug, on its own
+  name_en       TEXT NOT NULL,
+  name_ar       TEXT,
+  name_native   TEXT,                    -- as written in their own language
+  -- scholar | poet | philosopher | thinker | author | host | guest | figure
+  person_type   TEXT NOT NULL DEFAULT 'figure',
+  birth_year    INTEGER,
+  death_year    INTEGER,
+  -- Free text on purpose: "13th century", "fl. 900s", "contemporary". Dates are
+  -- the precise field; this is what you say when precision is not available.
+  era           TEXT,
+  nationality   TEXT,
+  tradition_ref TEXT,                    -- wv_traditions.id, where one applies
+  bio_md        TEXT,
+  origin        TEXT NOT NULL DEFAULT 'worldview',   -- which side first named them
+  status        TEXT NOT NULL DEFAULT 'live',
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE core_platform_config (
   id              TEXT PRIMARY KEY,
   config_key      TEXT NOT NULL UNIQUE,
@@ -166,6 +232,56 @@ CREATE TABLE core_podcasts (
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (workspace_id) REFERENCES core_workspaces(id)
+);
+
+CREATE TABLE core_quiz_answer (
+  id            TEXT PRIMARY KEY,
+  session_ref   TEXT NOT NULL REFERENCES core_quiz_session(id) ON DELETE CASCADE,
+  question_ref  TEXT NOT NULL,
+  user_ref      TEXT NOT NULL,
+  choice        INTEGER,                          -- NULL when they ran out of time
+  correct       INTEGER NOT NULL DEFAULT 0,
+  -- Milliseconds from the question appearing to the answer landing. Kept raw so
+  -- the scoring rule can change without losing what actually happened.
+  ms            INTEGER,
+  points        INTEGER NOT NULL DEFAULT 0,
+  answered_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  UNIQUE (session_ref, question_ref, user_ref)
+);
+
+CREATE TABLE core_quiz_question (
+  id            TEXT PRIMARY KEY,
+  author_ref    TEXT NOT NULL,                    -- CORE:ULID → core_users
+  module        TEXT NOT NULL CHECK (module IN ('QR','AL','AR','WV','EN','other')),
+  domain        TEXT,                             -- concept domain, when it has one
+  resource_ref  TEXT,                             -- "44:3", a lemma id, a concept ref
+  prompt        TEXT NOT NULL,
+  -- A JSON array of strings. Two to six of them; the count is what the client
+  -- draws, so it is not fixed at four.
+  options_json  TEXT NOT NULL CHECK (json_valid(options_json)),
+  -- Index into options_json. Never sent to a player before the reveal.
+  correct_index INTEGER NOT NULL,
+  explanation   TEXT,
+  -- How long the room gets. Speed is half the score, so the limit is part of
+  -- the question rather than a session-wide setting.
+  seconds       INTEGER NOT NULL DEFAULT 20,
+  difficulty    TEXT,
+  tags          TEXT,
+  status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','retired')),
+  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+, surah INTEGER, ayah_from INTEGER, ayah_to INTEGER, passage_ref TEXT, step_key TEXT, topic TEXT, concept_ref TEXT, source TEXT NOT NULL DEFAULT 'authored', generated_from TEXT);
+
+CREATE TABLE core_quiz_session (
+  id           TEXT PRIMARY KEY,
+  code         TEXT NOT NULL UNIQUE,              -- the six letters read out loud
+  host_ref     TEXT NOT NULL,
+  title        TEXT,
+  module       TEXT,
+  status       TEXT NOT NULL DEFAULT 'lobby' CHECK (status IN ('lobby','live','ended')),
+  started_at   TEXT,
+  ended_at     TEXT,
+  created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 
 CREATE TABLE core_resource_grants (
@@ -211,6 +327,24 @@ CREATE TABLE core_root_build_stat (root_ar TEXT PRIMARY KEY, freq_quran INTEGER 
 CREATE TABLE core_root_surah_map (root_uid TEXT PRIMARY KEY, spread TEXT, n_surahs INTEGER, total_occur INTEGER);
 
 CREATE TABLE core_root_uid_map (root_ar TEXT PRIMARY KEY, root_uid TEXT NOT NULL, synced_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')));
+
+CREATE TABLE core_source_log (
+  id            TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(8)))),
+  title         TEXT NOT NULL,
+  author        TEXT,
+  domain        TEXT NOT NULL DEFAULT 'other' CHECK (domain IN ('arabic','quran','worldview','other')),
+  source_kind   TEXT,
+  source_slug   TEXT,
+  locator       TEXT,
+  explore_state TEXT NOT NULL DEFAULT 'want' CHECK (explore_state IN ('want','exploring','explored','parked','rejected')),
+  priority      INTEGER CHECK (priority IS NULL OR priority BETWEEN 1 AND 5),
+  why           TEXT,
+  found_what    TEXT,
+  verdict       TEXT,
+  first_seen    TEXT NOT NULL DEFAULT (date('now')),
+  last_touched  TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+, registered_in TEXT NOT NULL DEFAULT 'none', user_ref TEXT);
 
 CREATE TABLE "core_srs_card" (
   id             TEXT PRIMARY KEY,
@@ -388,6 +522,32 @@ CREATE TABLE core_study_session (
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE core_talk_card (
+  id         TEXT PRIMARY KEY,
+  deck_ref   TEXT NOT NULL REFERENCES core_talk_deck(id) ON DELETE CASCADE,
+  prompt     TEXT NOT NULL,
+  -- 1 light · 2 real · 3 the one you ask last.
+  depth      INTEGER NOT NULL DEFAULT 1 CHECK (depth BETWEEN 1 AND 3),
+  tags       TEXT,
+  seq        INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+, for_name TEXT, for_ref TEXT, asked_at TEXT);
+
+CREATE TABLE core_talk_deck (
+  id          TEXT PRIMARY KEY,
+  owner_ref   TEXT NOT NULL,                      -- CORE:ULID → core_users
+  title       TEXT NOT NULL,
+  description TEXT,
+  -- Who it is for. The same question is a different question across a dinner
+  -- table and a long drive with one friend.
+  audience    TEXT NOT NULL DEFAULT 'friends'
+                CHECK (audience IN ('family','friends','couples','kids','work','mixed')),
+  language    TEXT NOT NULL DEFAULT 'en',
+  is_shared   INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+, workspace_ref TEXT);
+
 CREATE TABLE core_talking_points (
   id             TEXT PRIMARY KEY,
   podcast_id     TEXT NOT NULL,
@@ -554,6 +714,15 @@ CREATE TABLE core_workspaces (
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (owner_id) REFERENCES core_users(id)
+);
+
+CREATE TABLE cyb_card (
+  id        TEXT PRIMARY KEY,
+  node_id   TEXT NOT NULL REFERENCES cyb_node(id) ON DELETE CASCADE,
+  card_kind TEXT NOT NULL,
+  front_md  TEXT,
+  back_md   TEXT,
+  tags_json TEXT
 );
 
 CREATE TABLE cyb_card_type (
@@ -965,7 +1134,19 @@ CREATE TABLE cyb_wv_band (
   status TEXT NOT NULL DEFAULT 'live', synced_at TEXT);
 
 
--- ── Views (26) ───────────────────────────────────────────────────
+-- ── Views (27) ───────────────────────────────────────────────────
+
+CREATE VIEW core_person_violations AS
+  SELECT 'id_shape' AS kind, id AS row_id, id AS wrote FROM core_person
+   WHERE id NOT LIKE 'PN:%'
+  UNION ALL
+  SELECT 'key_mismatch', id, person_key FROM core_person
+   WHERE id <> 'PN:' || person_key
+  UNION ALL
+  -- Died before born. Cheap to check and the kind of thing a bulk import does.
+  SELECT 'dates', id, CAST(birth_year AS TEXT) || '–' || CAST(death_year AS TEXT)
+    FROM core_person
+   WHERE birth_year IS NOT NULL AND death_year IS NOT NULL AND death_year < birth_year;
 
 CREATE VIEW cyb_control_kpi AS
 SELECT COUNT(*) AS roots,
@@ -1264,7 +1445,7 @@ WHERE s.source_table IS NULL
    OR s.state = 'pending_carrier';
 
 
--- ── Indexes (65) ─────────────────────────────────────────────────
+-- ── Indexes (97) ─────────────────────────────────────────────────
 
 CREATE INDEX core_srs_card_deck ON core_srs_card(deck_id);
 
@@ -1294,6 +1475,10 @@ CREATE INDEX cyb_sensor_node ON cyb_sensor(node_id, axis);
 
 CREATE INDEX cyb_sensor_reading_s ON cyb_sensor_reading(sensor_id, at);
 
+CREATE INDEX idx_ccb_concept ON core_concept_binding (concept_ref);
+
+CREATE INDEX idx_ccb_source  ON core_concept_binding (source_db, source_table);
+
 CREATE INDEX idx_core_al_action   ON core_audit_log(action);
 
 CREATE INDEX idx_core_al_actor    ON core_audit_log(actor_user_ref);
@@ -1303,6 +1488,10 @@ CREATE INDEX idx_core_al_at       ON core_audit_log(created_at);
 CREATE INDEX idx_core_al_resource ON core_audit_log(resource_ref);
 
 CREATE INDEX idx_core_al_ws       ON core_audit_log(workspace_id);
+
+CREATE INDEX idx_core_concept_domain ON core_concept (domain);
+
+CREATE INDEX idx_core_concept_key    ON core_concept (concept_key);
 
 CREATE INDEX idx_core_er_legacy ON core_external_refs(legacy_source, legacy_id);
 
@@ -1315,6 +1504,12 @@ CREATE INDEX idx_core_notif_unread ON core_notifications(user_ref, is_read);
 CREATE INDEX idx_core_notif_user   ON core_notifications(user_ref);
 
 CREATE INDEX idx_core_notif_ws     ON core_notifications(workspace_id);
+
+CREATE INDEX idx_core_person_born ON core_person (birth_year);
+
+CREATE INDEX idx_core_person_key  ON core_person (person_key);
+
+CREATE INDEX idx_core_person_type ON core_person (person_type, status);
 
 CREATE INDEX idx_core_pod_status ON core_podcasts(status);
 
@@ -1370,11 +1565,35 @@ CREATE INDEX idx_core_wpo_ws ON core_workspace_policies(workspace_id);
 
 CREATE INDEX idx_core_wr_ws ON core_workspace_roles(workspace_id);
 
+CREATE INDEX idx_cyb_card_node ON cyb_card(node_id);
+
 CREATE INDEX idx_cyb_skill_loop ON cyb_skill(loop_key);
+
+CREATE INDEX idx_daily_log_date ON core_daily_log(log_date DESC);
+
+CREATE INDEX idx_daily_log_focus ON core_daily_log(focus, log_date DESC);
+
+CREATE INDEX idx_daily_log_source ON core_daily_log(source_slug);
+
+CREATE INDEX idx_daily_log_unit ON core_daily_log(unit_ref);
+
+CREATE INDEX idx_daily_log_user ON core_daily_log(user_ref, log_date DESC);
 
 CREATE UNIQUE INDEX idx_process_step_layer_unique ON cyb_process_step_layer (step_uid, layer_uid, COALESCE(skill_slug,''));
 
+CREATE INDEX idx_source_log_registered ON core_source_log(registered_in, explore_state);
+
+CREATE INDEX idx_source_log_slug ON core_source_log(source_slug);
+
+CREATE INDEX idx_source_log_state ON core_source_log(explore_state, domain);
+
+CREATE INDEX idx_source_log_title ON core_source_log(title);
+
+CREATE INDEX idx_source_log_user ON core_source_log(user_ref, explore_state);
+
 CREATE INDEX idx_srs_card_kind ON core_srs_card (user_ref, module, card_kind, concept_domain);
+
+CREATE INDEX idx_srs_card_surah_surah ON core_srs_card_surah(surah);
 
 CREATE INDEX idx_srs_lib_author
   ON core_srs_library_card (author_ref, status);
@@ -1399,6 +1618,35 @@ CREATE INDEX ix_card_surah ON core_srs_card_surah(surah);
 CREATE INDEX ix_cscc_concept ON core_srs_card_concept(concept_ref);
 
 CREATE INDEX ix_cscc_uid     ON core_srs_card_concept(concept_uid);
+
+CREATE INDEX ix_quiz_answer_session ON core_quiz_answer (session_ref);
+
+CREATE INDEX ix_quiz_answer_user    ON core_quiz_answer (user_ref, answered_at);
+
+CREATE INDEX ix_quiz_question_concept ON core_quiz_question (concept_ref);
+
+CREATE INDEX ix_quiz_question_module ON core_quiz_question (module, status);
+
+CREATE INDEX ix_quiz_question_ref    ON core_quiz_question (resource_ref);
+
+CREATE INDEX ix_quiz_question_scope
+  ON core_quiz_question (module, surah, ayah_from, ayah_to);
+
+CREATE INDEX ix_quiz_question_step
+  ON core_quiz_question (step_key);
+
+CREATE INDEX ix_quiz_question_topic   ON core_quiz_question (topic);
+
+CREATE INDEX ix_talk_card_deck ON core_talk_card (deck_ref, depth, seq);
+
+CREATE INDEX ix_talk_card_for ON core_talk_card (for_name, asked_at);
+
+CREATE INDEX ix_talk_deck_owner ON core_talk_deck (owner_ref);
+
+CREATE INDEX ix_talk_deck_workspace ON core_talk_deck (workspace_ref);
+
+CREATE UNIQUE INDEX ux_quiz_generated
+  ON core_quiz_question (generated_from) WHERE generated_from IS NOT NULL;
 
 
 -- ── Triggers (1) ─────────────────────────────────────────────────

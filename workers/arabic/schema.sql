@@ -1,5 +1,5 @@
 -- Schema for km_arabic.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-24.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-30.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
