@@ -20,6 +20,7 @@ import { srsSessionRoutes } from './routes/srs-session';
 import { quizRoutes } from './routes/quiz';
 import { learnRoutes } from './routes/learn';
 import { bankRoutes } from './routes/bank';
+import { bankPlayRoutes } from './routes/bank-play';
 import { talkRoutes } from './routes/talk';
 import { dsRoutes } from './routes/ds';
 import { cybRoutes } from './routes/cyb';
@@ -46,6 +47,7 @@ srsSessionRoutes(router);    // /core/srs/sessions/* — reviewing together, one
 quizRoutes(router);          // /core/quiz/* — a question asked to a room, scored on speed
 learnRoutes(router);         // /core/learn/* — the path: where you are, unit by unit
 bankRoutes(router);          // /core/bank/* — owner-less content the three apps are fed from
+bankPlayRoutes(router);      // /core/bank/play — one ledger: attempts, answers, the shared scorecard
 talkRoutes(router);          // /core/talk/* — cards to start a conversation
 cybRoutes(router);
 dsRoutes(router);                // /core/ds/* — the composed display spec: layers + plane + cards           // GET /core/cyb/* — cybernetics control plane (monitor · tree · jobs)
