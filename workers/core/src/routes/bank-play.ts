@@ -241,6 +241,218 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     return created({ item_ref: id });
   });
 
+  /** How many answers before a rating means anything. */
+  const MIN_RATED = 20;
+
+  /** Accuracy in stars. The bands are wider at the bottom because the distance
+   *  from 50% to 65% is a real change in what somebody knows, and the distance
+   *  from 96% to 98% is mostly which questions came up. */
+  const starsFor = (accuracy: number): number =>
+    accuracy >= 92 ? 5 : accuracy >= 80 ? 4 : accuracy >= 66 ? 3 : accuracy >= 50 ? 2 : 1;
+
+  /** Everyone, so anyone can be looked up.
+   *
+   *  The scorecard only knows people who have played, which makes a new
+   *  person invisible until their first round — the moment they would most
+   *  like to be on the board. This lists the whole room, with the few figures
+   *  a card needs, and zeroes for anybody yet to start.
+   */
+  router.get('/core/bank/people', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const people = await query(
+      env.DB_CORE,
+      `SELECT u.id AS user_id,
+              COALESCE(u.display_name, substr(u.email, 1, instr(u.email, '@') - 1), u.id) AS name,
+              COALESCE(a.rounds, 0) AS rounds,
+              COALESCE(a.points, 0) AS points,
+              a.last_played
+         FROM core_users u
+         LEFT JOIN (SELECT user_ref,
+                           COUNT(CASE WHEN finished_at IS NOT NULL THEN 1 END) AS rounds,
+                           COALESCE(SUM(points), 0) AS points,
+                           MAX(started_at) AS last_played
+                      FROM core_bank_attempt GROUP BY user_ref) a ON a.user_ref = u.id
+        ORDER BY points DESC, name`, []);
+    return ok({ people, viewer: ctx.userId });
+  });
+
+  /** One person's career, read the way a cricket profile is read.
+   *
+   *  The borrowed vocabulary is not decoration — it is a set of questions that
+   *  sport worked out long ago and that a learning app usually gets wrong:
+   *
+   *    innings   a round played through. Rounds, not attempts: walking away
+   *              is not an innings and should not drag an average down.
+   *    runs      points.
+   *    average   runs per innings — the number that says how a person plays,
+   *              as against how much they have played. A total rewards the
+   *              persistent; an average does not, which is why both are here.
+   *    high      the best single round, with what it was and when. A career
+   *              total cannot tell you somebody once got everything right.
+   *    hundreds  rounds of 100 points or more — a long evening played well.
+   *    perfect   rounds where nothing was missed. This is the one that had to
+   *              replace cricket's fifty: an innings here is capped by its own
+   *              question count, so a half-century was simply average.
+   *    form      the last eight innings, most recent first. Form is the one
+   *              thing a career total actively hides.
+   *    record    W-L-D across matches, and the head-to-head behind it.
+   */
+  router.get('/core/bank/profile', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const url = new URL(req.url);
+    // Anybody's card is readable by anybody. A shared scorecard whose profiles
+    // are private is a scoreboard you cannot look up — the point of playing in
+    // the same room is being able to see how the others are doing, and every
+    // figure here is already visible on the scorecard in aggregate.
+    const who = url.searchParams.get('user') ?? ctx.userId;
+
+    const [career, best, form, byApp, rooms, profile] = await Promise.all([
+      queryOne(
+        env.DB_CORE,
+        `SELECT COUNT(*) AS attempts,
+                COUNT(CASE WHEN finished_at IS NOT NULL THEN 1 END) AS innings,
+                COUNT(CASE WHEN passed_at IS NOT NULL THEN 1 END) AS passed,
+                COALESCE(SUM(points), 0) AS runs,
+                -- Cricket's fifty is worth having because an innings has no
+                -- ceiling. A round here does: it is over when its questions
+                -- run out, so "fifty" was just an ordinary evening — it fired
+                -- on thirteen of fourteen and told you nothing. What is rare
+                -- at this scale is a big session and a flawless one, so those
+                -- are the two milestones kept.
+                COUNT(CASE WHEN finished_at IS NOT NULL AND points >= 100 THEN 1 END) AS hundreds,
+                COUNT(CASE WHEN finished_at IS NOT NULL AND score >= 1.0 THEN 1 END) AS perfect,
+                MIN(started_at) AS debut,
+                MAX(started_at) AS last_played,
+                COUNT(DISTINCT date(started_at)) AS days_played
+           FROM core_bank_attempt WHERE user_ref = ?`, [who]),
+      queryOne(
+        env.DB_CORE,
+        `SELECT a.points, a.score, a.started_at, u.title AS unit, p.slug AS pack, p.app
+           FROM core_bank_attempt a
+           JOIN core_bank_unit u ON u.id = a.unit_ref
+           JOIN core_bank_pack p ON p.id = a.pack_ref
+          WHERE a.user_ref = ? AND a.finished_at IS NOT NULL
+          ORDER BY a.points DESC, a.started_at ASC LIMIT 1`, [who]),
+      query(
+        env.DB_CORE,
+        `SELECT a.points, a.score, a.passed_at IS NOT NULL AS passed, a.mode,
+                a.started_at, u.title AS unit, p.app
+           FROM core_bank_attempt a
+           JOIN core_bank_unit u ON u.id = a.unit_ref
+           JOIN core_bank_pack p ON p.id = a.pack_ref
+          WHERE a.user_ref = ? AND a.finished_at IS NOT NULL
+          ORDER BY a.started_at DESC LIMIT 8`, [who]),
+      query(
+        env.DB_CORE,
+        `SELECT p.app, COUNT(CASE WHEN a.finished_at IS NOT NULL THEN 1 END) AS innings,
+                COALESCE(SUM(a.points), 0) AS runs
+           FROM core_bank_attempt a JOIN core_bank_pack p ON p.id = a.pack_ref
+          WHERE a.user_ref = ? GROUP BY p.app ORDER BY runs DESC`, [who]),
+      // Every match this person was in, with what everyone scored — the record
+      // and the head-to-head both come out of this one set.
+      query(
+        env.DB_CORE,
+        `WITH played AS (
+           SELECT a.room_code, a.user_ref, SUM(a.points) AS points
+             FROM core_bank_attempt a
+            WHERE a.room_code IS NOT NULL AND a.finished_at IS NOT NULL
+            GROUP BY a.room_code, a.user_ref),
+         mine AS (SELECT room_code, points FROM played WHERE user_ref = ?)
+         SELECT pl.room_code, pl.user_ref, pl.points, m.points AS my_points,
+                (SELECT MAX(points) FROM played x WHERE x.room_code = pl.room_code) AS best,
+                (SELECT COUNT(DISTINCT user_ref) FROM played x
+                  WHERE x.room_code = pl.room_code) AS players
+           FROM played pl JOIN mine m ON m.room_code = pl.room_code`, [who]),
+      queryOne(
+        env.DB_CORE,
+        `SELECT COALESCE(SUM(xp), 0) AS xp, COALESCE(MAX(streak_days), 0) AS streak_days,
+                COALESCE(MAX(longest_streak), 0) AS longest_streak, MAX(last_active_on) AS last_active_on
+           FROM core_bank_profile WHERE user_ref = ?`, [who]),
+    ]);
+
+    // Who this is. A card headed by a raw id is not a profile anybody can
+    // browse, and the name is on the scorecard already.
+    const person = await queryOne<{ name: string | null }>(
+      env.DB_CORE,
+      `SELECT COALESCE(display_name, substr(email, 1, instr(email, '@') - 1), id) AS name
+         FROM core_users WHERE id = ?`, [who]);
+
+    const answers = await queryOne<{ answered: number; correct: number }>(
+      env.DB_CORE,
+      `SELECT COUNT(is_correct) AS answered, COALESCE(SUM(is_correct), 0) AS correct
+         FROM core_bank_response WHERE user_ref = ?`, [who]);
+
+    // The record, from the matches above. A draw is a draw for everyone on the
+    // top score — the same rule the scorecard uses, stated once here too.
+    const matchRows = rooms as Record<string, unknown>[];
+    const seen = new Set<string>();
+    let won = 0, lost = 0, drew = 0;
+    const versus = new Map<string, { played: number; won: number; lost: number; drew: number }>();
+    for (const row of matchRows) {
+      const room = String(row['room_code']);
+      const players = Number(row['players']);
+      if (players < 2) continue;
+      if (!seen.has(room)) {
+        seen.add(room);
+        const mine = Number(row['my_points']);
+        const best = Number(row['best']);
+        const sharers = matchRows.filter(
+          (r) => String(r['room_code']) === room && Number(r['points']) === best).length;
+        if (mine < best) lost++;
+        else if (sharers > 1) drew++;
+        else won++;
+      }
+      const other = String(row['user_ref']);
+      if (other === who) continue;
+      const head = versus.get(other) ?? { played: 0, won: 0, lost: 0, drew: 0 };
+      head.played++;
+      const mine = Number(row['my_points']);
+      const theirs = Number(row['points']);
+      if (mine > theirs) head.won++; else if (mine < theirs) head.lost++; else head.drew++;
+      versus.set(other, head);
+    }
+
+    const innings = Number((career as Record<string, unknown>)?.['innings'] ?? 0);
+    const runs = Number((career as Record<string, unknown>)?.['runs'] ?? 0);
+    const answered = Number(answers?.answered ?? 0);
+    const correct = Number(answers?.correct ?? 0);
+    const accuracy = answered > 0 ? Math.round((100 * correct) / answered) : null;
+    const matches = won + lost + drew;
+
+    return ok({
+      user_id: who,
+      name: person?.name ?? null,
+      // True when this person has never played. A card that renders zeroes is
+      // right; one that 404s makes an empty profile look like a broken link.
+      unplayed: innings === 0 && Number((career as Record<string, unknown>)?.['attempts'] ?? 0) === 0,
+      viewer: ctx.userId,
+      is_self: who === ctx.userId,
+      career: {
+        ...(career ?? {}),
+        // Kept to one decimal: an average of 47.3 is a real difference from
+        // 46.8, and 47.312 is a number pretending to a precision it has not
+        // earned off nine innings.
+        average: innings > 0 ? Math.round((10 * runs) / innings) / 10 : null,
+        accuracy,
+        answered,
+        correct,
+        stars: answered >= MIN_RATED ? starsFor(accuracy ?? 0) : null,
+        rating_after: answered >= MIN_RATED ? null : MIN_RATED - answered,
+      },
+      record: { matches, won, lost, drew,
+                win_pct: matches > 0 ? Math.round((100 * won) / matches) : null },
+      versus: [...versus.entries()]
+        .map(([user_id, head]) => ({ user_id, ...head }))
+        .sort((a, b) => b.played - a.played),
+      high: best ?? null,
+      form,
+      by_app: byApp,
+      streak: profile ?? null,
+    });
+  });
+
   /** The shared scorecard: everybody, across the three apps, from one ledger.
    *
    *  This is the query the whole design exists for. Because every play of every
@@ -261,13 +473,21 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     if (since) { conds.push('a.started_at >= ?'); params.push(since); }
     const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
 
-    const [people, hardest, totals] = await Promise.all([
+    const [people, hardest, record, profiles, totals] = await Promise.all([
       query(
         env.DB_CORE,
         `SELECT a.user_ref AS user_id,
-                COALESCE(u.display_name, u.email) AS name,
+                -- Everyone can see everyone here, so this is read by people who
+                -- are not the account holder: the display name if there is
+                -- one, otherwise the part of the address before the @. A
+                -- scoreboard does not need to hand out mailboxes.
+                COALESCE(u.display_name, substr(u.email, 1, instr(u.email, '@') - 1), u.id) AS name,
                 p.app,
                 COUNT(DISTINCT a.id) AS attempts,
+                -- A round is a sitting somebody saw through. An attempt they
+                -- walked away from is not a round and should not read as one.
+                COUNT(DISTINCT CASE WHEN a.finished_at IS NOT NULL
+                                    THEN a.id END) AS rounds,
                 COUNT(DISTINCT CASE WHEN a.passed_at IS NOT NULL THEN a.unit_ref END) AS units_passed,
                 COALESCE(SUM(a.points), 0) AS points,
                 COALESCE(SUM(a.xp), 0) AS xp,
@@ -300,7 +520,15 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
                 COALESCE(SUM(r.is_correct), 0) AS correct,
                 ROUND(100.0 * COALESCE(SUM(r.is_correct), 0) / COUNT(r.id)) AS pct,
                 (SELECT COUNT(*) FROM core_bank_item_feedback f
-                  WHERE f.item_ref = i.id AND f.flag IS NOT NULL) AS flags
+                  WHERE f.item_ref = i.id AND f.flag IS NOT NULL) AS flags,
+                -- The stars people gave the question, as against the score it
+                -- gave them. A question everybody fails AND nobody rates is a
+                -- bad question; one everybody fails and rates highly is a hard
+                -- one, and those are opposite problems.
+                (SELECT ROUND(AVG(f.rating), 1) FROM core_bank_item_feedback f
+                  WHERE f.item_ref = i.id AND f.rating IS NOT NULL) AS stars,
+                (SELECT COUNT(*) FROM core_bank_item_feedback f
+                  WHERE f.item_ref = i.id AND f.rating IS NOT NULL) AS ratings
            FROM core_bank_response r
            JOIN core_bank_item i ON i.id = r.item_ref
           WHERE r.is_correct IS NOT NULL
@@ -308,6 +536,67 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
          HAVING asked >= 2
           ORDER BY pct ASC, asked DESC
           LIMIT 20`, []),
+      // ── the record: rounds played, matches, and who won them ──────────────
+      //
+      // A round is one sitting: an attempt somebody finished. A match is a
+      // round other people were in — same room code, two or more players —
+      // and its winner is whoever finished it on the most points.
+      //
+      // A tie is a DRAW, counted on its own and never folded into wins. It was
+      // folded in at first, and the scorecard then showed 4 wins from 4 while
+      // the same person's own profile read 3-0-1 — two screens disagreeing
+      // about one evening. Both now use this rule, stated once.
+      //
+      // Derived, like everything else here. Nothing writes a win: a match is
+      // won by having played it best, and if a round is replayed or a score
+      // corrected the record follows without a second table to repair.
+      query(
+        env.DB_CORE,
+        `WITH played AS (
+           SELECT a.room_code, a.user_ref, p.app,
+                  SUM(a.points) AS points, MAX(a.finished_at) AS ended
+             FROM core_bank_attempt a
+             JOIN core_bank_pack p ON p.id = a.pack_ref
+            WHERE a.room_code IS NOT NULL AND a.finished_at IS NOT NULL
+              ${conds.length ? 'AND ' + conds.join(' AND ') : ''}
+            GROUP BY a.room_code, a.user_ref, p.app
+         ),
+         sized AS (
+           SELECT room_code, COUNT(DISTINCT user_ref) AS players, MAX(points) AS best
+             FROM played GROUP BY room_code
+         ),
+         -- How many finished level at the top: one is a win, more is a draw.
+         shared AS (
+           SELECT pl.room_code, COUNT(*) AS at_best
+             FROM played pl JOIN sized s ON s.room_code = pl.room_code
+            WHERE pl.points = s.best
+            GROUP BY pl.room_code
+         )
+         SELECT pl.user_ref AS user_id, pl.app,
+                COUNT(*) AS matches,
+                SUM(CASE WHEN pl.points = s.best AND sh.at_best = 1 THEN 1 ELSE 0 END) AS wins,
+                SUM(CASE WHEN pl.points = s.best AND sh.at_best > 1 THEN 1 ELSE 0 END) AS draws,
+                SUM(CASE WHEN pl.points < s.best THEN 1 ELSE 0 END) AS losses,
+                MAX(pl.ended) AS last_match
+           FROM played pl
+           JOIN sized s ON s.room_code = pl.room_code
+           JOIN shared sh ON sh.room_code = pl.room_code
+          WHERE s.players > 1
+          GROUP BY pl.user_ref, pl.app`,
+        params),
+      // XP and the streak are the two numbers that must NOT be recomputed from
+      // attempts: a streak is a claim about days somebody showed up, and it has
+      // to survive the deletion of the round that earned it. This is the one
+      // documented exception to deriving everything.
+      query(
+        env.DB_CORE,
+        `SELECT pr.user_ref AS user_id,
+                COALESCE(SUM(pr.xp), 0) AS xp,
+                COALESCE(MAX(pr.streak_days), 0) AS streak_days,
+                COALESCE(MAX(pr.longest_streak), 0) AS longest_streak,
+                MAX(pr.last_active_on) AS last_active_on
+           FROM core_bank_profile pr
+          GROUP BY pr.user_ref`, []),
       query<{ packs: number; items: number; attempts: number; responses: number }>(
         env.DB_CORE,
         `SELECT (SELECT COUNT(*) FROM core_bank_pack WHERE status = 'live') AS packs,
@@ -316,7 +605,105 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
                 (SELECT COUNT(*) FROM core_bank_response) AS responses`, []),
     ]);
 
-    return ok({ people, hardest, bank: totals[0] ?? null, viewer: ctx.userId });
+    // Rounds come off the people query (a finished attempt is a round); the
+    // match record is folded in beside it so a client reads one row per person
+    // per app and never has to join two lists to draw a card.
+    const recordFor = new Map<string, Record<string, unknown>>();
+    for (const row of record as Record<string, unknown>[]) {
+      recordFor.set(`${row['user_id']}\u0000${row['app']}`, row);
+    }
+    const standings: Record<string, unknown>[] = (people as Record<string, unknown>[]).map((person) => {
+      const own = recordFor.get(`${person['user_id']}\u0000${person['app']}`);
+      const matches = Number(own?.['matches'] ?? 0);
+      const wins = Number(own?.['wins'] ?? 0);
+      return {
+        ...person,
+        matches,
+        wins,
+        draws: Number(own?.['draws'] ?? 0),
+        losses: Number(own?.['losses'] ?? 0),
+        // Only meaningful once a match has been played; null rather than 0 so
+        // a card can say "—" instead of implying someone has lost every game.
+        win_pct: matches > 0 ? Math.round((100 * wins) / matches) : null,
+        last_match: own?.['last_match'] ?? null,
+      };
+    });
+
+    // ── the career figure ────────────────────────────────────────────────
+    //
+    // One row per person, across all three apps: what a profile screen shows.
+    // The per-app rows stay beside it, because "you are strong on the path and
+    // lose every quiz" is the useful half of a scorecard — but the headline is
+    // the total, and a total split three ways is not a total.
+    const lifetime = new Map<string, Record<string, unknown>>();
+    for (const row of standings) {
+      const key = String(row['user_id']);
+      const soFar = lifetime.get(key) ?? {
+        user_id: key, name: row['name'], points: 0, rounds: 0, matches: 0,
+        wins: 0, draws: 0, losses: 0, answered: 0, correct: 0, units_passed: 0,
+        apps: [] as string[], last_played: null as string | null,
+      };
+      for (const field of ['points', 'rounds', 'matches', 'wins', 'draws', 'losses',
+                           'answered', 'correct', 'units_passed'] as const) {
+        soFar[field] = Number(soFar[field]) + Number(row[field] ?? 0);
+      }
+      (soFar['apps'] as string[]).push(String(row['app']));
+      const seen = row['last_played'] as string | null;
+      if (seen && (!soFar['last_played'] || seen > String(soFar['last_played']))) {
+        soFar['last_played'] = seen;
+      }
+      lifetime.set(key, soFar);
+    }
+    for (const row of profiles as Record<string, unknown>[]) {
+      const own = lifetime.get(String(row['user_id']));
+      if (own) Object.assign(own, {
+        xp: Number(row['xp'] ?? 0),
+        streak_days: Number(row['streak_days'] ?? 0),
+        longest_streak: Number(row['longest_streak'] ?? 0),
+        last_active_on: row['last_active_on'] ?? null,
+      });
+    }
+    const overall: Record<string, unknown>[] = [...lifetime.values()]
+      .map((row): Record<string, unknown> => ({
+        ...row,
+        xp: Number(row['xp'] ?? 0),
+        streak_days: Number(row['streak_days'] ?? 0),
+        longest_streak: Number(row['longest_streak'] ?? 0),
+        // Percentages only once there is something to divide by. Zero of zero
+        // is not nought per cent, it is a person who has not started.
+        accuracy: Number(row['answered']) > 0
+          ? Math.round((100 * Number(row['correct'])) / Number(row['answered'])) : null,
+        win_pct: Number(row['matches']) > 0
+          ? Math.round((100 * Number(row['wins'])) / Number(row['matches'])) : null,
+      }))
+      .sort((a, b) => Number(b['points']) - Number(a['points']))
+      // ── the standing, and the stars ──────────────────────────────────────
+      //
+      // Two different questions, deliberately kept apart. RANK answers "who is
+      // ahead", and it is points, so it rewards showing up — which is most of
+      // what learning is. STARS answer "how well", and they are accuracy, so
+      // they cannot be climbed by playing more; a person who answers eighty
+      // per cent right keeps four stars whether that is their first week or
+      // their fifth year.
+      //
+      // Collapsing the two would make the star rating a second leaderboard,
+      // and then the person furthest ahead would always be the best, which is
+      // the one thing a rating is for telling you is not true.
+      .map((row, index) => ({
+        ...row,
+        rank: index + 1,
+        top: index === 0 && Number(row['points']) > 0,
+        // Withheld until there is enough to judge. Five stars off three lucky
+        // answers is worse than no stars: it is a wrong answer to the question
+        // the rating was asked.
+        stars: Number(row['answered']) >= MIN_RATED
+          ? starsFor(Number(row['accuracy'] ?? 0)) : null,
+        rating_after: Number(row['answered']) >= MIN_RATED
+          ? null : MIN_RATED - Number(row['answered']),
+      }));
+
+    return ok({ overall, people: standings, hardest, bank: totals[0] ?? null,
+                viewer: ctx.userId });
   });
 
   /** One room's board — the same ledger, narrowed to a code. */
@@ -326,7 +713,11 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     const board = await query(
       env.DB_CORE,
       `SELECT a.user_ref AS user_id,
-              COALESCE(u.display_name, u.email) AS name,
+              -- Everyone can see everyone here, so this is read by people who
+                -- are not the account holder: the display name if there is
+                -- one, otherwise the part of the address before the @. A
+                -- scoreboard does not need to hand out mailboxes.
+                COALESCE(u.display_name, substr(u.email, 1, instr(u.email, '@') - 1), u.id) AS name,
               COALESCE(SUM(a.points), 0) AS points,
               COUNT(r.is_correct) AS answered,
               COALESCE(SUM(r.is_correct), 0) AS correct,

@@ -21,6 +21,7 @@
 import type { CoreEnv } from './env';
 import { query, execute } from '../../shared/src/db';
 import { typedId } from '../../shared/src/ulid';
+import { speedPoints } from './bank/score';
 
 interface Player {
   userId: string;
@@ -53,15 +54,12 @@ interface Given {
   points: number;
 }
 
-/** Kahoot's shape: right answers are worth more the sooner they land, and a
- *  late-but-correct answer is still worth half. Wrong is worth nothing —
- *  guessing fast should not beat thinking. */
-function scoreFor(correct: boolean, ms: number, seconds: number): number {
-  if (!correct) return 0;
-  const limit = Math.max(1, seconds) * 1000;
-  const fraction = Math.min(1, Math.max(0, ms / limit));
-  return Math.round(1000 * (1 - fraction / 2));
-}
+/** The room scores on the same scale as everything else. It used to carry its
+ *  own copy of the formula with its own literal 1000 — two scorers drifting
+ *  apart is exactly what one bank was for, and a point earned in the room has
+ *  to be worth a point earned alone or the shared card compares nothing. */
+const scoreFor = (correct: boolean, ms: number, seconds: number): number =>
+  speedPoints(correct ? 1 : 0, ms, seconds);
 
 export class QuizSession {
   constructor(private state: DurableObjectState, private env: CoreEnv) {

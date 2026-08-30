@@ -139,7 +139,23 @@ check(finished?.score !== undefined, 'the attempt finishes with a score',
   console.log('  ' + JSON.stringify(scores).slice(0, 300));
 }
 
-// ── 8 · the quiz pack's five shapes are all served ───────────────────────────
+// ── 8 · the career card ──────────────────────────────────────────────────────
+{
+  const me = (await api('/core/bank/profile')).body;
+  check(!!me?.career, 'the profile answers');
+  check(me?.career?.innings >= 1, 'the round just played counts as an innings',
+        `innings ${me?.career?.innings}`);
+  check(me?.career?.average !== undefined && me?.record !== undefined,
+        'it carries an average and a W-L-D record',
+        `avg ${me?.career?.average} · ${me?.record?.won}-${me?.record?.lost}-${me?.record?.drew}`);
+  check(Array.isArray(me?.form) && me.form.length >= 1, 'form lists recent innings');
+  // A rating off six answers would be a guess wearing five stars.
+  check(me?.career?.stars === null && me?.career?.rating_after > 0,
+        'the rating is withheld until there is enough to judge',
+        `${me?.career?.rating_after} more answers needed`);
+}
+
+// ── 9 · the quiz pack's five shapes are all served ───────────────────────────
 {
   const doc = (await api('/core/bank/packs/quran-40-quiz')).body;
   const shapes = new Set((doc?.items ?? []).map((i) => i.interaction));

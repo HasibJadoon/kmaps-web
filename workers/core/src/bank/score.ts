@@ -34,7 +34,20 @@ export interface Judgement {
   points: number;
 }
 
-const BASE_POINTS = 1000;
+/** What one perfect answer is worth.
+ *
+ *  Ten, not Kahoot's thousand. Kahoot's scale is built for a scoreboard that
+ *  is thrown away at the end of the evening, where a big number is part of the
+ *  fun. This ledger is not thrown away: it accumulates across three apps for
+ *  as long as somebody keeps studying, and at a thousand a question a few
+ *  years of daily practice runs into the millions — a total nobody can hold in
+ *  their head, compare, or read off a card. At ten, a lesson is worth about
+ *  sixty, a good year a few thousand, and a decade still fits on the screen.
+ *
+ *  With the speed bonus a right answer lands between 5 and 10, which is also
+ *  the whole visible range — deliberately coarse, because the difference
+ *  between 8 and 9 was never information anybody could act on. */
+export const BASE_POINTS = 10;
 
 function parse(json: string | null): Record<string, unknown> | null {
   if (!json) return null;
@@ -58,17 +71,24 @@ function normalise(text: string): string {
 /** Kahoot's shape: a right answer is worth more the sooner it lands, and a
  *  late-but-right answer is still worth half. Wrong is worth nothing —
  *  guessing fast must never beat thinking. */
+export function speedPoints(
+  credit: number, latencyMs: number | null, seconds: number | null,
+  multiplier = 1,
+): number {
+  if (credit <= 0) return 0;
+  if (!seconds || latencyMs === null) return Math.round(BASE_POINTS * credit * multiplier);
+  const limit = Math.max(1, seconds) * 1000;
+  const fraction = Math.min(1, Math.max(0, latencyMs / limit));
+  return Math.round(BASE_POINTS * credit * multiplier * (1 - fraction / 2));
+}
+
 function pointsFor(
   item: ScorableItem, credit: number, latencyMs: number | null,
 ): number {
   if (item.points_style === 'none' || credit <= 0) return 0;
   const multiplier = item.points_style === 'double' ? 2 : 1;
-  if (!item.speed_bonus || !item.seconds || latencyMs === null) {
-    return Math.round(BASE_POINTS * credit * multiplier);
-  }
-  const limit = Math.max(1, item.seconds) * 1000;
-  const fraction = Math.min(1, Math.max(0, latencyMs / limit));
-  return Math.round(BASE_POINTS * credit * multiplier * (1 - fraction / 2));
+  return speedPoints(credit, item.speed_bonus ? latencyMs : null,
+                     item.speed_bonus ? item.seconds : null, multiplier);
 }
 
 export function judge(
