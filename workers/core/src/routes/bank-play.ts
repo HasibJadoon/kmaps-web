@@ -271,12 +271,21 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
                 COUNT(DISTINCT CASE WHEN a.passed_at IS NOT NULL THEN a.unit_ref END) AS units_passed,
                 COALESCE(SUM(a.points), 0) AS points,
                 COALESCE(SUM(a.xp), 0) AS xp,
-                COUNT(r.is_correct) AS answered,
-                COALESCE(SUM(r.is_correct), 0) AS correct,
+                COALESCE(SUM(r.answered), 0) AS answered,
+                COALESCE(SUM(r.correct), 0) AS correct,
                 MAX(a.started_at) AS last_played
            FROM core_bank_attempt a
            JOIN core_bank_pack p ON p.id = a.pack_ref
-           LEFT JOIN core_bank_response r ON r.attempt_ref = a.id
+           -- Folded to one row per attempt BEFORE the join. Joining the
+           -- responses directly fanned each attempt out into one row per
+           -- answer, and SUM(a.points) then counted the attempt's points once
+           -- per answer — six answers made 2,000 points read as 12,000 on the
+           -- shared scorecard, which is the one number people compare.
+           LEFT JOIN (SELECT attempt_ref,
+                             COUNT(is_correct) AS answered,
+                             COALESCE(SUM(is_correct), 0) AS correct
+                        FROM core_bank_response
+                       GROUP BY attempt_ref) r ON r.attempt_ref = a.id
            LEFT JOIN core_users u ON u.id = a.user_ref
           ${where}
           GROUP BY a.user_ref, p.app

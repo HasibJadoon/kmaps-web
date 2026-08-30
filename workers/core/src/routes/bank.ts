@@ -32,6 +32,16 @@ async function isOwner(env: CoreEnv, ctx: { userId: string; isAdmin: boolean }):
 }
 
 export function bankRoutes(router: Router<CoreEnv>): void {
+  /** Fisher-Yates over a copy. Only used where the stored order is the answer. */
+  const shuffle = <T,>(rows: T[]): T[] => {
+    const out = [...rows];
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  };
+
   router.get('/core/bank/packs', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -87,7 +97,52 @@ export function bankRoutes(router: Router<CoreEnv>): void {
         ORDER BY u.depth, u.unit_index`,
       [pack['id']],
     );
-    return ok({ pack, units });
+
+    // A quiz round and a table deck have no units — their items hang off the
+    // pack itself, and without this they were unreachable: the only route that
+    // served items asked for a unit id. Same withholding as that route, since
+    // this is the payload a live room is dealt from.
+    const loose = await query<Record<string, unknown>>(
+      env.DB_CORE,
+      `SELECT i.id, i.slug, i.prompt_en, i.prompt_ar, i.prompt_ur, i.stimulus_md,
+              i.media_r2_key, i.interaction, i.scoring, i.seconds, i.points_style,
+              i.speed_bonus, i.difficulty, i.renderer, i.module, i.resource_ref,
+              i.surah, i.ayah_from, i.ayah_to, i.step_key
+         FROM core_bank_item i
+        WHERE i.pack_ref = ? AND i.status = 'live'
+          AND NOT EXISTS (SELECT 1 FROM core_bank_unit_item ui WHERE ui.item_ref = i.id)
+        ORDER BY i.slug`,
+      [pack['id']],
+    );
+    const looseOptions = loose.length
+      ? await query<Record<string, unknown>>(
+          env.DB_CORE,
+          `SELECT o.item_ref, o.id, o.role, o.label_en, o.label_ar, o.label_ur,
+                  o.media_r2_key, o.sort_order
+             FROM core_bank_item_option o
+            WHERE o.item_ref IN (${loose.map(() => '?').join(',')})
+            ORDER BY o.sort_order`,
+          loose.map((i) => i['id']))
+      : [];
+    const byLoose = new Map<string, Record<string, unknown>[]>();
+    for (const option of looseOptions) {
+      const key = String(option['item_ref']);
+      byLoose.set(key, [...(byLoose.get(key) ?? []), option]);
+    }
+
+    return ok({
+      pack,
+      units,
+      items: loose.map((i) => {
+        const own = byLoose.get(String(i['id'])) ?? [];
+        return {
+          ...i,
+          options: i['interaction'] === 'order' || i['interaction'] === 'tap_word'
+            ? shuffle(own).map(({ sort_order: _drop, ...rest }) => rest)
+            : own,
+        };
+      }),
+    });
   });
 
   /** The document the pack was built from. JSON lives in the table, so the bank
@@ -110,16 +165,6 @@ export function bankRoutes(router: Router<CoreEnv>): void {
    *  The correct answer is included — this is the authoring/solo read. The live
    *  quiz room does NOT use it: a room withholds the answer until the reveal,
    *  and that rule lives in the Durable Object. */
-  /** Fisher-Yates over a copy. Only used where the stored order is the answer. */
-  const shuffle = <T,>(rows: T[]): T[] => {
-    const out = [...rows];
-    for (let i = out.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [out[i], out[j]] = [out[j], out[i]];
-    }
-    return out;
-  };
-
   router.get('/core/bank/units/:id/items', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;

@@ -11,6 +11,7 @@
 // suites. The password stays out of the repo and is never printed.
 
 const BASE = process.env.KM_BASE ?? 'https://backend.k-maps.com';
+const PREFIX = process.env.KM_PREFIX ?? '/api';
 const EMAIL = process.env.KMAPS_TEST_EMAIL ?? 'system@test.com';
 const need = (k) => {
   const v = process.env[k];
@@ -27,7 +28,7 @@ const check = (ok, label, detail = '') => {
 
 let token = null;
 async function api(path, init = {}) {
-  const res = await fetch(`${BASE}/api${path}`, {
+  const res = await fetch(`${BASE}${PREFIX}${path}`, {
     ...init,
     headers: {
       'content-type': 'application/json',
@@ -43,13 +44,16 @@ async function api(path, init = {}) {
 
 // ── 0 · the gate is really a gate ────────────────────────────────────────────
 {
-  const anon = await fetch(`${BASE}/api/core/bank/packs`);
+  const anon = await fetch(`${BASE}${PREFIX}/core/bank/packs`);
   check(anon.status === 401, 'unauthenticated /core/bank/packs is refused',
         `status ${anon.status}`);
 }
 
-// ── 1 · sign in ──────────────────────────────────────────────────────────────
-{
+// ── 1 · sign in, or use the token we were handed ─────────────────────────────
+if (process.env.KM_TOKEN) {
+  token = process.env.KM_TOKEN;
+  check(true, 'using the token from the environment');
+} else {
   const res = await api('/core/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email: EMAIL, password: need('KMAPS_TEST_PASSWORD') }),
