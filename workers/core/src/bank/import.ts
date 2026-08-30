@@ -109,10 +109,21 @@ export function validate(doc: PackDoc): string[] {
     // A scored item that nothing can answer correctly is the failure this
     // catches: it looks fine in the file and is unanswerable in the room.
     const scoring = item.scoring ?? 'match_correct';
+    const interaction = item.interaction ?? 'choice';
     if (scoring !== 'none') {
       const hasCorrectOption = (item.options ?? []).some((o) => o.correct);
       const hasDeclared = item.response !== undefined && item.response !== null;
-      if (!hasCorrectOption && !hasDeclared) {
+      // An ordering carries its answer in the sequence itself: `judge()` reads
+      // the tokens by `sort_order` and never looks at `is_correct`. Requiring a
+      // correct option here made every `order` and `tap_word` item unimportable
+      // — the file looked wrong and the validator was.
+      const ordered = (interaction === 'order' || interaction === 'tap_word')
+        && (item.options ?? []).some((o) => (o.role ?? 'choice') === 'order_token');
+      // Matching says which side answers which through `pair_key`, likewise.
+      const paired = (interaction === 'match' || interaction === 'associate'
+                      || interaction === 'gap_match')
+        && (item.options ?? []).some((o) => o.pair_key);
+      if (!hasCorrectOption && !hasDeclared && !ordered && !paired) {
         errors.push(`item ${item.slug} is scored '${scoring}' but declares no correct answer`);
       }
     }
@@ -348,7 +359,12 @@ export async function importPack(
     }
   }
 
-  await ledger(db, importId, packId, actorRef, opts, fileDigest, counts, [], raw);
+  // A dry run reports the id the pack WOULD get but must not cite it in the
+  // ledger: nothing was inserted, and core_bank_import.pack_ref is a real
+  // foreign key. Citing it failed every dry run of a pack that did not already
+  // exist — which is every first dry run, the only one anybody needs.
+  await ledger(db, importId, opts.dryRun && !existing ? null : packId,
+               actorRef, opts, fileDigest, counts, [], raw);
   return { import_id: importId, pack_ref: packId, dry_run: opts.dryRun, ...counts, errors: [] };
 }
 

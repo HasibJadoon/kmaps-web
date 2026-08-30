@@ -1,0 +1,690 @@
+{
+  "pack": {
+    "slug": "quran-40-path",
+    "app": "path",
+    "title": "Sūrat Ghāfir — the path",
+    "title_ar": "سورة غافر",
+    "description_md": "Passage by passage through sūrah 40, built from the roots the passage actually teaches.",
+    "visibility": "public",
+    "status": "live",
+    "language": "en"
+  },
+  "units": [
+    {
+      "slug": "g40-p1",
+      "title": "Tanzīl and the four attributes",
+      "subtitle": "40:1–3",
+      "node_type": "lesson",
+      "unit_index": 0,
+      "module": "QR",
+      "step_key": "vocabulary",
+      "qr_scope_ref": "QR:SP:40:1-3",
+      "item_count": 6,
+      "item_order": "shuffle",
+      "xp_award": 15,
+      "estimated_mins": 4,
+      "items": [
+        {
+          "slug": "g40-count-نزل",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "كم مرة يرد الجذر نزل في القرآن؟",
+          "prompt_en": "How many times does the root نزل occur in the Qurʾān?",
+          "difficulty": 3,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "vocabulary",
+          "root_norm": "نزل",
+          "seconds": 20,
+          "options": [
+            {
+              "en": "293",
+              "correct": true
+            },
+            {
+              "en": "2850",
+              "why_wrong_en": "that is another root in this passage, not نزل"
+            },
+            {
+              "en": "120",
+              "why_wrong_en": "that is another root in this passage, not نزل"
+            },
+            {
+              "en": "854",
+              "why_wrong_en": "that is another root in this passage, not نزل"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        },
+        {
+          "slug": "g40-count-اله",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "كم مرة يرد الجذر اله في القرآن؟",
+          "prompt_en": "How many times does the root اله occur in the Qurʾān?",
+          "difficulty": 3,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "vocabulary",
+          "root_norm": "اله",
+          "seconds": 20,
+          "options": [
+            {
+              "en": "2850",
+              "correct": true
+            },
+            {
+              "en": "293",
+              "why_wrong_en": "that is another root in this passage, not اله"
+            },
+            {
+              "en": "120",
+              "why_wrong_en": "that is another root in this passage, not اله"
+            },
+            {
+              "en": "854",
+              "why_wrong_en": "that is another root in this passage, not اله"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        },
+        {
+          "slug": "g40-count-علم",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "كم مرة يرد الجذر علم في القرآن؟",
+          "prompt_en": "How many times does the root علم occur in the Qurʾān?",
+          "difficulty": 3,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "vocabulary",
+          "root_norm": "علم",
+          "seconds": 20,
+          "options": [
+            {
+              "en": "854",
+              "correct": true
+            },
+            {
+              "en": "293",
+              "why_wrong_en": "that is another root in this passage, not علم"
+            },
+            {
+              "en": "2850",
+              "why_wrong_en": "that is another root in this passage, not علم"
+            },
+            {
+              "en": "120",
+              "why_wrong_en": "that is another root in this passage, not علم"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        },
+        {
+          "slug": "g40-count-غفر",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "كم مرة يرد الجذر غفر في القرآن؟",
+          "prompt_en": "How many times does the root غفر occur in the Qurʾān?",
+          "difficulty": 3,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "vocabulary",
+          "root_norm": "غفر",
+          "seconds": 20,
+          "options": [
+            {
+              "en": "234",
+              "correct": true
+            },
+            {
+              "en": "293",
+              "why_wrong_en": "that is another root in this passage, not غفر"
+            },
+            {
+              "en": "2850",
+              "why_wrong_en": "that is another root in this passage, not غفر"
+            },
+            {
+              "en": "120",
+              "why_wrong_en": "that is another root in this passage, not غفر"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        },
+        {
+          "slug": "g40-count-ذنب",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "كم مرة يرد الجذر ذنب في القرآن؟",
+          "prompt_en": "How many times does the root ذنب occur in the Qurʾān?",
+          "difficulty": 3,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "vocabulary",
+          "root_norm": "ذنب",
+          "seconds": 20,
+          "options": [
+            {
+              "en": "39",
+              "correct": true
+            },
+            {
+              "en": "293",
+              "why_wrong_en": "that is another root in this passage, not ذنب"
+            },
+            {
+              "en": "2850",
+              "why_wrong_en": "that is another root in this passage, not ذنب"
+            },
+            {
+              "en": "120",
+              "why_wrong_en": "that is another root in this passage, not ذنب"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        },
+        {
+          "slug": "g40-count-طول",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "كم مرة يرد الجذر طول في القرآن؟",
+          "prompt_en": "How many times does the root طول occur in the Qurʾān?",
+          "difficulty": 3,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "vocabulary",
+          "root_norm": "طول",
+          "seconds": 20,
+          "options": [
+            {
+              "en": "10",
+              "correct": true
+            },
+            {
+              "en": "293",
+              "why_wrong_en": "that is another root in this passage, not طول"
+            },
+            {
+              "en": "2850",
+              "why_wrong_en": "that is another root in this passage, not طول"
+            },
+            {
+              "en": "120",
+              "why_wrong_en": "that is another root in this passage, not طول"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "g40-p1-makhraj",
+      "title": "The letters of those roots",
+      "subtitle": "40:1–3 · makhārij",
+      "node_type": "practice",
+      "unit_index": 1,
+      "module": "QR",
+      "step_key": "sentence_structure",
+      "qr_scope_ref": "QR:SP:40:1-3",
+      "item_order": "shuffle",
+      "xp_award": 15,
+      "estimated_mins": 5,
+      "items": [
+        {
+          "slug": "g40-makhraj-نزل-ن",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "في الجذر نزل — ما مخرج حرف ن؟",
+          "explanation_ar": "النون · طرف اللسان بينه وبين ما فويق الثنايا",
+          "difficulty": 4,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "sentence_structure",
+          "root_norm": "نزل",
+          "seconds": 25,
+          "options": [
+            {
+              "ar": "طرف اللسان بينه وبين ما فويق الثنايا",
+              "correct": true
+            },
+            {
+              "ar": "ما بين الثنايا وطرف اللسان",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "حافة اللسان من أدناها إلى منتهى طرفه",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "أقصى الحلق",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        },
+        {
+          "slug": "g40-makhraj-نزل-ز",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "في الجذر نزل — ما مخرج حرف ز؟",
+          "explanation_ar": "الزاي · ما بين الثنايا وطرف اللسان",
+          "difficulty": 4,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "sentence_structure",
+          "root_norm": "نزل",
+          "seconds": 25,
+          "options": [
+            {
+              "ar": "ما بين الثنايا وطرف اللسان",
+              "correct": true
+            },
+            {
+              "ar": "طرف اللسان بينه وبين ما فويق الثنايا",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "حافة اللسان من أدناها إلى منتهى طرفه",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "أقصى الحلق",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        },
+        {
+          "slug": "g40-makhraj-نزل-ل",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "في الجذر نزل — ما مخرج حرف ل؟",
+          "explanation_ar": "اللام · حافة اللسان من أدناها إلى منتهى طرفه",
+          "difficulty": 4,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "sentence_structure",
+          "root_norm": "نزل",
+          "seconds": 25,
+          "options": [
+            {
+              "ar": "حافة اللسان من أدناها إلى منتهى طرفه",
+              "correct": true
+            },
+            {
+              "ar": "طرف اللسان بينه وبين ما فويق الثنايا",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "ما بين الثنايا وطرف اللسان",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "أقصى الحلق",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        },
+        {
+          "slug": "g40-makhraj-اله-أ",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "في الجذر اله — ما مخرج حرف أ؟",
+          "explanation_ar": "الهمزة · أقصى الحلق",
+          "difficulty": 4,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "sentence_structure",
+          "root_norm": "اله",
+          "seconds": 25,
+          "options": [
+            {
+              "ar": "أقصى الحلق",
+              "correct": true
+            },
+            {
+              "ar": "طرف اللسان بينه وبين ما فويق الثنايا",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "ما بين الثنايا وطرف اللسان",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "حافة اللسان من أدناها إلى منتهى طرفه",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        },
+        {
+          "slug": "g40-makhraj-اله-ل",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "في الجذر اله — ما مخرج حرف ل؟",
+          "explanation_ar": "اللام · حافة اللسان من أدناها إلى منتهى طرفه",
+          "difficulty": 4,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "sentence_structure",
+          "root_norm": "اله",
+          "seconds": 25,
+          "options": [
+            {
+              "ar": "حافة اللسان من أدناها إلى منتهى طرفه",
+              "correct": true
+            },
+            {
+              "ar": "طرف اللسان بينه وبين ما فويق الثنايا",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "ما بين الثنايا وطرف اللسان",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "أقصى الحلق",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        },
+        {
+          "slug": "g40-makhraj-اله-ه",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "في الجذر اله — ما مخرج حرف ه؟",
+          "explanation_ar": "الهاء · أقصى الحلق",
+          "difficulty": 4,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "sentence_structure",
+          "root_norm": "اله",
+          "seconds": 25,
+          "options": [
+            {
+              "ar": "أقصى الحلق",
+              "correct": true
+            },
+            {
+              "ar": "طرف اللسان بينه وبين ما فويق الثنايا",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "ما بين الثنايا وطرف اللسان",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "حافة اللسان من أدناها إلى منتهى طرفه",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        },
+        {
+          "slug": "g40-makhraj-عزز-ع",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "في الجذر عزز — ما مخرج حرف ع؟",
+          "explanation_ar": "العين · وسط الحلق",
+          "difficulty": 4,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "sentence_structure",
+          "root_norm": "عزز",
+          "seconds": 25,
+          "options": [
+            {
+              "ar": "وسط الحلق",
+              "correct": true
+            },
+            {
+              "ar": "طرف اللسان بينه وبين ما فويق الثنايا",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "ما بين الثنايا وطرف اللسان",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "حافة اللسان من أدناها إلى منتهى طرفه",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        },
+        {
+          "slug": "g40-makhraj-عزز-ز",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "في الجذر عزز — ما مخرج حرف ز؟",
+          "explanation_ar": "الزاي · ما بين الثنايا وطرف اللسان",
+          "difficulty": 4,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "sentence_structure",
+          "root_norm": "عزز",
+          "seconds": 25,
+          "options": [
+            {
+              "ar": "ما بين الثنايا وطرف اللسان",
+              "correct": true
+            },
+            {
+              "ar": "طرف اللسان بينه وبين ما فويق الثنايا",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "حافة اللسان من أدناها إلى منتهى طرفه",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "أقصى الحلق",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        },
+        {
+          "slug": "g40-makhraj-علم-ع",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "في الجذر علم — ما مخرج حرف ع؟",
+          "explanation_ar": "العين · وسط الحلق",
+          "difficulty": 4,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "sentence_structure",
+          "root_norm": "علم",
+          "seconds": 25,
+          "options": [
+            {
+              "ar": "وسط الحلق",
+              "correct": true
+            },
+            {
+              "ar": "طرف اللسان بينه وبين ما فويق الثنايا",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "ما بين الثنايا وطرف اللسان",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "حافة اللسان من أدناها إلى منتهى طرفه",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        },
+        {
+          "slug": "g40-makhraj-علم-ل",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "في الجذر علم — ما مخرج حرف ل؟",
+          "explanation_ar": "اللام · حافة اللسان من أدناها إلى منتهى طرفه",
+          "difficulty": 4,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "sentence_structure",
+          "root_norm": "علم",
+          "seconds": 25,
+          "options": [
+            {
+              "ar": "حافة اللسان من أدناها إلى منتهى طرفه",
+              "correct": true
+            },
+            {
+              "ar": "طرف اللسان بينه وبين ما فويق الثنايا",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "ما بين الثنايا وطرف اللسان",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "أقصى الحلق",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        },
+        {
+          "slug": "g40-makhraj-علم-م",
+          "interaction": "choice",
+          "scoring": "match_correct",
+          "prompt_ar": "في الجذر علم — ما مخرج حرف م؟",
+          "explanation_ar": "الميم · الشفتان",
+          "difficulty": 4,
+          "module": "QR",
+          "surah": 40,
+          "ayah_from": 1,
+          "ayah_to": 3,
+          "step_key": "sentence_structure",
+          "root_norm": "علم",
+          "seconds": 25,
+          "options": [
+            {
+              "ar": "الشفتان",
+              "correct": true
+            },
+            {
+              "ar": "طرف اللسان بينه وبين ما فويق الثنايا",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "ما بين الثنايا وطرف اللسان",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            },
+            {
+              "ar": "حافة اللسان من أدناها إلى منتهى طرفه",
+              "why_wrong_en": "a real makhraj, but not this letter’s"
+            }
+          ],
+          "units": [
+            "g40-p1-review"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "g40-p1-review",
+      "title": "Passage review",
+      "subtitle": "all of 40:1–3 together",
+      "node_type": "review",
+      "unit_index": 2,
+      "module": "QR",
+      "qr_scope_ref": "QR:SP:40:1-3",
+      "unlocks_from": [
+        "g40-p1",
+        "g40-p1-makhraj"
+      ],
+      "item_count": 8,
+      "item_order": "shuffle",
+      "xp_award": 25,
+      "pass_threshold": 0.8,
+      "items": []
+    },
+    {
+      "slug": "g40-p2",
+      "title": "The charge and its genealogy",
+      "subtitle": "40:4–5",
+      "node_type": "lesson",
+      "unit_index": 3,
+      "module": "QR",
+      "step_key": "reading",
+      "qr_scope_ref": "QR:SP:40:4-5",
+      "unlocks_from": [
+        "g40-p1-review"
+      ],
+      "xp_award": 15,
+      "items": []
+    }
+  ]
+}
