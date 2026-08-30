@@ -3,7 +3,7 @@
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (78) ──────────────────────────────────────────────────
+-- ── Tables (88) ──────────────────────────────────────────────────
 
 CREATE TABLE core_activity_events (
   id              TEXT PRIMARY KEY,               -- ULID
@@ -65,6 +65,277 @@ CREATE TABLE core_auth_tokens (
   revoked_at      TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (user_id) REFERENCES core_users(id)
+);
+
+CREATE TABLE core_bank_attempt (
+  id            TEXT PRIMARY KEY,
+  user_ref      TEXT NOT NULL,
+  unit_ref      TEXT NOT NULL REFERENCES core_bank_unit(id),
+  pack_ref      TEXT NOT NULL REFERENCES core_bank_pack(id),
+  mode          TEXT NOT NULL DEFAULT 'solo'
+                  CHECK (mode IN ('solo','live','table')),
+  -- The room this play belonged to, when it was shared. Everyone in one round
+  -- carries the same code, which is what makes a shared scorecard one GROUP BY.
+  room_code     TEXT,
+  started_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  finished_at   TEXT,
+  score         REAL,                            -- 0..1, the fraction correct
+  points        INTEGER NOT NULL DEFAULT 0,      -- speed-weighted
+  xp            INTEGER NOT NULL DEFAULT 0,
+  hearts_left   INTEGER,
+  -- The one fact unlocking reads, and the only reason this table is not purely
+  -- derivable from responses: passing is a threshold decision made once, and a
+  -- later change to pass_threshold must not silently re-lock a finished unit.
+  passed_at     TEXT
+);
+
+CREATE TABLE core_bank_import (
+  id              TEXT PRIMARY KEY,
+  pack_ref        TEXT REFERENCES core_bank_pack(id),
+  actor_ref       TEXT NOT NULL,
+  file_path       TEXT,
+  file_digest     TEXT NOT NULL,
+  dry_run         INTEGER NOT NULL DEFAULT 0,
+  units_created   INTEGER NOT NULL DEFAULT 0,
+  units_updated   INTEGER NOT NULL DEFAULT 0,
+  items_created   INTEGER NOT NULL DEFAULT 0,
+  items_updated   INTEGER NOT NULL DEFAULT 0,
+  items_unchanged INTEGER NOT NULL DEFAULT 0,
+  items_retired   INTEGER NOT NULL DEFAULT 0,
+  errors_json     TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(errors_json)),
+  created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+, source_json TEXT);
+
+CREATE TABLE core_bank_item (
+  id            TEXT PRIMARY KEY,
+  pack_ref      TEXT NOT NULL REFERENCES core_bank_pack(id) ON DELETE CASCADE,
+  slug          TEXT NOT NULL,
+  -- Trilingual from the start. ar_ling_* already is, and adding _ur later is a
+  -- table rewrite.
+  prompt_en     TEXT,
+  prompt_ar     TEXT,
+  prompt_ur     TEXT,
+  stimulus_md   TEXT,
+  media_r2_key  TEXT,
+  -- QTI's interaction names where QTI has one. A closed list on purpose: an
+  -- open TEXT column is how a bank ends up holding 'mcq', 'MCQ' and 'choice'.
+  interaction   TEXT NOT NULL CHECK (interaction IN (
+                  'choice','choice_multi','true_false','inline_choice',
+                  'order','match','associate','gap_match',
+                  'text_entry','extended_text',
+                  'slider','hotspot','tap_word','pin',
+                  'speak','listen',
+                  'open_prompt')),
+  -- QTI's responseProcessing template.
+  --   match_correct  exact match against the declared response
+  --   map_response   per-option credit; partial marks
+  --   nearest        numeric distance — a slider, a pin
+  --   none           unscored: a poll, a word cloud, a conversation card
+  scoring       TEXT NOT NULL DEFAULT 'match_correct'
+                  CHECK (scoring IN ('match_correct','map_response','nearest','none')),
+  -- The declared correct response, in whatever shape the template reads. JSON
+  -- because its shape is a function of `interaction`, and a column cannot be.
+  -- Choices and tokens are ROWS, not in here — see core_bank_item_option.
+  response_json TEXT CHECK (response_json IS NULL OR json_valid(response_json)),
+  seconds       INTEGER,                        -- NULL = untimed
+  points_style  TEXT NOT NULL DEFAULT 'standard'
+                  CHECK (points_style IN ('standard','double','none')),
+  speed_bonus   INTEGER NOT NULL DEFAULT 0,
+  explanation_en TEXT,
+  explanation_ar TEXT,
+  explanation_ur TEXT,
+  difficulty    INTEGER NOT NULL DEFAULT 3 CHECK (difficulty BETWEEN 1 AND 5),
+  -- A CLIENT COMPONENT KEY, not a template blob. core_srs_note_type.templates_json
+  -- has never been read by anything — card-ds.repo.ts renders from a hard-coded
+  -- switch instead — so this does not become a second unread template store.
+  renderer      TEXT,
+  module        TEXT NOT NULL DEFAULT 'other'
+                  CHECK (module IN ('AR','AL','QR','WV','EN','other')),
+  resource_type TEXT,
+  resource_ref  TEXT,
+  surah         INTEGER,
+  ayah_from     INTEGER,
+  ayah_to       INTEGER,
+  passage_ref   TEXT,
+  step_key      TEXT,
+  concept_ref   TEXT,
+  root_norm     TEXT,
+  lemma_ref     TEXT,
+  tags          TEXT,
+  source        TEXT NOT NULL DEFAULT 'authored'
+                  CHECK (source IN ('authored','imported','generated','projected')),
+  -- The upstream row this came from: AR:EX:… | AL:Q:… | CORE:QQ:… | QR:SQ:…
+  origin_ref    TEXT,
+  import_ref    TEXT,
+  -- sha256 of the normalised payload, so a re-import can skip what has not
+  -- changed and the dry run can show a diff worth reading.
+  content_digest TEXT,
+  -- Calibration, copied from ar_ling_learn_question, which already knew that a
+  -- bank should learn which of its own questions are any good.
+  times_shown   INTEGER NOT NULL DEFAULT 0,
+  times_correct INTEGER NOT NULL DEFAULT 0,
+  discrimination REAL,
+  status        TEXT NOT NULL DEFAULT 'draft'
+                  CHECK (status IN ('draft','live','retired')),
+  meta_json     TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json)),
+  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  UNIQUE (pack_ref, slug)
+);
+
+CREATE TABLE core_bank_item_feedback (
+  id          TEXT PRIMARY KEY,
+  item_ref    TEXT NOT NULL REFERENCES core_bank_item(id) ON DELETE CASCADE,
+  user_ref    TEXT NOT NULL,
+  rating      INTEGER CHECK (rating IS NULL OR rating BETWEEN 1 AND 5),
+  flag        TEXT CHECK (flag IS NULL OR flag IN
+                ('ambiguous','wrong_answer','too_easy','too_hard','typo','other')),
+  note        TEXT,
+  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  -- One standing verdict per person per item; saying it again replaces it.
+  UNIQUE (item_ref, user_ref)
+);
+
+CREATE TABLE core_bank_item_option (
+  id            TEXT PRIMARY KEY,
+  item_ref      TEXT NOT NULL REFERENCES core_bank_item(id) ON DELETE CASCADE,
+  -- What this row IS inside the interaction. One table serves the choices of an
+  -- MCQ, the movable tokens of an ordering, both sides of a matching pair, and
+  -- the fillers of a gap.
+  role          TEXT NOT NULL DEFAULT 'choice'
+                  CHECK (role IN ('choice','order_token','match_left','match_right',
+                                  'gap','distractor_pool')),
+  label_en      TEXT,
+  label_ar      TEXT,
+  label_ur      TEXT,
+  media_r2_key  TEXT,
+  is_correct    INTEGER NOT NULL DEFAULT 0,
+  -- The pairing key: match_left 'a' answers match_right 'a'; gap 'g2' fills
+  -- blank 2. Order tokens use sort_order as their answer.
+  pair_key      TEXT,
+  credit        REAL,
+  distractor_kind TEXT,
+  why_wrong_en  TEXT,
+  why_wrong_ar  TEXT,
+  why_wrong_ur  TEXT,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (item_ref, role, sort_order)
+);
+
+CREATE TABLE core_bank_pack (
+  id            TEXT PRIMARY KEY,
+  slug          TEXT NOT NULL UNIQUE,          -- hand-authored; the import key
+  app           TEXT NOT NULL CHECK (app IN ('path','quiz','table')),
+  title         TEXT NOT NULL,
+  title_ar      TEXT,
+  description_md TEXT,
+  language      TEXT NOT NULL DEFAULT 'en',
+  cefr_from     TEXT,
+  cefr_to       TEXT,
+  -- Lifted off core_talk_deck, where it described a deck but sat next to
+  -- per-card columns. Who the pack is for is a property of the pack.
+  audience      TEXT CHECK (audience IS NULL OR audience IN
+                  ('family','friends','couples','kids','work','mixed')),
+  -- THE COLUMN THAT MAKES THIS A BANK. NULL is the published corpus, which is
+  -- what a new account walks into. A pack with an owner is somebody's private
+  -- deck living in the same table.
+  owner_ref     TEXT,
+  workspace_ref TEXT,
+  visibility    TEXT NOT NULL DEFAULT 'private'
+                  CHECK (visibility IN ('private','workspace','public')),
+  cover_r2_key  TEXT,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'draft'
+                  CHECK (status IN ('draft','live','retired')),
+  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+, source_json TEXT, source_format TEXT);
+
+CREATE TABLE core_bank_profile (
+  user_ref      TEXT NOT NULL,
+  pack_ref      TEXT NOT NULL REFERENCES core_bank_pack(id) ON DELETE CASCADE,
+  xp            INTEGER NOT NULL DEFAULT 0,
+  streak_days   INTEGER NOT NULL DEFAULT 0,
+  longest_streak INTEGER NOT NULL DEFAULT 0,
+  hearts        INTEGER,
+  last_active_on TEXT,
+  updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  PRIMARY KEY (user_ref, pack_ref)
+);
+
+CREATE TABLE core_bank_response (
+  id            TEXT PRIMARY KEY,
+  attempt_ref   TEXT NOT NULL REFERENCES core_bank_attempt(id) ON DELETE CASCADE,
+  item_ref      TEXT NOT NULL REFERENCES core_bank_item(id),
+  user_ref      TEXT NOT NULL,
+  seq           INTEGER NOT NULL DEFAULT 0,
+  response_json TEXT CHECK (response_json IS NULL OR json_valid(response_json)),
+  -- NULL when the item is unscored. A poll and a conversation card have
+  -- responses and no correctness, and that is not a missing value — it is the
+  -- kind of item it is.
+  is_correct    INTEGER,
+  credit        REAL,                            -- partial marks, map_response
+  latency_ms    INTEGER,                         -- server-measured
+  points        INTEGER NOT NULL DEFAULT 0,
+  hinted        INTEGER NOT NULL DEFAULT 0,
+  -- The Table app: who this question was ASKED OF. On the response, not on the
+  -- card — which is the bug migrations 026/027 left behind, where a card asked
+  -- of two people on two evenings could only remember the second.
+  respondent_ref  TEXT,
+  respondent_name TEXT,
+  answered_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+, created_at TEXT
+  NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')));
+
+CREATE TABLE core_bank_unit (
+  id            TEXT PRIMARY KEY,
+  pack_ref      TEXT NOT NULL REFERENCES core_bank_pack(id) ON DELETE CASCADE,
+  slug          TEXT NOT NULL,
+  -- Self-parenting, like ar_curriculum_container_unit: section → unit → node.
+  parent_ref    TEXT REFERENCES core_bank_unit(id),
+  depth         INTEGER NOT NULL DEFAULT 0,
+  unit_index    INTEGER NOT NULL DEFAULT 0,     -- order among siblings
+  title         TEXT NOT NULL,
+  title_ar      TEXT,
+  subtitle      TEXT,
+  -- The icon on the path. Duolingo marks each node with what KIND of exercise
+  -- waits there, which is the half a progress ring cannot say.
+  node_type     TEXT NOT NULL DEFAULT 'lesson'
+                  CHECK (node_type IN ('section','unit','lesson','practice',
+                                       'review','story','checkpoint','chest','trophy')),
+  icon          TEXT,
+  colour        TEXT,
+  -- Delivery. A lesson draws `item_count` from a larger membership, which is
+  -- how the same unit stays worth replaying.
+  item_count    INTEGER,
+  item_order    TEXT NOT NULL DEFAULT 'fixed'
+                  CHECK (item_order IN ('fixed','shuffle','weighted')),
+  pass_threshold REAL NOT NULL DEFAULT 1.0,
+  hearts        INTEGER,
+  xp_award      INTEGER NOT NULL DEFAULT 10,
+  estimated_mins INTEGER,
+  -- Scope, in the vocabulary the rest of this database already speaks.
+  module        TEXT,
+  resource_ref  TEXT,
+  step_key      TEXT,
+  qr_scope_ref  TEXT,
+  skill_focus   TEXT,
+  level         TEXT,
+  status        TEXT NOT NULL DEFAULT 'draft'
+                  CHECK (status IN ('draft','live','retired')),
+  meta_json     TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json)),
+  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  UNIQUE (pack_ref, slug)
+);
+
+CREATE TABLE core_bank_unit_item (
+  unit_ref      TEXT NOT NULL REFERENCES core_bank_unit(id) ON DELETE CASCADE,
+  item_ref      TEXT NOT NULL REFERENCES core_bank_item(id) ON DELETE CASCADE,
+  seq           INTEGER NOT NULL DEFAULT 0,
+  weight        REAL NOT NULL DEFAULT 1.0,
+  required      INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY (unit_ref, item_ref)
 );
 
 CREATE TABLE core_concept (
@@ -1445,7 +1716,7 @@ WHERE s.source_table IS NULL
    OR s.state = 'pending_carrier';
 
 
--- ── Indexes (97) ─────────────────────────────────────────────────
+-- ── Indexes (116) ────────────────────────────────────────────────
 
 CREATE INDEX core_srs_card_deck ON core_srs_card(deck_id);
 
@@ -1611,6 +1882,44 @@ CREATE INDEX idx_study_session_node ON core_study_session (node_id, started_at);
 
 CREATE INDEX idx_study_session_scope ON core_study_session (domain, scope_kind, scope_ref);
 
+CREATE INDEX ix_bank_attempt_pack ON core_bank_attempt (pack_ref, user_ref);
+
+CREATE INDEX ix_bank_attempt_progress
+  ON core_bank_attempt (user_ref, unit_ref, passed_at);
+
+CREATE INDEX ix_bank_attempt_room ON core_bank_attempt (room_code);
+
+CREATE INDEX ix_bank_attempt_unit
+  ON core_bank_attempt (unit_ref);
+
+CREATE INDEX ix_bank_import_pack
+  ON core_bank_import (pack_ref);
+
+CREATE INDEX ix_bank_item_pack ON core_bank_item (pack_ref, status);
+
+CREATE INDEX ix_bank_item_scope
+  ON core_bank_item (module, surah, ayah_from, step_key);
+
+CREATE INDEX ix_bank_pack_app ON core_bank_pack (app, status);
+
+CREATE INDEX ix_bank_pack_owner ON core_bank_pack (owner_ref);
+
+CREATE INDEX ix_bank_response_attempt ON core_bank_response (attempt_ref, seq);
+
+CREATE INDEX ix_bank_response_item ON core_bank_response (item_ref, is_correct);
+
+CREATE INDEX ix_bank_response_user ON core_bank_response (user_ref, answered_at);
+
+CREATE INDEX ix_bank_unit_item_item
+  ON core_bank_unit_item (item_ref);
+
+CREATE INDEX ix_bank_unit_item_seq ON core_bank_unit_item (unit_ref, seq);
+
+CREATE INDEX ix_bank_unit_parent
+  ON core_bank_unit (parent_ref);
+
+CREATE INDEX ix_bank_unit_tree ON core_bank_unit (pack_ref, parent_ref, unit_index);
+
 CREATE INDEX ix_card_library_ref ON core_srs_card(library_ref);
 
 CREATE INDEX ix_card_surah ON core_srs_card_surah(surah);
@@ -1637,6 +1946,9 @@ CREATE INDEX ix_quiz_question_step
 
 CREATE INDEX ix_quiz_question_topic   ON core_quiz_question (topic);
 
+CREATE INDEX ix_srs_card_user_module_res
+  ON core_srs_card (user_ref, module, resource_ref);
+
 CREATE INDEX ix_talk_card_deck ON core_talk_card (deck_ref, depth, seq);
 
 CREATE INDEX ix_talk_card_for ON core_talk_card (for_name, asked_at);
@@ -1644,6 +1956,12 @@ CREATE INDEX ix_talk_card_for ON core_talk_card (for_name, asked_at);
 CREATE INDEX ix_talk_deck_owner ON core_talk_deck (owner_ref);
 
 CREATE INDEX ix_talk_deck_workspace ON core_talk_deck (workspace_ref);
+
+CREATE UNIQUE INDEX ux_bank_item_origin
+  ON core_bank_item (origin_ref) WHERE origin_ref IS NOT NULL;
+
+CREATE UNIQUE INDEX ux_bank_response_once
+  ON core_bank_response (attempt_ref, item_ref);
 
 CREATE UNIQUE INDEX ux_quiz_generated
   ON core_quiz_question (generated_from) WHERE generated_from IS NOT NULL;
