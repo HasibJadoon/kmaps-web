@@ -220,6 +220,9 @@ export class SrsRepo {
      *  Only ever applied together with `surah`: "āyāt 1 to 9" means nothing on
      *  its own, and applying it alone would draw 44:1-9 and 40:1-9 together. */
     from?: number; to?: number;
+    /** One study band: reading | vocabulary | sentence_structure | tafsir |
+     *  worldview. A set of card kinds, so it is not the same as `kind`. */
+    step?: string;
     /** One deck, or a whole subtree — selecting a parent studies its children,
      *  which is the entire point of nesting them. A parent deck usually holds
      *  no cards of its own, so matching a single deck_id served nothing. */
@@ -271,13 +274,35 @@ export class SrsRepo {
     // passage's vocabulary is most of what there is to review about it, and
     // those cards carry the lemma as their ref, not the āyah.
     if (opts.surah && opts.surah > 0 && opts.from && opts.to) {
+      // The second arm is a plain column test, not a subquery: it is the same
+      // table. It was written as `id IN (SELECT card_id FROM core_srs_card …)`
+      // — copied from the core_srs_card_surah arm above, which really does have
+      // a card_id — and core_srs_card does not, so every passage review 500'd.
       where += ` AND (
         (resource_ref GLOB ? AND CAST(substr(resource_ref, instr(resource_ref, ':') + 1)
               AS INTEGER) BETWEEN ? AND ?)
-        OR id IN (SELECT card_id FROM core_srs_card WHERE intro_surah = ?
-                    AND intro_ayah BETWEEN ? AND ?))`;
+        OR (intro_surah = ? AND intro_ayah BETWEEN ? AND ?))`;
       args.push(`${opts.surah}:*`, opts.from, opts.to,
                 opts.surah, opts.from, opts.to);
+    }
+
+    // A study step — reading, vocabulary, sentence structure, tafsīr — is a SET
+    // of card kinds rather than one, so it cannot go through `kind`. The mapping
+    // is the same one /core/learn/path groups by; keeping the two in step
+    // matters, because a unit that says "24 cards" and a session that then
+    // offers eleven is worse than either number alone.
+    if (opts.step) {
+      const STEP_SQL: Record<string, string> = {
+        reading: `card_kind IN ('translation','context')`,
+        vocabulary: `(resource_type IN ('lemma','word','root')
+                      OR card_kind IN ('morphology','vocabulary','senses','root_dna',
+                                       'root_sense','root_gov','sarf'))`,
+        sentence_structure: `card_kind IN ('nahw','irab','structure')`,
+        tafsir: `card_kind IN ('balagha','expression','furuq')`,
+        worldview: `module = 'WV'`,
+      };
+      const clause = STEP_SQL[opts.step];
+      if (clause) where += ` AND ${clause}`;
     }
     if (opts.kind) { where += ` AND card_kind = ?`; args.push(opts.kind); }
     if (opts.domain) { where += ` AND concept_domain = ?`; args.push(opts.domain); }

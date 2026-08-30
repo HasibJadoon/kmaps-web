@@ -1469,6 +1469,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     // A passage is a range inside a surah. Both ends or neither.
     const from = Number(url.searchParams.get('from') ?? '0');
     const to = Number(url.searchParams.get('to') ?? '0');
+    const step = url.searchParams.get('step') ?? undefined;
     const kind = url.searchParams.get('kind') ?? undefined;
     const domain = url.searchParams.get('domain') ?? undefined;
     const deck = url.searchParams.get('deck') ?? undefined;
@@ -1490,6 +1491,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
         surah: surah > 0 ? surah : undefined,
         from: from > 0 && to > 0 ? from : undefined,
         to: from > 0 && to > 0 ? to : undefined,
+        step,
         kind, domain, deck, deckIds: caps.deckIds,
       }),
       repo.dueCounts(ctx.userId),
