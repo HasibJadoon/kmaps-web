@@ -19,6 +19,7 @@ import { srsRegistryRoutes } from './routes/srs-registry';
 import { srsSessionRoutes } from './routes/srs-session';
 import { quizRoutes } from './routes/quiz';
 import { learnRoutes } from './routes/learn';
+import { bankRoutes } from './routes/bank';
 import { talkRoutes } from './routes/talk';
 import { dsRoutes } from './routes/ds';
 import { cybRoutes } from './routes/cyb';
@@ -44,6 +45,7 @@ srsRegistryRoutes(router);   // GET/POST/DELETE /core/srs/registry — SRS enrol
 srsSessionRoutes(router);    // /core/srs/sessions/* — reviewing together, one shared question
 quizRoutes(router);          // /core/quiz/* — a question asked to a room, scored on speed
 learnRoutes(router);         // /core/learn/* — the path: where you are, unit by unit
+bankRoutes(router);          // /core/bank/* — owner-less content the three apps are fed from
 talkRoutes(router);          // /core/talk/* — cards to start a conversation
 cybRoutes(router);
 dsRoutes(router);                // /core/ds/* — the composed display spec: layers + plane + cards           // GET /core/cyb/* — cybernetics control plane (monitor · tree · jobs)
