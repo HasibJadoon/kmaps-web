@@ -575,6 +575,93 @@ export class StudyRepo {
     };
   }
 
+  /// How the rendering of a passage is built: the units it is made of, the
+  /// steps that accumulate them one connector at a time, the nuances that
+  /// fork a choice, and the final fluent the passage settles on. Every field
+  /// is stated in qr_ss_translation_*; nothing here is assembled by guess.
+  async passageStructureStep(surahId: number, passageNo: number) {
+    const passages = await this._passages(surahId);
+    const p = passages.find((x) => x.passage_no === passageNo);
+    if (!p) return null;
+
+    const [rendering, units, buildup, nuances, decisions] = await Promise.all([
+      queryOne<Record<string, unknown>>(
+        this.db,
+        `SELECT id, assembled_fluent_en AS assembled, final_fluent_en AS final,
+                assembly_note_ar AS noteAr, synthesis_md AS synthesis, nazm_ref AS nazmRef,
+                rejected_assemblies_json AS rejected
+           FROM qr_ss_translation_passage
+          WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?
+          ORDER BY ayah_from LIMIT 1`,
+        [surahId, p.ayah_from, p.ayah_to],
+      ).catch(() => null),
+      query<Record<string, unknown>>(
+        this.db,
+        `SELECT id, scope_id AS scopeId, seq, ayah_from AS ayah, ayah_to AS ayahTo,
+                structural_literal_en AS structural, fluent_en AS fluentEn,
+                fluent_ar AS fluentAr, decision_note_ar AS noteAr,
+                synthesis_md AS synthesis, reading_ref AS readingRef
+           FROM qr_ss_translation_unit
+          WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ? AND status = 'live'
+          ORDER BY ayah_from, seq`,
+        [surahId, p.ayah_from, p.ayah_to],
+      ).catch(() => []),
+      query<Record<string, unknown>>(
+        this.db,
+        `SELECT b.id, b.step_seq AS seq, b.unit_id AS unitId, b.relation_type AS relation,
+                b.connector_en AS connectorEn, b.added_en AS addedEn,
+                b.cumulative_en AS cumulativeEn, b.layers_ar AS layersAr,
+                b.driver_kind AS driverKind, b.driver_ref AS driverRef
+           FROM qr_ss_translation_buildup b
+           JOIN qr_ss_translation_passage tp ON tp.id = b.passage_id
+          WHERE tp.surah = ? AND tp.ayah_from >= ? AND tp.ayah_to <= ?
+          ORDER BY b.step_seq, b.id`,
+        [surahId, p.ayah_from, p.ayah_to],
+      ).catch(() => []),
+      query<Record<string, unknown>>(
+        this.db,
+        `SELECT n.id, n.translation_unit_id AS unitId, n.driver_ar AS driverAr,
+                n.fork_json AS fork, n.chosen_en AS chosenEn,
+                n.changes_translation AS changesTranslation,
+                n.nuance_ref AS ref, n.note_md AS noteMd
+           FROM qr_ss_translation_nuance n
+           JOIN qr_ss_translation_unit u ON u.id = n.translation_unit_id
+          WHERE u.surah = ? AND u.ayah_from >= ? AND u.ayah_to <= ?
+          ORDER BY u.ayah_from, n.id`,
+        [surahId, p.ayah_from, p.ayah_to],
+      ).catch(() => []),
+      query<Record<string, unknown>>(
+        this.db,
+        `SELECT id, ayah, step_seq AS seq, target_span_ar AS spanAr,
+                rendered_json AS rendered, driver_kind AS driverKind,
+                driver_ref AS driverRef, rationale_json AS rationale
+           FROM qr_ss_translation_decision
+          WHERE surah = ? AND ayah BETWEEN ? AND ? AND status = 'live'
+          ORDER BY ayah, step_seq`,
+        [surahId, p.ayah_from, p.ayah_to],
+      ).catch(() => []),
+    ]);
+
+    if (!rendering && units.length === 0 && buildup.length === 0) return null;
+
+    return {
+      step: 'passage_structure',
+      surah: surahId,
+      passage: passageNo,
+      ayahFrom: p.ayah_from,
+      ayahTo: p.ayah_to,
+      rendering,
+      units,
+      buildup: buildup.map((b) => ({ ...b, fork: undefined })),
+      nuances: nuances.map((n) => ({ ...n, fork: parseJson(n.fork as string | null) })),
+      decisions: decisions.map((d) => ({
+        ...d,
+        rendered: parseJson(d.rendered as string | null),
+        rationale: parseJson(d.rationale as string | null),
+      })),
+    };
+  }
+
   async expressionsStep(surahId: number, passageNo: number, al: AlClient | null) {
     const passages = await this._passages(surahId);
     const p = passages.find((x) => x.passage_no === passageNo);
@@ -1117,6 +1204,7 @@ export class StudyRepo {
       case 'comprehension': return this.comprehensionStep(surahId, passageNo);
       case 'expressions':   return this.expressionsStep(surahId, passageNo, al);
       case 'sentence_structure': return this.sentenceStructureStep(surahId, passageNo);
+      case 'passage_structure':  return this.passageStructureStep(surahId, passageNo);
       default: {
         const task = await this.taskByStepType(surahId, passageNo, stepType);
         if (task === null) return null;
