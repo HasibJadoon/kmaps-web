@@ -624,14 +624,17 @@ export class StudyRepo {
         query<{ id: string; ayah_from: number; ayah_to: number; word_start_index: number | null;
                 word_end_index: number | null; sentence_kind: string | null;
                 discourse_role: string | null; note_md: string | null;
-                gt_sentence_class: string | null; gt_kalam_kind: string | null }>(
+                gt_sentence_class: string | null; gt_kalam_kind: string | null;
+                gt_sentence_role: string | null }>(
           this.db,
           `SELECT id, ayah_from, ayah_to, word_start_index, word_end_index,
                   sentence_kind, discourse_role, note_md,
-                  -- A sentence is classified twice, on two different questions:
-                  -- what it is BUILT from (اسمية / فعلية / شرطية) and what it
-                  -- DOES (خبرية / إنشائية). Both are GT ids as of 018.
-                  gt_sentence_class, gt_kalam_kind
+                  -- A sentence is classified on three different questions:
+                  -- what it is BUILT from (اسمية / فعلية / شرطية), what it
+                  -- DOES (خبرية / إنشائية، طلبي / غير طلبي), and where it SITS
+                  -- in the iʿrāb (خبر، حال، صفة، مضاف إليه — or لا محل لها).
+                  -- All three are GT ids.
+                  gt_sentence_class, gt_kalam_kind, gt_sentence_role
            FROM qr_ss_occ_sentence
            WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?
            ORDER BY ayah_from, COALESCE(word_start_index, 0)`,
@@ -979,6 +982,7 @@ export class StudyRepo {
 
         sentenceClassRef: s.gt_sentence_class ?? null,
         kalamKindRef:     s.gt_kalam_kind ?? null,
+        sentenceRoleRef:  s.gt_sentence_role ?? null,
         note:      stripModePrefix(s.note_md),
         clauseTree: buildClauseTree(s.id, s.ayah_from),
         irabAnalysis: irabAyahByAyah.get(s.ayah_from) ?? [],
