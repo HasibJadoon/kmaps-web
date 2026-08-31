@@ -642,10 +642,16 @@ export class StudyRepo {
       ).catch(() => []),
     ]);
 
-    if (!rendering && units.length === 0 && buildup.length === 0) return null;
+    // The analytical lenses — ring/chiasm, discourse, conflict, lexicon and the
+    // rest — live in the passage_structure task tree, and the parent is often a
+    // pending stub whose children carry the sections.
+    const task = await this.taskByStepType(surahId, passageNo, 'passage_structure');
+
+    if (!rendering && units.length === 0 && buildup.length === 0 && !task) return null;
 
     return {
       step: 'passage_structure',
+      task: task ?? null,
       surah: surahId,
       passage: passageNo,
       ayahFrom: p.ayah_from,
