@@ -740,12 +740,13 @@ export class StudyRepo {
         ).catch(() => []),
 
         query<{ id: string; term_key: string; category_key: string;
+                parent_term_id: string | null;
                 name_ar: string | null; name_en: string | null; name_ur: string | null;
                 badge_color: string | null; sources: string | null }>(
           this.db,
 
-          `SELECT g.id, g.term_key, g.category_key, g.name_ar, g.name_en, g.name_ur,
-                  g.badge_color,
+          `SELECT g.id, g.term_key, g.category_key, g.parent_term_id,
+                  g.name_ar, g.name_en, g.name_ur, g.badge_color,
                   (SELECT group_concat(s.source_slug, '|')
                      FROM ar_ling_gram_term_source s WHERE s.term_id = g.id) AS sources
              FROM ar_ling_gram_term g WHERE g.status = 'live'`,
@@ -1078,6 +1079,7 @@ export class StudyRepo {
       }
       return {
         key: t.term_key, ref: t.id, category: t.category_key,
+        parentRef: t.parent_term_id,
         labelAr: t.name_ar, labelEn: t.name_en, labelUr: t.name_ur,
         color: t.badge_color,
 
