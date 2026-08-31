@@ -23,7 +23,10 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     const url = new URL(req.url);
     return paginated(
       await new SourceRepo(env.DB_WV).list({
-        domain: url.searchParams.get('domain'),
+        domain:      url.searchParams.get('domain'),
+        // The alias dropped this filter while /worldview/sources honoured it,
+        // so ?source_type=arc returned the whole shelf.
+        source_type: url.searchParams.get('source_type'),
         ...parsePagination(url),
       }),
     );
