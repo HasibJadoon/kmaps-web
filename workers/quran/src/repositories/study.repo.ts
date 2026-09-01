@@ -712,7 +712,7 @@ export class StudyRepo {
       };
     }
 
-    const [sentRows, clauseRows, wordRows, irabRows, balaghaRows, ellipsisRows, tafsirRows, treeRows, nodeRows, termRows, irabAyahRows, grammarRows, readingRows, foldRows, decisionRows, sarfRows] =
+    const [sentRows, clauseRows, phraseRows, wordRows, irabRows, balaghaRows, ellipsisRows, tafsirRows, treeRows, nodeRows, termRows, irabAyahRows, grammarRows, readingRows, foldRows, decisionRows, sarfRows] =
       await Promise.all([
         query<{ id: string; ayah_from: number; ayah_to: number; word_start_index: number | null;
                 word_end_index: number | null; sentence_kind: string | null;
@@ -747,6 +747,21 @@ export class StudyRepo {
            ORDER BY ayah_from, clause_order`,
           [surah, from, to],
         ).catch(() => []),
+        // A phrase is the smallest scope the SS layer classifies, and it is
+        // where a naḥw or balāgha point about مِن or an iḍāfa actually belongs.
+        // The board draws tree nodes, not phrases, so the two are matched on
+        // the words they cover further down.
+        query<{ id: string; clause_id: string; ayah: number; phrase_order: number;
+                word_start_index: number; word_end_index: number;
+                phrase_type: string | null; phrase_function: string | null }>(
+          this.db,
+          `SELECT id, clause_id, ayah, phrase_order, word_start_index, word_end_index,
+                  phrase_type, phrase_function
+           FROM qr_ss_occ_phrase
+           WHERE surah = ? AND ayah BETWEEN ? AND ?
+           ORDER BY ayah, phrase_order`,
+          [surah, from, to],
+        ).catch(() => []),
         query<{ id: string; ayah: number; word_index: number; word_text: string;
                 word_text_bare: string | null; root: string | null;
                 lemma: string | null; pos: string | null }>(
@@ -769,19 +784,28 @@ export class StudyRepo {
           [surah, from, to],
         ).catch(() => []),
         query<{ scope_type: string; scope_id: string; ref: string | null;
-                category: string | null; effect: string | null; note: string | null }>(
+                category: string | null; effect: string | null; note: string | null;
+                gloss: string | null }>(
           this.db,
           `SELECT scope_type, scope_id, lx_balagha_ref AS ref,
-                  balagha_category AS category, rhetorical_effect AS effect, note_md AS note
+                  balagha_category AS category, rhetorical_effect AS effect, note_md AS note,
+                  gloss_json AS gloss
            FROM qr_ss_scope_balagha_link
            WHERE scope_id IN (SELECT id FROM qr_ss_occ_clause WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?)
            UNION ALL
            SELECT scope_type, scope_id, lx_balagha_ref AS ref,
-                  balagha_category AS category, rhetorical_effect AS effect, note_md AS note
+                  balagha_category AS category, rhetorical_effect AS effect, note_md AS note,
+                  gloss_json AS gloss
            FROM qr_ss_scope_balagha_link
-           WHERE scope_id IN (SELECT id FROM qr_ss_occ_sentence WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?)`,
+           WHERE scope_id IN (SELECT id FROM qr_ss_occ_sentence WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?)
+           UNION ALL
+           SELECT scope_type, scope_id, lx_balagha_ref AS ref,
+                  balagha_category AS category, rhetorical_effect AS effect, note_md AS note,
+                  gloss_json AS gloss
+           FROM qr_ss_scope_balagha_link
+           WHERE scope_id IN (SELECT id FROM qr_ss_occ_phrase WHERE surah = ? AND ayah BETWEEN ? AND ?)`,
 
-          [surah, from, to, surah, from, to],
+          [surah, from, to, surah, from, to, surah, from, to],
         ).catch(() => []),
         query<{ sentence_id: string; scope_type: string | null; scope_id: string | null;
                 ellipsis_type: string; elided_element: string; effect: string | null; note: string | null }>(
@@ -876,8 +900,13 @@ export class StudyRepo {
            SELECT scope_type, scope_id, lx_grammar_ref AS ref,
                   COALESCE(application_note, note_md) AS note, gloss_json AS gloss
              FROM qr_ss_scope_grammar_link
-            WHERE scope_id IN (SELECT id FROM qr_word_occurrence WHERE surah = ? AND ayah BETWEEN ? AND ?)`,
-          [surah, from, to, surah, from, to, surah, from, to],
+            WHERE scope_id IN (SELECT id FROM qr_word_occurrence WHERE surah = ? AND ayah BETWEEN ? AND ?)
+            UNION ALL
+           SELECT scope_type, scope_id, lx_grammar_ref AS ref,
+                  COALESCE(application_note, note_md) AS note, gloss_json AS gloss
+             FROM qr_ss_scope_grammar_link
+            WHERE scope_id IN (SELECT id FROM qr_ss_occ_phrase WHERE surah = ? AND ayah BETWEEN ? AND ?)`,
+          [surah, from, to, surah, from, to, surah, from, to, surah, from, to],
         ).catch(() => []),
 
         query<{ id: string; scope_type: string; scope_id: string; type: string | null;
@@ -1116,13 +1145,15 @@ export class StudyRepo {
 
     interface ScopeLayers {
       nahw:    { ref: string; note: string | null; gloss: unknown }[];
-      balagha: { ref: string | null; category: string | null; effect: string | null; note: string | null }[];
+      balagha: { ref: string | null; category: string | null; effect: string | null;
+                 note: string | null; gloss: unknown }[];
       irab:    { ref: string; fn: string | null; position: string | null; sign: string | null;
                  disputed: boolean; dispute: string | null; note: string | null }[];
+      hadhf:   { type: string; elided: string; effect: string | null; note: string | null }[];
     }
     const layersByScope: Record<string, ScopeLayers> = {};
     const layersFor = (scopeId: string): ScopeLayers =>
-      (layersByScope[scopeId] ??= { nahw: [], balagha: [], irab: [] });
+      (layersByScope[scopeId] ??= { nahw: [], balagha: [], irab: [], hadhf: [] });
 
     for (const g of grammarRows) {
       layersFor(g.scope_id).nahw.push({
@@ -1132,6 +1163,16 @@ export class StudyRepo {
     for (const b of balaghaRows) {
       layersFor(b.scope_id).balagha.push({
         ref: b.ref, category: b.category, effect: b.effect, note: b.note,
+        gloss: parseJson(b.gloss),
+      });
+    }
+    // What was left out is a point about the part it was left out of, so an
+    // ellipsis event is filed on its own scope — the clause, phrase or word —
+    // not only on the sentence that contains it.
+    for (const e of ellipsisRows) {
+      if (!e.scope_id) continue;
+      layersFor(e.scope_id).hadhf.push({
+        type: e.ellipsis_type, elided: e.elided_element, effect: e.effect, note: e.note,
       });
     }
     for (const m of sarfRows) {
@@ -1139,6 +1180,67 @@ export class StudyRepo {
         ref: m.ref, fn: m.fn, position: m.position, sign: m.sign,
         disputed: !!m.disputed, dispute: m.dispute, note: m.note,
       });
+    }
+
+    // The SS layer classifies phrases and clauses; the board draws tree nodes.
+    // They are the same stretch of Arabic under two names, so a point filed on
+    // a phrase is republished under the node covering it — otherwise a note
+    // about مِن sits in the database and never reaches the card that is tapped.
+    //
+    // Matching is on the words themselves rather than on indexes: the tree
+    // hangs the particle off its own phrase node without giving it a leaf, so
+    // «مِنَ اللَّهِ» and the phrase spanning words 3–4 agree on text but not on
+    // the set of leaves.
+    const bare = (text: string): string =>
+      [...text].filter((ch) => {
+        const c = ch.codePointAt(0)!;
+        return !((c >= 0x064b && c <= 0x0652) || c === 0x0670 || c === 0x0640
+                 || (c >= 0x06d6 && c <= 0x06ed) || ch === ' ');
+      }).join('')
+        .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه');
+
+    const nodeByText = new Map<string, string>();
+    for (const n of nodeRows) {
+      const key = bare(n.node_label ?? '');
+      if (key && !nodeByText.has(key)) nodeByText.set(key, n.id);
+    }
+    const rootNodeOfSentence = new Map<string, string>();
+    for (const n of nodeRows) {
+      if (n.parent_node_id) continue;
+      const tree = treeRows.find((t) => t.id === n.tree_id);
+      if (tree && !rootNodeOfSentence.has(tree.sentence_id)) {
+        rootNodeOfSentence.set(tree.sentence_id, n.id);
+      }
+    }
+    const textOfSpan = (ayah: number, start: number | null, end: number | null): string | null => {
+      if (start == null || end == null) return null;
+      const parts: string[] = [];
+      for (let i = start; i <= end; i++) {
+        const w = wordByPos.get(`${ayah}:${i}`);
+        if (w) parts.push(w.word_text);
+      }
+      return parts.length ? bare(parts.join(' ')) : null;
+    };
+    const republish = (scopeId: string, nodeId: string | undefined) => {
+      const src = layersByScope[scopeId];
+      if (!src || !nodeId || nodeId === scopeId) return;
+      const dst = layersFor(nodeId);
+      for (const n of src.nahw)    if (!dst.nahw.some((x) => x.ref === n.ref)) dst.nahw.push(n);
+      for (const b of src.balagha) if (!dst.balagha.some((x) => x.ref === b.ref)) dst.balagha.push(b);
+      for (const h of src.hadhf)   if (!dst.hadhf.some((x) => x.type === h.type)) dst.hadhf.push(h);
+    };
+    for (const ph of phraseRows) {
+      const key = textOfSpan(ph.ayah, ph.word_start_index, ph.word_end_index);
+      republish(ph.id, key ? nodeByText.get(key) : undefined);
+    }
+    for (const c of clauseRows) {
+      // A clause that is the whole sentence is the board's root card; a clause
+      // inside one ayah is matched on its words like a phrase.
+      const key = c.ayah_from === c.ayah_to
+        ? textOfSpan(c.ayah_from, c.word_start_index, c.word_end_index)
+        : null;
+      republish(c.id, (key ? nodeByText.get(key) : undefined)
+        ?? (c.parent_clause_id ? undefined : rootNodeOfSentence.get(c.sentence_id)));
     }
 
     const readings = readingRows.map((r) => ({

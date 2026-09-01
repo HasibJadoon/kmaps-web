@@ -23,6 +23,12 @@ function parseSurahPassage(
 
 const CORPUS_TTL = { browser: 14400, edge: 86400 };
 
+// The step payloads are not corpus: the SS, translation and balāgha layers are
+// authored, and a row written into D1 has to be readable in the app the same
+// minute. A day at the edge meant new analysis sat in the database invisible
+// until the cache aged out, which read in the app as a missing feature.
+const AUTHORED_TTL = { browser: 30, edge: 60 };
+
 export function studyRoutes(router: Router<QuranEnv>) {
 
   router.get('/qr/corpus-version', (req, env) =>
@@ -196,7 +202,7 @@ export function studyRoutes(router: Router<QuranEnv>) {
         if (result === null)      return notFound(`passage ${sp.s}:${sp.p}`);
         if (result === undefined) return notFound(`step '${stepType}' in passage ${sp.s}:${sp.p}`);
         return ok(result);
-      }, CORPUS_TTL),
+      }, AUTHORED_TTL),
   );
 
   router.get(
