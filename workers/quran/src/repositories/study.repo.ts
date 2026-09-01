@@ -712,7 +712,7 @@ export class StudyRepo {
       };
     }
 
-    const [sentRows, clauseRows, wordRows, irabRows, balaghaRows, ellipsisRows, tafsirRows, treeRows, nodeRows, termRows, irabAyahRows, grammarRows, readingRows, foldRows, sarfRows] =
+    const [sentRows, clauseRows, wordRows, irabRows, balaghaRows, ellipsisRows, tafsirRows, treeRows, nodeRows, termRows, irabAyahRows, grammarRows, readingRows, foldRows, decisionRows, sarfRows] =
       await Promise.all([
         query<{ id: string; ayah_from: number; ayah_to: number; word_start_index: number | null;
                 word_end_index: number | null; sentence_kind: string | null;
@@ -911,6 +911,18 @@ export class StudyRepo {
              FROM qr_ss_translation_unit
             WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ? AND status = 'live'
             ORDER BY ayah_from, seq`,
+          [surah, from, to],
+        ).catch(() => []),
+        query<{ ayah: number; seq: number | null; span: string;
+                rendered: string | null; driver_kind: string; driver_ref: string }>(
+          this.db,
+          // A rendering decision is keyed to the Arabic span it applies to, so
+          // a node can be given its own English rather than its sentence's.
+          `SELECT ayah, step_seq AS seq, target_span_ar AS span,
+                  rendered_json AS rendered, driver_kind, driver_ref
+             FROM qr_ss_translation_decision
+            WHERE surah = ? AND ayah BETWEEN ? AND ? AND status = 'live'
+            ORDER BY ayah, step_seq`,
           [surah, from, to],
         ).catch(() => []),
         query<{ scope_type: string; scope_id: string; ref: string;
@@ -1191,6 +1203,14 @@ export class StudyRepo {
       layersByScope,
       readings,
       fold,
+      decisions: decisionRows.map((d) => ({
+        ayah: d.ayah,
+        seq: d.seq,
+        spanAr: d.span,
+        rendered: parseJson(d.rendered),
+        driverKind: d.driver_kind,
+        driverRef: d.driver_ref,
+      })),
       sentences,
     };
   }
