@@ -1,6 +1,6 @@
 import type { Router } from '../../../shared/src/router';
-import { ok, notFound } from '../../../shared/src/response';
-import { query, queryOne } from '../../../shared/src/db';
+import { ok, notFound, created, badRequest } from '../../../shared/src/response';
+import { query, queryOne, execute } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 
 /// The curriculum is a tree, not a list: فنّ → باب/قسم → فصل → مسألة. It is
@@ -67,7 +67,8 @@ export function curriculumRoutes(router: Router<ArabicEnv>) {
     const rows = await query<NodeRow>(
       env.DB_AR,
       `SELECT ${NODE_COLS},
-              (SELECT COUNT(*) FROM ar_node_source s WHERE s.node_id = n.id) AS sources
+              (SELECT COUNT(*) FROM ar_node_source s WHERE s.node_id = n.id) AS sources,
+              (SELECT COUNT(*) FROM ar_node_gram_term g WHERE g.node_id = n.id) AS terms
          FROM ar_grammar_node n
         WHERE discipline = ?
         ORDER BY depth, sort_order, id`,
@@ -92,6 +93,7 @@ export function curriculumRoutes(router: Router<ArabicEnv>) {
           depth: n.depth,
           status: n.status,
           sources: n.sources ?? 0,
+          terms: n.terms ?? 0,
           readIn: readingRefs(n.al_refs_json),
           // A leaf is where the reading actually happens; the app draws it
           // differently from a heading, so it should not have to count.
@@ -127,7 +129,7 @@ export function curriculumRoutes(router: Router<ArabicEnv>) {
       cursor = up.parent_id;
     }
 
-    const [children, sources] = await Promise.all([
+    const [children, sources, terms] = await Promise.all([
       query<NodeRow>(
         env.DB_AR,
         `SELECT ${NODE_COLS} FROM ar_grammar_node WHERE parent_id = ? ORDER BY sort_order, id`,
@@ -144,9 +146,22 @@ export function curriculumRoutes(router: Router<ArabicEnv>) {
           ORDER BY ns.sort_order, s.id`,
         [id],
       ),
+      // The GT registry belongs to AL; AR keeps a reference copy precisely so
+      // this join is local instead of a call across databases.
+      query<Record<string, unknown>>(
+        env.DB_AR,
+        `SELECT t.id, t.term_key, t.category_key, t.name_ar AS nameAr,
+                t.name_en AS nameEn, t.badge_color AS color, l.relation, l.note_ar AS noteAr
+           FROM ar_node_gram_term l
+           JOIN ar_ling_gram_term t ON t.id = l.term_id
+          WHERE l.node_id = ? AND t.status = 'live'
+          ORDER BY l.sort_order, t.id`,
+        [id],
+      ),
     ]);
 
     return ok({
+      terms,
       node: {
         id: node.id, type: node.node_type, nameAr: node.name_ar, nameEn: node.name_en,
         definitionAr: node.definition_ar, depth: node.depth, status: node.status,
@@ -159,6 +174,83 @@ export function curriculumRoutes(router: Router<ArabicEnv>) {
       })),
       sources,
     });
+  });
+
+  /// Attach a source to a topic. Anything a reader can point at counts — a
+  /// classical book already in the library, a lecture on YouTube, a PDF, a web
+  /// page. A source that is not in the registry yet is created as it is
+  /// attached, so nobody has to file a book before citing it.
+  ///
+  /// Authoring, so it is behind the token: only the GET registry paths are
+  /// public.
+  router.post('/ar/nodes/:id/sources', async (req, env, { id }) => {
+    const node = await queryOne<{ id: string; discipline: string }>(
+      env.DB_AR, `SELECT id, discipline FROM ar_grammar_node WHERE id = ?`, [id],
+    );
+    if (!node) return notFound(`node ${id}`);
+
+    const b = await req.json() as Record<string, unknown>;
+    const str = (k: string): string | null => {
+      const v = b[k];
+      return typeof v === 'string' && v.trim() !== '' ? v.trim() : null;
+    };
+
+    let sourceId = str('sourceId');
+
+    if (!sourceId) {
+      const url = str('url');
+      const title = str('titleEn') ?? str('titleAr');
+      if (!title && !url) return badRequest('sourceId, or a title or url, is required');
+
+      // The kind is what decides the icon and how the locator reads, so infer
+      // it from the link when the caller has not said.
+      const kind = str('sourceKind') ?? inferKind(url);
+      sourceId = `SRC:usr:${crypto.randomUUID().slice(0, 12)}`;
+      await execute(
+        env.DB_AR,
+        `INSERT INTO ar_learning_source
+           (id, source_kind, title_ar, title_en, author_ar, author_en, url,
+            platform, edition, lang, discipline, authority, notes_md)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [sourceId, kind, str('titleAr'), str('titleEn'), str('authorAr'), str('authorEn'),
+         url, platformOf(url), str('edition'), str('lang'),
+         str('discipline') ?? node.discipline, str('authority') ?? 'user', str('notesMd')],
+      );
+    } else {
+      const exists = await queryOne<{ id: string }>(
+        env.DB_AR, `SELECT id FROM ar_learning_source WHERE id = ?`, [sourceId],
+      );
+      if (!exists) return notFound(`source ${sourceId}`);
+    }
+
+    const at = typeof b.timestampS === 'number' ? Math.max(0, Math.round(b.timestampS)) : null;
+    await execute(
+      env.DB_AR,
+      `INSERT OR REPLACE INTO ar_node_source
+         (node_id, source_id, locator, role, timestamp_s, note_ar, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM ar_node_source
+                                            WHERE node_id = ?), 0))`,
+      [id, sourceId, str('locator'), str('role') ?? 'reference', at, str('noteAr'), id],
+    );
+
+    return created(await queryOne<Record<string, unknown>>(
+      env.DB_AR,
+      `SELECT s.id, s.source_kind, s.title_ar, s.title_en, s.author_ar, s.author_en,
+              s.url, s.platform, s.authority, ns.locator, ns.role, ns.timestamp_s, ns.note_ar
+         FROM ar_node_source ns JOIN ar_learning_source s ON s.id = ns.source_id
+        WHERE ns.node_id = ? AND ns.source_id = ?`,
+      [id, sourceId],
+    ));
+  });
+
+  /// Detach one. The source itself stays in the library; only the citation goes.
+  router.delete('/ar/nodes/:id/sources/:sourceId', async (_req, env, { id, sourceId }) => {
+    await execute(
+      env.DB_AR,
+      `DELETE FROM ar_node_source WHERE node_id = ? AND source_id = ?`,
+      [id, sourceId],
+    );
+    return ok({ detached: true, node: id, source: sourceId });
   });
 
   /// One book, and the syllabus it is cited in. A library card that cannot be
@@ -208,4 +300,21 @@ function tally<T>(rows: T[], pick: (row: T) => string | null): { key: string; co
   }
   return [...counts.entries()].map(([key, count]) => ({ key, count }))
     .sort((a, b) => b.count - a.count);
+}
+
+/// What kind of thing a link points at. A reader pasting a YouTube URL should
+/// not have to say it is a video.
+function inferKind(url: string | null): string {
+  if (!url) return 'note';
+  const at = url.toLowerCase();
+  if (at.includes('youtube.') || at.includes('youtu.be') || at.includes('vimeo.')) return 'video';
+  if (at.endsWith('.pdf') || at.includes('/pdf')) return 'pdf';
+  if (at.includes('docs.google.') || at.includes('notion.')) return 'doc';
+  if (at.includes('archive.org') || at.includes('shamela') || at.includes('waqfeya')) return 'book';
+  return 'web';
+}
+
+function platformOf(url: string | null): string | null {
+  if (!url) return null;
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return null; }
 }
