@@ -5,6 +5,7 @@ import type { ArabicEnv } from './env';
 
 import { containerRoutes } from './routes/containers';
 import { libraryRoutes } from './routes/library';
+import { curriculumRoutes } from './routes/curriculum';
 import { vocabularyRoutes } from './routes/vocabulary';
 import { lessonRoutes } from './routes/lessons';
 import { grammarRoutes } from './routes/grammar';
@@ -19,6 +20,7 @@ router.get('/health', async (_req, env) =>
 
 containerRoutes(router);
 libraryRoutes(router);
+curriculumRoutes(router);
 lessonRoutes(router);
 vocabularyRoutes(router);
 grammarRoutes(router);

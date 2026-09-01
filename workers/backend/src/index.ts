@@ -167,7 +167,13 @@ export default {
 
     const isWebSocket = request.headers.get('Upgrade')?.toLowerCase() === 'websocket';
     const isAuthEndpoint = remainder.startsWith('core/auth/');
-    const isPublic = isAuthEndpoint || (mod.publicGet && request.method === 'GET');
+    const isPublicPath = request.method === 'GET'
+      && (mod.publicGetPaths ?? []).some(
+        (prefix) => remainder === prefix || remainder.startsWith(`${prefix}/`)
+                    || remainder.startsWith(`${prefix}?`));
+    const isPublic = isAuthEndpoint
+      || (mod.publicGet && request.method === 'GET')
+      || isPublicPath;
     let authCtx = await authenticate(request, env.JWT_SECRET ?? '');
 
     if (!authCtx && isWebSocket) {
