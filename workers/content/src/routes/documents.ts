@@ -42,6 +42,13 @@ function parseIncludes(url: URL, defaults: DocumentInclude[] = []): DocumentIncl
     .filter((part): part is DocumentInclude => allowed.has(part as DocumentInclude));
 }
 
+function numberParam(url: URL, name: string): number | undefined {
+  const raw = url.searchParams.get(name);
+  if (raw === null || raw.trim() === '') return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 function filtersFromUrl(url: URL): DocumentListFilters {
   const publicationState = url.searchParams.get('publication_state') ?? url.searchParams.get('state') ?? undefined;
   return {
@@ -57,6 +64,10 @@ function filtersFromUrl(url: URL): DocumentListFilters {
       undefined,
     language: url.searchParams.get('language') ?? undefined,
     q: url.searchParams.get('q') ?? undefined,
+    domain: url.searchParams.get('domain') ?? undefined,
+    subdomain: url.searchParams.get('subdomain') ?? undefined,
+    surah: numberParam(url, 'surah'),
+    ayah: numberParam(url, 'ayah'),
     include_archived:
       url.searchParams.get('include_archived') === 'true' ||
       publicationState === 'all',

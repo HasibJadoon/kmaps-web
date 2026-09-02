@@ -32,11 +32,16 @@ export interface DocumentListFilters {
   language?: string;
   q?: string;
   include_archived?: boolean;
+  domain?: string;
+  subdomain?: string;
+  surah?: number;
+  ayah?: number;
 }
 
 const DOCUMENT_COLS = `doc_id, core_user_ref, doc_type, title, title_ar, slug, language,
   word_count, reading_time_min, publication_state, policy_ref, workspace_ref,
-  primary_source_ref, tags_json, meta_json, created_at, updated_at`;
+  primary_source_ref, tags_json, meta_json, domain, subdomain, surah,
+  ayah_from, ayah_to, passage_ref, created_at, updated_at`;
 
 const BLOCK_COLS = `block_id, doc_id, parent_block_id, block_type, seq_order, depth,
   content_text, content_ar, attrs_json, annotations_json, meta_json, created_at, updated_at`;
@@ -80,6 +85,19 @@ function buildWhere(filters: DocumentListFilters = {}): { where: string; params:
   addFilter(clauses, params, 'policy_ref = ?', filters.policy_ref);
   addFilter(clauses, params, 'primary_source_ref = ?', filters.primary_source_ref);
   addFilter(clauses, params, 'language = ?', filters.language);
+  addFilter(clauses, params, 'domain = ?', filters.domain);
+  addFilter(clauses, params, 'subdomain = ?', filters.subdomain);
+
+  if (filters.surah !== undefined) {
+    clauses.push('surah = ?');
+    params.push(filters.surah);
+    // an āyah asks for the documents whose range covers it, not for the ones
+    // that happen to start on it
+    if (filters.ayah !== undefined) {
+      clauses.push('(ayah_from IS NULL OR ayah_from <= ?) AND (ayah_to IS NULL OR ayah_to >= ?)');
+      params.push(filters.ayah, filters.ayah);
+    }
+  }
 
   if (filters.publication_state && filters.publication_state !== 'all') {
     const states = filters.publication_state

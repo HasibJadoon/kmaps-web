@@ -16,6 +16,15 @@ export interface CmDocument {
   primary_source_ref: string | null;
   tags_json: string;
   meta_json: string;
+  // Where the document sits in the muṣḥaf, for the documents that are about a
+  // passage. Carried on the row rather than dug out of meta_json, so a surah
+  // can ask for its own writing.
+  domain: string | null;
+  subdomain: string | null;
+  surah: number | null;
+  ayah_from: number | null;
+  ayah_to: number | null;
+  passage_ref: string | null;
   created_at: string;
   updated_at: string;
 }
