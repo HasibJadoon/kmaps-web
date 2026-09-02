@@ -230,6 +230,12 @@ CREATE TABLE ar_ling_gram_bab (
   volume_no    INTEGER,
   page_start   INTEGER,
   page_id      INTEGER,
+  -- Where the bāb sits in the muṣḥaf, for the books that run in Qurʾān order
+  -- (معاني القرآن: al-Farrāʾ, al-Zajjāj, al-Naḥḥās). Their section titles name
+  -- the āyāt outright, so this is read off the spine rather than mined.
+  qr_surah     INTEGER,
+  qr_ayah_from INTEGER,
+  qr_ayah_to   INTEGER,
   status       TEXT NOT NULL DEFAULT 'raw',
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 , title_en       TEXT, title_ur       TEXT, scope_level   TEXT, memlet_key    TEXT REFERENCES "ar_ling_learn_memlet_kind"(memlet_key), encoding_axis TEXT, carrier_table TEXT, storage_code  TEXT, edition_id    TEXT REFERENCES "ar_ling_source_edition"(id), fill_state    TEXT NOT NULL DEFAULT 'missing', depth_level   TEXT NOT NULL DEFAULT 'L2', layer_code    TEXT NOT NULL DEFAULT 'AL:000-REG:SF:00-CORE:P');
