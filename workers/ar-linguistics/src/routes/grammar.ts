@@ -506,4 +506,43 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
       quran_count: examples.filter(e => e.example_kind === 'quran').length,
     });
   }, { browser: 60, edge: 300 }));
+  /// المسائل الخلافية — where the two schools actually parted.
+  ///
+  /// The Kūfan primary shelf closes after al-Farrāʾ because the books are lost,
+  /// so an attribution to نحاة الكوفة has, on its own, nothing behind it. Ibn
+  /// al-Anbārī's الإنصاف is the substitute the tradition leaves: 118 masāʾil,
+  /// each stating the Kūfan position and the Baṣran one. This hands them over
+  /// side by side, so a claim can be read against its own advocate.
+  ///
+  /// `?school=kufa|basra` keeps only the masāʾil where that side is on record;
+  /// `?q=` searches the masʾala titles.
+  router.get('/al/gram/khilaf', (req, env) => cached(req, async () => {
+    const url = new URL(req.url);
+    const school = url.searchParams.get('school');
+    const q = (url.searchParams.get('q') ?? '').trim();
+
+    const where: string[] = [];
+    const args: unknown[] = [];
+    if (school === 'kufa')  where.push('k.kufa_ar IS NOT NULL');
+    if (school === 'basra') where.push('k.basra_ar IS NOT NULL');
+    if (q) { where.push('k.title_ar LIKE ?'); args.push(`%${q}%`); }
+
+    const rows = (await env.DB_AL.prepare(
+      `SELECT k.id, k.masala_no, k.title_ar, k.kufa_ar, k.basra_ar, k.verdict,
+              k.volume_no, k.page_start, k.bab_id, k.source_slug,
+              s.title_short_ar AS source_title_ar, s.author_name AS source_author
+         FROM ar_ling_gram_khilaf k
+         LEFT JOIN ar_ling_source s ON s.slug = k.source_slug
+        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+        ORDER BY k.masala_no`,
+    ).bind(...args).all<Record<string, unknown>>()).results ?? [];
+
+    return ok({
+      total: rows.length,
+      // said plainly, because a gap here is a gap in the book's own wording
+      // rather than a row we failed to write
+      with_both: rows.filter(r => r.kufa_ar && r.basra_ar).length,
+      masail: rows,
+    });
+  }, { browser: 60, edge: 600 }));
 }
