@@ -6,7 +6,13 @@ import {
   LinguisticsApiService, GramBab, GramBookMeta, GramPage, GramSearchHit,
 } from '../../../shared/services/linguistics-api.service';
 
-interface FlatBab { id: string; title_ar: string; depth: number; volume_no: number | null; page_start: number | null; }
+interface FlatBab {
+  id: string; title_ar: string; depth: number;
+  volume_no: number | null; page_start: number | null;
+  /// > 0 when this heading has its own headings still to be fetched.
+  kids?: number;
+  open?: boolean;
+}
 
 @Component({
   selector: 'km-linguistics-book-reader',
@@ -30,7 +36,7 @@ interface FlatBab { id: string; title_ar: string; depth: number; volume_no: numb
 
       <div class="rd__body">
         <aside class="rd__rail" [class.open]="railOpen()">
-          <div class="rd__rail-head">الأبواب <span>{{ flat().length }}</span></div>
+          <div class="rd__rail-head">الأبواب <span>{{ lazySpine() ? levelCount() : flat().length }}</span></div>
 
           <div class="rd__find">
             <input #qbox dir="rtl" [value]="q()" placeholder="ابحث في الكتاب…"
@@ -59,8 +65,14 @@ interface FlatBab { id: string; title_ar: string; depth: number; volume_no: numb
             @for (n of flat(); track n.id) {
               <button class="tw" [class.active]="activeBab()===n.id" [style.--d]="n.depth"
                       [class.lead]="n.depth===0" (click)="openBab(n)" dir="rtl">
+                @if (n.kids) { <span class="tw__k">{{ n.open ? '−' : '+' }}</span> }
                 <span class="tw__t">{{ n.title_ar }}</span>
                 @if (n.page_start) { <span class="tw__p">{{ n.volume_no ? 'ج'+n.volume_no+'/' : '' }}{{ n.page_start }}</span> }
+              </button>
+            }
+            @if (lazySpine() && flat().length < levelCount()) {
+              <button class="tw more" (click)="moreSpine()" [disabled]="loadingSpine()" dir="rtl">
+                {{ loadingSpine() ? '…' : 'المزيد — ' + (levelCount() - flat().length) }}
               </button>
             }
           </nav>
@@ -192,6 +204,10 @@ export class LinguisticsBookReaderComponent {
   readonly railOpen = signal(false);
   readonly fs = signal<'sm' | 'md' | 'lg'>('md');
   readonly q = signal('');
+  /// Long books hand over their contents a level at a time.
+  readonly lazySpine = signal(false);
+  readonly levelCount = signal(0);
+  readonly loadingSpine = signal(false);
   readonly hits = signal<GramSearchHit[]>([]);
   readonly searching = signal(false);
   readonly searched = signal(false);
@@ -214,10 +230,52 @@ export class LinguisticsBookReaderComponent {
     this.api.getBook(this.slug).subscribe({
       next: (r) => {
         this.book.set(r.book);
-        this.flat.set(this.flatten(r.spine));
+        this.lazySpine.set(!!r.lazy);
+        this.levelCount.set(r.level_count ?? r.bab_count);
+        this.flat.set(r.lazy ? this.level(r.spine) : this.flatten(r.spine));
         this.showAll();
       },
       error: () => this.loading.set(false),
+    });
+  }
+
+  /// One level, as it came: no walking into children that were not sent.
+  private level(spine: GramBab[]): FlatBab[] {
+    return spine.map(n => ({
+      id: n.id, title_ar: n.title_ar, depth: n.depth,
+      volume_no: n.volume_no, page_start: n.page_start, kids: n.child_count ?? 0,
+    }));
+  }
+
+  /// The rest of a long contents page, on request.
+  moreSpine(): void {
+    if (this.loadingSpine()) return;
+    this.loadingSpine.set(true);
+    this.api.getBook(this.slug, { offset: this.flat().length }).subscribe({
+      next: (r) => {
+        this.flat.update(list => [...list, ...this.level(r.spine)]);
+        this.loadingSpine.set(false);
+      },
+      error: () => this.loadingSpine.set(false),
+    });
+  }
+
+  /// A heading with headings of its own: fetch them once, then just fold.
+  expand(n: FlatBab): void {
+    if (!n.kids) return;
+    const list = this.flat();
+    const at = list.findIndex(x => x.id === n.id);
+    if (n.open) {
+      this.flat.set(list.filter((x, i) => i <= at || x.depth <= n.depth));
+      n.open = false;
+      return;
+    }
+    this.api.getBook(this.slug, { parent: n.id }).subscribe({
+      next: (r) => {
+        const kids = this.level(r.spine).map(k => ({ ...k, depth: n.depth + 1 }));
+        this.flat.set([...list.slice(0, at + 1), ...kids, ...list.slice(at + 1)]);
+        n.open = true;
+      },
     });
   }
 
@@ -232,7 +290,12 @@ export class LinguisticsBookReaderComponent {
   }
 
   showAll(): void { this.activeBab.set(null); this.fetchPages(true); }
-  openBab(n: FlatBab): void { this.activeBab.set(n.id); this.railOpen.set(false); this.fetchPages(true); }
+  openBab(n: FlatBab): void {
+    // A heading that holds other headings opens them; a heading that holds text
+    // opens the text.
+    if (n.kids) { this.expand(n); return; }
+    this.activeBab.set(n.id); this.railOpen.set(false); this.fetchPages(true);
+  }
 
   private fetchPages(reset: boolean): void {
     if (reset) { this.pageNum.set(1); this.pages.set([]); this.loading.set(true); }

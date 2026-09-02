@@ -24,7 +24,7 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     // them: a table of contents, not a study record. The learner's own side of
     // this module — containers, exercises, SRS, vocabulary, progress — is
     // untouched and still requires a token.
-    publicGetPaths: ['ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes'],
+    publicGetPaths: ['ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons'],
   },
   al:   { binding: 'AR_LINGUISTICS', publicGet: true  },
   cm:   { binding: 'CONTENT',        publicGet: false },

@@ -28,6 +28,7 @@ export interface GramBooksResult { groups: GramGroup[]; total_books: number; }
 
 export interface GramBab {
   id: string;
+  child_count?: number;
   parent_id: string | null;
   title_ar: string;
   depth: number;
@@ -42,7 +43,11 @@ export interface GramBookMeta {
   author_death_ah: number | null; genre: string | null;
   edition_label: string | null; betaka: string | null; page_count: number;
 }
-export interface GramBookResult { book: GramBookMeta; spine: GramBab[]; bab_count: number; }
+export interface GramBookResult {
+  book: GramBookMeta; spine: GramBab[]; bab_count: number;
+  /// A long table of contents arrives a level and a page at a time.
+  lazy?: boolean; level_count?: number; offset?: number; has_more?: boolean;
+}
 
 export interface GramPage {
   id: string; bab_id: string | null; volume_no: number | null;
@@ -65,8 +70,12 @@ export class LinguisticsApiService {
     return this.api.getData<GramBooksResult>('al', ['gram', 'books']);
   }
 
-  getBook(slug: string): Observable<GramBookResult> {
-    return this.api.getData<GramBookResult>('al', ['gram', 'book', slug]);
+  getBook(slug: string, opts: { parent?: string; offset?: number; limit?: number } = {}): Observable<GramBookResult> {
+    let p = new HttpParams();
+    if (opts.parent) p = p.set('parent', opts.parent);
+    if (opts.offset) p = p.set('offset', String(opts.offset));
+    if (opts.limit) p = p.set('limit', String(opts.limit));
+    return this.api.getData<GramBookResult>('al', ['gram', 'book', slug], { params: p });
   }
 
   getPages(slug: string, opts: { bab?: string; page?: number; limit?: number } = {}): Observable<GramPagesResult> {
