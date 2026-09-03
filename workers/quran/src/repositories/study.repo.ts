@@ -592,7 +592,11 @@ export class StudyRepo {
                 rejected_assemblies_json AS rejected
            FROM qr_ss_translation_passage
           WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?
-          ORDER BY ayah_from LIMIT 1`,
+          -- The widest row first: the passage's own assembly spans every ayah,
+          -- while the per-ayah rows each span one. Ordering by ayah_from alone
+          -- picked the first ayah's row, so a three-ayah passage reported its
+          -- final rendering as the rendering of its opening line.
+          ORDER BY (ayah_to - ayah_from) DESC, ayah_from LIMIT 1`,
         [surahId, p.ayah_from, p.ayah_to],
       ).catch(() => null),
       query<Record<string, unknown>>(
@@ -671,6 +675,27 @@ export class StudyRepo {
       data:     parseJson(r.data_json) ?? {},
     }));
 
+    // The concept behind each decision, named rather than explained. A driver
+    // is a balagha or grammar row; each carries a GT term, and the term has a
+    // short name in both languages. The reader gets the name and can follow it
+    // to the concept; the reasoning stays available but does not lead.
+    const drivers = await query<{
+      link_id: string; gt_id: string; name_ar: string; name_en: string; category: string;
+    }>(
+      this.db,
+      `SELECT b.id AS link_id, t.id AS gt_id, t.name_ar, t.name_en, t.category_key AS category
+         FROM qr_ss_scope_balagha_link b
+         JOIN ar_ling_gram_term t ON t.id = b.lx_balagha_ref
+        WHERE b.id LIKE ?
+        UNION ALL
+       SELECT g.id, t.id, t.name_ar, t.name_en, t.category_key
+         FROM qr_ss_scope_grammar_link g
+         JOIN ar_ling_gram_term t ON t.id = g.lx_grammar_ref
+        WHERE g.id LIKE ?`,
+      [`QR:BL:${surahId}:%`, `QR:GR:${surahId}:%`],
+    ).catch(() => []);
+    const conceptOf = new Map(drivers.map((d) => [d.link_id, d]));
+
     // The passage's comprehension questions. They have no tab of their own, and
     // they belong to the passage rather than to a sentence, so they travel with
     // this step and the client shows them as one more lens.
@@ -716,6 +741,11 @@ export class StudyRepo {
         ...d,
         rendered: parseJson(d.rendered as string | null),
         rationale: parseJson(d.rationale as string | null),
+        concepts: String(d.driverRef ?? '')
+          .split(';')
+          .map((ref) => conceptOf.get(ref.trim()))
+          .filter((c): c is NonNullable<typeof c> => Boolean(c))
+          .map((c) => ({ ref: c.gt_id, nameAr: c.name_ar, nameEn: c.name_en, category: c.category })),
       })),
     };
   }
@@ -783,6 +813,32 @@ export class StudyRepo {
         summaryAr:     r.summary_ar,
         sectionCount:  r.section_count,
         keyNotes:      parseJson(r.key_notes_json),
+        // Lifted out of key_notes so the client does not have to know the
+        // shape: the reading's own English line, and the axes on which it
+        // parts from the others.
+        derivedLineEn: asStr((asRec(parseJson(r.key_notes_json))?.['derived_line_en']) ?? null),
+        axes: (() => {
+          const notes = asRec(parseJson(r.key_notes_json));
+          const raw = notes?.['divergence_axes'];
+          if (!Array.isArray(raw)) return [];
+          return raw.map((entry) => {
+            const a = asRec(entry) ?? {};
+            const names = (v: unknown) =>
+              Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string')
+              : typeof v === 'string' ? [v] : [];
+            return {
+              axis:       asStr(a['axis']),
+              spanAr:     asStr(a['span_ar']),
+              position:   asStr(a['position']),
+              enEffect:   asStr(a['en_effect']),
+              section:    asStr(a['section']),
+              against:    names(a['against']),
+              agreesWith: names(a['agrees_with']),
+              silent:     names(a['silent']),
+              uniqueTo:   asStr(a['unique_to']),
+            };
+          });
+        })(),
         sections: sections
           .filter((x) => x.tafsir_id === r.id)
           .map((x) => ({
@@ -798,6 +854,100 @@ export class StudyRepo {
             quoteAr:   x.quote_ar,
           })),
       })),
+    };
+  }
+
+  /**
+   * Every place a GT concept is referenced, for the term's own page.
+   *
+   * A concept is not only a definition — it is the set of passages that turned
+   * out to need it. Balagha and grammar rows name the term against a sentence,
+   * tree nodes name it against a word, and a translation decision names it as
+   * the reason a phrase reads the way it does. All of them resolve through the
+   * sentence to the passage that holds it, so each reference can be followed
+   * back to where it was used.
+   */
+  async termReferences(gtId: string) {
+    const rows = await query<{
+      kind: string; ref_id: string; scope_id: string; surah: number;
+      ayah_from: number; ayah_to: number; label: string | null;
+    }>(
+      this.db,
+      `SELECT 'balagha' AS kind, b.id AS ref_id, b.scope_id, s.surah,
+              s.ayah_from, s.ayah_to, b.rhetorical_effect AS label
+         FROM qr_ss_scope_balagha_link b
+         JOIN qr_ss_occ_sentence s ON s.id = b.scope_id
+        WHERE b.lx_balagha_ref = ?
+        UNION ALL
+       SELECT 'grammar', g.id, g.scope_id, s.surah, s.ayah_from, s.ayah_to,
+              g.application_note
+         FROM qr_ss_scope_grammar_link g
+         JOIN qr_ss_occ_sentence s ON s.id = g.scope_id
+        WHERE g.lx_grammar_ref = ?
+        UNION ALL
+       SELECT 'word', n.id, n.tree_id, s.surah, s.ayah_from, s.ayah_to, n.node_label
+         FROM qr_ss_tree_node n
+         JOIN qr_ss_tree t ON t.id = n.tree_id
+         JOIN qr_ss_occ_sentence s ON s.id = t.sentence_id
+        WHERE n.gram_term_ref = ?
+        UNION ALL
+       SELECT 'sentence', s.id, s.id, s.surah, s.ayah_from, s.ayah_to, s.discourse_role
+         FROM qr_ss_occ_sentence s
+        WHERE s.gt_sentence_class = ?`,
+      [gtId, gtId, gtId, gtId],
+    ).catch(() => []);
+    if (!rows.length) return { term: gtId, total: 0, passages: [] };
+
+    const surahs = [...new Set(rows.map((r) => r.surah))];
+    const passages = await query<{
+      id: string; surah: number; passage_no: number; ayah_from: number;
+      ayah_to: number; title: string | null;
+    }>(
+      this.db,
+      `SELECT id, surah, passage_no, ayah_from, ayah_to, title_en AS title
+         FROM qr_surah_study_passage
+        WHERE surah IN (${surahs.map(() => '?').join(',')}) AND status != 'deleted'
+        ORDER BY surah, passage_no`,
+      surahs,
+    ).catch(() => []);
+
+    // Group by the passage each reference falls inside; a reference whose ayah
+    // sits outside every passage is still reported, keyed by its ayah, rather
+    // than dropped for want of a passage row.
+    const buckets = new Map<string, {
+      passage: typeof passages[number] | null; surah: number;
+      ayahFrom: number; refs: typeof rows;
+    }>();
+    for (const r of rows) {
+      const p = passages.find(
+        (x) => x.surah === r.surah && r.ayah_from >= x.ayah_from && r.ayah_to <= x.ayah_to,
+      ) ?? null;
+      const key = p ? p.id : `${r.surah}:${r.ayah_from}`;
+      const bucket = buckets.get(key)
+        ?? { passage: p, surah: r.surah, ayahFrom: r.ayah_from, refs: [] as typeof rows };
+      bucket.refs.push(r);
+      buckets.set(key, bucket);
+    }
+
+    return {
+      term: gtId,
+      total: rows.length,
+      passages: [...buckets.values()]
+        .sort((a, b) => a.surah - b.surah || a.ayahFrom - b.ayahFrom)
+        .map((b) => ({
+          passageId:  b.passage?.id ?? null,
+          passageNo:  b.passage?.passage_no ?? null,
+          title:      b.passage?.title ?? null,
+          surah:      b.surah,
+          ayahFrom:   b.passage?.ayah_from ?? b.ayahFrom,
+          ayahTo:     b.passage?.ayah_to ?? b.ayahFrom,
+          references: b.refs.map((r) => ({
+            kind:  r.kind,
+            id:    r.ref_id,
+            ayah:  r.ayah_from,
+            label: r.label,
+          })),
+        })),
     };
   }
 

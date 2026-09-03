@@ -207,6 +207,14 @@ export function studyRoutes(router: Router<QuranEnv>) {
       }, AUTHORED_TTL),
   );
 
+  // Linked references for a GT concept: every passage that uses it, and how.
+  router.get('/qr/gram/terms/:id/references', (req, env, { id }) =>
+    cached(req, async () => {
+      if (!id) return badRequest('term id is required');
+      return ok(await new StudyRepo(env.DB_QR).termReferences(decodeURIComponent(id)));
+    }, AUTHORED_TTL),
+  );
+
   router.get(
     '/qr/study/surahs/:surahId/passages/:passageNo/steps/:stepType/tasks',
     async (_req, env, { surahId, passageNo, stepType }) => {
