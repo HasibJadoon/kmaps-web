@@ -632,7 +632,11 @@ export class StudyRepo {
       ).catch(() => []),
       query<Record<string, unknown>>(
         this.db,
-        `SELECT id, ayah, step_seq AS seq, target_span_ar AS spanAr,
+        // unit_id and buildup_id travel with the row: without them a decision
+        // cannot be attached to the step whose wording it explains, and the
+        // client renders the ladder with no reasons at all.
+        `SELECT id, unit_id AS unitId, buildup_id AS buildupId,
+                ayah, step_seq AS seq, target_span_ar AS spanAr,
                 rendered_json AS rendered, driver_kind AS driverKind,
                 driver_ref AS driverRef, rationale_json AS rationale
            FROM qr_ss_translation_decision
@@ -643,15 +647,63 @@ export class StudyRepo {
     ]);
 
     // The analytical lenses — ring/chiasm, discourse, conflict, lexicon and the
-    // rest — live in the passage_structure task tree, and the parent is often a
-    // pending stub whose children carry the sections.
-    const task = await this.taskByStepType(surahId, passageNo, 'passage_structure');
+    // rest — are authored rows in qr_passage_section, one card each, keyed by
+    // the study passage and ordered by sort_order. Read from the table, never
+    // from a task_json payload.
+    const sectionRows = await query<{
+      id: string; sort_order: number; section_key: string | null; title: string | null;
+      badge: string | null; tone: string | null; renderer: string; data_json: string | null;
+    }>(
+      this.db,
+      `SELECT id, sort_order, section_key, title, badge, tone, renderer, data_json
+         FROM qr_passage_section
+        WHERE passage_id = ? AND status = 'active'
+        ORDER BY sort_order, id`,
+      [p.id],
+    ).catch(() => []);
+    const sections = sectionRows.map((r) => ({
+      id:       r.id,
+      key:      r.section_key ?? r.renderer,
+      title:    r.title ?? '',
+      badge:    r.badge ?? '',
+      tone:     r.tone ?? 'secondary',
+      renderer: r.renderer,
+      data:     parseJson(r.data_json) ?? {},
+    }));
 
-    if (!rendering && units.length === 0 && buildup.length === 0 && !task) return null;
+    // The passage's comprehension questions. They have no tab of their own, and
+    // they belong to the passage rather than to a sentence, so they travel with
+    // this step and the client shows them as one more lens.
+    const questions = await query<{
+      id: string; ayah_from: number | null; ayah_to: number | null;
+      question_type: string; question_en: string; question_ar: string | null;
+      answer_md: string | null; difficulty: string; sort_order: number;
+    }>(
+      this.db,
+      `SELECT id, ayah_from, ayah_to, question_type, question_en, question_ar,
+              answer_md, difficulty, sort_order
+         FROM qr_study_question
+        WHERE passage_id = ? AND status != 'deleted'
+        ORDER BY sort_order, id`,
+      [p.id],
+    ).catch(() => []);
+
+    if (!rendering && units.length === 0 && buildup.length === 0
+        && sections.length === 0 && questions.length === 0) return null;
 
     return {
       step: 'passage_structure',
-      task: task ?? null,
+      sections,
+      questions: questions.map((q) => ({
+        id:         q.id,
+        ayahFrom:   q.ayah_from,
+        ayahTo:     q.ayah_to,
+        type:       q.question_type,
+        difficulty: q.difficulty,
+        questionEn: q.question_en,
+        questionAr: q.question_ar,
+        answerMd:   q.answer_md,
+      })),
       surah: surahId,
       passage: passageNo,
       ayahFrom: p.ayah_from,
@@ -664,6 +716,87 @@ export class StudyRepo {
         ...d,
         rendered: parseJson(d.rendered as string | null),
         rationale: parseJson(d.rationale as string | null),
+      })),
+    };
+  }
+
+  /// The mufassirun on this passage, one reading per work: the stance and
+  /// thesis the reading was built on, then its sections in the order they were
+  /// written. Straight from qr_scholar_passage_reading / _section — a reading
+  /// with no sections yet still returns, because the thesis alone is worth
+  /// reading and the section count says what is still missing.
+  async scholarshipStep(surahId: number, passageNo: number) {
+    const passages = await this._passages(surahId);
+    const p = passages.find((x) => x.passage_no === passageNo);
+    if (!p) return null;
+
+    const readings = await query<{
+      id: string; source_slug: string; author_name_ar: string | null;
+      author_name_en: string | null; death_year_hijri: number | null;
+      reading_stance: string | null; thesis_ar: string | null; thesis_en: string | null;
+      summary_en: string | null; summary_ar: string | null;
+      section_count: number; key_notes_json: string | null;
+    }>(
+      this.db,
+      `SELECT id, source_slug, author_name_ar, author_name_en, death_year_hijri,
+              reading_stance, thesis_ar, thesis_en, summary_en, summary_ar,
+              section_count, key_notes_json
+         FROM qr_scholar_passage_reading
+        WHERE passage_ref = ? AND status != 'deleted'
+        ORDER BY death_year_hijri, source_slug`,
+      [p.id],
+    ).catch(() => []);
+    if (!readings.length) return undefined;
+
+    const sections = await query<{
+      tafsir_id: string; id: string; section_ord: number;
+      heading_en: string; heading_ar: string; ayah_anchor: string | null;
+      section_kind: string | null; verdict: string; body_en: string | null;
+      body_ar: string | null; quote_ar: string | null;
+    }>(
+      this.db,
+      `SELECT tafsir_id, id, section_ord, heading_en, heading_ar, ayah_anchor,
+              section_kind, verdict, body_en, body_ar, quote_ar
+         FROM qr_scholar_passage_section
+        WHERE tafsir_id IN (${readings.map(() => '?').join(',')})
+        ORDER BY tafsir_id, section_ord`,
+      readings.map((r) => r.id),
+    ).catch(() => []);
+
+    return {
+      step:       'scholarship',
+      source:     'tables',
+      passage_id: p.id,
+      surah:      p.surah_id,
+      ayah_from:  p.ayah_from,
+      ayah_to:    p.ayah_to,
+      readings: readings.map((r) => ({
+        id:            r.id,
+        slug:          r.source_slug,
+        authorEn:      r.author_name_en,
+        authorAr:      r.author_name_ar,
+        died:          r.death_year_hijri,
+        stance:        r.reading_stance,
+        thesisEn:      r.thesis_en,
+        thesisAr:      r.thesis_ar,
+        summaryEn:     r.summary_en,
+        summaryAr:     r.summary_ar,
+        sectionCount:  r.section_count,
+        keyNotes:      parseJson(r.key_notes_json),
+        sections: sections
+          .filter((x) => x.tafsir_id === r.id)
+          .map((x) => ({
+            id:        x.id,
+            ord:       x.section_ord,
+            headingEn: x.heading_en,
+            headingAr: x.heading_ar,
+            ayah:      x.ayah_anchor,
+            kind:      x.section_kind,
+            verdict:   x.verdict,
+            bodyEn:    x.body_en,
+            bodyAr:    x.body_ar,
+            quoteAr:   x.quote_ar,
+          })),
       })),
     };
   }
@@ -1333,6 +1466,7 @@ export class StudyRepo {
       case 'expressions':   return this.expressionsStep(surahId, passageNo, al);
       case 'sentence_structure': return this.sentenceStructureStep(surahId, passageNo);
       case 'passage_structure':  return this.passageStructureStep(surahId, passageNo);
+      case 'scholarship':        return this.scholarshipStep(surahId, passageNo);
       default: {
         const task = await this.taskByStepType(surahId, passageNo, stepType);
         if (task === null) return null;
@@ -1724,6 +1858,24 @@ export class StudyRepo {
            FROM qr_word_occurrence WHERE surah = ?`,
         [surahId],
       ).catch(() => []).then(rows => ['reading', rows] as const),
+      // Passage-structure cards are authored per study passage in
+      // qr_passage_section; project the passage's own span so the same
+      // overlap test below lights the flag.
+      query<{ ayah_from: number; ayah_to: number }>(
+        this.db,
+        `SELECT DISTINCT p.ayah_from, p.ayah_to
+           FROM qr_passage_section s
+           JOIN qr_surah_study_passage p ON p.id = s.passage_id
+          WHERE p.surah = ? AND s.status = 'active'`,
+        [surahId],
+      ).catch(() => []).then(rows => ['passage_structure', rows] as const),
+      query<{ ayah_from: number; ayah_to: number }>(
+        this.db,
+        `SELECT DISTINCT ayah_from, ayah_to
+           FROM qr_scholar_passage_reading
+          WHERE surah = ? AND status != 'deleted'`,
+        [surahId],
+      ).catch(() => []).then(rows => ['scholarship', rows] as const),
     ]);
 
     for (const p of passages) {

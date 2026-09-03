@@ -44,7 +44,9 @@ export function studyRoutes(router: Router<QuranEnv>) {
       if (!s) return badRequest('Invalid surahId');
       const data = await new StudyRepo(env.DB_QR).grid(s);
       return data ? ok(data) : notFound(`study grid for surah ${s}`);
-    }, CORPUS_TTL),
+    // The grid's has-flags follow authored rows (sections, sentences, tafsir),
+    // so they must age like the step payloads, not like the corpus.
+    }, AUTHORED_TTL),
   );
 
   router.get('/qr/study/surahs/:surahId/passages', async (_req, env, { surahId }) => {
