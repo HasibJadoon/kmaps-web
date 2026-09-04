@@ -716,8 +716,34 @@ export class StudyRepo {
     if (!rendering && units.length === 0 && buildup.length === 0
         && sections.length === 0 && questions.length === 0) return null;
 
+    // The lens deck, composed here rather than in the client. The ladder and
+    // the questions are lenses like any other; assembling them in Swift meant
+    // two of the twelve pills had their label, order and existence decided in
+    // code while the rest came from the table.
+    const lenses = [
+      ...(buildup.length > 0 || rendering
+        ? [{ key: 'ladder', label: 'السلّم', labelEn: 'The ladder',
+             count: buildup.length || null, tone: 'gold', enabled: true }]
+        : [{ key: 'ladder', label: 'السلّم', labelEn: 'The ladder',
+             count: null, tone: 'muted', enabled: false }]),
+      ...sections.map((s) => ({
+        key: s.key,
+        label: s.badge && sections.filter((o) => o.badge === s.badge).length > 1 && s.title
+          ? s.title : (s.badge || s.title),
+        labelEn: s.title,
+        count: null as number | null,
+        tone: s.tone,
+        enabled: true,
+      })),
+      ...(questions.length > 0
+        ? [{ key: 'questions', label: 'الأسئلة', labelEn: 'Questions',
+             count: questions.length, tone: 'gold', enabled: true }]
+        : []),
+    ];
+
     return {
       step: 'passage_structure',
+      lenses,
       sections,
       questions: questions.map((q) => ({
         id:         q.id,
