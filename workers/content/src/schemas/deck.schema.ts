@@ -76,6 +76,19 @@ export interface DeckCollection extends DeckCollectionNode {
   terms: string[];
 }
 
+/**
+ * A folder in the deck library. Roots come from `cm_collections` rather than
+ * from the decks themselves, so a folder can exist — and be shown — before
+ * anything has been filed into it.
+ */
+export interface DeckFolder {
+  collection_id: string;
+  title: string;
+  title_ar: string | null;
+  description: string | null;
+  deck_count: number;
+}
+
 export interface Deck {
   doc_id: string;
   slug: string;
@@ -109,4 +122,10 @@ export interface DeckSummary {
   duration_min: number | null;
   theme: DeckTheme;
   updated_at: string | null;
+  /**
+   * The folder the deck belongs in. The list needs it to group decks, and the
+   * deck already declares it in its contract, so the clients group by what the
+   * deck says rather than by inferring a folder from `domain`.
+   */
+  collection: DeckCollection | null;
 }

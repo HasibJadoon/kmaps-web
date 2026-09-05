@@ -19,6 +19,11 @@ export function deckRoutes(router: Router<ContentEnv>) {
     );
   });
 
+  // Declared before /cm/decks/:slug so the literal wins over the parameter.
+  router.get('/cm/decks/folders', async (_req, env) => {
+    return ok(await new DeckRepo(env.DB_CM).folders());
+  });
+
   router.get('/cm/decks/:slug', async (_req, env, params) => {
     const deck = await new DeckRepo(env.DB_CM).find(params.slug);
     if (!deck) return notFound(`deck ${params.slug}`);

@@ -1,6 +1,6 @@
 import { query, queryOne } from '../../../shared/src/db';
 import type {
-  Deck, DeckCollection, DeckSlide, DeckSummary, DeckTheme, DeckVerseRef,
+  Deck, DeckCollection, DeckFolder, DeckSlide, DeckSummary, DeckTheme, DeckVerseRef,
 } from '../schemas/deck.schema';
 import { asDeckLayout } from '../schemas/deck.schema';
 
@@ -129,8 +129,47 @@ export class DeckRepo {
         duration_min: meta.duration_min ?? null,
         theme: meta.theme ?? {},
         updated_at: row.updated_at,
+        collection: meta.collection ?? null,
       };
     });
+  }
+
+  /**
+   * The root folders of the deck library, with how many decks sit anywhere
+   * beneath each. A root is a `cm_collections` row whose meta says so; the
+   * count walks `meta_json.collection.path` on each deck, which is where the
+   * deck records the folders it belongs to.
+   */
+  async folders(): Promise<DeckFolder[]> {
+    const roots = await query<{
+      collection_id: string; title: string; title_ar: string | null; description: string | null;
+    }>(
+      this.db,
+      `SELECT collection_id, title, title_ar, description
+         FROM cm_collections
+        WHERE json_extract(meta_json, '$.level') = 'root'
+        ORDER BY title`,
+    );
+
+    const decks = await query<{ meta_json: string | null }>(
+      this.db,
+      `SELECT meta_json FROM cm_documents WHERE doc_type = 'deck'`,
+    );
+
+    const counts = new Map<string, number>();
+    for (const row of decks) {
+      const meta = parseJson<DeckMeta>(row.meta_json, {});
+      const rootId = meta.collection?.path?.[0]?.collection_id;
+      if (rootId) counts.set(rootId, (counts.get(rootId) ?? 0) + 1);
+    }
+
+    return roots.map((r) => ({
+      collection_id: r.collection_id,
+      title: r.title,
+      title_ar: r.title_ar,
+      description: r.description,
+      deck_count: counts.get(r.collection_id) ?? 0,
+    }));
   }
 
   /** Accepts a slug or a full doc_id, so a link can carry either. */
