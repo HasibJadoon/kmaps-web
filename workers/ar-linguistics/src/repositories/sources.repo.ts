@@ -201,7 +201,7 @@ export class SourcesRepo {
 
 export type FootnoteMode  = 'inline_brackets' | 'footnote_blocks' | 'marker_paren' | 'none';
 export type QuranCueMode  = 'inline_verse' | 'cue_only_verse_in_braces' | 'refs_table' | 'none';
-export type ComposerKey   = 'classical_prose' | 'lane_entry' | 'synthesis_lens';
+export type ComposerKey   = 'classical_prose' | 'lane_entry' | 'synthesis_lens' | 'stored_blocks';
 
 export interface LexiconDisplayProfile {
   source_slug:       string;

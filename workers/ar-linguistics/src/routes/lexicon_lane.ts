@@ -253,11 +253,20 @@ function composeView(
             { kind: 'text',   value: m[1] + '. ' },
             { kind: 'arabic', value: m[2] },
           ];
+        } else {
+          header_tokens = [{ kind: 'arabic', value: text }];
         }
         continue;
       }
 
       if (b.block_type === 'definition') {
+        const stored = storedSense(b);
+        if (stored) {
+          // One row per Lane sense (lane_root_stage_v2): label and kind are stored
+          // on the row; nothing is re-split here.
+          senses.push(stored);
+          continue;
+        }
 
         const html = (b.text_html ?? '').trim();
         if (!html) {
@@ -338,6 +347,32 @@ function composeView(
       cross_refs: cross_refs.length,
     },
   };
+}
+
+/** A definition row written by lane_root_stage_v2 carries its sense metadata
+ *  in data_json ({sense_label, sense_kind, marker, …}); text_plain starts with
+ *  the marker + label the printed lexicon shows ("― A2. …", "＝ B. …"). */
+function storedSense(b: any): LanePeer | null {
+  let dj: any = null;
+  try { dj = JSON.parse(b.data_json || '{}'); } catch { return null; }
+  if (!dj || typeof dj.sense_kind !== 'string') return null;
+  const label: string | null = typeof dj.sense_label === 'string' ? dj.sense_label : null;
+  const kind: LanePeer['kind'] =
+    dj.sense_kind === 'dissociation' ? 'dissociation'
+    : dj.sense_kind === 'signification' ? 'signification' : 'plain';
+  const html = (b.text_html ?? '').trim();
+  let tokens: LaneToken[];
+  if (html) {
+    tokens = tokenizeHtml(html.replace(/<h3\b[^>]*>[\s\S]*?<\/h3>/i, ''));
+  } else {
+    let plain = String(b.text_plain ?? '').trim();
+    if (dj.marker && label) {
+      const prefix = `${dj.marker} ${label}. `;
+      if (plain.startsWith(prefix)) plain = plain.slice(prefix.length);
+    }
+    tokens = tokenize(plain, undefined);
+  }
+  return { label, kind, tokens };
 }
 
 const SENSE_SPLIT_RX =

@@ -24,6 +24,19 @@ function v2RouteMeta(s: import('../repositories/sources.repo').LexiconSource) {
 const AR_INDIC_TO_ASCII = (s: string) =>
   s.replace(/[٠-٩]/g, ch => String.fromCharCode(0x30 + ch.charCodeAt(0) - 0x660));
 
+function footnoteMarkerNums(text: string): number[] {
+  const fnRe = /«\s*([0-9٠-٩]+)\s*»|\(\s*\(\s*([0-9٠-٩]+)\s*\)\s*\)/gu;
+  const marker_nums: number[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = fnRe.exec(text)) != null) {
+    const raw = m[1] ?? m[2];
+    if (!raw) continue;
+    const n = +AR_INDIC_TO_ASCII(raw);
+    if (Number.isFinite(n) && n > 0) marker_nums.push(n);
+  }
+  return marker_nums;
+}
+
 function computeSectionBody(text_ar: string | null | undefined, split = true): {
   text: string; paragraphs: string[]; footnote_refs: number[]; marker_nums: number[];
 } {
@@ -34,19 +47,25 @@ function computeSectionBody(text_ar: string | null | undefined, split = true): {
     ? text.split(/(?<=[.!؟۔])\s+/u).map(p => p.trim()).filter(Boolean)
     : [text];
 
-  const fnRe = /«\s*([0-9٠-٩]+)\s*»|\(\s*\(\s*([0-9٠-٩]+)\s*\)\s*\)/gu;
-  const marker_nums: number[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = fnRe.exec(text)) != null) {
-    const raw = m[1] ?? m[2];
-    if (!raw) continue;
-    const n = +AR_INDIC_TO_ASCII(raw);
-    if (Number.isFinite(n) && n > 0) marker_nums.push(n);
-  }
+  const marker_nums = footnoteMarkerNums(text);
   const fnSet = new Set<number>(marker_nums);
   return {
     text, paragraphs, marker_nums,
     footnote_refs: [...fnSet].sort((a, b) => a - b),
+  };
+}
+
+/** A section whose paragraphs are stored rows (one block per sense) is served
+ *  exactly as stored — no request-time splitting or whitespace collapsing. */
+function sectionBodyFromStoredParagraphs(paragraphs: string[]): {
+  text: string; paragraphs: string[]; footnote_refs: number[]; marker_nums: number[];
+} {
+  const clean = paragraphs.map(p => String(p ?? '').trim()).filter(Boolean);
+  const text = clean.join('\n');
+  const marker_nums = footnoteMarkerNums(text);
+  return {
+    text, paragraphs: clean, marker_nums,
+    footnote_refs: [...new Set<number>(marker_nums)].sort((a, b) => a - b),
   };
 }
 
@@ -476,6 +495,8 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
            `${canonicalSelect} WHERE root_normalized = ? OR root_text = ? LIMIT 1`
          ).bind(root_norm, root_norm).first();
 
+    const profile = await new SourcesRepo(env.DB_AL).profileBySlug(slug);
+
     const PROSE_BLOCKS = new Set(['definition', 'entry_header']);
     const isStub = (s: any) => {
         const body = (s.text_ar ?? s.text_en ?? '').trim();
@@ -566,8 +587,53 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
       }
     }
 
+    // Prose blocks that carry no section: senses whose entry header the source
+    // tables never listed are grouped under that header; a root-level
+    // cross-reference ("See art. …") or an author's note stands alone.
+    const blockById = new Map<string, any>((blocks as any[]).map((b: any) => [b.id, b]));
+    const looseSection = (group: any[], seq: number) => {
+      const first = group[0];
+      let data: any = null;
+      try { data = JSON.parse(first.data_json ?? '{}'); } catch { data = null; }
+      const parent = first.parent_block_id ? blockById.get(first.parent_block_id) : null;
+      const header = parent?.block_type === 'entry_header' ? parent : null;
+      let hdata: any = null;
+      try { hdata = header ? JSON.parse(header.data_json ?? '{}') : null; } catch { hdata = null; }
+      const kind = typeof data?.entry_kind === 'string' ? data.entry_kind : null;
+      const itype = hdata?.itype != null && /^\d+$/.test(String(hdata.itype)) ? String(hdata.itype) : null;
+      const texts = group.map((b: any) => String(b.text_plain ?? '').trim()).filter(Boolean);
+      return {
+        id: header?.id ?? first.id,
+        section_seq: seq,
+
+        heading_ar: data?.lemma ?? header?.title_ar ?? first.title_ar ?? null,
+        heading_norm: null,
+        heading_bare: null,
+        section_type: data?.form ? `form_${data.form}` : (itype ? `form_${itype}` : (kind ?? 'definition')),
+
+        text_ar: null,
+        text_en: texts.join('\n'),
+        paragraphs: texts,
+        block_ids: group.map((b: any) => b.id),
+        page_no: first.printed_page ?? header?.printed_page ?? null,
+        source_native_section_id: null,
+        _seq: first.block_seq ?? 0,
+      };
+    };
+    const looseGroups = (): any[][] => {
+      const groups = new Map<string, any[]>();
+      for (const b of looseProse as any[]) {
+        if (b.block_type !== 'definition') continue;
+        const parent = b.parent_block_id ? blockById.get(b.parent_block_id) : null;
+        const key = parent?.block_type === 'entry_header' ? parent.id : b.id;
+        const list = groups.get(key);
+        if (list) list.push(b); else groups.set(key, [b]);
+      }
+      return [...groups.values()].map(g => g.sort((a, b) => (a.block_seq ?? 0) - (b.block_seq ?? 0)));
+    };
+
     const attachedProse = new Map<string, any[]>();
-    if (sections.length && sections.every(isStub) && !looseProse.length) {
+    if (sections.length && sections.every(isStub)) {
       for (const b of blocks as any[]) {
         if (b.block_type !== 'definition' || !b.section_id) continue;
         if (!String(b.text_plain ?? '').trim()) continue;
@@ -577,53 +643,77 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     }
     if (sections_source === 'sections' && attachedProse.size) {
       sections_source = 'blocks';
-      effectiveSections = sections
+      // One stored block per sense: the block rows ARE the paragraphs.
+      const items: any[] = sections
         .filter((s: any) => attachedProse.has(s.id))
-        .map((s: any, i: number) => {
+        .map((s: any) => {
           const bs = attachedProse.get(s.id)!
             .sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
           return {
             id: s.id,
-            section_seq: i + 1,
+            section_seq: 0,
             heading_ar: s.heading_ar,
             heading_norm: s.heading_norm ?? null,
             heading_bare: s.heading_bare ?? null,
             section_type: s.lane_itype ? `form_${s.lane_itype}` : (s.section_type ?? 'definition'),
             text_ar: null,
             text_en: bs.map((b: any) => b.text_plain).join('\n'),
+            paragraphs: bs.map((b: any) => String(b.text_plain ?? '').trim()).filter(Boolean),
+            block_ids: bs.map((b: any) => b.id),
             page_no: bs[0]?.printed_page ?? s.page_no ?? null,
             source_native_section_id: null,
+            _seq: bs[0]?.block_seq ?? 0,
           };
         });
+      for (const g of looseGroups()) items.push(looseSection(g, 0));
+      items.sort((a, b) => a._seq - b._seq);
+      effectiveSections = items.map((s, i) => { const { _seq, ...rest } = s; return { ...rest, section_seq: i + 1 }; });
     }
 
     if (sections_source === 'sections' && sections.length && sections.every(isStub) && looseProse.length) {
       sections_source = 'blocks';
-      effectiveSections = looseProse.map((b: any, i: number) => {
-        let data: any = null;
-        try { data = JSON.parse(b.data_json ?? '{}'); } catch { data = null; }
-        return {
-          id: b.id,
-          section_seq: i + 1,
-
-          heading_ar: data?.lemma ?? b.title_ar ?? null,
-          heading_norm: null,
-          heading_bare: null,
-          section_type: data?.form ? `form_${data.form}` : 'definition',
-
-          text_ar: null,
-          text_en: b.text_plain,
-          page_no: b.printed_page ?? null,
-          source_native_section_id: null,
-        };
+      effectiveSections = looseGroups().map((g, i) => {
+        const { _seq, ...rest } = looseSection(g, i + 1);
+        return rest;
       });
+    }
+
+    // composer_key = 'stored_blocks': the display profile declares that this
+    // source's blocks are its printed paragraphs — every section is served from
+    // its stored leaf blocks, never re-split from text_ar.
+    if (profile?.composer_key === 'stored_blocks' && sections_source === 'sections') {
+      const bySection = new Map<string, any[]>();
+      for (const b of blocks as any[]) {
+        if (!b.section_id || !LEAF_BLOCKS.has(b.block_type) || b.origin !== 'book_native') continue;
+        if (!String(b.text_plain ?? '').trim()) continue;
+        const list = bySection.get(b.section_id);
+        if (list) list.push(b); else bySection.set(b.section_id, [b]);
+      }
+      if (bySection.size) {
+        sections_source = 'blocks';
+        effectiveSections = effectiveSections.map((s: any) => {
+          const bs = (bySection.get(s.id) ?? []).sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
+          if (!bs.length) return s;
+          return {
+            ...s,
+            paragraphs: bs.map((b: any) => String(b.text_plain ?? '').trim()).filter(Boolean),
+            block_ids: bs.map((b: any) => b.id),
+            page_no: s.page_no ?? bs[0]?.printed_page ?? null,
+          };
+        });
+      }
     }
 
     const sectionsWithBody = effectiveSections.map((s: any) => {
       const lang = s.text_ar ? 'ar' : (s.text_en ? 'en' : null);
+      const { paragraphs: stored, ...rest } = s;
+      // Rows that already carry their paragraphs are served as stored.
+      if (Array.isArray(stored) && stored.length) {
+        return { ...rest, lang, body: sectionBodyFromStoredParagraphs(stored) };
+      }
 
       const split = sections_source !== 'blocks' && lang !== 'en';
-      return { ...s, lang, body: computeSectionBody(s.text_ar ?? s.text_en, split) };
+      return { ...rest, lang, body: computeSectionBody(s.text_ar ?? s.text_en, split) };
     });
 
     const footnotes = collectFootnotes(blocks);
