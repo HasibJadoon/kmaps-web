@@ -70,11 +70,19 @@ function toSlide(row: BlockRow, refs: RefRow[]): DeckSlide {
     lines_ar: strings(attrs.lines_ar),
     lines_en: strings(attrs.lines_en),
     notes_en: strings(attrs.notes_en),
+    image: toImage(attrs.image),
     verse_refs: refs
       .filter((r) => r.block_id === row.block_id)
       .sort((a, b) => a.seq_order - b.seq_order)
       .map(toVerseRef),
   };
+}
+
+function toImage(value: unknown): DeckSlide['image'] {
+  if (!value || typeof value !== 'object') return null;
+  const v = value as Record<string, unknown>;
+  if (typeof v.url !== 'string' || !v.url) return null;
+  return { url: v.url, alt: typeof v.alt === 'string' ? v.alt : null };
 }
 
 function toVerseRef(row: RefRow): DeckVerseRef {

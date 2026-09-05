@@ -62,6 +62,7 @@ export class DeckMotionService {
       Array.from(root.querySelectorAll<T>(sel));
 
     const kicker = q('.deck-kicker');
+    const photo = q('.deck-photo');
     const cards = q('.deck-card');
     // Text inside a card rides the card in; only loose lines travel on their own.
     const lines = q('.deck-line').filter((el) => !el.closest('.deck-card'));
@@ -70,17 +71,18 @@ export class DeckMotionService {
     const refs = q('.deck-ref');
     const source = q('.deck-source');
     // Pills are the labels over panels; they pop once their panel has landed.
-    const decor = q('.deck-pill, .deck-quote-mark').filter((el) => !el.classList.contains('deck-ref'));
+    const decor = q('.deck-pill, .deck-quote-mark, .deck-brace-item, .deck-arrow').filter((el) => !el.classList.contains('deck-ref'));
     const rules = q('.deck-band-rule, .deck-gold-rule, .deck-cell-rule');
-    const draws = q('.deck-arrow, .deck-rail');
+    const braces = q('.deck-brace');
+    const draws = q('.deck-rail');
 
     if (settleImmediately()) {
       // Set the final state outright. A zero-duration tween still schedules a
       // frame, and that still shows as a flicker.
-      gsap.set([...kicker, ...cards, ...lines, ...glosses, ...notes, ...refs, ...source, ...decor], {
+      gsap.set([...photo, ...kicker, ...cards, ...lines, ...glosses, ...notes, ...refs, ...source, ...decor], {
         opacity: 1, x: 0, y: 0, scale: 1, clearProps: 'transform',
       });
-      gsap.set([...rules, ...draws], { scaleX: 1, scaleY: 1, clearProps: 'transform' });
+      gsap.set([...rules, ...draws, ...braces], { scaleX: 1, scaleY: 1, clearProps: 'transform' });
       return;
     }
 
@@ -91,6 +93,12 @@ export class DeckMotionService {
 
     const dx = forward ? ENTER_X : -ENTER_X;
     const tl = gsap.timeline();
+
+    if (photo.length) {
+      // The photograph is the slide's ground; it settles before anything lands on it.
+      tl.fromTo(photo, { opacity: 0, scale: 1.04 },
+        { opacity: 1, scale: 1, duration: 0.9, ease: 'power2.out', clearProps: 'transform' }, 0);
+    }
 
     if (kicker.length) {
       tl.fromTo(kicker, { opacity: 0, y: -6 },
@@ -116,6 +124,11 @@ export class DeckMotionService {
       // Arrows and the proof rail draw toward the next step before it lands.
       tl.fromTo(draws, { scaleX: 0 },
         { scaleX: 1, duration: 0.36, ease: 'power2.out', stagger: 0.12, clearProps: 'transform' }, 0.18);
+    }
+    if (braces.length) {
+      // The brace grows from its cusp, then the pills it points to land.
+      tl.fromTo(braces, { scaleY: 0, opacity: 0 },
+        { scaleY: 1, opacity: 1, duration: 0.45, ease: 'power2.out', clearProps: 'transform' }, 0.16);
     }
     if (decor.length) {
       // Tags, numerals, ornaments pop in last — the finishing touches.

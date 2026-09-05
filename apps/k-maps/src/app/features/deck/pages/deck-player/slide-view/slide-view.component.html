@@ -2,6 +2,12 @@
      author's Keynote decks — title in the reading corner over a full-width
      crimson rule, then large panels, each labelled by a gold pill. -->
 
+@if (slide().image; as img) {
+  <div class="deck-photo" aria-hidden="true">
+    <img [src]="img.url" [alt]="img.alt ?? ''" loading="eager" decoding="async" />
+  </div>
+}
+
 <header class="deck-band" [class.deck-band--empty]="!headline() && !slide().kicker" [class.deck-band--bare]="!headline()">
   @if (slide().kicker) {
     <span class="deck-kicker" data-deck-flip="kicker">{{ slide().kicker }}</span>
@@ -92,7 +98,7 @@
 
     <!-- shahid: the verse large in gold on a framed panel, its reference as the pill. -->
     @case ('shahid') {
-      <div class="deck-stack">
+      <div class="deck-stack" [class.deck-stack--split]="hasVerseAndProse()">
         @for (item of body(); track item.index) {
           @if (item.line.isQuran) {
             <div class="deck-labelled deck-verse">
@@ -104,12 +110,11 @@
                 @if (showGloss() && item.line.en) { <div class="deck-gloss">{{ item.line.en }}</div> }
               </div>
             </div>
-          } @else if (item.line.isTaqdir) {
-            <div class="deck-line deck-line--taqdir">{{ item.line.ar }}</div>
-            @if (showGloss() && item.line.en) { <div class="deck-gloss">{{ item.line.en }}</div> }
           } @else {
-            <div class="deck-line">{{ item.line.ar }}</div>
-            @if (showGloss() && item.line.en) { <div class="deck-gloss">{{ item.line.en }}</div> }
+            <div class="deck-prose">
+              <div class="deck-line" [class.deck-line--taqdir]="item.line.isTaqdir">{{ item.line.ar }}</div>
+              @if (showGloss() && item.line.en) { <div class="deck-gloss">{{ item.line.en }}</div> }
+            </div>
           }
         }
       </div>
@@ -161,7 +166,7 @@
 
     <!-- climax: a quotation mark behind, the verse on its framed panel. -->
     @case ('climax') {
-      <div class="deck-stack deck-climax">
+      <div class="deck-stack deck-climax" [class.deck-stack--split]="hasVerseAndProse()">
         <span class="deck-quote-mark" aria-hidden="true">❝</span>
         @for (item of body(); track item.index) {
           @if (item.line.isQuran) {
@@ -175,14 +180,42 @@
               </div>
             </div>
           } @else {
-            <div class="deck-line deck-climax-line">{{ item.line.ar }}</div>
-            @if (showGloss() && item.line.en) { <div class="deck-gloss">{{ item.line.en }}</div> }
+            <div class="deck-prose">
+              <div class="deck-line deck-climax-line">{{ item.line.ar }}</div>
+              @if (showGloss() && item.line.en) { <div class="deck-gloss">{{ item.line.en }}</div> }
+            </div>
           }
         }
       </div>
     }
 
-    <!-- definition and anything else: the remaining lines as numbered panels. -->
+    <!-- definition: the term and its statement on the reading side, a brace
+         branching to one colour-coded pill per remaining line. -->
+    @case ('definition') {
+      <div class="deck-brace-layout">
+        @if (braceTitle(); as head) {
+          <div class="deck-brace-text">
+            <div class="deck-line deck-brace-title">{{ head.ar }}</div>
+            @if (showGloss() && head.en) { <p class="deck-gloss deck-brace-para">{{ head.en }}</p> }
+          </div>
+        }
+        <svg class="deck-brace" viewBox="0 0 40 100" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M4 2 C24 2 16 20 16 30 L16 44 C16 49 22 50 36 50 C22 50 16 51 16 56 L16 70 C16 80 24 98 4 98"
+                fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"
+                vector-effect="non-scaling-stroke"/>
+        </svg>
+        <div class="deck-brace-items">
+          @for (line of braceItems(); track $index) {
+            <div class="deck-brace-item deck-brace-item--{{ $index % 4 }}">
+              <div class="deck-line deck-brace-pill">{{ line.ar }}</div>
+              @if (showGloss() && line.en) { <div class="deck-gloss deck-brace-item-en">{{ line.en }}</div> }
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- anything else: the remaining lines as numbered panels. -->
     @default {
       <div class="deck-panels deck-panels--n{{ body().length }}">
         @for (item of body(); track item.index) {

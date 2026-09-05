@@ -42,7 +42,7 @@ export class SlideViewComponent {
   private readonly headlineIndex = computed<number>(() => {
     const s = this.slide();
     switch (s.layout) {
-      case 'title': case 'transform': case 'examples': case 'bayt': return -1;
+      case 'title': case 'transform': case 'examples': case 'bayt': case 'definition': return -1;
       case 'shahid': return glossedLines(s).findIndex((l) => !l.isQuran && !l.isTaqdir);
       default: return s.lines_ar.length ? 0 : -1;
     }
@@ -60,6 +60,16 @@ export class SlideViewComponent {
       .map((line, index) => ({ line, index }))
       .filter((x) => x.index !== head);
   });
+
+  /** shahid · climax: with both a verse and prose, a wide frame sets them side by side. */
+  protected readonly hasVerseAndProse = computed(() => {
+    const b = this.body();
+    return b.some((x) => x.line.isQuran) && b.some((x) => !x.line.isQuran);
+  });
+
+  /** definition: the title and paragraph on one side, the brace's items on the other. */
+  protected readonly braceTitle = computed(() => this.lines()[0] ?? null);
+  protected readonly braceItems = computed(() => this.lines().slice(1));
 
   /** table: head rows go to the band; only real rows stay in the grid. */
   protected readonly bodyRows = computed(() => tableRows(this.slide()).filter((r) => !r.head));

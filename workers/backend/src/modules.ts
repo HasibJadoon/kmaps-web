@@ -27,7 +27,13 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     publicGetPaths: ['ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons'],
   },
   al:   { binding: 'AR_LINGUISTICS', publicGet: true  },
-  cm:   { binding: 'CONTENT',        publicGet: false },
+  cm:   {
+    binding: 'CONTENT',
+    publicGet: false,
+    // Lesson media — the photographs deck slides sit on. An <img> cannot carry
+    // a token, and a picture of a lamp holds nothing about anyone.
+    publicGetPaths: ['cm/assets'],
+  },
   core: { binding: 'CORE',           publicGet: true  },
 
   st:     { binding: 'STUDIO',       publicGet: false },

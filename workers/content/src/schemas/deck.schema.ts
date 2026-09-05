@@ -42,6 +42,12 @@ export interface DeckVerseRef {
   label_ar: string | null;
 }
 
+/** A photograph behind the frame. `url` may be gateway-relative (/api/...). */
+export interface DeckImage {
+  url: string;
+  alt: string | null;
+}
+
 export interface DeckSlide {
   n: number;
   block_id: string;
@@ -56,6 +62,7 @@ export interface DeckSlide {
   /** Presenter notes. Inline **strong** / *em* only. */
   notes_en: string[];
   verse_refs: DeckVerseRef[];
+  image: DeckImage | null;
 }
 
 export interface DeckCollectionNode {
