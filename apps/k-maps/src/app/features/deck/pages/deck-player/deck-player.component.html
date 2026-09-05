@@ -1,0 +1,26 @@
+<div class="deck-stage" #stage (click)="onStageClick($event)"
+     (touchstart)="onTouchStart($event)" (touchend)="onTouchEnd($event)">
+
+  <div class="deck-bar">
+    <b>{{ deck()?.title ?? '…' }}</b>
+    @if (crumb()) { <span class="deck-crumb">· {{ crumb() }}</span> }
+    <span class="deck-grow"></span>
+    <button type="button" (click)="cycleLang()"
+            title="L — Arabic only / both / English-led">{{ langLabel() }}</button>
+    <span class="deck-count" data-deck-flip="count">
+      @if (slide(); as s) { {{ s.n }} / {{ total() }} } @else { – / – }
+    </span>
+  </div>
+
+  <div class="deck-progress"><i [style.width.%]="progress()"></i></div>
+
+  @if (error(); as message) {
+    <div class="deck-empty">
+      <p>{{ message }}</p>
+    </div>
+  } @else if (slide(); as s) {
+    <km-deck-slide [slide]="s" [lang]="lang()" />
+  } @else {
+    <div class="deck-empty"><p>Loading…</p></div>
+  }
+</div>

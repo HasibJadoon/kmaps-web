@@ -1,0 +1,232 @@
+<!-- The frame: a title band, the content, a footer. Composition follows the
+     author's Keynote decks — title in the reading corner over a full-width
+     crimson rule, then large panels, each labelled by a gold pill. -->
+
+<header class="deck-band" [class.deck-band--empty]="!headline() && !slide().kicker" [class.deck-band--bare]="!headline()">
+  @if (slide().kicker) {
+    <span class="deck-kicker" data-deck-flip="kicker">{{ slide().kicker }}</span>
+  }
+  @if (headline(); as head) {
+    <h2 class="deck-line deck-title" [class.deck-title--claim]="slide().layout === 'proof'">{{ head.ar }}</h2>
+    @if (showGloss() && head.en) { <p class="deck-gloss deck-title-en">{{ head.en }}</p> }
+  }
+  <i class="deck-band-rule" aria-hidden="true"></i>
+</header>
+
+<section class="deck-body deck-body--{{ slide().layout }}">
+  @switch (slide().layout) {
+
+    <!-- title: the calligraphy fills the frame. -->
+    @case ('title') {
+      <div class="deck-hero">
+        @for (line of lines(); track $index) {
+          <div class="deck-line" [class.deck-hero-title]="$index === 0" [class.deck-hero-sub]="$index > 0">{{ line.ar }}</div>
+          @if (showGloss() && line.en) {
+            <div class="deck-gloss" [class.deck-hero-en]="$index === 0" [class.deck-hero-sub-en]="$index > 0">{{ line.en }}</div>
+          }
+        }
+      </div>
+    }
+
+    <!-- split: the kinds side by side, a numbered pill over each panel. -->
+    @case ('split') {
+      <div class="deck-panels deck-panels--n{{ columns().length }}">
+        @for (col of columns(); track $index) {
+          <div class="deck-labelled">
+            <span class="deck-pill deck-pill--num">{{ digits($index + 1) }}</span>
+            <div class="deck-card" [class.deck-card--alt]="$index % 2 === 1">
+              <div class="deck-line">{{ col.ar }}</div>
+              @if (showGloss() && col.en) { <div class="deck-gloss">{{ col.en }}</div> }
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- transform: step → step → result, as a flow across the frame. -->
+    @case ('transform') {
+      <div class="deck-flow">
+        @for (line of lines(); track $index) {
+          @if ($index > 0) { <i class="deck-arrow" [class.deck-arrow--result]="line.isResult" aria-hidden="true"></i> }
+          <div class="deck-labelled deck-flow-item">
+            <span class="deck-pill" [class.deck-pill--result]="line.isResult" [class.deck-pill--num]="!line.isResult">
+              {{ line.isResult ? '←' : digits($index + 1) }}
+            </span>
+            <div class="deck-card" [class.deck-card--from]="$index === 0" [class.deck-card--result]="line.isResult">
+              <div class="deck-line" [class.deck-line--result]="line.isResult">{{ line.ar }}</div>
+              @if (showGloss() && line.en) { <div class="deck-gloss">{{ line.en }}</div> }
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- examples: a panel each. -->
+    @case ('examples') {
+      <div class="deck-panels deck-panels--n{{ lines().length }}">
+        @for (line of lines(); track $index) {
+          <div class="deck-labelled">
+            <span class="deck-pill deck-pill--orn">❖</span>
+            <div class="deck-card">
+              <div class="deck-line">{{ line.ar }}</div>
+              @if (showGloss() && line.en) { <div class="deck-gloss">{{ line.en }}</div> }
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- table: each row a wide panel — value, a hairline, key; gloss beneath. -->
+    @case ('table') {
+      <div class="deck-grid">
+        @for (row of bodyRows(); track $index) {
+          <div class="deck-card deck-grid-row">
+            <div class="deck-line deck-cell deck-cell--v">{{ row.value }}</div>
+            <i class="deck-cell-rule" aria-hidden="true"></i>
+            <div class="deck-line deck-cell deck-cell--k">{{ row.key }}</div>
+            @if (showGloss() && row.gloss) { <div class="deck-gloss deck-cell--span">{{ row.gloss }}</div> }
+          </div>
+        }
+      </div>
+    }
+
+    <!-- shahid: the verse large in gold on a framed panel, its reference as the pill. -->
+    @case ('shahid') {
+      <div class="deck-stack">
+        @for (item of body(); track item.index) {
+          @if (item.line.isQuran) {
+            <div class="deck-labelled deck-verse">
+              @if (refFor(item.index); as ref) {
+                <a class="deck-pill deck-pill--ref" [href]="'#/ayah/' + ref.ref" (click)="onRef($event, ref)">{{ ref.label_ar ?? ref.ref }}</a>
+              }
+              <div class="deck-card deck-card--verse">
+                <div class="deck-line deck-line--quran">{{ item.line.ar }}</div>
+                @if (showGloss() && item.line.en) { <div class="deck-gloss">{{ item.line.en }}</div> }
+              </div>
+            </div>
+          } @else if (item.line.isTaqdir) {
+            <div class="deck-line deck-line--taqdir">{{ item.line.ar }}</div>
+            @if (showGloss() && item.line.en) { <div class="deck-gloss">{{ item.line.en }}</div> }
+          } @else {
+            <div class="deck-line">{{ item.line.ar }}</div>
+            @if (showGloss() && item.line.en) { <div class="deck-gloss">{{ item.line.en }}</div> }
+          }
+        }
+      </div>
+    }
+
+    <!-- proof: numbered steps across the frame, joined by a gold rail. -->
+    @case ('proof') {
+      <div class="deck-steps deck-panels--n{{ body().length }}">
+        <i class="deck-rail" aria-hidden="true"></i>
+        @for (item of body(); track item.index) {
+          <div class="deck-labelled deck-step">
+            <span class="deck-pill deck-pill--num">{{ digits(item.index) }}</span>
+            <div class="deck-card">
+              <div class="deck-line">{{ item.line.ar }}</div>
+              @if (showGloss() && item.line.en) { <div class="deck-gloss">{{ item.line.en }}</div> }
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- bayt: the couplet — hemistichs either side of ✧ — between two gold rules. -->
+    @case ('bayt') {
+      <div class="deck-bayt-frame">
+        <i class="deck-gold-rule" aria-hidden="true"></i>
+        @for (line of bayt(); track $index) {
+          <div class="deck-line deck-bayt">
+            <span class="deck-hemistich">{{ line.first }}</span>
+            @if (line.second) {
+              <span class="deck-pill deck-pill--orn deck-bayt-sep">✧</span>
+              <span class="deck-hemistich">{{ line.second }}</span>
+            }
+          </div>
+          @if (showGloss() && line.gloss) { <div class="deck-gloss">{{ line.gloss }}</div> }
+        }
+        <i class="deck-gold-rule" aria-hidden="true"></i>
+      </div>
+    }
+
+    <!-- rule: the law in one framed panel. -->
+    @case ('rule') {
+      <div class="deck-card deck-card--law">
+        @for (item of body(); track item.index) {
+          <div class="deck-line">{{ item.line.ar }}</div>
+          @if (showGloss() && item.line.en) { <div class="deck-gloss">{{ item.line.en }}</div> }
+        }
+      </div>
+    }
+
+    <!-- climax: a quotation mark behind, the verse on its framed panel. -->
+    @case ('climax') {
+      <div class="deck-stack deck-climax">
+        <span class="deck-quote-mark" aria-hidden="true">❝</span>
+        @for (item of body(); track item.index) {
+          @if (item.line.isQuran) {
+            <div class="deck-labelled deck-verse">
+              @if (refFor(item.index); as ref) {
+                <a class="deck-pill deck-pill--ref" [href]="'#/ayah/' + ref.ref" (click)="onRef($event, ref)">{{ ref.label_ar ?? ref.ref }}</a>
+              }
+              <div class="deck-card deck-card--verse">
+                <div class="deck-line deck-line--quran">{{ item.line.ar }}</div>
+                @if (showGloss() && item.line.en) { <div class="deck-gloss">{{ item.line.en }}</div> }
+              </div>
+            </div>
+          } @else {
+            <div class="deck-line deck-climax-line">{{ item.line.ar }}</div>
+            @if (showGloss() && item.line.en) { <div class="deck-gloss">{{ item.line.en }}</div> }
+          }
+        }
+      </div>
+    }
+
+    <!-- definition and anything else: the remaining lines as numbered panels. -->
+    @default {
+      <div class="deck-panels deck-panels--n{{ body().length }}">
+        @for (item of body(); track item.index) {
+          <div class="deck-labelled">
+            <span class="deck-pill deck-pill--num">{{ digits(item.index) }}</span>
+            <div class="deck-card">
+              <div class="deck-line">{{ item.line.ar }}</div>
+              @if (showGloss() && item.line.en) { <div class="deck-gloss">{{ item.line.en }}</div> }
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+</section>
+
+<footer class="deck-foot">
+  @if (showNotes() && notes().length) {
+    <ul class="deck-notes">
+      @for (note of notes(); track note.raw) {
+        <li class="deck-note">
+          @for (seg of note.segments; track $index) {
+            @if (seg.arabic) {
+              <span class="deck-note-ar" [class.is-strong]="seg.strong" [class.is-em]="seg.em" dir="rtl">{{ seg.text }}</span>
+            } @else if (seg.strong) { <strong>{{ seg.text }}</strong> }
+            @else if (seg.em) { <em>{{ seg.text }}</em> }
+            @else { <span>{{ seg.text }}</span> }
+          }
+        </li>
+      }
+    </ul>
+  }
+  <div class="deck-foot-right">
+    @if (looseRefs().length) {
+      <div class="deck-refs">
+        @for (ref of looseRefs(); track ref.ref) {
+          <a class="deck-pill deck-pill--ref deck-ref" [href]="'#/ayah/' + ref.ref" (click)="onRef($event, ref)">
+            {{ ref.label_ar ?? ref.ref }}<small>{{ ref.ref }}</small>
+          </a>
+        }
+      </div>
+    }
+    @if (slide().source) {
+      <div class="deck-source" data-deck-flip="source">{{ slide().source }}</div>
+    }
+  </div>
+</footer>

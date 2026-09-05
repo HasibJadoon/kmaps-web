@@ -47,6 +47,11 @@ export const routes: Routes = [
       import('./features/worldview/worldview.routes').then((m) => m.WORLDVIEW_ROUTES),
   },
   {
+    path: 'deck',
+    loadChildren: () =>
+      import('./features/deck/deck.routes').then((m) => m.DECK_ROUTES),
+  },
+  {
     path: 'content',
     loadChildren: () =>
       import('./features/content/content.routes').then((m) => m.CONTENT_ROUTES),

@@ -25,6 +25,7 @@ import { lexiconRoutes } from './routes/lexicon';
 import { depGraphRoutes } from './routes/dep-graphs';
 import { mushafRoutes } from './routes/mushaf';
 import { adminSyncRoutes } from './routes/admin-sync';
+import { xrefRoutes } from './routes/xref';
 
 const router = new Router<QuranEnv>();
 
@@ -53,6 +54,7 @@ iraabDisplayRoutes(router);
 lexiconRoutes(router);
 depGraphRoutes(router);
 adminSyncRoutes(router);
+xrefRoutes(router);
 
 router.post('/qr/internal/rows', async (req, env) => {
   const body = await req.json<RowsRequest>().catch(() => null);

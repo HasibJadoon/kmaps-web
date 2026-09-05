@@ -1,0 +1,29 @@
+<header class="deck-list-head">
+  <h1>Decks</h1>
+  <p>Lessons as slides.</p>
+</header>
+
+@if (error(); as message) {
+  <p class="deck-list-empty">{{ message }}</p>
+} @else if (!decksList().length) {
+  <p class="deck-list-empty">No decks yet.</p>
+} @else {
+  <ul class="deck-list">
+    @for (deck of decksList(); track deck.doc_id) {
+      <li>
+        <a [routerLink]="['/deck', deck.slug]" class="deck-card"
+           [style.--card-accent]="accent(deck)" [style.--card-surface]="surface(deck)">
+          @if (deck.title_ar) {
+            <span class="deck-card-ar" dir="rtl">{{ deck.title_ar }}</span>
+          }
+          <span class="deck-card-title">{{ deck.title }}</span>
+          <span class="deck-card-meta">
+            {{ deck.slide_count }} slides
+            @if (deck.duration_min) { · {{ deck.duration_min }} min }
+            @if (deck.subdomain) { · {{ deck.subdomain }} }
+          </span>
+        </a>
+      </li>
+    }
+  </ul>
+}

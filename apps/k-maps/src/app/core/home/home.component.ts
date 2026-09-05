@@ -214,6 +214,14 @@ export class HomeComponent implements AfterViewInit, OnDestroy {
     { id: 'cybernetics', label: 'Cybernetics', route: '/cybernetics', icon: '⟳', glyph: '⟳' },
 
     {
+      id: 'slides', label: 'Slides', route: '', icon: '▭', glyph: '▭',
+      children: [
+        { id: 'decks', label: 'Decks', route: '/deck', icon: '▭', glyph: '▭' },
+        { id: 'srs-cards', label: 'SRS Cards', route: '/srs', icon: '↻', glyph: '↻' },
+      ],
+    },
+
+    {
       id: 'workspace', label: 'Workspace', route: '', icon: '▦', glyph: '⊞',
       children: [
         { id: 'srs', label: 'SRS', route: '/srs', icon: '↻', glyph: '↻' },

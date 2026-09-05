@@ -1,0 +1,74 @@
+// The deck paints itself from --deck-* properties the component sets on this
+// host at runtime, falling back to the app tokens. Nothing here leaks to :root.
+
+:host {
+  display: block;
+  height: 100dvh;
+  background: var(--deck-bg, var(--km-bg));
+  color: var(--deck-ink, var(--km-text));
+  font-family: var(--km-font-body), system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.deck-stage {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+}
+
+.deck-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.7rem 1.1rem;
+  border-bottom: 1px solid var(--deck-rule, var(--km-border));
+  font-size: 0.74rem;
+  color: var(--deck-muted, var(--km-text-3));
+  direction: ltr;
+  cursor: default;
+
+  b { color: var(--deck-ink-soft, var(--km-text-2)); font-weight: 600; }
+
+  button {
+    background: transparent;
+    border: 1px solid var(--deck-rule, var(--km-border));
+    color: var(--deck-muted, var(--km-text-3));
+    font: inherit;
+    font-size: 0.72rem;
+    padding: 0.2rem 0.55rem;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: border-color var(--km-duration-fast) var(--km-ease),
+                color var(--km-duration-fast) var(--km-ease);
+
+    &:hover { border-color: var(--deck-gold, var(--km-gold)); color: var(--deck-gold, var(--km-gold)); }
+  }
+}
+
+.deck-crumb { color: var(--deck-muted, var(--km-text-3)); }
+.deck-grow { flex: 1; }
+.deck-count { font-variant-numeric: tabular-nums; }
+
+.deck-progress {
+  height: 2px;
+  background: var(--deck-rule, var(--km-border));
+
+  i {
+    display: block;
+    height: 100%;
+    background: var(--deck-gold, var(--km-gold));
+    transition: width 180ms var(--km-ease);
+  }
+}
+
+.deck-empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  color: var(--deck-muted, var(--km-text-3));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deck-progress i { transition: none; }
+}

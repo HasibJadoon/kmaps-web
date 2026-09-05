@@ -1,0 +1,429 @@
+// The Keynote frame. Composition follows the author's own decks: the title in
+// the reading corner over a full-width crimson rule; large panels filling the
+// frame, each labelled by a gold ellipse pill above it; warm glow on black.
+// Every colour resolves through a --deck-* property set from the deck's
+// theme (contract §4), with the app tokens as fallback.
+
+$amiri: var(--km-font-arabic-amiri), serif;
+$body: var(--km-font-body), system-ui, sans-serif;
+
+@function gold($pct) { @return color-mix(in srgb, var(--deck-gold, #f2b233) $pct, transparent); }
+
+// ---- the frame ------------------------------------------------------------
+:host {
+  flex: 1;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: clamp(0.8rem, 2vh, 1.6rem);
+  padding: clamp(1rem, 3vw, 2.6rem) clamp(1.2rem, 5vw, 5rem);
+  min-height: 0;
+  overflow-y: auto;
+  color: var(--deck-ink, var(--km-text));
+  // Black, with the warm glow the Keynote photos throw onto the slide.
+  background:
+    radial-gradient(60% 40% at 50% 108%, gold(11%), transparent 70%),
+    radial-gradient(35% 30% at 96% -8%, gold(7%), transparent 70%);
+}
+
+// ---- the title band -------------------------------------------------------
+.deck-band {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'title kicker' 'en kicker';
+  align-items: end;
+  column-gap: 1.5rem;
+  direction: rtl;
+  padding-bottom: 0.9rem;
+
+  &--empty { display: none; }
+  // No title, no rule — a title slide's band is only its kicker.
+  &--bare { padding-bottom: 0; .deck-band-rule { display: none; } }
+}
+
+.deck-kicker {
+  grid-area: kicker;
+  align-self: start;
+  font-family: $amiri;
+  font-size: 1.05rem;
+  line-height: 1;
+  color: var(--deck-verdigris, var(--km-text-2));
+  border: 1px solid color-mix(in srgb, var(--deck-verdigris, #4ba8a4) 55%, transparent);
+  border-radius: 999px;
+  padding: 0.45rem 1.1rem 0.35rem;
+  white-space: nowrap;
+}
+
+.deck-title {
+  grid-area: title;
+  margin: 0;
+  font-family: $amiri;
+  font-weight: 700;
+  font-size: clamp(2rem, 4.6vw, 3.6rem);
+  line-height: 1.5;
+  color: var(--deck-gold, var(--km-gold));
+  text-align: right;
+  text-shadow: 0 0 40px gold(25%);
+
+  &--claim { color: var(--deck-ink, var(--km-text)); }
+}
+
+.deck-title-en {
+  grid-area: en;
+  margin: 0.1rem 0 0;
+  direction: ltr;
+  text-align: right;
+  font-family: $body;
+  font-weight: 700;
+  font-size: clamp(1rem, 1.9vw, 1.45rem);
+  letter-spacing: 0.01em;
+  color: var(--deck-verdigris, var(--km-text-2));
+}
+
+// The crimson brush rule, full width, drawn from the centre.
+.deck-band-rule {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--deck-rubric, var(--km-gold-bright));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--deck-rubric, #c9382c) 60%, transparent),
+              0 2px 0 color-mix(in srgb, var(--deck-rubric, #c9382c) 35%, transparent);
+  transform-origin: center;
+}
+
+// ---- the body -------------------------------------------------------------
+.deck-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+  font-family: $amiri;
+  direction: rtl;
+  text-align: center;
+}
+
+.deck-line {
+  font-size: clamp(1.6rem, 3.3vw, 2.7rem);
+  line-height: 1.9;
+  margin: 0;
+  color: var(--deck-ink, var(--km-text));
+}
+
+.deck-gloss {
+  direction: ltr;
+  font-family: $body;
+  font-size: clamp(0.85rem, 1.35vw, 1.02rem);
+  line-height: 1.5;
+  color: var(--deck-ink-soft, var(--km-text-2));
+  margin: 0.4rem 0 0;
+}
+
+// ---- pills: the gold ellipse ----------------------------------------------
+.deck-pill {
+  display: inline-grid;
+  place-items: center;
+  font-family: $amiri;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--deck-paper-ink, #2b3f73);
+  background: linear-gradient(180deg, var(--deck-gold-bright, var(--km-gold-bright)), var(--deck-gold, var(--km-gold)));
+  border-radius: 999px;
+  min-width: 3.6rem;
+  padding: 0.65rem 1.4rem 0.5rem;
+  font-size: 1.4rem;
+  text-decoration: none;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55), 0 0 26px gold(28%);
+  transform-origin: center;
+
+  &--num { min-width: 3rem; padding-inline: 1rem; }
+  &--orn { font-size: 1rem; }
+  &--ref { font-size: 1.15rem; padding: 0.6rem 1.4rem 0.45rem;
+    &:hover { filter: brightness(1.06); } }
+  &--result {
+    color: #0c1a18;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--deck-verdigris, #4ba8a4) 80%, #fff), var(--deck-verdigris, #4ba8a4));
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55), 0 0 26px color-mix(in srgb, var(--deck-verdigris, #4ba8a4) 30%, transparent);
+  }
+}
+
+// A pill sitting over its panel — the Keynote label-over-photo device.
+.deck-labelled {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+
+  .deck-pill { position: relative; z-index: 1; margin-bottom: -1.35rem; }
+  .deck-card { padding-top: 2.8rem; width: 100%; flex: 1; }
+}
+
+// ---- panels ---------------------------------------------------------------
+.deck-card {
+  position: relative;
+  padding: 2rem 1.8rem 1.6rem;
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--deck-panel, var(--km-surface-2)), var(--deck-surface, var(--km-surface)));
+  border: 1px solid color-mix(in srgb, var(--deck-gold, #f2b233) 18%, var(--deck-rule, #262626));
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 60px gold(6%);
+
+  &--alt { border-color: color-mix(in srgb, var(--deck-verdigris, #4ba8a4) 35%, var(--deck-rule, #262626)); }
+  &--from .deck-line { color: var(--deck-ink-soft, var(--km-text-2)); }
+  &--result {
+    border-color: color-mix(in srgb, var(--deck-verdigris, #4ba8a4) 60%, transparent);
+    box-shadow: 0 22px 50px rgba(0, 0, 0, 0.6), 0 0 60px color-mix(in srgb, var(--deck-verdigris, #4ba8a4) 12%, transparent);
+  }
+  &--law {
+    border: 1px solid gold(55%);
+    border-top: 4px solid var(--deck-gold, var(--km-gold));
+    padding: 2rem 2.4rem 1.6rem;
+    max-width: 62rem;
+    margin: 0 auto;
+    .deck-line { margin: 0.3rem 0; }
+    .deck-gloss { margin-bottom: 0.9rem; }
+  }
+  // The verse panel: gold calligraphy large, framed in gold.
+  &--verse {
+    border: 1px solid gold(60%);
+    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.65), 0 0 80px gold(14%), inset 0 0 60px gold(4%);
+    padding: 2.4rem 2.6rem 1.8rem;
+  }
+}
+
+.deck-line--result { color: var(--deck-verdigris, var(--km-gold)); }
+
+.deck-line--quran {
+  color: var(--deck-gold, var(--km-gold));
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  line-height: 1.85;
+  text-shadow: 0 0 40px gold(30%);
+}
+
+.deck-line--taqdir {
+  color: var(--deck-ink-soft, var(--km-text-2));
+  font-size: clamp(1.15rem, 2.2vw, 1.6rem);
+  margin-top: 1rem;
+}
+
+// ---- arrangements -----------------------------------------------------------
+.deck-panels {
+  display: grid;
+  gap: 1.4rem 1.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  align-items: stretch;
+  &--n1 { grid-template-columns: minmax(0, 46rem); justify-content: center; }
+  &--n2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  &--n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (max-width: 52rem) { &--n2, &--n3 { grid-template-columns: 1fr; } }
+}
+
+.deck-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  .deck-verse { width: min(100%, 60rem); margin: 0.6rem 0; }
+}
+
+// transform: across the frame when there's room, down it when not.
+.deck-flow {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0;
+  .deck-flow-item { flex: 1 1 0; min-width: 0; }
+
+  @media (max-width: 58rem) {
+    flex-direction: column;
+    .deck-arrow { width: 2px; height: 2.4rem; margin: 0.6rem auto;
+      &::after { left: 50%; bottom: 0; top: auto; transform: translateX(-50%) rotate(45deg);
+        border-right: 2px solid var(--deck-gold, var(--km-gold)); border-bottom: 2px solid var(--deck-gold, var(--km-gold)); border-left: 0; border-top: 0; } }
+  }
+}
+
+// The connector: a gold line that draws toward the next step, ending in a chevron.
+.deck-arrow {
+  position: relative;
+  align-self: center;
+  flex: 0 0 auto;
+  width: 3.2rem;
+  height: 2px;
+  margin: 0 0.4rem;
+  margin-top: 1.2rem;
+  background: var(--deck-gold, var(--km-gold));
+  transform-origin: right center;  // RTL: it draws toward the left, the next step
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0; top: 50%;
+    width: 9px; height: 9px;
+    border-left: 2px solid var(--deck-gold, var(--km-gold));
+    border-bottom: 2px solid var(--deck-gold, var(--km-gold));
+    transform: translateY(-50%) rotate(45deg);
+  }
+
+  &--result { background: var(--deck-verdigris, var(--km-gold));
+    &::after { border-color: var(--deck-verdigris, var(--km-gold)); } }
+}
+
+// proof: the steps across, a rail behind their pills.
+.deck-steps {
+  position: relative;
+  display: grid;
+  gap: 1.4rem 1.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  &.deck-panels--n2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  &.deck-panels--n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  &.deck-panels--n4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  @media (max-width: 58rem) { &.deck-panels--n2, &.deck-panels--n3, &.deck-panels--n4 { grid-template-columns: 1fr; } }
+}
+
+.deck-rail {
+  position: absolute;
+  top: 1.15rem;
+  left: 12%; right: 12%;
+  height: 2px;
+  background: gold(45%);
+  transform-origin: right center;
+  @media (max-width: 58rem) { display: none; }
+}
+
+// table
+.deck-grid { display: flex; flex-direction: column; gap: 1rem; }
+
+.deck-grid-row {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+  gap: 0 1.6rem;
+  align-items: center;
+  padding: 1.3rem 1.8rem;
+}
+.deck-cell { text-align: center; }
+.deck-cell--k { color: var(--deck-gold, var(--km-gold)); }
+.deck-cell-rule { display: block; width: 1px; height: 100%; min-height: 2.4rem; background: gold(35%); transform-origin: center; }
+.deck-cell--span { grid-column: 1 / -1; margin-top: 0.6rem; }
+
+// bayt
+.deck-bayt-frame { display: flex; flex-direction: column; align-items: stretch; gap: 0.4rem; padding: 0.6rem 0; }
+
+.deck-gold-rule {
+  display: block;
+  height: 2px;
+  margin: 1.2rem 0;
+  background: gold(60%);
+  transform-origin: center;
+}
+
+.deck-bayt {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1.2rem;
+  align-items: center;
+  font-size: clamp(1.4rem, 2.8vw, 2.2rem);
+  line-height: 2.1;
+  .deck-hemistich:first-child { text-align: right; }
+  .deck-hemistich:last-child { text-align: left; }
+  .deck-hemistich:only-child { grid-column: 1 / -1; text-align: center; }
+}
+.deck-bayt-sep { min-width: 2.6rem; padding: 0.5rem 0.9rem 0.4rem; }
+
+// title hero
+.deck-hero { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.4rem; }
+
+.deck-hero-title {
+  font-size: clamp(3.2rem, 10vw, 7rem);
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--deck-gold, var(--km-gold));
+  text-shadow: 0 0 70px gold(35%);
+}
+.deck-hero-en {
+  font-family: $body;
+  font-weight: 700;
+  font-size: clamp(1.3rem, 2.6vw, 2rem);
+  color: var(--deck-verdigris, var(--km-text-2));
+  margin: 1.1rem 0 1.6rem;
+}
+.deck-hero-sub { font-size: clamp(1.6rem, 4vw, 2.9rem); color: var(--deck-ink, var(--km-text)); }
+.deck-hero-sub-en { font-size: clamp(0.95rem, 1.6vw, 1.2rem); color: var(--deck-muted, var(--km-text-3)); }
+
+// climax
+.deck-climax { position: relative; padding-top: 1rem; }
+.deck-climax-line { font-size: clamp(1.7rem, 3.4vw, 2.7rem); max-width: 60rem; }
+.deck-quote-mark {
+  position: absolute;
+  top: -2.6rem;
+  inset-inline-start: -1rem;
+  font-family: Georgia, serif;
+  font-size: clamp(7rem, 20vw, 14rem);
+  line-height: 1;
+  color: gold(12%);
+  pointer-events: none;
+  user-select: none;
+  transform-origin: top left;
+}
+
+// ---- accents ----------------------------------------------------------------
+:host(.deck-slide--accent-warn) .deck-title { color: var(--deck-rubric, var(--km-gold-bright)); }
+:host(.deck-slide--accent-gold) .deck-body { text-shadow: 0 0 30px gold(12%); }
+
+// ---- footer -----------------------------------------------------------------
+.deck-foot {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1.5rem;
+  align-items: end;
+  padding-top: 0.9rem;
+  border-top: 1px solid gold(22%);
+  &:empty { display: none; }
+  @media (max-width: 52rem) { grid-template-columns: 1fr; }
+}
+
+.deck-notes {
+  direction: ltr;
+  text-align: left;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 0.25rem 1.5rem;
+  font-family: $body;
+  font-size: clamp(0.82rem, 1.25vw, 0.96rem);
+  line-height: 1.5;
+}
+
+.deck-note {
+  position: relative;
+  padding: 0.15rem 0 0.15rem 1.15rem;
+  color: var(--deck-ink-soft, var(--km-text-2));
+  &::before {
+    content: ''; position: absolute; left: 0.1rem; top: 0.7em;
+    width: 6px; height: 6px; border-radius: 999px;
+    background: var(--deck-gold, var(--km-gold));
+    box-shadow: 0 0 6px gold(60%);
+  }
+  strong { color: var(--deck-ink, var(--km-text)); font-weight: 600; }
+  em { color: var(--deck-gold, var(--km-gold)); font-style: italic; }
+}
+
+.deck-note-ar {
+  font-family: $amiri; font-size: 1.22em; color: var(--deck-ink, var(--km-text));
+  unicode-bidi: isolate; padding: 0 0.12em;
+  &.is-strong { font-weight: 700; }
+  &.is-em { color: var(--deck-gold, var(--km-gold)); }
+}
+
+.deck-foot-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.6rem; }
+.deck-refs { display: flex; gap: 0.5rem; flex-wrap: wrap; direction: rtl; }
+.deck-ref small { font-family: $body; direction: ltr; font-size: 0.7em; margin-inline-start: 0.5rem; opacity: 0.8; }
+
+.deck-source {
+  direction: ltr;
+  font-family: $body;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--deck-muted, var(--km-text-3));
+}

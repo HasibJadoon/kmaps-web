@@ -1,0 +1,63 @@
+:host {
+  display: block;
+  padding: clamp(1.5rem, 5vw, 4rem);
+  max-width: 68rem;
+  margin: 0 auto;
+}
+
+.deck-list-head {
+  margin-bottom: 2rem;
+
+  h1 {
+    font-family: var(--km-font-heading), serif;
+    color: var(--km-text-gold);
+    margin: 0 0 0.35rem;
+  }
+
+  p { color: var(--km-text-2); margin: 0; }
+}
+
+.deck-list-empty { color: var(--km-text-3); }
+
+.deck-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 1rem;
+}
+
+.deck-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 1.3rem 1.2rem;
+  border: 1px solid var(--km-border);
+  border-top: 2px solid var(--card-accent);
+  border-radius: var(--km-radius);
+  background: var(--card-surface);
+  text-decoration: none;
+  transition: transform var(--km-duration-fast) var(--km-ease),
+              border-color var(--km-duration-fast) var(--km-ease);
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: var(--card-accent);
+  }
+}
+
+.deck-card-ar {
+  font-family: var(--km-font-arabic-amiri), serif;
+  font-size: 1.3rem;
+  color: var(--card-accent);
+  line-height: 1.7;
+}
+
+.deck-card-title { color: var(--km-text); font-weight: 500; }
+.deck-card-meta { color: var(--km-text-3); font-size: 0.8rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .deck-card { transition: none; }
+  .deck-card:hover { transform: none; }
+}

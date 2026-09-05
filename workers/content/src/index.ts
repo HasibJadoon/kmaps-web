@@ -5,6 +5,7 @@ import { ok } from '../../shared/src/response';
 import type { ContentEnv } from './env';
 
 import { documentRoutes } from './routes/documents';
+import { deckRoutes } from './routes/decks';
 import { noteRoutes } from './routes/notes';
 import { docSpaceRoutes } from './routes/docspace';
 import { cmCaptureRoutes } from './routes/captures';
@@ -18,6 +19,7 @@ router.get('/health', async (_req, env) =>
 );
 
 documentRoutes(router);
+deckRoutes(router);
 noteRoutes(router);
 docSpaceRoutes(router);
 cmCaptureRoutes(router);
