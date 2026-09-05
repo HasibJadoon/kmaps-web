@@ -1,20 +1,45 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpParams } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable, forkJoin, map } from 'rxjs';
 import { BackendApiService } from '../../../shared/services/backend-api.service';
-import { SrsCardVm } from '../../../shared/services/quran/quran-surah.service';
 
 export type SrsQueueFilter = 'due' | 'upcoming' | 'all' | 'suspended';
 export type SrsRating = 'again' | 'hard' | 'good' | 'easy';
-export type SrsSourceMode = 'api';
-export type SrsDeckId =
-  | 'arabic-linguistics'
-  | 'arabic-literature'
-  | 'quran-idioms'
-  | 'quran-concepts'
-  | 'worldview-history'
-  | 'english-language';
 
+/** What the worker's grade endpoint accepts. Anything else is a 400. */
+export const RATING_VALUE: Record<SrsRating, 1 | 2 | 3 | 4> = {
+  again: 1,
+  hard: 2,
+  good: 3,
+  easy: 4,
+};
+
+/** A deck id is whatever `core_srs_deck.id` holds — never a value this app invents. */
+export type SrsDeckId = string;
+
+/** `GET /core/srs/decks` — one row per deck the signed-in user owns. */
+export interface SrsDeckRow {
+  id: string;
+  title: string;
+  deck_type: string;
+  description: string | null;
+  is_shared: number;
+  parent_id: string | null;
+  slug: string | null;
+  sort_order: number | null;
+  new_per_day: number | null;
+  review_per_day: number | null;
+  limit_scope: string | null;
+  card_count: number;
+  due_count: number;
+  new_count: number;
+}
+
+/**
+ * The deck as the grid draws it. `label` and `description` are the worker's
+ * words; only `accent` and `monogram` are added here, because they are how a
+ * tile is painted rather than anything the deck knows about itself.
+ */
 export interface SrsDeckMeta {
   id: SrsDeckId;
   index: number;
@@ -24,74 +49,13 @@ export interface SrsDeckMeta {
   accent: string;
   monogram: string;
   footer: string;
+  cardCount: number;
+  dueCount: number;
+  newCount: number;
 }
 
-export const SRS_DECKS: readonly SrsDeckMeta[] = [
-  {
-    id: 'arabic-linguistics',
-    index: 1,
-    label: 'Arabic Linguistics',
-    shortLabel: 'Linguistics',
-    description: 'Balagha, sarf, nahw, and structural Arabic analysis.',
-    accent: '#d0ad56',
-    monogram: 'ع',
-    footer: 'Balagha • Sarf • Nahw',
-  },
-  {
-    id: 'arabic-literature',
-    index: 2,
-    label: 'Arabic Literature',
-    shortLabel: 'Literature',
-    description: 'Idioms, adab, poetry, and literary expression.',
-    accent: '#b985ff',
-    monogram: '✒',
-    footer: 'Idioms • Adab • Poetry',
-  },
-  {
-    id: 'quran-idioms',
-    index: 3,
-    label: 'Quran Expressions',
-    shortLabel: 'Quran Idioms',
-    description: 'Quranic expressions, verbal idioms, and phrase patterns.',
-    accent: '#57c7a8',
-    monogram: '۝',
-    footer: 'Verbs • Phrases • Usage',
-  },
-  {
-    id: 'quran-concepts',
-    index: 4,
-    label: 'Quranic Concepts',
-    shortLabel: 'Concepts',
-    description: 'Quranic concepts, worldview nodes, and thematic topics.',
-    accent: '#6aa8ff',
-    monogram: '◎',
-    footer: 'Themes • Topics • Nodes',
-  },
-  {
-    id: 'worldview-history',
-    index: 5,
-    label: 'Worldviews',
-    shortLabel: 'Worldviews',
-    description: 'Modernity, biblical material, civilizational memory, and worldview history.',
-    accent: '#ff9f63',
-    monogram: '✦',
-    footer: 'Worldviews • Modernity • Biblical',
-  },
-  {
-    id: 'english-language',
-    index: 6,
-    label: 'English Language',
-    shortLabel: 'English',
-    description: 'Expression, writing clarity, vocabulary, and style control.',
-    accent: '#7fdc8f',
-    monogram: '✎',
-    footer: 'Writing • Expression • Style',
-  },
-] as const;
-
-const SRS_DECK_MAP = new Map<SrsDeckId, SrsDeckMeta>(
-  SRS_DECKS.map((deck) => [deck.id, deck]),
-);
+/** Tile accents, cycled by position. Presentation only — no deck meaning rides on the order. */
+const ACCENTS = ['#d0ad56', '#b985ff', '#57c7a8', '#6aa8ff', '#ff9f63', '#7fdc8f'] as const;
 
 export interface SrsSummary {
   due: number;
@@ -100,10 +64,51 @@ export interface SrsSummary {
   total: number;
 }
 
-export interface SrsQueueItem extends SrsCardVm {
+/** One card, as `cardToApi` in the core worker emits it. */
+export interface SrsApiCard {
   id: string;
+  deck_id: string;
+  module: string | null;
+  resource_type: string | null;
+  resource_ref: string | null;
+  card_template: string | null;
+  card_kind: string | null;
+  concept_domain: string | null;
+  front_text: string | null;
+  back_text: string | null;
+  note_type_id: string | null;
+  fields: Record<string, unknown> | null;
+  root_norm: string | null;
+  intro_surah: number | null;
+  extra: Record<string, unknown> | null;
+  tags: string[];
+  suspended: boolean;
+  stability: number | null;
+  difficulty: number | null;
+  card_state: string;
+  learning_step: number;
+  reps: number;
+  lapses: number;
+  elapsed_days: number;
+  scheduled_days: number;
+  last_review_at: string | null;
+  next_review_at: string | null;
+  /** Days until the card would next be due at each rating, from the worker. */
+  preview_days: Record<string, number> | null;
+  retrievability: number | null;
+}
+
+export interface SrsQueueItem extends SrsApiCard {
+  /** `next_review_at` under the name the review screens already use. */
+  due_at: string | null;
+  /** The sūra this card was introduced with, if any. */
   surah_id: number | null;
-  deck_id: SrsDeckId;
+  /**
+   * The rating just submitted for this card in this session. The card itself
+   * does not carry one — ratings live in `core_srs_review` — so this is only
+   * set on the item returned by `reviewCard`.
+   */
+  last_rating?: SrsRating;
   deck_label: string;
   due_state: Exclude<SrsQueueFilter, 'all'>;
   prompt: string;
@@ -113,147 +118,112 @@ export interface SrsQueueItem extends SrsCardVm {
 }
 
 export interface SrsQueueResponse {
-  ok: boolean;
   filter: SrsQueueFilter;
   total: number;
   items: SrsQueueItem[];
   summary: SrsSummary;
-  source: SrsSourceMode;
+  decks: SrsDeckMeta[];
 }
 
-interface ApiSrsCardVm extends SrsCardVm {
-  deck_id?: SrsDeckId | null;
-  surah_id?: number | null;
-}
-
-interface ApiQueueResponse {
-  ok: boolean;
-  filter: SrsQueueFilter;
-  total: number;
-  items: ApiSrsCardVm[];
-  summary?: Partial<SrsSummary>;
-}
-
+/** `GET /core/srs/review` */
 interface ApiReviewResponse {
-  ok: boolean;
-  item: ApiSrsCardVm;
-}
-
-interface CardPayload {
-  front?: string;
-  back?: string;
-  prompt?: string;
-  answer?: string;
-  question?: string;
-  meaning?: string;
-  title?: string;
-  reference?: string;
-  ref?: string;
-  english?: string;
-  translation?: string;
-  arabic?: string;
-  text?: string;
-  deck_id?: SrsDeckId;
+  due: SrsApiCard[];
+  due_by_module?: Record<string, number>;
+  ahead_days?: number;
 }
 
 @Injectable({ providedIn: 'root' })
 export class SrsService {
   private readonly api = inject(BackendApiService);
 
-  listQueue(filter: SrsQueueFilter, surahId: number | null): Observable<SrsQueueResponse> {
-    const params = new HttpParams()
-      .set('filter', filter)
-      .set('limit', '80')
-      .set('surah', surahId ? String(surahId) : '');
+  /** The decks themselves, straight off km_core. */
+  decks(): Observable<SrsDeckMeta[]> {
+    return this.api
+      .getData<SrsDeckRow[]>('core', ['srs', 'decks'])
+      .pipe(map((rows) => (rows ?? []).map((row, i) => this.toDeckMeta(row, i))));
+  }
 
-    return this.api.getData<Omit<ApiQueueResponse, 'ok' | 'total'> & { summary?: Partial<SrsSummary> }>('qr', ['srs'], { params }).pipe(
-      map((data) => this.normalizeApiResponse({
-        ok: true,
-        filter,
-        total: data.summary?.total ?? data.items?.length ?? 0,
-        items: data.items ?? [],
-        summary: data.summary,
-      }, filter)),
+  /**
+   * The queue and the decks it belongs to, resolved together so a card can
+   * carry its deck's real title instead of one guessed from its text.
+   *
+   * `ahead` widens the window past today so the grid can show upcoming
+   * cards; for the plain due queue the worker also applies each deck's
+   * daily caps to what it serves.
+   */
+  loadBoard(filter: SrsQueueFilter, surahId: number | null): Observable<SrsQueueResponse> {
+    let params = new HttpParams().set('limit', '200');
+    if (surahId) params = params.set('surah', String(surahId));
+    if (filter !== 'due') params = params.set('ahead', '365');
+
+    return forkJoin({
+      decks: this.decks(),
+      queue: this.api.getData<ApiReviewResponse>('core', ['srs', 'review'], { params }),
+    }).pipe(
+      map(({ decks, queue }) => {
+        const titles = new Map(decks.map((d) => [d.id, d.label]));
+        const items = (queue?.due ?? []).map((c) => this.decorate(c, titles.get(c.deck_id) ?? ''));
+        const kept = filter === 'all' ? items : items.filter((i) => i.due_state === filter);
+        return { filter, total: kept.length, items: kept, summary: this.summarize(items), decks };
+      }),
     );
   }
 
-  reviewCard(item: SrsQueueItem, rating: SrsRating): Observable<SrsQueueItem> {
-    return this.api.postRaw<ApiReviewResponse>(['quran', 'srs', item.id], { rating }).pipe(
-      map((response) => this.decorateItem(response.item)),
-    );
+  /** Grade one card. The worker takes 1-4; the UI speaks again/hard/good/easy. */
+  reviewCard(item: SrsQueueItem, rating: SrsRating, durationSecs?: number): Observable<SrsQueueItem> {
+    const body: Record<string, unknown> = { rating: RATING_VALUE[rating] };
+    if (typeof durationSecs === 'number') body['duration_secs'] = Math.round(durationSecs);
+
+    return this.api
+      .postData<SrsApiCard>('core', ['srs', 'cards', item.id, 'grade'], body)
+      .pipe(map((card) => ({ ...this.decorate(card, item.deck_label), last_rating: rating })));
   }
 
-  private normalizeApiResponse(response: ApiQueueResponse, filter: SrsQueueFilter): SrsQueueResponse {
-    const items = (response.items ?? []).map((item) => this.decorateItem(item));
-    const summary = response.summary?.total !== undefined
-      ? {
-          due: Number(response.summary.due ?? 0),
-          upcoming: Number(response.summary.upcoming ?? 0),
-          suspended: Number(response.summary.suspended ?? 0),
-          total: Number(response.summary.total ?? 0),
-        }
-      : this.summarize(items);
-
+  private toDeckMeta(row: SrsDeckRow, index: number): SrsDeckMeta {
+    const label = row.title?.trim() || 'Untitled deck';
     return {
-      ok: response.ok,
-      filter,
-      total: Number(response.total ?? items.length),
-      items,
-      summary,
-      source: 'api',
+      id: row.id,
+      index: index + 1,
+      label,
+      shortLabel: label,
+      description: row.description?.trim() ?? '',
+      accent: ACCENTS[index % ACCENTS.length],
+      monogram: this.monogramFor(label),
+      footer: row.deck_type ?? '',
+      cardCount: Number(row.card_count ?? 0),
+      dueCount: Number(row.due_count ?? 0),
+      newCount: Number(row.new_count ?? 0),
     };
+  }
+
+  /** First character of the deck's own title — Arabic titles keep their letter. */
+  private monogramFor(label: string): string {
+    return [...label][0]?.toUpperCase() ?? '◇';
   }
 
   private summarize(items: SrsQueueItem[]): SrsSummary {
     const summary: SrsSummary = { due: 0, upcoming: 0, suspended: 0, total: items.length };
-    for (const item of items) {
-      if (item.due_state === 'due') {
-        summary.due += 1;
-      } else if (item.due_state === 'upcoming') {
-        summary.upcoming += 1;
-      } else {
-        summary.suspended += 1;
-      }
-    }
+    for (const item of items) summary[item.due_state] += 1;
     return summary;
   }
 
-  private decorateItem(item: ApiSrsCardVm): SrsQueueItem {
-    const payload = this.parseCardPayload(item.card_json);
-    const surahId = item.surah_id ?? this.parseSurahId(item.item_key);
-    const deck = this.resolveDeck(item, payload, surahId);
-    const dueState = this.resolveDueState(item.status, item.due_at);
-    const prompt = this.pickText(
-      payload.front,
-      payload.prompt,
-      payload.question,
-      payload.arabic,
-      payload.text,
-      item.item_key,
+  private decorate(card: SrsApiCard, deckLabel: string): SrsQueueItem {
+    const fields = card.fields ?? {};
+    const prompt = this.pick(card.front_text, this.field(fields, 'Front'), this.field(fields, 'Headword'), card.resource_ref);
+    const answer = this.pick(card.back_text, this.field(fields, 'Back'), this.field(fields, 'Meaning'));
+    const title = this.pick(this.field(fields, 'Title'), card.card_kind, card.card_template, 'Card');
+    const reference = this.pick(
+      card.resource_ref,
+      card.root_norm,
+      card.intro_surah ? `Surah ${card.intro_surah}` : '',
     );
-    const answer = this.pickText(
-      payload.back,
-      payload.answer,
-      payload.meaning,
-      payload.english,
-      payload.translation,
-      'Review this card in context.',
-    );
-    const reference = this.pickText(
-      payload.reference,
-      payload.ref,
-      surahId ? `Surah ${surahId}` : '',
-      item.item_key,
-    );
-    const title = this.pickText(payload.title, this.humanizeType(item.item_type), `Card ${item.id}`);
 
     return {
-      ...item,
-      id: String(item.id),
-      surah_id: surahId,
-      deck_id: deck.id,
-      deck_label: deck.label,
-      due_state: dueState,
+      ...card,
+      due_at: card.next_review_at,
+      surah_id: card.intro_surah,
+      deck_label: deckLabel,
+      due_state: this.dueState(card),
       prompt,
       answer,
       title,
@@ -261,101 +231,24 @@ export class SrsService {
     };
   }
 
-  private parseCardPayload(raw?: string): CardPayload {
-    if (!raw) {
-      return {};
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as CardPayload;
-      return typeof parsed === 'object' && parsed !== null ? parsed : {};
-    } catch {
-      return {};
-    }
+  private dueState(card: SrsApiCard): Exclude<SrsQueueFilter, 'all'> {
+    if (card.suspended) return 'suspended';
+    if (!card.next_review_at) return 'due';
+    return new Date(card.next_review_at).getTime() <= Date.now() ? 'due' : 'upcoming';
   }
 
-  private pickText(...values: Array<string | undefined | null>): string {
-    for (const value of values) {
-      if (typeof value === 'string' && value.trim()) {
-        return value.trim();
-      }
+  private field(fields: Record<string, unknown>, key: string): string | null {
+    const v = fields[key];
+    if (typeof v === 'string') return v;
+    if (v && typeof v === 'object') {
+      const en = (v as Record<string, unknown>)['en'];
+      if (typeof en === 'string') return en;
     }
+    return null;
+  }
+
+  private pick(...values: Array<string | null | undefined>): string {
+    for (const v of values) if (typeof v === 'string' && v.trim()) return v.trim();
     return '';
-  }
-
-  private parseSurahId(itemKey?: string): number | null {
-    if (!itemKey) {
-      return null;
-    }
-    const raw = itemKey.split(':')[0];
-    const value = Number(raw);
-    return Number.isFinite(value) && value > 0 ? value : null;
-  }
-
-  private resolveDueState(status?: string, dueAt?: string): Exclude<SrsQueueFilter, 'all'> {
-    if ((status ?? '').toLowerCase() === 'suspended') {
-      return 'suspended';
-    }
-    if (!dueAt) {
-      return 'upcoming';
-    }
-    return new Date(dueAt).getTime() <= Date.now() ? 'due' : 'upcoming';
-  }
-
-  private humanizeType(itemType: string): string {
-    return itemType
-      .split(/[_-]+/)
-      .filter(Boolean)
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(' ');
-  }
-
-  private resolveDeck(item: ApiSrsCardVm, payload: CardPayload, surahId: number | null): SrsDeckMeta {
-    if (item.deck_id && SRS_DECK_MAP.has(item.deck_id)) {
-      return SRS_DECK_MAP.get(item.deck_id)!;
-    }
-
-    if (payload.deck_id && SRS_DECK_MAP.has(payload.deck_id)) {
-      return SRS_DECK_MAP.get(payload.deck_id)!;
-    }
-
-    const haystack = [
-      item.item_type,
-      item.item_key,
-      payload.title,
-      payload.reference,
-      payload.front,
-      payload.prompt,
-      payload.question,
-      payload.answer,
-      payload.meaning,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-
-    if (this.includesAny(haystack, ['english', 'writing', 'essay', 'clarity', 'collocation', 'expression'])) {
-      return SRS_DECK_MAP.get('english-language')!;
-    }
-    if (this.includesAny(haystack, ['modernity', 'biblical', 'history', 'civilization', 'worldview', 'secular'])) {
-      return SRS_DECK_MAP.get('worldview-history')!;
-    }
-    if (this.includesAny(haystack, ['idiom', 'verbal idiom', 'expression', 'phrase']) && surahId) {
-      return SRS_DECK_MAP.get('quran-idioms')!;
-    }
-    if (this.includesAny(haystack, ['balagha', 'nahw', 'sarf', 'syntax', 'morphology', 'linguistics'])) {
-      return SRS_DECK_MAP.get('arabic-linguistics')!;
-    }
-    if (this.includesAny(haystack, ['adab', 'poetry', 'literature', 'idiom', 'rhetoric'])) {
-      return SRS_DECK_MAP.get('arabic-literature')!;
-    }
-    if (surahId) {
-      return SRS_DECK_MAP.get('quran-concepts')!;
-    }
-    return SRS_DECK_MAP.get('worldview-history')!;
-  }
-
-  private includesAny(text: string, values: string[]): boolean {
-    return values.some((value) => text.includes(value));
   }
 }

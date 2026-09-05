@@ -777,10 +777,30 @@ interface WorkerVocabularyData {
   groups: Record<string, WorkerVocabularyItem[]>;
 }
 
+/**
+ * `GET /core/srs/review` in km-core-worker. The names differ from the legacy
+ * `SrsCardVm` this app's review screens read, so the rename dies here in the
+ * mapper rather than spreading into the components.
+ */
+interface WorkerSrsCard {
+  id: string;
+  card_kind: string | null;
+  card_template: string | null;
+  resource_ref: string | null;
+  front_text: string | null;
+  back_text: string | null;
+  suspended: boolean;
+  difficulty: number | null;
+  reps: number;
+  lapses: number;
+  scheduled_days: number;
+  card_state: string;
+  last_review_at: string | null;
+  next_review_at: string | null;
+}
+
 interface WorkerSrsData {
-  filter: string;
-  items: SrsCardVm[];
-  summary?: { total?: number };
+  due: WorkerSrsCard[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -818,18 +838,39 @@ export class QuranSurahService {
   }
 
   getSurahSrs(surahId: number, filter: 'due' | 'upcoming' | 'all' | 'suspended' = 'due'): Observable<SrsResponse> {
-    const params = new HttpParams()
-      .set('filter', filter)
-      .set('surah', String(surahId));
-    return this.api.getData<WorkerSrsData>('qr', ['srs'], { params }).pipe(
-      map((data) => ({
-        ok: true,
-        surahId,
-        filter: data.filter,
-        total: data.summary?.total ?? data.items.length,
-        items: data.items,
-      })),
+    let params = new HttpParams().set('surah', String(surahId)).set('limit', '200');
+    if (filter !== 'due') params = params.set('ahead', '365');
+    return this.api.getData<WorkerSrsData>('core', ['srs', 'review'], { params }).pipe(
+      map((data) => {
+        const all = (data?.due ?? []).map((card) => this.toSrsCardVm(card));
+        const items = filter === 'all' ? all : all.filter((c) => this.srsState(c) === filter);
+        return { ok: true, surahId, filter, total: items.length, items };
+      }),
     );
+  }
+
+  /** km_core's card, in the shape the review screens already render. */
+  private toSrsCardVm(card: WorkerSrsCard): SrsCardVm {
+    return {
+      id: String(card.id),
+      item_type: card.card_kind ?? card.card_template ?? 'card',
+      item_key: card.resource_ref ?? card.front_text ?? String(card.id),
+      card_json: JSON.stringify({ front: card.front_text, back: card.back_text }),
+      status: card.suspended ? 'suspended' : card.card_state,
+      due_at: card.next_review_at ?? undefined,
+      last_review_at: card.last_review_at ?? undefined,
+      interval_days: card.scheduled_days,
+      // FSRS has no SM-2 ease; difficulty is the nearest thing the screens can show.
+      ease: card.difficulty ?? undefined,
+      reps: card.reps,
+      lapses: card.lapses,
+    };
+  }
+
+  private srsState(card: SrsCardVm): 'due' | 'upcoming' | 'suspended' {
+    if (card.status === 'suspended') return 'suspended';
+    if (!card.due_at) return 'due';
+    return new Date(card.due_at).getTime() <= Date.now() ? 'due' : 'upcoming';
   }
 
   getWorldviewHub(surahId: number): Observable<WorldviewHubResponse> {

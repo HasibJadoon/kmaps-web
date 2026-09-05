@@ -20,7 +20,6 @@ import { QuranApiService } from '../../../shared/services/quran/quran-api.servic
 import { mapQrMenuSurahToListItem } from '../../../shared/services/quran/quran-api.mapper';
 import { QuranSurahListItemDto } from '../../../shared/models/quran/quran.models';
 import {
-  SRS_DECKS,
   SrsDeckId,
   SrsDeckMeta,
   SrsQueueFilter,
@@ -53,6 +52,33 @@ type ForecastPoint = {
 
 type SrsScreen = 'decks' | 'study' | 'dashboard';
 
+/** Used only when no deck is selected yet — the charts still need a stroke colour. */
+const ACCENT_FALLBACK = '#d0ad56';
+
+/**
+ * What the deck panels show before the decks arrive, and for a user who has
+ * none. Every count is zero because nothing is being claimed — it is an empty
+ * state, not a stand-in deck.
+ */
+const EMPTY_DECK: DeckCardVm = {
+  id: '',
+  index: 0,
+  label: 'No decks yet',
+  shortLabel: 'SRS',
+  description: 'Create a deck to start reviewing.',
+  accent: ACCENT_FALLBACK,
+  monogram: '◇',
+  footer: '',
+  cardCount: 0,
+  dueCount: 0,
+  newCount: 0,
+  due: 0,
+  upcoming: 0,
+  suspended: 0,
+  mastered: 0,
+  total: 0,
+};
+
 const EMPTY_SUMMARY: SrsSummary = {
   due: 0,
   upcoming: 0,
@@ -81,14 +107,14 @@ export class SrsHomeComponent implements AfterViewInit, OnDestroy {
   @ViewChild('reviewCardInner') reviewCardInnerRef?: ElementRef<HTMLElement>;
   @ViewChild('studyCard') studyCardRef?: ElementRef<HTMLElement>;
 
-  readonly decks = SRS_DECKS;
+  readonly decks = signal<SrsDeckMeta[]>([]);
   readonly filters: SrsQueueFilter[] = ['due', 'upcoming', 'all', 'suspended'];
   readonly surahs = signal<QuranSurahListItemDto[]>([]);
   readonly allItems = signal<SrsQueueItem[]>([]);
   readonly summary = signal<SrsSummary>(EMPTY_SUMMARY);
   readonly activeFilter = signal<SrsQueueFilter>('due');
   readonly selectedSurahId = signal<number | null>(null);
-  readonly selectedDeckId = signal<SrsDeckId>(SRS_DECKS[0].id);
+  readonly selectedDeckId = signal<SrsDeckId | null>(null);
   readonly currentScreen = signal<SrsScreen>('decks');
   readonly loading = signal(true);
   readonly reviewing = signal(false);
@@ -98,7 +124,7 @@ export class SrsHomeComponent implements AfterViewInit, OnDestroy {
   readonly recentReviews = signal<ReviewLog[]>([]);
 
   readonly deckCards = computed<DeckCardVm[]>(() =>
-    this.decks.map((deck) => {
+    this.decks().map((deck) => {
       const items = this.allItems().filter((item) => item.deck_id === deck.id);
       return {
         ...deck,
@@ -112,7 +138,8 @@ export class SrsHomeComponent implements AfterViewInit, OnDestroy {
   );
 
   readonly selectedDeck = computed<DeckCardVm>(() => {
-    return this.deckCards().find((deck) => deck.id === this.selectedDeckId()) ?? this.deckCards()[0];
+    const cards = this.deckCards();
+    return cards.find((deck) => deck.id === this.selectedDeckId()) ?? cards[0] ?? EMPTY_DECK;
   });
 
   readonly selectedDeckItems = computed(() => {
@@ -365,12 +392,13 @@ export class SrsHomeComponent implements AfterViewInit, OnDestroy {
     this.loading.set(true);
     this.error.set(null);
 
-    this.srs.listQueue('all', this.selectedSurahId()).subscribe({
+    this.srs.loadBoard('all', this.selectedSurahId()).subscribe({
       next: (response) => {
         const items = this.sortItems(response.items);
+        this.decks.set(response.decks);
         this.allItems.set(items);
         this.summary.set(response.summary);
-        this.sourceMode.set(response.source);
+        this.sourceMode.set('api');
         this.ensureSelectedDeck(items);
         this.loading.set(false);
         this.scheduleVisualRefresh();
@@ -390,8 +418,9 @@ export class SrsHomeComponent implements AfterViewInit, OnDestroy {
     if (items.some((item) => item.deck_id === current)) {
       return;
     }
-    const populated = this.decks.find((deck) => items.some((item) => item.deck_id === deck.id));
-    this.selectedDeckId.set(populated?.id ?? this.decks[0].id);
+    const decks = this.decks();
+    const populated = decks.find((deck) => items.some((item) => item.deck_id === deck.id));
+    this.selectedDeckId.set(populated?.id ?? decks[0]?.id ?? null);
   }
 
   private summarize(items: SrsQueueItem[]): SrsSummary {
@@ -404,7 +433,7 @@ export class SrsHomeComponent implements AfterViewInit, OnDestroy {
   }
 
   private sortItems(items: SrsQueueItem[]): SrsQueueItem[] {
-    const deckRank = new Map(this.decks.map((deck, index) => [deck.id, index]));
+    const deckRank = new Map(this.decks().map((deck, index) => [deck.id, index]));
     const stateRank = { due: 0, upcoming: 1, suspended: 2 } as const;
 
     return [...items].sort((a, b) => {
@@ -888,7 +917,7 @@ export class SrsHomeComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  private formatDueDate(dueAt?: string): string {
+  private formatDueDate(dueAt?: string | null): string {
     if (!dueAt) {
       return 'Unscheduled';
     }

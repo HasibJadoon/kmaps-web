@@ -40,10 +40,10 @@ export class DocExtractService {
 
   createSrsCard(selectedText: string): void {
 
-    this.http.post('/api/quran/srs', {
-      entity_type: 'note',
-      front: selectedText,
-      back: '',
+    this.http.post('/api/core/srs/cards', {
+      front_text: selectedText,
+      back_text: '',
+      card_kind: 'note',
     }).subscribe();
   }
 }
