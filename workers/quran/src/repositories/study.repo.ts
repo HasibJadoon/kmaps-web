@@ -894,10 +894,17 @@ export class StudyRepo {
    * back to where it was used.
    */
   async termReferences(gtId: string) {
-    const rows = await query<{
+    // The fallbacks are typed: `.catch(() => [])` widens a result to
+    // `Row[] | never[]`, and pushing into that union takes `never`.
+    type TermRef = {
       kind: string; ref_id: string; scope_id: string; surah: number;
       ayah_from: number; ayah_to: number; label: string | null;
-    }>(
+    };
+    type Passage = {
+      id: string; surah: number; passage_no: number; ayah_from: number;
+      ayah_to: number; title: string | null;
+    };
+    const rows = await query<TermRef>(
       this.db,
       `SELECT 'balagha' AS kind, b.id AS ref_id, b.scope_id, s.surah,
               s.ayah_from, s.ayah_to, b.rhetorical_effect AS label
@@ -921,28 +928,25 @@ export class StudyRepo {
          FROM qr_ss_occ_sentence s
         WHERE s.gt_sentence_class = ?`,
       [gtId, gtId, gtId, gtId],
-    ).catch(() => []);
+    ).catch((): TermRef[] => []);
     if (!rows.length) return { term: gtId, total: 0, passages: [] };
 
     const surahs = [...new Set(rows.map((r) => r.surah))];
-    const passages = await query<{
-      id: string; surah: number; passage_no: number; ayah_from: number;
-      ayah_to: number; title: string | null;
-    }>(
+    const passages = await query<Passage>(
       this.db,
       `SELECT id, surah, passage_no, ayah_from, ayah_to, title_en AS title
          FROM qr_surah_study_passage
         WHERE surah IN (${surahs.map(() => '?').join(',')}) AND status != 'deleted'
         ORDER BY surah, passage_no`,
       surahs,
-    ).catch(() => []);
+    ).catch((): Passage[] => []);
 
     // Group by the passage each reference falls inside; a reference whose ayah
     // sits outside every passage is still reported, keyed by its ayah, rather
     // than dropped for want of a passage row.
     const buckets = new Map<string, {
-      passage: typeof passages[number] | null; surah: number;
-      ayahFrom: number; refs: typeof rows;
+      passage: Passage | null; surah: number;
+      ayahFrom: number; refs: TermRef[];
     }>();
     for (const r of rows) {
       const p = passages.find(
@@ -950,7 +954,7 @@ export class StudyRepo {
       ) ?? null;
       const key = p ? p.id : `${r.surah}:${r.ayah_from}`;
       const bucket = buckets.get(key)
-        ?? { passage: p, surah: r.surah, ayahFrom: r.ayah_from, refs: [] as typeof rows };
+        ?? { passage: p, surah: r.surah, ayahFrom: r.ayah_from, refs: [] as TermRef[] };
       bucket.refs.push(r);
       buckets.set(key, bucket);
     }
