@@ -42,6 +42,9 @@ km_arabic_linguistic/ingestion/near_synonyms/sources/
 !database/seeds/
 !database/seeds/*.sql
 !database/seeds/**/*.sql
+# Skill reference queries are part of the skill, not a dump.
+!.claude/skills/
+!.claude/skills/**/*.sql
 # Chunked seed splits are generated; too large for git
 database/seeds/chunks/
 !workers/*/schema.sql
