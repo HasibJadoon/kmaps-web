@@ -80,7 +80,11 @@ export function textRoutes(router: Router<ArabicEnv>) {
                 COALESCE(gpc.name_ar, gp.name) AS seriesParent,
                 path.trail                     AS trail,
                 path.levels                    AS trailLevels,
-                CAST(substr(e.ar_no, 4) AS INTEGER) AS episodeOrder
+                CAST(substr(e.ar_no, 4) AS INTEGER) AS episodeOrder,
+                -- An episode that can be watched, not only heard: the series
+                -- screen says so before the reader is opened.
+                json_extract(r.meta_json, '$.video.id')  AS videoId,
+                json_extract(r.meta_json, '$.episode')   AS episode
            FROM ar_acquisition_ref r
            JOIN ar_text_unit t ON t.acq_ref_id = r.id AND t.status = 'live'
            LEFT JOIN ar_acq_entry e ON e.ar_no = json_extract(r.meta_json, '$.ar_no')

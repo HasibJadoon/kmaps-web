@@ -18,6 +18,9 @@ export interface Work {
   trail: string | null;
   trailLevels: number | null;
   episodeOrder: number | null;
+  /// The video an episode was cut from, and its number in the series.
+  videoId: string | null;
+  episode: number | null;
 }
 
 interface Envelope<T> { ok: boolean; data?: T; }

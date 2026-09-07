@@ -1,0 +1,100 @@
+.sr { min-height: 100%; background: var(--km-bg); padding-bottom: 5rem; }
+
+.sr__top {
+  display: grid; grid-template-columns: 1fr; align-items: end; gap: 1rem;
+  padding: 1.6rem 2rem 1.2rem; border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.sr__back {
+  background: none; border: none; color: var(--km-text-3);
+  font-size: .75rem; letter-spacing: .06em; cursor: pointer; padding: 0; margin-bottom: .6rem;
+  text-align: start;
+  &:hover { color: var(--km-gold); }
+}
+.sr__h1 { font-family: var(--km-font-heading); font-size: 1.5rem; color: var(--km-text); }
+.sr__h1[dir='rtl'] { font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.7rem; }
+.sr__sub { font-size: .82rem; color: var(--km-text-3); margin-top: .15rem; }
+.sr__n { color: var(--km-gold); margin-inline-start: .6rem; font-variant-numeric: tabular-nums; }
+.sr__ar {
+  font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1rem; color: var(--km-gold);
+  margin-inline-start: .6rem; opacity: .85;
+}
+
+.sr__wait { display: flex; justify-content: center; padding: 5rem; }
+.sr__spin {
+  width: 34px; height: 34px; border: 3px solid rgba(201,168,76,.18);
+  border-top-color: var(--km-gold); border-radius: 50%; animation: sp .8s linear infinite;
+}
+@keyframes sp { to { transform: rotate(360deg); } }
+
+/* Where you left off — the one row on the page that is about you, not the shelf. */
+.sr__resume {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1rem;
+  margin: 1.4rem 2rem 0; padding: .9rem 1.1rem; text-align: start; cursor: pointer;
+  background: rgba(201,168,76,.06); border: 1px solid rgba(201,168,76,.35); border-radius: 8px;
+  color: var(--km-text);
+  &:hover { background: rgba(201,168,76,.1); }
+}
+.sr__resume-play {
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--km-gold); color: #111; font-size: .9rem;
+}
+.sr__resume-text { display: flex; flex-direction: column; gap: .15rem; min-width: 0;
+  small { font-size: .72rem; color: var(--km-text-3); letter-spacing: .04em; }
+  b { font-family: 'Amiri', 'Geeza Pro', serif; font-weight: 400; font-size: 1.15rem;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+.sr__resume-n { font-size: .8rem; color: var(--km-gold); font-variant-numeric: tabular-nums; }
+
+.sr__band { padding: 2rem 2rem 0; }
+.sr__band-head {
+  display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: .4rem 1rem;
+  margin-bottom: 1rem;
+  h2 { font-family: var(--km-font-heading); font-size: 1.05rem; color: var(--km-text); }
+  p { grid-column: 1; font-size: .78rem; color: var(--km-text-3); }
+  .sr__band-n { grid-row: 1; font-size: .72rem; color: var(--km-text-3); font-variant-numeric: tabular-nums; }
+}
+
+.sr__grid { display: grid; gap: .7rem; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+
+/* A season on the shelf: the name, what is in it, how far through it you are. */
+.sr__card {
+  display: flex; flex-direction: column; gap: .4rem; text-align: start;
+  padding: .95rem 1rem; cursor: pointer; min-height: 132px;
+  background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.07);
+  border-inline-start: 2px solid rgba(96,150,210,.45);
+  border-radius: 6px; transition: border-color .15s, background .15s; color: var(--km-text);
+  &:hover { border-color: rgba(201,168,76,.4); background: rgba(201,168,76,.05); }
+}
+.sr__card-glyph { font-size: .7rem; color: rgba(96,150,210,.9); }
+.sr__card-title { font-family: var(--km-font-heading); font-size: 1rem; line-height: 1.4; }
+.sr__card-title[dir='rtl'] { font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.2rem; }
+.sr__card-under { font-family: 'Amiri', 'Geeza Pro', serif; font-size: .85rem; color: var(--km-text-3); }
+.sr__bar {
+  margin-top: auto; display: block; height: 3px; border-radius: 2px; background: rgba(255,255,255,.08);
+  overflow: hidden;
+  i { display: block; height: 100%; background: var(--km-gold); transition: width .3s; }
+}
+.sr__card-foot {
+  display: flex; gap: .7rem; direction: ltr; font-size: .68rem; color: var(--km-text-3);
+  letter-spacing: .04em; font-variant-numeric: tabular-nums;
+}
+.sr__seen { color: var(--km-gold); }
+
+/* The episodes, in order, each saying whether it has been seen. */
+.sr__eps { list-style: none; margin: 0; padding: 1.2rem 2rem 0; display: flex; flex-direction: column; gap: .55rem; }
+.sr__ep {
+  width: 100%; display: grid; grid-template-columns: 2rem 1fr auto; align-items: center; gap: .9rem;
+  padding: .7rem .95rem; text-align: start; cursor: pointer; color: var(--km-text);
+  background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.07); border-radius: 6px;
+  &:hover { border-color: rgba(201,168,76,.4); background: rgba(201,168,76,.05); }
+}
+.sr__ep--next { border-inline-start: 2px solid var(--km-gold); }
+.sr__ep--seen { color: var(--km-text-3); .sr__ep-no { color: var(--km-text-3); } }
+.sr__ep-no { font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.05rem; color: var(--km-gold); text-align: center; }
+.sr__ep-title { font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.12rem; line-height: 1.45; }
+.sr__ep-foot {
+  display: flex; gap: .7rem; align-items: center; direction: ltr; font-size: .68rem;
+  color: var(--km-text-3); font-variant-numeric: tabular-nums;
+}
+.sr__ep-at { color: var(--km-gold); }
+.sr__ep-mark { color: var(--km-gold); font-size: .8rem; }

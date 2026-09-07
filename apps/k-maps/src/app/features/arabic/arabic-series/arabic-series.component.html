@@ -1,0 +1,104 @@
+<div class="sr">
+  @if (open(); as s) {
+    <header class="sr__top">
+      <button class="sr__back" (click)="shelf()">← Series</button>
+      <div class="sr__lead">
+        <h1 class="sr__h1" [attr.dir]="dir(s.name)">{{ s.name }}</h1>
+        <p class="sr__sub">
+          {{ s.hasVideo ? 'video with the script' : 'audio with the script' }}
+          <span class="sr__n">{{ s.episodes.length }} episodes · {{ s.seen }} seen</span>
+        </p>
+      </div>
+    </header>
+
+    <ol class="sr__eps">
+      @for (w of s.episodes; track w.id; let i = $index) {
+        <li>
+          <button class="sr__ep" [class.sr__ep--seen]="seen(w)" [class.sr__ep--next]="s.next?.id === w.id"
+                  (click)="play(w)">
+            <span class="sr__ep-no">{{ w.episode ?? i + 1 }}</span>
+            <span class="sr__ep-title" [attr.dir]="dir(w.title_ar)">{{ w.title_ar }}</span>
+            <span class="sr__ep-foot">
+              @if (at(w); as p) { <span class="sr__ep-at">at {{ p }}</span> }
+              <span>{{ w.pages }} pp</span>
+              <span class="sr__ep-mark">{{ seen(w) ? '✓' : (w.videoId ? '▶' : '♪') }}</span>
+            </span>
+          </button>
+        </li>
+      }
+    </ol>
+  } @else {
+    <header class="sr__top">
+      <button class="sr__back" (click)="back()">← Arabic</button>
+      <div class="sr__lead">
+        <h1 class="sr__h1">Series <span class="sr__ar">المسلسلات</span></h1>
+        <p class="sr__sub">
+          Watch with the script running under the video — take notes, build cards.
+          @if (!loading()) { <span class="sr__n">{{ all().length }} series · {{ count(all()) }} episodes</span> }
+        </p>
+      </div>
+    </header>
+
+    @if (loading()) {
+      <div class="sr__wait"><span class="sr__spin"></span></div>
+    } @else {
+      @if (resume(); as r) {
+        <button class="sr__resume" (click)="play(r.next!)">
+          <span class="sr__resume-play">▶</span>
+          <span class="sr__resume-text">
+            <small>Continue · {{ r.name }}</small>
+            <b [attr.dir]="dir(r.next!.title_ar)">{{ r.next!.title_ar }}</b>
+          </span>
+          <span class="sr__resume-n">{{ r.seen + 1 }} / {{ r.episodes.length }}</span>
+        </button>
+      }
+
+      @if (series().length) {
+        <section class="sr__band">
+          <header class="sr__band-head">
+            <h2>Series<span class="sr__ar">المسلسلات</span></h2>
+            <p>Watch with the script running under the video</p>
+            <span class="sr__band-n">{{ series().length }} · {{ count(series()) }} episodes</span>
+          </header>
+          <div class="sr__grid">
+            @for (s of series(); track s.id) {
+              <button class="sr__card" (click)="show(s)">
+                <span class="sr__card-glyph">{{ s.hasVideo ? '▶' : '♪' }}</span>
+                <span class="sr__card-title" [attr.dir]="dir(s.name)">{{ s.name }}</span>
+                <span class="sr__bar"><i [style.width.%]="pct(s)"></i></span>
+                <span class="sr__card-foot">
+                  <span>{{ s.episodes.length }} episodes</span>
+                  @if (s.seen) { <span class="sr__seen">{{ s.seen }} seen</span> }
+                </span>
+              </button>
+            }
+          </div>
+        </section>
+      }
+
+      @if (heard().length) {
+        <section class="sr__band">
+          <header class="sr__band-head">
+            <h2>Podcasts &amp; clips<span class="sr__ar">بودكاست ومقاطع</span></h2>
+            <p>Heard the same way — the recording, the text following it</p>
+            <span class="sr__band-n">{{ heard().length }} · {{ count(heard()) }} episodes</span>
+          </header>
+          <div class="sr__grid">
+            @for (s of heard(); track s.id) {
+              <button class="sr__card" (click)="show(s)">
+                <span class="sr__card-glyph">♪</span>
+                <span class="sr__card-title" [attr.dir]="dir(s.name)">{{ s.name }}</span>
+                @if (s.under) { <span class="sr__card-under" dir="rtl">{{ s.under }}</span> }
+                <span class="sr__bar"><i [style.width.%]="pct(s)"></i></span>
+                <span class="sr__card-foot">
+                  <span>{{ s.episodes.length }} episodes</span>
+                  @if (s.seen) { <span class="sr__seen">{{ s.seen }} seen</span> }
+                </span>
+              </button>
+            }
+          </div>
+        </section>
+      }
+    }
+  }
+</div>

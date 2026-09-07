@@ -59,6 +59,12 @@ export const ARABIC_ROUTES: Routes = [
         title: 'Reader — Arabic',
       },
       {
+        path: 'series',
+        loadComponent: () =>
+          import('./arabic-series/arabic-series.component').then((m) => m.ArabicSeriesComponent),
+        title: 'Series — Arabic',
+      },
+      {
         path: 'timeline',
         loadComponent: () =>
           import('./arabic-timeline/arabic-timeline.component').then(

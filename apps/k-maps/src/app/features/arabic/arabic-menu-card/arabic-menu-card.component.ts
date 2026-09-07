@@ -42,6 +42,8 @@ export class ArabicMenuCardComponent implements OnInit {
   readonly features: ArabicFeature[] = [
     { icon: 'ق', title: 'Read', arabicTitle: 'القراءة',
       description: 'Stories, maqāmāt, proverbs, dīwāns — tap any word', route: '/arabic/read' },
+    { icon: '▶', title: 'Series', arabicTitle: 'المسلسلات',
+      description: 'Watch with the script running under the video', route: '/arabic/series' },
     { icon: '♪', title: 'Listening', arabicTitle: 'الاستماع',
       description: 'Readers, stories, dīwāns — recorded', route: '/arabic/listening' },
     { icon: '↻', title: 'Capture review', arabicTitle: 'المراجعة',
