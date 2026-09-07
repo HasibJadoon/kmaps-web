@@ -1,46 +1,66 @@
+<div class="ar">
+  <div class="ar__header">
+    <button class="ar__back" (click)="goBack()">← Arabic</button>
+    <h1 class="ar__title">Capture review</h1>
+    <p class="ar__sub">
+      Machine-read Arabic. Nothing becomes a card until it is checked here.
+      @if (!loading()) {
+        <span class="ar__count">{{ remaining() }} in this batch · {{ done() }} settled</span>
+      }
+    </p>
+  </div>
 
-    <div class="ar">
-      <div class="ar__header">
-        <button class="ar__back" (click)="goBack()">← Arabic</button>
-        <h1 class="ar__title">SRS Review</h1>
-        <p class="ar__sub">{{ remaining() }} cards remaining</p>
+  <div class="ar__stage">
+    @if (loading()) {
+      <div class="ar__loading"><div class="ar__spinner"></div></div>
+    } @else if (!current()) {
+      <div class="ar__done">
+        <span class="ar__done-icon">✓</span>
+        <h2>Inbox clear</h2>
+        <p>No captures are waiting to be read.</p>
+        <button class="ar__back-btn" (click)="goBack()">← Back to Arabic</button>
+      </div>
+    } @else {
+      <div class="ar__panel">
+
+        <aside class="ar__meta">
+          <span class="ar__chip">{{ current()!.bucket }}</span>
+          @if (current()!.register) { <span class="ar__chip ar__chip--reg">{{ current()!.register }}</span> }
+          <dl class="ar__facts">
+            <dt>file</dt><dd class="ar__mono">{{ filename }}</dd>
+            <dt>lines</dt><dd>{{ current()!.lines ?? '—' }}</dd>
+            <dt>words mined</dt><dd>{{ current()!.items }}</dd>
+            <dt>read by</dt><dd class="ar__mono">{{ current()!.engine ?? 'unknown' }}</dd>
+          </dl>
+          <p class="ar__note">
+            The photograph itself is never uploaded — only what was read off it.
+            Open the file locally if the original is needed.
+          </p>
+        </aside>
+
+        <section class="ar__editor">
+          <label class="ar__label" for="capture-text">
+            Arabic as read <span>edit freely; saving keeps your version</span>
+          </label>
+          <textarea
+            id="capture-text"
+            class="ar__text"
+            dir="rtl"
+            lang="ar"
+            spellcheck="false"
+            [ngModel]="draft()"
+            (ngModelChange)="onDraft($event)"></textarea>
+          @if (dirty()) { <span class="ar__dirty">edited — accepting saves this text</span> }
+        </section>
       </div>
 
-      <div class="ar__stage">
-        @if (loading()) {
-          <div class="ar__loading"><div class="ar__spinner"></div></div>
-        } @else if (cards().length === 0) {
-          <div class="ar__done">
-            <span class="ar__done-icon">✓</span>
-            <h2>All done!</h2>
-            <p>No cards due for review right now.</p>
-            <button class="ar__back-btn" (click)="goBack()">← Back to Arabic</button>
-          </div>
-        } @else {
-          <div class="ar__card" [class.ar__card--flipped]="flipped()" (click)="flip()">
-            <div class="ar__card-inner">
-              <div class="ar__card-front">
-                <span class="ar__card-label">Arabic</span>
-                <p class="ar__card-ar">{{ currentCard()!.front }}</p>
-                <span class="ar__card-tap">Tap to reveal</span>
-              </div>
-              <div class="ar__card-back">
-                <span class="ar__card-label">Meaning</span>
-                <p class="ar__card-en">{{ currentCard()!.back }}</p>
-                <span class="ar__card-type">{{ currentCard()!.entity_type }}</span>
-              </div>
-            </div>
-          </div>
-
-          @if (flipped()) {
-            <div class="ar__rating-btns">
-              <button class="ar__btn ar__btn--again" (click)="rate('again')">Again</button>
-              <button class="ar__btn ar__btn--hard" (click)="rate('hard')">Hard</button>
-              <button class="ar__btn ar__btn--good" (click)="rate('good')">Good</button>
-              <button class="ar__btn ar__btn--easy" (click)="rate('easy')">Easy</button>
-            </div>
-          }
-        }
+      <div class="ar__actions">
+        <button class="ar__btn ar__btn--ghost" (click)="skip()" [disabled]="saving()">Skip</button>
+        <button class="ar__btn ar__btn--warn" (click)="discard()" [disabled]="saving()">Unusable</button>
+        <button class="ar__btn ar__btn--go" (click)="accept()" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : dirty() ? 'Save & accept' : 'Accept' }}
+        </button>
       </div>
-    </div>
-  
+    }
+  </div>
+</div>

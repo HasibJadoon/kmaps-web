@@ -3,6 +3,8 @@ import { dbHealth } from '../../shared/src/http';
 import { ok } from '../../shared/src/response';
 import type { ArabicEnv } from './env';
 
+import { audioRoutes } from './routes/audio';
+import { acquisitionRoutes } from './routes/acquisition';
 import { containerRoutes } from './routes/containers';
 import { libraryRoutes } from './routes/library';
 import { curriculumRoutes } from './routes/curriculum';
@@ -17,6 +19,11 @@ const router = new Router<ArabicEnv>();
 router.get('/health', async (_req, env) =>
   ok({ domain: 'arabic', db: 'DB_AR', db_ok: await dbHealth(env.DB_AR) }),
 );
+
+// Literal-prefix routes first: the router is first-match-wins, and a
+// ':id' pattern registered earlier would swallow them.
+audioRoutes(router);
+acquisitionRoutes(router);
 
 containerRoutes(router);
 libraryRoutes(router);

@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, OnInit, inject } from '@angular/core';
+import { Component, ChangeDetectionStrategy, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -10,13 +10,19 @@ interface ArabicFeature {
   arabicTitle: string;
   description: string;
   route: string;
+  gated?: boolean;
 }
 
-interface ArabicStats {
-  containers: number;
-  vocab: number;
-  grammar: number;
-  balagha: number;
+/// What the acquisition layer holds. `awaitingReview` is a queue length, not an
+/// achievement, and is shown as one.
+interface AcqStats {
+  works: number;
+  audio: number;
+  audioHours: number;
+  captures: number;
+  awaitingReview: number;
+  items: number;
+  itemsLinked: number;
 }
 
 @Component({
@@ -31,63 +37,30 @@ export class ArabicMenuCardComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly apiBase = environment.apiBase;
 
-  features: ArabicFeature[] = [
-    {
-      icon: 'ك',
-      title: 'Content Library',
-      arabicTitle: 'المكتبة',
-      description: 'Books, poetry, podcasts',
-      route: '/arabic/library',
-    },
-    {
-      icon: 'ن',
-      title: 'Linguistics',
-      arabicTitle: 'اللغويات',
-      description: 'Grammar & rhetoric',
-      route: '/arabic/linguistics',
-    },
-    {
-      icon: 'م',
-      title: 'Domains',
-      arabicTitle: 'المجالات',
-      description: 'Context vocabulary',
-      route: '/arabic/domains',
-    },
-    {
-      icon: '↻',
-      title: 'Review',
-      arabicTitle: 'المراجعة',
-      description: 'Spaced repetition',
-      route: '/arabic/review',
-    },
+  /// `gated` marks a door that needs a session. Saying so on the tile is kinder
+  /// than letting someone open an empty screen and conclude there is no data.
+  readonly features: ArabicFeature[] = [
+    { icon: '♪', title: 'Listening', arabicTitle: 'الاستماع',
+      description: 'Readers, stories, dīwāns — recorded', route: '/arabic/listening' },
+    { icon: '↻', title: 'Capture review', arabicTitle: 'المراجعة',
+      description: 'Machine-read Arabic awaiting a human', route: '/arabic/review' },
+    { icon: 'ك', title: 'Content Library', arabicTitle: 'المكتبة',
+      description: 'Books, poetry, podcasts', route: '/arabic/library', gated: true },
+    { icon: 'ن', title: 'Linguistics', arabicTitle: 'اللغويات',
+      description: 'Grammar & rhetoric', route: '/arabic/linguistics', gated: true },
+    { icon: 'م', title: 'Domains', arabicTitle: 'المجالات',
+      description: 'Context vocabulary', route: '/arabic/domains', gated: true },
   ];
 
-  stats = {
-    containers: 0,
-    vocab: 0,
-    grammar: 0,
-    balagha: 0,
-  };
+  /// Signals, not plain fields: this component is OnPush, and a value assigned
+  /// inside an HTTP callback never reaches the template otherwise.
+  readonly acq = signal<AcqStats | null>(null);
 
   ngOnInit(): void {
-    this.loadStats();
-  }
-
-  private loadStats(): void {
-    this.http.get<any>(`${this.apiBase}/hub/counts`).subscribe({
-      next: (res) => {
-        if (res?.ok && res.counts) {
-          this.stats = {
-            containers: res.counts.ar_curriculum_container ?? 0,
-            vocab: res.counts.ar_roots ?? 0,
-            grammar: res.counts.ar_grammar ?? 0,
-            balagha: res.counts.ar_balagha ?? 0,
-          };
-        }
-      },
-      error: () => {
-
-      },
-    });
+    this.http.get<{ ok: boolean; data?: { stats: AcqStats } }>(`${this.apiBase}/ar/acq/stats`)
+      .subscribe({
+        next: (res) => this.acq.set(res?.data?.stats ?? null),
+        error: () => this.acq.set(null),
+      });
   }
 }

@@ -18,3 +18,8 @@ service = "km-ar-linguistics-worker"
 binding = "QURAN"
 service = "km-quran-worker"
 
+[[r2_buckets]]
+binding     = "AR_AUDIO"
+bucket_name = "km-arabic-audio"
+# Acquisition audio. Served read-only via GET /ar/audio/:key+ which the gateway
+# allowlists for anonymous GET — an <audio> tag cannot send a Bearer token.

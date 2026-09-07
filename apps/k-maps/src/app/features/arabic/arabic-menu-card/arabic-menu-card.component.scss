@@ -153,3 +153,17 @@
     transform: translateX(3px);
   }
 }
+
+/* A door that needs a session says so, quietly, on the title line. */
+.arabic-menu__lock {
+  font-style: normal;
+  font-size: .6rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  margin-inline-start: .5rem;
+  padding: .1rem .35rem;
+  border-radius: 3px;
+  color: var(--km-text-3, #8a8a8a);
+  border: 1px solid rgba(255, 255, 255, .14);
+  vertical-align: middle;
+}

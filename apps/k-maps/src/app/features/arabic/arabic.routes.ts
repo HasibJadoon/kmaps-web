@@ -45,6 +45,13 @@ export const ARABIC_ROUTES: Routes = [
         title: 'Domains — Arabic',
       },
       {
+        path: 'listening',
+        loadComponent: () =>
+          import('./arabic-listening/arabic-listening.component').then(
+            (m) => m.ArabicListeningComponent,
+          ),
+      },
+      {
         path: 'review',
         loadComponent: () =>
           import('./arabic-review/arabic-review.component').then(

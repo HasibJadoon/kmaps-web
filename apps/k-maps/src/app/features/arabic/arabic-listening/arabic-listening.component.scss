@@ -1,0 +1,71 @@
+.ls { width: 100%; height: 100%; display: flex; flex-direction: column; background: var(--km-bg); }
+
+.ls__header { padding: 1.5rem 2rem 1rem; border-bottom: 1px solid rgba(255,255,255,.06); flex-shrink: 0; }
+.ls__back {
+  background: none; border: none; color: var(--km-text-3); font-size: .75rem;
+  letter-spacing: .06em; cursor: pointer; padding: 0; margin-bottom: .8rem;
+  &:hover { color: var(--km-gold); }
+}
+.ls__title { font-family: var(--km-font-heading); font-size: 1.4rem; color: var(--km-text); margin-bottom: .2rem; }
+.ls__sub { font-size: .8rem; color: var(--km-text-3); display: flex; gap: .8rem; flex-wrap: wrap; align-items: baseline; }
+.ls__hint { opacity: .6; font-style: italic; }
+
+.ls__filters { display: flex; gap: .4rem; margin-top: .9rem; flex-wrap: wrap; }
+.ls__filter {
+  background: none; border: 1px solid rgba(255,255,255,.12); color: var(--km-text-3);
+  border-radius: 999px; padding: .28rem .75rem; font-size: .74rem; cursor: pointer;
+  &:hover { color: var(--km-text); }
+}
+.ls__filter--on { background: rgba(201,168,76,.14); border-color: rgba(201,168,76,.4); color: var(--km-gold); }
+
+.ls__body { flex: 1; overflow-y: auto; padding: 1.25rem 2rem 2rem; }
+.ls__body--playing { padding-bottom: 6.5rem; }
+.ls__spinner {
+  width: 34px; height: 34px; margin: 3rem auto; border: 3px solid rgba(201,168,76,.2);
+  border-top-color: var(--km-gold); border-radius: 50%; animation: lspin .8s linear infinite;
+}
+@keyframes lspin { to { transform: rotate(360deg); } }
+.ls__empty { color: var(--km-text-3); font-size: .85rem; text-align: center; margin: 3rem 0; }
+
+.ls__group { margin-bottom: 1.75rem; }
+.ls__group-h {
+  display: flex; align-items: baseline; gap: .7rem; font-size: .8rem; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--km-text-3); padding-bottom: .5rem;
+  border-bottom: 1px solid rgba(255,255,255,.07); margin-bottom: .3rem;
+}
+.ls__group-ar { font-family: 'Amiri', serif; text-transform: none; letter-spacing: 0; font-size: 1rem; color: var(--km-gold); }
+.ls__group-n { margin-left: auto; font-variant-numeric: tabular-nums; opacity: .7; }
+
+.ls__list { list-style: none; margin: 0; padding: 0; }
+.ls__row {
+  display: flex; align-items: center; gap: .85rem; padding: .55rem .6rem;
+  border-radius: 5px; cursor: pointer; border: 1px solid transparent;
+  &:hover { background: rgba(255,255,255,.03); }
+  &:focus-visible { outline: 2px solid rgba(201,168,76,.5); outline-offset: 1px; }
+}
+.ls__row--on { background: rgba(201,168,76,.1); border-color: rgba(201,168,76,.28); }
+.ls__play { width: 1.4rem; color: var(--km-gold); font-size: .8rem; flex: none; }
+.ls__name {
+  flex: 1; min-width: 0; color: var(--km-text); font-size: .92rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  &[dir='rtl'] { font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.05rem; }
+}
+.ls__reg {
+  font-size: .66rem; color: var(--km-text-3); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 3px; padding: .1rem .4rem; flex: none;
+}
+.ls__dur { font-size: .78rem; color: var(--km-text-3); font-variant-numeric: tabular-nums; flex: none; width: 3.2rem; text-align: right; }
+
+/* One player, pinned. Switching tracks should not move the controls. */
+.ls__player {
+  position: sticky; bottom: 0; background: rgba(12,14,17,.96); backdrop-filter: blur(8px);
+  border-top: 1px solid rgba(201,168,76,.22); padding: .8rem 2rem;
+  display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+}
+.ls__now { display: flex; flex-direction: column; gap: .15rem; min-width: 0; flex: 1; }
+.ls__now-label { font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; color: var(--km-gold); }
+.ls__now-title {
+  color: var(--km-text); font-size: .92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  &[dir='rtl'] { font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.08rem; }
+}
+.ls__audio { flex: 2; min-width: 260px; height: 34px; }

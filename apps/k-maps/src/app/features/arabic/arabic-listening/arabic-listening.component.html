@@ -1,0 +1,60 @@
+<div class="ls">
+  <header class="ls__header">
+    <button class="ls__back" (click)="goBack()">← Arabic</button>
+    <h1 class="ls__title">Listening</h1>
+    <p class="ls__sub">
+      {{ visible().length }} recordings · {{ totalHours() }} hours
+      <span class="ls__hint">spoken Arabic is the leg the reading rests on</span>
+    </p>
+
+    <div class="ls__filters">
+      @for (r of registers(); track r) {
+        <button class="ls__filter" [class.ls__filter--on]="registerFilter() === r"
+                (click)="setRegister(r)">
+          {{ r === 'all' ? 'All registers' : r === 'fusha_turath' ? 'فصحى التراث' :
+             r === 'fusha_muasira' ? 'فصحى معاصرة' : r === 'amiyya' ? 'عامية' : r }}
+        </button>
+      }
+    </div>
+  </header>
+
+  <div class="ls__body" [class.ls__body--playing]="playing()">
+    @if (loading()) {
+      <div class="ls__spinner"></div>
+    } @else if (!visible().length) {
+      <p class="ls__empty">Nothing recorded in this register yet.</p>
+    } @else {
+      @for (g of groups(); track g.name) {
+        <section class="ls__group">
+          <h2 class="ls__group-h">
+            <span>{{ g.name }}</span>
+            @if (g.nameAr) { <span class="ls__group-ar">{{ g.nameAr }}</span> }
+            <span class="ls__group-n">{{ g.items.length }} · {{ g.minutes }} min</span>
+          </h2>
+
+          <ol class="ls__list">
+            @for (t of g.items; track t.id) {
+              <li class="ls__row" [class.ls__row--on]="playing()?.id === t.id"
+                  (click)="play(t)" tabindex="0" (keydown.enter)="play(t)">
+                <span class="ls__play">{{ playing()?.id === t.id ? '❚❚' : '▶' }}</span>
+                <span class="ls__name" [attr.dir]="t.title_ar ? 'rtl' : 'ltr'">{{ title(t) }}</span>
+                @if (t.register) { <span class="ls__reg">{{ t.register }}</span> }
+                <span class="ls__dur">{{ duration(t.duration_sec) }}</span>
+              </li>
+            }
+          </ol>
+        </section>
+      }
+    }
+  </div>
+
+  @if (playing(); as t) {
+    <footer class="ls__player">
+      <div class="ls__now">
+        <span class="ls__now-label">Playing</span>
+        <span class="ls__now-title" [attr.dir]="t.title_ar ? 'rtl' : 'ltr'">{{ title(t) }}</span>
+      </div>
+      <audio class="ls__audio" [src]="src(t)" controls autoplay preload="none"></audio>
+    </footer>
+  }
+</div>
