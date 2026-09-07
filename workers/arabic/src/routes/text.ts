@@ -138,10 +138,21 @@ export function textRoutes(router: Router<ArabicEnv>) {
 
     const pages = await query(
       env.DB_AR,
-      `SELECT id, seq, part_no, page_no, title_ar, text_ar, word_count
-         FROM ar_text_unit
-        WHERE acq_ref_id = ? AND status = 'live' AND seq >= ?
-        ORDER BY seq LIMIT ?`,
+      // A recording for the page, where one exists. The Nights are one work of
+      // a thousand pages read night by night, so a single playUrl for the whole
+      // book would play night one on every page of it.
+      `SELECT t.id, t.seq, t.part_no, t.page_no, t.title_ar, t.text_ar, t.word_count,
+              a.object_key                                   AS pageAudioKey,
+              a.title_ar                                     AS pageAudioTitle,
+              a.speaker                                      AS pageAudioBy,
+              a.duration_sec                                 AS pageAudioSec
+         FROM ar_text_unit t
+         LEFT JOIN ar_acq_audio a
+                ON a.acq_ref_id = t.acq_ref_id
+               AND a.status = 'live'
+               AND CAST(json_extract(a.meta_json, '$.night') AS INTEGER) = t.page_no
+        WHERE t.acq_ref_id = ? AND t.status = 'live' AND t.seq >= ?
+        ORDER BY t.seq LIMIT ?`,
       [params.id, from, limit],
     );
 
@@ -160,7 +171,12 @@ export function textRoutes(router: Router<ArabicEnv>) {
         ...work,
         playUrl: work.audioKey ? `/api/ar/audio/${encodeURI(String(work.audioKey))}` : null,
       },
-      pages,
+      pages: pages.map((p) => ({
+        ...p,
+        pagePlayUrl: p.pageAudioKey
+          ? `/api/ar/audio/${encodeURI(String(p.pageAudioKey))}`
+          : null,
+      })),
       bounds,
     });
   });
