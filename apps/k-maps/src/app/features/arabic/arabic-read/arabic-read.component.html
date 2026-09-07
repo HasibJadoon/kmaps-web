@@ -25,11 +25,31 @@
           <span class="rd__band-n">{{ g.items.length }} · {{ g.pages }} pages</span>
         </header>
 
+        @if (g.shape === 'series') {
+          @for (sr of seriesOf(g.items); track sr.name) {
+            <div class="rd__series">
+              <h3 class="rd__series-name">
+                {{ sr.name }}<span>{{ sr.items.length }} episode{{ sr.items.length === 1 ? '' : 's' }}</span>
+              </h3>
+              <div class="rd__grid">
+                @for (w of sr.items; track w.id) {
+                  <button class="rd__card rd__card--ep" [attr.dir]="dir(w.title_ar)" (click)="open(w)">
+                    <span class="rd__card-title">{{ w.title_ar }}</span>
+                    <span class="rd__card-foot">
+                      <span>{{ w.pages }} pp</span>
+                      @if (w.audioKey) { <span class="rd__has-audio" title="recorded">♪</span> }
+                    </span>
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        } @else {
         <div class="rd__grid">
           @for (w of g.items; track w.id) {
-            <button class="rd__card" (click)="open(w)">
-              <span class="rd__card-title" dir="rtl" lang="ar">{{ w.title_ar }}</span>
-              <span class="rd__card-author" dir="rtl" lang="ar">{{ w.author || '—' }}</span>
+            <button class="rd__card" [attr.dir]="dir(w.title_ar)" (click)="open(w)">
+              <span class="rd__card-title">{{ w.title_ar }}</span>
+              <span class="rd__card-author" [attr.dir]="dir(w.author)">{{ w.author || '—' }}</span>
               <span class="rd__card-foot">
                 <span>{{ era(w.died) }}</span>
                 <span>{{ w.pages }} pp</span>
@@ -38,6 +58,7 @@
             </button>
           }
         </div>
+        }
       </section>
     }
   }

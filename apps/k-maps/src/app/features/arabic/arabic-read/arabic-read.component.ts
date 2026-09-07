@@ -12,6 +12,9 @@ export interface Work {
   shape: 'prose' | 'diwan' | 'maqama' | 'amthal' | 'series' | 'dialogue' | 'nights' | null;
   pages: number; words: number; firstSeq: number;
   audioKey: string | null;
+  series: string | null;
+  seriesRef: string | null;
+  episodeOrder: number | null;
 }
 
 interface Envelope<T> { ok: boolean; data?: T; }
@@ -67,6 +70,24 @@ export class ArabicReadComponent implements OnInit {
         pages: by.get(s!)!.reduce((n, w) => n + w.pages, 0),
       }));
   });
+
+  /// Direction follows the script of the title, not the shelf: an English title
+  /// forced right-to-left sits on the wrong edge and reads as a mistake.
+  dir(t: string | null): 'rtl' | 'ltr' { return /[\u0600-\u06FF]/.test(t ?? '') ? 'rtl' : 'ltr'; }
+
+  /// Episodes under their series. A flat list of "Episode 1" three times is
+  /// three different things wearing the same name.
+  seriesOf(items: Work[]): { name: string; items: Work[] }[] {
+    const by = new Map<string, Work[]>();
+    for (const w of items) {
+      const k = w.series ?? w.title_ar ?? w.id;
+      (by.get(k) ?? by.set(k, []).get(k)!).push(w);
+    }
+    return Array.from(by, ([name, ws]) => ({
+      name,
+      items: ws.sort((a, b) => (a.episodeOrder ?? 0) - (b.episodeOrder ?? 0)),
+    })).sort((a, b) => b.items.length - a.items.length);
+  }
 
   readonly totalWords = computed(() => this.works().reduce((n, w) => n + (w.words ?? 0), 0));
 

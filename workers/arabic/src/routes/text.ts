@@ -33,9 +33,17 @@ export function textRoutes(router: Router<ArabicEnv>) {
                 (SELECT a.object_key FROM ar_acq_audio a
                   WHERE a.status = 'live'
                     AND (a.acq_ref_id = r.id OR a.title_ar = r.title_ar)
-                  ORDER BY (a.acq_ref_id = r.id) DESC LIMIT 1) AS audioKey
+                  ORDER BY (a.acq_ref_id = r.id) DESC LIMIT 1) AS audioKey,
+                -- The series an episode belongs to, from the Notion tree. An
+                -- episode called "Episode 1" means nothing on its own; its
+                -- parent's name is what makes it a thing you can pick.
+                p.name                       AS series,
+                p.ar_no                      AS seriesRef,
+                CAST(substr(e.ar_no, 4) AS INTEGER) AS episodeOrder
            FROM ar_acquisition_ref r
            JOIN ar_text_unit t ON t.acq_ref_id = r.id AND t.status = 'live'
+           LEFT JOIN ar_acq_entry e ON e.ar_no = json_extract(r.meta_json, '$.ar_no')
+           LEFT JOIN ar_acq_entry p ON p.ar_no = e.parent_ar_no
           WHERE ${conds.join(' AND ')}
           GROUP BY r.id
           ORDER BY r.genre_ref,

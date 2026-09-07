@@ -44,7 +44,7 @@
 .rd__grid { display: grid; gap: .7rem; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
 
 .rd__card {
-  display: flex; flex-direction: column; gap: .35rem; text-align: right;
+  display: flex; flex-direction: column; gap: .35rem; text-align: start;
   padding: .95rem 1rem; cursor: pointer; min-height: 118px;
   background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.07);
   border-radius: 6px; transition: border-color .15s, background .15s;
@@ -56,7 +56,7 @@
 }
 .rd__card-author { font-family: 'Amiri', 'Geeza Pro', serif; font-size: .92rem; color: var(--km-text-3); }
 .rd__card-foot {
-  margin-top: auto; display: flex; gap: .7rem; justify-content: flex-start; direction: ltr;
+  margin-top: auto; display: flex; gap: .7rem; justify-content: flex-end; direction: ltr;
   font-size: .68rem; color: var(--km-text-3); letter-spacing: .04em;
   font-variant-numeric: tabular-nums;
 }
@@ -67,3 +67,15 @@
 .rd__band[data-shape='diwan'] .rd__card { border-inline-end: 2px solid rgba(201,168,76,.3); }
 .rd__band[data-shape='amthal'] .rd__card { border-style: dashed; min-height: 96px; }
 .rd__band[data-shape='maqama'] .rd__card { background: rgba(201,168,76,.04); }
+
+/* A series is a shelf within the shelf: its name on a rule, its episodes
+   under it, smaller than a book because an episode is not a book. */
+.rd__series { margin-bottom: 1.4rem; }
+.rd__series-name {
+  font-family: var(--km-font-heading); font-size: .92rem; color: var(--km-text);
+  display: flex; align-items: baseline; gap: .7rem; margin-bottom: .6rem;
+  padding-bottom: .35rem; border-bottom: 1px solid rgba(201,168,76,.18);
+  span { font-family: inherit; font-size: .68rem; color: var(--km-text-3); letter-spacing: .04em; }
+}
+.rd__card--ep { min-height: 72px; padding: .7rem .85rem; }
+.rd__card--ep .rd__card-title { font-size: 1rem; line-height: 1.4; }
