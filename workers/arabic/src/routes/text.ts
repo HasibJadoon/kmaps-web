@@ -59,7 +59,9 @@ export function textRoutes(router: Router<ArabicEnv>) {
                 r.verse_form                         AS verseForm,
                 COUNT(t.id)             AS pages,
                 SUM(t.word_count)       AS words,
-                MIN(t.seq)              AS firstSeq,
+                -- Where the reading starts. A dīwān's first pages are the
+                -- publisher's colophon; opening there is opening on nothing.
+                COALESCE(json_extract(r.meta_json, '$.open_at'), MIN(t.seq)) AS firstSeq,
                 (SELECT a.object_key FROM ar_acq_audio a
                   WHERE a.status = 'live'
                     AND (a.acq_ref_id = r.id OR a.title_ar = r.title_ar)
