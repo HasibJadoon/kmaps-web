@@ -133,10 +133,16 @@ export class ArabicReaderComponent implements OnInit {
       if (this.kind(line) === 'verse') { flush(); out.push({ kind: 'verse', text: line }); continue; }
       if (this.speaker(line) && buf.length) flush();   // a new speaker is a new block
       buf.push(line);
-      /// With no punctuation to break on — common in these transcripts — break
-      /// on length instead, so the reader gets paragraphs rather than one wall.
-      if (wrapped && buf.join(' ').length > 340 && /[.!?؟।،؛]$/.test(line)) flush();
-      else if (wrapped && buf.join(' ').length > 520) flush();
+      if (wrapped) {
+        /// With no punctuation to break on — common in these transcripts — break
+        /// on length instead, so the reader gets paragraphs rather than one wall.
+        if (buf.join(' ').length > 340 && /[.!?؟।،؛]$/.test(line)) flush();
+        else if (buf.join(' ').length > 520) flush();
+      } else {
+        /// Not wrapped means the source breaks lines where sentences end —
+        /// Shamela's pages are one paragraph per line — so each line stands.
+        flush();
+      }
     }
     flush();
     return out;
