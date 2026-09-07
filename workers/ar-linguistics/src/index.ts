@@ -5,6 +5,7 @@ import { ok } from '../../shared/src/response';
 import type { ArLinguisticsEnv } from './env';
 
 import { rootRoutes } from './routes/roots';
+import { lookupRoutes } from './routes/lookup';
 import { lemmaRoutes } from './routes/lemmas';
 import { morphologyRoutes } from './routes/morphology';
 import { nahwRoutes } from './routes/nahw';
@@ -33,6 +34,7 @@ router.get('/health', async (_req, env) =>
 );
 
 rootRoutes(router);
+lookupRoutes(router);
 lemmaRoutes(router);
 morphologyRoutes(router);
 nahwRoutes(router);

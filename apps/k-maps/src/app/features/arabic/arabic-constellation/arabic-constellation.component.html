@@ -1,0 +1,33 @@
+<div class="cn">
+  <header class="cn__top">
+    <button class="cn__back" (click)="back()">← Shelf</button>
+    <div>
+      <h1>Roots in 3D</h1>
+      <p>
+        Every word you have met, gathered under its root. Bigger and brighter means
+        more words reached it. Click to stop the spin.
+        @if (!loading()) { <span class="cn__n">{{ nodes().length }} roots</span> }
+      </p>
+    </div>
+  </header>
+
+  <div class="cn__stage">
+    <canvas #canvas class="cn__canvas"></canvas>
+
+    @if (loading()) { <div class="cn__wait"><span class="cn__spin"></span></div> }
+    @else if (!nodes().length) {
+      <p class="cn__empty">No resolved words yet — nothing to plot.</p>
+    }
+
+    @if (active(); as n) {
+      <aside class="cn__card">
+        <span class="cn__root" dir="rtl" lang="ar">{{ n.root }}</span>
+        @if (n.gloss) { <span class="cn__gloss">{{ n.gloss }}</span> }
+        <span class="cn__count">{{ n.words.length }} word{{ n.words.length === 1 ? '' : 's' }}</span>
+        <div class="cn__words" dir="rtl" lang="ar">
+          @for (w of n.words.slice(0, 12); track w) { <span>{{ w }}</span> }
+        </div>
+      </aside>
+    }
+  </div>
+</div>

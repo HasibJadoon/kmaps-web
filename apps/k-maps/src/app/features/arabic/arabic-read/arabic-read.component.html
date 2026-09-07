@@ -1,0 +1,44 @@
+<div class="rd">
+  <header class="rd__top">
+    <button class="rd__back" (click)="back()">← Arabic</button>
+    <div class="rd__lead">
+      <h1 class="rd__h1">Read</h1>
+      <p class="rd__sub">
+        Classical Fuṣḥā, whole works, in reading order.
+        @if (!loading()) { <span class="rd__n">{{ works().length }} works · {{ words(totalWords()) }}</span> }
+      </p>
+    </div>
+    <nav class="rd__alt">
+      <button (click)="timeline()">Timeline ↗</button>
+      <button (click)="constellation()">Roots in 3D ↗</button>
+    </nav>
+  </header>
+
+  @if (loading()) {
+    <div class="rd__wait"><span class="rd__spin"></span></div>
+  } @else {
+    @for (g of groups(); track g.shape) {
+      <section class="rd__band" [attr.data-shape]="g.shape">
+        <header class="rd__band-head">
+          <h2>{{ g.en }}<span class="rd__ar">{{ g.ar }}</span></h2>
+          <p>{{ g.note }}</p>
+          <span class="rd__band-n">{{ g.items.length }} · {{ g.pages }} pages</span>
+        </header>
+
+        <div class="rd__grid">
+          @for (w of g.items; track w.id) {
+            <button class="rd__card" (click)="open(w)">
+              <span class="rd__card-title" dir="rtl" lang="ar">{{ w.title_ar }}</span>
+              <span class="rd__card-author" dir="rtl" lang="ar">{{ w.author || '—' }}</span>
+              <span class="rd__card-foot">
+                <span>{{ era(w.died) }}</span>
+                <span>{{ w.pages }} pp</span>
+                @if (w.audioKey) { <span class="rd__has-audio" title="recorded">♪</span> }
+              </span>
+            </button>
+          }
+        </div>
+      </section>
+    }
+  }
+</div>

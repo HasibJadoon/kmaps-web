@@ -4,6 +4,7 @@ import { ok } from '../../shared/src/response';
 import type { ArabicEnv } from './env';
 
 import { audioRoutes } from './routes/audio';
+import { textRoutes } from './routes/text';
 import { acquisitionRoutes } from './routes/acquisition';
 import { containerRoutes } from './routes/containers';
 import { libraryRoutes } from './routes/library';
@@ -24,6 +25,7 @@ router.get('/health', async (_req, env) =>
 // ':id' pattern registered earlier would swallow them.
 audioRoutes(router);
 acquisitionRoutes(router);
+textRoutes(router);
 
 containerRoutes(router);
 libraryRoutes(router);

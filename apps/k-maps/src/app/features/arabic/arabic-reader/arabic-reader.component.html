@@ -1,0 +1,172 @@
+<div class="rr" [attr.data-shape]="shape()">
+  <header class="rr__bar">
+    <button class="rr__back" (click)="back()">← Shelf</button>
+    @if (work(); as w) {
+      <div class="rr__id">
+        <span class="rr__title" dir="rtl" lang="ar">{{ w.title_ar }}</span>
+        <span class="rr__author" dir="rtl" lang="ar">{{ w.author }}</span>
+      </div>
+      @if (audioSrc(); as src) {
+        <audio class="rr__audio" [src]="src" controls preload="none"></audio>
+      }
+    }
+    <span class="rr__pos">{{ progress() }}%</span>
+  </header>
+  <div class="rr__rail"><span [style.width.%]="progress()"></span></div>
+
+  @if (loading()) {
+    <div class="rr__wait"><span class="rr__spin"></span></div>
+  } @else {
+    <main class="rr__page">
+      @for (p of pages(); track p.id) {
+
+        @if (p.title_ar) {
+          <h2 class="rr__chapter" dir="rtl" lang="ar">{{ p.title_ar }}</h2>
+        }
+
+        <!-- Poetry. These are commented editions, so the page is mostly the
+             commentator talking: the poem's own lines are lifted out and the
+             commentary set quietly under them, which is the order you read in. -->
+        @if (shape() === 'diwan') {
+          <div class="rr__diwan" dir="rtl" lang="ar">
+            @for (line of lines(p); track $index) {
+              @if (kind(line) === 'verse') {
+                <div class="rr__bayt">
+                  <span class="rr__bayt-no">{{ baytNo(line) }}</span>
+                  @for (half of hemistichs(line); track $index) {
+                    <span class="rr__half">
+                      @for (w of words(half); track $index) {
+                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                      }
+                    </span>
+                  }
+                </div>
+              } @else {
+                <p class="rr__sharh">
+                  @for (w of words(line); track $index) {
+                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                  }
+                </p>
+              }
+            }
+          </div>
+        }
+
+        <!-- Proverbs: each its own card. A mathal is complete on its own line. -->
+        @else if (shape() === 'amthal') {
+          <div class="rr__amthal" dir="rtl" lang="ar">
+            @for (line of lines(p); track $index) {
+              @if (kind(line) === 'verse') {
+                <div class="rr__bayt">
+                  @if (baytNo(line)) { <span class="rr__bayt-no">{{ baytNo(line) }}</span> }
+                  @for (half of hemistichs(line); track $index) {
+                    <span class="rr__half">
+                      @for (w of words(half); track $index) {
+                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                      }
+                    </span>
+                  }
+                </div>
+              } @else {
+                <p class="rr__mathal">
+                  @for (w of words(line); track $index) {
+                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                  }
+                </p>
+              }
+            }
+          </div>
+        }
+
+        <!-- Maqāma: saj' wants short measures and air; set narrower and looser. -->
+        @else if (shape() === 'maqama') {
+          <div class="rr__maqama" dir="rtl" lang="ar">
+            @for (line of lines(p); track $index) {
+              @if (kind(line) === 'verse') {
+                <div class="rr__bayt">
+                  @if (baytNo(line)) { <span class="rr__bayt-no">{{ baytNo(line) }}</span> }
+                  @for (half of hemistichs(line); track $index) {
+                    <span class="rr__half">
+                      @for (w of words(half); track $index) {
+                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                      }
+                    </span>
+                  }
+                </div>
+              } @else {
+                <p>
+                  @for (w of words(line); track $index) {
+                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                  }
+                </p>
+              }
+            }
+          </div>
+        }
+
+        <!-- Prose: one column, a measure you can stay in. -->
+        @else {
+          <div class="rr__prose" dir="rtl" lang="ar">
+            @for (line of lines(p); track $index) {
+              @if (kind(line) === 'verse') {
+                <div class="rr__bayt">
+                  @if (baytNo(line)) { <span class="rr__bayt-no">{{ baytNo(line) }}</span> }
+                  @for (half of hemistichs(line); track $index) {
+                    <span class="rr__half">
+                      @for (w of words(half); track $index) {
+                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                      }
+                    </span>
+                  }
+                </div>
+              } @else {
+                <p>
+                  @for (w of words(line); track $index) {
+                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                  }
+                </p>
+              }
+            }
+          </div>
+        }
+
+        <footer class="rr__folio">
+          {{ p.part_no ? 'ج' + p.part_no + ' · ' : '' }}{{ p.page_no ? 'ص' + p.page_no : 'seq ' + p.seq }}
+        </footer>
+      }
+    </main>
+
+    <nav class="rr__nav">
+      <button (click)="prev()" [disabled]="atStart()">← previous</button>
+      <button (click)="next()" [disabled]="atEnd()">next →</button>
+    </nav>
+  }
+
+  <!-- The word panel. Present only once something is tapped; a permanent empty
+       sidebar teaches nothing and takes the measure away from the text. -->
+  @if (picked(); as w) {
+    <aside class="rr__gloss">
+      <button class="rr__gloss-x" (click)="tap(w)">×</button>
+      <span class="rr__gloss-w" dir="rtl" lang="ar">{{ w }}</span>
+      @if (looking()) { <p class="rr__gloss-note">looking…</p> }
+      @else if (lookup(); as l) {
+        @if (l.found) {
+          <p class="rr__gloss-note">matched as <b dir="rtl">{{ l.matchedAs }}</b></p>
+          @for (lm of l.lemmas.slice(0, 4); track lm.id) {
+            <div class="rr__lemma">
+              <span class="rr__lemma-ar" dir="rtl" lang="ar">{{ lm.lemma_ar }}</span>
+              <span class="rr__lemma-root" dir="rtl" lang="ar">√ {{ lm.root_text }}</span>
+              <span class="rr__lemma-pos">{{ lm.pos || '—' }}</span>
+              @if (lm.root_en) { <span class="rr__lemma-en">{{ lm.root_en }}</span> }
+              @if (lm.frequency) { <span class="rr__lemma-f">{{ lm.frequency }}× in the Qurʾān</span> }
+            </div>
+          }
+        } @else {
+          <p class="rr__gloss-note">
+            No root behind this one yet. Tried <b dir="rtl">{{ l.tried?.join('، ') }}</b>.
+          </p>
+        }
+      }
+    </aside>
+  }
+</div>

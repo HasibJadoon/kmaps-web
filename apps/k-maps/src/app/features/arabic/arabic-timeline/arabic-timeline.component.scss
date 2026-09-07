@@ -1,0 +1,59 @@
+.tl { min-height: 100%; background: var(--km-bg); padding: 0 0 6rem; }
+.tl__top { padding: 1.6rem 2rem 1.4rem; border-bottom: 1px solid rgba(255,255,255,.06); }
+.tl__back {
+  background: none; border: none; color: var(--km-text-3); font-size: .75rem;
+  letter-spacing: .06em; cursor: pointer; padding: 0; margin-bottom: .7rem;
+  &:hover { color: var(--km-gold); }
+}
+.tl__top h1 { font-family: var(--km-font-heading); font-size: 1.5rem; color: var(--km-text); }
+.tl__top p { font-size: .82rem; color: var(--km-text-3); margin-top: .15rem; }
+
+.tl__wait { display: flex; justify-content: center; padding: 5rem; }
+.tl__spin {
+  width: 34px; height: 34px; border: 3px solid rgba(201,168,76,.18);
+  border-top-color: var(--km-gold); border-radius: 50%; animation: sp .8s linear infinite;
+}
+@keyframes sp { to { transform: rotate(360deg); } }
+
+.tl__era { padding: 2.2rem 2.5rem 0; }
+.tl__era header {
+  display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.4rem;
+  h2 { font-family: var(--km-font-heading); font-size: 1rem; color: var(--km-text);
+       display: flex; align-items: baseline; gap: .7rem; }
+  span[dir='rtl'] {
+    font-family: 'Amiri', 'Geeza Pro', serif; font-size: .95rem;
+    color: var(--km-gold); margin-inline-start: .6rem; opacity: .85;
+  }
+}
+.tl__span { font-size: .7rem; color: var(--km-text-3); font-variant-numeric: tabular-nums; }
+
+.tl__track { position: relative; height: 58px; }
+.tl__line {
+  position: absolute; inset-inline: 0; top: 50%; height: 1px;
+  background: linear-gradient(90deg, rgba(201,168,76,.05), rgba(201,168,76,.35), rgba(201,168,76,.05));
+}
+.tl__mark {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  background: none; border: none; cursor: pointer; padding: .6rem;
+}
+.tl__dot {
+  display: block; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--km-gold); box-shadow: 0 0 0 3px rgba(201,168,76,.14);
+  transition: transform .15s, box-shadow .15s;
+}
+.tl__mark:hover .tl__dot { transform: scale(1.5); box-shadow: 0 0 0 6px rgba(201,168,76,.2); }
+/* A dīwān is a different object from a book of stories; the mark says so. */
+.tl__mark[data-shape='diwan'] .tl__dot { border-radius: 1px; transform: rotate(45deg); }
+.tl__mark[data-shape='diwan']:hover .tl__dot { transform: rotate(45deg) scale(1.5); }
+.tl__mark[data-shape='amthal'] .tl__dot { background: none; border: 2px solid var(--km-gold); }
+
+.tl__tip {
+  position: absolute; bottom: 130%; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: .15rem; white-space: nowrap;
+  background: rgba(18,18,18,.98); border: 1px solid rgba(201,168,76,.32);
+  border-radius: 6px; padding: .55rem .75rem; z-index: 3;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  b { font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.05rem; color: var(--km-text); font-weight: 400; }
+  i { font-family: 'Amiri', 'Geeza Pro', serif; font-size: .88rem; color: var(--km-text-3); font-style: normal; }
+  em { font-size: .66rem; color: var(--km-gold); font-style: normal; letter-spacing: .05em; }
+}

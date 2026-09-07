@@ -45,6 +45,36 @@ export const ARABIC_ROUTES: Routes = [
         title: 'Domains — Arabic',
       },
       {
+        path: 'read',
+        loadComponent: () =>
+          import('./arabic-read/arabic-read.component').then((m) => m.ArabicReadComponent),
+        title: 'Read — Arabic',
+      },
+      {
+        // The shape is in the path because it is what decides the reading, and
+        // a link should carry it rather than re-derive it.
+        path: 'read/:workId/:shape/:seq',
+        loadComponent: () =>
+          import('./arabic-reader/arabic-reader.component').then((m) => m.ArabicReaderComponent),
+        title: 'Reader — Arabic',
+      },
+      {
+        path: 'timeline',
+        loadComponent: () =>
+          import('./arabic-timeline/arabic-timeline.component').then(
+            (m) => m.ArabicTimelineComponent,
+          ),
+        title: 'Timeline — Arabic',
+      },
+      {
+        path: 'roots-3d',
+        loadComponent: () =>
+          import('./arabic-constellation/arabic-constellation.component').then(
+            (m) => m.ArabicConstellationComponent,
+          ),
+        title: 'Roots in 3D — Arabic',
+      },
+      {
         path: 'listening',
         loadComponent: () =>
           import('./arabic-listening/arabic-listening.component').then(

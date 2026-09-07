@@ -1,0 +1,40 @@
+<div class="tl">
+  <header class="tl__top">
+    <button class="tl__back" (click)="back()">← Shelf</button>
+    <h1>The shelf in time</h1>
+    <p>Eleven centuries of it. Each mark is a work you can open.</p>
+  </header>
+
+  @if (loading()) {
+    <div class="tl__wait"><span class="tl__spin"></span></div>
+  } @else {
+    @for (e of eras(); track e.key) {
+      <section class="tl__era" [attr.data-era]="e.key">
+        <header>
+          <h2>{{ e.en }}<span dir="rtl" lang="ar">{{ e.ar }}</span></h2>
+          <span class="tl__span">{{ e.from < 0 ? (-e.from) + ' pre-hijra' : e.from + ' AH' }} — {{ e.to }} AH · {{ e.items.length }}</span>
+        </header>
+        <div class="tl__track">
+          <span class="tl__line"></span>
+          @for (w of e.items; track w.id) {
+            <button
+              class="tl__mark"
+              [attr.data-shape]="w.shape"
+              [style.left.%]="pos(w, e.from, e.to)"
+              (mouseenter)="hover.set(w.id)" (mouseleave)="hover.set(null)"
+              (click)="open(w)">
+              <span class="tl__dot"></span>
+              @if (hover() === w.id) {
+                <span class="tl__tip">
+                  <b dir="rtl" lang="ar">{{ w.title_ar }}</b>
+                  <i dir="rtl" lang="ar">{{ w.author }}</i>
+                  <em>{{ label(w) }} · {{ w.pages }} pp</em>
+                </span>
+              }
+            </button>
+          }
+        </div>
+      </section>
+    }
+  }
+</div>
