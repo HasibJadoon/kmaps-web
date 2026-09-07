@@ -56,6 +56,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
          SELECT r.id, r.slug, r.title_ar, r.title_en, r.author, r.note_ar AS died,
                 r.genre_ref, r.register, r.level,
                 json_extract(r.meta_json, '$.shape') AS shape,
+                r.verse_form                         AS verseForm,
                 COUNT(t.id)             AS pages,
                 SUM(t.word_count)       AS words,
                 MIN(t.seq)              AS firstSeq,
@@ -119,6 +120,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
       env.DB_AR,
       `SELECT id, title_ar, title_en, author, note_ar AS died, genre_ref, register,
               json_extract(meta_json, '$.shape') AS shape,
+              verse_form                         AS verseForm,
               (SELECT a.object_key FROM ar_acq_audio a
                 WHERE a.status = 'live'
                   AND (a.acq_ref_id = ar_acquisition_ref.id
