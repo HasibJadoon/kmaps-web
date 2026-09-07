@@ -5,6 +5,7 @@ import type { ArabicEnv } from './env';
 
 import { audioRoutes } from './routes/audio';
 import { textRoutes } from './routes/text';
+import { readingRoutes } from './routes/reading';
 import { acquisitionRoutes } from './routes/acquisition';
 import { containerRoutes } from './routes/containers';
 import { libraryRoutes } from './routes/library';
@@ -26,6 +27,7 @@ router.get('/health', async (_req, env) =>
 audioRoutes(router);
 acquisitionRoutes(router);
 textRoutes(router);
+readingRoutes(router);
 
 containerRoutes(router);
 libraryRoutes(router);
