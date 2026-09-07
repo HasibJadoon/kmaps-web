@@ -14,6 +14,9 @@ export interface Work {
   audioKey: string | null;
   series: string | null;
   seriesRef: string | null;
+  seriesParent: string | null;
+  trail: string | null;
+  trailLevels: number | null;
   episodeOrder: number | null;
 }
 
@@ -77,16 +80,27 @@ export class ArabicReadComponent implements OnInit {
 
   /// Episodes under their series. A flat list of "Episode 1" three times is
   /// three different things wearing the same name.
-  seriesOf(items: Work[]): { name: string; items: Work[] }[] {
-    const by = new Map<string, Work[]>();
+  /// Grouped by the parent they came from — in any band, not only series. The
+  /// Bayyinah reader's sessions are prose, and flat they read as forty
+  /// unrelated books called BR-07, BR-18, BR-19.
+  ///
+  /// Works with no parent stay loose, in one unnamed group, so a real book is
+  /// never filed under a heading invented for it.
+  seriesOf(items: Work[]): { name: string; under: string | null; items: Work[]; loose: boolean }[] {
+    const grouped = new Map<string, Work[]>();
+    const loose: Work[] = [];
     for (const w of items) {
-      const k = w.series ?? w.title_ar ?? w.id;
-      (by.get(k) ?? by.set(k, []).get(k)!).push(w);
+      if (w.series) (grouped.get(w.series) ?? grouped.set(w.series, []).get(w.series)!).push(w);
+      else loose.push(w);
     }
-    return Array.from(by, ([name, ws]) => ({
+    const out = Array.from(grouped, ([name, ws]) => ({
       name,
+      /// The whole chain above this group, so a sūra says whose reading it is.
+      under: ws[0]?.trail?.split(' ▸ ').slice(0, -1).join(' ▸ ') || null,
       items: ws.sort((a, b) => (a.episodeOrder ?? 0) - (b.episodeOrder ?? 0)),
+      loose: false,
     })).sort((a, b) => b.items.length - a.items.length);
+    return loose.length ? [{ name: '', under: null, items: loose, loose: true }, ...out] : out;
   }
 
   readonly totalWords = computed(() => this.works().reduce((n, w) => n + (w.words ?? 0), 0));

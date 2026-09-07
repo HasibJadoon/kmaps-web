@@ -13,6 +13,34 @@ export function textRoutes(router: Router<ArabicEnv>) {
   /// What can be read right now. Only works that actually have pages — a
   /// catalogue entry with no text is not a book you can open, and listing it
   /// as one is a lie the reader discovers by tapping it.
+  /// The ancestor path of every entry, Arabic-preferred.
+  ///
+  /// A Bayyinah session sits three deep — Readers ▸ BR - Class ▸ the sūra — and
+  /// only the whole chain says what it is. `ar_acq_category` carries the Arabic
+  /// name of each root, so the path reads in Arabic where Arabic exists rather
+  /// than in the English slug Notion happened to use.
+  const ANCESTRY = `
+    WITH RECURSIVE up(start_ar_no, ar_no, name, parent_ar_no, depth) AS (
+      SELECT e.ar_no, e.ar_no, e.name, e.parent_ar_no, 0 FROM ar_acq_entry e
+      UNION ALL
+      SELECT up.start_ar_no, p.ar_no, p.name, p.parent_ar_no, up.depth + 1
+        FROM ar_acq_entry p JOIN up ON p.ar_no = up.parent_ar_no
+       WHERE up.depth < 6
+    ),
+    named AS (
+      SELECT up.start_ar_no, up.depth,
+             COALESCE(c.name_ar, up.name) AS label
+        FROM up LEFT JOIN ar_acq_category c ON c.id = up.ar_no
+       WHERE up.depth > 0
+    ),
+    path AS (
+      SELECT start_ar_no,
+             group_concat(label, ' ▸ ') AS trail,
+             MAX(depth)                 AS levels
+        FROM (SELECT * FROM named ORDER BY start_ar_no, depth DESC)
+       GROUP BY start_ar_no
+    )`;
+
   router.get('/ar/text/shelf', async (req, env) => {
     const url = new URL(req.url);
     const genre = url.searchParams.get('genre');
@@ -24,7 +52,8 @@ export function textRoutes(router: Router<ArabicEnv>) {
     return ok({
       shelf: await query(
         env.DB_AR,
-        `SELECT r.id, r.slug, r.title_ar, r.title_en, r.author, r.note_ar AS died,
+        `${ANCESTRY}
+         SELECT r.id, r.slug, r.title_ar, r.title_en, r.author, r.note_ar AS died,
                 r.genre_ref, r.register, r.level,
                 json_extract(r.meta_json, '$.shape') AS shape,
                 COUNT(t.id)             AS pages,
@@ -37,13 +66,23 @@ export function textRoutes(router: Router<ArabicEnv>) {
                 -- The series an episode belongs to, from the Notion tree. An
                 -- episode called "Episode 1" means nothing on its own; its
                 -- parent's name is what makes it a thing you can pick.
-                p.name                       AS series,
+                COALESCE(pc.name_ar, p.name) AS series,
                 p.ar_no                      AS seriesRef,
+                -- The grandparent too: BR sessions sit under a sūra, which sits
+                -- under the reader class. Without it the group reads as a sūra
+                -- floating on its own with no idea what is reading it.
+                COALESCE(gpc.name_ar, gp.name) AS seriesParent,
+                path.trail                     AS trail,
+                path.levels                    AS trailLevels,
                 CAST(substr(e.ar_no, 4) AS INTEGER) AS episodeOrder
            FROM ar_acquisition_ref r
            JOIN ar_text_unit t ON t.acq_ref_id = r.id AND t.status = 'live'
            LEFT JOIN ar_acq_entry e ON e.ar_no = json_extract(r.meta_json, '$.ar_no')
            LEFT JOIN ar_acq_entry p ON p.ar_no = e.parent_ar_no
+           LEFT JOIN ar_acq_entry gp ON gp.ar_no = p.parent_ar_no
+           LEFT JOIN ar_acq_category pc  ON pc.id  = p.ar_no
+           LEFT JOIN ar_acq_category gpc ON gpc.id = gp.ar_no
+           LEFT JOIN path ON path.start_ar_no = e.ar_no
           WHERE ${conds.join(' AND ')}
           GROUP BY r.id
           ORDER BY r.genre_ref,

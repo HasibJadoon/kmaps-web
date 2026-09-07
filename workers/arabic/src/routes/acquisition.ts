@@ -69,9 +69,20 @@ export function acquisitionRoutes(router: Router<ArabicEnv>) {
       `SELECT a.id, a.object_key, a.title_ar, a.title_en, a.duration_sec,
               a.size_bytes, a.mime_type, a.register, a.dialect,
               a.transcript_state, a.category_ref,
-              c.name_en AS category, c.name_ar AS categoryAr
+              c.name_en AS category, c.name_ar AS categoryAr,
+              -- Where the text of this recording lives, when it has one. A
+              -- recording you can read along with is a different thing from one
+              -- you can only listen to, and the screen should be able to say so.
+              a.acq_ref_id                                  AS workId,
+              w.title_ar                                    AS workTitle,
+              json_extract(w.meta_json, '$.shape')          AS workShape,
+              (SELECT MIN(t.seq) FROM ar_text_unit t
+                WHERE t.acq_ref_id = a.acq_ref_id)          AS workFirstSeq,
+              (SELECT COUNT(*)   FROM ar_text_unit t
+                WHERE t.acq_ref_id = a.acq_ref_id)          AS workPages
          FROM ar_acq_audio a
          LEFT JOIN ar_acq_category c ON c.id = a.category_ref
+         LEFT JOIN ar_acquisition_ref w ON w.id = a.acq_ref_id
         WHERE ${conds.join(' AND ')}
         ORDER BY c.sort_order, a.title_ar, a.title_en
         LIMIT ?`,

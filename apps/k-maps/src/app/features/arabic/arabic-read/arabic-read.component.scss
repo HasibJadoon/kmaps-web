@@ -79,3 +79,11 @@
 }
 .rd__card--ep { min-height: 72px; padding: .7rem .85rem; }
 .rd__card--ep .rd__card-title { font-size: 1rem; line-height: 1.4; }
+
+/* What is reading this: the class above the sūra, so a group of sessions says
+   whose reading they are rather than floating under a bare sūra name. */
+.rd__series-under {
+  font-family: 'Amiri', 'Geeza Pro', serif; font-style: normal; font-size: .82rem;
+  color: var(--km-text-3); margin-inline-end: .45rem; opacity: .8;
+}
+.rd__series-name b { font-family: 'Amiri', 'Geeza Pro', serif; font-weight: 400; font-size: 1.05rem; }
