@@ -146,6 +146,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
       `SELECT t.id, t.seq, t.part_no, t.page_no, t.title_ar, t.text_ar, t.word_count,
               a.id                                           AS pageAudioId,
               a.object_key                                   AS pageAudioKey,
+              json_extract(a.meta_json, '$.video')           AS pageVideoJson,
               a.title_ar                                     AS pageAudioTitle,
               a.speaker                                      AS pageAudioBy,
               a.duration_sec                                 AS pageAudioSec
@@ -201,15 +202,28 @@ export function textRoutes(router: Router<ArabicEnv>) {
     return ok({
       work: {
         ...work,
-        playUrl: work.audioKey ? `/api/ar/audio/${encodeURI(String(work.audioKey))}` : null,
+        playUrl: work.audioKey && !String(work.audioKey).startsWith('youtube:')
+          ? `/api/ar/audio/${encodeURI(String(work.audioKey))}` : null,
+        video: work.audioKey && String(work.audioKey).startsWith('youtube:')
+          ? { provider: 'youtube', id: String(work.audioKey).slice('youtube:'.length) } : null,
       },
-      pages: pages.map((p) => ({
-        ...p,
-        pagePlayUrl: p.pageAudioKey
-          ? `/api/ar/audio/${encodeURI(String(p.pageAudioKey))}`
-          : null,
-        pageSegments: p.pageAudioId ? (byAudio.get(String(p.pageAudioId)) ?? []) : [],
-      })),
+      pages: pages.map((p) => {
+        // A recording keyed `youtube:<id>` is not a file in the bucket: the
+        // apps embed the video and the text follows it the same way.
+        // An episode can have both: its audio in the bucket for listening, and
+        // the video it came from for watching. Either drives the same text.
+        const key = p.pageAudioKey ? String(p.pageAudioKey) : null;
+        let video: { provider: string; id: string } | null = null;
+        if (p.pageVideoJson) { try { video = JSON.parse(String(p.pageVideoJson)); } catch { video = null; } }
+        if (!video && key?.startsWith('youtube:')) video = { provider: 'youtube', id: key.slice('youtube:'.length) };
+        const { pageVideoJson: _drop, ...rest } = p as Record<string, unknown> & { pageVideoJson?: unknown };
+        return {
+          ...rest,
+          pagePlayUrl: key && !key.startsWith('youtube:') ? `/api/ar/audio/${encodeURI(key)}` : null,
+          pageVideo: video,
+          pageSegments: p.pageAudioId ? (byAudio.get(String(p.pageAudioId)) ?? []) : [],
+        };
+      }),
       bounds,
     });
   });
