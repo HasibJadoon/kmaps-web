@@ -141,7 +141,10 @@ export function textRoutes(router: Router<ArabicEnv>) {
       // A recording for the page, where one exists. The Nights are one work of
       // a thousand pages read night by night, so a single playUrl for the whole
       // book would play night one on every page of it.
+      // A recording claims its page either by night (the Nights) or by seq (a
+      // reader whose every story was recorded on its own).
       `SELECT t.id, t.seq, t.part_no, t.page_no, t.title_ar, t.text_ar, t.word_count,
+              a.id                                           AS pageAudioId,
               a.object_key                                   AS pageAudioKey,
               a.title_ar                                     AS pageAudioTitle,
               a.speaker                                      AS pageAudioBy,
@@ -150,11 +153,35 @@ export function textRoutes(router: Router<ArabicEnv>) {
          LEFT JOIN ar_acq_audio a
                 ON a.acq_ref_id = t.acq_ref_id
                AND a.status = 'live'
-               AND CAST(json_extract(a.meta_json, '$.night') AS INTEGER) = t.page_no
+               AND (CAST(json_extract(a.meta_json, '$.night') AS INTEGER) = t.page_no
+                    OR CAST(json_extract(a.meta_json, '$.seq') AS INTEGER) = t.seq)
         WHERE t.acq_ref_id = ? AND t.status = 'live' AND t.seq >= ?
         ORDER BY t.seq LIMIT ?`,
       [params.id, from, limit],
     );
+
+    /// The recording's timeline, where it has been aligned: one segment per
+    /// printed line, so the reader can light the line being read. Sent with the
+    /// page rather than fetched on play — the highlight has to be ready the
+    /// instant the audio starts, not a round trip later.
+    const audioIds = pages.map((p) => p.pageAudioId).filter((x): x is string => !!x);
+    const segments = audioIds.length
+      ? await query<{ audio_id: string; seq: number; start_sec: number; end_sec: number; text_ar: string; anchored: number }>(
+          env.DB_AR,
+          `SELECT audio_id, seq, start_sec, end_sec, text_ar,
+                  COALESCE(json_extract(meta_json, '$.anchored'), 1) AS anchored
+             FROM ar_acq_audio_segment
+            WHERE audio_id IN (${audioIds.map(() => '?').join(',')})
+            ORDER BY audio_id, seq`,
+          audioIds,
+        )
+      : [];
+    const byAudio = new Map<string, { seq: number; start: number; end: number; text: string; anchored: boolean }[]>();
+    for (const s of segments) {
+      const list = byAudio.get(s.audio_id) ?? [];
+      list.push({ seq: s.seq, start: s.start_sec, end: s.end_sec, text: s.text_ar, anchored: !!s.anchored });
+      byAudio.set(s.audio_id, list);
+    }
 
     const bounds = await queryOne<{ minSeq: number; maxSeq: number; pages: number }>(
       env.DB_AR,
@@ -176,6 +203,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
         pagePlayUrl: p.pageAudioKey
           ? `/api/ar/audio/${encodeURI(String(p.pageAudioKey))}`
           : null,
+        pageSegments: p.pageAudioId ? (byAudio.get(String(p.pageAudioId)) ?? []) : [],
       })),
       bounds,
     });

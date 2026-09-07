@@ -14,21 +14,37 @@ export function audioRoutes(router: Router<ArabicEnv>) {
     const key = params.key;
     if (!key || key.includes('..')) return notFound('audio');
 
-    const object = await env.AR_AUDIO.get(key);
+    // Range support matters here in a way it does not for images: a player
+    // seeking into a 40-minute lecture must not refetch the whole file, and
+    // "back a line" in the reader is a seek. R2 serves the byte range itself.
+    const rangeHeader = req.headers.get('range');
+    const m = rangeHeader?.match(/^bytes=(\d*)-(\d*)$/);
+    const range = m && (m[1] || m[2])
+      ? (m[1]
+          ? { offset: Number(m[1]), length: m[2] ? Number(m[2]) - Number(m[1]) + 1 : undefined }
+          : { suffix: Number(m[2]) })
+      : undefined;
+
+    const object = await env.AR_AUDIO.get(key, range ? { range } : undefined);
     if (!object) return notFound(`audio ${key}`);
 
     const headers = new Headers();
     object.writeHttpMetadata(headers);
     headers.set('etag', object.httpEtag);
     if (!headers.has('cache-control')) headers.set('cache-control', 'public, max-age=86400');
-    // Range support matters here in a way it does not for images: a player
-    // seeking into a 40-minute lecture must not refetch the whole file.
     headers.set('accept-ranges', 'bytes');
 
     // Honour If-None-Match by hand — see the note in the content worker; handing
     // R2 the request headers as `onlyIf` returned null against the real bucket.
     if (req.headers.get('if-none-match') === object.httpEtag) {
       return new Response(null, { status: 304, headers });
+    }
+    if (range && object.range && 'offset' in object.range) {
+      const start = object.range.offset ?? 0;
+      const length = object.range.length ?? object.size - start;
+      headers.set('content-range', `bytes ${start}-${start + length - 1}/${object.size}`);
+      headers.set('content-length', String(length));
+      return new Response(object.body, { status: 206, headers });
     }
     return new Response(object.body, { status: 200, headers });
   });
