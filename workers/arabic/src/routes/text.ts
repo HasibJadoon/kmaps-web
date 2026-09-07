@@ -45,7 +45,10 @@ export function textRoutes(router: Router<ArabicEnv>) {
     const url = new URL(req.url);
     const genre = url.searchParams.get('genre');
 
-    const conds = [`r.status = 'live'`];
+    // Vocabulary is a word list, not a reading. It belongs to the Words screen,
+    // and on a shelf it is a book with no text in it.
+    const conds = [`r.status = 'live'`,
+                   `COALESCE(path.trail, '') NOT LIKE 'مفردات%'`];
     const params: unknown[] = [];
     if (genre) { conds.push('r.genre_ref = ?'); params.push(genre); }
 
