@@ -175,8 +175,12 @@
           </div>
         }
 
-        <footer class="rr__folio">
-          {{ p.part_no ? 'ج' + p.part_no + ' · ' : '' }}{{ p.page_no ? 'ص' + p.page_no : 'seq ' + p.seq }}
+        <footer class="rr__folio" [attr.dir]="shape() === 'nights' ? 'rtl' : null">
+          @if (shape() === 'nights') {
+            {{ p.page_no ? 'الليلة ' + arabicNum(p.page_no) : 'المقدمة' }}
+          } @else {
+            {{ p.part_no ? 'ج' + p.part_no + ' · ' : '' }}{{ p.page_no ? 'ص' + p.page_no : 'seq ' + p.seq }}
+          }
         </footer>
       }
     </main>
