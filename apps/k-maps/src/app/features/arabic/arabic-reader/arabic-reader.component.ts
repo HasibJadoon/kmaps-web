@@ -96,8 +96,20 @@ export class ArabicReaderComponent implements OnInit {
   /// Shamela separates lines with a carriage return, not a newline. Splitting
   /// on \n alone leaves a whole page as one line — or, on a title page, one
   /// word per line, which is how this was first wrong.
+  /// Shamela records a chapter heading twice — as the page title and as its
+  /// first line. The heading is set once, above; the body copy is dropped.
+  private static fold(s: string): string {
+    return s.replace(/[\u064B-\u065F\u0640]/g, '').trim();
+  }
+  private dropHeading(lines: string[], p: Page): string[] {
+    const t = p.title_ar ? ArabicReaderComponent.fold(p.title_ar) : '';
+    const i = lines.findIndex((l) => l.trim());
+    if (t && i >= 0 && ArabicReaderComponent.fold(lines[i]) === t) lines.splice(i, 1);
+    return lines;
+  }
+
   lines(p: Page): string[] {
-    return p.text_ar.split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean);
+    return this.dropHeading(p.text_ar.split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean), p);
   }
 
   /// What actually goes on the page.
@@ -119,7 +131,7 @@ export class ArabicReaderComponent implements OnInit {
   }
 
   blocks(p: Page): { kind: 'verse' | 'prose'; text: string }[] {
-    const raw = p.text_ar.split(/\r\n|[\r\n]/).map((l) => l.trim());
+    const raw = this.dropHeading(p.text_ar.split(/\r\n|[\r\n]/).map((l) => l.trim()), p);
     const wrapped = this.hardWrapped(raw.filter(Boolean));
 
     const out: { kind: 'verse' | 'prose'; text: string }[] = [];
