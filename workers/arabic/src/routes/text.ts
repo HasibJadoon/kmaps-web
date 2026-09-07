@@ -31,8 +31,9 @@ export function textRoutes(router: Router<ArabicEnv>) {
                 SUM(t.word_count)       AS words,
                 MIN(t.seq)              AS firstSeq,
                 (SELECT a.object_key FROM ar_acq_audio a
-                  WHERE a.status = 'live' AND a.title_ar = r.title_ar
-                  LIMIT 1)              AS audioKey
+                  WHERE a.status = 'live'
+                    AND (a.acq_ref_id = r.id OR a.title_ar = r.title_ar)
+                  ORDER BY (a.acq_ref_id = r.id) DESC LIMIT 1) AS audioKey
            FROM ar_acquisition_ref r
            JOIN ar_text_unit t ON t.acq_ref_id = r.id AND t.status = 'live'
           WHERE ${conds.join(' AND ')}
@@ -72,8 +73,10 @@ export function textRoutes(router: Router<ArabicEnv>) {
       `SELECT id, title_ar, title_en, author, note_ar AS died, genre_ref, register,
               json_extract(meta_json, '$.shape') AS shape,
               (SELECT a.object_key FROM ar_acq_audio a
-                WHERE a.status = 'live' AND a.title_ar = ar_acquisition_ref.title_ar
-                LIMIT 1) AS audioKey
+                WHERE a.status = 'live'
+                  AND (a.acq_ref_id = ar_acquisition_ref.id
+                       OR a.title_ar = ar_acquisition_ref.title_ar)
+                ORDER BY (a.acq_ref_id = ar_acquisition_ref.id) DESC LIMIT 1) AS audioKey
          FROM ar_acquisition_ref WHERE id = ?`,
       [params.id],
     );

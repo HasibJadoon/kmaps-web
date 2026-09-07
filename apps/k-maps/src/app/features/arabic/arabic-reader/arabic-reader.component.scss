@@ -53,7 +53,9 @@
   &:hover { background: rgba(201,168,76,.14); }
   &--on { background: rgba(201,168,76,.28); color: var(--km-gold); }
 }
-.rr__w + .rr__w { margin-inline-start: .28em; }
+/* Angular removes the whitespace between elements, so adjacent word spans
+   gave the line no break opportunity and every paragraph ran off the page.
+   The space now lives inside each span; this margin would double it. */
 
 /* ── prose: a measure to stay inside ─────────────────────────────── */
 .rr__prose {
@@ -149,3 +151,77 @@
   & + & { margin-top: .7rem; }
 }
 .rr__diwan { max-width: 62ch; margin-inline: auto; }
+
+/* ── the poem bar ────────────────────────────────────────────────
+   Controls above the poem, not inside it: what is on the page, and
+   whether the second register is showing. */
+.rr__poembar {
+  display: flex; align-items: center; justify-content: center; gap: 1rem;
+  padding: 1.2rem 1.6rem .2rem; flex-wrap: wrap;
+}
+.rr__poembar-n {
+  font-size: .72rem; letter-spacing: .06em; color: var(--km-text-3);
+  text-transform: uppercase;
+}
+.rr__chip {
+  padding: .3rem .9rem; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.14); background: rgba(201,168,76,.05);
+  color: var(--km-text-3); font-size: .74rem; transition: all .18s ease;
+  &--on { color: #1a160c; background: linear-gradient(180deg,#e7c668,#c9a834); border-color: #e7c668; }
+  &:not(.rr__chip--on):hover { color: var(--km-gold); border-color: rgba(201,168,76,.4); }
+}
+
+/* The bayt number as a disc, the way the editions set it. */
+.rr__bayt-no {
+  position: absolute; inset-inline-start: .7rem; top: 50%; transform: translateY(-50%);
+  width: 1.7rem; height: 1.7rem; line-height: 1.7rem; text-align: center;
+  border-radius: 50%; border: 1px solid rgba(201,168,76,.3);
+  font-family: 'Amiri', serif; font-size: .78rem; color: var(--km-gold); opacity: .9;
+}
+
+/* ── transcript: the turns are the structure ─────────────────────── */
+.rr__script { max-width: 46ch; margin: 0 auto; display: flex; flex-direction: column; gap: 1rem; }
+.rr__turn {
+  display: grid; grid-template-columns: auto 1fr; gap: .2rem .9rem; align-items: baseline;
+}
+.rr__who {
+  font-size: .68rem; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--km-gold); white-space: nowrap; padding-top: .5rem;
+  border-inline-end: 1px solid rgba(201,168,76,.2); padding-inline-end: .8rem;
+}
+.rr__said {
+  font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.3rem; line-height: 2.15;
+  color: var(--km-text);
+  &--plain { grid-column: 1 / -1; color: var(--km-text-3); }
+}
+
+/* ── Reading type ────────────────────────────────────────────────
+   The first pass set the transcript in the muted colour and centred it.
+   Centring is for a title or a bayt, not for a paragraph of Arabic prose —
+   a ragged right edge in RTL gives the eye nothing to return to. */
+.rr__prose,
+.rr__script {
+  text-align: right;
+  max-width: 38ch;
+  margin-inline: auto;
+}
+.rr__prose p,
+.rr__said {
+  color: var(--km-text);              /* body text is body colour, not a hint */
+  font-family: 'Amiri', 'Scheherazade New', 'Geeza Pro', serif;
+  font-size: clamp(1.32rem, 2.6vw, 1.6rem);
+  line-height: 2.15;
+  text-align: right;
+  hanging-punctuation: first last;
+}
+.rr__prose p + p { margin-top: 1.15rem; text-indent: 1.4em; }
+.rr__said--plain { color: var(--km-text); }   /* was the muted colour: unreadable */
+.rr__script { gap: 1.15rem; }
+
+/* Amiri's ḥarakāt need room above the line or they collide with the row
+   before; this is why the leading is generous rather than typical. */
+.rr__prose, .rr__script, .rr__maqama, .rr__diwan { font-feature-settings: 'liga' 1, 'calt' 1; }
+
+/* The chapter heading was competing with the text; give it air and let the
+   rule under it do the separating. */
+.rr__chapter { margin-bottom: 2.4rem; font-size: 1.35rem; }

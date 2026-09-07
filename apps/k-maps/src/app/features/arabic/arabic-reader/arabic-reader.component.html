@@ -17,6 +17,17 @@
   @if (loading()) {
     <div class="rr__wait"><span class="rr__spin"></span></div>
   } @else {
+    @if (shape() === 'diwan') {
+      <div class="rr__poembar">
+        <span class="rr__poembar-n">
+          {{ arabicNum(baytCount(pages()[0]!)) }} bayt on this page
+        </span>
+        <button class="rr__chip" [class.rr__chip--on]="showSharh()" (click)="toggleSharh()">
+          شرح · commentary
+        </button>
+      </div>
+    }
+
     <main class="rr__page">
       @for (p of pages(); track p.id) {
 
@@ -36,15 +47,15 @@
                   @for (half of hemistichs(line); track $index) {
                     <span class="rr__half">
                       @for (w of words(half); track $index) {
-                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                       }
                     </span>
                   }
                 </div>
-              } @else {
+              } @else if (showSharh()) {
                 <p class="rr__sharh">
                   @for (w of words(line); track $index) {
-                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                   }
                 </p>
               }
@@ -58,11 +69,11 @@
             @for (line of lines(p); track $index) {
               @if (kind(line) === 'verse') {
                 <div class="rr__bayt">
-                  @if (baytNo(line)) { <span class="rr__bayt-no">{{ baytNo(line) }}</span> }
+                  @if (baytNo(line)) { <span class="rr__bayt-no">{{ arabicNum(baytNo(line)) }}</span> }
                   @for (half of hemistichs(line); track $index) {
                     <span class="rr__half">
                       @for (w of words(half); track $index) {
-                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                       }
                     </span>
                   }
@@ -70,7 +81,7 @@
               } @else {
                 <p class="rr__mathal">
                   @for (w of words(line); track $index) {
-                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                   }
                 </p>
               }
@@ -81,22 +92,22 @@
         <!-- Maqāma: saj' wants short measures and air; set narrower and looser. -->
         @else if (shape() === 'maqama') {
           <div class="rr__maqama" dir="rtl" lang="ar">
-            @for (line of lines(p); track $index) {
-              @if (kind(line) === 'verse') {
+            @for (b of blocks(p); track $index) {
+              @if (b.kind === 'verse') {
                 <div class="rr__bayt">
-                  @if (baytNo(line)) { <span class="rr__bayt-no">{{ baytNo(line) }}</span> }
-                  @for (half of hemistichs(line); track $index) {
+                  @if (baytNo(b.text)) { <span class="rr__bayt-no">{{ arabicNum(baytNo(b.text)) }}</span> }
+                  @for (half of hemistichs(b.text); track $index) {
                     <span class="rr__half">
                       @for (w of words(half); track $index) {
-                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                       }
                     </span>
                   }
                 </div>
               } @else {
                 <p>
-                  @for (w of words(line); track $index) {
-                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                  @for (w of words(b.text); track $index) {
+                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                   }
                 </p>
               }
@@ -104,25 +115,59 @@
           </div>
         }
 
-        <!-- Prose: one column, a measure you can stay in. -->
-        @else {
-          <div class="rr__prose" dir="rtl" lang="ar">
-            @for (line of lines(p); track $index) {
-              @if (kind(line) === 'verse') {
+        <!-- Series and podcasts: a transcript, read against the recording.
+             Speaker turns are the structure where the source marks them. -->
+        @else if (shape() === 'series' || shape() === 'dialogue') {
+          <div class="rr__script" dir="rtl" lang="ar">
+            @for (b of blocks(p); track $index) {
+              @if (b.kind === 'verse') {
                 <div class="rr__bayt">
-                  @if (baytNo(line)) { <span class="rr__bayt-no">{{ baytNo(line) }}</span> }
-                  @for (half of hemistichs(line); track $index) {
+                  @for (half of hemistichs(b.text); track $index) {
                     <span class="rr__half">
                       @for (w of words(half); track $index) {
-                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
+                      }
+                    </span>
+                  }
+                </div>
+              } @else if (speaker(b.text); as who) {
+                <div class="rr__turn">
+                  <span class="rr__who">{{ who }}</span>
+                  <p class="rr__said">
+                    @for (w of words(said(b.text)); track $index) {
+                      <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
+                    }
+                  </p>
+                </div>
+              } @else {
+                <p class="rr__said">
+                  @for (w of words(b.text); track $index) {
+                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
+                  }
+                </p>
+              }
+            }
+          </div>
+        }
+
+        @else {
+          <div class="rr__prose" dir="rtl" lang="ar">
+            @for (b of blocks(p); track $index) {
+              @if (b.kind === 'verse') {
+                <div class="rr__bayt">
+                  @if (baytNo(b.text)) { <span class="rr__bayt-no">{{ arabicNum(baytNo(b.text)) }}</span> }
+                  @for (half of hemistichs(b.text); track $index) {
+                    <span class="rr__half">
+                      @for (w of words(half); track $index) {
+                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                       }
                     </span>
                   }
                 </div>
               } @else {
                 <p>
-                  @for (w of words(line); track $index) {
-                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}</span>
+                  @for (w of words(b.text); track $index) {
+                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                   }
                 </p>
               }

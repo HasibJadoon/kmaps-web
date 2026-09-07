@@ -44,6 +44,10 @@ export class ArabicReaderComponent implements OnInit {
   readonly bounds = signal<Bounds | null>(null);
   readonly shape = signal<string>('prose');
 
+  /// The sharḥ is a second register, not part of the poem. Worldview does the
+  /// same with Rumi's translations: present, and off until asked for.
+  readonly showSharh = signal(true);
+
   readonly picked = signal<string | null>(null);
   readonly lookup = signal<{ found: boolean; matchedAs: string | null; tried: string[]; lemmas: Lemma[] } | null>(null);
   readonly looking = signal(false);
@@ -59,7 +63,34 @@ export class ArabicReaderComponent implements OnInit {
   /// lines, so one at a time would be all navigation and no reading; a page of
   /// al-Jāḥiẓ is already a sitting.
   private span(): number {
-    return this.shape() === 'diwan' ? 4 : this.shape() === 'amthal' ? 3 : 1;
+    const s = this.shape();
+    if (s === 'diwan') return 4;
+    if (s === 'amthal') return 3;
+    return 1;   // prose, maqama, series, dialogue: one page is already a sitting
+  }
+
+  /// How many baytayn are on the page — worth saying, because a page of a
+  /// commented dīwān can carry two lines of poetry and a column of prose.
+  baytCount(p: Page): number {
+    return this.lines(p).filter((l) => this.kind(l) === 'verse').length;
+  }
+
+  toggleSharh(): void { this.showSharh.update((v) => !v); }
+
+  /// Arabic-Indic numerals, because that is how the editions number their lines.
+  arabicNum(n: string | number): string {
+    return String(n).replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]);
+  }
+
+  /// A transcript line that opens with a speaker — "مقدم:" — is dialogue, and
+  /// reads as an exchange rather than as prose.
+  speaker(line: string): string | null {
+    const m = /^([\u0600-\u06FF\w .'\u2019-]{2,28})\s*[:：]\s*(.+)$/.exec(line);
+    return m ? m[1].trim() : null;
+  }
+  said(line: string): string {
+    const m = /^[\u0600-\u06FF\w .'\u2019-]{2,28}\s*[:：]\s*(.+)$/.exec(line);
+    return m ? m[1] : line;
   }
 
   /// Shamela separates lines with a carriage return, not a newline. Splitting
@@ -67,6 +98,48 @@ export class ArabicReaderComponent implements OnInit {
   /// word per line, which is how this was first wrong.
   lines(p: Page): string[] {
     return p.text_ar.split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean);
+  }
+
+  /// What actually goes on the page.
+  ///
+  /// Two kinds of source reach this reader and they need opposite treatment.
+  /// A scanned book breaks a line when the sentence ends. A transcript breaks
+  /// it when the caption box runs out — and Notion's export then puts a blank
+  /// line between every one of those, so "blank line means new paragraph" is
+  /// exactly wrong there and produced a page of one-line fragments.
+  ///
+  /// So the wrapping is measured rather than assumed: short lines that mostly
+  /// do not end in terminal punctuation are hard-wrapped, and get rejoined into
+  /// paragraphs. Anything else is left as the source set it.
+  private hardWrapped(raw: string[]): boolean {
+    if (raw.length < 4) return false;
+    const avg = raw.reduce((n, l) => n + l.length, 0) / raw.length;
+    const ended = raw.filter((l) => /[.!?؟।:،؛"»]$/.test(l)).length / raw.length;
+    return avg < 72 && ended < 0.3;
+  }
+
+  blocks(p: Page): { kind: 'verse' | 'prose'; text: string }[] {
+    const raw = p.text_ar.split(/\r\n|[\r\n]/).map((l) => l.trim());
+    const wrapped = this.hardWrapped(raw.filter(Boolean));
+
+    const out: { kind: 'verse' | 'prose'; text: string }[] = [];
+    let buf: string[] = [];
+    const flush = () => {
+      if (buf.length) { out.push({ kind: 'prose', text: buf.join(' ') }); buf = []; }
+    };
+
+    for (const line of raw) {
+      if (!line) { if (!wrapped) flush(); continue; }
+      if (this.kind(line) === 'verse') { flush(); out.push({ kind: 'verse', text: line }); continue; }
+      if (this.speaker(line) && buf.length) flush();   // a new speaker is a new block
+      buf.push(line);
+      /// With no punctuation to break on — common in these transcripts — break
+      /// on length instead, so the reader gets paragraphs rather than one wall.
+      if (wrapped && buf.join(' ').length > 340 && /[.!?؟।،؛]$/.test(line)) flush();
+      else if (wrapped && buf.join(' ').length > 520) flush();
+    }
+    flush();
+    return out;
   }
 
   /// The dīwāns on this shelf are commented editions: mostly the commentator's

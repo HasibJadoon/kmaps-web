@@ -9,7 +9,7 @@ export interface Work {
   title_ar: string | null; title_en: string | null;
   author: string | null; died: string | null;
   genre_ref: string | null; register: string | null;
-  shape: 'prose' | 'diwan' | 'maqama' | 'amthal' | null;
+  shape: 'prose' | 'diwan' | 'maqama' | 'amthal' | 'series' | 'dialogue' | null;
   pages: number; words: number; firstSeq: number;
   audioKey: string | null;
 }
@@ -36,13 +36,18 @@ export class ArabicReadComponent implements OnInit {
 
   /// Order is deliberate: stories carry a beginner furthest, poetry is the
   /// highest register, proverbs are the shortest complete thing on the shelf.
-  private static readonly ORDER: Work['shape'][] = ['prose', 'maqama', 'amthal', 'diwan'];
+  private static readonly ORDER: Work['shape'][] =
+    ['prose', 'series', 'dialogue', 'maqama', 'amthal', 'diwan'];
 
   static readonly META: Record<string, { en: string; ar: string; note: string }> = {
     prose:  { en: 'Stories',  ar: 'الحكايات',  note: 'Narrative adab — read for the story, not the lesson' },
     maqama: { en: 'Maqāmāt',  ar: 'المقامات',  note: 'Rhymed prose. Episodes, each a performance' },
     amthal: { en: 'Proverbs', ar: 'الأمثال',   note: 'One line, complete. The shortest whole utterance' },
     diwan:  { en: 'Dīwāns',   ar: 'الدواوين',  note: 'Poetry — two hemistichs to a line, highest register' },
+    series: { en: 'Series & podcasts', ar: 'المسلسلات',
+              note: 'Transcripts, read against the recording they came from' },
+    dialogue: { en: 'Conversation', ar: 'الحوار',
+                note: 'Spoken exchange — the register you would actually be answered in' },
   };
 
   readonly groups = computed(() => {
