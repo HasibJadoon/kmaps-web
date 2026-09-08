@@ -6,7 +6,8 @@ import { environment } from '../../../../environments/environment';
 
 /// One line of the recording's timeline: its seconds, and one [start, end]
 /// per word where the recogniser timed them.
-interface Segment { seq: number; start: number; end: number; text: string; anchored: boolean; words: number[][] | null }
+interface Segment { seq: number; start: number; end: number; text: string; speaker: string | null; anchored: boolean; words: number[][] | null }
+interface Passage { who: string | null; lines: { seg: Segment; i: number }[] }
 interface VideoRef { provider: string; id: string }
 interface Page {
   id: string; seq: number; part_no: number | null; page_no: number | null;
@@ -79,6 +80,40 @@ export class ArabicReaderComponent implements OnInit, OnDestroy {
 
   readonly segments = computed<Segment[]>(() => this.pages()[0]?.pageSegments ?? []);
   readonly synced = computed(() => this.mode() !== 'read' && this.segments().length > 0);
+
+  /// Where a passage ends.
+  ///
+  /// A transcript carries no paragraph marks — the recogniser breaks on its
+  /// own chunk length, mid-clause, and nothing in the text says where the
+  /// thought ended. So the recording is asked instead: the silence between
+  /// two lines is where the speaker stopped, and that is the paragraph. Past
+  /// that, a run that has grown long enough closes at the first full stop,
+  /// and is capped outright, so a page is never one wall of text.
+  static readonly PAUSE = 0.7;
+  static readonly LONG = 6;
+  static readonly CAP = 11;
+  static endsSentence(line: string): boolean {
+    // Not the colon: it opens a speaker's turn, it does not close a sentence.
+    return /[؟!.…؛]$/.test(line.trim());
+  }
+
+  readonly passages = computed<Passage[]>(() => {
+    const segs = this.segments();
+    const out: Passage[] = [];
+    let cur: Passage | null = null;
+    segs.forEach((seg, i) => {
+      const who = seg.speaker ?? null;
+      const brk = !cur
+        || who !== cur.who
+        || seg.start - segs[i - 1].end >= ArabicReaderComponent.PAUSE
+        || (cur.lines.length >= ArabicReaderComponent.LONG
+            && ArabicReaderComponent.endsSentence(segs[i - 1].text))
+        || cur.lines.length >= ArabicReaderComponent.CAP;
+      if (brk) { cur = { who, lines: [] }; out.push(cur); }
+      cur!.lines.push({ seg, i });
+    });
+    return out;
+  });
   readonly hasAudio = computed(() => !!(this.pages()[0]?.pagePlayUrl ?? this.work()?.playUrl));
   readonly hasVideo = computed(() => !!(this.pages()[0]?.pageVideo ?? this.work()?.video));
   /// The line under the voice: the one whose window holds t, else the last that has started.

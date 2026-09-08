@@ -249,6 +249,17 @@
   font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.55rem; line-height: 2.2;
   text-align: justify; text-align-last: right; max-width: 40ch; margin: 0 auto; color: var(--km-text);
 }
+// A passage of the followed text: the block the silences cut, set apart so
+// the page reads as paragraphs rather than as one column of lines.
+.rr__passage {
+  margin: 0 0 1.15em;
+  &:last-child { margin-bottom: 0; }
+  // The name over a turn, not the label beside one: no rule, no case
+  // folding — Arabic has no case, and uppercasing it only widens the glyphs.
+  .rr__who {
+    display: block; padding: 0 0 .15em; border: 0; text-transform: none;
+  }
+}
 .rr__line {
   border-radius: 4px; transition: color .2s, background .2s; cursor: default;
   &[data-state="read"]  { color: rgba(228,220,200,.5); }

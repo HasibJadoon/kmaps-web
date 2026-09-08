@@ -58,13 +58,21 @@
              writes a note on it, at that moment of the recording. -->
         @if (synced()) {
           <div class="rr__sync" dir="rtl" lang="ar">
-            @for (s of segments(); track s.seq; let i = $index) {
-              <span class="rr__line" [attr.data-state]="lineState(i)" (dblclick)="seekTo(s.start + 0.02)">
-                @for (w of words(s.text); track $index; let wi = $index) {
-                  <span class="rr__w rr__sw" [attr.data-w]="wordState(i, wi)"
-                        [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
-                }<button class="rr__pen" [class.rr__pen--has]="noteOn(i)" title="note" (click)="openNote(i)">✎</button>
-              </span>
+            <!-- Passages, taken from the silences in the recording: the text
+                 gives no paragraph marks, so where the speaker stopped is
+                 where the paragraph goes. -->
+            @for (p of passages(); track $index) {
+              <p class="rr__passage">
+                @if (p.who) { <span class="rr__who">{{ p.who }}</span> }
+                @for (l of p.lines; track l.seg.seq) {
+                  <span class="rr__line" [attr.data-state]="lineState(l.i)" (dblclick)="seekTo(l.seg.start + 0.02)">
+                    @for (w of words(l.seg.text); track $index; let wi = $index) {
+                      <span class="rr__w rr__sw" [attr.data-w]="wordState(l.i, wi)"
+                            [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
+                    }<button class="rr__pen" [class.rr__pen--has]="noteOn(l.i)" title="note" (click)="openNote(l.i)">✎</button>
+                  </span>
+                }
+              </p>
             }
           </div>
           @if (notes().length) {

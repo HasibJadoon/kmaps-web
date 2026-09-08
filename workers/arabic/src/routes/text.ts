@@ -171,9 +171,9 @@ export function textRoutes(router: Router<ArabicEnv>) {
     /// instant the audio starts, not a round trip later.
     const audioIds = pages.map((p) => p.pageAudioId).filter((x): x is string => !!x);
     const segments = audioIds.length
-      ? await query<{ audio_id: string; seq: number; start_sec: number; end_sec: number; text_ar: string; anchored: number; words: string | null }>(
+      ? await query<{ audio_id: string; seq: number; start_sec: number; end_sec: number; text_ar: string; speaker: string | null; anchored: number; words: string | null }>(
           env.DB_AR,
-          `SELECT audio_id, seq, start_sec, end_sec, text_ar,
+          `SELECT audio_id, seq, start_sec, end_sec, text_ar, speaker,
                   COALESCE(json_extract(meta_json, '$.anchored'), 1) AS anchored,
                   json_extract(meta_json, '$.w')                     AS words
              FROM ar_acq_audio_segment
@@ -184,12 +184,16 @@ export function textRoutes(router: Router<ArabicEnv>) {
       : [];
     // `words` is one [start, end] per word of the line, in the line's word
     // order — the reader lights the word being spoken, not a guess at it.
-    const byAudio = new Map<string, { seq: number; start: number; end: number; text: string; anchored: boolean; words: number[][] | null }[]>();
+    // `speaker` is who says the line, where the transcript records it: a
+    // series is a cast, and the readers set the name over the turn rather
+    // than leaving the voice guessable only by ear.
+    const byAudio = new Map<string, { seq: number; start: number; end: number; text: string; speaker: string | null; anchored: boolean; words: number[][] | null }[]>();
     for (const s of segments) {
       const list = byAudio.get(s.audio_id) ?? [];
       let words: number[][] | null = null;
       if (s.words) { try { words = JSON.parse(s.words); } catch { words = null; } }
-      list.push({ seq: s.seq, start: s.start_sec, end: s.end_sec, text: s.text_ar, anchored: !!s.anchored, words });
+      list.push({ seq: s.seq, start: s.start_sec, end: s.end_sec, text: s.text_ar,
+                  speaker: s.speaker || null, anchored: !!s.anchored, words });
       byAudio.set(s.audio_id, list);
     }
 
