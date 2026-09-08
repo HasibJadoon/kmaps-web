@@ -22,6 +22,7 @@ import { moralRoutes }       from './routes/moral';
 import { mapRoutes }         from './routes/maps';
 import { graphRoutes }       from './routes/graphs';
 import { termRoutes }        from './routes/terms';
+import { audioRoutes }       from './routes/audio';
 
 const router = new Router<WorldviewEnv>();
 
@@ -30,6 +31,7 @@ router.get('/health', async (_req, env) =>
 );
 
 countsRoutes(router);
+audioRoutes(router);
 
 traditionRoutes(router);
 peopleRoutes(router);

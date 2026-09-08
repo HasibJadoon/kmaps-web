@@ -20,3 +20,9 @@ service = "km-quran-worker"
 [[services]]
 binding = "CORE"
 service = "km-core-worker"
+
+[[r2_buckets]]
+binding     = "WV_AUDIO"
+bucket_name = "km-worldview-audio"
+# Recitation audio for the poetry views. Read-only via GET /wv/audio/:key+,
+# which the gateway already allows anonymously (wv is publicGet).
