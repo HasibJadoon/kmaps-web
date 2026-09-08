@@ -3,7 +3,7 @@ import {
   ok, created, notFound, badRequest, forbidden, noContent,
 } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
-import { query, execute } from '../../../shared/src/db';
+import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { CoreEnv } from '../env';
 import {
@@ -138,7 +138,7 @@ const TAXONOMY = {
     },
     EN: {
       label: 'English Language',
-      kinds: ['vocabulary', 'grammar', 'expression', 'idiom', 'concept'],
+      kinds: ['vocabulary', 'grammar', 'expression', 'idiom', 'concept', 'rhetoric'],
     },
     other: { label: 'Other', kinds: ['concept'] },
   },
@@ -1081,6 +1081,104 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const params = buildParams(storedOf(await repo.params(ctx.userId)));
     const cards = await repo.cardsInDeck(id);
     return ok(cards.map((c) => cardToApi(c, params)));
+  });
+
+  /**
+   * Many cards in one call, for a generator that builds a whole set at once —
+   * a WGRT rhetoric entry, a root's card family. Each entry is the same shape
+   * POST /core/srs/cards takes; the reply says per card whether it was newly
+   * inserted or already there, so a re-run reads as a no-op rather than as
+   * silent success. Deck resolution happens once for the whole batch: an
+   * explicit deck_id, else a deck matching `title`, else the default deck.
+   */
+  router.post('/core/srs/cards/bulk', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const body = await readJson(req);
+    const entries = Array.isArray(body?.['cards']) ? body['cards'] as unknown[] : null;
+    if (!entries) return badRequest('cards must be an array');
+    if (!entries.length) return badRequest('cards must not be empty');
+    if (entries.length > 500) return badRequest('at most 500 cards per call');
+
+    const repo = new SrsRepo(env.DB_CORE);
+
+    let deckId = str(body?.['deck_id']);
+    if (!deckId) {
+      const title = str(body?.['title']);
+      if (title) {
+        const existing = await queryOne<{ id: string }>(
+          env.DB_CORE,
+          `SELECT id FROM core_srs_deck WHERE user_ref = ? AND title = ? ORDER BY created_at LIMIT 1`,
+          [ctx.userId, title]);
+        deckId = existing?.id
+          ?? (await repo.createDeck({
+                user_ref: ctx.userId,
+                title,
+                deck_type: str(body?.['deck_type']) ?? 'mixed',
+                description: str(body?.['description']) ?? null,
+              })).id;
+      } else {
+        deckId = (await repo.defaultDeck(ctx.userId)).id;
+      }
+    }
+
+    const deck = await repo.findDeck(deckId);
+    if (!deck) return notFound(`deck ${deckId}`);
+    if (deck.user_ref !== ctx.userId) return forbidden('Not your deck');
+
+    const results: Array<Record<string, unknown>> = [];
+    let inserted = 0;
+    let skipped  = 0;
+
+    for (const raw of entries) {
+      const entry = typeof raw === 'object' && raw !== null && !Array.isArray(raw)
+        ? raw as Record<string, unknown> : null;
+      const module       = entry ? str(entry['module']) : undefined;
+      const resourceType = entry ? str(entry['resource_type']) : undefined;
+      const resourceRef  = entry ? str(entry['resource_ref']) : undefined;
+
+      if (!module || !MODULES.has(module)) {
+        results.push({ resource_ref: resourceRef ?? null, error: 'invalid module' });
+        skipped += 1;
+        continue;
+      }
+      if (!resourceType || !RESOURCE_TYPES.has(resourceType)) {
+        results.push({ resource_ref: resourceRef ?? null, error: 'invalid resource_type' });
+        skipped += 1;
+        continue;
+      }
+      if (!resourceRef) {
+        results.push({ resource_ref: null, error: 'resource_ref is required' });
+        skipped += 1;
+        continue;
+      }
+
+      const outcome = await repo.insertCard({
+        deck_id: deckId, user_ref: ctx.userId,
+        module, resource_type: resourceType, resource_ref: resourceRef,
+        card_kind: str(entry!['card_kind']) ?? null,
+        concept_domain: domainOfModule(module),
+        card_template: str(entry!['card_template']) ?? 'freeform',
+        front_text: str(entry!['front_text']) ?? '',
+        back_text: str(entry!['back_text']) ?? '',
+        extra_json: entry!['extra'] ? JSON.stringify(entry!['extra']) : null,
+        tags: Array.isArray(entry!['tags'])
+          ? (entry!['tags'] as string[]).join(',')
+          : str(entry!['tags']) ?? null,
+        note_type_id: str(entry!['note_type_id']) ?? null,
+        fields_json: entry!['fields'] ? JSON.stringify(entry!['fields']) : null,
+      });
+
+      if (outcome.inserted) inserted += 1; else skipped += 1;
+      results.push({
+        id: outcome.card?.id ?? null,
+        resource_ref: resourceRef,
+        card_template: str(entry!['card_template']) ?? 'freeform',
+        inserted: outcome.inserted,
+      });
+    }
+
+    return created({ deck_id: deckId, inserted, skipped, cards: results });
   });
 
   router.post('/core/srs/cards', async (req, env) => {

@@ -22,6 +22,7 @@ import { moralRoutes }       from './routes/moral';
 import { mapRoutes }         from './routes/maps';
 import { graphRoutes }       from './routes/graphs';
 import { termRoutes }        from './routes/terms';
+import { rhetoricRoutes }    from './routes/rhetoric';
 import { audioRoutes }       from './routes/audio';
 
 const router = new Router<WorldviewEnv>();
@@ -37,6 +38,7 @@ traditionRoutes(router);
 peopleRoutes(router);
 domainRoutes(router);
 termRoutes(router);
+rhetoricRoutes(router);
 moralRoutes(router);
 
 mapRoutes(router);

@@ -1721,6 +1721,72 @@ CREATE TABLE wv_replacement_bedrock_views (
   FOREIGN KEY (diagram_spec_id) REFERENCES wv_diagram_specs(id)
 );
 
+CREATE TABLE wv_rhetoric_devices (
+  id               TEXT PRIMARY KEY,
+  slug             TEXT NOT NULL UNIQUE,
+  title            TEXT NOT NULL,
+  title_ar         TEXT,
+  title_ur         TEXT,
+  classical_name   TEXT,
+  device_family    TEXT NOT NULL DEFAULT 'trope'
+                   CHECK (device_family IN ('trope','scheme','figure_of_thought','argument_move','frame')),
+  definition_en    TEXT,
+  al_concept_ref   TEXT,
+  balagha_fit      TEXT CHECK (balagha_fit IS NULL OR balagha_fit IN ('exact','close','partial','false_friend')),
+  divergence_en    TEXT,
+  sort_order       INTEGER NOT NULL DEFAULT 0,
+  status           TEXT NOT NULL DEFAULT 'live',
+  created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE wv_rhetoric_terms (
+  id               TEXT PRIMARY KEY,
+  slug             TEXT NOT NULL UNIQUE,
+  term             TEXT NOT NULL,
+  lang             TEXT NOT NULL DEFAULT 'en',
+  term_ar          TEXT,
+  term_ur          TEXT,
+  device_id        TEXT REFERENCES wv_rhetoric_devices(id),
+  literal_sense    TEXT,
+  figurative_sense TEXT,
+  source_domain    TEXT,
+  target_domain    TEXT,
+  register         TEXT NOT NULL DEFAULT 'general'
+                   CHECK (register IN ('general','diplomatic','journalistic','academic',
+                                       'military','legal','commercial','colloquial','religious')),
+  stance           TEXT NOT NULL DEFAULT 'neutral'
+                   CHECK (stance IN ('neutral','persuasive','euphemistic','dysphemistic',
+                                     'propagandistic','polemical')),
+  origin_note      TEXT,
+  highlights       TEXT,
+  hides            TEXT,
+  counter_term     TEXT,
+  tradition_id     TEXT REFERENCES wv_traditions(id),
+  al_concept_ref   TEXT,
+  quran_ref        TEXT,
+  concept_ref      TEXT,
+  notes_md         TEXT,
+  sort_order       INTEGER NOT NULL DEFAULT 0,
+  status           TEXT NOT NULL DEFAULT 'live',
+  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE wv_rhetoric_usages (
+  id                 TEXT PRIMARY KEY,
+  rhetoric_term_id   TEXT NOT NULL REFERENCES wv_rhetoric_terms(id),
+  quote              TEXT NOT NULL,
+  speaker            TEXT,
+  speaker_ref        TEXT,
+  venue              TEXT,
+  said_on            TEXT,
+  source_url         TEXT,
+  function_note      TEXT,
+  is_locus_classicus INTEGER NOT NULL DEFAULT 0,
+  sort_order         INTEGER NOT NULL DEFAULT 0,
+  created_at         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE wv_revelation_models (
   id              TEXT PRIMARY KEY,
   slug            TEXT NOT NULL UNIQUE,
@@ -2614,6 +2680,13 @@ CREATE INDEX idx_wv_reg_parent ON wv_regions(parent_id);
 
 CREATE INDEX idx_wv_rf_layer ON wv_route_features(route_layer_id);
 
+CREATE INDEX idx_wv_rhd_family  ON wv_rhetoric_devices(device_family, sort_order);
+CREATE INDEX idx_wv_rht_device  ON wv_rhetoric_terms(device_id);
+CREATE INDEX idx_wv_rht_source  ON wv_rhetoric_terms(source_domain);
+CREATE INDEX idx_wv_rht_target  ON wv_rhetoric_terms(target_domain);
+CREATE INDEX idx_wv_rht_stance  ON wv_rhetoric_terms(stance, status);
+CREATE INDEX idx_wv_rht_lang    ON wv_rhetoric_terms(lang, status);
+CREATE INDEX idx_wv_rhu_term    ON wv_rhetoric_usages(rhetoric_term_id, sort_order);
 CREATE INDEX idx_wv_rm_trad ON wv_revelation_models(tradition_id);
 
 CREATE INDEX idx_wv_rs_layer ON wv_route_segments(map_layer_id);

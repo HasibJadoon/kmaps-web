@@ -176,6 +176,18 @@ backbone, Membean-style Memlet word view, or the per-Surah **SRS decks** at
 It is the canonical process memory: key tables across QR/AL/AR, the card
 taxonomy, the Memlet→table mapping, the per-passage pipeline, and conventions.
 
+## WorldView Global Rhetorical Terms (WGRT)
+
+For any work on the WV rhetoric registry — the figures that carry worldview
+claims in political English (`wv_rhetoric_devices`, `wv_rhetoric_terms`,
+`wv_rhetoric_usages`, routes `/wv/rhetoric/*`) — read
+**`docs/wv-global-rhetorical-terms.md`** first. It holds the entry conventions
+(write `hides` first; controlled facet vocabularies; never seed an invented
+attestation), the balāgha binding rule, and the backlog. It also covers the
+WGRT → SRS path: entries become module `EN` cards under note type
+`NT:kmaps:rhetoric:v1`, built by `/wv/rhetoric/**/cards` and written through
+`POST /core/srs/cards/bulk` (CORE owns `km_core`; WV never writes it).
+
 ## Current Priority
 
 The repo is now worker-first and database assets are organized. New backend work should target `workers/`. New data import work should target `database/ingestion/`, then emit outputs to `database/seeds/` or the correct worker/domain migration path depending on whether the result is seed data or schema/data migration.

@@ -17,5 +17,6 @@ wrangler d1 migrations list  km_worldview --remote
 | 001_wv_schema.sql | L1–L10 | wv_traditions, wv_thinkers, wv_sources, wv_source_units, wv_nodes, wv_node_edges, wv_brainstorms, wv_comparisons, wv_comparison_columns, wv_comparison_cells, wv_distill_batches, wv_insight_suggestions, wv_insight_decisions |
 | 002_add_wv_reading_sessions.sql | reader | wv_reading_sessions (+ wv_highlights.reading_session_id) |
 | 003_add_wv_source_unit_illustrations.sql | reader | wv_source_unit_illustrations (1..N visual HTML pages per source unit) |
+| 004_wv_rhetoric_terms.sql | WGRT | wv_rhetoric_devices, wv_rhetoric_terms, wv_rhetoric_usages (+ seed: 13 devices, 16 terms, 5 attested usages) |
 
 Source files live in `database/migrations/km-worldview/`.
