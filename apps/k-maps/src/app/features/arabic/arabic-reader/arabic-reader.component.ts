@@ -7,7 +7,7 @@ import { environment } from '../../../../environments/environment';
 /// One line of the recording's timeline: its seconds, and one [start, end]
 /// per word where the recogniser timed them.
 interface Segment { seq: number; start: number; end: number; text: string; speaker: string | null; anchored: boolean; words: number[][] | null }
-interface Passage { who: string | null; lines: { seg: Segment; i: number }[] }
+interface Passage { who: string | null; spoken: string | null; lines: { seg: Segment; i: number }[] }
 interface VideoRef { provider: string; id: string }
 interface Page {
   id: string; seq: number; part_no: number | null; page_no: number | null;
@@ -83,37 +83,100 @@ export class ArabicReaderComponent implements OnInit, OnDestroy {
 
   /// Where a passage ends.
   ///
-  /// A transcript carries no paragraph marks — the recogniser breaks on its
-  /// own chunk length, mid-clause, and nothing in the text says where the
-  /// thought ended. So the recording is asked instead: the silence between
-  /// two lines is where the speaker stopped, and that is the paragraph. Past
-  /// that, a run that has grown long enough closes at the first full stop,
-  /// and is capped outright, so a page is never one wall of text.
+  /// A transcript carries no paragraph marks — the recogniser breaks where its
+  /// own chunk ran out, mid-clause, and nothing in the text says where the
+  /// thought ended. So the recording is asked instead: the silence between two
+  /// lines is where the speaker stopped, and that is the paragraph.
+  ///
+  /// A named turn opens one too. An *unnamed* line never does: the chunk that
+  /// straddles a turn carries the end of one voice and the start of the next,
+  /// and cutting on it strands somebody's last three words as a paragraph.
   static readonly PAUSE = 0.7;
-  static readonly LONG = 6;
+  /// CAP is the length at which a run is cut regardless — not a hard ceiling,
+  /// since the cut is then moved to the nearest silence, which can carry it a
+  /// couple of lines past. MIN_RUN is the fewest lines a break may leave
+  /// behind before it is not worth making.
   static readonly CAP = 11;
+  static readonly MIN_RUN = 2;
+  /// Whether this line starts somebody's turn — a named line whose speaker is
+  /// not the one already talking. A pause inside one long turn is not a turn.
+  static opensTurn(i: number, segs: Segment[]): boolean {
+    const who = segs[i].speaker;
+    return !!who && (i === 0 || who !== segs[i - 1].speaker);
+  }
+
   static endsSentence(line: string): boolean {
     // Not the colon: it opens a speaker's turn, it does not close a sentence.
     return /[؟!.…؛]$/.test(line.trim());
   }
 
+  /// The cuts inside an over-long run: as few as will bring it under the cap,
+  /// each at the widest silence near where it has to fall, so a forced break
+  /// still lands between two breaths rather than inside a phrase.
+  static cuts(lo: number, hi: number, segs: Segment[]): number[] {
+    const n = hi - lo;
+    if (n <= ArabicReaderComponent.CAP) return [];
+    const parts = Math.ceil(n / ArabicReaderComponent.CAP);
+    const size = n / parts;
+    const out: number[] = [];
+    for (let k = 1; k < parts; k++) {
+      const ideal = lo + Math.round(k * size);
+      const w = Math.max(2, Math.floor(ArabicReaderComponent.CAP / 3));
+      const first = Math.max(lo + 1, ideal - w);
+      const last = Math.min(hi - 1, ideal + w);
+      if (first > last) continue;
+      let best = ideal, widest = -1;
+      for (let i = first; i <= last; i++) {
+        // A full stop is a better place to break than a long breath, where
+        // the transcript troubles to give one.
+        const gap = segs[i].start - segs[i - 1].end
+          + (ArabicReaderComponent.endsSentence(segs[i - 1].text) ? 10 : 0);
+        if (gap > widest) { widest = gap; best = i; }
+      }
+      if (out[out.length - 1] !== best) out.push(best);
+    }
+    return out;
+  }
+
   readonly passages = computed<Passage[]>(() => {
     const segs = this.segments();
-    const out: Passage[] = [];
-    let cur: Passage | null = null;
-    segs.forEach((seg, i) => {
-      const who = seg.speaker ?? null;
-      const brk = !cur
-        || who !== cur.who
-        || seg.start - segs[i - 1].end >= ArabicReaderComponent.PAUSE
-        || (cur.lines.length >= ArabicReaderComponent.LONG
-            && ArabicReaderComponent.endsSentence(segs[i - 1].text))
-        || cur.lines.length >= ArabicReaderComponent.CAP;
-      if (brk) { cur = { who, lines: [] }; out.push(cur); }
-      cur!.lines.push({ seg, i });
+    if (!segs.length) return [];
+    const A = ArabicReaderComponent;
+    // Where a passage could start: a silence, or a change of voice.
+    const candidates: number[] = [0];
+    for (let i = 1; i < segs.length; i++) {
+      if (segs[i].start - segs[i - 1].end >= A.PAUSE
+          || segs[i].speaker !== segs[i - 1].speaker) candidates.push(i);
+    }
+    // A break that would leave one line standing alone is not a paragraph, it
+    // is a widow: the recogniser's chunk straddles the turn, so the orphan is
+    // somebody's last three words, ending mid-phrase. Fold it back into the
+    // passage above. A named turn is never folded — a one-line turn is a line
+    // of a script, and reads as one.
+    const starts: number[] = [];
+    candidates.forEach((lo, k) => {
+      const end = k + 1 < candidates.length ? candidates[k + 1] : segs.length;
+      if (end - lo < A.MIN_RUN && !A.opensTurn(lo, segs) && starts.length) return;
+      starts.push(lo);
     });
-    return out;
+    const bounds: number[] = [];
+    starts.forEach((s0, k) => {
+      const hi = k + 1 < starts.length ? starts[k + 1] : segs.length;
+      bounds.push(s0, ...A.cuts(s0, hi, segs));
+    });
+    bounds.sort((a, b) => a - b);
+    return bounds.map((s0, k) => {
+      const hi = k + 1 < bounds.length ? bounds[k + 1] : segs.length;
+      const lines: { seg: Segment; i: number }[] = [];
+      for (let i = s0; i < hi; i++) lines.push({ seg: segs[i], i });
+      // A name is printed once, over the turn it opens. The blocks a long
+      // turn is cut into carry no name — it is still standing above them.
+      const spoken = segs[s0].speaker ?? null;
+      const prev = k > 0 ? (segs[bounds[k - 1]].speaker ?? null) : null;
+      return { who: spoken === prev ? null : spoken, spoken, lines };
+    }).filter((p) => p.lines.length > 0);
   });
+
   readonly hasAudio = computed(() => !!(this.pages()[0]?.pagePlayUrl ?? this.work()?.playUrl));
   readonly hasVideo = computed(() => !!(this.pages()[0]?.pageVideo ?? this.work()?.video));
   /// The line under the voice: the one whose window holds t, else the last that has started.
