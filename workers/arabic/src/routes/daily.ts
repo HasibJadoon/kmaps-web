@@ -112,18 +112,65 @@ async function assemble(env: ArabicEnv, theme: ThemeRow) {
 }
 
 export function dailyRoutes(router: Router<ArabicEnv>) {
+  /// The learner domains that have a published day behind them, with how many.
+  /// The list comes from ar_curriculum_domain, never from the app — a domain
+  /// with no content yet is not offered, and one that gains content appears
+  /// without a release.
+  router.get('/ar/daily/domains', async (_req, env) => {
+    const rows = await query<{
+      id: string; slug: string; title: string; title_ar: string | null;
+      description: string | null; theme_count: number;
+    }>(
+      env.DB_AR,
+      `SELECT d.id, d.slug, d.title, d.title_ar, d.description,
+              COUNT(t.id) AS theme_count
+         FROM ar_curriculum_domain d
+         JOIN ar_daily_theme t ON t.domain_id = d.id AND t.is_published = 1
+        GROUP BY d.id ORDER BY d.sort_order, d.title`,
+    );
+    return ok({
+      domains: rows.map((d) => ({
+        id: d.id, slug: d.slug, titleEn: d.title, titleAr: d.title_ar,
+        description: d.description, themeCount: d.theme_count,
+      })),
+    });
+  });
+
   /// The published themes, in drip order. Content only — no reader state, so
   /// this is the list a browsing user sees before signing in.
-  router.get('/ar/daily/themes', async (_req, env) => {
-    const rows = await query<ThemeRow>(
+  ///
+  /// `?domain=<slug>` narrows to one domain; `?q=` matches the theme or its
+  /// domain by title in either language. Both are optional and combine.
+  router.get('/ar/daily/themes', async (req, env) => {
+    const url = new URL(req.url);
+    const domain = (url.searchParams.get('domain') ?? '').trim();
+    const q = (url.searchParams.get('q') ?? '').trim();
+
+    const conds = ['t.is_published = 1'];
+    const params: unknown[] = [];
+    if (domain) { conds.push('d.slug = ?'); params.push(domain); }
+    if (q) {
+      conds.push('(t.title_ar LIKE ? OR t.title_en LIKE ? OR d.title LIKE ? OR d.title_ar LIKE ?)');
+      const like = `%${q}%`;
+      params.push(like, like, like, like);
+    }
+
+    const rows = await query<ThemeRow & {
+      domain_slug: string | null; domain_title_ar: string | null; domain_title_en: string | null;
+    }>(
       env.DB_AR,
-      `SELECT ${THEME_COLS} FROM ar_daily_theme WHERE is_published = 1 ORDER BY day_index`,
+      `SELECT ${THEME_COLS.split(', ').map((c) => `t.${c}`).join(', ')},
+              d.slug AS domain_slug, d.title_ar AS domain_title_ar, d.title AS domain_title_en
+         FROM ar_daily_theme t LEFT JOIN ar_curriculum_domain d ON d.id = t.domain_id
+        WHERE ${conds.join(' AND ')} ORDER BY t.day_index`,
+      params,
     );
     return ok({
       themes: rows.map((t) => ({
         id: t.id, slug: t.slug, titleAr: t.title_ar, titleEn: t.title_en,
-        domainId: t.domain_id, level: t.level, dayIndex: t.day_index,
-        focusNote: t.focus_note,
+        domainId: t.domain_id, domainSlug: t.domain_slug,
+        domainTitleAr: t.domain_title_ar, domainTitleEn: t.domain_title_en,
+        level: t.level, dayIndex: t.day_index, focusNote: t.focus_note,
       })),
     });
   });

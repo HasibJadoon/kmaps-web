@@ -27,7 +27,7 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     // 'ar/daily/themes' and not 'ar/daily': the themes are the same content for
     // everyone and readable unsigned, while ar/daily/today and ar/daily/progress
     // are that reader's own and must stay behind the token.
-    publicGetPaths: ['ar/acq', 'ar/text', 'ar/audio', 'ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons', 'ar/daily/themes'],
+    publicGetPaths: ['ar/acq', 'ar/text', 'ar/audio', 'ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons', 'ar/daily/themes', 'ar/daily/domains'],
   },
   al:   { binding: 'AR_LINGUISTICS', publicGet: true  },
   cm:   {
