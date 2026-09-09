@@ -149,7 +149,21 @@ export function dailyRoutes(router: Router<ArabicEnv>) {
     if (!dom) return notFound(`domain ${slug}`);
 
     const setJoin = `JOIN ar_daily_theme t ON t.id = x.theme_id AND t.domain_id = ? AND t.is_published = 1`;
-    const [words, sentences, passages] = await Promise.all([
+    const [dialogues, turns, words, sentences, passages] = await Promise.all([
+      query<{
+        id: string; theme_id: string; title_ar: string; title_en: string | null;
+        setting_ar: string | null; image_key: string | null;
+      }>(env.DB_AR,
+        `SELECT x.id, x.theme_id, x.title_ar, x.title_en, x.setting_ar, x.image_key
+           FROM ar_daily_dialogue x ${setJoin} ORDER BY t.day_index, x.sort_order`, [dom.id]),
+      query<{
+        id: string; dialogue_id: string; speaker_ar: string; text_ar: string;
+        gloss_en: string; word_id: string | null; audio_key: string | null;
+      }>(env.DB_AR,
+        `SELECT n.id, n.dialogue_id, n.speaker_ar, n.text_ar, n.gloss_en, n.word_id, n.audio_key
+           FROM ar_daily_dialogue_turn n
+           JOIN ar_daily_dialogue x ON x.id = n.dialogue_id ${setJoin}
+          ORDER BY t.day_index, x.sort_order, n.sort_order`, [dom.id]),
       query<WordRow & { theme_id: string }>(env.DB_AR,
         `SELECT x.id, x.theme_id, x.singular_ar, x.plural_ar, x.gloss_en, x.plural_kind, x.gender,
                 x.pattern_ar, x.is_diptote, x.al_root_ref, x.audio_key_sg, x.audio_key_pl
@@ -165,6 +179,16 @@ export function dailyRoutes(router: Router<ArabicEnv>) {
 
     return ok({
       domain: { id: dom.id, slug: dom.slug, titleEn: dom.title, titleAr: dom.title_ar, description: dom.description },
+      // Turns nested under their dialogue: a conversation is read whole, and
+      // the client should not have to reassemble one from two flat lists.
+      dialogues: dialogues.map((d) => ({
+        id: d.id, setId: d.theme_id, titleAr: d.title_ar, titleEn: d.title_en,
+        settingAr: d.setting_ar, image: d.image_key,
+        turns: turns.filter((n) => n.dialogue_id === d.id).map((n) => ({
+          id: n.id, speakerAr: n.speaker_ar, textAr: n.text_ar, gloss: n.gloss_en,
+          wordId: n.word_id, audio: n.audio_key,
+        })),
+      })),
       words: words.map((w) => ({ ...shapeWord(w), setId: w.theme_id })),
       sentences: sentences.map((s) => ({
         id: s.id, setId: s.theme_id, wordId: s.word_id, textAr: s.text_ar, gloss: s.gloss_en,
