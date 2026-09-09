@@ -119,19 +119,61 @@ export function dailyRoutes(router: Router<ArabicEnv>) {
   router.get('/ar/daily/domains', async (_req, env) => {
     const rows = await query<{
       id: string; slug: string; title: string; title_ar: string | null;
-      description: string | null; theme_count: number;
+      description: string | null; theme_count: number; word_count: number;
     }>(
       env.DB_AR,
       `SELECT d.id, d.slug, d.title, d.title_ar, d.description,
-              COUNT(t.id) AS theme_count
+              COUNT(DISTINCT t.id) AS theme_count, COUNT(w.id) AS word_count
          FROM ar_curriculum_domain d
          JOIN ar_daily_theme t ON t.domain_id = d.id AND t.is_published = 1
+         LEFT JOIN ar_daily_word w ON w.theme_id = t.id
         GROUP BY d.id ORDER BY d.sort_order, d.title`,
     );
     return ok({
       domains: rows.map((d) => ({
         id: d.id, slug: d.slug, titleEn: d.title, titleAr: d.title_ar,
-        description: d.description, themeCount: d.theme_count,
+        description: d.description, themeCount: d.theme_count, wordCount: d.word_count,
+      })),
+    });
+  });
+
+  /// One domain, whole: its vocabulary as a grid across every published set
+  /// it holds, then every sentence, then every passage. The domain is the
+  /// unit a learner practises — "the market" — not the day it was drip-fed
+  /// on; a set (ar_daily_theme) is only how the content was authored.
+  router.get('/ar/daily/domains/:slug', async (_req, env, { slug }) => {
+    const dom = await queryOne<{
+      id: string; slug: string; title: string; title_ar: string | null; description: string | null;
+    }>(env.DB_AR,
+      `SELECT id, slug, title, title_ar, description FROM ar_curriculum_domain WHERE slug = ?`, [slug]);
+    if (!dom) return notFound(`domain ${slug}`);
+
+    const setJoin = `JOIN ar_daily_theme t ON t.id = x.theme_id AND t.domain_id = ? AND t.is_published = 1`;
+    const [words, sentences, passages] = await Promise.all([
+      query<WordRow & { theme_id: string }>(env.DB_AR,
+        `SELECT x.id, x.theme_id, x.singular_ar, x.plural_ar, x.gloss_en, x.plural_kind, x.gender,
+                x.pattern_ar, x.is_diptote, x.al_root_ref, x.audio_key_sg, x.audio_key_pl
+           FROM ar_daily_word x ${setJoin} ORDER BY t.day_index, x.sort_order`, [dom.id]),
+      query<SentenceRow & { theme_id: string }>(env.DB_AR,
+        `SELECT x.id, x.theme_id, x.word_id, x.text_ar, x.gloss_en, x.number_used, x.grammar_note_en, x.audio_key
+           FROM ar_daily_sentence x ${setJoin} ORDER BY t.day_index, x.sort_order`, [dom.id]),
+      query<PassageRow & { theme_id: string; set_title_ar: string; focus_note: string | null }>(env.DB_AR,
+        `SELECT x.id, x.theme_id, x.title_ar, x.text_ar, x.gloss_en, x.word_count, x.audio_key, x.audio_secs,
+                t.title_ar AS set_title_ar, t.focus_note
+           FROM ar_daily_passage x ${setJoin} ORDER BY t.day_index`, [dom.id]),
+    ]);
+
+    return ok({
+      domain: { id: dom.id, slug: dom.slug, titleEn: dom.title, titleAr: dom.title_ar, description: dom.description },
+      words: words.map((w) => ({ ...shapeWord(w), setId: w.theme_id })),
+      sentences: sentences.map((s) => ({
+        id: s.id, setId: s.theme_id, wordId: s.word_id, textAr: s.text_ar, gloss: s.gloss_en,
+        numberUsed: s.number_used, grammarNote: s.grammar_note_en, audio: s.audio_key,
+      })),
+      passages: passages.map((p) => ({
+        id: p.id, setId: p.theme_id, titleAr: p.title_ar, textAr: p.text_ar, gloss: p.gloss_en,
+        wordCount: p.word_count, audio: p.audio_key, audioSecs: p.audio_secs,
+        setTitleAr: p.set_title_ar, focusNote: p.focus_note,
       })),
     });
   });
