@@ -209,7 +209,10 @@ export function textRoutes(router: Router<ArabicEnv>) {
                 ON a.acq_ref_id = t.acq_ref_id
                AND a.status = 'live'
                AND (CAST(json_extract(a.meta_json, '$.night') AS INTEGER) = t.page_no
-                    OR CAST(json_extract(a.meta_json, '$.seq') AS INTEGER) = t.seq)
+                    OR CAST(json_extract(a.meta_json, '$.seq') AS INTEGER) = t.seq
+                    -- a whole-book recording cut into parts: each part lists the
+                    -- units it reads, and a page belongs to the part that reads it
+                    OR EXISTS (SELECT 1 FROM json_each(a.meta_json, '$.units') je WHERE je.value = t.id))
         WHERE t.acq_ref_id = ? AND t.status = 'live' AND t.seq >= ?
         ORDER BY t.seq LIMIT ?`,
       [params.id, from, limit],
@@ -221,11 +224,12 @@ export function textRoutes(router: Router<ArabicEnv>) {
     /// instant the audio starts, not a round trip later.
     const audioIds = pages.map((p) => p.pageAudioId).filter((x): x is string => !!x);
     const segments = audioIds.length
-      ? await query<{ audio_id: string; seq: number; start_sec: number; end_sec: number; text_ar: string; speaker: string | null; anchored: number; words: string | null }>(
+      ? await query<{ audio_id: string; seq: number; start_sec: number; end_sec: number; text_ar: string; speaker: string | null; anchored: number; words: string | null; unit: string | null }>(
           env.DB_AR,
           `SELECT audio_id, seq, start_sec, end_sec, text_ar, speaker,
                   COALESCE(json_extract(meta_json, '$.anchored'), 1) AS anchored,
-                  json_extract(meta_json, '$.w')                     AS words
+                  json_extract(meta_json, '$.w')                     AS words,
+                  json_extract(meta_json, '$.unit')                  AS unit
              FROM ar_acq_audio_segment
             WHERE audio_id IN (${audioIds.map(() => '?').join(',')})
             ORDER BY audio_id, seq`,
@@ -237,13 +241,13 @@ export function textRoutes(router: Router<ArabicEnv>) {
     // `speaker` is who says the line, where the transcript records it: a
     // series is a cast, and the readers set the name over the turn rather
     // than leaving the voice guessable only by ear.
-    const byAudio = new Map<string, { seq: number; start: number; end: number; text: string; speaker: string | null; anchored: boolean; words: number[][] | null }[]>();
+    const byAudio = new Map<string, { seq: number; start: number; end: number; text: string; speaker: string | null; anchored: boolean; words: number[][] | null; unit: string | null }[]>();
     for (const s of segments) {
       const list = byAudio.get(s.audio_id) ?? [];
       let words: number[][] | null = null;
       if (s.words) { try { words = JSON.parse(s.words); } catch { words = null; } }
       list.push({ seq: s.seq, start: s.start_sec, end: s.end_sec, text: s.text_ar,
-                  speaker: s.speaker || null, anchored: !!s.anchored, words });
+                  speaker: s.speaker || null, anchored: !!s.anchored, words, unit: s.unit || null });
       byAudio.set(s.audio_id, list);
     }
 
@@ -275,11 +279,18 @@ export function textRoutes(router: Router<ArabicEnv>) {
         if (p.pageVideoJson) { try { video = JSON.parse(String(p.pageVideoJson)); } catch { video = null; } }
         if (!video && key?.startsWith('youtube:')) video = { provider: 'youtube', id: key.slice('youtube:'.length) };
         const { pageVideoJson: _drop, ...rest } = p as Record<string, unknown> & { pageVideoJson?: unknown };
+        // A recording that reads several pages carries every page's lines; a
+        // page gets only its own, and the moment on the timeline where they
+        // begin, so play starts at this page and not at the part's first word.
+        const all = p.pageAudioId ? (byAudio.get(String(p.pageAudioId)) ?? []) : [];
+        const own = all.some((s) => s.unit) ? all.filter((s) => !s.unit || s.unit === p.id) : all;
+        const pageSegments = own.map(({ unit: _u, ...seg }) => seg);
         return {
           ...rest,
           pagePlayUrl: key && !key.startsWith('youtube:') ? `/api/ar/audio/${encodeURI(key)}` : null,
           pageVideo: video,
-          pageSegments: p.pageAudioId ? (byAudio.get(String(p.pageAudioId)) ?? []) : [],
+          pageAudioStart: pageSegments.length ? Math.max(0, pageSegments[0].start - 0.3) : 0,
+          pageSegments,
         };
       }),
       bounds,
