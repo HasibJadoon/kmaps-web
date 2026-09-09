@@ -1,3 +1,25 @@
+-- Schema for km_content.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-09-09.
+-- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
+-- Regenerate with scripts/regen_schemas.py — do not hand-edit.
+
+-- ── Tables (41) ────────────────────────────────────────────────────
+
+CREATE TABLE cm_acquisition_genre (
+  genre_id      TEXT PRIMARY KEY,
+  genre_key     TEXT NOT NULL UNIQUE,
+  name_ar       TEXT NOT NULL,
+  name_en       TEXT NOT NULL,
+  name_ur       TEXT,
+  medium_default TEXT,
+  register_default TEXT,
+  note_ar       TEXT,
+  note_en       TEXT,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'live',
+  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
 CREATE TABLE cm_audio_scenes (
   scene_id           TEXT PRIMARY KEY,
   asset_id           TEXT NOT NULL REFERENCES cm_media_assets(asset_id),
@@ -437,6 +459,30 @@ CREATE TABLE cm_share_links (
   created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 
+CREATE TABLE cm_source_acquisition (
+  acq_id         TEXT PRIMARY KEY,
+  target_ref     TEXT NOT NULL,
+  target_kind    TEXT NOT NULL DEFAULT 'source',
+  genre_ref      TEXT NOT NULL REFERENCES cm_acquisition_genre(genre_id),
+  medium         TEXT NOT NULL,
+  register       TEXT,
+  dialect        TEXT,
+  level          TEXT,
+  has_script     INTEGER NOT NULL DEFAULT 0,
+  script_state   TEXT NOT NULL DEFAULT 'none',
+  audio_state    TEXT NOT NULL DEFAULT 'none',
+  duration_min   REAL,
+  word_count     INTEGER,
+  wv_source_ref  TEXT,
+  acq_value      INTEGER NOT NULL DEFAULT 3,
+  mined_state    TEXT NOT NULL DEFAULT 'raw',
+  note_md        TEXT,
+  meta_json      TEXT NOT NULL DEFAULT '{}',
+  created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  UNIQUE (target_ref, genre_ref)
+);
+
 CREATE TABLE cm_source_chunks (
   chunk_id           TEXT PRIMARY KEY,
   source_id          TEXT NOT NULL REFERENCES cm_sources(source_id),
@@ -528,25 +574,28 @@ CREATE TABLE cm_sources (
 , parent_source_ref TEXT, episode_no INTEGER, published_at TEXT);
 
 CREATE TABLE core_person (
-  id            TEXT PRIMARY KEY,
-  uid           TEXT NOT NULL UNIQUE,
-  person_key    TEXT NOT NULL,
+  id            TEXT PRIMARY KEY,        -- PN:{slug}
+  uid           TEXT NOT NULL UNIQUE,    -- 26-hex, the convention the others use
+  person_key    TEXT NOT NULL,           -- the slug, on its own
   name_en       TEXT NOT NULL,
   name_ar       TEXT,
-  name_native   TEXT,
-
+  name_native   TEXT,                    -- as written in their own language
+  -- scholar | poet | philosopher | thinker | author | host | guest | figure
   person_type   TEXT NOT NULL DEFAULT 'figure',
   birth_year    INTEGER,
   death_year    INTEGER,
-
+  -- Free text on purpose: "13th century", "fl. 900s", "contemporary". Dates are
+  -- the precise field; this is what you say when precision is not available.
   era           TEXT,
   nationality   TEXT,
-  tradition_ref TEXT,
+  tradition_ref TEXT,                    -- wv_traditions.id, where one applies
   bio_md        TEXT,
-  origin        TEXT NOT NULL DEFAULT 'worldview',
+  origin        TEXT NOT NULL DEFAULT 'worldview',   -- which side first named them
   status        TEXT NOT NULL DEFAULT 'live',
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- ── Views (2) ─────────────────────────────────────────────────────
 
 CREATE VIEW cm_quran_index AS
 SELECT 'asset' AS kind, asset_id AS id, asset_type AS subtype, title, title_ar,
@@ -568,10 +617,12 @@ CREATE VIEW core_person_violations AS
   SELECT 'key_mismatch', id, person_key FROM core_person
    WHERE id <> 'PN:' || person_key
   UNION ALL
-
+  -- Died before born. Cheap to check and the kind of thing a bulk import does.
   SELECT 'dates', id, CAST(birth_year AS TEXT) || '–' || CAST(death_year AS TEXT)
     FROM core_person
    WHERE birth_year IS NOT NULL AND death_year IS NOT NULL AND death_year < birth_year;
+
+-- ── Indexes (124) ───────────────────────────────────────────────────
 
 CREATE INDEX idx_cm_engines_kind ON cm_engines(kind);
 

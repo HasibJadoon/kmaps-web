@@ -1,9 +1,9 @@
 -- Schema for km_core.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-08-30.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-09-09.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (88) ──────────────────────────────────────────────────
+-- ── Tables (89) ────────────────────────────────────────────────────
 
 CREATE TABLE core_activity_events (
   id              TEXT PRIMARY KEY,               -- ULID
@@ -364,6 +364,16 @@ CREATE TABLE core_concept_binding (
   note         TEXT,
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (concept_ref, source_db, source_table, source_id)
+);
+
+CREATE TABLE "core_concept_outbox" (
+  seq        INTEGER PRIMARY KEY AUTOINCREMENT,
+  op         TEXT NOT NULL,
+  concept_id TEXT NOT NULL,
+  payload    TEXT,
+  changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  applied_km_quran     INTEGER NOT NULL DEFAULT 0,
+  applied_km_worldview INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE core_daily_log (
@@ -1408,8 +1418,7 @@ CREATE TABLE cyb_wv_band (
   weight REAL NOT NULL DEFAULT 1.0,
   status TEXT NOT NULL DEFAULT 'live', synced_at TEXT);
 
-
--- ── Views (27) ───────────────────────────────────────────────────
+-- ── Views (27) ─────────────────────────────────────────────────────
 
 CREATE VIEW core_person_violations AS
   SELECT 'id_shape' AS kind, id AS row_id, id AS wrote FROM core_person
@@ -1719,8 +1728,7 @@ WHERE s.source_table IS NULL
    OR s.source_table LIKE '%+%'
    OR s.state = 'pending_carrier';
 
-
--- ── Indexes (120) ────────────────────────────────────────────────
+-- ── Indexes (120) ───────────────────────────────────────────────────
 
 CREATE INDEX core_srs_card_deck ON core_srs_card(deck_id);
 
@@ -1988,8 +1996,21 @@ CREATE UNIQUE INDEX ux_bank_response_once
 CREATE UNIQUE INDEX ux_quiz_generated
   ON core_quiz_question (generated_from) WHERE generated_from IS NOT NULL;
 
+-- ── Triggers (6) ──────────────────────────────────────────────────
 
--- ── Triggers (3) ─────────────────────────────────────────────────
+CREATE TRIGGER trg_core_concept_del AFTER DELETE ON core_concept BEGIN
+  INSERT INTO core_concept_outbox (op,concept_id,payload) VALUES ('delete', OLD.id, json_object('id',OLD.id));
+END;
+
+CREATE TRIGGER trg_core_concept_ins AFTER INSERT ON core_concept BEGIN
+  INSERT INTO core_concept_outbox (op,concept_id,payload) VALUES ('insert', NEW.id,
+    json_object('id',NEW.id,'uid',NEW.uid,'concept_key',NEW.concept_key,'label_en',NEW.label_en,'label_ar',NEW.label_ar,'domain',NEW.domain,'status',NEW.status));
+END;
+
+CREATE TRIGGER trg_core_concept_upd AFTER UPDATE ON core_concept BEGIN
+  INSERT INTO core_concept_outbox (op,concept_id,payload) VALUES ('update', NEW.id,
+    json_object('id',NEW.id,'uid',NEW.uid,'concept_key',NEW.concept_key,'label_en',NEW.label_en,'label_ar',NEW.label_ar,'domain',NEW.domain,'status',NEW.status,'old_id',OLD.id));
+END;
 
 CREATE TRIGGER trg_cyb_sensor_log_read
 AFTER UPDATE OF last_read_at ON cyb_sensor

@@ -1,3 +1,10 @@
+-- Schema for km_worldview.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-09-09.
+-- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
+-- Regenerate with scripts/regen_schemas.py — do not hand-edit.
+
+-- ── Tables (165) ────────────────────────────────────────────────────
+
 CREATE TABLE core_concept (
   id          TEXT PRIMARY KEY,
   uid         TEXT NOT NULL UNIQUE,
@@ -12,33 +19,54 @@ CREATE TABLE core_concept (
 );
 
 CREATE TABLE core_person (
-  id            TEXT PRIMARY KEY,
-  uid           TEXT NOT NULL UNIQUE,
-  person_key    TEXT NOT NULL,
+  id            TEXT PRIMARY KEY,        -- PN:{slug}
+  uid           TEXT NOT NULL UNIQUE,    -- 26-hex, the convention the others use
+  person_key    TEXT NOT NULL,           -- the slug, on its own
   name_en       TEXT NOT NULL,
   name_ar       TEXT,
-  name_native   TEXT,
-
+  name_native   TEXT,                    -- as written in their own language
+  -- scholar | poet | philosopher | thinker | author | host | guest | figure
   person_type   TEXT NOT NULL DEFAULT 'figure',
   birth_year    INTEGER,
   death_year    INTEGER,
-
+  -- Free text on purpose: "13th century", "fl. 900s", "contemporary". Dates are
+  -- the precise field; this is what you say when precision is not available.
   era           TEXT,
   nationality   TEXT,
-  tradition_ref TEXT,
+  tradition_ref TEXT,                    -- wv_traditions.id, where one applies
   bio_md        TEXT,
-  origin        TEXT NOT NULL DEFAULT 'worldview',
+  origin        TEXT NOT NULL DEFAULT 'worldview',   -- which side first named them
   status        TEXT NOT NULL DEFAULT 'live',
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE "gc_concept" (
+  id           TEXT PRIMARY KEY,
+  uid          TEXT NOT NULL,
+  concept_key  TEXT NOT NULL,
+  label_en     TEXT,
+  label_ar     TEXT,
+  domain       TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'live',
+  synced_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE "gc_sync_meta" (
+  registry     TEXT PRIMARY KEY,
+  source_db    TEXT NOT NULL,
+  source_table TEXT NOT NULL,
+  row_count    INTEGER NOT NULL,
+  synced_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  note         TEXT
 );
 
 CREATE TABLE wv_abrahamic_morality_matrices (
   id              TEXT PRIMARY KEY,
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
-  axes_json       TEXT NOT NULL,
-  traditions_json TEXT NOT NULL,
-  cells_json      TEXT,
+  axes_json       TEXT NOT NULL,                  
+  traditions_json TEXT NOT NULL,                  
+  cells_json      TEXT,                           
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -50,20 +78,21 @@ CREATE TABLE wv_adversarial_patterns (
   title_ar        TEXT,
   tradition_id    TEXT,
   pattern_type    TEXT NOT NULL DEFAULT 'pride',
-
+    
+    
   description_md  TEXT,
-  scriptural_refs TEXT,
+  scriptural_refs TEXT,                           
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
 );
 
 CREATE TABLE wv_affiliations (
   id              TEXT PRIMARY KEY,
-  entity_ref      TEXT NOT NULL,
-  entity_type     TEXT NOT NULL,
-  target_type     TEXT NOT NULL,
+  entity_ref      TEXT NOT NULL,                  
+  entity_type     TEXT NOT NULL,                  
+  target_type     TEXT NOT NULL,                  
   target_id       TEXT NOT NULL,
-  affil_role      TEXT,
+  affil_role      TEXT,                           
   period_label    TEXT,
   note            TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -90,10 +119,11 @@ CREATE TABLE wv_anthropology_profiles (
 CREATE TABLE wv_argument_relations (
   id             TEXT PRIMARY KEY,
   from_arg_id    TEXT NOT NULL,
-  to_arg_id      TEXT,
+  to_arg_id      TEXT,                            
   to_claim_id    TEXT,
   relation_type  TEXT NOT NULL DEFAULT 'supports',
-
+    
+    
   note           TEXT,
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (from_arg_id) REFERENCES wv_arguments(id)
@@ -104,7 +134,7 @@ CREATE TABLE wv_arguments (
   title           TEXT NOT NULL,
   argument_text   TEXT NOT NULL,
   argument_type   TEXT NOT NULL DEFAULT 'deductive',
-
+    
   topic_id        TEXT,
   tradition_id    TEXT,
   person_id       TEXT,
@@ -121,7 +151,8 @@ CREATE TABLE wv_authority_models (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   authority_type  TEXT NOT NULL DEFAULT 'institutional',
-
+    
+    
   tradition_id    TEXT,
   stream_id       TEXT,
   description_md  TEXT,
@@ -138,9 +169,9 @@ CREATE TABLE wv_brainstorm_sessions (
   tradition_id    TEXT,
   moral_axis_id   TEXT,
   status          TEXT NOT NULL DEFAULT 'active',
-
+    
   body_md         TEXT,
-  tags_json       TEXT,
+  tags_json       TEXT,                           
   core_user_ref   TEXT NOT NULL,
   core_ws_ref     TEXT,
   meta_json       TEXT,
@@ -154,7 +185,7 @@ CREATE TABLE wv_brainstorm_sessions (
 CREATE TABLE wv_case_scope_links (
   id          TEXT PRIMARY KEY,
   case_id     TEXT NOT NULL,
-  scope_type  TEXT NOT NULL,
+  scope_type  TEXT NOT NULL, 
   scope_id    TEXT NOT NULL,
   note        TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
@@ -163,11 +194,11 @@ CREATE TABLE wv_case_scope_links (
 
 CREATE TABLE wv_century_profiles (
   id              TEXT PRIMARY KEY,
-  century         INTEGER NOT NULL UNIQUE,
-  label           TEXT NOT NULL,
-  dominant_transitions TEXT,
-  dominant_crises TEXT,
-  key_regions     TEXT,
+  century         INTEGER NOT NULL UNIQUE,        
+  label           TEXT NOT NULL,                  
+  dominant_transitions TEXT,                      
+  dominant_crises TEXT,                           
+  key_regions     TEXT,                           
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -178,7 +209,8 @@ CREATE TABLE wv_charity_infrastructures (
   title           TEXT NOT NULL,
   tradition_id    TEXT,
   infra_type      TEXT NOT NULL DEFAULT 'waqf',
-
+    
+    
   period_id       TEXT,
   location_id     TEXT,
   institution_id  TEXT,
@@ -195,7 +227,8 @@ CREATE TABLE wv_civilizational_contributions (
   tradition_id    TEXT,
   domain_id       TEXT,
   contrib_type    TEXT NOT NULL DEFAULT 'intellectual',
-
+    
+    
   period_id       TEXT,
   location_id     TEXT,
   description_md  TEXT,
@@ -219,11 +252,11 @@ CREATE TABLE wv_civilizational_crises (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   crisis_type     TEXT NOT NULL DEFAULT 'moral',
-
+    
   stream_id       TEXT,
   period_range    TEXT,
   description_md  TEXT,
-  diagnostic_claims TEXT,
+  diagnostic_claims TEXT,                         
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -233,9 +266,9 @@ CREATE TABLE wv_civilizational_matrices (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   description_md  TEXT,
-  streams_json    TEXT,
-  axes_json       TEXT,
-  cells_json      TEXT,
+  streams_json    TEXT,                           
+  axes_json       TEXT,                           
+  cells_json      TEXT,                           
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -244,7 +277,7 @@ CREATE TABLE wv_claim_evidence_links (
   claim_id      TEXT NOT NULL,
   evidence_id   TEXT NOT NULL,
   link_role     TEXT NOT NULL DEFAULT 'supports',
-
+    
   note          TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (claim_id)    REFERENCES wv_claims(id),
@@ -265,14 +298,15 @@ CREATE TABLE wv_claims (
   title           TEXT NOT NULL,
   claim_text      TEXT NOT NULL,
   claim_type      TEXT NOT NULL DEFAULT 'doctrinal',
-
+    
+    
   topic_id        TEXT,
   tradition_id    TEXT,
   moral_axis_id   TEXT,
   person_id       TEXT,
   school_id       TEXT,
   certainty_level TEXT NOT NULL DEFAULT 'position',
-
+    
   status          TEXT NOT NULL DEFAULT 'active',
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -291,9 +325,9 @@ CREATE VIRTUAL TABLE wv_claims_fts USING fts5(
 CREATE TABLE wv_cluster_members (
   id            TEXT PRIMARY KEY,
   cluster_id    TEXT NOT NULL,
-  entity_type   TEXT NOT NULL,
+  entity_type   TEXT NOT NULL, 
   entity_id     TEXT NOT NULL,
-  role          TEXT,
+  role          TEXT,          
   note          TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (cluster_id) REFERENCES wv_clusters(id),
@@ -305,7 +339,7 @@ CREATE TABLE wv_clusters (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   cluster_type    TEXT NOT NULL DEFAULT 'thematic',
-
+    
   description_md  TEXT,
   tradition_id    TEXT,
   meta_json       TEXT,
@@ -318,7 +352,8 @@ CREATE TABLE wv_colonial_methods (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   method_type     TEXT NOT NULL DEFAULT 'extraction',
-
+    
+    
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -332,9 +367,9 @@ CREATE TABLE wv_colonial_projects (
   period_id       TEXT,
   region_id       TEXT,
   project_type    TEXT NOT NULL DEFAULT 'territorial',
-
-  key_institutions TEXT,
-  moral_narrative TEXT,
+    
+  key_institutions TEXT,                          
+  moral_narrative TEXT,                           
   description_md  TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -360,8 +395,8 @@ CREATE TABLE wv_comparison_cells (
   row_id          TEXT NOT NULL,
   axis_id         TEXT NOT NULL,
   cell_text       TEXT,
-  stance          TEXT,
-  evidence_ids    TEXT,
+  stance          TEXT,                           
+  evidence_ids    TEXT,                           
   tension_note    TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -375,7 +410,7 @@ CREATE TABLE wv_comparison_cells (
 CREATE TABLE wv_comparison_rows (
   id              TEXT PRIMARY KEY,
   comparison_id   TEXT NOT NULL,
-  entity_type     TEXT NOT NULL,
+  entity_type     TEXT NOT NULL,  
   entity_id       TEXT NOT NULL,
   row_label       TEXT NOT NULL,
   sort_order      INTEGER NOT NULL DEFAULT 0,
@@ -387,8 +422,8 @@ CREATE TABLE wv_comparison_templates (
   id              TEXT PRIMARY KEY,
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
-  axes_json       TEXT NOT NULL,
-  row_types       TEXT NOT NULL,
+  axes_json       TEXT NOT NULL,                  
+  row_types       TEXT NOT NULL,                  
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -398,7 +433,7 @@ CREATE TABLE wv_comparisons (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   comparison_type TEXT NOT NULL DEFAULT 'tradition',
-
+    
   description_md  TEXT,
   template_id     TEXT,
   meta_json       TEXT,
@@ -415,7 +450,7 @@ CREATE TABLE wv_contribution_evidence_links (
   contrib_id      TEXT NOT NULL,
   evidence_id     TEXT NOT NULL,
   link_role       TEXT NOT NULL DEFAULT 'supports',
-
+    
   note            TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (contrib_id)  REFERENCES wv_civilizational_contributions(id),
@@ -427,14 +462,14 @@ CREATE TABLE wv_corpus_units (
   corpus_id       TEXT NOT NULL,
   parent_id       TEXT,
   unit_type       TEXT NOT NULL DEFAULT 'chapter',
-
+    
   title           TEXT,
   unit_index      INTEGER,
   start_ref       TEXT,
   end_ref         TEXT,
   text_excerpt    TEXT,
   description_md  TEXT,
-  qr_scope_ref    TEXT,
+  qr_scope_ref    TEXT,                           
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (corpus_id) REFERENCES wv_scriptural_corpora(id),
@@ -447,7 +482,7 @@ CREATE TABLE wv_counterfeit_redemption_claims (
   claim_text      TEXT NOT NULL,
   stream_id       TEXT,
   project_type    TEXT NOT NULL DEFAULT 'revolutionary',
-
+    
   redemption_promise TEXT,
   displacement_mechanism TEXT,
   description_md  TEXT,
@@ -460,15 +495,15 @@ CREATE TABLE wv_covenant_frameworks (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   tradition_id    TEXT,
-  parties         TEXT,
+  parties         TEXT,                           
   covenant_type   TEXT NOT NULL DEFAULT 'bilateral',
-
+    
   key_sign        TEXT,
   key_obligation  TEXT,
   memory_practice TEXT,
   renewal_pattern TEXT,
   description_md  TEXT,
-  corpus_refs     TEXT,
+  corpus_refs     TEXT,                           
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
@@ -477,9 +512,9 @@ CREATE TABLE wv_covenant_frameworks (
 CREATE TABLE wv_debate_cluster_members (
   id          TEXT PRIMARY KEY,
   cluster_id  TEXT NOT NULL,
-  entity_type TEXT NOT NULL,
+  entity_type TEXT NOT NULL, 
   entity_id   TEXT NOT NULL,
-  stance      TEXT,
+  stance      TEXT,          
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (cluster_id) REFERENCES wv_debate_clusters(id)
 );
@@ -503,9 +538,9 @@ CREATE TABLE wv_deception_signatures (
   title           TEXT NOT NULL,
   tradition_id    TEXT,
   signature_type  TEXT NOT NULL DEFAULT 'doctrinal',
-
+    
   description_md  TEXT,
-  warning_signs   TEXT,
+  warning_signs   TEXT,                           
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
 );
@@ -514,7 +549,7 @@ CREATE TABLE wv_diagram_instances (
   id              TEXT PRIMARY KEY,
   spec_id         TEXT NOT NULL,
   title           TEXT NOT NULL,
-  render_data     TEXT,
+  render_data     TEXT,                           
   thumbnail_url   TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (spec_id) REFERENCES wv_diagram_specs(id)
@@ -525,9 +560,10 @@ CREATE TABLE wv_diagram_specs (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   diagram_type    TEXT NOT NULL DEFAULT 'graph',
-
-  scope_rule      TEXT,
-  selection_json  TEXT,
+    
+    
+  scope_rule      TEXT,                           
+  selection_json  TEXT,                           
   layout_rule     TEXT,
   renderer_hint   TEXT,
   description_md  TEXT,
@@ -540,9 +576,9 @@ CREATE TABLE wv_discernment_diagram_views (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   tradition_id    TEXT NOT NULL,
-  adversarial_pattern_ids TEXT,
-  moral_inversion_ids TEXT,
-  counterfeit_ids TEXT,
+  adversarial_pattern_ids TEXT,                   
+  moral_inversion_ids TEXT,                       
+  counterfeit_ids TEXT,                           
   diagram_spec_id TEXT,
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -556,10 +592,10 @@ CREATE TABLE wv_discernment_rules (
   title           TEXT NOT NULL,
   tradition_id    TEXT NOT NULL,
   rule_type       TEXT NOT NULL DEFAULT 'hermeneutic',
-
+    
   rule_text       TEXT NOT NULL,
-  scriptural_basis TEXT,
-  warning_indicators TEXT,
+  scriptural_basis TEXT,                          
+  warning_indicators TEXT,                        
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
 );
@@ -568,10 +604,10 @@ CREATE TABLE wv_distill_batches (
   id              TEXT PRIMARY KEY,
   title           TEXT NOT NULL,
   batch_type      TEXT NOT NULL DEFAULT 'manual',
-
-  source_id       TEXT,
+    
+  source_id       TEXT,                           
   status          TEXT NOT NULL DEFAULT 'pending',
-
+    
   item_count      INTEGER NOT NULL DEFAULT 0,
   approved_count  INTEGER NOT NULL DEFAULT 0,
   rejected_count  INTEGER NOT NULL DEFAULT 0,
@@ -587,14 +623,14 @@ CREATE TABLE wv_distill_items (
   id              TEXT PRIMARY KEY,
   batch_id        TEXT NOT NULL,
   item_type       TEXT NOT NULL DEFAULT 'insight',
-
+    
   source_note_id  TEXT,
   source_highlight_id TEXT,
   content_md      TEXT NOT NULL,
   status          TEXT NOT NULL DEFAULT 'pending',
-
-  approved_as_type TEXT,
-  approved_as_id   TEXT,
+    
+  approved_as_type TEXT,                          
+  approved_as_id   TEXT,                          
   core_user_ref   TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -607,8 +643,8 @@ CREATE TABLE wv_divine_human_relations (
   title           TEXT NOT NULL,
   tradition_id    TEXT,
   relation_type   TEXT NOT NULL DEFAULT 'covenantal',
-
-  key_qualities   TEXT,
+    
+  key_qualities   TEXT,                           
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
@@ -617,11 +653,12 @@ CREATE TABLE wv_divine_human_relations (
 CREATE TABLE wv_doc_links (
   id              TEXT PRIMARY KEY,
   entity_type     TEXT NOT NULL,
-
+    
+    
   entity_id       TEXT NOT NULL,
-  cm_doc_ref      TEXT NOT NULL,
+  cm_doc_ref      TEXT NOT NULL,                  
   link_role       TEXT NOT NULL DEFAULT 'related',
-
+    
   note            TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -641,12 +678,12 @@ CREATE TABLE wv_enlightenment_currents (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   stream_id       TEXT,
-  key_thinkers    TEXT,
-  key_texts       TEXT,
+  key_thinkers    TEXT,                           
+  key_texts       TEXT,                           
   period_range    TEXT,
   origin_region   TEXT,
   description_md  TEXT,
-  successor_of    TEXT,
+  successor_of    TEXT,                           
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (stream_id)    REFERENCES wv_modernity_streams(id),
@@ -656,9 +693,9 @@ CREATE TABLE wv_enlightenment_currents (
 CREATE TABLE wv_episode_quran_links (
   id              TEXT PRIMARY KEY,
   episode_id      TEXT NOT NULL,
-  qr_scope_ref    TEXT NOT NULL,
+  qr_scope_ref    TEXT NOT NULL,                  
   link_type       TEXT NOT NULL DEFAULT 'narrates',
-
+    
   note            TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (episode_id) REFERENCES wv_prophetic_episodes(id)
@@ -669,11 +706,12 @@ CREATE TABLE wv_epistemic_regimes (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   regime_type     TEXT NOT NULL DEFAULT 'rationalist',
-
-  tradition_id    TEXT,
+    
+    
+  tradition_id    TEXT,                           
   period_id       TEXT,
   description_md  TEXT,
-  key_claims      TEXT,
+  key_claims      TEXT,                           
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
 );
@@ -682,7 +720,7 @@ CREATE TABLE wv_event_locations (
   id          TEXT PRIMARY KEY,
   event_id    TEXT NOT NULL,
   location_id TEXT NOT NULL,
-  role        TEXT,
+  role        TEXT,               
   note        TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (event_id)    REFERENCES wv_events(id),
@@ -692,9 +730,9 @@ CREATE TABLE wv_event_locations (
 CREATE TABLE wv_event_participants (
   id              TEXT PRIMARY KEY,
   event_id        TEXT NOT NULL,
-  entity_type     TEXT NOT NULL,
+  entity_type     TEXT NOT NULL,  
   entity_id       TEXT NOT NULL,
-  role            TEXT,
+  role            TEXT,           
   note            TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (event_id) REFERENCES wv_events(id)
@@ -736,14 +774,15 @@ CREATE TABLE wv_evidence_items (
   id              TEXT PRIMARY KEY,
   title           TEXT,
   evidence_type   TEXT NOT NULL DEFAULT 'scriptural',
-
+    
+    
   source_id       TEXT,
   source_unit_id  TEXT,
-  locator         TEXT,
+  locator         TEXT,                           
   excerpt         TEXT,
-  qr_scope_ref    TEXT,
-  al_concept_ref  TEXT,
-  cm_doc_ref      TEXT,
+  qr_scope_ref    TEXT,                           
+  al_concept_ref  TEXT,                           
+  cm_doc_ref      TEXT,                           
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')), surah     INTEGER, ayah_from INTEGER, ayah_to   INTEGER,
   FOREIGN KEY (source_id)      REFERENCES wv_sources(id),
@@ -753,8 +792,8 @@ CREATE TABLE wv_evidence_items (
 CREATE TABLE wv_evidence_scope_links (
   id              TEXT PRIMARY KEY,
   evidence_id     TEXT NOT NULL,
-  scope_module    TEXT NOT NULL,
-  scope_ref       TEXT NOT NULL,
+  scope_module    TEXT NOT NULL, 
+  scope_ref       TEXT NOT NULL, 
   link_role       TEXT NOT NULL DEFAULT 'reference',
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (evidence_id) REFERENCES wv_evidence_items(id),
@@ -765,8 +804,8 @@ CREATE TABLE wv_exemplar_case_timelines (
   id              TEXT PRIMARY KEY,
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
-  case_ids_json   TEXT NOT NULL,
-  tradition_ids   TEXT,
+  case_ids_json   TEXT NOT NULL,                  
+  tradition_ids   TEXT,                           
   timeline_view_id TEXT,
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -780,7 +819,8 @@ CREATE TABLE wv_exemplar_cases (
   tradition_id    TEXT,
   moral_axis_id   TEXT,
   case_type       TEXT NOT NULL DEFAULT 'prophetic_episode',
-
+    
+    
   narrative_text  TEXT,
   moral_lesson    TEXT,
   qr_scope_ref    TEXT,
@@ -796,12 +836,12 @@ CREATE TABLE wv_expansion_maps (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   map_type        TEXT NOT NULL DEFAULT 'colonial',
-
+    
   tradition_id    TEXT,
   colonial_project_id TEXT,
   period_range    TEXT,
   description_md  TEXT,
-  map_features_json TEXT,
+  map_features_json TEXT,                         
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id)         REFERENCES wv_traditions(id),
   FOREIGN KEY (colonial_project_id)  REFERENCES wv_colonial_projects(id)
@@ -812,10 +852,10 @@ CREATE TABLE wv_false_transcendence_profiles (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   profile_type    TEXT NOT NULL DEFAULT 'political',
-
+    
   stream_id       TEXT,
   description_md  TEXT,
-  how_it_mimics   TEXT,
+  how_it_mimics   TEXT,                           
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (stream_id) REFERENCES wv_modernity_streams(id)
 );
@@ -823,7 +863,7 @@ CREATE TABLE wv_false_transcendence_profiles (
 CREATE TABLE wv_geo_timeline_links (
   id            TEXT PRIMARY KEY,
   location_id   TEXT NOT NULL,
-  entity_type   TEXT NOT NULL,
+  entity_type   TEXT NOT NULL, 
   entity_id     TEXT NOT NULL,
   role          TEXT,
   note          TEXT,
@@ -836,11 +876,11 @@ CREATE TABLE wv_geocultural_zones (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   zone_type       TEXT NOT NULL DEFAULT 'civilizational',
-
+    
   parent_region_id TEXT,
   period_range    TEXT,
   description_md  TEXT,
-  bounding_json   TEXT,
+  bounding_json   TEXT,                           
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (parent_region_id) REFERENCES wv_regions(id)
@@ -851,11 +891,11 @@ CREATE TABLE wv_graph_projections (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   projection_type TEXT NOT NULL DEFAULT 'thematic',
-
-  root_entity     TEXT,
-  filter_json     TEXT,
-  node_ids_json   TEXT,
-  edge_ids_json   TEXT,
+    
+  root_entity     TEXT,                           
+  filter_json     TEXT,                           
+  node_ids_json   TEXT,                           
+  edge_ids_json   TEXT,                           
   description_md  TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -866,10 +906,10 @@ CREATE TABLE wv_graph_views (
   projection_id   TEXT NOT NULL,
   title           TEXT NOT NULL,
   layout_type     TEXT NOT NULL DEFAULT 'force',
-
+    
   renderer_hint   TEXT,
   filter_json     TEXT,
-  viewport_json   TEXT,
+  viewport_json   TEXT,                           
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (projection_id) REFERENCES wv_graph_projections(id)
@@ -880,16 +920,16 @@ CREATE TABLE wv_highlights (
   source_id       TEXT,
   source_unit_id  TEXT,
   corpus_unit_id  TEXT,
-  locator         TEXT,
+  locator         TEXT,                           
   text_excerpt    TEXT NOT NULL,
   note            TEXT,
   highlight_type  TEXT NOT NULL DEFAULT 'general',
-
+    
   color           TEXT,
   moral_axis_id   TEXT,
   topic_id        TEXT,
-  core_user_ref   TEXT NOT NULL,
-  core_ws_ref     TEXT,
+  core_user_ref   TEXT NOT NULL,                  
+  core_ws_ref     TEXT,                           
   created_at      TEXT NOT NULL DEFAULT (datetime('now')), reading_session_id TEXT REFERENCES wv_reading_sessions(id),
   FOREIGN KEY (source_id)      REFERENCES wv_sources(id),
   FOREIGN KEY (source_unit_id) REFERENCES wv_source_units(id),
@@ -904,7 +944,7 @@ CREATE TABLE wv_household_models (
   tradition_id    TEXT,
   period_id       TEXT,
   authority_structure TEXT,
-  formation_methods TEXT,
+  formation_methods TEXT,                         
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
@@ -915,11 +955,12 @@ CREATE TABLE wv_human_image_profiles (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   image_type      TEXT NOT NULL DEFAULT 'covenantal',
-
+    
+    
   tradition_id    TEXT,
   stream_id       TEXT,
   description_md  TEXT,
-  key_attributes  TEXT,
+  key_attributes  TEXT,                           
   moral_implications TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id),
@@ -931,11 +972,11 @@ CREATE TABLE wv_identity_regimes (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   regime_type     TEXT NOT NULL DEFAULT 'political',
-
+    
   stream_id       TEXT,
   period_id       TEXT,
   description_md  TEXT,
-  key_mechanisms  TEXT,
+  key_mechanisms  TEXT,                           
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (stream_id) REFERENCES wv_modernity_streams(id)
 );
@@ -945,11 +986,11 @@ CREATE TABLE wv_ideology_profiles (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   ideology_type   TEXT NOT NULL DEFAULT 'political',
-
+    
   stream_id       TEXT,
-  key_claims      TEXT,
-  key_virtues     TEXT,
-  key_taboos      TEXT,
+  key_claims      TEXT,                           
+  key_virtues     TEXT,                           
+  key_taboos      TEXT,                           
   description_md  TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -960,11 +1001,11 @@ CREATE TABLE wv_image_regimes (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   regime_type     TEXT NOT NULL DEFAULT 'colonial',
-
+    
   colonial_project_id TEXT,
   orientalist_frame_id TEXT,
   description_md  TEXT,
-  key_mechanisms  TEXT,
+  key_mechanisms  TEXT,                           
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (colonial_project_id) REFERENCES wv_colonial_projects(id),
   FOREIGN KEY (orientalist_frame_id) REFERENCES wv_orientalist_frames(id)
@@ -973,9 +1014,9 @@ CREATE TABLE wv_image_regimes (
 CREATE TABLE wv_insight_decisions (
   id              TEXT PRIMARY KEY,
   suggestion_id   TEXT NOT NULL,
-  decision        TEXT NOT NULL,
-  original_json   TEXT,
-  final_json      TEXT,
+  decision        TEXT NOT NULL,                  
+  original_json   TEXT,                           
+  final_json      TEXT,                           
   decision_note   TEXT,
   core_user_ref   TEXT NOT NULL,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -985,17 +1026,17 @@ CREATE TABLE wv_insight_decisions (
 CREATE TABLE wv_insight_suggestions (
   id              TEXT PRIMARY KEY,
   batch_id        TEXT,
-  source_chunk_ref TEXT,
+  source_chunk_ref TEXT,                          
   suggestion_type TEXT NOT NULL DEFAULT 'node',
-
-  payload_json    TEXT NOT NULL,
+    
+  payload_json    TEXT NOT NULL,                  
   confidence      REAL,
   model_used      TEXT,
   status          TEXT NOT NULL DEFAULT 'suggested',
-
-  target_table    TEXT,
-  target_id       TEXT,
-  core_user_ref   TEXT,
+    
+  target_table    TEXT,                           
+  target_id       TEXT,                           
+  core_user_ref   TEXT,                           
   reviewed_at     TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1008,8 +1049,8 @@ CREATE TABLE wv_institution_profiles (
   institution_id  TEXT NOT NULL,
   moral_role      TEXT,
   civilizational_role TEXT,
-  key_functions   TEXT,
-  notable_periods TEXT,
+  key_functions   TEXT,                           
+  notable_periods TEXT,                           
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (institution_id) REFERENCES wv_institutions(id)
@@ -1021,7 +1062,8 @@ CREATE TABLE wv_institutions (
   title            TEXT NOT NULL,
   title_ar         TEXT,
   institution_type TEXT NOT NULL DEFAULT 'religious',
-
+    
+    
   tradition_id     TEXT,
   location_id      TEXT,
   period_id        TEXT,
@@ -1041,7 +1083,7 @@ CREATE TABLE wv_law_morality_links (
   law_system      TEXT NOT NULL,
   morality_domain TEXT NOT NULL,
   link_type       TEXT NOT NULL DEFAULT 'grounds',
-
+    
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
@@ -1051,7 +1093,8 @@ CREATE TABLE wv_location_role_links (
   id            TEXT PRIMARY KEY,
   location_id   TEXT NOT NULL,
   role          TEXT NOT NULL,
-
+    
+    
   tradition_id  TEXT,
   period_id     TEXT,
   institution_id TEXT,
@@ -1068,7 +1111,8 @@ CREATE TABLE wv_locations (
   title           TEXT NOT NULL,
   title_ar        TEXT,
   location_type   TEXT NOT NULL DEFAULT 'city',
-
+    
+    
   region_id       TEXT,
   latitude        REAL,
   longitude       REAL,
@@ -1084,13 +1128,13 @@ CREATE TABLE wv_map_features (
   id              TEXT PRIMARY KEY,
   map_layer_id    TEXT NOT NULL,
   feature_type    TEXT NOT NULL DEFAULT 'point',
-
+    
   title           TEXT,
   location_id     TEXT,
   latitude        REAL,
   longitude       REAL,
-  geometry_json   TEXT,
-  linked_entity   TEXT,
+  geometry_json   TEXT,                           
+  linked_entity   TEXT,                           
   period_label    TEXT,
   label           TEXT,
   meta_json       TEXT,
@@ -1104,11 +1148,13 @@ CREATE TABLE wv_map_layers (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   layer_type      TEXT NOT NULL DEFAULT 'prophetic_routes',
-
+    
+    
+    
   tradition_id    TEXT,
   period_id       TEXT,
   description_md  TEXT,
-  renderer_hint   TEXT,
+  renderer_hint   TEXT,                           
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
@@ -1119,10 +1165,10 @@ CREATE TABLE wv_media_regimes (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   regime_type     TEXT NOT NULL DEFAULT 'print',
-
+    
   period_id       TEXT,
   description_md  TEXT,
-  key_characteristics TEXT,
+  key_characteristics TEXT,                       
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -1130,13 +1176,13 @@ CREATE TABLE wv_memory_rewrites (
   id              TEXT PRIMARY KEY,
   title           TEXT NOT NULL,
   rewrite_type    TEXT NOT NULL DEFAULT 'erasure',
-
+    
   target_tradition TEXT,
   target_event_id TEXT,
-  agent           TEXT,
+  agent           TEXT,                           
   period_range    TEXT,
   description_md  TEXT,
-  evidence_refs   TEXT,
+  evidence_refs   TEXT,                           
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -1145,9 +1191,9 @@ CREATE TABLE wv_memory_traditions (
   case_id         TEXT,
   tradition_id    TEXT,
   memory_type     TEXT NOT NULL DEFAULT 'liturgical',
-
+    
   description_md  TEXT,
-  vehicle         TEXT,
+  vehicle         TEXT,                           
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (case_id)      REFERENCES wv_exemplar_cases(id),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
@@ -1158,11 +1204,12 @@ CREATE TABLE wv_modernity_streams (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   stream_type     TEXT NOT NULL DEFAULT 'secular',
-
+    
+    
   origin_period_id TEXT,
   description_md  TEXT,
-  key_values      TEXT,
-  key_tensions    TEXT,
+  key_values      TEXT,                           
+  key_tensions    TEXT,                           
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -1175,7 +1222,7 @@ CREATE TABLE wv_moral_arc_views (
   tradition_id    TEXT,
   century_from    INTEGER,
   century_to      INTEGER,
-  arc_steps_json  TEXT,
+  arc_steps_json  TEXT,                           
   description_md  TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1189,7 +1236,7 @@ CREATE TABLE wv_moral_axes (
   title           TEXT NOT NULL,
   title_ar        TEXT,
   axis_type       TEXT NOT NULL DEFAULT 'relational',
-
+    
   description_md  TEXT,
   domain_id       TEXT,
   sort_order      INTEGER NOT NULL DEFAULT 0,
@@ -1202,9 +1249,10 @@ CREATE TABLE wv_moral_case_patterns (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   pattern_type    TEXT NOT NULL DEFAULT 'sacrifice',
-
+    
+    
   description_md  TEXT,
-  traditions_using TEXT,
+  traditions_using TEXT,                          
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -1214,7 +1262,7 @@ CREATE TABLE wv_moral_civilization_maps (
   title           TEXT NOT NULL,
   tradition_id    TEXT,
   period_id       TEXT,
-  institution_types TEXT,
+  institution_types TEXT,                         
   map_layer_id    TEXT,
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1227,8 +1275,8 @@ CREATE TABLE wv_moral_inversion_patterns (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   tradition_id    TEXT,
-  inverted_virtue TEXT,
-  replacement_virtue TEXT,
+  inverted_virtue TEXT,                           
+  replacement_virtue TEXT,                        
   mechanism       TEXT,
   adversarial_pattern_id TEXT,
   description_md  TEXT,
@@ -1243,8 +1291,8 @@ CREATE TABLE wv_moral_norms (
   tradition_id    TEXT,
   title           TEXT NOT NULL,
   norm_type       TEXT NOT NULL DEFAULT 'duty',
-
-  scope           TEXT,
+    
+  scope           TEXT,                           
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (moral_axis_id) REFERENCES wv_moral_axes(id),
@@ -1256,7 +1304,8 @@ CREATE TABLE wv_movements (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   movement_type   TEXT NOT NULL DEFAULT 'revival',
-
+    
+    
   tradition_id    TEXT,
   period_id       TEXT,
   region_id       TEXT,
@@ -1271,11 +1320,11 @@ CREATE TABLE wv_narrative_scripts (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   script_type     TEXT NOT NULL DEFAULT 'consent',
-
+    
   propaganda_system_id TEXT,
   media_regime_id TEXT,
   description_md  TEXT,
-  key_moves       TEXT,
+  key_moves       TEXT,                           
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (propaganda_system_id) REFERENCES wv_propaganda_systems(id),
   FOREIGN KEY (media_regime_id)      REFERENCES wv_media_regimes(id)
@@ -1286,7 +1335,11 @@ CREATE TABLE wv_node_edges (
   from_node_id    TEXT NOT NULL,
   to_node_id      TEXT NOT NULL,
   relation_type   TEXT NOT NULL DEFAULT 'related_to',
-
+    
+    
+    
+    
+    
   note            TEXT,
   weight          REAL NOT NULL DEFAULT 1.0,
   meta_json       TEXT,
@@ -1296,11 +1349,12 @@ CREATE TABLE wv_node_edges (
 );
 
 CREATE TABLE wv_node_layout (
-  graph_id    TEXT NOT NULL,
+  graph_id    TEXT NOT NULL,          -- the island: al-rum | arjana | orientalism | yusuf
   node_id     TEXT NOT NULL,
   x           REAL NOT NULL,
   y           REAL NOT NULL,
-
+  -- Which arrangement produced these. 'force' today; a saved hand-arranged or
+  -- radial layout would be another, and both can coexist per graph.
   layout_type TEXT NOT NULL DEFAULT 'force',
   computed_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (graph_id, layout_type, node_id)
@@ -1309,9 +1363,9 @@ CREATE TABLE wv_node_layout (
 CREATE TABLE wv_node_quran_links (
   id              TEXT PRIMARY KEY,
   node_id         TEXT NOT NULL,
-  qr_scope_ref    TEXT NOT NULL,
+  qr_scope_ref    TEXT NOT NULL,                  
   link_type       TEXT NOT NULL DEFAULT 'illustrates',
-
+    
   note            TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')), surah     INTEGER, ayah_from INTEGER, ayah_to   INTEGER,
   FOREIGN KEY (node_id) REFERENCES wv_nodes(id)
@@ -1320,8 +1374,8 @@ CREATE TABLE wv_node_quran_links (
 CREATE TABLE wv_node_scope_links (
   id            TEXT PRIMARY KEY,
   node_id       TEXT NOT NULL,
-  scope_type    TEXT NOT NULL,
-  scope_ref     TEXT NOT NULL,
+  scope_type    TEXT NOT NULL, 
+  scope_ref     TEXT NOT NULL, 
   link_role     TEXT,
   note          TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1331,13 +1385,14 @@ CREATE TABLE wv_node_scope_links (
 CREATE TABLE wv_nodes (
   id              TEXT PRIMARY KEY,
   node_type       TEXT NOT NULL DEFAULT 'concept',
-
+    
+    
   title           TEXT NOT NULL,
   summary         TEXT,
   tradition_id    TEXT,
   moral_axis_id   TEXT,
-  data_json       TEXT,
-  canonical_ref   TEXT,
+  data_json       TEXT,                           
+  canonical_ref   TEXT,                           
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now')), person_ref TEXT,
@@ -1353,8 +1408,8 @@ CREATE TABLE wv_norm_sources (
   id             TEXT PRIMARY KEY,
   norm_id        TEXT NOT NULL,
   source_type    TEXT NOT NULL DEFAULT 'scripture',
-
-  source_ref     TEXT NOT NULL,
+    
+  source_ref     TEXT NOT NULL,                   
   locator        TEXT,
   excerpt        TEXT,
   note           TEXT,
@@ -1366,9 +1421,10 @@ CREATE TABLE wv_note_relations (
   id            TEXT PRIMARY KEY,
   note_id       TEXT NOT NULL,
   target_type   TEXT NOT NULL,
-
+    
+    
   target_id     TEXT NOT NULL,
-  relation_role TEXT,
+  relation_role TEXT,                             
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (note_id) REFERENCES wv_notes(id)
 );
@@ -1376,13 +1432,13 @@ CREATE TABLE wv_note_relations (
 CREATE TABLE wv_notes (
   id              TEXT PRIMARY KEY,
   note_type       TEXT NOT NULL DEFAULT 'reflection',
-
+    
   title           TEXT,
   body_md         TEXT NOT NULL,
   tradition_id    TEXT,
   topic_id        TEXT,
   moral_axis_id   TEXT,
-  core_user_ref   TEXT NOT NULL,
+  core_user_ref   TEXT NOT NULL,                  
   core_ws_ref     TEXT,
   is_pinned       INTEGER NOT NULL DEFAULT 0,
   meta_json       TEXT,
@@ -1402,7 +1458,8 @@ CREATE TABLE wv_organizations (
   slug             TEXT NOT NULL UNIQUE,
   title            TEXT NOT NULL,
   org_type         TEXT NOT NULL DEFAULT 'religious_body',
-
+    
+    
   tradition_id     TEXT,
   location_id      TEXT,
   period_id        TEXT,
@@ -1417,7 +1474,7 @@ CREATE TABLE wv_orientalism_image_chains (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   orientalist_frame_id TEXT,
-  chain_steps_json TEXT,
+  chain_steps_json TEXT,                          
   diagram_spec_id TEXT,
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1431,7 +1488,7 @@ CREATE TABLE wv_orientalist_frames (
   target_tradition TEXT,
   target_region    TEXT,
   period_range    TEXT,
-  key_stereotypes TEXT,
+  key_stereotypes TEXT,                           
   description_md  TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -1440,13 +1497,14 @@ CREATE TABLE wv_orientalist_frames (
 CREATE TABLE wv_output_artifacts (
   id              TEXT PRIMARY KEY,
   artifact_type   TEXT NOT NULL DEFAULT 'cluster_brief',
-
+    
+    
   title           TEXT NOT NULL,
-  source_spec     TEXT,
-  cm_doc_ref      TEXT,
+  source_spec     TEXT,                           
+  cm_doc_ref      TEXT,                           
   content_json    TEXT,
-  status          TEXT NOT NULL DEFAULT 'draft',
-  core_user_ref   TEXT,
+  status          TEXT NOT NULL DEFAULT 'draft',  
+  core_user_ref   TEXT,                           
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -1458,7 +1516,8 @@ CREATE TABLE wv_people (
   name            TEXT NOT NULL,
   name_ar         TEXT,
   person_type     TEXT NOT NULL DEFAULT 'scholar',
-
+    
+    
   tradition_id    TEXT,
   era             TEXT,
   birth_year      INTEGER,
@@ -1469,7 +1528,7 @@ CREATE TABLE wv_people (
   affiliation     TEXT,
   bio_md          TEXT,
   visibility      TEXT NOT NULL DEFAULT 'workspace',
-
+    
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now')), person_ref TEXT,
@@ -1481,7 +1540,7 @@ CREATE TABLE wv_people_aliases (
   person_id  TEXT NOT NULL,
   alias      TEXT NOT NULL,
   alias_type TEXT NOT NULL DEFAULT 'transliteration',
-
+    
   language   TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (person_id) REFERENCES wv_people(id)
@@ -1496,7 +1555,8 @@ CREATE TABLE wv_people_relations (
   from_person_id TEXT NOT NULL,
   to_person_id   TEXT NOT NULL,
   relation_type  TEXT NOT NULL DEFAULT 'influenced',
-
+    
+    
   note          TEXT,
   source_ref    TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1509,7 +1569,7 @@ CREATE TABLE wv_periods (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   period_type     TEXT NOT NULL DEFAULT 'era',
-
+    
   start_year      INTEGER,
   end_year        INTEGER,
   is_approximate  INTEGER NOT NULL DEFAULT 0,
@@ -1525,7 +1585,7 @@ CREATE TABLE wv_practices (
   title           TEXT NOT NULL,
   title_ar        TEXT,
   practice_type   TEXT NOT NULL DEFAULT 'ritual',
-
+    
   tradition_id    TEXT,
   moral_axis_id   TEXT,
   period_id       TEXT,
@@ -1542,7 +1602,7 @@ CREATE TABLE wv_propaganda_flow_maps (
   title           TEXT NOT NULL,
   propaganda_system_id TEXT,
   media_regime_id TEXT,
-  flow_steps_json TEXT,
+  flow_steps_json TEXT,                           
   diagram_spec_id TEXT,
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1555,7 +1615,7 @@ CREATE TABLE wv_propaganda_systems (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   system_type     TEXT NOT NULL DEFAULT 'state',
-
+    
   period_id       TEXT,
   region_id       TEXT,
   description_md  TEXT,
@@ -1567,7 +1627,7 @@ CREATE TABLE wv_prophetic_episode_links (
   id              TEXT PRIMARY KEY,
   episode_id      TEXT NOT NULL,
   target_type     TEXT NOT NULL,
-
+    
   target_id       TEXT NOT NULL,
   link_role       TEXT,
   note            TEXT,
@@ -1581,13 +1641,14 @@ CREATE TABLE wv_prophetic_episodes (
   title           TEXT NOT NULL,
   title_ar        TEXT,
   tradition_id    TEXT,
-  prophet_id      TEXT,
+  prophet_id      TEXT,                           
   moral_axis_id   TEXT,
   episode_type    TEXT NOT NULL DEFAULT 'testing',
-
+    
+    
   narrative_text  TEXT,
   moral_lesson    TEXT,
-  qr_scope_ref    TEXT,
+  qr_scope_ref    TEXT,                           
   corpus_unit_id  TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1607,8 +1668,8 @@ CREATE TABLE wv_prophetic_exemplars (
   person_id       TEXT NOT NULL,
   tradition_id    TEXT,
   prophetic_model_id TEXT,
-  virtues_embodied TEXT,
-  key_episodes    TEXT,
+  virtues_embodied TEXT,                          
+  key_episodes    TEXT,                           
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (person_id)           REFERENCES wv_people(id),
@@ -1622,8 +1683,9 @@ CREATE TABLE wv_prophetic_models (
   title           TEXT NOT NULL,
   tradition_id    TEXT,
   model_role      TEXT NOT NULL DEFAULT 'messenger',
-
-  key_attributes  TEXT,
+    
+    
+  key_attributes  TEXT,                           
   description_md  TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1638,7 +1700,7 @@ CREATE TABLE wv_psychology_schools (
   period_range    TEXT,
   origin_region   TEXT,
   human_image_id  TEXT,
-  key_concepts    TEXT,
+  key_concepts    TEXT,                           
   civilizational_role TEXT,
   description_md  TEXT,
   meta_json       TEXT,
@@ -1650,11 +1712,11 @@ CREATE TABLE wv_questions (
   id              TEXT PRIMARY KEY,
   question_text   TEXT NOT NULL,
   question_type   TEXT NOT NULL DEFAULT 'open',
-
+    
   topic_id        TEXT,
   tradition_id    TEXT,
   moral_axis_id   TEXT,
-  status          TEXT NOT NULL DEFAULT 'open',
+  status          TEXT NOT NULL DEFAULT 'open',   
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (topic_id)     REFERENCES wv_topics(id),
@@ -1688,10 +1750,10 @@ CREATE TABLE wv_regions (
   slug           TEXT NOT NULL UNIQUE,
   title          TEXT NOT NULL,
   region_type    TEXT NOT NULL DEFAULT 'macro',
-
+    
   parent_id      TEXT,
   description_md TEXT,
-  bounding_box   TEXT,
+  bounding_box   TEXT,                            
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (parent_id) REFERENCES wv_regions(id)
 );
@@ -1701,7 +1763,7 @@ CREATE TABLE wv_renderer_presets (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   renderer_type   TEXT NOT NULL DEFAULT 'graph',
-
+    
   config_json     TEXT NOT NULL,
   description     TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -1711,7 +1773,7 @@ CREATE TABLE wv_replacement_bedrock_views (
   id              TEXT PRIMARY KEY,
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
-  abrahamic_foundation TEXT NOT NULL,
+  abrahamic_foundation TEXT NOT NULL,             
   stream_id       TEXT,
   replacement_mechanism TEXT,
   diagram_spec_id TEXT,
@@ -1727,9 +1789,10 @@ CREATE TABLE wv_revelation_models (
   title           TEXT NOT NULL,
   tradition_id    TEXT,
   revelation_type TEXT NOT NULL DEFAULT 'prophetic',
-
-  medium          TEXT,
-  continuity      TEXT,
+    
+    
+  medium          TEXT,                           
+  continuity      TEXT,                           
   description_md  TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1740,7 +1803,7 @@ CREATE TABLE wv_route_features (
   id              TEXT PRIMARY KEY,
   route_layer_id  TEXT NOT NULL,
   feature_type    TEXT NOT NULL DEFAULT 'waypoint',
-
+    
   title           TEXT,
   location_id     TEXT,
   latitude        REAL,
@@ -1757,7 +1820,7 @@ CREATE TABLE wv_route_layers (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   route_category  TEXT NOT NULL DEFAULT 'trade',
-
+    
   period_range    TEXT,
   tradition_id    TEXT,
   description_md  TEXT,
@@ -1770,10 +1833,11 @@ CREATE TABLE wv_route_segments (
   map_layer_id    TEXT,
   title           TEXT,
   route_type      TEXT NOT NULL DEFAULT 'pilgrimage',
-
+    
+    
   from_location_id TEXT,
   to_location_id  TEXT,
-  waypoints_json  TEXT,
+  waypoints_json  TEXT,                           
   period_label    TEXT,
   tradition_id    TEXT,
   description_md  TEXT,
@@ -1790,7 +1854,8 @@ CREATE TABLE wv_sacrifice_frameworks (
   title           TEXT NOT NULL,
   tradition_id    TEXT,
   sacrifice_type  TEXT NOT NULL DEFAULT 'ritual',
-
+    
+    
   key_example     TEXT,
   theological_role TEXT,
   description_md  TEXT,
@@ -1805,7 +1870,8 @@ CREATE TABLE wv_salvation_redemption_models (
   title           TEXT NOT NULL,
   tradition_id    TEXT,
   model_type      TEXT NOT NULL DEFAULT 'moral',
-
+    
+    
   sin_diagnosis   TEXT,
   remedy          TEXT,
   final_hope      TEXT,
@@ -1821,7 +1887,7 @@ CREATE TABLE wv_schools (
   title          TEXT NOT NULL,
   title_ar       TEXT,
   school_type    TEXT NOT NULL DEFAULT 'theological',
-
+    
   tradition_id   TEXT,
   branch_id      TEXT,
   founded_year   INTEGER,
@@ -1840,9 +1906,9 @@ CREATE TABLE wv_scriptural_corpora (
   title_ar        TEXT,
   tradition_id    TEXT,
   corpus_type     TEXT NOT NULL DEFAULT 'scripture',
-
+    
   language        TEXT,
-  canon_status    TEXT,
+  canon_status    TEXT,                           
   date_range      TEXT,
   description_md  TEXT,
   meta_json       TEXT,
@@ -1855,9 +1921,10 @@ CREATE TABLE wv_secular_moralities (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   moral_type      TEXT NOT NULL DEFAULT 'utilitarian',
-
+    
+    
   stream_id       TEXT,
-  key_values      TEXT,
+  key_values      TEXT,                           
   legitimacy_claim TEXT,
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1869,7 +1936,8 @@ CREATE TABLE wv_social_patterns (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   pattern_type    TEXT NOT NULL DEFAULT 'family',
-
+    
+    
   tradition_id    TEXT,
   period_id       TEXT,
   description_md  TEXT,
@@ -1889,7 +1957,7 @@ CREATE TABLE wv_source_chunks (
   token_count     INTEGER,
   text_content    TEXT NOT NULL,
   chunk_kind      TEXT,
-
+    
   is_embedded     INTEGER NOT NULL DEFAULT 0,
   qdrant_id       TEXT,
   meta_json       TEXT,
@@ -1909,7 +1977,7 @@ CREATE TABLE wv_source_people (
   source_id   TEXT NOT NULL,
   person_id   TEXT NOT NULL,
   role        TEXT NOT NULL DEFAULT 'author',
-
+    
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (source_id) REFERENCES wv_sources(id),
   FOREIGN KEY (person_id) REFERENCES wv_people(id),
@@ -1938,7 +2006,7 @@ CREATE TABLE wv_source_units (
   source_id       TEXT NOT NULL,
   parent_id       TEXT,
   unit_type       TEXT NOT NULL DEFAULT 'chapter',
-
+    
   title           TEXT,
   unit_index      INTEGER,
   page_start      INTEGER,
@@ -1972,9 +2040,10 @@ CREATE TABLE wv_sources (
   title           TEXT NOT NULL,
   title_ar        TEXT,
   source_type     TEXT NOT NULL DEFAULT 'book',
-
+    
+    
   source_domain   TEXT NOT NULL DEFAULT 'general',
-
+    
   tradition_id    TEXT,
   language        TEXT,
   published_year  INTEGER,
@@ -2000,9 +2069,9 @@ CREATE TABLE wv_spiritual_agents (
   title_ar        TEXT,
   tradition_id    TEXT NOT NULL,
   agent_type      TEXT NOT NULL DEFAULT 'angelic',
-
+    
   description_md  TEXT,
-  scriptural_basis TEXT,
+  scriptural_basis TEXT,                          
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
 );
@@ -2013,7 +2082,7 @@ CREATE TABLE wv_storyline_specs (
   title           TEXT NOT NULL,
   tradition_id    TEXT,
   topic_id        TEXT,
-  steps_json      TEXT NOT NULL,
+  steps_json      TEXT NOT NULL,                  
   description_md  TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -2026,7 +2095,8 @@ CREATE TABLE wv_temptation_modes (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   mode_type       TEXT NOT NULL DEFAULT 'appetitive',
-
+    
+    
   tradition_id    TEXT,
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -2034,10 +2104,12 @@ CREATE TABLE wv_temptation_modes (
 );
 
 CREATE TABLE wv_term (
-  id             TEXT PRIMARY KEY,
-
+  id             TEXT PRIMARY KEY,          -- WT:{domain_slug|'-'}:{term_key}
+  -- The field this term belongs to, as a wv_domains.slug. NULL is meaningful
+  -- and not a gap: structural vocabulary — what a node is, what an edge means —
+  -- belongs to no field, and forcing it into one would invent a claim.
   domain_slug    TEXT,
-
+  -- concept | node_type | relation_type | method | figure | trope | school
   category_key   TEXT NOT NULL,
   term_key       TEXT NOT NULL,
   name_en        TEXT NOT NULL,
@@ -2045,11 +2117,12 @@ CREATE TABLE wv_term (
   name_ur        TEXT,
   short_en       TEXT,
   definition_en  TEXT,
-
+  -- The hierarchy. A term under a term: bare life under biopower, ẓāhirī under
+  -- fiqh. Self-referential so the depth is not fixed by the schema.
   parent_term_id TEXT REFERENCES wv_term(id),
-
+  -- Whose term it is, when it belongs to one worldview rather than to a field.
   tradition_id   TEXT,
-
+  -- The CN: pivot, when this term IS something worldviews can be compared on.
   concept_ref    TEXT,
   badge_color    TEXT,
   icon           TEXT,
@@ -2064,11 +2137,11 @@ CREATE TABLE wv_term (
 
 CREATE TABLE wv_term_links (
   id              TEXT PRIMARY KEY,
-  entity_type     TEXT NOT NULL,
+  entity_type     TEXT NOT NULL,  
   entity_id       TEXT NOT NULL,
-  al_concept_ref  TEXT NOT NULL,
+  al_concept_ref  TEXT NOT NULL,  
   link_type       TEXT NOT NULL DEFAULT 'key_term',
-
+    
   note            TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -2079,7 +2152,7 @@ CREATE TABLE wv_thinker_period_links (
   century_profile_id  TEXT,
   period_id           TEXT,
   transition_id       TEXT,
-  role                TEXT,
+  role                TEXT,  
   note                TEXT,
   created_at          TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (person_id)          REFERENCES wv_people(id),
@@ -2091,7 +2164,8 @@ CREATE TABLE wv_timeline_events (
   id              TEXT PRIMARY KEY,
   title           TEXT NOT NULL,
   event_type      TEXT NOT NULL DEFAULT 'historical',
-
+    
+    
   year_exact      INTEGER,
   year_start      INTEGER,
   year_end        INTEGER,
@@ -2100,7 +2174,7 @@ CREATE TABLE wv_timeline_events (
   location_id     TEXT,
   tradition_id    TEXT,
   person_id       TEXT,
-  wv_event_id     TEXT,
+  wv_event_id     TEXT,                           
   description_md  TEXT,
   significance    TEXT,
   meta_json       TEXT,
@@ -2116,13 +2190,14 @@ CREATE TABLE wv_timeline_views (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   timeline_theme  TEXT NOT NULL DEFAULT 'general',
-
+    
+    
   tradition_id    TEXT,
   century_from    INTEGER,
   century_to      INTEGER,
-  filter_json     TEXT,
-  event_ids_json  TEXT,
-  renderer_hint   TEXT,
+  filter_json     TEXT,                           
+  event_ids_json  TEXT,                           
+  renderer_hint   TEXT,                           
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
@@ -2134,7 +2209,9 @@ CREATE TABLE wv_topics (
   title           TEXT NOT NULL,
   title_ar        TEXT,
   topic_domain    TEXT NOT NULL DEFAULT 'theology',
-
+    
+    
+    
   parent_id       TEXT,
   tradition_id    TEXT,
   moral_axis_id   TEXT,
@@ -2157,10 +2234,10 @@ CREATE TABLE wv_tradition_branches (
   title_ar       TEXT,
   tradition_id   TEXT NOT NULL,
   branch_type    TEXT NOT NULL DEFAULT 'doctrinal',
-
+    
   parent_id      TEXT,
   description_md TEXT,
-  period_range   TEXT,
+  period_range   TEXT,                            
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id),
@@ -2173,13 +2250,13 @@ CREATE TABLE wv_traditions (
   title           TEXT NOT NULL,
   title_ar        TEXT,
   tradition_type  TEXT NOT NULL DEFAULT 'religion',
-
+    
   domain_id       TEXT,
-  parent_id       TEXT,
+  parent_id       TEXT,                           
   founded_period  TEXT,
   geographic_origin TEXT,
-  scripture_refs  TEXT,
-  core_beliefs    TEXT,
+  scripture_refs  TEXT,                           
+  core_beliefs    TEXT,                           
   description_md  TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -2197,11 +2274,11 @@ CREATE TABLE wv_transition_sequences (
   slug            TEXT NOT NULL UNIQUE,
   title           TEXT NOT NULL,
   description_md  TEXT,
-  from_regime     TEXT,
-  to_regime       TEXT,
+  from_regime     TEXT,                           
+  to_regime       TEXT,                           
   century_from    INTEGER,
   century_to      INTEGER,
-  steps_json      TEXT,
+  steps_json      TEXT,                           
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -2259,11 +2336,11 @@ CREATE TABLE wv_unit_blocks (
 CREATE TABLE wv_value_position_source (
   id             TEXT PRIMARY KEY,
   position_id    TEXT NOT NULL,
-  source_kind    TEXT NOT NULL,
-  source_id      TEXT,
-  source_unit_id TEXT,
-  locator        TEXT,
-  qr_scope_ref   TEXT,
+  source_kind    TEXT NOT NULL,        -- 'quran' | 'book' | 'chunk' | 'external'
+  source_id      TEXT,                 -- wv_sources.id, when it is one of ours
+  source_unit_id TEXT,                 -- wv_source_units.id
+  locator        TEXT,                 -- 'p.15 / Fig 1.1' — the form already in use
+  qr_scope_ref   TEXT,                 -- '40:1-3'
   excerpt        TEXT,
   note_md        TEXT,
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
@@ -2281,8 +2358,8 @@ CREATE TABLE wv_value_positions (
   position_title  TEXT NOT NULL,
   position_text   TEXT NOT NULL,
   position_type   TEXT NOT NULL DEFAULT 'normative',
-
-  evidence_refs   TEXT,
+    
+  evidence_refs   TEXT,                           
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')), concept_ref TEXT, qr_scope_ref TEXT, surah INTEGER, ayah_from INTEGER, ayah_to INTEGER, status TEXT NOT NULL DEFAULT 'live',
   FOREIGN KEY (moral_axis_id) REFERENCES wv_moral_axes(id),
@@ -2312,11 +2389,13 @@ CREATE TABLE wv_virtue_profiles (
   tradition_id    TEXT,
   moral_axis_id   TEXT,
   description_md  TEXT,
-  scripture_refs  TEXT,
+  scripture_refs  TEXT,                           
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id),
   FOREIGN KEY (moral_axis_id) REFERENCES wv_moral_axes(id)
 );
+
+-- ── Views (6) ─────────────────────────────────────────────────────
 
 CREATE VIEW core_person_violations AS
   SELECT 'id_shape' AS kind, id AS row_id, id AS wrote FROM core_person
@@ -2325,7 +2404,7 @@ CREATE VIEW core_person_violations AS
   SELECT 'key_mismatch', id, person_key FROM core_person
    WHERE id <> 'PN:' || person_key
   UNION ALL
-
+  -- Died before born. Cheap to check and the kind of thing a bulk import does.
   SELECT 'dates', id, CAST(birth_year AS TEXT) || '–' || CAST(death_year AS TEXT)
     FROM core_person
    WHERE birth_year IS NOT NULL AND death_year IS NOT NULL AND death_year < birth_year;
@@ -2357,6 +2436,8 @@ CREATE VIEW wv_unit_content AS SELECT * FROM wv_unit_attachments WHERE attachmen
 CREATE VIEW wv_unit_documents AS SELECT * FROM wv_unit_attachments WHERE attachment_type = 'document' AND status = 'active' ORDER BY source_unit_id, order_index;
 
 CREATE VIEW wv_unit_episodes AS SELECT * FROM wv_unit_attachments WHERE attachment_type = 'episode' AND status = 'active' ORDER BY source_unit_id, order_index;
+
+-- ── Indexes (177) ───────────────────────────────────────────────────
 
 CREATE INDEX idx_core_concept_domain ON core_concept (domain);
 

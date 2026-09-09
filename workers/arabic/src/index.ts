@@ -14,7 +14,7 @@ import { vocabularyRoutes } from './routes/vocabulary';
 import { lessonRoutes } from './routes/lessons';
 import { grammarRoutes } from './routes/grammar';
 import { exerciseRoutes } from './routes/exercises';
-import { srsRoutes } from './routes/srs';
+import { dailyRoutes } from './routes/daily';
 
 const router = new Router<ArabicEnv>();
 
@@ -36,7 +36,7 @@ lessonRoutes(router);
 vocabularyRoutes(router);
 grammarRoutes(router);
 exerciseRoutes(router);
-srsRoutes(router);
+dailyRoutes(router);
 
 export default {
   fetch: (request: Request, env: ArabicEnv) => router.handle(request, env),

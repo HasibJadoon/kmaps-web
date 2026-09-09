@@ -73,7 +73,10 @@ export class HubTableComponent implements OnInit {
     if (mode.startsWith('wv-')) return `/wv/${mode.substring(3)}s?${p}`;
     if (mode === 'ar-grammar')   return `/ar/grammar/concepts?${p}`;
     if (mode === 'ar-balagha')   return `/ar/balagha?${p}`;
-    if (mode === 'ar-srs')       return `/ar/srs?${p}`;
+    // SRS lives in km_core alone — there is one scheduler across every module,
+    // and the module is a column on the card, not a database of its own.
+    if (mode === 'core-srs-ar')  return `/core/srs/all?module=AR&${p}`;
+    if (mode === 'core-srs-qr')  return `/core/srs/all?module=QR&${p}`;
     if (mode === 'ar-vocab')     return `/ar/roots?${p}`;
     if (mode.startsWith('ar-')) return `/ar/${mode.substring(3)}s?${p}`;
     if (mode === 'workspace') return `/workspaces?limit=50`;
