@@ -14,10 +14,14 @@ export function textRoutes(router: Router<ArabicEnv>) {
   /// the one stored on the work — computed from the text and recorded with
   /// its basis, never decided here. Public: the shelf is the same for everyone.
   router.get('/ar/text/audiobooks', async (_req, env) => {
-    const rows = await query<Record<string, unknown>>(
-      env.DB_AR,
+    // Every work that has both a text and a recording of it. The shelf it sits
+    // on is its category (Songs, Short Stories, Readers, Books …) and its level
+    // is stored on the row — the app groups by what it is handed and decides
+    // nothing about difficulty or kind.
+    const rows = await query<Record<string, unknown>>(env.DB_AR,
       `SELECT r.id, r.slug, r.title_ar AS titleAr, r.title_en AS titleEn, r.level, r.genre_ref AS genreRef,
               r.author, json_extract(r.meta_json, '$.shape') AS shape,
+              r.category_ref AS shelfId, c.name_ar AS shelfAr, c.name_en AS shelfEn, c.sort_order AS shelfOrder,
               COUNT(DISTINCT a.id)                         AS audios,
               SUM(a.aligned)                               AS aligned,
               ROUND(SUM(a.duration_sec) / 3600.0, 2)       AS hours,
@@ -27,13 +31,33 @@ export function textRoutes(router: Router<ArabicEnv>) {
               (SELECT COALESCE(json_extract(r.meta_json, '$.open_at'), MIN(seq)) FROM ar_text_unit t WHERE t.acq_ref_id = r.id) AS firstSeq
          FROM ar_acquisition_ref r
          JOIN ar_acq_audio a ON a.acq_ref_id = r.id AND a.status = 'live'
+         LEFT JOIN ar_acq_category c ON c.id = r.category_ref
         WHERE r.status = 'live' AND (r.platform IS NULL OR r.platform <> 'youtube')
           AND EXISTS (SELECT 1 FROM ar_text_unit t WHERE t.acq_ref_id = r.id AND t.status = 'live')
         GROUP BY r.id
         ORDER BY CASE r.level WHEN 'A1' THEN 1 WHEN 'A2' THEN 2 WHEN 'B1' THEN 3 WHEN 'B2' THEN 4 WHEN 'C1' THEN 5 ELSE 9 END,
-                 hours DESC`,
-    );
-    return ok({ books: rows });
+                 hours DESC`);
+    // Shelves in the order a learner climbs them: by the easiest level on the
+    // shelf, then by the category's own order.
+    const levelRank = (l: unknown) => ({ A1: 1, A2: 2, B1: 3, B2: 4, C1: 5 } as Record<string, number>)[String(l)] ?? 9;
+    const byShelf = new Map<string, Record<string, unknown>[]>();
+    for (const r of rows) {
+      const k = String(r.shelfId ?? '—');
+      if (!byShelf.has(k)) byShelf.set(k, []);
+      byShelf.get(k)!.push(r);
+    }
+    const shelves = [...byShelf.entries()].map(([id, books]) => {
+      const levels = [...new Set(books.map(b => String(b.level ?? '')).filter(Boolean))].sort((x, y) => levelRank(x) - levelRank(y));
+      return {
+        id, nameAr: books[0].shelfAr ?? 'متفرقات', nameEn: books[0].shelfEn ?? 'Other',
+        order: Number(books[0].shelfOrder ?? 999),
+        count: books.length, hours: Math.round(books.reduce((s, b) => s + Number(b.hours ?? 0), 0) * 10) / 10,
+        synced: books.filter(b => Number(b.aligned) === Number(b.audios)).length,
+        levels, levelFrom: levels[0] ?? null, levelTo: levels[levels.length - 1] ?? null, books,
+      };
+    }).sort((x, y) => levelRank(x.levelFrom) - levelRank(y.levelFrom) || x.order - y.order);
+    return ok({ books: rows, shelves });
+  });
   });
 
 
