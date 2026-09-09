@@ -285,9 +285,13 @@ export function textRoutes(router: Router<ArabicEnv>) {
         const all = p.pageAudioId ? (byAudio.get(String(p.pageAudioId)) ?? []) : [];
         const own = all.some((s) => s.unit) ? all.filter((s) => !s.unit || s.unit === p.id) : all;
         const pageSegments = own.map(({ unit: _u, ...seg }) => seg);
+        // A recording synced to other pages but with no line on this one (the
+        // Nights' dawn refrain, a preface the reader skips) is not this page's
+        // recording: offering it would replay the whole episode from the top.
+        const orphan = all.length > 0 && own.length === 0;
         return {
           ...rest,
-          pagePlayUrl: key && !key.startsWith('youtube:') ? `/api/ar/audio/${encodeURI(key)}` : null,
+          pagePlayUrl: key && !orphan && !key.startsWith('youtube:') ? `/api/ar/audio/${encodeURI(key)}` : null,
           pageVideo: video,
           pageAudioStart: pageSegments.length ? Math.max(0, pageSegments[0].start - 0.3) : 0,
           pageSegments,
