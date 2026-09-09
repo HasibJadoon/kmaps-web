@@ -58,7 +58,6 @@ export function textRoutes(router: Router<ArabicEnv>) {
     }).sort((x, y) => levelRank(x.levelFrom) - levelRank(y.levelFrom) || x.order - y.order);
     return ok({ books: rows, shelves });
   });
-  });
 
 
   /// What can be read right now. Only works that actually have pages — a
