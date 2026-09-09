@@ -58,14 +58,20 @@ export function tafsirAudioRoutes(router: Router<QuranEnv>) {
       `SELECT p.id, p.seq, NULL AS part_no, p.surah_no AS page_no, p.title_ar, p.text_ar, p.word_count, p.kind, p.ayah_group_key AS ayahGroupKey,
               a.id AS pageAudioId, a.object_key AS pageAudioKey, a.title_ar AS pageAudioTitle, a.speaker AS pageAudioBy, a.duration_sec AS pageAudioSec
          FROM qr_tafsir_read_page p
-         LEFT JOIN qr_tafsir_audio a ON a.source_slug = p.source_slug AND a.status = 'live'
-              AND EXISTS (SELECT 1 FROM json_each(a.meta_json, '$.pages') je WHERE je.value = p.id)
+         LEFT JOIN qr_tafsir_audio a ON a.id = (
+              SELECT a2.id FROM qr_tafsir_audio a2, json_each(a2.meta_json, '$.pages') je
+               WHERE a2.source_slug = p.source_slug AND a2.status = 'live' AND je.value = p.id
+               ORDER BY a2.seq LIMIT 1)
         WHERE p.source_slug = ? AND p.status = 'live' AND p.seq >= ?
-        GROUP BY p.id ORDER BY p.seq LIMIT ?`, [slug, from, limit]);
-    const ids = pages.map((p) => String(p.id));
-    const segs = ids.length ? await query<{ page_id: string; seq: number; start_sec: number; end_sec: number; text_ar: string; words: string | null }>(env.DB_QR,
-      `SELECT page_id, seq, start_sec, end_sec, text_ar, json_extract(meta_json, '$.w') AS words
-         FROM qr_tafsir_audio_segment WHERE page_id IN (${ids.map(() => '?').join(',')}) ORDER BY page_id, seq`, ids) : [];
+        ORDER BY p.seq LIMIT ?`, [slug, from, limit]);
+    // Only the lines of the recording this page plays: a surah read twice has
+    // two sets of lines on the same page, and the other reading's would show
+    // every line twice with the wrong times.
+    const pairs = pages.filter((p) => p.pageAudioId).map((p) => [String(p.id), String(p.pageAudioId)] as const);
+    const segs = pairs.length ? await query<{ page_id: string; audio_id: string; seq: number; start_sec: number; end_sec: number; text_ar: string; words: string | null }>(env.DB_QR,
+      `SELECT page_id, audio_id, seq, start_sec, end_sec, text_ar, json_extract(meta_json, '$.w') AS words
+         FROM qr_tafsir_audio_segment WHERE (${pairs.map(() => '(page_id = ? AND audio_id = ?)').join(' OR ')}) ORDER BY page_id, seq`,
+      pairs.flatMap((x) => [x[0], x[1]])) : [];
     const byPage = new Map<string, { seq: number; start: number; end: number; text: string; speaker: null; anchored: boolean; words: number[][] | null }[]>();
     for (const s of segs) {
       let words: number[][] | null = null;
