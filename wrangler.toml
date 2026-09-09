@@ -53,13 +53,6 @@ database_name = "km_content"
 database_id = "c59b9640-6e68-4068-8034-33a2fd66cd00"
 migrations_dir = "database/migrations/km-content"
 
-# PL — km_planner  (pl_* tables — operational study planner)
-[[d1_databases]]
-binding = "DB_PL"
-database_name = "km_planner"
-database_id = "6a4bd15a-5471-4f87-8b33-902262b9a2f8"
-migrations_dir = "database/migrations/km-planner"
-
 # CORE — km_core  (core_* tables — identity, workspaces, policy substrate)
 [[d1_databases]]
 binding = "DB_CORE"
