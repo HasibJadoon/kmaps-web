@@ -20,7 +20,8 @@ export function textRoutes(router: Router<ArabicEnv>) {
               r.author, json_extract(r.meta_json, '$.shape') AS shape,
               COUNT(DISTINCT a.id)                         AS audios,
               SUM(a.aligned)                               AS aligned,
-              ROUND(SUM(a.duration_sec) / 3600.0, 1)       AS hours,
+              ROUND(SUM(a.duration_sec) / 3600.0, 2)       AS hours,
+              CAST(ROUND(SUM(a.duration_sec) / 60.0) AS INTEGER) AS minutes,
               (SELECT COUNT(*) FROM ar_text_unit t WHERE t.acq_ref_id = r.id AND t.status = 'live') AS units,
               (SELECT SUM(word_count) FROM ar_text_unit t WHERE t.acq_ref_id = r.id AND t.status = 'live') AS words,
               (SELECT COALESCE(json_extract(r.meta_json, '$.open_at'), MIN(seq)) FROM ar_text_unit t WHERE t.acq_ref_id = r.id) AS firstSeq
