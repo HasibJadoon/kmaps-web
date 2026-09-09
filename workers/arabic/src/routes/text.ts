@@ -9,6 +9,32 @@ import type { ArabicEnv } from '../env';
 /// A page here is one `ar_text_unit` — Shamela's own pagination, kept rather
 /// than re-chunked, because the printed page is what a citation refers to.
 export function textRoutes(router: Router<ArabicEnv>) {
+  /// Audio books: every work that has both a text and a recording, with how
+  /// much of the recording is synced to the text word by word. The level is
+  /// the one stored on the work — computed from the text and recorded with
+  /// its basis, never decided here. Public: the shelf is the same for everyone.
+  router.get('/ar/text/audiobooks', async (_req, env) => {
+    const rows = await query<Record<string, unknown>>(
+      env.DB_AR,
+      `SELECT r.id, r.slug, r.title_ar AS titleAr, r.title_en AS titleEn, r.level, r.genre_ref AS genreRef,
+              r.author, json_extract(r.meta_json, '$.shape') AS shape,
+              COUNT(DISTINCT a.id)                         AS audios,
+              SUM(a.aligned)                               AS aligned,
+              ROUND(SUM(a.duration_sec) / 3600.0, 1)       AS hours,
+              (SELECT COUNT(*) FROM ar_text_unit t WHERE t.acq_ref_id = r.id AND t.status = 'live') AS units,
+              (SELECT SUM(word_count) FROM ar_text_unit t WHERE t.acq_ref_id = r.id AND t.status = 'live') AS words,
+              (SELECT COALESCE(json_extract(r.meta_json, '$.open_at'), MIN(seq)) FROM ar_text_unit t WHERE t.acq_ref_id = r.id) AS firstSeq
+         FROM ar_acquisition_ref r
+         JOIN ar_acq_audio a ON a.acq_ref_id = r.id AND a.status = 'live'
+        WHERE r.status = 'live' AND (r.platform IS NULL OR r.platform <> 'youtube')
+          AND EXISTS (SELECT 1 FROM ar_text_unit t WHERE t.acq_ref_id = r.id AND t.status = 'live')
+        GROUP BY r.id
+        ORDER BY CASE r.level WHEN 'A1' THEN 1 WHEN 'A2' THEN 2 WHEN 'B1' THEN 3 WHEN 'B2' THEN 4 WHEN 'C1' THEN 5 ELSE 9 END,
+                 hours DESC`,
+    );
+    return ok({ books: rows });
+  });
+
 
   /// What can be read right now. Only works that actually have pages — a
   /// catalogue entry with no text is not a book you can open, and listing it
