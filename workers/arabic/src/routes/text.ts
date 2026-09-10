@@ -251,6 +251,30 @@ export function textRoutes(router: Router<ArabicEnv>) {
       byAudio.set(s.audio_id, list);
     }
 
+    // Where each page a recording reads sits on its timeline, for every page
+    // the recording covers: a scrub can land on a page the reader does not
+    // hold, and this is how it knows which one to turn to.
+    const unitSeq = new Map<string, number>();
+    if (audioIds.length) {
+      const units = await query<{ id: string; seq: number }>(env.DB_AR,
+        `SELECT id, seq FROM ar_text_unit WHERE acq_ref_id = ? AND status = 'live'`, [params.id]);
+      for (const u of units) unitSeq.set(u.id, u.seq);
+    }
+    const mapByAudio = new Map<string, { seq: number; start: number; end: number }[]>();
+    for (const [aid, list] of byAudio) {
+      const acc = new Map<number, { start: number; end: number }>();
+      for (const s of list) {
+        if (!(s.end > s.start)) continue;
+        // a part that lists its units keys each line by unit; a recording of
+        // one page keys nothing, and belongs to the page it is attached to
+        const seq = s.unit ? unitSeq.get(s.unit) : pages.find((p) => p.pageAudioId === aid)?.seq as number | undefined;
+        if (seq == null) continue;
+        const cur = acc.get(seq);
+        acc.set(seq, cur ? { start: Math.min(cur.start, s.start), end: Math.max(cur.end, s.end) } : { start: s.start, end: s.end });
+      }
+      mapByAudio.set(aid, [...acc.entries()].map(([seq, v]) => ({ seq, ...v })).sort((a, b) => a.seq - b.seq));
+    }
+
     const bounds = await queryOne<{ minSeq: number; maxSeq: number; pages: number }>(
       env.DB_AR,
       `SELECT MIN(seq) AS minSeq, MAX(seq) AS maxSeq, COUNT(*) AS pages
@@ -285,6 +309,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
         const all = p.pageAudioId ? (byAudio.get(String(p.pageAudioId)) ?? []) : [];
         const own = all.some((s) => s.unit) ? all.filter((s) => !s.unit || s.unit === p.id) : all;
         const pageSegments = own.map(({ unit: _u, ...seg }) => seg);
+        const pageAudioMap = p.pageAudioId ? (mapByAudio.get(String(p.pageAudioId)) ?? []) : [];
         // A recording synced to other pages but with no line on this one (the
         // Nights' dawn refrain, a preface the reader skips) is not this page's
         // recording: offering it would replay the whole episode from the top.
@@ -295,6 +320,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
           pageVideo: video,
           pageAudioStart: pageSegments.length ? Math.max(0, pageSegments[0].start - 0.3) : 0,
           pageSegments,
+          pageAudioMap,
         };
       }),
       bounds,

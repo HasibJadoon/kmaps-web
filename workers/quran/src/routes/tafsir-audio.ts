@@ -83,6 +83,19 @@ export function tafsirAudioRoutes(router: Router<QuranEnv>) {
       const anchored = s.end_sec > s.start_sec;
       const l = byPage.get(s.page_id) ?? []; l.push({ seq: s.seq, start: s.start_sec, end: s.end_sec, text: s.text_ar, speaker: null, anchored, words }); byPage.set(s.page_id, l);
     }
+    // Where on the recording's timeline each page it reads begins and ends —
+    // every page, not only the ones being sent. A scrub can land an hour away,
+    // on a page the reader does not hold; with the map it knows which page to
+    // turn to, and the voice is never left reading off the edge of the text.
+    const audioSet = [...new Set(pairs.map((x) => x[1]))];
+    const spans = audioSet.length ? await query<{ audio_id: string; seq: number; start: number; end: number }>(env.DB_QR,
+      `SELECT s.audio_id, p.seq, MIN(s.start_sec) AS start, MAX(s.end_sec) AS end
+         FROM qr_tafsir_audio_segment s JOIN qr_tafsir_read_page p ON p.id = s.page_id
+        WHERE s.audio_id IN (${audioSet.map(() => '?').join(',')}) AND s.end_sec > s.start_sec
+        GROUP BY s.audio_id, p.seq ORDER BY s.audio_id, p.seq`, audioSet) : [];
+    const mapByAudio = new Map<string, { seq: number; start: number; end: number }[]>();
+    for (const r of spans) { const l = mapByAudio.get(r.audio_id) ?? []; l.push({ seq: r.seq, start: r.start, end: r.end }); mapByAudio.set(r.audio_id, l); }
+
     const bounds = await queryOne<{ minSeq: number; maxSeq: number; pages: number }>(env.DB_QR,
       `SELECT MIN(seq) AS minSeq, MAX(seq) AS maxSeq, COUNT(*) AS pages FROM qr_tafsir_read_page WHERE source_slug = ? AND status = 'live'`, [slug]);
     return ok({
@@ -96,6 +109,7 @@ export function tafsirAudioRoutes(router: Router<QuranEnv>) {
           pageVideo: null,
           pageAudioStart: own.length ? Math.max(0, own[0].start - 0.3) : 0,
           pageSegments: own,
+          pageAudioMap: p.pageAudioId ? (mapByAudio.get(String(p.pageAudioId)) ?? []) : [],
         };
       }),
       bounds,
