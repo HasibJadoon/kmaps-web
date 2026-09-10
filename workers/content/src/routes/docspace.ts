@@ -16,6 +16,10 @@ interface DocNote {
   is_pinned: number;
   tags_json: string | null;
   folder_ref: string | null;
+  /** The passage this document was written against, where it has one. */
+  passage_ref: string | null;
+  /** The words it was written about, kept so the backlink reads on its own. */
+  quote: string | null;
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
@@ -24,6 +28,7 @@ interface DocNote {
 const SELECT = `
   SELECT note_id AS id, note_type, title, body_text AS body, visibility, domain,
          surah, ayah_from, ayah_to, is_pinned, tags_json, folder_ref, deleted_at,
+         passage_ref, json_extract(meta_json,'$.quote') AS quote,
          created_at, updated_at
   FROM cm_notes`;
 
