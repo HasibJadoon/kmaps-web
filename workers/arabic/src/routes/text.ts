@@ -9,6 +9,56 @@ import type { ArabicEnv } from '../env';
 /// A page here is one `ar_text_unit` — Shamela's own pagination, kept rather
 /// than re-chunked, because the printed page is what a citation refers to.
 export function textRoutes(router: Router<ArabicEnv>) {
+  /// Audio books: every work that has both a text and a recording, with how
+  /// much of the recording is synced to the text word by word. The level is
+  /// the one stored on the work — computed from the text and recorded with
+  /// its basis, never decided here. Public: the shelf is the same for everyone.
+  router.get('/ar/text/audiobooks', async (_req, env) => {
+    // Every work that has both a text and a recording of it. The shelf it sits
+    // on is its category (Songs, Short Stories, Readers, Books …) and its level
+    // is stored on the row — the app groups by what it is handed and decides
+    // nothing about difficulty or kind.
+    const rows = await query<Record<string, unknown>>(env.DB_AR,
+      `SELECT r.id, r.slug, r.title_ar AS titleAr, r.title_en AS titleEn, r.level, r.genre_ref AS genreRef,
+              r.author, json_extract(r.meta_json, '$.shape') AS shape,
+              r.category_ref AS shelfId, c.name_ar AS shelfAr, c.name_en AS shelfEn, c.sort_order AS shelfOrder,
+              COUNT(DISTINCT a.id)                         AS audios,
+              SUM(a.aligned)                               AS aligned,
+              ROUND(SUM(a.duration_sec) / 3600.0, 2)       AS hours,
+              CAST(ROUND(SUM(a.duration_sec) / 60.0) AS INTEGER) AS minutes,
+              (SELECT COUNT(*) FROM ar_text_unit t WHERE t.acq_ref_id = r.id AND t.status = 'live') AS units,
+              (SELECT SUM(word_count) FROM ar_text_unit t WHERE t.acq_ref_id = r.id AND t.status = 'live') AS words,
+              (SELECT COALESCE(json_extract(r.meta_json, '$.open_at'), MIN(seq)) FROM ar_text_unit t WHERE t.acq_ref_id = r.id) AS firstSeq
+         FROM ar_acquisition_ref r
+         JOIN ar_acq_audio a ON a.acq_ref_id = r.id AND a.status = 'live'
+         LEFT JOIN ar_acq_category c ON c.id = r.category_ref
+        WHERE r.status = 'live' AND (r.platform IS NULL OR r.platform <> 'youtube')
+          AND EXISTS (SELECT 1 FROM ar_text_unit t WHERE t.acq_ref_id = r.id AND t.status = 'live')
+        GROUP BY r.id
+        ORDER BY CASE r.level WHEN 'A1' THEN 1 WHEN 'A2' THEN 2 WHEN 'B1' THEN 3 WHEN 'B2' THEN 4 WHEN 'C1' THEN 5 ELSE 9 END,
+                 hours DESC`);
+    // Shelves in the order a learner climbs them: by the easiest level on the
+    // shelf, then by the category's own order.
+    const levelRank = (l: unknown) => ({ A1: 1, A2: 2, B1: 3, B2: 4, C1: 5 } as Record<string, number>)[String(l)] ?? 9;
+    const byShelf = new Map<string, Record<string, unknown>[]>();
+    for (const r of rows) {
+      const k = String(r.shelfId ?? '—');
+      if (!byShelf.has(k)) byShelf.set(k, []);
+      byShelf.get(k)!.push(r);
+    }
+    const shelves = [...byShelf.entries()].map(([id, books]) => {
+      const levels = [...new Set(books.map(b => String(b.level ?? '')).filter(Boolean))].sort((x, y) => levelRank(x) - levelRank(y));
+      return {
+        id, nameAr: books[0].shelfAr ?? 'متفرقات', nameEn: books[0].shelfEn ?? 'Other',
+        order: Number(books[0].shelfOrder ?? 999),
+        count: books.length, hours: Math.round(books.reduce((s, b) => s + Number(b.hours ?? 0), 0) * 10) / 10,
+        synced: books.filter(b => Number(b.aligned) === Number(b.audios)).length,
+        levels, levelFrom: levels[0] ?? null, levelTo: levels[levels.length - 1] ?? null, books,
+      };
+    }).sort((x, y) => levelRank(x.levelFrom) - levelRank(y.levelFrom) || x.order - y.order);
+    return ok({ books: rows, shelves });
+  });
+
 
   /// What can be read right now. Only works that actually have pages — a
   /// catalogue entry with no text is not a book you can open, and listing it
@@ -159,7 +209,10 @@ export function textRoutes(router: Router<ArabicEnv>) {
                 ON a.acq_ref_id = t.acq_ref_id
                AND a.status = 'live'
                AND (CAST(json_extract(a.meta_json, '$.night') AS INTEGER) = t.page_no
-                    OR CAST(json_extract(a.meta_json, '$.seq') AS INTEGER) = t.seq)
+                    OR CAST(json_extract(a.meta_json, '$.seq') AS INTEGER) = t.seq
+                    -- a whole-book recording cut into parts: each part lists the
+                    -- units it reads, and a page belongs to the part that reads it
+                    OR EXISTS (SELECT 1 FROM json_each(a.meta_json, '$.units') je WHERE je.value = t.id))
         WHERE t.acq_ref_id = ? AND t.status = 'live' AND t.seq >= ?
         ORDER BY t.seq LIMIT ?`,
       [params.id, from, limit],
@@ -171,11 +224,12 @@ export function textRoutes(router: Router<ArabicEnv>) {
     /// instant the audio starts, not a round trip later.
     const audioIds = pages.map((p) => p.pageAudioId).filter((x): x is string => !!x);
     const segments = audioIds.length
-      ? await query<{ audio_id: string; seq: number; start_sec: number; end_sec: number; text_ar: string; speaker: string | null; anchored: number; words: string | null }>(
+      ? await query<{ audio_id: string; seq: number; start_sec: number; end_sec: number; text_ar: string; speaker: string | null; anchored: number; words: string | null; unit: string | null }>(
           env.DB_AR,
           `SELECT audio_id, seq, start_sec, end_sec, text_ar, speaker,
                   COALESCE(json_extract(meta_json, '$.anchored'), 1) AS anchored,
-                  json_extract(meta_json, '$.w')                     AS words
+                  json_extract(meta_json, '$.w')                     AS words,
+                  json_extract(meta_json, '$.unit')                  AS unit
              FROM ar_acq_audio_segment
             WHERE audio_id IN (${audioIds.map(() => '?').join(',')})
             ORDER BY audio_id, seq`,
@@ -187,13 +241,13 @@ export function textRoutes(router: Router<ArabicEnv>) {
     // `speaker` is who says the line, where the transcript records it: a
     // series is a cast, and the readers set the name over the turn rather
     // than leaving the voice guessable only by ear.
-    const byAudio = new Map<string, { seq: number; start: number; end: number; text: string; speaker: string | null; anchored: boolean; words: number[][] | null }[]>();
+    const byAudio = new Map<string, { seq: number; start: number; end: number; text: string; speaker: string | null; anchored: boolean; words: number[][] | null; unit: string | null }[]>();
     for (const s of segments) {
       const list = byAudio.get(s.audio_id) ?? [];
       let words: number[][] | null = null;
       if (s.words) { try { words = JSON.parse(s.words); } catch { words = null; } }
       list.push({ seq: s.seq, start: s.start_sec, end: s.end_sec, text: s.text_ar,
-                  speaker: s.speaker || null, anchored: !!s.anchored, words });
+                  speaker: s.speaker || null, anchored: !!s.anchored, words, unit: s.unit || null });
       byAudio.set(s.audio_id, list);
     }
 
@@ -225,11 +279,22 @@ export function textRoutes(router: Router<ArabicEnv>) {
         if (p.pageVideoJson) { try { video = JSON.parse(String(p.pageVideoJson)); } catch { video = null; } }
         if (!video && key?.startsWith('youtube:')) video = { provider: 'youtube', id: key.slice('youtube:'.length) };
         const { pageVideoJson: _drop, ...rest } = p as Record<string, unknown> & { pageVideoJson?: unknown };
+        // A recording that reads several pages carries every page's lines; a
+        // page gets only its own, and the moment on the timeline where they
+        // begin, so play starts at this page and not at the part's first word.
+        const all = p.pageAudioId ? (byAudio.get(String(p.pageAudioId)) ?? []) : [];
+        const own = all.some((s) => s.unit) ? all.filter((s) => !s.unit || s.unit === p.id) : all;
+        const pageSegments = own.map(({ unit: _u, ...seg }) => seg);
+        // A recording synced to other pages but with no line on this one (the
+        // Nights' dawn refrain, a preface the reader skips) is not this page's
+        // recording: offering it would replay the whole episode from the top.
+        const orphan = all.length > 0 && own.length === 0;
         return {
           ...rest,
-          pagePlayUrl: key && !key.startsWith('youtube:') ? `/api/ar/audio/${encodeURI(key)}` : null,
+          pagePlayUrl: key && !orphan && !key.startsWith('youtube:') ? `/api/ar/audio/${encodeURI(key)}` : null,
           pageVideo: video,
-          pageSegments: p.pageAudioId ? (byAudio.get(String(p.pageAudioId)) ?? []) : [],
+          pageAudioStart: pageSegments.length ? Math.max(0, pageSegments[0].start - 0.3) : 0,
+          pageSegments,
         };
       }),
       bounds,

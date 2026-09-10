@@ -24,7 +24,10 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     // them: a table of contents, not a study record. The learner's own side of
     // this module — containers, exercises, SRS, vocabulary, progress — is
     // untouched and still requires a token.
-    publicGetPaths: ['ar/acq', 'ar/text', 'ar/audio', 'ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons'],
+    // 'ar/daily/themes' and not 'ar/daily': the themes are the same content for
+    // everyone and readable unsigned, while ar/daily/today and ar/daily/progress
+    // are that reader's own and must stay behind the token.
+    publicGetPaths: ['ar/acq', 'ar/text', 'ar/audio', 'ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons', 'ar/daily/themes', 'ar/daily/domains'],
   },
   al:   { binding: 'AR_LINGUISTICS', publicGet: true  },
   cm:   {

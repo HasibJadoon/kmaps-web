@@ -17,7 +17,6 @@ UI (Angular) / public backend Worker
 │  km-arabic-worker    →  DB_AR  (km_arabic)          ar_*       │
 │  km-worldview-worker →  DB_WV  (km_worldview)       wv_*       │
 │  km-content-worker   →  DB_CM  (km_content)         cm_*       │
-│  km-planner-worker   →  DB_PL  (km_planner)         pl_*       │
 │  km-core-worker      →  DB_CORE (km_core)           core_*     │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -38,7 +37,7 @@ UI (Angular) / public backend Worker
 rg "DB_" workers/<domain>/wrangler.toml
 
 # 2. No other domain's DB binding in worker source
-rg "DB_QR|DB_AL|DB_AR|DB_WV|DB_CM|DB_PL|DB_CORE" workers/<domain>/src/ | grep -v "DB_<own>"
+rg "DB_QR|DB_AL|DB_AR|DB_WV|DB_CM|DB_CORE" workers/<domain>/src/ | grep -v "DB_<own>"
 
 # 3. Health check passes
 wrangler dev workers/<domain> --port 8080
@@ -126,7 +125,6 @@ wrangler d1 create km_quran
 wrangler d1 create km_arabic
 wrangler d1 create km_worldview
 wrangler d1 create km_content
-wrangler d1 create km_planner
 
 # Apply schemas (from co-located migrations/ dirs)
 wrangler d1 migrations apply km_arabic_linguistic --remote
@@ -135,7 +133,6 @@ wrangler d1 migrations apply km_quran            --remote
 wrangler d1 migrations apply km_arabic           --remote
 wrangler d1 migrations apply km_worldview        --remote
 wrangler d1 migrations apply km_content          --remote
-wrangler d1 migrations apply km_planner          --remote
 ```
 
 ## Public API Flow

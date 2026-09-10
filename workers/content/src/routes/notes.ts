@@ -12,6 +12,7 @@ export function noteRoutes(router: Router<ContentEnv>) {
       await new NoteRepo(env.DB_CM).list(
         url.searchParams.get('ref'),
         parsePagination(url),
+        url.searchParams.get('domain'),
       ),
     );
   });

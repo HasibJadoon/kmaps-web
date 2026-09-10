@@ -99,10 +99,17 @@ export interface UnitPatch {
   description_md?: string | null;
 }
 
+// `author` is derived, not stored: the corpus grew with the poet under
+// different keys — a creator for the Persian books, a poet for the dīwāns —
+// and the shelf wants one name to group by.
 const SRC_COLS = `
   id, slug, title, title_ar, source_type, source_domain,
   tradition_id, language, published_year, publisher, doi, url,
-  description_md, created_at, updated_at
+  description_md, created_at, updated_at,
+  COALESCE(json_extract(meta_json, '$.poet_en'), json_extract(meta_json, '$.creator'),
+           json_extract(meta_json, '$.author'), json_extract(meta_json, '$.poet'),
+           json_extract(meta_json, '$.speaker')) AS author,
+  json_extract(meta_json, '$.poet') AS author_ar
 `.trim().replace(/\n\s+/g, ' ');
 
 const UNIT_COLS = `

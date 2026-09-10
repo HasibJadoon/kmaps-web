@@ -53,7 +53,6 @@ Domain workers:
 - `workers/arabic/` - `km-arabic-worker`, binding `DB_AR`, database `km_arabic`
 - `workers/worldview/` - `km-worldview-worker`, binding `DB_WV`, database `km_worldview`
 - `workers/content/` - `km-content-worker`, binding `DB_CM`, database `km_content`
-- `workers/planner/` - `km-planner-worker`, binding `DB_PL`, database `km_planner`
 - `workers/core/` - `km-core-worker`, binding `DB_CORE`, database `km_core`
 
 Worker rules:
@@ -123,7 +122,6 @@ database/migrations/km-arabic-linguistics/
 database/migrations/km-content/
 database/migrations/km-core/
 database/migrations/km-lexicon/
-database/migrations/km-planner/
 database/migrations/km-quran/
 database/migrations/km-worldview/
 ```
