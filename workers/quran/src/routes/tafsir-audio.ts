@@ -76,7 +76,12 @@ export function tafsirAudioRoutes(router: Router<QuranEnv>) {
     for (const s of segs) {
       let words: number[][] | null = null;
       if (s.words) { try { words = JSON.parse(s.words); } catch { words = null; } }
-      const l = byPage.get(s.page_id) ?? []; l.push({ seq: s.seq, start: s.start_sec, end: s.end_sec, text: s.text_ar, speaker: null, anchored: true, words }); byPage.set(s.page_id, l);
+      // A line the reader never reached collapses to a single instant: the
+      // aligner has no time to give it because no time was spent on it. Say so
+      // rather than claiming it was read — the page still shows the text, and
+      // the light simply passes it by.
+      const anchored = s.end_sec > s.start_sec;
+      const l = byPage.get(s.page_id) ?? []; l.push({ seq: s.seq, start: s.start_sec, end: s.end_sec, text: s.text_ar, speaker: null, anchored, words }); byPage.set(s.page_id, l);
     }
     const bounds = await queryOne<{ minSeq: number; maxSeq: number; pages: number }>(env.DB_QR,
       `SELECT MIN(seq) AS minSeq, MAX(seq) AS maxSeq, COUNT(*) AS pages FROM qr_tafsir_read_page WHERE source_slug = ? AND status = 'live'`, [slug]);
