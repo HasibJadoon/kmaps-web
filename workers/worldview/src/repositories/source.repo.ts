@@ -107,7 +107,8 @@ const SRC_COLS = `
   tradition_id, language, published_year, publisher, doi, url,
   description_md, created_at, updated_at,
   COALESCE(json_extract(meta_json, '$.poet_en'), json_extract(meta_json, '$.creator'),
-           json_extract(meta_json, '$.author'), json_extract(meta_json, '$.poet')) AS author,
+           json_extract(meta_json, '$.author'), json_extract(meta_json, '$.poet'),
+           json_extract(meta_json, '$.speaker')) AS author,
   json_extract(meta_json, '$.poet') AS author_ar
 `.trim().replace(/\n\s+/g, ' ');
 
