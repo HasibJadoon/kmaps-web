@@ -7,6 +7,9 @@ export interface Note {
   title: string | null;
   content_md: string;
   resource_ref: string | null;
+  domain: string | null;
+  note_type: string | null;
+  tags_json: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -17,14 +20,21 @@ export interface NoteCreate {
   resource_ref?: string | null;
 }
 
-const COLS = `id, title, content_md, resource_ref, created_at, updated_at`;
+// The table grew past the shape this repo was written for: the key is
+// `note_id`, the prose is `body_text`, and a note now carries the domain it
+// belongs to. Read under the old names so callers keep working.
+const COLS = `note_id AS id, title, body_text AS content_md, passage_ref AS resource_ref,
+              domain, note_type, tags_json, created_at, updated_at`;
 
 export class NoteRepo {
   constructor(private db: D1Database) {}
 
-  list(ref: string | null, opts: PaginateOptions = {}) {
-    const where  = ref ? 'WHERE resource_ref = ?' : '';
-    const params = ref ? [ref] : [];
+  list(ref: string | null, opts: PaginateOptions = {}, domain: string | null = null) {
+    const conds: string[] = ['deleted_at IS NULL'];
+    const params: unknown[] = [];
+    if (ref)    { conds.push('passage_ref = ?'); params.push(ref); }
+    if (domain) { conds.push('domain = ?');      params.push(domain); }
+    const where = `WHERE ${conds.join(' AND ')}`;
     return paginate<Note>(
       this.db,
       `SELECT ${COLS} FROM cm_notes ${where} ORDER BY created_at DESC`,
@@ -35,7 +45,7 @@ export class NoteRepo {
 
   findById(id: string): Promise<Note | null> {
     return queryOne<Note>(
-      this.db, `SELECT ${COLS} FROM cm_notes WHERE id = ?`, [id],
+      this.db, `SELECT ${COLS} FROM cm_notes WHERE note_id = ?`, [id],
     );
   }
 
