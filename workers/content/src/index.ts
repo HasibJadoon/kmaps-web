@@ -9,6 +9,7 @@ import { deckRoutes } from './routes/decks';
 import { assetRoutes } from './routes/assets';
 import { noteRoutes } from './routes/notes';
 import { docSpaceRoutes } from './routes/docspace';
+import { cmCommentRoutes } from './routes/comments';
 import { cmCaptureRoutes } from './routes/captures';
 import { highlightRoutes } from './routes/highlights';
 import { cmSourceRoutes } from './routes/sources';
@@ -25,6 +26,7 @@ assetRoutes(router);
 noteRoutes(router);
 docSpaceRoutes(router);
 cmCaptureRoutes(router);
+cmCommentRoutes(router);
 highlightRoutes(router);
 cmSourceRoutes(router);
 

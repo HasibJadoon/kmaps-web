@@ -18,6 +18,10 @@ export interface WvSource {
   description_md: string | null;
   created_at: string;
   updated_at: string;
+  /** The author as a row, where he has one: core_person.id. */
+  person_ref: string | null;
+  cover: string | null;
+  rating: number | null;
 }
 
 export interface WvSourceUnit {
@@ -105,7 +109,9 @@ export interface UnitPatch {
 const SRC_COLS = `
   id, slug, title, title_ar, source_type, source_domain,
   tradition_id, language, published_year, publisher, doi, url,
-  description_md, created_at, updated_at,
+  description_md, created_at, updated_at, person_ref,
+  json_extract(meta_json, '$.book.cover')  AS cover,
+  json_extract(meta_json, '$.book.rating') AS rating,
   COALESCE(json_extract(meta_json, '$.poet_en'), json_extract(meta_json, '$.creator'),
            json_extract(meta_json, '$.author'), json_extract(meta_json, '$.poet'),
            json_extract(meta_json, '$.speaker')) AS author,
