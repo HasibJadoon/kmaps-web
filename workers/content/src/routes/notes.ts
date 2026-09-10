@@ -13,6 +13,7 @@ export function noteRoutes(router: Router<ContentEnv>) {
         url.searchParams.get('ref'),
         parsePagination(url),
         url.searchParams.get('domain'),
+        url.searchParams.get('ref_prefix'),
       ),
     );
   });

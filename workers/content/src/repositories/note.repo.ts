@@ -29,10 +29,14 @@ const COLS = `note_id AS id, title, body_text AS content_md, passage_ref AS reso
 export class NoteRepo {
   constructor(private db: D1Database) {}
 
-  list(ref: string | null, opts: PaginateOptions = {}, domain: string | null = null) {
+  list(ref: string | null, opts: PaginateOptions = {}, domain: string | null = null,
+       refPrefix: string | null = null) {
     const conds: string[] = ['deleted_at IS NULL'];
     const params: unknown[] = [];
     if (ref)    { conds.push('passage_ref = ?'); params.push(ref); }
+    // every note written on one poem, in a single ask: the ref carries the
+    // line it was written on, so the reader wants the whole prefix
+    if (refPrefix) { conds.push('passage_ref LIKE ?'); params.push(refPrefix + '%'); }
     if (domain) { conds.push('domain = ?');      params.push(domain); }
     const where = `WHERE ${conds.join(' AND ')}`;
     return paginate<Note>(
