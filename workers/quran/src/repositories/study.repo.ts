@@ -292,10 +292,7 @@ export class StudyRepo {
       this._ayahs(passage),
     ]);
 
-    const fromMorph = vocabularyFromMorphology(tasks);
-    const vocabulary = (fromMorph.nouns.length || fromMorph.verbs.length)
-      ? fromMorph
-      : await this._wordsAsVocabulary(passage);
+    const vocabulary = await this._morphologyFor(passage, tasks);
 
     return {
       passage_id:  passage.id,
@@ -1966,12 +1963,84 @@ export class StudyRepo {
     });
   }
 
-  private async _wordsAsVocabulary(passage: PassageRow) {
-    const rows = await query<{
-      word_id: string; ayah: number; position: number;
-      word: string; simple: string | null;
-      lemma: string | null; root: string | null; pos: string | null;
-    }>(
+  /** The vocabulary of a passage, resolved the one way both routes use.
+   *
+   * A morphology task is a descriptor, not content: it says how to find the
+   * words (`resolve`), how complete that answer is (`availability`, `pending`)
+   * and what it draws on (`sources`). Inline `items[]` are the older payload
+   * model and are still honoured while a task carries them. */
+  async vocabulary(surahId: number, passageNo: number): Promise<MorphologyVocabulary | null> {
+    const passages = await this._passages(surahId);
+    const passage  = passages.find(p => p.passage_no === passageNo);
+    if (!passage) return null;
+    return this._morphologyFor(passage, await this._tasks(passage.id));
+  }
+
+  private async _morphologyFor(passage: PassageRow, tasks: StudyTask[]): Promise<MorphologyVocabulary> {
+    const live = (t: StudyTask) => t.status !== 'retired';
+    const morph = tasks.find(t => t.task_type === 'morphology' && live(t));
+
+    // 1. No morphology task: the passage's own words, split by part of speech.
+    //    This fallback serves every passage that has no task and must stay.
+    if (!morph) {
+      return { ...(await this._wordsAsVocabulary(passage)), resolved_by: 'pos_fallback' };
+    }
+
+    const descriptor = asRec(parseJson(morph.task_json)) ?? {};
+    const meta = {
+      task_id:      morph.task_id,
+      resolve:      asStr(descriptor['resolve']),
+      availability: asStr(descriptor['availability']),
+      depth_level:  asStr(descriptor['depth_level']),
+      // A partial answer that says it is partial: passed through, never dropped.
+      pending:      strList(descriptor['pending']),
+      sources:      strList(descriptor['sources']),
+    };
+
+    // 2. Inline items (payload model v1). Retired children are the superseded
+    //    model and do not count.
+    const inline = vocabularyFromMorphology([{ ...morph, children: (morph.children ?? []).filter(live) }]);
+    if (inline.nouns.length || inline.verbs.length) {
+      // Every word carries all its properties: each inline item sits on its
+      // occurrence row (matched by āyah and word position), and what the item
+      // itself says is kept on top.
+      const full = await this._wordsAsVocabulary(passage, { depth: meta.depth_level });
+      const byPlace = new Map<string, JsonRecord>();
+      for (const w of [...full.nouns, ...full.verbs]) byPlace.set(`${w['ayah']}:${w['position']}`, w);
+      const merge = (item: JsonRecord): JsonRecord => ({
+        ...(byPlace.get(`${item['ayah']}:${item['word_index'] ?? item['position']}`) ?? {}),
+        ...withReadingFacts(item),
+      });
+      return {
+        nouns: inline.nouns.map(merge),
+        verbs: inline.verbs.map(merge),
+        resolved_by: 'inline_items',
+        ...meta,
+      };
+    }
+
+    // 3. The descriptor's resolver.
+    if (meta.resolve === 'by_ayah_range') {
+      return {
+        ...(await this._wordsAsVocabulary(passage, { depth: meta.depth_level })),
+        resolved_by: 'by_ayah_range',
+        ...meta,
+      };
+    }
+
+    // 4. A verb this reader does not know. No strategy is guessed.
+    return { nouns: [], verbs: [], resolved_by: 'unsupported', ...meta };
+  }
+
+  /** The `by_ayah_range` resolver: every word of the passage with all it carries.
+   *
+   * `gt_readings_json` is authoritative. `gt_derivation_type` is a convenience
+   * copy and is NULL by design whenever there is more than one reading
+   * (AGR:QUR:001): a contested word is shown as contested, never collapsed to
+   * one reading. `rank` inside the readings is presentation order, not a
+   * verdict. GT ids are returned as stored (`GT:jumud:mushtaqq`). */
+  private async _wordsAsVocabulary(passage: PassageRow, opts: { depth?: string | null } = {}) {
+    const rows = await query<WordOccurrenceRow>(
       this.db,
       `SELECT id            AS word_id,
               ayah,
@@ -1980,16 +2049,47 @@ export class StudyRepo {
               word_text_bare AS simple,
               lemma,
               root,
-              pos
+              pos,
+              stem_pos,
+              morphology_tag,
+              morphology_tag_json,
+              root_uid,
+              lemma_ref,
+              gid_root,
+              gid_lemma,
+              stem_form_ar,
+              stem_lemma_ar,
+              stem_root_ar,
+              form_roman,
+              segment_count,
+              prefix_count,
+              suffix_count,
+              has_det_prefix,
+              has_pron_suffix,
+              is_content_word,
+              is_promoted,
+              gt_case,
+              gt_definiteness,
+              gt_number,
+              gt_gender,
+              gt_person,
+              gt_voice,
+              gt_tense,
+              gt_mood,
+              gt_jumud,
+              gt_derivation_type,
+              gt_form_family,
+              gt_readings_json
        FROM qr_word_occurrence
        WHERE surah = ? AND ayah BETWEEN ? AND ?
        ORDER BY ayah, word_index`,
       [passage.surah_id, passage.ayah_from, passage.ayah_to],
     );
 
+    const words = rows.map(w => shapeWord(w, opts.depth ?? null));
     return {
-      nouns: rows.filter(w => posGroup(w.pos) === 'noun'),
-      verbs: rows.filter(w => posGroup(w.pos) === 'verb'),
+      nouns: words.filter(w => posGroup(posCode(w)) === 'noun'),
+      verbs: words.filter(w => posGroup(posCode(w)) === 'verb'),
     };
   }
 
@@ -2151,6 +2251,127 @@ export function parseQacTag(raw: string | null | undefined): MorphFeatures {
   return out;
 }
 
+interface WordOccurrenceRow {
+  word_id: string; ayah: number; position: number;
+  word: string; simple: string | null;
+  lemma: string | null; root: string | null; pos: string | null; stem_pos: string | null;
+  morphology_tag: string | null; morphology_tag_json: string | null;
+  root_uid: string | null; lemma_ref: string | null; gid_root: string | null; gid_lemma: string | null;
+  stem_form_ar: string | null; stem_lemma_ar: string | null; stem_root_ar: string | null; form_roman: string | null;
+  segment_count: number | null; prefix_count: number | null; suffix_count: number | null;
+  has_det_prefix: number | null; has_pron_suffix: number | null;
+  is_content_word: number | null; is_promoted: number | null;
+  gt_case: string | null; gt_definiteness: string | null; gt_number: string | null; gt_gender: string | null;
+  gt_person: string | null; gt_voice: string | null; gt_tense: string | null; gt_mood: string | null;
+  gt_jumud: string | null; gt_derivation_type: string | null; gt_form_family: string | null;
+  gt_readings_json: string | null;
+}
+
+export interface MorphologyVocabulary {
+  nouns: JsonRecord[];
+  verbs: JsonRecord[];
+  /** How the words were found: pos_fallback | inline_items | by_ayah_range | unsupported. */
+  resolved_by: 'pos_fallback' | 'inline_items' | 'by_ayah_range' | 'unsupported';
+  task_id?: string;
+  resolve?: string | null;
+  availability?: string | null;
+  depth_level?: string | null;
+  pending?: string[];
+  sources?: string[];
+}
+
+function strList(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+}
+
+function flag(v: number | null): boolean | null {
+  return v === null || v === undefined ? null : v === 1;
+}
+
+/** One word of a passage with every property the occurrence table holds. */
+export function shapeWord(w: WordOccurrenceRow, depth: string | null): JsonRecord {
+  const readings = (() => {
+    const parsed = parseJson(w.gt_readings_json);
+    return Array.isArray(parsed) ? parsed.filter((r): r is JsonRecord => !!asRec(r)) : [];
+  })();
+  const facts = readingFacts(readings);
+  return {
+    word_id:         w.word_id,
+    ayah:            w.ayah,
+    position:        w.position,
+    word:            w.word,
+    simple:          w.simple,
+    lemma:           w.lemma,
+    root:            w.root,
+    pos:             w.pos,
+    stem_pos:        w.stem_pos,
+    depth_level:     depth,
+    is_content_word: flag(w.is_content_word),
+    is_promoted:     flag(w.is_promoted),
+    root_uid:        w.root_uid,
+    lemma_ref:       w.lemma_ref,
+    gid_root:        w.gid_root,
+    gid_lemma:       w.gid_lemma,
+    morphology_tag:  w.morphology_tag,
+    morphology:      asRec(parseJson(w.morphology_tag_json)) ?? parseJson(w.morphology_tag_json),
+    stem: {
+      form_ar:  w.stem_form_ar,
+      lemma_ar: w.stem_lemma_ar,
+      root_ar:  w.stem_root_ar,
+      form_roman: w.form_roman,
+    },
+    segments: {
+      count:           w.segment_count,
+      prefixes:        w.prefix_count,
+      suffixes:        w.suffix_count,
+      has_det_prefix:  flag(w.has_det_prefix),
+      has_pron_suffix: flag(w.has_pron_suffix),
+    },
+    case:         w.gt_case,
+    definiteness: w.gt_definiteness,
+    number:       w.gt_number,
+    gender:       w.gt_gender,
+    person:       w.gt_person,
+    voice:        w.gt_voice,
+    tense:        w.gt_tense,
+    mood:         w.gt_mood,
+    jumud:        w.gt_jumud,
+    // Never the answer when the readings disagree: NULL by design then.
+    derivation:   readings.length > 1 ? null : w.gt_derivation_type,
+    form_family:  w.gt_form_family,
+    readings,
+    ...facts,
+  };
+}
+
+/** What the readings say about a word, whichever payload carried them. */
+function readingFacts(readings: JsonRecord[]): { contested: boolean; citation_count: number } {
+  // Distinct citations across every reading: the same source cited for two
+  // readings (al-Rāzī on التوب at 40:3) is one citation of the word.
+  const citations = new Set<string>();
+  for (const r of readings) {
+    for (const src of Array.isArray(r['sources']) ? r['sources'] : []) {
+      const rec = asRec(src);
+      if (rec) citations.add(`${asStr(rec['slug']) ?? ''}|${asStr(rec['cite']) ?? ''}`);
+    }
+  }
+  return { contested: readings.length > 1, citation_count: citations.size };
+}
+
+/** An inline item (payload model v1) with the same reading facts a resolved word carries. */
+function withReadingFacts(item: JsonRecord): JsonRecord {
+  const readings = Array.isArray(item['readings']) ? item['readings'].filter((r): r is JsonRecord => !!asRec(r)) : [];
+  return { ...item, ...readingFacts(readings) };
+}
+
+/** The part-of-speech code posGroup reads. Most surahs carry the code in `pos`
+ *  (N, PN, ADJ, V); some carry a word there ("noun", "verb") or nothing, and
+ *  keep the code in `stem_pos` (Yūsuf 12:1-7). */
+function posCode(w: JsonRecord): string | null {
+  const pos = asStr(w['pos']);
+  return pos && /^[A-Z]+$/.test(pos) ? pos : asStr(w['stem_pos']) ?? pos;
+}
+
 export function posGroup(pos: string | null | undefined): 'noun' | 'verb' | 'particle' {
   const p = (pos ?? '').toUpperCase();
   if (p === 'V') return 'verb';
@@ -2189,7 +2410,9 @@ export function buildTaskTree(rows: RawTaskRow[]): StudyTask[] {
   }
 
   for (const task of byId.values()) {
-    if (task.parent_task_id && byId.has(task.parent_task_id)) {
+    // A row that names itself as its parent (44:1-9's morphology task) would
+    // become its own child and vanish from the tree; it is top level.
+    if (task.parent_task_id && task.parent_task_id !== task.task_id && byId.has(task.parent_task_id)) {
       byId.get(task.parent_task_id)!.children.push(task);
     } else {
       roots.push(task);

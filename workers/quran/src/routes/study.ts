@@ -5,7 +5,6 @@ import { cached } from '../../../shared/src/cache';
 import type { QuranEnv } from '../env';
 import {
   StudyRepo,
-  vocabularyFromMorphology,
   expressionsFromTasks,
 } from '../repositories/study.repo';
 import { MorphDisplayRepo } from '../repositories/morph-display.repo';
@@ -98,11 +97,9 @@ export function studyRoutes(router: Router<QuranEnv>) {
       const sp = parseSurahPassage(surahId, passageNo);
       if (!sp) return badRequest('Invalid surahId or passageNo');
 
-      const repo  = new StudyRepo(env.DB_QR);
-      const tasks = await repo.allTasks(sp.s, sp.p);
-      if (tasks === null) return notFound(`passage ${sp.s}:${sp.p}`);
-
-      return ok(vocabularyFromMorphology(tasks));
+      // The same resolver as the lesson route: one passage, one answer.
+      const data = await new StudyRepo(env.DB_QR).vocabulary(sp.s, sp.p);
+      return data ? ok(data) : notFound(`passage ${sp.s}:${sp.p}`);
     },
   );
 
