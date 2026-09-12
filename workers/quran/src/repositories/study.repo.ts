@@ -772,19 +772,7 @@ export class StudyRepo {
       ayahTo: p.ayah_to,
       rendering,
       units,
-      // The first step of a sentence adds everything it has, so its running
-      // line repeats the fragment word for word. Sending both made the ladder
-      // print the same sentence twice; the running line is dropped where it
-      // says nothing the fragment has not already said.
-      buildup: buildup.map((b) => {
-        const added = typeof b['addedEn'] === 'string' ? b['addedEn'].trim() : null;
-        const running = typeof b['cumulativeEn'] === 'string' ? b['cumulativeEn'].trim() : null;
-        return {
-          ...b,
-          cumulativeEn: added && running && added === running ? null : b['cumulativeEn'],
-          fork: undefined,
-        };
-      }),
+      buildup: buildup.map((b) => ({ ...b, fork: undefined })),
       nuances: nuances.map((n) => ({ ...n, fork: parseJson(n.fork as string | null) })),
       decisions: decisions.map((d) => ({
         ...d,
