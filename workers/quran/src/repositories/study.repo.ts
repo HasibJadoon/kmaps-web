@@ -226,8 +226,22 @@ export class StudyRepo {
       this.db, `SELECT version, built_at FROM qr_corpus_version WHERE id = 1`,
     ).catch(() => null);
     if (row?.version) return row;
+    // An authored layer is corrected far more often than it is created, and a
+    // correction only moves `updated_at`. Deriving the version from creation
+    // alone froze it at the last build, so the client's invalidation never
+    // fired and a device kept a pre-correction snapshot indefinitely.
+    // The sentences are not the only authored layer: a reading corrected in
+    // place moves nothing in qr_ss_occ_sentence, so a version derived from
+    // that table alone stayed put and no device ever dropped its snapshot.
     const fallback = await queryOne<{ v: string | null }>(
-      this.db, `SELECT MAX(created_at) AS v FROM qr_ss_occ_sentence`,
+      this.db,
+      `SELECT MAX(v) AS v FROM (
+         SELECT MAX(MAX(COALESCE(created_at, '')), MAX(COALESCE(updated_at, ''))) AS v
+           FROM qr_ss_occ_sentence
+         UNION ALL
+         SELECT MAX(MAX(COALESCE(created_at, '')), MAX(COALESCE(updated_at, ''))) AS v
+           FROM qr_ss_scope_reading
+       )`,
     ).catch(() => null);
     return { version: `qr-derived-${fallback?.v ?? 'unknown'}`, built_at: fallback?.v ?? null };
   }
@@ -758,7 +772,19 @@ export class StudyRepo {
       ayahTo: p.ayah_to,
       rendering,
       units,
-      buildup: buildup.map((b) => ({ ...b, fork: undefined })),
+      // The first step of a sentence adds everything it has, so its running
+      // line repeats the fragment word for word. Sending both made the ladder
+      // print the same sentence twice; the running line is dropped where it
+      // says nothing the fragment has not already said.
+      buildup: buildup.map((b) => {
+        const added = typeof b['addedEn'] === 'string' ? b['addedEn'].trim() : null;
+        const running = typeof b['cumulativeEn'] === 'string' ? b['cumulativeEn'].trim() : null;
+        return {
+          ...b,
+          cumulativeEn: added && running && added === running ? null : b['cumulativeEn'],
+          fork: undefined,
+        };
+      }),
       nuances: nuances.map((n) => ({ ...n, fork: parseJson(n.fork as string | null) })),
       decisions: decisions.map((d) => ({
         ...d,
@@ -1571,6 +1597,95 @@ export class StudyRepo {
       why: parseJson(r.why),
     }));
 
+    // The ledger is shaped here, not in the app. A passage carries well over
+    // a hundred readings and most are bare role stamps — one book naming one
+    // word's function, which no one disputes and no one discusses — so the
+    // groups below arrive ordered, labelled and already stripped of them, and
+    // the app only draws what it is given.
+    const READING_QUESTION_ORDER = [
+      'synthesis', 'irab', 'qiraat', 'qiraah', 'tafsir',
+      'balagha', 'sarf', 'lugha', 'theology', 'dalala', 'tarjama',
+    ];
+    const READING_QUESTION_AR: Record<string, string> = {
+      synthesis: 'الخلاصة', irab: 'الإعراب', qiraat: 'القراءة', qiraah: 'القراءة',
+      tafsir: 'التفسير', balagha: 'البلاغة', sarf: 'الصرف', lugha: 'اللغة',
+      theology: 'العقيدة', dalala: 'الدلالة', tarjama: 'الترجمة',
+    };
+    const isRoleStamp = (en: string | null) =>
+      !!en && /^i\s*[ʿʻ'`]?\s*r[āa]b\s+role\b/i.test(en.trim());
+
+    // Settled first, then the faces that diverge, then the rest — and within
+    // each, the reading more books stand behind.
+    const readingTier = (r: (typeof readings)[number]) =>
+      r.isSelected ? 0 : (r.isContested || r.isMinority) ? 1 : 2;
+
+    const byQuestion = new Map<string, typeof readings>();
+    for (const r of readings) {
+      const key = r.question ?? '—';
+      const list = byQuestion.get(key) ?? [];
+      list.push(r);
+      byQuestion.set(key, list);
+    }
+
+    let readingsHeld = 0;
+    const readingGroups = [...byQuestion.entries()]
+      .map(([question, all]) => {
+        const discussed = all.filter((r) => !isRoleStamp(r.en));
+        readingsHeld += all.length - discussed.length;
+        discussed.sort((a, b) => {
+          const t = readingTier(a) - readingTier(b);
+          return t !== 0 ? t : (b.witnesses ?? 0) - (a.witnesses ?? 0);
+        });
+        return {
+          question,
+          labelAr: READING_QUESTION_AR[question] ?? question,
+          total: all.length,
+          readings: discussed,
+        };
+      })
+      .filter((g) => g.readings.length > 0)
+      .sort((a, b) => {
+        const ra = READING_QUESTION_ORDER.indexOf(a.question);
+        const rb = READING_QUESTION_ORDER.indexOf(b.question);
+        const na = ra < 0 ? READING_QUESTION_ORDER.length : ra;
+        const nb = rb < 0 ? READING_QUESTION_ORDER.length : rb;
+        return na === nb ? a.question.localeCompare(b.question) : na - nb;
+      });
+
+    // Every book a reading cites, resolved to its own title, badge colour and
+    // glyph from the two display registries. A book's colour is a fact about
+    // the book and already lives beside it in D1, so it travels with the
+    // payload rather than being invented client-side from its slug. Readings
+    // cite iʿrāb books by slug and tafsīr works by id, so both columns are
+    // matched in both tables.
+    const citedBooks = [...new Set(readings.flatMap((r) => r.sources))];
+    const books: Record<string, BookBadge> = {};
+    if (citedBooks.length) {
+      const marks = citedBooks.map(() => '?').join(',');
+      const both = [...citedBooks, ...citedBooks];
+      const rows = await query<BookRow>(
+        this.db,
+        `SELECT id, source_slug, book_title_ar, book_title_en, badge_color, badge_glyph
+           FROM qr_irab_book_display_source
+          WHERE source_slug IN (${marks}) OR id IN (${marks})
+          UNION ALL
+         SELECT id, source_slug, book_title_ar, book_title_en, badge_color, badge_glyph
+           FROM qr_tafsir_book_display_source
+          WHERE source_slug IN (${marks}) OR id IN (${marks})`,
+        [...both, ...both],
+      );
+      for (const b of rows) {
+        const badge: BookBadge = {
+          titleAr: b.book_title_ar,
+          titleEn: b.book_title_en,
+          color: b.badge_color,
+          glyph: b.badge_glyph,
+        };
+        if (b.source_slug) books[b.source_slug] = badge;
+        if (b.id) books[b.id] = badge;
+      }
+    }
+
     const fold = foldRows.map((f) => ({
       id: f.id,
       scopeId: f.scope_id,
@@ -1614,6 +1729,9 @@ export class StudyRepo {
       terms,
       layersByScope,
       readings,
+      readingGroups,
+      readingsHeld,
+      books,
       fold,
       decisions: decisionRows.map((d) => ({
         ayah: d.ayah,
@@ -2182,10 +2300,15 @@ export class StudyRepo {
       this.db,
       `SELECT ayah,
               COUNT(*) AS total,
-              SUM(CASE WHEN LOWER(COALESCE(pos, '')) = 'noun' THEN 1 ELSE 0 END) AS nouns,
-              SUM(CASE WHEN LOWER(COALESCE(pos, '')) = 'verb' THEN 1 ELSE 0 END) AS verbs
-       FROM qr_word_occurrence
-       WHERE surah = ?
+              SUM(CASE WHEN code IN ('N', 'PN', 'ADJ') THEN 1 ELSE 0 END) AS nouns,
+              SUM(CASE WHEN code = 'V' THEN 1 ELSE 0 END) AS verbs
+       FROM (
+         -- the same grouping as posGroup(posCode(w)): the pos code, else stem_pos
+         SELECT ayah,
+                UPPER(COALESCE(CASE WHEN pos <> '' AND pos NOT GLOB '*[^A-Z]*' THEN pos END, stem_pos, pos, '')) AS code
+         FROM qr_word_occurrence
+         WHERE surah = ?
+       )
        GROUP BY ayah`,
       [surahId],
     ).catch(() => []);
@@ -2249,6 +2372,24 @@ export function parseQacTag(raw: string | null | undefined): MorphFeatures {
     }
   }
   return out;
+}
+
+/// A book as the reading ledger shows it: its own title in both scripts and
+/// the badge it is already drawn with elsewhere in the app.
+interface BookBadge {
+  titleAr: string | null;
+  titleEn: string | null;
+  color: string | null;
+  glyph: string | null;
+}
+
+interface BookRow {
+  id: string | null;
+  source_slug: string | null;
+  book_title_ar: string | null;
+  book_title_en: string | null;
+  badge_color: string | null;
+  badge_glyph: string | null;
 }
 
 interface WordOccurrenceRow {
