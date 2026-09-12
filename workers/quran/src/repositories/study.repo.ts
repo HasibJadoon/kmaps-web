@@ -661,6 +661,122 @@ export class StudyRepo {
       ).catch(() => []),
     ]);
 
+    // The passage's rendering, kept in its ayah pieces as well as whole. A
+    // reader wants to see where one ayah ends and the next begins; that is a
+    // fact about the rows, not something the app should find by splitting a
+    // paragraph on full stops.
+    const renderingParts = await query<{ ayah: number; text: string | null }>(
+      this.db,
+      `SELECT ayah_from AS ayah, COALESCE(final_fluent_en, assembled_fluent_en) AS text
+         FROM qr_ss_translation_passage
+        WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ? AND ayah_from = ayah_to
+        ORDER BY ayah_from`,
+      [surahId, p.ayah_from, p.ayah_to],
+    ).catch(() => []);
+
+    // How the English came to read the way it does, sentence by sentence: the
+    // literal rendering the structure gives, the parts it is built from with
+    // the role each plays, the fluent line that results, and the decisions
+    // that moved one to the other. All authored rows — nothing assembled by
+    // guess, and nothing the client has to work out for itself.
+    const ladderSentences = await query<LadderSentenceRow>(
+      this.db,
+      `SELECT s.id, s.ayah_from AS ayah, s.ayah_to AS ayahTo,
+              u.id AS unitId, u.structural_literal_en AS literalEn,
+              u.fluent_en AS fluentEn, u.decision_note_ar AS noteAr,
+              u.synthesis_md AS synthesis
+         FROM qr_ss_occ_sentence s
+         JOIN qr_ss_translation_unit u ON u.scope_id = s.id AND u.status = 'live'
+        WHERE s.surah = ? AND s.ayah_from >= ? AND s.ayah_to <= ?
+        ORDER BY s.ayah_from, s.word_start_index`,
+      [surahId, p.ayah_from, p.ayah_to],
+    ).catch(() => []);
+
+    const ladderNodes = ladderSentences.length
+      ? await query<LadderNodeRow>(
+          this.db,
+          `SELECT t.sentence_id AS sentenceId, n.id, n.parent_node_id AS parentId,
+                  n.depth, n.node_order AS ord, n.node_label AS arabic,
+                  n.gram_term_ref AS termRef, n.term_key AS termKey,
+                  n.label_ar AS irabAr, n.gloss_json AS gloss
+             FROM qr_ss_tree t
+             JOIN qr_ss_tree_node n ON n.tree_id = t.id
+            WHERE t.sentence_id IN (${ladderSentences.map(() => '?').join(',')})
+            ORDER BY n.depth, n.node_order`,
+          ladderSentences.map((r) => r.id),
+        ).catch(() => [])
+      : [];
+
+    const termRefs = [...new Set(
+      ladderNodes.map((n) => n.termRef).filter((x): x is string => !!x),
+    )];
+    const termNameAr = new Map<string, string>();
+    if (termRefs.length) {
+      const rows = await query<{ id: string; name_ar: string | null }>(
+        this.db,
+        `SELECT id, name_ar FROM ar_ling_gram_term
+          WHERE id IN (${termRefs.map(() => '?').join(',')})`,
+        termRefs,
+      ).catch(() => []);
+      for (const t of rows) if (t.name_ar) termNameAr.set(t.id, t.name_ar);
+    }
+
+    const nodesBySentence = new Map<string, LadderNodeRow[]>();
+    for (const n of ladderNodes) {
+      const list = nodesBySentence.get(n.sentenceId) ?? [];
+      list.push(n);
+      nodesBySentence.set(n.sentenceId, list);
+    }
+
+    // The rows carry `rendered` and `rationale` as JSON text; the client is
+    // handed objects, the same as the passage's own decision list.
+    const decisionsByUnit = new Map<string, Record<string, unknown>[]>();
+    for (const d of decisions) {
+      const key = typeof d['unitId'] === 'string' ? d['unitId'] : '';
+      const list = decisionsByUnit.get(key) ?? [];
+      list.push({
+        ...d,
+        rendered: parseJson(d['rendered'] as string | null),
+        rationale: parseJson(d['rationale'] as string | null),
+      });
+      decisionsByUnit.set(key, list);
+    }
+
+    const ladder = ladderSentences.map((row) => {
+      const parts = (nodesBySentence.get(row.id) ?? []).map((n) => {
+        const gloss = asRec(parseJson(n.gloss));
+        return {
+          id: n.id,
+          parentId: n.parentId,
+          depth: n.depth,
+          order: n.ord,
+          arabic: n.arabic,
+          termRef: n.termRef,
+          termKey: n.termKey,
+          termAr: n.termRef ? (termNameAr.get(n.termRef) ?? null) : null,
+          irabAr: n.irabAr,
+          glossEn: gloss ? asStr(gloss['en']) : null,
+          glossAr: gloss ? asStr(gloss['ar']) : null,
+        };
+      });
+      // The sentence's own Arabic is the root of its tree; there is no need to
+      // stitch it back together out of words.
+      const root = parts.find((x) => x.depth === 0) ?? parts[0] ?? null;
+      return {
+        id: row.id,
+        unitId: row.unitId,
+        ayah: row.ayah,
+        ayahTo: row.ayahTo,
+        arabic: root?.arabic ?? null,
+        literalEn: row.literalEn,
+        fluentEn: row.fluentEn,
+        noteAr: row.noteAr,
+        synthesis: row.synthesis,
+        parts,
+        decisions: decisionsByUnit.get(row.unitId ?? '') ?? [],
+      };
+    });
+
     // The ladder is ordered here, and each sentence's last step is told what
     // follows it. The rows come back grouped by step_seq, which interleaves
     // the sentences; sorting them by unit and then by seq is the order a
@@ -808,8 +924,10 @@ export class StudyRepo {
       ayahFrom: p.ayah_from,
       ayahTo: p.ayah_to,
       rendering,
+      renderingParts,
       units,
       buildup: orderedBuildup,
+      ladder,
       nuances: nuances.map((n) => ({ ...n, fork: parseJson(n.fork as string | null) })),
       decisions: decisions.map((d) => ({
         ...d,
@@ -2401,6 +2519,30 @@ export function parseQacTag(raw: string | null | undefined): MorphFeatures {
 
 /// A book as the reading ledger shows it: its own title in both scripts and
 /// the badge it is already drawn with elsewhere in the app.
+interface LadderSentenceRow {
+  id: string;
+  ayah: number;
+  ayahTo: number;
+  unitId: string | null;
+  literalEn: string | null;
+  fluentEn: string | null;
+  noteAr: string | null;
+  synthesis: string | null;
+}
+
+interface LadderNodeRow {
+  sentenceId: string;
+  id: string;
+  parentId: string | null;
+  depth: number;
+  ord: number;
+  arabic: string | null;
+  termRef: string | null;
+  termKey: string | null;
+  irabAr: string | null;
+  gloss: string | null;
+}
+
 interface BookBadge {
   titleAr: string | null;
   titleEn: string | null;
