@@ -661,6 +661,43 @@ export class StudyRepo {
       ).catch(() => []),
     ]);
 
+    // The ladder is ordered here, and each sentence's last step is told what
+    // follows it. The rows come back grouped by step_seq, which interleaves
+    // the sentences; sorting them by unit and then by seq is the order a
+    // reader climbs them in, and it is the same order for every client.
+    const unitRank = new Map<string, number>();
+    units.forEach((u, i) => {
+      const id = typeof u['id'] === 'string' ? u['id'] : null;
+      if (id) unitRank.set(id, i);
+    });
+    const rankOf = (row: Record<string, unknown>) => {
+      const id = typeof row['unitId'] === 'string' ? row['unitId'] : '';
+      return unitRank.get(id) ?? units.length;
+    };
+    const climbed = [...buildup].sort((a, b) => {
+      const r = rankOf(a) - rankOf(b);
+      return r !== 0 ? r : Number(a['seq'] ?? 0) - Number(b['seq'] ?? 0);
+    });
+
+    // A sentence closes where the next step belongs to another unit. That step
+    // is the transition into the sentence after it — its connector and the
+    // relation the books name it by — and it belongs on the roof of the
+    // sentence it is leaving, not buried in the sentence it opens.
+    const orderedBuildup = climbed.map((b, i) => {
+      const next = climbed[i + 1];
+      const ends = !next || next['unitId'] !== b['unitId'];
+      const connector = next && typeof next['connectorEn'] === 'string'
+        ? next['connectorEn'].trim() : '';
+      return {
+        ...b,
+        fork: undefined,
+        endsSentence: ends,
+        transitionEn: ends && next ? (connector || null) : null,
+        transitionRelation: ends && next ? (next['relation'] ?? null) : null,
+        transitionOpensEn: ends && next ? (next['addedEn'] ?? null) : null,
+      };
+    });
+
     // The analytical lenses — ring/chiasm, discourse, conflict, lexicon and the
     // rest — are authored rows in qr_passage_section, one card each, keyed by
     // the study passage and ordered by sort_order. Read from the table, never
@@ -772,7 +809,7 @@ export class StudyRepo {
       ayahTo: p.ayah_to,
       rendering,
       units,
-      buildup: buildup.map((b) => ({ ...b, fork: undefined })),
+      buildup: orderedBuildup,
       nuances: nuances.map((n) => ({ ...n, fork: parseJson(n.fork as string | null) })),
       decisions: decisions.map((d) => ({
         ...d,
