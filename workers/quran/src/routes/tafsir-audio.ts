@@ -51,7 +51,13 @@ export function tafsirAudioRoutes(router: Router<QuranEnv>) {
     const slug = params.slug;
     const work = await queryOne<Record<string, unknown>>(env.DB_QR,
       `SELECT 'QRTB:' || source_slug AS id, book_title_ar AS titleAr, book_title_en AS titleEn, author_name_ar AS author,
-              death_year_hijri AS died, 'prose' AS shape, NULL AS audioKey, NULL AS playUrl
+              -- The reader's work head is one shape whichever worker fills
+              -- it: al-ʿarabiyya sends a death year as text ("ت 142"), so
+              -- this does too. Sent as a bare number it failed to decode and
+              -- the reader drew an empty book.
+              CASE WHEN death_year_hijri IS NULL THEN NULL
+                   ELSE 'ت ' || death_year_hijri END AS died,
+              'prose' AS shape, NULL AS audioKey, NULL AS playUrl
          FROM qr_tafsir_book_display_source WHERE source_slug = ?`, [slug]);
     if (!work) return notFound('tafsir');
     const pages = await query<Record<string, unknown>>(env.DB_QR,
