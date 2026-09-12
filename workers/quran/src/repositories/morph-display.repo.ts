@@ -1,5 +1,5 @@
 import { query, queryOne } from '../../../shared/src/db';
-import { buildFeats, registryFeats, rangeOf, waznOf } from '../lib/morph-card';
+import { buildFeats, cardFeats, gtIdsOf, readingSourceSlugs, readingsOf, registryFeats, rangeOf, shapeReadings, waznOf, type GtRow, type SourceLabel, type TermLabel } from '../lib/morph-card';
 import type { AlClient, ResolvedLemma } from '../clients/al.client';
 
 function hydrate(v: unknown): unknown {
@@ -202,7 +202,7 @@ export class MorphDisplayRepo {
     to?: number,
     opts: { includeLemma?: boolean } = {},
   ): Promise<unknown[]> {
-    type GridRow = WordRow & LemmaTierRow & {
+    type GridRow = WordRow & LemmaTierRow & GtRow & {
       sense_arc_en: string | null;
       sense_range_en: string | null;
       verb_form_ar: string | null;
@@ -230,6 +230,9 @@ export class MorphDisplayRepo {
               d.root_meaning_ar, d.root_meaning_en, d.quran_meanings_json,
               d.sense_arc_en, d.sense_range_en, d.verb_form_ar,
               o.morphology_tag_json AS morphology_tag_json,
+              o.gt_case, o.gt_definiteness, o.gt_number, o.gt_gender, o.gt_person,
+              o.gt_voice, o.gt_tense, o.gt_mood, o.gt_jumud, o.gt_derivation_type,
+              o.gt_form_family, o.gt_readings_json,
               q.lx_lemma_ref AS lemma_uid,${LEMMA_TIER_SELECT}
          FROM qr_morph_display_word d
          LEFT JOIN qr_word_occurrence o
@@ -242,7 +245,11 @@ export class MorphDisplayRepo {
       args,
     ).catch(() => [] as GridRow[]);
 
-    const lemmas = await this.resolveLemmaTier(rows.map(r => r.lemma_uid));
+    const [lemmas, terms, sources] = await Promise.all([
+      this.resolveLemmaTier(rows.map(r => r.lemma_uid)),
+      this.resolveTerms(rows.flatMap(gtIdsOf)),
+      this.sourceLabels(rows.flatMap(r => readingSourceSlugs(r.gt_readings_json))),
+    ]);
 
     return rows.map(w => {
       const al = w.lemma_uid ? lemmas[w.lemma_uid] : undefined;
@@ -288,16 +295,43 @@ export class MorphDisplayRepo {
         badge_color: w.badge_color, is_anchor: !!w.is_anchor,
         frequency_quran: al?.frequency_quran ?? w.frequency_quran,
 
-        feats: registryFeats(w.features_json)
+        feats: cardFeats(
+          registryFeats(w.features_json)
             ?? buildFeats(bucket, w.morphology_tag_json, derivedAr, derivedEn,
                           al?.form?.example_ar ?? w.f_model_ar ?? w.l_verb_form_ar ?? w.verb_form_ar ?? null,
                           al?.form?.name_ar ?? w.f_name_ar, al?.form?.roman ?? w.f_roman),
+          w, terms),
+        contested: readingsOf(w.gt_readings_json).length > 1,
+        readings: shapeReadings(w.gt_readings_json, terms, sources),
         sense_arc_en: primaryArc?.arc_en ?? w.sense_arc_en ?? null,
         sense_range_en: rangeOf(w.sense_range_en, meanings),
 
         ...(opts.includeLemma ? { lemma: al ?? null } : {}),
       };
     });
+  }
+
+  private async sourceLabels(slugs: string[]): Promise<Record<string, SourceLabel>> {
+    const uniq = [...new Set(slugs)];
+    if (!uniq.length) return {};
+    const rows = await query<SourceLabel & { source_slug: string }>(
+      this.db,
+      `SELECT source_slug, title_ar, author_name_ar, death_year_hijri
+         FROM qr_morph_display_source
+        WHERE source_slug IN (${uniq.map(() => '?').join(',')})`,
+      uniq,
+    ).catch(() => []);
+    return Object.fromEntries(rows.map(r => [r.source_slug, r]));
+  }
+
+  private async resolveTerms(ids: string[]): Promise<Record<string, TermLabel>> {
+    const uniq = [...new Set(ids)];
+    if (!this.al || !uniq.length) return {};
+    try {
+      return (await this.al.resolveTerms(uniq)).data ?? {};
+    } catch {
+      return {};
+    }
   }
 
   private async resolveLemmaTier(

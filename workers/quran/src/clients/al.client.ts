@@ -90,12 +90,24 @@ export class AlClient {
     );
   }
 
+  resolveTerms(ids: string[]): Promise<{ ok: true; data: Record<string, GramTermLabel> }> {
+    return callService(
+      this.fetcher,
+      `/al/gram/terms/resolve?ids=${encodeURIComponent([...ids].sort().join(','))}`,
+    );
+  }
+
   resolveLemmas(ids: string[]): Promise<{ ok: true; data: Record<string, ResolvedLemma> }> {
     return callService(
       this.fetcher,
       `/al/lemmas/resolve?ids=${encodeURIComponent(ids.join(','))}`,
     );
   }
+}
+
+export interface GramTermLabel {
+  id: string; category_key: string; term_key: string;
+  name_ar: string; name_en: string | null; name_ur: string | null;
 }
 
 export function createAlClient(env: QuranEnv): AlClient | null {

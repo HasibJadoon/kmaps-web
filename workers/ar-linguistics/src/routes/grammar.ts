@@ -61,6 +61,22 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
   /// sub-term. This is the registry of concepts — what the maps are drawn from
   /// and what a concept page is about — as opposed to the syllabus, which is
   /// one way of *teaching* them.
+  /// Labels for a list of registry term ids (`GT:jumud:mushtaqq,…`), keyed by
+  /// id — what a word card needs to name the grammatical facts stored against a
+  /// word, in Arabic, English and Urdu. Unknown ids are simply absent.
+  router.get('/al/gram/terms/resolve', (req, env) => cached(req, async () => {
+    const raw = new URL(req.url).searchParams.get('ids') ?? '';
+    const ids = [...new Set(raw.split(',').map(s => s.trim()).filter(Boolean))];
+    if (!ids.length) return badRequest('ids (comma-separated GT term ids) param required');
+    if (ids.length > 200) return badRequest(`too many ids (${ids.length}); max 200`);
+    const rows = (await env.DB_AL.prepare(
+      `SELECT id, category_key, term_key, name_ar, name_en, name_ur
+         FROM ar_ling_gram_term
+        WHERE status = 'live' AND id IN (${ids.map(() => '?').join(',')})`,
+    ).bind(...ids).all<Record<string, unknown>>()).results ?? [];
+    return ok(Object.fromEntries(rows.map(r => [r.id as string, r])));
+  }));
+
   router.get('/al/gram/terms', (req, env) => cached(req, async () => {
     const categories = (await env.DB_AL.prepare(
       `SELECT category_key, discipline, name_ar, name_en, name_ur,

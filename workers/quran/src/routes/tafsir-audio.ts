@@ -75,7 +75,20 @@ export function tafsirAudioRoutes(router: Router<QuranEnv>) {
     const byPage = new Map<string, { seq: number; start: number; end: number; text: string; speaker: null; anchored: boolean; words: number[][] | null }[]>();
     for (const s of segs) {
       let words: number[][] | null = null;
-      if (s.words) { try { words = JSON.parse(s.words); } catch { words = null; } }
+      // A word the aligner never heard is written as [0, 0]. Sent through, it
+      // is a word that "started" before every moment of the recording, and the
+      // reader's fallback for a gap between two words — the last word that has
+      // started — lands on it every time: the light jumps to an unheard word
+      // anywhere on the line and back. Send it as no time at all, which the
+      // reader skips.
+      if (s.words) {
+        try {
+          const raw: unknown = JSON.parse(s.words);
+          words = Array.isArray(raw)
+            ? raw.map((w) => (Array.isArray(w) && w.length === 2 && Number(w[1]) > Number(w[0]) ? [Number(w[0]), Number(w[1])] : []))
+            : null;
+        } catch { words = null; }
+      }
       // A line the reader never reached collapses to a single instant: the
       // aligner has no time to give it because no time was spent on it. Say so
       // rather than claiming it was read — the page still shows the text, and
