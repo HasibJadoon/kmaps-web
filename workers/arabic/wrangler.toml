@@ -21,5 +21,12 @@ service = "km-quran-worker"
 [[r2_buckets]]
 binding     = "AR_AUDIO"
 bucket_name = "km-arabic-audio"
+
+[[r2_buckets]]
+binding     = "AR_VENDOR"
+bucket_name = "km-arabic-vendor"
+# Third-party publisher audio. Deliberately absent from the gateway's
+# publicGetPaths: reached only through GET /ar/vendor-audio/:key+, which
+# requires a token and returns a signed, expiring stream URL.
 # Acquisition audio. Served read-only via GET /ar/audio/:key+ which the gateway
 # allowlists for anonymous GET — an <audio> tag cannot send a Bearer token.

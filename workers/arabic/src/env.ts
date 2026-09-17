@@ -6,8 +6,16 @@ export interface ArabicEnv {
   // so a changed file is a new key and never a rewrite.
   AR_AUDIO: R2Bucket;
 
+  // Publisher companion audio held under licence to one reader. Private: no
+  // anonymous route reaches it, only a signed URL minted per key.
+  AR_VENDOR: R2Bucket;
+
   AR_LINGUISTICS?: Fetcher;
   QURAN?: Fetcher;
 
   JWT_SECRET?: string;
+
+  // Signs the expiring stream URLs for AR_VENDOR. Its own secret, not the
+  // gateway's JWT_SECRET, which no domain worker holds.
+  VENDOR_URL_SECRET?: string;
 }
