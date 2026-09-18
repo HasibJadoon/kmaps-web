@@ -1,222 +1,145 @@
 {
   "_template": "linguistics/lexicon-source-entry",
-  "_version": 1,
-  "_about": "Book-scoped lexicon entry for one Arabic root from one classical dictionary. Fill from the book verbatim; glosses are additive. Omit optional keys the book does not attest rather than inventing values.",
-  "scope": {
-    "_required": [
-      "root_ar",
-      "source_slug"
-    ],
-    "root_ar": "…",
-    "source_slug": "…",
-    "book_ar": "…",
-    "author_ar": "…",
-    "author_en": "…",
-    "_author_en": "romanised, with its diacritics — used for the citation line",
-    "death_ah": 0,
-    "volume": 0,
-    "page_start": 0,
-    "page_end": 0,
-    "blocks": 0,
-    "status": "raw|clean|blocked|index_only|absent"
+  "_version": 2,
+  "_about": "One Arabic root as ONE classical dictionary treats it. This is the authoring shape of a sarf_family block's data_json in ar_ling_lexicon_block — what a human fills from the book — not the header the reader sees. The header is built from this by scripts/al/build_lexicon_entry_ds.mjs in kmaps-database and travels as derived blocks; nothing below describes presentation.",
+  "_v2_note": "v1 described a shape the pipeline never read (headword_line, mujarrad[] keyed by bāb, mazeed[] keyed by wazn, frames[], the bāb grid). The live spine is forms[], keyed by roman numeral. v2 documents what is actually authored and actually read.",
+
+  "_fill_rule": "Write what the book says. Omit a key the book does not attest rather than inventing a value — the builder fills what is mechanical (see _derived) and marks it. If YOU supply something the book leaves out, keep the key and set its *_source to inferred_supplied, so the difference survives.",
+
+  "scope": "book",
+  "_scope": "book — this entry speaks for this dictionary alone, never for the root at large.",
+
+  "root_type": "GT:root_type:sound",
+  "_root_type": "GT id. Names the root's shape (صحيح سالم، مضاعف، أجوف…), which decides which abwāb are even possible.",
+
+  "block_meta": {
+    "core": { "ar": "…", "en": "…", "ur": "…" },
+    "_core": "The book's thesis for this root, in its own terms. Trilingual; ar is the book, en/ur are the gloss.",
+    "distinctive_note": { "ar": "…", "en": "…", "ur": "…" },
+    "_distinctive_note": "What THIS book does that its neighbours do not — where it opens, what it withholds. Renders under the book's name at the foot of the header.",
+    "authors_own_words": { "ar": "…", "en": "…", "ur": "…" },
+    "_authors_own_words": "The author's own opening sentence, when it is worth setting apart."
   },
-  "header": {
-    "_note": "All optional.",
-    "opening_quote_ar": "…",
-    "_opening_quote_ar": "the book's own first line",
-    "thesis": {
-      "ar": "…",
-      "en": "…",
-      "ur": "…"
-    },
-    "body": {
-      "ar": [
-        "…"
-      ],
-      "en": [
-        "…"
-      ],
-      "ur": [
-        "…"
-      ]
-    },
-    "_body": "1–4 paragraphs per lane",
-    "stats": [
-      {
-        "value": 0,
-        "label_ar": "…",
-        "label_en": "…",
-        "zero": false
-      }
-    ]
-  },
-  "sarf": {
-    "_note": "Classical spine: bāb / wazn. Transitivity is an ATTRIBUTE, not the grouping.",
-    "root_shape": {
-      "_note": "Decides which abwāb are even possible.",
-      "type_ar": "صحيح سالم | مضاعف | مهموز | مثال | أجوف | ناقص | لفيف",
-      "gt": "GT:root_weak:…",
-      "bab_constraint_ar": "…",
-      "_bab_constraint_ar": "e.g. «المضاعف يجيء من ثلاثة أبواب»",
-      "bab_constraint_src": "…",
-      "_bab_constraint_src": "the ṣarf book stating it"
-    },
-    "headword_line": {
-      "line_ar": "…",
-      "_line_ar": "the whole Almaany-style line, ready to print",
-      "bab_key": "bab_nasara",
-      "past": "…",
-      "aorist": "…",
-      "masadir": [
-        "…"
-      ],
-      "prepositions": [
-        "عَلَى"
-      ],
-      "_prepositions": "OMIT if the book gives none",
-      "active_participle": "…",
-      "passive_participle": "…",
-      "note_ar": "…",
-      "_note_ar": "e.g. the frame-scoped second bāb"
-    },
-    "mujarrad": [
-      {
-        "_note": "One entry per bāb THIS BOOK attests.",
-        "bab_key": "bab_nasara",
-        "name_ar": "بابُ نَصَرَ",
-        "alias_ar": null,
-        "wazn": "فَعَلَ يَفْعُلُ",
-        "aorist": "…",
-        "scope": "root | frame_only",
-        "_scope": "frame_only = attested for one frame, not the root",
-        "transitivity": "GT:transitivity:…",
-        "route": "GT:taddiya_route:binafsihi",
-        "core": {
-          "ar": "…",
-          "en": "…"
-        },
-        "frames": []
-      }
-    ],
-    "mujarrad_absent": [
-      "bab_fataha",
-      "…"
-    ],
-    "_mujarrad_absent": "of the six",
-    "mazeed": [
-      {
-        "_note": "One entry per wazn THIS BOOK attests.",
-        "form": "II",
-        "wazn": "فَعَّلَ",
-        "masdar_pattern": "تَفْعيل",
-        "masdar_attested": "تَكْتيبًا",
-        "_masdar_attested": "OMIT if the book doesn't vowel it",
-        "transitivity": "GT:transitivity:…",
-        "route": "GT:taddiya_route:bitadeef",
-        "maana_ar": "التكثير | المطاوعة | المشاركة | الطلب | الصيرورة",
-        "core": {
-          "ar": "…",
-          "en": "…"
-        },
-        "frames": []
-      }
-    ],
-    "mazeed_absent": [
-      "VII",
-      "IX"
-    ],
-    "_frame": {
-      "_note": "Frame object — the unit of meaning. Copy into mujarrad[].frames / mazeed[].frames.",
-      "frame_ar": "كَتَبَ الكِتابَ",
-      "_frame_ar": "verb + its argument, as the book prints it",
-      "aorist": "…",
-      "aorist_alt": false,
-      "harf": null,
-      "_harf": "OMIT unless the book governs with one",
-      "meaning_ar": "…",
-      "meaning_en": "…",
-      "meaning_ur": "…",
-      "joined_ar": "…",
-      "_joined_ar": "WHAT is joined — the varying noun",
-      "arg_class": "GT:arg_class:…",
-      "arg_role": "object | subject",
-      "obj1": null,
-      "obj2": null,
-      "_obj": "ditransitive only",
-      "synonyms_ar": [
-        "…"
-      ],
-      "_synonyms_ar": "the book's OWN glosses only",
-      "authority_ar": "…",
-      "shahid_ar": "…",
-      "qref": "…",
-      "block": 0
-    },
-    "derived_nouns": [
-      {
-        "ar": "…",
-        "plural": [
-          "…"
-        ],
-        "gloss_ar": "…",
-        "type": "GT:derivation_type:…"
-      }
-    ],
-    "internal_notes": [
-      {
-        "kind": "conflict|equivalence|valency|orth|variant|critique",
-        "ar": "…",
-        "en": "…",
-        "gt": "…",
-        "blocks": [
-          0,
-          0
-        ]
-      }
-    ],
-    "coverage": {
-      "aorist_attested_for": [
-        "I"
-      ],
-      "masdar_attested_for": [
-        "I"
-      ],
-      "inferred": [
-        "…"
-      ],
-      "note_en": "…"
-    }
-  },
-  "meaning": {
-    "core": {
-      "ar": "…",
-      "en": "…",
-      "ur": "…"
-    },
-    "quote_ar": "…",
-    "block": 0,
-    "asl_kind": "GT:asl_kind:…",
-    "_asl_kind": "'none' is a value, not a gap"
-  },
-  "range": [
+
+  "poles": [
     {
-      "title_ar": "…",
-      "detail_ar": "…",
-      "detail_en": "…",
-      "block": 0
+      "key": "stitching",
+      "label": { "ar": "…", "en": "…", "ur": "…" }
     }
   ],
-  "_range": "ordered; declare whose order it is",
-  "range_order": "book | concrete_to_abstract | editorial",
-  "shawahid": [
+  "_poles": "The axes this book's senses run between, in ITS order. One pole is a finding too — it says the author keeps the sense undivided — and renders as a pole, not an arrow.",
+
+  "forms": [
     {
-      "text_ar": "…",
-      "highlight_ar": "…",
-      "kind": "poetry|quran|hadith|prose",
-      "attribution_ar": "…",
-      "qref": "…",
-      "gloss_en": "…",
-      "block": 0
+      "_note": "One entry per thing the book says under a form. Two entries may share a roman numeral — a general verb and a passive-only usage — and the builder merges them onto one card, so do not force them into one object here.",
+
+      "form_id": "kay_ktb_f1",
+      "roman": "I",
+      "_roman": "I | II | … | X. The spine. Form I is المجرَّد; II–X are المزيد فيه, and the header splits on exactly this.",
+
+      "bab": "GT:form_family:bab_nasara",
+      "_bab": "Form I only — the six abwāb exist for it alone. The bāb IS the vowel pair (فَعَلَ يَفْعُلُ), so if the book gives madi+mudari the builder reads the bāb off them; give it here only when the book NAMES it.",
+      "bab_alt": [],
+      "bab_source": "attested | inferred_supplied",
+      "_bab_source": "attested = the book names this bāb. inferred_supplied = you supplied it; the book does not. The header marks a supplied bāb rather than passing it off as the book's.",
+
+      "form_tier": "GT:form_family:form_iv",
+      "root_type": "GT:root_type:sound",
+
+      "madi": "كَتَبَ",
+      "mudari": "يَكْتُبُ",
+      "mudari_source": "attested | inferred_supplied",
+      "mudari_gt": "GT:pos:fiil_mudari",
+      "masadir": ["الكَتْب", "الكِتاب"],
+      "masdar_term": "GT:derivation_type:masdar",
+      "_verb": "Vocalize as the book does. For II–X all three are mechanical for a sound root, so omit what the book does not give and the builder fills it; for Form I only the book can say.",
+
+      "ism_fail": "كاتِبٌ",
+      "ism_fail_term": "GT:derivation_type:active_participle",
+      "ism_fail_source": "attested | inferred_supplied",
+      "ism_maf": null,
+      "ism_maf_term": null,
+      "voice": null,
+      "passive_form": null,
+      "passive_masdar": null,
+      "_passive": "passive_form carries a passive-only usage (كُتِبَ). It needs no ماضٍ of its own — the builder nests it under its form as a sense.",
+
+      "trans": ["GT:transitivity:transitive"],
+      "_trans": "An ATTRIBUTE of the form, never the grouping.",
+      "trans_note": { "ar": "…", "en": "…", "ur": "…" },
+      "_trans_note": "Where to say what the book withholds — 'al-Khalīl does not state the mudāriʿ, the bāb, or the ism al-fāʿil here'.",
+
+      "pole": "stitching",
+      "pole_family": "PF:ktb_joining_writing",
+      "levels_with": [],
+      "ayah": null,
+
+      "gloss": { "ar": "…", "en": "…", "ur": "…" },
+      "_gloss": "This form's own reading, one line. Becomes the card's core line.",
+
+      "senses": [
+        {
+          "sense": { "ar": "…", "en": "…", "ur": "…" },
+          "example": { "ar": "…", "en": "…", "ur": "…" },
+          "ref": null
+        }
+      ],
+      "_senses": "Nest under their form; the header hangs them off the card.",
+
+      "shahid": { "ar": "…", "en": "…", "ur": "…" },
+      "_shahid": "The witness the book cites for THIS form — verse, āya, or prose. One per form; put several lines in one string as the book runs them."
     }
-  ]
+  ],
+
+  "derivations": [
+    {
+      "sense": { "ar": "…", "en": "…", "ur": "…" },
+      "example": { "ar": "…", "en": "…", "ur": "…" }
+    }
+  ],
+  "_derivations": "For a book that names no forms at all — Ibn Fāris runs on derivations off one aṣl. Renders as the مجرَّد section's whole content.",
+
+  "nominals": [
+    {
+      "term": "الكُتَّاب",
+      "label": { "ar": "…", "en": "…", "ur": "…" },
+      "kind": null
+    }
+  ],
+  "_nominals": "The nouns the book gathers under the root. Renders as chips at the foot.",
+
+  "levelling_groups": [
+    {
+      "claim": { "ar": "…", "en": "…", "ur": "…" },
+      "form_ids": ["kay_ktb_f1"],
+      "dispute_note": { "ar": "…", "en": "…", "ur": "…" }
+    }
+  ],
+  "_levelling_groups": "Where the book levels two forms as one sense, and who disputes it.",
+
+  "defect_note": [
+    {
+      "defect": "…",
+      "field": "…",
+      "printed": "…",
+      "corrected": "…"
+    }
+  ],
+  "_defect_note": "A fault in the EDITION, not in us. Shown as it stands, never silently repaired.",
+
+  "register": "…",
+  "note": "…",
+  "_provenance_keys": "register and note are the pipeline talking about itself. They stay in doc_json and are never drawn.",
+
+  "_derived": {
+    "_note": "NOT authored. build_lexicon_entry_ds.mjs fills these and flags each, so a reader can tell the book's word from a mechanical one. Never hand-write them into a block.",
+    "lead_ar": "What names the form at the head of its line: the bāb for Form I, the form's own pattern (إِفْعَال، اِفْتِعَال) otherwise.",
+    "roman_ar": "GT:form_family:form_i…x resolved — مُجَرَّد، تَفْعِيل، إِفْعَال.",
+    "madi_inferred": "Forms II–X: the ماضٍ is fixed per form for a sound root.",
+    "mudari_inferred": "II–X from the form; Form I from its own bāb.",
+    "masadir_inferred": "II–X: one canonical مصدر per form, two for III (فِعَال and مُفَاعَلة).",
+    "ism_fail_inferred": "فاعل for Form I, مُفَعِّل/مُفَاعِل/… for II–X.",
+    "bab_inferred": "Form I: read off the book's own ماضٍ/مضارع vowel pair.",
+    "_guard": "All of it is withheld for a weak, hamzated or geminate root, where the templates do not hold."
+  }
 }
