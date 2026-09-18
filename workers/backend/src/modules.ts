@@ -39,7 +39,10 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     publicGet: false,
     // Lesson media — the photographs deck slides sit on. An <img> cannot carry
     // a token, and a picture of a lamp holds nothing about anyone.
-    publicGetPaths: ['cm/assets'],
+    // The template registry — the shape a document is authored in, and the
+    // worked entries that show it filled in. A table of contents for
+    // authors; it names books and fields and holds nothing about anyone.
+    publicGetPaths: ['cm/assets', 'cm/templates'],
   },
   core: { binding: 'CORE',           publicGet: true  },
 

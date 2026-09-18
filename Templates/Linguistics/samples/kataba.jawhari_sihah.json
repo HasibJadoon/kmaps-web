@@ -1,0 +1,571 @@
+{
+  "_template": "linguistics/lexicon-source-entry",
+  "_version": 1,
+  "_sample": "Worked book sample — root كتب as al-Jawharī gives it in al-Ṣiḥāḥ.",
+  "scope": {
+    "root_ar": "كتب",
+    "source_slug": "jawhari_sihah",
+    "book_ar": "الصِّحاحُ تاجُ اللغة",
+    "author_ar": "أبو نَصرٍ إسماعيلُ بنُ حَمّادٍ الجوهريّ",
+    "author_en": "al-Jawharī",
+    "death_ah": 393,
+    "volume": 1,
+    "page_start": 404,
+    "page_end": 405,
+    "blocks": 9,
+    "status": "raw"
+  },
+  "header": {
+    "opening_quote_ar": "الكِتابُ معروفٌ، والجمعُ كُتُبٌ وكُتْبٌ",
+    "thesis": {
+      "ar": "تَفتتِحُ المادّةُ بالقَدَرِ وتُختَمُ بعِتْقِ رَجُل.",
+      "en": "The entry opens on destiny and closes on a man going free.",
+      "ur": "مادّہ تقدیر سے کھلتا ہے اور ایک آدمی کی آزادی پر بند ہوتا ہے۔"
+    },
+    "body": {
+      "ar": [
+        "يبدأُ الجوهريُّ من حيثُ يَنتهي غيرُه: الكِتابُ — يقولُ — هو الفَرْضُ والحُكْمُ والقَدَر؛ ورجلُ الجَعديِّ يقولُ لابنةِ عمِّه إنَّه ما أخرجَه عنها هَواهُ بل كِتابُ الله. ثمَّ بعدَ ذلك يَقِفُ ليقولَ ما كان الفعلُ يعنيه منذُ البَدء: والكَتْبُ: الجَمْعُ. وكلُّ ما سَبَقَ كان جَمْعًا وقعَ عليكَ أنتَ.",
+        "ثمَّ يَهبِطُ إلى الصَّنْعة. بَغْلةٌ خُزِمَ حَياؤها بحَلْقةٍ أو سَيرٍ فلا يَصِلُ إليها فَحْل. وقِربةٌ خُرِزَتْ بسَيرَين — وقِربةُ ذي الرُّمَّةِ قد وَهَتْ خَوارِزُها، يَسيلُ ماؤها بينَ الكُتَب. وناقةٌ صُرَّتْ أخلافُها. وخَيلٌ تَكَتَّبَتْ: اجتمعتْ فلم تَنتَشِر. وسَهمٌ مُدَوَّرُ الرأسِ يتعلَّمُ به الصبيُّ الرَّمْيَ أوَّلَ ما يتعلَّم. والحَجّاجُ مُكْتِبٌ بالطائفِ قبلَ أن يكونَ شيئًا آخرَ بسنين.",
+        "وآخرُ سطرٍ عَبْدٌ يُكاتِبُ على ثَمَنِ نفسِه: فإذا سعى وأدَّاهُ عَتَق. فالجذرُ الذي افتتحَ بأن يَشُدَّ رجلًا إلى ما كُتِبَ عليه، خَتَمَ بأن أطلقَه يَكتُبُ نفسَه حُرًّا."
+      ],
+      "en": [
+        "Al-Jawharī begins where you would expect a lexicographer to end. al-kitāb, he says, is obligation, judgement, and what is decreed — and al-Jaʿdī's man tells his cousin that no wish of his own drove him out from her, but God's writ. Only then does he pause to say what the verb has meant all along: wa-l-katbu al-jamʿ, joining. Everything before it was the joining already done to you.",
+        "Then he goes down into the workshop. A mule ringed with iron or a thong so no stallion can reach her. A waterskin sewn with two threads — and Dhū al-Rumma's, seams gone slack, water threading out between the stitches. A she-camel's teats bound before the milking. Cavalry drawn up and holding: takattabat al-khaylu, they gathered and did not scatter. A boy's blunt arrow, his first lesson in aim. Al-Ḥajjāj keeping a schoolroom at al-Ṭāʾif, years before he was anything else.",
+        "The last line is a slave contracting for his own price: fa-idhā saʿā wa-addāhu ʿataq — when he has worked and paid it, he is free. The root that opened by binding a man to what was written on him closes by letting him write himself out."
+      ],
+      "ur": [
+        "جوہری وہیں سے شروع کرتا ہے جہاں اور لغوی ختم کرتے ہیں۔ کتاب، وہ کہتا ہے، فرض ہے، حکم ہے، اور جو مقدّر ہو چکا؛ اور جعدی کا آدمی اپنی چچا زاد سے کہتا ہے کہ مجھے تم سے میری اپنی چاہت نے نہیں نکالا، کتابِ الٰہی نے نکالا۔ اِس کے بعد کہیں جا کر وہ ٹھہرتا ہے اور بتاتا ہے کہ فعل کا مطلب شروع سے کیا تھا: والكَتْبُ: الجَمْعُ — جوڑنا۔",
+        "پھر وہ کارگاہ میں اترتا ہے۔ لوہے کے حلقے سے بند کی گئی خچر۔ دو تسموں سے سلی مشک — اور ذو الرمّہ کی مشک، جس کے ٹانکے ڈھیلے پڑ گئے اور پانی اُن کے بیچ سے رِس رہا ہے۔ دوہنے سے پہلے بندھے اونٹنی کے تھن۔ صف بستہ گھڑ سوار: جمع ہوئے، بکھرے نہیں۔ بچّے کا کند سرا تیر، نشانے کا پہلا سبق۔ اور طائف کے مکتب میں حجّاج، اُس سے برسوں پہلے کہ وہ کچھ اور بنتا۔",
+        "آخری سطر ایک غلام ہے جو اپنی قیمت پر معاہدہ کرتا ہے: فإذا سعى وأدّاه عتق — جب وہ محنت کر کے ادا کر دے، آزاد ہے۔ جو مادّہ آدمی کو اُس سے باندھ کر کھلا تھا جو اُس پر لکھا گیا، وہ اُسے یہ چھوٹ دے کر بند ہوتا ہے کہ اپنی آزادی خود لکھ لے۔"
+      ]
+    },
+    "stats": [
+      {
+        "value": 9,
+        "label_ar": "فِقْرة",
+        "label_en": "BLOCKS"
+      },
+      {
+        "value": 12,
+        "label_ar": "إطار",
+        "label_en": "FRAMES"
+      },
+      {
+        "value": 8,
+        "label_ar": "صيغة",
+        "label_en": "FORMS"
+      },
+      {
+        "value": 2,
+        "label_ar": "آية",
+        "label_en": "ĀYĀT"
+      },
+      {
+        "value": 2,
+        "label_ar": "شاهد",
+        "label_en": "SHAWĀHID"
+      },
+      {
+        "value": 0,
+        "label_ar": "حرف جرّ",
+        "label_en": "PARTICLES",
+        "zero": true
+      }
+    ]
+  },
+  "sarf": {
+    "root_shape": {
+      "type_ar": "صحيح سالم",
+      "gt": "GT:root_weak:salim",
+      "bab_constraint_ar": "لا قيدَ عليه — الأبوابُ الستَّةُ كلُّها مفتوحةٌ له، بخلافِ المضاعفِ ومهموزِ العينِ والناقص.",
+      "bab_constraint_src": "مراح الأرواح · شرح دنكوز"
+    },
+    "headword_line": {
+      "line_ar": "بابُ نَصَرَ — كَتَبَ يَكْتُبُ كَتْبًا، كِتابًا وكِتابَةً، فهو كاتِبٌ، والمفعولُ مَكتوبٌ",
+      "bab_key": "bab_nasara",
+      "past": "كَتَبَ",
+      "aorist": "يَكْتُبُ",
+      "masadir": [
+        "كَتْبًا",
+        "كِتابًا",
+        "كِتابَةً"
+      ],
+      "active_participle": "كاتِبٌ",
+      "passive_participle": "مَكتوبٌ",
+      "note_ar": "وفي البَغْلةِ وحدَها بابُ ضَرَبَ: أكْتِبُ وأكْتُبُ.",
+      "_prepositions": "omitted — he governs with none"
+    },
+    "mujarrad": [
+      {
+        "bab_key": "bab_nasara",
+        "name_ar": "بابُ نَصَرَ",
+        "wazn": "فَعَلَ يَفْعُلُ",
+        "aorist": "يَكْتُبُ",
+        "scope": "root",
+        "transitivity": "GT:transitivity:transitive",
+        "route": "GT:taddiya_route:binafsihi",
+        "core": {
+          "ar": "الجَمْعُ يقعُ على مفعولٍ مباشرةً، ويتبدَّلُ المعنى بتبدُّلِ المفعول.",
+          "en": "The joining lands directly on an object, and the sense turns with the object."
+        },
+        "frames": [
+          {
+            "frame_ar": "كَتَبَ الكِتابَ",
+            "meaning_ar": "خَطَّهُ",
+            "joined_ar": "الحروف",
+            "meaning_en": "he traced it — joining letters",
+            "arg_class": "GT:arg_class:manqul",
+            "arg_role": "object",
+            "block": 11
+          },
+          {
+            "frame_ar": "كَتَبَ القِرْبَةَ",
+            "meaning_ar": "خَرَزَها بسَيرَين، فهي كَتيبٌ",
+            "joined_ar": "الأديم",
+            "meaning_en": "he sewed it with two thongs",
+            "synonyms_ar": [
+              "خَرَزَ"
+            ],
+            "arg_class": "GT:arg_class:wia",
+            "arg_role": "object",
+            "block": 13
+          },
+          {
+            "frame_ar": "كَتَبَ القِرْبَةَ",
+            "meaning_ar": "شَدَّها بالوِكاء",
+            "joined_ar": "فَمُها",
+            "meaning_en": "he tied it shut with a band",
+            "synonyms_ar": [
+              "شَدَّ بالوِكاء"
+            ],
+            "arg_class": "GT:arg_class:wia",
+            "arg_role": "object",
+            "block": 14
+          }
+        ]
+      },
+      {
+        "bab_key": "bab_daraba",
+        "name_ar": "بابُ ضَرَبَ",
+        "wazn": "فَعَلَ يَفْعِلُ",
+        "aorist": "أكْتِبُ",
+        "scope": "frame_only",
+        "transitivity": "GT:transitivity:transitive",
+        "route": "GT:taddiya_route:binafsihi",
+        "core": {
+          "ar": "لا يَجري في المادّةِ كلِّها، بل في إطارٍ واحدٍ بعينِه، ويَجوزُ فيه الوجهان.",
+          "en": "Does not run through the root — one frame only, where both aorists are allowed."
+        },
+        "frames": [
+          {
+            "frame_ar": "كَتَبَ البَغْلَةَ",
+            "aorist": "أكْتِبُ وأكْتُبُ",
+            "aorist_alt": true,
+            "meaning_ar": "جَمَعَ بين شُفرَيها بحَلْقةٍ أو سَير",
+            "joined_ar": "الشُّفرَين",
+            "meaning_en": "he drew her two edges together with a ring or a thong",
+            "synonyms_ar": [
+              "الجَمْع"
+            ],
+            "arg_class": "GT:arg_class:hayawan",
+            "arg_role": "object",
+            "block": 13
+          }
+        ]
+      }
+    ],
+    "mujarrad_absent": [
+      "bab_fataha",
+      "bab_samia",
+      "bab_karuma",
+      "bab_hasiba"
+    ],
+    "mazeed": [
+      {
+        "form": "II",
+        "wazn": "فَعَّلَ",
+        "masdar_pattern": "تَفْعيل",
+        "masdar_attested": "تَكْتيبًا",
+        "transitivity": "GT:transitivity:transitive",
+        "route": "GT:taddiya_route:bitadeef",
+        "maana_ar": "التكثيرُ والتفريقُ على الآحاد",
+        "core": {
+          "ar": "التضعيفُ لا يُعَدِّي هنا، فالثلاثيُّ متعدٍّ أصلًا.",
+          "en": "Doubling does not make it transitive — it already was."
+        },
+        "frames": [
+          {
+            "frame_ar": "كَتَّبَ الكَتائبَ",
+            "meaning_ar": "عَبَّاها كَتيبةً كَتيبةً",
+            "joined_ar": "الرِّجال",
+            "meaning_en": "he marshalled them squadron by squadron",
+            "synonyms_ar": [
+              "عَبَّأَ"
+            ],
+            "arg_class": "GT:arg_class:jama",
+            "arg_role": "object",
+            "block": 14
+          },
+          {
+            "frame_ar": "كَتَّبَ النَّاقَةَ",
+            "meaning_ar": "صَرَّها",
+            "joined_ar": "الأخلاف",
+            "meaning_en": "he bound her teats",
+            "synonyms_ar": [
+              "صَرَّ"
+            ],
+            "authority_ar": "أبو زيد",
+            "arg_class": "GT:arg_class:hayawan",
+            "arg_role": "object",
+            "block": 14
+          }
+        ]
+      },
+      {
+        "form": "III",
+        "wazn": "فاعَلَ",
+        "masdar_pattern": "مُفاعَلَة",
+        "masdar_attested": "مُكاتَبة",
+        "transitivity": "GT:transitivity:transitive",
+        "maana_ar": "المُشاركة",
+        "frames": [
+          {
+            "frame_ar": "كاتَبَ العبدَ",
+            "meaning_ar": "على نفسِه بثَمَنِه، فإذا سعى وأدَّاهُ عَتَق",
+            "meaning_en": "contracted with the slave for his own price — when he has worked and paid it, he is free",
+            "arg_class": "GT:arg_class:aqd",
+            "arg_role": "object",
+            "block": 18
+          }
+        ]
+      },
+      {
+        "form": "IV",
+        "wazn": "أَفْعَلَ",
+        "masdar_pattern": "إفْعال",
+        "route": "GT:taddiya_route:bihamza",
+        "maana_ar": "التعديةُ والطلب",
+        "frames": [
+          {
+            "frame_ar": "أَكْتَبَ القِرْبَةَ",
+            "meaning_ar": "شَدَّها بالوِكاء، فهي مُكْتَبٌ وكَتيبٌ",
+            "meaning_en": "he tied it shut with a band",
+            "transitivity": "GT:transitivity:transitive",
+            "arg_class": "GT:arg_class:wia",
+            "arg_role": "object",
+            "block": 14
+          },
+          {
+            "frame_ar": "أَكْتِبْني هذه القَصيدةَ",
+            "obj1": "ني",
+            "obj2": "القَصيدةَ",
+            "meaning_ar": "أَمْلِها عَلَيَّ",
+            "meaning_en": "dictate it to me",
+            "synonyms_ar": [
+              "أَمْلى"
+            ],
+            "transitivity": "GT:transitivity:ditransitive",
+            "arg_class": [
+              "GT:arg_class:shakhs",
+              "GT:arg_class:manqul"
+            ],
+            "block": 14
+          }
+        ]
+      },
+      {
+        "form": "V",
+        "wazn": "تَفَعَّلَ",
+        "masdar_pattern": "تَفَعُّل",
+        "transitivity": "GT:transitivity:intransitive",
+        "maana_ar": "المُطاوعة",
+        "core": {
+          "ar": "الجَمْعُ نفسُه، إلَّا أنَّ الفاعلَ هو الذي يُجمَع.",
+          "en": "The same joining — except the subject is the thing gathered."
+        },
+        "frames": [
+          {
+            "frame_ar": "تَكَتَّبَتِ الخَيْلُ",
+            "meaning_ar": "تَجَمَّعَت بنفسِها",
+            "meaning_en": "the horse massed of itself",
+            "synonyms_ar": [
+              "تَجَمَّعَ"
+            ],
+            "arg_class": "GT:arg_class:jama",
+            "arg_role": "subject",
+            "block": 14
+          }
+        ]
+      },
+      {
+        "form": "VI",
+        "wazn": "تَفاعَلَ",
+        "masdar_pattern": "تَفاعُل",
+        "masdar_attested": "التَّكاتُب",
+        "maana_ar": "المُشاركة",
+        "frames": [
+          {
+            "frame_ar": "تَكاتَبا",
+            "meaning_ar": "والمُكاتَبةُ والتَّكاتُبُ بمعنًى",
+            "meaning_en": "mukātaba and takātub are one",
+            "block": 18
+          }
+        ]
+      },
+      {
+        "form": "VIII",
+        "wazn": "افْتَعَلَ",
+        "masdar_pattern": "افْتِعال",
+        "maana_ar": "اتّخاذُ الفعلِ لنفسِه",
+        "frames": [
+          {
+            "frame_ar": "اكْتَتَبَ الكِتابَ",
+            "meaning_ar": "كَتَبَهُ لنفسِه",
+            "meaning_en": "he had it written for himself",
+            "transitivity": "GT:transitivity:transitive",
+            "arg_class": "GT:arg_class:manqul",
+            "arg_role": "object",
+            "qref": "25:5",
+            "block": 14
+          },
+          {
+            "frame_ar": "اكْتَتَبَ الرَّجُلُ",
+            "meaning_ar": "كَتَبَ نفسَه في ديوانِ السُّلطان",
+            "meaning_en": "he wrote himself into the sultan's register",
+            "transitivity": "GT:transitivity:intransitive",
+            "arg_class": "GT:arg_class:shakhs",
+            "arg_role": "subject",
+            "block": 16
+          }
+        ]
+      },
+      {
+        "form": "X",
+        "wazn": "اسْتَفْعَلَ",
+        "masdar_pattern": "اسْتِفْعال",
+        "maana_ar": "الطَّلَب",
+        "frames": [
+          {
+            "frame_ar": "اسْتَكْتَبَهُ الشَّيءَ",
+            "obj1": "ـهُ",
+            "obj2": "الشَّيءَ",
+            "meaning_ar": "سَأَلَهُ أن يَكْتُبَهُ له",
+            "meaning_en": "he asked him to write it for him",
+            "transitivity": "GT:transitivity:ditransitive",
+            "arg_class": [
+              "GT:arg_class:shakhs",
+              "GT:arg_class:manqul"
+            ],
+            "block": 18
+          }
+        ]
+      }
+    ],
+    "mazeed_absent": [
+      "VII",
+      "IX"
+    ],
+    "derived_nouns": [
+      {
+        "ar": "كاتِبٌ",
+        "plural": [
+          "كُتّابٌ",
+          "كَتَبَةٌ"
+        ],
+        "type": "GT:derivation_type:active_participle"
+      },
+      {
+        "ar": "مَكْتوبٌ",
+        "type": "GT:derivation_type:passive_participle"
+      },
+      {
+        "ar": "مُكْتِبٌ",
+        "gloss_ar": "المعلِّم"
+      },
+      {
+        "ar": "مَكْتَبٌ",
+        "plural": [
+          "كَتاتيبُ"
+        ],
+        "gloss_ar": "موضعُ التعليم"
+      },
+      {
+        "ar": "كُتّابٌ",
+        "gloss_ar": "الكَتَبَةُ · المَكْتَبُ · سَهمٌ صغيرٌ مُدَوَّرُ الرأس"
+      },
+      {
+        "ar": "كَتيبَةٌ",
+        "gloss_ar": "الجيش"
+      },
+      {
+        "ar": "كَتيبٌ",
+        "gloss_ar": "القِربةُ المخروزة"
+      },
+      {
+        "ar": "مُكْتَبٌ"
+      },
+      {
+        "ar": "كُتْبَةٌ",
+        "plural": [
+          "كُتَبٌ"
+        ],
+        "gloss_ar": "الخُرْزَة"
+      },
+      {
+        "ar": "مُكاتَبٌ",
+        "gloss_ar": "العبدُ يُكاتَبُ على نفسِه"
+      }
+    ],
+    "internal_notes": [
+      {
+        "kind": "conflict",
+        "blocks": [
+          13,
+          14
+        ],
+        "ar": "كَتَبَ القِرْبَةَ: خَرَزَها ثمَّ شَدَّها بالوِكاء — وجهانِ لإطارٍ واحدٍ لم يُوَفِّقْ بينهما.",
+        "en": "Same frame, two senses two blocks apart, left unreconciled."
+      },
+      {
+        "kind": "equivalence",
+        "blocks": [
+          14
+        ],
+        "ar": "«وأكتبتُ القِربةَ أيضاً: شددتُها بالوِكاء، وكذلك كَتَبْتُها كَتْباً» — يُسوِّي بين فَعَلَ وأَفْعَلَ.",
+        "en": "Form I and Form IV declared equivalent for the same object."
+      },
+      {
+        "kind": "valency",
+        "blocks": [
+          14,
+          16
+        ],
+        "ar": "الرابعةُ والثامنةُ كلٌّ منهما بوجهَين: فالتعدِّي وصفُ الإطارِ لا وصفُ الصيغة.",
+        "en": "Forms IV and VIII each carry two valencies — valency belongs to the frame, not the form."
+      },
+      {
+        "kind": "orth",
+        "gt": "GT:lex_register:orth_preference",
+        "blocks": [
+          14
+        ],
+        "ar": "والكُتّابُ بالثاءِ أيضًا، والتاءُ في هذا الحرفِ أعلى من الثاء."
+      }
+    ],
+    "coverage": {
+      "aorist_attested_for": [
+        "I"
+      ],
+      "masdar_attested_for": [
+        "I",
+        "II",
+        "III",
+        "VI"
+      ],
+      "inferred": [
+        "IV",
+        "V",
+        "VIII",
+        "X"
+      ],
+      "note_en": "He vowels only Form I. Maṣdar patterns for IV, V, VIII and X are registry-derived, not cited here."
+    }
+  },
+  "meaning": {
+    "core": {
+      "ar": "الكَتْبُ هو الجَمْعُ",
+      "en": "Joining — drawing one thing together with another.",
+      "ur": "کَتْب یعنی جوڑنا — ایک چیز کو دوسری سے ملا دینا۔"
+    },
+    "quote_ar": "والكَتْبُ: الجَمْعُ، تقولُ منه…",
+    "block": 13,
+    "asl_kind": "GT:asl_kind:none"
+  },
+  "range_order": "concrete_to_abstract",
+  "range": [
+    {
+      "title_ar": "جَمْعُ الأديمِ بالخَرْز",
+      "detail_ar": "كَتَبَ القِربةَ فهي كَتيبٌ — والكُتْبَةُ: الخُرْزَة",
+      "detail_en": "Sewing hide; the stitch itself is al-kutba.",
+      "block": 13
+    },
+    {
+      "title_ar": "جَمْعُ الشُّفرَينِ بحَلْقة",
+      "detail_ar": "كَتَبَ البَغْلَةَ — وفيه وحدَه الوجهان",
+      "detail_en": "Ringing a mule — the only frame with two aorists.",
+      "block": 13
+    },
+    {
+      "title_ar": "جَمْعُ الرِّجالِ في كَتيبة",
+      "detail_ar": "كَتَّبَ الكتائبَ · وتَكَتَّبَتِ الخيلُ",
+      "detail_en": "Mustering men — and the horse gathering itself.",
+      "block": 14
+    },
+    {
+      "title_ar": "جَمْعُ الحروفِ بالخَطّ",
+      "detail_ar": "كَتَبَ الكتابَ — والكُتّابُ: الكَتَبَةُ",
+      "detail_en": "Joining letters.",
+      "block": 11
+    },
+    {
+      "title_ar": "ضَمُّ الاسمِ إلى الدِّيوان",
+      "detail_ar": "اكْتَتَبَ الرجلُ",
+      "detail_en": "A name joined to a register.",
+      "block": 16
+    },
+    {
+      "title_ar": "الفَرْضُ والحُكْمُ والقَدَر",
+      "detail_ar": "محمولٌ على الاسمِ: والكِتابُ: الفَرْضُ والحُكْمُ والقَدَر",
+      "detail_en": "Carried by the noun, never by a verb.",
+      "block": 11
+    },
+    {
+      "title_ar": "العِلْمُ نفسُه",
+      "detail_ar": "الكاتِبُ عندَهم: العالِمُ",
+      "detail_en": "The scribe as the knower.",
+      "block": 11
+    }
+  ],
+  "shawahid": [
+    {
+      "kind": "poetry",
+      "attribution_ar": "النابغةُ الجعديُّ",
+      "highlight_ar": "كتابُ اللهِ",
+      "text_ar": "يا ابنةَ عَمِّي كتابُ اللهِ أخْرَجَني ... عنكمْ وهل أمنعَنَّ اللهَ ما فَعَلا",
+      "gloss_en": "God's decree drove me out from among you.",
+      "block": 11
+    },
+    {
+      "kind": "quran",
+      "qref": "52:41",
+      "highlight_ar": "يَكْتُبونَ",
+      "text_ar": "أَمْ عِنْدَهُمُ الغَيْبُ فَهُمْ يَكْتُبونَ",
+      "gloss_en": "Ibn al-Aʿrābī's proof that al-kātib means the learned.",
+      "block": 12
+    },
+    {
+      "kind": "quran",
+      "qref": "25:5",
+      "highlight_ar": "اكْتَتَبَها",
+      "text_ar": "اكْتَتَبَها فهيَ تُمْلى عليهِ بُكْرَةً وأصيلاً",
+      "gloss_en": "Form VIII as asking for dictation.",
+      "block": 15
+    },
+    {
+      "kind": "poetry",
+      "attribution_ar": "ذو الرُّمَّة",
+      "highlight_ar": "الكُتَبُ",
+      "text_ar": "وَفْراءَ غَرْفِيَّةٍ أثْأَى خَوارِزُها ... مُشَلْشَلٌ ضَيَّعَتْهُ بينَها الكُتَبُ",
+      "gloss_en": "A waterskin dripping where the stitches failed.",
+      "block": 13
+    },
+    {
+      "kind": "prose",
+      "attribution_ar": "الحسن",
+      "highlight_ar": "مُكْتِباً",
+      "text_ar": "كان الحَجّاجُ مُكْتِباً بالطائف",
+      "gloss_en": "al-Ḥajjāj was a schoolmaster at al-Ṭāʾif.",
+      "block": 18
+    }
+  ]
+}

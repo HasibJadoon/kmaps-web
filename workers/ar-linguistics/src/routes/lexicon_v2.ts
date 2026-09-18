@@ -367,6 +367,7 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
                 ) AS rn
          FROM ar_ling_lexicon_block
          WHERE root_norm = ?
+           AND origin <> 'derived'
            AND text_plain IS NOT NULL
            AND length(trim(text_plain)) > 25
            AND block_type NOT IN ('root_header', 'chapter_header', 'header')
@@ -441,6 +442,7 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
               origin, origin_ref, printed_page
        FROM ar_ling_lexicon_block
        WHERE source_slug = ? AND root_norm = ?
+         AND origin <> 'derived'
        ORDER BY block_seq`
     ).bind(slug, root_norm).all()).results ?? [];
 
@@ -453,7 +455,7 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
            WHERE source_slug = ?
              AND from_block_id IN (
                SELECT id FROM ar_ling_lexicon_block
-               WHERE source_slug = ? AND root_norm = ?
+               WHERE source_slug = ? AND root_norm = ? AND origin <> 'derived'
              )`
         ).bind(slug, slug, root_norm).all()).results ?? []
       : [];
@@ -464,7 +466,7 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
            FROM ar_ling_lexicon_block_tag
            WHERE block_id IN (
              SELECT id FROM ar_ling_lexicon_block
-             WHERE source_slug = ? AND root_norm = ?
+             WHERE source_slug = ? AND root_norm = ? AND origin <> 'derived'
            )`
         ).bind(slug, root_norm).all()).results ?? []
       : [];
