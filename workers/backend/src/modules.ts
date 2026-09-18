@@ -27,7 +27,11 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     // 'ar/daily/themes' and not 'ar/daily': the themes are the same content for
     // everyone and readable unsigned, while ar/daily/today and ar/daily/progress
     // are that reader's own and must stay behind the token.
-    publicGetPaths: ['ar/acq', 'ar/text', 'ar/audio', 'ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons', 'ar/daily/themes', 'ar/daily/domains'],
+    // 'ar/vendor-stream' is public only in the sense that no token reaches it —
+    // a player cannot send one. It refuses everything without a signature the
+    // arabic worker minted for that one key, behind the token, an hour ago.
+    // Its sibling 'ar/vendor-audio', which mints them, is deliberately not here.
+    publicGetPaths: ['ar/acq', 'ar/text', 'ar/audio', 'ar/vendor-stream', 'ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons', 'ar/daily/themes', 'ar/daily/domains'],
   },
   al:   { binding: 'AR_LINGUISTICS', publicGet: true  },
   cm:   {
@@ -35,7 +39,10 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     publicGet: false,
     // Lesson media — the photographs deck slides sit on. An <img> cannot carry
     // a token, and a picture of a lamp holds nothing about anyone.
-    publicGetPaths: ['cm/assets'],
+    // The template registry — the shape a document is authored in, and the
+    // worked entries that show it filled in. A table of contents for
+    // authors; it names books and fields and holds nothing about anyone.
+    publicGetPaths: ['cm/assets', 'cm/templates'],
   },
   core: { binding: 'CORE',           publicGet: true  },
 

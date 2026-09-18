@@ -13,6 +13,7 @@ import { cmCommentRoutes } from './routes/comments';
 import { cmCaptureRoutes } from './routes/captures';
 import { highlightRoutes } from './routes/highlights';
 import { cmSourceRoutes } from './routes/sources';
+import { cmTemplateRoutes } from './routes/templates';
 
 const router = new Router<ContentEnv>();
 
@@ -29,6 +30,7 @@ cmCaptureRoutes(router);
 cmCommentRoutes(router);
 highlightRoutes(router);
 cmSourceRoutes(router);
+cmTemplateRoutes(router);
 
 router.post('/cm/internal/rows', async (req, env) => {
   const body = await req.json<RowsRequest>().catch(() => null);
