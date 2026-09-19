@@ -168,6 +168,69 @@ export function textRoutes(router: Router<ArabicEnv>) {
       ),
     }));
 
+  /// The reconstructed script for one text unit, where it has one: an episode
+  /// set out scene by scene, each line carrying the Arabic, the English, and
+  /// the speaker where the narration names one.
+  ///
+  /// The script as authored marks an āyah only inside its note ("آية قرآنية —
+  /// سورة النمل ٢٧:١٩"). A view should not have to read Arabic prose to decide
+  /// how to draw a line, so the kind and the reference are split out here and
+  /// the note keeps only what is left to say.
+  router.get('/ar/text/units/:id/script', async (_req, env, params) => {
+    const row = await queryOne<{ id: string; title_ar: string | null; script_json: string | null }>(
+      env.DB_AR,
+      `SELECT id, title_ar, script_json FROM ar_text_unit
+        WHERE id = ? AND status = 'live'`,
+      [params.id],
+    );
+    if (!row) return notFound('no such text unit');
+    if (!row.script_json) return notFound('this unit has no reconstructed script');
+
+    let doc: Record<string, unknown>;
+    try { doc = JSON.parse(row.script_json) as Record<string, unknown>; }
+    catch { return notFound('the stored script is not readable'); }
+
+    const AYAH = /آية\s*قرآنية/;
+    const clean = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+
+    const scenes = (Array.isArray(doc.scenes) ? doc.scenes : []).map((raw, i) => {
+      const s = raw as Record<string, unknown>;
+      return {
+        scene_no: typeof s.scene_no === 'number' ? s.scene_no : i + 1,
+        title_ar: clean(s.title_ar),
+        title_en: clean(s.title_en),
+        lines: (Array.isArray(s.lines) ? s.lines : []).map((rawLine) => {
+          const l = rawLine as Record<string, unknown>;
+          const note = clean(l.note);
+          const isAyah = !!note && AYAH.test(note);
+          // "آية قرآنية — سورة النمل ٢٧:١٩ | Qur'an 27:19" — the reference is
+          // everything after the dash; the label itself is what `kind` now says.
+          const ref = isAyah ? clean(note.replace(AYAH, '').replace(/^\s*[—–-]\s*/, '')) : null;
+          return {
+            kind: isAyah ? 'ayah' : 'line',
+            speaker: clean(l.speaker),
+            ar: clean(l.ar),
+            en: clean(l.en),
+            note: isAyah ? null : note,
+            ref,
+          };
+        }).filter((l) => l.ar || l.en || l.note),
+      };
+    });
+
+    return ok({
+      unit_id: row.id,
+      title_ar: clean(doc.title_ar) ?? row.title_ar,
+      title_en: clean(doc.title_en),
+      series_ar: clean(doc.series_ar),
+      series_en: clean(doc.series_en),
+      episode: typeof doc.episode === 'number' ? doc.episode : null,
+      video_url: clean(doc.video_url),
+      colophon: clean(doc.reconstruction_notes),
+      scenes,
+    });
+  });
+
   /// A run of pages. `from` is a seq, not an offset, so a link into the middle
   /// of a book keeps meaning after more pages are ingested.
   router.get('/ar/text/works/:id/pages', async (req, env, params) => {
