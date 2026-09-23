@@ -51,6 +51,33 @@ export { ReviewSession } from './review-session.do';
 export { QuizSession } from './quiz-session.do';
 export { TableSession } from './table-session.do';
 
+/// Internal — membership lookup for other workers.
+///
+/// Authorisation in ST (and anywhere else that scopes by workspace) is by
+/// membership, not by the single `wid` claim: a user can belong to several
+/// workspaces and the token names only the one they landed in. The gateway
+/// 404s any path containing `/internal/`, so this is reachable solely over a
+/// service binding.
+router.post('/core/internal/memberships', async (req, env) => {
+  const body = await req.json<{ user_id?: string }>().catch(() => null);
+  const userId = body?.user_id?.trim();
+  if (!userId) return ok({ workspaces: [] });
+
+  const rows = await env.DB_CORE.prepare(
+    `SELECT w.id AS workspace_id,
+            CASE WHEN w.owner_id = ? THEN 'owner'
+                 ELSE COALESCE(m.membership_role, 'member') END AS role
+       FROM core_workspaces w
+       LEFT JOIN core_workspace_members m
+         ON m.workspace_id = w.id AND m.user_id = ? AND m.status = 'active'
+      WHERE w.status = 'active' AND (w.owner_id = ? OR m.user_id IS NOT NULL)`,
+  )
+    .bind(userId, userId, userId)
+    .all<{ workspace_id: string; role: string }>();
+
+  return ok({ workspaces: rows.results ?? [] });
+});
+
 export default {
   fetch: (request: Request, env: CoreEnv) => router.handle(request, env),
 } satisfies ExportedHandler<CoreEnv>;

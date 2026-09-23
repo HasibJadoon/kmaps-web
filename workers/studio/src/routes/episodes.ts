@@ -9,8 +9,14 @@ import {
   type TemplateStructure,
 } from '../repositories/episode.repo';
 import { TemplateRepo } from '../repositories/template.repo';
-import { actorRef } from '../auth';
-import { resolveUserByEmail } from '../core-client';
+import { actorRef, workspaceRef } from '../auth';
+import {
+  membershipsFor,
+  workspaceIds,
+  isMember,
+  canManage,
+  resolveUserByEmail,
+} from '../core-client';
 
 async function readJson(req: Request): Promise<unknown> {
   try {
@@ -66,6 +72,36 @@ const BLANK_STRUCTURE: TemplateStructure = {
   sections: [{ type: 'intro', heading: 'Intro', points: [{ text: '', speaker_role: 'host' }] }],
 };
 
+/// Authorisation for one episode.
+///
+/// A row that carries a workspace is governed by membership of it: any member
+/// may read, owners and admins may write, and the row's own author may write
+/// their own. A row with no workspace predates them and stays owner-only.
+async function deny(
+  env: StudioEnv,
+  req: Request,
+  user: string,
+  episode: { core_user_ref: string; core_ws_ref: string | null },
+  mode: 'read' | 'write',
+): Promise<Response | null> {
+  const ws = episode.core_ws_ref;
+  if (!ws) {
+    return episode.core_user_ref === user ? null : forbidden('Not your episode');
+  }
+  const rows = await membershipsFor(env, req, user);
+  const allowed =
+    mode === 'read'
+      ? isMember(rows, ws)
+      : canManage(rows, ws) || episode.core_user_ref === user;
+  return allowed
+    ? null
+    : forbidden(
+        mode === 'read'
+          ? 'That episode belongs to a workspace you are not a member of'
+          : 'You need an owner or admin role in this workspace to change that',
+      );
+}
+
 export function episodeRoutes(router: Router<StudioEnv>) {
 
   router.get('/st/episodes', async (req, env) => {
@@ -74,9 +110,10 @@ export function episodeRoutes(router: Router<StudioEnv>) {
 
     const series = new URL(req.url).searchParams.get('series');
     const repo = new EpisodeRepo(env.DB_ST);
+    const wsIds = workspaceIds(await membershipsFor(env, req, user));
     const rows = series
-      ? await repo.listSeriesEpisodes(user, series)
-      : await repo.listEpisodes(user);
+      ? await repo.listSeriesEpisodes(user, series, wsIds)
+      : await repo.listEpisodes(user, wsIds);
     return ok(rows);
   });
 
@@ -108,6 +145,7 @@ export function episodeRoutes(router: Router<StudioEnv>) {
 
     const episode = await repo.createEpisode({
       core_user_ref: user,
+      core_ws_ref: trimmedString(body['core_ws_ref']) ?? workspaceRef(req),
       title,
       format,
       template_ref: templateRef,
@@ -135,7 +173,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     const repo = new EpisodeRepo(env.DB_ST);
     const episode = await repo.findEpisode(id);
     if (!episode) return notFound(`episode ${id}`);
-    if (episode.core_user_ref !== user) return forbidden('Not your episode');
+    const gate = await deny(env, req, user, episode, 'read');
+    if (gate) return gate;
     return ok(await repo.findAggregate(id));
   });
 
@@ -148,7 +187,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     const repo = new EpisodeRepo(env.DB_ST);
     const episode = await repo.findEpisode(id);
     if (!episode) return notFound(`episode ${id}`);
-    if (episode.core_user_ref !== user) return forbidden('Not your episode');
+    const gate = await deny(env, req, user, episode, 'write');
+    if (gate) return gate;
 
     const patch: EpisodePatch = {};
     if (body['title'] !== undefined) {
@@ -183,7 +223,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     const repo = new EpisodeRepo(env.DB_ST);
     const episode = await repo.findEpisode(id);
     if (!episode) return notFound(`episode ${id}`);
-    if (episode.core_user_ref !== user) return forbidden('Not your episode');
+    const gate = await deny(env, req, user, episode, 'write');
+    if (gate) return gate;
     await repo.deleteEpisode(id);
     return noContent();
   });
@@ -197,7 +238,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     const repo = new EpisodeRepo(env.DB_ST);
     const episode = await repo.findEpisode(id);
     if (!episode) return notFound(`episode ${id}`);
-    if (episode.core_user_ref !== user) return forbidden('Not your episode');
+    const gate = await deny(env, req, user, episode, 'write');
+    if (gate) return gate;
 
     const role = trimmedString(body['role']);
     if (role !== undefined && !(PARTICIPANT_ROLES as readonly string[]).includes(role)) {
@@ -281,7 +323,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     const repo = new EpisodeRepo(env.DB_ST);
     const episode = await repo.findEpisode(id);
     if (!episode) return notFound(`episode ${id}`);
-    if (episode.core_user_ref !== user) return forbidden('Not your episode');
+    const gate = await deny(env, req, user, episode, 'write');
+    if (gate) return gate;
 
     const heading = trimmedString(body['heading']) || 'Section';
     const type = trimmedString(body['type']);

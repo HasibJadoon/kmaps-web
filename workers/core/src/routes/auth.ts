@@ -69,6 +69,7 @@ export function authRoutes(router: Router<CoreEnv>) {
     const expiry = parseInt(env.JWT_EXPIRY_SECONDS ?? '3600', 10);
     const mustChange = await userRepo.getMustChangePassword(user.id);
     const { token, expires_in } = await issueSessionToken(user, env.JWT_SECRET, expiry, {
+      db: env.DB_CORE,
       mustChangePassword: mustChange,
     });
     const refresh_token = await startSession(env, user.id, 'mobile', deviceInfoOf(b));
@@ -100,7 +101,7 @@ export function authRoutes(router: Router<CoreEnv>) {
     await new AuthRepo(env.DB_CORE).setPassword(user.id, await hashPassword(password));
 
     const expiry = parseInt(env.JWT_EXPIRY_SECONDS ?? '3600', 10);
-    const { token, expires_in } = await issueSessionToken(user, env.JWT_SECRET, expiry);
+    const { token, expires_in } = await issueSessionToken(user, env.JWT_SECRET, expiry, { db: env.DB_CORE });
     const refresh_token = await startSession(env, user.id, 'mobile', deviceInfoOf(b));
     return created({ token, expires_in, refresh_token, user });
   });
@@ -125,7 +126,7 @@ export function authRoutes(router: Router<CoreEnv>) {
 
     await authRepo.touchSession(session.id);
     const expiry = parseInt(env.JWT_EXPIRY_SECONDS ?? '3600', 10);
-    const { token, expires_in } = await issueSessionToken(user, env.JWT_SECRET, expiry);
+    const { token, expires_in } = await issueSessionToken(user, env.JWT_SECRET, expiry, { db: env.DB_CORE });
     return ok({ token, expires_in });
   });
 
@@ -191,7 +192,7 @@ export function authRoutes(router: Router<CoreEnv>) {
     await userRepo.setMustChangePassword(user.id, false);
 
     const expiry = parseInt(env.JWT_EXPIRY_SECONDS ?? '3600', 10);
-    const { token, expires_in } = await issueSessionToken(user, env.JWT_SECRET, expiry);
+    const { token, expires_in } = await issueSessionToken(user, env.JWT_SECRET, expiry, { db: env.DB_CORE });
     return ok({ token, expires_in });
   });
 
@@ -229,7 +230,7 @@ export function authRoutes(router: Router<CoreEnv>) {
     await userRepo.retireLegacyAdmin();
 
     const expiry = parseInt(env.JWT_EXPIRY_SECONDS ?? '3600', 10);
-    const { token, expires_in } = await issueSessionToken(user, env.JWT_SECRET, expiry);
+    const { token, expires_in } = await issueSessionToken(user, env.JWT_SECRET, expiry, { db: env.DB_CORE });
     return created({ token, expires_in, user });
   });
 }

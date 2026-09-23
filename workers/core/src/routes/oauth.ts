@@ -58,7 +58,7 @@ async function loginWithIdentity(
   }
 
   const expiry = parseInt(env.JWT_EXPIRY_SECONDS ?? '3600', 10);
-  const { token, expires_in } = await issueSessionToken(user, env.JWT_SECRET, expiry);
+  const { token, expires_in } = await issueSessionToken(user, env.JWT_SECRET, expiry, { db: env.DB_CORE });
   return ok({ token, expires_in, user });
 }
 

@@ -187,23 +187,42 @@ const PT_COLS = `id, section_ref, episode_ref, text, speaker_ref, bridge, est_se
 export class EpisodeRepo {
   constructor(private db: D1Database) {}
 
-  listEpisodes(userRef: string): Promise<EpisodeRow[]> {
+  /// Visible rows: anything in a workspace the caller belongs to, plus their
+  /// own rows that predate workspaces (core_ws_ref still null).
+  private scope(wsIds: string[]): { sql: string; args: unknown[] } {
+    if (!wsIds.length) {
+      return { sql: `(core_ws_ref IS NULL AND core_user_ref = ?)`, args: [] };
+    }
+    const holes = wsIds.map(() => '?').join(', ');
+    return {
+      sql: `(core_ws_ref IN (${holes}) OR (core_ws_ref IS NULL AND core_user_ref = ?))`,
+      args: wsIds,
+    };
+  }
+
+  listEpisodes(userRef: string, wsIds: string[] = []): Promise<EpisodeRow[]> {
+    const { sql, args } = this.scope(wsIds);
     return query<EpisodeRow>(
       this.db,
       `SELECT ${EP_COLS} FROM st_episodes
-       WHERE core_user_ref = ?
+       WHERE ${sql}
        ORDER BY created_at DESC`,
-      [userRef],
+      [...args, userRef],
     );
   }
 
-  listSeriesEpisodes(userRef: string, seriesRef: string): Promise<EpisodeRow[]> {
+  listSeriesEpisodes(
+    userRef: string,
+    seriesRef: string,
+    wsIds: string[] = [],
+  ): Promise<EpisodeRow[]> {
+    const { sql, args } = this.scope(wsIds);
     return query<EpisodeRow>(
       this.db,
       `SELECT ${EP_COLS} FROM st_episodes
-       WHERE core_user_ref = ? AND series_ref = ?
+       WHERE ${sql} AND series_ref = ?
        ORDER BY COALESCE(session_no, 1e9), created_at`,
-      [userRef, seriesRef],
+      [...args, userRef, seriesRef],
     );
   }
 
