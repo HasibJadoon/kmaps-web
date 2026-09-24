@@ -46,6 +46,15 @@ export interface EpisodeRow {
   output_kind: string | null;
 
   source_ref: string | null;
+
+  /// When this episode was last opened in a studio, by anyone on the account.
+  ///
+  /// Which episode is being worked on is a fact about the production, not
+  /// about the Mac it was opened on — the planner on the phone wants the same
+  /// answer — so it lives here rather than in local storage. The most recently
+  /// opened episode in a workspace is the active one; nothing has to be
+  /// cleared when another takes over.
+  last_opened_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -281,7 +290,7 @@ function fillPlaceholders(sql: string | null | undefined, vars: StructureVars): 
 
 const EP_COLS = `id, core_user_ref, core_ws_ref, title, format, template_ref,
                  status, meta_json, ecosystem, series_ref, session_no,
-                 output_kind, source_ref, created_at, updated_at`;
+                 output_kind, source_ref, last_opened_at, created_at, updated_at`;
 const PA_COLS = `id, episode_ref, display_name, color, role, seq, core_user_ref, created_at`;
 const SE_COLS = `id, episode_ref, type, heading, seq, overlay_kind, d1_query,
                  group_key, group_label, created_at, updated_at`;
@@ -372,6 +381,17 @@ export class EpisodeRepo {
   ///
   /// A key set to null is removed. A body that is not an object is replaced
   /// rather than merged into — there is nothing to preserve in that case.
+  /// Stamp an episode as just opened. Returns the row so the caller can see
+  /// the time the server recorded rather than guessing at it.
+  async markOpened(id: string): Promise<EpisodeRow | null> {
+    await execute(
+      this.db,
+      `UPDATE st_episodes SET last_opened_at = ? WHERE id = ?`,
+      [new Date().toISOString(), id],
+    );
+    return this.findEpisode(id);
+  }
+
   async patchPlan(id: string, fields: Record<string, string | null>): Promise<EpisodeRow | null> {
     const row = await this.findEpisode(id);
     if (!row) return null;

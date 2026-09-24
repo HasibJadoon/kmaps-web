@@ -186,6 +186,20 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   /// does not model. Here the caller names only the fields it is changing.
   const PLAN_KEYS = ['week', 'due_at', 'shoot_at', 'publish_at', 'review'] as const;
 
+  /// "I am working on this one." Stamped when a studio opens the episode, so
+  /// every surface — this Mac, another Mac, the planner on the phone — agrees
+  /// about what is active without anything having to be cleared.
+  router.post('/st/episodes/:id/opened', async (req, env, { id }) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const repo = new EpisodeRepo(env.DB_ST);
+    const episode = await repo.findEpisode(id);
+    if (!episode) return notFound(`episode ${id}`);
+    const gate = await deny(env, req, user, episode, 'read');
+    if (gate) return gate;
+    return ok(await repo.markOpened(id));
+  });
+
   router.patch('/st/episodes/:id/plan', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
