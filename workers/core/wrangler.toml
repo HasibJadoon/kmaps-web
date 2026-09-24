@@ -24,7 +24,11 @@ binding = "CONTENT"
 service = "km-content-worker"
 
 [vars]
-JWT_EXPIRY_SECONDS = "3600"
+# 12 hours. A shoot runs longer than an hour, and while the apps do refresh
+# transparently on a 401, that only recovers a request that was already in
+# flight — an app reopened cold mid-session showed a signed-out screen first.
+# The refresh token still governs the real session length (30 days).
+JWT_EXPIRY_SECONDS = "43200"
 
 # OAuth — client IDs are not secret, so they live here rather than in secrets.
 # Each is a comma-separated audience list, because one provider can front
