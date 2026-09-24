@@ -109,6 +109,30 @@ export interface PointRow {
   updated_at: string;
 }
 
+/// The production phases, in order. Every episode has all six from the day it
+/// is created; what changes is each one's state and what was written on it.
+export const EPISODE_PHASES = ['plan', 'prepare', 'film', 'edit', 'publish', 'review'] as const;
+export type EpisodePhase = (typeof EPISODE_PHASES)[number];
+export const PHASE_STATES = ['pending', 'active', 'done'] as const;
+
+export interface PhaseRow {
+  id: string;
+  episode_ref: string;
+  phase: string;
+  seq: number;
+  /// pending until someone starts it, active while it is the work in hand,
+  /// done once it has been logged as finished.
+  state: string;
+  /// What was learned doing this phase. Each phase keeps its own, so a note
+  /// about the shoot is not filed with a note about the cut.
+  notes_md: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  completed_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /// One shoot of this episode. The planner shows what has actually been
 /// captured, which is the only honest answer to "has it been shot".
 export interface CaptureRow {
@@ -135,6 +159,7 @@ export interface EpisodeAggregate extends EpisodeRow {
   sections: Array<SectionRow & { points: PointRow[] }>;
   captures: CaptureRow[];
   plan: EpisodePlan;
+  phases: PhaseRow[];
 }
 
 /// meta_json is free-form and hand-edited; a body that is not an object, or
@@ -381,6 +406,97 @@ export class EpisodeRepo {
   ///
   /// A key set to null is removed. A body that is not an object is replaced
   /// rather than merged into — there is nothing to preserve in that case.
+  /// Ensure the six phases exist. Episodes created before phases were a thing
+  /// have none; rather than a migration that has to be remembered, they are
+  /// filled in the first time anyone asks.
+  async ensurePhases(episodeId: string): Promise<void> {
+    for (let i = 0; i < EPISODE_PHASES.length; i++) {
+      await execute(
+        this.db,
+        `INSERT OR IGNORE INTO st_phase (id, episode_ref, phase, seq, state)
+         VALUES (?, ?, ?, ?, 'pending')`,
+        [`${episodeId}:${EPISODE_PHASES[i]}`, episodeId, EPISODE_PHASES[i], i + 1],
+      );
+    }
+  }
+
+  /// Log a phase: its state, and what was written on it.
+  ///
+  /// Completing one stamps the time and who did it, and moves the next phase
+  /// to active — the episode is always somewhere, and the furthest phase that
+  /// is done is what `status` reports, so the two can never disagree.
+  async patchPhase(
+    episodeId: string,
+    phase: string,
+    patch: { state?: string; notes_md?: string | null },
+    actor?: string,
+  ): Promise<PhaseRow[]> {
+    await this.ensurePhases(episodeId);
+    const now = new Date().toISOString();
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+
+    if (patch.notes_md !== undefined) { sets.push('notes_md = ?'); vals.push(patch.notes_md); }
+    if (patch.state !== undefined) {
+      sets.push('state = ?'); vals.push(patch.state);
+      if (patch.state === 'done') {
+        sets.push('completed_at = ?', 'completed_by = ?');
+        vals.push(now, actor ?? null);
+      } else if (patch.state === 'active') {
+        sets.push('started_at = COALESCE(started_at, ?)', 'completed_at = NULL');
+        vals.push(now);
+      }
+    }
+    if (sets.length) {
+      sets.push('updated_at = ?'); vals.push(now);
+      await execute(
+        this.db,
+        `UPDATE st_phase SET ${sets.join(', ')} WHERE episode_ref = ? AND phase = ?`,
+        [...vals, episodeId, phase],
+      );
+    }
+
+    if (patch.state === 'done') {
+      const i = (EPISODE_PHASES as readonly string[]).indexOf(phase);
+      const next = i >= 0 ? EPISODE_PHASES[i + 1] : undefined;
+      if (next) {
+        await execute(
+          this.db,
+          `UPDATE st_phase SET state = 'active', started_at = COALESCE(started_at, ?),
+                               updated_at = ?
+            WHERE episode_ref = ? AND phase = ? AND state = 'pending'`,
+          [now, now, episodeId, next],
+        );
+      }
+      await this.syncStatus(episodeId);
+    }
+
+    return query<PhaseRow>(
+      this.db,
+      `SELECT id, episode_ref, phase, seq, state, notes_md, started_at,
+              completed_at, completed_by, created_at, updated_at
+         FROM st_phase WHERE episode_ref = ? ORDER BY seq ASC`,
+      [episodeId],
+    );
+  }
+
+  /// `status` is the coarse reading of the phases, so it is derived rather
+  /// than set by hand — otherwise the pill and the log drift apart.
+  private async syncStatus(episodeId: string): Promise<void> {
+    const done = await query<{ phase: string }>(
+      this.db,
+      `SELECT phase FROM st_phase WHERE episode_ref = ? AND state = 'done' ORDER BY seq DESC`,
+      [episodeId],
+    );
+    const furthest = done[0]?.phase;
+    const map: Record<string, string> = {
+      plan: 'planned', prepare: 'ready', film: 'shot',
+      edit: 'shot', publish: 'published', review: 'published',
+    };
+    const status = furthest ? map[furthest] : undefined;
+    if (status) await this.patchEpisode(episodeId, { status });
+  }
+
   /// Stamp an episode as just opened. Returns the row so the caller can see
   /// the time the server recorded rather than guessing at it.
   async markOpened(id: string): Promise<EpisodeRow | null> {
@@ -446,7 +562,7 @@ export class EpisodeRepo {
     const episode = await this.findEpisode(id);
     if (!episode) return null;
 
-    const [participants, sections, points, captures] = await Promise.all([
+    const [participants, sections, points, phases, captures] = await Promise.all([
       query<ParticipantRow>(
         this.db,
         `SELECT ${PA_COLS} FROM st_participants WHERE episode_ref = ? ORDER BY seq ASC`,
@@ -460,6 +576,13 @@ export class EpisodeRepo {
       query<PointRow>(
         this.db,
         `SELECT ${PT_COLS} FROM st_talking_points WHERE episode_ref = ? ORDER BY seq ASC`,
+        [id],
+      ),
+      query<PhaseRow>(
+        this.db,
+        `SELECT id, episode_ref, phase, seq, state, notes_md, started_at,
+                completed_at, completed_by, created_at, updated_at
+           FROM st_phase WHERE episode_ref = ? ORDER BY seq ASC`,
         [id],
       ),
       query<CaptureRow>(
@@ -489,6 +612,7 @@ export class EpisodeRepo {
         points: pointsBySection.get(section.id) ?? [],
       })),
       captures,
+      phases,
       plan: episodePlan(episode.meta_json),
     };
   }

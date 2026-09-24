@@ -5,6 +5,7 @@ import {
 import type { StudioEnv } from '../env';
 import {
   EpisodeRepo, EPISODE_FORMATS, EPISODE_STATUSES, SECTION_TYPES, PARTICIPANT_ROLES,
+  EPISODE_PHASES, PHASE_STATES,
   type EpisodePatch, type SectionPatch, type PointPatch,
   type TemplateStructure,
   structureVars,
@@ -189,6 +190,44 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   /// "I am working on this one." Stamped when a studio opens the episode, so
   /// every surface — this Mac, another Mac, the planner on the phone — agrees
   /// about what is active without anything having to be cleared.
+  /// Log a phase: mark it done, or write what was learned doing it.
+  ///
+  /// Each phase keeps its own note, so what went wrong on the shoot is not
+  /// filed with what was decided in the cut. Completing one starts the next,
+  /// and `status` is re-derived from the phases rather than set separately.
+  router.patch('/st/episodes/:id/phases/:phase', async (req, env, { id, phase }) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const body = await readJson(req);
+    if (!isObj(body)) return badRequest('Request body must be a JSON object');
+
+    if (!(EPISODE_PHASES as readonly string[]).includes(phase)) {
+      return badRequest(`phase must be one of: ${EPISODE_PHASES.join(', ')}`);
+    }
+
+    const repo = new EpisodeRepo(env.DB_ST);
+    const episode = await repo.findEpisode(id);
+    if (!episode) return notFound(`episode ${id}`);
+    const gate = await deny(env, req, user, episode, 'write');
+    if (gate) return gate;
+
+    const patch: { state?: string; notes_md?: string | null } = {};
+    if (body['state'] !== undefined) {
+      const state = trimmedString(body['state']) || '';
+      if (!(PHASE_STATES as readonly string[]).includes(state)) {
+        return badRequest(`state must be one of: ${PHASE_STATES.join(', ')}`);
+      }
+      patch.state = state;
+    }
+    if (body['notes_md'] !== undefined) {
+      patch.notes_md = body['notes_md'] === null ? null : (trimmedString(body['notes_md']) ?? null);
+    }
+    if (!Object.keys(patch).length) return badRequest('Name a state or notes_md');
+
+    await repo.patchPhase(id, phase, patch, user);
+    return ok(await repo.findAggregate(id));
+  });
+
   router.post('/st/episodes/:id/opened', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
