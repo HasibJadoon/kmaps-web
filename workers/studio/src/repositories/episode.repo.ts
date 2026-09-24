@@ -351,6 +351,35 @@ export class EpisodeRepo {
     return (await this.findEpisode(id))!;
   }
 
+  /// Merge fields into meta_json without reading the whole blob into the
+  /// client. meta_json is hand-edited and may carry keys this build knows
+  /// nothing about; a whole-blob replace from the app would drop them
+  /// silently, so the merge happens here, over the row as it stands.
+  ///
+  /// A key set to null is removed. A body that is not an object is replaced
+  /// rather than merged into — there is nothing to preserve in that case.
+  async patchPlan(id: string, fields: Record<string, string | null>): Promise<EpisodeRow | null> {
+    const row = await this.findEpisode(id);
+    if (!row) return null;
+
+    let meta: Record<string, unknown> = {};
+    if (row.meta_json) {
+      try {
+        const parsed: unknown = JSON.parse(row.meta_json);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          meta = parsed as Record<string, unknown>;
+        }
+      } catch { /* unparseable meta is replaced, not merged */ }
+    }
+
+    for (const [key, value] of Object.entries(fields)) {
+      if (value === null) delete meta[key];
+      else meta[key] = value;
+    }
+
+    return this.patchEpisode(id, { meta_json: JSON.stringify(meta) });
+  }
+
   async patchEpisode(id: string, patch: EpisodePatch): Promise<EpisodeRow | null> {
     const sets: string[] = [];
     const vals: unknown[] = [];

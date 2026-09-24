@@ -179,6 +179,41 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     return ok(await repo.findAggregate(id));
   });
 
+  /// The planner's own write: the schedule and the review note.
+  ///
+  /// Separate from PATCH /st/episodes/:id because meta_json is one blob — the
+  /// app would have to send the whole thing back and would drop any key it
+  /// does not model. Here the caller names only the fields it is changing.
+  const PLAN_KEYS = ['week', 'due_at', 'shoot_at', 'publish_at', 'review'] as const;
+
+  router.patch('/st/episodes/:id/plan', async (req, env, { id }) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const body = await readJson(req);
+    if (!isObj(body)) return badRequest('Request body must be a JSON object');
+
+    const repo = new EpisodeRepo(env.DB_ST);
+    const episode = await repo.findEpisode(id);
+    if (!episode) return notFound(`episode ${id}`);
+    const gate = await deny(env, req, user, episode, 'write');
+    if (gate) return gate;
+
+    const fields: Record<string, string | null> = {};
+    for (const key of PLAN_KEYS) {
+      if (body[key] === undefined) continue;
+      if (body[key] === null) { fields[key] = null; continue; }
+      const value = trimmedString(body[key]);
+      // An empty string clears the field rather than storing "".
+      fields[key] = value ?? null;
+    }
+    if (!Object.keys(fields).length) {
+      return badRequest(`Name at least one of: ${PLAN_KEYS.join(', ')}`);
+    }
+
+    await repo.patchPlan(id, fields);
+    return ok(await repo.findAggregate(id));
+  });
+
   router.patch('/st/episodes/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
