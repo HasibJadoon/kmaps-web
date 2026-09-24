@@ -1,3 +1,4 @@
+import { isSchemaRecord } from '../../../shared/src/validate';
 export interface WvSource {
   id: string;
   slug: string | null;
@@ -96,9 +97,6 @@ export interface UnitPatch {
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 
-function isSchemaRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
 
 export function validateSourceCreate(body: unknown): SchemaValidationResult<SourceCreate> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };

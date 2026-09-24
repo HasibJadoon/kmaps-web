@@ -1,4 +1,5 @@
 import type { PaginateOptions } from '../../../shared/src/types';
+import { isSchemaRecord } from '../../../shared/src/validate';
 
 export interface SrsRegistryCard {
   id: string;
@@ -187,9 +188,6 @@ export interface WorkspacePlansListOptions extends PaginateOptions {
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 
-function isSchemaRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
 
 export function validateSrsCardInput(body: unknown): SchemaValidationResult<SrsCardInput> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };

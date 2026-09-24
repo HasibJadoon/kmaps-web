@@ -1,3 +1,4 @@
+import { isSchemaRecord } from '../../../shared/src/validate';
 export interface WvCluster {
   id: string;
   slug: string;
@@ -67,9 +68,6 @@ export type NodeScopeLinkCreate = Omit<WvNodeScopeLink, 'id' | 'created_at'>;
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 
-function isSchemaRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
 
 export function validateClusterCreate(body: unknown): SchemaValidationResult<ClusterCreate> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };

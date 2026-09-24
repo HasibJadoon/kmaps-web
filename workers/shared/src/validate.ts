@@ -57,3 +57,12 @@ export function parseIntParam(value: string): number | null {
 export function requireParam(url: URL, name: string): string | null {
   return url.searchParams.get(name) || null;
 }
+
+/** A request body that is a plain object — not null, not an array.
+ *
+ *  Every schema file had its own private copy of these three lines; sixty-eight
+ *  of them, byte-identical. One export, so a change to what counts as a record
+ *  is a change in one place. */
+export function isSchemaRecord(body: unknown): body is Record<string, unknown> {
+  return typeof body === 'object' && body !== null && !Array.isArray(body);
+}

@@ -1,3 +1,4 @@
+import { isSchemaRecord } from '../../../shared/src/validate';
 export interface ContextTopic {
   id: string;
   topic_key: string;
@@ -140,9 +141,6 @@ export interface AcademicPositionCreate {
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 
-function isSchemaRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
 
 export function validateContextTopicCreate(body: unknown): SchemaValidationResult<ContextTopicCreate> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };

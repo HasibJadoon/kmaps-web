@@ -1,3 +1,4 @@
+import { isSchemaRecord } from '../../../shared/src/validate';
 export interface TopicRegistry {
   id: string;
   topic_key: string;
@@ -143,9 +144,6 @@ export interface SurahWorldviewProfileUpsert {
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 
-function isSchemaRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
 
 export function validateTopicRegistryCreate(body: unknown): SchemaValidationResult<TopicRegistryCreate> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };

@@ -1,3 +1,4 @@
+import { isSchemaRecord } from '../../../shared/src/validate';
 export type ArWordClass = 'noun' | 'verb' | 'particle' | 'adjective' | 'adverb' | 'other';
 export type ArCefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 
@@ -222,9 +223,6 @@ export interface VocabCreate {
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 
-function isSchemaRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
 
 export function validateArVocabularyPatch(body: unknown): SchemaValidationResult<ArVocabularyPatch> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };

@@ -424,7 +424,6 @@ export function episodeRoutes(router: Router<StudioEnv>) {
       heading, type,
 
       overlay_kind: trimmedString(body['overlay_kind']) ?? null,
-      d1_query: trimmedString(body['d1_query']) ?? null,
       group_key: trimmedString(body['group_key']) ?? null,
       group_label: trimmedString(body['group_label']) ?? null,
     }));

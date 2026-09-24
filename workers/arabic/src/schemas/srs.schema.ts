@@ -1,3 +1,4 @@
+import { isSchemaRecord } from '../../../shared/src/validate';
 export type ArSrsDeckType = 'vocabulary' | 'grammar' | 'verse' | 'custom';
 export type ArSrsCardState = 'new' | 'learning' | 'review' | 'relearning';
 export type ArSrsRating = 1 | 2 | 3 | 4;
@@ -281,9 +282,6 @@ export interface SrsReviewCreate {
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 
-function isSchemaRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
 
 export function validateArSrsDeckPatch(body: unknown): SchemaValidationResult<ArSrsDeckPatch> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };

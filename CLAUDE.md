@@ -17,7 +17,6 @@ K-MAPS is an Islamic knowledge platform with Angular apps, Cloudflare Workers, a
 Active top-level areas:
 
 - `apps/k-maps/` - Angular web app.
-- `apps/app-k-maps/` - Ionic/Angular app.
 - `workers/` - all backend runtime code (gateway + 8 domain workers + `shared/`).
 - `docs/` - architecture and workflow notes.
 
@@ -29,9 +28,7 @@ Common commands:
 
 ```bash
 npm run build -w apps/k-maps
-npm run build -w apps/app-k-maps
 npm run deploy:pages
-npm run deploy:ionic
 ```
 
 Angular conventions:
@@ -192,13 +189,11 @@ GitHub Actions:
 
 - `.github/workflows/deploy-workers.yml` deploys domain workers and the backend worker.
 - `.github/workflows/cloudflare-pages.yml` deploys `apps/k-maps`.
-- `.github/workflows/cloudflare-pages-ionic.yml` deploys `apps/app-k-maps`.
 
 Manual commands:
 
 ```bash
 npm run deploy:pages
-npm run deploy:ionic
 wrangler deploy --config workers/backend/wrangler.toml
 ```
 

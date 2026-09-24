@@ -9,7 +9,7 @@
     "test": "tsx --test workers/shared/test/*.test.ts",
     "typecheck:workers": "for w in core ar-linguistics studio content worldview quran arabic backend; do npx tsc --noEmit -p workers/$w/tsconfig.json || exit 1; done",
     "deploy:pages": "npm run build -w apps/k-maps && npx wrangler pages deploy apps/k-maps/dist/k-maps/browser --project-name k-maps --branch main",
-    "deploy:all": "npm run deploy:pages && npm run deploy:ionic",
+    "deploy:all": "npm run deploy:pages",
     "lane:download": "tsx scripts/lane/download-lane-source.ts",
     "lane:inspect": "tsx scripts/lane/inspect-lane.ts",
     "lane:migrate": "tsx scripts/lane/apply-lane-support-migration.ts",

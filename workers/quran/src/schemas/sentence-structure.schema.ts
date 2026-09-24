@@ -1,3 +1,4 @@
+import { isSchemaRecord } from '../../../shared/src/validate';
 export interface OccSegment {
   id: string;
   surah: number;
@@ -390,9 +391,6 @@ export interface TreeLayoutCache {
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 
-function isSchemaRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
 
 export function validateOccSegmentCreate(body: unknown): SchemaValidationResult<OccSegmentCreate> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };

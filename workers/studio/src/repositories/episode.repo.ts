@@ -80,8 +80,6 @@ export interface SectionRow {
 
   overlay_kind: string | null;
 
-  d1_query: string | null;
-
   /// Scenes that belong to one pass of the running order — the five that
   /// treat one sentence, say. Sections sharing a key are one group, and
   /// `group_label` is what the rail calls it. Null means a scene that stands
@@ -227,7 +225,6 @@ export interface SectionInput {
   heading: string;
   seq?: number;
   overlay_kind?: string | null;
-  d1_query?: string | null;
   group_key?: string | null;
   group_label?: string | null;
 }
@@ -237,7 +234,6 @@ export interface SectionPatch {
   heading?: string;
   seq?: number;
   overlay_kind?: string | null;
-  d1_query?: string | null;
   group_key?: string | null;
   group_label?: string | null;
 }
@@ -272,7 +268,6 @@ export interface TemplateStructure {
     /// The rows the scene draws. In a template this carries placeholders —
     /// {surah}, {from}, {to}, {passage} — filled from the episode's source_ref
     /// when the structure is applied, so one template serves every passage.
-    d1_query?: string | null;
     /// Scenes sharing a key are one pass of the running order.
     group_key?: string | null;
     group_label?: string | null;
@@ -317,7 +312,7 @@ const EP_COLS = `id, core_user_ref, core_ws_ref, title, format, template_ref,
                  status, meta_json, ecosystem, series_ref, session_no,
                  output_kind, source_ref, last_opened_at, created_at, updated_at`;
 const PA_COLS = `id, episode_ref, display_name, color, role, seq, core_user_ref, created_at`;
-const SE_COLS = `id, episode_ref, type, heading, seq, overlay_kind, d1_query,
+const SE_COLS = `id, episode_ref, type, heading, seq, overlay_kind,
                  group_key, group_label, created_at, updated_at`;
 const PT_COLS = `id, section_ref, episode_ref, text, speaker_ref, bridge, est_seconds,
                  overlay_json, subs_json, seq, created_at, updated_at`;
@@ -683,11 +678,11 @@ export class EpisodeRepo {
     await execute(
       this.db,
       `INSERT INTO st_sections
-         (id, episode_ref, type, heading, seq, overlay_kind, d1_query,
+         (id, episode_ref, type, heading, seq, overlay_kind,
           group_key, group_label, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, episodeId, input.type ?? 'custom', input.heading, seq,
-       input.overlay_kind ?? null, input.d1_query ?? null,
+       input.overlay_kind ?? null,
        input.group_key ?? null, input.group_label ?? null, now, now],
     );
     return (await this.findSection(id))!;
@@ -700,7 +695,6 @@ export class EpisodeRepo {
     if (patch.heading !== undefined) { sets.push('heading = ?'); vals.push(patch.heading); }
     if (patch.seq !== undefined)     { sets.push('seq = ?');     vals.push(patch.seq); }
     if (patch.overlay_kind !== undefined) { sets.push('overlay_kind = ?'); vals.push(patch.overlay_kind); }
-    if (patch.d1_query !== undefined)     { sets.push('d1_query = ?');     vals.push(patch.d1_query); }
     if (patch.group_key !== undefined)    { sets.push('group_key = ?');    vals.push(patch.group_key); }
     if (patch.group_label !== undefined)  { sets.push('group_label = ?');  vals.push(patch.group_label); }
     if (sets.length === 0) return this.findSection(id);
@@ -800,7 +794,6 @@ export class EpisodeRepo {
         type: sec.type || 'custom',
         heading: (sec.heading ?? '').trim() || 'Section',
         overlay_kind: sec.overlay_kind ?? null,
-        d1_query: fillPlaceholders(sec.d1_query, vars),
         group_key: sec.group_key ?? null,
         group_label: sec.group_label ?? null,
         seq: s,

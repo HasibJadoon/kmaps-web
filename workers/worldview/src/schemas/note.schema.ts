@@ -1,3 +1,4 @@
+import { isSchemaRecord } from '../../../shared/src/validate';
 export interface WvNote {
   id: string;
   note_type: string;
@@ -47,9 +48,6 @@ export interface NoteRelationCreate {
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 
-function isSchemaRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
 
 export function validateNoteCreate(body: unknown): SchemaValidationResult<NoteCreate> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };

@@ -1,3 +1,4 @@
+import { isSchemaRecord } from '../../../shared/src/validate';
 export type ArLessonType = 'explanation' | 'practice' | 'mixed' | 'assessment';
 export type ArSkillFocus = 'reading' | 'writing' | 'listening' | 'speaking' | 'grammar' | 'vocabulary';
 
@@ -112,9 +113,6 @@ export interface LessonCreate {
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 
-function isSchemaRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
 
 export function validateArLessonPatch(body: unknown): SchemaValidationResult<ArLessonPatch> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };

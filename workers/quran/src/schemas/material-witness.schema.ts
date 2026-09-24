@@ -1,3 +1,4 @@
+import { isSchemaRecord } from '../../../shared/src/validate';
 export interface MaterialWitness {
   id: string;
   witness_type: string;
@@ -71,9 +72,6 @@ export interface WitnessObservationCreate {
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 
-function isSchemaRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
 
 export function validateMaterialWitnessCreate(body: unknown): SchemaValidationResult<MaterialWitnessCreate> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };

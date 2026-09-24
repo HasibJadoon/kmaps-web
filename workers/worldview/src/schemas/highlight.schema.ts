@@ -1,3 +1,4 @@
+import { isSchemaRecord } from '../../../shared/src/validate';
 export interface WvHighlight {
   id: string;
   source_id: string | null;
@@ -32,9 +33,6 @@ export interface HighlightCreate {
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 
-function isSchemaRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
 
 export function validateHighlightCreate(body: unknown): SchemaValidationResult<HighlightCreate> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };

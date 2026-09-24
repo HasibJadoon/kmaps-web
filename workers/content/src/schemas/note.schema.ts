@@ -1,3 +1,4 @@
+import { isSchemaRecord } from '../../../shared/src/validate';
 export interface CmNote {
   note_id: string;
   core_user_ref: string;
@@ -111,9 +112,6 @@ export interface NoteCreate {
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 
-function isSchemaRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
 
 export function validateCmNotePatch(body: unknown): SchemaValidationResult<CmNotePatch> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };

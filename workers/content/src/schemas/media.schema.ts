@@ -1,3 +1,4 @@
+import { isSchemaRecord } from '../../../shared/src/validate';
 export interface CmMediaAsset {
   asset_id: string;
   core_user_ref: string;
@@ -218,9 +219,6 @@ export interface CmMediaChapterInput {
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 
-function isSchemaRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
 
 export function validateCmMediaAssetPatch(body: unknown): SchemaValidationResult<CmMediaAssetPatch> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };

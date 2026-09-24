@@ -1,3 +1,4 @@
+import { isSchemaRecord } from '../../../shared/src/validate';
 export interface CmCapture {
   capture_id: string;
   core_user_ref: string;
@@ -94,9 +95,6 @@ export interface CaptureCreate {
 
 type SchemaValidationResult<T> = { data: T } | { error: string };
 
-function isSchemaRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
 
 export function validateCmCaptureLinkAdd(body: unknown): SchemaValidationResult<CmCaptureLinkAdd> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };
