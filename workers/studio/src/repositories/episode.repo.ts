@@ -171,8 +171,47 @@ export interface TemplateStructure {
   sections?: Array<{
     type?: string;
     heading?: string;
+    /// Which scene builder draws this section on the overlay stage.
+    overlay_kind?: string | null;
+    /// The rows the scene draws. In a template this carries placeholders —
+    /// {surah}, {from}, {to}, {passage} — filled from the episode's source_ref
+    /// when the structure is applied, so one template serves every passage.
+    d1_query?: string | null;
     points?: Array<{ text?: string; speaker_role?: string | null; est_seconds?: number | null }>;
   }>;
+}
+
+/// Values a template's placeholders resolve to. Derived from source_ref.
+export interface StructureVars {
+  surah?: number;
+  from?: number;
+  to?: number;
+  passage?: string;
+}
+
+/// `QR:SP:40:1-3` → { surah: 40, from: 1, to: 3, passage: 'QR:SP:40:1-3' }.
+/// Anything else yields nothing, and placeholders are left as they are rather
+/// than silently resolving to a wrong passage.
+export function structureVars(sourceRef: string | null | undefined): StructureVars {
+  const m = (sourceRef ?? '').match(/^QR:SP:(\d+):(\d+)-(\d+)$/);
+  if (!m) return {};
+  return {
+    surah: parseInt(m[1], 10),
+    from: parseInt(m[2], 10),
+    to: parseInt(m[3], 10),
+    passage: sourceRef!,
+  };
+}
+
+function fillPlaceholders(sql: string | null | undefined, vars: StructureVars): string | null {
+  if (!sql) return null;
+  let out = sql;
+  for (const [key, value] of Object.entries(vars)) {
+    if (value === undefined) continue;
+    out = out.split(`{${key}}`).join(String(value));
+  }
+  // A query still holding a placeholder would run against the wrong rows.
+  return /\{(surah|from|to|passage)\}/.test(out) ? null : out;
 }
 
 const EP_COLS = `id, core_user_ref, core_ws_ref, title, format, template_ref,
@@ -482,7 +521,11 @@ export class EpisodeRepo {
     return (res.meta.changes ?? 0) > 0;
   }
 
-  async applyStructure(episodeId: string, structure: TemplateStructure): Promise<void> {
+  async applyStructure(
+    episodeId: string,
+    structure: TemplateStructure,
+    vars: StructureVars = {},
+  ): Promise<void> {
     const roleToId = new Map<string, string>();
 
     const participants = structure.participants ?? [];
@@ -503,6 +546,8 @@ export class EpisodeRepo {
       const section = await this.createSection(episodeId, {
         type: sec.type || 'custom',
         heading: (sec.heading ?? '').trim() || 'Section',
+        overlay_kind: sec.overlay_kind ?? null,
+        d1_query: fillPlaceholders(sec.d1_query, vars),
         seq: s,
       });
       const points = sec.points ?? [];

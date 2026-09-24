@@ -23,6 +23,13 @@ router.get('/health', async (_req, env) =>
   ok({ domain: 'arabic', db: 'DB_AR', db_ok: await dbHealth(env.DB_AR) }),
 );
 
+// The gateway forwards /api/<module>/… with the module segment intact, so a
+// worker only ever sees a prefixed path. Bare /health is reachable over the
+// service binding but 404s from outside; this alias is the public one.
+router.get('/ar/health', async (_req, env) =>
+  ok({ domain: 'arabic', db: 'DB_AR', db_ok: await dbHealth(env.DB_AR) }),
+);
+
 // Literal-prefix routes first: the router is first-match-wins, and a
 // ':id' pattern registered earlier would swallow them.
 audioRoutes(router);

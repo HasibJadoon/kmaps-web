@@ -34,6 +34,13 @@ router.get('/health', async (_req, env) =>
   ok({ domain: 'quran', db: 'DB_QR', db_ok: await dbHealth(env.DB_QR) }),
 );
 
+// The gateway forwards /api/<module>/… with the module segment intact, so a
+// worker only ever sees a prefixed path. Bare /health is reachable over the
+// service binding but 404s from outside; this alias is the public one.
+router.get('/qr/health', async (_req, env) =>
+  ok({ domain: 'quran', db: 'DB_QR', db_ok: await dbHealth(env.DB_QR) }),
+);
+
 menuRoutes(router);
 surahRoutes(router);
 readerRoutes(router);

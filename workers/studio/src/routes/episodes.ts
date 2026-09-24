@@ -7,6 +7,7 @@ import {
   EpisodeRepo, EPISODE_FORMATS, EPISODE_STATUSES, SECTION_TYPES, PARTICIPANT_ROLES,
   type EpisodePatch, type SectionPatch, type PointPatch,
   type TemplateStructure,
+  structureVars,
 } from '../repositories/episode.repo';
 import { TemplateRepo } from '../repositories/template.repo';
 import { actorRef, workspaceRef } from '../auth';
@@ -156,7 +157,7 @@ export function episodeRoutes(router: Router<StudioEnv>) {
       output_kind: trimmedString(body['output_kind']) ?? null,
       source_ref: trimmedString(body['source_ref']) ?? null,
     });
-    await repo.applyStructure(episode.id, structure);
+    await repo.applyStructure(episode.id, structure, structureVars(episode.source_ref));
 
     const aggregate = await repo.findAggregate(episode.id);
     const host = aggregate?.participants[0];

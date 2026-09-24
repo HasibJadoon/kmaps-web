@@ -34,6 +34,13 @@ router.get('/health', async (_req, env) =>
   ok({ domain: 'ar-linguistics', db: 'DB_AL', db_ok: await dbHealth(env.DB_AL) }),
 );
 
+// The gateway forwards /api/<module>/… with the module segment intact, so a
+// worker only ever sees a prefixed path. Bare /health is reachable over the
+// service binding but 404s from outside; this alias is the public one.
+router.get('/al/health', async (_req, env) =>
+  ok({ domain: 'ar-linguistics', db: 'DB_AL', db_ok: await dbHealth(env.DB_AL) }),
+);
+
 rootRoutes(router);
 lookupRoutes(router);
 lemmaRoutes(router);
