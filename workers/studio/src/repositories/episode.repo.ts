@@ -16,7 +16,16 @@ export const SECTION_TYPES = [
   'open', 'close', ...PROCESS_STEP_TYPES,
 ] as const;
 export const PARTICIPANT_ROLES = ['host', 'speaker', 'guest', 'viewer'] as const;
-export const EPISODE_STATUSES = ['draft', 'live', 'done'] as const;
+// The production pipeline, in order: an episode is drafted, planned into a
+// week, made ready to shoot, shot, then published. 'live' and 'done' predate
+// this and are kept so old rows still validate on a PATCH.
+export const EPISODE_STATUSES = [
+  'draft', 'planned', 'ready', 'shot', 'published', 'live', 'done',
+] as const;
+
+/// Where a status sits in the pipeline, for the planner's progress read.
+/// Anything unrecognised sits at the start rather than throwing.
+export const EPISODE_STAGES = ['draft', 'planned', 'ready', 'shot', 'published'] as const;
 
 const PALETTE = ['#c9a84c', '#4c9fc9', '#c94c7a', '#5cc94c', '#9b6cc9', '#c97a4c'];
 
@@ -84,9 +93,51 @@ export interface PointRow {
   updated_at: string;
 }
 
+/// One shoot of this episode. The planner shows what has actually been
+/// captured, which is the only honest answer to "has it been shot".
+export interface CaptureRow {
+  id: string;
+  concept: string;
+  started_at: string | null;
+  ended_at: string | null;
+  marker_count: number;
+}
+
+/// The schedule, parsed out of meta_json. Every field is optional: an episode
+/// that has never been scheduled returns an empty plan rather than nulls the
+/// caller has to guess at.
+export interface EpisodePlan {
+  week?: string;
+  due_at?: string;
+  shoot_at?: string;
+  publish_at?: string;
+  review?: string;
+}
+
 export interface EpisodeAggregate extends EpisodeRow {
   participants: ParticipantRow[];
   sections: Array<SectionRow & { points: PointRow[] }>;
+  captures: CaptureRow[];
+  plan: EpisodePlan;
+}
+
+/// meta_json is free-form and hand-edited; a body that is not an object, or
+/// not JSON at all, means "nothing scheduled", never an error.
+export function episodePlan(metaJson: string | null): EpisodePlan {
+  if (!metaJson) return {};
+  try {
+    const parsed: unknown = JSON.parse(metaJson);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const meta = parsed as Record<string, unknown>;
+    const plan: EpisodePlan = {};
+    for (const key of ['week', 'due_at', 'shoot_at', 'publish_at', 'review'] as const) {
+      const value = meta[key];
+      if (typeof value === 'string' && value.trim()) plan[key] = value.trim();
+    }
+    return plan;
+  } catch {
+    return {};
+  }
 }
 
 export interface EpisodeCreate {
@@ -332,7 +383,7 @@ export class EpisodeRepo {
     const episode = await this.findEpisode(id);
     if (!episode) return null;
 
-    const [participants, sections, points] = await Promise.all([
+    const [participants, sections, points, captures] = await Promise.all([
       query<ParticipantRow>(
         this.db,
         `SELECT ${PA_COLS} FROM st_participants WHERE episode_ref = ? ORDER BY seq ASC`,
@@ -346,6 +397,16 @@ export class EpisodeRepo {
       query<PointRow>(
         this.db,
         `SELECT ${PT_COLS} FROM st_talking_points WHERE episode_ref = ? ORDER BY seq ASC`,
+        [id],
+      ),
+      query<CaptureRow>(
+        this.db,
+        `SELECT s.id, s.concept, s.started_at, s.ended_at,
+                (SELECT COUNT(*) FROM st_capture_markers m WHERE m.session_ref = s.id)
+                  AS marker_count
+           FROM st_capture_sessions s
+          WHERE s.episode_ref = ?
+          ORDER BY COALESCE(s.started_at, s.created_at) DESC`,
         [id],
       ),
     ]);
@@ -364,6 +425,8 @@ export class EpisodeRepo {
         ...section,
         points: pointsBySection.get(section.id) ?? [],
       })),
+      captures,
+      plan: episodePlan(episode.meta_json),
     };
   }
 
