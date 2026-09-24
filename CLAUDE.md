@@ -103,6 +103,41 @@ CORE:<id>
 
 Do not duplicate canonical data across domains. Store typed references instead.
 
+## Lexicon lookups — always go through the view
+
+A root is filed in the classical lexica under **more than one key**, and the two
+traditions barely overlap:
+
+- **phonetic school** (Kitāb al-ʿAyn, Maqāyīs, Rāghib, Qāmūs, **Lane**) files a
+  geminate or reduplicated root under the bare biliteral — `رب`, `هد`, `صر`
+- **alphabetical school** (Ṣiḥāḥ, Lisān, **Tāj**, Miṣbāḥ, Jamhara) files it under
+  the full form — `ربب`, `هدد`, `صرصر`
+
+So `WHERE root_norm = 'ربب'` returns Ṣiḥāḥ, Lisān, Tāj, Miṣbāḥ and Jamhara, and
+silently misses Lane and Rāghib — the English source and the Qurʾān-specific
+one, on the root of رَبّ. It looks like a complete answer. It is half of one.
+
+**Never join `ar_ling_lexicon_entry` or `ar_ling_lexicon_block` on `root_norm`
+directly.** Use the views, which carry every key a root is filed under:
+
+```sql
+SELECT * FROM ar_ling_root_lexicon_entry_v WHERE root_norm = ?;   -- headwords
+SELECT * FROM ar_ling_root_lexicon_block_v WHERE root_norm = ?;   -- the prose
+```
+
+Both return `found_under` and `key_rank` (0 = the root as spelled, higher = a
+tradition that files it elsewhere), so a caller wanting one entry takes the
+lowest rank that hits. Keys live in `ar_ling_root_lexicon_key`, derived from
+root shape in `kmaps-database` migration `028`, so new roots extend it by
+re-running that migration rather than by editing a list.
+
+`ar_ling_root_lexicon_alias` is **superseded** — its primary key is `root_norm`
+alone, so it can hold only one alias per root, which is what made the coverage
+incomplete in the first place. Do not read it.
+
+Going through the views takes Qurʾānic-root lexicon coverage from 99.8% to
+100%, and Lane from 88.4% to 98.5%.
+
 ## Database & Ingestion (moved)
 
 Migrations, seeds, ingestion inputs, and DB scripts now live in the **kmaps-database** repo
