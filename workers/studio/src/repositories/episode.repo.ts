@@ -153,6 +153,40 @@ export interface EpisodeAggregate extends EpisodeRow {
   captures: CaptureRow[];
   plan: EpisodePlan;
   phases: PhaseRow[];
+  /// How the format is run at the table, from its template — see sessionConfig.
+  session: SessionConfig | null;
+}
+
+/// How a format is run live, authored in its template's `structure_json.session`
+/// so the apps draw it from data rather than deciding it themselves:
+///   mode    'discussion' — brainstorm + talking cards (Do Zāwiya);
+///           anything else — the class's scene-per-step running order
+///   turns   'owner' — a talking point is one person's; its sub-points are
+///           spoken by that person, one per step
+///   labels  every word the session screens show, keyed by use
+export interface SessionConfig {
+  mode: string;
+  turns: string | null;
+  labels: Record<string, string>;
+}
+
+/// A template's session block, or null when it has none. Unknown or
+/// malformed parts are dropped rather than failing the episode.
+export function sessionConfig(structureJson: string | null): SessionConfig | null {
+  if (!structureJson) return null;
+  let parsed: unknown;
+  try { parsed = JSON.parse(structureJson); } catch { return null; }
+  const block = (parsed as { session?: unknown } | null)?.session;
+  if (!block || typeof block !== 'object') return null;
+  const b = block as { mode?: unknown; turns?: unknown; labels?: unknown };
+  if (typeof b.mode !== 'string' || !b.mode) return null;
+  const labels: Record<string, string> = {};
+  if (b.labels && typeof b.labels === 'object') {
+    for (const [k, v] of Object.entries(b.labels as Record<string, unknown>)) {
+      if (typeof v === 'string') labels[k] = v;
+    }
+  }
+  return { mode: b.mode, turns: typeof b.turns === 'string' ? b.turns : null, labels };
 }
 
 /// meta_json is free-form and hand-edited; a body that is not an object, or
@@ -541,7 +575,7 @@ export class EpisodeRepo {
     const episode = await this.findEpisode(id);
     if (!episode) return null;
 
-    const [participants, sections, points, phases, captures] = await Promise.all([
+    const [participants, sections, points, phases, captures, template] = await Promise.all([
       query<ParticipantRow>(
         this.db,
         `SELECT ${PA_COLS} FROM st_participants WHERE episode_ref = ? ORDER BY seq ASC`,
@@ -574,6 +608,11 @@ export class EpisodeRepo {
           ORDER BY COALESCE(s.started_at, s.created_at) DESC`,
         [id],
       ),
+      queryOne<{ structure_json: string | null }>(
+        this.db,
+        `SELECT structure_json FROM st_templates WHERE id = ?`,
+        [episode.template_ref ?? ''],
+      ),
     ]);
 
     const pointsBySection = new Map<string, PointRow[]>();
@@ -593,6 +632,7 @@ export class EpisodeRepo {
       captures,
       phases,
       plan: episodePlan(episode.meta_json),
+      session: sessionConfig(template?.structure_json ?? null),
     };
   }
 
