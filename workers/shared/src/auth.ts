@@ -1,5 +1,5 @@
 import type { AuthContext } from './types';
-import { unauthorized } from './response';
+import { unauthorized, forbidden } from './response';
 
 interface JwtPayload {
   sub: string;
@@ -88,10 +88,7 @@ export async function requireAdmin(
 ): Promise<AuthContext | Response> {
   const ctx = await requireAuth(request, jwtSecret);
   if (ctx instanceof Response) return ctx;
-  if (!ctx.isAdmin) {
-    const { forbidden } = await import('./response');
-    return forbidden('Admin role required');
-  }
+  if (!ctx.isAdmin) return forbidden('Admin role required');
   return ctx;
 }
 
