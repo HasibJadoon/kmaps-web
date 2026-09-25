@@ -1,19 +1,9 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, created, badRequest, notFound } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
+import { readJsonObject } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
 import { StudySessionRepo, type StudySessionCreate } from '../repositories/study-session.repo';
-
-async function readJson(req: Request): Promise<Record<string, unknown> | undefined> {
-  try {
-    const body = await req.json();
-    return typeof body === 'object' && body !== null && !Array.isArray(body)
-      ? body as Record<string, unknown>
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 const DOMAINS = new Set(['quran', 'arabic', 'wv']);
 const LANES = new Set(['quran', 'language', 'worldview']);
@@ -61,7 +51,7 @@ export function studySessionRoutes(router: Router<CoreEnv>) {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
 
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     if (!body) return badRequest('a JSON body is required');
 
     const domain   = str(body['domain']);

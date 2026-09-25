@@ -66,3 +66,20 @@ export function requireParam(url: URL, name: string): string | null {
 export function isSchemaRecord(body: unknown): body is Record<string, unknown> {
   return typeof body === 'object' && body !== null && !Array.isArray(body);
 }
+
+/** The request body parsed as JSON, or `undefined` when it is empty or not
+ *  valid JSON. Callers that want an object narrow it with isSchemaRecord. */
+export async function readJsonBody(req: Request): Promise<unknown> {
+  try {
+    return await req.json();
+  } catch {
+    return undefined;
+  }
+}
+
+/** The request body when it is a plain JSON object; `null` when it is empty,
+ *  malformed, an array or a primitive. */
+export async function readJsonObject(req: Request): Promise<Record<string, unknown> | null> {
+  const body = await readJsonBody(req);
+  return isSchemaRecord(body) ? body : null;
+}

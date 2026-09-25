@@ -3,6 +3,7 @@ import { ok, created, badRequest, notFound, unauthorized } from '../../../shared
 import { requireAuth } from '../../../shared/src/auth';
 import { query, execute, queryOne } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
+import { readJsonObject } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
 import { generateDrafts, type SourceCard } from '../quiz/generate';
 
@@ -14,14 +15,6 @@ function randomCode(length = 6): string {
   let out = '';
   for (let i = 0; i < length; i++) out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
   return out;
-}
-
-async function readJson(req: Request): Promise<Record<string, unknown> | null> {
-  try {
-    const body = await req.json();
-    return body && typeof body === 'object' && !Array.isArray(body)
-      ? (body as Record<string, unknown>) : null;
-  } catch { return null; }
 }
 
 const str = (v: unknown): string | null =>
@@ -108,7 +101,7 @@ export function quizRoutes(router: Router<CoreEnv>): void {
   router.post('/core/quiz/questions', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     if (!body) return badRequest('Request body must be a JSON object');
 
     const prompt = str(body['prompt']);
@@ -188,7 +181,7 @@ export function quizRoutes(router: Router<CoreEnv>): void {
   router.post('/core/quiz/generate', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req) ?? {};
+    const body = await readJsonObject(req) ?? {};
 
     const surah = Number(body['surah'] ?? 0);
     const from = Number(body['ayah_from'] ?? 0);
@@ -272,7 +265,7 @@ export function quizRoutes(router: Router<CoreEnv>): void {
   router.post('/core/quiz/sessions', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req) ?? {};
+    const body = await readJsonObject(req) ?? {};
 
     const id = typedId('QZS');
     const code = randomCode();

@@ -5,6 +5,7 @@ import {
 import { requireAuth } from '../../../shared/src/auth';
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
+import { readJsonObject } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
 import {
   SrsRepo, DEFAULT_NEW_PER_DAY, DEFAULT_REVIEW_PER_DAY,
@@ -40,17 +41,6 @@ const RESOURCE_TYPES = new Set([
   'vocabulary', 'grammar', 'root', 'lemma', 'word',
   'ayah', 'passage', 'concept', 'other',
 ]);
-
-async function readJson(req: Request): Promise<Record<string, unknown> | undefined> {
-  try {
-    const body = await req.json();
-    return typeof body === 'object' && body !== null && !Array.isArray(body)
-      ? body as Record<string, unknown>
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 
@@ -264,7 +254,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     if (!deck) return notFound(`deck ${id}`);
     if (deck.user_ref !== ctx.userId) return forbidden('Not your deck');
 
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const shared = typeof body?.['is_shared'] === 'boolean' ? (body['is_shared'] ? 1 : 0) : deck.is_shared;
     const workspace = body?.['workspace_id'] === null
       ? null
@@ -452,7 +442,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
   router.post('/core/srs/library/take', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const ids = Array.isArray(body?.['ids']) ? (body['ids'] as unknown[]).filter((i) => typeof i === 'string') as string[] : [];
     if (ids.length === 0) return badRequest('ids is required');
 
@@ -502,7 +492,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
   router.post('/core/srs/library/submit', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const module = str(body?.['module']) ?? 'QR';
     const resourceRef = str(body?.['resource_ref']);
     const front = str(body?.['front_text']);
@@ -567,7 +557,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     if (!(await isApprover(env, ctx.userId))) {
       return forbidden('Only a card approver can review submissions');
     }
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const decision = str(body?.['decision']);
     if (decision !== 'approved' && decision !== 'rejected') {
       return badRequest("decision must be 'approved' or 'rejected'");
@@ -665,7 +655,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
   router.post('/core/srs/library/enroll', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const surah = Number(body?.['surah'] ?? 0);
     const scope = str(body?.['scope']) ?? (surah > 0 ? 'quran' : 'all');
     const like = scope === 'roots' ? 'CYB:ling:root:%'
@@ -727,7 +717,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     if (!card) return notFound(`card ${id}`);
     if (card.user_ref !== ctx.userId) return forbidden('Not your card');
 
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const front = str(body?.['front_text']);
     const back = str(body?.['back_text']);
     const kind = str(body?.['card_kind']);
@@ -845,7 +835,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
   router.post('/core/srs/import/anki', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const incoming = Array.isArray(body?.['cards']) ? body['cards'] as Array<Record<string, unknown>> : [];
     if (incoming.length === 0) return badRequest('cards is required');
     if (incoming.length > 50) return badRequest('send at most 50 cards per request');
@@ -918,7 +908,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
   router.post('/core/srs/import', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const text = typeof body?.['text'] === 'string' ? body['text'] : '';
     if (!text.trim()) return badRequest('text is required');
 
@@ -995,7 +985,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
   router.patch('/core/srs/settings', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const repo = new SrsRepo(env.DB_CORE);
     const current = await repo.params(ctx.userId);
     const cap = (v: unknown, fallback: number | null): number | null => {
@@ -1024,7 +1014,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     if (!deck) return notFound(`deck ${id}`);
     if (deck.user_ref !== ctx.userId) return forbidden('Not your deck');
 
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const cap = (v: unknown, current: number | null): number | null => {
       if (v === undefined) return current;
       if (v === null) return null;
@@ -1047,7 +1037,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
   router.post('/core/srs/decks', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const title = str(body?.['title']);
     if (!title) return badRequest('title is required');
     const deck = await new SrsRepo(env.DB_CORE).createDeck({
@@ -1094,7 +1084,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
   router.post('/core/srs/cards/bulk', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const entries = Array.isArray(body?.['cards']) ? body['cards'] as unknown[] : null;
     if (!entries) return badRequest('cards must be an array');
     if (!entries.length) return badRequest('cards must not be empty');
@@ -1184,7 +1174,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
   router.post('/core/srs/cards', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const module = str(body?.['module']);
     const resourceType = str(body?.['resource_type']);
     const resourceRef = str(body?.['resource_ref']);
@@ -1263,7 +1253,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     if (card.user_ref !== ctx.userId) return forbidden('Not your card');
 
     const c = card;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const rating: unknown = body?.['rating'];
     if (!isRating(rating)) {
       return badRequest('rating must be 1 (Again), 2 (Hard), 3 (Good) or 4 (Easy)');
@@ -1399,7 +1389,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
   router.post('/core/srs/params/optimize', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const minimumReviews = typeof body?.['minimum_reviews'] === 'number'
       ? (body['minimum_reviews'] as number) : undefined;
 

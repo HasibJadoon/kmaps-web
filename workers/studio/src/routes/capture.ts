@@ -2,6 +2,7 @@ import type { Router } from '../../../shared/src/router';
 import {
   ok, created, notFound, badRequest, unauthorized, forbidden,
 } from '../../../shared/src/response';
+import { isSchemaRecord, readJsonBody } from '../../../shared/src/validate';
 import type { StudioEnv } from '../env';
 import { EpisodeRepo } from '../repositories/episode.repo';
 import {
@@ -10,24 +11,12 @@ import {
 } from '../repositories/capture.repo';
 import { actorRef } from '../auth';
 
-async function readJson(req: Request): Promise<unknown> {
-  try {
-    return await req.json();
-  } catch {
-    return undefined;
-  }
-}
-
-function isObj(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
 function trimmedString(v: unknown): string | undefined {
   return typeof v === 'string' ? v.trim() : undefined;
 }
 
 function toMarkerInput(raw: unknown): MarkerInput | null {
-  if (!isObj(raw)) return null;
+  if (!isSchemaRecord(raw)) return null;
   const pointRef = trimmedString(raw['point_ref']) || '';
   if (!pointRef) return null;
   const status = trimmedString(raw['status']);
@@ -52,14 +41,14 @@ export function captureRoutes(router: Router<StudioEnv>) {
   router.post('/st/episodes/:id/captures', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
-    const body = await readJson(req);
+    const body = await readJsonBody(req);
 
     const episode = await new EpisodeRepo(env.DB_ST).findEpisode(id);
     if (!episode) return notFound(`episode ${id}`);
     if (episode.core_user_ref !== user) return forbidden('Only the owner can start a capture');
 
     let concept = 'talking_head';
-    if (isObj(body) && body['concept'] !== undefined) {
+    if (isSchemaRecord(body) && body['concept'] !== undefined) {
       const requested = trimmedString(body['concept']) || '';
       if (!(CAPTURE_CONCEPTS as readonly string[]).includes(requested)) {
         return badRequest(`concept must be one of: ${CAPTURE_CONCEPTS.join(', ')}`);
@@ -96,8 +85,8 @@ export function captureRoutes(router: Router<StudioEnv>) {
   router.patch('/st/captures/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
-    const body = await readJson(req);
-    if (!isObj(body)) return badRequest('Request body must be a JSON object');
+    const body = await readJsonBody(req);
+    if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
     const repo = new CaptureRepo(env.DB_ST);
     const session = await repo.findSession(id);
@@ -114,7 +103,7 @@ export function captureRoutes(router: Router<StudioEnv>) {
   router.post('/st/captures/:id/markers', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
-    const body = await readJson(req);
+    const body = await readJsonBody(req);
 
     const repo = new CaptureRepo(env.DB_ST);
     const session = await repo.findSession(id);
@@ -123,7 +112,7 @@ export function captureRoutes(router: Router<StudioEnv>) {
 
     const rawMarkers = Array.isArray(body)
       ? body
-      : isObj(body) && Array.isArray(body['markers']) ? body['markers'] : null;
+      : isSchemaRecord(body) && Array.isArray(body['markers']) ? body['markers'] : null;
     if (!rawMarkers) return badRequest('Request body must be an array of markers or { markers: [...] }');
 
     const markers: MarkerInput[] = [];
@@ -139,8 +128,8 @@ export function captureRoutes(router: Router<StudioEnv>) {
   router.patch('/st/markers/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
-    const body = await readJson(req);
-    if (!isObj(body)) return badRequest('Request body must be a JSON object');
+    const body = await readJsonBody(req);
+    if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
     const repo = new CaptureRepo(env.DB_ST);
     const marker = await repo.findMarker(id);

@@ -3,17 +3,10 @@ import { ok, created, badRequest, notFound, forbidden, noContent } from '../../.
 import { requireAuth } from '../../../shared/src/auth';
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
+import { readJsonObject } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
 
 const AUDIENCES = ['family', 'friends', 'couples', 'kids', 'work', 'mixed'] as const;
-
-async function readJson(req: Request): Promise<Record<string, unknown> | null> {
-  try {
-    const body = await req.json();
-    return body && typeof body === 'object' && !Array.isArray(body)
-      ? (body as Record<string, unknown>) : null;
-  } catch { return null; }
-}
 
 const str = (v: unknown): string | null =>
   typeof v === 'string' && v.trim() ? v.trim() : null;
@@ -51,7 +44,7 @@ export function talkRoutes(router: Router<CoreEnv>): void {
   router.post('/core/talk/decks', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const title = str(body?.['title']);
     if (!title) return badRequest('title is required');
 
@@ -103,7 +96,7 @@ export function talkRoutes(router: Router<CoreEnv>): void {
     if (!deck) return notFound(`deck ${id}`);
     if (deck.owner_ref !== ctx.userId) return forbidden('Not your deck');
 
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const depth = Number(body?.['depth'] ?? 1);
     const single = str(body?.['prompt']);
     const many = Array.isArray(body?.['prompts'])

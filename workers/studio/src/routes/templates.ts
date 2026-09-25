@@ -1,21 +1,10 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, created, notFound, badRequest, unauthorized } from '../../../shared/src/response';
+import { isSchemaRecord, readJsonBody } from '../../../shared/src/validate';
 import type { StudioEnv } from '../env';
 import { TemplateRepo, TemplateRow } from '../repositories/template.repo';
 import { EPISODE_FORMATS } from '../repositories/episode.repo';
 import { actorRef } from '../auth';
-
-async function readJson(req: Request): Promise<unknown> {
-  try {
-    return await req.json();
-  } catch {
-    return undefined;
-  }
-}
-
-function isObj(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
 
 function toApi(row: TemplateRow) {
   let structure: unknown = {};
@@ -53,8 +42,8 @@ export function templateRoutes(router: Router<StudioEnv>) {
   router.post('/st/templates', async (req, env) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
-    const body = await readJson(req);
-    if (!isObj(body)) return badRequest('Request body must be a JSON object');
+    const body = await readJsonBody(req);
+    if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
     const name = typeof body['name'] === 'string' ? body['name'].trim() : '';
     if (!name) return badRequest('name is required');
@@ -64,7 +53,7 @@ export function templateRoutes(router: Router<StudioEnv>) {
       return badRequest(`format must be one of: ${EPISODE_FORMATS.join(', ')}`);
     }
 
-    if (!isObj(body['structure'])) {
+    if (!isSchemaRecord(body['structure'])) {
       return badRequest('structure is required and must be a JSON object');
     }
     const description = typeof body['description'] === 'string' ? body['description'].trim() : null;

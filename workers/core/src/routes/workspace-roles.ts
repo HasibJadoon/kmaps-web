@@ -1,20 +1,10 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, created, badRequest, noContent, notFound } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
+import { readJsonObject } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
 import { WorkspaceRoleRepo } from '../repositories/workspace-role.repo';
 import { ActivityRepo } from '../repositories/activity.repo';
-
-async function readJson(req: Request): Promise<Record<string, unknown> | null> {
-  try {
-    const body = await req.json();
-    return body && typeof body === 'object' && !Array.isArray(body)
-      ? (body as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-}
 
 async function logEvent(
   env: CoreEnv,
@@ -46,7 +36,7 @@ export function workspaceRoleRoutes(router: Router<CoreEnv>) {
   router.post('/core/workspaces/:id/roles', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     if (!body) return badRequest('Request body must be a JSON object');
     const roleKey = typeof body['role_key'] === 'string' ? body['role_key'].trim() : '';
     const title = typeof body['title'] === 'string' ? body['title'].trim() : '';
@@ -68,7 +58,7 @@ export function workspaceRoleRoutes(router: Router<CoreEnv>) {
   router.patch('/core/workspaces/:id/roles/:roleId', async (req, env, { id, roleId }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     if (!body || typeof body['permissions_json'] !== 'string') {
       return badRequest('permissions_json (a JSON string) is required');
     }
@@ -94,7 +84,7 @@ export function workspaceRoleRoutes(router: Router<CoreEnv>) {
   router.post('/core/workspaces/:id/members/:memberId/roles', async (req, env, { id, memberId }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const roleId = body && typeof body['role_id'] === 'string' ? body['role_id'] : '';
     if (!roleId) return badRequest('role_id is required');
     const assignment = await new WorkspaceRoleRepo(env.DB_CORE).assignToMember({

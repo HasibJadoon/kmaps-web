@@ -1,3 +1,5 @@
+import { isSchemaRecord } from '../../../shared/src/validate';
+
 export type CmPublicationState = 'draft' | 'review' | 'published' | 'archived';
 
 export interface CmDocument {
@@ -203,12 +205,8 @@ type SchemaValidationResult<T> = { data: T } | { error: string };
 
 const PUBLICATION_STATES: CmPublicationState[] = ['draft', 'review', 'published', 'archived'];
 
-function isRecord(body: unknown): body is Record<string, unknown> {
-  return typeof body === 'object' && body !== null && !Array.isArray(body);
-}
-
 function isValidationError(value: unknown): value is { error: string } {
-  return isRecord(value) && typeof value.error === 'string';
+  return isSchemaRecord(value) && typeof value.error === 'string';
 }
 
 function hasKey(body: Record<string, unknown>, key: string): boolean {
@@ -276,7 +274,7 @@ function assignIfPresent<T extends object, K extends keyof T>(
 }
 
 function validateBlockPayload(body: unknown, requireAny = false): SchemaValidationResult<CmDocumentBlockCreate> {
-  if (!isRecord(body)) return { error: 'Block body must be an object' };
+  if (!isSchemaRecord(body)) return { error: 'Block body must be an object' };
   const data: CmDocumentBlockCreate = {};
 
   const blockId = readOptionalString(body, 'block_id', false);
@@ -342,7 +340,7 @@ function validateDocumentPayload(
   body: unknown,
   options: { requireCoreUserRef: boolean; requireTitle: boolean; requireAny: boolean },
 ): SchemaValidationResult<CmDocumentCreate | CmDocumentPatch> {
-  if (!isRecord(body)) return { error: 'Body must be an object' };
+  if (!isSchemaRecord(body)) return { error: 'Body must be an object' };
   const data: CmDocumentCreate | CmDocumentPatch = {};
 
   if (options.requireCoreUserRef) {
@@ -464,7 +462,7 @@ export function validateCmDocumentBlockPatch(body: unknown): SchemaValidationRes
 }
 
 export function validateCmDocumentVersionCreate(body: unknown): SchemaValidationResult<CmDocumentVersionCreate> {
-  if (!isRecord(body)) return { error: 'Body must be an object' };
+  if (!isSchemaRecord(body)) return { error: 'Body must be an object' };
   const data: CmDocumentVersionCreate = {};
 
   const versionLabel = readOptionalString(body, 'version_label');
@@ -483,7 +481,7 @@ export function validateCmDocumentVersionCreate(body: unknown): SchemaValidation
 }
 
 export function validateCmDocumentBlockRefCreate(body: unknown): SchemaValidationResult<CmDocumentBlockRefCreate> {
-  if (!isRecord(body)) return { error: 'Body must be an object' };
+  if (!isSchemaRecord(body)) return { error: 'Body must be an object' };
   const data: CmDocumentBlockRefCreate = {
     target_ref: '',
   };
@@ -516,7 +514,7 @@ export function validateCmDocumentBlockRefCreate(body: unknown): SchemaValidatio
 }
 
 export function validateCmDocumentBlockEmbedCreate(body: unknown): SchemaValidationResult<CmDocumentBlockEmbedCreate> {
-  if (!isRecord(body)) return { error: 'Body must be an object' };
+  if (!isSchemaRecord(body)) return { error: 'Body must be an object' };
   const data: CmDocumentBlockEmbedCreate = {};
 
   const embedType = readOptionalString(body, 'embed_type', false);
@@ -543,7 +541,7 @@ export function validateCmDocumentBlockEmbedCreate(body: unknown): SchemaValidat
 }
 
 export function validateCmDocumentLinkCreate(body: unknown): SchemaValidationResult<CmDocumentLinkCreate> {
-  if (!isRecord(body)) return { error: 'Body must be an object' };
+  if (!isSchemaRecord(body)) return { error: 'Body must be an object' };
   const data: CmDocumentLinkCreate = {
     target_ref: '',
   };

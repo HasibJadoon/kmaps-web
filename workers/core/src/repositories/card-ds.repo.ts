@@ -1,11 +1,10 @@
 import type { DsBlock, DsCell, DsNode, DsRecord, DsText, DsBar } from '../../../shared/src/contracts/ds';
+import { isSchemaRecord } from '../../../shared/src/validate';
 
 type Fields = Record<string, unknown>;
 
-const isObj = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v);
 const arr = (v: unknown): Record<string, unknown>[] =>
-  Array.isArray(v) ? v.filter(isObj) : [];
+  Array.isArray(v) ? v.filter(isSchemaRecord) : [];
 const s = (v: unknown): string => (typeof v === 'string' ? v : '');
 const n = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
@@ -69,7 +68,7 @@ function placedBlocks(fields: Fields, form: CardForm = 'desktop'): Placed[] {
   const asSchol   = at('evidence',  'CARD-SCH',   'Scholarship',      'أقوال العلماء');
 
   const root = s(fields.Root);
-  const soundness = isObj(fields.Soundness) ? fields.Soundness : null;
+  const soundness = isSchemaRecord(fields.Soundness) ? fields.Soundness : null;
   if (root) {
     out.push(asRoot({
       kind: 'hero',
@@ -99,7 +98,7 @@ function placedBlocks(fields: Fields, form: CardForm = 'desktop'): Placed[] {
     out.push(asLetters({ kind: 'grid', title: 'The letters', cells }));
   }
 
-  const dna = isObj(fields.DnaThread) ? fields.DnaThread : null;
+  const dna = isSchemaRecord(fields.DnaThread) ? fields.DnaThread : null;
   if (dna) {
     out.push(asThread({
       kind: 'card_list',
@@ -108,7 +107,7 @@ function placedBlocks(fields: Fields, form: CardForm = 'desktop'): Placed[] {
     }));
   }
 
-  const asl = isObj(fields.AslStatement) ? fields.AslStatement : null;
+  const asl = isSchemaRecord(fields.AslStatement) ? fields.AslStatement : null;
   if (asl) {
     out.push(asAsl({
       kind: 'card_list',
@@ -132,8 +131,8 @@ function placedBlocks(fields: Fields, form: CardForm = 'desktop'): Placed[] {
   const ladder = arr(fields.FormLadder);
   if (ladder.length) {
     const records: DsRecord[] = ladder.slice(0, cap).map((f, i): DsRecord => {
-      const form = isObj(f.form) ? f.form : {};
-      const bab = isObj(f.bab) ? f.bab : {};
+      const form = isSchemaRecord(f.form) ? f.form : {};
+      const bab = isSchemaRecord(f.bab) ? f.bab : {};
       const masadir = arr(f.masadir);
       return {
         id: `form-${i}`,
@@ -148,10 +147,10 @@ function placedBlocks(fields: Fields, form: CardForm = 'desktop'): Placed[] {
             label: statusOf(m) === 'qiyasi' ? 'maṣdar °' : 'maṣdar',
             value: { text: s(m.m), script: 'ar' as const },
           })),
-          ...(isObj(f.ap) && s((f.ap as Record<string, unknown>).w)
+          ...(isSchemaRecord(f.ap) && s((f.ap as Record<string, unknown>).w)
             ? [{ label: 'active', value: { text: s((f.ap as Record<string, unknown>).w), script: 'ar' as const } }]
             : []),
-          ...(isObj(f.pp) && s((f.pp as Record<string, unknown>).w)
+          ...(isSchemaRecord(f.pp) && s((f.pp as Record<string, unknown>).w)
             ? [{ label: 'passive', value: { text: s((f.pp as Record<string, unknown>).w), script: 'ar' as const } }]
             : []),
         ],
@@ -199,7 +198,7 @@ function placedBlocks(fields: Fields, form: CardForm = 'desktop'): Placed[] {
     out.push(asAxes({ kind: 'bars', title: 'Axes', bars }));
   }
 
-  const taq = isObj(fields.Taqalib) ? fields.Taqalib : null;
+  const taq = isSchemaRecord(fields.Taqalib) ? fields.Taqalib : null;
   const members = taq ? (Array.isArray(taq.members) ? taq.members.map(s) : []) : [];
   if (taq && members.length) {
     const unused = s(taq.unused);
