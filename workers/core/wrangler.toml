@@ -44,7 +44,8 @@ JWT_EXPIRY_SECONDS = "43200"
 # the web login hides a button it cannot complete, while the native
 # POST /core/auth/oauth/apple route (which checks APPLE_CLIENT_ID alone) works.
 # Add the services-id to this list and set the redirect when web is set up.
-APPLE_CLIENT_ID = "com.kmaps.app"
+# com.kmaps.studio is the macOS Studio app, which signs in the same way.
+APPLE_CLIENT_ID = "com.kmaps.app,com.kmaps.studio"
 
 # Who may publish a submitted card into the shared SRS library. Approving puts
 # a card under a surah for everyone, so this is an explicit list rather than a
