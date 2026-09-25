@@ -73,6 +73,7 @@ export class EpisodeSession {
       paused,
 
       played,
+      turn: await this.getTurn(),
       viewers: this.state.getWebSockets().length,
       you: identity,
       roster: this.rosterOf(this.state.getWebSockets()),
@@ -83,7 +84,7 @@ export class EpisodeSession {
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    let msg: { t?: string; section?: number; point?: number; card?: string };
+    let msg: { t?: string; section?: number; point?: number; card?: string; turn?: number };
     try {
       const text = typeof message === 'string' ? message : new TextDecoder().decode(message);
       msg = JSON.parse(text);
@@ -99,8 +100,19 @@ export class EpisodeSession {
       return;
     }
 
+    // A turn of the card's exchange: either person at the table — or the
+    // host — moves it on, so whoever just spoke hands to the other.
+    if (msg.t === 'turn' && typeof msg.turn === 'number') {
+      const who = ws.deserializeAttachment() as Identity | null;
+      if (isHost || who?.participantId) await this.setTurn(msg.turn);
+      return;
+    }
+
+    // Next card: the host, or either person at the table — a card's last
+    // turn is often the other person's, and they close it.
     if (msg.t === 'next') {
-      if (isHost || await this.ownsCurrentCard(ws)) await this.move(1);
+      const who = ws.deserializeAttachment() as Identity | null;
+      if (isHost || who?.participantId || await this.ownsCurrentCard(ws)) await this.move(1);
       return;
     }
 
@@ -232,6 +244,7 @@ export class EpisodeSession {
       cursor: await this.getCursor(),
       paused: await this.getPaused(),
       played: await this.getPlayed(),
+      turn: await this.getTurn(),
       viewers: this.state.getWebSockets().length,
     });
   }
@@ -246,13 +259,27 @@ export class EpisodeSession {
 
   private async setCursor(cursor: Cursor): Promise<void> {
     await this.state.storage.put('cursor', cursor);
+    // A new card starts on its first turn.
+    await this.state.storage.put('turn', 0);
 
     this.broadcast({
       t: 'cursor',
       cursor,
       paused: await this.getPaused(),
       played: await this.getPlayed(),
+      turn: 0,
     });
+  }
+
+  /// Which turn of the current card's exchange is being spoken.
+  private async setTurn(turn: number): Promise<void> {
+    const t = Math.max(0, Math.floor(turn));
+    await this.state.storage.put('turn', t);
+    this.broadcast({ t: 'turn', turn: t, cursor: await this.getCursor() });
+  }
+
+  private async getTurn(): Promise<number> {
+    return (await this.state.storage.get<number>('turn')) ?? 0;
   }
 
   private async setPaused(paused: boolean): Promise<void> {
