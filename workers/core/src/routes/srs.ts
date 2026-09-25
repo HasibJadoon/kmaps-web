@@ -9,12 +9,12 @@ import { readJsonObject } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
 import {
   SrsRepo, DEFAULT_NEW_PER_DAY, DEFAULT_REVIEW_PER_DAY,
-  type SrsCard, type SrsDeck, type SrsParams,
+  type SrsCard, type SrsDeck,
 } from '../repositories/srs.repo';
 import {
   grade as gradeCard, previewDays, retrievabilityOf, evaluate, optimize,
   buildParams, isRating, default_w,
-  type RatingValue, type StoredParams,
+  type RatingValue,
 } from '../srs/fsrs';
 import type { FSRSParameters } from 'ts-fsrs';
 import { storedOf } from '../srs/stored-params';

@@ -1,9 +1,7 @@
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import { nonBlank } from '../../../shared/src/validate';
-import type {
-  PackDoc, UnitDoc, ItemDoc, OptionDoc, ImportResult,
-} from './types';
+import type { PackDoc, ItemDoc, OptionDoc, ImportResult } from './types';
 
 const num = (v: unknown): number | null => {
   const n = Number(v);

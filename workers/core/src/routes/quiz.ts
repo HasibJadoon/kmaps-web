@@ -1,5 +1,5 @@
 import type { Router } from '../../../shared/src/router';
-import { ok, created, badRequest, notFound, unauthorized } from '../../../shared/src/response';
+import { ok, created, badRequest, notFound } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
 import { query, execute, queryOne } from '../../../shared/src/db';
 import { typedId, randomCode } from '../../../shared/src/ulid';
@@ -382,12 +382,4 @@ export function quizRoutes(router: Router<CoreEnv>): void {
       bank: totals[0] ?? { questions: 0, answers: 0 },
     });
   });
-}
-
-function safeOptions(raw: unknown): string[] {
-  if (typeof raw !== 'string') return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map(String) : [];
-  } catch { return []; }
 }

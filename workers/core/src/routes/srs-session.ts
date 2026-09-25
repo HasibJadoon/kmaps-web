@@ -1,5 +1,5 @@
 import type { Router } from '../../../shared/src/router';
-import { ok, badRequest, unauthorized } from '../../../shared/src/response';
+import { ok, badRequest } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
 import { randomCode } from '../../../shared/src/ulid';
 import type { CoreEnv } from '../env';

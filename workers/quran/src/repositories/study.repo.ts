@@ -198,11 +198,6 @@ const STEP_ORDER: Record<string, number> = {
   comprehension: 500, scholarship: 510,
 };
 
-const STEP_ALIAS: Record<string, string> = {
-  morphology: 'vocabulary', expressions: 'vocabulary',
-  comprehension: 'tafsir', scholarship: 'tafsir',
-};
-
 function taskSortKey(t: StudyTask): number {
   return asNum(t.display_order) ?? STEP_ORDER[t.task_type] ?? 99000;
 }

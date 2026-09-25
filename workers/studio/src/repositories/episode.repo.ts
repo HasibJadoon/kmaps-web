@@ -297,17 +297,6 @@ export function structureVars(sourceRef: string | null | undefined): StructureVa
   };
 }
 
-function fillPlaceholders(sql: string | null | undefined, vars: StructureVars): string | null {
-  if (!sql) return null;
-  let out = sql;
-  for (const [key, value] of Object.entries(vars)) {
-    if (value === undefined) continue;
-    out = out.split(`{${key}}`).join(String(value));
-  }
-  // A query still holding a placeholder would run against the wrong rows.
-  return /\{(surah|from|to|passage)\}/.test(out) ? null : out;
-}
-
 const EP_COLS = `id, core_user_ref, core_ws_ref, title, format, template_ref,
                  status, meta_json, ecosystem, series_ref, session_no,
                  output_kind, source_ref, last_opened_at, created_at, updated_at`;

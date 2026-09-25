@@ -5,7 +5,7 @@ import { parsePagination } from '../../../shared/src/validate';
 import type { ArLinguisticsEnv } from '../env';
 import { normArabic } from '../lib/root_query';
 import { LexiconRepo } from '../repositories/lexicon.repo';
-import { SourcesRepo, toResponseMeta, type LexiconSource } from '../repositories/sources.repo';
+import { SourcesRepo, toResponseMeta } from '../repositories/sources.repo';
 
 async function metaFromSources(repo: SourcesRepo) {
   const sources = await repo.inDisplayOrder();

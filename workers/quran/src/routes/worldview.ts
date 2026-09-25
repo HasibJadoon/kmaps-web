@@ -1,8 +1,8 @@
 import type { Router } from '../../../shared/src/router';
 import { badRequest, ok } from '../../../shared/src/response';
-import { parseIntParam, parsePagination } from '../../../shared/src/validate';
+import { parseIntParam } from '../../../shared/src/validate';
 import type { QuranEnv } from '../env';
-import { ProjectionRepo, type DocLink, type WorldviewNode } from '../repositories/projection.repo';
+import { ProjectionRepo, type DocLink } from '../repositories/projection.repo';
 
 function parseSurahId(id: string): number | null {
   const surahId = parseIntParam(id);
@@ -22,21 +22,6 @@ function hub(surahId: number, documents: number) {
   };
 }
 
-function mapNode(row: WorldviewNode, edgeCount = 0) {
-  return {
-    id: row.id,
-    title: row.label_en,
-    node_type: row.node_type,
-    text_plain: row.summary_md ?? undefined,
-    summary: row.summary_md ?? undefined,
-    slug: row.label_en.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
-    status: 'active',
-    edge_count: edgeCount,
-    evidence_count: row.source_claim_id ? 1 : 0,
-    quran_link_count: 1,
-  };
-}
-
 function mapDocLink(row: DocLink) {
   return {
     id: row.id,
@@ -47,15 +32,6 @@ function mapDocLink(row: DocLink) {
     block_count: 0,
     node_count: 0,
   };
-}
-
-async function listNodes(env: QuranEnv, surahId: number, request: Request) {
-  const page = await new ProjectionRepo(env.DB_QR).worldviewNodes(
-    { surah: surahId },
-    parsePagination(new URL(request.url)),
-  );
-
-  return page;
 }
 
 export function worldviewRoutes(router: Router<QuranEnv>) {

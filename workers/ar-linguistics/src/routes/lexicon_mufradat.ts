@@ -374,7 +374,6 @@ function sentenceSplit(flat: string): string[] {
   return flat.split(/(?<=[.!؟۔])\s+/u).map(p => p.trim()).filter(Boolean);
 }
 
-const POETRY_CUE = /(قول الشاعر|قال الشاعر|قال الراجز|وأنشد|قال الفرزدق|قال امرؤ القيس)\s*:?\s*$/u;
 const HADITH_CUE = /(وفي الحديث|الحديث الشريف|روي عن النبي)/u;
 const QIRA_CUE   = /(?:في )?قراءة (عبد الله|ابن مسعود|أُبي|أبي|الحسن|من قرأ|من قرأها)/u;
 
