@@ -8,7 +8,6 @@ export class AtlasStarfieldRenderer {
 
   private readonly ngZone = inject(NgZone);
 
-  private host: HTMLElement | null = null;
   private renderer!: THREE.WebGLRenderer;
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
@@ -34,7 +33,6 @@ export class AtlasStarfieldRenderer {
     this.dispose();
 
     this.disposed = false;
-    this.host = host;
     this.lastFrameTimestamp = 0;
     this.timer = new THREE.Timer();
     this.timer.connect(document);
@@ -88,7 +86,6 @@ export class AtlasStarfieldRenderer {
     }
     this.scene?.clear();
     this.layers = [];
-    this.host = null;
     this.renderer = undefined as unknown as THREE.WebGLRenderer;
     this.scene = undefined as unknown as THREE.Scene;
     this.camera = undefined as unknown as THREE.PerspectiveCamera;

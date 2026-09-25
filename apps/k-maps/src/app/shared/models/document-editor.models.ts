@@ -59,13 +59,6 @@ export interface DocumentDetail extends DocumentListItem {
   workspace_id: string;
 }
 
-export interface DocumentListResponse {
-  ok: boolean;
-  total: number;
-  documents: DocumentListItem[];
-  error?: string;
-}
-
 export interface DocumentDetailResponse {
   ok: boolean;
   document: DocumentDetail;

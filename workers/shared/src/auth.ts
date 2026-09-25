@@ -1,5 +1,5 @@
 import type { AuthContext } from './types';
-import { unauthorized } from './response';
+import { unauthorized, forbidden } from './response';
 
 interface JwtPayload {
   sub: string;
@@ -88,9 +88,14 @@ export async function requireAdmin(
 ): Promise<AuthContext | Response> {
   const ctx = await requireAuth(request, jwtSecret);
   if (ctx instanceof Response) return ctx;
-  if (!ctx.isAdmin) {
-    const { forbidden } = await import('./response');
-    return forbidden('Admin role required');
-  }
+  if (!ctx.isAdmin) return forbidden('Admin role required');
   return ctx;
+}
+
+/** The caller's user id as forwarded by the gateway in X-KM-User-Id, or
+ *  null when the header is absent or blank. Domain workers hold no JWT
+ *  secret; the gateway has already verified the token. */
+export function actorRef(req: Request): string | null {
+  const id = req.headers.get('X-KM-User-Id');
+  return id && id.trim() ? id.trim() : null;
 }

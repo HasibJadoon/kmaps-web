@@ -35,16 +35,6 @@ export type AtlasSemanticNodeType =
 
 export type AtlasSemanticPolarity = 'guidance' | 'warning' | 'corruption' | 'restoration';
 
-export type NodeRole =
-  | 'sacred_core'
-  | 'constellation_anchor'
-  | 'secondary_star'
-  | 'concept'
-  | 'claim'
-  | 'evidence'
-  | 'history_marker'
-  | 'timeline_bridge';
-
 export type SacredRingId =
   | 'divine'
   | 'revelation-core'
@@ -210,8 +200,6 @@ export interface SceneState {
   transitionDir?: 'in' | 'out';
 }
 
-export type ZoomTriple = [number, number, number];
-
 export interface SimulationNode extends d3.SimulationNodeDatum {
   id: string;
   kind: NodeKind;
@@ -299,15 +287,6 @@ export interface SacredAtlasScene {
   links: SacredAtlasLink[];
 }
 
-export interface SacredAtlasProjection extends SacredAtlasNode {
-  x: number;
-  y: number;
-  radius: number;
-  label_x: number;
-  label_y: number;
-  label_anchor: 'start' | 'middle' | 'end';
-}
-
 export interface AtlasConstellationBody {
   id: string;
   label: string;
@@ -355,13 +334,4 @@ export interface AtlasGraphLookups {
   clusterMap: Map<string, AtlasCluster>;
   zoomViews: Map<string, AtlasZoomView>;
   linksByNode: Map<string, Set<string>>;
-}
-
-export interface EdgeWord {
-  text: string;
-  offset: number;
-  size: number;
-  alpha: number;
-  delay: number;
-  tilt: number;
 }

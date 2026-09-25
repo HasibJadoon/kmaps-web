@@ -59,10 +59,6 @@ export function badRequest(message: string, details?: unknown): Response {
   return err('bad_request', message, 400, details);
 }
 
-export function unprocessable(issues: unknown): Response {
-  return err('validation_error', 'Request body validation failed', 422, issues);
-}
-
 export function conflict(message: string): Response {
   return err('conflict', message, 409);
 }

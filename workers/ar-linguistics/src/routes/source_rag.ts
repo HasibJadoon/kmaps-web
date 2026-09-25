@@ -1,5 +1,5 @@
 import type { Router } from '../../../shared/src/router';
-import { ok, notFound, badRequest } from '../../../shared/src/response';
+import { ok, badRequest } from '../../../shared/src/response';
 import type { ArLinguisticsEnv } from '../env';
 
 interface AlChunk {

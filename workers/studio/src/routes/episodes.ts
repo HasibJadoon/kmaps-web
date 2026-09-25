@@ -2,6 +2,7 @@ import type { Router } from '../../../shared/src/router';
 import {
   ok, created, noContent, notFound, badRequest, unauthorized, forbidden,
 } from '../../../shared/src/response';
+import { isSchemaRecord, readJsonBody } from '../../../shared/src/validate';
 import type { StudioEnv } from '../env';
 import {
   EpisodeRepo, EPISODE_FORMATS, EPISODE_STATUSES, SECTION_TYPES, PARTICIPANT_ROLES,
@@ -19,18 +20,6 @@ import {
   canManage,
   resolveUserByEmail,
 } from '../core-client';
-
-async function readJson(req: Request): Promise<unknown> {
-  try {
-    return await req.json();
-  } catch {
-    return undefined;
-  }
-}
-
-function isObj(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
 
 function trimmedString(v: unknown): string | undefined {
   return typeof v === 'string' ? v.trim() : undefined;
@@ -63,7 +52,7 @@ function subsJson(v: unknown): string | null {
 function parseStructure(raw: string): TemplateStructure {
   try {
     const parsed = JSON.parse(raw);
-    return isObj(parsed) ? (parsed as TemplateStructure) : {};
+    return isSchemaRecord(parsed) ? (parsed as TemplateStructure) : {};
   } catch {
     return {};
   }
@@ -122,8 +111,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   router.post('/st/episodes', async (req, env) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
-    const body = await readJson(req);
-    if (!isObj(body)) return badRequest('Request body must be a JSON object');
+    const body = await readJsonBody(req);
+    if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
     const title = trimmedString(body['title']) || '';
     if (!title) return badRequest('title is required');
@@ -198,8 +187,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   router.patch('/st/episodes/:id/phases/:phase', async (req, env, { id, phase }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
-    const body = await readJson(req);
-    if (!isObj(body)) return badRequest('Request body must be a JSON object');
+    const body = await readJsonBody(req);
+    if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
     if (!(EPISODE_PHASES as readonly string[]).includes(phase)) {
       return badRequest(`phase must be one of: ${EPISODE_PHASES.join(', ')}`);
@@ -242,8 +231,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   router.patch('/st/episodes/:id/plan', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
-    const body = await readJson(req);
-    if (!isObj(body)) return badRequest('Request body must be a JSON object');
+    const body = await readJsonBody(req);
+    if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
     const repo = new EpisodeRepo(env.DB_ST);
     const episode = await repo.findEpisode(id);
@@ -270,8 +259,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   router.patch('/st/episodes/:id', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
-    const body = await readJson(req);
-    if (!isObj(body)) return badRequest('Request body must be a JSON object');
+    const body = await readJsonBody(req);
+    if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
     const repo = new EpisodeRepo(env.DB_ST);
     const episode = await repo.findEpisode(id);
@@ -321,8 +310,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   router.post('/st/episodes/:id/participants', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
-    const body = await readJson(req);
-    if (!isObj(body)) return badRequest('Request body must be a JSON object');
+    const body = await readJsonBody(req);
+    if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
     const repo = new EpisodeRepo(env.DB_ST);
     const episode = await repo.findEpisode(id);
@@ -356,8 +345,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   });
 
   router.patch('/st/participants/:id', async (req, env, { id }) => {
-    const body = await readJson(req);
-    if (!isObj(body)) return badRequest('Request body must be a JSON object');
+    const body = await readJsonBody(req);
+    if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
     const patch: {
       display_name?: string; color?: string; role?: string; seq?: number;
@@ -406,8 +395,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   router.post('/st/episodes/:id/sections', async (req, env, { id }) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
-    const body = await readJson(req);
-    if (!isObj(body)) return badRequest('Request body must be a JSON object');
+    const body = await readJsonBody(req);
+    if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
     const repo = new EpisodeRepo(env.DB_ST);
     const episode = await repo.findEpisode(id);
@@ -430,8 +419,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   });
 
   router.patch('/st/sections/:id', async (req, env, { id }) => {
-    const body = await readJson(req);
-    if (!isObj(body)) return badRequest('Request body must be a JSON object');
+    const body = await readJsonBody(req);
+    if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
     const patch: SectionPatch = {};
     if (body['heading'] !== undefined) {
@@ -458,8 +447,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   });
 
   router.post('/st/sections/:id/points', async (req, env, { id }) => {
-    const body = await readJson(req);
-    if (!isObj(body)) return badRequest('Request body must be a JSON object');
+    const body = await readJsonBody(req);
+    if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
     const repo = new EpisodeRepo(env.DB_ST);
     const section = await repo.findSection(id);
@@ -481,8 +470,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   });
 
   router.patch('/st/points/:id', async (req, env, { id }) => {
-    const body = await readJson(req);
-    if (!isObj(body)) return badRequest('Request body must be a JSON object');
+    const body = await readJsonBody(req);
+    if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
     const patch: PointPatch = {};
     if (body['text'] !== undefined) {

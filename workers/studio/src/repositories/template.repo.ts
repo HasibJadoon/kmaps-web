@@ -1,8 +1,6 @@
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 
-export const SYSTEM_REF = 'CORE:system';
-
 export interface TemplateRow {
   id: string;
   core_user_ref: string;

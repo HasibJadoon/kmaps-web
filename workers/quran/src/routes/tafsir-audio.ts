@@ -9,8 +9,6 @@ import type { QuranEnv } from '../env';
 // per-word timing (qr_tafsir_audio_segment). The page shape is the Arabic
 // reader's, deliberately — one reader follows every voice in the app.
 
-const LEVEL = { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5 } as Record<string, number>;
-
 export function tafsirAudioRoutes(router: Router<QuranEnv>) {
   /// Every tafsīr that has both read pages and at least one recording.
   router.get('/qr/tafsir/audio/books', (req, env) => cached(req, async () => {

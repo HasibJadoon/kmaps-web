@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { WorldviewLibraryApiService } from '../../../shared/services/worldview/worldview-library-api.service';
+import { parseObj, num } from '../worldview-unit-fields';
 
 interface TlIncident { year: number; title: string; kind: 'spine' | 'modern'; }
 interface TlEra {
@@ -141,19 +142,4 @@ export class WorldviewTimelineComponent implements OnInit {
   }
 
   eraRangeLabel(era: TlEra): string { return `${era.yearStart} – ${era.yearEnd}`; }
-}
-
-function parseObj(value: unknown): Record<string, unknown> | null {
-  if (!value) return null;
-  if (typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
-  if (typeof value !== 'string') return null;
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
-  } catch { return null; }
-}
-function num(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) return Number(value);
-  return null;
 }

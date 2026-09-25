@@ -3,28 +3,18 @@ import { ok, created, badRequest, notFound, forbidden } from '../../../shared/sr
 import { requireAuth } from '../../../shared/src/auth';
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
+import { readJsonObject, nonBlank } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
 import { judge, type ScorableItem, type ScorableOption } from '../bank/score';
-
-async function readJson(req: Request): Promise<Record<string, unknown>> {
-  try {
-    const body = await req.json();
-    return body && typeof body === 'object' && !Array.isArray(body)
-      ? body as Record<string, unknown> : {};
-  } catch { return {}; }
-}
-
-const str = (v: unknown): string | null =>
-  typeof v === 'string' && v.trim() ? v.trim() : null;
 
 export function bankPlayRoutes(router: Router<CoreEnv>): void {
   router.post('/core/bank/attempts', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
-    const unitRef = str(body['unit_ref']);
-    const packRef = str(body['pack_ref']);
-    const roomCode = str(body['room_code']);
+    const body = (await readJsonObject(req)) ?? {};
+    const unitRef = nonBlank(body['unit_ref']);
+    const packRef = nonBlank(body['pack_ref']);
+    const roomCode = nonBlank(body['room_code']);
 
     if (!unitRef && !packRef) return badRequest('unit_ref or pack_ref is required');
     if (!unitRef && !roomCode) {
@@ -46,7 +36,7 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
 
     if (pack.owner_ref && pack.owner_ref !== ctx.userId) return forbidden('Not your pack');
 
-    const mode = str(body['mode']) ?? 'solo';
+    const mode = nonBlank(body['mode']) ?? 'solo';
     if (!['solo', 'live', 'table'].includes(mode)) return badRequest('unknown mode');
 
     const id = typedId('BAT');
@@ -72,8 +62,8 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
     if (attempt.user_ref !== ctx.userId) return forbidden('Not your attempt');
     if (attempt.finished_at) return badRequest('That attempt is already finished');
 
-    const body = await readJson(req);
-    const itemRef = str(body['item_ref']);
+    const body = (await readJsonObject(req)) ?? {};
+    const itemRef = nonBlank(body['item_ref']);
     if (!itemRef) return badRequest('item_ref is required');
 
     const item = await queryOne<ScorableItem & { id: string }>(
@@ -125,7 +115,7 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
        body['answer'] === undefined ? null : JSON.stringify(body['answer']),
        verdict.isCorrect === null ? null : (verdict.isCorrect ? 1 : 0),
        verdict.credit, latency, verdict.points, body['hinted'] ? 1 : 0,
-       str(body['respondent_ref']), str(body['respondent_name'])]);
+       nonBlank(body['respondent_ref']), nonBlank(body['respondent_name'])]);
 
     if (verdict.isCorrect !== null) {
       await execute(
@@ -248,7 +238,7 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
   router.post('/core/bank/items/:id/feedback', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = (await readJsonObject(req)) ?? {};
     const rating = body['rating'] === undefined ? null : Number(body['rating']);
     if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) {
       return badRequest('rating must be 1..5');
@@ -260,7 +250,7 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
        ON CONFLICT (item_ref, user_ref) DO UPDATE SET
          rating = excluded.rating, flag = excluded.flag, note = excluded.note,
          created_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')`,
-      [typedId('BFB'), id, ctx.userId, rating, str(body['flag']), str(body['note'])]);
+      [typedId('BFB'), id, ctx.userId, rating, nonBlank(body['flag']), nonBlank(body['note'])]);
     return created({ item_ref: id });
   });
 
@@ -272,25 +262,25 @@ export function bankPlayRoutes(router: Router<CoreEnv>): void {
   router.post('/core/bank/cards', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = (await readJsonObject(req)) ?? {};
 
-    const en = str(body['prompt_en']);
-    const ar = str(body['prompt_ar']);
-    const ur = str(body['prompt_ur']);
+    const en = nonBlank(body['prompt_en']);
+    const ar = nonBlank(body['prompt_ar']);
+    const ur = nonBlank(body['prompt_ur']);
     if (!en) return badRequest('prompt_en is required');
 
     const depth = Number(body['difficulty'] ?? 2);
     if (!Number.isInteger(depth) || depth < 1 || depth > 3) {
       return badRequest('difficulty must be 1, 2 or 3');
     }
-    const form = str(body['form']) ?? 'about them';
+    const form = nonBlank(body['form']) ?? 'about them';
     if (!['about them', 'about you', 'finish the sentence', 'everyone answers']
         .includes(form)) {
       return badRequest('unknown form');
     }
 
-    const forRef = str(body['addressed_to_ref']);
-    let forName = str(body['addressed_to_name']);
+    const forRef = nonBlank(body['addressed_to_ref']);
+    let forName = nonBlank(body['addressed_to_name']);
     if (forRef) {
       const person = await queryOne<{ name: string | null }>(
         env.DB_CORE,

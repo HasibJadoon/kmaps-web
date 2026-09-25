@@ -3,20 +3,10 @@ import { ok, created, badRequest, notFound, forbidden, noContent } from '../../.
 import { requireAuth } from '../../../shared/src/auth';
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
+import { readJsonObject, nonBlank } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
 
 const AUDIENCES = ['family', 'friends', 'couples', 'kids', 'work', 'mixed'] as const;
-
-async function readJson(req: Request): Promise<Record<string, unknown> | null> {
-  try {
-    const body = await req.json();
-    return body && typeof body === 'object' && !Array.isArray(body)
-      ? (body as Record<string, unknown>) : null;
-  } catch { return null; }
-}
-
-const str = (v: unknown): string | null =>
-  typeof v === 'string' && v.trim() ? v.trim() : null;
 
 export function talkRoutes(router: Router<CoreEnv>): void {
   router.get('/core/talk/decks', async (req, env) => {
@@ -51,11 +41,11 @@ export function talkRoutes(router: Router<CoreEnv>): void {
   router.post('/core/talk/decks', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
-    const title = str(body?.['title']);
+    const body = await readJsonObject(req);
+    const title = nonBlank(body?.['title']);
     if (!title) return badRequest('title is required');
 
-    const audience = str(body?.['audience']) ?? 'friends';
+    const audience = nonBlank(body?.['audience']) ?? 'friends';
     if (!(AUDIENCES as readonly string[]).includes(audience)) {
       return badRequest(`audience must be one of: ${AUDIENCES.join(', ')}`);
     }
@@ -65,9 +55,9 @@ export function talkRoutes(router: Router<CoreEnv>): void {
       `INSERT INTO core_talk_deck
          (id, owner_ref, title, description, audience, language, is_shared, workspace_ref)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, ctx.userId, title, str(body?.['description']), audience,
-       str(body?.['language']) ?? 'en', body?.['is_shared'] ? 1 : 0,
-       str(body?.['workspace_ref'])],
+      [id, ctx.userId, title, nonBlank(body?.['description']), audience,
+       nonBlank(body?.['language']) ?? 'en', body?.['is_shared'] ? 1 : 0,
+       nonBlank(body?.['workspace_ref'])],
     );
     return created({ id, title, audience, cards: 0 });
   });
@@ -103,9 +93,9 @@ export function talkRoutes(router: Router<CoreEnv>): void {
     if (!deck) return notFound(`deck ${id}`);
     if (deck.owner_ref !== ctx.userId) return forbidden('Not your deck');
 
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     const depth = Number(body?.['depth'] ?? 1);
-    const single = str(body?.['prompt']);
+    const single = nonBlank(body?.['prompt']);
     const many = Array.isArray(body?.['prompts'])
       ? (body!['prompts'] as unknown[])
           .filter((p): p is string => typeof p === 'string')
@@ -129,8 +119,8 @@ export function talkRoutes(router: Router<CoreEnv>): void {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [cardId, id, prompt,
          Number.isInteger(depth) && depth >= 1 && depth <= 3 ? depth : 1,
-         str(body?.['tags']), seq++,
-         str(body?.['for_name']), str(body?.['for_ref'])],
+         nonBlank(body?.['tags']), seq++,
+         nonBlank(body?.['for_name']), nonBlank(body?.['for_ref'])],
       );
       made.push({ id: cardId, prompt });
     }

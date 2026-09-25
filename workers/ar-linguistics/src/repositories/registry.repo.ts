@@ -125,7 +125,6 @@ export interface QuestionKind {
   cognitive_level: string; difficulty_floor: number;
 }
 export interface RootRollup { root_norm: string; staged: number; promoted: number; layers: number }
-export interface StatusCount { status: string; n: number }
 
 const SCOPE_KEY: Record<string, string> = { root: 'root', lemma: 'lemma', context: 'word' };
 

@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { WorldviewLibraryApiService } from '../../../shared/services/worldview/worldview-library-api.service';
+import { parseObj, num } from '../worldview-unit-fields';
 
 interface MxEra { slug: string; short: string; title: string; order: number; }
 interface MxCell { value: number; eraSlug: string; }
@@ -98,19 +99,4 @@ export class WorldviewMatrixComponent implements OnInit {
   }
   cellLabel(value: number): string { return value > 0 ? String(value) : '·'; }
   levelBg(level: number): string { return this.cellBg(level); }
-}
-
-function parseObj(value: unknown): Record<string, unknown> | null {
-  if (!value) return null;
-  if (typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
-  if (typeof value !== 'string') return null;
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
-  } catch { return null; }
-}
-function num(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) return Number(value);
-  return null;
 }

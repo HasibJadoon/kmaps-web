@@ -1,8 +1,8 @@
 import type { BackendEnv } from './env';
 import { MODULE_MAP, type ModuleKey } from './modules';
-import { preflight, withCors, corsHeaders } from './cors';
+import { preflight, withCors } from './cors';
 import { authenticate, verifyJwt } from '../../shared/src/auth';
-import { unauthorized, err, internalError } from '../../shared/src/response';
+import { unauthorized, err } from '../../shared/src/response';
 import { json } from '../../shared/src/http';
 
 export default {

@@ -23,10 +23,6 @@ export const EPISODE_STATUSES = [
   'draft', 'planned', 'ready', 'shot', 'published', 'live', 'done',
 ] as const;
 
-/// Where a status sits in the pipeline, for the planner's progress read.
-/// Anything unrecognised sits at the start rather than throwing.
-export const EPISODE_STAGES = ['draft', 'planned', 'ready', 'shot', 'published'] as const;
-
 const PALETTE = ['#c9a84c', '#4c9fc9', '#c94c7a', '#5cc94c', '#9b6cc9', '#c97a4c'];
 
 export interface EpisodeRow {
@@ -110,7 +106,6 @@ export interface PointRow {
 /// The production phases, in order. Every episode has all six from the day it
 /// is created; what changes is each one's state and what was written on it.
 export const EPISODE_PHASES = ['plan', 'prepare', 'film', 'edit', 'publish', 'review'] as const;
-export type EpisodePhase = (typeof EPISODE_PHASES)[number];
 export const PHASE_STATES = ['pending', 'active', 'done'] as const;
 
 export interface PhaseRow {
@@ -295,17 +290,6 @@ export function structureVars(sourceRef: string | null | undefined): StructureVa
     to: parseInt(m[3], 10),
     passage: sourceRef!,
   };
-}
-
-function fillPlaceholders(sql: string | null | undefined, vars: StructureVars): string | null {
-  if (!sql) return null;
-  let out = sql;
-  for (const [key, value] of Object.entries(vars)) {
-    if (value === undefined) continue;
-    out = out.split(`{${key}}`).join(String(value));
-  }
-  // A query still holding a placeholder would run against the wrong rows.
-  return /\{(surah|from|to|passage)\}/.test(out) ? null : out;
 }
 
 const EP_COLS = `id, core_user_ref, core_ws_ref, title, format, template_ref,

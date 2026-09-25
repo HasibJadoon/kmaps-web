@@ -1,11 +1,7 @@
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
-import type {
-  PackDoc, UnitDoc, ItemDoc, OptionDoc, ImportResult,
-} from './types';
-
-const str = (v: unknown): string | null =>
-  typeof v === 'string' && v.trim() ? v.trim() : null;
+import { nonBlank } from '../../../shared/src/validate';
+import type { PackDoc, ItemDoc, OptionDoc, ImportResult } from './types';
 
 const num = (v: unknown): number | null => {
   const n = Number(v);
@@ -172,9 +168,9 @@ export async function importPack(
                 status=?, sort_order=?, source_json=?, source_format='json',
                 updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now')
           WHERE id=?`,
-        [p.app, p.title, str(p.title_ar), str(p.description_md), p.language ?? 'en',
-         str(p.audience), str(p.cefr_from), str(p.cefr_to), p.visibility ?? 'private',
-         str(p.workspace_ref), str(p.owner_ref), p.status ?? 'live',
+        [p.app, p.title, nonBlank(p.title_ar), nonBlank(p.description_md), p.language ?? 'en',
+         nonBlank(p.audience), nonBlank(p.cefr_from), nonBlank(p.cefr_to), p.visibility ?? 'private',
+         nonBlank(p.workspace_ref), nonBlank(p.owner_ref), p.status ?? 'live',
          num(p.sort_order) ?? 0, raw, packId]);
     } else {
       await execute(db,
@@ -183,9 +179,9 @@ export async function importPack(
             cefr_from, cefr_to, visibility, workspace_ref, owner_ref, status,
             sort_order, source_json, source_format)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'json')`,
-        [packId, p.slug, p.app, p.title, str(p.title_ar), str(p.description_md),
-         p.language ?? 'en', str(p.audience), str(p.cefr_from), str(p.cefr_to),
-         p.visibility ?? 'private', str(p.workspace_ref), str(p.owner_ref),
+        [packId, p.slug, p.app, p.title, nonBlank(p.title_ar), nonBlank(p.description_md),
+         p.language ?? 'en', nonBlank(p.audience), nonBlank(p.cefr_from), nonBlank(p.cefr_to),
+         p.visibility ?? 'private', nonBlank(p.workspace_ref), nonBlank(p.owner_ref),
          p.status ?? 'live', num(p.sort_order) ?? 0, raw]);
     }
   }
@@ -201,12 +197,12 @@ export async function importPack(
     if (opts.dryRun) continue;
 
     const cols = [
-      unit.title, str(unit.title_ar), str(unit.subtitle), unit.node_type ?? 'lesson',
+      unit.title, nonBlank(unit.title_ar), nonBlank(unit.subtitle), unit.node_type ?? 'lesson',
       num(unit.unit_index) ?? index, num(unit.item_count), unit.item_order ?? 'fixed',
       num(unit.pass_threshold) ?? 1.0, num(unit.hearts), num(unit.xp_award) ?? 10,
-      num(unit.estimated_mins), str(unit.module), str(unit.resource_ref),
-      str(unit.step_key), str(unit.qr_scope_ref), str(unit.skill_focus),
-      str(unit.level), unit.status ?? 'live',
+      num(unit.estimated_mins), nonBlank(unit.module), nonBlank(unit.resource_ref),
+      nonBlank(unit.step_key), nonBlank(unit.qr_scope_ref), nonBlank(unit.skill_focus),
+      nonBlank(unit.level), unit.status ?? 'live',
     ];
     if (found) {
       await execute(db,
@@ -259,18 +255,18 @@ export async function importPack(
     if (opts.dryRun) continue;
 
     const cols = [
-      str(item.prompt_en), str(item.prompt_ar), str(item.prompt_ur),
-      str(item.stimulus_md), str(item.media_r2_key),
+      nonBlank(item.prompt_en), nonBlank(item.prompt_ar), nonBlank(item.prompt_ur),
+      nonBlank(item.stimulus_md), nonBlank(item.media_r2_key),
       item.interaction ?? 'choice', item.scoring ?? 'match_correct',
       item.response === undefined || item.response === null
         ? null : JSON.stringify(item.response),
       num(item.seconds), item.points_style ?? 'standard', item.speed_bonus ? 1 : 0,
-      str(item.explanation_en), str(item.explanation_ar), str(item.explanation_ur),
-      num(item.difficulty) ?? 3, str(item.renderer),
-      str(item.module) ?? 'other', str(item.resource_type), str(item.resource_ref),
+      nonBlank(item.explanation_en), nonBlank(item.explanation_ar), nonBlank(item.explanation_ur),
+      num(item.difficulty) ?? 3, nonBlank(item.renderer),
+      nonBlank(item.module) ?? 'other', nonBlank(item.resource_type), nonBlank(item.resource_ref),
       num(item.surah), num(item.ayah_from), num(item.ayah_to),
-      str(item.passage_ref), str(item.step_key), str(item.concept_ref),
-      str(item.root_norm), str(item.lemma_ref), str(item.tags),
+      nonBlank(item.passage_ref), nonBlank(item.step_key), nonBlank(item.concept_ref),
+      nonBlank(item.root_norm), nonBlank(item.lemma_ref), nonBlank(item.tags),
       item.status ?? 'live', digest, importId,
     ];
     if (found) {
@@ -333,10 +329,10 @@ async function writeOption(
         sort_order)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [typedId('BOP'), itemId, option.role ?? 'choice',
-     str(option.en), str(option.ar), str(option.ur), str(option.media_r2_key),
-     option.correct ? 1 : 0, str(option.pair_key), num(option.credit),
-     str(option.distractor_kind), str(option.why_wrong_en), str(option.why_wrong_ar),
-     str(option.why_wrong_ur), index]);
+     nonBlank(option.en), nonBlank(option.ar), nonBlank(option.ur), nonBlank(option.media_r2_key),
+     option.correct ? 1 : 0, nonBlank(option.pair_key), num(option.credit),
+     nonBlank(option.distractor_kind), nonBlank(option.why_wrong_en), nonBlank(option.why_wrong_ar),
+     nonBlank(option.why_wrong_ur), index]);
 }
 
 async function linkUnits(

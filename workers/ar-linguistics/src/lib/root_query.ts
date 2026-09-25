@@ -59,3 +59,14 @@ export function rootQueryCandidates(raw: string): string[] {
   const folded = normalizeRootQuery(trimmed);
   return folded && folded !== trimmed ? [trimmed, folded] : [trimmed];
 }
+
+/** Fold Arabic text for matching: strip ḥarakāt, unify alif forms, yāʾ/alif
+ *  maqṣūra and tāʾ marbūṭa/hāʾ. Unlike normalizeArabicRoot it keeps spaces. */
+export function normArabic(t: string): string {
+  return t
+    .replace(/[ً-ٰٟ]/g, '')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .trim();
+}

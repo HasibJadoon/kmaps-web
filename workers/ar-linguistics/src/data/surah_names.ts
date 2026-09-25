@@ -272,10 +272,3 @@ export function normalizeSurahName(raw: string): number | null {
 
   return null;
 }
-
-export function canonicalSurahName(num: number): string | null {
-  for (const [name, n] of Object.entries(SURAH_CANONICAL)) {
-    if (n === num) return name;
-  }
-  return null;
-}

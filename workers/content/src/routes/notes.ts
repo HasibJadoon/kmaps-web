@@ -1,19 +1,9 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated, unauthorized } from '../../../shared/src/response';
-import { parsePagination } from '../../../shared/src/validate';
+import { parsePagination, nonBlank } from '../../../shared/src/validate';
+import { actorRef } from '../../../shared/src/auth';
 import type { ContentEnv } from '../env';
 import { NoteRepo } from '../repositories/note.repo';
-
-/** Who is writing. The gateway puts the verified id here; the client never
- *  sends an owner of its own. */
-function actor(req: Request): string | null {
-  const id = req.headers.get('X-KM-User-Id');
-  return id && id.trim() ? id.trim() : null;
-}
-
-function str(v: unknown): string | null {
-  return typeof v === 'string' && v.trim() ? v.trim() : null;
-}
 
 export function noteRoutes(router: Router<ContentEnv>) {
 
@@ -38,20 +28,20 @@ export function noteRoutes(router: Router<ContentEnv>) {
   // ARL for a book line, WVB for a couplet, QRL for a line of tafsir — so one
   // route serves every reader, and every note lands in the one store.
   router.post('/cm/notes', async (req, env) => {
-    const user = actor(req);
+    const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
     const b = await req.json() as Record<string, unknown>;
-    const body = str(b.content_md) ?? str(b.body_text);
-    const ref  = str(b.resource_ref) ?? str(b.passage_ref);
+    const body = nonBlank(b.content_md) ?? nonBlank(b.body_text);
+    const ref  = nonBlank(b.resource_ref) ?? nonBlank(b.passage_ref);
     if (!body && !ref) return badRequest('content_md or a passage reference required');
     return created(await new NoteRepo(env.DB_CM).create({
       core_user_ref: user,
       content_md:    body ?? '',
-      title:         str(b.title),
+      title:         nonBlank(b.title),
       resource_ref:  ref,
-      domain:        str(b.domain),
-      note_type:     str(b.note_type) ?? 'passage',
-      quote:         str(b.quote),
+      domain:        nonBlank(b.domain),
+      note_type:     nonBlank(b.note_type) ?? 'passage',
+      quote:         nonBlank(b.quote),
       tags:          Array.isArray(b.tags) ? (b.tags as string[]) : null,
     }));
   });

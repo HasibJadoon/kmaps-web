@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
 import { CYB_AXES } from '../data/cyb.models';
@@ -276,7 +276,6 @@ interface ModuleCard {
 })
 export class CybDashboardComponent {
   private readonly svc = inject(CybService);
-  private readonly router = inject(Router);
 
   readonly axes = CYB_AXES;
   readonly monitor = signal<CybMonitor | null>(null);

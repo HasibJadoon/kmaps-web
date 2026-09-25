@@ -1,4 +1,3 @@
-import type { PaginateOptions } from '../../../shared/src/types';
 import { isSchemaRecord } from '../../../shared/src/validate';
 
 export interface SrsRegistryCard {
@@ -15,155 +14,6 @@ export interface SrsRegistryCard {
   total_reviews: number;
 }
 
-export interface SrsCardUpsert {
-  user_ref: string;
-  workspace_id?: string;
-  resource_ref: string;
-  resource_type: SrsRegistryCard['resource_type'];
-  module: SrsRegistryCard['module'];
-  card_ref: string;
-  next_review_at?: string;
-}
-
-export interface WorkspacePlan {
-  id: string;
-  workspace_id: string;
-  pl_plan_ref: string;
-  title: string;
-  plan_type: 'study' | 'curriculum' | 'class' | 'personal' | 'team' | 'other';
-  owner_user_ref: string;
-  status: 'active' | 'paused' | 'completed' | 'archived';
-  visibility: 'private' | 'workspace' | 'public';
-  started_at: string | null;
-  target_end_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface WorkspacePlanCreate {
-  workspace_id: string;
-  pl_plan_ref: string;
-  title: string;
-  plan_type?: WorkspacePlan['plan_type'];
-  owner_user_ref: string;
-  visibility?: 'private' | 'workspace' | 'public';
-}
-
-export interface WorkspacePlanPatch {
-  title?: string;
-  status?: 'active' | 'paused' | 'completed' | 'archived';
-  visibility?: 'private' | 'workspace' | 'public';
-  target_end_at?: string | null;
-}
-
-export function validateSrsCardUpsert(
-  body: unknown,
-): { data: SrsCardUpsert } | { error: string } {
-  if (typeof body !== 'object' || body === null) return { error: 'Body must be an object' };
-  const b = body as Record<string, unknown>;
-
-  if (typeof b.user_ref !== 'string' || !b.user_ref.trim())
-    return { error: 'user_ref is required' };
-  if (typeof b.resource_ref !== 'string' || !b.resource_ref.trim())
-    return { error: 'resource_ref is required' };
-  if (typeof b.card_ref !== 'string' || !b.card_ref.trim())
-    return { error: 'card_ref is required' };
-
-  const resourceTypes = ['vocabulary', 'grammar', 'root', 'lemma', 'ayah', 'concept', 'other'] as const;
-  if (!resourceTypes.includes(b.resource_type as never))
-    return { error: `resource_type must be one of: ${resourceTypes.join(', ')}` };
-
-  const modules = ['AR', 'AL', 'QR', 'WV', 'EN', 'other'] as const;
-  if (!modules.includes(b.module as never))
-    return { error: `module must be one of: ${modules.join(', ')}` };
-
-  const data: SrsCardUpsert = {
-    user_ref: b.user_ref.trim(),
-    resource_ref: b.resource_ref.trim(),
-    resource_type: b.resource_type as SrsCardUpsert['resource_type'],
-    module: b.module as SrsCardUpsert['module'],
-    card_ref: b.card_ref.trim(),
-  };
-
-  if (typeof b.workspace_id === 'string') data.workspace_id = b.workspace_id;
-  if (typeof b.next_review_at === 'string') data.next_review_at = b.next_review_at;
-
-  return { data };
-}
-
-export function validateWorkspacePlanCreate(
-  body: unknown,
-): { data: WorkspacePlanCreate } | { error: string } {
-  if (typeof body !== 'object' || body === null) return { error: 'Body must be an object' };
-  const b = body as Record<string, unknown>;
-
-  if (typeof b.workspace_id !== 'string' || !b.workspace_id.trim())
-    return { error: 'workspace_id is required' };
-  if (typeof b.pl_plan_ref !== 'string' || !b.pl_plan_ref.trim())
-    return { error: 'pl_plan_ref is required' };
-  if (!b.pl_plan_ref.toString().startsWith('PL:'))
-    return { error: 'pl_plan_ref must be in PL:ULID format' };
-  if (typeof b.title !== 'string' || !b.title.trim())
-    return { error: 'title is required' };
-  if (typeof b.owner_user_ref !== 'string' || !b.owner_user_ref.trim())
-    return { error: 'owner_user_ref is required' };
-
-  const planTypes = ['study', 'curriculum', 'class', 'personal', 'team', 'other'] as const;
-  const plan_type = (b.plan_type as string) ?? 'study';
-  if (!planTypes.includes(plan_type as never))
-    return { error: `plan_type must be one of: ${planTypes.join(', ')}` };
-
-  const visibilityOptions = ['private', 'workspace', 'public'] as const;
-  const visibility = (b.visibility as string) ?? 'workspace';
-  if (!visibilityOptions.includes(visibility as never))
-    return { error: `visibility must be one of: ${visibilityOptions.join(', ')}` };
-
-  const data: WorkspacePlanCreate = {
-    workspace_id: b.workspace_id.trim(),
-    pl_plan_ref: b.pl_plan_ref.trim(),
-    title: b.title.trim(),
-    plan_type: plan_type as WorkspacePlanCreate['plan_type'],
-    owner_user_ref: b.owner_user_ref.trim(),
-    visibility: visibility as WorkspacePlanCreate['visibility'],
-  };
-
-  return { data };
-}
-
-export function validateWorkspacePlanPatch(
-  body: unknown,
-): { data: WorkspacePlanPatch } | { error: string } {
-  if (typeof body !== 'object' || body === null) return { error: 'Body must be an object' };
-  const b = body as Record<string, unknown>;
-
-  const data: WorkspacePlanPatch = {};
-
-  if (b.title !== undefined) {
-    if (typeof b.title !== 'string' || !b.title.trim())
-      return { error: 'title must be a non-empty string' };
-    data.title = b.title.trim();
-  }
-
-  if (b.status !== undefined) {
-    const statuses = ['active', 'paused', 'completed', 'archived'] as const;
-    if (!statuses.includes(b.status as never))
-      return { error: `status must be one of: ${statuses.join(', ')}` };
-    data.status = b.status as WorkspacePlanPatch['status'];
-  }
-
-  if (b.visibility !== undefined) {
-    const visibilityOptions = ['private', 'workspace', 'public'] as const;
-    if (!visibilityOptions.includes(b.visibility as never))
-      return { error: `visibility must be one of: ${visibilityOptions.join(', ')}` };
-    data.visibility = b.visibility as WorkspacePlanPatch['visibility'];
-  }
-
-  if (b.target_end_at !== undefined)
-    data.target_end_at = typeof b.target_end_at === 'string' ? b.target_end_at : null;
-
-  return { data };
-}
-
 export interface SrsCardInput {
   userRef: string;
   workspaceId?: string;
@@ -174,20 +24,7 @@ export interface SrsCardInput {
   nextReviewAt?: string;
 }
 
-export interface SrsCardUpdateInput {
-  cardRef?: string;
-  lastReviewAt?: string;
-  nextReviewAt?: string;
-  totalReviews?: number;
-}
-
-export interface WorkspacePlansListOptions extends PaginateOptions {
-  status?: WorkspacePlan['status'];
-  ownerUserRef?: string;
-}
-
 type SchemaValidationResult<T> = { data: T } | { error: string };
-
 
 export function validateSrsCardInput(body: unknown): SchemaValidationResult<SrsCardInput> {
   if (!isSchemaRecord(body)) return { error: 'Body must be an object' };
@@ -216,29 +53,4 @@ export function validateSrsCardInput(body: unknown): SchemaValidationResult<SrsC
   }
 
   return { data: data as unknown as SrsCardInput };
-}
-
-export function validateSrsCardUpdateInput(body: unknown): SchemaValidationResult<SrsCardUpdateInput> {
-  if (!isSchemaRecord(body)) return { error: 'Body must be an object' };
-  const b = body;
-  const data: Record<string, unknown> = {};
-
-  if ('cardRef' in b) {
-    if (typeof b.cardRef !== 'string') return { error: 'cardRef must be a string' };
-    data.cardRef = b.cardRef;
-  }
-  if ('lastReviewAt' in b) {
-    if (typeof b.lastReviewAt !== 'string') return { error: 'lastReviewAt must be a string' };
-    data.lastReviewAt = b.lastReviewAt;
-  }
-  if ('nextReviewAt' in b) {
-    if (typeof b.nextReviewAt !== 'string') return { error: 'nextReviewAt must be a string' };
-    data.nextReviewAt = b.nextReviewAt;
-  }
-  if ('totalReviews' in b) {
-    if (typeof b.totalReviews !== 'number' || !Number.isFinite(b.totalReviews)) return { error: 'totalReviews must be a number' };
-    data.totalReviews = b.totalReviews;
-  }
-
-  return { data: data as unknown as SrsCardUpdateInput };
 }

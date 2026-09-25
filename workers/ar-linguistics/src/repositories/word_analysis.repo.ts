@@ -1,4 +1,4 @@
-import { query } from '../../../shared/src/db';
+import { query, placeholders, chunked } from '../../../shared/src/db';
 
 export interface LensEntry { source: string; heading: string | null; text: string; page: number | null; dirty?: boolean; }
 export interface FiveLens { sarf: string | null; irab: string | null; dalala: string | null; balagha: string | null; tarjama: string | null; }
@@ -60,13 +60,6 @@ const STATUS_RANK = `CASE status WHEN 'live' THEN 0 WHEN 'review' THEN 1 ELSE 2 
 
 const CHUNK = 40;
 
-function chunked<T>(xs: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < xs.length; i += size) out.push(xs.slice(i, i + size));
-  return out;
-}
-
-function placeholders(n: number): string { return Array(n).fill('?').join(','); }
 function jsonArr(v: unknown): unknown[] { if (v == null) return []; if (Array.isArray(v)) return v; try { const p = JSON.parse(String(v)); return Array.isArray(p) ? p : []; } catch { return []; } }
 function jsonStrArr(v: unknown): string[] { return jsonArr(v).filter((x): x is string => typeof x === 'string'); }
 

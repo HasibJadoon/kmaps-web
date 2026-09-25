@@ -4,9 +4,7 @@ import {
   Component,
   ElementRef,
   OnInit,
-  QueryList,
   ViewChild,
-  ViewChildren,
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';

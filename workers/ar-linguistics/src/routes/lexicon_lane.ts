@@ -375,31 +375,6 @@ function storedSense(b: any): LanePeer | null {
   return { label, kind, tokens };
 }
 
-const SENSE_SPLIT_RX =
-  /(?:Root:\s*\S+\s*-\s*Entry:\s*\d+\.\s*[＝―]\s*(Dissociation|Signification):\s*)([A-Z]\d*)/g;
-
-function splitIntoPeers(text: string): {
-  text: string; label: string | null; kind: 'signification' | 'dissociation' | 'plain' | null;
-}[] {
-  const peers: { text: string; label: string | null; kind: any }[] = [];
-  let lastIdx = 0;
-  let m: RegExpExecArray | null;
-  let prev: { label: string | null; kind: any } = { label: null, kind: 'plain' };
-  SENSE_SPLIT_RX.lastIndex = 0;
-  while ((m = SENSE_SPLIT_RX.exec(text)) != null) {
-    const chunk = text.slice(lastIdx, m.index).trim();
-    if (chunk) peers.push({ text: chunk, ...prev });
-    prev = {
-      label: m[2],
-      kind: m[1].toLowerCase() === 'dissociation' ? 'dissociation' : 'signification',
-    };
-    lastIdx = m.index + m[0].length;
-  }
-  const tail = text.slice(lastIdx).trim();
-  if (tail) peers.push({ text: tail, ...prev });
-  return peers;
-}
-
 const BRACE_RX  = /\{([^}]+)\}/g;
 const ARROW_RX  = /⇒\s+(\S+)/g;
 const FIG_RX    = /[‡†]/g;

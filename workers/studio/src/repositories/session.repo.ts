@@ -1,5 +1,5 @@
 import { queryOne, execute } from '../../../shared/src/db';
-import { typedId } from '../../../shared/src/ulid';
+import { typedId, randomCode } from '../../../shared/src/ulid';
 
 export interface SessionRow {
   id: string;
@@ -15,15 +15,6 @@ export interface SessionRow {
 
 const COLS = `id, episode_ref, core_user_ref, room_code, status,
               started_at, ended_at, snapshot_json, created_at`;
-
-const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
-
-function randomCode(length = 6): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(length));
-  let out = '';
-  for (let i = 0; i < length; i++) out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
-  return out;
-}
 
 export class SessionRepo {
   constructor(private db: D1Database) {}

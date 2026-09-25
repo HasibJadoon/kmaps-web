@@ -7,7 +7,7 @@ import type {
   CybNode, CybNodeTree, CybAxis, Surah, StudyUnit, CybLayerRow, NodeCarrierRows,
   LayerModel, LayerModelBand, LayerModelSub, RootFillCell, RootCarrierRows,
   RootDetail, RootMemlet, RootQuestion, RootOption, RootMedia, PassageRoot,
-  RootGloss, RootSenseBundle, SenseAttestation,
+  RootGloss, RootSenseBundle,
 } from '../data/cyb.models';
 import { CYB_AXES } from '../data/cyb.models';
 import { BackendApiService } from '../../../shared/services/backend-api.service';

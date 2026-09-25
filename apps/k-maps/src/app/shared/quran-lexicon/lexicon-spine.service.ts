@@ -1,6 +1,5 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
 import { BackendApiService } from '../services/backend-api.service';
 import { RootDisplay } from './word-grid.types';
 

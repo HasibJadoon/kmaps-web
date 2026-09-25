@@ -35,7 +35,6 @@ export class ScholarshipShellComponent {
   @ViewChild('indexRail') indexRailRef?: ElementRef<HTMLElement>;
   @ViewChild('metaRail')  metaRailRef?:  ElementRef<HTMLElement>;
 
-  private readonly hostEl     = inject(ElementRef<HTMLElement>);
   private readonly api        = inject(AlDictionaryApiService);
   private readonly route      = inject(ActivatedRoute);
   private readonly router     = inject(Router);

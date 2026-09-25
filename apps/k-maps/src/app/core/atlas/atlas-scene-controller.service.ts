@@ -1,6 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
 import {
-  SceneLayer,
   SceneState,
   ConstellationLayer,
   AtlasGraphData,

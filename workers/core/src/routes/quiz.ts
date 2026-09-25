@@ -1,32 +1,13 @@
 import type { Router } from '../../../shared/src/router';
-import { ok, created, badRequest, notFound, unauthorized } from '../../../shared/src/response';
+import { ok, created, badRequest, notFound } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
 import { query, execute, queryOne } from '../../../shared/src/db';
-import { typedId } from '../../../shared/src/ulid';
+import { typedId, randomCode } from '../../../shared/src/ulid';
+import { readJsonObject, nonBlank } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
 import { generateDrafts, type SourceCard } from '../quiz/generate';
 
 const MODULES = ['QR', 'AL', 'AR', 'WV', 'EN', 'other'] as const;
-const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
-
-function randomCode(length = 6): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(length));
-  let out = '';
-  for (let i = 0; i < length; i++) out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
-  return out;
-}
-
-async function readJson(req: Request): Promise<Record<string, unknown> | null> {
-  try {
-    const body = await req.json();
-    return body && typeof body === 'object' && !Array.isArray(body)
-      ? (body as Record<string, unknown>) : null;
-  } catch { return null; }
-}
-
-const str = (v: unknown): string | null =>
-  typeof v === 'string' && v.trim() ? v.trim() : null;
-
 const num = (v: unknown): number | null => {
   const n = Number(v);
   return Number.isInteger(n) && n > 0 ? n : null;
@@ -108,10 +89,10 @@ export function quizRoutes(router: Router<CoreEnv>): void {
   router.post('/core/quiz/questions', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req);
+    const body = await readJsonObject(req);
     if (!body) return badRequest('Request body must be a JSON object');
 
-    const prompt = str(body['prompt']);
+    const prompt = nonBlank(body['prompt']);
     if (!prompt) return badRequest('prompt is required');
 
     const rawOptions = body['options'];
@@ -128,7 +109,7 @@ export function quizRoutes(router: Router<CoreEnv>): void {
       return badRequest(`correct_index must be an index into options (0..${options.length - 1})`);
     }
 
-    const module = str(body['module']) ?? 'other';
+    const module = nonBlank(body['module']) ?? 'other';
     if (!(MODULES as readonly string[]).includes(module)) {
       return badRequest(`module must be one of: ${MODULES.join(', ')}`);
     }
@@ -142,13 +123,13 @@ export function quizRoutes(router: Router<CoreEnv>): void {
           correct_index, explanation, seconds, difficulty, tags,
           surah, ayah_from, ayah_to, passage_ref, step_key, topic, concept_ref)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, ctx.userId, module, str(body['domain']), str(body['resource_ref']),
-       prompt, JSON.stringify(options), correct, str(body['explanation']),
+      [id, ctx.userId, module, nonBlank(body['domain']), nonBlank(body['resource_ref']),
+       prompt, JSON.stringify(options), correct, nonBlank(body['explanation']),
        Number.isFinite(seconds) && seconds > 0 ? Math.min(300, Math.round(seconds)) : 20,
-       str(body['difficulty']), str(body['tags']),
+       nonBlank(body['difficulty']), nonBlank(body['tags']),
        num(body['surah']), num(body['ayah_from']), num(body['ayah_to']),
-       str(body['passage_ref']), str(body['step_key']),
-       str(body['topic']), str(body['concept_ref'])],
+       nonBlank(body['passage_ref']), nonBlank(body['step_key']),
+       nonBlank(body['topic']), nonBlank(body['concept_ref'])],
     );
     return created({ id, prompt, options, correct_index: correct, module });
   });
@@ -188,13 +169,13 @@ export function quizRoutes(router: Router<CoreEnv>): void {
   router.post('/core/quiz/generate', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req) ?? {};
+    const body = await readJsonObject(req) ?? {};
 
     const surah = Number(body['surah'] ?? 0);
     const from = Number(body['ayah_from'] ?? 0);
     const to = Number(body['ayah_to'] ?? 0);
-    const step = str(body['step_key']);
-    const module = str(body['module']);
+    const step = nonBlank(body['step_key']);
+    const module = nonBlank(body['module']);
     const limit = Math.min(200, Math.max(1, Number(body['limit'] ?? 60)));
 
     const conds = ['user_ref = ?', 'suspended = 0'];
@@ -272,7 +253,7 @@ export function quizRoutes(router: Router<CoreEnv>): void {
   router.post('/core/quiz/sessions', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const body = await readJson(req) ?? {};
+    const body = await readJsonObject(req) ?? {};
 
     const id = typedId('QZS');
     const code = randomCode();
@@ -280,7 +261,7 @@ export function quizRoutes(router: Router<CoreEnv>): void {
       env.DB_CORE,
       `INSERT INTO core_quiz_session (id, code, host_ref, title, module)
        VALUES (?, ?, ?, ?, ?)`,
-      [id, code, ctx.userId, str(body['title']), str(body['module'])],
+      [id, code, ctx.userId, nonBlank(body['title']), nonBlank(body['module'])],
     );
     return created({ id, code, status: 'lobby' });
   });
@@ -401,12 +382,4 @@ export function quizRoutes(router: Router<CoreEnv>): void {
       bank: totals[0] ?? { questions: 0, answers: 0 },
     });
   });
-}
-
-function safeOptions(raw: unknown): string[] {
-  if (typeof raw !== 'string') return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map(String) : [];
-  } catch { return []; }
 }

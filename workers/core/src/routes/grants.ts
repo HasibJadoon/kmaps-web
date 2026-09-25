@@ -1,6 +1,7 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
-import { query, queryOne } from '../../../shared/src/db';
+import { query, queryOne, execute } from '../../../shared/src/db';
+import { typedId } from '../../../shared/src/ulid';
 import type { CoreEnv } from '../env';
 
 interface ResourceGrant {
@@ -52,8 +53,6 @@ export function grantRoutes(router: Router<CoreEnv>) {
     if (!resource_ref || !grantee_ref || !permission)
       return badRequest('resource_ref, grantee_ref, permission required');
 
-    const { typedId } = await import('../../../shared/src/ulid');
-    const { execute }  = await import('../../../shared/src/db');
     const id  = typedId('CORE');
     const now = new Date().toISOString();
     await execute(

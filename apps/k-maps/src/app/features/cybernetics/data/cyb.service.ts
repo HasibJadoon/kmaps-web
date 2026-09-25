@@ -3,8 +3,8 @@ import { Observable, forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { BackendApiService } from '../../../shared/services/backend-api.service';
 import type {
-  CybMonitor, CybNode, CybNodeDetail, CybJob, CybSource, CountRow,
-  StagingSummary, StagingMatrix, Surah, StudyGrid, RootDetail, PassageRoot,
+  CybMonitor, CybNodeDetail, CybJob, CybSource, CountRow,
+  StagingSummary, Surah, StudyGrid, RootDetail, PassageRoot,
   CybLayerRow, CybDomain, LayerModel, RootFillCell, RootCarrierRows, CybNodeTree,
   NodeCarrierRows, NodeReading, RootGloss, RootSenseBundle,
 } from './cyb.models';

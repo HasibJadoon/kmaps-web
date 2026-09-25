@@ -1,19 +1,15 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated, unauthorized } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
+import { actorRef } from '../../../shared/src/auth';
 import type { ContentEnv } from '../env';
 import { CaptureRepo, CAPTURE_TYPES, EXPLORE_STATES } from '../repositories/capture.repo';
 import { CmSourceRepo } from '../repositories/source.repo';
 
-function actor(req: Request): string | null {
-  const id = req.headers.get('X-KM-User-Id');
-  return id && id.trim() ? id.trim() : null;
-}
-
 export function cmCaptureRoutes(router: Router<ContentEnv>) {
 
   router.get('/cm/captures', async (req, env) => {
-    const user = actor(req);
+    const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
     const url = new URL(req.url);
     const processedRaw = url.searchParams.get('processed');
@@ -30,7 +26,7 @@ export function cmCaptureRoutes(router: Router<ContentEnv>) {
     ok({ states: EXPLORE_STATES, types: CAPTURE_TYPES }));
 
   router.get('/cm/captures/:id', async (req, env, { id }) => {
-    const user = actor(req);
+    const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
     const repo = new CaptureRepo(env.DB_CM);
     const row = await repo.findById(id);
@@ -40,7 +36,7 @@ export function cmCaptureRoutes(router: Router<ContentEnv>) {
   });
 
   router.post('/cm/captures', async (req, env) => {
-    const user = actor(req);
+    const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
     const b = await req.json() as Record<string, unknown>;
 
@@ -74,7 +70,7 @@ export function cmCaptureRoutes(router: Router<ContentEnv>) {
   });
 
   router.patch('/cm/captures/:id', async (req, env, { id }) => {
-    const user = actor(req);
+    const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
     const b = await req.json() as Record<string, unknown>;
     const repo = new CaptureRepo(env.DB_CM);
@@ -97,7 +93,7 @@ export function cmCaptureRoutes(router: Router<ContentEnv>) {
   });
 
   router.post('/cm/captures/:id/promote', async (req, env, { id }) => {
-    const user = actor(req);
+    const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
     const b = await req.json().catch(() => ({})) as Record<string, unknown>;
     const repo = new CaptureRepo(env.DB_CM);

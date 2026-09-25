@@ -8,7 +8,6 @@ import { catchError, map, of, switchMap, type Observable } from 'rxjs';
 
 import { DeckService } from '../../data/deck.service';
 import { DeckMotionService } from '../../data/deck-motion.service';
-import type { Flip } from 'gsap/Flip';
 import { SlideViewComponent } from './slide-view/slide-view.component';
 import {
   DECK_LANG_LABEL, DECK_LANG_MODES, type Deck, type DeckLangMode, type DeckTheme,

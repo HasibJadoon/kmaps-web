@@ -1,4 +1,4 @@
-import { query, queryOne, execute, paginate } from '../../../shared/src/db';
+import { queryOne, execute, paginate } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { PaginateOptions } from '../../../shared/src/types';
 

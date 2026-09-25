@@ -1,7 +1,7 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
-import { query, queryOne, paginate } from '../../../shared/src/db';
+import { queryOne, paginate } from '../../../shared/src/db';
 import type { ArLinguisticsEnv } from '../env';
 
 interface Expression {

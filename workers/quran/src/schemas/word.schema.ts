@@ -11,10 +11,3 @@ export interface WordOccurrence {
   morphology_tag: string | null;
   morphology_tag_json: string | null;
 }
-
-export interface WordQuery {
-  surah?: number;
-  ayah?: number;
-  lemma?: string;
-  root?: string;
-}

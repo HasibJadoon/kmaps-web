@@ -1,16 +1,8 @@
 import type { Router } from '../../../shared/src/router';
-import { ok, badRequest, unauthorized } from '../../../shared/src/response';
+import { ok, badRequest } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
+import { randomCode } from '../../../shared/src/ulid';
 import type { CoreEnv } from '../env';
-
-const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
-
-function randomCode(length = 6): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(length));
-  let out = '';
-  for (let i = 0; i < length; i++) out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
-  return out;
-}
 
 export function srsSessionRoutes(router: Router<CoreEnv>): void {
   router.post('/core/srs/sessions', async (req, env) => {

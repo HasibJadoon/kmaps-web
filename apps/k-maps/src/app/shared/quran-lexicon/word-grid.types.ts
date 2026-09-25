@@ -1,25 +1,3 @@
-export type WordGridScope = 'root' | 'surah' | 'passage' | 'lexicon';
-
-export interface WordGridCard {
-  id: string;
-  ar: string;
-  surface_ar: string;
-  root: string | null;
-  root_display: string | null;
-  gloss: string | null;
-  occurrences: number;
-  surah: number;
-  ayah: number;
-  word_index: number;
-}
-
-export interface WordGridResult {
-  scope: WordGridScope;
-  params: Record<string, unknown>;
-  count: number;
-  words: WordGridCard[];
-}
-
 export interface Tri { ar: string | null; en: string | null; ur: string | null; }
 
 export interface FamilyLemmaVm {
@@ -59,12 +37,4 @@ export interface RootDisplay {
   section_icons: Record<string, string>;
   semantic_field: string | null;
   is_anchor: boolean;
-}
-
-export interface WordGridQuery {
-  scope: WordGridScope;
-  root?: string;
-  surahId?: number;
-  ayahFrom?: number;
-  ayahTo?: number;
 }

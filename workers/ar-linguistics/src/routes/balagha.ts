@@ -1,5 +1,5 @@
 import type { Router } from '../../../shared/src/router';
-import { ok, notFound, badRequest, paginated } from '../../../shared/src/response';
+import { ok, notFound, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
 import type { ArLinguisticsEnv } from '../env';
 import { BalaghaRepo } from '../repositories/balagha.repo';

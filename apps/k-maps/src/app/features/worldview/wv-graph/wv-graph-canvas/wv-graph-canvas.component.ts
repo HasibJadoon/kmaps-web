@@ -10,10 +10,6 @@ import {
   EventEmitter,
   ViewChild,
   SimpleChanges,
-  signal,
-  computed,
-  effect,
-  input,
 } from '@angular/core';
 import * as d3 from 'd3';
 import {
@@ -25,7 +21,6 @@ import {
   WV_NODE_COLORS,
   WV_EDGE_COLORS,
   WV_EDGE_DASH,
-  NODE_BASE_RADIUS,
   nodeRadius,
   ClusterColor,
   clusterColor,

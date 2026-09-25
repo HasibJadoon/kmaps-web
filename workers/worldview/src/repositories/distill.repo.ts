@@ -1,6 +1,5 @@
-import { query, queryOne, execute, paginate } from '../../../shared/src/db';
+import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
-import type { PaginateOptions } from '../../../shared/src/types';
 
 export interface DistillBatch {
   id: string;
@@ -30,17 +29,6 @@ export interface DistillItem {
   core_user_ref: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface InsightDecision {
-  id: string;
-  suggestion_id: string;
-  decision: string;
-  original_json: string | null;
-  final_json: string | null;
-  decision_note: string | null;
-  core_user_ref: string;
-  created_at: string;
 }
 
 export interface BatchWithItems extends DistillBatch {

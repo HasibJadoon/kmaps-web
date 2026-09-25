@@ -4,7 +4,6 @@ import { parsePagination } from '../../../shared/src/validate';
 import { query } from '../../../shared/src/db';
 import type { WorldviewEnv } from '../env';
 import { SourceRepo } from '../repositories/source.repo';
-import { HighlightRepo } from '../repositories/highlight.repo';
 
 export function sourceRoutes(router: Router<WorldviewEnv>) {
 

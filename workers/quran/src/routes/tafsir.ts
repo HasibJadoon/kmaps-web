@@ -1,9 +1,7 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
-import { parsePagination } from '../../../shared/src/validate';
 import type { QuranEnv } from '../env';
-import { TafsirRepo } from '../repositories/tafsir.repo';
 
 export function tafsirRoutes(router: Router<QuranEnv>) {
 
