@@ -1,6 +1,7 @@
 import type { StudioEnv } from './env';
 import { EpisodeRepo, type EpisodeAggregate } from './repositories/episode.repo';
 import { SessionRepo } from './repositories/session.repo';
+import { liveView } from './live-view';
 
 interface Cursor {
   section: number;
@@ -218,7 +219,7 @@ export class EpisodeSession {
     if (this.snapshot) return this.snapshot;
     const episodeId = await this.state.storage.get<string>('episodeId');
     if (!episodeId) return null;
-    this.snapshot = await new EpisodeRepo(this.env.DB_ST).findAggregate(episodeId);
+    this.snapshot = liveView(await new EpisodeRepo(this.env.DB_ST).findAggregate(episodeId));
     return this.snapshot;
   }
 
