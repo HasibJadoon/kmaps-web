@@ -4,7 +4,6 @@ import {
   AtlasEdge,
   AtlasNode,
   AtlasZoomView,
-  EdgeWord,
   SacredAtlasScene,
 } from './atlas.models';
 
@@ -152,50 +151,6 @@ void main() {
   gl_FragColor = col;
 }
 `;
-
-export const EDGE_WORD_CLOUD: Record<'top' | 'right' | 'bottom' | 'left', EdgeWord[]> = {
-  top: [
-    { text: 'Revelation', offset: 8, size: 11, alpha: 0.15, delay: 0.4, tilt: -8 },
-    { text: 'Tawhid', offset: 18, size: 12, alpha: 0.2, delay: 1.4, tilt: -5 },
-    { text: 'Truth', offset: 29, size: 14, alpha: 0.28, delay: 1.1, tilt: -2 },
-    { text: 'Justice', offset: 39, size: 13, alpha: 0.24, delay: 2.2, tilt: 3 },
-    { text: 'Covenant', offset: 49, size: 11, alpha: 0.2, delay: 2.9, tilt: -4 },
-    { text: 'Wisdom', offset: 60, size: 12, alpha: 0.22, delay: 1.9, tilt: 5 },
-    { text: 'Prophets', offset: 72, size: 12, alpha: 0.2, delay: 0.8, tilt: -2 },
-    { text: 'Hereafter', offset: 84, size: 13, alpha: 0.24, delay: 1.7, tilt: -5 },
-    { text: 'Mercy', offset: 93, size: 11, alpha: 0.16, delay: 3.1, tilt: 8 },
-  ],
-  right: [
-    { text: 'Quran', offset: 10, size: 12, alpha: 0.18, delay: 1.1, tilt: -5 },
-    { text: 'Torah', offset: 21, size: 12, alpha: 0.2, delay: 2.1, tilt: 1 },
-    { text: 'Gospels', offset: 32, size: 11, alpha: 0.16, delay: 0.7, tilt: -4 },
-    { text: 'Temple', offset: 44, size: 11, alpha: 0.18, delay: 1.8, tilt: 3 },
-    { text: 'Law', offset: 56, size: 14, alpha: 0.26, delay: 2.6, tilt: 2 },
-    { text: 'Sabbath', offset: 68, size: 11, alpha: 0.18, delay: 1.2, tilt: -3 },
-    { text: 'Worship', offset: 80, size: 11, alpha: 0.18, delay: 0.5, tilt: 5 },
-    { text: 'Providence', offset: 91, size: 11, alpha: 0.16, delay: 3.3, tilt: 4 },
-  ],
-  bottom: [
-    { text: 'Modernity', offset: 8, size: 13, alpha: 0.24, delay: 1.5, tilt: -5 },
-    { text: 'Nation-State', offset: 20, size: 10, alpha: 0.16, delay: 2.4, tilt: 4 },
-    { text: 'Capitalism', offset: 33, size: 11, alpha: 0.17, delay: 0.8, tilt: 6 },
-    { text: 'Consumerism', offset: 46, size: 11, alpha: 0.18, delay: 1.9, tilt: -4 },
-    { text: 'Surveillance', offset: 59, size: 10, alpha: 0.15, delay: 3.1, tilt: 3 },
-    { text: 'Power', offset: 70, size: 14, alpha: 0.24, delay: 2.2, tilt: -4 },
-    { text: 'Society', offset: 81, size: 12, alpha: 0.2, delay: 0.5, tilt: 4 },
-    { text: 'Humanities', offset: 92, size: 10, alpha: 0.15, delay: 2.8, tilt: -6 },
-  ],
-  left: [
-    { text: 'Maat', offset: 11, size: 12, alpha: 0.18, delay: 2.1, tilt: 4 },
-    { text: 'Nile', offset: 22, size: 11, alpha: 0.14, delay: 3.2, tilt: -4 },
-    { text: 'Fitrah', offset: 34, size: 12, alpha: 0.2, delay: 0.9, tilt: -4 },
-    { text: 'Dhikr', offset: 46, size: 11, alpha: 0.16, delay: 1.7, tilt: 5 },
-    { text: 'Desire', offset: 58, size: 11, alpha: 0.18, delay: 2.8, tilt: -5 },
-    { text: 'Reason', offset: 70, size: 13, alpha: 0.24, delay: 1.3, tilt: 3 },
-    { text: 'Memory', offset: 82, size: 11, alpha: 0.16, delay: 3.6, tilt: -3 },
-    { text: 'Exile', offset: 92, size: 10, alpha: 0.14, delay: 2.4, tilt: 5 },
-  ],
-};
 
 export const SUPPLEMENTAL_CLUSTERS: AtlasCluster[] = [
   {
@@ -3520,138 +3475,6 @@ export const ATLAS_CONSTELLATION_LAYERS: AtlasConstellationLayer[] = [
     ],
   },
 ];
-
-export interface AtlasResearchClusterRow {
-  cluster_id: string;
-  angle_offset: number;
-  concept_count: number;
-}
-
-export interface AtlasResearchConceptRow {
-  cluster_id: string;
-  slug: string;
-  label: string;
-  label_ar?: string;
-  claim: string;
-  evidence: string;
-  evidence_ar?: string;
-  time_start: number;
-  time_end?: number;
-  evidence_type?: string;
-  evidence_link_type?: string;
-}
-
-export interface AtlasResearchBridgeRow {
-  cluster_id: string;
-  concept_slug: string;
-  source_kind: 'concept' | 'claim' | 'evidence';
-  target: string;
-  type?: string;
-  strength?: number;
-}
-
-export interface AtlasConstellationLayerRow {
-  id: string;
-  label: string;
-  label_x: number;
-  label_y: number;
-  color: string;
-  opacity?: number;
-}
-
-export interface AtlasConstellationBodyRow {
-  layer_id: string;
-  id: string;
-  label: string;
-  short_label?: string;
-  x: number;
-  y: number;
-  r: number;
-  glow: number;
-  opacity: number;
-  color: string;
-  kind?: 'primary' | 'satellite' | 'prophet' | 'event' | 'scholar' | 'book' | 'attribute';
-  label_size?: number;
-  label_opacity?: number;
-}
-
-export interface AtlasConstellationRayRow {
-  layer_id: string;
-  source: string;
-  target: string;
-  opacity?: number;
-}
-
-export const ATLAS_RESEARCH_CLUSTER_TABLE: AtlasResearchClusterRow[] = RESEARCH_THEME_SEEDS.map((theme) => ({
-  cluster_id: theme.cluster_id,
-  angle_offset: theme.angle_offset,
-  concept_count: theme.concepts.length,
-}));
-
-export const ATLAS_RESEARCH_CONCEPT_TABLE: AtlasResearchConceptRow[] = RESEARCH_THEME_SEEDS.flatMap((theme) =>
-  theme.concepts.map((concept) => ({
-    cluster_id: theme.cluster_id,
-    slug: concept.slug,
-    label: concept.label,
-    label_ar: concept.label_ar,
-    claim: concept.claim,
-    evidence: concept.evidence,
-    evidence_ar: concept.evidence_ar,
-    time_start: concept.time_start,
-    time_end: concept.time_end,
-    evidence_type: concept.evidence_type,
-    evidence_link_type: concept.evidence_link_type,
-  })),
-);
-
-export const ATLAS_RESEARCH_BRIDGE_TABLE: AtlasResearchBridgeRow[] = RESEARCH_THEME_SEEDS.flatMap((theme) =>
-  theme.concepts.flatMap((concept) =>
-    (concept.bridges ?? []).map((bridge) => ({
-      cluster_id: theme.cluster_id,
-      concept_slug: concept.slug,
-      source_kind: bridge.from ?? 'concept',
-      target: bridge.target,
-      type: bridge.type,
-      strength: bridge.strength,
-    })),
-  ),
-);
-
-export const ATLAS_CONSTELLATION_LAYER_TABLE: AtlasConstellationLayerRow[] = ATLAS_CONSTELLATION_LAYERS.map((layer) => ({
-  id: layer.id,
-  label: layer.label,
-  label_x: layer.label_x,
-  label_y: layer.label_y,
-  color: layer.color,
-  opacity: layer.opacity,
-}));
-
-export const ATLAS_CONSTELLATION_BODY_TABLE: AtlasConstellationBodyRow[] = ATLAS_CONSTELLATION_LAYERS.flatMap((layer) =>
-  layer.bodies.map((body) => ({
-    layer_id: layer.id,
-    id: body.id,
-    label: body.label,
-    short_label: body.short_label,
-    x: body.x,
-    y: body.y,
-    r: body.r,
-    glow: body.glow,
-    opacity: body.opacity,
-    color: body.color,
-    kind: body.kind,
-    label_size: body.label_size,
-    label_opacity: body.label_opacity,
-  })),
-);
-
-export const ATLAS_CONSTELLATION_RAY_TABLE: AtlasConstellationRayRow[] = ATLAS_CONSTELLATION_LAYERS.flatMap((layer) =>
-  (layer.rays ?? []).map((ray) => ({
-    layer_id: layer.id,
-    source: ray.source,
-    target: ray.target,
-    opacity: ray.opacity,
-  })),
-);
 
 export const SACRED_ATLAS_SCENE: SacredAtlasScene = {
   id: 'sacred-revelation-atlas',

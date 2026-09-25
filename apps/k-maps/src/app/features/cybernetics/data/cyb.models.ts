@@ -118,8 +118,6 @@ export interface StagingSummary {
   roots: RootRollup[];
   sub_layers: SubLayer[];
 }
-export interface StagingMatrix { cells: StageCell[]; sub_layers: SubLayer[]; roots: RootRollup[] }
-
 export interface RootClaim {
   id: string; sub_code: string; band: number; source_slug: string;
   claim_type: string; status: string; promoted_to_table: string | null;
