@@ -1,4 +1,5 @@
 import { query, queryOne } from '../../../shared/src/db';
+import { nonBlank } from '../../../shared/src/validate';
 import type { AlClient } from '../clients/al.client';
 import { parseQacMorphology, posGroup as qacPosGroup, QacMorphology } from '../lib/qac-morph';
 
@@ -152,10 +153,6 @@ export interface SsClauseWord {
 function parseJson(v: unknown): unknown {
   if (typeof v !== 'string') return v ?? null;
   try { return JSON.parse(v); } catch { return v; }
-}
-
-function asStr(v: unknown): string | null {
-  return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
 function asNum(v: unknown): number | null {
@@ -755,8 +752,8 @@ export class StudyRepo {
           termKey: n.termKey,
           termAr: n.termRef ? (termNameAr.get(n.termRef) ?? null) : null,
           irabAr: n.irabAr,
-          glossEn: gloss ? asStr(gloss['en']) : null,
-          glossAr: gloss ? asStr(gloss['ar']) : null,
+          glossEn: gloss ? nonBlank(gloss['en']) : null,
+          glossAr: gloss ? nonBlank(gloss['ar']) : null,
         };
       });
       // The sentence's own Arabic is the root of its tree; there is no need to
@@ -1008,7 +1005,7 @@ export class StudyRepo {
         // Lifted out of key_notes so the client does not have to know the
         // shape: the reading's own English line, and the axes on which it
         // parts from the others.
-        derivedLineEn: asStr((asRec(parseJson(r.key_notes_json))?.['derived_line_en']) ?? null),
+        derivedLineEn: nonBlank((asRec(parseJson(r.key_notes_json))?.['derived_line_en']) ?? null),
         axes: (() => {
           const notes = asRec(parseJson(r.key_notes_json));
           const raw = notes?.['divergence_axes'];
@@ -1019,15 +1016,15 @@ export class StudyRepo {
               Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string')
               : typeof v === 'string' ? [v] : [];
             return {
-              axis:       asStr(a['axis']),
-              spanAr:     asStr(a['span_ar']),
-              position:   asStr(a['position']),
-              enEffect:   asStr(a['en_effect']),
-              section:    asStr(a['section']),
+              axis:       nonBlank(a['axis']),
+              spanAr:     nonBlank(a['span_ar']),
+              position:   nonBlank(a['position']),
+              enEffect:   nonBlank(a['en_effect']),
+              section:    nonBlank(a['section']),
               against:    names(a['against']),
               agreesWith: names(a['agrees_with']),
               silent:     names(a['silent']),
-              uniqueTo:   asStr(a['unique_to']),
+              uniqueTo:   nonBlank(a['unique_to']),
             };
           });
         })(),
@@ -2250,9 +2247,9 @@ export class StudyRepo {
     const descriptor = asRec(parseJson(morph.task_json)) ?? {};
     const meta = {
       task_id:      morph.task_id,
-      resolve:      asStr(descriptor['resolve']),
-      availability: asStr(descriptor['availability']),
-      depth_level:  asStr(descriptor['depth_level']),
+      resolve:      nonBlank(descriptor['resolve']),
+      availability: nonBlank(descriptor['availability']),
+      depth_level:  nonBlank(descriptor['depth_level']),
       // A partial answer that says it is partial: passed through, never dropped.
       pending:      strList(descriptor['pending']),
       sources:      strList(descriptor['sources']),
@@ -2660,7 +2657,7 @@ function readingFacts(readings: JsonRecord[]): { contested: boolean; citation_co
   for (const r of readings) {
     for (const src of Array.isArray(r['sources']) ? r['sources'] : []) {
       const rec = asRec(src);
-      if (rec) citations.add(`${asStr(rec['slug']) ?? ''}|${asStr(rec['cite']) ?? ''}`);
+      if (rec) citations.add(`${nonBlank(rec['slug']) ?? ''}|${nonBlank(rec['cite']) ?? ''}`);
     }
   }
   return { contested: readings.length > 1, citation_count: citations.size };
@@ -2676,8 +2673,8 @@ function withReadingFacts(item: JsonRecord): JsonRecord {
  *  (N, PN, ADJ, V); some carry a word there ("noun", "verb") or nothing, and
  *  keep the code in `stem_pos` (Yūsuf 12:1-7). */
 function posCode(w: JsonRecord): string | null {
-  const pos = asStr(w['pos']);
-  return pos && /^[A-Z]+$/.test(pos) ? pos : asStr(w['stem_pos']) ?? pos;
+  const pos = nonBlank(w['pos']);
+  return pos && /^[A-Z]+$/.test(pos) ? pos : nonBlank(w['stem_pos']) ?? pos;
 }
 
 export function posGroup(pos: string | null | undefined): 'noun' | 'verb' | 'particle' {
@@ -2706,13 +2703,13 @@ export function buildTaskTree(rows: RawTaskRow[]): StudyTask[] {
     if (!row.task_id) continue;
     byId.set(row.task_id, {
       task_id:       row.task_id,
-      parent_task_id: asStr(row.parent_task_id),
+      parent_task_id: nonBlank(row.parent_task_id),
       task_type:     String(row.task_type ?? ''),
-      task_name:     asStr(row.task_key),
+      task_name:     nonBlank(row.task_key),
       display_order: asNum(row.display_order),
-      status:        asStr(row.status),
+      status:        nonBlank(row.status),
       task_json:     parseJson(row.payload_json),
-      updated_at:    asStr(row.updated_at),
+      updated_at:    nonBlank(row.updated_at),
       children:      [],
     });
   }
@@ -2751,8 +2748,8 @@ export function vocabularyFromMorphology(
   });
 
   return {
-    nouns: items.filter(i => asStr(i['pos'])?.toLowerCase() === 'noun'),
-    verbs: items.filter(i => asStr(i['pos'])?.toLowerCase() === 'verb'),
+    nouns: items.filter(i => nonBlank(i['pos'])?.toLowerCase() === 'noun'),
+    verbs: items.filter(i => nonBlank(i['pos'])?.toLowerCase() === 'verb'),
   };
 }
 
@@ -2770,13 +2767,13 @@ export function expressionsFromTasks(tasks: StudyTask[]): JsonRecord[] {
       const row = asRec(item);
       if (!row) continue;
       rows.push({
-        expression_id:      asStr(row['ar_u_expression']) ?? asStr(row['expression_id']) ?? '',
+        expression_id:      nonBlank(row['ar_u_expression']) ?? nonBlank(row['expression_id']) ?? '',
         ayah:               Number(row['ayah'] ?? 0),
-        label:              asStr(row['label']),
-        text:               asStr(row['text_ar']) ?? asStr(row['text']),
-        expression_type:    asStr(row['expression_type']),
-        expression_meaning: asStr(row['expression_meaning']) ?? asStr(row['meaning']),
-        gloss:              asStr(row['gloss_primary']) ?? asStr(row['gloss']),
+        label:              nonBlank(row['label']),
+        text:               nonBlank(row['text_ar']) ?? nonBlank(row['text']),
+        expression_type:    nonBlank(row['expression_type']),
+        expression_meaning: nonBlank(row['expression_meaning']) ?? nonBlank(row['meaning']),
+        gloss:              nonBlank(row['gloss_primary']) ?? nonBlank(row['gloss']),
       });
     }
   }

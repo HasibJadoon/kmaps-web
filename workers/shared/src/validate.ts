@@ -83,3 +83,9 @@ export async function readJsonObject(req: Request): Promise<Record<string, unkno
   const body = await readJsonBody(req);
   return isSchemaRecord(body) ? body : null;
 }
+
+/** A string with surrounding whitespace removed, or null when the value is
+ *  not a string or is blank. */
+export function nonBlank(v: unknown): string | null {
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
