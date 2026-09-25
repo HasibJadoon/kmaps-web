@@ -63,6 +63,17 @@ export interface DeckSlide {
   notes_en: string[];
   verse_refs: DeckVerseRef[];
   image: DeckImage | null;
+  /**
+   * A motion graphic that replaces the slide's body (contract §3b): `kind`
+   * names the renderer, the rest is that graphic's data. A client that does
+   * not know the kind renders the slide's layout as usual.
+   */
+  graphic: DeckGraphic | null;
+}
+
+export interface DeckGraphic {
+  kind: string;
+  [key: string]: unknown;
 }
 
 export interface DeckCollectionNode {

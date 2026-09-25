@@ -71,6 +71,7 @@ function toSlide(row: BlockRow, refs: RefRow[]): DeckSlide {
     lines_en: strings(attrs.lines_en),
     notes_en: strings(attrs.notes_en),
     image: toImage(attrs.image),
+    graphic: toGraphic(attrs.graphic),
     verse_refs: refs
       .filter((r) => r.block_id === row.block_id)
       .sort((a, b) => a.seq_order - b.seq_order)
@@ -83,6 +84,12 @@ function toImage(value: unknown): DeckSlide['image'] {
   const v = value as Record<string, unknown>;
   if (typeof v.url !== 'string' || !v.url) return null;
   return { url: v.url, alt: typeof v.alt === 'string' ? v.alt : null };
+}
+
+function toGraphic(value: unknown): DeckSlide['graphic'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  return typeof v.kind === 'string' && v.kind ? (v as DeckSlide['graphic']) : null;
 }
 
 function toVerseRef(row: RefRow): DeckVerseRef {

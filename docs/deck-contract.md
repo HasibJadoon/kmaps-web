@@ -99,6 +99,30 @@ Which line is the headline depends on the layout: the first line for most,
 the stem for `split`, the first plain line for `shahid`, none for `title`,
 `transform`, `examples` and `bayt`, whose lines are all content.
 
+## §3b · Motion graphics
+
+A slide may carry `graphic` — `{ kind, …data }` in `attrs_json` — a motion
+graphic drawn **in place of the body**. The band (kicker, headline) and the
+footer still render. The data is the graphic: what the pieces are and how they
+relate; the renderer only decides how they arrive, piece by piece, and sets the
+final state outright under reduced motion. A client that does not draw a kind
+renders the layout as usual, so a graphic never breaks a deck.
+
+| kind | data | draws |
+|---|---|---|
+| `chain` | `items[] {ar, en, ref, tone:"lit"}`, `note` | a row of related things on a thread, one lit |
+| `dovetail` | `left/right {label, label_ar, items[] {id, ref, ar, en}}`, `links[] {from, to, label}` | one text's close laced into the next's opening; links draw, then the light walks them |
+| `balance` | `items[] {ar, en, pull:"attract"\|"deter"}`, `labels {attract, deter}`, `note` | names placed above/below a line in order, a wave through them |
+| `ring` | `items[] {label, ref, en}` (A…X…A′), `note` | a chiasm, pairs bracketed round the centre |
+| `term` | `term_ar, term, root[], items[] {en}` | a word, its root letters, its questions one by one |
+| `flow` | `items[] {en, tone}` | steps of an argument, a line growing through them |
+| `trace` | `span, rows[] {name, ayat[], status:"paid"\|"unpaid"}` | where each name recurs across the sūra |
+| `point` | `term_ar, term, ref, items[] {en}` | a talking point, its sub-points arriving |
+| `recall` | `term_ar, term` (question), `note` (answer) | a review point: question, a pause, the answer |
+
+Arabic in Uthmani orthography (it carries the muṣḥaf's small high signs) is
+Qurʾān and sets in UthmanicHafs; other Arabic sets in Amiri.
+
 ## §4 · Theme
 
 `theme` ships with the deck and is applied **scoped to the deck view** — as

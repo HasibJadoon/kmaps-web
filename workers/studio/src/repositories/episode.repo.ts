@@ -164,10 +164,23 @@ export interface EpisodeAggregate extends EpisodeRow {
 ///   turns   'owner' — a talking point is one person's; its sub-points are
 ///           spoken by that person, one per step
 ///   labels  every word the session screens show, keyed by use
+///   theme   the card's colours (bg, surface, panel, ink, soft, muted, rubric,
+///           gold, verdigris, rule) — the same palette the decks paint with
 export interface SessionConfig {
   mode: string;
   turns: string | null;
   labels: Record<string, string>;
+  theme: Record<string, string>;
+}
+
+function stringMap(value: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (typeof v === 'string') out[k] = v;
+    }
+  }
+  return out;
 }
 
 /// A template's session block, or null when it has none. Unknown or
@@ -178,15 +191,14 @@ export function sessionConfig(structureJson: string | null): SessionConfig | nul
   try { parsed = JSON.parse(structureJson); } catch { return null; }
   const block = (parsed as { session?: unknown } | null)?.session;
   if (!block || typeof block !== 'object') return null;
-  const b = block as { mode?: unknown; turns?: unknown; labels?: unknown };
+  const b = block as { mode?: unknown; turns?: unknown; labels?: unknown; theme?: unknown };
   if (typeof b.mode !== 'string' || !b.mode) return null;
-  const labels: Record<string, string> = {};
-  if (b.labels && typeof b.labels === 'object') {
-    for (const [k, v] of Object.entries(b.labels as Record<string, unknown>)) {
-      if (typeof v === 'string') labels[k] = v;
-    }
-  }
-  return { mode: b.mode, turns: typeof b.turns === 'string' ? b.turns : null, labels };
+  return {
+    mode: b.mode,
+    turns: typeof b.turns === 'string' ? b.turns : null,
+    labels: stringMap(b.labels),
+    theme: stringMap(b.theme),
+  };
 }
 
 /// meta_json is free-form and hand-edited; a body that is not an object, or
