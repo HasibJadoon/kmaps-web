@@ -3,6 +3,7 @@ import { ok, notFound, badRequest, paginated } from '../../../shared/src/respons
 import { cached } from '../../../shared/src/cache';
 import { parsePagination } from '../../../shared/src/validate';
 import type { ArLinguisticsEnv } from '../env';
+import { normArabic } from '../lib/root_query';
 import { LexiconRepo } from '../repositories/lexicon.repo';
 import { SourcesRepo, toResponseMeta, type LexiconSource } from '../repositories/sources.repo';
 
@@ -25,15 +26,6 @@ function extractUrl(metaJson: string | null): string | null {
               ?? (JSON.parse(metaJson) as { locator?: { source_url?: string } }).locator?.source_url
               ?? null; }
   catch { return null; }
-}
-
-function normArabic(t: string): string {
-  return t
-    .replace(/[ً-ٰٟ]/g, '')
-    .replace(/[أإآ]/g, 'ا')
-    .replace(/ى/g, 'ي')
-    .replace(/ة/g, 'ه')
-    .trim();
 }
 
 const BILINGUAL_SLUGS = new Set(['lane_lexicon', 'lane_lexicon']);

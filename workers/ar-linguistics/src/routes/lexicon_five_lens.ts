@@ -1,17 +1,9 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import type { ArLinguisticsEnv } from '../env';
+import { normArabic } from '../lib/root_query';
 
 const SOURCE_SLUG = 'kmaps_five_lens';
-
-function normArabic(t: string): string {
-  return t
-    .replace(/[ً-ٰٟ]/g, '')
-    .replace(/[أإآ]/g, 'ا')
-    .replace(/ى/g, 'ي')
-    .replace(/ة/g, 'ه')
-    .trim();
-}
 
 function parseJson(value: string | null): Record<string, unknown> {
   if (!value) return {};

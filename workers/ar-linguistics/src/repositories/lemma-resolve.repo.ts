@@ -1,4 +1,4 @@
-import { query } from '../../../shared/src/db';
+import { query, placeholders, chunked } from '../../../shared/src/db';
 
 export interface ResolvedSense {
   id: string; sense_key: string; gloss_ar: string | null; gloss_en: string | null;
@@ -79,8 +79,6 @@ export interface ResolvedLemma {
   coverage: Record<string, boolean>;
 }
 
-function placeholders(n: number): string { return Array(n).fill('?').join(','); }
-
 function groupBy<T>(rows: T[], key: (r: T) => string | null): Map<string, T[]> {
   const m = new Map<string, T[]>();
   for (const r of rows) {
@@ -95,12 +93,6 @@ function groupBy<T>(rows: T[], key: (r: T) => string | null): Map<string, T[]> {
 const STATUS_RANK = `CASE status WHEN 'live' THEN 0 WHEN 'review' THEN 1 ELSE 2 END`;
 
 const CHUNK = 80;
-
-function chunked<T>(xs: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < xs.length; i += size) out.push(xs.slice(i, i + size));
-  return out;
-}
 
 function pickGovernance(
   rows: GovernanceRow[],

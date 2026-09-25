@@ -64,3 +64,15 @@ export async function exists(
   const row = await db.prepare(sql).bind(...params).first<{ n: number }>();
   return (row?.n ?? 0) > 0;
 }
+
+/** `?,?,?` — n bind placeholders for an IN (...) list. */
+export function placeholders(n: number): string {
+  return Array(n).fill('?').join(',');
+}
+
+/** Split xs into runs of at most `size`, to stay under D1's bind-parameter cap. */
+export function chunked<T>(xs: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += size) out.push(xs.slice(i, i + size));
+  return out;
+}
