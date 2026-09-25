@@ -94,6 +94,43 @@ router.post('/qr/internal/study-surahs', async (_req, env) => {
   return ok({ ok: true, surahs: results ?? [] });
 });
 
+// What a studio brainstorm needs to know about one passage: its text, the
+// assembled English rendering, and the authored passage sections (structure,
+// concepts, flow). Read-only; called over the service binding by ST.
+router.post('/qr/internal/passage-brief', async (req, env) => {
+  const body = await req.json<{ surah?: number; from?: number; to?: number }>().catch(() => null);
+  const surah = Number(body?.surah), from = Number(body?.from), to = Number(body?.to);
+  if (!Number.isInteger(surah) || !Number.isInteger(from) || !Number.isInteger(to) || to < from) {
+    return ok({ ok: false, error: 'surah, from and to are required' });
+  }
+  const span = `${surah}:${from}-${to}`;
+
+  const [ayahs, translation, sections] = await Promise.all([
+    env.DB_QR
+      .prepare(`SELECT ayah, COALESCE(text_uthmani, text_uthmani_clean, text) AS text
+                  FROM qr_ayah WHERE surah = ? AND ayah BETWEEN ? AND ? ORDER BY ayah`)
+      .bind(surah, from, to)
+      .all<{ ayah: number; text: string }>(),
+    env.DB_QR
+      .prepare(`SELECT final_fluent_en FROM qr_ss_translation_passage WHERE id = ?`)
+      .bind(`QR:TLP:${span}`)
+      .first<{ final_fluent_en: string | null }>(),
+    env.DB_QR
+      .prepare(`SELECT section_key, data_json FROM qr_passage_section
+                 WHERE id LIKE ? ORDER BY id`)
+      .bind(`QR:PS:${span}:%`)
+      .all<{ section_key: string; data_json: string | null }>(),
+  ]);
+
+  return ok({
+    ok: true,
+    span,
+    ayahs: ayahs.results ?? [],
+    translation_en: translation?.final_fluent_en ?? null,
+    sections: (sections.results ?? []).map((r) => ({ key: r.section_key, data: r.data_json })),
+  });
+});
+
 router.post('/qr/internal/root-spread', async (req, env) => {
   const body = await req.json<{ root?: string }>().catch(() => null);
   const root = typeof body?.root === 'string' ? body.root.trim() : '';

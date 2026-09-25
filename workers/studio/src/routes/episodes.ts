@@ -1,7 +1,9 @@
 import type { Router } from '../../../shared/src/router';
 import {
-  ok, created, noContent, notFound, badRequest, unauthorized, forbidden,
+  ok, created, noContent, notFound, badRequest, unauthorized, forbidden, err,
 } from '../../../shared/src/response';
+import Anthropic from '@anthropic-ai/sdk';
+import { brainstorm, TutorError, type PassageBrief } from '../tutor';
 import { isSchemaRecord, readJsonBody } from '../../../shared/src/validate';
 import type { StudioEnv } from '../env';
 import {
@@ -94,6 +96,76 @@ async function deny(
 }
 
 export function episodeRoutes(router: Router<StudioEnv>) {
+
+  /// Claude as brainstorm tutor: propose ideas and talking points for the
+  /// episode's passage. Suggests only — nothing is written here; the app
+  /// adds the ideas the people accept through the section and point routes.
+  router.post('/st/episodes/:id/brainstorm', async (req, env, { id }) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const body = await readJsonBody(req);
+    const focus = isSchemaRecord(body) ? trimmedString(body['focus']) || undefined : undefined;
+
+    const repo = new EpisodeRepo(env.DB_ST);
+    const episode = await repo.findAggregate(id);
+    if (!episode) return notFound(`episode ${id}`);
+    const gate = await deny(env, req, user, episode, 'write');
+    if (gate) return gate;
+
+    const vars = structureVars(episode.source_ref);
+    if (vars.surah === undefined) return badRequest('This episode is not bound to a passage');
+    if (!env.ANTHROPIC_API_KEY) return err('tutor_unavailable', 'The brainstorm tutor is not configured', 503);
+
+    const qr = await env.QR.fetch('https://km-quran/qr/internal/passage-brief', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ surah: vars.surah, from: vars.from, to: vars.to }),
+    }).catch(() => null);
+    const qrBody = qr && qr.ok ? await qr.json<{ data?: PassageBrief & { ok?: boolean } }>().catch(() => null) : null;
+    const brief = qrBody?.data;
+    if (!brief?.ok || !brief.ayahs.length) {
+      return err('passage_unavailable', 'Could not read the passage from QR', 502);
+    }
+
+    const people = episode.participants;
+    const first = people[0], second = people[1] ?? people[0];
+    const existing = episode.sections
+      .filter((s) => s.overlay_kind === 'talk_card')
+      .map((s) => ({ heading: s.heading, points: s.points.map((p) => p.text).filter(Boolean) }));
+
+    let result;
+    try {
+      result = await brainstorm(env, {
+        brief,
+        episodeTitle: episode.title,
+        speakers: [first?.display_name ?? 'the host', second?.display_name ?? 'the guest'],
+        existing,
+        focus,
+      });
+    } catch (e) {
+      if (e instanceof TutorError) return err('tutor_failed', e.message, 502);
+      if (e instanceof Anthropic.RateLimitError) return err('tutor_busy', 'The tutor is busy — try again shortly', 503);
+      if (e instanceof Anthropic.APIError) return err('tutor_failed', 'The tutor could not be reached', 502);
+      throw e;
+    }
+
+    return ok({
+      span: brief.span,
+      ideas: result.ideas.map((idea) => ({
+        heading: idea.heading,
+        why: idea.why,
+        points: idea.points.map((p) => {
+          const who = p.speaker === 'second' ? second : first;
+          return {
+            speaker_ref: who?.id ?? null,
+            speaker_name: who?.display_name ?? null,
+            cue: p.cue,
+            overlay_json: { kind: 'talk_card', ...p.card, topic: idea.heading },
+          };
+        }),
+      })),
+    });
+  });
 
   router.get('/st/episodes', async (req, env) => {
     const user = actorRef(req);

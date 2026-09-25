@@ -12,6 +12,7 @@
     "deploy:all": "npm run deploy:pages"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "@tiptap/core": "^3.22.1",
     "@tiptap/extension-placeholder": "^3.22.1",
     "@tiptap/extension-subscript": "^3.22.3",

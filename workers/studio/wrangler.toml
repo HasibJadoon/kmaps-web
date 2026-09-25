@@ -1,6 +1,7 @@
 name = "km-studio-worker"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]   # @anthropic-ai/sdk imports node: built-ins
 workers_dev = false   # internal only — accessed via km-backend-worker service binding
 
 [[d1_databases]]
@@ -14,6 +15,13 @@ migrations_dir = "migrations"
 [[services]]
 binding = "CORE"
 service = "km-core-worker"
+
+# ─── Service binding — QR owns the passage; the brainstorm tutor reads it ─────
+[[services]]
+binding = "QR"
+service = "km-quran-worker"
+
+# ANTHROPIC_API_KEY is a secret: wrangler secret put ANTHROPIC_API_KEY --config workers/studio/wrangler.toml
 
 # ─── Durable Object — live episode sessions ───────────────────────────────────
 [[durable_objects.bindings]]
