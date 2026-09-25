@@ -2,7 +2,7 @@ import {
   Component, DestroyRef, computed, inject, signal, ChangeDetectionStrategy, OnInit,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router, ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { of, catchError } from 'rxjs';
 import {
   LucideAngularModule, LUCIDE_ICONS, LucideIconProvider,
@@ -41,7 +41,6 @@ const ROOT_ICON_KEYS = new Set(Object.keys(ROOT_LUCIDE).map(k => k.toLowerCase()
 })
 export class RootComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly spine = inject(LexiconSpineService);
   private readonly sources = inject(LexiconSourcesService);
   private readonly api = inject(AlDictionaryApiService);

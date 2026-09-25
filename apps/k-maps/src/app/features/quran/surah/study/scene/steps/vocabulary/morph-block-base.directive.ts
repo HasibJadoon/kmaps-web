@@ -1,6 +1,6 @@
 import { Directive, Input, inject } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-import { MorphBlockVm, Tri, Lang } from '../../../../../../../shared/services/quran/quran-surah.service';
+import { MorphBlockVm, Tri } from '../../../../../../../shared/services/quran/quran-surah.service';
 import { MorphBlockBody, LangSel } from './morph-block.types';
 import { richMarkup } from './morph-rich';
 import { safeMorphIcon } from './morph-icons';

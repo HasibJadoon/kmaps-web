@@ -1709,14 +1709,6 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
     this.collapsedUnits.set(next);
   }
 
-  private isHighlightKind(kind: string): boolean {
-    return kind === 'quote' || kind === 'highlight';
-  }
-
-  private isWvKind(kind: string): boolean {
-    return kind === 'insight' || kind === 'claim_seed' || kind === 'worldview';
-  }
-
   private compareCreatedAt(left?: string | null, right?: string | null): number {
     const leftTs = left ? Date.parse(left) : 0;
     const rightTs = right ? Date.parse(right) : 0;

@@ -24,8 +24,6 @@ import {
   AtlasFocusCard,
   AtlasGraphData,
   ConstellationLayer,
-  FocusState,
-  SceneLayer,
   SceneState,
   SimulationNode,
   SacredAtlasScene,
@@ -103,7 +101,6 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
     });
 
     this.graphData = await this.facade.loadGraphData();
-    const lookups = this.facade.createLookups(this.graphData);
 
     this.scene.registerGraphData(this.graphData);
     this.scene.registerConstellations(this.adapter.getSkyConstellations());

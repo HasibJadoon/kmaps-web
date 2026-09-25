@@ -266,13 +266,6 @@ export class KmDocumentEditorPageComponent implements OnInit, AfterViewInit, OnD
     this.saveTimer = setTimeout(() => this.doSave(), 1500);
   }
 
-  private flushSave(): void {
-    if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = null; }
-    if ((this.pendingDoc || this.pendingTitle) && this.svc.activeId()) {
-      this.doSave();
-    }
-  }
-
   private async doSave(): Promise<void> {
     const id = this.svc.activeId();
     if (!id || (!this.pendingDoc && !this.pendingTitle)) return;

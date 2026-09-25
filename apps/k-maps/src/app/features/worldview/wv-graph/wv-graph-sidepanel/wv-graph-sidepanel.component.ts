@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  WvGraphNode, WvGraphEdge, WvGraphData,
+  WvGraphNode, WvGraphData,
   WV_NODE_COLORS, WV_NODE_LABELS, WvEdgeRelation,
 } from '../wv-graph.model';
 

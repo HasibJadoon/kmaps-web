@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import gsap from 'gsap';
-import { SceneLayer, SceneState } from './atlas.models';
+import { SceneLayer } from './atlas.models';
 
 @Injectable({ providedIn: 'root' })
 export class AtlasMotionService {

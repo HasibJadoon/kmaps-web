@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { CybDsBlockComponent } from './cyb-ds-block.component';
 import type { DisplaySpec, DsSection } from '@kmaps/contracts/ds';
 

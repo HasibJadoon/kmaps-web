@@ -5,7 +5,7 @@ import {
 import { CommonModule } from '@angular/common';
 import gsap from 'gsap';
 import {
-  WvGraphNode, WvGraphEdge, WvGraphData,
+  WvGraphNode, WvGraphData,
   WV_NODE_COLORS, WV_NODE_LABELS, WvEdgeRelation,
 } from '../wv-graph.model';
 

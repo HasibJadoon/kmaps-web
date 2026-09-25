@@ -1116,27 +1116,6 @@ export class StudySceneComponent
     );
   }
 
-  private pulseStrip(index: number): void {
-    const strip = this.stripEls?.get(index)?.nativeElement;
-    if (!strip || prefersReducedMotion()) return;
-
-    gsap.fromTo(
-      strip,
-      {
-        boxShadow:
-          '0 0 0 rgba(0, 0, 0, 0), inset 0 0 0 1px rgba(214, 179, 90, 0.14)',
-      },
-      {
-        boxShadow:
-          '0 0 1.8rem rgba(214, 179, 90, 0.12), inset 0 0 0 1px rgba(214, 179, 90, 0.34)',
-        duration: 0.34,
-        yoyo: true,
-        repeat: 1,
-        ease: 'power2.out',
-      },
-    );
-  }
-
   private playInitialLanding(): void {
     if (this.landingPlayed || prefersReducedMotion()) {
       this.landingPlayed = true;

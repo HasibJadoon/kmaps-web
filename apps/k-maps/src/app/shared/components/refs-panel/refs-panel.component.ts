@@ -8,7 +8,6 @@ import type {
   QrTafsirDisplayBlock,
 } from '../../models/quran/qr.models';
 
-interface RefGroup<T> { label_ar: string; label_en: string; key: string; items: T[]; }
 interface QuranRefItem { ayah_key: string; count: number; }
 interface HadithRefItem { book: string; volume_page?: string; count: number; }
 interface ScholarRefItem { scholar_id: string; label: string; count: number; }

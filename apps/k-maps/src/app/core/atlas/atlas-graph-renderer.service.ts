@@ -225,9 +225,6 @@ export class AtlasGraphRenderer {
       .attr('stroke-dashoffset', 0);
 
     const eraMap = new Map(eras.map((e) => [e.era_id, e]));
-    const timeMin = Math.min(...waypoints.map((w) => w.time_start));
-    const timeMax = Math.max(...waypoints.map((w) => w.time_start));
-    const timeRange = Math.max(1, timeMax - timeMin);
 
     const waypointGs = historyG.selectAll<SVGGElement, typeof points[0]>('.atlas-history__wp')
       .data(points)
