@@ -3,7 +3,7 @@ import {
   ok, created, noContent, notFound, badRequest, unauthorized, forbidden, err,
 } from '../../../shared/src/response';
 import Anthropic from '@anthropic-ai/sdk';
-import { brainstorm, TutorError, type PassageBrief } from '../tutor';
+import { brainstorm, cardPayload, TutorError, type PassageBrief } from '../tutor';
 import { isSchemaRecord, readJsonBody } from '../../../shared/src/validate';
 import type { StudioEnv } from '../env';
 import {
@@ -160,7 +160,7 @@ export function episodeRoutes(router: Router<StudioEnv>) {
             speaker_ref: who?.id ?? null,
             speaker_name: who?.display_name ?? null,
             cue: p.cue,
-            overlay_json: { kind: 'talk_card', ...p.card, topic: idea.heading },
+            overlay_json: { kind: 'talk_card', ...cardPayload(p.card), topic: idea.heading },
           };
         }),
       })),

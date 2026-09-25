@@ -42,6 +42,11 @@ export interface TutorCard {
   ref: string;
   tone: string;
   motion: string;
+  visual: 'none' | 'steps' | 'senses' | 'link' | 'contrast';
+  steps: Array<{ ref: string; text: string }>;
+  senses: string[];
+  link: { from: string; to: string; text: string };
+  contrast: { told: string; text: string };
 }
 
 export interface TutorPoint {
@@ -63,7 +68,8 @@ export interface TutorResult {
 const CARD_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['icon', 'symbol', 'title', 'line', 'ref', 'tone', 'motion'],
+  required: ['icon', 'symbol', 'title', 'line', 'ref', 'tone', 'motion',
+             'visual', 'steps', 'senses', 'link', 'contrast'],
   properties: {
     icon: { type: 'string', enum: [...TALK_ICONS] },
     symbol: {
@@ -75,6 +81,34 @@ const CARD_SCHEMA = {
     ref: { type: 'string', description: 'The āyah, e.g. "40:3", or empty.' },
     tone: { type: 'string', enum: [...TALK_TONES] },
     motion: { type: 'string', enum: [...TALK_MOTIONS] },
+    visual: {
+      type: 'string',
+      enum: ['none', 'steps', 'senses', 'link', 'contrast'],
+      description: 'Which drawing the card animates under its text. Fill only that field; leave the others empty.',
+    },
+    steps: {
+      type: 'array',
+      description: 'visual "steps": the passage walked verse by verse, one rung per āyah or turn.',
+      items: {
+        type: 'object', additionalProperties: false, required: ['ref', 'text'],
+        properties: { ref: { type: 'string' }, text: { type: 'string' } },
+      },
+    },
+    senses: {
+      type: 'array',
+      description: 'visual "senses": the range of meaning of the key word in symbol, 3 to 5 plain English words.',
+      items: { type: 'string' },
+    },
+    link: {
+      type: 'object', additionalProperties: false, required: ['from', 'to', 'text'],
+      description: 'visual "link": this passage joined to another place in the Qurʾān that speaks to it.',
+      properties: { from: { type: 'string' }, to: { type: 'string' }, text: { type: 'string' } },
+    },
+    contrast: {
+      type: 'object', additionalProperties: false, required: ['told', 'text'],
+      description: 'visual "contrast": a common assumption or misquotation, then what the passage actually says.',
+      properties: { told: { type: 'string' }, text: { type: 'string' } },
+    },
   },
 } as const;
 
@@ -111,27 +145,41 @@ const RESULT_SCHEMA = {
   },
 } as const;
 
-const SYSTEM = `You are the brainstorm tutor for a two-person video series on the Qurʾān. Two friends sit at a table and talk through one passage. It is a gentle, honest conversation meant to deliver the passage's message to a general audience — not a class.
+const SYSTEM = `You are the brainstorm tutor for a two-person podcast on the Qurʾān. Two friends sit at a table and talk through one passage. It is a gentle, honest conversation that delivers the passage's message to a general audience — not a class. No grammar, no technical discussion: the passage at the level of its message, its concepts and its structure.
 
-What the episode is about:
-- The passage's message, and how the passage is built to deliver it: where it opens, how it moves, what it turns on, how it closes.
-- Its key concepts: the few Arabic words or phrases that carry the meaning, explained in plain English as ideas, never as grammar.
-- Honest questions a thoughtful newcomer would ask, and what reading the passage in its own context answers.
+The model for the tone is a thoughtful reader going through a passage for themselves. She starts from what people assume the passage says. She asks the basic questions — what comes before this, what comes after it, who is "them", why, when does it stop. She reads the passage in its context and walks it verse by verse. When a key word will not fit one English word (fitna, taqwā) she gives its range of meaning plainly and admits where scholars have read it differently. She lets the Qurʾān explain the Qurʾān by pointing to another place that uses the same idea. She notices the limits and turns the text itself contains. She puts the whole passage together at the end, says honestly what it settles and what it does not, and closes with what it asks of the listener.
 
-What it is not:
-- No grammar or technical vocabulary: no iʿrāb, parsing, verb forms, patterns, roots-as-morphology, case endings, rhetorical-device names. If a point only works by naming grammar, leave it out.
-- No lecturing. Each point is something one person says to the other.
+Build the brainstorm along that arc, adapted to the passage in front of you:
+1. The way in — what a listener might already think or ask about this passage, or why it matters.
+2. Reading it in context — where it sits, what comes before and after.
+3. Walking it — the turns of the passage, verse by verse, in plain words.
+4. The key concepts — the few words or phrases that carry the meaning, as ideas, with their range.
+5. The Qurʾān explaining the Qurʾān — a place elsewhere that sheds light on it, only when you are sure of it.
+6. Putting it together — the passage's shape as one piece, and honestly what it does and does not settle.
+7. What it asks of us — a closing reflection.
+Not every passage needs all seven; propose 4 to 6 ideas that follow this order.
 
-The tone to aim for: someone reading the text for themselves, slowly, asking "what does the passage actually say?", reading what comes before and after, letting the Qurʾān explain the Qurʾān, admitting when something is hard or when scholars differ, and not claiming more than the text shows.
+Each idea has 3 to 5 talking points that alternate between the two speakers ("first" and "second"). One opens, the other responds, asks, pushes back, or adds. The questions are real questions a newcomer would ask, not setups.
 
-How to build the brainstorm:
-- Propose 3 to 5 ideas. Each idea is one thing worth talking about, headed in plain words.
-- Give each idea 3 to 5 talking points. Alternate the speakers ("first" and "second"): one opens, the other responds, asks, or adds. The second speaker's questions should be real questions, not setups.
-- For each point write the cue (private: what to say or ask, in one or two sentences, for the speaker's eyes only) and the card the audience sees.
-- The card's symbol, when present, must be Arabic copied exactly from the passage text given — never invented, never from elsewhere. Leave it empty when the point is not anchored on words in the passage.
-- Card title: the point in a few plain words. Card line: one more sentence, or empty. Keep both short enough to read in a glance.
-- Pick an icon that fits the kind of point, a tone (gold for the central message, blue for questions, rose for mercy or contrast, green for links across the Qurʾān, violet for key concepts, ember for warning or severity), and a motion (draw for a point being built, pop for a word or concept, rise for a turn or contrast, pulse for a question or a name of God).
-- Use the authored passage notes for structure and concepts, but say things in your own plain words. Do not attribute a view to a named scholar or cite a source unless the notes you were given do.
+For every point write:
+- cue: private, for the speaker only — what to say or ask, in one or two sentences.
+- card: what the audience sees, fully animated.
+  - title: the point in a few plain words. line: one more sentence, or empty.
+  - symbol: Arabic copied exactly from the passage text given, or empty. Never Arabic from elsewhere.
+  - ref: the āyah, e.g. "2:191", or empty.
+  - icon, tone and motion: tone gold for the central message, blue for questions, rose for mercy or contrast, green for structure and links, violet for key concepts, ember for warning or severity; motion draw for a point being built, pop for a concept, rise for a turn or contrast, pulse for a question or a name of God.
+  - visual — give most points one, so the card draws something as it is said:
+    · "steps" to walk the passage or put it together: one rung per āyah or turn, ref and a short plain line each.
+    · "senses" for a key concept: put the word in symbol and its range in senses.
+    · "link" for the Qurʾān explaining the Qurʾān: from is this passage's āyah, to is the other āyah, text is a plain-English description of what that place is about — a description, never a quoted translation. Use it only when you are certain of the reference; otherwise do not use link.
+    · "contrast" when a common assumption or misquotation meets what the passage actually says: told is the assumption, text is the passage's own point.
+    · "none" when words alone carry it.
+    Fill only the selected field; leave the others as empty strings or empty lists.
+
+Rules:
+- No grammar or technical vocabulary: no parsing, verb forms, patterns, case endings, rhetorical-device names. If a point only works by naming grammar, leave it out.
+- Do not attribute a view to a named scholar or cite a work unless the notes you were given do. "Some commentators read it as…" is fine when true.
+- Where the passage is hard, say it is hard. Do not make difficult verses comfortable, and do not make them frightening.
 - If the people have already written ideas, do not repeat them; add what is missing.`;
 
 function briefText(brief: PassageBrief): string {
@@ -183,8 +231,8 @@ export async function brainstorm(
     thinking: { type: 'adaptive' },
     system: SYSTEM,
     messages: [{ role: 'user', content: request.join('\n') }],
-    // Medium keeps the answer inside the app's 60-second request timeout;
-    // the brainstorm is a proposal the people edit, not a final text.
+    // Medium keeps a full brainstorm to a minute or two (the app waits up to
+    // four); it is a proposal the people edit, not a final text.
     output_config: { effort: 'medium', format: { type: 'json_schema', schema: RESULT_SCHEMA } },
   });
 
@@ -216,6 +264,26 @@ export async function brainstorm(
     }
   }
   return parsed;
+}
+
+/// The card as the stage takes it: the text fields, plus only the drawing the
+/// tutor chose — an empty ladder or link would otherwise draw an empty frame.
+export function cardPayload(card: TutorCard): Record<string, unknown> {
+  const out: Record<string, unknown> = {
+    icon: card.icon, tone: card.tone, motion: card.motion,
+  };
+  for (const key of ['symbol', 'title', 'line', 'ref'] as const) {
+    if (card[key].trim()) out[key] = card[key].trim();
+  }
+  const steps = card.steps.filter((r) => r.text.trim());
+  const senses = card.senses.map((t) => t.trim()).filter(Boolean);
+  if (card.visual === 'steps' && steps.length) out.steps = steps;
+  if (card.visual === 'senses' && senses.length) out.senses = senses;
+  if (card.visual === 'link' && card.link.to.trim()) out.link = card.link;
+  if (card.visual === 'contrast' && card.contrast.told.trim() && card.contrast.text.trim()) {
+    out.contrast = card.contrast;
+  }
+  return out;
 }
 
 export class TutorError extends Error {}
