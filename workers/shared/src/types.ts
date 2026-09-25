@@ -25,11 +25,6 @@ export interface PaginatedResponse<T> {
   meta: PaginatedMeta;
 }
 
-export type ApiResult<T> = ApiResponse<T> | ApiError;
-export type PaginatedResult<T> = PaginatedResponse<T> | ApiError;
-
-export type DomainCode = 'QR' | 'AL' | 'AR' | 'WV' | 'CM' | 'PL' | 'CORE' | 'LX';
-
 export interface AuthContext {
   userId: string;
   workspaceId?: string;

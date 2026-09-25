@@ -31,17 +31,6 @@ export interface DistillItem {
   updated_at: string;
 }
 
-export interface InsightDecision {
-  id: string;
-  suggestion_id: string;
-  decision: string;
-  original_json: string | null;
-  final_json: string | null;
-  decision_note: string | null;
-  core_user_ref: string;
-  created_at: string;
-}
-
 export interface BatchWithItems extends DistillBatch {
   items: DistillItem[];
 }

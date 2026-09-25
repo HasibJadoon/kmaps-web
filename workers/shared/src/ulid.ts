@@ -45,16 +45,6 @@ export function typedId(module: string): string {
   return `${module}:${ulid()}`;
 }
 
-export function isUlid(s: string): boolean {
-  return /^[0-9A-HJKMNP-TV-Z]{26}$/.test(s);
-}
-
-export function isTypedRef(s: string): boolean {
-  const colon = s.indexOf(':');
-  if (colon <= 0) return false;
-  return isUlid(s.slice(colon + 1));
-}
-
 const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 
 /** A short, human-typeable join code (no 0/O, 1/I/L). */

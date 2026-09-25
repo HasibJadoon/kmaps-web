@@ -3,8 +3,6 @@ export const KNOWN_CYB_SCALES = [
   'domain', 'surah', 'unit', 'source', 'mufassir',
 ] as const;
 
-export type KnownCybScale = (typeof KNOWN_CYB_SCALES)[number];
-
 export const CYB_AXES = ['build', 'study', 'content', 'retention'] as const;
 export type CybAxis = (typeof CYB_AXES)[number];
 

@@ -1,40 +1,3 @@
-import { badRequest, unprocessable } from './response';
-
-export interface SafeParseSchema<T> {
-  safeParse(data: unknown): SafeParseResult<T>;
-}
-
-type SafeParseResult<T> =
-  | { success: true; data: T }
-  | { success: false; error: { issues: Array<{ path: (string | number)[]; message: string }> } };
-
-export type ValidationResult<T> =
-  | { success: true; data: T }
-  | { success: false; response: Response };
-
-export async function parseBody<T>(
-  request: Request,
-  schema: SafeParseSchema<T>,
-): Promise<ValidationResult<T>> {
-  let raw: unknown;
-  try {
-    raw = await request.json();
-  } catch {
-    return { success: false, response: badRequest('Request body must be valid JSON') };
-  }
-
-  const result = schema.safeParse(raw);
-  if (!result.success) {
-    const issues = result.error.issues.map((i) => ({
-      field: i.path.join('.'),
-      message: i.message,
-    }));
-    return { success: false, response: unprocessable(issues) };
-  }
-
-  return { success: true, data: result.data };
-}
-
 export function parsePagination(
   url: URL,
   bounds: { defaultPerPage?: number; maxPerPage?: number } = {},
@@ -52,10 +15,6 @@ export function parsePagination(
 export function parseIntParam(value: string): number | null {
   const n = parseInt(value, 10);
   return isNaN(n) ? null : n;
-}
-
-export function requireParam(url: URL, name: string): string | null {
-  return url.searchParams.get(name) || null;
 }
 
 /** A request body that is a plain object — not null, not an array.
