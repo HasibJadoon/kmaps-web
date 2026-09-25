@@ -9,22 +9,7 @@
     "test": "tsx --test workers/shared/test/*.test.ts",
     "typecheck:workers": "for w in core ar-linguistics studio content worldview quran arabic backend; do npx tsc --noEmit -p workers/$w/tsconfig.json || exit 1; done",
     "deploy:pages": "npm run build -w apps/k-maps && npx wrangler pages deploy apps/k-maps/dist/k-maps/browser --project-name k-maps --branch main",
-    "deploy:all": "npm run deploy:pages",
-    "lane:download": "tsx scripts/lane/download-lane-source.ts",
-    "lane:inspect": "tsx scripts/lane/inspect-lane.ts",
-    "lane:migrate": "tsx scripts/lane/apply-lane-support-migration.ts",
-    "lane:clean-old": "tsx scripts/lane/remove-existing-lane.ts",
-    "lane:import": "tsx scripts/lane/import-lane.ts",
-    "lane:verify": "tsx scripts/lane/verify-lane-rendering.ts",
-    "lane:fts-rebuild": "tsx scripts/lane/rebuild-lane-fts.ts",
-    "lane:cleanup": "tsx scripts/lane/cleanup-lane-definitions.ts",
-    "lane:fix-placeholders": "tsx scripts/lane/fix-lane-placeholders.ts",
-    "lane:quality-index": "tsx scripts/lane/rebuild-lane-quality-index.ts",
-    "lane:quality-index:bulk": "tsx scripts/lane/rebuild-lane-quality-index-bulk.ts",
-    "lane:parse-source": "tsx scripts/lane/parse-lane-source-page.ts",
-    "lane:import-root": "tsx scripts/lane/importLaneFromSqlite.ts",
-    "lane:migrate-legacy": "tsx scripts/lane/migrateLegacyEntriesToRootEntries.ts",
-    "lane:link-qr": "tsx scripts/lane/linkQuranicResearchHtml.ts"
+    "deploy:all": "npm run deploy:pages"
   },
   "dependencies": {
     "@tiptap/core": "^3.22.1",
