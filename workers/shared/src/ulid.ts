@@ -54,3 +54,13 @@ export function isTypedRef(s: string): boolean {
   if (colon <= 0) return false;
   return isUlid(s.slice(colon + 1));
 }
+
+const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+
+/** A short, human-typeable join code (no 0/O, 1/I/L). */
+export function randomCode(length = 6): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  let out = '';
+  for (let i = 0; i < length; i++) out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
+  return out;
+}

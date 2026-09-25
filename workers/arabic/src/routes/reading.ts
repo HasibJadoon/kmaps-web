@@ -2,7 +2,7 @@ import type { Router } from '../../../shared/src/router';
 import { ok, badRequest, unauthorized } from '../../../shared/src/response';
 import { query, queryOne } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
-import { actorRef } from '../auth';
+import { actorRef } from '../../../shared/src/auth';
 
 /// The reader's own side of the shelf: where they are in each book, which
 /// they finished, which they keep, and what they marked in the text.

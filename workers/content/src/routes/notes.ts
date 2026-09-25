@@ -1,15 +1,9 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated, unauthorized } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
+import { actorRef } from '../../../shared/src/auth';
 import type { ContentEnv } from '../env';
 import { NoteRepo } from '../repositories/note.repo';
-
-/** Who is writing. The gateway puts the verified id here; the client never
- *  sends an owner of its own. */
-function actor(req: Request): string | null {
-  const id = req.headers.get('X-KM-User-Id');
-  return id && id.trim() ? id.trim() : null;
-}
 
 function str(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
@@ -38,7 +32,7 @@ export function noteRoutes(router: Router<ContentEnv>) {
   // ARL for a book line, WVB for a couplet, QRL for a line of tafsir — so one
   // route serves every reader, and every note lands in the one store.
   router.post('/cm/notes', async (req, env) => {
-    const user = actor(req);
+    const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
     const b = await req.json() as Record<string, unknown>;
     const body = str(b.content_md) ?? str(b.body_text);

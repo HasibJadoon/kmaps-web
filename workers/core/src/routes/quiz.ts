@@ -2,21 +2,12 @@ import type { Router } from '../../../shared/src/router';
 import { ok, created, badRequest, notFound, unauthorized } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
 import { query, execute, queryOne } from '../../../shared/src/db';
-import { typedId } from '../../../shared/src/ulid';
+import { typedId, randomCode } from '../../../shared/src/ulid';
 import { readJsonObject } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
 import { generateDrafts, type SourceCard } from '../quiz/generate';
 
 const MODULES = ['QR', 'AL', 'AR', 'WV', 'EN', 'other'] as const;
-const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
-
-function randomCode(length = 6): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(length));
-  let out = '';
-  for (let i = 0; i < length; i++) out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
-  return out;
-}
-
 const str = (v: unknown): string | null =>
   typeof v === 'string' && v.trim() ? v.trim() : null;
 

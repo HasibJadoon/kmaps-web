@@ -2,7 +2,7 @@ import type { Router } from '../../../shared/src/router';
 import { ok, notFound, unauthorized } from '../../../shared/src/response';
 import { query, queryOne, execute } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
-import { actorRef } from '../auth';
+import { actorRef } from '../../../shared/src/auth';
 
 /// Daily Fuṣḥā — one themed dose a day: ten singular/plural pairs, a sentence
 /// for each, and a short passage that puts them back together.

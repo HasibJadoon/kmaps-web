@@ -1,14 +1,9 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated, unauthorized } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
+import { actorRef } from '../../../shared/src/auth';
 import type { ContentEnv } from '../env';
 import { CommentRepo } from '../repositories/comment.repo';
-
-/** Who is writing. The gateway supplies the verified id. */
-function actor(req: Request): string | null {
-  const id = req.headers.get('X-KM-User-Id');
-  return id && id.trim() ? id.trim() : null;
-}
 
 /**
  * Comments hang off a target reference, and a passage reference is a target
@@ -30,7 +25,7 @@ export function cmCommentRoutes(router: Router<ContentEnv>) {
     ok({ comments: await new CommentRepo(env.DB_CM).thread(id) }));
 
   router.post('/cm/comments', async (req, env) => {
-    const user = actor(req);
+    const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
     const b = await req.json() as Record<string, unknown>;
     const target = typeof b.target_ref === 'string' ? b.target_ref.trim() : '';
@@ -50,7 +45,7 @@ export function cmCommentRoutes(router: Router<ContentEnv>) {
   });
 
   router.delete('/cm/comments/:id', async (req, env, { id }) => {
-    const user = actor(req);
+    const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
     const repo = new CommentRepo(env.DB_CM);
     const row  = await repo.findById(id);

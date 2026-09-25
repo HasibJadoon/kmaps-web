@@ -1,7 +1,4 @@
-export function actorRef(req: Request): string | null {
-  const id = req.headers.get('X-KM-User-Id');
-  return id && id.trim() ? id.trim() : null;
-}
+export { actorRef } from '../../shared/src/auth';
 
 /// The workspace the session landed in, forwarded by the gateway from the
 /// token's `wid` claim. A default for newly created rows — never a

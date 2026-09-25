@@ -94,3 +94,11 @@ export async function requireAdmin(
   }
   return ctx;
 }
+
+/** The caller's user id as forwarded by the gateway in X-KM-User-Id, or
+ *  null when the header is absent or blank. Domain workers hold no JWT
+ *  secret; the gateway has already verified the token. */
+export function actorRef(req: Request): string | null {
+  const id = req.headers.get('X-KM-User-Id');
+  return id && id.trim() ? id.trim() : null;
+}
