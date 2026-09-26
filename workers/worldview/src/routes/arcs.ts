@@ -22,7 +22,7 @@ interface ArcMeta {
   labels?: Record<string, string>;
   pills?: Array<Record<string, string>>;
   lenses?: Array<Record<string, string>>;
-  phase_style?: Record<string, { icon?: string; color?: string }>;
+  phase_style?: Record<string, { icon?: string; color?: string; empty?: string }>;
 }
 
 interface SourceRow { id: string; slug: string | null; title: string; title_ar: string | null; description_md: string | null; meta_json: string | null }
@@ -86,8 +86,8 @@ function shapePhase(u: UnitRow, meta: ArcMeta, counts?: { works: number; passage
   const stats: string[] = [];
   if (counts?.works) {
     stats.push(fill(L.works, { n: counts.works }), fill(L.passages, { n: counts.passages }));
-  } else if (L.no_text) {
-    stats.push(L.no_text);
+  } else if (style.empty ?? L.no_text) {
+    stats.push((style.empty ?? L.no_text) as string);
   }
   if (counts?.links) stats.push(fill(L.links, { n: counts.links }));
   return {
@@ -111,17 +111,21 @@ function shapePhase(u: UnitRow, meta: ArcMeta, counts?: { works: number; passage
 interface BlockRow {
   id: string; corpus_id: string; corpus_unit_id: string; cite_raw: string; cite_end_raw: string | null;
   text_orig: string | null; text_en: string | null; source_url: string | null; meta_json: string | null;
+  block_type: string | null; direction: string | null; lang: string | null;
 }
 interface LinkRow {
   id: string; entity_id: string; al_concept_ref: string; link_type: string; note: string | null; quote: string | null;
   core_user_ref: string | null; label_en: string | null; label_ar: string | null; domain: string | null;
 }
 
-/** "1.1" + "1.32" → "1.1–32"; across books "1.600–2.10". */
+/** "1.1" + "1.32" → "1.1–32"; "1.1.1" + "1.1.12" → "1.1.1–12"; across books "1.600–2.10". */
 function citeLabel(a: string, b: string | null) {
   if (!b || b === a) return a;
-  const [ab, al] = a.split('.'); const [bb, bl] = b.split('.');
-  return ab === bb ? `${ab}.${al}–${bl}` : `${a}–${b}`;
+  const pa = a.split('.'), pb = b.split('.');
+  if (pa.length !== pb.length) return `${a}–${b}`;
+  let i = 0;
+  while (i < pa.length - 1 && pa[i] === pb[i]) i++;
+  return `${a}–${pb.slice(i).join('.')}`;
 }
 
 async function linksFor(db: D1Database, ids: string[]) {
@@ -228,7 +232,8 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
       `SELECT s.meta_json FROM wv_sources s JOIN wv_source_units su ON su.source_id = s.id WHERE su.id = ?`, [phase]) : null;
     const meta = parse<ArcMeta>(arc?.meta_json, {});
     const blocks = await query<BlockRow>(env.DB_WV,
-      `SELECT id, corpus_id, corpus_unit_id, cite_raw, cite_end_raw, text_orig, text_en, source_url, meta_json
+      `SELECT id, corpus_id, corpus_unit_id, cite_raw, cite_end_raw, text_orig, text_en, source_url, meta_json,
+              block_type, direction, lang
          FROM wv_corpus_block WHERE corpus_unit_id = ? ORDER BY display_order`, [unit]);
     const ids = blocks.map((b) => b.id);
     const [links, proposals] = await Promise.all([linksFor(env.DB_WV, ids), proposalsFor(env.DB_WV, ids)]);
@@ -242,9 +247,11 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
       prev: siblings.find((s) => s.id !== u.id && s.id < u.id) ?? null,
       next: siblings.find((s) => s.id !== u.id && s.id > u.id) ?? null,
       passages: blocks.map((b) => {
-        const bm = parse<{ lines?: Array<{ n: string; t: string }>; en_alt?: string }>(b.meta_json, {});
+        const bm = parse<{ lines?: Array<{ n: string; t: string; s?: string }>; en_alt?: string }>(b.meta_json, {});
         return {
           id: b.id, cite: citeLabel(b.cite_raw, b.cite_end_raw),
+          // prose numbers every section; verse every fifth line
+          prose: b.block_type === 'prose', rtl: b.direction === 'rtl', lang: b.lang,
           lines: bm.lines ?? (b.text_orig ?? '').split('\n').map((t, i) => ({ n: String(i + 1), t })),
           en: b.text_en, en_alt: bm.en_alt ?? null, url: b.source_url,
           note_ref: phase ? `${phaseRefPrefix(meta, phase)}:${b.id}` : `WVC:${b.id}`,
