@@ -718,6 +718,7 @@ CREATE TABLE ar_text_unit (
   status       TEXT NOT NULL DEFAULT 'live',
   meta_json    TEXT NOT NULL DEFAULT '{}',
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  script_json  TEXT,                          -- reconstructed episode script (0008)
   UNIQUE (acq_ref_id, seq)
 );
 
