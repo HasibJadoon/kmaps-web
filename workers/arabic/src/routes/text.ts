@@ -199,6 +199,11 @@ export function textRoutes(router: Router<ArabicEnv>) {
         scene_no: typeof s.scene_no === 'number' ? s.scene_no : i + 1,
         title_ar: clean(s.title_ar),
         title_en: clean(s.title_en),
+        // what a slide is drawn from: an SF Symbol, whether the scene is the
+        // frame story or the tale told inside it, and one line of what happens
+        icon: clean(s.icon),
+        era: clean(s.era),
+        summary_en: clean(s.summary_en),
         lines: (Array.isArray(s.lines) ? s.lines : []).map((rawLine) => {
           const l = rawLine as Record<string, unknown>;
           const note = clean(l.note);
@@ -227,6 +232,11 @@ export function textRoutes(router: Router<ArabicEnv>) {
       episode: typeof doc.episode === 'number' ? doc.episode : null,
       video_url: clean(doc.video_url),
       colophon: clean(doc.reconstruction_notes),
+      // who speaks, each with an icon, so a line's speaker is drawn from data
+      cast: (Array.isArray(doc.cast) ? doc.cast : []).map((raw) => {
+        const c = raw as Record<string, unknown>;
+        return { name_ar: clean(c.name_ar), name_en: clean(c.name_en), role_en: clean(c.role_en), icon: clean(c.icon) };
+      }).filter((c) => c.name_ar),
       scenes,
     });
   });
