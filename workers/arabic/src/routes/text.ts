@@ -256,6 +256,9 @@ export function textRoutes(router: Router<ArabicEnv>) {
       series_en: clean(doc.series_en),
       episode: typeof doc.episode === 'number' ? doc.episode : null,
       video_url: clean(doc.video_url),
+      // the YouTube id, so the slides can play the episode's picture above
+      // the scene — the script's times are that video's timeline
+      video_id: (clean(doc.video_url)?.match(/(?:[?&]v=|youtu\.be\/)([\w-]{11})/) ?? [])[1] ?? null,
       colophon: clean(doc.reconstruction_notes),
       audio: row.audio_key && !row.audio_key.startsWith('youtube:')
         ? { play_url: `/api/ar/audio/${encodeURI(row.audio_key)}`, duration: row.audio_sec }
