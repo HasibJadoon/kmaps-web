@@ -99,6 +99,7 @@ function shapePhase(u: UnitRow, meta: ArcMeta, counts?: { works: number; passage
     duration: (um.duration as string) ?? null,
     note: (um.note as string) ?? null,
     readings: (um.readings as string[]) ?? [],
+    references: (um.references as Array<Record<string, string>>) ?? [],
     arabic: (um.arabic as string) ?? null,
     gloss: (um.gloss as string) ?? null,
     icon: style.icon ?? 'circle', color: style.color ?? '#D8B657',
