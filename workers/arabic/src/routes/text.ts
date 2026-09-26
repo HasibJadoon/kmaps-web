@@ -177,10 +177,15 @@ export function textRoutes(router: Router<ArabicEnv>) {
   /// how to draw a line, so the kind and the reference are split out here and
   /// the note keeps only what is left to say.
   router.get('/ar/text/units/:id/script', async (_req, env, params) => {
-    const row = await queryOne<{ id: string; title_ar: string | null; script_json: string | null }>(
+    const row = await queryOne<{ id: string; title_ar: string | null; script_json: string | null; audio_key: string | null; audio_sec: number | null }>(
       env.DB_AR,
-      `SELECT id, title_ar, script_json FROM ar_text_unit
-        WHERE id = ? AND status = 'live'`,
+      // The episode's recording, so the script can be played scene by scene:
+      // each line carries its own [start, end] on this recording's timeline.
+      `SELECT t.id, t.title_ar, t.script_json,
+              (SELECT a.object_key FROM ar_acq_audio a WHERE a.acq_ref_id = t.acq_ref_id AND a.status = 'live' LIMIT 1) AS audio_key,
+              (SELECT a.duration_sec FROM ar_acq_audio a WHERE a.acq_ref_id = t.acq_ref_id AND a.status = 'live' LIMIT 1) AS audio_sec
+         FROM ar_text_unit t
+        WHERE t.id = ? AND t.status = 'live'`,
       [params.id],
     );
     if (!row) return notFound('no such text unit');
@@ -192,6 +197,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
 
     const AYAH = /آية\s*قرآنية/;
     const clean = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+    const sec = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
     const scenes = (Array.isArray(doc.scenes) ? doc.scenes : []).map((raw, i) => {
       const s = raw as Record<string, unknown>;
@@ -204,6 +210,8 @@ export function textRoutes(router: Router<ArabicEnv>) {
         icon: clean(s.icon),
         era: clean(s.era),
         summary_en: clean(s.summary_en),
+        start: sec(s.start),
+        end: sec(s.end),
         lines: (Array.isArray(s.lines) ? s.lines : []).map((rawLine) => {
           const l = rawLine as Record<string, unknown>;
           const note = clean(l.note);
@@ -218,6 +226,11 @@ export function textRoutes(router: Router<ArabicEnv>) {
             en: clean(l.en),
             note: isAyah ? null : note,
             ref,
+            // where the line is said, and each of its words (one per word of
+            // `ar`, split on spaces), timed against the recording
+            start: sec(l.start),
+            end: sec(l.end),
+            words: Array.isArray(l.w) ? l.w : null,
           };
         }).filter((l) => l.ar || l.en || l.note),
       };
@@ -232,6 +245,9 @@ export function textRoutes(router: Router<ArabicEnv>) {
       episode: typeof doc.episode === 'number' ? doc.episode : null,
       video_url: clean(doc.video_url),
       colophon: clean(doc.reconstruction_notes),
+      audio: row.audio_key && !row.audio_key.startsWith('youtube:')
+        ? { play_url: `/api/ar/audio/${encodeURI(row.audio_key)}`, duration: row.audio_sec }
+        : null,
       // who speaks, each with an icon, so a line's speaker is drawn from data
       cast: (Array.isArray(doc.cast) ? doc.cast : []).map((raw) => {
         const c = raw as Record<string, unknown>;
