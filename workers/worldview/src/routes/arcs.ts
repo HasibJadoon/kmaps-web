@@ -291,7 +291,8 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
       prev: siblings.find((s) => s.id !== u.id && s.id < u.id) ?? null,
       next: siblings.find((s) => s.id !== u.id && s.id > u.id) ?? null,
       passages: blocks.map((b) => {
-        const bm = parse<{ lines?: Array<{ n: string; t: string; s?: string }>; en_alt?: string; footnotes?: string[] }>(b.meta_json, {});
+        const bm = parse<{ lines?: Array<{ n: string; t: string; s?: string }>; en_alt?: string; footnotes?: string[];
+          audio_en?: { key: string; voice: string; duration: number; sentences: Array<{ t: string; s: number; e: number }> } }>(b.meta_json, {});
         return {
           id: b.id, cite: citeLabel(b.cite_raw, b.cite_end_raw),
           // prose numbers every section; verse every fifth line
@@ -299,6 +300,9 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
           lines: bm.lines ?? (b.text_orig ?? '').split('\n').map((t, i) => ({ n: String(i + 1), t })),
           en: b.text_en, en_alt: bm.en_alt ?? null, url: b.source_url,
           footnotes: bm.footnotes ?? [],
+          // the English read aloud, sentence by sentence (served by /wv/audio/:key+)
+          audio: bm.audio_en ? { path: `audio/${bm.audio_en.key}`, duration: bm.audio_en.duration,
+                                 sentences: bm.audio_en.sentences } : null,
           note_ref: phase ? `${phaseRefPrefix(meta, phase)}:${b.id}` : `WVC:${b.id}`,
           links: (links.get(b.id) ?? []).map((l) => shapeLink(l, me)),
           proposals: proposals.get(b.id) ?? [],
