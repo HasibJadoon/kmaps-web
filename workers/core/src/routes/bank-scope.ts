@@ -140,6 +140,7 @@ export function bankScopeRoutes(router: Router<CoreEnv>) {
     return ok({
       surah: n, title: template.title ?? pack.title, title_ar: template.title_ar ?? pack.title_ar,
       labels: template.labels ?? {}, theme: template.theme ?? {},
+      path: (template as { path?: unknown }).path ?? [{ title: 'Quran', title_ar: 'القرآن' }, { title: template.title ?? pack.title, title_ar: template.title_ar ?? null }],
       total: within ? rows.filter((r) => passageOf(r, passages) === within).length : rows.length,
       levels: (template.levels ?? []).map((l) => ({ ...l, count: byLevel.get(l.key) ?? 0 })),
       passages: passages.map((p) => ({ ...p, count: byPassage.get(p.ref) ?? 0 })),
