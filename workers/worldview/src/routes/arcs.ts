@@ -218,8 +218,9 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
           ].filter(Boolean),
           books: books.filter((b) => b.corpus_id === w.id).map((b) => ({
             id: b.id, title: b.title, index: b.unit_index,
-            range: `${b.start_ref}–${b.end_ref}`, opening: b.text_excerpt,
-            stat: fill(L.passages, { n: b.passages }),
+            range: b.end_ref && b.end_ref !== b.start_ref ? `${b.start_ref}–${b.end_ref}` : (b.start_ref ?? ''),
+            opening: b.text_excerpt,
+            stat: count(L, 'passages', b.passages),
           })),
         };
       }),
