@@ -166,6 +166,44 @@ const shapeLink = (l: LinkRow, me: string | null) => ({
 
 export function arcRoutes(router: Router<WorldviewEnv>) {
 
+  // One search box for the whole of Worldview: arcs, their phases, the works
+  // and books they read, and concepts — each hit names where it opens.
+  // Transliteration marks set aside on both sides, so "ghazali" finds
+  // al-Ghazālī and "farabi" al-Fārābī (SQLite has no unaccent).
+  const MARKS: Array<[string, string]> = [['ā', 'a'], ['ī', 'i'], ['ū', 'u'], ['ḥ', 'h'], ['ṣ', 's'], ['ḍ', 'd'],
+    ['ṭ', 't'], ['ẓ', 'z'], ['ʿ', ''], ['ʾ', ''], ['Ā', 'a'], ['Ī', 'i'], ['Ḥ', 'h'], ['Ṣ', 's'], ['ē', 'e'], ['ō', 'o']];
+  const foldSql = (col: string) => MARKS.reduce((e, [a, b]) => `replace(${e}, '${a}', '${b}')`, `lower(${col})`);
+  const foldText = (t: string) => MARKS.reduce((e, [a, b]) => e.split(a).join(b), t.toLowerCase());
+
+  dual(router, 'get', '/search', async (req, env) => {
+    const q = foldText((new URL(req.url).searchParams.get('q') ?? '').trim());
+    if (q.length < 2) return ok([]);
+    const like = `%${q}%`;
+    const [arcs, phases, works, units, concepts] = await Promise.all([
+      query<{ id: string; title: string; title_ar: string | null }>(env.DB_WV,
+        `SELECT id, title, title_ar FROM wv_sources WHERE source_type = 'arc' AND (${foldSql('title')} LIKE ? OR title_ar LIKE ?) LIMIT 5`, [like, like]),
+      query<{ id: string; title: string; arc: string; arc_title: string }>(env.DB_WV,
+        `SELECT u.id, u.title, s.id AS arc, s.title AS arc_title FROM wv_source_units u JOIN wv_sources s ON s.id = u.source_id
+          WHERE s.source_type = 'arc' AND (${foldSql('u.title')} LIKE ? OR ${foldSql('u.description_md')} LIKE ? OR u.meta_json LIKE ?) LIMIT 8`, [like, like, like]),
+      query<{ id: string; title: string; unit: string | null }>(env.DB_WV,
+        `SELECT c.id, c.title, (SELECT u.id FROM wv_corpus_units u WHERE u.corpus_id = c.id ORDER BY u.unit_index LIMIT 1) AS unit
+           FROM wv_scriptural_corpora c WHERE ${foldSql('c.title')} LIKE ? OR c.title_ar LIKE ? LIMIT 10`, [like, like]),
+      query<{ id: string; title: string; work: string }>(env.DB_WV,
+        `SELECT u.id, u.title, c.title AS work FROM wv_corpus_units u JOIN wv_scriptural_corpora c ON c.id = u.corpus_id
+          WHERE ${foldSql('u.title')} LIKE ? LIMIT 12`, [like]),
+      query<{ id: string; label_en: string; label_ar: string | null }>(env.DB_WV,
+        `SELECT id, label_en, label_ar FROM core_concept WHERE status = 'live' AND (${foldSql('label_en')} LIKE ? OR label_ar LIKE ? OR concept_key LIKE ?) LIMIT 8`,
+        [like, like, like]),
+    ]);
+    return ok([
+      ...arcs.map((a) => ({ kind: 'arc', id: a.id, title: a.title, subtitle: a.title_ar, section: 'Arcs' })),
+      ...phases.map((p) => ({ kind: 'arc', id: p.arc, title: p.title, subtitle: p.arc_title, section: 'Arc phases' })),
+      ...works.filter((w) => w.unit).map((w) => ({ kind: 'book', id: w.unit as string, title: w.title, subtitle: null, section: 'Works' })),
+      ...units.map((u) => ({ kind: 'book', id: u.id, title: u.title, subtitle: u.work, section: 'Books' })),
+      ...concepts.map((c) => ({ kind: 'concept', id: c.id, title: c.label_en, subtitle: c.label_ar, section: 'Concepts' })),
+    ]);
+  });
+
   // The hub: the arc and a card per phase.
   dual(router, 'get', '/arcs/:id', async (_req, env, { id }) => {
     const found = await loadArc(env.DB_WV, id);
