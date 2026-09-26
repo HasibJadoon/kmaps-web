@@ -34,6 +34,9 @@ const parse = <T>(s: string | null | undefined, fallback: T): T => {
 };
 const fill = (t: string | undefined, vars: Record<string, string | number>) =>
   (t ?? '').replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+/** A counted label: `key_one` when n is 1 and the data has it ("1 book"), else `key`. */
+const count = (L: Record<string, string>, key: string, n: number) =>
+  fill(n === 1 && L[`${key}_one`] ? L[`${key}_one`] : L[key], { n });
 
 async function loadArc(db: D1Database, key: string) {
   const arc = await queryOne<SourceRow>(db,
@@ -85,11 +88,11 @@ function shapePhase(u: UnitRow, meta: ArcMeta, counts?: { works: number; passage
   const style = meta.phase_style?.[u.id] ?? {};
   const stats: string[] = [];
   if (counts?.works) {
-    stats.push(fill(L.works, { n: counts.works }), fill(L.passages, { n: counts.passages }));
+    stats.push(count(L, 'works', counts.works), count(L, 'passages', counts.passages));
   } else if (style.empty ?? L.no_text) {
     stats.push((style.empty ?? L.no_text) as string);
   }
-  if (counts?.links) stats.push(fill(L.links, { n: counts.links }));
+  if (counts?.links) stats.push(count(L, 'links', counts.links));
   return {
     id: u.id,
     index: u.unit_index ?? 0,
@@ -192,7 +195,8 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
     const counts = await phaseCounts(env.DB_WV);
     const works = await query<{ id: string; title: string; date_range: string | null; meta_json: string | null }>(env.DB_WV,
       `SELECT id, title, date_range, meta_json FROM wv_scriptural_corpora
-        WHERE json_extract(meta_json, '$.phase') = ? ORDER BY id`, [phase]);
+        WHERE json_extract(meta_json, '$.phase') = ?
+        ORDER BY COALESCE(json_extract(meta_json, '$.order'), 999), id`, [phase]);
     const books = await query<{ id: string; corpus_id: string; title: string; unit_index: number; start_ref: string; end_ref: string; text_excerpt: string | null; passages: number }>(env.DB_WV,
       `SELECT u.id, u.corpus_id, u.title, u.unit_index, u.start_ref, u.end_ref, u.text_excerpt,
               (SELECT count(*) FROM wv_corpus_block b WHERE b.corpus_unit_id = u.id) AS passages
@@ -248,13 +252,14 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
       prev: siblings.find((s) => s.id !== u.id && s.id < u.id) ?? null,
       next: siblings.find((s) => s.id !== u.id && s.id > u.id) ?? null,
       passages: blocks.map((b) => {
-        const bm = parse<{ lines?: Array<{ n: string; t: string; s?: string }>; en_alt?: string }>(b.meta_json, {});
+        const bm = parse<{ lines?: Array<{ n: string; t: string; s?: string }>; en_alt?: string; footnotes?: string[] }>(b.meta_json, {});
         return {
           id: b.id, cite: citeLabel(b.cite_raw, b.cite_end_raw),
           // prose numbers every section; verse every fifth line
           prose: b.block_type === 'prose', rtl: b.direction === 'rtl', lang: b.lang,
           lines: bm.lines ?? (b.text_orig ?? '').split('\n').map((t, i) => ({ n: String(i + 1), t })),
           en: b.text_en, en_alt: bm.en_alt ?? null, url: b.source_url,
+          footnotes: bm.footnotes ?? [],
           note_ref: phase ? `${phaseRefPrefix(meta, phase)}:${b.id}` : `WVC:${b.id}`,
           links: (links.get(b.id) ?? []).map((l) => shapeLink(l, me)),
           proposals: proposals.get(b.id) ?? [],
