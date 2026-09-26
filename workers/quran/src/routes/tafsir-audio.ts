@@ -26,11 +26,19 @@ export function tafsirAudioRoutes(router: Router<QuranEnv>) {
         ORDER BY s.display_order`);
     // Per surah: how many pages, and how much of them is recorded — a reader
     // picks a surah, not a page number.
+    // The recorded pages, gathered once. Asking every page "is there a
+    // recording listing me?" re-read every recording's page list per page —
+    // ten seconds on a cold call.
     const surahs = await query<Record<string, unknown>>(env.DB_QR,
-      `SELECT p.source_slug AS slug, p.surah_no AS surahNo, su.name_ar AS surahAr, su.name_en AS surahEn,
+      `WITH rec AS (SELECT DISTINCT je.value AS pid
+                      FROM qr_tafsir_audio a, json_each(a.meta_json, '$.pages') je
+                     WHERE a.status = 'live')
+       SELECT p.source_slug AS slug, p.surah_no AS surahNo, su.name_ar AS surahAr, su.name_en AS surahEn,
               MIN(p.seq) AS firstSeq, COUNT(*) AS pages, SUM(p.word_count) AS words,
-              SUM(EXISTS (SELECT 1 FROM qr_tafsir_audio a, json_each(a.meta_json, '$.pages') je WHERE je.value = p.id AND a.status = 'live')) AS recorded
-         FROM qr_tafsir_read_page p LEFT JOIN qr_surah su ON su.id = p.surah_no
+              SUM(rec.pid IS NOT NULL) AS recorded
+         FROM qr_tafsir_read_page p
+         LEFT JOIN qr_surah su ON su.id = p.surah_no
+         LEFT JOIN rec ON rec.pid = p.id
         WHERE p.status = 'live'
         GROUP BY p.source_slug, p.surah_no ORDER BY p.source_slug, MIN(p.seq)`);
     const out = books.map((b) => ({
