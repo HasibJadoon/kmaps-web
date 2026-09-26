@@ -197,7 +197,7 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
     ]);
     return ok([
       ...arcs.map((a) => ({ kind: 'arc', id: a.id, title: a.title, subtitle: a.title_ar, section: 'Arcs' })),
-      ...phases.map((p) => ({ kind: 'arc', id: p.arc, title: p.title, subtitle: p.arc_title, section: 'Arc phases' })),
+      ...phases.map((p) => ({ kind: 'phase', id: `${p.arc}|${p.id}`, title: p.title, subtitle: p.arc_title, section: 'Arc phases' })),
       ...works.filter((w) => w.unit).map((w) => ({ kind: 'book', id: w.unit as string, title: w.title, subtitle: null, section: 'Works' })),
       ...units.map((u) => ({ kind: 'book', id: u.id, title: u.title, subtitle: u.work, section: 'Books' })),
       ...concepts.map((c) => ({ kind: 'concept', id: c.id, title: c.label_en, subtitle: c.label_ar, section: 'Concepts' })),
