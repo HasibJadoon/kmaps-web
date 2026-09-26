@@ -20,6 +20,8 @@ interface StudyMeta {
   path?: Array<{ title: string; title_ar?: string }>;
   episode?: { id: string; title?: string };
   labels?: Record<string, string>;
+  /** Glyphs for the study's cards, by use (study, monitor, active). */
+  icons?: Record<string, string>;
   steps?: Array<{
     n: number; key: string; scope?: string;
     title: string; title_ar?: string; subtitle?: string;
@@ -45,6 +47,7 @@ export interface Study {
   /** The Studio episode the study feeds, if any. */
   episode: { id: string; title: string | null } | null;
   labels: Record<string, string>;
+  icons: Record<string, string>;
   plan: { start: string | null; record: string | null };
   steps: StudyStep[];
 }
@@ -116,6 +119,7 @@ export class StudyRepo {
       path: (meta.path ?? []).map((p) => ({ title: p.title, title_ar: p.title_ar ?? null })),
       episode: meta.episode?.id ? { id: meta.episode.id, title: meta.episode.title ?? null } : null,
       labels: meta.labels ?? {},
+      icons: meta.icons ?? {},
       plan: { start: meta.plan?.start ?? null, record: meta.plan?.record ?? null },
       steps: (meta.steps ?? [])
         .slice()

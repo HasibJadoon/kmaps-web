@@ -51,6 +51,8 @@ interface DeckMeta {
   theme?: DeckTheme;
   collection?: DeckCollection;
   xref_gateway?: Record<string, unknown>;
+  /** The deck's pace (contract §6): { speed }. */
+  motion?: { speed?: number };
 }
 
 function direction(meta: DeckMeta, language: string): 'rtl' | 'ltr' {
@@ -230,6 +232,7 @@ export class DeckRepo {
       slides,
       collection: meta.collection ?? null,
       xref_gateway: meta.xref_gateway ?? null,
+      motion: typeof meta.motion?.speed === 'number' ? { speed: meta.motion.speed } : null,
     };
   }
 }

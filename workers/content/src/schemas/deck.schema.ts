@@ -117,6 +117,8 @@ export interface Deck {
   slides: DeckSlide[];
   collection: DeckCollection | null;
   xref_gateway: Record<string, unknown> | null;
+  /** The deck's pace from its data; null plays at the contract's §6 timing. */
+  motion: { speed: number } | null;
 }
 
 /** What the list endpoint returns — enough to draw a card, no slide bodies. */
