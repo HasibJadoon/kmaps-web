@@ -198,6 +198,16 @@ export function textRoutes(router: Router<ArabicEnv>) {
     const AYAH = /آية\s*قرآنية/;
     const clean = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
     const sec = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    // A review flag: where the episode says what the Qurʾān or the ḥadīth do
+    // not (a "verse" that is no āyah, a report mis-attributed, a detail from
+    // isrāʾīliyyāt told as fact, material heavy for children). Authored as one
+    // «Arabic | English» note, served as its two halves for the red card.
+    const flag = (v: unknown) => {
+      const f = clean(v);
+      if (!f) return null;
+      const [ar, ...en] = f.split(' | ');
+      return { ar: clean(ar), en: clean(en.join(' | ')) };
+    };
 
     const scenes = (Array.isArray(doc.scenes) ? doc.scenes : []).map((raw, i) => {
       const s = raw as Record<string, unknown>;
@@ -212,6 +222,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
         summary_en: clean(s.summary_en),
         start: sec(s.start),
         end: sec(s.end),
+        flag: flag(s.flag),
         lines: (Array.isArray(s.lines) ? s.lines : []).map((rawLine) => {
           const l = rawLine as Record<string, unknown>;
           const note = clean(l.note);
@@ -231,6 +242,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
             start: sec(l.start),
             end: sec(l.end),
             words: Array.isArray(l.w) ? l.w : null,
+            flag: flag(l.flag),
           };
         }).filter((l) => l.ar || l.en || l.note),
       };
