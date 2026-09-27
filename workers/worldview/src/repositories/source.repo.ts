@@ -229,6 +229,15 @@ export class SourceRepo {
     );
   }
 
+  /// Every unit of a source, in reading order. A book is opened whole — its
+  /// contents, and a recited dīwān played straight through — and the shared
+  /// paging caps a page at 100, which cut Bal-e-Jibril (179 poems) in half.
+  allUnits(sourceId: string): Promise<WvSourceUnit[]> {
+    return query<WvSourceUnit>(this.db,
+      `SELECT ${UNIT_COLS} FROM wv_source_units WHERE source_id = ?
+       ORDER BY COALESCE(unit_index, 0), id LIMIT 5000`, [sourceId]);
+  }
+
   findUnitById(id: string): Promise<WvSourceUnit | null> {
     return queryOne<WvSourceUnit>(
       this.db, `SELECT ${UNIT_COLS} FROM wv_source_units WHERE id = ?`, [id],

@@ -36,16 +36,14 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     const source = await repo.findById(id);
     if (!source) return notFound(`source ${id}`);
 
-    const unitsPage = await repo.units(id, { per_page: 200 });
-    return ok({ ...source, units: unitsPage.rows });
+    return ok({ ...source, units: await repo.allUnits(id) });
   });
 
   router.get('/wv/sources/:id', async (_req, env, { id }) => {
     const repo   = new SourceRepo(env.DB_WV);
     const source = await repo.findById(id);
     if (!source) return notFound(`source ${id}`);
-    const unitsPage = await repo.units(id, { per_page: 200 });
-    return ok({ ...source, units: unitsPage.rows });
+    return ok({ ...source, units: await repo.allUnits(id) });
   });
 
   router.post('/worldview/source', async (req, env) => {
