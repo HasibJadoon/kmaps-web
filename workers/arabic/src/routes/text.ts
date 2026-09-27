@@ -433,6 +433,62 @@ export function textRoutes(router: Router<ArabicEnv>) {
 
   /// Search the shelf. Unvocalised queries have to match vocalised text, which
   /// is why the FTS table is built with remove_diacritics 2.
+  /// A book's recording, part by part: what a studio needs to pick one part
+  /// and read along it. Each part is one audio file of about forty minutes,
+  /// cut at page boundaries by the aligner.
+  router.get('/ar/text/works/:id/parts', async (_req, env, params) => {
+    const work = await queryOne<{ id: string; title_ar: string | null; title_en: string | null; author: string | null }>(
+      env.DB_AR, 'SELECT id, title_ar, title_en, author FROM ar_acquisition_ref WHERE id = ?', [params.id]);
+    if (!work) return notFound(`work ${params.id}`);
+    const rows = await query<Record<string, unknown>>(env.DB_AR,
+      `SELECT a.id, a.title_ar, a.title_en, a.object_key, a.duration_sec, a.speaker,
+              json_array_length(json_extract(a.meta_json, '$.units')) AS pages,
+              (SELECT COUNT(*) FROM ar_acq_audio_segment s WHERE s.audio_id = a.id) AS lines
+         FROM ar_acq_audio a
+        WHERE a.acq_ref_id = ? AND a.status = 'live' AND a.object_key NOT LIKE 'youtube:%'
+        ORDER BY a.id`, [params.id]);
+    return ok({
+      work: { id: work.id, title_ar: work.title_ar, title_en: work.title_en, author: work.author },
+      parts: rows.map((r, i) => ({
+        id: r.id, part: i + 1, title_ar: r.title_ar, title_en: r.title_en, speaker: r.speaker,
+        duration: r.duration_sec, pages: r.pages, lines: r.lines,
+        play_url: `/api/ar/audio/${encodeURI(String(r.object_key))}`,
+      })),
+    });
+  });
+
+  /// One part of a book's recording with every line read in it, timed on the
+  /// part's own clock and word by word — the strip a studio runs under the
+  /// camera. The play URL is a path on the API host (the worker sits behind
+  /// the gateway and does not know the public origin).
+  router.get('/ar/text/parts/:id', async (_req, env, params) => {
+    const part = await queryOne<Record<string, unknown>>(env.DB_AR,
+      `SELECT a.id, a.acq_ref_id, a.title_ar, a.title_en, a.object_key, a.duration_sec, a.speaker,
+              r.title_ar AS work_ar, r.title_en AS work_en, r.author
+         FROM ar_acq_audio a JOIN ar_acquisition_ref r ON r.id = a.acq_ref_id
+        WHERE a.id = ? AND a.status = 'live'`, [params.id]);
+    if (!part) return notFound(`part ${params.id}`);
+    const segs = await query<{ seq: number; start_sec: number; end_sec: number; text_ar: string; meta_json: string | null }>(
+      env.DB_AR,
+      'SELECT seq, start_sec, end_sec, text_ar, meta_json FROM ar_acq_audio_segment WHERE audio_id = ? ORDER BY seq',
+      [params.id]);
+    const lines = segs.map((s) => {
+      let m: Record<string, unknown> = {};
+      try { m = s.meta_json ? JSON.parse(s.meta_json) : {}; } catch { /* a bad row keeps its line, untimed by word */ }
+      return {
+        seq: s.seq, start: s.start_sec, end: s.end_sec, text: s.text_ar,
+        anchored: m.anchored === true, words: Array.isArray(m.w) ? m.w : null,
+        unit: typeof m.unit === 'string' ? m.unit : null,
+      };
+    });
+    return ok({
+      id: part.id, work: part.acq_ref_id, work_ar: part.work_ar, work_en: part.work_en, author: part.author,
+      title_ar: part.title_ar, title_en: part.title_en, speaker: part.speaker, duration: part.duration_sec,
+      play_url: `/api/ar/audio/${encodeURI(String(part.object_key))}`,
+      lines,
+    });
+  });
+
   router.get('/ar/text/search', async (req, env) => {
     const url = new URL(req.url);
     const q = (url.searchParams.get('q') ?? '').trim();
