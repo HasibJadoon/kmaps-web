@@ -293,17 +293,28 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
       passages: blocks.map((b) => {
         const bm = parse<{ lines?: Array<{ n: string; t: string; s?: string }>; en_alt?: string; footnotes?: string[];
           audio_en?: { key: string; voice: string; duration: number; sentences: Array<{ t: string; s: number; e: number }>;
-            words?: number[][] } }>(b.meta_json, {});
+            words?: number[][] };
+          // the Arabic read aloud: a clip of a public recording, cut to this
+          // page, with each line's and each word's time inside the clip
+          audio_ar?: { key: string; duration: number; lines: Array<{ s: number; e: number }>; words?: number[][];
+            reader?: string; source?: string } }>(b.meta_json, {});
+        const lines = bm.lines ?? (b.text_orig ?? '').split('\n').map((t, i) => ({ n: String(i + 1), t }));
         return {
           id: b.id, cite: citeLabel(b.cite_raw, b.cite_end_raw),
           // prose numbers every section; verse every fifth line
           prose: b.block_type === 'prose', rtl: b.direction === 'rtl', lang: b.lang,
-          lines: bm.lines ?? (b.text_orig ?? '').split('\n').map((t, i) => ({ n: String(i + 1), t })),
+          lines,
           en: b.text_en, en_alt: bm.en_alt ?? null, url: b.source_url,
           footnotes: bm.footnotes ?? [],
           // the English read aloud, sentence by sentence (served by /wv/audio/:key+)
           audio: bm.audio_en ? { path: `audio/${bm.audio_en.key}`, duration: bm.audio_en.duration,
-                                 sentences: bm.audio_en.sentences, words: bm.audio_en.words ?? null } : null,
+                                 sentences: bm.audio_en.sentences, words: bm.audio_en.words ?? null, lang: 'en' }
+               : bm.audio_ar ? { path: `audio/${bm.audio_ar.key}`, duration: bm.audio_ar.duration,
+                                 // a line is the sentence the reader lights, in the passage's own text
+                                 sentences: bm.audio_ar.lines.map((w, i) => ({ t: lines[i]?.t ?? '', s: w.s, e: w.e })),
+                                 words: bm.audio_ar.words ?? null, lang: 'ar', reader: bm.audio_ar.reader ?? null,
+                                 source: bm.audio_ar.source ?? null }
+               : null,
           note_ref: phase ? `${phaseRefPrefix(meta, phase)}:${b.id}` : `WVC:${b.id}`,
           links: (links.get(b.id) ?? []).map((l) => shapeLink(l, me)),
           proposals: proposals.get(b.id) ?? [],
