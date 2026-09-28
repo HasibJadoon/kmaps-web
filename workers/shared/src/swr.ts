@@ -15,8 +15,9 @@
 // next one sees it. `?refresh=1` rebuilds at once.
 //
 // Every kept answer carries an ETag (a client that sends it back gets a 304)
-// and its windows as Cache-Control: max-age=fresh, stale-while-revalidate=rest,
-// so the app keeps the payload on the same terms.
+// and its windows as x-kmaps-cache-control: max-age=fresh,
+// stale-while-revalidate=rest, so the app keeps the payload on the same terms.
+// Browsers get no-cache: they have no beacon, so they revalidate every time.
 
 export interface SwrClass {
   /** Seconds a kept answer is served without rebuilding. */
@@ -227,7 +228,11 @@ export async function withSwr(
   // The client keeps the payload too, on the same windows: fresh for `fresh`,
   // then shown while it revalidates, until `stale`.
   const cc = `max-age=${route.fresh}, stale-while-revalidate=${Math.max(0, (route.stale ?? WEEK) - route.fresh)}`;
-  const headers: Record<string, string> = { 'content-type': kept.type, etag: tagv, 'cache-control': cc, [tag]: layer };
+  // Browsers have no version beacon, so they keep nothing blind: no-cache means
+  // ask each time, and the ETag makes that a 304. The app's own windows ride
+  // in x-kmaps-cache-control, which only KMAPSCache reads.
+  const headers: Record<string, string> = { 'content-type': kept.type, etag: tagv, 'cache-control': 'no-cache',
+                                            'x-kmaps-cache-control': cc, [tag]: layer };
   // which versions the payload rests on: the app expires only what a moved
   // family touches (KMAPSCache), so the books stay put while the study moves
   if (fams.length) headers['x-cache-family'] = fams.join(',');
