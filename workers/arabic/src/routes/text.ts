@@ -2,6 +2,7 @@ import type { Router } from '../../../shared/src/router';
 import { ok, notFound, badRequest } from '../../../shared/src/response';
 import { query, queryOne } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
+import { ANCESTRY } from '../lib/ancestry';
 
 /// The reading shelf. This is the half of the acquisition layer a learner
 /// actually spends time in: pages of classical Arabic, in reading order.
@@ -69,27 +70,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
   /// only the whole chain says what it is. `ar_acq_category` carries the Arabic
   /// name of each root, so the path reads in Arabic where Arabic exists rather
   /// than in the English slug Notion happened to use.
-  const ANCESTRY = `
-    WITH RECURSIVE up(start_ar_no, ar_no, name, parent_ar_no, depth) AS (
-      SELECT e.ar_no, e.ar_no, e.name, e.parent_ar_no, 0 FROM ar_acq_entry e
-      UNION ALL
-      SELECT up.start_ar_no, p.ar_no, p.name, p.parent_ar_no, up.depth + 1
-        FROM ar_acq_entry p JOIN up ON p.ar_no = up.parent_ar_no
-       WHERE up.depth < 6
-    ),
-    named AS (
-      SELECT up.start_ar_no, up.depth,
-             COALESCE(c.name_ar, up.name) AS label
-        FROM up LEFT JOIN ar_acq_category c ON c.id = up.ar_no
-       WHERE up.depth > 0
-    ),
-    path AS (
-      SELECT start_ar_no,
-             group_concat(label, ' ▸ ') AS trail,
-             MAX(depth)                 AS levels
-        FROM (SELECT * FROM named ORDER BY start_ar_no, depth DESC)
-       GROUP BY start_ar_no
-    )`;
+  // the Notion tree above every work (lib/ancestry.ts)
 
   router.get('/ar/text/shelf', async (req, env) => {
     const url = new URL(req.url);

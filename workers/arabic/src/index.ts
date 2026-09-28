@@ -18,6 +18,8 @@ import { lessonRoutes } from './routes/lessons';
 import { grammarRoutes } from './routes/grammar';
 import { exerciseRoutes } from './routes/exercises';
 import { dailyRoutes } from './routes/daily';
+import { roomRoutes } from './routes/rooms';
+import { practiceRoutes } from './routes/practice';
 
 const router = new Router<ArabicEnv>();
 
@@ -48,6 +50,8 @@ vocabularyRoutes(router);
 grammarRoutes(router);
 exerciseRoutes(router);
 dailyRoutes(router);
+roomRoutes(router);
+practiceRoutes(router);
 
 // The version beacon the app checks at launch and on return: never kept.
 router.get('/ar/corpus-version', async (_req, env) => {
@@ -67,6 +71,9 @@ router.get('/ar/corpus-version', async (_req, env) => {
 const CONTENT = { fresh: 30 * 86400, stale: 90 * 86400, family: 'content' };
 const KEPT: SwrRoute[] = [
   { re: /^\/ar\/(acq|text|sources|disciplines|curriculum|nodes|tracks|terms|lessons)(\/|$)/, ...CONTENT },
+  // the rooms and the skill list (not /ar/atlas/continue — the reader's own — nor a practice session, drawn fresh)
+  { re: /^\/ar\/atlas\/(home|room|collection|search)$/, ...CONTENT },
+  { re: /^\/ar\/practice\/home$/, ...CONTENT },
   { re: /^\/ar\/daily\/(themes|domains)(\/|$)/, ...CONTENT },
 ];
 
