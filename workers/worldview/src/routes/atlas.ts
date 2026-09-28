@@ -21,11 +21,12 @@ interface AtlasRow {
   tagline: string | null; color: string | null; icon: string | null; layout: string | null;
   sort_order: number; arc_id: string | null; domain_slug: string | null; way: string | null;
   era_from: number | null; era_to: number | null; span: string | null; next_id: string | null; status: string;
-  source_id: string | null;
+  source_id: string | null; meta_json: string | null;
 }
 
-export function atlasRoutes(router: Router<WorldviewEnv>) {
-  dual(router, 'get', '/atlas', async (_req, env) => {
+// The whole tree, loaded once per request: every row, and the function that
+// turns an item row into the shape the app reads.
+async function loadAtlas(env: WorldviewEnv) {
     const [rows, cards, fields, sourceRows, unitCounts] = await Promise.all([
       query<AtlasRow>(env.DB_WV, `SELECT * FROM wv_atlas ORDER BY sort_order, id`),
       arcCards(env.DB_WV),
@@ -69,15 +70,56 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
         return { ...base, title: r.title, title_ar: r.title_ar, tagline: r.tagline, span: `${members.length} books`,
                  sources: members };
       }
-      return { ...base, title: r.title, title_ar: r.title_ar, tagline: r.tagline, span: r.span, way: r.way };
+      // a planned strand carries its researched detail (summary, figures, works, themes, sources)
+      let detail: unknown = null;
+      if (r.kind === 'planned' && r.meta_json) { try { detail = JSON.parse(r.meta_json); } catch { detail = null; } }
+      return { ...base, title: r.title, title_ar: r.title_ar, tagline: r.tagline, span: r.span, way: r.way, detail };
     };
+    return { rows, item, kids };
+}
+
+// A year → its century: 1..n for AD, -1..-n for BC (there is no year 0).
+function centuryOf(y: number): number {
+  return y > 0 ? Math.floor((y - 1) / 100) + 1 : -(Math.floor(-y / 100) + 1);
+}
+
+// Years as said: 2025 and later is "today", before year 1 is BC.
+function yearText(y: number): string { return y < 0 ? `${-y} BC` : y >= 2025 ? 'today' : String(y); }
+
+// A shelf's years: its own if written, else the reach of its dated items, so
+// every shelf can stand on its room's timeline.
+function shelfSpan(s: AtlasRow, items: { era_from: number | null; era_to: number | null }[]) {
+  if (s.span) return { era_from: s.era_from, era_to: s.era_to, span: s.span };
+  const from = items.map((i) => i.era_from).filter((y): y is number => y != null);
+  const to = items.map((i) => i.era_to ?? i.era_from).filter((y): y is number => y != null);
+  if (!from.length) return { era_from: null, era_to: null, span: null };
+  const a = Math.min(...from), b = Math.max(...to);
+  const span = a < 0 && b > 0 ? `${yearText(a)} – AD ${yearText(b)}` : `${yearText(a)} – ${yearText(b)}`;
+  return { era_from: a, era_to: b, span };
+}
+
+function ordinal(n: number): string {
+  const t = n % 100;
+  const s = t >= 11 && t <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th';
+  return `${n}${s}`;
+}
+
+function centuryLabel(c: number) {
+  if (c > 0) return { label: `${ordinal(c)} century`, range: `${(c - 1) * 100 + 1} – ${c * 100}` };
+  const n = -c;
+  return { label: `${ordinal(n)} century BC`, range: `${n * 100} – ${(n - 1) * 100 + 1} BC` };
+}
+
+export function atlasRoutes(router: Router<WorldviewEnv>) {
+  dual(router, 'get', '/atlas', async (_req, env) => {
+    const { rows, item, kids } = await loadAtlas(env);
     const items = (parent: string) => kids(parent).map(item).filter((x) => x != null);
 
     const rooms = rows.filter((r) => r.kind === 'room').map((room) => {
-      const shelves = kids(room.id).map((s) => ({
-        id: s.id, title: s.title, title_ar: s.title_ar, tagline: s.tagline,
-        era_from: s.era_from, era_to: s.era_to, span: s.span, items: items(s.id),
-      }));
+      const shelves = kids(room.id).map((s) => {
+        const its = items(s.id);
+        return { id: s.id, title: s.title, title_ar: s.title_ar, tagline: s.tagline, ...shelfSpan(s, its), items: its };
+      });
       const all = shelves.flatMap((s) => s.items);
       return {
         id: room.id, title: room.title, title_ar: room.title_ar, tagline: room.tagline,
@@ -93,5 +135,38 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
       };
     });
     return ok({ rooms });
+  });
+
+  // Century by century: every dated item in the Atlas, placed in the century it
+  // begins in. An item shelved in several rooms is listed once, with each shelf
+  // it stands on in `shelves`; its colour is its first room's.
+  dual(router, 'get', '/atlas/centuries', async (_req, env) => {
+    const { rows, item } = await loadAtlas(env);
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const seen = new Map<string, { item: NonNullable<ReturnType<typeof item>>; century: number; shelves: { id: string; title: string; room: string; color: string }[] }>();
+    for (const r of rows) {
+      if (r.era_from == null || (r.kind !== 'planned' && r.kind !== 'arc')) continue;
+      const shelf = r.parent_id ? byId.get(r.parent_id) : undefined;
+      const room = shelf?.parent_id ? byId.get(shelf.parent_id) : undefined;
+      if (!shelf || !room || shelf.kind !== 'shelf') continue;
+      const where = { id: shelf.id, title: shelf.title, room: room.title, color: room.color ?? '#D8B657' };
+      const key = r.kind === 'arc' && r.arc_id ? r.arc_id : `${r.title.toLowerCase()}|${r.era_from}`;
+      const had = seen.get(key);
+      if (had) { had.shelves.push(where); continue; }
+      const it = item(r);
+      if (!it) continue;
+      seen.set(key, { item: it, century: centuryOf(r.era_from), shelves: [where] });
+    }
+    const groups = new Map<number, { item: unknown; shelves: unknown[]; era_from: number }[]>();
+    for (const v of seen.values()) {
+      const list = groups.get(v.century) ?? [];
+      list.push({ item: v.item, shelves: v.shelves, era_from: (v.item as { era_from: number }).era_from });
+      groups.set(v.century, list);
+    }
+    const centuries = [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([c, list]) => ({
+      century: c, ...centuryLabel(c),
+      entries: list.sort((a, b) => a.era_from - b.era_from).map(({ item, shelves }) => ({ item, shelves })),
+    }));
+    return ok({ centuries });
   });
 }
