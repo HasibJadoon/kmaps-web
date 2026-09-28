@@ -1854,14 +1854,7 @@ export class StudyRepo {
       };
     });
 
-    return {
-      step:      'sentence_structure',
-      surah,
-      passage:   passageNo,
-      ayahFrom:  from,
-      ayahTo:    to,
-      termColors,
-      terms,
+    const body = {
       layersByScope,
       readings,
       readingGroups,
@@ -1877,6 +1870,35 @@ export class StudyRepo {
         driverRef: d.driver_ref,
       })),
       sentences,
+    };
+
+    // Only the terms (and colours) this passage names, with the terms above
+    // them: the registry is ~500 terms and ~700 colours, a passage uses a
+    // few dozen, and the app only ever looks them up by ref or key.
+    const text = JSON.stringify(body);
+    const byRef = new Map(terms.map((t) => [t.ref, t]));
+    const keep = new Set(terms.filter((t) => text.includes(t.ref) || (!!t.key && text.includes(t.key))).map((t) => t.ref));
+    for (const ref of [...keep]) {
+      let up = byRef.get(ref)?.parentRef;
+      while (up && !keep.has(up) && byRef.has(up)) { keep.add(up); up = byRef.get(up)?.parentRef; }
+    }
+    const usedTerms = terms.filter((t) => keep.has(t.ref));
+    const usedColors: Record<string, string> = {};
+    for (const t of usedTerms) {
+      if (termColors[t.ref]) usedColors[t.ref] = termColors[t.ref];
+      if (t.key && termColors[t.key]) usedColors[t.key] = termColors[t.key];
+    }
+    for (const [k, v] of Object.entries(termColors)) if (!(k in usedColors) && text.includes(k)) usedColors[k] = v;
+
+    return {
+      step:      'sentence_structure',
+      surah,
+      passage:   passageNo,
+      ayahFrom:  from,
+      ayahTo:    to,
+      termColors: usedColors,
+      terms: usedTerms,
+      ...body,
     };
   }
 

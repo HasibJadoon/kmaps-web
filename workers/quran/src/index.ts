@@ -1,4 +1,5 @@
 import { Router } from '../../shared/src/router';
+import { withSwr, type SwrRoute } from '../../shared/src/swr';
 import { sense, readRows, type SenseRequest, type RowsRequest } from '../../shared/src/sense';
 import { dbHealth } from '../../shared/src/http';
 import { ok } from '../../shared/src/response';
@@ -148,6 +149,29 @@ router.post('/qr/internal/root-spread', async (req, env) => {
   return ok({ ok: true, root, spread: results ?? [] });
 });
 
+// ── Which reads are kept, and for how long (shared/src/swr.ts) ────────────────
+// Every QR read is the same for every reader, so each is kept and served from
+// memory or this data centre's edge cache, never waiting on D1 once built.
+//   authored — rows written into D1 by the study builders (steps, passages,
+//              tasks, the surah's worldview layer, cross-references): fresh a
+//              minute, then served while rebuilt behind; gone after an hour.
+//   stable   — the corpus and the books (text, reader, morphology, tafsīr,
+//              iʿrāb, translations, lexicon, vocabulary): fresh a day, then
+//              served while rebuilt behind; gone after a week.
+// First match wins: the authored routes under /qr/surahs/:id come first.
+const AUTHORED = { fresh: 60, stale: 3600 };
+const STABLE = { fresh: 86400, stale: 7 * 86400 };
+const KEPT: SwrRoute[] = [
+  { re: /^\/qr\/study\/(surahs|words)\//, ...AUTHORED },
+  { re: /^\/qr\/surahs\/\d+\/worldview(\/|$)/, ...AUTHORED },
+  { re: /^\/qr\/gram\/terms\//, ...AUTHORED },
+  { re: /^\/qr\/xref$/, ...AUTHORED },
+  { re: /^\/qr\/corpus-version$/, fresh: 300, stale: 3600 },
+  { re: /^\/qr\/study\/morph\//, ...STABLE },
+  { re: /^\/qr\/(surahs|ayahs|words|pages|mushaf|menu|translations|translation-sources|tafsir|irab|iraab|lexicon|vocab|word-grid|scholars|works)(\/|$)/, ...STABLE },
+];
+
 export default {
-  fetch: (request: Request, env: QuranEnv) => router.handle(request, env),
+  fetch: (request: Request, env: QuranEnv, ctx: ExecutionContext) =>
+    withSwr(request, ctx, KEPT, (r) => router.handle(r, env), 'x-qr-cache'),
 } satisfies ExportedHandler<QuranEnv>;
