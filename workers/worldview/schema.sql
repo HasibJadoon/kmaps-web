@@ -2120,7 +2120,7 @@ CREATE TABLE wv_sources (
   description_md  TEXT,
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now')), person_ref TEXT,
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
 );
 
