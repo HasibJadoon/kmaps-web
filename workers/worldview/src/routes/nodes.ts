@@ -37,15 +37,4 @@ export function nodeRoutes(router: Router<WorldviewEnv>) {
     }));
   });
 
-  router.post('/wv/node-edges', async (req, env) => {
-    const b = await req.json() as Record<string, unknown>;
-    if (!b.from_node_id || !b.to_node_id || !b.relation_type)
-      return badRequest('from_node_id, to_node_id, relation_type required');
-    return created(await new NodeRepo(env.DB_WV).createEdge({
-      from_node_id:  String(b.from_node_id),
-      to_node_id:    String(b.to_node_id),
-      relation_type: String(b.relation_type),
-      note:          (b.note as string | null) ?? null,
-    }));
-  });
 }

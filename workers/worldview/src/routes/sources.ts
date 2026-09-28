@@ -232,48 +232,6 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     return unit ? ok(unit) : notFound(`unit ${b.id}`);
   });
 
-  router.post('/worldview/unit-attachment', async (req, env) => {
-    const b = await req.json() as Record<string, unknown>;
-    if (!b.source_unit_id) return badRequest('source_unit_id required');
-    if (!b.target_ref) return badRequest('target_ref required');
-    const type = String(b.attachment_type ?? 'document');
-    if (!['document', 'content', 'episode'].includes(type)) {
-      return badRequest('attachment_type must be document | content | episode');
-    }
-    const id = String(b.id ?? `wva-${crypto.randomUUID()}`);
-    await query(env.DB_WV, `
-      INSERT OR REPLACE INTO wv_unit_attachments
-        (id, source_unit_id, source_id, attachment_type, target_ref, target_kind,
-         title, subtitle, summary, thumbnail_url, media_url, duration_sec, locator,
-         link_role, order_index, status, meta_json, updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now'))
-    `, [
-      id,
-      String(b.source_unit_id),
-      (b.source_id as string | null) ?? null,
-      type,
-      String(b.target_ref),
-      (b.target_kind as string | null) ?? null,
-      (b.title as string | null) ?? null,
-      (b.subtitle as string | null) ?? null,
-      (b.summary as string | null) ?? null,
-      (b.thumbnail_url as string | null) ?? null,
-      (b.media_url as string | null) ?? null,
-      b.duration_sec != null ? Number(b.duration_sec) : null,
-      (b.locator as string | null) ?? null,
-      String(b.link_role ?? 'related'),
-      b.order_index != null ? Number(b.order_index) : 0,
-      String(b.status ?? 'active'),
-      b.meta_json != null ? JSON.stringify(b.meta_json) : null,
-    ]);
-    return created({ id });
-  });
-
-  router.delete('/worldview/unit-attachment/:id', async (_req, env, { id }) => {
-    await query(env.DB_WV, `DELETE FROM wv_unit_attachments WHERE id = ?`, [id]);
-    return ok({ id, deleted: true });
-  });
-
   router.get('/wv/sources/:id/units', async (req, env, { id }) => {
     const url  = new URL(req.url);
     const page = await new SourceRepo(env.DB_WV).units(id, parsePagination(url));
@@ -376,18 +334,6 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
       wv_node_edges,
       wv_evidence_links,
     });
-  });
-
-  router.get('/worldview/source-content', async (req, env) => {
-    const url          = new URL(req.url);
-    const source_id    = url.searchParams.get('source_id');
-    const unit_id      = url.searchParams.get('source_unit_id');
-    if (!source_id) return badRequest('source_id required');
-
-    const page = await new SourceRepo(env.DB_WV).chunksBySource(
-      source_id, unit_id, parsePagination(url),
-    );
-    return paginated(page);
   });
 
   router.get('/worldview/workflow', async (_req, env) => {

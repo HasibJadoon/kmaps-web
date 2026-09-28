@@ -242,14 +242,4 @@ export function scholarshipRoutes(router: Router<ArLinguisticsEnv>) {
     return ok({ root_norm, notes, total: notes.length });
   });
 
-  router.get('/al/scholarship/has/:root_norm', async (_req, env, params) => {
-    const root_norm = (params.root_norm ?? '').trim();
-    if (!root_norm) return badRequest('root_norm required');
-
-    const row = await env.DB_AL.prepare(
-      `SELECT COUNT(*) AS n FROM ar_ling_root_scholarship WHERE root_norm = ?`,
-    ).bind(root_norm).first<{ n: number }>();
-
-    return ok({ root_norm, count: Number(row?.n ?? 0) });
-  });
 }

@@ -261,57 +261,6 @@ export function vocabSeriesRoutes(router: Router<QuranEnv>): void {
    * Authored coverage is thin (see the `coverage` field in the reply, which
    * says so rather than returning an empty list that reads like an error), so
    * a client should treat this as optional furniture, not a required scene. */
-  router.get('/qr/vocab/surah/:surah/motifs', async (_req, env, { surah: surahParam }) => {
-    const surah = parseIntParam(surahParam);
-    if (surah === null || surah < 1 || surah > 114) {
-      return badRequest('surah must be 1–114');
-    }
-
-    try {
-      const [motifs, themes] = await Promise.all([
-        query<{
-          id: string; cluster_label: string | null; cluster_label_ar: string | null;
-          motif_keys: string | null; ayah_range_json: string | null;
-          semantic_role: string | null; note_md: string | null; gloss_json: string | null;
-        }>(env.DB_QR, `
-          SELECT id, cluster_label, cluster_label_ar, motif_keys,
-                 ayah_range_json, semantic_role, note_md, gloss_json
-          FROM qr_surah_motif_cluster WHERE surah = ? ORDER BY id
-        `, [surah]),
-        query<{
-          id: string; theme_key: string | null; title_ar: string | null;
-          title_en: string | null; text_ar: string | null; text_en: string | null;
-          source_slug: string | null; theme_index: number | null;
-        }>(env.DB_QR, `
-          SELECT id, theme_key, title_ar, title_en, text_ar, text_en,
-                 source_slug, theme_index
-          FROM qr_surah_tafsir_theme WHERE surah = ? ORDER BY theme_index
-        `, [surah]),
-      ]);
-
-      return ok({
-        surah,
-        coverage: {
-          motifs: motifs.length,
-          themes: themes.length,
-          authored: motifs.length > 0 || themes.length > 0,
-        },
-        motifs: motifs.map((m) => ({
-          id: m.id,
-          label: m.cluster_label,
-          label_ar: m.cluster_label_ar,
-          keys: safeJson(m.motif_keys),
-          ayah_range: safeJson(m.ayah_range_json),
-          role: m.semantic_role,
-          gloss: safeJson(m.gloss_json),
-          note: m.note_md,
-        })),
-        themes,
-      });
-    } catch (e) {
-      return internalError(`vocab motifs failed: ${String(e)}`);
-    }
-  });
 
   /* ---------------------------------------------------------------- index */
 
@@ -343,11 +292,6 @@ export function vocabSeriesRoutes(router: Router<QuranEnv>): void {
       return internalError(`vocab index failed: ${String(e)}`);
     }
   });
-}
-
-function safeJson(raw: string | null): unknown {
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return raw; }
 }
 
 async function scalar(db: D1Database, sql: string): Promise<number> {

@@ -39,11 +39,6 @@ export function positionRoutes(router: Router<WorldviewEnv>) {
     }, CORPUS_TTL),
   );
 
-  router.get('/wv/positions/:id/sources', async (_req, env, { id }) => {
-    const rows = await new PositionRepo(env.DB_WV).sources(id);
-    return ok(rows);
-  });
-
   router.post('/wv/positions', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     const conceptRef  = String(b.concept_ref ?? '');

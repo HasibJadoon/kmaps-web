@@ -1,6 +1,6 @@
 import type { Router } from '../../../shared/src/router';
-import { ok, badRequest, paginated } from '../../../shared/src/response';
-import { parsePagination, parseIntParam } from '../../../shared/src/validate';
+import { ok, badRequest } from '../../../shared/src/response';
+import { parseIntParam } from '../../../shared/src/validate';
 import type { QuranEnv } from '../env';
 import { WordRepo } from '../repositories/word.repo';
 
@@ -21,13 +21,6 @@ export function wordRoutes(router: Router<QuranEnv>) {
     if (from && to) return ok(await repo.byRange(surah, from, to));
 
     return badRequest('Provide ayah or from+to range');
-  });
-
-  router.get('/qr/words/by-lemma', async (req, env) => {
-    const url  = new URL(req.url);
-    const ref  = url.searchParams.get('ref');
-    if (!ref) return badRequest('ref (AL:ULID) param required');
-    return paginated(await new WordRepo(env.DB_QR).byLemmaRef(ref, parsePagination(url)));
   });
 
   router.get('/qr/words/by-root', async (req, env) => {

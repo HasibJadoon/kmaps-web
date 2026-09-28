@@ -1,6 +1,6 @@
 import type { Router } from '../../../shared/src/router';
-import { ok, notFound, badRequest, paginated } from '../../../shared/src/response';
-import { parsePagination, parseIntParam } from '../../../shared/src/validate';
+import { ok, notFound, badRequest } from '../../../shared/src/response';
+import { parseIntParam } from '../../../shared/src/validate';
 import type { QuranEnv } from '../env';
 import { AyahRepo } from '../repositories/ayah.repo';
 import { validateAyahPatch } from '../schemas/ayah.schema';
@@ -43,14 +43,6 @@ export function ayahRoutes(router: Router<QuranEnv>) {
     }
 
     return ok(ayahs.map(a => ({ ...a, words: wordMap.get(a.ayah) ?? [] })));
-  });
-
-  router.get('/qr/ayahs/search', async (req, env) => {
-    const url = new URL(req.url);
-    const q = url.searchParams.get('q');
-    if (!q || q.length < 2) return badRequest('q must be at least 2 characters');
-    const opts = parsePagination(url);
-    return paginated(await new AyahRepo(env.DB_QR).search(q, opts));
   });
 
   router.get('/qr/ayahs/:surah/:ayah', async (_req, env, { surah, ayah }) => {

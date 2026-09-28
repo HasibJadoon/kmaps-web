@@ -20,7 +20,6 @@ import { positionRoutes }    from './routes/positions';
 import { domainRoutes }      from './routes/domains';
 import { authorRoutes } from './routes/authors';
 import { peopleRoutes }      from './routes/people';
-import { moralRoutes }       from './routes/moral';
 import { mapRoutes }         from './routes/maps';
 import { graphRoutes }       from './routes/graphs';
 import { termRoutes }        from './routes/terms';
@@ -53,7 +52,6 @@ authorRoutes(router);
 domainRoutes(router);
 termRoutes(router);
 rhetoricRoutes(router);
-moralRoutes(router);
 
 mapRoutes(router);
 graphRoutes(router);

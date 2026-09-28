@@ -1,6 +1,6 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
-import { query, queryOne, execute } from '../../../shared/src/db';
+import { queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { CoreEnv } from '../env';
 
@@ -29,22 +29,6 @@ export function grantRoutes(router: Router<CoreEnv>) {
       [resource, grantee],
     );
     return ok({ granted: !!grant, grant });
-  });
-
-  router.get('/core/grants/list', async (req, env) => {
-    const url     = new URL(req.url);
-    const grantee = url.searchParams.get('grantee');
-    if (!grantee) return badRequest('grantee param required');
-
-    const grants = await query<ResourceGrant>(
-      env.DB_CORE,
-      `SELECT id, resource_ref, grantee_ref, permission, granted_at
-       FROM core_resource_grants
-       WHERE grantee_ref = ?
-       ORDER BY resource_ref`,
-      [grantee],
-    );
-    return ok(grants);
   });
 
   router.post('/core/grants', async (req, env) => {

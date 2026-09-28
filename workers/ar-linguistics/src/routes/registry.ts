@@ -11,11 +11,6 @@ export function registryRoutes(router: Router<ArLinguisticsEnv>) {
     return ok({ counts, by_status: [], roots: [], sub_layers: subLayers });
   });
 
-  router.get('/al/registry/matrix', async (_req, env) => {
-    const repo = new RegistryRepo(env.DB_AL);
-    return ok({ cells: [], sub_layers: await repo.subLayers(), roots: [] });
-  });
-
   router.get('/al/registry/layer-model', async (_req, env) => {
     const repo = new RegistryRepo(env.DB_AL);
     return ok(await repo.layerModel());

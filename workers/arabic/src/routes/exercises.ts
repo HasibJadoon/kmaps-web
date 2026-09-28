@@ -20,14 +20,6 @@ export function exerciseRoutes(router: Router<ArabicEnv>) {
     return row ? ok(row) : notFound(`exercise ${id}`);
   });
 
-  router.get('/ar/exercises/sample', async (req, env) => {
-    const url      = new URL(req.url);
-    const lessonId = url.searchParams.get('lesson');
-    if (!lessonId) return badRequest('lesson (AR:ULID) param required');
-    const limit = Math.min(50, parseInt(url.searchParams.get('limit') ?? '10', 10) || 10);
-    return ok(await new ExerciseRepo(env.DB_AR).sample(lessonId, limit));
-  });
-
   router.post('/ar/exercises', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.lesson_id || !b.exercise_type || !b.prompt)

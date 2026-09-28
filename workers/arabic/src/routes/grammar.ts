@@ -15,15 +15,6 @@ export function grammarRoutes(router: Router<ArabicEnv>) {
     );
   });
 
-  router.get('/ar/grammar/by-concept', async (req, env) => {
-    const url = new URL(req.url);
-    const ref = url.searchParams.get('ref');
-    if (!ref) return badRequest('ref (AL:ULID) param required');
-    return paginated(
-      await new GrammarRepo(env.DB_AR).byNahwRef(ref, parsePagination(url)),
-    );
-  });
-
   router.get('/ar/grammar/:id', async (_req, env, { id }) => {
     const row = await new GrammarRepo(env.DB_AR).findById(id);
     return row ? ok(row) : notFound(`grammar item ${id}`);

@@ -21,9 +21,6 @@ export function cmCommentRoutes(router: Router<ContentEnv>) {
     return paginated(await new CommentRepo(env.DB_CM).byTarget(target, parsePagination(url)));
   });
 
-  router.get('/cm/comments/:id/thread', async (_req, env, { id }) =>
-    ok({ comments: await new CommentRepo(env.DB_CM).thread(id) }));
-
   router.post('/cm/comments', async (req, env) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');

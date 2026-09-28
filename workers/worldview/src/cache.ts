@@ -51,8 +51,7 @@ const VERSION_SQL: Record<Family, string> = {
                  (SELECT count(*) || ':' || ifnull(max(rowid), 0) FROM wv_node_edges) || '|' ||
                  (SELECT ifnull(max(rowid), 0) FROM wv_map_features) || '|' ||
                  (SELECT count(*) || ':' || ifnull(max(rowid), 0) FROM wv_traditions) || '|' ||
-                 (SELECT ifnull(max(rowid), 0) FROM wv_domains) || '|' ||
-                 (SELECT ifnull(max(rowid), 0) FROM wv_moral_axes) AS v`,
+                 (SELECT ifnull(max(rowid), 0) FROM wv_domains) AS v`,
 };
 
 const FRESH_MS = 60_000;               // served without asking D1
@@ -219,13 +218,7 @@ const CACHEABLE: Array<[RegExp, Family]> = [
   [/^\/sources\/[^/]+(\/units)?$/, 'store'],
   [/^\/traditions$/, 'store'],
   [/^\/traditions\/[^/]+$/, 'store'],
-  [/^\/traditions\/by-slug\/[^/]+$/, 'store'],
   [/^\/authors(\/[^/]+)?$/, 'store'],
-  [/^\/regions$/, 'store'],
-  [/^\/periods$/, 'store'],
-  [/^\/moral\/(axes|virtues|vices)$/, 'store'],
-  [/^\/moral\/axes\/[^/]+$/, 'store'],
-  [/^\/registry\/people$/, 'store'],
 ];
 
 function route(url: URL): { family: Family; key: string } | null {

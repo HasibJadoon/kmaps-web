@@ -5,9 +5,7 @@ import type { ContentEnv } from '../env';
 import { DocumentRepo, type DocumentInclude, type DocumentListFilters } from '../repositories/document.repo';
 import {
   validateCmDocumentBlockCreate,
-  validateCmDocumentBlockEmbedCreate,
   validateCmDocumentBlockPatch,
-  validateCmDocumentBlockRefCreate,
   validateCmDocumentCreate,
   validateCmDocumentLinkCreate,
   validateCmDocumentPatch,
@@ -76,11 +74,6 @@ function filtersFromUrl(url: URL): DocumentListFilters {
 
 async function ensureDocument(repo: DocumentRepo, docId: string): Promise<Response | null> {
   return (await repo.exists(docId)) ? null : notFound(`document ${docId}`);
-}
-
-async function ensureBlock(repo: DocumentRepo, docId: string, blockId: string): Promise<Response | null> {
-  const block = await repo.findBlock(docId, blockId);
-  return block ? null : notFound(`block ${blockId}`);
 }
 
 export function documentRoutes(router: Router<ContentEnv>) {
@@ -193,56 +186,6 @@ export function documentRoutes(router: Router<ContentEnv>) {
   router.delete('/cm/documents/:id/blocks/:blockId', async (_req, env, { id, blockId }) => {
     const deleted = await new DocumentRepo(env.DB_CM).deleteBlock(id, blockId);
     return deleted ? noContent() : notFound(`block ${blockId}`);
-  });
-
-  router.get('/cm/documents/:id/blocks/:blockId/refs', async (_req, env, { id, blockId }) => {
-    const repo = new DocumentRepo(env.DB_CM);
-    const missing = await ensureBlock(repo, id, blockId);
-    if (missing) return missing;
-    return ok(await repo.refs(blockId));
-  });
-
-  router.post('/cm/documents/:id/blocks/:blockId/refs', async (req, env, { id, blockId }) => {
-    const parsed = await readValidatedJson(req, validateCmDocumentBlockRefCreate);
-    if ('response' in parsed) return parsed.response;
-
-    const repo = new DocumentRepo(env.DB_CM);
-    const missing = await ensureBlock(repo, id, blockId);
-    if (missing) return missing;
-    return created(await repo.createRef(blockId, parsed.data));
-  });
-
-  router.delete('/cm/documents/:id/blocks/:blockId/refs/:refId', async (_req, env, { id, blockId, refId }) => {
-    const repo = new DocumentRepo(env.DB_CM);
-    const missing = await ensureBlock(repo, id, blockId);
-    if (missing) return missing;
-    const deleted = await repo.deleteRef(blockId, refId);
-    return deleted ? noContent() : notFound(`ref ${refId}`);
-  });
-
-  router.get('/cm/documents/:id/blocks/:blockId/embeds', async (_req, env, { id, blockId }) => {
-    const repo = new DocumentRepo(env.DB_CM);
-    const missing = await ensureBlock(repo, id, blockId);
-    if (missing) return missing;
-    return ok(await repo.embeds(blockId));
-  });
-
-  router.post('/cm/documents/:id/blocks/:blockId/embeds', async (req, env, { id, blockId }) => {
-    const parsed = await readValidatedJson(req, validateCmDocumentBlockEmbedCreate);
-    if ('response' in parsed) return parsed.response;
-
-    const repo = new DocumentRepo(env.DB_CM);
-    const missing = await ensureBlock(repo, id, blockId);
-    if (missing) return missing;
-    return created(await repo.createEmbed(blockId, parsed.data));
-  });
-
-  router.delete('/cm/documents/:id/blocks/:blockId/embeds/:embedId', async (_req, env, { id, blockId, embedId }) => {
-    const repo = new DocumentRepo(env.DB_CM);
-    const missing = await ensureBlock(repo, id, blockId);
-    if (missing) return missing;
-    const deleted = await repo.deleteEmbed(blockId, embedId);
-    return deleted ? noContent() : notFound(`embed ${embedId}`);
   });
 
   router.get('/cm/documents/:id/links', async (_req, env, { id }) => {

@@ -17,12 +17,4 @@ export function nahwRoutes(router: Router<ArLinguisticsEnv>) {
     return concept ? ok(concept) : notFound(`nahw concept ${id}`);
   });
 
-  router.get('/al/nahw/:id/children', async (_req, env, { id }) => {
-    return ok(await new NahwRepo(env.DB_AL).children(id));
-  });
-
-  router.get('/al/nahw/key/:key', async (_req, env, { key }) => {
-    const concept = await new NahwRepo(env.DB_AL).findByKey(key);
-    return concept ? ok(concept) : notFound(`nahw key ${key}`);
-  });
 }

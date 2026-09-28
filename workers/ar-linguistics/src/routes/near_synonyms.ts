@@ -14,19 +14,10 @@ export function nearSynonymRoutes(router: Router<ArLinguisticsEnv>) {
     );
   });
 
-  router.get('/al/near-synonyms/by-quran/:ref', async (_req, env, { ref }) => {
-    const result = await new NearSynonymRepo(env.DB_AL).byQuranRef(ref);
-    return result ? ok(result) : notFound(`no near-synonyms for ${ref}`);
-  });
-
   router.get('/al/near-synonyms/by-surah/:surah', async (_req, env, { surah }) => {
     const n = parseInt(surah, 10);
     if (!n || n < 1 || n > 114) return badRequest('surah must be 1–114');
     return ok(await new NearSynonymRepo(env.DB_AL).bySurah(n));
-  });
-
-  router.get('/al/near-synonyms/by-lemma/:lemmaId', async (_req, env, { lemmaId }) => {
-    return ok(await new NearSynonymRepo(env.DB_AL).byLemma(lemmaId));
   });
 
   router.get('/al/near-synonyms/:id', async (_req, env, { id }) => {
@@ -65,8 +56,4 @@ export function nearSynonymRoutes(router: Router<ArLinguisticsEnv>) {
     return updated ? ok(updated) : notFound(`near-synonym set ${id}`);
   });
 
-  router.get('/al/near-synonyms/:id/evidence', async (_req, env, { id }) => {
-    const evidence = await new NearSynonymRepo(env.DB_AL).evidenceForSet(id);
-    return ok(evidence);
-  });
 }

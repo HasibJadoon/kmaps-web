@@ -20,11 +20,6 @@ export function traditionRoutes(router: Router<WorldviewEnv>) {
     return row ? ok(row) : notFound(`tradition ${id}`);
   });
 
-  router.get('/wv/traditions/by-slug/:slug', async (_req, env, { slug }) => {
-    const row = await new TraditionRepo(env.DB_WV).findBySlug(slug);
-    return row ? ok(row) : notFound(`tradition slug:${slug}`);
-  });
-
   router.post('/wv/traditions', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.slug || !b.label_en) return badRequest('slug and label_en required');

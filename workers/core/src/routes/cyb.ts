@@ -2,7 +2,7 @@ import type { Router } from '../../../shared/src/router';
 import { ok, notFound } from '../../../shared/src/response';
 import type { CoreEnv } from '../env';
 import { CybRepo } from '../repositories/cyb.repo';
-import { SenseRepo, CarrierRowsRepo } from '../repositories/sense.repo';
+import { CarrierRowsRepo } from '../repositories/sense.repo';
 
 export function cybRoutes(router: Router<CoreEnv>) {
 
@@ -126,15 +126,4 @@ export function cybRoutes(router: Router<CoreEnv>) {
                 layer: layer ?? null, carriers: rows });
   });
 
-  router.post('/core/cyb/sense/:id', async (_req, env, { id }) => {
-    const report = await new SenseRepo(env).senseNode(id);
-    if (!report) return notFound(`cyb node ${id} not found`);
-    return ok(report);
-  });
-
-  router.get('/core/cyb/sense/:id', async (_req, env, { id }) => {
-    const report = await new SenseRepo(env).senseNode(id, true);
-    if (!report) return notFound(`cyb node ${id} not found`);
-    return ok({ ...report, dry_run: true });
-  });
 }

@@ -301,24 +301,6 @@ export function dailyRoutes(router: Router<ArabicEnv>) {
     return ok({ theme: dose, exhausted: false });
   });
 
-  /// Mark today's dose finished.
-  router.post('/ar/daily/themes/:slug/done', async (req, env, { slug }) => {
-    const user = actorRef(req);
-    if (!user) return unauthorized('Sign in to keep your streak');
-    const theme = await queryOne<{ id: string }>(
-      env.DB_AR, `SELECT id FROM ar_daily_theme WHERE slug = ?`, [slug],
-    );
-    if (!theme) return notFound(`daily theme ${slug}`);
-
-    await execute(
-      env.DB_AR,
-      `UPDATE ar_daily_delivery SET state = 'done', completed_at = datetime('now')
-        WHERE user_ref = ? AND theme_id = ?`,
-      [user, theme.id],
-    );
-    return ok({ slug, state: 'done' });
-  });
-
   /// The reader's history — what has landed, and what they finished.
   router.get('/ar/daily/progress', async (req, env) => {
     const user = actorRef(req);

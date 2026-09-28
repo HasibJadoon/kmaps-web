@@ -241,17 +241,4 @@ export function bankRoutes(router: Router<CoreEnv>): void {
     return dryRun ? ok(result) : created(result);
   });
 
-  router.get('/core/bank/imports', async (req, env) => {
-    const ctx = await requireAuth(req, env.JWT_SECRET);
-    if (ctx instanceof Response) return ctx;
-    const rows = await query(
-      env.DB_CORE,
-      `SELECT id, pack_ref, file_path, dry_run, units_created, units_updated,
-              items_created, items_updated, items_unchanged, items_retired,
-              errors_json, created_at
-         FROM core_bank_import
-        WHERE actor_ref = ?
-        ORDER BY created_at DESC LIMIT 50`, [ctx.userId]);
-    return ok(rows);
-  });
 }

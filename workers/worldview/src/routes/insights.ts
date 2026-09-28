@@ -36,24 +36,4 @@ export function insightRoutes(router: Router<WorldviewEnv>) {
     }));
   });
 
-  router.patch('/wv/insights/:id/approve', async (req, env, { id }) => {
-    const b = await req.json().catch(() => ({})) as Record<string, unknown>;
-    const payload = b.payload_json != null
-      ? (typeof b.payload_json === 'string' ? b.payload_json : JSON.stringify(b.payload_json))
-      : undefined;
-    const row = await new InsightRepo(env.DB_WV).setStatus(
-      id, payload ? 'edited' : 'approved', payload,
-    );
-    return row ? ok(row) : notFound(`insight ${id}`);
-  });
-
-  router.patch('/wv/insights/:id/reject', async (_req, env, { id }) => {
-    const row = await new InsightRepo(env.DB_WV).setStatus(id, 'rejected');
-    return row ? ok(row) : notFound(`insight ${id}`);
-  });
-
-  router.patch('/wv/insights/:id/save', async (_req, env, { id }) => {
-    const row = await new InsightRepo(env.DB_WV).setStatus(id, 'saved');
-    return row ? ok(row) : notFound(`insight ${id}`);
-  });
 }

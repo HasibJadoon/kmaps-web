@@ -1,7 +1,7 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
-import { query, queryOne } from '../../../shared/src/db';
+import { queryOne } from '../../../shared/src/db';
 import type { WorldviewEnv } from '../env';
 import { PeopleRepo } from '../repositories/people.repo';
 import { dual } from './prefix';
@@ -33,28 +33,6 @@ export function peopleRoutes(router: Router<WorldviewEnv>) {
       : null;
     return ok({ person, registry, aliases, relations });
   };
-
-  dual(router, 'get', '/registry/people', async (req, env) => {
-    const url = new URL(req.url);
-    const conds = ["status = 'live'"];
-    const params: unknown[] = [];
-    const type = url.searchParams.get('person_type');
-    const q = url.searchParams.get('q');
-    if (type) { conds.push('person_type = ?'); params.push(type); }
-    if (q) {
-      conds.push('(name_en LIKE ? OR name_ar LIKE ? OR person_key LIKE ?)');
-      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
-    }
-    const people = await query<Record<string, unknown>>(
-      env.DB_WV,
-      `SELECT id, person_key, name_en, name_ar, name_native, person_type,
-              birth_year, death_year, era, nationality, tradition_ref, origin
-         FROM core_person WHERE ${conds.join(' AND ')}
-        ORDER BY birth_year IS NULL, birth_year, name_en`,
-      params,
-    );
-    return ok({ people, total: people.length });
-  });
 
   dual(router, 'get', '/people', list);
   dual(router, 'get', '/people/:id', detail);

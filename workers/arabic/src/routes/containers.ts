@@ -20,10 +20,6 @@ export function containerRoutes(router: Router<ArabicEnv>) {
     return row ? ok(row) : notFound(`container ${id}`);
   });
 
-  router.get('/ar/containers/:id/children', async (_req, env, { id }) => {
-    return ok(await new ContainerRepo(env.DB_AR).children(id));
-  });
-
   router.post('/ar/containers', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.title || !b.container_type)

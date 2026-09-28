@@ -1,6 +1,5 @@
 import type { Router } from '../../../shared/src/router';
-import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
-import { parsePagination } from '../../../shared/src/validate';
+import { ok, notFound, created, badRequest } from '../../../shared/src/response';
 import { query, queryOne } from '../../../shared/src/db';
 import type { WorldviewEnv } from '../env';
 import { DomainRepo } from '../repositories/domain.repo';
@@ -151,20 +150,4 @@ export function domainRoutes(router: Router<WorldviewEnv>) {
     }));
   });
 
-  dual(router, 'get', '/periods', async (req, env) => {
-    const url = new URL(req.url);
-    return paginated(await new DomainRepo(env.DB_WV).listPeriods({
-      period_type: url.searchParams.get('period_type'),
-      ...parsePagination(url),
-    }));
-  });
-
-  dual(router, 'get', '/regions', async (req, env) => {
-    const url = new URL(req.url);
-    return paginated(await new DomainRepo(env.DB_WV).listRegions({
-      region_type: url.searchParams.get('region_type'),
-      parent_id:   url.searchParams.get('parent_id'),
-      ...parsePagination(url),
-    }));
-  });
 }

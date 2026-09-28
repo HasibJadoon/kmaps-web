@@ -31,45 +31,6 @@ export function distillRoutes(router: Router<WorldviewEnv>) {
     return created(batch);
   });
 
-  router.get('/worldview/distill/batch', async (req, env) => {
-    const url     = new URL(req.url);
-    const batchId = url.searchParams.get('batchId');
-    if (!batchId) return badRequest('batchId required');
-
-    const batch = await new DistillRepo(env.DB_WV).batchById(batchId);
-    return batch ? ok(batch) : notFound(`batch ${batchId}`);
-  });
-
-  router.get('/worldview/distill/by-unit', async (req, env) => {
-    const url       = new URL(req.url);
-    const sourceId  = url.searchParams.get('source_id');
-    const unitId    = url.searchParams.get('source_unit_id');
-    if (!sourceId) return badRequest('source_id required');
-
-    const batch = await new DistillRepo(env.DB_WV).batchByUnit(sourceId, unitId);
-    return batch ? ok(batch) : notFound(`batch for source ${sourceId}`);
-  });
-
-  router.post('/worldview/distill/decision', async (req, env) => {
-    const b = await req.json() as Record<string, unknown>;
-    if (!b.item_id)  return badRequest('item_id required');
-    if (!b.decision) return badRequest('decision required');
-
-    const validDecisions = ['approved', 'edited', 'rejected'];
-    if (!validDecisions.includes(String(b.decision)))
-      return badRequest(`decision must be one of: ${validDecisions.join(', ')}`);
-
-    const item = await new DistillRepo(env.DB_WV).recordDecision({
-      item_id:        String(b.item_id),
-      decision:       String(b.decision) as 'approved' | 'edited' | 'rejected',
-      final_content:  (b.final_content  as string | null) ?? null,
-      decision_note:  (b.decision_note  as string | null) ?? null,
-      core_user_ref:  b.core_user_ref ? String(b.core_user_ref) : DEFAULT_USER,
-    });
-
-    return item ? ok(item) : notFound(`item ${b.item_id}`);
-  });
-
   router.post('/worldview/distill/approve', async (req, env) => {
     const b = await req.json() as Record<string, unknown>;
     if (!b.batch_id) return badRequest('batch_id required');
