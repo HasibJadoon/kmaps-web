@@ -1,6 +1,6 @@
 import type { Router } from '../../../shared/src/router';
-import { ok } from '../../../shared/src/response';
-import { query } from '../../../shared/src/db';
+import { ok, notFound } from '../../../shared/src/response';
+import { query, queryOne, execute } from '../../../shared/src/db';
 import type { WorldviewEnv } from '../env';
 import { dual } from './prefix';
 import { arcCards, type ArcCardOut } from './arcs';
@@ -181,8 +181,48 @@ function centuryLabel(c: number) {
   return { label: `${ordinal(n)} century BC`, range: `${n * 100} – ${(n - 1) * 100 + 1} BC` };
 }
 
-export function atlasRoutes(router: Router<WorldviewEnv>) {
-  dual(router, 'get', '/atlas', async (_req, env) => {
+// ── the built Atlas, cached ─────────────────────────────────────────────────
+// Building the tree (links, groups, ages, arc cards, sources) takes seconds, so
+// it is built once per version of the data behind it and kept: in this
+// isolate's memory, and in wv_atlas_cache for the next isolate. The version
+// moves when atlas.py is applied (wv_atlas), when a source changes (wv_sources),
+// when terms are added (wv_term), and on the hour, as a floor for anything else.
+
+type Built = Record<string, unknown>;
+const MEM = new Map<string, { version: string; value: Built }>();
+
+async function atlasVersion(env: WorldviewEnv): Promise<string> {
+  const v = await queryOne<{ v: string }>(env.DB_WV,
+    `SELECT (SELECT count(*) || ':' || ifnull(max(updated_at), '') FROM wv_atlas) || '|' ||
+            (SELECT ifnull(max(updated_at), '') FROM wv_sources) || '|' ||
+            (SELECT count(*) FROM wv_term) AS v`);
+  return `${v?.v ?? ''}|${Math.floor(Date.now() / 3_600_000)}`;
+}
+
+async function cached(env: WorldviewEnv, key: string, build: () => Promise<Built>): Promise<Built> {
+  const version = await atlasVersion(env);
+  const mem = MEM.get(key);
+  if (mem && mem.version === version) return mem.value;
+  try {
+    const row = await queryOne<{ body: string }>(env.DB_WV,
+      `SELECT body FROM wv_atlas_cache WHERE key = ? AND version = ?`, [key, version]);
+    if (row) {
+      const value = JSON.parse(row.body) as Built;
+      MEM.set(key, { version, value });
+      return value;
+    }
+  } catch { /* no cache table yet: build */ }
+  const value = await build();
+  MEM.set(key, { version, value });
+  try {
+    await execute(env.DB_WV,
+      `INSERT OR REPLACE INTO wv_atlas_cache (key, version, body, built_at) VALUES (?, ?, ?, datetime('now'))`,
+      [key, version, JSON.stringify(value)]);
+  } catch { /* serving it matters more than keeping it */ }
+  return value;
+}
+
+async function buildAtlas(env: WorldviewEnv): Promise<Built> {
     const { rows, item, kids, meta, ageView } = await loadAtlas(env);
     const items = (parent: string) => kids(parent).map(item).filter((x) => x != null);
 
@@ -205,23 +245,10 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
         shelves,
       };
     });
-    return ok({ rooms });
-  });
+    return { rooms };
+}
 
-  // One strand's researched detail: summary, figures, works, themes, sources.
-  dual(router, 'get', '/atlas/detail', async (req, env) => {
-    const id = new URL(req.url).searchParams.get('id') ?? '';
-    const rows = await query<{ meta_json: string | null }>(env.DB_WV,
-      `SELECT meta_json FROM wv_atlas WHERE id = ? AND kind = 'planned'`, [id]);
-    let detail: unknown = null;
-    try { detail = rows[0]?.meta_json ? JSON.parse(rows[0].meta_json) : null; } catch { detail = null; }
-    return ok({ id, detail });
-  });
-
-  // Century by century: every dated item in the Atlas, placed in the century it
-  // begins in. An item shelved in several rooms is listed once, with each shelf
-  // it stands on in `shelves`; its colour is its first room's.
-  dual(router, 'get', '/atlas/centuries', async (_req, env) => {
+async function buildCenturies(env: WorldviewEnv): Promise<Built> {
     const { rows, item } = await loadAtlas(env);
     const byId = new Map(rows.map((r) => [r.id, r]));
     const seen = new Map<string, { item: NonNullable<ReturnType<typeof item>>; century: number; shelves: { id: string; title: string; room: string; color: string }[] }>();
@@ -261,6 +288,100 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
         entries: list.sort((a, b) => a.era_from - b.era_from).map(({ item, shelves }) => ({ item, shelves })),
       };
     });
-    return ok({ centuries });
+    return { centuries };
+}
+
+// ── lazy slices of the built Atlas ──────────────────────────────────────────
+// The home needs only the rooms; a room, its shelves as cards; a shelf, its
+// items. Each screen asks for its own slice, from the one cached build.
+
+type Room = { id: string; layout: string; shelves: Shelf[]; [k: string]: unknown };
+type Shelf = { id: string; items: any[]; [k: string]: unknown };
+
+function shelfCard(s: Shelf, withItems: boolean) {
+  const inner = flat(s.items);
+  return {
+    ...s,
+    count: inner.length,
+    live: inner.filter((i) => i.kind === 'arc').length,
+    preview: inner.slice(0, 3).map((i) => i.title),
+    items: withItems ? s.items : [],
+  };
+}
+
+const fold = (t: unknown) => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f\u02bf\u02be'’]/g, '').toLowerCase();
+
+export function atlasRoutes(router: Router<WorldviewEnv>) {
+  // The whole tree — for older app builds and the Global Terms fields.
+  dual(router, 'get', '/atlas', async (_req, env) => ok(await cached(env, 'atlas', () => buildAtlas(env))));
+
+  // The home: the rooms, with their counts; no shelves.
+  dual(router, 'get', '/atlas/home', async (_req, env) => {
+    const { rooms } = (await cached(env, 'atlas', () => buildAtlas(env))) as { rooms: Room[] };
+    return ok({ rooms: rooms.map((r) => ({ ...r, shelf_count: r.shelves.length, shelves: [] })) });
   });
+
+  // A room: its shelves as cards (count, live, a preview) — items only for a
+  // room laid out as tiles, whose screen shows them directly.
+  dual(router, 'get', '/atlas/room', async (req, env) => {
+    const id = new URL(req.url).searchParams.get('id') ?? '';
+    const { rooms } = (await cached(env, 'atlas', () => buildAtlas(env))) as { rooms: Room[] };
+    const room = rooms.find((r) => r.id === id);
+    if (!room) return notFound('Atlas room');
+    return ok({ room: { ...room, shelves: room.shelves.map((s) => shelfCard(s, room.layout === 'tiles')) } });
+  });
+
+  // A shelf (or an age): everything on it.
+  dual(router, 'get', '/atlas/shelf', async (req, env) => {
+    const id = new URL(req.url).searchParams.get('id') ?? '';
+    const { rooms } = (await cached(env, 'atlas', () => buildAtlas(env))) as { rooms: Room[] };
+    for (const room of rooms) {
+      const shelf = room.shelves.find((s) => s.id === id);
+      if (shelf) return ok({ shelf, room: { id: room.id, title: room.title, color: room.color } });
+    }
+    return notFound('Atlas shelf');
+  });
+
+  // Search the Atlas by name, Arabic name, line or years. Ages are views of the
+  // other rooms, so they are not searched twice; each thing is found once.
+  dual(router, 'get', '/atlas/search', async (req, env) => {
+    const q = fold(new URL(req.url).searchParams.get('q')).trim();
+    if (!q) return ok({ rooms: [], shelves: [], items: [] });
+    const { rooms } = (await cached(env, 'atlas', () => buildAtlas(env))) as { rooms: Room[] };
+    const hit = (...xs: unknown[]) => xs.some((x) => fold(x).includes(q));
+    const where = (r: Room) => ({ id: r.id, title: r.title, color: r.color });
+    const seen = new Set<string>();
+    const out = { rooms: [] as unknown[], shelves: [] as unknown[], items: [] as unknown[] };
+    for (const room of rooms) {
+      if (hit(room.title, room.title_ar, room.tagline)) out.rooms.push({ ...room, shelves: [] });
+      for (const shelf of room.shelves) {
+        const isView = shelf.items.length > 0 && shelf.items.every((i) => i.kind === 'group' && String(i.id).includes('~'));
+        if (hit(shelf.title, shelf.title_ar, shelf.tagline)) out.shelves.push({ shelf: shelfCard(shelf, false), room: where(room) });
+        if (isView) continue;
+        for (const it of flat(shelf.items)) {
+          const key = it.arc?.id ?? it.id;
+          if (seen.has(key) || !hit(it.title, it.title_ar, it.tagline, it.span)) continue;
+          seen.add(key);
+          out.items.push({ item: it, room: where(room), shelf: { id: shelf.id, title: shelf.title } });
+        }
+      }
+    }
+    out.items = out.items.slice(0, 80);
+    return ok(out);
+  });
+
+  // One strand's researched detail: summary, figures, works, themes, sources.
+  dual(router, 'get', '/atlas/detail', async (req, env) => {
+    const id = new URL(req.url).searchParams.get('id') ?? '';
+    const rows = await query<{ meta_json: string | null }>(env.DB_WV,
+      `SELECT meta_json FROM wv_atlas WHERE id = ? AND kind = 'planned'`, [id]);
+    let detail: unknown = null;
+    try { detail = rows[0]?.meta_json ? JSON.parse(rows[0].meta_json) : null; } catch { detail = null; }
+    return ok({ id, detail });
+  });
+
+  // Century by century: every dated item in the Atlas, placed in the century it
+  // begins in. An item shelved in several rooms is listed once, with each shelf
+  // it stands on in `shelves`; its colour is its first room's.
+  dual(router, 'get', '/atlas/centuries', async (_req, env) => ok(await cached(env, 'centuries', () => buildCenturies(env))));
 }

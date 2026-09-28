@@ -2866,3 +2866,11 @@ CREATE INDEX idx_wvvp_tradition ON wv_value_positions (tradition_id);
 CREATE INDEX idx_wvvps_position ON wv_value_position_source (position_id);
 
 CREATE INDEX idx_wvvps_source   ON wv_value_position_source (source_id);
+
+-- 009: the built Atlas, cached per data version
+CREATE TABLE IF NOT EXISTS wv_atlas_cache (
+  key       TEXT PRIMARY KEY,
+  version   TEXT NOT NULL,
+  body      TEXT NOT NULL,
+  built_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
