@@ -80,7 +80,8 @@ async function loadAtlas(env: WorldviewEnv) {
 
 // A year → its century: 1..n for AD, -1..-n for BC (there is no year 0).
 function centuryOf(y: number): number {
-  return y > 0 ? Math.floor((y - 1) / 100) + 1 : -(Math.floor(-y / 100) + 1);
+  // 1–100 is the 1st century; 100–1 BC is the 1st century BC, 3100–3001 BC the 31st
+  return y > 0 ? Math.floor((y - 1) / 100) + 1 : -Math.ceil(-y / 100);
 }
 
 // Years as said: 2025 and later is "today", before year 1 is BC.
