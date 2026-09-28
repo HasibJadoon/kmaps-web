@@ -1,3 +1,4 @@
+import { withCache } from './cache';
 import { Router } from '../../shared/src/router';
 import { dbHealth } from '../../shared/src/http';
 import { ok } from '../../shared/src/response';
@@ -83,5 +84,6 @@ comparisonRoutes(router);
 insightRoutes(router);
 
 export default {
-  fetch: (request: Request, env: WorldviewEnv) => router.handle(request, env),
+  // public reads are served once per version of their data (cache.ts); writes drop them
+  fetch: (request: Request, env: WorldviewEnv) => withCache(request, env, (r) => router.handle(r, env)),
 } satisfies ExportedHandler<WorldviewEnv>;

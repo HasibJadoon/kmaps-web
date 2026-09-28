@@ -1,6 +1,7 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound } from '../../../shared/src/response';
-import { query, queryOne, execute } from '../../../shared/src/db';
+import { query } from '../../../shared/src/db';
+import { memo } from '../cache';
 import type { WorldviewEnv } from '../env';
 import { dual } from './prefix';
 import { arcCards, type ArcCardOut } from './arcs';
@@ -97,9 +98,10 @@ async function loadAtlas(env: WorldviewEnv) {
       return { ...base, title: r.title, title_ar: r.title_ar, tagline: r.tagline, span: r.span, way: r.way, overview };
     };
     // An age holds nothing of its own. It is a view: its years, and the shelves it
-    // gathers from. Each source shelf becomes a group (a shelf with groups gives
-    // one per group), holding only what overlaps the age's years. A thing shown
-    // once in an age is not shown again further down it.
+    // gathers from. Each source becomes a group holding only what overlaps the
+    // age's years; a source with groups of its own keeps them nested inside it —
+    // unless it is named with "/*", when each of its groups stands on its own in
+    // the age. A thing shown once in an age is not shown again further down it.
     const ageView = (age: AtlasRow) => {
       const e0 = age.era_from ?? -1e6, e1 = age.era_to ?? 1e6;
       const shown = new Set<string>();
@@ -108,30 +110,41 @@ async function loadAtlas(env: WorldviewEnv) {
         const to = i.era_to ?? i.era_from;
         return i.era_from <= e1 && to >= e0 && !shown.has(i.id);
       };
-      const make = (id: string, src: AtlasRow, path: string, members: AtlasRow[]) => {
-        const list = members.map(item).filter(inAge).sort((a: any, b: any) => a.era_from - b.era_from);
+      const make = (id: string, src: AtlasRow, path: string, members: AtlasRow[]): any => {
+        const list: any[] = [];
+        for (const m of members) {
+          if (m.kind === 'group') {
+            const sub = make(`${id}~${m.id}`, m, '', kids(m.id));
+            if (sub) list.push(sub);
+          } else {
+            const it = item(m);
+            if (inAge(it)) { shown.add(it.id); list.push(it); }
+          }
+        }
         if (!list.length) return null;
-        list.forEach((i: any) => shown.add(i.id));
-        const sp = shelfSpan({ ...src, span: null } as AtlasRow, list);
+        list.sort((a, b) => (a.era_from ?? 0) - (b.era_from ?? 0));
+        const leaves = flat(list);
+        const sp = shelfSpan({ ...src, span: null } as AtlasRow, leaves);
         return { id, kind: 'group', status: 'live', next: null, era_from: sp.era_from, era_to: sp.era_to,
                  title: src.title, title_ar: src.title_ar, tagline: path, span: sp.span, items: list };
       };
       const out: any[] = [];
-      for (const srcId of meta(age).view ?? []) {
-        const src = byId.get(srcId);
+      for (const spec of meta(age).view ?? []) {
+        const spread = spec.endsWith('/*');
+        const src = byId.get(spread ? spec.slice(0, -2) : spec);
         if (!src) continue;
         const room = src.parent_id ? byId.get(src.parent_id) : undefined;
-        if (src.kind === 'shelf') {
-          const direct = kids(src.id).filter((k) => k.kind !== 'group');
-          const g = make(`${age.id}~${src.id}`, src, room?.title ?? '', direct);
+        if (spread) {
+          const loose = kids(src.id).filter((k) => k.kind !== 'group');
+          const g = make(`${age.id}~${src.id}`, src, room?.title ?? '', loose);
           if (g) out.push(g);
           for (const sub of kids(src.id).filter((k) => k.kind === 'group')) {
             const gg = make(`${age.id}~${sub.id}`, sub, `${room?.title ?? ''} › ${src.title}`, kids(sub.id));
             if (gg) out.push(gg);
           }
-        } else if (src.kind === 'group') {
-          const gg = make(`${age.id}~${src.id}`, src, room?.title ?? '', kids(src.id));
-          if (gg) out.push(gg);
+        } else {
+          const g = make(`${age.id}~${src.id}`, src, room?.title ?? '', kids(src.id));
+          if (g) out.push(g);
         }
       }
       return out;
@@ -189,38 +202,9 @@ function centuryLabel(c: number) {
 // when terms are added (wv_term), and on the hour, as a floor for anything else.
 
 type Built = Record<string, unknown>;
-const MEM = new Map<string, { version: string; value: Built }>();
 
-async function atlasVersion(env: WorldviewEnv): Promise<string> {
-  const v = await queryOne<{ v: string }>(env.DB_WV,
-    `SELECT (SELECT count(*) || ':' || ifnull(max(updated_at), '') FROM wv_atlas) || '|' ||
-            (SELECT ifnull(max(updated_at), '') FROM wv_sources) || '|' ||
-            (SELECT count(*) FROM wv_term) AS v`);
-  return `${v?.v ?? ''}|${Math.floor(Date.now() / 3_600_000)}`;
-}
-
-async function cached(env: WorldviewEnv, key: string, build: () => Promise<Built>): Promise<Built> {
-  const version = await atlasVersion(env);
-  const mem = MEM.get(key);
-  if (mem && mem.version === version) return mem.value;
-  try {
-    const row = await queryOne<{ body: string }>(env.DB_WV,
-      `SELECT body FROM wv_atlas_cache WHERE key = ? AND version = ?`, [key, version]);
-    if (row) {
-      const value = JSON.parse(row.body) as Built;
-      MEM.set(key, { version, value });
-      return value;
-    }
-  } catch { /* no cache table yet: build */ }
-  const value = await build();
-  MEM.set(key, { version, value });
-  try {
-    await execute(env.DB_WV,
-      `INSERT OR REPLACE INTO wv_atlas_cache (key, version, body, built_at) VALUES (?, ?, ?, datetime('now'))`,
-      [key, version, JSON.stringify(value)]);
-  } catch { /* serving it matters more than keeping it */ }
-  return value;
-}
+// the one cache helper (cache.ts), in the atlas family
+const cached = (env: WorldviewEnv, key: string, build: () => Promise<Built>) => memo(env, 'atlas', key, build);
 
 async function buildAtlas(env: WorldviewEnv): Promise<Built> {
     const { rows, item, kids, meta, ageView } = await loadAtlas(env);

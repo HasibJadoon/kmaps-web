@@ -4,6 +4,7 @@ import { query, queryOne, execute } from '../../../shared/src/db';
 import { actorRef } from '../../../shared/src/auth';
 import { ulid } from '../../../shared/src/ulid';
 import type { WorldviewEnv } from '../env';
+import { memo } from '../cache';
 import { dual } from './prefix';
 
 // An arc read as a hub. The arc is a wv_sources row (source_type 'arc'); its
@@ -225,6 +226,80 @@ export async function arcCards(db: D1Database): Promise<ArcCardOut[]> {
   });
 }
 
+type BlockMeta = {
+  lines?: Array<{ n: string; t: string; s?: string }>; en_alt?: string; footnotes?: string[];
+  audio_en?: { key: string; voice: string; duration: number; sentences: Array<{ t: string; s: number; e: number }>; words?: number[][] };
+  // the Arabic read aloud: a clip of a public recording, cut to this page, with
+  // each line's and each word's time inside the clip
+  audio_ar?: { key: string; duration: number; lines: Array<{ s: number; e: number }>; words?: number[][]; reader?: string; source?: string };
+};
+
+const linesOf = (bm: BlockMeta, text: string | null) =>
+  bm.lines ?? (text ?? '').split('\n').map((t, i) => ({ n: String(i + 1), t }));
+
+/** A passage's readings (served by /wv/audio/:key+): the English sentence by
+ *  sentence, the Arabic line by line — a line is the sentence the reader lights.
+ *  Without timings, each carries only its file, length and sentence count. */
+function voicesOf(bm: BlockMeta, lines: Array<{ t: string }>, timings: boolean) {
+  const en = bm.audio_en ? {
+    path: `audio/${bm.audio_en.key}`, duration: bm.audio_en.duration, lang: 'en',
+    reader: bm.audio_en.voice ?? null, source: null, sentence_count: bm.audio_en.sentences.length,
+    ...(timings ? { sentences: bm.audio_en.sentences, words: bm.audio_en.words ?? null } : {}),
+  } : null;
+  const ar = bm.audio_ar ? {
+    path: `audio/${bm.audio_ar.key}`, duration: bm.audio_ar.duration, lang: 'ar',
+    reader: bm.audio_ar.reader ?? null, source: bm.audio_ar.source ?? null, sentence_count: bm.audio_ar.lines.length,
+    ...(timings ? { sentences: bm.audio_ar.lines.map((w, i) => ({ t: lines[i]?.t ?? '', s: w.s, e: w.e })),
+                    words: bm.audio_ar.words ?? null } : {}),
+  } : null;
+  return { en, ar };
+}
+
+type UnitCore = { id: string; work: string; title: string; phase: string | null; labels: unknown;
+                  prev: unknown; next: unknown; passages: Array<Record<string, unknown>> };
+
+/** A book's passages, the same for every reader (no links, no proposals). */
+async function buildUnit(db: D1Database, unit: string, lean: boolean): Promise<UnitCore | null> {
+  const u = await queryOne<{ id: string; corpus_id: string; title: string; unit_index: number; meta_json: string | null; work: string }>(db,
+    `SELECT u.id, u.corpus_id, u.title, u.unit_index, u.meta_json, c.title AS work
+       FROM wv_corpus_units u JOIN wv_scriptural_corpora c ON c.id = u.corpus_id WHERE u.id = ?`, [unit]);
+  if (!u) return null;
+  const phase = parse<{ phase?: string }>(u.meta_json, {}).phase ?? null;
+  const arc = phase ? await queryOne<{ meta_json: string | null }>(db,
+    `SELECT s.meta_json FROM wv_sources s JOIN wv_source_units su ON su.source_id = s.id WHERE su.id = ?`, [phase]) : null;
+  const meta = parse<ArcMeta>(arc?.meta_json, {});
+  const [blocks, siblings] = await Promise.all([
+    query<BlockRow>(db,
+      `SELECT id, corpus_id, corpus_unit_id, cite_raw, cite_end_raw, text_orig, text_en, source_url, meta_json,
+              block_type, direction, lang
+         FROM wv_corpus_block WHERE corpus_unit_id = ? ORDER BY display_order`, [unit]),
+    query<{ id: string; title: string }>(db,
+      `SELECT id, title FROM wv_corpus_units WHERE corpus_id = ? AND unit_index IN (?, ?) ORDER BY unit_index`,
+      [u.corpus_id, u.unit_index - 1, u.unit_index + 1]),
+  ]);
+  return {
+    id: u.id, work: u.work, title: u.title, phase,
+    labels: meta.labels ?? {},
+    prev: siblings.find((s) => s.id !== u.id && s.id < u.id) ?? null,
+    next: siblings.find((s) => s.id !== u.id && s.id > u.id) ?? null,
+    passages: blocks.map((b) => {
+      const bm = parse<BlockMeta>(b.meta_json, {});
+      const lines = linesOf(bm, b.text_orig);
+      const voices = voicesOf(bm, lines, !lean);
+      return {
+        id: b.id, cite: citeLabel(b.cite_raw, b.cite_end_raw),
+        // prose numbers every section; verse every fifth line
+        prose: b.block_type === 'prose', rtl: b.direction === 'rtl', lang: b.lang,
+        lines, en: b.text_en, en_alt: bm.en_alt ?? null, url: b.source_url,
+        footnotes: bm.footnotes ?? [],
+        // `audio` is the one an older app plays (English first); `voices` carries both
+        ...(lean ? { voices } : { audio: voices.en ?? voices.ar, voices }),
+        note_ref: phase ? `${phaseRefPrefix(meta, phase)}:${b.id}` : `WVC:${b.id}`,
+      };
+    }),
+  };
+}
+
 export function arcRoutes(router: Router<WorldviewEnv>) {
 
   // One search box for the whole of Worldview: arcs, their phases, the works
@@ -349,70 +424,43 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
   });
 
   // A book to read: its passages, each with the concepts linked to it.
+  // One book (a corpus unit) to read: its passages. The passages themselves are
+  // the same for every reader, so they are built once per version of the corpus
+  // (cache.ts); the links and proposals on them — which mark a reader's own as
+  // "mine" — are read fresh on each request. With ?lean=1 a passage's voices
+  // come without their sentence and word timings (most of the weight of a
+  // book); the player fetches those for the passage it is about to read, from
+  // /corpus/blocks/:id/voice. Without it, the older shape, `audio` included.
   dual(router, 'get', '/corpus/units/:unit', async (req, env, { unit }) => {
-    const u = await queryOne<{ id: string; corpus_id: string; title: string; unit_index: number; meta_json: string | null; work: string }>(env.DB_WV,
-      `SELECT u.id, u.corpus_id, u.title, u.unit_index, u.meta_json, c.title AS work
-         FROM wv_corpus_units u JOIN wv_scriptural_corpora c ON c.id = u.corpus_id WHERE u.id = ?`, [unit]);
-    if (!u) return notFound(`unit ${unit}`);
-    const phase = parse<{ phase?: string }>(u.meta_json, {}).phase ?? null;
-    const arc = phase ? await queryOne<{ meta_json: string | null }>(env.DB_WV,
-      `SELECT s.meta_json FROM wv_sources s JOIN wv_source_units su ON su.source_id = s.id WHERE su.id = ?`, [phase]) : null;
-    const meta = parse<ArcMeta>(arc?.meta_json, {});
-    const blocks = await query<BlockRow>(env.DB_WV,
-      `SELECT id, corpus_id, corpus_unit_id, cite_raw, cite_end_raw, text_orig, text_en, source_url, meta_json,
-              block_type, direction, lang
-         FROM wv_corpus_block WHERE corpus_unit_id = ? ORDER BY display_order`, [unit]);
-    const ids = blocks.map((b) => b.id);
+    const lean = new URL(req.url).searchParams.get('lean') === '1';
+    const core = await memo<UnitCore | null>(env, 'corpus', `unit:${unit}:${lean ? 'lean' : 'full'}`,
+      () => buildUnit(env.DB_WV, unit, lean));
+    if (!core) return notFound(`unit ${unit}`);
+    const ids = core.passages.map((p) => p.id as string);
     const [links, proposals] = await Promise.all([linksFor(env.DB_WV, ids), proposalsFor(env.DB_WV, ids)]);
     const me = actorRef(req);
-    const siblings = await query<{ id: string; title: string }>(env.DB_WV,
-      `SELECT id, title FROM wv_corpus_units WHERE corpus_id = ? AND unit_index IN (?, ?) ORDER BY unit_index`,
-      [u.corpus_id, u.unit_index - 1, u.unit_index + 1]);
     return ok({
-      id: u.id, work: u.work, title: u.title, phase,
-      labels: meta.labels ?? {},
-      prev: siblings.find((s) => s.id !== u.id && s.id < u.id) ?? null,
-      next: siblings.find((s) => s.id !== u.id && s.id > u.id) ?? null,
-      passages: blocks.map((b) => {
-        const bm = parse<{ lines?: Array<{ n: string; t: string; s?: string }>; en_alt?: string; footnotes?: string[];
-          audio_en?: { key: string; voice: string; duration: number; sentences: Array<{ t: string; s: number; e: number }>;
-            words?: number[][] };
-          // the Arabic read aloud: a clip of a public recording, cut to this
-          // page, with each line's and each word's time inside the clip
-          audio_ar?: { key: string; duration: number; lines: Array<{ s: number; e: number }>; words?: number[][];
-            reader?: string; source?: string } }>(b.meta_json, {});
-        const lines = bm.lines ?? (b.text_orig ?? '').split('\n').map((t, i) => ({ n: String(i + 1), t }));
-        return {
-          id: b.id, cite: citeLabel(b.cite_raw, b.cite_end_raw),
-          // prose numbers every section; verse every fifth line
-          prose: b.block_type === 'prose', rtl: b.direction === 'rtl', lang: b.lang,
-          lines,
-          en: b.text_en, en_alt: bm.en_alt ?? null, url: b.source_url,
-          footnotes: bm.footnotes ?? [],
-          // read aloud (served by /wv/audio/:key+): the English sentence by
-          // sentence, the Arabic line by line — a line is the sentence the
-          // reader lights, in the passage's own text. `audio` is the one an
-          // older app plays (English first); `voices` carries both, so the
-          // reader can choose.
-          ...(() => {
-            const en = bm.audio_en ? { path: `audio/${bm.audio_en.key}`, duration: bm.audio_en.duration,
-                                       sentences: bm.audio_en.sentences, words: bm.audio_en.words ?? null, lang: 'en',
-                                       reader: bm.audio_en.voice ?? null, source: null } : null;
-            const ar = bm.audio_ar ? { path: `audio/${bm.audio_ar.key}`, duration: bm.audio_ar.duration,
-                                       sentences: bm.audio_ar.lines.map((w, i) => ({ t: lines[i]?.t ?? '', s: w.s, e: w.e })),
-                                       words: bm.audio_ar.words ?? null, lang: 'ar', reader: bm.audio_ar.reader ?? null,
-                                       source: bm.audio_ar.source ?? null } : null;
-            return { audio: en ?? ar, voices: { en, ar } };
-          })(),
-          note_ref: phase ? `${phaseRefPrefix(meta, phase)}:${b.id}` : `WVC:${b.id}`,
-          links: (links.get(b.id) ?? []).map((l) => shapeLink(l, me)),
-          proposals: proposals.get(b.id) ?? [],
-        };
-      }),
+      ...core,
+      passages: core.passages.map((p) => ({
+        ...p,
+        links: (links.get(p.id as string) ?? []).map((l) => shapeLink(l, me)),
+        proposals: proposals.get(p.id as string) ?? [],
+      })),
     });
   });
 
-  // The registry, for linking: matching concepts, the arc's own first.
+  // One passage's voice with all its timings — what the player needs to light
+  // the sentence and the word being read.
+  dual(router, 'get', '/corpus/blocks/:id/voice', async (req, env, { id }) => {
+    const lang = new URL(req.url).searchParams.get('lang') === 'ar' ? 'ar' : 'en';
+    const b = await queryOne<{ text_orig: string | null; meta_json: string | null }>(env.DB_WV,
+      `SELECT text_orig, meta_json FROM wv_corpus_block WHERE id = ?`, [id]);
+    if (!b) return notFound(`passage ${id}`);
+    const bm = parse<BlockMeta>(b.meta_json, {});
+    const v = voicesOf(bm, linesOf(bm, b.text_orig), true)[lang];
+    return v ? ok(v) : notFound(`${lang} voice for ${id}`);
+  });
+
   dual(router, 'get', '/concepts', async (req, env) => {
     const url = new URL(req.url);
     const q = (url.searchParams.get('q') ?? '').trim();
