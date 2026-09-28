@@ -14,6 +14,7 @@ import { SourceRepo } from '../repositories/source.repo';
 // article, a lecture — served in the Library's own shape, with how many units
 // it has), or a collection of sources (its sources are its children).
 // Items of a continuous road carry `next`, so an arc leads on to the one after it.
+// A shelf may carry its years too: an age on the road says when it is.
 
 interface AtlasRow {
   id: string; parent_id: string | null; kind: string; title: string; title_ar: string | null;
@@ -74,7 +75,8 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
 
     const rooms = rows.filter((r) => r.kind === 'room').map((room) => {
       const shelves = kids(room.id).map((s) => ({
-        id: s.id, title: s.title, title_ar: s.title_ar, tagline: s.tagline, items: items(s.id),
+        id: s.id, title: s.title, title_ar: s.title_ar, tagline: s.tagline,
+        era_from: s.era_from, era_to: s.era_to, span: s.span, items: items(s.id),
       }));
       const all = shelves.flatMap((s) => s.items);
       return {
