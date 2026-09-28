@@ -373,5 +373,35 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
   // Century by century: every dated item in the Atlas, placed in the century it
   // begins in. An item shelved in several rooms is listed once, with each shelf
   // it stands on in `shelves`; its colour is its first room's.
-  dual(router, 'get', '/atlas/centuries', async (_req, env) => ok(await cached(env, 'centuries', () => buildCenturies(env))));
+  // With ?lean=1, only the outer list — each century's label, count and the
+  // rooms it draws on; its entries come from /atlas/century?c=, when opened.
+  // Without it, every entry of every century (older app builds).
+  type Century = { century: number; entries: unknown[]; [k: string]: unknown };
+  const centuries = async (env: WorldviewEnv) =>
+    ((await cached(env, 'centuries', () => buildCenturies(env))) as { centuries: Century[] }).centuries;
+  dual(router, 'get', '/atlas/centuries', async (req, env) => {
+    if (new URL(req.url).searchParams.get('lean') !== '1') return ok({ centuries: await centuries(env) });
+    return ok({ centuries: (await centuries(env)).map(({ entries, ...c }) => ({
+      ...c, count: entries.length, entries: [],
+      preview: (entries as { item: { title: string } }[]).slice(0, 3).map((e) => e.item.title),
+    })) });
+  });
+
+  // The fields of Global Terms: every field on any shelf, once, in shelf order.
+  dual(router, 'get', '/atlas/fields', async (_req, env) => ok(await cached(env, 'fields', async () => {
+    const seen = new Set<string>();
+    const fields: unknown[] = [];
+    for (const room of await tree(env)) for (const shelf of room.shelves) for (const it of flat(shelf.items)) {
+      const slug = it.domain?.slug as string | undefined;
+      if (slug && !seen.has(slug)) { seen.add(slug); fields.push(it); }
+    }
+    return { fields };
+  })));
+
+  // One century, opened: its entries in date order.
+  dual(router, 'get', '/atlas/century', async (req, env) => {
+    const c = Number(new URL(req.url).searchParams.get('c'));
+    const one = (await centuries(env)).find((x) => x.century === c);
+    return one ? ok(one) : notFound('Atlas century');
+  });
 }

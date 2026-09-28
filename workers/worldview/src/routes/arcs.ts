@@ -92,6 +92,13 @@ async function phaseCounts(db: D1Database) {
   return m;
 }
 
+/** The phase counts, kept once per version of the corpus: counting them reads
+ *  every passage (~340k rows, ~0.8 s), and the hub and each phase want them. */
+async function keptPhaseCounts(env: WorldviewEnv) {
+  const o = await memo(env, 'corpus', 'phase-counts', async () => Object.fromEntries(await phaseCounts(env.DB_WV)));
+  return new Map(Object.entries(o));
+}
+
 function shapePhase(u: UnitRow, meta: ArcMeta, counts?: { works: number; passages: number; links: number }) {
   const um = parse<Record<string, unknown>>(u.meta_json, {});
   const L = meta.labels ?? {};
@@ -370,7 +377,7 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
     const units = await query<UnitRow>(env.DB_WV,
       `SELECT id, title, unit_index, description_md, meta_json FROM wv_source_units
         WHERE source_id = ? AND parent_id IS NULL ORDER BY unit_index`, [arc.id]);
-    const counts = await phaseCounts(env.DB_WV);
+    const counts = await keptPhaseCounts(env);
     return ok({
       id: arc.id, slug: arc.slug, title: arc.title, title_ar: arc.title_ar,
       description: arc.description_md, kicker: meta.labels?.kicker ?? null,
@@ -388,7 +395,7 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
       `SELECT id, title, unit_index, description_md, meta_json FROM wv_source_units WHERE id = ? AND source_id = ?`,
       [phase, arc.id]);
     if (!u) return notFound(`phase ${phase}`);
-    const counts = await phaseCounts(env.DB_WV);
+    const counts = await keptPhaseCounts(env);
     const works = await query<{ id: string; title: string; date_range: string | null; meta_json: string | null }>(env.DB_WV,
       `SELECT id, title, date_range, meta_json FROM wv_scriptural_corpora
         WHERE json_extract(meta_json, '$.phase') = ?
@@ -423,28 +430,33 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
     });
   });
 
-  // A book to read: its passages, each with the concepts linked to it.
-  // One book (a corpus unit) to read: its passages. The passages themselves are
-  // the same for every reader, so they are built once per version of the corpus
-  // (cache.ts); the links and proposals on them — which mark a reader's own as
-  // "mine" — are read fresh on each request. With ?lean=1 a passage's voices
-  // come without their sentence and word timings (most of the weight of a
-  // book); the player fetches those for the passage it is about to read, from
-  // /corpus/blocks/:id/voice. Without it, the older shape, `audio` included.
+  // One book (a corpus unit) to read: its passages, with the concepts linked to
+  // each and the concepts proposed for it. All of it is the same for every
+  // reader, so it is built once per version of the corpus and kept (cache.ts);
+  // only the "mine" on a link — the reader's own — is laid on per request. With
+  // ?lean=1 a passage's voices come without their sentence and word timings
+  // (most of the weight of a book); the player fetches those for the passage it
+  // is about to read, from /corpus/blocks/:id/voice. Without it, the older
+  // shape, `audio` included.
   dual(router, 'get', '/corpus/units/:unit', async (req, env, { unit }) => {
     const lean = new URL(req.url).searchParams.get('lean') === '1';
-    const core = await memo<UnitCore | null>(env, 'corpus', `unit:${unit}:${lean ? 'lean' : 'full'}`,
-      () => buildUnit(env.DB_WV, unit, lean));
-    if (!core) return notFound(`unit ${unit}`);
-    const ids = core.passages.map((p) => p.id as string);
-    const [links, proposals] = await Promise.all([linksFor(env.DB_WV, ids), proposalsFor(env.DB_WV, ids)]);
+    type Kept = UnitCore & { links: Record<string, LinkRow[]>; proposals: Record<string, unknown[]> };
+    const kept = await memo<Kept | null>(env, 'corpus', `unit:${unit}:${lean ? 'lean' : 'full'}:v2`, async () => {
+      const core = await buildUnit(env.DB_WV, unit, lean);
+      if (!core) return null;
+      const ids = core.passages.map((p) => p.id as string);
+      const [links, proposals] = await Promise.all([linksFor(env.DB_WV, ids), proposalsFor(env.DB_WV, ids)]);
+      return { ...core, links: Object.fromEntries(links), proposals: Object.fromEntries(proposals) };
+    });
+    if (!kept) return notFound(`unit ${unit}`);
+    const { links, proposals, ...core } = kept;
     const me = actorRef(req);
     return ok({
       ...core,
       passages: core.passages.map((p) => ({
         ...p,
-        links: (links.get(p.id as string) ?? []).map((l) => shapeLink(l, me)),
-        proposals: proposals.get(p.id as string) ?? [],
+        links: (links[p.id as string] ?? []).map((l) => shapeLink(l, me)),
+        proposals: proposals[p.id as string] ?? [],
       })),
     });
   });
@@ -520,22 +532,29 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
 
   // Backlinks: every passage linked to a concept, grouped by work.
   dual(router, 'get', '/concepts/:id/backlinks', async (req, env, { id }) => {
-    const c = await queryOne<{ id: string; label_en: string; label_ar: string | null; domain: string; note_md: string | null }>(env.DB_WV,
-      `SELECT id, label_en, label_ar, domain, note_md FROM core_concept WHERE id = ?`, [id]);
-    if (!c) return notFound(`concept ${id}`);
-    const rows = await query<LinkRow & { cite_raw: string; cite_end_raw: string | null; unit: string; work_id: string; work: string; phase: string | null; en: string | null; lines: string | null }>(env.DB_WV,
-      `SELECT l.id, l.entity_id, l.al_concept_ref, l.link_type, l.note, l.quote, l.core_user_ref,
-              NULL AS label_en, NULL AS label_ar, NULL AS domain,
-              b.cite_raw, b.cite_end_raw, b.corpus_unit_id AS unit, c.id AS work_id, c.title AS work,
-              json_extract(c.meta_json, '$.phase') AS phase, substr(b.text_en, 1, 220) AS en,
-              json_extract(b.meta_json, '$.lines[0].t') AS lines
-         FROM wv_term_links l
-         JOIN wv_corpus_block b ON b.id = l.entity_id
-         JOIN wv_scriptural_corpora c ON c.id = b.corpus_id
-        WHERE l.al_concept_ref = ? AND l.entity_type = 'corpus_block'
-        ORDER BY c.id, b.cite_sort`, [id]);
-    const positions = await queryOne<{ n: number }>(env.DB_WV,
-      `SELECT count(*) AS n FROM wv_value_positions WHERE concept_ref = ?`, [id]);
+    type Row = LinkRow & { cite_raw: string; cite_end_raw: string | null; unit: string; work_id: string; work: string; phase: string | null; en: string | null; lines: string | null };
+    type C = { id: string; label_en: string; label_ar: string | null; domain: string; note_md: string | null };
+    const kept = await memo<{ c: C; rows: Row[]; positions: number } | null>(env, 'corpus', `backlinks:${id}`, async () => {
+      const c = await queryOne<C>(env.DB_WV,
+        `SELECT id, label_en, label_ar, domain, note_md FROM core_concept WHERE id = ?`, [id]);
+      if (!c) return null;
+      const rows = await query<Row>(env.DB_WV,
+        `SELECT l.id, l.entity_id, l.al_concept_ref, l.link_type, l.note, l.quote, l.core_user_ref,
+                NULL AS label_en, NULL AS label_ar, NULL AS domain,
+                b.cite_raw, b.cite_end_raw, b.corpus_unit_id AS unit, c.id AS work_id, c.title AS work,
+                json_extract(c.meta_json, '$.phase') AS phase, substr(b.text_en, 1, 220) AS en,
+                json_extract(b.meta_json, '$.lines[0].t') AS lines
+           FROM wv_term_links l
+           JOIN wv_corpus_block b ON b.id = l.entity_id
+           JOIN wv_scriptural_corpora c ON c.id = b.corpus_id
+          WHERE l.al_concept_ref = ? AND l.entity_type = 'corpus_block'
+          ORDER BY c.id, b.cite_sort`, [id]);
+      const positions = await queryOne<{ n: number }>(env.DB_WV,
+        `SELECT count(*) AS n FROM wv_value_positions WHERE concept_ref = ?`, [id]);
+      return { c, rows, positions: positions?.n ?? 0 };
+    });
+    if (!kept) return notFound(`concept ${id}`);
+    const { c, rows, positions } = kept;
     const me = actorRef(req);
     const works = new Map<string, { id: string; title: string; phase: string | null; passages: unknown[] }>();
     for (const r of rows) {
@@ -548,7 +567,7 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
     }
     return ok({
       id: c.id, label: c.label_en, label_ar: c.label_ar, domain: c.domain, note: c.note_md,
-      total: rows.length, positions: positions?.n ?? 0, works: [...works.values()],
+      total: rows.length, positions, works: [...works.values()],
     });
   });
 

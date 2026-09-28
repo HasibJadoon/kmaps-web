@@ -85,5 +85,8 @@ insightRoutes(router);
 
 export default {
   // public reads are served once per version of their data (cache.ts); writes drop them
-  fetch: (request: Request, env: WorldviewEnv) => withCache(request, env, (r) => router.handle(r, env)),
+  fetch: (request: Request, env: WorldviewEnv, ctx: ExecutionContext) => {
+    const e: WorldviewEnv = { ...env, CTX: ctx };
+    return withCache(request, e, (r) => router.handle(r, e));
+  },
 } satisfies ExportedHandler<WorldviewEnv>;

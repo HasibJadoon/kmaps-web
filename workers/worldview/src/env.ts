@@ -11,5 +11,9 @@ export interface WorldviewEnv {
   QURAN?: Fetcher;
   CORE?: Fetcher;
 
+  /// This request's context, set per request in index.ts — so a kept answer
+  /// can be checked and rebuilt after the response has gone (cache.ts).
+  CTX?: ExecutionContext;
+
   JWT_SECRET?: string;
 }

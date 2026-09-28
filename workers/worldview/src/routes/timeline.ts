@@ -53,10 +53,30 @@ export function timelineRoutes(router: Router<WorldviewEnv>) {
       const n = Number(raw);
       return Number.isFinite(n) ? n : null;
     };
-    const from = num('from');
-    const to = num('to');
+    let from = num('from');
+    let to = num('to');
     const tradition = url.searchParams.get('tradition');
-    const type = url.searchParams.get('type');
+    let type = url.searchParams.get('type');
+
+    // ?view=<id>: one named timeline, cut here — its own events, or its filter —
+    // so a reader downloads that story and not the whole record.
+    const viewId = url.searchParams.get('view');
+    if (viewId) {
+      const v = await queryOne<{ event_ids_json: string | null; filter_json: string | null }>(env.DB_WV,
+        `SELECT event_ids_json, filter_json FROM wv_timeline_views WHERE id = ? OR slug = ?`, [viewId, viewId]);
+      if (!v) return notFound(`timeline view ${viewId}`);
+      let ids: string[] = [];
+      try { ids = JSON.parse(v.event_ids_json ?? '[]'); } catch { ids = []; }
+      if (ids.length) {
+        conds.push(`id IN (SELECT value FROM json_each(?))`); params.push(JSON.stringify(ids));
+      } else {
+        let f: { type?: string; from?: number; to?: number } = {};
+        try { f = JSON.parse(v.filter_json ?? '{}'); } catch { f = {}; }
+        type = type ?? f.type ?? null;
+        from = from ?? (typeof f.from === 'number' ? f.from : null);
+        to = to ?? (typeof f.to === 'number' ? f.to : null);
+      }
+    }
     if (from !== null) { conds.push(`${PLOT_YEAR} >= ?`); params.push(from); }
     if (to !== null) { conds.push(`${PLOT_YEAR} <= ?`); params.push(to); }
     if (tradition) { conds.push('tradition_id = ?'); params.push(tradition); }
