@@ -95,35 +95,4 @@ export function positionRoutes(router: Router<WorldviewEnv>) {
     });
   });
 
-  router.get('/wv/positions/contrast/:surah/:range', async (_req, env, { surah, range }) => {
-    const [fromStr, toStr] = String(range).split('-');
-    const ayahFrom = Number(fromStr);
-    const ayahTo   = Number(toStr ?? fromStr);
-    if (!Number.isFinite(ayahFrom)) return badRequest('range must look like 2-6');
-
-    const rows = await query<{
-      claim_id: string; claim: string; claim_summary: string | null;
-      counter_id: string; counter: string; counter_summary: string | null;
-    }>(
-      env.DB_WV,
-      `SELECT l.id AS claim_id,   l.title AS claim,   l.summary AS claim_summary,
-              k.id AS counter_id, k.title AS counter, k.summary AS counter_summary
-         FROM wv_node_edges e
-         JOIN wv_nodes k ON k.id = e.from_node_id
-         JOIN wv_nodes l ON l.id = e.to_node_id
-        WHERE e.relation_type = 'rebuts'
-          AND l.id LIKE ?
-        ORDER BY l.id`,
-      [`wv_node_qs${surah}_${ayahFrom}_${ayahTo}_%`],
-    );
-
-    return ok({
-      surah: Number(surah), ayahFrom, ayahTo,
-      scopeRef: `${surah}:${ayahFrom}-${ayahTo}`,
-      pairs: rows,
-
-      sides: { claim: 'Qurʾānic reading', counter: 'Secular reading' },
-    });
-  });
-
 }
