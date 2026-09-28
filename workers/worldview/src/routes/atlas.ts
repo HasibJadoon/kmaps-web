@@ -165,10 +165,20 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
       list.push({ item: v.item, shelves: v.shelves, era_from: (v.item as { era_from: number }).era_from });
       groups.set(v.century, list);
     }
-    const centuries = [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([c, list]) => ({
-      century: c, ...centuryLabel(c),
-      entries: list.sort((a, b) => a.era_from - b.era_from).map(({ item, shelves }) => ({ item, shelves })),
-    }));
+    const centuries = [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([c, list]) => {
+      // which rooms the century's entries come from, most first — the outer list shows this
+      const rooms = new Map<string, { room: string; color: string; count: number }>();
+      for (const e of list) {
+        const s = e.shelves[0] as { room: string; color: string };
+        const r = rooms.get(s.room) ?? { room: s.room, color: s.color, count: 0 };
+        r.count += 1; rooms.set(s.room, r);
+      }
+      return {
+        century: c, ...centuryLabel(c),
+        rooms: [...rooms.values()].sort((a, b) => b.count - a.count),
+        entries: list.sort((a, b) => a.era_from - b.era_from).map(({ item, shelves }) => ({ item, shelves })),
+      };
+    });
     return ok({ centuries });
   });
 }
