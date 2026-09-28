@@ -4,6 +4,7 @@ import { readJsonObject } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
 import { UserRepo } from '../repositories/user.repo';
 import { issueSessionToken } from '../jwt';
+import { startSession, deviceInfoOf } from './auth';
 import { verifyGoogleIdToken, verifyAppleIdToken, type OAuthIdentity } from '../oauth/verify';
 import type { User } from '../schemas/user.schema';
 
@@ -26,8 +27,9 @@ function displayNameFor(identity: OAuthIdentity): string {
 async function loginWithIdentity(
   env: CoreEnv,
   identity: OAuthIdentity,
+  body: Record<string, unknown>,
   nameOverride?: string,
-): Promise<Response> {
+): Promise<Response | Record<string, unknown>> {
   const repo = new UserRepo(env.DB_CORE);
   let user: User | null = await repo.findByOAuthSubject(identity.provider, identity.subject);
 
@@ -60,8 +62,12 @@ async function loginWithIdentity(
 
   const expiry = parseInt(env.JWT_EXPIRY_SECONDS ?? '3600', 10);
   const { token, expires_in } = await issueSessionToken(user, env.JWT_SECRET, expiry, { db: env.DB_CORE });
-  return ok({ token, expires_in, user });
+  // a refresh session too, so the app stays signed in past the hour
+  const refresh_token = await startSession(env, user.id, body['client'] === 'web' ? 'web' : 'mobile', deviceInfoOf(body));
+  return { token, expires_in, refresh_token, user };
 }
+
+const respond = (r: Response | Record<string, unknown>) => (r instanceof Response ? r : ok(r));
 
 export function oauthRoutes(router: Router<CoreEnv>) {
 
@@ -94,7 +100,7 @@ export function oauthRoutes(router: Router<CoreEnv>) {
 
     const identity = await verifyGoogleIdToken(idToken, ids);
     if (!identity) return unauthorized('Google token could not be verified');
-    return loginWithIdentity(env, identity);
+    return respond(await loginWithIdentity(env, identity, body ?? {}));
   });
 
   router.post('/core/auth/oauth/apple', async (req, env) => {
@@ -108,6 +114,6 @@ export function oauthRoutes(router: Router<CoreEnv>) {
 
     const identity = await verifyAppleIdToken(idToken, ids);
     if (!identity) return unauthorized('Apple token could not be verified');
-    return loginWithIdentity(env, identity, name);
+    return respond(await loginWithIdentity(env, identity, body ?? {}, name));
   });
 }
