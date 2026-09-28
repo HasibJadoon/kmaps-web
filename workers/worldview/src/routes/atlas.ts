@@ -94,7 +94,8 @@ function shelfSpan(s: AtlasRow, items: { era_from: number | null; era_to: number
   const to = items.map((i) => i.era_to ?? i.era_from).filter((y): y is number => y != null);
   if (!from.length) return { era_from: null, era_to: null, span: null };
   const a = Math.min(...from), b = Math.max(...to);
-  const span = a < 0 && b > 0 ? `${yearText(a)} – AD ${yearText(b)}` : `${yearText(a)} – ${yearText(b)}`;
+  // AD only marks a number after a BC start; "today" needs no era
+  const span = a < 0 && b > 0 && b < 2025 ? `${yearText(a)} – AD ${yearText(b)}` : `${yearText(a)} – ${yearText(b)}`;
   return { era_from: a, era_to: b, span };
 }
 
