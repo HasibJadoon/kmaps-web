@@ -46,8 +46,18 @@ async function loadAtlas(env: WorldviewEnv) {
     const card = new Map(cards.map((c) => [c.id, c]));
     const field = new Map(fields.map((f) => [f.slug, f]));
     const kids = (id: string) => rows.filter((r) => r.parent_id === id);
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const meta = (r: AtlasRow): { ref?: string; view?: string[] } => {
+      if (!r.meta_json) return {};
+      try { return JSON.parse(r.meta_json); } catch { return {}; }
+    };
 
-    const item = (r: AtlasRow) => {
+    const item = (r: AtlasRow): any => {
+      // a link: the thing itself, from its one home
+      if (r.kind === 'ref') {
+        const target = meta(r).ref ? byId.get(meta(r).ref as string) : undefined;
+        return target ? item(target) : null;
+      }
       const base = { id: r.id, kind: r.kind, status: r.status, next: r.next_id, era_from: r.era_from, era_to: r.era_to };
       if (r.kind === 'arc' && r.arc_id && card.has(r.arc_id)) {
         const { shelf: _s, order: _o, ...c } = card.get(r.arc_id) as ArcCardOut;
@@ -70,12 +80,71 @@ async function loadAtlas(env: WorldviewEnv) {
         return { ...base, title: r.title, title_ar: r.title_ar, tagline: r.tagline, span: `${members.length} books`,
                  sources: members };
       }
-      // a planned strand carries its researched detail (summary, figures, works, themes, sources)
-      let detail: unknown = null;
-      if (r.kind === 'planned' && r.meta_json) { try { detail = JSON.parse(r.meta_json); } catch { detail = null; } }
-      return { ...base, title: r.title, title_ar: r.title_ar, tagline: r.tagline, span: r.span, way: r.way, detail };
+      // a group: a timeline within the timeline
+      if (r.kind === 'group') {
+        const members = kids(r.id).map(item).filter((x) => x != null);
+        return { ...base, title: r.title, title_ar: r.title_ar, tagline: r.tagline, span: r.span, items: members };
+      }
+      // a planned strand carries only a note of its researched detail here — whether it has one, and
+      // how many figures and works; the detail itself comes from GET /atlas/detail when it is opened
+      let overview: { figures: number; works: number } | null = null;
+      if (r.kind === 'planned' && r.meta_json) {
+        try {
+          const d = JSON.parse(r.meta_json);
+          if (d?.summary) overview = { figures: d.figures?.length ?? 0, works: d.works?.length ?? 0 };
+        } catch { overview = null; }
+      }
+      return { ...base, title: r.title, title_ar: r.title_ar, tagline: r.tagline, span: r.span, way: r.way, overview };
     };
-    return { rows, item, kids };
+    // An age holds nothing of its own. It is a view: its years, and the shelves it
+    // gathers from. Each source shelf becomes a group (a shelf with groups gives
+    // one per group), holding only what overlaps the age's years. A thing shown
+    // once in an age is not shown again further down it.
+    const ageView = (age: AtlasRow) => {
+      const e0 = age.era_from ?? -1e6, e1 = age.era_to ?? 1e6;
+      const shown = new Set<string>();
+      const inAge = (i: any) => {
+        if (i == null || (i.kind !== 'planned' && i.kind !== 'arc') || i.era_from == null) return false;
+        const to = i.era_to ?? i.era_from;
+        return i.era_from <= e1 && to >= e0 && !shown.has(i.id);
+      };
+      const make = (id: string, src: AtlasRow, path: string, members: AtlasRow[]) => {
+        const list = members.map(item).filter(inAge).sort((a: any, b: any) => a.era_from - b.era_from);
+        if (!list.length) return null;
+        list.forEach((i: any) => shown.add(i.id));
+        const sp = shelfSpan({ ...src, span: null } as AtlasRow, list);
+        return { id, kind: 'group', status: 'live', next: null, era_from: sp.era_from, era_to: sp.era_to,
+                 title: src.title, title_ar: src.title_ar, tagline: path, span: sp.span, items: list };
+      };
+      const out: any[] = [];
+      for (const srcId of meta(age).view ?? []) {
+        const src = byId.get(srcId);
+        if (!src) continue;
+        const room = src.parent_id ? byId.get(src.parent_id) : undefined;
+        if (src.kind === 'shelf') {
+          const direct = kids(src.id).filter((k) => k.kind !== 'group');
+          const g = make(`${age.id}~${src.id}`, src, room?.title ?? '', direct);
+          if (g) out.push(g);
+          for (const sub of kids(src.id).filter((k) => k.kind === 'group')) {
+            const gg = make(`${age.id}~${sub.id}`, sub, `${room?.title ?? ''} › ${src.title}`, kids(sub.id));
+            if (gg) out.push(gg);
+          }
+        } else if (src.kind === 'group') {
+          const gg = make(`${age.id}~${src.id}`, src, room?.title ?? '', kids(src.id));
+          if (gg) out.push(gg);
+        }
+      }
+      return out;
+    };
+
+    return { rows, item, kids, meta, ageView };
+}
+
+// Items of a shelf with its groups opened, each thing once — for counting.
+function flat(items: any[]): any[] {
+  const seen = new Set<string>();
+  const walk = (xs: any[]): any[] => xs.flatMap((i) => (i.kind === 'group' ? walk(i.items ?? []) : [i]));
+  return walk(items).filter((i) => (seen.has(i.id) ? false : (seen.add(i.id), true)));
 }
 
 // A year → its century: 1..n for AD, -1..-n for BC (there is no year 0).
@@ -114,15 +183,15 @@ function centuryLabel(c: number) {
 
 export function atlasRoutes(router: Router<WorldviewEnv>) {
   dual(router, 'get', '/atlas', async (_req, env) => {
-    const { rows, item, kids } = await loadAtlas(env);
+    const { rows, item, kids, meta, ageView } = await loadAtlas(env);
     const items = (parent: string) => kids(parent).map(item).filter((x) => x != null);
 
     const rooms = rows.filter((r) => r.kind === 'room').map((room) => {
       const shelves = kids(room.id).map((s) => {
-        const its = items(s.id);
+        const its = meta(s).view ? ageView(s) : items(s.id);
         return { id: s.id, title: s.title, title_ar: s.title_ar, tagline: s.tagline, ...shelfSpan(s, its), items: its };
       });
-      const all = shelves.flatMap((s) => s.items);
+      const all = flat(shelves.flatMap((s) => s.items));
       return {
         id: room.id, title: room.title, title_ar: room.title_ar, tagline: room.tagline,
         color: room.color ?? '#D8B657', icon: room.icon ?? 'circle', layout: room.layout ?? 'shelves',
@@ -139,6 +208,16 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
     return ok({ rooms });
   });
 
+  // One strand's researched detail: summary, figures, works, themes, sources.
+  dual(router, 'get', '/atlas/detail', async (req, env) => {
+    const id = new URL(req.url).searchParams.get('id') ?? '';
+    const rows = await query<{ meta_json: string | null }>(env.DB_WV,
+      `SELECT meta_json FROM wv_atlas WHERE id = ? AND kind = 'planned'`, [id]);
+    let detail: unknown = null;
+    try { detail = rows[0]?.meta_json ? JSON.parse(rows[0].meta_json) : null; } catch { detail = null; }
+    return ok({ id, detail });
+  });
+
   // Century by century: every dated item in the Atlas, placed in the century it
   // begins in. An item shelved in several rooms is listed once, with each shelf
   // it stands on in `shelves`; its colour is its first room's.
@@ -148,10 +227,13 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
     const seen = new Map<string, { item: NonNullable<ReturnType<typeof item>>; century: number; shelves: { id: string; title: string; room: string; color: string }[] }>();
     for (const r of rows) {
       if (r.era_from == null || (r.kind !== 'planned' && r.kind !== 'arc')) continue;
-      const shelf = r.parent_id ? byId.get(r.parent_id) : undefined;
+      let shelf = r.parent_id ? byId.get(r.parent_id) : undefined;
+      const grp = shelf?.kind === 'group' ? shelf : undefined;
+      if (grp) shelf = grp.parent_id ? byId.get(grp.parent_id) : undefined;
       const room = shelf?.parent_id ? byId.get(shelf.parent_id) : undefined;
       if (!shelf || !room || shelf.kind !== 'shelf') continue;
-      const where = { id: shelf.id, title: shelf.title, room: room.title, color: room.color ?? '#D8B657' };
+      const where = { id: shelf.id, title: grp ? `${shelf.title} › ${grp.title}` : shelf.title,
+                      room: room.title, color: room.color ?? '#D8B657' };
       const key = r.kind === 'arc' && r.arc_id ? r.arc_id : `${r.title.toLowerCase()}|${r.era_from}`;
       const had = seen.get(key);
       if (had) { had.shelves.push(where); continue; }
