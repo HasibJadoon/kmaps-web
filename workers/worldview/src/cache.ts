@@ -86,6 +86,14 @@ const CACHEABLE: Array<[RegExp, Family]> = [
   [/^\/concepts$/, 'store'],
   [/^\/graphs$/, 'store'],
   [/^\/maps$/, 'store'],
+  [/^\/sources$/, 'store'],
+  [/^\/sources\/[^/]+$/, 'store'],
+  [/^\/traditions$/, 'store'],
+  [/^\/authors\/[^/]+$/, 'store'],
+  [/^\/regions$/, 'store'],
+  [/^\/periods$/, 'store'],
+  [/^\/moral\/(axes|virtues|vices)$/, 'store'],
+  [/^\/registry\/people$/, 'store'],
 ];
 
 function route(url: URL): { family: Family; key: string } | null {

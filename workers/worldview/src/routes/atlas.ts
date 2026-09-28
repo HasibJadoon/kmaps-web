@@ -300,30 +300,36 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
   dual(router, 'get', '/atlas', async (_req, env) => ok(await cached(env, 'atlas', () => buildAtlas(env))));
 
   // The home: the rooms, with their counts; no shelves.
-  dual(router, 'get', '/atlas/home', async (_req, env) => {
-    const { rooms } = (await cached(env, 'atlas', () => buildAtlas(env))) as { rooms: Room[] };
-    return ok({ rooms: rooms.map((r) => ({ ...r, shelf_count: r.shelves.length, shelves: [] })) });
-  });
+  // Each slice is kept on its own too, so a fresh isolate reads a few KB,
+  // not the whole built tree.
+  const tree = async (env: WorldviewEnv) => ((await cached(env, 'atlas', () => buildAtlas(env))) as { rooms: Room[] }).rooms;
+
+  dual(router, 'get', '/atlas/home', async (_req, env) => ok(await cached(env, 'home', async () => ({
+    rooms: (await tree(env)).map((r) => ({ ...r, shelf_count: r.shelves.length, shelves: [] })),
+  }))));
 
   // A room: its shelves as cards (count, live, a preview) — items only for a
   // room laid out as tiles, whose screen shows them directly.
   dual(router, 'get', '/atlas/room', async (req, env) => {
     const id = new URL(req.url).searchParams.get('id') ?? '';
-    const { rooms } = (await cached(env, 'atlas', () => buildAtlas(env))) as { rooms: Room[] };
-    const room = rooms.find((r) => r.id === id);
-    if (!room) return notFound('Atlas room');
-    return ok({ room: { ...room, shelves: room.shelves.map((s) => shelfCard(s, room.layout === 'tiles')) } });
+    const slice = await cached(env, `room:${id}`, async () => {
+      const room = (await tree(env)).find((r) => r.id === id);
+      return room ? { room: { ...room, shelves: room.shelves.map((s) => shelfCard(s, room.layout === 'tiles')) } } : {};
+    });
+    return slice.room ? ok(slice) : notFound('Atlas room');
   });
 
   // A shelf (or an age): everything on it.
   dual(router, 'get', '/atlas/shelf', async (req, env) => {
     const id = new URL(req.url).searchParams.get('id') ?? '';
-    const { rooms } = (await cached(env, 'atlas', () => buildAtlas(env))) as { rooms: Room[] };
-    for (const room of rooms) {
-      const shelf = room.shelves.find((s) => s.id === id);
-      if (shelf) return ok({ shelf, room: { id: room.id, title: room.title, color: room.color } });
-    }
-    return notFound('Atlas shelf');
+    const slice = await cached(env, `shelf:${id}`, async () => {
+      for (const room of await tree(env)) {
+        const shelf = room.shelves.find((s) => s.id === id);
+        if (shelf) return { shelf, room: { id: room.id, title: room.title, color: room.color } };
+      }
+      return {};
+    });
+    return slice.shelf ? ok(slice) : notFound('Atlas shelf');
   });
 
   // Search the Atlas by name, Arabic name, line or years. Ages are views of the
