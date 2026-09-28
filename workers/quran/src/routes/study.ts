@@ -2,6 +2,8 @@ import type { Router } from '../../../shared/src/router';
 import { ok, notFound, badRequest } from '../../../shared/src/response';
 import { parseIntParam } from '../../../shared/src/validate';
 import { cached } from '../../../shared/src/cache';
+import { familyVersionsNow } from '../../../shared/src/swr';
+import { FAMILIES } from '../cache-families';
 import type { QuranEnv } from '../env';
 import {
   StudyRepo,
@@ -30,12 +32,16 @@ const AUTHORED_TTL = { browser: 30, edge: 60 };
 
 export function studyRoutes(router: Router<QuranEnv>) {
 
-  router.get('/qr/corpus-version', (req, env) =>
-    cached(req, async () => {
-      const row = await new StudyRepo(env.DB_QR).corpusVersion();
-      return ok(row);
-    }, { browser: 300, edge: 300 }),
-  );
+  // The version beacon the app checks at launch and on return: the authored
+  // row, and each cache family's version (cache-families.ts). Never kept — it
+  // is how everything kept learns it is out of date.
+  router.get('/qr/corpus-version', async (_req, env) => {
+    const [row, families] = await Promise.all([
+      new StudyRepo(env.DB_QR).corpusVersion(), familyVersionsNow(env.DB_QR, FAMILIES)]);
+    const res = ok({ ...row, version: `${row.version}|${families.books}|${families.rest}`, families });
+    res.headers.set('Cache-Control', 'max-age=30');
+    return res;
+  });
 
   router.get('/qr/study/surahs/:surahId', (req, env, { surahId }) =>
     cached(req, async () => {

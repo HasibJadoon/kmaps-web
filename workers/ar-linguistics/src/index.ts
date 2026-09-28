@@ -1,4 +1,5 @@
-import { withSwr, type SwrRoute } from '../../shared/src/swr';
+import { withSwr, familyVersionsNow, type SwrRoute } from '../../shared/src/swr';
+import { FAMILIES } from './cache-families';
 import { Router } from '../../shared/src/router';
 import { sense, readRows, type SenseRequest, type RowsRequest } from '../../shared/src/sense';
 import { dbHealth } from '../../shared/src/http';
@@ -37,6 +38,13 @@ router.get('/health', async (_req, env) =>
 // The gateway forwards /api/<module>/… with the module segment intact, so a
 // worker only ever sees a prefixed path. Bare /health is reachable over the
 // service binding but 404s from outside; this alias is the public one.
+// The version beacon (see quran /qr/corpus-version): never kept.
+router.get('/al/corpus-version', async (_req, env) => {
+  const families = await familyVersionsNow(env.DB_AL, FAMILIES);
+  return new Response(JSON.stringify({ ok: true, data: { version: `${families.books}|${families.rest}`, families } }),
+    { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'max-age=30' } });
+});
+
 router.get('/al/health', async (_req, env) =>
   ok({ domain: 'ar-linguistics', db: 'DB_AL', db_ok: await dbHealth(env.DB_AL) }),
 );
@@ -90,17 +98,21 @@ router.post('/al/internal/sense', async (req, env) => {
 // ── Which reads are kept, and for how long (shared/src/swr.ts) ────────────────
 // Every AL read is the same for every reader. A response that says nothing
 // about its freshness is one a client caches by guesswork (a phone once kept an
-// old بين for hours), so every answer says it: kept reads carry their windows
-// and an ETag; everything else is no-store.
-//   authored — the lexicon, grammar, balāgha and the rest the builders are
-//              still writing: fresh a minute, then served while rebuilt
-//              behind; gone after an hour.
-//   stable   — the registry's layer model: fresh a day; a week.
-const AUTHORED = { fresh: 60, stale: 3600 };
-const STABLE = { fresh: 86400, stale: 7 * 86400 };
+// old بين for hours), so every answer says it: kept reads carry their windows,
+// an ETag, and a key on the version of the tables they read (cache-families.ts)
+// — a write moves it, and the next read rebuilds. ?refresh=1 rebuilds at once.
+// Everything not kept is no-store.
+//   books — the lexicon books (lex/v2, Lane, Lisān, Mufradāt readers, the
+//           book headers) and the grammar books: kept a month.
+//   mixed — everything else (registry, roots, lemmas, word analysis…), on
+//           every table's version: a day, then rebuilt behind, a month at most.
+const BOOKS = { fresh: 30 * 86400, stale: 90 * 86400, family: 'books' };
+const MIXED = { fresh: 86400, stale: 30 * 86400, family: ['books', 'rest'] };
 const KEPT: SwrRoute[] = [
-  { re: /^\/al\/registry\/layer-model$/, ...STABLE },
-  { re: /^\/al\/(?!health)[a-z_-]+(\/|$)/, ...AUTHORED },
+  { re: /^\/al\/lex\/v2\//, ...BOOKS },
+  { re: /^\/al\/gram\//, ...BOOKS },
+  { re: /^\/al\/lexicon\/(blocks\/[^/]+\/backlinks|[^/]+\/[^/]+\/header)$/, ...BOOKS },
+  { re: /^\/al\/(?!health|corpus-version)[a-z_-]+(\/|$)/, ...MIXED },
 ];
 
 export default {
@@ -110,5 +122,5 @@ export default {
       const headers = new Headers(res.headers);
       headers.set('Cache-Control', 'no-store');
       return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
-    }, 'x-al-cache'),
+    }, { tag: 'x-al-cache', db: env.DB_AL, families: FAMILIES }),
 } satisfies ExportedHandler<ArLinguisticsEnv>;

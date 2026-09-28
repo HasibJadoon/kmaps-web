@@ -1,4 +1,6 @@
 import { Router } from '../../shared/src/router';
+import { withSwr, familyVersionsNow, type SwrRoute } from '../../shared/src/swr';
+import { FAMILIES } from './cache-families';
 import { dbHealth } from '../../shared/src/http';
 import { ok } from '../../shared/src/response';
 import type { ArabicEnv } from './env';
@@ -47,6 +49,28 @@ grammarRoutes(router);
 exerciseRoutes(router);
 dailyRoutes(router);
 
+// The version beacon the app checks at launch and on return: never kept.
+router.get('/ar/corpus-version', async (_req, env) => {
+  const families = await familyVersionsNow(env.DB_AR, FAMILIES);
+  const res = ok({ version: families.content, families });
+  res.headers.set('Cache-Control', 'max-age=30');
+  return res;
+});
+
+// ── Which reads are kept, and for how long (shared/src/swr.ts) ────────────────
+// The public side of Arabic — the curriculum, lessons, texts, the library, the
+// acquisition shelf, the daily themes — is the same for every reader, so it is
+// kept a month, keyed on the content version (cache-families.ts): a write to
+// any content table moves it, and the next read rebuilds. The learner's own
+// side (today, progress, reading state, SRS) and the audio streams are never
+// kept.
+const CONTENT = { fresh: 30 * 86400, stale: 90 * 86400, family: 'content' };
+const KEPT: SwrRoute[] = [
+  { re: /^\/ar\/(acq|text|sources|disciplines|curriculum|nodes|tracks|terms|lessons)(\/|$)/, ...CONTENT },
+  { re: /^\/ar\/daily\/(themes|domains)(\/|$)/, ...CONTENT },
+];
+
 export default {
-  fetch: (request: Request, env: ArabicEnv) => router.handle(request, env),
+  fetch: (request: Request, env: ArabicEnv, ctx: ExecutionContext) =>
+    withSwr(request, ctx, KEPT, (r) => router.handle(r, env), { tag: 'x-ar-cache', db: env.DB_AR, families: FAMILIES }),
 } satisfies ExportedHandler<ArabicEnv>;

@@ -31,7 +31,9 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     // a player cannot send one. It refuses everything without a signature the
     // arabic worker minted for that one key, behind the token, an hour ago.
     // Its sibling 'ar/vendor-audio', which mints them, is deliberately not here.
-    publicGetPaths: ['ar/acq', 'ar/text', 'ar/audio', 'ar/vendor-stream', 'ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons', 'ar/daily/themes', 'ar/daily/domains'],
+    // 'ar/corpus-version' is the cache-version beacon: two timestamps, nothing
+    // about anyone; the app reads it before it has a session.
+    publicGetPaths: ['ar/corpus-version', 'ar/acq', 'ar/text', 'ar/audio', 'ar/vendor-stream', 'ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons', 'ar/daily/themes', 'ar/daily/domains'],
   },
   al:   { binding: 'AR_LINGUISTICS', publicGet: true  },
   cm:   {
