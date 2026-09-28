@@ -174,6 +174,57 @@ const shapeLink = (l: LinkRow, me: string | null) => ({
   domain: l.domain, quote: l.quote, note: l.note, mine: !!me && l.core_user_ref === me,
 });
 
+export interface ArcCardOut {
+  id: string; slug: string | null; title: string; title_ar: string | null; kicker: string | null;
+  tagline: string | null; span: string | null; language: string | null; description: string | null;
+  phases: Array<{ id: string; title: string; color: string }>;
+  stats: { phases: number; works: number; passages: number } | null; measure: string | null;
+  next: { id: string; title: string } | null; prev: { id: string; title: string } | null;
+  shelf: { key: string; title: string; note: string | null; order: number };
+  order: number;
+}
+
+/** Every arc as its card shows it — from meta_json.card, written by kmaps-database
+ *  arc_cards.py — so nothing is counted per request. Shared by /arcs and /atlas. */
+export async function arcCards(db: D1Database): Promise<ArcCardOut[]> {
+  const arcs = await query<SourceRow & { language: string | null }>(db,
+    `SELECT id, slug, title, title_ar, description_md, meta_json, language FROM wv_sources WHERE source_type = 'arc'`);
+  const phases = await query<{ id: string; source_id: string; title: string | null; unit_index: number | null }>(db,
+    `SELECT u.id, u.source_id, u.title, u.unit_index FROM wv_source_units u
+       JOIN wv_sources s ON s.id = u.source_id AND s.source_type = 'arc'
+      WHERE u.parent_id IS NULL AND u.unit_type = 'phase' ORDER BY u.source_id, u.unit_index`);
+  const titles = new Map(arcs.map((a) => [a.id, a.title]));
+  const metas = new Map(arcs.map((a) => [a.id, parse<ArcMeta & { card?: ArcCard }>(a.meta_json, {})]));
+  return arcs.map((a) => {
+    const meta = metas.get(a.id)!;
+    const c = meta.card ?? {};
+    const L = meta.labels ?? {};
+    const s = c.stats;
+    const fmt = (key: string, n: number) => count(L, key, n).replace(String(n), n.toLocaleString('en-US'));
+    const measure = s ? [
+      `${s.phases} ${s.phases === 1 ? 'phase' : 'phases'}`,
+      s.works ? fmt('works', s.works) : null,
+      s.passages ? fmt('passages', s.passages) : null,
+    ].filter(Boolean).join(' · ') : null;
+    const prev = arcs.find((o) => metas.get(o.id)?.card?.next === a.id);
+    return {
+      id: a.id, slug: a.slug, title: a.title, title_ar: a.title_ar,
+      kicker: L.kicker ?? null,
+      tagline: c.tagline ?? null, span: c.span ?? null, language: a.language,
+      description: a.description_md,
+      phases: phases.filter((p) => p.source_id === a.id).map((p) => ({
+        id: p.id, title: splitTitle(p.title).title,
+        color: meta.phase_style?.[p.id]?.color ?? '#D8B657',
+      })),
+      stats: s ?? null, measure,
+      next: c.next && titles.has(c.next) ? { id: c.next, title: titles.get(c.next)! } : null,
+      prev: prev ? { id: prev.id, title: prev.title } : null,
+      shelf: { key: c.shelf?.key ?? 'more', title: c.shelf?.title ?? 'More', note: c.shelf?.note ?? null, order: c.shelf?.order ?? 99 },
+      order: c.order ?? 99,
+    };
+  });
+}
+
 export function arcRoutes(router: Router<WorldviewEnv>) {
 
   // One search box for the whole of Worldview: arcs, their phases, the works
@@ -219,49 +270,19 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
   // scripts/greek/arc_cards.py counts them), so nothing is counted here; an
   // arc without a card stands on “More”.
   dual(router, 'get', '/arcs', async (_req, env) => {
-    const arcs = await query<SourceRow & { language: string | null }>(env.DB_WV,
-      `SELECT id, slug, title, title_ar, description_md, meta_json, language FROM wv_sources WHERE source_type = 'arc'`);
-    const phases = await query<{ id: string; source_id: string; title: string | null; unit_index: number | null }>(env.DB_WV,
-      `SELECT u.id, u.source_id, u.title, u.unit_index FROM wv_source_units u
-         JOIN wv_sources s ON s.id = u.source_id AND s.source_type = 'arc'
-        WHERE u.parent_id IS NULL AND u.unit_type = 'phase' ORDER BY u.source_id, u.unit_index`);
-    const titles = new Map(arcs.map((a) => [a.id, a.title]));
-    const shelves = new Map<string, { key: string; title: string; note: string | null; order: number; arcs: Array<Record<string, unknown> & { order: number }> }>();
-    for (const a of arcs) {
-      const meta = parse<ArcMeta & { card?: ArcCard }>(a.meta_json, {});
-      const c = meta.card ?? {};
-      const shelf = c.shelf ?? { key: 'more', title: 'More', note: null, order: 99 };
-      if (!shelves.has(shelf.key)) shelves.set(shelf.key, { key: shelf.key, title: shelf.title, note: shelf.note ?? null, order: shelf.order ?? 99, arcs: [] });
-      const L = meta.labels ?? {};
-      const s = c.stats;
-      const measure = s ? [
-        `${s.phases} ${s.phases === 1 ? 'phase' : 'phases'}`,
-        s.works ? count(L, 'works', s.works).replace(String(s.works), s.works.toLocaleString('en-US')) : null,
-        s.passages ? count(L, 'passages', s.passages).replace(String(s.passages), s.passages.toLocaleString('en-US')) : null,
-      ].filter(Boolean).join(' · ') : null;
-      const prev = arcs.find((o) => parse<{ card?: ArcCard }>(o.meta_json, {}).card?.next === a.id);
-      shelves.get(shelf.key)!.arcs.push({
-        id: a.id, slug: a.slug, title: a.title, title_ar: a.title_ar,
-        kicker: L.kicker ?? null,
-        tagline: c.tagline ?? null, span: c.span ?? null, language: a.language,
-        description: a.description_md,
-        phases: phases.filter((p) => p.source_id === a.id).map((p) => ({
-          id: p.id, title: splitTitle(p.title).title,
-          color: meta.phase_style?.[p.id]?.color ?? '#D8B657',
-        })),
-        stats: s ?? null, measure,
-        next: c.next && titles.has(c.next) ? { id: c.next, title: titles.get(c.next) } : null,
-        prev: prev ? { id: prev.id, title: prev.title } : null,
-        order: c.order ?? 99,
-      });
+    const cards = await arcCards(env.DB_WV);
+    const shelves = new Map<string, { key: string; title: string; note: string | null; order: number; arcs: ArcCardOut[] }>();
+    for (const c of cards) {
+      if (!shelves.has(c.shelf.key)) shelves.set(c.shelf.key, { ...c.shelf, arcs: [] });
+      shelves.get(c.shelf.key)!.arcs.push(c);
     }
     return ok({
       shelves: [...shelves.values()]
         .sort((x, y) => x.order - y.order)
         .map(({ order: _o, arcs: list, ...shelf }) => ({
           ...shelf,
-          arcs: list.sort((x, y) => x.order - y.order || String(x.title).localeCompare(String(y.title)))
-                    .map(({ order: _a, ...card }) => card),
+          arcs: list.sort((x, y) => x.order - y.order || x.title.localeCompare(y.title))
+                    .map(({ order: _a, shelf: _s, ...card }) => card),
         })),
     });
   });

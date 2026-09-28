@@ -26,6 +26,7 @@ import { termRoutes }        from './routes/terms';
 import { rhetoricRoutes }    from './routes/rhetoric';
 import { audioRoutes }       from './routes/audio';
 import { arcRoutes }         from './routes/arcs';
+import { atlasRoutes }       from './routes/atlas';
 
 const router = new Router<WorldviewEnv>();
 
@@ -58,6 +59,7 @@ nodeRoutes(router);
 
 sourceRoutes(router);
 arcRoutes(router);
+atlasRoutes(router);
 
 illustrationRoutes(router);
 
