@@ -389,15 +389,21 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
           lines,
           en: b.text_en, en_alt: bm.en_alt ?? null, url: b.source_url,
           footnotes: bm.footnotes ?? [],
-          // the English read aloud, sentence by sentence (served by /wv/audio/:key+)
-          audio: bm.audio_en ? { path: `audio/${bm.audio_en.key}`, duration: bm.audio_en.duration,
-                                 sentences: bm.audio_en.sentences, words: bm.audio_en.words ?? null, lang: 'en' }
-               : bm.audio_ar ? { path: `audio/${bm.audio_ar.key}`, duration: bm.audio_ar.duration,
-                                 // a line is the sentence the reader lights, in the passage's own text
-                                 sentences: bm.audio_ar.lines.map((w, i) => ({ t: lines[i]?.t ?? '', s: w.s, e: w.e })),
-                                 words: bm.audio_ar.words ?? null, lang: 'ar', reader: bm.audio_ar.reader ?? null,
-                                 source: bm.audio_ar.source ?? null }
-               : null,
+          // read aloud (served by /wv/audio/:key+): the English sentence by
+          // sentence, the Arabic line by line — a line is the sentence the
+          // reader lights, in the passage's own text. `audio` is the one an
+          // older app plays (English first); `voices` carries both, so the
+          // reader can choose.
+          ...(() => {
+            const en = bm.audio_en ? { path: `audio/${bm.audio_en.key}`, duration: bm.audio_en.duration,
+                                       sentences: bm.audio_en.sentences, words: bm.audio_en.words ?? null, lang: 'en',
+                                       reader: bm.audio_en.voice ?? null, source: null } : null;
+            const ar = bm.audio_ar ? { path: `audio/${bm.audio_ar.key}`, duration: bm.audio_ar.duration,
+                                       sentences: bm.audio_ar.lines.map((w, i) => ({ t: lines[i]?.t ?? '', s: w.s, e: w.e })),
+                                       words: bm.audio_ar.words ?? null, lang: 'ar', reader: bm.audio_ar.reader ?? null,
+                                       source: bm.audio_ar.source ?? null } : null;
+            return { audio: en ?? ar, voices: { en, ar } };
+          })(),
           note_ref: phase ? `${phaseRefPrefix(meta, phase)}:${b.id}` : `WVC:${b.id}`,
           links: (links.get(b.id) ?? []).map((l) => shapeLink(l, me)),
           proposals: proposals.get(b.id) ?? [],
