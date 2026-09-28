@@ -2284,6 +2284,7 @@ CREATE TABLE wv_topics (
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  source_id       TEXT,
   FOREIGN KEY (parent_id)     REFERENCES wv_topics(id),
   FOREIGN KEY (tradition_id)  REFERENCES wv_traditions(id),
   FOREIGN KEY (moral_axis_id) REFERENCES wv_moral_axes(id)

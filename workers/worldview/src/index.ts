@@ -28,6 +28,7 @@ import { audioRoutes }       from './routes/audio';
 import { arcRoutes }         from './routes/arcs';
 import { atlasRoutes }       from './routes/atlas';
 import { intakeRoutes }      from './routes/intake';
+import { debateRoutes }      from './routes/debates';
 
 const router = new Router<WorldviewEnv>();
 
@@ -62,6 +63,7 @@ sourceRoutes(router);
 arcRoutes(router);
 atlasRoutes(router);
 intakeRoutes(router);
+debateRoutes(router);
 
 illustrationRoutes(router);
 
