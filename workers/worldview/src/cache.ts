@@ -279,7 +279,9 @@ export async function withCache(
   if (body instanceof Response) return body;
   const tag = etag(r.key, body);
   const headers = { 'content-type': 'application/json; charset=utf-8', 'x-wv-cache': seen.layer ?? 'kept', etag: tag,
-                    'cache-control': 'no-cache' };      // keep it, but ask each time: a 304 is cheap
+                    // the app keeps the payload on the same terms: fresh a minute,
+                    // then shown while it revalidates, for up to a day
+                    'cache-control': `max-age=${FRESH_MS / 1000}, stale-while-revalidate=${(STALE_MS - FRESH_MS) / 1000}` };
   if (request.headers.get('if-none-match') === tag) return new Response(null, { status: 304, headers });
   return new Response(body, { status, headers });
 }

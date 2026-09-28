@@ -14,7 +14,9 @@
 // route's fresh window: the read that finds it stale starts the rebuild, the
 // next one sees it. `?refresh=1` rebuilds at once.
 //
-// Every kept answer carries an ETag; a client that sends it back gets a 304.
+// Every kept answer carries an ETag (a client that sends it back gets a 304)
+// and its windows as Cache-Control: max-age=fresh, stale-while-revalidate=rest,
+// so the app keeps the payload on the same terms.
 
 export interface SwrClass {
   /** Seconds a kept answer is served without rebuilding. */
@@ -135,7 +137,10 @@ export async function withSwr(
   }
 
   const tagv = etag(key, kept);
-  const headers = { 'content-type': kept.type, etag: tagv, 'cache-control': 'no-cache', [tag]: layer };
+  // The client keeps the payload too, on the same windows: fresh for `fresh`,
+  // then shown while it revalidates, until `stale`.
+  const cc = `max-age=${route.fresh}, stale-while-revalidate=${Math.max(0, (route.stale ?? WEEK) - route.fresh)}`;
+  const headers = { 'content-type': kept.type, etag: tagv, 'cache-control': cc, [tag]: layer };
   if (request.headers.get('if-none-match') === tagv) return new Response(null, { status: 304, headers });
   return new Response(kept.body, { status: kept.status, headers });
 }

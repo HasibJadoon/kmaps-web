@@ -1,3 +1,4 @@
+import { withSwr, type SwrRoute } from '../../shared/src/swr';
 import { Router } from '../../shared/src/router';
 import { sense, readRows, type SenseRequest, type RowsRequest } from '../../shared/src/sense';
 import { dbHealth } from '../../shared/src/http';
@@ -88,11 +89,28 @@ router.post('/al/internal/sense', async (req, env) => {
   return ok(await sense(env.DB_AL, body));
 });
 
+// ── Which reads are kept, and for how long (shared/src/swr.ts) ────────────────
+// Every AL read is the same for every reader. A response that says nothing
+// about its freshness is one a client caches by guesswork (a phone once kept an
+// old بين for hours), so every answer says it: kept reads carry their windows
+// and an ETag; everything else is no-store.
+//   authored — the lexicon, grammar, balāgha and the rest the builders are
+//              still writing: fresh a minute, then served while rebuilt
+//              behind; gone after an hour.
+//   stable   — the registry's layer model: fresh a day; a week.
+const AUTHORED = { fresh: 60, stale: 3600 };
+const STABLE = { fresh: 86400, stale: 7 * 86400 };
+const KEPT: SwrRoute[] = [
+  { re: /^\/al\/registry\/layer-model$/, ...STABLE },
+  { re: /^\/al\/(?!health)[a-z_-]+(\/|$)/, ...AUTHORED },
+];
+
 export default {
-  fetch: async (request: Request, env: ArLinguisticsEnv) => {
-    const res = await router.handle(request, env);
-    const headers = new Headers(res.headers);
-    headers.set('Cache-Control', 'no-store');
-    return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
-  },
+  fetch: (request: Request, env: ArLinguisticsEnv, ctx: ExecutionContext) =>
+    withSwr(request, ctx, KEPT, async (r) => {
+      const res = await router.handle(r, env);
+      const headers = new Headers(res.headers);
+      headers.set('Cache-Control', 'no-store');
+      return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+    }, 'x-al-cache'),
 } satisfies ExportedHandler<ArLinguisticsEnv>;
