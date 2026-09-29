@@ -3,6 +3,7 @@ import { ok, badRequest } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { labels, skillCard, instruct } from '../lib/labels';
+import { commonWords, isCommon } from '../lib/common';
 import { parseBand, bandOf, bare, type Band } from '../lib/levels';
 import { mineDrills } from './words';
 
@@ -49,20 +50,14 @@ function wordsOf(l: Line) {
 }
 
 // Words that carry little on their own: never the blank.
-const LIGHT = new Set(['قال', 'قالت', 'قد', 'وقد', 'لقد', 'لا', 'ولا', 'ما', 'من', 'في', 'على', 'إلى', 'الى', 'عن', 'أن', 'ان',
-  'إن', 'أنه', 'انه', 'إنه', 'هذا', 'هذه', 'ذلك', 'تلك', 'التي', 'الذي', 'الذين', 'كان', 'كانت', 'هو', 'هي', 'هم', 'ثم', 'أو', 'او',
-  'و', 'يا', 'لم', 'لن', 'كل', 'بعض', 'هنا', 'حتى', 'إذا', 'اذا', 'لأن', 'لان', 'لأننا', 'لكن', 'ولكن', 'بل', 'مع', 'بين', 'عند', 'كما',
-  'فقد', 'وهو', 'وهي', 'وما', 'ومن', 'وفي', 'فلا', 'فإن', 'بأن', 'أي', 'إلا', 'الا', 'هل', 'نعم', 'أنا', 'انا', 'أنت', 'انت', 'نحن']);
-
-/// Light even with a conjunction on it (ولم, فهذا).
-const light = (w: string) => { const b = bare(w); return LIGHT.has(b) || (/^[وف]/.test(b) && LIGHT.has(b.slice(1))); };
+// what not to drill is data (ar_common_word): function words at every level, common Qurʾān words above Basic
 
 const shapeOf = (w: string) => { const b = bare(w); return b.startsWith('وال') ? 'وال' : b.startsWith('بال') ? 'بال' : b.startsWith('ال') ? 'ال'
   : b.startsWith('و') ? 'و' : b.startsWith('ب') ? 'ب' : b.startsWith('ل') ? 'ل' : ''; };
 
 /// Words to offer beside the right one, chosen to be confused by ear: the same
 /// prefix, a close length, as many shared letters as can be found; none the same.
-function distractors(answer: string, pool: string[], k = 3) {
+function distractors(answer: string, pool: string[], k = 3, light: (w: string) => boolean = () => false) {
   const a = bare(answer);
   const letters = new Set(a.replace(/^(وال|بال|ال|و|ب|ل)/, ''));
   const scored = pool
@@ -82,9 +77,12 @@ const clean = (w: string) => w.replace(/[؟،؛.!?"«»:…,()]/g, '');
 const shown = (w: string) => bare(clean(w));
 
 async function lineDrills(env: ArabicEnv, skill: string, band: Band, n: number) {
-  const lines = await drawLines(env, band, n);
+  const common = await commonWords(env);
+  const light = (w: string) => isCommon(common, w, band === 'basic');
+  // more lines than asked: a line with no word worth drilling is passed over
+  const lines = await drawLines(env, band, skill === 'fill' || skill === 'hear' ? n * 3 : n);
   const others = await drawLines(env, band, 24, false);
-  const drillLines = lines.slice(0, n);
+  const drillLines = lines;
   const pool = [...new Set(others.flatMap((l) => l.text_ar.split(/\s+/).map(clean)).filter((w) => bare(w).length >= 2))];
   return drillLines.map((l) => {
     const words = wordsOf(l);
@@ -97,10 +95,10 @@ async function lineDrills(env: ArabicEnv, skill: string, band: Band, n: number) 
       // a content word, long enough to hear, clearly timed — the lightest words never
       const content = words.map((w, i) => ({ w, i }))
         .filter(({ w }) => bare(w.t).length >= 3 && !light(w.t) && w.e - w.s >= 0.22);
-      const choices = content.length ? content : words.map((w, i) => ({ w, i })).filter(({ w }) => bare(w.t).length >= 3);
-      const pick = choices.length ? choices[Math.floor(Math.random() * choices.length)] : { w: words[0], i: 0 };
+      if (!content.length) return null;
+      const pick = content[Math.floor(Math.random() * content.length)];
       const answer = shown(pick.w.t);
-      const options = shuffle([answer, ...distractors(answer, pool).map(shown)]);
+      const options = shuffle([answer, ...distractors(answer, pool, 3, light).map(shown)]);
       return skill === 'fill'
         ? { ...base, blank: pick.i, answer, options }
         : { ...base, audio: { ...audio, start: Math.max(l.start_sec, pick.w.s - 0.04), end: Math.min(l.end_sec, pick.w.e + 0.06) },
@@ -113,7 +111,7 @@ async function lineDrills(env: ArabicEnv, skill: string, band: Band, n: number) 
       return { ...base, shuffled };
     }
     return base;   // shadow: the line and its timings
-  });
+  }).filter(Boolean).slice(0, n);
 }
 
 async function wordDrills(env: ArabicEnv, band: Band, n: number) {

@@ -4,6 +4,7 @@ import { query, queryOne } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { parseBand, bare, type Band } from '../lib/levels';
 import { labels, byKey, badge, skillCard, instruct } from '../lib/labels';
+import { commonWords, isCommon } from '../lib/common';
 
 // ── Scenes: watch, then practise in context ──────────────────────────────────
 // The scripted episodes (ar_text_unit.script_json: scenes of lines, each with
@@ -64,9 +65,7 @@ const audioUrl = (key: string | null) => (key ? `/api/ar/audio/${encodeURI(key)}
 const shuffle = <T,>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const clean = (w: string) => w.replace(/[؟،؛.!?"«»:…,()\[\]]/g, '');
 const stem = (w: string) => bare(w).replace(/^(وال|فال|بال|كال|لل|ال|و|ف|ب|ل)/, '');
-const LIGHT = new Set(['قال', 'قالت', 'قد', 'لقد', 'لا', 'ما', 'من', 'في', 'على', 'إلى', 'عن', 'أن', 'إن', 'هذا', 'هذه', 'ذلك', 'التي',
-  'الذي', 'الذين', 'كان', 'كانت', 'هو', 'هي', 'هم', 'ثم', 'أو', 'يا', 'لم', 'لن', 'كل', 'حتى', 'إذا', 'لكن', 'بل', 'مع', 'بين', 'عند',
-  'كما', 'أي', 'إلا', 'هل', 'نعم', 'أنا', 'أنت', 'نحن', 'الله', 'رسول', 'أمير', 'المؤمنين', 'يا']);
+// common and function words are data (ar_common_word) — filtered where the drills are built
 
 function timedWords(l: Line) {
   const toks = l.ar.trim().split(/\s+/);
@@ -84,7 +83,7 @@ function hardWords(sc: Scene, ep: Script) {
   sc.lines.forEach((l, li) => {
     timedWords(l).forEach((w, wi) => {
       const k = stem(w.t);
-      if (k.length < 4 || LIGHT.has(bare(clean(w.t))) || w.e - w.s < 0.25) return;
+      if (k.length < 4 || w.e - w.s < 0.25) return;
       const f = freq.get(k) ?? 0;
       if (f <= 2) out.push({ line: li, index: wi, word: clean(w.t), rarity: f + (k.length >= 6 ? -0.5 : 0) });
     });
@@ -153,7 +152,8 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
   router.get('/ar/scenes/:unit/:no/practice', async (req, env, { unit, no }) => {
     const tier = new URL(req.url).searchParams.get('tier');
     const inTier = (x: { tier?: string }) => !tier || !x.tier || x.tier === tier;
-    const L = await labels(env);
+    const [L, common] = await Promise.all([labels(env), commonWords(env)]);
+    const hardOnly = (w: string) => !isCommon(common, w);
     const sc = await script(env, unit);
     const scene = sc?.s.scenes.find((x) => String(x.scene_no) === no);
     if (!sc || !scene) return notFound(`scene ${no} of ${unit}`);
@@ -171,8 +171,9 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
       `SELECT scene_no, vocab_json, gist_json, expressions_json, features_json FROM ar_scene_vocab WHERE unit_id = ?`, [unit]).catch(() => []);
     const parse = <T,>(j: string | null): T | null => { try { return j ? JSON.parse(j) as T : null; } catch { return null; } };
     const read = reads.find((r) => String(r.scene_no) === no);
-    const vocab = (parse<Vocab[]>(read?.vocab_json ?? null) ?? []).filter(inTier);
-    const epVocab = reads.flatMap((r) => parse<Vocab[]>(r.vocab_json) ?? []).map((v) => clean(v.word));
+    // only the higher-end words: never a function word, never one the Qurʾān uses often
+    const vocab = (parse<Vocab[]>(read?.vocab_json ?? null) ?? []).filter(inTier).filter((v) => hardOnly(v.word));
+    const epVocab = reads.flatMap((r) => parse<Vocab[]>(r.vocab_json) ?? []).map((v) => clean(v.word)).filter(hardOnly);
 
     // names are not vocabulary
     const names = new Set((sc.s.cast ?? []).flatMap((c) => c.name_ar.split(/\s+/)).map((w) => stem(w)));
@@ -188,8 +189,8 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
       return index >= 0 ? { line: v.line, index, word: clean(toks[index]), rarity: 0, tier: v.tier } : null;
     }).filter(Boolean) as Array<{ line: number; index: number; word: string; rarity: number; tier?: string }>;
     // with a tier asked for, only the words read at that tier; else the rarest besides
-    const hard = [...chosen, ...(tier && vocab.length ? [] : hardWords(scene, sc.s).filter((h) => !isName(h.word)))];
-    const epHard = [...epVocab, ...sc.s.scenes.flatMap((x) => hardWords(x, sc.s)).map((h) => h.word)].filter((w) => !isName(w));
+    const hard = [...chosen, ...(tier && vocab.length ? [] : hardWords(scene, sc.s).filter((h) => !isName(h.word) && hardOnly(h.word)))];
+    const epHard = [...epVocab, ...sc.s.scenes.flatMap((x) => hardWords(x, sc.s)).map((h) => h.word)].filter((w) => !isName(w) && hardOnly(w));
     const usedLines = new Set<number>();
     for (const h of hard) {
       if (items.length >= 3) break;
