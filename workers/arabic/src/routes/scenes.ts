@@ -58,6 +58,7 @@ async function script(env: ArabicEnv, unit: string) {
 /// A scene's title without its number ("Scene 2 — …", "المشهد الثاني — …"): the number is shown on its own.
 const titled = (t?: string) => (t ?? '').replace(/^\s*(Scene\s+\d+|المشهد\s+\S+)\s*[—–:-]\s*/u, '').trim() || null;
 
+const range = ([a, b]: [number, number]) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 const audioUrl = (key: string | null) => (key ? `/api/ar/audio/${encodeURI(key)}` : null);
 const shuffle = <T,>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const clean = (w: string) => w.replace(/[؟،؛.!?"«»:…,()\[\]]/g, '');
@@ -140,7 +141,10 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
   });
 
   // A practice round on one scene: its hard words and its dialogue, drawn fresh.
-  router.get('/ar/scenes/:unit/:no/practice', async (_req, env, { unit, no }) => {
+  // ?tier=easy|good|hard keeps the read items (words, idioms, features) of that tier; the listening drills stay
+  router.get('/ar/scenes/:unit/:no/practice', async (req, env, { unit, no }) => {
+    const tier = new URL(req.url).searchParams.get('tier');
+    const inTier = (x: { tier?: string }) => !tier || !x.tier || x.tier === tier;
     const sc = await script(env, unit);
     const scene = sc?.s.scenes.find((x) => String(x.scene_no) === no);
     if (!sc || !scene) return notFound(`scene ${no} of ${unit}`);
@@ -152,12 +156,13 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
     const source = { workId: sc.work, title: [sc.s.series_ar, titled(scene.title_ar)].filter(Boolean).join(' · '), level: sc.level };
 
     // what the episode's scenes were read for (ar_scene_vocab): the hard words a reader chose, with their meanings
-    type Vocab = { line: number; word: string; gloss: string; distractors: string[]; note?: string; lemma?: string };
-    const reads = await query<{ scene_no: number; vocab_json: string | null; gist_json: string | null }>(env.DB_AR,
-      `SELECT scene_no, vocab_json, gist_json FROM ar_scene_vocab WHERE unit_id = ?`, [unit]).catch(() => []);
+    type Vocab = { line: number; word: string; gloss: string; distractors: string[]; note?: string; lemma?: string; tier?: string };
+    const reads = await query<{ scene_no: number; vocab_json: string | null; gist_json: string | null;
+                                expressions_json: string | null; features_json: string | null }>(env.DB_AR,
+      `SELECT scene_no, vocab_json, gist_json, expressions_json, features_json FROM ar_scene_vocab WHERE unit_id = ?`, [unit]).catch(() => []);
     const parse = <T,>(j: string | null): T | null => { try { return j ? JSON.parse(j) as T : null; } catch { return null; } };
     const read = reads.find((r) => String(r.scene_no) === no);
-    const vocab = parse<Vocab[]>(read?.vocab_json ?? null) ?? [];
+    const vocab = (parse<Vocab[]>(read?.vocab_json ?? null) ?? []).filter(inTier);
     const epVocab = reads.flatMap((r) => parse<Vocab[]>(r.vocab_json) ?? []).map((v) => clean(v.word));
 
     // names are not vocabulary
@@ -171,9 +176,10 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
     const chosen = vocab.filter((v) => !asked.includes(v)).map((v) => {
       const toks = (scene.lines[v.line]?.ar ?? '').trim().split(/\s+/);
       const index = toks.findIndex((t) => bare(clean(t)) === bare(clean(v.word)));
-      return index >= 0 ? { line: v.line, index, word: clean(toks[index]), rarity: 0 } : null;
-    }).filter(Boolean) as Array<{ line: number; index: number; word: string; rarity: number }>;
-    const hard = [...chosen, ...hardWords(scene, sc.s).filter((h) => !isName(h.word))];
+      return index >= 0 ? { line: v.line, index, word: clean(toks[index]), rarity: 0, tier: v.tier } : null;
+    }).filter(Boolean) as Array<{ line: number; index: number; word: string; rarity: number; tier?: string }>;
+    // with a tier asked for, only the words read at that tier; else the rarest besides
+    const hard = [...chosen, ...(tier && vocab.length ? [] : hardWords(scene, sc.s).filter((h) => !isName(h.word)))];
     const epHard = [...epVocab, ...sc.s.scenes.flatMap((x) => hardWords(x, sc.s)).map((h) => h.word)].filter((w) => !isName(w));
     const usedLines = new Set<number>();
     for (const h of hard) {
@@ -188,7 +194,7 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
         .sort((x, y) => y.s - x.s).map((x) => bare(x.w))
         .filter((w, i, arr) => arr.indexOf(w) === i).slice(0, 3);
       items.push({ id: `fill:${unit}:${no}:${h.line}`, kind: 'fill', audio: clip(l), words: timedWords(l), blank: h.index,
-                   answer: a, options: shuffle([a, ...opts]), en: l.en ?? null, source });
+                   answer: a, options: shuffle([a, ...opts]), en: l.en ?? null, source, tier: (h as { tier?: string }).tier ?? null, bucket: 'vocab' });
     }
 
     // who said it — where the scene has more than one voice
@@ -241,7 +247,28 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
         items.push({ id: `vocab:${unit}:${no}:${v.line}:${v.word}`, kind: 'vocab', audio: clip(l), words: timedWords(l),
                      target: idx >= 0 ? idx : null, prompt: v.word, answer: v.gloss, options: shuffle([v.gloss, ...(v.distractors ?? []).slice(0, 3)]),
                      explanation: [v.lemma ? `lemma ${v.lemma}` : null, v.note].filter(Boolean).join(' — ') || null,
-                     en: l.en ?? null, source });
+                     en: l.en ?? null, source, tier: v.tier ?? null, bucket: 'vocab' });
+      }
+      // its idioms and set expressions: what the phrase means here
+      type Expr = { line: number; phrase: string; span: [number, number]; meaning: string; literal?: string; note?: string; distractors: string[]; tier?: string };
+      for (const x of shuffle((parse<Expr[]>(read?.expressions_json ?? null) ?? []).filter(inTier)).slice(0, 2)) {
+        const l = scene.lines[x.line];
+        if (!l) continue;
+        items.push({ id: `idiom:${unit}:${no}:${x.line}:${x.span[0]}`, kind: 'idiom', audio: clip(l), words: timedWords(l),
+                     span: range(x.span), prompt: x.phrase, answer: x.meaning, options: shuffle([x.meaning, ...x.distractors.slice(0, 3)]),
+                     explanation: [x.literal ? `Literally: ${x.literal}` : null, x.note].filter(Boolean).join(' — ') || null,
+                     en: l.en ?? null, source, tier: x.tier ?? null, bucket: 'idiom' });
+      }
+      // what is worth noticing in how a line is built — its grammar or its rhetoric
+      type Feat = { line: number; text: string; span: [number, number]; feature: string; term_ar?: string; q: string;
+                    options: string[]; answer: number; explanation?: string; tier?: string; bucket?: string };
+      for (const x of shuffle((parse<Feat[]>(read?.features_json ?? null) ?? []).filter(inTier)).slice(0, 3)) {
+        const l = scene.lines[x.line];
+        if (!l) continue;
+        items.push({ id: `feature:${unit}:${no}:${x.line}:${x.span[0]}`, kind: 'feature', audio: clip(l), words: timedWords(l),
+                     span: range(x.span), prompt: x.q, answer: x.options[x.answer], options: shuffle(x.options),
+                     note: { en: x.feature, ar: x.term_ar ?? '' }, explanation: x.explanation ?? null, en: l.en ?? null, source,
+                     tier: x.tier ?? null, bucket: x.bucket ?? 'grammar' });
       }
       const gist = parse<{ q: string; options: string[]; answer: number }>(read?.gist_json ?? null);
       if (gist?.q && gist.options?.length) {
