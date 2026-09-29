@@ -5,7 +5,7 @@ import type { ArLinguisticsEnv } from '../env';
 
 // Lexemes the Arabic worker drills in context (its scenes, its passages), served by
 // typed reference so no domain copies another's data:
-//   VI:<verb>|<particle>  a verbal idiom (Mir's corpus, ar_ling_root_lemma_tabir, grouped
+//   VI:<root>|<particle>  a verbal idiom (Mir's corpus, ar_ling_root_lemma_tabir, grouped
 //                         over its Qurʾān occurrences — its range of meanings, each with its āya)
 //   TD:<id>               a verb and the particle it takes (ar_ling_root_lemma_tadiya)
 //   SK:<entry id>         a key term of the Qurʾān (Sinai 2023, sinai_key_terms)
@@ -15,7 +15,7 @@ import type { ArLinguisticsEnv } from '../env';
 const MARKS = /[ً-ْٰـۖ-ۭ]/g;
 export const foldAr = (w: string) => (w ?? '').replace(MARKS, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/[ـ\s]+$/g, '').trim();
 
-interface Tabir { id: string; expression_ar: string; expression_en: string; lemma_ar: string; root_ar: string; preposition_ar: string; surah: number; ayah: number; construction_en: string | null }
+interface Tabir { id: string; expression_ar: string; expression_en: string; lemma_ar: string; root_ar: string; preposition_ar: string; surah: number; ayah: number; construction_en: string | null; ayah_translation_en: string | null }
 
 export function lexemeRoutes(router: Router<ArLinguisticsEnv>) {
   router.get('/al/lex/v2/lexemes', (req, env) => cached(req, async () => {
@@ -25,12 +25,12 @@ export function lexemeRoutes(router: Router<ArLinguisticsEnv>) {
 
     if (vi.length) {
       const rows = (await env.DB_AL.prepare(
-        `SELECT id, expression_ar, expression_en, lemma_ar, root_ar, preposition_ar, surah, ayah, construction_en
+        `SELECT id, expression_ar, expression_en, lemma_ar, root_ar, preposition_ar, surah, ayah, construction_en, ayah_translation_en
            FROM ar_ling_root_lemma_tabir WHERE status = 'live' AND expression_type_id = 'arl-et-09' AND preposition_ar IS NOT NULL`,
       ).all<Tabir>()).results ?? [];
       const groups = new Map<string, Tabir[]>();
       for (const r of rows) {
-        const k = `VI:${foldAr(r.lemma_ar)}|${foldAr(r.preposition_ar)}`;
+        const k = `VI:${foldAr(r.root_ar).replace(/\s+/g, '')}|${foldAr(r.preposition_ar)}`;   // by root: Mir's lemma field is not always the verb
         groups.set(k, [...(groups.get(k) ?? []), r]);
       }
       for (const ref of vi) {
@@ -38,7 +38,7 @@ export function lexemeRoutes(router: Router<ArLinguisticsEnv>) {
         if (!g) continue;
         const prep = foldAr(g[0].preposition_ar);
         const meanings = [...new Map(g.map((r) => [r.expression_en.trim(), r])).values()]
-          .map((r) => ({ en: r.expression_en.trim(), ref: `${r.surah}:${r.ayah}`, construction: r.construction_en }));
+          .map((r) => ({ en: r.expression_en.trim(), ref: `${r.surah}:${r.ayah}`, construction: r.construction_en, ayahEn: r.ayah_translation_en }));
         const own = new Set(meanings.map((m) => m.en));
         const others = [...groups.entries()].filter(([k]) => k !== ref && k.endsWith(`|${prep}`))
           .map(([, rs]) => rs[0].expression_en.trim()).filter((e) => !own.has(e));
