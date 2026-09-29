@@ -3,7 +3,7 @@ import { ok, notFound, badRequest, unauthorized } from '../../../shared/src/resp
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { actorRef } from '../../../shared/src/auth';
 import type { ArabicEnv } from '../env';
-import { parseBand, type Band } from '../lib/levels';
+import { parseBand, BANDS as LEVEL_BANDS, type Band } from '../lib/levels';
 import { labels, byKey, skillCard, type Label } from '../lib/labels';
 import { sceneRound } from './scenes';
 
@@ -88,6 +88,7 @@ export function pathRoutes(router: Router<ArabicEnv>) {
     const lockedCard = P.get('level_locked');
     return ok({
       level: b, open: levelOpen, signedIn: !!me, pass,
+      levels: LEVEL_BANDS.map((l) => ({ key: l.key, label: l.label, labelAr: l.labelAr, range: l.range })),
       progress: { done, total },
       card: P.get('card') ? skillCard(P.get('card')!) : null,
       locked: !levelOpen && lockedCard ? { ...skillCard(lockedCard), tagline: fill(lockedCard.detail, gate ?? {}) } : null,

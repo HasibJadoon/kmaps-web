@@ -5,11 +5,11 @@
 export type Band = 'all' | 'basic' | 'middle' | 'advanced';
 
 export const BANDS = [
-  { key: 'basic', label: 'Basic', labelAr: 'مُبْتَدِئ', range: 'A1–A2', cefr: ['A1', 'A2'],
+  { key: 'basic', label: 'Level 1', labelAr: 'المُسْتَوَى الأَوَّل', range: 'Basic · A1–A2', cefr: ['A1', 'A2'],
     blurb: 'Clear, slow speech — Qurʾān stories, short tales, songs' },
-  { key: 'middle', label: 'Middle', labelAr: 'مُتَوَسِّط', range: 'B1–B2', cefr: ['B1', 'B2'],
+  { key: 'middle', label: 'Level 2', labelAr: 'المُسْتَوَى الثَّانِي', range: 'Middle · B1–B2', cefr: ['B1', 'B2'],
     blurb: 'Podcasts, clips, documentary and modern prose' },
-  { key: 'advanced', label: 'Advanced', labelAr: 'مُتَقَدِّم', range: 'C1+', cefr: ['C1', 'C2'],
+  { key: 'advanced', label: 'Level 3', labelAr: 'المُسْتَوَى الثَّالِث', range: 'Advanced · C1+', cefr: ['C1', 'C2'],
     blurb: 'Historical drama, the poets and the classical books' },
 ] as const;
 
