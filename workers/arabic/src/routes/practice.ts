@@ -3,6 +3,7 @@ import { ok, badRequest } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { parseBand, bandOf, bare, type Band } from '../lib/levels';
+import { mineDrills } from './words';
 
 // ── Practice: skills drilled on real Arabic ──────────────────────────────────
 // Every listening drill is cut from a line someone actually said — in a series,
@@ -21,6 +22,8 @@ const SKILLS = [
     icon: 'waveform', color: '#E07A5F', source: 'lines' },
   { id: 'shadow', title: 'Shadow', titleAr: 'رَدِّدْ', tagline: 'Say it with the speaker, word by word',
     icon: 'mic', color: '#B388EB', source: 'lines' },
+  { id: 'mine', title: 'My words', titleAr: 'مُفْرَدَاتِي', tagline: 'Your own words from your photos — as they are spoken in real Arabic',
+    icon: 'text.viewfinder', color: '#F28482', source: 'mine' },
   { id: 'meaning', title: 'Words', titleAr: 'المَعَانِي', tagline: 'What does it mean?',
     icon: 'character.book.closed', color: '#D8B657', source: 'words' },
   { id: 'plural', title: 'Plurals', titleAr: 'الجُمُوع', tagline: 'From singular to plural — broken and sound',
@@ -143,12 +146,13 @@ async function grammarDrills(env: ArabicEnv, band: Band, n: number) {
 }
 
 async function counts(env: ArabicEnv, band: Band) {
-  const [pool, daily, mined, grammar] = await Promise.all([
+  const [pool, daily, mined, grammar, mine] = await Promise.all([
     query<{ band: string; n: number }>(env.DB_AR, `SELECT band, COUNT(*) AS n FROM ar_practice_pool GROUP BY band`),
     query<{ n: number }>(env.DB_AR, `SELECT COUNT(*) AS n FROM ar_daily_word`),
     query<{ register: string | null; n: number }>(env.DB_AR,
       `SELECT register, COUNT(*) AS n FROM ar_acq_item WHERE gloss_en IS NOT NULL AND status = 'live' GROUP BY register`),
     query<{ level: string | null; n: number }>(env.DB_AR, `SELECT level, COUNT(*) AS n FROM ar_exercises WHERE exercise_type = 'mcq' GROUP BY level`),
+    query<{ n: number }>(env.DB_AR, `SELECT COUNT(*) AS n FROM ar_acq_item WHERE status = 'live' AND root_ar IS NOT NULL AND capture_id IS NOT NULL`),
   ]);
   const lines = pool.filter((p) => band === 'all' || p.band === band).reduce((s, p) => s + p.n, 0);
   const basicOk = band === 'all' || band === 'basic';
@@ -157,6 +161,7 @@ async function counts(env: ArabicEnv, band: Band) {
   return {
     lines, words: (basicOk ? daily[0]?.n ?? 0 : 0) + minedN, plurals: basicOk ? daily[0]?.n ?? 0 : 0,
     grammar: grammar.filter((g) => band === 'all' || bandOf(g.level) === band).reduce((s, g) => s + g.n, 0),
+    mine: mine[0]?.n ?? 0,   // the reader's own words, at every level
   };
 }
 
@@ -180,6 +185,7 @@ export function practiceRoutes(router: Router<ArabicEnv>) {
     const meta = SKILLS.find((s) => s.id === skill);
     if (!meta) return badRequest(`unknown skill ${skill}`);
     const items = meta.source === 'lines' ? await lineDrills(env, skill, band, n)
+      : skill === 'mine' ? await mineDrills(env, n)
       : skill === 'meaning' ? await wordDrills(env, band, n)
       : skill === 'plural' ? await pluralDrills(env, band, n)
       : await grammarDrills(env, band, n);
