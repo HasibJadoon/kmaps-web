@@ -71,3 +71,8 @@ INSERT OR REPLACE INTO ar_practice_label (scope, key, label, label_ar, detail, i
 -- templates filled by the worker: {n} a number, {s} "s" unless n is 1
 INSERT OR REPLACE INTO ar_practice_label (scope, key, label, label_ar, sort) VALUES
 ('template', 'quran_line', 'met {n} time{s} in the Qurʾān', 'وَرَدَتْ فِي القُرْآنِ {n} مَرَّة', 0);
+INSERT OR REPLACE INTO ar_practice_label (scope, key, label, label_ar, detail, icon, color, sort) VALUES
+('scene_skill','shelf','Scenes','المَشَاهِد','Watch a scene, then practise its hard words, idioms and features — in context','film.stack','#E07A5F',1),
+('scene_skill','episode','Scenes of the episode','مَشَاهِدُ الحَلْقَة','Watch each scene, then practise it — its words, idioms, features, who said what, and the exchange in order','film','#E07A5F',2),
+('scene_skill','empty','No scripted scenes at this level yet','لا مَشَاهِدَ بَعْد','Scene practice needs an episode''s script — every line timed on its recording.','film','#E07A5F',3);
+INSERT OR REPLACE INTO ar_practice_label (scope, key, label, label_ar, detail, icon, color, sort) VALUES ('scene_skill','practise','Practise this scene','تَمَرَّنْ عَلَى المَشْهَد','Its words, idioms and features — at the difficulty you choose','target','#E07A5F',4);

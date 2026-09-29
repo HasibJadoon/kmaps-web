@@ -96,7 +96,8 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
   // The scripted series at a level (Middle / Advanced), with episodes and scenes.
   router.get('/ar/scenes', async (req, env) => {
     const band = parseBand(new URL(req.url).searchParams.get('level'));
-    const eps = await episodes(env, band);
+    const [eps, L] = await Promise.all([episodes(env, band), labels(env)]);
+    const lab = byKey(L.scene_skill);
     const series = new Map<string, { series: string; level: string; episodes: EpisodeRow[] }>();
     for (const e of eps) {
       const k = e.series ?? e.title ?? e.unit;
@@ -105,6 +106,8 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
     }
     return ok({
       level: band,
+      card: lab.get('shelf') ? skillCard(lab.get('shelf')!) : null,
+      empty: lab.get('empty') ? skillCard(lab.get('empty')!) : null,
       series: [...series.values()].map((s) => ({
         series: s.series, level: s.level, episodes: s.episodes.length, scenes: s.episodes.reduce((n, e) => n + (e.scenes ?? 0), 0),
         list: s.episodes.map((e) => ({ unit: e.unit, work: e.work, title: e.title, episode: e.episode, scenes: e.scenes, hasAudio: !!e.audio })),
@@ -118,6 +121,8 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
     if (!sc) return notFound(`scenes of ${unit}`);
     const { s } = sc;
     return ok({
+      card: byKey(L.scene_skill).get('episode') ? skillCard(byKey(L.scene_skill).get('episode')!) : null,
+      practise: byKey(L.scene_skill).get('practise') ? skillCard(byKey(L.scene_skill).get('practise')!) : null,
       unit, work: sc.work, level: sc.level, title: s.title_ar, titleEn: s.title_en, series: s.series_ar, seriesEn: s.series_en,
       episode: s.episode, audio: audioUrl(sc.audio), cast: s.cast ?? [],
       // the practice rounds' difficulty, as the app offers it

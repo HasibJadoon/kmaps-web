@@ -194,6 +194,9 @@ export function practiceRoutes(router: Router<ArabicEnv>) {
       level: band,
       skills: (all.skill ?? []).map((s) => ({ ...skillCard(s), count: c[(s.extra?.source as keyof typeof c) ?? 'lines'] ?? 0 }))
         .filter((s) => s.count > 0),
+      // scene practice, where the level has scripted episodes (Middle, Advanced)
+      scenes: band !== 'basic' && (all.scene_skill ?? []).find((x) => x.key === 'shelf')
+        ? skillCard((all.scene_skill ?? []).find((x) => x.key === 'shelf')!) : null,
     });
   });
 
