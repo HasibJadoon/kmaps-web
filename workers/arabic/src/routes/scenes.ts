@@ -142,6 +142,8 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
     return ok({
       unit, work: sc.work, level: sc.level, title: s.title_ar, titleEn: s.title_en, series: s.series_ar, seriesEn: s.series_en,
       episode: s.episode, audio: audioUrl(sc.audio), cast: s.cast ?? [],
+      // the practice rounds' difficulty, as the app offers it
+      tiers: [{ key: null, label: 'All', labelAr: 'الكلّ', color: '#E07A5F' }, ...Object.entries(TIERS).map(([key, t]) => ({ key, ...t }))],
       scenes: s.scenes.map((x) => ({ no: x.scene_no, title: titled(x.title_ar), titleEn: titled(x.title_en), icon: x.icon, era: x.era,
                                      summary: x.summary_en, lines: x.lines.length, start: x.start ?? x.lines[0]?.start,
                                      end: x.end ?? x.lines[x.lines.length - 1]?.end })),
