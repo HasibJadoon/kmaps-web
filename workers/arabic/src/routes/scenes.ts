@@ -91,6 +91,81 @@ function hardWords(sc: Scene, ep: Script) {
   return out.sort((a, b) => a.rarity - b.rarity);
 }
 
+/// A round of n: taken in turn from each kind of drill (a verbal idiom, a key term, a word, an idiom,
+/// a feature, the listening drills), so every round mixes them; then shuffled.
+function balance<T extends { kind: string; bucket?: string | null }>(items: T[], n: number) {
+  const groups = new Map<string, T[]>();
+  for (const it of shuffle(items)) {
+    const k = it.bucket === 'verbal_idiom' || it.bucket === 'keyterm' ? it.bucket : it.kind;
+    groups.set(k, [...(groups.get(k) ?? []), it]);
+  }
+  const order = ['verbal_idiom', 'keyterm', 'vocab', 'idiom', 'feature', 'fill', 'dialogue', 'speaker', 'match', 'gist'];
+  const keys = [...order.filter((k) => groups.has(k)), ...[...groups.keys()].filter((k) => !order.includes(k))];
+  const out: T[] = [];
+  while (out.length < n && keys.some((k) => groups.get(k)!.length)) {
+    for (const k of keys) { const g = groups.get(k)!; if (g.length && out.length < n) out.push(g.shift()!); }
+  }
+  return shuffle(out);
+}
+
+type LexHit = { line: number; span_from: number; span_to: number; ref: string; kind: string };
+type Lexeme = { kind: string; phrase?: string; meanings?: Array<{ en: string; ref: string | null; ayahEn?: string | null }>;
+                terms?: Array<{ term: string; ar: string | null; gloss: string | null }>; excerpt?: string | null; page?: number | null;
+                source?: string; distractors?: string[]; lane?: { senses: string[]; page: number | null; source: string } | null };
+
+async function lexemeDrills(env: ArabicEnv, unit: string, no: number, scene: Scene, clip: (l: Line) => unknown,
+                            L: Record<string, import('../lib/labels').Label[]>, source: unknown, tier: string | null) {
+  if (tier === 'easy') return [];                                     // idioms and key terms are the stretch, not the warm-up
+  const hits = await query<LexHit>(env.DB_AR,
+    `SELECT line, span_from, span_to, ref, kind FROM ar_scene_lexeme WHERE unit_id = ? AND scene_no = ?`, [unit, no]).catch(() => []);
+  if (!hits.length || !env.AR_LINGUISTICS) return [];
+  const chosen = [...shuffle(hits.filter((h) => h.kind === 'verbal_idiom')).slice(0, 2), ...shuffle(hits.filter((h) => h.kind === 'keyterm')).slice(0, 1)];
+  const refs = [...new Set(chosen.map((h) => h.ref.replace(/^AL:/, '')))];
+  const lexRes = await env.AR_LINGUISTICS.fetch(`https://al/al/lex/v2/lexemes?refs=${encodeURIComponent(refs.join(','))}`)
+    .then((r) => r.json() as Promise<{ data?: { lexemes?: Record<string, Lexeme> } }>).catch(() => null);
+  const lexemes = lexRes?.data?.lexemes ?? {};
+  const passages = await query<{ ref: string; kind: string; work_id: string | null; unit_id: string | null; title: string | null; level: string | null;
+                                  text_ar: string; hit_from: number | null; hit_to: number | null; object_key: string | null; start_sec: number | null; end_sec: number | null }>(env.DB_AR,
+    `SELECT ref, kind, work_id, unit_id, title, level, text_ar, hit_from, hit_to, object_key, start_sec, end_sec
+       FROM ar_lexeme_passage WHERE ref IN (${chosen.map(() => '?').join(',')}) ORDER BY ref, rank`, chosen.map((h) => h.ref)).catch(() => []);
+  const ayah = async (ref: string | null) => {
+    if (!ref || !env.QURAN) return null;
+    const [s, a] = ref.split(':');
+    const r = await env.QURAN.fetch(`https://qr/qr/ayahs/${s}/${a}`).then((x) => x.json() as Promise<{ data?: { text_display?: string } }>).catch(() => null);
+    return r?.data?.text_display ?? null;
+  };
+  const titles = byKey(L.context);
+  const out: unknown[] = [];
+  for (const h of chosen) {
+    const x = lexemes[h.ref.replace(/^AL:/, '')];
+    const l = scene.lines[h.line];
+    if (!x || !l) continue;
+    const phrase = l.ar.trim().split(/\s+/).slice(h.span_from, h.span_to + 1).join(' ');
+    const answer = h.kind === 'keyterm'
+      ? (x.terms?.find((t) => t.gloss)?.gloss ?? x.lane?.senses?.[0] ?? null)
+      : (x.meanings?.[0]?.en ?? null);
+    const wrong = (x.distractors ?? []).filter((d) => d && d !== answer).slice(0, 3);
+    if (!answer || wrong.length < 3) continue;
+    const meanings = await Promise.all((x.meanings ?? []).slice(0, 4).map(async (m) => ({ en: m.en, ref: m.ref, ayahAr: await ayah(m.ref), ayahEn: m.ayahEn ?? null })));
+    const context = {
+      meanings: meanings.length ? { title: titles.get('meanings')?.label ?? null, items: meanings } : null,
+      lane: x.lane ? { title: titles.get('lane')?.label ?? null, senses: x.lane.senses, cite: `${x.lane.source}, p. ${x.lane.page ?? '—'}` } : null,
+      sinai: h.kind === 'keyterm' ? { title: titles.get('sinai')?.label ?? null,
+        terms: (x.terms ?? []).map((t) => [t.ar, t.gloss].filter(Boolean).join(' — ')), excerpt: x.excerpt ?? null,
+        cite: `${x.source ?? ''}${x.page ? `, p. ${x.page}` : ''}` } : null,
+      passages: { title: titles.get('passages')?.label ?? null,
+        items: passages.filter((p) => p.ref === h.ref).map((p) => ({ kind: p.kind, title: p.title, level: p.level, workId: p.work_id, unitId: p.unit_id,
+          text: p.text_ar, hit: p.hit_from != null ? [p.hit_from, p.hit_to] : null,
+          audio: p.object_key ? { url: `/api/ar/audio/${encodeURI(p.object_key)}`, start: p.start_sec, end: p.end_sec } : null })) },
+    };
+    out.push({ id: `lexeme:${unit}:${no}:${h.line}:${h.span_from}`, kind: h.kind === 'keyterm' ? 'vocab' : 'idiom',
+               audio: clip(l), words: timedWords(l), span: range([h.span_from, h.span_to]), target: h.kind === 'keyterm' ? h.span_from : null,
+               prompt: phrase, answer, options: shuffle([answer, ...wrong]), en: l.en ?? null, source,
+               explanation: x.meanings?.[0]?.ayahEn ? null : null, tier: null, bucket: h.kind, context });
+  }
+  return out;
+}
+
 export function sceneRoutes(router: Router<ArabicEnv>) {
   // The scripted series at a level (Middle / Advanced), with episodes and scenes.
   router.get('/ar/scenes', async (req, env) => {
@@ -285,12 +360,15 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
                      note: { en: x.feature, ar: x.term_ar ?? '' }, explanation: x.explanation ?? null, en: l.en ?? null, source,
                      tier: x.tier ?? null, bucket: x.bucket ?? 'grammar' });
       }
+      // its verbal idioms and Qurʾān key terms (ar_scene_lexeme), each drilled with its range of meanings —
+      // Mir's senses with their āyāt, Lane's renderings, Sinai's entry — and its contexts in the books and recordings
+      for (const x of await lexemeDrills(env, unit, Number(no), scene, clip, L, source, tier)) items.push(x);
       const gist = parse<{ q: string; options: string[]; answer: number }>(read?.gist_json ?? null);
       if (gist?.q && gist.options?.length) {
         items.push({ id: `gist:${unit}:${no}`, kind: 'gist', prompt: gist.q, answer: gist.options[gist.answer],
                      options: shuffle(gist.options), en: scene.summary_en ?? null, source });
       }
-    } catch { /* not read yet */ }
+    } catch (e) { console.log('scene reading', unit, no, String(e)); }
 
     // what each drill works on and how hard it is, as the labels have them
     const buckets = byKey(L.bucket), tiers = byKey(L.scene_tier);
@@ -300,7 +378,7 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
     const base = byKey(L.scene_skill).get('scene');
     const card = base ? skillCard(base) : { id: 'scene', title: '', titleAr: '', tagline: '', icon: 'film', color: '#E07A5F' };
     const res = ok({ skill: { ...card, title: titled(scene.title_en) ?? card.title, titleAr: titled(scene.title_ar) ?? card.titleAr },
-                     level: sc.level, items: instruct(shuffle(items) as Array<{ kind: string }>, L) });
+                     level: sc.level, items: instruct(balance(items as Array<{ kind: string; bucket?: string | null }>, 12), L) });
     res.headers.set('Cache-Control', 'no-store');
     return res;
   });
