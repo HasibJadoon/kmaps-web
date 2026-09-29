@@ -30,6 +30,7 @@ import { depGraphRoutes } from './routes/dep-graphs';
 import { mushafRoutes } from './routes/mushaf';
 import { adminSyncRoutes } from './routes/admin-sync';
 import { xrefRoutes } from './routes/xref';
+import { atlasRoutes } from './routes/atlas';
 
 const router = new Router<QuranEnv>();
 
@@ -57,6 +58,7 @@ ayahRoutes(router);
 wordRoutes(router);
 translationRoutes(router);
 studyRoutes(router);
+atlasRoutes(router);
 pageRoutes(router);
 mushafRoutes(router);
 tafsirRoutes(router);
@@ -168,6 +170,7 @@ const BOOKS = { fresh: 30 * 86400, stale: 90 * 86400, family: 'books' };
 const AUTHORED = { fresh: 60, stale: 3600, family: ['books', 'rest'] };
 const MIXED = { fresh: 86400, stale: 30 * 86400, family: ['books', 'rest'] };
 const KEPT: SwrRoute[] = [
+  { re: /^\/qr\/atlas\//, ...AUTHORED },
   { re: /^\/qr\/study\/morph\//, ...MIXED },
   { re: /^\/qr\/study\/(surahs|words)\//, ...AUTHORED },
   { re: /^\/qr\/surahs\/\d+\/worldview(\/|$)/, ...AUTHORED },
