@@ -58,6 +58,29 @@ async function script(env: ArabicEnv, unit: string) {
 /// A scene's title without its number ("Scene 2 — …", "المشهد الثاني — …"): the number is shown on its own.
 const titled = (t?: string) => (t ?? '').replace(/^\s*(Scene\s+\d+|المشهد\s+\S+)\s*[—–:-]\s*/u, '').trim() || null;
 
+// What a drill works on, and how hard it is — the labels the app shows beside it.
+const TIERS: Record<string, { label: string; labelAr: string; color: string }> = {
+  easy: { label: 'Easy', labelAr: 'سَهْل', color: '#81B29A' },
+  good: { label: 'Good', labelAr: 'جَيِّد', color: '#5DA9E9' },
+  hard: { label: 'Hard', labelAr: 'صَعْب', color: '#E07A5F' },
+};
+const BUCKETS: Record<string, { label: string; labelAr: string; color: string }> = {
+  vocab: { label: 'Word', labelAr: 'مُفْرَدَة', color: '#F28482' },
+  idiom: { label: 'Idiom', labelAr: 'تَعْبِير', color: '#E9C46A' },
+  grammar: { label: 'Grammar', labelAr: 'نَحْو', color: '#5DA9E9' },
+  morphology: { label: 'Morphology', labelAr: 'صَرْف', color: '#84A59D' },
+  rhetoric: { label: 'Rhetoric', labelAr: 'بَلَاغَة', color: '#B388EB' },
+  collocation: { label: 'Collocation', labelAr: 'تَلَازُم', color: '#F4A261' },
+  connector: { label: 'Connector', labelAr: 'رَابِط', color: '#90BE6D' },
+  address: { label: 'Address', labelAr: 'خِطَاب', color: '#F6BD60' },
+  register: { label: 'Register', labelAr: 'مُسْتَوَى', color: '#A5A58D' },
+  pragmatics: { label: 'Intent', labelAr: 'مَقَام', color: '#F28482' },
+  echo: { label: 'Echo', labelAr: 'اِقْتِبَاس', color: '#C9A227' },
+  sound: { label: 'Sound', labelAr: 'صَوْت', color: '#48CAE4' },
+};
+const badges = (bucket?: string | null, tier?: string | null) =>
+  [bucket ? BUCKETS[bucket] : null, tier ? TIERS[tier] : null].filter(Boolean);
+
 const range = ([a, b]: [number, number]) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 const audioUrl = (key: string | null) => (key ? `/api/ar/audio/${encodeURI(key)}` : null);
 const shuffle = <T,>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -277,7 +300,8 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
       }
     } catch { /* not read yet */ }
 
-    const res = ok({ skill: { id: 'scene', title: titled(scene.title_en) ?? 'Scene practice', titleAr: titled(scene.title_ar) ?? 'المشهد',
+    for (const it of items as Array<{ bucket?: string | null; tier?: string | null; badges?: unknown }>) it.badges = badges(it.bucket, it.tier);
+    const res = ok({ tiers: Object.entries(TIERS).map(([key, t]) => ({ key, ...t })), skill: { id: 'scene', title: titled(scene.title_en) ?? 'Scene practice', titleAr: titled(scene.title_ar) ?? 'المشهد',
                               tagline: 'This scene — its hard words and its dialogue', icon: 'film', color: '#E07A5F' },
                      level: sc.level, items: shuffle(items) });
     res.headers.set('Cache-Control', 'no-store');
