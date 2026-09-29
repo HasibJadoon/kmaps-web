@@ -21,6 +21,7 @@ import { dailyRoutes } from './routes/daily';
 import { roomRoutes } from './routes/rooms';
 import { practiceRoutes } from './routes/practice';
 import { wordRoutes } from './routes/words';
+import { sceneRoutes } from './routes/scenes';
 
 const router = new Router<ArabicEnv>();
 
@@ -54,6 +55,7 @@ dailyRoutes(router);
 roomRoutes(router);
 practiceRoutes(router);
 wordRoutes(router);
+sceneRoutes(router);
 
 // The version beacon the app checks at launch and on return: never kept.
 router.get('/ar/corpus-version', async (_req, env) => {
@@ -76,6 +78,8 @@ const KEPT: SwrRoute[] = [
   // the rooms and the skill list (not /ar/atlas/continue — the reader's own — nor a practice session, drawn fresh)
   { re: /^\/ar\/atlas\/(home|room|collection|search)$/, ...CONTENT },
   { re: /^\/ar\/practice\/home$/, ...CONTENT },
+  // the scripted scenes (not a scene's practice round, drawn fresh)
+  { re: /^\/ar\/scenes(\/[^/]+(\/\d+)?)?$/, ...CONTENT },
   { re: /^\/ar\/daily\/(themes|domains)(\/|$)/, ...CONTENT },
 ];
 
