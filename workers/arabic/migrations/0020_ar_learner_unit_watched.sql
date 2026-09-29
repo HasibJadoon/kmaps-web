@@ -1,1 +1,2 @@
 ALTER TABLE ar_learner_unit ADD COLUMN watched_json TEXT NOT NULL DEFAULT '[]';   -- scene numbers watched to their end
+INSERT OR REPLACE INTO ar_practice_label (scope, key, label, label_ar, detail, icon, color, sort) VALUES ('path','signin','Sign in to keep your progress','سَجِّلِ الدُّخُولَ لِيُحْفَظَ تَقَدُّمُك','What you watch, drill and pass is counted only when you are signed in','person.crop.circle.badge.exclamationmark','#F2A65A',10);

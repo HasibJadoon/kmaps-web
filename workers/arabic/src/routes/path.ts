@@ -94,6 +94,7 @@ export function pathRoutes(router: Router<ArabicEnv>) {
       steps: ['preview', 'watch', 'drill', 'check', 'review'].map((k) => P.get(k)).filter(Boolean).map((x) => skillCard(x!)),
       lockedLabel: P.get('locked') ? skillCard(P.get('locked')!) : null,
       placement: !levelOpen && P.get('placement') ? skillCard(P.get('placement')!) : null,
+      signin: !me && P.get('signin') ? skillCard(P.get('signin')!) : null,
       placed: !!placed,
       srsDeck: P.get('srs_deck') ? { title: P.get('srs_deck')!.label, description: P.get('srs_deck')!.detail } : null,
       series,
