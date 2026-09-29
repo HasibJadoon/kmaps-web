@@ -245,7 +245,15 @@ export function practiceRoutes(router: Router<ArabicEnv>) {
       : skill === 'plural' ? await pluralDrills(env, band, n)
       : await grammarDrills(env, band, n);
     const deck = (all.path ?? []).find((x) => x.key === 'srs_deck');
-    const withCards = (items as Array<Record<string, unknown>>).map((it) => ({ ...it, srs: srsCardFor(it) }));
+    // each card grouped by the series or book it came from
+    const works = [...new Set((items as Array<{ source?: { workId?: string } }>).map((it) => it.source?.workId).filter((x): x is string => !!x))];
+    const series = new Map((works.length ? await query<{ id: string; series: string | null }>(env.DB_AR,
+      `SELECT id, json_extract(meta_json, '$.series') AS series FROM ar_acquisition_ref WHERE id IN (${works.map(() => '?').join(',')})`, works) : [])
+      .map((r) => [r.id, r.series] as const));
+    const withCards = (items as Array<Record<string, unknown>>).map((it) => {
+      const w = (it.source as { workId?: string } | undefined)?.workId;
+      return { ...it, srs: srsCardFor(it, { skill, band, series: w ? series.get(w) ?? null : null }) };
+    });
     const res = ok({ skill: meta, level: band, items: instruct(withCards as unknown as Array<{ kind: string }>, all),
                      srsDeck: deck ? { title: deck.label, description: deck.detail } : null });
     res.headers.set('Cache-Control', 'no-store');

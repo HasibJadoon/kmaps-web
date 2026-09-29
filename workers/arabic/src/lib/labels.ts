@@ -49,7 +49,11 @@ export function instruct<T extends { kind: string }>(items: T[], all: Scopes) {
 /// Every drill files a review card (CORE SRS) keyed to what it asks about, so the same word or line
 /// meets the same card again and the schedule follows the learner's answers. What a card asks and
 /// answers, by kind of drill; null where a drill has nothing to remember by itself.
-export function srsCardFor(it: Record<string, unknown>): Record<string, unknown> | null {
+/// Where a drill sits, so its card can be grouped: the skill it was drilled in, the level,
+/// and the series or book, episode and scene it came from.
+export type DrillGroup = { skill?: string; band?: string; series?: string | null; episode?: string | null; scene?: number | null };
+
+export function srsCardFor(it: Record<string, unknown>, g: DrillGroup = {}): Record<string, unknown> | null {
   const s = (x: unknown) => (typeof x === 'string' && x.trim() ? x.trim() : null);
   const line = ((it.words as Array<{ t: string }> | undefined) ?? []).map((w) => w.t).join(' ') || null;
   const en = s(it.en), ans = s(it.answer), prompt = s(it.prompt);
@@ -93,11 +97,19 @@ export function srsCardFor(it: Record<string, unknown>): Record<string, unknown>
   // every drill files a card: with nothing else to put on the back, the line itself or where it is from
   back = back || line || s((it.source as { title?: string } | undefined)?.title);
   if (!front || !back) return null;
-  // what a review needs to play it again: the clip and its timed words
-  const extra: Record<string, unknown> = {};
+  // what a review needs to play it again: the whole drill as it was drilled (the clip, the
+  // timed words, the blank, the options) — review replays it as a drill, not a flipped card.
+  // Its context panel is left out: a review fetches that when it is opened.
+  const { srs: _s, context: _c, badges: _b, ...drill } = it;
+  const src = (it.source ?? {}) as { workId?: string; title?: string; level?: string | null };
+  const extra: Record<string, unknown> = {
+    drill,
+    group: { skill: g.skill ?? String(it.kind), band: g.band ?? null, series: g.series ?? null,
+             workId: src.workId ?? null, work: src.title ?? null, episode: g.episode ?? null, scene: g.scene ?? null },
+  };
   if (it.audio) extra.audio = it.audio;
   if (it.words) extra.words = it.words;
   return { module: 'AR', resource_type: type, card_kind: String(it.bucket ?? it.kind), card_template: String(it.kind),
            resource_ref: `AR:drill:${String(it.id)}`, front_text: front, back_text: back,
-           ...(Object.keys(extra).length ? { extra } : {}) };
+           extra };
 }
