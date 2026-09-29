@@ -165,14 +165,41 @@ async function grammarDrills(env: ArabicEnv, band: Band, n: number) {
   });
 }
 
+/// Read & fill: a sentence from the books, as its author wrote it, one hard word blanked —
+/// never a function word, and above Basic never a common one; the options confusable with it.
+async function readDrills(env: ArabicEnv, band: Band, n: number) {
+  const common = await commonWords(env);
+  const light = (w: string) => isCommon(common, w, band === 'basic');
+  const start = Math.floor(Math.random() * 1e9);
+  const rows = await query<{ id: string; work_id: string; work_title: string | null; unit_id: string; text_ar: string }>(env.DB_AR,
+    `SELECT id, work_id, work_title, unit_id, text_ar FROM ar_read_pool WHERE (? = 'all' OR band = ?)
+      ORDER BY (abs(hashof) % 1000) LIMIT ?`.replace('hashof', `(rowid * 2654435761 + ${start})`), [band, band, n * 4]);
+  const pool = [...new Set(rows.flatMap((r) => r.text_ar.split(/\s+/).map(clean)).filter((w) => bare(w).length >= 3 && !light(w)))];
+  const out: unknown[] = [];
+  for (const r of rows) {
+    if (out.length >= n) break;
+    const toks = r.text_ar.trim().split(/\s+/);
+    const cands = toks.map((t, i) => ({ t, i })).filter(({ t }) => bare(clean(t)).length >= 4 && !light(t));
+    if (!cands.length) continue;
+    const pick = cands[Math.floor(Math.random() * cands.length)];
+    const answer = shown(pick.t);
+    const opts = distractors(answer, pool, 3, light).map(shown);
+    if (opts.length < 3) continue;
+    out.push({ id: `read:${r.id}`, kind: 'read', words: toks.map((t) => ({ t, s: 0, e: 0 })), blank: pick.i, answer,
+               options: shuffle([answer, ...opts]), source: { workId: r.work_id, title: r.work_title, level: null }, en: null });
+  }
+  return out;
+}
+
 async function counts(env: ArabicEnv, band: Band) {
-  const [pool, daily, mined, grammar, mine] = await Promise.all([
+  const [pool, daily, mined, grammar, mine, read] = await Promise.all([
     query<{ band: string; n: number }>(env.DB_AR, `SELECT band, COUNT(*) AS n FROM ar_practice_pool GROUP BY band`),
     query<{ n: number }>(env.DB_AR, `SELECT COUNT(*) AS n FROM ar_daily_word`),
     query<{ register: string | null; n: number }>(env.DB_AR,
       `SELECT register, COUNT(*) AS n FROM ar_acq_item WHERE gloss_en IS NOT NULL AND status = 'live' GROUP BY register`),
     query<{ level: string | null; n: number }>(env.DB_AR, `SELECT level, COUNT(*) AS n FROM ar_exercises WHERE exercise_type = 'mcq' GROUP BY level`),
     query<{ n: number }>(env.DB_AR, `SELECT COUNT(*) AS n FROM ar_acq_item WHERE status = 'live' AND root_ar IS NOT NULL AND capture_id IS NOT NULL`),
+    query<{ band: string; n: number }>(env.DB_AR, `SELECT band, COUNT(*) AS n FROM ar_read_pool GROUP BY band`).catch(() => []),
   ]);
   const lines = pool.filter((p) => band === 'all' || p.band === band).reduce((s, p) => s + p.n, 0);
   const basicOk = band === 'all' || band === 'basic';
@@ -182,6 +209,7 @@ async function counts(env: ArabicEnv, band: Band) {
     lines, words: (basicOk ? daily[0]?.n ?? 0 : 0) + minedN, plurals: basicOk ? daily[0]?.n ?? 0 : 0,
     grammar: grammar.filter((g) => band === 'all' || bandOf(g.level) === band).reduce((s, g) => s + g.n, 0),
     mine: mine[0]?.n ?? 0,   // the reader's own words, at every level
+    read: read.filter((r) => band === 'all' || r.band === band).reduce((s, r) => s + r.n, 0),
   };
 }
 
@@ -212,6 +240,7 @@ export function practiceRoutes(router: Router<ArabicEnv>) {
     const meta = skillCard(row);
     const items = row.extra?.source === 'lines' ? await lineDrills(env, skill, band, n)
       : skill === 'mine' ? await mineDrills(env, n)
+      : skill === 'read' ? await readDrills(env, band, n)
       : skill === 'meaning' ? await wordDrills(env, band, n)
       : skill === 'plural' ? await pluralDrills(env, band, n)
       : await grammarDrills(env, band, n);

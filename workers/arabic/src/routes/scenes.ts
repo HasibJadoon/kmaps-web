@@ -38,7 +38,7 @@ async function episodes(env: ArabicEnv, band: Band) {
             (SELECT a.object_key FROM ar_acq_audio a WHERE a.acq_ref_id = r.id AND a.status = 'live'
                AND a.object_key NOT LIKE 'youtube:%' LIMIT 1) AS audio
        FROM ar_text_unit t
-       JOIN ar_acquisition_ref r ON r.id = t.acq_ref_id AND r.level IN (${lv.map(() => '?').join(',')})
+       JOIN ar_acquisition_ref r ON r.id = t.acq_ref_id AND r.status = 'live' AND r.level IN (${lv.map(() => '?').join(',')})
        LEFT JOIN ar_acq_entry e ON e.ar_no = json_extract(r.meta_json, '$.ar_no')
        LEFT JOIN ar_acq_entry pe ON pe.ar_no = e.parent_ar_no
        LEFT JOIN ar_acq_category pc ON pc.id = pe.ar_no

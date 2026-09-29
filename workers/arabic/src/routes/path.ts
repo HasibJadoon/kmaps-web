@@ -30,7 +30,7 @@ async function unitsOf(env: ArabicEnv, band: string) {
             json_extract(t.script_json, '$.episode') AS episode,
             COALESCE(json_extract(t.script_json, '$.series_ar'), r.title_ar) AS series,
             json_array_length(json_extract(t.script_json, '$.scenes')) AS scenes
-       FROM ar_text_unit t JOIN ar_acquisition_ref r ON r.id = t.acq_ref_id
+       FROM ar_text_unit t JOIN ar_acquisition_ref r ON r.id = t.acq_ref_id AND r.status = 'live'
       WHERE t.script_json IS NOT NULL AND json_valid(t.script_json) AND r.level IN (${lv.map(() => '?').join(',')})
         AND EXISTS (SELECT 1 FROM ar_acq_audio a WHERE a.acq_ref_id = r.id AND a.status = 'live' AND a.object_key NOT LIKE 'youtube:%')
       ORDER BY series, episode`, lv);

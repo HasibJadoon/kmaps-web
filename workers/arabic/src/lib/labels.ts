@@ -60,6 +60,11 @@ export function srsCardFor(it: Record<string, unknown>): Record<string, unknown>
       back = [it.kind === 'fill' || it.kind === 'hear' || it.kind === 'nuance' ? en : ans, it.kind === 'vocab' || it.kind === 'idiom' ? en : null]
         .filter((x, i, a) => x && a.indexOf(x) === i).join('\n');
       break;
+    case 'read': {
+      const words = ((it.words as Array<{ t: string }> | undefined) ?? []).map((w, i) => (i === it.blank ? '＿＿＿' : w.t));
+      front = words.join(' '); back = [ans, s((it.source as { title?: string } | undefined)?.title)].filter(Boolean).join('\n');
+      break;
+    }
     case 'order': case 'dictation': case 'shadow':
       front = en ?? line; back = line; type = 'passage'; break;
     case 'match':
