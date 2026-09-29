@@ -3,7 +3,7 @@ import { ok, notFound, badRequest } from '../../../shared/src/response';
 import { query, queryOne } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { parseBand, bare, type Band } from '../lib/levels';
-import { labels, byKey, badge, skillCard, instruct } from '../lib/labels';
+import { labels, byKey, badge, skillCard, instruct, srsCardFor } from '../lib/labels';
 import { commonWords, isCommon } from '../lib/common';
 
 // ── Scenes: watch, then practise in context ──────────────────────────────────
@@ -339,18 +339,8 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     const dict = shuffle(lines.filter((l) => { const n = l.ar.split(/\s+/).length; return n >= 4 && n <= 10; }))[0];
     if (dict) items.push({ id: `dictation:${unit}:${no}:${dict.start}`, kind: 'dictation', audio: clip(dict), words: timedWords(dict),
                            answer: dict.ar, en: dict.en ?? null, source, bucket: 'sound' });
-    // every word, idiom and term met here goes to review (CORE SRS), as a card the app files
-    for (const it of items as Array<Record<string, unknown>>) {
-      const b = it.bucket as string | undefined;
-      if (!b || !['vocab', 'idiom', 'verbal_idiom', 'keyterm', 'near_synonym'].includes(b)) continue;
-      const said = (it.prompt as string | null) ?? (it.answer as string | null);
-      const meaning = it.kind === 'fill' || it.kind === 'nuance' ? (it.en as string | null) : (it.answer as string | null);
-      const lineAr = ((it.words as Array<{ t: string }> | undefined) ?? []).map((w) => w.t).join(' ');
-      if (!said || !meaning) continue;
-      it.srs = { module: 'AR', resource_type: b === 'keyterm' ? 'concept' : 'vocabulary', card_kind: b,
-                 resource_ref: `AR:scene:${unit}:${no}:${String(it.id)}`,
-                 front_text: [said, lineAr].filter(Boolean).join('\n'), back_text: [meaning, it.en].filter((x, i, a) => x && a.indexOf(x) === i).join('\n') };
-    }
+    // every drill files its review card (CORE SRS): the words, idioms and terms, and the lines too
+    for (const it of items as Array<Record<string, unknown>>) it.srs = srsCardFor(it);
     const base = byKey(L.scene_skill).get('scene');
     const card = base ? skillCard(base) : { id: 'scene', title: '', titleAr: '', tagline: '', icon: 'film', color: '#E07A5F' };
     const deck = byKey(L.path).get('srs_deck');

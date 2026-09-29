@@ -1160,7 +1160,15 @@ export function srsRoutes(router: Router<CoreEnv>) {
       });
 
       if (outcome.inserted) inserted += 1; else skipped += 1;
+      // a card filed from a drill carries how the learner did: graded now, as a review would be
+      const rating: unknown = entry!['rating'];
+      let graded = false;
+      if (outcome.card && isRating(rating)) {
+        await answerCard(repo, outcome.card, ctx.userId, rating, null);
+        graded = true;
+      }
       results.push({
+        graded,
         id: outcome.card?.id ?? null,
         resource_ref: resourceRef,
         card_template: str(entry!['card_template']) ?? 'freeform',

@@ -2,7 +2,7 @@ import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
-import { labels, skillCard, instruct } from '../lib/labels';
+import { labels, skillCard, instruct, srsCardFor } from '../lib/labels';
 import { commonWords, isCommon } from '../lib/common';
 import { parseBand, bandOf, bare, type Band } from '../lib/levels';
 import { mineDrills } from './words';
@@ -215,7 +215,10 @@ export function practiceRoutes(router: Router<ArabicEnv>) {
       : skill === 'meaning' ? await wordDrills(env, band, n)
       : skill === 'plural' ? await pluralDrills(env, band, n)
       : await grammarDrills(env, band, n);
-    const res = ok({ skill: meta, level: band, items: instruct(items as Array<{ kind: string }>, all) });
+    const deck = (all.path ?? []).find((x) => x.key === 'srs_deck');
+    const withCards = (items as Array<Record<string, unknown>>).map((it) => ({ ...it, srs: srsCardFor(it) }));
+    const res = ok({ skill: meta, level: band, items: instruct(withCards as unknown as Array<{ kind: string }>, all),
+                     srsDeck: deck ? { title: deck.label, description: deck.detail } : null });
     res.headers.set('Cache-Control', 'no-store');
     return res;
   });

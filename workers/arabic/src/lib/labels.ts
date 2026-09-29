@@ -45,3 +45,32 @@ export function instruct<T extends { kind: string }>(items: T[], all: Scopes) {
   const kinds = byKey(all.kind);
   return items.map((it) => ({ ...it, instruction: kinds.get(it.kind)?.label ?? null, instructionAr: kinds.get(it.kind)?.labelAr ?? null }));
 }
+
+/// Every drill files a review card (CORE SRS) keyed to what it asks about, so the same word or line
+/// meets the same card again and the schedule follows the learner's answers. What a card asks and
+/// answers, by kind of drill; null where a drill has nothing to remember by itself.
+export function srsCardFor(it: Record<string, unknown>): Record<string, unknown> | null {
+  const s = (x: unknown) => (typeof x === 'string' && x.trim() ? x.trim() : null);
+  const line = ((it.words as Array<{ t: string }> | undefined) ?? []).map((w) => w.t).join(' ') || null;
+  const en = s(it.en), ans = s(it.answer), prompt = s(it.prompt);
+  let front: string | null = null, back: string | null = null, type = 'vocabulary';
+  switch (it.kind) {
+    case 'fill': case 'hear': case 'vocab': case 'idiom': case 'nuance':
+      front = [it.kind === 'fill' || it.kind === 'hear' || it.kind === 'nuance' ? ans : prompt, line].filter(Boolean).join('\n');
+      back = [it.kind === 'fill' || it.kind === 'hear' || it.kind === 'nuance' ? en : ans, it.kind === 'vocab' || it.kind === 'idiom' ? en : null]
+        .filter((x, i, a) => x && a.indexOf(x) === i).join('\n');
+      break;
+    case 'order': case 'dictation': case 'shadow':
+      front = en ?? line; back = line; type = 'passage'; break;
+    case 'match':
+      front = line; back = en; type = 'passage'; break;
+    case 'meaning': case 'plural':
+      front = prompt; back = [ans, s(it.gloss)].filter(Boolean).join('\n'); break;
+    case 'grammar': case 'feature':
+      front = [prompt, s(it.promptEn)].filter(Boolean).join('\n'); back = [ans, s(it.explanation)].filter(Boolean).join('\n'); type = 'grammar'; break;
+    default: return null;
+  }
+  if (!front || !back) return null;
+  return { module: 'AR', resource_type: type, card_kind: String(it.bucket ?? it.kind),
+           resource_ref: `AR:drill:${String(it.id)}`, front_text: front, back_text: back };
+}
