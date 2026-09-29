@@ -353,7 +353,9 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     }
     const base = byKey(L.scene_skill).get('scene');
     const card = base ? skillCard(base) : { id: 'scene', title: '', titleAr: '', tagline: '', icon: 'film', color: '#E07A5F' };
-    return { skill: { ...card, title: titled(scene.title_en) ?? card.title, titleAr: titled(scene.title_ar) ?? card.titleAr },
+    const deck = byKey(L.path).get('srs_deck');
+    return { srsDeck: deck ? { title: deck.label, description: deck.detail } : null,
+             skill: { ...card, title: titled(scene.title_en) ?? card.title, titleAr: titled(scene.title_ar) ?? card.titleAr },
                      level: sc.level, items: instruct(balance(items as Array<{ kind: string; bucket?: string | null }>, size), L) };
 }
 

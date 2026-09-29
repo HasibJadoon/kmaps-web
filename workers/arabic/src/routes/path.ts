@@ -159,7 +159,7 @@ export function pathRoutes(router: Router<ArabicEnv>) {
     if (!good.length) return badRequest('no scenes to check');
     const card = byKey(L.path).get('check');
     const items = good.flatMap((r) => r.items).sort(() => Math.random() - 0.5).slice(0, size);
-    const res = ok({ skill: card ? skillCard(card) : good[0].skill, level: good[0].level, items });
+    const res = ok({ skill: card ? skillCard(card) : good[0].skill, level: good[0].level, items, srsDeck: good[0].srsDeck });
     res.headers.set('Cache-Control', 'no-store');
     return res;
   });
@@ -175,7 +175,7 @@ export function pathRoutes(router: Router<ArabicEnv>) {
     const good = rounds.filter((r): r is Exclude<typeof r, Response> => !(r instanceof Response));
     if (!good.length) return badRequest('nothing to place with at this level yet');
     const card = byKey(L.path).get('placement');
-    const res = ok({ skill: card ? skillCard(card) : good[0].skill, level: b,
+    const res = ok({ skill: card ? skillCard(card) : good[0].skill, level: b, srsDeck: good[0].srsDeck,
                      items: good.flatMap((r) => r.items).sort(() => Math.random() - 0.5).slice(0, size) });
     res.headers.set('Cache-Control', 'no-store');
     return res;
