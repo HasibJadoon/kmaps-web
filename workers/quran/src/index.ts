@@ -31,6 +31,7 @@ import { mushafRoutes } from './routes/mushaf';
 import { adminSyncRoutes } from './routes/admin-sync';
 import { xrefRoutes } from './routes/xref';
 import { atlasRoutes } from './routes/atlas';
+import { practiceRoutes } from './routes/practice';
 
 const router = new Router<QuranEnv>();
 
@@ -59,6 +60,7 @@ wordRoutes(router);
 translationRoutes(router);
 studyRoutes(router);
 atlasRoutes(router);
+practiceRoutes(router);
 pageRoutes(router);
 mushafRoutes(router);
 tafsirRoutes(router);
