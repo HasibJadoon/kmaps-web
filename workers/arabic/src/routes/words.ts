@@ -19,7 +19,8 @@ interface Item {
   al_lemma_ref: string | null; gloss_en: string | null; capture_id: string | null; meta_json: string;
   srs_state: string | null;
 }
-interface Meta { pos?: string; frequency_quran?: number; n_images?: number; freq_in_photos?: number; surface_norm?: string }
+interface Meta { pos?: string; frequency_quran?: number; n_images?: number; freq_in_photos?: number; surface_norm?: string;
+               arc?: Arc[]; core_en?: string; note?: string; arc_source?: string; forms?: Forms | null; forms_tts?: string; tts?: string }
 
 const meta = (i: Item): Meta => { try { return JSON.parse(i.meta_json || '{}'); } catch { return {}; } };
 
@@ -45,7 +46,7 @@ function ftsQuery(surface: string) {
 }
 
 interface SegHit { id: string; text_ar: string; start_sec: number; end_sec: number; meta_json: string; object_key: string;
-                   title: string | null; level: string | null; work_id: string | null }
+                   title: string | null; level: string | null; work_id: string | null; text_en: string | null; gloss_json: string | null }
 
 /// The lines where the word is spoken, with the word's own clip where the timing allows.
 async function heard(env: ArabicEnv, surface: string, limit = 10) {
@@ -55,11 +56,13 @@ async function heard(env: ArabicEnv, surface: string, limit = 10) {
   try {
     rows = await query<SegHit>(env.DB_AR,
       `SELECT s.id, s.text_ar, s.start_sec, s.end_sec, s.meta_json, a.object_key,
-              COALESCE(r.title_ar, r.title_en, a.title_ar) AS title, r.level, r.id AS work_id
+              COALESCE(r.title_ar, r.title_en, a.title_ar) AS title, r.level, r.id AS work_id,
+              p.text_en, p.gloss_json
          FROM ar_acq_audio_fts f
          JOIN ar_acq_audio_segment s ON s.rowid = f.rowid
          JOIN ar_acq_audio a ON a.id = s.audio_id AND a.status = 'live' AND a.object_key NOT LIKE 'youtube:%'
          LEFT JOIN ar_acquisition_ref r ON r.id = a.acq_ref_id
+         LEFT JOIN ar_practice_pool p ON p.id = s.id
         WHERE ar_acq_audio_fts MATCH ?
         LIMIT 120`, [q]);
   } catch { return []; }
@@ -82,6 +85,8 @@ async function heard(env: ArabicEnv, surface: string, limit = 10) {
       word: timed ? { url, start: Math.max(r.start_sec, w[i][0] - 0.04), end: Math.min(r.end_sec, w[i][1] + 0.06) } : null,
       index: i,
       words: tokens.map((t, j) => ({ t, s: timed ? w[j][0] : r.start_sec, e: timed ? w[j][1] : r.end_sec })),
+      en: r.text_en,
+      glosses: (() => { try { return r.gloss_json ? JSON.parse(r.gloss_json) as string[] : null; } catch { return null; } })(),
     });
     perWork.set(k, (perWork.get(k) ?? 0) + 1);
     if (out.length >= limit) break;
@@ -92,12 +97,36 @@ async function heard(env: ArabicEnv, surface: string, limit = 10) {
 
 const POS: Record<string, string> = { noun: 'noun (ism)', verb: 'verb (fiʿl)', particle: 'particle (ḥarf)', adjective: 'adjective (ṣifa)' };
 
+/// How hard a word is by how often the Qurʾān uses it: a word met on every
+/// page is learnt by meeting it; a word met twice has to be learnt on purpose.
+const TIERS = [
+  { key: 'easy', label: 'Easy', labelAr: 'سَهْل', min: 100, color: '#81B29A' },
+  { key: 'good', label: 'Good', labelAr: 'جَيِّد', min: 25, color: '#5DA9E9' },
+  { key: 'hard', label: 'Hard', labelAr: 'صَعْب', min: 5, color: '#F2A65A' },
+  { key: 'hardest', label: 'Hardest', labelAr: 'أَصْعَب', min: 1, color: '#E07A5F' },
+] as const;
+export function tierOf(quran: number) {
+  const t = TIERS.find((x) => quran >= x.min);
+  return t ? { key: t.key, label: t.label, labelAr: t.labelAr, color: t.color,
+               line: `met ${quran} time${quran === 1 ? '' : 's'} in the Qurʾān` } : null;
+}
+
+interface Arc { en: string; flavour: string; ar?: string; ar_en?: string; tts?: string }
+interface Forms {
+  type: 'verb' | 'noun'; madi?: string; mudari?: string; masadir?: string[]; verb_form?: string; bab?: string | null;
+  kind?: 'jamid' | 'mushtaq'; derived_as?: string | null; singular?: string;
+  plurals?: Array<{ ar: string; kind: string }>; gender?: string | null;
+}
+
+const ttsUrl = (m: Meta) => (m.tts ? `/api/ar/audio/${encodeURI(m.tts)}` : null);
+
 function card(i: Item) {
   const m = meta(i);
+  const quran = m.frequency_quran ?? 0;
   return {
     id: i.id, text: i.vocalised_ar ?? i.text_ar, lemma: i.lemma_ar, root: i.root_ar, pos: m.pos ?? null,
-    posLabel: m.pos ? POS[m.pos] ?? m.pos : null, quran: m.frequency_quran ?? 0, photos: m.n_images ?? 1,
-    gloss: i.gloss_en,
+    posLabel: m.pos ? POS[m.pos] ?? m.pos : null, quran, tier: tierOf(quran), photos: m.n_images ?? 1,
+    gloss: i.gloss_en, tts: ttsUrl(m),
   };
 }
 
@@ -120,6 +149,8 @@ export function wordRoutes(router: Router<ArabicEnv>) {
     return ok({
       stats: { words: all.length, roots: roots.size,
                quran: all.filter((i) => (meta(i).frequency_quran ?? 0) > 0).length },
+      tiers: TIERS.map((t) => ({ key: t.key, label: t.label, labelAr: t.labelAr, color: t.color,
+                                 count: all.filter((i) => tierOf(meta(i).frequency_quran ?? 0)?.key === t.key).length })),
       roots: grouped,
     });
   });
@@ -161,11 +192,18 @@ export function wordRoutes(router: Router<ArabicEnv>) {
       meaning: {
         gloss: item.gloss_en ?? senses[0] ?? null,
         senses: senses.slice(0, 4),
+        // the range of meanings, from the core image outward, each with its flavour
+        arc: (m.arc ?? []).map((a) => ({ ...a, tts: a.tts ? `/api/ar/audio/${encodeURI(a.tts)}` : null })),
+        core: m.core_en ?? null,
+        note: m.note ?? null,
+        source: m.arc_source ?? null,
         rootCore: lex?.root?.meaning_core_en ?? null,
         rootCoreAr: lex?.root?.meaning_core_ar ?? null,
         pattern: lex?.form?.wazn ?? null,
         patternName: lex?.form?.name_en ?? null,
       },
+      // the word set out as the classical dictionaries do it
+      forms: m.forms ? { ...m.forms, tts: m.forms_tts ? `/api/ar/audio/${encodeURI(m.forms_tts)}` : null } : null,
       heard: lines,
       seen: { lines: photoLines, photos: m.n_images ?? 1 },
       family: family.map(card).sort((a, b) => b.photos - a.photos),
@@ -193,7 +231,7 @@ export async function mineDrills(env: ArabicEnv, n: number) {
     out.push({
       id: `mine:${i.id}:${l.id}`, kind: 'hear', audio: l.word, line: l.line, words: l.words, target: l.index,
       answer, options: [answer, ...others].sort(() => Math.random() - 0.5),
-      source: { workId: l.workId, title: l.title, level: l.level },
+      source: { workId: l.workId, title: l.title, level: l.level }, en: l.en, glosses: l.glosses,
     });
   }
   return out;

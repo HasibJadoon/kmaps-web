@@ -35,20 +35,28 @@ const SKILLS = [
 interface Line {
   id: string; band: string; level: string | null; work_id: string | null; work_title: string | null;
   object_key: string; start_sec: number; end_sec: number; text_ar: string; words_json: string; word_count: number;
+  text_en: string | null; gloss_json: string | null;
 }
 
 const audioUrl = (key: string) => `/api/ar/audio/${encodeURI(key)}`;
 const shuffle = <T,>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
-async function drawLines(env: ArabicEnv, band: Band, n: number): Promise<Line[]> {
+/// Random lines at a level — translated ones first, so the meaning can be shown.
+async function drawLines(env: ArabicEnv, band: Band, n: number, translated = true): Promise<Line[]> {
   const start = Math.floor(Math.random() * 1e9);
-  const where = band === 'all' ? '' : 'band = ? AND';
+  const where = (band === 'all' ? '' : 'band = ? AND ') + (translated ? 'text_en IS NOT NULL AND' : '');
   const args = band === 'all' ? [] : [band];
   let rows = await query<Line>(env.DB_AR, `SELECT * FROM ar_practice_pool WHERE ${where} rnd >= ? ORDER BY rnd LIMIT ?`, [...args, start, n]);
   if (rows.length < n) rows = rows.concat(await query<Line>(env.DB_AR,
     `SELECT * FROM ar_practice_pool WHERE ${where} rnd >= 0 ORDER BY rnd LIMIT ?`, [...args, n - rows.length]));
+  if (translated && rows.length < n) {
+    const seen = new Set(rows.map((r) => r.id));
+    rows = rows.concat((await drawLines(env, band, n - rows.length + 4, false)).filter((r) => !seen.has(r.id)).slice(0, n - rows.length));
+  }
   return rows;
 }
+
+const glossesOf = (l: { gloss_json: string | null }) => { try { return l.gloss_json ? JSON.parse(l.gloss_json) as string[] : null; } catch { return null; } };
 
 function wordsOf(l: Line) {
   let times: Array<[number, number]> = [];
@@ -56,31 +64,59 @@ function wordsOf(l: Line) {
   return l.text_ar.split(/\s+/).map((t, i) => ({ t, s: times[i]?.[0] ?? l.start_sec, e: times[i]?.[1] ?? l.end_sec }));
 }
 
-/// Words to offer beside the right one: of a similar length, none the same.
+// Words that carry little on their own: never the blank.
+const LIGHT = new Set(['قال', 'قالت', 'قد', 'وقد', 'لقد', 'لا', 'ولا', 'ما', 'من', 'في', 'على', 'إلى', 'الى', 'عن', 'أن', 'ان',
+  'إن', 'أنه', 'انه', 'إنه', 'هذا', 'هذه', 'ذلك', 'تلك', 'التي', 'الذي', 'الذين', 'كان', 'كانت', 'هو', 'هي', 'هم', 'ثم', 'أو', 'او',
+  'و', 'يا', 'لم', 'لن', 'كل', 'بعض', 'هنا', 'حتى', 'إذا', 'اذا', 'لأن', 'لان', 'لأننا', 'لكن', 'ولكن', 'بل', 'مع', 'بين', 'عند', 'كما',
+  'فقد', 'وهو', 'وهي', 'وما', 'ومن', 'وفي', 'فلا', 'فإن', 'بأن', 'أي', 'إلا', 'الا', 'هل', 'نعم', 'أنا', 'انا', 'أنت', 'انت', 'نحن']);
+
+/// Light even with a conjunction on it (ولم, فهذا).
+const light = (w: string) => { const b = bare(w); return LIGHT.has(b) || (/^[وف]/.test(b) && LIGHT.has(b.slice(1))); };
+
+const shapeOf = (w: string) => { const b = bare(w); return b.startsWith('وال') ? 'وال' : b.startsWith('بال') ? 'بال' : b.startsWith('ال') ? 'ال'
+  : b.startsWith('و') ? 'و' : b.startsWith('ب') ? 'ب' : b.startsWith('ل') ? 'ل' : ''; };
+
+/// Words to offer beside the right one, chosen to be confused by ear: the same
+/// prefix, a close length, as many shared letters as can be found; none the same.
 function distractors(answer: string, pool: string[], k = 3) {
   const a = bare(answer);
-  const near = shuffle(pool.filter((w) => bare(w) !== a && Math.abs(bare(w).length - a.length) <= 2));
-  const far = shuffle(pool.filter((w) => bare(w) !== a));
+  const letters = new Set(a.replace(/^(وال|بال|ال|و|ب|ل)/, ''));
+  const scored = pool
+    .filter((w) => { const b = bare(w); return b !== a && b.length >= 2 && !light(w); })
+    .map((w) => {
+      const b = bare(w);
+      const shared = [...new Set(b.replace(/^(وال|بال|ال|و|ب|ل)/, ''))].filter((c) => letters.has(c)).length;
+      return { w, score: shared * 2 + (shapeOf(w) === shapeOf(answer) ? 3 : 0) - Math.abs(b.length - a.length) + Math.random() };
+    })
+    .sort((x, y) => y.score - x.score);
   const out: string[] = [];
-  for (const w of [...near, ...far]) { if (!out.some((x) => bare(x) === bare(w))) out.push(w); if (out.length === k) break; }
+  for (const { w } of scored) { if (!out.some((x) => bare(x) === bare(w))) out.push(w); if (out.length === k) break; }
   return out;
 }
 const clean = (w: string) => w.replace(/[؟،؛.!?"«»:…,()]/g, '');
+/// Options shown bare, so the vowel marks of the right one do not give it away.
+const shown = (w: string) => bare(clean(w));
 
 async function lineDrills(env: ArabicEnv, skill: string, band: Band, n: number) {
-  const lines = await drawLines(env, band, n + 24);
+  const lines = await drawLines(env, band, n);
+  const others = await drawLines(env, band, 24, false);
   const drillLines = lines.slice(0, n);
-  const pool = [...new Set(lines.slice(n).flatMap((l) => l.text_ar.split(/\s+/).map(clean)).filter((w) => bare(w).length >= 2))];
+  const pool = [...new Set(others.flatMap((l) => l.text_ar.split(/\s+/).map(clean)).filter((w) => bare(w).length >= 2))];
   return drillLines.map((l) => {
     const words = wordsOf(l);
     const audio = { url: audioUrl(l.object_key), start: l.start_sec, end: l.end_sec };
     const source = { workId: l.work_id, title: l.work_title, level: l.level };
-    const base = { id: `${skill}:${l.id}`, kind: skill, audio, words: words.map((w) => ({ ...w, t: w.t })), source };
+    // the meaning, for the learner to reveal: the sentence, and a gloss per word
+    const base = { id: `${skill}:${l.id}`, kind: skill, audio, words: words.map((w) => ({ ...w, t: w.t })), source,
+                   en: l.text_en, glosses: glossesOf(l) };
     if (skill === 'fill' || skill === 'hear') {
-      const choices = words.map((w, i) => ({ w, i })).filter(({ w }) => bare(w.t).length >= 3 && w.e - w.s >= 0.22);
+      // a content word, long enough to hear, clearly timed — the lightest words never
+      const content = words.map((w, i) => ({ w, i }))
+        .filter(({ w }) => bare(w.t).length >= 3 && !light(w.t) && w.e - w.s >= 0.22);
+      const choices = content.length ? content : words.map((w, i) => ({ w, i })).filter(({ w }) => bare(w.t).length >= 3);
       const pick = choices.length ? choices[Math.floor(Math.random() * choices.length)] : { w: words[0], i: 0 };
-      const answer = clean(pick.w.t);
-      const options = shuffle([answer, ...distractors(answer, pool)]);
+      const answer = shown(pick.w.t);
+      const options = shuffle([answer, ...distractors(answer, pool).map(shown)]);
       return skill === 'fill'
         ? { ...base, blank: pick.i, answer, options }
         : { ...base, audio: { ...audio, start: Math.max(l.start_sec, pick.w.s - 0.04), end: Math.min(l.end_sec, pick.w.e + 0.06) },
