@@ -22,7 +22,7 @@ interface Script { title_ar?: string; title_en?: string; series_ar?: string; ser
                    cast?: Array<{ name_ar: string; name_en?: string; role_en?: string; icon?: string }>; scenes: Scene[] }
 
 const LEVELS: Record<Exclude<Band, 'all'>, string[]> = { basic: ['A1', 'A2'], middle: ['B1', 'B2'], advanced: ['C1', 'C2'] };
-const levelsOf = (band: Band) => band === 'all' ? ['B1', 'B2', 'C1', 'C2'] : band === 'basic' ? [] : LEVELS[band];
+const levelsOf = (band: Band) => band === 'all' ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] : LEVELS[band];
 
 interface EpisodeRow { unit: string; work: string; level: string; title: string | null; episode: number | null;
                        series: string | null; scenes: number; audio: string | null }
@@ -182,74 +182,18 @@ async function lexemeDrills(env: ArabicEnv, unit: string, no: number, scene: Sce
   return out;
 }
 
-export function sceneRoutes(router: Router<ArabicEnv>) {
-  // The scripted series at a level (Middle / Advanced), with episodes and scenes.
-  router.get('/ar/scenes', async (req, env) => {
-    const band = parseBand(new URL(req.url).searchParams.get('level'));
-    const [eps, L] = await Promise.all([episodes(env, band), labels(env)]);
-    const lab = byKey(L.scene_skill);
-    const series = new Map<string, { series: string; level: string; episodes: EpisodeRow[] }>();
-    for (const e of eps) {
-      const k = e.series ?? e.title ?? e.unit;
-      const s = series.get(k) ?? { series: k, level: e.level, episodes: [] };
-      s.episodes.push(e); series.set(k, s);
-    }
-    return ok({
-      level: band,
-      card: lab.get('shelf') ? skillCard(lab.get('shelf')!) : null,
-      empty: lab.get('empty') ? skillCard(lab.get('empty')!) : null,
-      series: [...series.values()].map((s) => ({
-        series: s.series, level: s.level, episodes: s.episodes.length, scenes: s.episodes.reduce((n, e) => n + (e.scenes ?? 0), 0),
-        list: s.episodes.map((e) => ({ unit: e.unit, work: e.work, title: e.title, episode: e.episode, scenes: e.scenes, hasAudio: !!e.audio })),
-      })),
-    });
-  });
-
-  // One episode: its cast and its scenes (title, summary, how many lines).
-  router.get('/ar/scenes/:unit', async (_req, env, { unit }) => {
-    const [sc, L] = await Promise.all([script(env, unit), labels(env)]);
-    if (!sc) return notFound(`scenes of ${unit}`);
-    const { s } = sc;
-    return ok({
-      card: byKey(L.scene_skill).get('episode') ? skillCard(byKey(L.scene_skill).get('episode')!) : null,
-      practise: byKey(L.scene_skill).get('practise') ? skillCard(byKey(L.scene_skill).get('practise')!) : null,
-      unit, work: sc.work, level: sc.level, title: s.title_ar, titleEn: s.title_en, series: s.series_ar, seriesEn: s.series_en,
-      episode: s.episode, audio: audioUrl(sc.audio), cast: s.cast ?? [],
-      // the practice rounds' difficulty, as the app offers it
-      tiers: (L.scene_tier ?? []).map((t) => ({ key: t.key || null, label: t.label, labelAr: t.labelAr, color: t.color ?? '#E07A5F' })),
-      scenes: s.scenes.map((x) => ({ no: x.scene_no, title: titled(x.title_ar), titleEn: titled(x.title_en), icon: x.icon, era: x.era,
-                                     summary: x.summary_en, lines: x.lines.length, start: x.start ?? x.lines[0]?.start,
-                                     end: x.end ?? x.lines[x.lines.length - 1]?.end })),
-    });
-  });
-
-  // One scene, to watch: every line with its speaker, English and timings.
-  router.get('/ar/scenes/:unit/:no', async (_req, env, { unit, no }) => {
-    const sc = await script(env, unit);
-    const scene = sc?.s.scenes.find((x) => String(x.scene_no) === no);
-    if (!sc || !scene) return notFound(`scene ${no} of ${unit}`);
-    const url = audioUrl(sc.audio);
-    const speakers = new Set(scene.lines.map((l) => l.speaker).filter(Boolean));
-    return ok({
-      unit, no: scene.scene_no, title: titled(scene.title_ar), titleEn: titled(scene.title_en), summary: scene.summary_en, era: scene.era,
-      audio: url, cast: (sc.s.cast ?? []).filter((c) => speakers.has(c.name_ar)),
-      lines: scene.lines.map((l) => ({ speaker: l.speaker ?? null, ar: l.ar, en: l.en ?? null, note: l.note ?? null,
-                                       clip: url ? { url, start: l.start, end: l.end } : null, words: timedWords(l) })),
-    });
-  });
-
-  // A practice round on one scene: its hard words and its dialogue, drawn fresh.
-  // ?tier=easy|good|hard keeps the read items (words, idioms, features) of that tier; the listening drills stay
-  router.get('/ar/scenes/:unit/:no/practice', async (req, env, { unit, no }) => {
-    const tier = new URL(req.url).searchParams.get('tier');
+/// One scene's round: its words, idioms, verbal idioms, key terms, near-synonyms, features and
+/// dialogue, drawn fresh — or a Response saying why there is none.
+export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier: string | null, size = 12) {
     const inTier = (x: { tier?: string }) => !tier || !x.tier || x.tier === tier;
     const [L, common] = await Promise.all([labels(env), commonWords(env)]);
-    const hardOnly = (w: string) => !isCommon(common, w);
     const sc = await script(env, unit);
     const scene = sc?.s.scenes.find((x) => String(x.scene_no) === no);
     if (!sc || !scene) return notFound(`scene ${no} of ${unit}`);
     const url = audioUrl(sc.audio);
     if (!url) return badRequest('this episode has no recording to practise with');
+    // Basic drills its everyday words too (never a function word); Middle and Advanced only the higher-end
+    const hardOnly = (w: string) => !isCommon(common, w, sc.level.startsWith('A'));
     const clip = (l: Line) => ({ url, start: l.start, end: l.end });
     const lines = scene.lines.filter((l) => l.ar && l.end > l.start);
     const items: unknown[] = [];
@@ -391,10 +335,90 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
     for (const it of items as Array<{ bucket?: string | null; tier?: string | null; badges?: unknown }>) {
       it.badges = [badge(it.bucket ? buckets.get(it.bucket) : undefined), badge(it.tier ? tiers.get(it.tier) : undefined)].filter(Boolean);
     }
+    // dictation: one line of a speakable length, heard, then written out
+    const dict = shuffle(lines.filter((l) => { const n = l.ar.split(/\s+/).length; return n >= 4 && n <= 10; }))[0];
+    if (dict) items.push({ id: `dictation:${unit}:${no}:${dict.start}`, kind: 'dictation', audio: clip(dict), words: timedWords(dict),
+                           answer: dict.ar, en: dict.en ?? null, source, bucket: 'sound' });
+    // every word, idiom and term met here goes to review (CORE SRS), as a card the app files
+    for (const it of items as Array<Record<string, unknown>>) {
+      const b = it.bucket as string | undefined;
+      if (!b || !['vocab', 'idiom', 'verbal_idiom', 'keyterm', 'near_synonym'].includes(b)) continue;
+      const said = (it.prompt as string | null) ?? (it.answer as string | null);
+      const meaning = it.kind === 'fill' || it.kind === 'nuance' ? (it.en as string | null) : (it.answer as string | null);
+      const lineAr = ((it.words as Array<{ t: string }> | undefined) ?? []).map((w) => w.t).join(' ');
+      if (!said || !meaning) continue;
+      it.srs = { module: 'AR', resource_type: b === 'keyterm' ? 'concept' : 'vocabulary', card_kind: b,
+                 resource_ref: `AR:scene:${unit}:${no}:${String(it.id)}`,
+                 front_text: [said, lineAr].filter(Boolean).join('\n'), back_text: [meaning, it.en].filter((x, i, a) => x && a.indexOf(x) === i).join('\n') };
+    }
     const base = byKey(L.scene_skill).get('scene');
     const card = base ? skillCard(base) : { id: 'scene', title: '', titleAr: '', tagline: '', icon: 'film', color: '#E07A5F' };
-    const res = ok({ skill: { ...card, title: titled(scene.title_en) ?? card.title, titleAr: titled(scene.title_ar) ?? card.titleAr },
-                     level: sc.level, items: instruct(balance(items as Array<{ kind: string; bucket?: string | null }>, 12), L) });
+    return { skill: { ...card, title: titled(scene.title_en) ?? card.title, titleAr: titled(scene.title_ar) ?? card.titleAr },
+                     level: sc.level, items: instruct(balance(items as Array<{ kind: string; bucket?: string | null }>, size), L) };
+}
+
+export function sceneRoutes(router: Router<ArabicEnv>) {
+  // The scripted series at a level (Middle / Advanced), with episodes and scenes.
+  router.get('/ar/scenes', async (req, env) => {
+    const band = parseBand(new URL(req.url).searchParams.get('level'));
+    const [eps, L] = await Promise.all([episodes(env, band), labels(env)]);
+    const lab = byKey(L.scene_skill);
+    const series = new Map<string, { series: string; level: string; episodes: EpisodeRow[] }>();
+    for (const e of eps) {
+      const k = e.series ?? e.title ?? e.unit;
+      const s = series.get(k) ?? { series: k, level: e.level, episodes: [] };
+      s.episodes.push(e); series.set(k, s);
+    }
+    return ok({
+      level: band,
+      card: lab.get('shelf') ? skillCard(lab.get('shelf')!) : null,
+      empty: lab.get('empty') ? skillCard(lab.get('empty')!) : null,
+      series: [...series.values()].map((s) => ({
+        series: s.series, level: s.level, episodes: s.episodes.length, scenes: s.episodes.reduce((n, e) => n + (e.scenes ?? 0), 0),
+        list: s.episodes.map((e) => ({ unit: e.unit, work: e.work, title: e.title, episode: e.episode, scenes: e.scenes, hasAudio: !!e.audio })),
+      })),
+    });
+  });
+
+  // One episode: its cast and its scenes (title, summary, how many lines).
+  router.get('/ar/scenes/:unit', async (_req, env, { unit }) => {
+    const [sc, L] = await Promise.all([script(env, unit), labels(env)]);
+    if (!sc) return notFound(`scenes of ${unit}`);
+    const { s } = sc;
+    return ok({
+      card: byKey(L.scene_skill).get('episode') ? skillCard(byKey(L.scene_skill).get('episode')!) : null,
+      practise: byKey(L.scene_skill).get('practise') ? skillCard(byKey(L.scene_skill).get('practise')!) : null,
+      unit, work: sc.work, level: sc.level, title: s.title_ar, titleEn: s.title_en, series: s.series_ar, seriesEn: s.series_en,
+      episode: s.episode, audio: audioUrl(sc.audio), cast: s.cast ?? [],
+      // the practice rounds' difficulty, as the app offers it
+      tiers: (L.scene_tier ?? []).map((t) => ({ key: t.key || null, label: t.label, labelAr: t.labelAr, color: t.color ?? '#E07A5F' })),
+      scenes: s.scenes.map((x) => ({ no: x.scene_no, title: titled(x.title_ar), titleEn: titled(x.title_en), icon: x.icon, era: x.era,
+                                     summary: x.summary_en, lines: x.lines.length, start: x.start ?? x.lines[0]?.start,
+                                     end: x.end ?? x.lines[x.lines.length - 1]?.end })),
+    });
+  });
+
+  // One scene, to watch: every line with its speaker, English and timings.
+  router.get('/ar/scenes/:unit/:no', async (_req, env, { unit, no }) => {
+    const sc = await script(env, unit);
+    const scene = sc?.s.scenes.find((x) => String(x.scene_no) === no);
+    if (!sc || !scene) return notFound(`scene ${no} of ${unit}`);
+    const url = audioUrl(sc.audio);
+    const speakers = new Set(scene.lines.map((l) => l.speaker).filter(Boolean));
+    return ok({
+      unit, no: scene.scene_no, title: titled(scene.title_ar), titleEn: titled(scene.title_en), summary: scene.summary_en, era: scene.era,
+      audio: url, cast: (sc.s.cast ?? []).filter((c) => speakers.has(c.name_ar)),
+      lines: scene.lines.map((l) => ({ speaker: l.speaker ?? null, ar: l.ar, en: l.en ?? null, note: l.note ?? null,
+                                       clip: url ? { url, start: l.start, end: l.end } : null, words: timedWords(l) })),
+    });
+  });
+
+  // A practice round on one scene: its hard words and its dialogue, drawn fresh.
+  // ?tier=easy|good|hard keeps the read items (words, idioms, features) of that tier; the listening drills stay
+  router.get('/ar/scenes/:unit/:no/practice', async (req, env, { unit, no }) => {
+    const round = await sceneRound(env, unit, no, new URL(req.url).searchParams.get('tier'));
+    if (round instanceof Response) return round;
+    const res = ok(round);
     res.headers.set('Cache-Control', 'no-store');
     return res;
   });

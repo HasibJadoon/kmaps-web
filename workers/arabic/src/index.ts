@@ -22,6 +22,7 @@ import { roomRoutes } from './routes/rooms';
 import { practiceRoutes } from './routes/practice';
 import { wordRoutes } from './routes/words';
 import { sceneRoutes } from './routes/scenes';
+import { pathRoutes } from './routes/path';
 
 const router = new Router<ArabicEnv>();
 
@@ -56,6 +57,7 @@ roomRoutes(router);
 practiceRoutes(router);
 wordRoutes(router);
 sceneRoutes(router);
+pathRoutes(router);
 
 // The version beacon the app checks at launch and on return: never kept.
 router.get('/ar/corpus-version', async (_req, env) => {
