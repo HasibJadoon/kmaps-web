@@ -17,7 +17,7 @@ const BANDS: Array<Exclude<Band, 'all'>> = ['basic', 'middle', 'advanced'];
 const LEVELS: Record<string, string[]> = { basic: ['A1', 'A2'], middle: ['B1', 'B2'], advanced: ['C1', 'C2'] };
 
 interface UnitRow { unit: string; work: string; level: string; title: string | null; episode: number | null; series: string | null; scenes: number }
-interface Progress { unit_id: string; band: string; stage: string; scenes_json: string; best_score: number | null }
+interface Progress { unit_id: string; band: string; stage: string; scenes_json: string; watched_json: string; best_score: number | null }
 
 const setting = (L: Record<string, Label[]>, key: string, dflt: number) => byKey(L.setting).get(key)?.min ?? dflt;
 const fill = (t: string | null | undefined, v: Record<string, string | number>) =>
@@ -39,7 +39,7 @@ async function unitsOf(env: ArabicEnv, band: string) {
 async function progressOf(env: ArabicEnv, me: string | null) {
   if (!me) return new Map<string, Progress>();
   const rows = await query<Progress>(env.DB_AR,
-    `SELECT unit_id, band, stage, scenes_json, best_score FROM ar_learner_unit WHERE user_id = ?`, [me]);
+    `SELECT unit_id, band, stage, scenes_json, watched_json, best_score FROM ar_learner_unit WHERE user_id = ?`, [me]);
   return new Map(rows.map((r) => [r.unit_id, r]));
 }
 
@@ -78,8 +78,9 @@ export function pathRoutes(router: Router<ArabicEnv>) {
           const status = done ? 'done' : levelOpen && previousDone ? 'open' : 'locked';
           previousDone = done;
           const drilled = p ? (JSON.parse(p.scenes_json) as number[]).length : 0;
+          const watched = p ? (JSON.parse(p.watched_json ?? '[]') as number[]).length : 0;
           return { unit: u.unit, title: u.title, episode: u.episode, scenes: u.scenes, status,
-                   stage: p?.stage ?? null, drilled, score: p?.best_score ?? null };
+                   stage: p?.stage ?? null, drilled, watched, score: p?.best_score ?? null };
         }),
       };
     });
@@ -113,8 +114,9 @@ export function pathRoutes(router: Router<ArabicEnv>) {
                       lines: Array<{ ar: string; en?: string; start: number; end: number; speaker?: string }> }> };
     const url = row.audio ? `/api/ar/audio/${encodeURI(row.audio)}` : null;
     const p = me ? await queryOne<Progress>(env.DB_AR,
-      `SELECT unit_id, band, stage, scenes_json, best_score FROM ar_learner_unit WHERE user_id = ? AND unit_id = ?`, [me, unit]) : null;
+      `SELECT unit_id, band, stage, scenes_json, watched_json, best_score FROM ar_learner_unit WHERE user_id = ? AND unit_id = ?`, [me, unit]) : null;
     const drilled = new Set(p ? JSON.parse(p.scenes_json) as number[] : []);
+    const watchedSet = new Set(p ? JSON.parse(p.watched_json ?? '[]') as number[] : []);
 
     // the preview: the key items the unit was read for, hardest first, each heard in its line
     const size = setting(L, 'unit_preview_size', 8);
@@ -142,7 +144,8 @@ export function pathRoutes(router: Router<ArabicEnv>) {
       steps: ['preview', 'watch', 'drill', 'check'].map((k) => byKey(L.path).get(k)).filter(Boolean).map((x) => skillCard(x!)),
       preview,
       scenes: doc.scenes.map((s) => ({ no: s.scene_no, title: s.title_ar ?? null, titleEn: s.title_en ?? null, icon: s.icon ?? null,
-                                       summary: s.summary_en ?? null, lines: s.lines.length, drilled: drilled.has(s.scene_no) })),
+                                       summary: s.summary_en ?? null, lines: s.lines.length, drilled: drilled.has(s.scene_no),
+                                       watched: watchedSet.has(s.scene_no) })),
     });
   });
 
@@ -200,24 +203,34 @@ export function pathRoutes(router: Router<ArabicEnv>) {
   router.post('/ar/path/unit/:unit/progress', async (req, env, { unit }) => {
     const me = actorRef(req);
     if (!me) return unauthorized('Sign in to keep your progress');
-    const body = await req.json().catch(() => null) as { band?: string; stage?: string; scene?: number; score?: number } | null;
-    if (!body?.band || !BANDS.includes(body.band as never)) return badRequest('band is required');
+    const body = await req.json().catch(() => null) as { band?: string; stage?: string; scene?: number; watched?: number; score?: number } | null;
+    if (!body) return badRequest('a body is required');
+    // the unit's own level decides its band when the caller does not say
+    if (!body.band || !BANDS.includes(body.band as never)) {
+      const lv = await queryOne<{ level: string }>(env.DB_AR,
+        `SELECT r.level FROM ar_text_unit t JOIN ar_acquisition_ref r ON r.id = t.acq_ref_id WHERE t.id = ?`, [unit]);
+      body.band = Object.entries(LEVELS).find(([, ls]) => ls.includes(lv?.level ?? ''))?.[0];
+      if (!body.band) return badRequest(`no level for ${unit}`);
+    }
     const cur = await queryOne<Progress>(env.DB_AR,
-      `SELECT unit_id, band, stage, scenes_json, best_score FROM ar_learner_unit WHERE user_id = ? AND unit_id = ?`, [me, unit]);
+      `SELECT unit_id, band, stage, scenes_json, watched_json, best_score FROM ar_learner_unit WHERE user_id = ? AND unit_id = ?`, [me, unit]);
     const order = ['preview', 'watch', 'drill', 'check', 'done'];
     const L = await labels(env);
     const pass = setting(L, 'unit_pass_score', 80);
     const scenes = new Set(cur ? JSON.parse(cur.scenes_json) as number[] : []);
     if (typeof body.scene === 'number') scenes.add(body.scene);
+    const watched = new Set(cur ? JSON.parse(cur.watched_json ?? '[]') as number[] : []);
+    if (typeof body.watched === 'number') watched.add(body.watched);
     const best = Math.max(cur?.best_score ?? 0, typeof body.score === 'number' ? Math.round(body.score) : 0) || null;
     let stage = [cur?.stage ?? 'preview', body.stage ?? 'preview'].sort((a, b) => order.indexOf(b) - order.indexOf(a))[0];
     if ((best ?? 0) >= pass) stage = 'done';
     await execute(env.DB_AR,
-      `INSERT INTO ar_learner_unit (user_id, unit_id, band, stage, scenes_json, best_score, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+      `INSERT INTO ar_learner_unit (user_id, unit_id, band, stage, scenes_json, watched_json, best_score, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
        ON CONFLICT (user_id, unit_id) DO UPDATE SET stage = excluded.stage, scenes_json = excluded.scenes_json,
-         best_score = excluded.best_score, updated_at = excluded.updated_at`,
-      [me, unit, body.band, stage, JSON.stringify([...scenes].sort((a, b) => a - b)), best]);
-    return ok({ unit, stage, best, done: stage === 'done', pass });
+         watched_json = excluded.watched_json, best_score = excluded.best_score, updated_at = excluded.updated_at`,
+      [me, unit, body.band, stage, JSON.stringify([...scenes].sort((a, b) => a - b)),
+       JSON.stringify([...watched].sort((a, b) => a - b)), best]);
+    return ok({ unit, stage, best, done: stage === 'done', pass, watched: watched.size, drilled: scenes.size });
   });
 }
