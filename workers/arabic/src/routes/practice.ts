@@ -2,6 +2,7 @@ import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
+import { labels, skillCard, instruct } from '../lib/labels';
 import { parseBand, bandOf, bare, type Band } from '../lib/levels';
 import { mineDrills } from './words';
 
@@ -13,24 +14,7 @@ import { mineDrills } from './words';
 // app only plays and checks. A session is drawn fresh each time, so it is never
 // kept; the skill list is.
 
-const SKILLS = [
-  { id: 'fill', title: 'Listen & fill', titleAr: 'اِسْمَعْ وَأَكْمِلْ', tagline: 'Hear a real line — find the missing word',
-    icon: 'ear', color: '#5DA9E9', source: 'lines' },
-  { id: 'order', title: 'Build the sentence', titleAr: 'رَتِّبِ الجُمْلَة', tagline: 'Hear it, then put the words back in order',
-    icon: 'square.stack.3d.up', color: '#81B29A', source: 'lines' },
-  { id: 'hear', title: 'Catch the word', titleAr: 'اِلْتَقِطِ الكَلِمَة', tagline: 'One word, just as it was spoken — which is it?',
-    icon: 'waveform', color: '#E07A5F', source: 'lines' },
-  { id: 'shadow', title: 'Shadow', titleAr: 'رَدِّدْ', tagline: 'Say it with the speaker, word by word',
-    icon: 'mic', color: '#B388EB', source: 'lines' },
-  { id: 'mine', title: 'My words', titleAr: 'مُفْرَدَاتِي', tagline: 'Your own words from your photos — as they are spoken in real Arabic',
-    icon: 'text.viewfinder', color: '#F28482', source: 'mine' },
-  { id: 'meaning', title: 'Words', titleAr: 'المَعَانِي', tagline: 'What does it mean?',
-    icon: 'character.book.closed', color: '#D8B657', source: 'words' },
-  { id: 'plural', title: 'Plurals', titleAr: 'الجُمُوع', tagline: 'From singular to plural — broken and sound',
-    icon: 'square.grid.2x2', color: '#F2CC8F', source: 'plurals' },
-  { id: 'grammar', title: 'Grammar', titleAr: 'النَّحْو', tagline: 'Questions from the grammar books',
-    icon: 'text.book.closed', color: '#4FB3A9', source: 'grammar' },
-] as const;
+// the skills are data: ar_practice_label scope 'skill' (lib/labels.ts)
 
 interface Line {
   id: string; band: string; level: string | null; work_id: string | null; work_title: string | null;
@@ -205,10 +189,11 @@ export function practiceRoutes(router: Router<ArabicEnv>) {
   // The skills, and how much there is to drill in each at this level.
   router.get('/ar/practice/home', async (req, env) => {
     const band = parseBand(new URL(req.url).searchParams.get('level'));
-    const c = await counts(env, band);
+    const [c, all] = await Promise.all([counts(env, band), labels(env)]);
     return ok({
       level: band,
-      skills: SKILLS.map((s) => ({ ...s, count: c[s.source as keyof typeof c] ?? 0 })).filter((s) => s.count > 0),
+      skills: (all.skill ?? []).map((s) => ({ ...skillCard(s), count: c[(s.extra?.source as keyof typeof c) ?? 'lines'] ?? 0 }))
+        .filter((s) => s.count > 0),
     });
   });
 
@@ -218,14 +203,16 @@ export function practiceRoutes(router: Router<ArabicEnv>) {
     const band = parseBand(url.searchParams.get('level'));
     const skill = url.searchParams.get('skill') ?? '';
     const n = Math.min(20, Math.max(3, Number(url.searchParams.get('n') ?? 8)));
-    const meta = SKILLS.find((s) => s.id === skill);
-    if (!meta) return badRequest(`unknown skill ${skill}`);
-    const items = meta.source === 'lines' ? await lineDrills(env, skill, band, n)
+    const all = await labels(env);
+    const row = (all.skill ?? []).find((s) => s.key === skill);
+    if (!row) return badRequest(`unknown skill ${skill}`);
+    const meta = skillCard(row);
+    const items = row.extra?.source === 'lines' ? await lineDrills(env, skill, band, n)
       : skill === 'mine' ? await mineDrills(env, n)
       : skill === 'meaning' ? await wordDrills(env, band, n)
       : skill === 'plural' ? await pluralDrills(env, band, n)
       : await grammarDrills(env, band, n);
-    const res = ok({ skill: meta, level: band, items });
+    const res = ok({ skill: meta, level: band, items: instruct(items as Array<{ kind: string }>, all) });
     res.headers.set('Cache-Control', 'no-store');
     return res;
   });

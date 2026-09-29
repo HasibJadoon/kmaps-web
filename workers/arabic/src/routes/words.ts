@@ -3,6 +3,7 @@ import { ok, notFound } from '../../../shared/src/response';
 import { query, queryOne } from '../../../shared/src/db';
 import { callService } from '../../../shared/src/service-client';
 import type { ArabicEnv } from '../env';
+import { labels, byKey, type Label } from '../lib/labels';
 import { bare } from '../lib/levels';
 
 // ── My words ─────────────────────────────────────────────────────────────────
@@ -95,20 +96,14 @@ async function heard(env: ArabicEnv, surface: string, limit = 10) {
   return out.sort((a, b) => Number(!!b.word) - Number(!!a.word));
 }
 
-const POS: Record<string, string> = { noun: 'noun (ism)', verb: 'verb (fiʿl)', particle: 'particle (ḥarf)', adjective: 'adjective (ṣifa)' };
-
 /// How hard a word is by how often the Qurʾān uses it: a word met on every
 /// page is learnt by meeting it; a word met twice has to be learnt on purpose.
-const TIERS = [
-  { key: 'easy', label: 'Easy', labelAr: 'سَهْل', min: 100, color: '#81B29A' },
-  { key: 'good', label: 'Good', labelAr: 'جَيِّد', min: 25, color: '#5DA9E9' },
-  { key: 'hard', label: 'Hard', labelAr: 'صَعْب', min: 5, color: '#F2A65A' },
-  { key: 'hardest', label: 'Hardest', labelAr: 'أَصْعَب', min: 1, color: '#E07A5F' },
-] as const;
-export function tierOf(quran: number) {
-  const t = TIERS.find((x) => quran >= x.min);
+/// The tiers and part-of-speech labels are data (ar_practice_label: quran_tier, pos).
+export function tierOf(quran: number, L: Record<string, Label[]>) {
+  const t = (L.quran_tier ?? []).find((x) => quran >= (x.min ?? 1));
+  const tpl = byKey(L.template).get('quran_line')?.label;
   return t ? { key: t.key, label: t.label, labelAr: t.labelAr, color: t.color,
-               line: `met ${quran} time${quran === 1 ? '' : 's'} in the Qurʾān` } : null;
+               line: tpl ? tpl.replace('{n}', String(quran)).replace('{s}', quran === 1 ? '' : 's') : null } : null;
 }
 
 interface Arc { en: string; flavour: string; ar?: string; ar_en?: string; tts?: string }
@@ -120,12 +115,12 @@ interface Forms {
 
 const ttsUrl = (m: Meta) => (m.tts ? `/api/ar/audio/${encodeURI(m.tts)}` : null);
 
-function card(i: Item) {
+function card(i: Item, L: Record<string, Label[]>) {
   const m = meta(i);
   const quran = m.frequency_quran ?? 0;
   return {
     id: i.id, text: i.vocalised_ar ?? i.text_ar, lemma: i.lemma_ar, root: i.root_ar, pos: m.pos ?? null,
-    posLabel: m.pos ? POS[m.pos] ?? m.pos : null, quran, tier: tierOf(quran), photos: m.n_images ?? 1,
+    posLabel: m.pos ? byKey(L.pos).get(m.pos)?.label ?? m.pos : null, quran, tier: tierOf(quran, L), photos: m.n_images ?? 1,
     gloss: i.gloss_en, tts: ttsUrl(m),
   };
 }
@@ -139,18 +134,18 @@ async function items(env: ArabicEnv) {
 export function wordRoutes(router: Router<ArabicEnv>) {
   // Every word, by root (most words first), with what is known of each.
   router.get('/ar/acq/words', async (_req, env) => {
-    const all = await items(env);
+    const [all, L] = await Promise.all([items(env), labels(env)]);
     const roots = new Map<string, Item[]>();
     for (const i of all) roots.set(i.root_ar!, [...(roots.get(i.root_ar!) ?? []), i]);
     const grouped = [...roots.entries()]
       .map(([root, ws]) => ({ root, bare: root.replace(/\s+/g, ''), count: ws.length,
-                              words: ws.map(card).sort((a, b) => b.photos - a.photos || b.quran - a.quran) }))
+                              words: ws.map((w) => card(w, L)).sort((a, b) => b.photos - a.photos || b.quran - a.quran) }))
       .sort((a, b) => b.count - a.count || a.bare.localeCompare(b.bare, 'ar'));
     return ok({
       stats: { words: all.length, roots: roots.size,
                quran: all.filter((i) => (meta(i).frequency_quran ?? 0) > 0).length },
-      tiers: TIERS.map((t) => ({ key: t.key, label: t.label, labelAr: t.labelAr, color: t.color,
-                                 count: all.filter((i) => tierOf(meta(i).frequency_quran ?? 0)?.key === t.key).length })),
+      tiers: (L.quran_tier ?? []).map((t) => ({ key: t.key, label: t.label, labelAr: t.labelAr, color: t.color,
+                                 count: all.filter((i) => tierOf(meta(i).frequency_quran ?? 0, L)?.key === t.key).length })),
       roots: grouped,
     });
   });
@@ -164,6 +159,7 @@ export function wordRoutes(router: Router<ArabicEnv>) {
     const m = meta(item);
     const surface = m.surface_norm ?? item.text_ar;
 
+    const L = await labels(env);
     const [lines, capture, family, lexicon] = await Promise.all([
       heard(env, surface),
       item.capture_id ? queryOne<{ raw_text: string | null; media_ref: string | null }>(env.DB_AR,
@@ -188,7 +184,7 @@ export function wordRoutes(router: Router<ArabicEnv>) {
     const lex = lexicon?.data?.[item.al_lemma_ref ?? ''];
     const senses = (lex?.senses ?? []).map((s) => s.gloss_en).filter(Boolean) as string[];
     return ok({
-      word: { ...card(item), inReview: item.srs_state === 'active' },
+      word: { ...card(item, L), inReview: item.srs_state === 'active' },
       meaning: {
         gloss: item.gloss_en ?? senses[0] ?? null,
         senses: senses.slice(0, 4),
@@ -206,7 +202,7 @@ export function wordRoutes(router: Router<ArabicEnv>) {
       forms: m.forms ? { ...m.forms, tts: m.forms_tts ? `/api/ar/audio/${encodeURI(m.forms_tts)}` : null } : null,
       heard: lines,
       seen: { lines: photoLines, photos: m.n_images ?? 1 },
-      family: family.map(card).sort((a, b) => b.photos - a.photos),
+      family: family.map((w) => card(w, L)).sort((a, b) => b.photos - a.photos),
     });
   });
 }

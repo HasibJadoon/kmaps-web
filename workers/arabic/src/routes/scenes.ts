@@ -3,6 +3,7 @@ import { ok, notFound, badRequest } from '../../../shared/src/response';
 import { query, queryOne } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { parseBand, bare, type Band } from '../lib/levels';
+import { labels, byKey, badge, skillCard, instruct } from '../lib/labels';
 
 // ── Scenes: watch, then practise in context ──────────────────────────────────
 // The scripted episodes (ar_text_unit.script_json: scenes of lines, each with
@@ -57,29 +58,6 @@ async function script(env: ArabicEnv, unit: string) {
 
 /// A scene's title without its number ("Scene 2 — …", "المشهد الثاني — …"): the number is shown on its own.
 const titled = (t?: string) => (t ?? '').replace(/^\s*(Scene\s+\d+|المشهد\s+\S+)\s*[—–:-]\s*/u, '').trim() || null;
-
-// What a drill works on, and how hard it is — the labels the app shows beside it.
-const TIERS: Record<string, { label: string; labelAr: string; color: string }> = {
-  easy: { label: 'Easy', labelAr: 'سَهْل', color: '#81B29A' },
-  good: { label: 'Good', labelAr: 'جَيِّد', color: '#5DA9E9' },
-  hard: { label: 'Hard', labelAr: 'صَعْب', color: '#E07A5F' },
-};
-const BUCKETS: Record<string, { label: string; labelAr: string; color: string }> = {
-  vocab: { label: 'Word', labelAr: 'مُفْرَدَة', color: '#F28482' },
-  idiom: { label: 'Idiom', labelAr: 'تَعْبِير', color: '#E9C46A' },
-  grammar: { label: 'Grammar', labelAr: 'نَحْو', color: '#5DA9E9' },
-  morphology: { label: 'Morphology', labelAr: 'صَرْف', color: '#84A59D' },
-  rhetoric: { label: 'Rhetoric', labelAr: 'بَلَاغَة', color: '#B388EB' },
-  collocation: { label: 'Collocation', labelAr: 'تَلَازُم', color: '#F4A261' },
-  connector: { label: 'Connector', labelAr: 'رَابِط', color: '#90BE6D' },
-  address: { label: 'Address', labelAr: 'خِطَاب', color: '#F6BD60' },
-  register: { label: 'Register', labelAr: 'مُسْتَوَى', color: '#A5A58D' },
-  pragmatics: { label: 'Intent', labelAr: 'مَقَام', color: '#F28482' },
-  echo: { label: 'Echo', labelAr: 'اِقْتِبَاس', color: '#C9A227' },
-  sound: { label: 'Sound', labelAr: 'صَوْت', color: '#48CAE4' },
-};
-const badges = (bucket?: string | null, tier?: string | null) =>
-  [bucket ? BUCKETS[bucket] : null, tier ? TIERS[tier] : null].filter(Boolean);
 
 const range = ([a, b]: [number, number]) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 const audioUrl = (key: string | null) => (key ? `/api/ar/audio/${encodeURI(key)}` : null);
@@ -136,14 +114,14 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
 
   // One episode: its cast and its scenes (title, summary, how many lines).
   router.get('/ar/scenes/:unit', async (_req, env, { unit }) => {
-    const sc = await script(env, unit);
+    const [sc, L] = await Promise.all([script(env, unit), labels(env)]);
     if (!sc) return notFound(`scenes of ${unit}`);
     const { s } = sc;
     return ok({
       unit, work: sc.work, level: sc.level, title: s.title_ar, titleEn: s.title_en, series: s.series_ar, seriesEn: s.series_en,
       episode: s.episode, audio: audioUrl(sc.audio), cast: s.cast ?? [],
       // the practice rounds' difficulty, as the app offers it
-      tiers: [{ key: null, label: 'All', labelAr: 'الكلّ', color: '#E07A5F' }, ...Object.entries(TIERS).map(([key, t]) => ({ key, ...t }))],
+      tiers: (L.scene_tier ?? []).map((t) => ({ key: t.key || null, label: t.label, labelAr: t.labelAr, color: t.color ?? '#E07A5F' })),
       scenes: s.scenes.map((x) => ({ no: x.scene_no, title: titled(x.title_ar), titleEn: titled(x.title_en), icon: x.icon, era: x.era,
                                      summary: x.summary_en, lines: x.lines.length, start: x.start ?? x.lines[0]?.start,
                                      end: x.end ?? x.lines[x.lines.length - 1]?.end })),
@@ -170,6 +148,7 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
   router.get('/ar/scenes/:unit/:no/practice', async (req, env, { unit, no }) => {
     const tier = new URL(req.url).searchParams.get('tier');
     const inTier = (x: { tier?: string }) => !tier || !x.tier || x.tier === tier;
+    const L = await labels(env);
     const sc = await script(env, unit);
     const scene = sc?.s.scenes.find((x) => String(x.scene_no) === no);
     if (!sc || !scene) return notFound(`scene ${no} of ${unit}`);
@@ -230,7 +209,7 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
       for (const l of shuffle(named).slice(0, 2)) {
         const others = shuffle([...voices, ...allVoices].filter((v) => v !== l.speaker)).filter((v, i, arr) => arr.indexOf(v) === i).slice(0, 3);
         items.push({ id: `speaker:${unit}:${no}:${l.start}`, kind: 'speaker', audio: clip(l), words: timedWords(l),
-                     prompt: 'Who says this?', answer: l.speaker, options: shuffle([l.speaker!, ...others]), en: l.en ?? null, source });
+                     prompt: byKey(L.prompt).get('speaker')?.label ?? null, answer: l.speaker, options: shuffle([l.speaker!, ...others]), en: l.en ?? null, source });
       }
     }
 
@@ -302,10 +281,15 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
       }
     } catch { /* not read yet */ }
 
-    for (const it of items as Array<{ bucket?: string | null; tier?: string | null; badges?: unknown }>) it.badges = badges(it.bucket, it.tier);
-    const res = ok({ tiers: Object.entries(TIERS).map(([key, t]) => ({ key, ...t })), skill: { id: 'scene', title: titled(scene.title_en) ?? 'Scene practice', titleAr: titled(scene.title_ar) ?? 'المشهد',
-                              tagline: 'This scene — its hard words and its dialogue', icon: 'film', color: '#E07A5F' },
-                     level: sc.level, items: shuffle(items) });
+    // what each drill works on and how hard it is, as the labels have them
+    const buckets = byKey(L.bucket), tiers = byKey(L.scene_tier);
+    for (const it of items as Array<{ bucket?: string | null; tier?: string | null; badges?: unknown }>) {
+      it.badges = [badge(it.bucket ? buckets.get(it.bucket) : undefined), badge(it.tier ? tiers.get(it.tier) : undefined)].filter(Boolean);
+    }
+    const base = byKey(L.scene_skill).get('scene');
+    const card = base ? skillCard(base) : { id: 'scene', title: '', titleAr: '', tagline: '', icon: 'film', color: '#E07A5F' };
+    const res = ok({ skill: { ...card, title: titled(scene.title_en) ?? card.title, titleAr: titled(scene.title_ar) ?? card.titleAr },
+                     level: sc.level, items: instruct(shuffle(items) as Array<{ kind: string }>, L) });
     res.headers.set('Cache-Control', 'no-store');
     return res;
   });
