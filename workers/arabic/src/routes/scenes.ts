@@ -261,7 +261,12 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
       }
       // its idioms and set expressions: what the phrase means here
       type Expr = { line: number; phrase: string; span: [number, number]; meaning: string; literal?: string; note?: string; distractors: string[]; tier?: string };
-      for (const x of shuffle((parse<Expr[]>(read?.expressions_json ?? null) ?? []).filter(inTier)).slice(0, 2)) {
+      // an idiom or a feature must rest on more than function or common words
+      const worth = (line: number, span: [number, number]) => {
+        const toks = (scene.lines[line]?.ar ?? '').trim().split(/\s+/).slice(span[0], span[1] + 1);
+        return toks.some((t) => hardOnly(t));
+      };
+      for (const x of shuffle((parse<Expr[]>(read?.expressions_json ?? null) ?? []).filter(inTier).filter((e) => worth(e.line, e.span))).slice(0, 2)) {
         const l = scene.lines[x.line];
         if (!l) continue;
         items.push({ id: `idiom:${unit}:${no}:${x.line}:${x.span[0]}`, kind: 'idiom', audio: clip(l), words: timedWords(l),
@@ -272,7 +277,7 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
       // what is worth noticing in how a line is built — its grammar or its rhetoric
       type Feat = { line: number; text: string; span: [number, number]; feature: string; term_ar?: string; q: string;
                     options: string[]; answer: number; explanation?: string; tier?: string; bucket?: string };
-      for (const x of shuffle((parse<Feat[]>(read?.features_json ?? null) ?? []).filter(inTier)).slice(0, 3)) {
+      for (const x of shuffle((parse<Feat[]>(read?.features_json ?? null) ?? []).filter(inTier).filter((f) => worth(f.line, f.span))).slice(0, 3)) {
         const l = scene.lines[x.line];
         if (!l) continue;
         items.push({ id: `feature:${unit}:${no}:${x.line}:${x.span[0]}`, kind: 'feature', audio: clip(l), words: timedWords(l),

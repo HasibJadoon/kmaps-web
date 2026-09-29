@@ -124,7 +124,9 @@ async function wordDrills(env: ArabicEnv, band: Band, n: number) {
     ...mined.map((m) => ({ id: m.id, word: m.vocalised_ar ?? m.text_ar, gloss: m.gloss_en,
                             band: m.register === 'fusha_turath' ? 'advanced' : 'middle' })),
   ];
-  const mine = all.filter((w) => band === 'all' || w.band === band);
+  // never a function word; above Basic, never a word the Qurʾān or the corpus makes common
+  const common = await commonWords(env);
+  const mine = all.filter((w) => (band === 'all' || w.band === band) && !isCommon(common, w.word, band === 'basic'));
   const glosses = [...new Set(all.map((w) => w.gloss))];
   return shuffle(mine).slice(0, n).map((w) => ({
     id: `meaning:${w.id}`, kind: 'meaning', prompt: w.word, answer: w.gloss,

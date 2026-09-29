@@ -4,6 +4,7 @@ import { query, queryOne } from '../../../shared/src/db';
 import { callService } from '../../../shared/src/service-client';
 import type { ArabicEnv } from '../env';
 import { labels, byKey, type Label } from '../lib/labels';
+import { commonWords, isCommon } from '../lib/common';
 import { bare } from '../lib/levels';
 
 // ── My words ─────────────────────────────────────────────────────────────────
@@ -210,7 +211,9 @@ export function wordRoutes(router: Router<ArabicEnv>) {
 /// A "my words" drill: one of the reader's own words, as it was spoken in a
 /// real line — which of four of their words was it? (practice.ts, skill 'mine')
 export async function mineDrills(env: ArabicEnv, n: number) {
-  const all = (await items(env)).filter((i) => (meta(i).pos ?? 'noun') !== 'particle');
+  // your words worth drilling: no particle, and none of the simple common ones
+  const common = await commonWords(env);
+  const all = (await items(env)).filter((i) => (meta(i).pos ?? 'noun') !== 'particle' && !isCommon(common, i.text_ar));
   const shuffled = [...all].sort(() => Math.random() - 0.5);
   const out: unknown[] = [];
   for (const i of shuffled) {
