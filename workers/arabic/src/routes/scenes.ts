@@ -55,6 +55,9 @@ async function script(env: ArabicEnv, unit: string) {
   try { return { s: JSON.parse(row.script_json) as Script, work: row.work, level: row.level, audio: row.audio }; } catch { return null; }
 }
 
+/// A scene's title without its number ("Scene 2 — …", "المشهد الثاني — …"): the number is shown on its own.
+const titled = (t?: string) => (t ?? '').replace(/^\s*(Scene\s+\d+|المشهد\s+\S+)\s*[—–:-]\s*/u, '').trim() || null;
+
 const audioUrl = (key: string | null) => (key ? `/api/ar/audio/${encodeURI(key)}` : null);
 const shuffle = <T,>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const clean = (w: string) => w.replace(/[؟،؛.!?"«»:…,()\[\]]/g, '');
@@ -115,7 +118,7 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
     return ok({
       unit, work: sc.work, level: sc.level, title: s.title_ar, titleEn: s.title_en, series: s.series_ar, seriesEn: s.series_en,
       episode: s.episode, audio: audioUrl(sc.audio), cast: s.cast ?? [],
-      scenes: s.scenes.map((x) => ({ no: x.scene_no, title: x.title_ar, titleEn: x.title_en, icon: x.icon, era: x.era,
+      scenes: s.scenes.map((x) => ({ no: x.scene_no, title: titled(x.title_ar), titleEn: titled(x.title_en), icon: x.icon, era: x.era,
                                      summary: x.summary_en, lines: x.lines.length, start: x.start ?? x.lines[0]?.start,
                                      end: x.end ?? x.lines[x.lines.length - 1]?.end })),
     });
@@ -129,7 +132,7 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
     const url = audioUrl(sc.audio);
     const speakers = new Set(scene.lines.map((l) => l.speaker).filter(Boolean));
     return ok({
-      unit, no: scene.scene_no, title: scene.title_ar, titleEn: scene.title_en, summary: scene.summary_en, era: scene.era,
+      unit, no: scene.scene_no, title: titled(scene.title_ar), titleEn: titled(scene.title_en), summary: scene.summary_en, era: scene.era,
       audio: url, cast: (sc.s.cast ?? []).filter((c) => speakers.has(c.name_ar)),
       lines: scene.lines.map((l) => ({ speaker: l.speaker ?? null, ar: l.ar, en: l.en ?? null, note: l.note ?? null,
                                        clip: url ? { url, start: l.start, end: l.end } : null, words: timedWords(l) })),
@@ -146,11 +149,30 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
     const clip = (l: Line) => ({ url, start: l.start, end: l.end });
     const lines = scene.lines.filter((l) => l.ar && l.end > l.start);
     const items: unknown[] = [];
-    const source = { workId: sc.work, title: `${sc.s.series_ar ?? ''} · ${scene.title_ar ?? ''}`.trim(), level: sc.level };
+    const source = { workId: sc.work, title: [sc.s.series_ar, titled(scene.title_ar)].filter(Boolean).join(' · '), level: sc.level };
 
-    // the scene's hard words, heard and filled — options from the episode's other hard words, confusable by ear
-    const hard = hardWords(scene, sc.s);
-    const epHard = sc.s.scenes.flatMap((x) => hardWords(x, sc.s)).map((h) => h.word);
+    // what the episode's scenes were read for (ar_scene_vocab): the hard words a reader chose, with their meanings
+    type Vocab = { line: number; word: string; gloss: string; distractors: string[]; note?: string; lemma?: string };
+    const reads = await query<{ scene_no: number; vocab_json: string | null; gist_json: string | null }>(env.DB_AR,
+      `SELECT scene_no, vocab_json, gist_json FROM ar_scene_vocab WHERE unit_id = ?`, [unit]).catch(() => []);
+    const parse = <T,>(j: string | null): T | null => { try { return j ? JSON.parse(j) as T : null; } catch { return null; } };
+    const read = reads.find((r) => String(r.scene_no) === no);
+    const vocab = parse<Vocab[]>(read?.vocab_json ?? null) ?? [];
+    const epVocab = reads.flatMap((r) => parse<Vocab[]>(r.vocab_json) ?? []).map((v) => clean(v.word));
+
+    // names are not vocabulary
+    const names = new Set((sc.s.cast ?? []).flatMap((c) => c.name_ar.split(/\s+/)).map((w) => stem(w)));
+    const isName = (w: string) => names.has(stem(w));
+
+    // the scene's hard words, heard and filled — the words a reader chose where there are any, else the rarest;
+    // options from the episode's other hard words, confusable by ear
+    const chosen = vocab.map((v) => {
+      const toks = (scene.lines[v.line]?.ar ?? '').trim().split(/\s+/);
+      const index = toks.findIndex((t) => bare(clean(t)) === bare(clean(v.word)));
+      return index >= 0 ? { line: v.line, index, word: clean(toks[index]), rarity: 0 } : null;
+    }).filter(Boolean) as Array<{ line: number; index: number; word: string; rarity: number }>;
+    const hard = [...chosen, ...hardWords(scene, sc.s).filter((h) => !isName(h.word))];
+    const epHard = [...epVocab, ...sc.s.scenes.flatMap((x) => hardWords(x, sc.s)).map((h) => h.word)].filter((w) => !isName(w));
     const usedLines = new Set<number>();
     for (const h of hard) {
       if (items.length >= 3) break;
@@ -181,9 +203,15 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
 
     // what it means — the line's English among the scene's (and episode's) other lines
     const withEn = lines.filter((l) => l.en && l.ar.split(/\s+/).length >= 4);
-    const epEn = sc.s.scenes.flatMap((x) => x.lines.map((l) => l.en).filter(Boolean) as string[]);
+    const epEn = [...new Set(sc.s.scenes.flatMap((x) => x.lines.map((l) => l.en).filter(Boolean) as string[]))];
+    const sceneEn = new Set(lines.map((l) => l.en).filter(Boolean));
+    const words = (e: string) => e.split(/\s+/).length;
     for (const l of shuffle(withEn).slice(0, 2)) {
-      const others = shuffle(epEn.filter((e) => e !== l.en)).slice(0, 3);
+      // the wrong meanings are as long as the right one, and from this scene where they can be
+      const n = words(l.en!);
+      const others = epEn.filter((e) => e !== l.en)
+        .map((e) => ({ e, d: Math.abs(words(e) - n) / n + (sceneEn.has(e) ? 0 : 0.35) + Math.random() * 0.3 }))
+        .sort((a, b) => a.d - b.d).slice(0, 3).map((x) => x.e);
       items.push({ id: `match:${unit}:${no}:${l.start}`, kind: 'match', audio: clip(l), words: timedWords(l),
                    answer: l.en, options: shuffle([l.en!, ...others]), en: l.en ?? null, source });
     }
@@ -201,11 +229,8 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
                    shuffled, source });
     }
 
-    // read for this scene: a hard word's meaning here, and the gist (ar_scene_vocab)
+    // read for this scene: a hard word's meaning here, and the gist
     try {
-      const read = await queryOne<{ vocab_json: string | null; gist_json: string | null }>(env.DB_AR,
-        `SELECT vocab_json, gist_json FROM ar_scene_vocab WHERE unit_id = ? AND scene_no = ?`, [unit, Number(no)]);
-      const vocab = read?.vocab_json ? JSON.parse(read.vocab_json) as Array<{ line: number; word: string; gloss: string; distractors: string[]; note?: string; lemma?: string }> : [];
       for (const v of shuffle(vocab).slice(0, 4)) {
         const l = scene.lines[v.line];
         if (!l) continue;
@@ -216,14 +241,14 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
                      explanation: [v.lemma ? `lemma ${v.lemma}` : null, v.note].filter(Boolean).join(' — ') || null,
                      en: l.en ?? null, source });
       }
-      const gist = read?.gist_json ? JSON.parse(read.gist_json) as { q: string; options: string[]; answer: number } : null;
+      const gist = parse<{ q: string; options: string[]; answer: number }>(read?.gist_json ?? null);
       if (gist?.q && gist.options?.length) {
         items.push({ id: `gist:${unit}:${no}`, kind: 'gist', prompt: gist.q, answer: gist.options[gist.answer],
                      options: shuffle(gist.options), en: scene.summary_en ?? null, source });
       }
     } catch { /* not read yet */ }
 
-    const res = ok({ skill: { id: 'scene', title: scene.title_en ?? 'Scene practice', titleAr: scene.title_ar ?? 'المشهد',
+    const res = ok({ skill: { id: 'scene', title: titled(scene.title_en) ?? 'Scene practice', titleAr: titled(scene.title_ar) ?? 'المشهد',
                               tagline: 'This scene — its hard words and its dialogue', icon: 'film', color: '#E07A5F' },
                      level: sc.level, items: shuffle(items) });
     res.headers.set('Cache-Control', 'no-store');
