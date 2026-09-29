@@ -228,9 +228,10 @@ export async function mineDrills(env: ArabicEnv, n: number) {
     const others = shuffled.filter((x) => x.id !== i.id && fold(x.text_ar) !== fold(i.text_ar)).slice(0, 12)
       .sort(() => Math.random() - 0.5).slice(0, 3).map((x) => x.vocalised_ar ?? x.text_ar);
     out.push({
-      id: `mine:${i.id}:${l.id}`, kind: 'hear', audio: l.word, line: l.line, words: l.words, target: l.index,
+      id: `mine:${i.id}`, kind: 'hear', audio: l.word, line: l.line, words: l.words, target: l.index,
       answer, options: [answer, ...others].sort(() => Math.random() - 0.5),
       source: { workId: l.workId, title: l.title, level: l.level }, en: l.en, glosses: l.glosses,
+      gloss: i.gloss_en,   // the word's own meaning: the review card's back when the line has no English
     });
   }
   return out;

@@ -1092,8 +1092,13 @@ export function srsRoutes(router: Router<CoreEnv>) {
 
     const repo = new SrsRepo(env.DB_CORE);
 
+    // by_module: each card goes to the learner's own deck for its module (DECK per
+    // module, as the library and imports file them) — how drills file their cards
+    const byModule = body?.['by_module'] === true;
     let deckId = str(body?.['deck_id']);
-    if (!deckId) {
+    if (byModule) {
+      deckId = undefined;
+    } else if (!deckId) {
       const title = str(body?.['title']);
       if (title) {
         const existing = await queryOne<{ id: string }>(
@@ -1112,9 +1117,12 @@ export function srsRoutes(router: Router<CoreEnv>) {
       }
     }
 
-    const deck = await repo.findDeck(deckId);
-    if (!deck) return notFound(`deck ${deckId}`);
-    if (deck.user_ref !== ctx.userId) return forbidden('Not your deck');
+    if (!byModule) {
+      const deck = await repo.findDeck(deckId!);
+      if (!deck) return notFound(`deck ${deckId}`);
+      if (deck.user_ref !== ctx.userId) return forbidden('Not your deck');
+    }
+    const moduleDecks = new Map<string, string>();
 
     const results: Array<Record<string, unknown>> = [];
     let inserted = 0;
@@ -1143,8 +1151,13 @@ export function srsRoutes(router: Router<CoreEnv>) {
         continue;
       }
 
+      let cardDeck = deckId!;
+      if (byModule) {
+        if (!moduleDecks.has(module)) moduleDecks.set(module, await deckForModule(env, ctx.userId, module));
+        cardDeck = moduleDecks.get(module)!;
+      }
       const outcome = await repo.insertCard({
-        deck_id: deckId, user_ref: ctx.userId,
+        deck_id: cardDeck, user_ref: ctx.userId,
         module, resource_type: resourceType, resource_ref: resourceRef,
         card_kind: str(entry!['card_kind']) ?? null,
         concept_domain: domainOfModule(module),
@@ -1164,7 +1177,8 @@ export function srsRoutes(router: Router<CoreEnv>) {
       const rating: unknown = entry!['rating'];
       let graded = false;
       if (outcome.card && isRating(rating)) {
-        await answerCard(repo, outcome.card, ctx.userId, rating, null);
+        const secs = Number(entry!['duration_secs']);
+        await answerCard(repo, outcome.card, ctx.userId, rating, Number.isFinite(secs) && secs > 0 ? secs : null);
         graded = true;
       }
       results.push({
@@ -1176,7 +1190,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
       });
     }
 
-    return created({ deck_id: deckId, inserted, skipped, cards: results });
+    return created({ deck_id: deckId ?? [...moduleDecks.values()][0] ?? null, inserted, skipped, cards: results });
   });
 
   router.post('/core/srs/cards', async (req, env) => {

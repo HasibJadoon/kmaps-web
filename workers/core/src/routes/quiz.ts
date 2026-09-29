@@ -180,7 +180,7 @@ export function quizRoutes(router: Router<CoreEnv>): void {
 
     const conds = ['user_ref = ?', 'suspended = 0'];
     const params: unknown[] = [ctx.userId];
-    if (module) { conds.push('i.module = ?'); params.push(module); }
+    if (module) { conds.push('module = ?'); params.push(module); }
     if (surah > 0) {
 
       conds.push(`(resource_ref = ? OR resource_ref LIKE ? OR intro_surah = ?)`);

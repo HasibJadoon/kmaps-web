@@ -39,8 +39,14 @@ export class DocExtractService {
   }
 
   createSrsCard(selectedText: string): void {
-
+    // the server needs a module, a type and a ref: a card from a doc points back to
+    // the doc and the passage it was cut from (the same selection makes the same card)
+    let h = 0;
+    for (const ch of selectedText) h = (h * 31 + ch.codePointAt(0)!) | 0;
     this.http.post('/api/core/srs/cards', {
+      module: 'other',
+      resource_type: 'passage',
+      resource_ref: `DOC:${this.docId ?? 'loose'}:${(h >>> 0).toString(36)}`,
       front_text: selectedText,
       back_text: '',
       card_kind: 'note',
