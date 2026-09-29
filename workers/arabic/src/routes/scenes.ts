@@ -166,7 +166,9 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
 
     // the scene's hard words, heard and filled — the words a reader chose where there are any, else the rarest;
     // options from the episode's other hard words, confusable by ear
-    const chosen = vocab.map((v) => {
+    // a word is asked once a round: its meaning here (up to four), or else heard and filled
+    const asked = shuffle(vocab).slice(0, 4);
+    const chosen = vocab.filter((v) => !asked.includes(v)).map((v) => {
       const toks = (scene.lines[v.line]?.ar ?? '').trim().split(/\s+/);
       const index = toks.findIndex((t) => bare(clean(t)) === bare(clean(v.word)));
       return index >= 0 ? { line: v.line, index, word: clean(toks[index]), rarity: 0 } : null;
@@ -231,7 +233,7 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
 
     // read for this scene: a hard word's meaning here, and the gist
     try {
-      for (const v of shuffle(vocab).slice(0, 4)) {
+      for (const v of asked) {
         const l = scene.lines[v.line];
         if (!l) continue;
         const toks = l.ar.trim().split(/\s+/);
