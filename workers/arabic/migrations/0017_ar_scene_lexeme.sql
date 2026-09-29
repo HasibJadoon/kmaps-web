@@ -27,3 +27,4 @@ INSERT OR REPLACE INTO ar_practice_label (scope, key, label, label_ar, sort) VAL
 ('context','lane','Lane’s Lexicon','مُعْجَمُ لِين',1),
 ('context','sinai','Key Terms of the Qur’an','مُصْطَلَحَاتُ القُرْآن',2),
 ('context','passages','Read it in context — books and recordings','فِي سِيَاقِهِ مِنَ الكُتُبِ وَالتَّسْجِيلَات',3);
+INSERT OR REPLACE INTO ar_practice_label (scope, key, label, label_ar, color, sort) VALUES ('bucket','near_synonym','Near-synonym','فُرُوق','#9B5DE5',14),('kind','nuance','Listen — which of these words was said?','اِسْمَعْ — أَيُّ هَذِهِ الأَلْفَاظِ قِيلَت؟',NULL,21),('context','synonyms','How the lexica tell them apart — Lisān, Tāj al-ʿArūs, Lane','الفُرُوقُ فِي لِسَانِ العَرَبِ وَتَاجِ العَرُوسِ وَلِين',NULL,4);

@@ -96,10 +96,10 @@ function hardWords(sc: Scene, ep: Script) {
 function balance<T extends { kind: string; bucket?: string | null }>(items: T[], n: number) {
   const groups = new Map<string, T[]>();
   for (const it of shuffle(items)) {
-    const k = it.bucket === 'verbal_idiom' || it.bucket === 'keyterm' ? it.bucket : it.kind;
+    const k = it.bucket === 'verbal_idiom' || it.bucket === 'keyterm' || it.bucket === 'near_synonym' ? it.bucket : it.kind;
     groups.set(k, [...(groups.get(k) ?? []), it]);
   }
-  const order = ['verbal_idiom', 'keyterm', 'vocab', 'idiom', 'feature', 'fill', 'dialogue', 'speaker', 'match', 'gist'];
+  const order = ['verbal_idiom', 'keyterm', 'near_synonym', 'vocab', 'idiom', 'feature', 'fill', 'dialogue', 'speaker', 'match', 'gist'];
   const keys = [...order.filter((k) => groups.has(k)), ...[...groups.keys()].filter((k) => !order.includes(k))];
   const out: T[] = [];
   while (out.length < n && keys.some((k) => groups.get(k)!.length)) {
@@ -111,7 +111,9 @@ function balance<T extends { kind: string; bucket?: string | null }>(items: T[],
 type LexHit = { line: number; span_from: number; span_to: number; ref: string; kind: string };
 type Lexeme = { kind: string; phrase?: string; meanings?: Array<{ en: string; ref: string | null; ayahEn?: string | null }>;
                 terms?: Array<{ term: string; ar: string | null; gloss: string | null }>; excerpt?: string | null; page?: number | null;
-                source?: string; distractors?: string[]; lane?: { senses: string[]; page: number | null; source: string } | null };
+                source?: string; distractors?: string[]; lane?: { senses: string[]; page: number | null; source: string } | null;
+                set?: string; used?: string; members?: Array<{ ar: string; gloss: string | null; note: string | null; used: boolean;
+                                                           lexica: Array<{ source: string; text: string; page: number | null }> }> };
 
 async function lexemeDrills(env: ArabicEnv, unit: string, no: number, scene: Scene, clip: (l: Line) => unknown,
                             L: Record<string, import('../lib/labels').Label[]>, source: unknown, tier: string | null) {
@@ -119,7 +121,8 @@ async function lexemeDrills(env: ArabicEnv, unit: string, no: number, scene: Sce
   const hits = await query<LexHit>(env.DB_AR,
     `SELECT line, span_from, span_to, ref, kind FROM ar_scene_lexeme WHERE unit_id = ? AND scene_no = ?`, [unit, no]).catch(() => []);
   if (!hits.length || !env.AR_LINGUISTICS) return [];
-  const chosen = [...shuffle(hits.filter((h) => h.kind === 'verbal_idiom')).slice(0, 2), ...shuffle(hits.filter((h) => h.kind === 'keyterm')).slice(0, 1)];
+  const chosen = [...shuffle(hits.filter((h) => h.kind === 'verbal_idiom')).slice(0, 2), ...shuffle(hits.filter((h) => h.kind === 'keyterm')).slice(0, 1),
+                  ...shuffle(hits.filter((h) => h.kind === 'near_synonym')).slice(0, 2)];
   const refs = [...new Set(chosen.map((h) => h.ref.replace(/^AL:/, '')))];
   const lexRes = await env.AR_LINGUISTICS.fetch(`https://al/al/lex/v2/lexemes?refs=${encodeURIComponent(refs.join(','))}`)
     .then((r) => r.json() as Promise<{ data?: { lexemes?: Record<string, Lexeme> } }>).catch(() => null);
@@ -140,6 +143,19 @@ async function lexemeDrills(env: ArabicEnv, unit: string, no: number, scene: Sce
     const x = lexemes[h.ref.replace(/^AL:/, '')];
     const l = scene.lines[h.line];
     if (!x || !l) continue;
+    if (h.kind === 'near_synonym') {
+      // which of its near-synonyms was said: heard in the line, the word blanked, its set to choose from —
+      // then how Lisān, Tāj al-ʿArūs and Lane tell them apart
+      const others = (x.distractors ?? []).slice(0, 3);
+      if (!x.used || others.length < 2) continue;
+      out.push({ id: `nuance:${unit}:${no}:${h.line}:${h.span_from}`, kind: 'nuance', audio: clip(l), words: timedWords(l),
+                 blank: h.span_from, answer: x.used, options: shuffle([x.used, ...others]), en: l.en ?? null, source,
+                 prompt: x.set ?? null, tier: null, bucket: 'near_synonym',
+                 context: { synonyms: { title: titles.get('synonyms')?.label ?? null, set: x.set ?? null,
+                   items: (x.members ?? []).map((m) => ({ ar: m.ar, gloss: m.gloss, note: m.note, used: m.used,
+                     lexica: m.lexica.map((d) => ({ source: d.source, text: d.text, page: d.page })) })) } } });
+      continue;
+    }
     const phrase = l.ar.trim().split(/\s+/).slice(h.span_from, h.span_to + 1).join(' ');
     const answer = h.kind === 'keyterm'
       ? (x.terms?.find((t) => t.gloss)?.gloss ?? x.lane?.senses?.[0] ?? null)

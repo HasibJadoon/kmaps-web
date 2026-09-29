@@ -9,6 +9,7 @@ import type { ArLinguisticsEnv } from '../env';
 //                         over its Qurʾān occurrences — its range of meanings, each with its āya)
 //   TD:<id>               a verb and the particle it takes (ar_ling_root_lemma_tadiya)
 //   SK:<entry id>         a key term of the Qurʾān (Sinai 2023, sinai_key_terms)
+//   NS:<set id>|<member>  a near-synonym as used, among the others of its set (ar_ling_root_lemma_furuq_*)
 // Each comes with three wrong meanings (other idioms with the same particle, other terms)
 // for the drill to set beside the right one.
 
@@ -21,6 +22,34 @@ export function lexemeRoutes(router: Router<ArLinguisticsEnv>) {
   router.get('/al/lex/v2/lexemes', (req, env) => cached(req, async () => {
     const refs = (new URL(req.url).searchParams.get('refs') ?? '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 60);
     const out: Record<string, unknown> = {};
+    const ns = refs.filter((r) => r.startsWith('NS:'));
+    if (ns.length) {
+      const sets = [...new Set(ns.map((r) => r.slice(3).split('|')[0]))];
+      const members = (await env.DB_AL.prepare(
+        `SELECT m.id, m.set_id, m.arabic_display, m.arabic_bare, m.basic_gloss, m.nuance_note, m.contrast_note, m.usage_rule, s.set_name, s.canonical_en,
+                r.root_normalized AS root
+           FROM ar_ling_root_lemma_furuq_member m JOIN ar_ling_root_lemma_furuq_set s ON s.id = m.set_id
+           LEFT JOIN ar_ling_root_lemma l ON l.id = m.lemma_id LEFT JOIN ar_ling_roots r ON r.id = l.root_id
+          WHERE m.set_id IN (${sets.map(() => '?').join(',')}) ORDER BY m.sort_order`,
+      ).bind(...sets).all<{ id: string; set_id: string; arabic_display: string; arabic_bare: string | null; root: string | null; basic_gloss: string | null; nuance_note: string | null;
+                            contrast_note: string | null; usage_rule: string | null; set_name: string; canonical_en: string | null }>()).results ?? [];
+      for (const ref of ns) {
+        const [setId, memberId] = ref.slice(3).split('|');
+        const ms = members.filter((m) => m.set_id === setId);
+        const used = ms.find((m) => m.id === memberId);
+        if (!used || ms.length < 3) continue;
+        const note = (m: typeof used) => [m.nuance_note && m.nuance_note !== m.set_name ? m.nuance_note : null, m.contrast_note, m.usage_rule]
+          .filter(Boolean).join(' — ') || null;
+        // how the classical lexica tell them apart: each member where Lisān, Tāj al-ʿArūs and Lane define it
+        const withLexica = await Promise.all(ms.slice(0, 6).map(async (m) => ({
+          ar: m.arabic_display, gloss: m.basic_gloss, note: note(m), used: m.id === memberId,
+          lexica: m.root ? (await Promise.all(LEXICA.map((src) => define(env, m.root!, src, m.arabic_bare ?? m.arabic_display)))).filter(Boolean) : [],
+        })));
+        out[ref] = { kind: 'near_synonym', set: used.canonical_en ?? used.set_name, used: used.arabic_display,
+                     members: withLexica,
+                     distractors: pick(ms.filter((m) => m.id !== memberId).map((m) => m.arabic_display), 3) };
+      }
+    }
     const vi = refs.filter((r) => r.startsWith('VI:')), td = refs.filter((r) => r.startsWith('TD:')), sk = refs.filter((r) => r.startsWith('SK:'));
 
     if (vi.length) {
@@ -108,6 +137,62 @@ async function lane(env: ArLinguisticsEnv, root: string, particle: string | null
   }
   const all = [...new Set([...withParticle, ...senses(r.raw_text)])].slice(0, 6);
   return all.length ? { senses: all, page: r.page_start, source: 'Lane, An Arabic-English Lexicon' } : null;
+}
+
+const LEXICA = [
+  { slug: 'ibn_manzur_lisan_arab', name: 'Lisān al-ʿArab' },
+  { slug: 'zabidi_taj_arus', name: 'Tāj al-ʿArūs' },
+  { slug: 'lane_lexicon', name: 'Lane' },
+];
+
+/// Where one lexicon defines this word under its root, in the lexicon's own vowelled text: the
+/// word's headword definition (the word, then a colon) or else its first mention, to the end of the
+/// sentence; in Lane, the first rendering in brackets after it that is Lane's and not an editor's note.
+/// Where a word stands in an entry, trying one key after another: as vowelled in the set (its
+/// tashkīl must agree), then its bare letters with any vowels, then with or without the article,
+/// then the root itself (the entry's headword) — always as a whole word, never inside another.
+function findWord(raw: string, word: string, root: string) {
+  const M = '[\\u064B-\\u0652\\u0670\\u0640]*';
+  const AR = '[\\u0621-\\u064A]';
+  const letter = (c: string) => (c === 'ا' ? '[اأإآٱ]' : c === 'ي' ? '[يى]' : c === 'ه' ? '[هة]' : c);
+  const bounded = (body: string) => new RegExp(`(?<!${AR}${M})${body}(?!${M}${AR})`, 'g');
+  const vowelled = (word ?? '').trim().replace(/[\u0640]/g, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const bare = foldAr(word).replace(/^ال/, '');
+  const loose = (w: string) => [...w].map((c) => letter(c) + M).join('');
+  const keys = [
+    vowelled && /[\u064B-\u0652]/.test(vowelled) ? new RegExp(`(?<!${AR}${M})${vowelled}(?![\\u064B-\\u0652]|${M}${AR})`, 'g') : null,   // with its tashkīl, exactly
+    bare.length >= 2 ? bounded(loose(bare)) : null,                                 // without
+    bare.length >= 2 ? bounded(`ال${M}${loose(bare)}`) : null,                      // with the article
+    root ? bounded(loose(foldAr(root))) : null,                                     // the root's headword
+  ].filter(Boolean) as RegExp[];
+  for (const re of keys) {
+    const hits = [...raw.matchAll(re)].map((m) => ({ at: m.index ?? 0, end: (m.index ?? 0) + m[0].length }));
+    if (hits.length) return hits;
+  }
+  return [];
+}
+
+async function define(env: ArLinguisticsEnv, root: string, src: { slug: string; name: string }, word: string) {
+  const r = await env.DB_AL.prepare(
+    `SELECT raw_text, page_start FROM ar_ling_root_lexicon_entry_v WHERE root_norm = ? AND source_slug = ? ORDER BY key_rank LIMIT 1`,
+  ).bind(root, src.slug).first<{ raw_text: string; page_start: number | null }>().catch(() => null);
+  if (!r?.raw_text) return null;
+  const raw = r.raw_text.replace(/\s+/g, ' ');
+  const hits = findWord(raw, word, root);
+  if (!hits.length) return null;
+  if (src.slug === 'lane_lexicon') {
+    for (const h of hits) {
+      const m = raw.slice(h.at, h.at + 900).match(/\[([A-Z][a-z][^\[\]]{10,200})\]/);
+      if (m && !/\b(CK|TA|TT|TK|MS|app\.|mistranscri|erroneous|as in the|see art)/i.test(m[1])) {
+        return { source: src.name, text: m[1].trim(), page: r.page_start };
+      }
+    }
+    return null;
+  }
+  const head = hits.find((h) => /^\s*[:：]/.test(raw.slice(h.end, h.end + 3))) ?? hits[0];
+  let text = raw.slice(head.at, head.at + 320);
+  text = text.split(/(?<=[.؛])\s/)[0].replace(/[()\[\]{}﴿﴾]/g, '').slice(0, 240).trim();
+  return text.length > 12 ? { source: src.name, text, page: r.page_start } : null;
 }
 
 function pick<T>(xs: T[], k: number) {
