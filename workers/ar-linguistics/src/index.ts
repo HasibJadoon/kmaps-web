@@ -15,6 +15,7 @@ import { balaghaRoutes } from './routes/balagha';
 import { lexiconRoutes } from './routes/lexicon';
 import { lexiconFiveLensRoutes } from './routes/lexicon_five_lens';
 import { lexemeRoutes } from './routes/lexemes';
+import { drillSourceRoutes } from './routes/drill-source';
 import { lexiconV2Routes } from './routes/lexicon_v2';
 import { lexiconHeaderRoutes } from './routes/lexicon_header';
 import { lexiconMufradatRoutes } from './routes/lexicon_mufradat';
@@ -73,6 +74,7 @@ wordAnalysisRoutes(router);
 grammarRoutes(router);
 registryRoutes(router);
 dsRoutes(router);
+drillSourceRoutes(router);
 
 router.post('/al/internal/rows', async (req, env) => {
   const body = await req.json<RowsRequest>().catch(() => null);
