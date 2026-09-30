@@ -6,6 +6,7 @@ import { labels, skillCard, instruct, srsCardFor } from '../lib/labels';
 import { commonWords, isCommon } from '../lib/common';
 import { parseBand, bandOf, bare, type Band } from '../lib/levels';
 import { mineDrills } from './words';
+import { ttsClips } from '../lib/tts';
 
 // ── Practice: skills drilled on real Arabic ──────────────────────────────────
 // Every listening drill is cut from a line someone actually said — in a series,
@@ -20,8 +21,16 @@ import { mineDrills } from './words';
 interface Line {
   id: string; band: string; level: string | null; work_id: string | null; work_title: string | null;
   object_key: string; start_sec: number; end_sec: number; text_ar: string; words_json: string; word_count: number;
-  text_en: string | null; gloss_json: string | null;
+  text_en: string | null; gloss_json: string | null; blanks_json?: string | null;
 }
+
+/// The blanks chosen offline for a line (blanks_json, kmaps-resources drill_words.py): a word
+/// worth drilling and three options of its own part of speech and shape, real words only.
+type Blank = { i: number; a: string; o: string[]; p: string | null };
+const blanksOf = (l: { blanks_json?: string | null }): Blank[] => {
+  try { const b = l.blanks_json ? JSON.parse(l.blanks_json) as Blank[] : []; return Array.isArray(b) ? b.filter((x) => x.o?.length === 3) : []; }
+  catch { return []; }
+};
 
 const audioUrl = (key: string) => `/api/ar/audio/${encodeURI(key)}`;
 const shuffle = <T,>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -55,17 +64,22 @@ function wordsOf(l: Line) {
 const shapeOf = (w: string) => { const b = bare(w); return b.startsWith('وال') ? 'وال' : b.startsWith('بال') ? 'بال' : b.startsWith('ال') ? 'ال'
   : b.startsWith('و') ? 'و' : b.startsWith('ب') ? 'ب' : b.startsWith('ل') ? 'ل' : ''; };
 
-/// Words to offer beside the right one, chosen to be confused by ear: the same
-/// prefix, a close length, as many shared letters as can be found; none the same.
+const endOf = (w: string) => { const b = bare(w); return (['ون', 'ين', 'ات', 'وا', 'نا', 'ها', 'هم', 'ة', 'ت', 'ه'].find((e) => b.endsWith(e) && b.length - e.length >= 2)) ?? ''; };
+
+/// Words to offer beside the right one when the line has no blanks chosen offline: the same
+/// article, prefix and ending (so the same kind of word), a close length, shared letters; none the same.
 function distractors(answer: string, pool: string[], k = 3, light: (w: string) => boolean = () => false) {
   const a = bare(answer);
   const letters = new Set(a.replace(/^(وال|بال|ال|و|ب|ل)/, ''));
+  const art = (w: string) => /^(وال|فال|بال|كال|لل|ال)/.test(bare(w));
   const scored = pool
-    .filter((w) => { const b = bare(w); return b !== a && b.length >= 2 && !light(w); })
+    .filter((w) => { const b = bare(w); return b !== a && b.length >= 2 && !light(w) && art(w) === art(answer) && Math.abs(b.length - a.length) <= 2
+      && !b.includes(a) && !a.includes(b); })
     .map((w) => {
       const b = bare(w);
       const shared = [...new Set(b.replace(/^(وال|بال|ال|و|ب|ل)/, ''))].filter((c) => letters.has(c)).length;
-      return { w, score: shared * 2 + (shapeOf(w) === shapeOf(answer) ? 3 : 0) - Math.abs(b.length - a.length) + Math.random() };
+      return { w, score: shared + (shapeOf(w) === shapeOf(answer) ? 3 : 0) + (endOf(w) === endOf(answer) ? 4 : 0)
+        - Math.abs(b.length - a.length) + Math.random() * 2 };
     })
     .sort((x, y) => y.score - x.score);
   const out: string[] = [];
@@ -92,13 +106,16 @@ async function lineDrills(env: ArabicEnv, skill: string, band: Band, n: number) 
     const base = { id: `${skill}:${l.id}`, kind: skill, audio, words: words.map((w) => ({ ...w, t: w.t })), source,
                    en: l.text_en, glosses: glossesOf(l) };
     if (skill === 'fill' || skill === 'hear') {
-      // a content word, long enough to hear, clearly timed — the lightest words never
+      // a content word, long enough to hear, clearly timed — the lightest words never; the blanks
+      // chosen offline first (their options are the same kind of word), else one chosen here
+      const chosen = blanksOf(l).filter((b) => words[b.i] && words[b.i].e - words[b.i].s >= 0.22 && !light(words[b.i].t));
       const content = words.map((w, i) => ({ w, i }))
         .filter(({ w }) => bare(w.t).length >= 3 && !light(w.t) && w.e - w.s >= 0.22);
-      if (!content.length) return null;
-      const pick = content[Math.floor(Math.random() * content.length)];
-      const answer = shown(pick.w.t);
-      const options = shuffle([answer, ...distractors(answer, pool, 3, light).map(shown)]);
+      if (!chosen.length && (l.blanks_json || !content.length)) return null;   // a line with blanks_json [] has nothing worth drilling
+      const b = chosen.length ? chosen[Math.floor(Math.random() * chosen.length)] : null;
+      const pick = b ? { w: words[b.i], i: b.i } : content[Math.floor(Math.random() * content.length)];
+      const answer = b ? b.a : shown(pick.w.t);
+      const options = shuffle([answer, ...(b ? b.o : distractors(answer, pool, 3, light).map(shown))]);
       return skill === 'fill'
         ? { ...base, blank: pick.i, answer, options }
         : { ...base, audio: { ...audio, start: Math.max(l.start_sec, pick.w.s - 0.04), end: Math.min(l.end_sec, pick.w.e + 0.06) },
@@ -155,38 +172,65 @@ async function pluralDrills(env: ArabicEnv, band: Band, n: number) {
 async function grammarDrills(env: ArabicEnv, band: Band, n: number) {
   const rows = await query<{ id: string; prompt_ar: string; prompt_en: string | null; options_json: string; answer_json: string; explanation_md: string | null; level: string | null }>(env.DB_AR,
     `SELECT id, prompt_ar, prompt_en, options_json, answer_json, explanation_md, level FROM ar_exercises WHERE exercise_type = 'mcq'`);
-  return shuffle(rows.filter((r) => band === 'all' || bandOf(r.level) === band)).slice(0, n).flatMap((r) => {
+  const picked = shuffle(rows.filter((r) => band === 'all' || bandOf(r.level) === band)).slice(0, n);
+  // the question read aloud where a voice was rendered for it (ar_tts_clip)
+  const voiced = await ttsClips(env, picked.map((r) => r.prompt_ar)).catch(() => new Map());
+  return picked.flatMap((r) => {
     try {
       const options = JSON.parse(r.options_json) as string[];
       const correct = (JSON.parse(r.answer_json) as { correct: number }).correct;
+      const v = voiced.get(r.prompt_ar);
       return [{ id: `grammar:${r.id}`, kind: 'grammar', prompt: r.prompt_ar, promptEn: r.prompt_en,
-                options, answer: options[correct], explanation: r.explanation_md, level: r.level }];
+                options, answer: options[correct], explanation: r.explanation_md, level: r.level,
+                ...(v ? { audio: v.audio, words: v.words, voice: v.voice } : {}) }];
     } catch { return []; }
   });
 }
 
 /// Read & fill: a sentence from the books, as its author wrote it, one hard word blanked —
-/// never a function word, and above Basic never a common one; the options confusable with it.
+/// never a function word, and above Basic never a common one; the options the same kind of word.
+/// A sentence with a rendered voice (SILMA, ar_read_pool.object_key — kmaps-resources
+/// scripts/tts/silma_clips.py) carries its audio and every word timed, like a listening line;
+/// those are drawn first.
+type ReadRow = { id: string; work_id: string; work_title: string | null; unit_id: string; text_ar: string;
+                 object_key: string | null; start_sec: number | null; end_sec: number | null; words_json: string | null; blanks_json: string | null };
 async function readDrills(env: ArabicEnv, band: Band, n: number) {
   const common = await commonWords(env);
   const light = (w: string) => isCommon(common, w, band === 'basic');
-  const start = Math.floor(Math.random() * 1e9);
-  const rows = await query<{ id: string; work_id: string; work_title: string | null; unit_id: string; text_ar: string }>(env.DB_AR,
-    `SELECT id, work_id, work_title, unit_id, text_ar FROM ar_read_pool WHERE (? = 'all' OR band = ?)
-      ORDER BY (abs(hashof) % 1000) LIMIT ?`.replace('hashof', `(rowid * 2654435761 + ${start})`), [band, band, n * 4]);
+  const draw = async (voiced: boolean, k: number) => {
+    const start = Math.floor(Math.random() * 1e9);
+    return query<ReadRow>(env.DB_AR,
+      `SELECT id, work_id, work_title, unit_id, text_ar, object_key, start_sec, end_sec, words_json, blanks_json FROM ar_read_pool
+        WHERE (? = 'all' OR band = ?) AND object_key IS ${voiced ? 'NOT ' : ''}NULL
+        ORDER BY (abs(hashof) % 1000) LIMIT ?`.replace('hashof', `(rowid * 2654435761 + ${start})`), [band, band, k]);
+  };
+  let rows = await draw(true, n * 4);
+  if (rows.length < n * 2) rows = rows.concat(await draw(false, n * 4));
   const pool = [...new Set(rows.flatMap((r) => r.text_ar.split(/\s+/).map(clean)).filter((w) => bare(w).length >= 3 && !light(w)))];
   const out: unknown[] = [];
   for (const r of rows) {
     if (out.length >= n) break;
     const toks = r.text_ar.trim().split(/\s+/);
+    const chosen = blanksOf(r).filter((b) => toks[b.i] && !light(toks[b.i]));
     const cands = toks.map((t, i) => ({ t, i })).filter(({ t }) => bare(clean(t)).length >= 4 && !light(t));
-    if (!cands.length) continue;
-    const pick = cands[Math.floor(Math.random() * cands.length)];
-    const answer = shown(pick.t);
-    const opts = distractors(answer, pool, 3, light).map(shown);
-    if (opts.length < 3) continue;
-    out.push({ id: `read:${r.id}`, kind: 'read', words: toks.map((t) => ({ t, s: 0, e: 0 })), blank: pick.i, answer,
-               options: shuffle([answer, ...opts]), source: { workId: r.work_id, title: r.work_title, level: null }, en: null });
+    let answer: string, opts: string[], at: number;
+    if (chosen.length) {
+      const b = chosen[Math.floor(Math.random() * chosen.length)];
+      answer = b.a; opts = b.o; at = b.i;
+    } else {
+      if (r.blanks_json || !cands.length) continue;
+      const pick = cands[Math.floor(Math.random() * cands.length)];
+      answer = shown(pick.t); opts = distractors(answer, pool, 3, light).map(shown); at = pick.i;
+      if (opts.length < 3) continue;
+    }
+    let times: Array<[number, number]> = [];
+    try { times = r.words_json ? JSON.parse(r.words_json) : []; } catch { times = []; }
+    const voiced = !!r.object_key && times.length === toks.length;
+    const end = r.end_sec ?? 0;
+    out.push({ id: `read:${r.id}`, kind: 'read', blank: at, answer, options: shuffle([answer, ...opts]),
+               words: toks.map((t, i) => ({ t, s: voiced ? times[i][0] : 0, e: voiced ? times[i][1] : 0 })),
+               ...(voiced ? { audio: { url: audioUrl(r.object_key!), start: r.start_sec ?? 0, end }, voice: 'silma' } : {}),
+               source: { workId: r.work_id, title: r.work_title, level: null }, en: null });
   }
   return out;
 }
