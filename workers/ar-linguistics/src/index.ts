@@ -118,8 +118,8 @@ const KEPT: SwrRoute[] = [
   { re: /^\/al\/lex\/v2\//, ...BOOKS },
   { re: /^\/al\/gram\//, ...BOOKS },
   { re: /^\/al\/lexicon\/(blocks\/[^/]+\/backlinks|[^/]+\/[^/]+\/header)$/, ...BOOKS },
-  // (not the grammar drills: a round is drawn fresh each time)
-  { re: /^\/al\/(?!health|corpus-version|drill\/grammar\/)[a-z_-]+(\/|$)/, ...MIXED },
+  // (not the drill sources: a round is drawn fresh each time)
+  { re: /^\/al\/(?!health|corpus-version|drill\/)[a-z_-]+(\/|$)/, ...MIXED },
 ];
 
 export default {
