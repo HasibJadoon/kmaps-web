@@ -60,47 +60,7 @@ export function atlasRoutes(router: Router<QuranEnv>) {
     });
   });
 
-  // The Surahs room: every surah in its group (Iṣlāḥī's seven by default), with how
-  // much of it is studied — passages cut, layers built.
-  router.get('/qr/atlas/surahs', async (req, env) => {
-    const L = await labels(env);
-    const groupKey = new URL(req.url).searchParams.get('group') ?? 'islahi';
-    const g = byKey(L.group).get(groupKey);
-    if (!g) return badRequest(`unknown grouping ${groupKey}`);
-    const slug = String(g.extra?.source_slug ?? '');
-    const [groups, surahs] = await Promise.all([
-      query<{ id: string; name_en: string; name_ar: string | null; epithet_ar: string | null; surah_from: number; surah_to: number;
-              summary_md: string; revelation_type: string | null }>(env.DB_QR,
-        `SELECT id, name_en, name_ar, epithet_ar, surah_from, surah_to, summary_md, revelation_type
-           FROM qr_nazm_group WHERE source_slug = ? ORDER BY surah_from`, [slug]),
-      query<{ id: number; name_ar: string; name_en: string; translit: string | null; ayahs: number; revelation: string;
-              group_id: string | null; passages: number; built: number }>(env.DB_QR,
-        `SELECT s.id, s.name_ar, s.name_en, s.name_transliteration AS translit, s.ayah_count AS ayahs,
-                s.revelation_type AS revelation, m.group_id,
-                (SELECT COUNT(*) FROM qr_surah_study_passage p WHERE p.surah = s.id AND p.status = 'live') AS passages,
-                (SELECT COUNT(DISTINCT ayah_from) FROM qr_ss_occ_sentence x WHERE x.surah = s.id) AS built
-           FROM qr_surah s
-           LEFT JOIN qr_nazm_group_member m ON m.surah = s.id
-                 AND m.group_id IN (SELECT id FROM qr_nazm_group WHERE source_slug = ?)
-          ORDER BY s.id`, [slug]),
-    ]);
-    const bySurahGroup = new Map<string, typeof surahs>();
-    for (const s of surahs) {
-      const k = s.group_id ?? '';
-      bySurahGroup.set(k, [...(bySurahGroup.get(k) ?? []), s]);
-    }
-    return ok({
-      grouping: card(g),
-      groups: groups.map((x, i) => ({
-        id: x.id, no: i + 1, title: x.name_en, titleAr: x.name_ar ?? x.epithet_ar, range: [x.surah_from, x.surah_to],
-        summary: x.summary_md,
-        surahs: (bySurahGroup.get(x.id) ?? []).map((s) => ({
-          id: s.id, nameAr: s.name_ar, nameEn: s.name_en, translit: s.translit, ayahs: s.ayahs, revelation: s.revelation,
-          passages: s.passages, builtAyat: s.built,
-        })),
-      })),
-    });
-  });
+  // The Surahs room (/qr/atlas/surahs?group=<scheme>) is served by atlas-groups.ts: every scheme, overlaps listed honestly.
 
   // A surah's room: who and where, its recording, its passages as units, and each
   // passage's layers.
@@ -115,8 +75,8 @@ export function atlasRoutes(router: Router<QuranEnv>) {
                 order_revelation, juz_start, page_start FROM qr_surah WHERE id = ?`, [s]),
       queryOne<{ reciter: string; audio_url: string }>(env.DB_QR,
         `SELECT reciter, audio_url FROM qr_recitation WHERE reciter_id = ? AND surah = ?`, [RECITER, s]),
-      query<{ id: string; name_en: string; name_ar: string | null; source_slug: string | null; group_basis: string }>(env.DB_QR,
-        `SELECT g.id, g.name_en, g.name_ar, g.source_slug, g.group_basis FROM qr_nazm_group g
+      query<{ id: string; slug: string; name_en: string; name_ar: string | null; name_translit: string | null; source_slug: string | null; group_basis: string }>(env.DB_QR,
+        `SELECT g.id, g.slug, g.name_en, g.name_ar, g.name_translit, g.source_slug, g.group_basis FROM qr_nazm_group g
            JOIN qr_nazm_group_member m ON m.group_id = g.id WHERE m.surah = ? ORDER BY g.group_basis, g.surah_from`, [s]),
       queryOne<{ has_aghrad: number; has_revelation_place: number; excerpt: string }>(env.DB_QR,
         `SELECT has_aghrad, has_revelation_place, substr(text_ar, 1, 600) AS excerpt
@@ -143,7 +103,7 @@ export function atlasRoutes(router: Router<QuranEnv>) {
     return ok({
       surah: { ...head, translit: head.translit },
       recitation: rec ? { reciter: rec.reciter, url: rec.audio_url } : null,
-      tags: tags.map((t) => ({ id: t.id, title: t.name_en, titleAr: t.name_ar, basis: t.group_basis })),
+      tags: tags.map((t) => ({ id: t.id, slug: t.slug, title: t.name_en, translit: t.name_translit, titleAr: t.name_ar, basis: t.group_basis, source: t.source_slug })),
       preface: preface ? { source: 'Ibn ʿĀshūr, al-Taḥrīr wa-l-tanwīr', excerpt: preface.excerpt,
                            hasAims: !!preface.has_aghrad, hasPlace: !!preface.has_revelation_place } : null,
       layers: (L.layer ?? []).map(card),

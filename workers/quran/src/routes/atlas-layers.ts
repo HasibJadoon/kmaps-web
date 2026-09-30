@@ -4,6 +4,7 @@ import { query, queryOne, placeholders, chunked } from '../../../shared/src/db';
 import { parseIntParam } from '../../../shared/src/validate';
 import type { QuranEnv } from '../env';
 import { labels, byKey, card, type Label } from '../lib/labels';
+import { surahRings } from './atlas-groups';
 
 // ── A surah's own layers, and passages for a surah no one has cut ─────────────
 // Built by kmaps-resources scripts/quran/atlas_layers.py into two tables (qr_057):
@@ -342,5 +343,7 @@ async function structureLive(env: QuranEnv, s: number, ayahs: number) {
     groups: groups.map((g) => ({ id: g.id, title: g.name_en, titleAr: g.name_ar, source: g.source_slug, basis: g.group_basis,
                                  range: [g.surah_from, g.surah_to], summary: g.summary_md })),
     units: units.map((u) => ({ no: u.unit_index, from: u.ayah_from, to: u.ayah_to, role: u.unit_role, title: u.label })),
+    // its recorded rings (A … centre … A′), each with its source — atlas-groups.ts
+    rings: await surahRings(env, s),
   };
 }
