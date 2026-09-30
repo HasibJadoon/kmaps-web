@@ -201,6 +201,9 @@ export default {
     fwdUrl.searchParams.delete('token');
 
     const fwdHeaders = new Headers(request.headers);
+    // identity and trust headers are the gateway's to set, never the client's: a caller could
+    // otherwise send X-KM-User-Id / X-KM-Role on a public read and be taken for someone else
+    for (const k of [...fwdHeaders.keys()]) if (k.toLowerCase().startsWith('x-km-')) fwdHeaders.delete(k);
 
     fwdHeaders.set('X-KM-Internal',        '1');
     fwdHeaders.set('X-KM-Internal-Secret', env.INTERNAL_SECRET ?? '');
