@@ -3,11 +3,13 @@ import { ok, badRequest } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import { labels, byKey, card, type Label } from '../lib/labels';
+import { features as tFeatures, profiles as tProfiles, sources as tSources, fallbackOf, choiceLabel, cleanText,
+         type TFeature, type ProfileRow } from '../lib/translation-choices';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
 // The Qurʾān drilled as the Arabic side is (DrillKit shapes): each āyah a line heard in
 // al-ʿAfāsī's recitation, its words timed — listen & fill, build the āyah, catch the word,
-// shadow — and iʿrāb, grammar, balāgha, verbal idioms and sense arcs. Every skill has three
+// shadow — and iʿrāb, grammar, balāgha, verbal idioms, sense arcs and translation choices. Every skill has three
 // levels, read from qr_study_label (skill.extra_json.levels). Every drill carries its review
 // card (CORE SRS, module QR) with the whole drill kept, so review replays it as the drill.
 //
@@ -30,13 +32,15 @@ const loose = (w: string) => fold(w).replace(/[اوي]/g, '');
 
 export function practiceRoutes(router: Router<QuranEnv>) {
   router.get('/qr/practice/home', async (_req, env) => {
-    const [L, irab, ayat, counts] = await Promise.all([
+    const [L, irab, ayat, tr, counts] = await Promise.all([
       labels(env),
       query<{ n: number }>(env.DB_QR, `SELECT COUNT(*) AS n FROM qr_irab_drill_item`),
       query<{ n: number }>(env.DB_QR, `SELECT COUNT(*) AS n FROM qr_ayah`),
+      // translation choices: every place a feature stands (the registry keeps the counts)
+      query<{ n: number }>(env.DB_QR, `SELECT COALESCE(SUM(n_ayat), 0) AS n FROM qr_translation_feature`).catch(() => [{ n: 0 }]),
       al<{ grammar: number; balagha: number; idiom: number; arc: number }>(env, '/al/drill/counts').catch(() => null),
     ]);
-    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, ...(counts ?? {}) };
+    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, ...(counts ?? {}) };
     return ok({
       skills: (L.skill ?? []).map((s) => {
         const src = String(s.extra?.source ?? s.key);
@@ -67,6 +71,7 @@ export function practiceRoutes(router: Router<QuranEnv>) {
       : src === 'gram' ? await gramDrills(env, skill, String(meta.extra?.discipline ?? 'NH'), n, scope, lv)
       : src === 'idiom' ? await idiomDrills(env, n, scope, lv, L)
       : src === 'arc' ? await arcDrills(env, n, lv, L)
+      : src === 'translation' ? await translationDrills(env, n, scope, band, levels)
       : [];
     const kinds = byKey(L.kind);
     const deck = byKey(L.path).get('srs_deck');
@@ -405,4 +410,255 @@ async function arcDrills(env: QuranEnv, n: number, lv: Record<string, unknown>, 
     return withCard(drill, { ref: `QR:arc:order:${arc.id}`, type: 'root', kind: 'arc',
       front: `${rootOf(arc.root)} — order its senses`, back: steps.map((s) => s.en).join(' → ') });
   }).filter((x): x is Record<string, unknown> => !!x);
+}
+
+// ── translation choices ────────────────────────────────────────────────────
+// How the English translators render an Arabic feature (qr_052; the choices are computed offline).
+//   L1 who       a rendering with a strong signature → whose is it? (the others rarely take that choice)
+//   L2 strategy  a rendering, its Arabic feature marked → which named strategy does it take?
+//   L3 compare   3–4 renderings of one āyah → which one follows X (the registry's compare_json)
+// Only translations complete enough for the feature (profile total ≥ coverage × its āyāt) are drilled.
+
+type TSpot = { feature: string; surah: number; ayah: number; word_indexes: string; ar_words: string | null };
+type TRow = { surah: number; ayah: number; source_id: string; choice: string; evidence: string | null; value: number | null };
+type TDraft = { ask: 'who' | 'strategy' | 'compare'; f: TFeature; spot: TSpot; key: string; prompt: string; options: string[]; answer: string;
+                note: { en: string; ar: string }; explanation: string; front: string; back: string };
+type TSources = Awaited<ReturnType<typeof tSources>>;
+
+const TINT = '#F2CC8F';
+const pick = <T>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
+const pct = (x: number) => `${Math.round(x * 100)}%`;
+const clip = (t: string, n = 420) => (t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, '') + ' …' : t);
+/// a rendering as shown — long enough that the words its choice was read from are in it (null if they are not)
+const shownWith = (t: string, evidence: string | null, n: number) => { const c = clip(t, n); return !evidence || c.includes(evidence) ? c : null; };
+/// a choice's label, in quotes unless it has its own
+const quoted = (s: string) => (/^[“"‘]/.test(s) ? s : `“${s}”`);
+
+function spotsFor(env: QuranEnv, feature: string, scope: Scope, k: number) {
+  const w = scopeWhere(scope);
+  return query<TSpot>(env.DB_QR,
+    `SELECT feature, surah, ayah, word_indexes, ar_words FROM qr_translation_feature_ayah WHERE feature = ? AND ${w.sql}
+      ORDER BY random() LIMIT ?`, [feature, ...w.args, k]);
+}
+
+/// the choices at these āyāt (by the choice table's key: āyah, feature, translation)
+async function choicesAt(env: QuranEnv, feature: string, spots: TSpot[], extra = '', extraArgs: string[] = []) {
+  const out: TRow[] = [];
+  for (let i = 0; i < spots.length; i += 30) {
+    const part = spots.slice(i, i + 30);
+    out.push(...await query<TRow>(env.DB_QR,
+      `SELECT surah, ayah, source_id, choice, evidence, value FROM qr_translation_choice
+        WHERE (${part.map(() => '(surah = ? AND ayah = ?)').join(' OR ')}) AND feature = ? ${extra}`,
+      [...part.flatMap((s) => [s.surah, s.ayah]), feature, ...extraArgs]));
+  }
+  return out;
+}
+
+/// renderings by (translation, surah, āyah) — the translation table's unique key
+async function textsOf(env: QuranEnv, keys: Array<{ source_id: string; surah: number; ayah: number }>) {
+  const out = new Map<string, string>();
+  const uniq = [...new Map(keys.map((k) => [`${k.source_id}|${k.surah}:${k.ayah}`, k])).values()];
+  for (let i = 0; i < uniq.length; i += 30) {
+    const part = uniq.slice(i, i + 30);
+    const rows = await query<{ source_id: string; surah: number; ayah: number; text: string }>(env.DB_QR,
+      `SELECT source_id, surah, ayah, translation_text AS text FROM qr_translation
+        WHERE ${part.map(() => '(source_id = ? AND surah = ? AND ayah = ?)').join(' OR ')}`,
+      part.flatMap((k) => [k.source_id, k.surah, k.ayah]));
+    for (const r of rows) out.set(`${r.source_id}|${r.surah}:${r.ayah}`, cleanText(r.text));
+  }
+  return out;
+}
+
+/// translations complete enough for each feature
+function completeOf(fs: TFeature[], prof: ProfileRow[], coverage: number) {
+  const nAyat = new Map(fs.map((f) => [f.key, f.nAyat]));
+  const out = new Map<string, Set<string>>();
+  for (const p of prof) if (p.total >= coverage * (nAyat.get(p.feature) ?? 0)) (out.get(p.feature) ?? out.set(p.feature, new Set()).get(p.feature)!).add(p.source_id);
+  return out;
+}
+
+async function translationDrills(env: QuranEnv, n: number, scope: Scope, band: Band, levels: Levels) {
+  const asks = band === 'all' ? ['who', 'strategy', 'compare'] : [String(levels[band]?.ask ?? 'strategy')];
+  const [fs, src, prof] = await Promise.all([tFeatures(env), tSources(env), tProfiles(env)]);
+  if (!fs.length) return [];
+  const per = Math.ceil(n / asks.length);
+  const drafts: TDraft[] = [];
+  for (const ask of asks) {
+    const lv = (band === 'all' ? Object.values(levels).find((l) => l.ask === ask) : levels[band]) ?? {};
+    const complete = completeOf(fs, prof, Number(lv.coverage ?? 0.9));
+    const got = ask === 'who' ? await whoDrafts(env, fs, src, prof, complete, per, scope, lv)
+      : ask === 'compare' ? await compareDrafts(env, fs, src, complete, per, scope, lv)
+      : await strategyDrafts(env, fs, src, complete, per, scope, lv);
+    drafts.push(...got.slice(0, per));
+  }
+  const picked = shuffle(drafts).slice(0, n);
+  const ayat = await loadAyat(env, [...new Map(picked.map((d) => [`${d.spot.surah}:${d.spot.ayah}`, [d.spot.surah, d.spot.ayah]])).values()]);
+  return picked.map((d) => {
+    const a = ayat.get(`${d.spot.surah}:${d.spot.ayah}`);
+    if (!a) return null;
+    const idx = d.spot.word_indexes ? d.spot.word_indexes.split(',').map(Number) : [];
+    const span = idx.map((i) => a.ws.findIndex((w) => w.word_index === i)).filter((i) => i >= 0);
+    const drill: Record<string, unknown> = {
+      id: `translation:${d.key}`, kind: 'feature', ask: `translation_${d.ask}`, script: 'quran', audio: a.audio, words: a.words, en: null,
+      span, prompt: d.prompt, options: d.options, answer: d.answer, note: d.note, explanation: d.explanation,
+      badges: [{ label: d.f.label, labelAr: d.f.labelAr, color: TINT }],
+      source: { workId: `QR:SURAH:${a.surah}`, title: a.title, level: null },
+    };
+    return withCard(drill, { ref: `QR:translation:${d.key}`, type: 'translation', kind: 'translation', band,
+      front: d.front, back: d.back, surah: a.surah, ayah: a.ayah, series: a.title.replace(/ \d+:\d+$/, '') });
+  }).filter((x): x is Record<string, unknown> => !!x);
+}
+
+/// L1 — a rendering with a translator's signature choice: whose is it?
+async function whoDrafts(env: QuranEnv, fs: TFeature[], src: TSources, prof: ProfileRow[], complete: Map<string, Set<string>>,
+                         n: number, scope: Scope, lv: Record<string, unknown>): Promise<TDraft[]> {
+  const byKey = new Map(fs.map((f) => [f.key, f]));
+  const minShare = Number(lv.minShare ?? 0.5), minLift = Number(lv.minLift ?? 2), maxOther = Number(lv.maxOtherShare ?? 0.15);
+  const sigs = shuffle(prof.filter((p) => {
+    const f = byKey.get(p.feature);
+    return f && f.key !== 'length_ratio' && p.choice !== fallbackOf(f) && p.share >= minShare && (p.lift ?? 0) >= minLift
+      && complete.get(p.feature)?.has(p.source_id);
+  }));
+  // one signature per translator, as far as they go round
+  const seen = new Set<string>();
+  const order = [...sigs.filter((s) => !seen.has(s.source_id) && seen.add(s.source_id)), ...sigs];
+  const tries = order.slice(0, n * 2);
+  const built = await Promise.all(tries.map(async (sig): Promise<TDraft | null> => {
+    const f = byKey.get(sig.feature)!;
+    const spots = await spotsFor(env, f.key, scope, 30);
+    if (!spots.length) return null;
+    const mine = await choicesAt(env, f.key, spots, 'AND source_id = ? AND choice = ?', [sig.source_id, sig.choice]);
+    if (!mine.length) return null;
+    const hit = pick(mine);
+    const spot = spots.find((s) => s.surah === hit.surah && s.ayah === hit.ayah)!;
+    const here = await choicesAt(env, f.key, [spot]);
+    const shareOf = new Map(prof.filter((p) => p.feature === f.key && p.choice === sig.choice).map((p) => [p.source_id, p.share]));
+    const names = new Set([src.get(sig.source_id)?.translator]);
+    const others = shuffle(here.filter((r) => r.source_id !== sig.source_id && r.choice !== sig.choice && complete.get(f.key)?.has(r.source_id)
+      && (shareOf.get(r.source_id) ?? 0) <= maxOther))
+      .filter((r) => { const nm = src.get(r.source_id)?.translator; if (!nm || names.has(nm)) return false; names.add(nm); return true; })
+      .slice(0, 3);
+    if (others.length < 3) return null;
+    const texts = await textsOf(env, [{ source_id: sig.source_id, surah: hit.surah, ayah: hit.ayah }]);
+    const full = texts.get(`${sig.source_id}|${hit.surah}:${hit.ayah}`);
+    const text = full ? shownWith(full, hit.evidence, 700) : null;
+    if (!text) return null;
+    const who = src.get(sig.source_id)!.translator;
+    const label = choiceLabel(f, sig.choice);
+    const rest = others.map((r) => `${src.get(r.source_id)!.translator} ${pct(shareOf.get(r.source_id) ?? 0)}`).join(', ');
+    return {
+      ask: 'who', f, spot, key: `who:${sig.source_id}:${f.key}:${hit.surah}:${hit.ayah}`,
+      prompt: `“${text}”`, options: shuffle([who, ...others.map((r) => src.get(r.source_id)!.translator)]), answer: who,
+      note: { en: `${who} — ${label}`, ar: f.labelAr ?? '' },
+      explanation: `${f.label}: ${who} takes ${quoted(label)}${hit.evidence ? ` (here: “${hit.evidence}”)` : ''} in ${pct(sig.share)} of the ${sig.total} āyāt `
+        + `— ${sig.lift ? `${Math.round(sig.lift * 10) / 10}× the translators' average` : 'a signature'}. The others here: ${rest}.`,
+      front: `“${clip(text, 300)}”\n— whose rendering?`, back: `${who}\n${f.label}: ${label}${hit.evidence ? ` — “${hit.evidence}”` : ''} (${pct(sig.share)} of ${sig.total})`,
+    };
+  }));
+  return built.filter((x): x is TDraft => !!x);
+}
+
+/// L2 — a rendering, the Arabic feature marked: which named strategy does it take?
+async function strategyDrafts(env: QuranEnv, fs: TFeature[], src: TSources, complete: Map<string, Set<string>>,
+                              n: number, scope: Scope, lv: Record<string, unknown>): Promise<TDraft[]> {
+  const allowed = (lv.features as string[] | undefined) ?? fs.map((f) => f.key);
+  const pool = fs.filter((f) => allowed.includes(f.key) && f.choices.length >= 3);
+  if (!pool.length) return [];
+  const want = new Map<TFeature, number>();
+  for (let i = 0; i < n + 2; i++) { const f = pick(pool); want.set(f, (want.get(f) ?? 0) + 1); }
+  const built = await Promise.all([...want.entries()].map(async ([f, k]) => {
+    const spots = await spotsFor(env, f.key, scope, k + 2);
+    const rows = spots.length ? await choicesAt(env, f.key, spots) : [];
+    const drafts: Array<{ spot: TSpot; row: TRow; present: string[] }> = [];
+    for (const spot of spots) {
+      const here = rows.filter((r) => r.surah === spot.surah && r.ayah === spot.ayah && complete.get(f.key)?.has(r.source_id));
+      const present = [...new Set(here.map((r) => r.choice))];
+      if (!present.length) continue;
+      const choice = pick(present);                     // every strategy the āyah shows has the same chance
+      drafts.push({ spot, row: pick(here.filter((r) => r.choice === choice)), present });
+    }
+    const texts = await textsOf(env, drafts.map((d) => ({ source_id: d.row.source_id, surah: d.spot.surah, ayah: d.spot.ayah })));
+    return drafts.map(({ spot, row, present }): TDraft | null => {
+      const full = texts.get(`${row.source_id}|${spot.surah}:${spot.ayah}`);
+      const text = full ? shownWith(full, row.evidence, 700) : null;
+      if (!text) return null;
+      const answer = choiceLabel(f, row.choice);
+      const wrong = [...new Set([...shuffle(present), ...shuffle(f.choices.map((c) => c.key))])].filter((c) => c !== row.choice)
+        .slice(0, 3).map((c) => choiceLabel(f, c));
+      const who = src.get(row.source_id)?.translator ?? row.source_id;
+      const marked = spot.ar_words ? ` ${spot.ar_words}` : '';
+      const ev = f.key === 'length_ratio' ? `${row.value} English words for each Arabic word` : row.evidence ? `“${row.evidence}”` : 'no marker for it';
+      return {
+        ask: 'strategy', f, spot, key: `strategy:${f.key}:${spot.surah}:${spot.ayah}:${row.source_id}`,
+        prompt: `“${text}”`, options: shuffle([answer, ...wrong]), answer,
+        note: { en: `${f.label} — ${answer}`, ar: f.labelAr ?? '' },
+        explanation: `${who}: ${ev}. ${f.detail ?? ''}`.trim(),
+        front: `${f.label}${marked}\n“${clip(text, 300)}” (${who})\n— which strategy?`, back: `${answer}\n${ev}`,
+      };
+    }).filter((x): x is TDraft => !!x);
+  }));
+  return shuffle(built.flat());
+}
+
+/// L3 — 3–4 renderings of one āyah: which follows X?
+async function compareDrafts(env: QuranEnv, fs: TFeature[], src: TSources, complete: Map<string, Set<string>>,
+                             n: number, scope: Scope, lv: Record<string, unknown>): Promise<TDraft[]> {
+  const k = Math.max(3, Math.min(4, Number(lv.options ?? 4)));
+  const pool = fs.filter((f) => f.compare.length);
+  if (!pool.length) return [];
+  const want = new Map<TFeature, number>();
+  for (let i = 0; i < n + 2; i++) { const f = pick(pool); want.set(f, (want.get(f) ?? 0) + 1); }
+  const built = await Promise.all([...want.entries()].map(async ([f, cnt]) => {
+    const spots = await spotsFor(env, f.key, scope, cnt * 3);
+    const rows = spots.length ? await choicesAt(env, f.key, spots) : [];
+    const sets: Array<{ spot: TSpot; q: typeof f.compare[number]; answer: TRow; others: TRow[] }> = [];
+    for (const spot of spots) {
+      if (sets.length >= cnt) break;
+      const here = shuffle(rows.filter((r) => r.surah === spot.surah && r.ayah === spot.ayah && complete.get(f.key)?.has(r.source_id)));
+      const q = pick(f.compare);
+      if (q.by) {
+        const chosen = distinctBy(here, (r) => String(r.value)).slice(0, k).sort((a, b) => (a.value ?? 0) - (b.value ?? 0));
+        if (chosen.length < k) continue;
+        const [ans, next] = q.by === 'min_value' ? [chosen[0], chosen[1]] : [chosen[k - 1], chosen[k - 2]];
+        if (Math.abs((ans.value ?? 0) - (next.value ?? 0)) < 0.15) continue;   // a clear winner only
+        sets.push({ spot, q, answer: ans, others: chosen.filter((r) => r !== ans) });
+      } else {
+        const yes = here.filter((r) => q.yes?.includes(r.choice));
+        const no = here.filter((r) => q.no?.includes(r.choice));
+        if (!yes.length) continue;
+        // the wrong ones: different strategies first, then more of the same
+        const byChoice = new Map<string, TRow[]>();
+        for (const r of no) byChoice.set(r.choice, [...(byChoice.get(r.choice) ?? []), r]);
+        const others: TRow[] = [];
+        for (let round = 0; others.length < k - 1 && round < 4; round++)
+          for (const rs of byChoice.values()) if (rs[round] && others.length < k - 1) others.push(rs[round]);
+        if (others.length < k - 1) continue;
+        sets.push({ spot, q, answer: yes[0], others });
+      }
+    }
+    const texts = await textsOf(env, sets.flatMap((s) => [s.answer, ...s.others].map((r) => ({ source_id: r.source_id, surah: s.spot.surah, ayah: s.spot.ayah }))));
+    return sets.map(({ spot, q, answer, others }): TDraft | null => {
+      const all = [answer, ...others];
+      const textOf = (r: TRow) => texts.get(`${r.source_id}|${spot.surah}:${spot.ayah}`);
+      if (all.some((r) => !textOf(r))) return null;
+      const shown = all.map((r) => shownWith(textOf(r)!, r.evidence, 600));
+      if (shown.some((t) => !t) || new Set(shown).size < shown.length) return null;
+      const say = (r: TRow) => `${src.get(r.source_id)?.translator ?? r.source_id} — ${choiceLabel(f, r.choice)}`
+        + (f.key === 'length_ratio' ? ` (${r.value} English words per Arabic word)` : r.evidence ? ` (“${r.evidence}”)` : '');
+      const qi = f.compare.indexOf(q);
+      return {
+        ask: 'compare', f, spot, key: `compare:${f.key}:${qi}:${spot.surah}:${spot.ayah}`,
+        prompt: q.ask, options: shuffle(shown as string[]), answer: shown[0]!,
+        note: { en: `${src.get(answer.source_id)?.translator ?? ''} — ${choiceLabel(f, answer.choice)}`, ar: f.labelAr ?? '' },
+        explanation: `${all.map(say).join(' · ')}. ${f.detail ?? ''}`.trim(),
+        front: `${q.ask}\n${spot.surah}:${spot.ayah}${spot.ar_words ? ` — ${spot.ar_words}` : ''}`, back: `${say(answer)}\n“${clip(textOf(answer)!, 300)}”`,
+      };
+    }).filter((x): x is TDraft => !!x);
+  }));
+  return shuffle(built.flat());
+}
+
+function distinctBy<T>(xs: T[], key: (x: T) => string) {
+  const seen = new Set<string>();
+  return xs.filter((x) => { const k = key(x); if (seen.has(k)) return false; seen.add(k); return true; });
 }

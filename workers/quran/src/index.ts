@@ -32,6 +32,7 @@ import { adminSyncRoutes } from './routes/admin-sync';
 import { xrefRoutes } from './routes/xref';
 import { atlasRoutes } from './routes/atlas';
 import { practiceRoutes } from './routes/practice';
+import { translationChoiceRoutes } from './routes/translation-choices';
 
 const router = new Router<QuranEnv>();
 
@@ -61,6 +62,7 @@ translationRoutes(router);
 studyRoutes(router);
 atlasRoutes(router);
 practiceRoutes(router);
+translationChoiceRoutes(router);
 pageRoutes(router);
 mushafRoutes(router);
 tafsirRoutes(router);
@@ -173,6 +175,7 @@ const AUTHORED = { fresh: 60, stale: 3600, family: ['books', 'rest'] };
 const MIXED = { fresh: 86400, stale: 30 * 86400, family: ['books', 'rest'] };
 const KEPT: SwrRoute[] = [
   { re: /^\/qr\/atlas\//, ...AUTHORED },
+  { re: /^\/qr\/translation\//, ...AUTHORED },
   { re: /^\/qr\/study\/morph\//, ...MIXED },
   { re: /^\/qr\/study\/(surahs|words)\//, ...AUTHORED },
   { re: /^\/qr\/surahs\/\d+\/worldview(\/|$)/, ...AUTHORED },
