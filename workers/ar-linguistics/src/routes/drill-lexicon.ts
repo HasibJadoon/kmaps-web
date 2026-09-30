@@ -1,4 +1,5 @@
 import type { ArLinguisticsEnv } from '../env';
+import { ok } from '../../../shared/src/response';
 
 // ── Lexicon drills: what each classical lexicon itself says about a root ─────────────────
 // Read from the FACTS layer (ar_ling_lexicon_fact, through ar_ling_root_lexicon_fact_v so a
@@ -579,4 +580,21 @@ export async function lexiconItems(env: ArLinguisticsEnv, roots: string[], types
   const counts: Record<string, number> = {};
   want.forEach((t, i) => { counts[t] = got[i].length; });
   return { items: out, pool: counts };
+}
+
+/// GET /al/lexicon/profiles[?source=] — each lexicon's own "engine" (ar_ling_lexicon_profile)
+export async function profilesResponse(env: ArLinguisticsEnv, source: string | null) {
+  const rows = ((await env.DB_AL.prepare(
+    `SELECT source_slug, feature, family, label, n, total, share, per_entry, value, examples_json FROM ar_ling_lexicon_profile
+      ${source ? 'WHERE source_slug = ?' : ''} ORDER BY source_slug, family, share DESC`).bind(...(source ? [source] : []))
+    .all<{ source_slug: string; feature: string; family: string; label: string; n: number | null; total: number | null; share: number | null;
+           per_entry: number | null; value: number | null; examples_json: string | null }>()).results ?? []);
+  const out: Record<string, { title: string | null; features: unknown[] }> = {};
+  for (const r of rows) {
+    let examples: unknown = [];
+    try { examples = r.examples_json ? JSON.parse(r.examples_json) : []; } catch { /* keep [] */ }
+    (out[r.source_slug] ??= { title: TITLES[r.source_slug]?.en ?? null, features: [] }).features.push({
+      feature: r.feature, family: r.family, label: r.label, n: r.n, total: r.total, share: r.share, perEntry: r.per_entry, value: r.value, examples });
+  }
+  return ok({ profiles: out });
 }

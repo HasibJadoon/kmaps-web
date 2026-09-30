@@ -1,7 +1,7 @@
 import type { Router } from '../../../shared/src/router';
 import { ok } from '../../../shared/src/response';
 import type { ArLinguisticsEnv } from '../env';
-import { lexiconItems, glosses, LEX_TYPES, TITLES } from './drill-lexicon';
+import { lexiconItems, glosses, profilesResponse, LEX_TYPES, TITLES } from './drill-lexicon';
 
 // ── What the drills are made of, from the linguistic record ───────────────────
 // AL shapes its own data; the drilling surface (the Qurʾān worker's practice) adds
@@ -97,21 +97,8 @@ export function drillSourceRoutes(router: Router<ArLinguisticsEnv>) {
     return ok({ ...res, glosses: g, types, sources: TITLES });
   });
 
-  router.get('/al/lexicon/profiles', async (req, env) => {
-    const source = new URL(req.url).searchParams.get('source');
-    const rows = ((await env.DB_AL.prepare(
-      `SELECT source_slug, feature, family, label, n, total, share, per_entry, value, examples_json FROM ar_ling_lexicon_profile
-        ${source ? 'WHERE source_slug = ?' : ''} ORDER BY source_slug, family, share DESC`).bind(...(source ? [source] : []))
-      .all<{ source_slug: string; feature: string; family: string; label: string; n: number | null; total: number | null; share: number | null;
-             per_entry: number | null; value: number | null; examples_json: string | null }>()).results ?? []);
-    const out: Record<string, { title: string | null; features: unknown[] }> = {};
-    for (const r of rows) {
-      (out[r.source_slug] ??= { title: TITLES[r.source_slug]?.en ?? null, features: [] }).features.push({
-        feature: r.feature, family: r.family, label: r.label, n: r.n, total: r.total, share: r.share, perEntry: r.per_entry, value: r.value,
-        examples: r.examples_json ? JSON.parse(r.examples_json) : [] });
-    }
-    return ok({ profiles: out });
-  });
+  // (also answered at /al/lexicon/profiles: lexicon.ts's /al/lexicon/:id hands that path over)
+  router.get('/al/lexicon-profiles', async (req, env) => profilesResponse(env, new URL(req.url).searchParams.get('source')));
 
   // how much each drill source holds, for the practice home
   router.get('/al/drill/counts', async (_req, env) => {

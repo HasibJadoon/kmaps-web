@@ -5,6 +5,7 @@ import { parsePagination } from '../../../shared/src/validate';
 import type { ArLinguisticsEnv } from '../env';
 import { normArabic } from '../lib/root_query';
 import { LexiconRepo } from '../repositories/lexicon.repo';
+import { profilesResponse } from './drill-lexicon';
 import { SourcesRepo, toResponseMeta } from '../repositories/sources.repo';
 
 async function metaFromSources(repo: SourcesRepo) {
@@ -771,6 +772,7 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
   });
 
   router.get('/al/lexicon/:id', async (_req, env, { id }) => {
+    if (id === 'profiles') return profilesResponse(env, new URL(_req.url).searchParams.get('source'));
     const repo = new LexiconRepo(env.DB_AL);
     const entry = await repo.findById(id);
     if (!entry) return notFound(`lexicon entry ${id}`);
