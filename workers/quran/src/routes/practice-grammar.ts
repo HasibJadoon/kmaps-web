@@ -241,6 +241,13 @@ export async function gramTermDrills(env: QuranEnv, skill: string, meta: Label, 
   return heardDrills(env, mixed, skill, band, L, scope);
 }
 
+/// How much each 'gramterm' skill holds, keyed by the skill (for the practice home): AL's count for
+/// the source the skill draws (extra.drill).
+export async function gramTermCounts(env: QuranEnv, skills: Label[]): Promise<Record<string, number>> {
+  const c = await al<Record<string, number>>(env, '/al/drill/grammar/counts').catch(() => ({} as Record<string, number>));
+  return Object.fromEntries(skills.filter((s) => s.extra?.source === 'gramterm').map((s) => [s.key, c[String(s.extra?.drill ?? '')] ?? 0]));
+}
+
 export function practiceGrammarRoutes(router: Router<QuranEnv>) {
   // iʿrāb instances as āyah drills, for the Arabic grammar path (which names the options itself)
   router.get('/qr/drill/irab-shawahid', async (req, env) => {
