@@ -36,26 +36,102 @@ function openingOf(p: Proposal) {
   return b ? { opening: b.opening } : null;
 }
 
-/// A surah's derived passages as atlas units (the curated units' shape, marked derived, with their basis).
-export async function derivedUnits(env: QuranEnv, s: number,
-                                   layersFor: (has: Record<string, number>) => Array<{ id: string; depth: string | null }>) {
-  const rows = await query<Proposal>(env.DB_QR,
-    `SELECT ${PROPOSAL_COLS} FROM qr_surah_passage_proposal WHERE surah = ? ORDER BY passage_no`, [s]);
-  const layers = layersFor({});
-  return rows.map((p) => ({
-    no: p.passage_no, from: p.ayah_from, to: p.ayah_to, title: p.title_en, theme: null,
-    words: p.words, built: 0, layers: layers.map((l) => ({ id: l.id, depth: l.depth })),
-    derived: true, basis: openingOf(p),
-  }));
+type Layers = (has: Record<string, number>) => Array<{ id: string; depth: string | null }>;
+
+export interface CuratedRow { passage_no: number; ayah_from: number; ayah_to: number; status: string }
+
+/// A surah's curated rows (any status but deleted — a draft is hand-cut too).
+export function curatedRows(env: QuranEnv, s: number) {
+  return query<CuratedRow>(env.DB_QR,
+    `SELECT passage_no, ayah_from, ayah_to, status FROM qr_surah_study_passage WHERE surah = ? AND status != 'deleted'
+      ORDER BY ayah_from`, [s]);
 }
 
-/// One derived passage (for /qr/atlas/passage/:s/:p when the surah has no curated passages).
-export async function derivedPassage(env: QuranEnv, s: number, p: number) {
-  const row = await queryOne<Proposal>(env.DB_QR,
-    `SELECT ${PROPOSAL_COLS} FROM qr_surah_passage_proposal
-      WHERE surah = ? AND passage_no = ?
-        AND NOT EXISTS (SELECT 1 FROM qr_surah_study_passage c WHERE c.surah = ? AND c.status != 'deleted')`, [s, p, s]);
-  return row ? { from: row.ayah_from, to: row.ayah_to, title: row.title_en, titleAr: row.title_ar, basis: basisOf(row) } : null;
+/// Whether curated passages cover the surah from its first āyah to its last with no gap.
+export function coversSurah(rows: Array<{ from: number; to: number }>, ayahs: number) {
+  if (!rows.length) return false;
+  const xs = [...rows].sort((x, y) => x.from - y.from);
+  let next = 1;
+  for (const r of xs) {
+    if (r.from > next) return false;
+    next = Math.max(next, r.to + 1);
+  }
+  return next > ayahs;
+}
+
+/// The derived passages that fill what the curated passages leave uncovered: each derived passage
+/// trimmed to the uncovered stretch it falls in (a curated edge cuts it). With no curated passages,
+/// the derived passages as they are.
+async function fillers(env: QuranEnv, s: number, ayahs: number, covered: Array<{ from: number; to: number }>) {
+  const rows = await query<Proposal>(env.DB_QR,
+    `SELECT ${PROPOSAL_COLS} FROM qr_surah_passage_proposal WHERE surah = ? ORDER BY passage_no`, [s]);
+  if (!covered.length) return rows.map((p) => ({ p, from: p.ayah_from, to: p.ayah_to, words: p.words, trimmed: false }));
+  const taken = new Set<number>();
+  for (const c of covered) for (let a = c.from; a <= c.to; a++) taken.add(a);
+  const perAyah = new Map((await query<{ ayah: number; n: number }>(env.DB_QR,
+    `SELECT ayah, COUNT(*) AS n FROM qr_word_occurrence WHERE surah = ? GROUP BY ayah`, [s])).map((r) => [r.ayah, r.n]));
+  const out: Array<{ p: Proposal; from: number; to: number; words: number; trimmed: boolean }> = [];
+  for (const p of rows) {
+    let a = p.ayah_from;
+    while (a <= p.ayah_to) {
+      while (a <= p.ayah_to && taken.has(a)) a++;
+      if (a > p.ayah_to || a > ayahs) break;
+      let b = a;
+      while (b + 1 <= p.ayah_to && !taken.has(b + 1)) b++;
+      let words = 0;
+      for (let x = a; x <= b; x++) words += perAyah.get(x) ?? 0;
+      out.push({ p, from: a, to: b, words, trimmed: a !== p.ayah_from || b !== p.ayah_to });
+      a = b + 1;
+    }
+  }
+  return out;
+}
+
+const titleOf = (from: number, to: number, p: Proposal, trimmed: boolean) =>
+  trimmed ? (from === to ? `Āyah ${from}` : `Āyāt ${from}–${to}`) : p.title_en;
+
+/// A surah's units: the curated ones as they are, and derived passages around them where the
+/// curated passages leave āyāt uncovered — ordered by āyah and numbered by position. A curated unit
+/// whose own passage_no differs from its position keeps it as curatedNo. Each unit also carries
+/// key "from-to", which /qr/atlas/passage/:s/:from-:to resolves.
+export async function atlasUnits<T extends { no: number; from: number; to: number }>(
+  env: QuranEnv, s: number, ayahs: number, curated: T[], layersFor: Layers,
+) {
+  const layers = layersFor({}).map((l) => ({ id: l.id, depth: l.depth }));
+  const derived = (await fillers(env, s, ayahs, curated)).map((f) => ({
+    no: 0, from: f.from, to: f.to, title: titleOf(f.from, f.to, f.p, f.trimmed), theme: null,
+    words: f.words, built: 0, layers,
+    derived: true as const, basis: f.trimmed
+      ? { opening: f.from === f.p.ayah_from ? basisOf(f.p)?.opening : { ayah: f.from, rule: 'curated_edge' },
+          trimmedFrom: [f.p.ayah_from, f.p.ayah_to] }
+      : openingOf(f.p),
+  }));
+  if (!curated.length) return derived.map((d, i) => ({ ...d, no: i + 1, key: `${d.from}-${d.to}` }));
+  const all: Array<(T & { key?: string; curatedNo?: number }) | (typeof derived)[number] & { key?: string }> =
+    [...curated, ...derived].sort((x, y) => x.from - y.from);
+  return all.map((u, i) => {
+    if ('derived' in u && u.derived === true) return { ...u, no: i + 1, key: `${u.from}-${u.to}` };
+    const c = u as T;
+    return c.no === i + 1 ? { ...c, key: `${c.from}-${c.to}` } : { ...c, no: i + 1, curatedNo: c.no, key: `${c.from}-${c.to}` };
+  });
+}
+
+/// One unit of a surah that is not wholly curated, by its position (p) or its "from-to" key:
+/// a curated passage (its own row) or a derived one (for /qr/atlas/passage/:s/:p).
+export async function mixedPassage(env: QuranEnv, s: number, ayahs: number, curated: CuratedRow[],
+                                   pick: { no?: number; from?: number; to?: number }) {
+  const cur = curated.map((c) => ({ no: c.passage_no, from: c.ayah_from, to: c.ayah_to }));
+  const units = await atlasUnits(env, s, ayahs, cur, () => []);
+  const i = pick.no ? pick.no - 1 : units.findIndex((u) => u.from === pick.from && u.to === pick.to);
+  const u = units[i];
+  if (!u) return null;
+  if ('derived' in u && u.derived) {
+    const full = (await fillers(env, s, ayahs, cur)).find((f) => f.from === u.from && f.to === u.to);
+    const basis = full ? (full.trimmed ? u.basis : basisOf(full.p)) : u.basis;
+    return { kind: 'derived' as const, no: i + 1, from: u.from, to: u.to, title: u.title, basis };
+  }
+  const c = u as { no: number; from: number; to: number; curatedNo?: number };
+  return { kind: 'curated' as const, no: i + 1, curatedNo: c.curatedNo ?? c.no, from: c.from, to: c.to };
 }
 
 type BookName = { title: string | null; titleAr: string | null; author: string | null; authorAr: string | null };
@@ -114,7 +190,7 @@ export function atlasLayerRoutes(router: Router<QuranEnv>) {
     if (!head) return notFound(`surah ${s}`);
     let payload: Record<string, unknown> = {};
     try { payload = row ? JSON.parse(row.payload_json) : {}; } catch { payload = {}; }
-    if (layer === 'structure') payload = { ...payload, ...(await structureLive(env, s)) };
+    if (layer === 'structure') payload = { ...payload, ...(await structureLive(env, s, head.ayahs)) };
     const lab = byKey(L.surah_layer).get(layer);
     const sections = (L.layer_section ?? []).filter((x) => x.key.startsWith(`${layer}.`))
       .map((x) => ({ id: x.key.slice(layer.length + 1), title: x.label, titleAr: x.labelAr, tagline: x.detail }));
@@ -131,14 +207,12 @@ export function atlasLayerRoutes(router: Router<QuranEnv>) {
 
 /// The structure layer's live part: the passages (curated, else derived, each with its basis),
 /// the naẓm groups the surah belongs to, and any authored structural units.
-async function structureLive(env: QuranEnv, s: number) {
-  const [curated, derived, groups, units] = await Promise.all([
+async function structureLive(env: QuranEnv, s: number, ayahs: number) {
+  const [curated, groups, units] = await Promise.all([
     query<{ passage_no: number; ayah_from: number; ayah_to: number; title: string | null; theme: string | null;
             status: string; meta_json: string | null }>(env.DB_QR,
       `SELECT passage_no, ayah_from, ayah_to, COALESCE(title_en, label) AS title, theme, status, meta_json
          FROM qr_surah_study_passage WHERE surah = ? AND status != 'deleted' ORDER BY passage_no`, [s]),
-    query<Proposal>(env.DB_QR,
-      `SELECT ${PROPOSAL_COLS} FROM qr_surah_passage_proposal WHERE surah = ? ORDER BY passage_no`, [s]),
     query<{ id: string; name_en: string; name_ar: string | null; source_slug: string | null; group_basis: string;
             surah_from: number; surah_to: number; summary_md: string }>(env.DB_QR,
       `SELECT g.id, g.name_en, g.name_ar, g.source_slug, g.group_basis, g.surah_from, g.surah_to, g.summary_md
@@ -147,18 +221,19 @@ async function structureLive(env: QuranEnv, s: number) {
     query<{ unit_index: number; ayah_from: number; ayah_to: number; unit_role: string | null; label: string | null }>(env.DB_QR,
       `SELECT unit_index, ayah_from, ayah_to, unit_role, label FROM qr_surah_structure_unit WHERE surah = ? ORDER BY unit_index`, [s]),
   ]);
-  const passages = curated.length
-    ? curated.map((p) => {
-        let meta: Record<string, unknown> = {};
-        try { meta = p.meta_json ? JSON.parse(p.meta_json) : {}; } catch { /* keep empty */ }
-        return { no: p.passage_no, from: p.ayah_from, to: p.ayah_to, title: p.title, theme: p.theme, derived: false,
-                 live: p.status === 'live', evidence: (meta.boundary_evidence as string | undefined) ?? null,
-                 basis: null };
-      })
-    : derived.map((p) => ({ no: p.passage_no, from: p.ayah_from, to: p.ayah_to, title: p.title_en, theme: null,
-                            derived: true, live: true, evidence: null, basis: openingOf(p) }));
+  const cur = curated.map((p) => {
+    let meta: Record<string, unknown> = {};
+    try { meta = p.meta_json ? JSON.parse(p.meta_json) : {}; } catch { /* keep empty */ }
+    return { no: p.passage_no, from: p.ayah_from, to: p.ayah_to, title: p.title, theme: p.theme, derived: false,
+             live: p.status === 'live', evidence: (meta.boundary_evidence as string | undefined) ?? null,
+             basis: null as unknown };
+  });
+  const covered = coversSurah(cur, ayahs);
+  const passages = covered ? cur : (await atlasUnits(env, s, ayahs, cur, () => [])).map((u) =>
+    'evidence' in u ? u : { no: u.no, from: u.from, to: u.to, title: u.title, theme: null, derived: true, live: true,
+                            evidence: null, basis: u.basis, key: u.key });
   return {
-    passageSource: curated.length ? 'curated' : derived.length ? 'derived' : null,
+    passageSource: covered ? 'curated' : cur.length ? 'mixed' : passages.length ? 'derived' : null,
     passages,
     groups: groups.map((g) => ({ id: g.id, title: g.name_en, titleAr: g.name_ar, source: g.source_slug, basis: g.group_basis,
                                  range: [g.surah_from, g.surah_to], summary: g.summary_md })),

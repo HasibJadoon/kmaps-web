@@ -5,7 +5,7 @@ import { parseIntParam } from '../../../shared/src/validate';
 import type { QuranEnv } from '../env';
 import { StudyRepo } from '../repositories/study.repo';
 import { labels, byKey, card, type Label } from '../lib/labels';
-import { derivedUnits, derivedPassage, bookNames } from './atlas-layers';
+import { atlasUnits, mixedPassage, curatedRows, coversSurah, bookNames } from './atlas-layers';
 
 // ── The Qurʾān as an atlas ────────────────────────────────────────────────────
 // Laid out as the Arabic side is: rooms → surahs, grouped as series → passages as
@@ -136,8 +136,10 @@ export function atlasRoutes(router: Router<QuranEnv>) {
         layers: layers.map((l) => ({ id: l.id, depth: l.depth })),
       };
     });
-    // a surah no one has cut yet: the passages the books agree on (qr_surah_passage_proposal), marked derived
-    const units = grid ? curated : await derivedUnits(env, s, (has) => layersFor(L.layer, has));
+    // what the curated passages leave uncovered (all of it, for a surah no one has cut) is filled with the
+    // passages the books agree on (qr_surah_passage_proposal), marked derived; a wholly curated surah is as it was
+    const covered = coversSurah(curated, head.ayahs);
+    const units = covered ? curated : await atlasUnits(env, s, head.ayahs, curated, (has) => layersFor(L.layer, has));
     return ok({
       surah: { ...head, translit: head.translit },
       recitation: rec ? { reciter: rec.reciter, url: rec.audio_url } : null,
@@ -149,8 +151,8 @@ export function atlasRoutes(router: Router<QuranEnv>) {
       units,
       // a surah not yet cut into passages is studied whole, from the books
       divided: units.length > 0,
-      passageSource: grid ? 'curated' : units.length ? 'derived' : null,
-      ...(grid ? {} : { books: await bookNames(env, units.flatMap((u) => ('basis' in u ? [...(u.basis?.opening?.agree ?? []), ...(u.basis?.opening?.corroborate ?? []),
+      passageSource: covered ? 'curated' : curated.length ? 'mixed' : units.length ? 'derived' : null,
+      ...(covered ? {} : { books: await bookNames(env, units.flatMap((u) => ('basis' in u ? [...(u.basis?.opening?.agree ?? []), ...(u.basis?.opening?.corroborate ?? []),
                                                                   ...(u.basis?.opening?.dissent ?? []).map((x: string) => x.split(' ')[0])] : [])), L) }),
       // the surah's own layers: /qr/atlas/surah/:s/{id}
       surahLayers: (L.surah_layer ?? []).map(card),
@@ -160,22 +162,40 @@ export function atlasRoutes(router: Router<QuranEnv>) {
   // A passage: its āyāt, each with its words, translation and place in the
   // recording, and the passage's layers (each fetched on its own when opened).
   router.get('/qr/atlas/passage/:surahId/:passageNo', async (_req, env, { surahId, passageNo }) => {
-    const s = parseIntParam(surahId), p = parseIntParam(passageNo);
-    if (!s || !p) return badRequest('Invalid surah or passage');
+    // :passageNo is the unit's number in /qr/atlas/surah/:s's list, or its key "from-to"
+    const range = /^(\d+)-(\d+)$/.exec(passageNo);
+    const s = parseIntParam(surahId), p = range ? null : parseIntParam(passageNo);
+    if (!s || (!p && !range)) return badRequest('Invalid surah or passage');
+    const [rows, head] = await Promise.all([
+      curatedRows(env, s),
+      queryOne<{ ayahs: number }>(env.DB_QR, `SELECT ayah_count AS ayahs FROM qr_surah WHERE id = ?`, [s]),
+    ]);
+    if (!head) return notFound(`surah ${s}`);
+    if (!coversSurah(rows.map((r) => ({ from: r.ayah_from, to: r.ayah_to })), head.ayahs)) {
+      // not wholly curated: the unit at that place in the combined list, curated or derived
+      const u = await mixedPassage(env, s, head.ayahs, rows, range ? { from: +range[1], to: +range[2] } : { no: p! });
+      if (!u) return notFound(`passage ${s}/${passageNo}`);
+      if (u.kind === 'derived') {
+        return ok(await passageSlice(env, s, u.from, u.to, {
+          no: u.no, title: u.title, titleAr: null, theme: null, summary: null, derived: true, basis: u.basis,
+        }));
+      }
+      const c = await queryOne<{ title_en: string | null; title_ar: string | null; theme: string | null; summary_md: string | null }>(env.DB_QR,
+        `SELECT title_en, title_ar, theme, summary_md FROM qr_surah_study_passage WHERE surah = ? AND passage_no = ?`, [s, u.curatedNo]);
+      return ok(await passageSlice(env, s, u.from, u.to, {
+        no: u.no, title: c?.title_en ?? null, titleAr: c?.title_ar ?? null, theme: c?.theme ?? null, summary: c?.summary_md ?? null,
+        ...(u.curatedNo !== u.no ? { curatedNo: u.curatedNo } : {}),
+      }));
+    }
+    const byRange = range ? rows.find((r) => r.ayah_from === +range[1] && r.ayah_to === +range[2]) : null;
+    if (range && !byRange) return notFound(`passage ${s}/${passageNo}`);
     const passage = await queryOne<{ id: string; ayah_from: number; ayah_to: number; title_en: string | null; title_ar: string | null;
                                      theme: string | null; summary_md: string | null }>(env.DB_QR,
       `SELECT id, ayah_from, ayah_to, title_en, title_ar, theme, summary_md FROM qr_surah_study_passage
-        WHERE surah = ? AND passage_no = ? AND status = 'live'`, [s, p]);
-    if (!passage) {
-      // a surah with no curated passages: the passage the books agree on
-      const d = await derivedPassage(env, s, p);
-      if (!d) return notFound(`passage ${s}/${p}`);
-      return ok(await passageSlice(env, s, d.from, d.to, {
-        no: p, title: d.title, titleAr: d.titleAr, theme: null, summary: null, derived: true, basis: d.basis,
-      }));
-    }
+        WHERE surah = ? AND passage_no = ? AND status = 'live'`, [s, byRange ? byRange.passage_no : p]);
+    if (!passage) return notFound(`passage ${s}/${passageNo}`);
     return ok(await passageSlice(env, s, passage.ayah_from, passage.ayah_to, {
-      no: p, title: passage.title_en, titleAr: passage.title_ar, theme: passage.theme, summary: passage.summary_md,
+      no: byRange ? byRange.passage_no : p!, title: passage.title_en, titleAr: passage.title_ar, theme: passage.theme, summary: passage.summary_md,
     }));
   });
 
@@ -191,7 +211,7 @@ export function atlasRoutes(router: Router<QuranEnv>) {
 
 async function passageSlice(env: QuranEnv, s: number, from: number, to: number,
                             meta: { no: number; title: string | null; titleAr: string | null; theme: string | null; summary: string | null;
-                                    derived?: boolean; basis?: unknown } | null) {
+                                    derived?: boolean; basis?: unknown; curatedNo?: number } | null) {
   const [L, ayat, words, tr, rec, grid] = await Promise.all([
     labels(env),
     query<{ ayah: number; text: string }>(env.DB_QR,
@@ -213,7 +233,7 @@ async function passageSlice(env: QuranEnv, s: number, from: number, to: number,
   const au = new Map(rec.map((r) => [r.ayah, r]));
   const wordsOf = new Map<number, typeof words>();
   for (const w of words) wordsOf.set(w.ayah, [...(wordsOf.get(w.ayah) ?? []), w]);
-  const unit = meta ? grid?.units.find((x) => x.passage_no === meta.no) : null;
+  const unit = meta && !meta.derived ? grid?.units.find((x) => x.passage_no === (meta.curatedNo ?? meta.no)) : null;
   const has: Record<string, number> = unit ? {
     reading: unit.reading.has, vocabulary: unit.vocabulary.has, sentence_structure: unit.sentence_structure.has,
     passage_structure: unit.passage_structure.has, tafsir: unit.tafsir.has,
