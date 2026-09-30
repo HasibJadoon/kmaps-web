@@ -155,7 +155,7 @@ export function drillSurahRoutes(router: Router<ArLinguisticsEnv>) {
       const wk = headKey(w.word);
       const wv = vowels(w.word);
       // (a headword vowelled otherwise is another word: رُبٌّ is not رَبّ)
-      const sense = lane.filter((f) => keys.includes(f.root_norm) && headKey(f.headword_ar) === wk && /^[A-Z(]/.test(f.value_en.trim())
+      const sense = lane.filter((f) => keys.includes(f.root_norm) && headKey(f.headword_ar) === wk && /^(\(?[A-Z])/.test(f.value_en.trim())
                                        && (!wv || !vowels(f.headword_ar) || vowels(f.headword_ar) === wv)
                                        && !f.value_en.includes('◊') && !APPARATUS.test(f.value_en) && f.value_en.trim().split(/\s+/).length >= 2)
         // the headword vowelled as the word is first (رَبّ is not رُبّ, "inspissated juice"), then the surer, then Lane's order
@@ -203,7 +203,8 @@ function findWord(raw: string, word: string, root: string) {
   return [];
 }
 
-const APPARATUS = /\b(CK|TA|TT|TK|MS|app\.|mistranscri|erroneous|as in the|see art)/i;
+// Lane's apparatus, not a sense: his sigla and cross-references ("accord. to the M; but in the Ḳ …", "i. q.")
+const APPARATUS = /\b(CK|TA|TT|TK|MS|app\.|mistranscri|erroneous|as in the|see art)|accord\. to|\b(in|of) the [ḲṢMKS]\b|\bi\. q\b|^\(?(and|or|as also|see)\b/i;
 
 function define(rawText: string, word: string, root: string, slug: string): string | null {
   const raw = rawText.replace(/\s+/g, ' ');
