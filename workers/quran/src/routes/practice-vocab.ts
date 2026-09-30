@@ -10,10 +10,14 @@ import { loadAyat, withCard, levelOf, shuffle, uniq, parseJson, type Ayah, type 
 // the senses the sources place THIS āyah under — al-Rāghib's Mufradāt (his own gloss over the run of
 // quotations), Lane's sense blocks (his Qurʾān references), Mir's verbal idioms and the sense arcs —
 // each set among the other senses the same source gives the root in the Qurʾān (its range).
+// What a word means HERE comes from the books (qr_058, scripts/quran/vocab_meanings.py → qr_vocab_gloss):
+// every gloss the tafsīrs, the iʿrāb books, the lexicons and the grammar books give it in this āyah,
+// verbatim with its citation, and one of them, by source priority, the primary (a source naming the
+// āyah > tafsīr consensus > the iʿrāb books > one tafsīr > …; never Lane's first headword sense).
 //
 //   L1 vocab_root · vocab_lemma · vocab_meaning     — the scope's frequent lemmas first
-//   L2 vocab_family · vocab_kin · vocab_form        — the root's family (in the surah, then the Qurʾān)
-//   L3 vocab_range · vocab_same · vocab_rung        — only words a source places
+//   L2 vocab_family · vocab_kin · vocab_form · vocab_who   — the root's family; which book glosses it so
+//   L3 vocab_range · vocab_same · vocab_rung · vocab_books — only words a source places; how the books gloss it
 // A surah session walks the surah: its lemmas drawn tier by tier (frequent first, a little shuffled),
 // the drills in āyah order. The asks a level has come from qr_study_label (skill.extra_json.levels).
 
@@ -22,7 +26,11 @@ type Item = { surah: number; ayah: number; word_index: number; word_text: string
               gloss_en: string | null; gloss_ref: string | null; here_en: string | null; here_ref: string | null; here_sense: string | null;
               senses_json: string | null };
 type Group = { root: string; lemma: string; tier: number; first: number; k: number; nl: number; pos: string | null;
-               gloss: string | null; wv: string | null; wazn: string | null; lemma_n: number; placed: number };
+               gloss: string | null; wazn: string | null; lemma_n: number; placed: number };
+type Gloss = { surah: number; ayah: number; word_index: number; lang: string; text: string; source_slug: string; source_kind: string;
+               citation: string; method: string; confidence: string; rank: number; role: string | null; grp: number | null; quote_ar: string | null };
+type Prim = { root: string; lemma: string; lang: string; text: string; source_kind: string; source_slug: string };
+type Core = { root: string; source_slug: string; text_ar: string | null; text_en: string | null; citation: string };
 type Sense = { id: string; source: string; root: string; head_ar: string | null; label_ar: string | null; label_en: string | null;
                kind: string | null; marker: string | null; page: string | null; seq: number | null; group_key: string; ref: string;
                ayat_json: string; n_ayat: number; arc_json: string | null };
@@ -35,15 +43,30 @@ const SRC: Record<string, { en: string; ar: string; color: string }> = {
   mir_verbal_idioms: { en: 'Mir, Verbal Idioms', ar: 'التعبيرات الفعلية', color: '#F4A261' },
   sense_arc: { en: 'Sense arc', ar: 'سُلَّم المعنى', color: '#B388EB' },
 };
+/// the books that gloss a word in its āyah (qr_vocab_gloss.source_slug) — a short name and the Arabic
+const BOOK: Record<string, { en: string; ar: string }> = {
+  razi: { en: 'al-Rāzī', ar: 'الرازي' }, alusi: { en: 'al-Ālūsī', ar: 'الآلوسي' }, zamakhshari: { en: 'al-Zamakhsharī', ar: 'الزمخشري' },
+  ibn_ashur: { en: 'Ibn ʿĀshūr', ar: 'ابن عاشور' }, tabari: { en: 'al-Ṭabarī', ar: 'الطبري' }, ibn_atiyya: { en: 'Ibn ʿAṭiyya', ar: 'ابن عطية' },
+  abu_hayyan: { en: 'Abū Ḥayyān', ar: 'أبو حيان' }, ibn_kathir: { en: 'Ibn Kathīr', ar: 'ابن كثير' },
+  qul_irab_darwish: { en: 'Darwīsh (al-lugha)', ar: 'درويش' }, qul_jadwal_irab_quran: { en: 'al-Jadwal', ar: 'الجدول' },
+  qul_irab_muyassar: { en: 'al-Iʿrāb al-Muyassar', ar: 'الإعراب الميسر' }, raghib_mufradat: { en: 'al-Rāghib', ar: 'الراغب' },
+  lane_lexicon: { en: 'Lane', ar: 'لين' }, mir_verbal_idioms: { en: 'Mir', ar: 'مير' }, sense_arc: { en: 'Sense arc', ar: 'سلّم المعنى' },
+  adima_dirasat: { en: 'ʿUḍayma', ar: 'عضيمة' }, 'ibn-kathir-abridged': { en: 'Ibn Kathīr (English)', ar: 'ابن كثير' },
+  maarif: { en: 'Maʿārif al-Qurʾān', ar: 'معارف القرآن' }, tazkir: { en: 'Tazkīr al-Qurʾān', ar: 'تذكير القرآن' },
+  kmaps_word_view: { en: 'K-Maps word view', ar: 'K-Maps' },
+};
+const TAFSIRS = ['razi', 'alusi', 'zamakhshari', 'ibn_ashur', 'tabari', 'ibn_atiyya', 'abu_hayyan', 'ibn_kathir'];
+const bookOf = (slug: string) => BOOK[slug] ?? { en: slug.replace(/_/g, ' '), ar: slug };
 const LEVEL_ASKS: Record<string, string[]> = { basic: ['vocab_root', 'vocab_lemma', 'vocab_meaning'],
-  middle: ['vocab_family', 'vocab_kin', 'vocab_form'], advanced: ['vocab_range', 'vocab_same', 'vocab_rung'] };
-const L3 = new Set(LEVEL_ASKS.advanced);
+  middle: ['vocab_family', 'vocab_kin', 'vocab_form', 'vocab_who'], advanced: ['vocab_range', 'vocab_same', 'vocab_rung', 'vocab_books'] };
+const L3 = new Set(LEVEL_ASKS.advanced.filter((a) => a !== 'vocab_books'));
 
 const fold = (w: string | null | undefined) => (w ?? '').replace(/[ؐ-ًؚ-ٰٟۖ-ۭـ]/g, '')
   .replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[^ء-ي]/g, '');
 const spaced = (r: string) => [...fold(r)].join(' ');
 const shared = (a: string, b: string) => { const x = [...fold(a)]; return [...fold(b)].filter((c, i) => x[i] === c).length; };
 const key = (x: { surah: number; ayah: number; word_index: number }) => `${x.surah}:${x.ayah}:${x.word_index}`;
+const norm = (t: string) => fold(t) || t.toLowerCase().replace(/[^a-z ]/g, '').trim();
 const clip = (t: string, n = 120) => (t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, '') + ' …' : t);
 
 function scopeSql(s: Scope, alias = '') {
@@ -74,7 +97,7 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
   // the scope's lemmas: how frequent (tier), where they first stand, whether a source places them
   const groups = await query<Group>(env.DB_QR,
     `SELECT root, lemma, MIN(tier) AS tier, MIN(surah * 1000 + ayah) AS first, COUNT(*) AS k, MAX(n_lemmas) AS nl, MAX(pos) AS pos,
-            MAX(gloss_en) AS gloss, MAX(CASE WHEN here_sense IS NULL THEN here_en END) AS wv, MAX(wazn_ar) AS wazn, MAX(lemma_n) AS lemma_n, MAX(senses_json IS NOT NULL) AS placed
+            MAX(gloss_en) AS gloss, MAX(wazn_ar) AS wazn, MAX(lemma_n) AS lemma_n, MAX(senses_json IS NOT NULL) AS placed
        FROM qr_vocab_item WHERE ${w.sql} AND lemma IS NOT NULL GROUP BY root, lemma`, w.args);
   if (!groups.length) return [];
   // walk: frequent first (a little shuffled within the walk), L3 only what a source places
@@ -100,6 +123,26 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
   ]);
   const famOf = new Map<string, Fam[]>();
   for (const f of fam) famOf.set(f.root, [...(famOf.get(f.root) ?? []), f]);
+  // what the books say each chosen word means here (every gloss, with its source), the scope's other words' primaries
+  // (the wrong answers, in the same voice), and the roots' imagery (Maqāyīs's aṣl, the root DNA)
+  const g = scopeSql(scope, 'g');
+  const [glossRows, prims, cores] = await Promise.all([
+    occ.length ? query<Gloss>(env.DB_QR,
+      `SELECT surah, ayah, word_index, lang, text, source_slug, source_kind, citation, method, confidence, rank, role, grp, quote_ar FROM qr_vocab_gloss
+        WHERE (surah, ayah, word_index) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]'), json_extract(value, '$[2]') FROM json_each(?))
+        ORDER BY rank`, [JSON.stringify(occ.map((o) => [o.surah, o.ayah, o.word_index]))]) : Promise.resolve([] as Gloss[]),
+    query<Prim>(env.DB_QR,
+      `SELECT i.root, i.lemma, g.lang, g.text, g.source_kind, g.source_slug FROM qr_vocab_gloss g
+         JOIN qr_vocab_item i ON i.surah = g.surah AND i.ayah = g.ayah AND i.word_index = g.word_index
+        WHERE g.role = 'primary' AND ${g.sql} ${scope.surah === null ? 'AND (g.surah * 7 + g.ayah) % 23 = ?' : ''} LIMIT 3000`,
+      scope.surah === null ? [...g.args, Math.floor(Math.random() * 23)] : g.args),
+    query<Core>(env.DB_QR, `SELECT root, source_slug, text_ar, text_en, citation FROM qr_vocab_root_core WHERE root IN (SELECT value FROM json_each(?))`,
+      [JSON.stringify(roots)]).catch(() => [] as Core[]),
+  ]);
+  const glossOf = new Map<string, Gloss[]>();
+  for (const x of glossRows) glossOf.set(key(x), [...(glossOf.get(key(x)) ?? []), x]);
+  const coreOf = new Map<string, Core[]>();
+  for (const c of cores) coreOf.set(c.root, [...(coreOf.get(c.root) ?? []), c]);
   // the senses the chosen words are placed under, with the rest of each source's range
   const placedIds = uniq(occ.flatMap((o) => parseJson<string[]>(o.senses_json, [])));
   const senseRows = placedIds.length ? await query<Sense>(env.DB_QR,
@@ -124,14 +167,14 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
     if (!os.length) continue;
     for (let k = 0; k < want.length; k++) {
       const ask = want[(t + k) % want.length];
-      const o = os.find((x) => feasible(ask, x, famOf, senseOf, rangeOf));
+      const o = os.find((x) => feasible(ask, x, famOf, senseOf, rangeOf, glossOf.get(key(x)) ?? []));
       if (o) { plans.push({ o, ask }); t = (t + k + 1) % want.length; break; }
     }
   }
   if (!plans.length) return [];
   plans.sort((a, b) => a.o.surah - b.o.surah || a.o.ayah - b.o.ayah || a.o.word_index - b.o.word_index);
   // the āyāt heard (each drill's own), and, for a "same sense" drill, the word of the root in the āyāt it offers
-  const ctx: Ctx = { groups, famOf, senseOf, rangeOf, noteOf, allRoots, band };
+  const ctx: Ctx = { groups, famOf, senseOf, rangeOf, noteOf, allRoots, band, glossOf, prims, coreOf };
   const sameRefs = uniq(plans.filter((p) => p.ask === 'vocab_same').flatMap((p) => placedOf(p.o, senseOf)
     .filter((s) => s.source !== 'sense_arc').flatMap((s) => [...parseJson<string[]>(s.ayat_json, []),
       ...(rangeOf.get(s.group_key) ?? []).flatMap((x) => parseJson<string[]>(x.ayat_json, []).slice(0, 2))])));
@@ -156,18 +199,40 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
 }
 
 type Ctx = { groups: Group[]; famOf: Map<string, Fam[]>; senseOf: Map<string, Sense>; rangeOf: Map<string, Sense[]>;
-             noteOf: Map<string, string | null>; allRoots: Array<{ root_ar: string; n: number }>; band: ReturnType<typeof levelOf>['band'] };
+             noteOf: Map<string, string | null>; allRoots: Array<{ root_ar: string; n: number }>; band: ReturnType<typeof levelOf>['band'];
+             glossOf: Map<string, Gloss[]>; prims: Prim[]; coreOf: Map<string, Core[]> };
+
+const primaryOf = (gs: Gloss[]) => gs.find((x) => x.role === 'primary') ?? null;
+/// the glosses the books give the word here that can be told apart: one per source (its best), in the Arabic, from a book
+/// (not the word view, not ʿUḍayma's pattern functions), each with its agreement group
+function readings(gs: Gloss[]) {
+  const by = new Map<string, Gloss>();
+  for (const x of gs) {
+    // a book's own gloss of the word here (ranks 1–4): not the weaker readings (the last word of a quotation, «X، أي …»), not the lemma elsewhere
+    if (x.lang !== 'ar' || x.rank > 4 || x.source_kind === 'kmaps' || x.method === 'adima_function' || x.method === 'tafsir_lemma') continue;
+    if (!by.has(x.source_slug)) by.set(x.source_slug, x);
+  }
+  return [...by.values()];
+}
+/// the readings that differ: a source whose gloss no other source shares (its group is its own), when ≥2 groups stand
+function differing(gs: Gloss[]) {
+  const rs = readings(gs);
+  const groups = new Set(rs.map((x) => x.grp));
+  if (rs.length < 2 || groups.size < 2) return [];
+  return rs.filter((x) => rs.filter((y) => y.grp === x.grp).length === 1);
+}
 
 const placedOf = (o: Item, senseOf: Map<string, Sense>) => parseJson<string[]>(o.senses_json, []).map((id) => senseOf.get(id)).filter((s): s is Sense => !!s);
 const labelOf = (s: Sense) => (s.source === 'raghib_mufradat' ? s.label_ar : s.label_en) ?? s.label_ar ?? '';
 /// a source's range of senses for the root: the placed sense and its fellows, each with a label
 const rangeFor = (s: Sense, rangeOf: Map<string, Sense[]>) => (rangeOf.get(s.group_key) ?? []).filter((x) => labelOf(x));
 
-function feasible(ask: string, o: Item, famOf: Map<string, Fam[]>, senseOf: Map<string, Sense>, rangeOf: Map<string, Sense[]>) {
+function feasible(ask: string, o: Item, famOf: Map<string, Fam[]>, senseOf: Map<string, Sense>, rangeOf: Map<string, Sense[]>, gs: Gloss[]) {
   const fam = famOf.get(o.root) ?? [];
   switch (ask) {
     case 'vocab_root': case 'vocab_lemma': return !!o.lemma;
-    case 'vocab_meaning': return !!(o.here_en || o.gloss_en);
+    case 'vocab_meaning': return !!primaryOf(gs);
+    case 'vocab_who': case 'vocab_books': return differing(gs).length >= 1;
     case 'vocab_family': return fam.length >= 3 && !!o.lemma;
     case 'vocab_kin': return fam.some((f) => f.lemma !== o.lemma);
     case 'vocab_form': return fam.some((f) => f.gloss && f.wazn);
@@ -194,8 +259,16 @@ function build(ask: string, o: Item, ay: Ayah, idx: number, c: Ctx, wordsAt: Map
   const fam = (c.famOf.get(o.root) ?? []).sort((a, b) => b.n - a.n);
   const lemma = o.lemma ?? o.word_text;
   const root = spaced(o.root);
-  const meaning = o.here_en ?? o.gloss_en;
-  const mRef = o.here_en ? o.here_ref : o.gloss_ref;
+  // the meaning here: the primary gloss the books give it (and, beside it, the other language where a source gives it)
+  const gs = c.glossOf.get(key(o)) ?? [];
+  const prim = primaryOf(gs);
+  const side = gs.find((x) => x.role === 'en' || x.role === 'ar') ?? null;
+  const en = prim?.lang === 'en' ? prim : side?.lang === 'en' ? side : null;
+  const meaning = prim?.text ?? null;
+  const mRef = prim?.citation ?? null;
+  const cores = c.coreOf.get(o.root) ?? [];
+  const coreLine = cores.map((x) => `Root imagery (${x.source_slug === 'maqayis_lugha' ? 'Maqāyīs, the aṣl' : 'root DNA'}): ${[x.text_ar, x.text_en].filter(Boolean).join(' — ')}`).join('\n');
+  const readLine = (xs: Gloss[]) => xs.map((x) => `· ${bookOf(x.source_slug).en}: «${clip(x.text, 90)}»`).join('\n');
   const famLine = fam.slice(0, 6).map((f) => `${f.lemma}${f.wazn ? ` (${f.wazn})` : ''}${f.gloss ? ` — ${clip(f.gloss, 70)}` : ''} ×${f.n}`).join('\n');
   const base = { script: 'quran', audio: ay.audio, words: ay.words, en: ay.en, span: [idx],
                  source: { workId: `QR:SURAH:${o.surah}`, title: ay.title, level: null } };
@@ -213,7 +286,7 @@ function build(ask: string, o: Item, ay: Ayah, idx: number, c: Ctx, wordsAt: Map
     if (others.length < 3) return null;
     const d: Drill = { ...base, id, kind: 'feature', ask, prompt: `Which root is ${o.word_text} from?`,
       options: shuffle([root, ...others.map(spaced)]), answer: root, note: { en: `root ${root}`, ar: root },
-      explanation: `${o.word_text} is of the root ${root} (${o.root_n} words in the Qurʾān); its lemma ${lemma} occurs ${o.lemma_n}×.${meaning ? ` ${lemma}: ${meaning}.` : ''}`,
+      explanation: `${o.word_text} is of the root ${root} (${o.root_n} words in the Qurʾān); its lemma ${lemma} occurs ${o.lemma_n}×.${meaning ? ` Here: «${meaning}» (${bookOf(prim!.source_slug).en}).` : ''}${coreLine ? `\n${coreLine}` : ''}`,
       badges: badge('Qurʾān · root', 'الجَذْر') };
     return card(d, `root:${o.root}:${o.lemma}`, `${o.word_text} — root?`, root, 'Roots');
   }
@@ -224,25 +297,62 @@ function build(ask: string, o: Item, ay: Ayah, idx: number, c: Ctx, wordsAt: Map
     if (others.length < 3) return null;
     const d: Drill = { ...base, id, kind: 'feature', ask, prompt: `${o.word_text} — which dictionary form (lemma) is it?`,
       options: shuffle([lemma, ...others]), answer: lemma, note: { en: o.wazn_ar ? `pattern ${o.wazn_ar}` : 'lemma', ar: lemma },
-      explanation: `${o.word_text} is a form of ${lemma}${o.wazn_ar ? ` (pattern ${o.wazn_ar})` : ''}, root ${root} — ${o.lemma_n}× in the Qurʾān.${meaning ? ` ${meaning}${mRef ? ` (${mRef})` : ''}.` : ''}`,
+      explanation: `${o.word_text} is a form of ${lemma}${o.wazn_ar ? ` (pattern ${o.wazn_ar})` : ''}, root ${root} — ${o.lemma_n}× in the Qurʾān.${meaning ? ` Here: «${meaning}» — ${mRef}.` : ''}`,
       badges: badge('Qurʾān · lemma', 'اللَّفْظَة') };
     return card(d, `lemma:${o.root}:${lemma}`, `${o.word_text} — lemma?`, `${lemma} (${root})`, 'Lemmas');
   }
   if (ask === 'vocab_meaning') {
-    if (!meaning) return null;
-    // the wrong answers in the same voice as the right one: the word view's glosses beside a word-view gloss, Lane's beside Lane's
-    const wordView = !!o.here_en && !o.here_sense;
-    const pick = (g: Group) => (wordView ? g.wv : g.gloss);
-    const pool = [...shuffle(c.groups.filter((g) => g.root !== o.root && pick(g) && g.pos === o.pos)),
-                  ...shuffle(c.groups.filter((g) => g.root !== o.root && pick(g) && g.pos !== o.pos))].map((g) => pick(g)!);
-    const others = pickOthers(meaning.toLowerCase(), pool, (x) => x.toLowerCase());
+    if (!prim || !meaning) return null;
+    // the wrong answers in the same voice as the right one: the same kind of book's glosses of the scope's other words, then any
+    // book's in the same language — never a gloss of this lemma, never one the answer's own books share
+    const mine = new Set(gs.filter((x) => x.grp === prim.grp).map((x) => fold(x.text)));
+    const pool = c.prims.filter((x) => x.lang === prim.lang && !(x.root === o.root && x.lemma === o.lemma) && !mine.has(fold(x.text)));
+    const others = pickOthers(norm(meaning), [...shuffle(pool.filter((x) => x.source_kind === prim.source_kind)), ...shuffle(pool)].map((x) => x.text), norm);
     if (others.length < 3) return null;
-    const here = !!o.here_en;
+    const other = differing(gs).filter((x) => x.grp !== prim.grp).slice(0, 3);
+    const book = bookOf(prim.source_slug);
     const d: Drill = { ...base, id, kind: 'feature', ask, prompt: `What does ${o.word_text} mean here?`,
-      options: shuffle([meaning, ...others]), answer: meaning, note: { en: `${lemma} · ${root}`, ar: lemma },
-      explanation: `${lemma} (root ${root}): ${meaning} — ${here ? `the sense ${mRef} files this āyah under` : `${mRef ?? 'the lemma\'s gloss'}`}.`,
-      badges: badge(here ? `${(o.here_ref ?? '').split(',')[0]} · meaning here` : 'Qurʾān · meaning', 'المَعْنَى هُنَا') };
-    return card(d, `meaning:${key(o)}`, `${o.word_text} — meaning here?`, `${meaning}${mRef ? `\n${mRef}` : ''}`, 'Meanings');
+      options: shuffle([meaning, ...others]), answer: meaning,
+      note: { en: en && en !== prim ? `${en.text} (${bookOf(en.source_slug).en})` : `${lemma} · ${root}`, ar: lemma },
+      explanation: `${lemma} (root ${root}) here: «${meaning}» — ${mRef}.${en && en !== prim ? `\nIn English: ${en.text} — ${en.citation}.` : ''}`
+        + `${other.length ? `\nThe books differ:\n${readLine(other)}` : ''}${coreLine ? `\n${coreLine}` : ''}`,
+      meaning: { text: meaning, lang: prim.lang, source: prim.source_slug, citation: prim.citation, method: prim.method,
+                 en: en && en !== prim ? { text: en.text, citation: en.citation } : null, quote: prim.quote_ar },
+      badges: badge(`${book.en} · meaning here`, `${book.ar} · المَعْنَى هُنَا`) };
+    return card(d, `meaning:${key(o)}`, `${o.word_text} — meaning here?`, `${meaning}\n${mRef}${en && en !== prim ? `\n${en.text}` : ''}`, 'Meanings');
+  }
+  if (ask === 'vocab_who' || ask === 'vocab_books') {
+    // where the books gloss the word differently: which book says this (L2), what this book says (L3)
+    const diff = differing(gs);
+    if (!diff.length) return null;
+    const rs = readings(gs);
+    const r = shuffle(diff).sort((a, b) => (TAFSIRS.includes(a.source_slug) ? 0 : 1) - (TAFSIRS.includes(b.source_slug) ? 0 : 1))[0];
+    const book = bookOf(r.source_slug);
+    const all = readLine(rs);
+    if (ask === 'vocab_who') {
+      // the others: the books that gloss it otherwise here, then books that do not gloss it at all (none of them says this)
+      const saySame = new Set(rs.filter((x) => x.grp === r.grp).map((x) => x.source_slug));
+      const names = uniq([...shuffle(rs.filter((x) => !saySame.has(x.source_slug)).map((x) => x.source_slug)),
+                          ...shuffle(TAFSIRS.filter((b) => !rs.some((x) => x.source_slug === b)))]);
+      const others = pickOthers(book.en, names.map((b) => bookOf(b).en), (x) => x);
+      if (others.length < 2) return null;
+      const d: Drill = { ...base, id, kind: 'feature', ask, prompt: `Which book glosses ${o.word_text} here as «${clip(r.text, 110)}»?`,
+        options: shuffle([book.en, ...others]), answer: book.en, note: { en: `${lemma} · how the books gloss it`, ar: book.ar },
+        explanation: `${r.citation}: «${r.text}».\nThe books on ${o.word_text} here:\n${all}`,
+        badges: badge('Qurʾān · the books differ', 'اخْتِلَافُ الكُتُب', '#E07A5F') };
+      return card(d, `who:${key(o)}:${r.source_slug}`, `«${clip(r.text, 80)}» — which book?`, `${book.en}\n${r.citation}`, 'Glosses');
+    }
+    // how does this book gloss it: its gloss among the others' (then its glosses of other words in the scope)
+    const pool = [...shuffle(rs.filter((x) => x.grp !== r.grp).map((x) => x.text)),
+                  ...shuffle(c.prims.filter((x) => x.lang === 'ar' && x.source_slug === r.source_slug && !(x.root === o.root && x.lemma === o.lemma)).map((x) => x.text)),
+                  ...shuffle(c.prims.filter((x) => x.lang === 'ar' && !(x.root === o.root && x.lemma === o.lemma)).map((x) => x.text))];
+    const others = pickOthers(norm(r.text), pool, norm);
+    if (others.length < 2) return null;
+    const d: Drill = { ...base, id, kind: 'feature', ask, prompt: `How does ${book.en} gloss ${o.word_text} here?`,
+      options: shuffle([r.text, ...others.slice(0, 3)]), answer: r.text, note: { en: `${book.en} on ${o.surah}:${o.ayah}`, ar: book.ar },
+      explanation: `${r.citation}: «${r.text}».${r.quote_ar ? `\nAs it stands: ${clip(r.quote_ar, 200)}` : ''}\nThe books on ${o.word_text} here:\n${all}`,
+      badges: badge(`${book.en} · how it glosses`, `${book.ar} · تَفْسِيرُ الكَلِمَة`, '#E07A5F') };
+    return card(d, `books:${key(o)}:${r.source_slug}`, `${book.en}: ${o.word_text} here?`, `${r.text}\n${r.citation}`, 'Glosses');
   }
   if (ask === 'vocab_family') {
     const others = shuffle(fam.filter((f) => f.lemma !== lemma)).slice(0, 3).map((f) => f.lemma);
