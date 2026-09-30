@@ -25,5 +25,9 @@ service = "km-worldview-worker"
 binding = "CONTENT"
 service = "km-content-worker"
 
+[[services]]
+binding = "ARABIC"
+service = "km-arabic-worker"
+
 [vars]
 # JWT_SECRET is set as a secret via `wrangler secret put JWT_SECRET`

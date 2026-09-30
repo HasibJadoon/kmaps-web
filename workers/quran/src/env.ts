@@ -3,6 +3,7 @@ export interface QuranEnv {
   DB_QR: D1Database;
 
   AR_LINGUISTICS?: Fetcher;
+  ARABIC?: Fetcher;
   WORLDVIEW?: Fetcher;
   CONTENT?: Fetcher;
 
