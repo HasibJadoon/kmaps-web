@@ -16,6 +16,7 @@ import { curriculumRoutes } from './routes/curriculum';
 import { vocabularyRoutes } from './routes/vocabulary';
 import { lessonRoutes } from './routes/lessons';
 import { grammarRoutes } from './routes/grammar';
+import { grammarCitationRoutes } from './routes/grammar-citations';
 import { grammarPathRoutes } from './routes/grammar-path';
 import { exerciseRoutes } from './routes/exercises';
 import { dailyRoutes } from './routes/daily';
@@ -52,6 +53,7 @@ libraryRoutes(router);
 curriculumRoutes(router);
 lessonRoutes(router);
 vocabularyRoutes(router);
+grammarCitationRoutes(router);
 grammarPathRoutes(router);   // before grammarRoutes: /ar/grammar/:id would take /ar/grammar/path
 grammarRoutes(router);
 exerciseRoutes(router);

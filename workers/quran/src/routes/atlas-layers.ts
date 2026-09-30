@@ -169,11 +169,115 @@ async function namesFor(env: QuranEnv, payload: unknown, L: Record<string, Label
       `SELECT id, name_en, name_ar, short_en, category_key FROM qr_gram_term_ref WHERE id IN (${placeholders(part.length)})`, part);
     for (const r of rows) terms[r.id] = { en: r.name_en, ar: r.name_ar, short: r.short_en, category: r.category_key };
   }
-  const books = await bookNames(env, srcs, L);
+  const books: Record<string, BookName & { deathAh?: number | null }> = await bookNames(env, srcs, L);
+  // the grammar books are named by AL (ar_ling_source)
+  const rest = srcs.filter((x) => !books[x]);
+  if (rest.length && env.AR_LINGUISTICS) {
+    const meta = await alMeta(env, [], rest).catch(() => null);
+    for (const [slug, b] of Object.entries(meta?.books ?? {})) {
+      books[slug] = { title: b.title, titleAr: b.titleAr, author: null, authorAr: b.author, deathAh: b.deathAh };
+    }
+  }
   return { terms, books };
 }
 
+// ── the grammar books' citations, paged ──────────────────────────────────────
+type AlMeta = { disciplines: Record<string, string>; books: Record<string, { title: string | null; titleAr: string; author: string | null; deathAh: number | null }> };
+
+async function alMeta(env: QuranEnv, chunks: string[], slugs: string[]): Promise<AlMeta> {
+  const r = await env.AR_LINGUISTICS!.fetch('https://al/al/gram/citation-meta', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chunks, slugs }) });
+  const j = await r.json() as { data?: AlMeta };
+  if (!j.data) throw new Error('AL citation-meta: no data');
+  return j.data;
+}
+
+async function getJson<T>(binding: Fetcher | undefined, url: string): Promise<T> {
+  if (!binding) throw new Error('binding missing');
+  const j = await (await binding.fetch(url)).json() as { data?: T };
+  if (j.data === undefined) throw new Error(`${url}: no data`);
+  return j.data;
+}
+
+// a registry term's category → the layer its shawāhid belong to (as atlas_layers.py files them)
+const SARF_CATS = new Set(['form_family', 'derivation_type', 'sigha_maani', 'phonotactic', 'noun_process', 'form_tier',
+  'root_type', 'taddiya_route', 'transitivity', 'tense', 'mood', 'voice', 'person', 'number', 'gender', 'inflection_class',
+  'jumud', 'asl_kind']);
+const termLayer = (k: string | null) => {
+  const cat = (k ?? '').split(':')[1] ?? '';
+  return cat.startsWith('balagha') ? 'balagha' : SARF_CATS.has(cat) ? 'sarf' : 'nahw';
+};
+const DISC: Record<string, string> = { sarf: 'SF', nahw: 'NH', balagha: 'BL' };
+
+/// One page of a layer's citations: ʿUḍayma's (set=adima, ṣarf and naḥw), the grammar books' (set=books)
+/// or the registry's shawāhid (set=shawahid); ?from&to cuts it to an āyah range (a passage).
+async function citationsPage(env: QuranEnv, s: number, layer: string, set: string, from: number, to: number,
+                             page: number, per: number) {
+  const range = `from=${from}&to=${to}`;
+  if (set === 'adima') {
+    const d = await getJson<{ total: number; items: Array<Record<string, unknown>> }>(env.AR_LINGUISTICS,
+      `https://al/al/gram/adima/by-surah/${s}?discipline=${DISC[layer]}&${range}&page=${page}&per=${per}`);
+    return {
+      total: d.total,
+      items: d.items.map((r) => ({
+        ref: `${r.surah}:${r.ayah}`, text: r.quote_ar, word: r.word_ar ?? null, wordIndex: r.word_index ?? null,
+        chapter: r.chapter_ar, section: r.section_ar, head: r.head_ar, pattern: r.pattern_term_id, patternAr: r.pattern_ar,
+        meaning: r.meaning_term_id, meaningAr: r.meaning_ar, key: r.section_term_id, vol: r.volume_no, page: r.page_no,
+        source: 'adima_dirasat',
+      })),
+    };
+  }
+  if (set === 'books') {
+    const d = await getJson<{ items: Array<{ qr_ref: string; text_ar: string; context_ar: string | null; bab_title_ar: string | null;
+                                             term_id: string | null; source_slug: string; chunk_id: string | null; volume_no: number | null;
+                                             page_no: number | null; origin: string }> }>(env.ARABIC,
+      `https://ar/ar/grammar-citations/by-surah/${s}?${range}`);
+    const meta = await alMeta(env, [...new Set(d.items.map((r) => r.chunk_id).filter((x): x is string => !!x))], []);
+    const mine = d.items.filter((r) => r.chunk_id && meta.disciplines[r.chunk_id] === DISC[layer]);
+    return {
+      total: mine.length,
+      byBook: Object.entries(mine.reduce<Record<string, number>>((m, r) => ({ ...m, [r.source_slug]: (m[r.source_slug] ?? 0) + 1 }), {}))
+        .sort((x, y) => y[1] - x[1]).map(([source, count]) => ({ source, count })),
+      items: mine.slice((page - 1) * per, page * per).map((r) => ({
+        ref: r.qr_ref, text: r.text_ar, context: r.context_ar, section: r.bab_title_ar, key: r.term_id,
+        source: r.source_slug, vol: r.volume_no, page: r.page_no, origin: r.origin,
+      })),
+    };
+  }
+  const d = await getJson<{ items: Array<{ term_id: string; example_ar: string; qr_ref: string; source_ref: string | null; gloss_en: string | null }> }>(
+    env.AR_LINGUISTICS, `https://al/al/gram/term-examples/by-surah/${s}?${range}`);
+  const mine = d.items.filter((r) => termLayer(r.term_id) === layer);
+  return {
+    total: mine.length,
+    items: mine.slice((page - 1) * per, page * per).map((r) => ({
+      ref: r.qr_ref, key: r.term_id, text: r.example_ar, gloss: r.gloss_en, source: (r.source_ref ?? '').split('#')[0] || null,
+    })),
+  };
+}
+
 export function atlasLayerRoutes(router: Router<QuranEnv>) {
+  // A layer's full list of grammar-book citations, paged: /qr/atlas/surah/:s/{sarf,nahw,balagha}/citations
+  //   ?set=adima|books|shawahid &page=1 &per=40 (≤100) &from&to (an āyah range — a passage's)
+  router.get('/qr/atlas/surah/:surahId/:layer/citations', async (req, env, { surahId, layer }) => {
+    const s = parseIntParam(surahId);
+    if (!s || s < 1 || s > 114) return badRequest('Invalid surahId');
+    if (!DISC[layer]) return badRequest(`no citations for layer ${layer}`);
+    const u = new URL(req.url);
+    const set = u.searchParams.get('set') ?? 'books';
+    if (!['adima', 'books', 'shawahid'].includes(set) || (set === 'adima' && layer === 'balagha')) return badRequest(`unknown set ${set}`);
+    const num = (k: string, d: number) => { const n = Number(u.searchParams.get(k)); return Number.isInteger(n) && n > 0 ? n : d; };
+    const page = num('page', 1), per = Math.min(100, num('per', 40)), from = num('from', 1), to = num('to', 999);
+    const [L, res] = await Promise.all([labels(env), citationsPage(env, s, layer, set, from, to, page, per).catch((e: Error) => e)]);
+    if (res instanceof Error) return ok({ surah: s, layer, set, page, per, total: 0, items: [], error: res.message });
+    const lab = byKey(L.layer_section).get(`${layer}.${set === 'books' ? 'grammarBooks' : set}`);
+    return ok({
+      surah: s, layer, set, range: [from, to], page, per, pages: Math.ceil(res.total / per),
+      section: lab ? { title: lab.label, titleAr: lab.labelAr, tagline: lab.detail } : null,
+      ...res,
+      ...(await namesFor(env, res, L)),
+    });
+  });
+
   // A surah's own layer: /qr/atlas/surah/:s/{sarf,nahw,balagha,themes,structure}
   router.get('/qr/atlas/surah/:surahId/:layer', async (_req, env, { surahId, layer }) => {
     const s = parseIntParam(surahId);

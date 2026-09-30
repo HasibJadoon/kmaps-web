@@ -29,6 +29,7 @@ import { sourceRagRoutes } from './routes/source_rag';
 import { wordViewRoutes } from './routes/word_view';
 import { wordAnalysisRoutes } from './routes/word_analysis';
 import { grammarRoutes } from './routes/grammar';
+import { gramBySurahRoutes } from './routes/gram-by-surah';
 import { registryRoutes } from './routes/registry';
 import { dsRoutes } from './routes/ds';
 
@@ -72,6 +73,7 @@ nearSynonymRoutes(router);
 sourceRagRoutes(router);
 wordViewRoutes(router);
 wordAnalysisRoutes(router);
+gramBySurahRoutes(router);
 grammarRoutes(router);
 registryRoutes(router);
 dsRoutes(router);
