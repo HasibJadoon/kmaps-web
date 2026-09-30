@@ -7,6 +7,7 @@ import { features as tFeatures, profiles as tProfiles, sources as tSources, fall
          type TFeature, type ProfileRow } from '../lib/translation-choices';
 import { tafsirDrills, tafsirCount } from './practice-tafsir';
 import { irabBookDrills, irabBookCount } from './practice-irabbooks';
+import { gramTermDrills } from './practice-grammar';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
 // The Qurʾān drilled as the Arabic side is (DrillKit shapes): each āyah a line heard in
@@ -77,6 +78,7 @@ export function practiceRoutes(router: Router<QuranEnv>) {
       : src === 'translation' ? await translationDrills(env, n, scope, band, levels)
       : src === 'tafsir' ? await tafsirDrills(env, n, scope, lv, L)
       : src === 'irabbooks' ? await irabBookDrills(env, n, scope, lv, L)
+      : src === 'gramterm' ? await gramTermDrills(env, skill, meta, n, scope, lv, band, L)
       : [];
     const kinds = byKey(L.kind);
     const deck = byKey(L.path).get('srs_deck');

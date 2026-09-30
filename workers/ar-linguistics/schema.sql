@@ -3005,3 +3005,54 @@ AFTER UPDATE ON ar_ling_lexicon_entry BEGIN
     COALESCE(new.raw_text, '')
   );
 END;
+
+-- 0110: ʿUḍayma's Dirāsāt as rows (scripts/parse-adima.py)
+CREATE TABLE IF NOT EXISTS ar_ling_adima_entry (
+  id              TEXT PRIMARY KEY,          -- ADM:<chunk id>:<n>
+  discipline      TEXT NOT NULL,             -- NH | SF
+  chunk_id        TEXT NOT NULL,             -- ar_ling_gram_chunk.id: the page it is read from
+  volume_no       INTEGER,
+  page_no         INTEGER,
+  seq             INTEGER NOT NULL,          -- book order
+  chapter_ar      TEXT,                      -- the study it belongs to («دراسة (افتعل)»)
+  section_ar      TEXT,                      -- the heading it is listed under
+  head_ar         TEXT,                      -- the word or sub-heading above it
+  pattern_ar      TEXT,                      -- the verb pattern the chapter studies (ṣarf)
+  pattern_term_id TEXT,                      -- GT:form_family:*
+  meaning_ar      TEXT,                      -- the meaning the heading names
+  meaning_term_id TEXT,                      -- GT:sigha_maani:* where it is one
+  section_term_id TEXT,                      -- a GT term the heading names
+  quote_ar        TEXT NOT NULL,
+  surah           INTEGER NOT NULL,
+  ayah            INTEGER NOT NULL,
+  refs_json       TEXT,                      -- every place it lists: [[s, a], …]
+  word_index      INTEGER,                   -- qr_word_occurrence.word_index of the word it is about
+  word_ar         TEXT,
+  quote_match     REAL,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS ix_adima_entry_pattern ON ar_ling_adima_entry(discipline, pattern_term_id);
+CREATE INDEX IF NOT EXISTS ix_adima_entry_meaning ON ar_ling_adima_entry(meaning_term_id);
+CREATE INDEX IF NOT EXISTS ix_adima_entry_term    ON ar_ling_adima_entry(section_term_id);
+CREATE INDEX IF NOT EXISTS ix_adima_entry_ayah    ON ar_ling_adima_entry(surah, ayah);
+CREATE INDEX IF NOT EXISTS ix_adima_entry_section ON ar_ling_adima_entry(discipline, chapter_ar, section_ar);
+
+CREATE TABLE IF NOT EXISTS ar_ling_adima_note (
+  id              TEXT PRIMARY KEY,          -- ADN:<n>
+  discipline      TEXT NOT NULL,
+  chunk_id        TEXT NOT NULL,
+  volume_no       INTEGER,
+  page_no         INTEGER,
+  chapter_ar      TEXT,
+  section_ar      TEXT,
+  head_ar         TEXT,
+  pattern_ar      TEXT,
+  pattern_term_id TEXT,
+  meaning_ar      TEXT,
+  meaning_term_id TEXT,
+  section_term_id TEXT,
+  note_ar         TEXT NOT NULL,             -- his observation, as he writes it
+  drill_ar        TEXT,                      -- its one drillable sentence, or NULL
+  about_readings  INTEGER NOT NULL DEFAULT 0 -- it speaks of the readings (the seven, the shādhdh)
+);
+CREATE INDEX IF NOT EXISTS ix_adima_note_drill ON ar_ling_adima_note(discipline, chapter_ar) WHERE drill_ar IS NOT NULL;

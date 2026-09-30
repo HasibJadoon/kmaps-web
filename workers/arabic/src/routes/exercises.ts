@@ -21,16 +21,14 @@ export function exerciseRoutes(router: Router<ArabicEnv>) {
   });
 
   router.post('/ar/exercises', async (req, env) => {
-    const b = await req.json() as Record<string, unknown>;
-    if (!b.lesson_id || !b.exercise_type || !b.prompt)
-      return badRequest('lesson_id, exercise_type, prompt required');
+    const b = await req.json().catch(() => null) as Record<string, unknown> | null;
+    if (!b?.lesson_id || !b.exercise_type || !b.prompt_ar)
+      return badRequest('lesson_id, exercise_type, prompt_ar required');
+    const s = (k: string) => (typeof b[k] === 'string' ? (b[k] as string) : null);
     return created(await new ExerciseRepo(env.DB_AR).create({
-      lesson_id:     String(b.lesson_id),
-      exercise_type: String(b.exercise_type),
-      prompt:        String(b.prompt),
-      answer:        (b.answer as string | null) ?? null,
-      options_json:  (b.options_json as string | null) ?? null,
-      sort_order:    typeof b.sort_order === 'number' ? b.sort_order : 0,
+      lesson_id: String(b.lesson_id), unit_id: s('unit_id'), exercise_type: String(b.exercise_type), prompt_ar: String(b.prompt_ar),
+      prompt_en: s('prompt_en'), options_json: s('options_json'), answer_json: s('answer_json'), explanation_md: s('explanation_md'),
+      grammar_id: s('grammar_id'), level: s('level'),
     }));
   });
 }

@@ -15,8 +15,9 @@ export function balaghaRoutes(router: Router<ArLinguisticsEnv>) {
   });
 
   router.get('/al/balagha/:id', async (_req, env, { id }) => {
-    const concept = await new BalaghaRepo(env.DB_AL).findById(id);
-    return concept ? ok(concept) : notFound(`balagha concept ${id}`);
+    const repo = new BalaghaRepo(env.DB_AL);
+    const concept = await repo.findById(id);
+    return concept ? ok({ ...concept, examples: await repo.examplesByConcept(id) }) : notFound(`balagha concept ${id}`);
   });
 
 }

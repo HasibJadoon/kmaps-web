@@ -36,10 +36,12 @@ interface BabRow {
 /// time. Below it, one payload is smaller than the round trips.
 const LAZY_SPINE_ABOVE = 200;
 
-const GT_DISCIPLINE: Record<string, { ar: string; en: string; color: string }> = {
-  nahw:    { ar: 'النحو',    en: 'Naḥw',    color: '#d8b657' },
-  sarf:    { ar: 'الصرف',    en: 'Ṣarf',    color: '#5bbf95' },
-  balagha: { ar: 'البلاغة',  en: 'Balāgha', color: '#d98a8a' },
+/// The registry files a category under its discipline's short code (NH/SF/BL, migration 0109);
+/// the tree answers with the long public code its callers already read.
+const GT_DISCIPLINE: Record<string, { code: string; ar: string; en: string; color: string }> = {
+  NH: { code: 'nahw',    ar: 'النحو',    en: 'Naḥw',    color: '#d8b657' },
+  SF: { code: 'sarf',    ar: 'الصرف',    en: 'Ṣarf',    color: '#5bbf95' },
+  BL: { code: 'balagha', ar: 'البلاغة',  en: 'Balāgha', color: '#d98a8a' },
 };
 
 /// Terms and categories carry their own `badge_color`; nothing in the app
@@ -143,10 +145,11 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
       };
     });
 
-    const disciplines = Object.entries(GT_DISCIPLINE).map(([code, label]) => {
-      const mine = shaped.filter((c) => c.discipline === code && c.total > 0);
+    const disciplines = Object.entries(GT_DISCIPLINE).map(([short, label]) => {
+      const mine = shaped.filter((c) => c.discipline === short && c.total > 0)
+        .map((c) => ({ ...c, discipline: label.code }));
       return {
-        code,
+        code: label.code,
         nameAr: label.ar,
         nameEn: label.en,
         color: label.color,

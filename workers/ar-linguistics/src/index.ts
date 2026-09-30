@@ -16,6 +16,7 @@ import { lexiconRoutes } from './routes/lexicon';
 import { lexiconFiveLensRoutes } from './routes/lexicon_five_lens';
 import { lexemeRoutes } from './routes/lexemes';
 import { drillSourceRoutes } from './routes/drill-source';
+import { drillGrammarRoutes } from './routes/drill-grammar';
 import { lexiconV2Routes } from './routes/lexicon_v2';
 import { lexiconHeaderRoutes } from './routes/lexicon_header';
 import { lexiconMufradatRoutes } from './routes/lexicon_mufradat';
@@ -75,6 +76,7 @@ grammarRoutes(router);
 registryRoutes(router);
 dsRoutes(router);
 drillSourceRoutes(router);
+drillGrammarRoutes(router);
 
 router.post('/al/internal/rows', async (req, env) => {
   const body = await req.json<RowsRequest>().catch(() => null);
@@ -116,7 +118,8 @@ const KEPT: SwrRoute[] = [
   { re: /^\/al\/lex\/v2\//, ...BOOKS },
   { re: /^\/al\/gram\//, ...BOOKS },
   { re: /^\/al\/lexicon\/(blocks\/[^/]+\/backlinks|[^/]+\/[^/]+\/header)$/, ...BOOKS },
-  { re: /^\/al\/(?!health|corpus-version)[a-z_-]+(\/|$)/, ...MIXED },
+  // (not the grammar drills: a round is drawn fresh each time)
+  { re: /^\/al\/(?!health|corpus-version|drill\/grammar\/)[a-z_-]+(\/|$)/, ...MIXED },
 ];
 
 export default {

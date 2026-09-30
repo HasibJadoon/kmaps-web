@@ -87,3 +87,4 @@ tmp/
 
 # Local import-output artifacts (large generated SQL, not source)
 out/
+.adima-work/

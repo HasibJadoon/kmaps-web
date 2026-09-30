@@ -905,3 +905,15 @@ CREATE TRIGGER trg_ar_seg_au AFTER UPDATE ON ar_acq_audio_segment BEGIN
   INSERT INTO ar_acq_audio_fts(ar_acq_audio_fts, rowid, text_ar, text_en) VALUES ('delete', old.rowid, old.text_ar, old.text_en);
   INSERT INTO ar_acq_audio_fts(rowid, text_ar, text_en) VALUES (new.rowid, new.text_ar, new.text_en);
 END;
+
+-- 0026: the scene questions bound to registry terms (scripts/map-scene-terms.py)
+CREATE TABLE IF NOT EXISTS ar_scene_feature_term (
+  unit_id     TEXT NOT NULL,             -- ar_scene_vocab.unit_id
+  scene_no    INTEGER NOT NULL,
+  feature_idx INTEGER NOT NULL,          -- its place in features_json
+  term_ar     TEXT NOT NULL,             -- the name the scene gave it
+  term_id     TEXT NOT NULL,             -- GT:…
+  match_kind  TEXT NOT NULL,             -- exact | head | pattern
+  PRIMARY KEY (unit_id, scene_no, feature_idx, term_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ar_scene_feature_term ON ar_scene_feature_term(term_id);

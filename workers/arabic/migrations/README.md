@@ -30,4 +30,5 @@ ledger you are unsure of.
 | 0010–0016 | pool English, scene vocab, practice labels, common words |
 | 0017–0020 | scene lexemes, learner units and levels |
 | 0021–0024 | media rooms, junk archived, read pool, FTS update trigger |
+| 0026–0027 | the grammar path (labels, ar_scene_feature_term — filled by `scripts/map-scene-terms.py`); al-Ghalāyīnī's lesson titles |
 | kmaps_cache_version*.sql | the content cache-version row and its stamping triggers |
