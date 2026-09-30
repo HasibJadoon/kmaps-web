@@ -392,6 +392,12 @@ async function arcDrills(env: QuranEnv, n: number, lv: Record<string, unknown>, 
   const ask = String(lv.ask ?? 'order');
   const rootOf = (r: string) => r.split('').join(' ');
   const allSteps = res.items.flatMap((a) => a.steps.map((s) => s.en));
+  // each rung heard: its Arabic voiced by SILMA (km_arabic ar_tts_clip); what is not yet rendered is queued
+  type Clip = { audio: { url: string; start: number; end: number } };
+  const texts = [...new Set(res.items.flatMap((a) => a.steps.map((s) => s.ar).filter(Boolean)))];
+  const clips: Record<string, Clip> = texts.length && env.ARABIC ? await env.ARABIC.fetch('https://ar/ar/practice/tts', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ texts, source: 'qr-arc' }) })
+    .then((r) => r.json() as Promise<{ data?: { clips?: Record<string, Clip> } }>).then((j) => j.data?.clips ?? {}).catch(() => ({})) : {};
   return res.items.map((arc) => {
     const steps = [...arc.steps].sort((a, b) => a.n - b.n);
     if (steps.length < 2) return null;
@@ -414,7 +420,7 @@ async function arcDrills(env: QuranEnv, n: number, lv: Record<string, unknown>, 
     const drill: Record<string, unknown> = {
       id: `arc:order:${arc.id}`, kind: 'dialogue', ask: 'arc_order',
       prompt: `${rootOf(arc.root)} — from its first image to its last sense`,
-      dialogue: steps.map((s) => ({ speaker: null, ar: s.ar || s.en, en: [s.en, s.gloss].filter(Boolean).join(' — '), clip: null })),
+      dialogue: steps.map((s) => ({ speaker: null, ar: s.ar || s.en, en: [s.en, s.gloss].filter(Boolean).join(' — '), clip: clips[s.ar]?.audio ?? null })),
       shuffled: sh, source,
     };
     return withCard(drill, { ref: `QR:arc:order:${arc.id}`, type: 'root', kind: 'arc',
