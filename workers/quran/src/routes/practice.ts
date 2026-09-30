@@ -9,6 +9,7 @@ import { tafsirDrills, tafsirCount } from './practice-tafsir';
 import { irabBookDrills, irabBookCount } from './practice-irabbooks';
 import { gramTermDrills, gramTermCounts } from './practice-grammar';
 import { lexiconDrills } from './practice-lexicon';
+import { vocabDrills, vocabCount } from './practice-vocab';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
 // The Qurʾān drilled as the Arabic side is (DrillKit shapes): each āyah a line heard in
@@ -44,9 +45,10 @@ export function practiceRoutes(router: Router<QuranEnv>) {
       query<{ n: number }>(env.DB_QR, `SELECT COALESCE(SUM(n_ayat), 0) AS n FROM qr_translation_feature`).catch(() => [{ n: 0 }]),
       al<{ grammar: number; balagha: number; idiom: number; arc: number }>(env, '/al/drill/counts').catch(() => null),
     ]);
-    const [tafsir, irabbooks, gram] = await Promise.all([tafsirCount(env).catch(() => 0), irabBookCount(env).catch(() => 0),
-                                                         gramTermCounts(env, L.skill ?? []).catch(() => ({} as Record<string, number>))]);
-    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, tafsir, irabbooks, ...(counts ?? {}), ...gram };
+    const [tafsir, irabbooks, gram, vocab] = await Promise.all([tafsirCount(env).catch(() => 0), irabBookCount(env).catch(() => 0),
+                                                         gramTermCounts(env, L.skill ?? []).catch(() => ({} as Record<string, number>)),
+                                                         vocabCount(env).catch(() => 0)]);
+    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, tafsir, irabbooks, vocab, ...(counts ?? {}), ...gram };
     return ok({
       skills: (L.skill ?? []).map((s) => {
         const src = String(s.extra?.source ?? s.key);
@@ -82,6 +84,7 @@ export function practiceRoutes(router: Router<QuranEnv>) {
       : src === 'irabbooks' ? await irabBookDrills(env, n, scope, lv, L)
       : src === 'gramterm' ? await gramTermDrills(env, skill, meta, n, scope, lv, band, L)
       : src === 'lexicon' ? await lexiconDrills(env, n, scope, lv, L)
+      : src === 'vocab' ? await vocabDrills(env, n, scope, lv, L)
       : [];
     const kinds = byKey(L.kind);
     const deck = byKey(L.path).get('srs_deck');
