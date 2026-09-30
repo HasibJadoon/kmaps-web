@@ -5,6 +5,8 @@ import type { QuranEnv } from '../env';
 import { labels, byKey, card, type Label } from '../lib/labels';
 import { features as tFeatures, profiles as tProfiles, sources as tSources, fallbackOf, choiceLabel, cleanText,
          type TFeature, type ProfileRow } from '../lib/translation-choices';
+import { tafsirDrills, tafsirCount } from './practice-tafsir';
+import { irabBookDrills, irabBookCount } from './practice-irabbooks';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
 // The Qurʾān drilled as the Arabic side is (DrillKit shapes): each āyah a line heard in
@@ -40,7 +42,8 @@ export function practiceRoutes(router: Router<QuranEnv>) {
       query<{ n: number }>(env.DB_QR, `SELECT COALESCE(SUM(n_ayat), 0) AS n FROM qr_translation_feature`).catch(() => [{ n: 0 }]),
       al<{ grammar: number; balagha: number; idiom: number; arc: number }>(env, '/al/drill/counts').catch(() => null),
     ]);
-    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, ...(counts ?? {}) };
+    const [tafsir, irabbooks] = await Promise.all([tafsirCount(env).catch(() => 0), irabBookCount(env).catch(() => 0)]);
+    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, tafsir, irabbooks, ...(counts ?? {}) };
     return ok({
       skills: (L.skill ?? []).map((s) => {
         const src = String(s.extra?.source ?? s.key);
@@ -72,6 +75,8 @@ export function practiceRoutes(router: Router<QuranEnv>) {
       : src === 'idiom' ? await idiomDrills(env, n, scope, lv, L)
       : src === 'arc' ? await arcDrills(env, n, lv, L)
       : src === 'translation' ? await translationDrills(env, n, scope, band, levels)
+      : src === 'tafsir' ? await tafsirDrills(env, n, scope, lv, L)
+      : src === 'irabbooks' ? await irabBookDrills(env, n, scope, lv, L)
       : [];
     const kinds = byKey(L.kind);
     const deck = byKey(L.path).get('srs_deck');
@@ -109,14 +114,14 @@ async function loadAyat(env: QuranEnv, pairs: number[][]): Promise<Map<string, A
   const surahIds = [...new Set(pairs.map((p) => p[0]))];
   const [words, rec, tr, surahs] = await Promise.all([
     query<Word & { surah: number; ayah: number }>(env.DB_QR,
-      `SELECT surah, ayah, word_index, word_text, pos, lemma, is_content_word FROM qr_word_occurrence WHERE ${inAyat} ORDER BY surah, ayah, word_index`, flat),
+      `SELECT surah, ayah, word_index, word_text, pos, lemma, is_content_word FROM qr_word_occurrence WHERE (surah, ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?)) ORDER BY surah, ayah, word_index`, [JSON.stringify(pairs)]),
     query<{ surah: number; ayah: number; start_ms: number; end_ms: number; segments_json: string | null; audio_url: string }>(env.DB_QR,
       `SELECT a.surah, a.ayah, a.start_ms, a.end_ms, a.segments_json, r.audio_url FROM qr_recitation_ayah a
          JOIN qr_recitation r ON r.reciter_id = a.reciter_id AND r.surah = a.surah
-        WHERE a.reciter_id = ${RECITER} AND (${pairs.map(() => '(a.surah = ? AND a.ayah = ?)').join(' OR ')})`, flat),
+        WHERE a.reciter_id = ${RECITER} AND (a.surah, a.ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`, [JSON.stringify(pairs)]),
     query<{ surah: number; ayah: number; text: string }>(env.DB_QR,
       `SELECT t.surah, t.ayah, t.translation_text AS text FROM qr_translation t
-         JOIN qr_translation_source s ON s.id = t.source_id AND s.is_default = 1 WHERE ${pairs.map(() => '(t.surah = ? AND t.ayah = ?)').join(' OR ')}`, flat),
+         JOIN qr_translation_source s ON s.id = t.source_id AND s.is_default = 1 WHERE (t.surah, t.ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`, [JSON.stringify(pairs)]),
     query<{ id: number; name_en: string }>(env.DB_QR, `SELECT id, name_en FROM qr_surah WHERE id IN (${surahIds.map(() => '?').join(',')})`, surahIds),
   ]);
   const names = new Map(surahs.map((s) => [s.id, s.name_en]));
@@ -236,7 +241,7 @@ async function irabDrills(env: QuranEnv, n: number, scope: Scope, lv: Record<str
   const inAyat = pairs.map(() => '(surah = ? AND ayah = ?)').join(' OR ');
   const [ayat, sameAyah, names] = await Promise.all([
     loadAyat(env, pairs),
-    query<{ surah: number; ayah: number; role_gt: string }>(env.DB_QR, `SELECT DISTINCT surah, ayah, role_gt FROM qr_irab_drill_item WHERE ${inAyat}`, pairs.flat()),
+    query<{ surah: number; ayah: number; role_gt: string }>(env.DB_QR, `SELECT DISTINCT surah, ayah, role_gt FROM qr_irab_drill_item WHERE (surah, ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`, [JSON.stringify(pairs)]),
     query<{ id: string; name_ar: string; name_en: string | null }>(env.DB_QR, `SELECT id, name_ar, name_en FROM ar_ling_gram_term WHERE id LIKE 'GT:irab_role:%'`),
   ]);
   const name = new Map(names.map((t) => [t.id, t]));
@@ -335,8 +340,8 @@ async function idiomDrills(env: QuranEnv, n: number, scope: Scope, lv: Record<st
   ]);
   const refs = [...new Set(Object.values(lex.lexemes ?? {}).flatMap((x) => (x.meanings ?? []).map((m) => m.ref)).filter((r): r is string => !!r && /^\d+:\d+$/.test(r)))];
   const texts = refs.length ? new Map((await query<{ surah: number; ayah: number; text: string }>(env.DB_QR,
-    `SELECT surah, ayah, text_uthmani AS text FROM qr_ayah WHERE ${refs.map(() => '(surah = ? AND ayah = ?)').join(' OR ')}`,
-    refs.flatMap((r) => r.split(':').map(Number)))).map((r) => [`${r.surah}:${r.ayah}`, r.text])) : new Map<string, string>();
+    `SELECT surah, ayah, text_uthmani AS text FROM qr_ayah WHERE (surah, ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`,
+    [JSON.stringify(refs.map((r) => r.split(':').map(Number)))])).map((r) => [`${r.surah}:${r.ayah}`, r.text])) : new Map<string, string>();
   const titles = byKey(L.context);
   const all = items.flatMap((i) => [...i.range, ...i.sameParticle]);
   return items.map((it) => {
