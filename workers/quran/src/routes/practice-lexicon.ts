@@ -41,9 +41,16 @@ const fold = (w: string | null | undefined) => (w ?? '').replace(/[\u0610-\u061A
 const loose = (w: string | null | undefined) => fold(w).replace(/^(وال|فال|بال|كال|لل|ال|و|ف)/, '').replace(/[اوي]/g, '');
 const spaced = (r: string) => [...fold(r)].join(' ');
 
-function al<T>(env: QuranEnv, path: string): Promise<T> {
-  if (!env.AR_LINGUISTICS) return Promise.reject(new Error('no AL binding'));
-  return env.AR_LINGUISTICS.fetch(`https://al${path}`).then((r) => r.json() as Promise<{ data: T }>).then((j) => j.data);
+/// an AL read, asked a second time when the first fails (the linguistic DB queues its long reads under load,
+/// and a round that lost its read came back empty)
+async function al<T>(env: QuranEnv, path: string): Promise<T> {
+  if (!env.AR_LINGUISTICS) throw new Error('no AL binding');
+  for (let i = 0; ; i++) {
+    const j = await env.AR_LINGUISTICS.fetch(`https://al${path}`).then((r) => r.json() as Promise<{ data?: T }>).catch(() => null);
+    if (j?.data) return j.data;
+    if (i >= 1) throw new Error(`AL ${path.split('?')[0]} failed`);
+    await new Promise((r) => setTimeout(r, 500));
+  }
 }
 
 type Ayah = { key: string; surah: number; ayah: number; ws: Array<{ word_index: number; word_text: string }>; words: { t: string; s: number; e: number }[];
