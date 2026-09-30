@@ -32,6 +32,7 @@ import { grammarRoutes } from './routes/grammar';
 import { gramBySurahRoutes } from './routes/gram-by-surah';
 import { registryRoutes } from './routes/registry';
 import { dsRoutes } from './routes/ds';
+import { arcRoutes } from './routes/arcs';
 
 const router = new Router<ArLinguisticsEnv>();
 
@@ -77,6 +78,7 @@ gramBySurahRoutes(router);
 grammarRoutes(router);
 registryRoutes(router);
 dsRoutes(router);
+arcRoutes(router);
 drillSourceRoutes(router);
 drillGrammarRoutes(router);
 

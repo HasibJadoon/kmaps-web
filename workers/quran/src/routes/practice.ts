@@ -10,6 +10,7 @@ import { irabBookDrills, irabBookCount } from './practice-irabbooks';
 import { gramTermDrills, gramTermCounts } from './practice-grammar';
 import { lexiconDrills } from './practice-lexicon';
 import { vocabDrills, vocabCount } from './practice-vocab';
+import { arc2Drills } from './practice-arc2';
 import { surahLexDrills, surahLexCounts } from './practice-surah-lex';
 import { groupDrills, groupsCount } from './practice-groups';
 
@@ -87,6 +88,7 @@ export function practiceRoutes(router: Router<QuranEnv>) {
       : src === 'gramterm' ? await gramTermDrills(env, skill, meta, n, scope, lv, band, L)
       : src === 'lexicon' ? await lexiconDrills(env, n, scope, lv, L)
       : src === 'vocab' ? await vocabDrills(env, n, scope, lv, L)
+      : src === 'arc2' ? await arc2Drills(env, n, scope, lv, L)
       : ['nearsyn', 'keyterm', 'expression'].includes(src) ? await surahLexDrills(env, src, n, scope, lv, L)
       : src === 'groups' ? await groupDrills(env, n, scope, lv, L, u)
       : [];

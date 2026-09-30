@@ -128,6 +128,17 @@ lowest rank that hits. Keys live in `ar_ling_root_lexicon_key`, derived from
 root shape in `kmaps-database` migration `028`, so new roots extend it by
 re-running that migration rather than by editing a list.
 
+Weak and hamzated roots are keyed the same way (AL migration `0113`): a defective root
+under its other weak letter or its alif (`دعو` → `دعا`, `دعي`), a hamzated one under its
+hamza on a seat (`امن` → `ءمن`), a hollow one under the alif of its past tense where only
+the Qāmūs / al-Rāghib file it so. One key can hold two roots (the Lisān's `رجا` is `رجأ`,
+al-Rāghib's is `رجو`): keys where no entry is the root were withdrawn, and a builder
+reading a variant key checks each ENTRY (see kmaps-resources `scripts/lexicon/meaning_arcs.py`).
+
+Derived **meaning arcs** (per source and combined; root → lemma → word) live in
+`ar_ling_arc*` (AL `0114`), served at `/al/arc/root/:root` and `/al/arc/lemma/:lemma`
+after the hand-built `ar_ling_sense_arc` layer, which outranks them.
+
 `ar_ling_root_lexicon_alias` is **superseded** — its primary key is `root_norm`
 alone, so it can hold only one alias per root, which is what made the coverage
 incomplete in the first place. Do not read it.
