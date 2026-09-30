@@ -3557,3 +3557,33 @@ CREATE UNIQUE INDEX ux_gram_term_uid ON ar_ling_gram_term(uid);
 
 CREATE UNIQUE INDEX ux_qr_irab_entry_dedupe
   ON "qr_irab_book_entry"(source_slug, source_chunk_id, entry_order, target_text_bare, source_quote_hash);
+
+-- qr_057: derived passages and surah-level atlas layers (scripts/quran/atlas_layers.py in kmaps-resources)
+CREATE TABLE qr_surah_passage_proposal (
+  id               TEXT PRIMARY KEY,               -- QR:SPP:{surah}:{from}-{to}
+  surah            INTEGER NOT NULL,
+  passage_no       INTEGER NOT NULL,
+  ayah_from        INTEGER NOT NULL,
+  ayah_to          INTEGER NOT NULL,
+  title_en         TEXT,                           -- only a source's own title; else «Āyāt a–b»
+  title_ar         TEXT,
+  words            INTEGER NOT NULL DEFAULT 0,
+  opening_score    REAL,                           -- NULL for a surah's first passage
+  opening_support  INTEGER NOT NULL DEFAULT 0,     -- spine + iʿrāb books that start a group here
+  basis_json       TEXT NOT NULL CHECK (json_valid(basis_json)),
+  method           TEXT NOT NULL,
+  status           TEXT NOT NULL DEFAULT 'derived',
+  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (surah, passage_no),
+  UNIQUE (surah, ayah_from, ayah_to)
+);
+
+CREATE TABLE qr_surah_layer (
+  surah         INTEGER NOT NULL,
+  layer         TEXT NOT NULL,                     -- sarf | nahw | balagha | themes | structure
+  payload_json  TEXT NOT NULL CHECK (json_valid(payload_json)),
+  sources_json  TEXT,
+  method        TEXT NOT NULL,
+  built_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (surah, layer)
+);
