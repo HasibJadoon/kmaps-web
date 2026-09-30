@@ -40,10 +40,12 @@ export const skillCard = (s: Label) => ({ id: s.key, title: s.label, titleAr: s.
 /// A badge: what a drill works on, or how hard it is.
 export const badge = (l: Label | undefined) => (l ? { label: l.label, labelAr: l.labelAr, color: l.color ?? '#D8B657' } : null);
 
-/// Each drill carries the instruction for its kind.
-export function instruct<T extends { kind: string }>(items: T[], all: Scopes) {
+/// Each drill carries the instruction for its kind — or its own, where it was built with one (a grammar
+/// drill words it by what it asks: gt_shahid, gs_term …).
+export function instruct<T extends { kind: string; instruction?: string | null; instructionAr?: string | null }>(items: T[], all: Scopes) {
   const kinds = byKey(all.kind);
-  return items.map((it) => ({ ...it, instruction: kinds.get(it.kind)?.label ?? null, instructionAr: kinds.get(it.kind)?.labelAr ?? null }));
+  return items.map((it) => ({ ...it, instruction: it.instruction ?? kinds.get(it.kind)?.label ?? null,
+                              instructionAr: it.instructionAr ?? kinds.get(it.kind)?.labelAr ?? null }));
 }
 
 /// Every drill files a review card (CORE SRS) keyed to what it asks about, so the same word or line
@@ -80,7 +82,9 @@ export function srsCardFor(it: Record<string, unknown>, g: DrillGroup = {}): Rec
     case 'meaning': case 'plural':
       front = prompt; back = [ans, s(it.gloss)].filter(Boolean).join('\n'); break;
     case 'grammar': case 'feature':
-      front = [prompt, s(it.promptEn)].filter(Boolean).join('\n'); back = [ans, s(it.explanation)].filter(Boolean).join('\n'); type = 'grammar'; break;
+      // the sentence it was asked in, then the question — the line only where the prompt is not already it
+      front = [line && !(prompt ?? '').includes(line) ? line : null, prompt, s(it.promptEn)].filter(Boolean).join('\n');
+      back = [ans, s(it.explanation)].filter(Boolean).join('\n'); type = 'grammar'; break;
     case 'speaker':
       // who says it: the line on the front, the speaker and what they mean on the back
       front = [line, prompt].filter(Boolean).join('\n'); back = [ans, en].filter(Boolean).join('\n'); type = 'passage'; break;

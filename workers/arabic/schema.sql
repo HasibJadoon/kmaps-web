@@ -917,3 +917,17 @@ CREATE TABLE IF NOT EXISTS ar_scene_feature_term (
   PRIMARY KEY (unit_id, scene_no, feature_idx, term_id)
 );
 CREATE INDEX IF NOT EXISTS idx_ar_scene_feature_term ON ar_scene_feature_term(term_id);
+
+-- 0028–0031: the examples the grammar lessons and books give for their rules (kmaps-resources scripts/grammar/mine_examples.py)
+CREATE TABLE IF NOT EXISTS ar_grammar_sentence (
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL, text_ar TEXT NOT NULL, qr_ref TEXT, term_id TEXT, lesson_id TEXT, origin TEXT NOT NULL,
+  source_slug TEXT, chunk_id TEXT, bab_id TEXT, volume_no INTEGER, page_no INTEGER, word_count INTEGER NOT NULL, depth INTEGER,
+  level INTEGER NOT NULL, rnd INTEGER NOT NULL, bab_title_ar TEXT, bab_order INTEGER, context_ar TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ar_grammar_sentence_level ON ar_grammar_sentence(level, rnd);
+CREATE INDEX IF NOT EXISTS idx_ar_grammar_sentence_term ON ar_grammar_sentence(term_id, level);
+CREATE INDEX IF NOT EXISTS idx_ar_grammar_sentence_lesson ON ar_grammar_sentence(lesson_id);
+CREATE INDEX IF NOT EXISTS idx_ar_grammar_sentence_page ON ar_grammar_sentence(source_slug, volume_no, page_no);
+CREATE INDEX IF NOT EXISTS idx_ar_grammar_sentence_bab ON ar_grammar_sentence(source_slug, bab_order);
+-- 0028: ar_read_pool.grade INTEGER (1 plain … 3 hard); 0029: every pool word's Shamela frequency
+CREATE TABLE IF NOT EXISTS ar_word_freq (bare TEXT PRIMARY KEY, n INTEGER NOT NULL);

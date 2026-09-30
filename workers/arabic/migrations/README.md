@@ -31,4 +31,5 @@ ledger you are unsure of.
 | 0017–0020 | scene lexemes, learner units and levels |
 | 0021–0024 | media rooms, junk archived, read pool, FTS update trigger |
 | 0026–0027 | the grammar path (labels, ar_scene_feature_term — filled by `scripts/map-scene-terms.py`); al-Ghalāyīnī's lesson titles |
+| 0028–0034 | grammar in sentences: ar_grammar_sentence (the lessons' and books' examples — filled by kmaps-resources `scripts/grammar/mine_examples.py`), its bāb and rule context; ar_read_pool.grade and ar_word_freq (kmaps-resources `scripts/arabic-episodes/drill_words.py grade`); the practice Grammar plan per level, the sentence bands, the grammar books' registers; cache triggers on ar_practice_label and ar_grammar_sentence |
 | kmaps_cache_version*.sql | the content cache-version row and its stamping triggers |
