@@ -340,6 +340,14 @@ export function srsRoutes(router: Router<CoreEnv>) {
     other: 'Other',
   };
 
+  function introOf(extra: unknown): { intro_surah?: number; intro_ayah?: number } {
+    const g = (extra as { group?: { workId?: unknown; work?: unknown } } | null)?.group;
+    const m = /^QR:SURAH:(\d+)$/.exec(String(g?.workId ?? ''));
+    if (!m) return {};
+    const a = /^\d+:(\d+)/.exec(String(g?.work ?? ''));
+    return { intro_surah: Number(m[1]), ...(a ? { intro_ayah: Number(a[1]) } : {}) };
+  }
+
   async function deckForModule(env: CoreEnv, userId: string, module: string) {
     const code = DECK_TITLES[module] ? module : 'other';
     const found = await query<{ id: string }>(
@@ -1170,6 +1178,8 @@ export function srsRoutes(router: Router<CoreEnv>) {
           : str(entry!['tags']) ?? null,
         note_type_id: str(entry!['note_type_id']) ?? null,
         fields_json: entry!['fields'] ? JSON.stringify(entry!['fields']) : null,
+        // a drill card says where it stands (extra.group: workId QR:SURAH:n, work "s:a"), so a surah's review finds it
+        ...introOf(entry!['extra']),
       });
 
       if (outcome.inserted) inserted += 1; else skipped += 1;

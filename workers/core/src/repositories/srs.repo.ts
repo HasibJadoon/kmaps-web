@@ -182,10 +182,10 @@ export class SrsRepo {
     if (opts.module) { where += ` AND module = ?`; args.push(opts.module); }
 
     if (opts.surah && opts.surah > 0) {
-      where += ` AND (resource_ref = ? OR resource_ref LIKE ?
+      where += ` AND (resource_ref = ? OR resource_ref LIKE ? OR intro_surah = ?
                       OR id IN (SELECT card_id FROM core_srs_card_surah
                                  WHERE surah = ?))`;
-      args.push(String(opts.surah), `${opts.surah}:%`, opts.surah);
+      args.push(String(opts.surah), `${opts.surah}:%`, opts.surah, opts.surah);
     }
 
     if (opts.surah && opts.surah > 0 && opts.from && opts.to) {
@@ -280,15 +280,15 @@ export class SrsRepo {
     card_kind?: string | null; concept_domain?: string | null;
 
     note_type_id?: string | null; fields_json?: string | null;
-    root_norm?: string | null; intro_surah?: number | null;
+    root_norm?: string | null; intro_surah?: number | null; intro_ayah?: number | null;
   }): Promise<{ card: SrsCard; inserted: boolean }> {
     const id = typedId('SRSCARD');
     await execute(this.db,
       `INSERT INTO core_srs_card
          (id, deck_id, user_ref, module, resource_type, resource_ref, card_template,
           front_text, back_text, extra_json, tags, card_kind, concept_domain,
-          note_type_id, fields_json, root_norm, intro_surah, next_review_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          note_type_id, fields_json, root_norm, intro_surah, intro_ayah, next_review_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (deck_id, resource_ref, card_template) DO NOTHING`,
       [id, input.deck_id, input.user_ref, input.module, input.resource_type,
        input.resource_ref, input.card_template ?? 'freeform',
@@ -296,7 +296,7 @@ export class SrsRepo {
        input.extra_json ?? null, input.tags ?? null,
        input.card_kind ?? null, input.concept_domain ?? null,
        input.note_type_id ?? null, input.fields_json ?? null,
-       input.root_norm ?? null, input.intro_surah ?? null,
+       input.root_norm ?? null, input.intro_surah ?? null, input.intro_ayah ?? null,
 
        new Date().toISOString()]);
     const row = await queryOne<SrsCard>(this.db,
