@@ -7,7 +7,8 @@ import { features as tFeatures, profiles as tProfiles, sources as tSources, fall
          type TFeature, type ProfileRow } from '../lib/translation-choices';
 import { tafsirDrills, tafsirCount } from './practice-tafsir';
 import { irabBookDrills, irabBookCount } from './practice-irabbooks';
-import { gramTermDrills } from './practice-grammar';
+import { gramTermDrills, gramTermCounts } from './practice-grammar';
+import { lexiconDrills } from './practice-lexicon';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
 // The Qurʾān drilled as the Arabic side is (DrillKit shapes): each āyah a line heard in
@@ -43,12 +44,13 @@ export function practiceRoutes(router: Router<QuranEnv>) {
       query<{ n: number }>(env.DB_QR, `SELECT COALESCE(SUM(n_ayat), 0) AS n FROM qr_translation_feature`).catch(() => [{ n: 0 }]),
       al<{ grammar: number; balagha: number; idiom: number; arc: number }>(env, '/al/drill/counts').catch(() => null),
     ]);
-    const [tafsir, irabbooks] = await Promise.all([tafsirCount(env).catch(() => 0), irabBookCount(env).catch(() => 0)]);
-    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, tafsir, irabbooks, ...(counts ?? {}) };
+    const [tafsir, irabbooks, gram] = await Promise.all([tafsirCount(env).catch(() => 0), irabBookCount(env).catch(() => 0),
+                                                         gramTermCounts(env, L.skill ?? []).catch(() => ({} as Record<string, number>))]);
+    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, tafsir, irabbooks, ...(counts ?? {}), ...gram };
     return ok({
       skills: (L.skill ?? []).map((s) => {
         const src = String(s.extra?.source ?? s.key);
-        const key = src === 'gram' ? (s.extra?.discipline === 'BL' ? 'balagha' : 'grammar') : src;
+        const key = src === 'gram' ? (s.extra?.discipline === 'BL' ? 'balagha' : 'grammar') : src === 'gramterm' ? s.key : src;
         return { ...card(s), count: n[key] ?? 0 };
       }),
       levels: (L.level ?? []).map(card),
@@ -79,6 +81,7 @@ export function practiceRoutes(router: Router<QuranEnv>) {
       : src === 'tafsir' ? await tafsirDrills(env, n, scope, lv, L)
       : src === 'irabbooks' ? await irabBookDrills(env, n, scope, lv, L)
       : src === 'gramterm' ? await gramTermDrills(env, skill, meta, n, scope, lv, band, L)
+      : src === 'lexicon' ? await lexiconDrills(env, n, scope, lv, L)
       : [];
     const kinds = byKey(L.kind);
     const deck = byKey(L.path).get('srs_deck');

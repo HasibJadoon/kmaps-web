@@ -1,6 +1,7 @@
 import type { Router } from '../../../shared/src/router';
 import { ok } from '../../../shared/src/response';
 import type { ArLinguisticsEnv } from '../env';
+import { lexiconItems, glosses, LEX_TYPES, TITLES } from './drill-lexicon';
 
 // ── What the drills are made of, from the linguistic record ───────────────────
 // AL shapes its own data; the drilling surface (the Qurʾān worker's practice) adds
@@ -16,6 +17,12 @@ import type { ArLinguisticsEnv } from '../env';
 //   GET /al/drill/gram-examples?discipline=NH|SF|BL&minDepth=&maxDepth=&n=&surah=
 //       Qurʾānic examples of grammar terms (ar_ling_gram_term_example), each with the term's
 //       siblings in its branch of the hierarchy to choose between
+//   GET /al/drill/lexicon?roots=&types=&source=&n=&glosses=1
+//       what each classical lexicon itself says of the roots (ar_ling_lexicon_fact via its view,
+//       Mir's idioms, Sinai, the profiles), shaped as questions — see drill-lexicon.ts for the types;
+//       glosses=1 adds each root's Lane headwords with a gloss, for the caller's lemma-family drills
+//   GET /al/lexicon/profiles[?source=]
+//       each lexicon's own "engine": its markers, vocalisation, structure and formulae (ar_ling_lexicon_profile)
 
 type Tabir = { id: string; root_ar: string; lemma_ar: string | null; expression_ar: string; surface_ar: string | null;
                preposition_ar: string | null; expression_en: string; construction_en: string | null;
@@ -74,16 +81,49 @@ export function drillSourceRoutes(router: Router<ArLinguisticsEnv>) {
     return ok({ items, pool: inScope.length });
   });
 
+  router.get('/al/drill/lexicon', async (req, env) => {
+    const u = new URL(req.url);
+    const n = Math.min(40, Math.max(1, Number(u.searchParams.get('n') ?? 8)));
+    const types = (u.searchParams.get('types') ?? u.searchParams.get('kinds') ?? 'sense').split(',').map((t) => t.trim()).filter((t) => LEX_TYPES.includes(t));
+    const source = u.searchParams.get('source');
+    let roots = (u.searchParams.get('roots') ?? u.searchParams.get('root') ?? '').split(',').map((r) => r.trim()).filter(Boolean).slice(0, 80);
+    if (!roots.length) {
+      // no roots given: Qurʾānic roots the facts cover, at random
+      roots = ((await env.DB_AL.prepare(`SELECT root_normalized AS r FROM ar_ling_roots WHERE frequency_quran > 0 ORDER BY random() LIMIT 40`)
+        .all<{ r: string }>()).results ?? []).map((x) => x.r).filter(Boolean);
+    }
+    const res = await lexiconItems(env, roots, types, n, source);
+    const g = u.searchParams.get('glosses') === '1' ? await glosses(env, roots) : undefined;
+    return ok({ ...res, glosses: g, types, sources: TITLES });
+  });
+
+  router.get('/al/lexicon/profiles', async (req, env) => {
+    const source = new URL(req.url).searchParams.get('source');
+    const rows = ((await env.DB_AL.prepare(
+      `SELECT source_slug, feature, family, label, n, total, share, per_entry, value, examples_json FROM ar_ling_lexicon_profile
+        ${source ? 'WHERE source_slug = ?' : ''} ORDER BY source_slug, family, share DESC`).bind(...(source ? [source] : []))
+      .all<{ source_slug: string; feature: string; family: string; label: string; n: number | null; total: number | null; share: number | null;
+             per_entry: number | null; value: number | null; examples_json: string | null }>()).results ?? []);
+    const out: Record<string, { title: string | null; features: unknown[] }> = {};
+    for (const r of rows) {
+      (out[r.source_slug] ??= { title: TITLES[r.source_slug]?.en ?? null, features: [] }).features.push({
+        feature: r.feature, family: r.family, label: r.label, n: r.n, total: r.total, share: r.share, perEntry: r.per_entry, value: r.value,
+        examples: r.examples_json ? JSON.parse(r.examples_json) : [] });
+    }
+    return ok({ profiles: out });
+  });
+
   // how much each drill source holds, for the practice home
   router.get('/al/drill/counts', async (_req, env) => {
     const one = async (sql: string) => ((await env.DB_AL.prepare(sql).first<{ n: number }>())?.n ?? 0);
-    const [grammar, balagha, idiom, arc] = await Promise.all([
+    const [grammar, balagha, idiom, arc, lexicon] = await Promise.all([
       one(`SELECT COUNT(*) AS n FROM ar_ling_gram_term_example e JOIN ar_ling_gram_term t ON t.id = e.term_id WHERE e.qr_ref IS NOT NULL AND t.discipline IN ('NH','nahw')`),
       one(`SELECT COUNT(*) AS n FROM ar_ling_gram_term_example e JOIN ar_ling_gram_term t ON t.id = e.term_id WHERE e.qr_ref IS NOT NULL AND t.discipline IN ('BL','balagha')`),
       one(`SELECT COUNT(*) AS n FROM ar_ling_root_lemma_tabir WHERE ${CLEAN}`),
       one(`SELECT COUNT(*) AS n FROM ar_ling_sense_arc WHERE status <> 'rejected'`),
+      one(`SELECT COUNT(*) AS n FROM ar_ling_lexicon_fact WHERE confidence = 'high' AND fact_kind <> 'authority'`).catch(() => 0),
     ]);
-    return ok({ grammar, balagha, idiom, arc });
+    return ok({ grammar, balagha, idiom, arc, lexicon });
   });
 
   router.get('/al/drill/gram-examples', async (req, env) => {
