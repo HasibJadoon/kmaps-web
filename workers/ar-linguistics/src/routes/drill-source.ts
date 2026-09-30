@@ -2,6 +2,7 @@ import type { Router } from '../../../shared/src/router';
 import { ok } from '../../../shared/src/response';
 import type { ArLinguisticsEnv } from '../env';
 import { lexiconItems, glosses, profilesResponse, LEX_TYPES, TITLES } from './drill-lexicon';
+import { drillSurahRoutes } from './drill-surah';
 
 // ── What the drills are made of, from the linguistic record ───────────────────
 // AL shapes its own data; the drilling surface (the Qurʾān worker's practice) adds
@@ -24,19 +25,42 @@ import { lexiconItems, glosses, profilesResponse, LEX_TYPES, TITLES } from './dr
 //   GET /al/lexicon/profiles[?source=]
 //       each lexicon's own "engine": its markers, vocalisation, structure and formulae (ar_ling_lexicon_profile)
 
-type Tabir = { id: string; root_ar: string; lemma_ar: string | null; expression_ar: string; surface_ar: string | null;
+type Tabir = { id: string; status: string; root_ar: string; lemma_ar: string | null; expression_ar: string; surface_ar: string | null;
                preposition_ar: string | null; expression_en: string; construction_en: string | null;
                explanation_en: string | null; usage_note_en: string | null; surah: number; ayah: number };
 
-// a gloss Mir's extraction left whole: no "[…]" gaps, not the construction copied in, a real sentence
-const CLEAN = `status = 'live' AND expression_type_id = 'arl-et-09' AND surah IS NOT NULL
-  AND expression_en IS NOT NULL AND length(expression_en) >= 8 AND expression_en NOT LIKE '%[…]%'
-  AND expression_en NOT LIKE '%[...]%' AND expression_en NOT LIKE 'as a verb%' AND expression_en NOT LIKE 'as verb%'
-  AND (construction_en IS NULL OR expression_en <> construction_en)`;
+// Mir's idioms as the drills read them: every live row with its āyah (and the needs-review ones, said so).
+// A gloss the extraction left with "[…]" gaps gives the English Mir quotes inside it (“to pronounce the name
+// of God”); a row with no gloss of its own ("as a verb") takes the sense Mir gives the same verb and particle
+// on the same page, where the page gives it only one. What is left with no sense at all is not drilled.
+const MIR = `(expression_type_id = 'arl-et-09' OR source_slug = 'mir_verbal_idioms') AND status IN ('live', 'needs_review')
+  AND surah IS NOT NULL AND ayah IS NOT NULL`;
+const GAP = /\[(…|\.\.\.)\]/;
+// (a note Mir's extraction filed as the gloss — "The verse may also …", "“Do not approach it,” denotes …" — is no sense)
+const NOT_SENSE = /^(["“‘]|The |In |See |This |It |Its |According|Literally|Cf\.|I\.e\.|Here )/;
+const whole = (e: string | null, c: string | null) => !!e && e.trim().length >= 8 && !GAP.test(e) && !/^as (a )?verb/.test(e.trim())
+  && e.trim() !== (c ?? '').trim() && !NOT_SENSE.test(e.trim()) && !/verse/i.test(e);
+/// each row's sense (null when Mir gives none that can be read): its own, the one it quotes, its entry's
+function withSense(rows: Tabir[]) {
+  const page = new Map<string, Tabir[]>();
+  const pk = (t: Tabir) => `${bare(t.root_ar)}|${bare(t.preposition_ar)}|${t.id.split(':').pop()}`;
+  for (const t of rows) page.set(pk(t), [...(page.get(pk(t)) ?? []), t]);
+  return rows.map((t) => {
+    const e = (t.expression_en ?? '').trim();
+    if (whole(e, t.construction_en)) return { ...t, expression_en: e };
+    const q = [...e.matchAll(/“([^”]{6,90})”/g)].map((m) => m[1].trim().replace(/[ ,.;]+$/, '')).find((x) => !GAP.test(x) && /[a-z]/.test(x));
+    if (q) return { ...t, expression_en: q[0].toUpperCase() + q.slice(1) };
+    // the page's sense only when the page gives this verb and particle one sense
+    const sib = [...new Set((page.get(pk(t)) ?? []).filter((x) => x !== t && whole(x.expression_en, x.construction_en)).map((x) => x.expression_en.trim()))];
+    return sib.length === 1 ? { ...t, expression_en: sib[0] } : null;
+  }).filter((t): t is Tabir => !!t);
+}
 
 const bare = (s: string | null) => (s ?? '').replace(/[ً-ٰٟـ]/g, '').replace(/[أإآٱ]/g, 'ا').trim();
 
 export function drillSourceRoutes(router: Router<ArLinguisticsEnv>) {
+  drillSurahRoutes(router);
+
   router.get('/al/drill/idioms', async (req, env) => {
     const u = new URL(req.url);
     const n = Math.min(20, Math.max(1, Number(u.searchParams.get('n') ?? 8)));
@@ -46,17 +70,20 @@ export function drillSourceRoutes(router: Router<ArLinguisticsEnv>) {
     const minFreq = Number(u.searchParams.get('minFreq') ?? 1);
     const maxFreq = Number(u.searchParams.get('maxFreq') ?? 100000);
 
-    const all = (await env.DB_AL.prepare(
-      `SELECT id, root_ar, lemma_ar, expression_ar, surface_ar, preposition_ar, expression_en, construction_en,
-              explanation_en, usage_note_en, surah, ayah FROM ar_ling_root_lemma_tabir WHERE ${CLEAN}`).all<Tabir>()).results ?? [];
+    const all = withSense((await env.DB_AL.prepare(
+      `SELECT id, status, root_ar, lemma_ar, expression_ar, surface_ar, preposition_ar, expression_en, construction_en,
+              explanation_en, usage_note_en, surah, ayah FROM ar_ling_root_lemma_tabir WHERE ${MIR}`).all<Tabir>()).results ?? []);
     // how often each sense stands in the Qurʾān: the level a sense belongs to
     const senseKey = (t: Tabir) => `${bare(t.root_ar)}|${bare(t.preposition_ar)}|${t.expression_en.trim().toLowerCase()}`;
     const freq = new Map<string, number>();
     for (const t of all) freq.set(senseKey(t), (freq.get(senseKey(t)) ?? 0) + 1);
-    const inScope = all.filter((t) => (surah === null || t.surah === surah) && (!from || !to || (t.ayah >= from && t.ayah <= to))
-      && (freq.get(senseKey(t)) ?? 0) >= minFreq && (freq.get(senseKey(t)) ?? 0) <= maxFreq);
-    // one per āyah, spread out
-    const shuffled = inScope.sort(() => Math.random() - 0.5);
+    const inBand = (t: Tabir) => (freq.get(senseKey(t)) ?? 0) >= minFreq && (freq.get(senseKey(t)) ?? 0) <= maxFreq;
+    const here = all.filter((t) => (surah === null || t.surah === surah) && (!from || !to || (t.ayah >= from && t.ayah <= to)));
+    const inScope = here.filter(inBand);
+    // one per āyah, spread out — the level's band first; a surah (or a range) short of a round in the band
+    // is filled from its other idioms, so every idiom a surah has can come up at every level
+    const shuffled = [...inScope.sort(() => Math.random() - 0.5),
+                      ...(surah !== null ? here.filter((t) => !inBand(t)).sort(() => Math.random() - 0.5) : [])];
     const seen = new Set<string>();
     const picked: Tabir[] = [];
     for (const t of shuffled) {
@@ -71,14 +98,16 @@ export function drillSourceRoutes(router: Router<ArLinguisticsEnv>) {
       .map((t) => [t.expression_en.trim().toLowerCase(), { ar: t.expression_ar, en: t.expression_en.trim() }])).values()];
     const items = picked.map((t) => ({
       id: t.id, root: t.root_ar, expressionAr: t.expression_ar, surfaceAr: t.surface_ar, particle: t.preposition_ar,
-      en: t.expression_en.trim(), construction: t.construction_en, explanation: t.explanation_en ?? t.usage_note_en ?? null,
+      en: t.expression_en.trim(), construction: t.construction_en,
+      explanation: [t.status === 'needs_review' ? 'Mir’s entry for this āyah is still being checked (needs review).' : null,
+                    t.explanation_en ?? t.usage_note_en ?? null].filter(Boolean).join(' ') || null,
       surah: t.surah, ayah: t.ayah, freq: freq.get(senseKey(t)) ?? 1,
       range: senses((x) => bare(x.root_ar) === bare(t.root_ar), t).slice(0, 8),
       sameParticle: t.preposition_ar ? senses((x) => bare(x.preposition_ar) === bare(t.preposition_ar) && bare(x.root_ar) !== bare(t.root_ar), t)
         .sort(() => Math.random() - 0.5).slice(0, 6) : [],
       ref: `VI:${bare(t.root_ar).replace(/\s+/g, '')}|${bare(t.preposition_ar)}`,
     }));
-    return ok({ items, pool: inScope.length });
+    return ok({ items, pool: inScope.length, surahPool: here.length });
   });
 
   router.get('/al/drill/lexicon', async (req, env) => {
@@ -106,7 +135,8 @@ export function drillSourceRoutes(router: Router<ArLinguisticsEnv>) {
     const [grammar, balagha, idiom, arc, lexicon] = await Promise.all([
       one(`SELECT COUNT(*) AS n FROM ar_ling_gram_term_example e JOIN ar_ling_gram_term t ON t.id = e.term_id WHERE e.qr_ref IS NOT NULL AND t.discipline IN ('NH','nahw')`),
       one(`SELECT COUNT(*) AS n FROM ar_ling_gram_term_example e JOIN ar_ling_gram_term t ON t.id = e.term_id WHERE e.qr_ref IS NOT NULL AND t.discipline IN ('BL','balagha')`),
-      one(`SELECT COUNT(*) AS n FROM ar_ling_root_lemma_tabir WHERE ${CLEAN}`),
+      env.DB_AL.prepare(`SELECT id, status, root_ar, preposition_ar, expression_en, construction_en FROM ar_ling_root_lemma_tabir WHERE ${MIR}`)
+        .all<Tabir>().then((r) => withSense(r.results ?? []).length),
       one(`SELECT COUNT(*) AS n FROM ar_ling_sense_arc WHERE status <> 'rejected'`),
       one(`SELECT COUNT(*) AS n FROM ar_ling_lexicon_fact WHERE confidence = 'high' AND fact_kind <> 'authority'`).catch(() => 0),
     ]);
