@@ -2,6 +2,14 @@ import { query, queryOne } from '../../../shared/src/db';
 import { nonBlank } from '../../../shared/src/validate';
 import type { AlClient } from '../clients/al.client';
 import { parseQacMorphology, posGroup as qacPosGroup, QacMorphology } from '../lib/qac-morph';
+import { labels, byKey } from '../lib/labels';
+import type { QuranEnv } from '../env';
+import { atlasUnits, coversSurah } from '../routes/atlas-layers';
+import { derivedStructureSections, derivedScholarship } from './study-derived';
+
+/// How a passage is asked for: a curated passage_no (or, where no curated passage has
+/// that number, the unit at that place in the atlas's list), or its key "from-to".
+export type PassageRef = number | string;
 
 export interface TermRef { key: string; label_ar: string | null; color: string | null; }
 
@@ -80,6 +88,9 @@ interface PassageRow {
   status: string;
   name_ar: string | null;
   name_en: string | null;
+  /// A derived passage's basis (qr_surah_passage_proposal.basis_json, or the atlas's trim).
+  basis?: unknown;
+  title_ar?: string | null;
 }
 
 interface RawTaskRow {
@@ -113,7 +124,15 @@ export interface AyahWordToken {
   lemma?: string;
   root?: string;
   pos?: string;
+  /// The word's time in the recording (seconds on the surah file's clock), where the
+  /// recitation's segments number the āyah's words as the corpus does.
+  start?: number | null;
+  end?: number | null;
 }
+
+/// The recitation the reading step times its words against — the atlas's (atlas.ts RECITER):
+/// Mishary Rashid al-ʿAfāsī in qr_recitation.
+const READING_RECITER = 7;
 
 export interface SsConstituencyNode {
   name:      string;
@@ -206,6 +225,16 @@ function sortTasks(ts: StudyTask[]): StudyTask[] {
   return [...ts].sort((a, b) => taskSortKey(a) - taskSortKey(b) || a.task_id.localeCompare(b.task_id));
 }
 
+/// A sentence-structure row built from the books rather than authored: the Jadwal-derived
+/// layer marks its rows source_basis 'derived:jadwal' (tafsīr-mined ones 'derived:tafsir:<slug>')
+/// and ids 'QR:SS:{s}:{a}:jadwal:s{n}'. A curated sentence always wins over a derived one on
+/// the same āyah.
+export function isDerivedSs(id: string | null | undefined, basis: string | null | undefined, grounding?: string | null): boolean {
+  return /^derived/i.test(basis ?? '')
+    || /:(jadwal|derived)(:|$)/i.test(id ?? '')
+    || /^(derived|jadwal)/i.test(grounding ?? '');
+}
+
 export class StudyRepo {
   constructor(private db: D1Database) {}
 
@@ -238,22 +267,34 @@ export class StudyRepo {
     return { version: `qr-derived-${fallback?.v ?? 'unknown'}`, built_at: fallback?.v ?? null };
   }
 
-  async grid(surahId: number) {
-    const passages = await this._passages(surahId);
+  /// A surah's study grid: each passage with what its steps hold. `has` is whether the
+  /// step returns content for it (built from the sources where nothing is authored);
+  /// `built` is whether that content is authored rows. With `derived`, the grid lists
+  /// the atlas's units — curated passages and the derived passages between them — so
+  /// every āyah of the surah sits in a passage; a derived one carries its key "from-to".
+  async grid(surahId: number, opts: { derived?: boolean; al?: AlClient | null } = {}) {
+    const passages = opts.derived ? await this.units(surahId) : await this._passages(surahId);
     if (!passages.length) return null;
 
-    const [typeFlags, wordCounts, dataFlags] = await Promise.all([
+    const [typeFlags, wordCounts, dataFlags, builtFlags, exprAyat] = await Promise.all([
       this._taskTypeFlags(surahId),
       this._wordCounts(surahId, passages),
       this._dataFlags(surahId, passages),
+      this._builtFlags(surahId, passages),
+      this._expressionAyat(surahId, passages, opts.al ?? null),
     ]);
 
     const units = passages.map(p => {
       const flags = typeFlags.get(p.id) ?? new Set<string>();
       const data  = dataFlags.get(p.id) ?? new Set<string>();
+      const built = builtFlags.get(p.id) ?? new Set<string>();
       const wc    = wordCounts.get(p.id) ?? { total: 0, nouns: 0, verbs: 0 };
       const has   = (...steps: string[]) =>
         steps.some(s => flags.has(s) || data.has(s)) ? 1 : 0;
+      const derived = p.status === 'derived';
+      const ss = has('sentence_structure');
+      const expr = exprAyat === null ? null
+        : [...exprAyat].some((a) => a >= p.ayah_from && a <= p.ayah_to) ? 1 : 0;
       return {
         passage_id:  p.id,
         passage_no:  p.passage_no,
@@ -263,16 +304,24 @@ export class StudyRepo {
         end_ref:     `${p.surah_id}:${p.ayah_to}`,
         label:       p.title ?? `Passage ${p.passage_no}`,
         theme:       p.theme ?? null,
+        ...(derived ? { derived: true, key: `${p.ayah_from}-${p.ayah_to}` } : {}),
 
-        reading:             { has: has('reading') },
+        reading:             { has: has('reading'), built: has('reading') },
         vocabulary:          {
           nouns: wc.nouns, verbs: wc.verbs, total: wc.total,
 
           has: (wc.total > 0 || has('vocabulary', 'morphology', 'expressions') === 1) ? 1 : 0,
         },
-        sentence_structure:  { has: has('sentence_structure') },
-        passage_structure:   { has: has('passage_structure') },
-        tafsir:              { has: has('tafsir', 'comprehension', 'scholarship') },
+        ...(expr === null ? {} : { expressions: { has: expr } }),
+        sentence_structure:  { has: ss, built: built.has('sentence_structure') ? 1 : 0 },
+        // Every passage has a structure step: where nothing is authored it is built from
+        // the books' divisions, the opening's cue and the translations (study-derived.ts).
+        passage_structure:   { has: wc.total > 0 || has('passage_structure') ? 1 : 0,
+                               built: (flags.has('passage_structure') || built.has('passage_structure')) ? 1 : 0 },
+        tafsir:              { has: has('tafsir', 'comprehension', 'scholarship'),
+                               built: (flags.has('scholarship') || built.has('scholarship')) ? 1 : 0 },
+        scholarship:         { has: has('tafsir', 'scholarship'),
+                               built: (flags.has('scholarship') || built.has('scholarship')) ? 1 : 0 },
         worldview:           { has: has('worldview') },
         surah_structure:     { has: has('surah_structure') },
       };
@@ -288,9 +337,8 @@ export class StudyRepo {
     };
   }
 
-  async lesson(surahId: number, passageNo: number) {
-    const passages = await this._passages(surahId);
-    const passage  = passages.find(p => p.passage_no === passageNo);
+  async lesson(surahId: number, passageNo: PassageRef) {
+    const passage = await this.resolve(surahId, passageNo);
     if (!passage) return null;
 
     const [tasks, ayahs] = await Promise.all([
@@ -316,20 +364,18 @@ export class StudyRepo {
     };
   }
 
-  async allTasks(surahId: number, passageNo: number): Promise<StudyTask[] | null> {
-    const passages = await this._passages(surahId);
-    const passage  = passages.find(p => p.passage_no === passageNo);
+  async allTasks(surahId: number, passageNo: PassageRef): Promise<StudyTask[] | null> {
+    const passage = await this.resolve(surahId, passageNo);
     if (!passage) return null;
     return this._tasks(passage.id);
   }
 
   async taskByStepType(
     surahId: number,
-    passageNo: number,
+    passageNo: PassageRef,
     stepType: string,
   ): Promise<StudyTask | null | undefined> {
-    const passages = await this._passages(surahId);
-    const passage  = passages.find(p => p.passage_no === passageNo);
+    const passage = await this.resolve(surahId, passageNo);
     if (!passage) return null;
     const tasks = await this._tasks(passage.id);
     return tasks.find(t => t.task_type === stepType) ?? undefined;
@@ -337,12 +383,11 @@ export class StudyRepo {
 
   async passageRoots(
     surahId: number,
-    passageNo: number,
+    passageNo: PassageRef,
   ): Promise<
     { root: string; occurrences: number; lemmas: number; first_ayah: number; first_word: number }[] | null
   > {
-    const passages = await this._passages(surahId);
-    const passage  = passages.find(p => p.passage_no === passageNo);
+    const passage = await this.resolve(surahId, passageNo);
     if (!passage) return null;
 
     return query<{ root: string; occurrences: number; lemmas: number; first_ayah: number; first_word: number }>(
@@ -362,18 +407,31 @@ export class StudyRepo {
     );
   }
 
-  async stepTypes(surahId: number, passageNo: number): Promise<string[] | null> {
-    const passages = await this._passages(surahId);
-    const passage  = passages.find(p => p.passage_no === passageNo);
+  /// The steps that have content for this passage: its authored tasks, and every one of
+  /// the six study steps that returns content for it (built from the sources where
+  /// nothing is authored), in study order.
+  async stepTypes(surahId: number, passageNo: PassageRef, al: AlClient | null = null): Promise<string[] | null> {
+    const passage = await this.resolve(surahId, passageNo);
     if (!passage) return null;
-    const flags = await this._taskTypeFlags(surahId);
-    return [...(flags.get(passage.id) ?? new Set<string>())]
-      .sort((a, b) => (STEP_ORDER[a] ?? 99000) - (STEP_ORDER[b] ?? 99000));
+    const [flags, data, words, expr] = await Promise.all([
+      this._taskTypeFlags(surahId),
+      this._dataFlags(surahId, [passage]),
+      this._wordCounts(surahId, [passage]),
+      this._expressionAyat(surahId, [passage], al),
+    ]);
+    const out = new Set<string>(flags.get(passage.id) ?? []);
+    const d = data.get(passage.id) ?? new Set<string>();
+    const wc = words.get(passage.id)?.total ?? 0;
+    if (d.has('reading')) out.add('reading');
+    if (wc > 0) { out.add('morphology'); out.add('passage_structure'); }
+    if (expr && [...expr].some((a) => a >= passage.ayah_from && a <= passage.ayah_to)) out.add('expressions');
+    if (d.has('sentence_structure')) out.add('sentence_structure');
+    if (d.has('tafsir') || d.has('scholarship')) out.add('scholarship');
+    return [...out].sort((a, b) => (STEP_ORDER[a] ?? 99000) - (STEP_ORDER[b] ?? 99000));
   }
 
-  async readingStep(surahId: number, passageNo: number) {
-    const passages = await this._passages(surahId);
-    const passage  = passages.find(p => p.passage_no === passageNo);
+  async readingStep(surahId: number, passageNo: PassageRef) {
+    const passage = await this.resolve(surahId, passageNo);
     if (!passage) return null;
 
     const ayahs = await this._ayahs(passage);
@@ -388,9 +446,8 @@ export class StudyRepo {
     };
   }
 
-  async comprehensionStep(surahId: number, passageNo: number) {
-    const passages = await this._passages(surahId);
-    const passage  = passages.find(p => p.passage_no === passageNo);
+  async comprehensionStep(surahId: number, passageNo: PassageRef) {
+    const passage = await this.resolve(surahId, passageNo);
     if (!passage) return null;
 
     const questions = await query<JsonRecord>(
@@ -412,9 +469,8 @@ export class StudyRepo {
     };
   }
 
-  async morphologyStep(surahId: number, passageNo: number) {
-    const passages = await this._passages(surahId);
-    const passage  = passages.find(p => p.passage_no === passageNo);
+  async morphologyStep(surahId: number, passageNo: PassageRef) {
+    const passage = await this.resolve(surahId, passageNo);
     if (!passage) return null;
     const { surah_id: surah, ayah_from: from, ayah_to: to } = passage;
 
@@ -559,11 +615,25 @@ export class StudyRepo {
         tafsirByAyah.set(a, list);
       }
     }
-    const tafsir = [...tafsirByAyah.entries()]
+    let tafsir = [...tafsirByAyah.entries()]
       .sort((a, b) => a[0] - b[0])
       .map(([ayah, sources]) => ({ ayah, sources }));
 
+    // A step stays under ~200 KB: on a long passage the per-āyah tafsīr openings (700
+    // characters × 8 works × each āyah) are cut shorter, and said so in `trimmed`.
+    const trimmed: string[] = [];
+    const wordBytes = new TextEncoder().encode(JSON.stringify(items)).length * 2;
+    for (const n of [350, 160]) {
+      if (wordBytes + new TextEncoder().encode(JSON.stringify(tafsir)).length <= MORPH_BUDGET) break;
+      tafsir = tafsir.map((t) => ({
+        ayah: t.ayah,
+        sources: t.sources.map((x) => ({ ...x, text: x.text && x.text.length > n ? `${x.text.slice(0, n)} …` : x.text })),
+      }));
+      trimmed.push(`tafsir_openings_cut_${n}`);
+    }
+
     return {
+      ...(trimmed.length ? { trimmed } : {}),
       step:       'morphology',
       source:     'tables',
       passage_id: passage.id,
@@ -582,9 +652,8 @@ export class StudyRepo {
   /// steps that accumulate them one connector at a time, the nuances that
   /// fork a choice, and the final fluent the passage settles on. Every field
   /// is stated in qr_ss_translation_*; nothing here is assembled by guess.
-  async passageStructureStep(surahId: number, passageNo: number) {
-    const passages = await this._passages(surahId);
-    const p = passages.find((x) => x.passage_no === passageNo);
+  async passageStructureStep(surahId: number, passageNo: PassageRef) {
+    const p = await this.resolve(surahId, passageNo);
     if (!p) return null;
 
     const [rendering, units, buildup, nuances, decisions] = await Promise.all([
@@ -693,9 +762,9 @@ export class StudyRepo {
                   n.label_ar AS irabAr, n.gloss_json AS gloss
              FROM qr_ss_tree t
              JOIN qr_ss_tree_node n ON n.tree_id = t.id
-            WHERE t.sentence_id IN (${ladderSentences.map(() => '?').join(',')})
+            WHERE t.sentence_id IN (SELECT value FROM json_each(?))
             ORDER BY n.depth, n.node_order`,
-          ladderSentences.map((r) => r.id),
+          [JSON.stringify(ladderSentences.map((r) => r.id))],
         ).catch(() => [])
       : [];
 
@@ -707,8 +776,8 @@ export class StudyRepo {
       const rows = await query<{ id: string; name_ar: string | null }>(
         this.db,
         `SELECT id, name_ar FROM ar_ling_gram_term
-          WHERE id IN (${termRefs.map(() => '?').join(',')})`,
-        termRefs,
+          WHERE id IN (SELECT value FROM json_each(?))`,
+        [JSON.stringify(termRefs)],
       ).catch(() => []);
       for (const t of rows) if (t.name_ar) termNameAr.set(t.id, t.name_ar);
     }
@@ -869,38 +938,57 @@ export class StudyRepo {
       [p.id],
     ).catch(() => []);
 
-    if (!rendering && units.length === 0 && buildup.length === 0
-        && sections.length === 0 && questions.length === 0) return null;
+    // A passage with no ladder of its own — a derived passage, or a curated one whose
+    // build-up is not written yet — gets the lenses the sources give it: how the four
+    // boundary tafsīrs divide it, its opening and cue, Ibn ʿĀshūr's turns, Maududi, and
+    // the translations (study-derived.ts). Each is marked source: 'derived'.
+    const hasLadder = buildup.length > 0 || !!rendering;
+    const derivedSections = hasLadder ? [] : await derivedStructureSections(this.db, p);
+    const allSections = [
+      ...sections.map((s) => ({ ...s, source: 'tables' })),
+      ...derivedSections,
+    ];
+    if (!hasLadder && units.length === 0 && allSections.length === 0 && questions.length === 0) return null;
 
-    // The lens deck, composed here rather than in the client. The ladder and
-    // the questions are lenses like any other; assembling them in Swift meant
-    // two of the twelve pills had their label, order and existence decided in
-    // code while the rest came from the table.
+    // The lens deck, composed here rather than in the client: only lenses with something
+    // under them, the first one the app opens on first. A lens is keyed by its section's id,
+    // which is how the app keys the section (two naẓm relations share a section_key). The
+    // ladder's and the questions' names are rows (qr_study_label 'passage_lens'),
+    // English-primary with the Arabic as the gloss.
+    const lensNames = byKey((await labels({ DB_QR: this.db } as unknown as QuranEnv)).passage_lens);
+    const named = (key: string, fallback: string) => {
+      const l = lensNames.get(key);
+      return { label: l?.label ?? fallback, labelAr: l?.labelAr ?? null, labelEn: l?.label ?? fallback };
+    };
     const lenses = [
-      ...(buildup.length > 0 || rendering
-        ? [{ key: 'ladder', label: 'السلّم', labelEn: 'The ladder',
+      ...(hasLadder
+        ? [{ key: 'ladder', ...named('ladder', 'Ladder'),
              count: buildup.length || null, tone: 'gold', enabled: true }]
-        : [{ key: 'ladder', label: 'السلّم', labelEn: 'The ladder',
-             count: null, tone: 'muted', enabled: false }]),
-      ...sections.map((s) => ({
-        key: s.key,
-        label: s.badge && sections.filter((o) => o.badge === s.badge).length > 1 && s.title
+        : []),
+      ...allSections.map((s) => ({
+        key: s.id,
+        label: s.badge && allSections.filter((o) => o.badge === s.badge).length > 1 && s.title
           ? s.title : (s.badge || s.title),
+        labelAr: null as string | null,
         labelEn: s.title,
         count: null as number | null,
         tone: s.tone,
         enabled: true,
+        source: s.source,
       })),
       ...(questions.length > 0
-        ? [{ key: 'questions', label: 'الأسئلة', labelEn: 'Questions',
+        ? [{ key: 'questions', ...named('questions', 'Questions'),
              count: questions.length, tone: 'gold', enabled: true }]
         : []),
     ];
 
     return {
       step: 'passage_structure',
+      source: derivedSections.length === 0 ? 'tables'
+        : (hasLadder || sections.length > 0 || questions.length > 0) ? 'mixed' : 'derived',
+      passage_id: p.id,
       lenses,
-      sections,
+      sections: allSections,
       questions: questions.map((q) => ({
         id:         q.id,
         ayahFrom:   q.ayah_from,
@@ -912,7 +1000,7 @@ export class StudyRepo {
         answerMd:   q.answer_md,
       })),
       surah: surahId,
-      passage: passageNo,
+      passage: p.passage_no,
       ayahFrom: p.ayah_from,
       ayahTo: p.ayah_to,
       rendering,
@@ -939,9 +1027,8 @@ export class StudyRepo {
   /// written. Straight from qr_scholar_passage_reading / _section — a reading
   /// with no sections yet still returns, because the thesis alone is worth
   /// reading and the section count says what is still missing.
-  async scholarshipStep(surahId: number, passageNo: number) {
-    const passages = await this._passages(surahId);
-    const p = passages.find((x) => x.passage_no === passageNo);
+  async scholarshipStep(surahId: number, passageNo: PassageRef) {
+    const p = await this.resolve(surahId, passageNo);
     if (!p) return null;
 
     const readings = await query<{
@@ -960,7 +1047,9 @@ export class StudyRepo {
         ORDER BY death_year_hijri, source_slug`,
       [p.id],
     ).catch(() => []);
-    if (!readings.length) return undefined;
+    // No reading written for this passage (a derived passage, or a curated one not reached
+    // yet): each tafsīr's own discussion of the range, opening verbatim (study-derived.ts).
+    if (!readings.length) return (await derivedScholarship(this.db, p)) ?? undefined;
 
     const sections = await query<{
       tafsir_id: string; id: string; section_ord: number;
@@ -972,9 +1061,9 @@ export class StudyRepo {
       `SELECT tafsir_id, id, section_ord, heading_en, heading_ar, ayah_anchor,
               section_kind, verdict, body_en, body_ar, quote_ar
          FROM qr_scholar_passage_section
-        WHERE tafsir_id IN (${readings.map(() => '?').join(',')})
+        WHERE tafsir_id IN (SELECT value FROM json_each(?))
         ORDER BY tafsir_id, section_ord`,
-      readings.map((r) => r.id),
+      [JSON.stringify(readings.map((r) => r.id))],
     ).catch(() => []);
 
     return {
@@ -1094,9 +1183,9 @@ export class StudyRepo {
       this.db,
       `SELECT id, surah, passage_no, ayah_from, ayah_to, title_en AS title
          FROM qr_surah_study_passage
-        WHERE surah IN (${surahs.map(() => '?').join(',')}) AND status != 'deleted'
+        WHERE surah IN (SELECT value FROM json_each(?)) AND status != 'deleted'
         ORDER BY surah, passage_no`,
-      surahs,
+      [JSON.stringify(surahs)],
     ).catch((): Passage[] => []);
 
     // Group by the passage each reference falls inside; a reference whose ayah
@@ -1139,9 +1228,8 @@ export class StudyRepo {
     };
   }
 
-  async expressionsStep(surahId: number, passageNo: number, al: AlClient | null) {
-    const passages = await this._passages(surahId);
-    const p = passages.find((x) => x.passage_no === passageNo);
+  async expressionsStep(surahId: number, passageNo: PassageRef, al: AlClient | null) {
+    const p = await this.resolve(surahId, passageNo);
     if (!p) return null;
 
     let items: unknown[] = [];
@@ -1156,16 +1244,15 @@ export class StudyRepo {
     return {
       step: 'expressions',
       surah: surahId,
-      passage: passageNo,
+      passage: p.passage_no,
       ayahFrom: p.ayah_from,
       ayahTo: p.ayah_to,
       items,
     };
   }
 
-  async sentenceStructureStep(surahId: number, passageNo: number) {
-    const passages = await this._passages(surahId);
-    const passage  = passages.find((x) => x.passage_no === passageNo);
+  async sentenceStructureStep(surahId: number, passageNo: PassageRef) {
+    const passage = await this.resolve(surahId, passageNo);
     if (!passage) return null;
     const { surah_id: surah, ayah_from: from, ayah_to: to } = passage;
 
@@ -1177,19 +1264,20 @@ export class StudyRepo {
     ).catch(() => []);
     if (!sentProbe.length) {
       return {
-        step: 'sentence_structure', surah, passage: passageNo,
+        step: 'sentence_structure', surah, passage: passage.passage_no,
         ayahFrom: from, ayahTo: to,
         termColors: {}, terms: [], sentences: [],
       };
     }
 
-    const [sentRows, clauseRows, phraseRows, wordRows, irabRows, balaghaRows, ellipsisRows, tafsirRows, treeRows, nodeRows, termRows, irabAyahRows, grammarRows, readingRows, foldRows, decisionRows, sarfRows] =
+    // eslint-disable-next-line prefer-const
+    let [sentRows, clauseRows, phraseRows, wordRows, irabRows, balaghaRows, ellipsisRows, tafsirRows, treeRows, nodeRows, termRows, irabAyahRows, grammarRows, readingRows, foldRows, decisionRows, sarfRows] =
       await Promise.all([
         query<{ id: string; ayah_from: number; ayah_to: number; word_start_index: number | null;
                 word_end_index: number | null; sentence_kind: string | null;
                 discourse_role: string | null; note_md: string | null;
                 gt_sentence_class: string | null; gt_kalam_kind: string | null;
-                gt_sentence_role: string | null }>(
+                gt_sentence_role: string | null; source_basis: string | null }>(
           this.db,
           `SELECT id, ayah_from, ayah_to, word_start_index, word_end_index,
                   sentence_kind, discourse_role, note_md,
@@ -1198,7 +1286,7 @@ export class StudyRepo {
                   -- DOES (خبرية / إنشائية، طلبي / غير طلبي), and where it SITS
                   -- in the iʿrāb (خبر، حال، صفة، مضاف إليه — or لا محل لها).
                   -- All three are GT ids.
-                  gt_sentence_class, gt_kalam_kind, gt_sentence_role
+                  gt_sentence_class, gt_kalam_kind, gt_sentence_role, source_basis
            FROM qr_ss_occ_sentence
            WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?
            ORDER BY ayah_from, COALESCE(word_start_index, 0)`,
@@ -1439,6 +1527,53 @@ export class StudyRepo {
         ).catch(() => []),
       ]);
 
+    // Curated sentences win. The Jadwal-derived layer (isDerivedSs) fills the āyāt no one has
+    // authored; where an āyah has authored sentences, any derived sentence on it is left out,
+    // and its clauses, phrases, trees and the points filed on them go with it.
+    {
+      const derivedTree = new Set(treeRows.filter((t) => isDerivedSs(null, null, t.grounding)).map((t) => t.sentence_id));
+      const isDer = (r: { id: string; source_basis: string | null }) =>
+        isDerivedSs(r.id, r.source_basis) || derivedTree.has(r.id);
+      const curatedAyat = new Set<number>();
+      for (const r of sentRows) if (!isDer(r)) for (let a = r.ayah_from; a <= r.ayah_to; a++) curatedAyat.add(a);
+      const dropped = new Set(sentRows
+        .filter((r) => isDer(r) && [...Array(r.ayah_to - r.ayah_from + 1).keys()].some((k) => curatedAyat.has(r.ayah_from + k)))
+        .map((r) => r.id));
+      if (dropped.size) {
+        const clauses = new Set(clauseRows.filter((c) => dropped.has(c.sentence_id)).map((c) => c.id));
+        const phrases = new Set(phraseRows.filter((ph) => clauses.has(ph.clause_id)).map((ph) => ph.id));
+        const trees = new Set(treeRows.filter((t) => dropped.has(t.sentence_id)).map((t) => t.id));
+        const gone = (id: string | null) => !!id && (dropped.has(id) || clauses.has(id) || phrases.has(id));
+        sentRows = sentRows.filter((r) => !dropped.has(r.id));
+        clauseRows = clauseRows.filter((c) => !clauses.has(c.id));
+        phraseRows = phraseRows.filter((ph) => !phrases.has(ph.id));
+        treeRows = treeRows.filter((t) => !trees.has(t.id));
+        nodeRows = nodeRows.filter((n) => !trees.has(n.tree_id));
+        balaghaRows = balaghaRows.filter((b) => !gone(b.scope_id));
+        ellipsisRows = ellipsisRows.filter((e) => !dropped.has(e.sentence_id) && !gone(e.scope_id));
+        grammarRows = grammarRows.filter((g) => !gone(g.scope_id));
+        readingRows = readingRows.filter((r) => !gone(r.scope_id));
+        foldRows = foldRows.filter((x) => !gone(x.scope_id));
+      }
+    }
+
+    // The derived layer's own notes, where its tables exist: each iʿrāb book's statement on a
+    // clause (qr_ss_clause_reading) and Jadwal's ṣarf, balāgha and fawāʾid notes on a clause
+    // or a word (qr_ss_book_note). Absent tables read as nothing.
+    const clauseIds = JSON.stringify(clauseRows.map((c) => c.id));
+    const [clauseReadings, bookNotes] = await Promise.all([
+      clauseRows.length
+        ? query<JsonRecord>(this.db,
+            `SELECT * FROM qr_ss_clause_reading WHERE clause_id IN (SELECT value FROM json_each(?))`,
+            [clauseIds]).catch(() => [] as JsonRecord[])
+        : Promise.resolve([] as JsonRecord[]),
+      query<JsonRecord>(this.db,
+        `SELECT * FROM qr_ss_book_note
+          WHERE scope_id IN (SELECT value FROM json_each(?))
+             OR scope_id IN (SELECT id FROM qr_word_occurrence WHERE surah = ? AND ayah BETWEEN ? AND ?)`,
+        [clauseIds, surah, from, to]).catch(() => [] as JsonRecord[]),
+    ]);
+
     const irabByWord = new Map<string, { book: string; role: string | null; text: string | null }[]>();
     for (const e of irabRows) {
       const list = irabByWord.get(e.wid) ?? [];
@@ -1515,7 +1650,16 @@ export class StudyRepo {
       const byId = new Map<string, SsClauseNode>();
       for (const c of cs) {
         const words = [] as ReturnType<typeof buildWord>[];
-        if (c.word_start_index != null && c.word_end_index != null) {
+        if (c.word_start_index != null && c.word_end_index != null
+            && c.ayah_to !== c.ayah_from && isDerivedSs(c.id, null)) {
+          // A derived clause running across āyāt: word_start_index is in ayah_from and
+          // word_end_index in ayah_to.
+          const lo = c.ayah_from * 1000 + c.word_start_index, hi = c.ayah_to * 1000 + c.word_end_index;
+          for (const w of wordRows) {
+            const at = w.ayah * 1000 + w.word_index;
+            if (at >= lo && at <= hi) words.push(buildWord(w));
+          }
+        } else if (c.word_start_index != null && c.word_end_index != null) {
           for (let i = c.word_start_index; i <= c.word_end_index; i++) {
             const w = wordByPos.get(`${c.ayah_from}:${i}`);
             if (w) words.push(buildWord(w));
@@ -1796,19 +1940,19 @@ export class StudyRepo {
     const citedBooks = [...new Set(readings.flatMap((r) => r.sources))];
     const books: Record<string, BookBadge> = {};
     if (citedBooks.length) {
-      const marks = citedBooks.map(() => '?').join(',');
-      const both = [...citedBooks, ...citedBooks];
+      // One bound list (json_each), not a placeholder per book: D1 binds at most 100.
+      const cited = JSON.stringify(citedBooks);
       const rows = await query<BookRow>(
         this.db,
         `SELECT id, source_slug, book_title_ar, book_title_en, badge_color, badge_glyph
            FROM qr_irab_book_display_source
-          WHERE source_slug IN (${marks}) OR id IN (${marks})
+          WHERE source_slug IN (SELECT value FROM json_each(?1)) OR id IN (SELECT value FROM json_each(?1))
           UNION ALL
          SELECT id, source_slug, book_title_ar, book_title_en, badge_color, badge_glyph
            FROM qr_tafsir_book_display_source
-          WHERE source_slug IN (${marks}) OR id IN (${marks})`,
-        [...both, ...both],
-      );
+          WHERE source_slug IN (SELECT value FROM json_each(?1)) OR id IN (SELECT value FROM json_each(?1))`,
+        [cited],
+      ).catch(() => [] as BookRow[]);
       for (const b of rows) {
         const badge: BookBadge = {
           titleAr: b.book_title_ar,
@@ -1870,7 +2014,56 @@ export class StudyRepo {
         driverRef: d.driver_ref,
       })),
       sentences,
+      ...(clauseReadings.length ? { clauseReadings } : {}),
+      ...(bookNotes.length ? { bookNotes } : {}),
     };
+
+    // A step stays under ~200 KB. The per-āyah layers (each book's iʿrāb of the āyah, each
+    // tafsīr's opening on it) are repeated on every sentence of the āyah; past the budget they
+    // travel on the āyah's first sentence only, and past it again the tafsīr openings are cut
+    // to 400 characters. What was trimmed is said in `trimmed`.
+    const trimmed: string[] = [];
+    const bytes = (v: unknown) => new TextEncoder().encode(JSON.stringify(v)).length;
+    if (bytes(body) > SS_BUDGET) {
+      const firstOf = new Map<number, unknown>();
+      for (const x of sentences as JsonRecord[]) {
+        const a = Number(x['ayah']);
+        if (firstOf.has(a)) {
+          x['tafsir'] = [];
+          x['irabAnalysis'] = [];
+          x['ayahLayersOn'] = firstOf.get(a);
+        } else {
+          firstOf.set(a, x['id']);
+        }
+      }
+      trimmed.push('per_ayah_layers_on_first_sentence');
+    }
+    const cut = (t: unknown, n: number) =>
+      typeof t === 'string' && t.length > n ? `${t.slice(0, n)} …` : t;
+    for (const n of [400, 200]) {
+      if (bytes(body) <= SS_BUDGET) break;
+      for (const x of sentences as JsonRecord[]) {
+        if (Array.isArray(x['tafsir'])) {
+          x['tafsir'] = (x['tafsir'] as JsonRecord[]).map((e) => ({ ...e, text: cut(e['text'], n) }));
+        }
+        if (Array.isArray(x['irabAnalysis'])) {
+          x['irabAnalysis'] = (x['irabAnalysis'] as JsonRecord[]).map((e) => ({ ...e, text: cut(e['text'], n * 2) }));
+        }
+      }
+      trimmed.push(`openings_cut_${n}`);
+    }
+    if (bytes(body) > SS_BUDGET) {
+      // Last: the per-āyah tafsīr openings go (the scholarship step carries them), and each
+      // iʿrāb book keeps its parse — role, case, place — without its running text.
+      for (const x of sentences as JsonRecord[]) {
+        x['tafsir'] = [];
+        if (Array.isArray(x['irabAnalysis'])) {
+          x['irabAnalysis'] = (x['irabAnalysis'] as JsonRecord[]).map((e) => ({ ...e, text: null }));
+        }
+      }
+      trimmed.push('tafsir_openings_and_irab_text_dropped');
+    }
+    if (trimmed.length) (body as JsonRecord)['trimmed'] = trimmed;
 
     // Only the terms (and colours) this passage names, with the terms above
     // them: the registry is ~500 terms and ~700 colours, a passage uses a
@@ -1893,7 +2086,7 @@ export class StudyRepo {
     return {
       step:      'sentence_structure',
       surah,
-      passage:   passageNo,
+      passage:   passage.passage_no,
       ayahFrom:  from,
       ayahTo:    to,
       termColors: usedColors,
@@ -1904,7 +2097,7 @@ export class StudyRepo {
 
   async stepData(
     surahId: number,
-    passageNo: number,
+    passageNo: PassageRef,
     stepType: string,
     al: AlClient | null = null,
   ): Promise<unknown> {
@@ -1928,9 +2121,8 @@ export class StudyRepo {
     }
   }
 
-  async passageMorphology(surahId: number, passageNo: number): Promise<PassageMorphology | null> {
-    const passages = await this._passages(surahId);
-    const passage = passages.find(p => p.passage_no === passageNo);
+  async passageMorphology(surahId: number, passageNo: PassageRef): Promise<PassageMorphology | null> {
+    const passage = await this.resolve(surahId, passageNo);
     if (!passage) return null;
 
     const cards = await this._buildWordCards(surahId, passage.ayah_from, passage.ayah_to);
@@ -2094,7 +2286,94 @@ export class StudyRepo {
     });
   }
 
-  private async _passages(surahId: number): Promise<PassageRow[]> {
+  private _memo = new Map<string, Promise<unknown>>();
+  private _once<T>(key: string, f: () => Promise<T>): Promise<T> {
+    let v = this._memo.get(key) as Promise<T> | undefined;
+    if (!v) { v = f(); this._memo.set(key, v); }
+    return v;
+  }
+
+  private _surahHead(surahId: number) {
+    return this._once(`head:${surahId}`, () => queryOne<{ ayahs: number; name_ar: string | null; name_en: string | null }>(
+      this.db, `SELECT ayah_count AS ayahs, name_ar, name_en FROM qr_surah WHERE id = ?`, [surahId],
+    ).catch(() => null));
+  }
+
+  /// A passage no one has curated, as a row the steps read like any other: keyed by its range,
+  /// numbered by its place in the atlas's list, status 'derived'.
+  private _derivedRow(
+    surahId: number,
+    head: { name_ar: string | null; name_en: string | null } | null,
+    u: { no: number; from: number; to: number; title?: string | null; titleAr?: string | null; basis?: unknown },
+  ): PassageRow {
+    return {
+      id: `derived:${surahId}:${u.from}-${u.to}`,
+      surah_id: surahId,
+      passage_no: u.no,
+      ayah_from: u.from,
+      ayah_to: u.to,
+      title: u.title ?? null,
+      title_ar: u.titleAr ?? null,
+      theme: null,
+      status: 'derived',
+      name_ar: head?.name_ar ?? null,
+      name_en: head?.name_en ?? null,
+      basis: u.basis ?? null,
+    };
+  }
+
+  /// The surah's passages as the atlas lists them (atlas-layers.ts atlasUnits): the curated
+  /// rows, and derived passages (qr_surah_passage_proposal) wherever the curated ones leave
+  /// āyāt uncovered, ordered by āyah. A wholly curated surah is its curated rows.
+  units(surahId: number): Promise<PassageRow[]> {
+    return this._once(`units:${surahId}`, async () => {
+      const [curated, head] = await Promise.all([this._passages(surahId), this._surahHead(surahId)]);
+      const cur = curated.map((c) => ({ no: c.passage_no, from: c.ayah_from, to: c.ayah_to, row: c }));
+      if (!head || coversSurah(cur, Number(head.ayahs))) {
+        return [...curated].sort((a, b) => a.ayah_from - b.ayah_from);
+      }
+      const env = { DB_QR: this.db } as unknown as QuranEnv;
+      const units = await atlasUnits(env, surahId, Number(head.ayahs), cur, () => []);
+      return units.map((u) => ('derived' in u && u.derived === true)
+        ? this._derivedRow(surahId, head, u)
+        : (u as unknown as { row: PassageRow }).row);
+    });
+  }
+
+  /// One passage, however it is asked for — the one resolver every step uses.
+  ///   "7"      the curated passage numbered 7; where none is, the 7th unit of the atlas's list
+  ///   "12-18"  the curated passage spanning exactly 12–18; else the atlas's unit with that
+  ///            range; else, for a range inside the surah, that range studied as asked
+  async resolve(surahId: number, ref: PassageRef): Promise<PassageRow | null> {
+    const key = String(ref).trim();
+    const range = /^(\d+)-(\d+)$/.exec(key);
+    const curated = await this._passages(surahId);
+    if (!range) {
+      if (!/^\d+$/.test(key)) return null;
+      const n = Number(key);
+      if (n < 1) return null;
+      const c = curated.find((p) => p.passage_no === n);
+      if (c) return c;
+      return (await this.units(surahId))[n - 1] ?? null;
+    }
+    const from = Number(range[1]), to = Number(range[2]);
+    const c = curated.find((p) => p.ayah_from === from && p.ayah_to === to);
+    if (c) return c;
+    const head = await this._surahHead(surahId);
+    if (!head || from < 1 || to < from || to > Number(head.ayahs)) return null;
+    const units = await this.units(surahId);
+    const hit = units.find((u) => u.ayah_from === from && u.ayah_to === to);
+    if (hit) return hit;
+    if (to - from >= 60) return null;
+    const at = units.findIndex((u) => u.ayah_from <= from && u.ayah_to >= from);
+    return this._derivedRow(surahId, head, { no: at + 1, from, to, title: null });
+  }
+
+  private _passages(surahId: number): Promise<PassageRow[]> {
+    return this._once(`passages:${surahId}`, () => this._passagesUncached(surahId));
+  }
+
+  private async _passagesUncached(surahId: number): Promise<PassageRow[]> {
     const rows = await query<PassageRow>(
       this.db,
       `SELECT p.id, p.surah AS surah_id, p.passage_no, p.ayah_from, p.ayah_to,
@@ -2158,7 +2437,7 @@ export class StudyRepo {
   }
 
   private async _ayahs(passage: PassageRow) {
-    const [ayahs, translations, words] = await Promise.all([
+    const [ayahs, translations, words, rec] = await Promise.all([
       query<{
         surah: number; ayah: number; page: number | null;
         juz: number | null; hizb: number | null; ruku: number | null;
@@ -2199,9 +2478,18 @@ export class StudyRepo {
          ORDER BY ayah, word_index`,
         [passage.surah_id, passage.ayah_from, passage.ayah_to],
       ),
+      query<{ ayah: number; start_ms: number; end_ms: number; segments_json: string | null; audio_url: string }>(
+        this.db,
+        `SELECT a.ayah, a.start_ms, a.end_ms, a.segments_json, r.audio_url
+           FROM qr_recitation_ayah a
+           JOIN qr_recitation r ON r.reciter_id = a.reciter_id AND r.surah = a.surah
+          WHERE a.reciter_id = ? AND a.surah = ? AND a.ayah BETWEEN ? AND ?`,
+        [READING_RECITER, passage.surah_id, passage.ayah_from, passage.ayah_to],
+      ).catch(() => []),
     ]);
 
     const transByAyah = new Map(translations.map(t => [t.ayah, t.text]));
+    const recByAyah = new Map(rec.map(r => [r.ayah, r]));
 
     const wordsByAyah = new Map<number, AyahWordToken[]>();
     for (const w of words) {
@@ -2220,6 +2508,18 @@ export class StudyRepo {
 
     return ayahs.map(a => {
       const diacritic = a.text_clean ?? a.text_uthmani ?? a.text_bare ?? '';
+      const r = recByAyah.get(a.ayah);
+      // Each word with its time, only where the segments number the āyah's words as the
+      // corpus does (as atlas.ts passageSlice); a word the reciter repeats keeps its first time.
+      let segs: number[][] = [];
+      try { segs = r?.segments_json ? JSON.parse(r.segments_json) : []; } catch { segs = []; }
+      const at = new Map<number, number[]>();
+      for (const x of segs) if (Array.isArray(x) && !at.has(x[0])) at.set(x[0], x);
+      const ws = wordsByAyah.get(a.ayah) ?? [];
+      const aligned = ws.length > 0 && at.size === ws.length && ws.every((w) => at.has(w.position));
+      const timed = aligned
+        ? ws.map((w) => { const t = at.get(w.position)!; return { ...w, start: t[1] / 1000, end: t[2] / 1000 }; })
+        : ws;
       return {
         surah:       a.surah,
         ayah:        a.ayah,
@@ -2232,8 +2532,9 @@ export class StudyRepo {
         text:        diacritic,
         text_simple: a.text_bare ?? undefined,
         text_arabic: diacritic,
-        words:       wordsByAyah.get(a.ayah) ?? [],
+        words:       timed,
         translation: transByAyah.get(a.ayah) ?? null,
+        audio:       r ? { url: r.audio_url, start: r.start_ms / 1000, end: r.end_ms / 1000 } : null,
       };
     });
   }
@@ -2244,9 +2545,8 @@ export class StudyRepo {
    * words (`resolve`), how complete that answer is (`availability`, `pending`)
    * and what it draws on (`sources`). Inline `items[]` are the older payload
    * model and are still honoured while a task carries them. */
-  async vocabulary(surahId: number, passageNo: number): Promise<MorphologyVocabulary | null> {
-    const passages = await this._passages(surahId);
-    const passage  = passages.find(p => p.passage_no === passageNo);
+  async vocabulary(surahId: number, passageNo: PassageRef): Promise<MorphologyVocabulary | null> {
+    const passage = await this.resolve(surahId, passageNo);
     if (!passage) return null;
     return this._morphologyFor(passage, await this._tasks(passage.id));
   }
@@ -2446,6 +2746,54 @@ export class StudyRepo {
     return out;
   }
 
+  /// Which steps hold AUTHORED rows for each passage, matched the way the steps read them:
+  /// the structure lenses by passage id (qr_passage_section) or a translation build-up inside
+  /// the range, the mufassir readings by passage id, the sentence structure by curated
+  /// (non-derived) sentences inside the range.
+  private async _builtFlags(surahId: number, passages: PassageRow[]): Promise<Map<string, Set<string>>> {
+    const [sections, ladders, readings, sentences] = await Promise.all([
+      query<{ passage_id: string }>(this.db,
+        `SELECT DISTINCT s.passage_id FROM qr_passage_section s
+           JOIN qr_surah_study_passage p ON p.id = s.passage_id
+          WHERE p.surah = ? AND s.status = 'active'`, [surahId]).catch(() => []),
+      query<{ ayah_from: number; ayah_to: number }>(this.db,
+        `SELECT DISTINCT ayah_from, ayah_to FROM qr_ss_translation_passage WHERE surah = ?`, [surahId]).catch(() => []),
+      query<{ passage_ref: string }>(this.db,
+        `SELECT DISTINCT passage_ref FROM qr_scholar_passage_reading WHERE surah = ? AND status != 'deleted'`,
+        [surahId]).catch(() => []),
+      query<{ id: string; ayah_from: number; ayah_to: number; basis: string | null }>(this.db,
+        `SELECT id, ayah_from, ayah_to, source_basis AS basis FROM qr_ss_occ_sentence WHERE surah = ?`,
+        [surahId]).catch(() => []),
+    ]);
+    const sec = new Set(sections.map((r) => r.passage_id));
+    const rd = new Set(readings.map((r) => r.passage_ref));
+    const curatedSs = sentences.filter((r) => !isDerivedSs(r.id, r.basis));
+    const out = new Map<string, Set<string>>();
+    for (const p of passages) {
+      const set = new Set<string>();
+      if (sec.has(p.id) || ladders.some((l) => l.ayah_from >= p.ayah_from && l.ayah_to <= p.ayah_to)) {
+        set.add('passage_structure');
+      }
+      if (rd.has(p.id)) set.add('scholarship');
+      if (curatedSs.some((r) => r.ayah_from >= p.ayah_from && r.ayah_to <= p.ayah_to)) set.add('sentence_structure');
+      out.set(p.id, set);
+    }
+    return out;
+  }
+
+  /// The āyāt of the surah the AL expressions layer (ar_ling_root_lemma_tabir) names, or
+  /// null when AL is not asked — one read for the whole surah, not one per passage.
+  private async _expressionAyat(surahId: number, passages: PassageRow[], al: AlClient | null): Promise<Set<number> | null> {
+    if (!al || !passages.length) return null;
+    const to = Math.max(...passages.map((p) => p.ayah_to));
+    try {
+      const res = await al.getExpressionsByQuran(surahId, 1, to);
+      return new Set((res.data ?? []).map((x) => Number((x as { ayah?: unknown }).ayah)).filter(Number.isFinite));
+    } catch {
+      return null;
+    }
+  }
+
   private async _wordCounts(
     surahId: number,
     passages: PassageRow[],
@@ -2483,6 +2831,13 @@ export class StudyRepo {
     return out;
   }
 }
+
+/// The size a morphology step is kept under (bytes of JSON).
+const MORPH_BUDGET = 190_000;
+
+/// The size a sentence-structure step's body is kept under (bytes of JSON; the terms it
+/// names are added after, ~30 KB), so the whole step stays under ~200 KB.
+const SS_BUDGET = 165_000;
 
 const IRAB_BOOKS: Record<string, string> = {
   qul_irab_muyassar:    'الإعراب الميسر',

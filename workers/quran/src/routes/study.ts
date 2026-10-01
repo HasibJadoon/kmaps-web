@@ -12,14 +12,18 @@ import {
 import { MorphDisplayRepo } from '../repositories/morph-display.repo';
 import { createAlClient } from '../clients/al.client';
 
+/// :passageNo is a curated passage_no (legacy), an atlas position, or a passage's key
+/// "from-to" — StudyRepo.resolve turns any of them into the passage.
 function parseSurahPassage(
   surahId: string,
   passageNo: string,
-): { s: number; p: number } | null {
+): { s: number; p: string } | null {
   const s = parseIntParam(surahId);
-  const p = parseIntParam(passageNo);
-  if (!s || !p) return null;
-  return { s, p };
+  const raw = decodeURIComponent(passageNo ?? '').trim();
+  if (!s || s < 1 || s > 114) return null;
+  if (!/^\d+$/.test(raw) && !/^\d+-\d+$/.test(raw)) return null;
+  if (/^\d+$/.test(raw) && !parseIntParam(raw)) return null;
+  return { s, p: raw };
 }
 
 const CORPUS_TTL = { browser: 14400, edge: 86400 };
@@ -47,7 +51,9 @@ export function studyRoutes(router: Router<QuranEnv>) {
     cached(req, async () => {
       const s = parseIntParam(surahId);
       if (!s) return badRequest('Invalid surahId');
-      const data = await new StudyRepo(env.DB_QR).grid(s);
+      // Every passage of the surah: the curated ones and the atlas's derived passages between
+      // them (each with its key "from-to"), with what each step holds for it.
+      const data = await new StudyRepo(env.DB_QR).grid(s, { derived: true, al: createAlClient(env) });
       return data ? ok(data) : notFound(`study grid for surah ${s}`);
     // The grid's has-flags follow authored rows (sections, sentences, tafsir),
     // so they must age like the step payloads, not like the corpus.
@@ -67,11 +73,10 @@ export function studyRoutes(router: Router<QuranEnv>) {
       if (!sp) return badRequest('Invalid surahId or passageNo');
 
       const repo     = new StudyRepo(env.DB_QR);
-      const passages = await repo.passages(sp.s);
-      const passage  = passages.find(p => p.passage_no === sp.p);
+      const passage  = await repo.resolve(sp.s, sp.p);
       if (!passage) return notFound(`passage ${sp.s}:${sp.p}`);
 
-      const stepTypes = await repo.stepTypes(sp.s, sp.p) ?? [];
+      const stepTypes = await repo.stepTypes(sp.s, sp.p, createAlClient(env)) ?? [];
 
       return ok({ passage, step_types: stepTypes });
     },

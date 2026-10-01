@@ -23,7 +23,9 @@ const RECITER = 7;   // Mishary Rashid al-ʿAfāsī (qr_recitation)
 type Depth = 'built' | 'source' | null;
 
 /// A passage's layers, from its study flags: built where authored rows exist, source
-/// where the books alone cover it, left out where there is nothing yet.
+/// where the step serves what the books give (every step does now — study-derived.ts),
+/// left out where there is nothing yet. `has` here is the grid's `built`, so a layer is
+/// never called built while its step holds no authored rows.
 function layersFor(L: Label[] | undefined, has: Record<string, number>): Array<ReturnType<typeof card> & { depth: Depth; step: string | null }> {
   const depth: Record<string, Depth> = {
     reading: has.reading ? 'built' : 'source',
@@ -34,13 +36,24 @@ function layersFor(L: Label[] | undefined, has: Record<string, number>): Array<R
     balagha: has.sentence_structure ? 'built' : 'source',
     idioms: has.vocabulary ? 'built' : 'source',
     lexicon: 'source',
-    structure: has.passage_structure ? 'built' : null,
+    structure: has.passage_structure ? 'built' : 'source',
     tafsir: has.tafsir ? 'built' : 'source',
     context: null,
   };
   return (L ?? [])
     .map((l) => ({ ...card(l), depth: depth[l.key] ?? null, step: (l.extra?.step as string | undefined) ?? null }))
     .filter((l) => l.depth);
+}
+
+type GridUnit = NonNullable<Awaited<ReturnType<StudyRepo['grid']>>>['units'][number];
+
+/// What is authored for a curated unit, as layersFor reads it: the grid's `built` flags
+/// (reading and words are the corpus itself).
+function builtOf(u: GridUnit): Record<string, number> {
+  return {
+    reading: u.reading.has, vocabulary: u.vocabulary.has, sentence_structure: u.sentence_structure.built,
+    passage_structure: u.passage_structure.built, tafsir: u.tafsir.built,
+  };
 }
 
 export function atlasRoutes(router: Router<QuranEnv>) {
@@ -87,10 +100,7 @@ export function atlasRoutes(router: Router<QuranEnv>) {
     ]);
     if (!head) return notFound(`surah ${s}`);
     const curated = (grid?.units ?? []).map((u) => {
-      const has: Record<string, number> = {
-        reading: u.reading.has, vocabulary: u.vocabulary.has, sentence_structure: u.sentence_structure.has,
-        passage_structure: u.passage_structure.has, tafsir: u.tafsir.has,
-      };
+      const has = builtOf(u);
       const layers = layersFor(L.layer, has);
       return {
         no: u.passage_no, from: u.ayah_from, to: u.ayah_to, title: u.label, theme: u.theme,
@@ -196,10 +206,7 @@ async function passageSlice(env: QuranEnv, s: number, from: number, to: number,
   const wordsOf = new Map<number, typeof words>();
   for (const w of words) wordsOf.set(w.ayah, [...(wordsOf.get(w.ayah) ?? []), w]);
   const unit = meta && !meta.derived ? grid?.units.find((x) => x.passage_no === (meta.curatedNo ?? meta.no)) : null;
-  const has: Record<string, number> = unit ? {
-    reading: unit.reading.has, vocabulary: unit.vocabulary.has, sentence_structure: unit.sentence_structure.has,
-    passage_structure: unit.passage_structure.has, tafsir: unit.tafsir.has,
-  } : {};
+  const has: Record<string, number> = unit ? builtOf(unit) : {};
   return {
     surah: s, from, to, passage: meta,
     ayat: ayat.map((a) => {
