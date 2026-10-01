@@ -37,7 +37,31 @@ const COLOR: Record<string, string> = { maqayis_lugha: '#B388EB', lane_lexicon: 
 const fold = (w: string | null | undefined) => (w ?? '').replace(/[ؐ-ًؚ-ٰٟۖ-ۭـ]/g, '')
   .replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[^ء-ي]/g, '');
 const spaced = (r: string) => [...fold(r)].join(' ');
-const clip = (t: string | null | undefined, k = 140) => { const s = (t ?? '').replace(/\s+/g, ' ').trim(); return s.length > k ? s.slice(0, k - 1).replace(/\s+\S*$/, '') + ' …' : s; };
+// a source's sigils (Lane's ‡ tropical, † post-classical, * marks) are its typography, not the reader's text
+const tidy = (t: string | null | undefined) => (t ?? '').replace(/[‡†*]+/g, '').replace(/\s+/g, ' ').trim();
+/// cut where the source pauses (، ؛ . ;) rather than mid-phrase; only then at a word
+const clip = (t: string | null | undefined, k = 140) => {
+  const s = tidy(t);
+  if (s.length <= k) return s;
+  const head = s.slice(0, k);
+  const pause = Math.max(...['،', '؛', '.', ';', ':'].map((p) => head.lastIndexOf(p)));
+  return (pause > k * 0.5 ? head.slice(0, pause) : head.replace(/\s+\S*$/, '')).trim() + ' …';
+};
+// Bidi for an explanation read as plain text: an English line starts left-to-right (LRM) so its
+// number stays on the left, and the Arabic inside it is isolated (FSI…PDI) so it cannot reorder the
+// line; an Arabic quote stands on a line of its own and reads right-to-left.
+const LTR = '\u200E';
+// Lane renders some senses in Latin; those are not the reader's English
+const isEnglish = (t: string) => /\b(the|a|an|of|to|or|and|he|she|it|was|is|in|on|with|for|from|his|her|their)\b/i.test(t);
+/// Lane's English as plain English: the Arabic he quotes inside a gloss taken out, its brackets and
+/// doubled punctuation tidied — the Arabic stands on its own line below
+const plainEn = (t: string | null | undefined) => {
+  const s = tidy(t).replace(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]+/g, ' ')
+    .replace(/\(\s*\)|\[\s*\]/g, ' ').replace(/\s+([,.;:])/g, '$1').replace(/([,;:])\1+/g, '$1')
+    .replace(/,\s*,/g, ',').replace(/\s+/g, ' ').replace(/^[\s,;:—-]+|[\s,;:—-]+$/g, '').trim();
+  return s && isEnglish(s) ? s : '';
+};
+const iso = (ar: string) => `\u2068${ar}\u2069`;
 /// a rung as an option: the source's English where every option has it, else its Arabic
 const face = (r: Rung, en: boolean) => clip(en ? (r.labelEn ?? r.labelAr) : (r.labelAr ?? r.labelEn), 110);
 
@@ -59,9 +83,16 @@ function line(text: string, mark?: string | null) {
 }
 
 /// the arc read out: each rung and who gives it
-const arcText = (rs: Rung[], src: Src, k = 8) => rs.slice(0, k).map((r) =>
-  `${r.seq}. ${clip(r.labelEn ?? r.labelAr, 90)}${r.labelEn && r.labelAr ? ` — ${clip(r.labelAr, 60)}` : ''}` +
-  (r.attest?.length ? ` (${r.attest.map((a) => `${src[a.source]?.short ?? a.source} ${a.seq}`).join(', ')})` : '')).join('\n');
+const arcText = (rs: Rung[], src: Src, k = 8) => rs.slice(0, k).map((r) => {
+  // the step in plain words, then its key word (head_ar, vocalised) — the book's own sentence only
+  // where no one has written the step out yet
+  const en = plainEn(r.labelEn), key = tidy(r.headAr), ar = key && key.length <= 40 ? key : clip(r.labelAr, 70);
+  const head = `${LTR}${r.seq}. ${en ? clip(en, 110) : iso(ar)}`;
+  return en && ar ? `${head}\n${ar}` : head;
+}).join('\n\n');
+/// a source's statement: who says it (left-to-right), then the words themselves on their own line
+const said = (cite: string | null | undefined, quote: string | null | undefined, k = 260) =>
+  [cite ? `${LTR}${tidy(cite)}:` : '', quote ? `«${clip(quote, k)}»` : ''].filter(Boolean).join('\n');
 
 export async function arc2Drills(env: QuranEnv, n: number, scope: Scope, lv: Record<string, unknown>, L: Record<string, Label[]>): Promise<Drill[]> {
   const { band, asks } = levelOf(L, 'meaning_arc', lv);
@@ -131,7 +162,11 @@ function build(ask: string, x: any, ctx: Ctx): Drill | null {
     const byWhom = src[who]?.short ?? who;
     const en = !first.labelAr;
     const answer = face(first, en);
-    const why = asl ? `${asl.cite}: «${clip(asl.quoteAr ?? asl.labelAr, 260)}»` : first.cite ?? '';
+    const core = asl ?? first, coreEn = plainEn(core.labelEn), coreKey = tidy(core.headAr);
+    // the core said plainly, with its key word and who gives it; the book's sentence where it is not written out
+    const why = coreEn
+      ? [`${LTR}Core image: ${coreEn}`, coreKey && coreKey.length <= 40 ? coreKey : '', `${LTR}— ${byWhom}`].filter(Boolean).join('\n')
+      : (asl ? said(asl.cite, asl.quoteAr ?? asl.labelAr) : `${LTR}${tidy(first.cite)}`);
     let options: string[];
     let prompt: string;
     if (ask === 'arc_core') {
@@ -147,7 +182,7 @@ function build(ask: string, x: any, ctx: Ctx): Drill | null {
     if (options.length < 3) return null;
     const drill: Drill = { id: `arc2:${ask}:${x.root}`, kind: 'feature', ask: ask.replace('arc_', 'arc2_'), ...at.base, prompt,
       options: shuffle(options), answer, arabicOptions: !en, note: { en: `the root ${spaced(x.root)}`, ar: spaced(x.root) },
-      explanation: `${why}\n\nThe arc, as the sources order it:\n${arcText(rungs, src)}`, badges: [badge(who)], source: source(x.root, who) };
+      explanation: `${why}\n\n${LTR}How the meaning branches out:\n\n${arcText(rungs, src)}`, badges: [badge(who)], source: source(x.root, who) };
     return withCard(drill, { ref: `QR:arc2:${ask}:${x.root}`, type: 'root', kind: 'meaning_arc', band,
       front: `${at.ay.ws.map((w) => w.word_text).join(' ')}\n${spaced(x.root)} — ${ask === 'arc_core' ? 'its core?' : 'where does it start?'}`,
       back: `${answer}\n${why}`, surah: at.ay.surah, ayah: at.ay.ayah, series: 'Meaning arcs · the core' });
@@ -165,7 +200,7 @@ function build(ask: string, x: any, ctx: Ctx): Drill | null {
       prompt: `${name} on ${spaced(x.root)} — put his statements back in his order`,
       dialogue: rs.map((r) => ({ speaker: null, ar: clip(r.labelAr ?? r.headAr ?? '', 160), en: clip(r.labelEn ?? (r.marker ? `(${r.marker})` : ''), 160), clip: null })),
       shuffled: sh, badges: [badge(x.source)], source: source(x.root, x.source),
-      explanation: rs.map((r) => `${r.seq}. ${clip(r.labelEn ?? r.labelAr, 100)} — ${r.cite ?? ''}`).join('\n') };
+      explanation: rs.map((r) => `${LTR}${r.seq}. ${plainEn(r.labelEn) ? clip(plainEn(r.labelEn), 100) : iso(clip(r.labelAr, 100))}${r.cite ? `\n${LTR}— ${tidy(r.cite)}` : ''}`).join('\n\n') };
     return withCard(drill, { ref: `QR:arc2:order:${x.root}:${x.source}`, type: 'root', kind: 'meaning_arc', band,
       front: `${spaced(x.root)} — ${name}'s order`, back: rs.map((r) => clip(r.labelEn ?? r.labelAr, 60)).join(' → '), series: 'Meaning arcs · order' });
   }
@@ -223,7 +258,7 @@ function build(ask: string, x: any, ctx: Ctx): Drill | null {
       script: isEn ? null : 'arabic', audio: null, en: null, words: ln.words, span: ln.span,
       prompt: `${name} goes from «${clip(x.from.labelAr ?? x.from.labelEn, 70)}» to «${clip(x.to.labelAr ?? x.to.labelEn, 70)}». With which words?`,
       options: shuffle(options), answer, arabicOptions: !isEn, note: { en: x.relationLabel, ar: answer },
-      explanation: `${x.to.cite ?? name}: «${clip(quote, 300)}» — ${x.relationLabel}.`, badges: [badge(x.source)], source: source(x.root, x.source) };
+      explanation: `${said(x.to.cite ?? name, quote, 300)}\n${LTR}— ${x.relationLabel}.`, badges: [badge(x.source)], source: source(x.root, x.source) };
     return withCard(drill, { ref: `QR:arc2:link:${x.root}:${x.source}:${x.from.seq}:${x.to.seq}`, type: 'root', kind: 'meaning_arc', band,
       front: `${spaced(x.root)} · ${name}: ${clip(x.from.labelAr ?? x.from.labelEn, 50)} → ${clip(x.to.labelAr ?? x.to.labelEn, 50)} — how?`,
       back: `${answer} (${x.relationLabel})\n«${clip(quote, 200)}»`, series: 'Meaning arcs · links' });
