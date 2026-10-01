@@ -13,6 +13,7 @@ import { vocabDrills, vocabCount } from './practice-vocab';
 import { arc2Drills } from './practice-arc2';
 import { surahLexDrills, surahLexCounts } from './practice-surah-lex';
 import { groupDrills, groupsCount } from './practice-groups';
+import { ssDrills, ssCount } from './practice-ss';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
 // The Qurʾān drilled as the Arabic side is (DrillKit shapes): each āyah a line heard in
@@ -48,10 +49,10 @@ export function practiceRoutes(router: Router<QuranEnv>) {
       query<{ n: number }>(env.DB_QR, `SELECT COALESCE(SUM(n_ayat), 0) AS n FROM qr_translation_feature`).catch(() => [{ n: 0 }]),
       al<{ grammar: number; balagha: number; idiom: number; arc: number }>(env, '/al/drill/counts').catch(() => null),
     ]);
-    const [tafsir, irabbooks, gram, vocab] = await Promise.all([tafsirCount(env).catch(() => 0), irabBookCount(env).catch(() => 0),
+    const [tafsir, irabbooks, gram, vocab, ss] = await Promise.all([tafsirCount(env).catch(() => 0), irabBookCount(env).catch(() => 0),
                                                          gramTermCounts(env, L.skill ?? []).catch(() => ({} as Record<string, number>)),
-                                                         vocabCount(env).catch(() => 0)]);
-    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, tafsir, irabbooks, vocab, ...(counts ?? {}), ...gram, ...(await surahLexCounts(env).catch(() => ({}))), groups: await groupsCount(env, L).catch(() => 0) };
+                                                         vocabCount(env).catch(() => 0), ssCount(env).catch(() => 0)]);
+    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, tafsir, irabbooks, vocab, ss, ...(counts ?? {}), ...gram, ...(await surahLexCounts(env).catch(() => ({}))), groups: await groupsCount(env, L).catch(() => 0) };
     return ok({
       skills: (L.skill ?? []).map((s) => {
         const src = String(s.extra?.source ?? s.key);
@@ -91,6 +92,7 @@ export function practiceRoutes(router: Router<QuranEnv>) {
       : src === 'arc2' ? await arc2Drills(env, n, scope, lv, L)
       : ['nearsyn', 'keyterm', 'expression'].includes(src) ? await surahLexDrills(env, src, n, scope, lv, L)
       : src === 'groups' ? await groupDrills(env, n, scope, lv, L, u)
+      : src === 'ss' ? await ssDrills(env, n, scope, lv, L)
       : [];
     const kinds = byKey(L.kind);
     const deck = byKey(L.path).get('srs_deck');
