@@ -387,10 +387,11 @@ async function grammarDrills(env: ArabicEnv, all: L, band: Band, n: number, less
 /// those are drawn first.
 type ReadRow = { id: string; work_id: string; work_title: string | null; unit_id: string; text_ar: string;
                  object_key: string | null; start_sec: number | null; end_sec: number | null; words_json: string | null; blanks_json: string | null };
-/// Graded (ar_read_pool.grade, by length and rare words): Level 2 reads the plainer, Level 3 the harder.
+/// Graded (ar_read_pool.grade, by length and rare words): Level 1 reads grade 0 — the plainest recorded lines of the
+/// books and readers, in their human recording (drill_words.py level1) — Level 2 the plainer, Level 3 the harder.
 async function readDrills(env: ArabicEnv, all: L, band: Band, n: number) {
   const cfg = bandCfg(all, band);
-  const grades = band === 'all' ? [1, 2, 3] : cfg.read?.grades ?? [];
+  const grades = band === 'all' ? [0, 1, 2, 3] : cfg.read?.grades ?? [];
   if (!grades.length) return [];
   const common = await commonWords(env);
   const light = (w: string) => isCommon(common, w, band === 'basic');
@@ -427,7 +428,8 @@ async function readDrills(env: ArabicEnv, all: L, band: Band, n: number) {
     const end = r.end_sec ?? 0;
     out.push({ id: `read:${r.id}`, kind: 'read', blank: at, answer, options: shuffle([answer, ...opts]),
                words: toks.map((t, i) => ({ t, s: voiced ? times[i][0] : 0, e: voiced ? times[i][1] : 0 })),
-               ...(voiced ? { audio: { url: audioUrl(r.object_key!), start: r.start_sec ?? 0, end }, voice: 'silma' } : {}),
+               ...(voiced ? { audio: { url: audioUrl(r.object_key!), start: r.start_sec ?? 0, end },
+                              ...(r.object_key!.startsWith('tts/') ? { voice: 'silma' } : {}) } : {}),
                source: { workId: r.work_id, title: r.work_title, level: null }, en: null });
   }
   return out;
@@ -478,7 +480,7 @@ async function grammarCount(env: ArabicEnv, all: L, band: Band) {
 async function counts(env: ArabicEnv, all: L, band: Band) {
   const cfg = bandCfg(all, band);
   const wc = cfg.lines ?? { min: 0, max: 999 };
-  const grades = band === 'all' ? [1, 2, 3] : cfg.read?.grades ?? [];
+  const grades = band === 'all' ? [0, 1, 2, 3] : cfg.read?.grades ?? [];
   const [pool, daily, mined, glossed, mine, read, voiced, grammar] = await Promise.all([
     query<{ n: number }>(env.DB_AR, `SELECT COUNT(*) AS n FROM ar_practice_pool WHERE (? = 'all' OR band = ?) AND word_count BETWEEN ? AND ?`, [band, band, wc.min, wc.max]),
     query<{ n: number }>(env.DB_AR, `SELECT COUNT(*) AS n FROM ar_daily_word`),

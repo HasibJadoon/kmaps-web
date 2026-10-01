@@ -17,6 +17,13 @@ import { loadAyat, withCard, levelOf, interleave, shuffle, uniq, parseJson, rang
 //   tafsir_school  a position on a point of doctrine — whose               (idiom)
 //   tafsir_reading a curated reading's thesis — whose                      (feature)
 //   tafsir_section a mufassir's own words — which step of his argument     (idiom)
+//   the curated surah tables (qr_surah_tafsir_theme/_term/_xref/_hadith — surahs 40, 44):
+//   tafsir_theme   a stretch of his tafsīr — which of his themes it is      (idiom)
+//   tafsir_term    a term as he uses it — what it means, in his reading     (feature)
+//   tafsir_xref    an āyah he cites — which āyah it is                      (grammar)
+//   tafsir_hadith  a ḥadīth he cites — on which āyah                        (grammar)
+//   tafsir_fiqh    a ruling with the school it names left out — whose        (idiom; answer: the madhab key,
+//                  and only where the text names the school)
 
 type Item = { id: string; ask: string; surah: number; ayah_from: number | null; ayah_to: number | null; ayah: number | null;
               source_slug: string | null; source_name: string | null; text: string; answer: string | null; context: string | null;
@@ -39,12 +46,14 @@ export async function tafsirDrills(env: QuranEnv, n: number, scope: Scope, lv: R
     `SELECT rowid AS rid, * FROM qr_tafsir_drill_item WHERE rowid IN (${ids.map(() => '?').join(',')})`, ids))
     .sort((a, b) => (order.get(a.rid) ?? 0) - (order.get(b.rid) ?? 0));
 
-  const whereAyat = items.filter((i) => i.ask === 'tafsir_where').flatMap((i) => [i.answer!, ...parseJson<string[]>(i.others_json, [])]);
+  // āyāt shown as options (tafsir_where, _xref, _hadith): "s:a" or "s:a-b", by the first āyah's text
+  const whereAyat = items.filter((i) => ['tafsir_where', 'tafsir_xref', 'tafsir_hadith'].includes(i.ask))
+    .flatMap((i) => [i.answer!, ...parseJson<string[]>(i.others_json, [])]).map((k) => k.split('-')[0]);
   const introSurahs = items.filter((i) => i.ask === 'surah_intro').flatMap((i) => [Number(i.answer), ...parseJson<number[]>(i.others_json, [])]);
   const [books, ayat, texts, surahs, points] = await Promise.all([
     query<Book>(env.DB_QR, `SELECT source_slug, book_title_ar, book_title_en, author_name_ar, author_name_en, madhab, kalam_school, death_year_hijri
                               FROM qr_tafsir_book_display_source ORDER BY display_order`),
-    loadAyat(env, items.filter((i) => i.ask !== 'surah_intro' && i.ask !== 'tafsir_where' && i.ayah).map((i) => [i.surah, i.ayah!])),
+    loadAyat(env, items.filter((i) => !['surah_intro', 'tafsir_where', 'tafsir_xref', 'tafsir_hadith'].includes(i.ask) && i.ayah).map((i) => [i.surah, i.ayah!])),
     whereAyat.length ? query<{ surah: number; ayah: number; text: string }>(env.DB_QR,
       `SELECT surah, ayah, text_uthmani AS text FROM qr_ayah
         WHERE (surah, ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`,
@@ -74,6 +83,9 @@ export async function tafsirDrills(env: QuranEnv, n: number, scope: Scope, lv: R
     return (prefer ? [...pool.filter(prefer), ...pool.filter((s) => !prefer(s))] : pool).slice(0, 3);
   };
   const short = (t: string, n = 9) => { const w = t.split(/\s+/); return w.length > n ? `${w.slice(0, n).join(' ')} …` : t; };
+  const ayahOpt = (k: string) => { const t = ayahText.get(k.split('-')[0]); return t ? `${short(t)} (${k.replace('-', '–')})` : null; };
+  const madhab = byKey(L.madhab);
+  const schoolName = (k: string) => { const m = madhab.get(k); return m ? `${m.label}${m.labelAr ? ` · ${m.labelAr}` : ''}` : k; };
 
   const out: Drill[] = [];
   for (const it of items) {
@@ -152,6 +164,60 @@ export async function tafsirDrills(env: QuranEnv, n: number, scope: Scope, lv: R
         note: { en: nameOf(ans), ar: book.get(ans)?.author_name_ar ?? '' },
         explanation: `${it.context ? `${it.context}\n` : ''}— the curated reading of ${range} (${it.tag})`, source,
       }, `“${it.text}”\n— whose reading of ${range}?`, `${nameOf(ans)}\n${it.context ?? ''}`, 'tafsir'));
+    } else if (it.ask === 'tafsir_theme') {
+      const wrong = shuffle(parseJson<string[]>(it.others_json, []).filter((h) => h !== it.answer)).slice(0, 3);
+      const b = book.get(it.source_slug ?? '');
+      if (!a || !it.answer || !b || wrong.length < 2) continue;
+      const range = rangeOf(it.surah, it.ayah_from ?? 1, it.ayah_to);
+      out.push(card({
+        id: `tafsir:${it.id}`, kind: 'idiom', ask: it.ask, ...heard, span: [],
+        prompt: it.text, options: shuffle([it.answer, ...wrong]), answer: it.answer,
+        note: { en: `${b.author_name_en} — ${b.book_title_en}, on ${range}`, ar: it.tag ?? '' },
+        explanation: `${it.answer}${it.tag ? ` · ${it.tag}` : ''}${it.context ? `\n${it.context}` : ''}\n— ${cite(it)}`, source,
+      }, `${it.text}\n— which of ${b.author_name_en}'s themes on ${range}?`, `${it.answer}\n${it.tag ?? ''}\n${cite(it)}`, 'tafsir'));
+    } else if (it.ask === 'tafsir_term') {
+      const wrong = shuffle(parseJson<string[]>(it.others_json, []).filter((h) => h !== it.answer)).slice(0, 3);
+      const b = book.get(it.source_slug ?? '');
+      if (!a || !it.answer || !b || wrong.length < 3) continue;
+      out.push(card({
+        id: `tafsir:${it.id}`, kind: 'feature', ask: it.ask, ...heard, span: [],
+        prompt: `«${it.text}» — as ${b.author_name_en} uses it on ${rangeOf(it.surah, it.ayah_from ?? 1, it.ayah_to)}, it means:`,
+        options: shuffle([it.answer, ...wrong]), answer: it.answer,
+        note: { en: `${b.author_name_en} — ${b.book_title_en}`, ar: it.text },
+        explanation: `«${it.text}» — ${it.answer}${it.context ? ` (${it.context})` : ''}\n— ${cite(it)}`, source,
+      }, `«${it.text}» — ${b.author_name_en}'s sense?`, `${it.answer}\n${cite(it)}`, 'tafsir'));
+    } else if (it.ask === 'tafsir_xref' || it.ask === 'tafsir_hadith') {
+      const b = book.get(it.source_slug ?? '');
+      const answer = ayahOpt(it.answer ?? '');
+      const wrong = uniq(parseJson<string[]>(it.others_json, []).filter((k) => k !== it.answer).map(ayahOpt)
+        .filter((x): x is string => !!x && x !== answer)).slice(0, 3);
+      if (!answer || !b || wrong.length < 2) continue;
+      const k = (it.answer ?? '').split('-')[0];
+      const [s2, ay2] = k.split(':').map(Number);
+      const xref = it.ask === 'tafsir_xref';
+      const range = rangeOf(it.surah, it.ayah_from ?? 1, it.ayah_to);
+      out.push(card({
+        id: `tafsir:${it.id}`, kind: 'grammar', ask: it.ask, script: 'quran',
+        prompt: xref ? `${b.author_name_en}, on ${range}, cites «${it.text}»${it.context ? ` — ${it.context}` : ''}. Which āyah is it?`
+                     : `${b.author_name_en} cites this ḥadīth: «${it.text}» — on which āyah?`,
+        options: shuffle([answer, ...wrong]), answer,
+        note: { en: `${b.author_name_en} — ${b.book_title_en}`, ar: it.tag ?? '' },
+        explanation: `﴿${ayahText.get(k) ?? ''}﴾ (${(it.answer ?? '').replace('-', '–')})${!xref && it.context ? `\n${it.context}` : ''}\n— ${cite(it)}`,
+        source: { workId: `QR:SURAH:${s2}`, title: `${surahOf.get(s2)?.name_en ?? 'Surah'} ${s2}:${ay2}`, level: null },
+      }, xref ? `«${it.text}» — cited by ${b.author_name_en} on ${range}: which āyah?` : `«${it.text}» — ${b.author_name_en} cites it on which āyah?`,
+         `${answer}\n${cite(it)}`, 'tafsir'));
+    } else if (it.ask === 'tafsir_fiqh') {
+      const b = book.get(it.source_slug ?? '');
+      const ans = it.answer ?? '';
+      if (!a || !b || !madhab.has(ans)) continue;
+      const wrong = shuffle(parseJson<string[]>(it.others_json, []).filter((k) => k !== ans && madhab.has(k))).slice(0, 3).map(schoolName);
+      if (wrong.length < 3) continue;
+      out.push(card({
+        id: `tafsir:${it.id}`, kind: 'idiom', ask: it.ask, ...heard, span: [],
+        prompt: it.text, options: shuffle([schoolName(ans), ...wrong]), answer: schoolName(ans),
+        note: { en: `${b.author_name_en} — ${b.book_title_en}: whose position?`, ar: 'لِمَنْ هَذَا القَوْل؟' },
+        explanation: `${it.context ?? ''}\n— ${cite(it)} (the text names ${it.tag ?? schoolName(ans)})`, source,
+      }, `${it.text}\n— whose position? (${rangeOf(it.surah, it.ayah_from ?? 1, it.ayah_to)})`, `${schoolName(ans)}\n${it.context ?? ''}\n${cite(it)}`, 'tafsir'));
     } else if (it.ask === 'tafsir_section') {
       const wrong = shuffle(parseJson<string[]>(it.others_json, []).filter((h) => h !== it.answer)).slice(0, 3);
       if (!a || !it.answer || wrong.length < 2) continue;

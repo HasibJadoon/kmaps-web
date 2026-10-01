@@ -14,8 +14,11 @@ import { loadAyat, withCard, levelOf, interleave, shuffle, uniq, cap, parseJson,
 //   irab_which_book  the books part ways on the word — which gives this parse        L2
 //   irab_allowed     a reading the book also allows the word                         L3
 //   irab_who_allows  which book allows the word this reading                         L3
+//
+// A row whose word_to runs past its word_index is a phrase the book parses whole (al-ʿUkbarī's «(من لدنه)»,
+// al-Jadwal's «(في الأرض)»): the whole span is marked, and it is set only against the books' parses of the same span.
 
-type Row = { rid: number; id: string; surah: number; ayah: number; word_index: number; word_text: string; source_slug: string;
+type Row = { rid: number; id: string; surah: number; ayah: number; word_index: number; word_to: number | null; word_text: string; source_slug: string;
              role_gt: string | null; alt_roles_json: string | null; named_json: string | null; parse_ar: string; alt_ar: string | null;
              entry_id: string; n_books: number; n_roles: number };
 type BookName = { en: string; ar: string };
@@ -59,7 +62,8 @@ export async function irabBookDrills(env: QuranEnv, n: number, scope: Scope, lv:
   const roleName = (gt: string) => { const t = term.get(gt); return t ? (t.name_en ? `${cap(t.name_en)} · ${t.name_ar}` : t.name_ar) : gt.split(':').pop()!; };
   const bookName = (slug: string) => books[slug]?.en ?? slug;
   const clip = (s: string, k = 140) => (s.length > k ? `${s.slice(0, s.lastIndexOf(' ', k) > k / 2 ? s.lastIndexOf(' ', k) : k)} …` : s);
-  const onWord = (r: Row) => peers.filter((p) => p.surah === r.surah && p.ayah === r.ayah && p.word_index === r.word_index);
+  const endOf = (r: Row) => (r.word_to && r.word_to > r.word_index ? r.word_to : r.word_index);
+  const onWord = (r: Row) => peers.filter((p) => p.surah === r.surah && p.ayah === r.ayah && p.word_index === r.word_index && endOf(p) === endOf(r));
   const named = (r: Row) => new Set(parseJson<string[]>(r.named_json, []));
   const roleOptions = (answer: string, avoid: Set<string>, r: Row) => {
     const inAyah = peers.filter((p) => p.surah === r.surah && p.ayah === r.ayah).map((p) => p.role_gt).filter((x): x is string => !!x);
@@ -72,10 +76,12 @@ export async function irabBookDrills(env: QuranEnv, n: number, scope: Scope, lv:
     const a = ayat.get(`${r.surah}:${r.ayah}`);
     if (!a) continue;
     const idx = a.ws.findIndex((w) => w.word_index === r.word_index);
-    if (idx < 0) continue;
+    const end = a.ws.findIndex((w) => w.word_index === endOf(r));
+    if (idx < 0 || end < idx) continue;
+    const wk = endOf(r) > r.word_index ? `${r.word_index}-${endOf(r)}` : `${r.word_index}`;
     const ask = askOf.get(r.rid) ?? 'irab_muyassar';
     const line = a.ws.map((w) => w.word_text).join(' ');
-    const base = { kind: 'feature', ask, script: 'quran', audio: a.audio, words: a.words, en: a.en, span: [idx],
+    const base = { kind: 'feature', ask, script: 'quran', audio: a.audio, words: a.words, en: a.en, span: Array.from({ length: end - idx + 1 }, (_, k) => idx + k),
                    source: { workId: `QR:SURAH:${r.surah}`, title: a.title, level: null } };
     const card = (d: Drill, key: string, front: string, back: string) =>
       withCard(d, { ref: `QR:irabbooks:${key}`, type: 'grammar', kind: 'irabbooks', band, front, back,
@@ -89,11 +95,11 @@ export async function irabBookDrills(env: QuranEnv, n: number, scope: Scope, lv:
         const wrong = roleOptions(role, named(r), r).map(roleName);
         if (wrong.length < 3) continue;
         out.push(card({
-          ...base, id: `irabbooks:muyassar:${a.key}:${r.word_index}`, prompt: `How does al-Iʿrāb al-Muyassar parse ${r.word_text}?`,
+          ...base, id: `irabbooks:muyassar:${a.key}:${wk}`, prompt: `How does al-Iʿrāb al-Muyassar parse ${r.word_text}?`,
           options: shuffle([roleName(role), ...wrong]), answer: roleName(role),
           note: { en: cap(term.get(role)?.name_en), ar: term.get(role)?.name_ar ?? '' },
           explanation: `${r.parse_ar} — ${bookName(r.source_slug)}${others.length ? `\n${parses(others)}` : ''}`,
-        }, `muyassar:${a.key}:${r.word_index}`, `${line}\n${r.word_text} — al-Muyassar?`, `${roleName(role)}\n${r.parse_ar}`));
+        }, `muyassar:${a.key}:${wk}`, `${line}\n${r.word_text} — al-Muyassar?`, `${roleName(role)}\n${r.parse_ar}`));
       } else {
         // the right book is the only one among the options whose parse names this role at all
         const against = others.filter((p) => !named(p).has(role));
@@ -102,12 +108,12 @@ export async function irabBookDrills(env: QuranEnv, n: number, scope: Scope, lv:
                             ...shuffle(allBooks.filter((b) => b !== r.source_slug && !onWord(r).some((p) => p.source_slug === b)))]).slice(0, 3);
         if (wrong.length < 2) continue;
         out.push(card({
-          ...base, id: `irabbooks:which:${a.key}:${r.word_index}:${r.source_slug}`,
+          ...base, id: `irabbooks:which:${a.key}:${wk}:${r.source_slug}`,
           prompt: `The books part ways on ${r.word_text}. Which one parses it as ${roleName(role)}?`,
           options: shuffle([bookName(r.source_slug), ...wrong.map(bookName)]), answer: bookName(r.source_slug),
           note: { en: cap(term.get(role)?.name_en), ar: term.get(role)?.name_ar ?? '' },
           explanation: parses([r, ...others]),
-        }, `which:${a.key}:${r.word_index}:${r.source_slug}`, `${line}\n${r.word_text} as ${roleName(role)} — which book?`,
+        }, `which:${a.key}:${wk}:${r.source_slug}`, `${line}\n${r.word_text} as ${roleName(role)} — which book?`,
            `${bookName(r.source_slug)}\n${parses([r, ...others])}`));
       }
     } else {
@@ -120,12 +126,12 @@ export async function irabBookDrills(env: QuranEnv, n: number, scope: Scope, lv:
         if (wrong.length < 3) continue;
         const first = r.role_gt ? `Besides ${roleName(r.role_gt)}, which` : 'Which';
         out.push(card({
-          ...base, id: `irabbooks:allowed:${a.key}:${r.word_index}:${r.source_slug}`,
+          ...base, id: `irabbooks:allowed:${a.key}:${wk}:${r.source_slug}`,
           prompt: `${first} reading does ${bookName(r.source_slug)} allow ${r.word_text}?`,
           options: shuffle([roleName(alt), ...wrong]), answer: roleName(alt),
           note: { en: cap(term.get(alt)?.name_en), ar: term.get(alt)?.name_ar ?? '' },
           explanation: cited,
-        }, `allowed:${a.key}:${r.word_index}:${r.source_slug}`, `${line}\n${r.word_text} — ${bookName(r.source_slug)} also allows?`,
+        }, `allowed:${a.key}:${wk}:${r.source_slug}`, `${line}\n${r.word_text} — ${bookName(r.source_slug)} also allows?`,
            `${roleName(alt)}\n${cited}`));
       } else {
         // which book allows it: the others on this word that never name the reading, then books silent on the word
@@ -135,12 +141,12 @@ export async function irabBookDrills(env: QuranEnv, n: number, scope: Scope, lv:
         const wrong = uniq([...shuffle(against), ...shuffle(silent)]).filter((b) => !allowing.includes(b)).slice(0, 3);
         if (!against.length || wrong.length < 2) continue;
         out.push(card({
-          ...base, id: `irabbooks:allows:${a.key}:${r.word_index}:${r.source_slug}`,
+          ...base, id: `irabbooks:allows:${a.key}:${wk}:${r.source_slug}`,
           prompt: `Which book allows ${r.word_text} to be read as ${roleName(alt)}?`,
           options: shuffle([bookName(r.source_slug), ...wrong.map(bookName)]), answer: bookName(r.source_slug),
           note: { en: cap(term.get(alt)?.name_en), ar: term.get(alt)?.name_ar ?? '' },
           explanation: `${cited}${others.length ? `\n${parses(others)}` : ''}`,
-        }, `allows:${a.key}:${r.word_index}:${r.source_slug}`, `${line}\n${r.word_text} as ${roleName(alt)} — which book allows it?`,
+        }, `allows:${a.key}:${wk}:${r.source_slug}`, `${line}\n${r.word_text} as ${roleName(alt)} — which book allows it?`,
            `${bookName(r.source_slug)}\n${cited}`));
       }
     }

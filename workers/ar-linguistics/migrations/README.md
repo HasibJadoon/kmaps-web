@@ -30,3 +30,4 @@ record it: `INSERT OR IGNORE INTO d1_migrations (name) VALUES ('<file>')`.
 | 0109_gt_discipline_codes.sql | the term registry and its categories on one code per discipline (NH, SF, BL, DL) |
 | 0110_adima_dirasat_rows.sql | ʿUḍayma's Dirāsāt as rows — ar_ling_adima_entry, ar_ling_adima_note (filled by `scripts/parse-adima.py`) |
 | 0111_gt_aliases_as_taught.sql | the names the lessons call terms by, as aliases (the scene → term mapping reads them) |
+| 0116_gt_aliases_scene_terms.sql | 48 more of the scenes' names for terms (source `scene_terms`): «السين للاستقبال», «واو الحال», «همزة الوصل»… |

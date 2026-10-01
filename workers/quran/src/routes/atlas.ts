@@ -6,6 +6,7 @@ import type { QuranEnv } from '../env';
 import { StudyRepo } from '../repositories/study.repo';
 import { labels, byKey, card, type Label } from '../lib/labels';
 import { atlasUnits, mixedPassage, curatedRows, coversSurah, bookNames } from './atlas-layers';
+import { roomDestination } from './atlas-intro';
 
 // ── The Qurʾān as an atlas ────────────────────────────────────────────────────
 // Laid out as the Arabic side is: rooms → surahs, grouped as series → passages as
@@ -54,7 +55,8 @@ export function atlasRoutes(router: Router<QuranEnv>) {
                 (SELECT COUNT(DISTINCT surah || ':' || ayah_from) FROM qr_ss_occ_sentence) AS ss_ayat`),
     ]);
     return ok({
-      rooms: (L.room ?? []).map(card),
+      // each room with where it leads (qr_study_label extra_json.destination — atlas-intro.ts)
+      rooms: (L.room ?? []).map((r) => ({ ...card(r), destination: roomDestination(r, L.skill) })),
       steps: (L.step ?? []).map(card),
       reach,
     });
@@ -137,7 +139,7 @@ export function atlasRoutes(router: Router<QuranEnv>) {
       if (!u) return notFound(`passage ${s}/${passageNo}`);
       if (u.kind === 'derived') {
         return ok(await passageSlice(env, s, u.from, u.to, {
-          no: u.no, title: u.title, titleAr: null, theme: null, summary: null, derived: true, basis: u.basis,
+          no: u.no, title: u.title, titleAr: u.titleAr ?? null, theme: null, summary: null, derived: true, basis: u.basis,
         }));
       }
       const c = await queryOne<{ title_en: string | null; title_ar: string | null; theme: string | null; summary_md: string | null }>(env.DB_QR,

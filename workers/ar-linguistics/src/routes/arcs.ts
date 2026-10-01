@@ -194,7 +194,7 @@ export function arcRoutes(router: Router<ArLinguisticsEnv>) {
       `SELECT surah, ayah, word_index, lemma_ar, word_text, rung_id, src_rung_id, source_slug, how, note_ar, root_norm
          FROM ar_ling_arc_word WHERE lemma_ar = ? ORDER BY surah, ayah, word_index`, [lemma]);
     const root = ls[0]?.root_norm ?? (wordsL[0] as { root_norm?: string } | undefined)?.root_norm ?? null;
-    if (!root) return ok({ lemma, root: null, rungs: [], lane: [], words: [] });
+    if (!root) return ok({ lemma, root: null, rungs: [], lane: [], ambiguous: [], words: { placed: 0 } });
     const ids = [...new Set([...ls.map((l) => l.combined_id), ...wordsL.map((w) => w.rung_id)].filter((x): x is string => !!x))];
     const rungs = ids.length ? await query<RungRow>(env.DB_AL, `SELECT * FROM ar_ling_arc_rung WHERE id IN (${ids.map(() => '?').join(',')}) ORDER BY seq`, ids) : [];
     const srcIds = [...new Set(ls.filter((l) => l.source_slug !== 'lane_lexicon' || l.how === 'placed-word').map((l) => l.rung_id))];

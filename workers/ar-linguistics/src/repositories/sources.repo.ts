@@ -16,6 +16,9 @@ export interface LexiconSource {
   genre:              string | null;
   author_death_ah:    number | null;
   author_death_ce:    number | null;
+  title_translit:     string | null;
+  title_gloss_en:     string | null;
+  author_en:          string | null;
 }
 
 interface SourceRow {
@@ -34,12 +37,15 @@ interface SourceRow {
   genre:              string | null;
   author_death_ah:    number | null;
   author_death_ce:    number | null;
+  title_translit:     string | null;
+  title_gloss_en:     string | null;
+  author_en:          string | null;
 }
 
 const SELECT = `
   id, slug, title_ar, title_short_ar, title_en, author_name, period_label,
   origin, bilingual, source_order, footnote_source, quran_block_shape, genre,
-  author_death_ah, author_death_ce
+  author_death_ah, author_death_ce, title_translit, title_gloss_en, author_en
 FROM ar_ling_source`;
 
 function toSource(r: SourceRow): LexiconSource {
@@ -59,6 +65,9 @@ function toSource(r: SourceRow): LexiconSource {
     genre:              r.genre,
     author_death_ah:    r.author_death_ah ?? null,
     author_death_ce:    r.author_death_ce ?? null,
+    title_translit:     r.title_translit ?? null,
+    title_gloss_en:     r.title_gloss_en ?? null,
+    author_en:          r.author_en ?? null,
   };
 }
 

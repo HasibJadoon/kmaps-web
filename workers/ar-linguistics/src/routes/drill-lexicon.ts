@@ -105,14 +105,17 @@ function choose(answer: string, pool: Array<string | null | undefined>, k = 3, n
   return out.length >= Math.min(k, 2) ? shuffle([answer, ...out]) : null;
 }
 
+// Roots and kinds travel as JSON (json_each), so no list meets D1's 100-parameter cap. The `+` on fact_kind keeps
+// the planner off ix_lex_fact_kind_source: driven from the roots' keys the read touches a few hundred rows; driven
+// from the kind it walks every fact of that kind (≈170k for Lane's senses, 120 ms of D1 time per read).
 async function facts(env: ArLinguisticsEnv, roots: string[], kinds: string[], extra = '', args: unknown[] = []) {
   if (!roots.length || !kinds.length) return [] as Fact[];
   return ((await env.DB_AL.prepare(
     `SELECT root_norm, found_under, key_rank, id, source_slug, block_id, headword_ar, fact_kind, value_ar, value_en, quote_ar,
             surah, ayah, marker, method, confidence, seq, data_json
        FROM ar_ling_root_lexicon_fact_v
-      WHERE root_norm IN (${roots.map(() => '?').join(',')}) AND fact_kind IN (${kinds.map(() => '?').join(',')}) ${extra}`)
-    .bind(...roots, ...kinds, ...args).all<Fact>()).results ?? []);
+      WHERE root_norm IN (SELECT value FROM json_each(?)) AND +fact_kind IN (SELECT value FROM json_each(?)) ${extra}`)
+    .bind(JSON.stringify(roots), JSON.stringify(kinds), ...args).all<Fact>()).results ?? []);
 }
 
 async function pool(env: ArLinguisticsEnv, kind: string, where = '', args: unknown[] = [], n = 80) {
@@ -123,11 +126,21 @@ async function pool(env: ArLinguisticsEnv, kind: string, where = '', args: unkno
            marker: string | null; data_json: string | null }>()).results ?? []);
 }
 
+type ProfileRow = { source_slug: string; feature: string; family: string; label: string; share: number | null };
+let profMemo: { at: number; rows: ProfileRow[] } | null = null;
+/// the lexicon profiles (≈1.3k short rows, rebuilt only by lexicon_profile.py), read once per isolate
+async function profileRows(env: ArLinguisticsEnv): Promise<ProfileRow[]> {
+  if (profMemo && Date.now() - profMemo.at < 300_000) return profMemo.rows;
+  const rows = ((await env.DB_AL.prepare(`SELECT source_slug, feature, family, label, share FROM ar_ling_lexicon_profile`)
+    .all<ProfileRow>()).results ?? []);
+  profMemo = { at: Date.now(), rows };
+  return rows;
+}
+
 async function profileLine(env: ArLinguisticsEnv, source: string, features: string[]) {
   if (!features.length) return null;
-  const rows = ((await env.DB_AL.prepare(
-    `SELECT feature, label, share FROM ar_ling_lexicon_profile WHERE source_slug = ? AND feature IN (${features.map(() => '?').join(',')})
-      ORDER BY share DESC`).bind(source, ...features).all<{ feature: string; label: string; share: number | null }>()).results ?? []);
+  const rows = (await profileRows(env)).filter((r) => r.source_slug === source && features.includes(r.feature))
+    .sort((a, b) => (b.share ?? -1) - (a.share ?? -1));
   const r = rows.find((x) => x.share != null && x.share >= 0.05);
   return r ? `${short(source)} uses «${r.label}» in ${Math.round((r.share ?? 0) * 100)}% of its Qurʾānic-root entries.` : null;
 }
@@ -304,8 +317,8 @@ async function whichLexiconItems({ env, roots }: Ctx): Promise<LexItem[]> {
   const fs = (await facts(env, roots, kinds, `AND confidence = 'high' AND source_slug <> 'lane_lexicon'`))
     .filter((f) => f.fact_kind !== 'didd' || f.marker === 'addad');
   const present = ((await env.DB_AL.prepare(
-    `SELECT DISTINCT root_norm, source_slug FROM ar_ling_root_lexicon_entry_v WHERE root_norm IN (${roots.map(() => '?').join(',')})`)
-    .bind(...roots).all<{ root_norm: string; source_slug: string }>()).results ?? []);
+    `SELECT DISTINCT root_norm, source_slug FROM ar_ling_root_lexicon_entry_v WHERE root_norm IN (SELECT value FROM json_each(?))`)
+    .bind(JSON.stringify(roots)).all<{ root_norm: string; source_slug: string }>()).results ?? []);
   const has = byRoot(present);
   const allSources = Object.keys(TITLES).filter((s) => !['sinai_key_terms', 'mir_verbal_idioms'].includes(s));
   const out: LexItem[] = [];
@@ -424,17 +437,16 @@ async function quranSenseItems({ env, roots }: Ctx): Promise<LexItem[]> {
 
 async function styleItems({ env, roots }: Ctx): Promise<LexItem[]> {
   // a formula the profile finds telling (common in one book, rare elsewhere) and an excerpt of this root that shows it
-  const prof = ((await env.DB_AL.prepare(
-    `SELECT source_slug, feature, label, share FROM ar_ling_lexicon_profile WHERE family IN ('ngram','authority','dalala','plural','bab','majaz','asl','branch')
-       AND share >= 0.08`).all<{ source_slug: string; feature: string; label: string; share: number }>()).results ?? []);
+  const FAMILIES = ['ngram', 'authority', 'dalala', 'plural', 'bab', 'majaz', 'asl', 'branch'];
+  const prof = (await profileRows(env)).filter((p) => FAMILIES.includes(p.family) && (p.share ?? 0) >= 0.08) as Array<ProfileRow & { share: number }>;
   const shareOf = new Map<string, Map<string, number>>();
   for (const p of prof) { const m = shareOf.get(p.label) ?? new Map(); m.set(p.source_slug, p.share); shareOf.set(p.label, m); }
   const telling = prof.filter((p) => { const m = shareOf.get(p.label)!; return [...m.entries()].every(([s, v]) => s === p.source_slug || v < p.share / 3); })
     .filter((p) => p.source_slug !== 'lane_lexicon' && fold(p.label).replace(/ /g, '').length >= 4);
   if (!telling.length) return [];
   const blocks = ((await env.DB_AL.prepare(
-    `SELECT root_norm, source_slug, text_plain FROM ar_ling_root_lexicon_block_v WHERE root_norm IN (${roots.map(() => '?').join(',')})
-       AND block_type = 'definition' AND key_rank = 0 AND length(text_plain) BETWEEN 60 AND 900`).bind(...roots)
+    `SELECT root_norm, source_slug, text_plain FROM ar_ling_root_lexicon_block_v WHERE root_norm IN (SELECT value FROM json_each(?))
+       AND +block_type = 'definition' AND key_rank = 0 AND length(text_plain) BETWEEN 60 AND 900`).bind(JSON.stringify(roots))
     .all<{ root_norm: string; source_slug: string; text_plain: string }>()).results ?? []);
   const out: LexItem[] = [];
   const all = Object.keys(TITLES).filter((s) => !['sinai_key_terms', 'mir_verbal_idioms', 'lane_lexicon'].includes(s));

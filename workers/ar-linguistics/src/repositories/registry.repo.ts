@@ -167,7 +167,9 @@ export interface SourceCoverage {
   source_slug: string;
   book: string | null;
   book_full: string | null;
+  book_en: string | null;
   author: string | null;
+  author_en: string | null;
   died_ah: number | null;
   entries: number;
 }
@@ -563,7 +565,9 @@ export class RegistryRepo {
       `SELECT s.slug            AS source_slug,
               COALESCE(s.title_short_ar, s.title_ar) AS book,
               s.title_ar        AS book_full,
+              s.title_en        AS book_en,
               s.author_name     AS author,
+              s.author_en       AS author_en,
               s.author_death_ah AS died_ah,
               count(*)          AS entries
          FROM ar_ling_lexicon_entry e

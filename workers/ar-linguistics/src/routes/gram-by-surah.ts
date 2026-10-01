@@ -71,15 +71,18 @@ export function gramBySurahRoutes(router: Router<ArLinguisticsEnv>) {
         .bind(...part).all<{ id: string; discipline: string }>()).results ?? [];
       for (const r of rows) disciplines[r.id] = r.discipline;
     }
-    const books: Record<string, { title: string | null; titleAr: string; author: string | null; deathAh: number | null }> = {};
+    const books: Record<string, { title: string | null; titleAr: string; translit: string | null; author: string | null; authorEn: string | null;
+                                  deathAh: number | null }> = {};
     for (let i = 0; i < slugs.length; i += 90) {
       const part = slugs.slice(i, i + 90);
       const rows = (await env.DB_AL.prepare(
-        `SELECT slug, title_ar, title_en, author_name, author_death_ah FROM ar_ling_source
+        `SELECT slug, title_ar, title_en, title_translit, author_name, author_en, author_death_ah FROM ar_ling_source
           WHERE slug IN (${part.map(() => '?').join(',')})`)
-        .bind(...part).all<{ slug: string; title_ar: string; title_en: string | null; author_name: string | null; author_death_ah: number | null }>())
+        .bind(...part).all<{ slug: string; title_ar: string; title_en: string | null; title_translit: string | null; author_name: string | null;
+                             author_en: string | null; author_death_ah: number | null }>())
         .results ?? [];
-      for (const r of rows) books[r.slug] ??= { title: r.title_en, titleAr: r.title_ar, author: r.author_name, deathAh: r.author_death_ah };
+      for (const r of rows) books[r.slug] ??= { title: r.title_en, titleAr: r.title_ar, translit: r.title_translit, author: r.author_name,
+                                               authorEn: r.author_en, deathAh: r.author_death_ah };
     }
     return ok({ disciplines, books });
   });

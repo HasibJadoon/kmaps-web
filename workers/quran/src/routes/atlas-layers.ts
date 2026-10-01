@@ -100,7 +100,9 @@ export async function atlasUnits<T extends { no: number; from: number; to: numbe
 ) {
   const layers = layersFor({}).map((l) => ({ id: l.id, depth: l.depth }));
   const derived = (await fillers(env, s, ayahs, curated)).map((f) => ({
-    no: 0, from: f.from, to: f.to, title: titleOf(f.from, f.to, f.p, f.trimmed), theme: null,
+    no: 0, from: f.from, to: f.to, title: titleOf(f.from, f.to, f.p, f.trimmed),
+    // Ibn ʿĀshūr's own words for the topic, where his opening of the passage names it (only while the passage opens where his does)
+    titleAr: f.from === f.p.ayah_from ? f.p.title_ar : null, theme: null,
     words: f.words, built: 0, layers,
     derived: true as const, basis: f.trimmed
       ? { opening: f.from === f.p.ayah_from ? basisOf(f.p)?.opening : { ayah: f.from, rule: 'curated_edge' },
@@ -129,7 +131,7 @@ export async function mixedPassage(env: QuranEnv, s: number, ayahs: number, cura
   if ('derived' in u && u.derived) {
     const full = (await fillers(env, s, ayahs, cur)).find((f) => f.from === u.from && f.to === u.to);
     const basis = full ? (full.trimmed ? u.basis : basisOf(full.p)) : u.basis;
-    return { kind: 'derived' as const, no: i + 1, from: u.from, to: u.to, title: u.title, basis };
+    return { kind: 'derived' as const, no: i + 1, from: u.from, to: u.to, title: u.title, titleAr: u.titleAr, basis };
   }
   const c = u as { no: number; from: number; to: number; curatedNo?: number };
   return { kind: 'curated' as const, no: i + 1, curatedNo: c.curatedNo ?? c.no, from: c.from, to: c.to };
@@ -176,14 +178,15 @@ async function namesFor(env: QuranEnv, payload: unknown, L: Record<string, Label
   if (rest.length && env.AR_LINGUISTICS) {
     const meta = await alMeta(env, [], rest).catch(() => null);
     for (const [slug, b] of Object.entries(meta?.books ?? {})) {
-      books[slug] = { title: b.title, titleAr: b.titleAr, author: null, authorAr: b.author, deathAh: b.deathAh };
+      books[slug] = { title: b.title, titleAr: b.titleAr, author: b.authorEn ?? null, authorAr: b.author, deathAh: b.deathAh };
     }
   }
   return { terms, books };
 }
 
 // ── the grammar books' citations, paged ──────────────────────────────────────
-type AlMeta = { disciplines: Record<string, string>; books: Record<string, { title: string | null; titleAr: string; author: string | null; deathAh: number | null }> };
+type AlMeta = { disciplines: Record<string, string>; books: Record<string, { title: string | null; titleAr: string; author: string | null; authorEn?: string | null;
+                                                                              deathAh: number | null }> };
 
 async function alMeta(env: QuranEnv, chunks: string[], slugs: string[]): Promise<AlMeta> {
   const r = await env.AR_LINGUISTICS!.fetch('https://al/al/gram/citation-meta', {
@@ -335,7 +338,7 @@ async function structureLive(env: QuranEnv, s: number, ayahs: number) {
   });
   const covered = coversSurah(cur, ayahs);
   const passages = covered ? cur : (await atlasUnits(env, s, ayahs, cur, () => [])).map((u) =>
-    'evidence' in u ? u : { no: u.no, from: u.from, to: u.to, title: u.title, theme: null, derived: true, live: true,
+    'evidence' in u ? u : { no: u.no, from: u.from, to: u.to, title: u.title, titleAr: u.titleAr, theme: null, derived: true, live: true,
                             evidence: null, basis: u.basis, key: u.key });
   return {
     passageSource: covered ? 'curated' : cur.length ? 'mixed' : passages.length ? 'derived' : null,

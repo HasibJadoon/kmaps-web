@@ -174,10 +174,13 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
     ).all<{ source_slug: string; pages: number; volumes: number | null }>()).results ?? [];
 
     const meta = (await env.DB_AL.prepare(
-      `SELECT slug, title_ar, author_name, author_death_ah, genre
+      `SELECT slug, title_ar, title_en, title_translit, title_gloss_en, author_name, author_en,
+              author_death_ah, author_death_ce, genre
          FROM ar_ling_source
         WHERE slug IN (SELECT DISTINCT source_slug FROM ar_ling_gram_bab)`,
-    ).all<{ slug: string; title_ar: string; author_name: string | null; author_death_ah: number | null; genre: string | null }>()).results ?? [];
+    ).all<{ slug: string; title_ar: string; title_en: string | null; title_translit: string | null; title_gloss_en: string | null;
+            author_name: string | null; author_en: string | null; author_death_ah: number | null; author_death_ce: number | null;
+            genre: string | null }>()).results ?? [];
 
     const pageBy = new Map(pageAgg.map(p => [p.source_slug, p]));
     const babTotal = new Map<string, number>();
@@ -194,8 +197,14 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
       return {
         slug: m.slug,
         title_ar: m.title_ar,
+        // English-primary: «Sharḥ al-Mufaṣṣal (Ibn Yaʿīsh)», the title alone, what it means, the author
+        title_en: m.title_en ?? null,
+        title_translit: m.title_translit ?? null,
+        title_gloss_en: m.title_gloss_en ?? null,
         author: m.author_name ?? '',
+        author_en: m.author_en ?? null,
         death_ah: m.author_death_ah ?? null,
+        death_ce: m.author_death_ce ?? null,
         discipline: disc,
         discipline_label: DISC_LABEL[disc] ?? DISC_LABEL.SF,
         bab_count: babTotal.get(m.slug) ?? 0,
@@ -219,7 +228,8 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
     const url = new URL(req.url);
     const slug = params.slug;
     const meta = await env.DB_AL.prepare(
-      `SELECT s.slug, s.title_ar, s.author_name, s.author_death_ah, s.genre,
+      `SELECT s.slug, s.title_ar, s.title_en, s.title_translit, s.title_gloss_en, s.author_name, s.author_en,
+              s.author_death_ah, s.author_death_ce, s.genre,
               e.edition_label, e.note_md AS betaka
          FROM ar_ling_source s
          LEFT JOIN ar_ling_source_edition e ON e.source_id = s.id
@@ -396,15 +406,15 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
 
     const ids = rows.map(r => r.id);
 
-    let anchors: Record<string, { bab_id: string | null; page_no: number | null; volume_no: number | null; title_ar: string }> = {};
+    let anchors: Record<string, { bab_id: string | null; page_no: number | null; volume_no: number | null; title_ar: string; title_en: string | null }> = {};
     if (ids.length) {
       const ph = ids.map(() => '?').join(',');
       const a = (await env.DB_AL.prepare(
-        `SELECT c.id, c.bab_id, c.page_no, c.volume_no, s.title_ar
+        `SELECT c.id, c.bab_id, c.page_no, c.volume_no, s.title_ar, s.title_en
            FROM ar_ling_gram_chunk c
            JOIN ar_ling_source s ON s.slug = c.source_slug
           WHERE c.id IN (${ph})`,
-      ).bind(...ids).all<{ id: string; bab_id: string | null; page_no: number | null; volume_no: number | null; title_ar: string }>()).results ?? [];
+      ).bind(...ids).all<{ id: string; bab_id: string | null; page_no: number | null; volume_no: number | null; title_ar: string; title_en: string | null }>()).results ?? [];
       anchors = Object.fromEntries(a.map(x => [x.id, x]));
     }
 
@@ -414,6 +424,7 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
       discipline: r.discipline,
       discipline_label: DISC_LABEL[r.discipline] ?? DISC_LABEL.SF,
       title_ar: anchors[r.id]?.title_ar ?? '',
+      title_en: anchors[r.id]?.title_en ?? null,
       bab_id: anchors[r.id]?.bab_id ?? null,
       page_no: anchors[r.id]?.page_no ?? null,
       volume_no: anchors[r.id]?.volume_no ?? null,
@@ -443,7 +454,7 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
       `SELECT e.id, e.example_ar, e.example_kind, e.qr_ref, e.source_ref,
               e.gloss_en, e.gloss_ur,
               c.volume_no, c.page_no, c.bab_id, s.title_ar AS source_title_ar,
-              s.author_name AS source_author
+              s.title_en AS source_title_en, s.author_name AS source_author, s.author_en AS source_author_en
          FROM ar_ling_gram_term_example e
          LEFT JOIN ar_ling_gram_chunk c
                 ON c.id = substr(e.source_ref, instr(e.source_ref, '#') + 1)
@@ -472,7 +483,7 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
           ORDER BY sort_order`,
       ).bind(id).all<Record<string, unknown>>(),
       env.DB_AL.prepare(
-        `SELECT ts.source_slug, ts.page_ref, s.title_ar, s.author_name
+        `SELECT ts.source_slug, ts.page_ref, s.title_ar, s.title_en, s.author_name, s.author_en
            FROM ar_ling_gram_term_source ts
            LEFT JOIN ar_ling_source s ON s.slug = ts.source_slug
           WHERE ts.term_id = ?`,
@@ -487,7 +498,7 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
       // into the library rather than dead-ending in a definition.
       env.DB_AL.prepare(
         `SELECT c.bab_id, c.bab_title_ar, c.source_slug, c.page_start,
-                c.match_kind, c.state, s.title_ar AS source_title_ar
+                c.match_kind, c.state, s.title_ar AS source_title_ar, s.title_en AS source_title_en
            FROM ar_ling_gram_term_toc c
            LEFT JOIN ar_ling_source s ON s.slug = c.source_slug
           WHERE c.term_id = ? AND c.state <> 'rejected'
@@ -517,7 +528,9 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
         gloss_en: e.gloss_en,
         gloss_ur: e.gloss_ur,
         source_title_ar: e.source_title_ar,
+        source_title_en: e.source_title_en ?? null,
         source_author: e.source_author,
+        source_author_en: e.source_author_en ?? null,
         volume_no: e.volume_no,
         page_no: e.page_no,
         bab_title_ar: e.bab_id ? babs[e.bab_id as string] ?? null : null,
@@ -549,7 +562,8 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
     const rows = (await env.DB_AL.prepare(
       `SELECT k.id, k.masala_no, k.title_ar, k.kufa_ar, k.basra_ar, k.verdict,
               k.volume_no, k.page_start, k.bab_id, k.source_slug,
-              s.title_short_ar AS source_title_ar, s.author_name AS source_author
+              s.title_short_ar AS source_title_ar, s.title_en AS source_title_en,
+              s.author_name AS source_author, s.author_en AS source_author_en
          FROM ar_ling_gram_khilaf k
          LEFT JOIN ar_ling_source s ON s.slug = k.source_slug
         ${where.length ? 'WHERE ' + where.join(' AND ') : ''}

@@ -98,6 +98,19 @@ async function registry(env: ArLinguisticsEnv): Promise<Reg> {
   return reg;
 }
 
+type QrExample = { id: string; term_id: string; example_ar: string; qr_ref: string; gloss_en: string | null };
+let exMemo: { at: number; byTerm: Map<string, QrExample[]> } | null = null;
+/// the registry's Qurʾānic examples by term, kept per isolate as the registry is
+async function qrExamples(env: ArLinguisticsEnv): Promise<Map<string, QrExample[]>> {
+  if (exMemo && Date.now() - exMemo.at < 300_000) return exMemo.byTerm;
+  const rows = (await env.DB_AL.prepare(
+    `SELECT id, term_id, example_ar, qr_ref, gloss_en FROM ar_ling_gram_term_example WHERE qr_ref IS NOT NULL`).all<QrExample>()).results ?? [];
+  const byTerm = new Map<string, QrExample[]>();
+  for (const r of rows) byTerm.set(r.term_id, [...(byTerm.get(r.term_id) ?? []), r]);
+  exMemo = { at: Date.now(), byTerm };
+  return byTerm;
+}
+
 const inScope = (t: Term, q: Q) => (!q.terms || q.terms.has(t.id)) && (!q.discipline || t.discipline === q.discipline)
   && (!q.category || t.category_key === q.category) && t.depth >= q.minDepth && t.depth <= q.maxDepth;
 /// the terms beside a term: its siblings under the same parent first, then the rest of its category
@@ -184,14 +197,9 @@ async function shahid(env: ArLinguisticsEnv, q: Q): Promise<{ items: GramDrill[]
   const scoped = reg.terms.filter((x) => inScope(x, q));
   if (!scoped.length) return { items: [], missing: [] };
   const ids = scoped.map((t) => t.id);
-  const rows: Array<{ id: string; term_id: string; example_ar: string; qr_ref: string; gloss_en: string | null }> = [];
-  for (let i = 0; i < ids.length; i += 90) {
-    const part = ids.slice(i, i + 90);
-    rows.push(...((await env.DB_AL.prepare(
-      `SELECT id, term_id, example_ar, qr_ref, gloss_en FROM ar_ling_gram_term_example
-        WHERE qr_ref IS NOT NULL AND term_id IN (${part.map(() => '?').join(',')}) ${q.surah ? 'AND qr_ref LIKE ?' : ''}`)
-      .bind(...part, ...(q.surah ? [`${q.surah}:%`] : [])).all<typeof rows[number]>()).results ?? []));
-  }
+  // every Qurʾānic example, read once per isolate (a few thousand short rows) — not a query per 90 terms
+  const ex = await qrExamples(env);
+  const rows = ids.flatMap((id) => ex.get(id) ?? []).filter((r) => !q.surah || r.qr_ref.startsWith(`${q.surah}:`));
   const withEx = new Set(rows.map((r) => r.term_id));
   const missing = ids.filter((id) => !withEx.has(id));
   // one example per term per round, so the round spans the terms
@@ -204,10 +212,7 @@ async function shahid(env: ArLinguisticsEnv, q: Q): Promise<{ items: GramDrill[]
     const near = beside(reg, t);
     if (q.ask === 'gt_shahid_pick') {
       // which of these phrases is a shāhid of the term? the others are shawāhid of the terms beside it
-      const others = near.length ? ((await env.DB_AL.prepare(
-        `SELECT example_ar FROM ar_ling_gram_term_example WHERE qr_ref IS NOT NULL
-            AND term_id IN (${near.slice(0, 12).map(() => '?').join(',')}) ORDER BY random() LIMIT 6`)
-        .bind(...near.slice(0, 12).map((x) => x.id)).all<{ example_ar: string }>()).results ?? []).map((x) => x.example_ar) : [];
+      const others = shuffle(near.slice(0, 12).flatMap((x) => ex.get(x.id) ?? [])).slice(0, 6).map((x) => x.example_ar);
       const opts = choices(r.example_ar, others.filter((x) => bare(x) !== bare(r.example_ar)));
       if (!opts) continue;
       items.push({ id: `gt:shahid:pick:${r.id}`, source: 'shahid', ask: q.ask, termId: t.id, terms: [t.id], prompt: t.name_ar,
@@ -226,12 +231,14 @@ async function shahid(env: ArLinguisticsEnv, q: Q): Promise<{ items: GramDrill[]
 
 type Toc = { term_id: string; source_slug: string; bab_title_ar: string | null; page_start: number | null; state: string };
 async function sources(env: ArLinguisticsEnv, slugs: string[]) {
-  if (!slugs.length) return new Map<string, { title: string; author: string | null }>();
-  const rows = (await env.DB_AL.prepare(`SELECT slug, title_ar, author_name FROM ar_ling_source WHERE slug IN (${slugs.map(() => '?').join(',')})`)
-    .bind(...slugs).all<{ slug: string; title_ar: string; author_name: string | null }>()).results ?? [];
-  return new Map(rows.map((r) => [r.slug, { title: r.title_ar, author: r.author_name }]));
+  if (!slugs.length) return new Map<string, { title: string; author: string | null; titleEn: string | null }>();
+  const rows = (await env.DB_AL.prepare(`SELECT slug, title_ar, title_en, author_name FROM ar_ling_source WHERE slug IN (${slugs.map(() => '?').join(',')})`)
+    .bind(...slugs).all<{ slug: string; title_ar: string; title_en: string | null; author_name: string | null }>()).results ?? [];
+  return new Map(rows.map((r) => [r.slug, { title: r.title_ar, author: r.author_name, titleEn: r.title_en }]));
 }
-const bookLabel = (b: { title: string; author: string | null } | undefined, slug: string) => (b ? (b.author ? `${b.title} — ${b.author}` : b.title) : slug);
+/// English first — «Sharḥ al-Mufaṣṣal (Ibn Yaʿīsh) · شرح المفصل» — the Arabic title with its author where AL has no English name
+const bookLabel = (b: { title: string; author: string | null; titleEn?: string | null } | undefined, slug: string) =>
+  (b ? (b.titleEn ? `${b.titleEn} · ${b.title}` : b.author ? `${b.title} — ${b.author}` : b.title) : slug);
 
 async function book(env: ArLinguisticsEnv, q: Q): Promise<GramDrill[]> {
   const reg = await registry(env);
