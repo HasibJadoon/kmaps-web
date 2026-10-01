@@ -22,7 +22,7 @@ import { loadAyat, withCard, levelOf, shuffle, uniq, interleave, type Ayah, type
 // AL shapes the material (/al/drill/meaning-arcs); the asks a level has come from qr_study_label.
 
 type Rung = { id: string; seq: number; tier: string; kind: string; source: string; headAr: string | null; labelAr: string | null;
-  labelEn: string | null; quoteAr: string | null; quoteEn: string | null; marker: string | null; page: string | null; foundUnder: string | null;
+  labelEn: string | null; stepEn?: string | null; quoteAr: string | null; quoteEn: string | null; marker: string | null; page: string | null; foundUnder: string | null;
   ayat: string[]; nWords: number; cite: string | null; attest?: Array<{ source: string; seq: number; of: number; name?: string }> };
 type Src = Record<string, { en: string; short: string; ar: string }>;
 type Material = { asks: Record<string, any[]>; sources: Src; relations: Record<string, string> };
@@ -36,7 +36,8 @@ const COLOR: Record<string, string> = { maqayis_lugha: '#B388EB', lane_lexicon: 
 
 const fold = (w: string | null | undefined) => (w ?? '').replace(/[ؐ-ًؚ-ٰٟۖ-ۭـ]/g, '')
   .replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[^ء-ي]/g, '');
-const spaced = (r: string) => [...fold(r)].join(' ');
+// a root as one word (غلل), the way the user reads it — not letter by letter
+const spaced = (r: string) => fold(r);
 // a source's sigils (Lane's ‡ tropical, † post-classical, * marks) are its typography, not the reader's text
 const tidy = (t: string | null | undefined) => (t ?? '').replace(/[‡†*]+/g, '').replace(/\s+/g, ' ').trim();
 /// cut where the source pauses (، ؛ . ;) rather than mid-phrase; only then at a word
@@ -90,6 +91,19 @@ const arcText = (rs: Rung[], src: Src, k = 8) => rs.slice(0, k).map((r) => {
   const head = `${LTR}${r.seq}. ${en ? clip(en, 110) : iso(ar)}`;
   return en && ar ? `${head}\n${ar}` : head;
 }).join('\n\n');
+/// a rung as one short step of an arc: its English with the "or …" alternatives and everything after
+/// the first stop taken off, at most eight words ("He made it, or caused it, to enter, into a thing"
+/// → "He made it to enter into a thing")
+const stepEn = (r: Rung) => {
+  const e = plainEn(r.labelEn).replace(/,\s*or\s+[^,;.]+/gi, '').split(/[;.]| — |: /)[0].replace(/[,\s]+$/, '').trim();
+  const ws = e.split(/\s+/).filter(Boolean);
+  return ws.length >= 2 ? ws.slice(0, 8).join(' ') : '';
+};
+/// the root's arc in English: its first steps, in order, each said once
+/// only the turning points someone has written as a short step (step_en: "Binding", "Book") — an arc
+/// is offered only once its steps read cleanly, never Lane's sentences cut short
+const arcSteps = (rs: Rung[], k = 5) => uniq([...rs].sort((a, b) => a.seq - b.seq).map((r) => tidy(r.stepEn)).filter(Boolean)).slice(0, k);
+const arcLine = (steps: string[]) => steps.join('  →  ');
 /// a source's statement: who says it (left-to-right), then the words themselves on their own line
 const said = (cite: string | null | undefined, quote: string | null | undefined, k = 260) =>
   [cite ? `${LTR}${tidy(cite)}:` : '', quote ? `«${clip(quote, k)}»` : ''].filter(Boolean).join('\n');
@@ -122,12 +136,14 @@ export async function arc2Drills(env: QuranEnv, n: number, scope: Scope, lv: Rec
     else if (x.words?.[0]) pairs.push([x.words[0].surah, x.words[0].ayah]);
   }
   const ayat = await loadAyat(env, pairs);
+  const arcs = new Map<string, string[]>();
+  for (const x of m.asks.arc_first ?? []) { const st = arcSteps(x.rungs ?? []); if (st.length >= 3) arcs.set(x.root, st); }
   const piles: Drill[][] = [];
   for (const ask of want) {
     const xs = shuffle(m.asks[ask] ?? []);
     const pile: Drill[] = [];
     for (const x of xs) {
-      const d = build(ask, x, { ayat, occFor, src, band, relations: m.relations });
+      const d = build(ask, x, { ayat, occFor, src, band, relations: m.relations, arcs });
       if (d) pile.push(d);
       if (pile.length >= n) break;
     }
@@ -137,7 +153,7 @@ export async function arc2Drills(env: QuranEnv, n: number, scope: Scope, lv: Rec
 }
 
 type Ctx = { ayat: Map<string, Ayah>; occFor: (root: string, lemma?: string | null) => Occ | undefined; src: Src;
-             band: ReturnType<typeof levelOf>['band']; relations: Record<string, string> };
+             band: ReturnType<typeof levelOf>['band']; relations: Record<string, string>; arcs: Map<string, string[]> };
 
 function inAyah(ctx: Ctx, root: string, lemma?: string | null, at?: { surah: number; ayah: number; wordIndex: number }, mark = true) {
   const o = at ? { surah: at.surah, ayah: at.ayah, word_index: at.wordIndex } : ctx.occFor(root, lemma);
@@ -175,9 +191,25 @@ function build(ask: string, x: any, ctx: Ctx): Drill | null {
       options = uniq([answer, ...others]).slice(0, 4);
       prompt = `What is the core of ${spaced(x.root)} — its first image, in ${byWhom}'s words?`;
     } else {
-      const later = rungs.filter((r) => r.seq > 1 && (en ? r.labelEn : r.labelAr)).map((r) => face(r, en)).filter((o) => o !== answer);
-      options = uniq([answer, ...shuffle(later)]).slice(0, 4);
-      prompt = `Where does the meaning of ${spaced(x.root)} start? One of these is its first rung; the others come later on its arc.`;
+      // the arc itself, in English: which of these close arcs is the root's? (the same steps out of
+      // order, the arc run backwards, another root's arc of this round)
+      const steps = ctx.arcs.get(x.root);
+      if (!steps) return null;
+      const right = arcLine(steps);
+      const swapped = steps.length > 2 ? arcLine([steps[0], steps[2], steps[1], ...steps.slice(3)]) : '';
+      const lateSwap = steps.length > 3 ? arcLine([steps[0], steps[1], steps[3], steps[2], ...steps.slice(4)]) : '';
+      const backwards = arcLine([...steps].reverse());
+      const other = shuffle([...ctx.arcs.entries()].filter(([r]) => r !== x.root)).map(([, st]) => arcLine(st))[0] ?? '';
+      const wrong = uniq([swapped, other || lateSwap, backwards, lateSwap].filter((o) => o && o !== right)).slice(0, 3);
+      if (wrong.length < 2) return null;
+      const word = at.idx >= 0 ? at.ay.ws[at.idx]?.word_text : null;
+      const arcDrill: Drill = { id: `arc2:${ask}:${x.root}`, kind: 'feature', ask: 'arc2_pick', ...at.base,
+        prompt: `${word ? `${word} — ` : ''}which is the arc of meaning of its root ${spaced(x.root)}, from its first image on?`,
+        options: shuffle([right, ...wrong]), answer: right, arabicOptions: false,
+        note: { en: `the root ${spaced(x.root)}`, ar: spaced(x.root) },
+        explanation: `${why}\n\n${LTR}How the meaning branches out:\n\n${arcText(rungs, src)}`, badges: [badge(who)], source: source(x.root, who) };
+      return withCard(arcDrill, { ref: `QR:arc2:${ask}:${x.root}`, type: 'root', kind: 'meaning_arc', band,
+        front: `${at.ay.ws.map((w) => w.word_text).join(' ')}\n${spaced(x.root)} — its arc of meaning?`, back: right });
     }
     if (options.length < 3) return null;
     const drill: Drill = { id: `arc2:${ask}:${x.root}`, kind: 'feature', ask: ask.replace('arc_', 'arc2_'), ...at.base, prompt,

@@ -21,7 +21,7 @@ import type { ArLinguisticsEnv } from '../env';
 
 type RungRow = { id: string; arc_id: string; root_norm: string; source_slug: string; seq: number; tier: string; kind: string;
   head_ar: string | null; label_ar: string | null; label_en: string | null; quote_ar: string | null; quote_en: string | null;
-  marker: string | null; page: string | null; block_id: string | null; fact_id: string | null; vocab_sense_id: string | null;
+  step_en?: string | null; marker: string | null; page: string | null; block_id: string | null; fact_id: string | null; vocab_sense_id: string | null;
   found_under: string | null; key_rank: number | null; combined_id: string | null; attest_json: string | null; ayat_json: string | null;
   n_words: number; confidence: string };
 type EdgeRow = { id: string; arc_id: string; source_slug: string; from_id: string; to_id: string; relation: string; marker_key: string | null;
@@ -63,7 +63,7 @@ export const cite = (r: { source_slug: string; page: string | null; marker: stri
 
 function rungOut(r: RungRow, root: string) {
   return {
-    id: r.id, seq: r.seq, tier: r.tier, kind: r.kind, source: r.source_slug, headAr: r.head_ar, labelAr: r.label_ar, labelEn: r.label_en,
+    id: r.id, seq: r.seq, tier: r.tier, kind: r.kind, source: r.source_slug, headAr: r.head_ar, labelAr: r.label_ar, labelEn: r.label_en, stepEn: r.step_en ?? null,
     quoteAr: r.quote_ar, quoteEn: r.quote_en, marker: r.marker, page: r.page, foundUnder: r.found_under,
     combinedId: r.combined_id, ayat: parse<string[]>(r.ayat_json, []), nWords: r.n_words, confidence: r.confidence,
     cite: r.source_slug === 'combined' ? null : cite(r, root),
