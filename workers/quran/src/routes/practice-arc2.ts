@@ -28,8 +28,8 @@ type Src = Record<string, { en: string; short: string; ar: string }>;
 type Material = { asks: Record<string, any[]>; sources: Src; relations: Record<string, string> };
 type Occ = { surah: number; ayah: number; word_index: number; word_text: string; root: string; lemma: string | null };
 
-const LEVEL_ASKS: Record<string, string[]> = { basic: ['arc_core', 'arc_first'], middle: ['arc_order', 'arc_lemma'],
-                                               advanced: ['arc_word', 'arc_link', 'arc_disagree'] };
+const LEVEL_ASKS: Record<string, string[]> = { basic: ['arc_core', 'arc_first'], middle: ['arc_order', 'arc_first'],
+                                               advanced: ['arc_word', 'arc_order'] };
 const COLOR: Record<string, string> = { maqayis_lugha: '#B388EB', lane_lexicon: '#5DA9E9', raghib_mufradat: '#4FB3A9', zabidi_taj_arus: '#E07A5F',
   ibn_manzur_lisan_arab: '#81B29A', jawhari_sihah: '#F2CC8F', qamus_muhit: '#F28482', fayyumi_misbah_munir: '#9C89B8', khalil_kitab_ayn: '#D8B657',
   ubab_zakhir: '#A5A58D', mir_verbal_idioms: '#F4A261', combined: '#B388EB' };
@@ -102,15 +102,31 @@ const stepEn = (r: Rung) => {
 /// the root's arc in English: its first steps, in order, each said once
 /// only the turning points someone has written as a short step (step_en: "Binding", "Book") — an arc
 /// is offered only once its steps read cleanly, never Lane's sentences cut short
-const arcSteps = (rs: Rung[], k = 5) => uniq([...rs].sort((a, b) => a.seq - b.seq).map((r) => tidy(r.stepEn)).filter(Boolean)).slice(0, k);
-const arcLine = (steps: string[]) => steps.join('  →  ');
+type Step = { seq: number; en: string; ar: string };
+const arcSteps = (rs: Rung[], k = 5): Step[] => {
+  const seen = new Set<string>(), out: Step[] = [];
+  for (const r of [...rs].sort((a, b) => a.seq - b.seq)) {
+    const en = tidy(r.stepEn);
+    if (!en || seen.has(en.toLowerCase())) continue;
+    seen.add(en.toLowerCase());
+    const key = tidy(r.headAr);
+    out.push({ seq: r.seq, en, ar: key && key.length <= 40 ? key : '' });
+  }
+  return out.slice(0, k);
+};
+const arcLine = (st: Step[]) => st.map((x) => x.en).join('  →  ');
+/// the arc read out: each step in plain English, its key word under it where one is written
+const arcClean = (st: Step[]) => st.map((x, i) => `${LTR}${i + 1}. ${x.en}${x.ar ? `\n${x.ar}` : ''}`).join('\n\n');
+const arcExplain = (st: Step[], byWhom: string) =>
+  `${LTR}Core image: ${st[0].en}${st[0].ar ? `\n${st[0].ar}` : ''}\n${LTR}— ${byWhom}\n\n${LTR}The arc:\n\n${arcClean(st)}`;
 /// a source's statement: who says it (left-to-right), then the words themselves on their own line
 const said = (cite: string | null | undefined, quote: string | null | undefined, k = 260) =>
   [cite ? `${LTR}${tidy(cite)}:` : '', quote ? `«${clip(quote, k)}»` : ''].filter(Boolean).join('\n');
 
 export async function arc2Drills(env: QuranEnv, n: number, scope: Scope, lv: Record<string, unknown>, L: Record<string, Label[]>): Promise<Drill[]> {
   const { band, asks } = levelOf(L, 'meaning_arc', lv);
-  const want = asks.length ? asks : LEVEL_ASKS.basic;
+  const MEANING = new Set(['arc_core', 'arc_first', 'arc_order', 'arc_word']);
+  const want = uniq((asks.length ? asks : LEVEL_ASKS.basic).map((a) => (MEANING.has(a) ? a : 'arc_word')));
   const w = scopeWhere(scope);
   // the scope's roots, as the Qurʾān has them, and a few words of each (the āyah a drill stands in)
   const occ = await query<Occ>(env.DB_QR,
@@ -120,7 +136,7 @@ export async function arc2Drills(env: QuranEnv, n: number, scope: Scope, lv: Rec
   for (const o of occ) occOf.set(o.root, [...(occOf.get(o.root) ?? []), o]);
   const roots = shuffle([...occOf.keys()]).slice(0, 80);
   if (!roots.length) return [];
-  const qs = new URLSearchParams({ asks: want.join(','), n: String(Math.ceil(n / Math.max(1, want.length)) + 2), roots: roots.join(',') });
+  const qs = new URLSearchParams({ asks: uniq([...want, 'arc_first', 'arc_core']).join(','), n: String(Math.ceil(n / Math.max(1, want.length)) + 2), roots: roots.join(',') });
   if (scope.surah) qs.set('surah', String(scope.surah));
   if (scope.from && scope.to) { qs.set('from', String(scope.from)); qs.set('to', String(scope.to)); }
   const m = await al<Material>(env, `/al/drill/meaning-arcs?${qs}`).catch(() => null);
@@ -136,8 +152,14 @@ export async function arc2Drills(env: QuranEnv, n: number, scope: Scope, lv: Rec
     else if (x.words?.[0]) pairs.push([x.words[0].surah, x.words[0].ayah]);
   }
   const ayat = await loadAyat(env, pairs);
-  const arcs = new Map<string, string[]>();
-  for (const x of m.asks.arc_first ?? []) { const st = arcSteps(x.rungs ?? []); if (st.length >= 3) arcs.set(x.root, st); }
+  const arcs = new Map<string, Step[]>();
+  for (const k of ['arc_first', 'arc_core']) for (const x of m.asks[k] ?? []) { const st = arcSteps(x.rungs ?? []); if (st.length >= 3) arcs.set(x.root, st); }
+  // the order and word asks name roots of their own: their arcs too, in one more call
+  const need = uniq(['arc_order', 'arc_word'].flatMap((k) => (m.asks[k] ?? []).map((x: any) => x.root as string)).filter((r) => r && !arcs.has(r))).slice(0, 60);
+  if (need.length) {
+    const more = await al<Material>(env, `/al/drill/meaning-arcs?${new URLSearchParams({ asks: 'arc_first', n: String(need.length), roots: need.join(',') })}`).catch(() => null);
+    for (const x of more?.asks.arc_first ?? []) { const st = arcSteps(x.rungs ?? []); if (st.length >= 3) arcs.set(x.root, st); }
+  }
   const piles: Drill[][] = [];
   for (const ask of want) {
     const xs = shuffle(m.asks[ask] ?? []);
@@ -153,7 +175,7 @@ export async function arc2Drills(env: QuranEnv, n: number, scope: Scope, lv: Rec
 }
 
 type Ctx = { ayat: Map<string, Ayah>; occFor: (root: string, lemma?: string | null) => Occ | undefined; src: Src;
-             band: ReturnType<typeof levelOf>['band']; relations: Record<string, string>; arcs: Map<string, string[]> };
+             band: ReturnType<typeof levelOf>['band']; relations: Record<string, string>; arcs: Map<string, Step[]> };
 
 function inAyah(ctx: Ctx, root: string, lemma?: string | null, at?: { surah: number; ayah: number; wordIndex: number }, mark = true) {
   const o = at ? { surah: at.surah, ayah: at.ayah, word_index: at.wordIndex } : ctx.occFor(root, lemma);
@@ -170,72 +192,54 @@ function build(ask: string, x: any, ctx: Ctx): Drill | null {
   const source = (root: string, s?: string) => ({ workId: `AL:ROOT:${root}`, title: `${spaced(root)} · ${s ? src[s]?.en ?? s : 'meaning arc'}`, level: null });
   if (ask === 'arc_core' || ask === 'arc_first') {
     const first: Rung = x.first;
-    const rungs: Rung[] = x.rungs ?? [];
     const asl: Rung | undefined = x.asl?.[0];
+    const steps = ctx.arcs.get(x.root);
+    if (!steps) return null;
     const at = inAyah(ctx, x.root);
     if (!at) return null;
-    const who = asl ? 'maqayis_lugha' : (first.attest?.[0]?.source ?? 'lane_lexicon');
+    const who = asl ? 'maqayis_lugha' : (first?.attest?.[0]?.source ?? 'lane_lexicon');
     const byWhom = src[who]?.short ?? who;
-    const en = !first.labelAr;
-    const answer = face(first, en);
-    const core = asl ?? first, coreEn = plainEn(core.labelEn), coreKey = tidy(core.headAr);
-    // the core said plainly, with its key word and who gives it; the book's sentence where it is not written out
-    const why = coreEn
-      ? [`${LTR}Core image: ${coreEn}`, coreKey && coreKey.length <= 40 ? coreKey : '', `${LTR}— ${byWhom}`].filter(Boolean).join('\n')
-      : (asl ? said(asl.cite, asl.quoteAr ?? asl.labelAr) : `${LTR}${tidy(first.cite)}`);
-    let options: string[];
-    let prompt: string;
+    const word = at.idx >= 0 ? at.ay.ws[at.idx]?.word_text : null;
+    const others = shuffle([...ctx.arcs.entries()].filter(([r]) => r !== x.root)).map(([, st]) => st);
+    let prompt: string, right: string, wrong: string[];
     if (ask === 'arc_core') {
-      const others = shuffle((x.otherCores ?? []) as Array<{ labelAr: string | null; labelEn: string | null }>)
-        .map((o) => clip(en ? o.labelEn ?? '' : o.labelAr ?? '', 110)).filter((o) => o && o !== answer);
-      options = uniq([answer, ...others]).slice(0, 4);
-      prompt = `What is the core of ${spaced(x.root)} — its first image, in ${byWhom}'s words?`;
+      // the core image, against the cores of the round's other roots
+      right = steps[0].en;
+      wrong = uniq(others.map((st) => st[0].en)).filter((o) => o.toLowerCase() !== right.toLowerCase()).slice(0, 3);
+      prompt = `${word ? `${word} — ` : ''}what is the core image of its root ${spaced(x.root)}?`;
     } else {
-      // the arc itself, in English: which of these close arcs is the root's? (the same steps out of
-      // order, the arc run backwards, another root's arc of this round)
-      const steps = ctx.arcs.get(x.root);
-      if (!steps) return null;
-      const right = arcLine(steps);
+      // the arc itself, against close arcs: the same steps out of order, run backwards, another root's
+      right = arcLine(steps);
       const swapped = steps.length > 2 ? arcLine([steps[0], steps[2], steps[1], ...steps.slice(3)]) : '';
       const lateSwap = steps.length > 3 ? arcLine([steps[0], steps[1], steps[3], steps[2], ...steps.slice(4)]) : '';
       const backwards = arcLine([...steps].reverse());
-      const other = shuffle([...ctx.arcs.entries()].filter(([r]) => r !== x.root)).map(([, st]) => arcLine(st))[0] ?? '';
-      const wrong = uniq([swapped, other || lateSwap, backwards, lateSwap].filter((o) => o && o !== right)).slice(0, 3);
-      if (wrong.length < 2) return null;
-      const word = at.idx >= 0 ? at.ay.ws[at.idx]?.word_text : null;
-      const arcDrill: Drill = { id: `arc2:${ask}:${x.root}`, kind: 'feature', ask: 'arc2_pick', ...at.base,
-        prompt: `${word ? `${word} — ` : ''}which is the arc of meaning of its root ${spaced(x.root)}, from its first image on?`,
-        options: shuffle([right, ...wrong]), answer: right, arabicOptions: false,
-        note: { en: `the root ${spaced(x.root)}`, ar: spaced(x.root) },
-        explanation: `${why}\n\n${LTR}How the meaning branches out:\n\n${arcText(rungs, src)}`, badges: [badge(who)], source: source(x.root, who) };
-      return withCard(arcDrill, { ref: `QR:arc2:${ask}:${x.root}`, type: 'root', kind: 'meaning_arc', band,
-        front: `${at.ay.ws.map((w) => w.word_text).join(' ')}\n${spaced(x.root)} — its arc of meaning?`, back: right });
+      wrong = uniq([swapped, others[0] ? arcLine(others[0]) : lateSwap, backwards, lateSwap].filter((o) => o && o !== right)).slice(0, 3);
+      prompt = `${word ? `${word} — ` : ''}which is the arc of meaning of its root ${spaced(x.root)}, from its first image on?`;
     }
-    if (options.length < 3) return null;
-    const drill: Drill = { id: `arc2:${ask}:${x.root}`, kind: 'feature', ask: ask.replace('arc_', 'arc2_'), ...at.base, prompt,
-      options: shuffle(options), answer, arabicOptions: !en, note: { en: `the root ${spaced(x.root)}`, ar: spaced(x.root) },
-      explanation: `${why}\n\n${LTR}How the meaning branches out:\n\n${arcText(rungs, src)}`, badges: [badge(who)], source: source(x.root, who) };
+    if (wrong.length < 2) return null;
+    const drill: Drill = { id: `arc2:${ask}:${x.root}`, kind: 'feature', ask: ask === 'arc_core' ? 'arc2_core' : 'arc2_pick', ...at.base, prompt,
+      options: shuffle([right, ...wrong]), answer: right, arabicOptions: false, note: { en: `the root ${spaced(x.root)}`, ar: spaced(x.root) },
+      explanation: arcExplain(steps, byWhom), badges: [badge(who)], source: source(x.root, who) };
     return withCard(drill, { ref: `QR:arc2:${ask}:${x.root}`, type: 'root', kind: 'meaning_arc', band,
-      front: `${at.ay.ws.map((w) => w.word_text).join(' ')}\n${spaced(x.root)} — ${ask === 'arc_core' ? 'its core?' : 'where does it start?'}`,
-      back: `${answer}\n${why}`, surah: at.ay.surah, ayah: at.ay.ayah, series: 'Meaning arcs · the core' });
+      front: `${at.ay.ws.map((w) => w.word_text).join(' ')}\n${spaced(x.root)} — ${ask === 'arc_core' ? 'its core image?' : 'its arc of meaning?'}`,
+      back: `${right}\n${arcLine(steps)}`, surah: at.ay.surah, ayah: at.ay.ayah, series: 'Meaning arcs' });
   }
   if (ask === 'arc_order') {
-    let rs: Rung[] = (x.rungs ?? []).filter((r: Rung) => r.labelAr || r.labelEn);
-    if (rs.length < 3) return null;
-    // at most six, the first always among them, the rest spread along the arc — the source's order kept
-    if (rs.length > 6) { const keep = new Set([0, ...shuffle(rs.slice(1).map((_, i) => i + 1)).slice(0, 5)]); rs = rs.filter((_, i) => keep.has(i)); }
-    const order = rs.map((_, i) => i);
+    // the root's arc, its steps shuffled: put them back in the order the meaning grows
+    const steps = ctx.arcs.get(x.root);
+    if (!steps || steps.length < 3) return null;
+    const order = steps.map((_, i) => i);
     let sh = shuffle(order);
     for (let k = 0; k < 4 && sh.every((v, i) => v === i); k++) sh = shuffle(order);
-    const name = src[x.source]?.short ?? x.source;
-    const drill: Drill = { id: `arc2:order:${x.root}:${x.source}`, kind: 'dialogue', ask: 'arc2_order',
-      prompt: `${name} on ${spaced(x.root)} — put his statements back in his order`,
-      dialogue: rs.map((r) => ({ speaker: null, ar: clip(r.labelAr ?? r.headAr ?? '', 160), en: clip(r.labelEn ?? (r.marker ? `(${r.marker})` : ''), 160), clip: null })),
-      shuffled: sh, badges: [badge(x.source)], source: source(x.root, x.source),
-      explanation: rs.map((r) => `${LTR}${r.seq}. ${plainEn(r.labelEn) ? clip(plainEn(r.labelEn), 100) : iso(clip(r.labelAr, 100))}${r.cite ? `\n${LTR}— ${tidy(r.cite)}` : ''}`).join('\n\n') };
-    return withCard(drill, { ref: `QR:arc2:order:${x.root}:${x.source}`, type: 'root', kind: 'meaning_arc', band,
-      front: `${spaced(x.root)} — ${name}'s order`, back: rs.map((r) => clip(r.labelEn ?? r.labelAr, 60)).join(' → '), series: 'Meaning arcs · order' });
+    const drill: Drill = { id: `arc2:order:${x.root}`, kind: 'dialogue', ask: 'arc2_order',
+      prompt: `${spaced(x.root)} — put its arc of meaning in order, from its first image on`,
+      dialogue: steps.map((st) => ({ speaker: null, ar: st.ar, en: st.en, clip: null })),
+      shuffled: sh, badges: [badge('combined')], source: source(x.root),
+      explanation: `${LTR}The arc:\n\n${arcClean(steps)}` };
+    return withCard(drill, { ref: `QR:arc2:order:${x.root}`, type: 'root', kind: 'meaning_arc', band,
+      front: `${spaced(x.root)} — its arc, in order`, back: arcLine(steps), series: 'Meaning arcs · order' });
   }
+  if (ask === 'arc_lemma' || ask === 'arc_link' || ask === 'arc_disagree') return null;
   if (ask === 'arc_lemma') {
     const fam: string[] = uniq(x.family ?? []);
     const others = shuffle(fam.filter((l) => fold(l) !== fold(x.lemma))).slice(0, 3);
@@ -254,25 +258,23 @@ function build(ask: string, x: any, ctx: Ctx): Drill | null {
       back: `${x.lemma}\n${x.cite}`, surah: at?.ay.surah ?? null, ayah: at?.ay.ayah ?? null, series: 'Meaning arcs · lemmas' });
   }
   if (ask === 'arc_word') {
+    // the word in its āyah: which step of the root's arc does it stand on here? (the last turning
+    // point at or before the rung the sources file this āyah under)
     const rung: Rung = x.rung;
-    const others: Rung[] = x.others ?? [];
+    const steps = ctx.arcs.get(x.root);
+    if (!steps || steps.length < 3) return null;
     const at = inAyah(ctx, x.root, x.lemma, { surah: x.surah, ayah: x.ayah, wordIndex: x.wordIndex });
     if (!at || at.idx < 0) return null;
-    const en = !!rung.labelEn && others.filter((r) => r.labelEn).length >= 2;
-    const answer = face(rung, en);
-    const opts = uniq([answer, ...shuffle(others.filter((r) => (en ? r.labelEn : r.labelAr))).map((r) => face(r, en))]).filter(Boolean).slice(0, 4);
-    if (opts.length < 3) return null;
+    const here = [...steps].reverse().find((st) => st.seq <= rung.seq) ?? steps[0];
     const by: Rung | null = x.by;
     const who = by?.source ?? 'raghib_mufradat';
     const drill: Drill = { id: `arc2:word:${x.surah}:${x.ayah}:${x.wordIndex}`, kind: 'feature', ask: 'arc2_word', ...at.base,
-      prompt: `Listen — the marked word is of ${spaced(x.root)}. Which rung of its arc does it stand on here?`,
-      options: shuffle(opts), answer, arabicOptions: !en, note: { en: `${x.wordText} · ${spaced(x.root)}`, ar: x.wordText ?? '' },
-      explanation: `${src[who]?.short ?? who} files this āyah under «${clip(by?.labelAr ?? by?.labelEn, 160)}» — ${by?.cite ?? ''}` +
-        `${x.note ? `\n${src[who]?.short ?? who}: «${clip(x.note, 200)}»` : ''}` +
-        `\nRung ${rung.seq} of the arc${rung.attest?.length ? `, given by ${rung.attest.map((a) => `${src[a.source]?.short ?? a.source} (${a.seq})`).join(', ')}` : ''}.`,
+      prompt: `Listen — ${x.wordText ?? 'the marked word'} is of ${spaced(x.root)}. Where on its arc of meaning does it stand here?`,
+      options: steps.map((st) => st.en), answer: here.en, arabicOptions: false, note: { en: `${x.wordText} · ${spaced(x.root)}`, ar: x.wordText ?? '' },
+      explanation: `${LTR}Here: ${here.en}${here.ar ? `\n${here.ar}` : ''}\n${LTR}— ${src[who]?.short ?? who}\n\n${LTR}The arc:\n\n${arcClean(steps)}`,
       badges: [badge(who)], source: { workId: `QR:SURAH:${at.ay.surah}`, title: at.ay.title, level: null } };
     return withCard(drill, { ref: `QR:arc2:word:${x.surah}:${x.ayah}:${x.wordIndex}`, type: 'root', kind: 'meaning_arc', band,
-      front: `${at.ay.ws.map((w) => w.word_text).join(' ')}\n${x.wordText} — which rung?`, back: `${answer}\n${by?.cite ?? ''}`,
+      front: `${at.ay.ws.map((w) => w.word_text).join(' ')}\n${x.wordText} — where on its arc?`, back: `${here.en}\n${arcLine(steps)}`,
       surah: at.ay.surah, ayah: at.ay.ayah, series: at.ay.title.replace(/ \d+:\d+$/, '') });
   }
   if (ask === 'arc_link') {
