@@ -15,6 +15,7 @@ import { arc2Drills } from './practice-arc2';
 import { surahLexDrills, surahLexCounts } from './practice-surah-lex';
 import { groupDrills, groupsCount } from './practice-groups';
 import { ssDrills, ssCount } from './practice-ss';
+import { structureDrills, structureCount } from './practice-structure';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
 // The Qurʾān drilled as the Arabic side is (DrillKit shapes): each āyah a line heard in
@@ -53,7 +54,8 @@ export function practiceRoutes(router: Router<QuranEnv>) {
     const [tafsir, irabbooks, gram, vocab, ss] = await Promise.all([tafsirCount(env).catch(() => 0), irabBookCount(env).catch(() => 0),
                                                          gramTermCounts(env, L.skill ?? []).catch(() => ({} as Record<string, number>)),
                                                          vocabCount(env).catch(() => 0), ssCount(env).catch(() => 0)]);
-    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, tafsir, irabbooks, vocab, pairs: Math.floor(vocab / 5), ss, ...(counts ?? {}), ...gram, ...(await surahLexCounts(env).catch(() => ({}))), groups: await groupsCount(env, L).catch(() => 0) };
+    const structure = await structureCount(env).catch(() => 0);
+    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, tafsir, irabbooks, vocab, pairs: Math.floor(vocab / 5), ss, structure, ...(counts ?? {}), ...gram, ...(await surahLexCounts(env).catch(() => ({}))), groups: await groupsCount(env, L).catch(() => 0) };
     return ok({
       skills: (L.skill ?? []).map((s) => {
         const src = String(s.extra?.source ?? s.key);
@@ -125,6 +127,7 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
     : ['nearsyn', 'keyterm', 'expression'].includes(src) ? await surahLexDrills(env, src, n, scope, lv, L)
     : src === 'groups' ? await groupDrills(env, n, scope, lv, L, u)
     : src === 'ss' ? await ssDrills(env, n, scope, lv, L)
+    : src === 'structure' ? await structureDrills(env, n, scope, lv, L)
     : [];
   const kinds = byKey(L.kind);
   const shaped = items.map((it) => {
