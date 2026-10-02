@@ -14,7 +14,10 @@
 --   ss_lens      the sentence tab's lenses, in order
 --   ss_layer     the strips under a tree node
 --   ss_keynote   the kinds of key note (label_ar = the band; detail = the line under it)
---   ss_ui        the tab's own words: the Sources switch, the whole-sentence heading, more / less
+--   ss_ui        the tab's own words: the Sources switch, the whole-sentence heading, more / less,
+--                the header's axes, the empty states
+--   ss_branch    the branches of balāgha a point is filed under
+--   ss_owed      the division still owed under a kind the registry divides (key = the parent ref)
 --   source_name  how the prose names a book or a scholar (label = English, label_ar = Arabic):
 --                with Sources off, a parenthesis naming one, or a "Name:" before a claim, is
 --                left out; with them on the prose is shown as written
@@ -68,6 +71,49 @@ INSERT OR REPLACE INTO qr_study_label (scope, key, label, label_ar, detail, icon
 ('ss_ui', 'more', 'More', 'المزيد', NULL, NULL, NULL, NULL, NULL, 3),
 ('ss_ui', 'less', 'Less', 'أقل', NULL, NULL, NULL, NULL, NULL, 4),
 ('ss_ui', 'disputed', 'Disputed', 'مختلف فيه', NULL, NULL, NULL, NULL, NULL, 5),
+('ss_ui', 'axis_class', 'Structure', 'البناء', NULL, NULL, NULL, NULL, NULL, 6),
+('ss_ui', 'axis_kind', 'Kind', 'النوع', NULL, NULL, NULL, NULL, NULL, 7),
+('ss_ui', 'axis_role', 'Position', 'الموقع', NULL, NULL, NULL, NULL, NULL, 8),
+('ss_ui', 'skeleton', 'Built from', 'التركيب', NULL, NULL, NULL, NULL, NULL, 9),
+('ss_ui', 'unspecified', 'Not set', 'غير محدد', NULL, NULL, NULL, NULL, NULL, 10),
+('ss_ui', 'copied', 'Copied', 'نُسخ', NULL, 'doc.on.doc', NULL, NULL, NULL, 11),
+('ss_ui', 'empty_step', 'No sentence structure for this passage.', 'لا تركيب لهذا المقطع بعد', NULL, NULL, NULL, NULL, NULL, 12),
+('ss_ui', 'empty_tree', 'No tree for this sentence.', 'لا شجرة لهذه الجملة بعد', NULL, NULL, NULL, NULL, NULL, 13),
+('ss_ui', 'empty_readings', 'No reading is recorded on this sentence.', 'لا أقوال مسجّلة على هذه الجملة', NULL, NULL, NULL, NULL, NULL, 14),
+('ss_ui', 'empty_ladder', 'No rendering has been built yet.', 'لم تُبنَ ترجمة هذه الجملة بعد', NULL, NULL, NULL, NULL, NULL, 15),
+('ss_ui', 'empty_keynotes', 'Nothing to note in this sentence yet.', 'لا نقاط في هذه الجملة بعد', NULL, NULL, NULL, NULL, NULL, 16),
+('ss_ui', 'ladder_literal', 'grammar only', 'الحرفي', NULL, NULL, NULL, NULL, NULL, 17),
+('ss_ui', 'ladder_fluent', 'grammar ⊕ balāgha', 'الفصيح', NULL, NULL, NULL, NULL, NULL, 18),
+('ss_ui', 'ladder_whole', 'the rendering, whole', 'الفصيح كاملاً', NULL, NULL, NULL, NULL, NULL, 19),
+('ss_ui', 'ladder_same', 'The fluent adds nothing to the literal here', 'الفصيح لا يزيد على الحرفي هنا', NULL, NULL, NULL, NULL, NULL, 20),
+('ss_ui', 'ladder_nukta', 'what the balāgha adds', 'النكتة', NULL, NULL, NULL, NULL, NULL, 21),
+('ss_ui', 'ladder_then', 'then the balāgha', 'ثم البلاغة', NULL, NULL, NULL, NULL, NULL, 22),
+('ss_ui', 'readings_title', 'Iʿrāb readings', 'أوجه الإعراب', NULL, NULL, NULL, NULL, NULL, 23),
+('ss_ui', 'held', 'held back', 'محجوبة', NULL, NULL, NULL, NULL, NULL, 24),
+('ss_ui', 'board_hint', 'Tap a node to open what is under it · drag to go deeper', 'اضغط عقدة لتفتح ما تحتها · اسحب للعمق', NULL, NULL, NULL, NULL, NULL, 25),
+('ss_ui', 'fit', 'Fit to screen', 'ملء الشاشة', NULL, NULL, NULL, NULL, NULL, 26),
+('ss_ui', 'copy', 'Copy this view', 'انسخ هذا العرض', NULL, NULL, NULL, NULL, NULL, 27),
+('ss_ui', 'sentence_n', 'Sentence', 'الجملة', NULL, NULL, NULL, NULL, NULL, 28),
+('ss_ui', 'node_translation', 'this node in English', 'الترجمة', NULL, NULL, NULL, NULL, NULL, 29),
+('ss_ui', 'node_ladder', 'literal → nuance → fluent', 'السلّم', NULL, NULL, NULL, NULL, NULL, 30),
+('ss_ui', 'node_sentence', 'the sentence in English', 'ترجمة الجملة', NULL, NULL, NULL, NULL, NULL, 31),
+('ss_ui', 'node_split', 'where the books split', 'الخلاف', NULL, NULL, NULL, NULL, NULL, 32),
+('ss_ui', 'node_terms', 'the concepts it is filed under', 'المصطلحات', NULL, NULL, NULL, NULL, NULL, 33),
+('ss_ui', 'node_notes', 'the notes on this node', 'الملحوظات', NULL, NULL, NULL, NULL, NULL, 34),
+('ss_ui', 'node_empty', 'Nothing is recorded against this node yet.', 'لا شيء مسجّل على هذه العقدة بعد', NULL, NULL, NULL, NULL, NULL, 35),
+('ss_ui', 'done', 'Done', 'تم', NULL, NULL, NULL, NULL, NULL, 36),
+('ss_ui', 'claims', 'claims', 'أقوال', NULL, NULL, NULL, NULL, NULL, 37),
+('ss_ui', 'readings', 'readings', 'أوجه', NULL, NULL, NULL, NULL, NULL, 38),
+('ss_ui', 'driven_by', 'driven by', 'بسبب', NULL, NULL, NULL, NULL, NULL, 39),
+
+('ss_owed', 'GT:kalam_kind:khabar', 'Kind of statement', 'الضرب', NULL, NULL, NULL, NULL, NULL, 1),
+('ss_owed', 'GT:kalam_kind:insha', 'Kind of request', 'الطلب', NULL, NULL, NULL, NULL, NULL, 2),
+('ss_owed', 'default', 'Division', 'القسم', NULL, NULL, NULL, NULL, NULL, 3),
+
+('ss_branch', 'maani', 'Meanings', 'المعاني', NULL, NULL, NULL, NULL, NULL, 1),
+('ss_branch', 'mani', 'Meanings', 'المعاني', NULL, NULL, NULL, NULL, NULL, 2),
+('ss_branch', 'bayan', 'Imagery', 'البيان', NULL, NULL, NULL, NULL, NULL, 3),
+('ss_branch', 'badi', 'Ornament', 'البديع', NULL, NULL, NULL, NULL, NULL, 4),
 
 ('source_name', 'jadwal', 'al-Jadwal', 'الجدول', NULL, NULL, NULL, NULL, NULL, 1),
 ('source_name', 'razi', 'al-Rāzī', 'الرازي', NULL, NULL, NULL, NULL, '{"also":["Razi","al-Razi","Rāzī"]}', 2),

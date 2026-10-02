@@ -2036,6 +2036,8 @@ export class StudyRepo {
         keynote: ssLabels.ss_keynote ?? [],
         ui: ssLabels.ss_ui ?? [],
         ellipsis: ssLabels.ss_ellipsis ?? [],
+        owed: ssLabels.ss_owed ?? [],
+        branch: ssLabels.ss_branch ?? [],
       },
       sourceNames: [...new Set((ssLabels.source_name ?? []).flatMap((l) => [
         l.label, l.labelAr,
