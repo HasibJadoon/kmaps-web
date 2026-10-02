@@ -1,0 +1,49 @@
+name: Export D1 schemas
+
+# Run by hand: for every worker that owns a D1 database, the remote schema as it really is
+# (wrangler d1 export --no-data) and which of its migration files the database has recorded
+# (d1_migrations), uploaded as one artifact. The workspace's schema.sql snapshots are refreshed
+# from it, and any migration file the database has not recorded is looked at by hand — a folder
+# also holds files applied by other means, so nothing here applies anything.
+
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npm install -g wrangler
+      - name: export
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          for dir in workers/*/; do
+            w=$(basename "$dir")
+            [ -f "$dir/wrangler.toml" ] || continue
+            db=$(sed -n 's/^database_name *= *"\(.*\)"/\1/p' "$dir/wrangler.toml" | head -1)
+            [ -n "$db" ] || continue
+            echo "── $w → $db"
+            (cd "$dir" && wrangler d1 export "$db" --remote --no-data --output "../../out/$w.schema.sql") \
+              || echo "::warning::export failed for $w"
+            (cd "$dir" && wrangler d1 execute "$db" --remote --json \
+               --command "SELECT name FROM d1_migrations ORDER BY id") > "out/$w.applied.json" \
+              || echo "::warning::d1_migrations unreadable for $w"
+            ls "$dir/migrations" 2>/dev/null | grep -E '\.sql$' | sort > "out/$w.files.txt" || true
+          done
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: d1-schemas
+          path: out/
+          retention-days: 7
