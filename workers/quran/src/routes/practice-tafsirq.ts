@@ -246,13 +246,17 @@ export async function tafsirDrillsQ(env: QuranEnv, mode: 'meaning' | 'listen', n
 
   const out: Drill[] = [];
   const seen = new Set<string>();
+  const dealtRuns: Run[] = [];
   for (const q of qs) {
     const s = support(q)[0];
     if (!s) continue;
     const where = rangeOf(q.surah, q.ayah_from, q.ayah_to);
     if (mode === 'listen') {
       const r = spanOf(s);
-      if (!r || seen.has(lineRef(r.audio, r.from, r.to))) continue;
+      // two questions on neighbouring lines widen to the same sentences: a run that overlaps one
+      // already dealt from the same recording is not dealt again
+      if (!r || dealtRuns.some((d) => d.audio === r.audio && d.from <= r.to && r.from <= d.to)) continue;
+      dealtRuns.push(r);
       seen.add(lineRef(r.audio, r.from, r.to));
       out.push(listenDrill(r, q.surah, q.ayah_from, where));
       continue;
