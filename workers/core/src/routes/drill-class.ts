@@ -68,8 +68,12 @@ async function view(env: CoreEnv, c: ClassRow) {
     daysTaken: c.days_taken ?? daysTaken(days.map((d) => d.day)),
     activeDays: c.active_days, sessions: c.sessions, activeSeconds: c.active_seconds,
     itemsTotal: c.items_total, firstTryRight: c.first_try_right, score: c.score, rating: c.rating,
-    steps: steps(c.steps_json),
-    met: Object.fromEntries(perNode.map((r) => [r.node_key, { items: r.n, perfected: r.perfected }])),
+    // lists, not maps keyed by node: a client that turns snake_case keys into camelCase
+    // would rename a node's key along with the fields
+    nodes: Object.entries(steps(c.steps_json)).map(([node, p]) => {
+      const met = perNode.find((r) => r.node_key === node);
+      return { node, ...p, met: met?.n ?? 0, perfected: met?.perfected ?? 0 };
+    }),
     open, days,
   };
 }

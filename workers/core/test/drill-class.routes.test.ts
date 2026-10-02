@@ -79,7 +79,10 @@ test('a class from first sprint to studied', async () => {
   assert.equal(r.body.data.class.itemsTotal, 3);
   assert.equal(r.body.data.class.firstTryRight, 2);
   assert.deepEqual(r.body.data.class.open.map((o: { item_ref: string }) => o.item_ref), ['QR:fill:40:2']);
-  assert.deepEqual(r.body.data.class.steps.listen.sprints, [0]);
+  const listen = r.body.data.class.nodes.find((n: { node: string }) => n.node === 'listen');
+  assert.deepEqual(listen.sprints, [0]);
+  assert.equal(listen.met, 3);
+  assert.equal(listen.best, 67);
   assert.equal(r.body.data.sprint.stars, 1);   // 2 of 3 first time: 67%
 
   // completion refused while one is open
