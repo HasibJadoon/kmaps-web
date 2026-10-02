@@ -1,9 +1,9 @@
 -- Schema for km_studio.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-09-09.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-10-02.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (8) ────────────────────────────────────────────────────
+-- ── Tables (9) ───────────────────────────────────────────────────
 
 CREATE TABLE st_capture_markers ( id TEXT PRIMARY KEY, session_ref TEXT NOT NULL, point_ref TEXT NOT NULL, section_ref TEXT, take_number INTEGER NOT NULL DEFAULT 1, start_tc TEXT, end_tc TEXT, status TEXT NOT NULL DEFAULT 'good', note TEXT, clip_ref TEXT, seq INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), FOREIGN KEY (session_ref) REFERENCES st_capture_sessions(id), FOREIGN KEY (point_ref) REFERENCES st_talking_points(id) );
 
@@ -20,7 +20,7 @@ CREATE TABLE st_episodes (
   meta_json       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
-, ecosystem TEXT, series_ref TEXT, session_no INTEGER, output_kind TEXT, source_ref TEXT);
+, ecosystem TEXT, series_ref TEXT, session_no INTEGER, output_kind TEXT, source_ref TEXT, last_opened_at TEXT);
 
 CREATE TABLE st_participants (
   id            TEXT PRIMARY KEY,
@@ -33,6 +33,22 @@ CREATE TABLE st_participants (
   FOREIGN KEY (episode_ref) REFERENCES st_episodes(id)
 );
 
+CREATE TABLE st_phase (
+  id            TEXT PRIMARY KEY,
+  episode_ref   TEXT NOT NULL,
+  phase         TEXT NOT NULL,
+  seq           INTEGER NOT NULL DEFAULT 0,
+  state         TEXT NOT NULL DEFAULT 'pending',
+  notes_md      TEXT,
+  started_at    TEXT,
+  completed_at  TEXT,
+  completed_by  TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (episode_ref, phase),
+  FOREIGN KEY (episode_ref) REFERENCES st_episodes(id)
+);
+
 CREATE TABLE st_sections (
   id            TEXT PRIMARY KEY,
   episode_ref   TEXT NOT NULL,
@@ -40,7 +56,7 @@ CREATE TABLE st_sections (
   heading       TEXT NOT NULL,
   seq           INTEGER NOT NULL DEFAULT 0,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at    TEXT NOT NULL DEFAULT (datetime('now')), overlay_kind TEXT, d1_query TEXT,
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now')), overlay_kind TEXT, d1_query TEXT, group_key TEXT, group_label TEXT,
   FOREIGN KEY (episode_ref) REFERENCES st_episodes(id)
 );
 
@@ -83,7 +99,8 @@ CREATE TABLE st_templates (
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- ── Indexes (13) ───────────────────────────────────────────────────
+
+-- ── Indexes (13) ─────────────────────────────────────────────────
 
 CREATE INDEX idx_st_capture_markers_session ON st_capture_markers(session_ref, seq);
 

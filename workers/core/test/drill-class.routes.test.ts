@@ -37,9 +37,6 @@ function d1(db: DatabaseSync) {
 async function setup(user = 'U1') {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
-  db.exec(readFileSync(new URL('../migrations/039_drill_class.sql', import.meta.url), 'utf8'));
-  db.exec(readFileSync(new URL('../migrations/040_drill_class_missed.sql', import.meta.url), 'utf8'));
-  db.exec(readFileSync(new URL('../migrations/042_drill_class_resume.sql', import.meta.url), 'utf8'));
   const routes = new Map<string, Handler>();
   drillClassRoutes({
     get: (p: string, h: Handler) => routes.set(`GET ${p}`, h),

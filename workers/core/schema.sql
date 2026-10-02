@@ -1,9 +1,9 @@
 -- Schema for km_core.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-09-09.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-10-02.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (89) ────────────────────────────────────────────────────
+-- ── Tables (96) ──────────────────────────────────────────────────
 
 CREATE TABLE core_activity_events (
   id              TEXT PRIMARY KEY,               -- ULID
@@ -17,6 +17,20 @@ CREATE TABLE core_activity_events (
   payload_json    TEXT,                           -- contextual data snapshot
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (workspace_id) REFERENCES core_workspaces(id)
+);
+
+CREATE TABLE core_app_label (
+  scope       TEXT NOT NULL,                 -- room · door · today
+  key         TEXT NOT NULL,
+  parent      TEXT,                          -- a door's room
+  label       TEXT NOT NULL,
+  label_ar    TEXT,
+  detail      TEXT,
+  icon        TEXT,
+  color       TEXT,
+  extra_json  TEXT,
+  sort        INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (scope, key)
 );
 
 CREATE TABLE core_audit_log (
@@ -231,6 +245,14 @@ CREATE TABLE core_bank_item_option (
   UNIQUE (item_ref, role, sort_order)
 );
 
+CREATE TABLE core_bank_item_share (
+  item_ref      TEXT NOT NULL REFERENCES core_bank_item(id) ON DELETE CASCADE,
+  workspace_id  TEXT NOT NULL REFERENCES core_workspaces(id),
+  shared_by     TEXT NOT NULL,
+  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  PRIMARY KEY (item_ref, workspace_id)
+);
+
 CREATE TABLE core_bank_pack (
   id            TEXT PRIMARY KEY,
   slug          TEXT NOT NULL UNIQUE,          -- hand-authored; the import key
@@ -395,6 +417,67 @@ CREATE TABLE core_daily_log (
   session_url     TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 , user_ref TEXT);
+
+CREATE TABLE core_drill_class (
+  id               TEXT PRIMARY KEY,
+  user_ref         TEXT NOT NULL,
+  scope_ref        TEXT NOT NULL,
+  module           TEXT NOT NULL,
+  status           TEXT NOT NULL DEFAULT 'in_progress',
+  started_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  last_at          TEXT,
+  completed_at     TEXT,
+  days_taken       INTEGER,
+  active_days      INTEGER NOT NULL DEFAULT 0,
+  sessions         INTEGER NOT NULL DEFAULT 0,
+  active_seconds   INTEGER NOT NULL DEFAULT 0,
+  items_total      INTEGER NOT NULL DEFAULT 0,
+  first_try_right  INTEGER NOT NULL DEFAULT 0,
+  score            INTEGER,
+  rating           INTEGER,
+  steps_json       TEXT NOT NULL DEFAULT '{}', resume_json TEXT, resume_at TEXT,
+  UNIQUE (user_ref, scope_ref)
+);
+
+CREATE TABLE core_drill_class_day (
+  class_id   TEXT NOT NULL REFERENCES core_drill_class(id) ON DELETE CASCADE,
+  day        TEXT NOT NULL,
+  seconds    INTEGER NOT NULL DEFAULT 0,
+  items      INTEGER NOT NULL DEFAULT 0,
+  right      INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (class_id, day)
+);
+
+CREATE TABLE core_drill_class_item (
+  class_id    TEXT NOT NULL REFERENCES core_drill_class(id) ON DELETE CASCADE,
+  item_ref    TEXT NOT NULL,
+  node_key    TEXT NOT NULL,
+  first_right INTEGER NOT NULL DEFAULT 0,
+  misses      INTEGER NOT NULL DEFAULT 0,
+  streak      INTEGER NOT NULL DEFAULT 0,
+  state       TEXT NOT NULL DEFAULT 'right',
+  card_json   TEXT,
+  filed_card  TEXT,
+  updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')), missed_json TEXT,
+  PRIMARY KEY (class_id, item_ref)
+);
+
+CREATE TABLE core_drill_feedback (
+  id              TEXT PRIMARY KEY,                -- DFB:<ulid>
+  user_ref        TEXT NOT NULL,
+  drill_id        TEXT NOT NULL,                   -- the drill's id as the worker dealt it
+  module          TEXT,                            -- QR · AR …
+  kind            TEXT,                            -- the drill's kind (its skill)
+  resource_ref    TEXT,                            -- the card it files, when it has one
+  reason          TEXT NOT NULL,                   -- a 'feedback' label key
+  note            TEXT,
+  drill_json      TEXT,                            -- the drill as it was shown
+  status          TEXT NOT NULL DEFAULT 'open',    -- open · resolved · dismissed · removed
+  resolved_by     TEXT,
+  resolution_note TEXT,
+  created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  resolved_at     TEXT
+);
 
 CREATE TABLE core_external_refs (
   id              TEXT PRIMARY KEY,
@@ -1001,6 +1084,8 @@ CREATE TABLE core_workspaces (
   FOREIGN KEY (owner_id) REFERENCES core_users(id)
 );
 
+CREATE TABLE cyb_agent_rule (id TEXT PRIMARY KEY, domain TEXT NOT NULL, db_scope TEXT NOT NULL DEFAULT '*', applies_to TEXT NOT NULL, trigger_md TEXT NOT NULL, rule_md TEXT NOT NULL, rationale_md TEXT, symptom_md TEXT, antipattern TEXT, correct TEXT, check_sql TEXT, expected REAL NOT NULL DEFAULT 0, severity TEXT NOT NULL DEFAULT 'high' CHECK (severity IN ('critical','high','medium','low')), discovered_on TEXT, discovered_in TEXT, status TEXT NOT NULL DEFAULT 'live' CHECK (status IN ('live','draft','retired')), meta_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_json)), created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+
 CREATE TABLE cyb_card (
   id        TEXT PRIMARY KEY,
   node_id   TEXT NOT NULL REFERENCES cyb_node(id) ON DELETE CASCADE,
@@ -1246,7 +1331,7 @@ CREATE TABLE cyb_production (
   state       TEXT NOT NULL DEFAULT 'drafted',
   gated_ok    INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-);
+, studio_ref TEXT, channel TEXT);
 
 CREATE TABLE cyb_ps_band (
   band_code TEXT PRIMARY KEY, layer_code TEXT NOT NULL, band_ord INTEGER NOT NULL,
@@ -1418,7 +1503,8 @@ CREATE TABLE cyb_wv_band (
   weight REAL NOT NULL DEFAULT 1.0,
   status TEXT NOT NULL DEFAULT 'live', synced_at TEXT);
 
--- ── Views (27) ─────────────────────────────────────────────────────
+
+-- ── Views (27) ───────────────────────────────────────────────────
 
 CREATE VIEW core_person_violations AS
   SELECT 'id_shape' AS kind, id AS row_id, id AS wrote FROM core_person
@@ -1728,7 +1814,8 @@ WHERE s.source_table IS NULL
    OR s.source_table LIKE '%+%'
    OR s.state = 'pending_carrier';
 
--- ── Indexes (120) ───────────────────────────────────────────────────
+
+-- ── Indexes (125) ────────────────────────────────────────────────
 
 CREATE INDEX core_srs_card_deck ON core_srs_card(deck_id);
 
@@ -1772,9 +1859,19 @@ CREATE INDEX idx_core_al_resource ON core_audit_log(resource_ref);
 
 CREATE INDEX idx_core_al_ws       ON core_audit_log(workspace_id);
 
+CREATE INDEX idx_core_bank_item_share_ws ON core_bank_item_share(workspace_id);
+
 CREATE INDEX idx_core_concept_domain ON core_concept (domain);
 
 CREATE INDEX idx_core_concept_key    ON core_concept (concept_key);
+
+CREATE INDEX idx_core_drill_class_item_open ON core_drill_class_item(class_id, state);
+
+CREATE INDEX idx_core_drill_class_user ON core_drill_class(user_ref, module, status);
+
+CREATE INDEX idx_core_drill_feedback_status ON core_drill_feedback(status, created_at);
+
+CREATE INDEX idx_core_drill_feedback_user ON core_drill_feedback(user_ref, drill_id);
 
 CREATE INDEX idx_core_er_legacy ON core_external_refs(legacy_source, legacy_id);
 
@@ -1996,7 +2093,8 @@ CREATE UNIQUE INDEX ux_bank_response_once
 CREATE UNIQUE INDEX ux_quiz_generated
   ON core_quiz_question (generated_from) WHERE generated_from IS NOT NULL;
 
--- ── Triggers (6) ──────────────────────────────────────────────────
+
+-- ── Triggers (6) ─────────────────────────────────────────────────
 
 CREATE TRIGGER trg_core_concept_del AFTER DELETE ON core_concept BEGIN
   INSERT INTO core_concept_outbox (op,concept_id,payload) VALUES ('delete', OLD.id, json_object('id',OLD.id));

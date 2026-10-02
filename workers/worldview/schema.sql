@@ -1,9 +1,9 @@
 -- Schema for km_worldview.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-09-09.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-10-02.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (165) ────────────────────────────────────────────────────
+-- ── Tables (172) ─────────────────────────────────────────────────
 
 CREATE TABLE core_concept (
   id          TEXT PRIMARY KEY,
@@ -144,6 +144,36 @@ CREATE TABLE wv_arguments (
   FOREIGN KEY (topic_id)     REFERENCES wv_topics(id),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id),
   FOREIGN KEY (person_id)    REFERENCES wv_people(id)
+);
+
+CREATE TABLE wv_atlas (
+  id          TEXT PRIMARY KEY,
+  parent_id   TEXT REFERENCES wv_atlas(id),
+  kind        TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  title_ar    TEXT,
+  tagline     TEXT,
+  color       TEXT,
+  icon        TEXT,
+  layout      TEXT,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  arc_id      TEXT,
+  domain_slug TEXT,
+  way         TEXT,
+  era_from    INTEGER,
+  era_to      INTEGER,
+  span        TEXT,
+  next_id     TEXT,
+  status      TEXT NOT NULL DEFAULT 'live',
+  meta_json   TEXT,
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+, source_id TEXT);
+
+CREATE TABLE wv_atlas_cache (
+  key       TEXT PRIMARY KEY,               -- atlas | centuries
+  version   TEXT NOT NULL,
+  body      TEXT NOT NULL,                  -- the built JSON
+  built_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE wv_authority_models (
@@ -456,6 +486,42 @@ CREATE TABLE wv_contribution_evidence_links (
   FOREIGN KEY (contrib_id)  REFERENCES wv_civilizational_contributions(id),
   FOREIGN KEY (evidence_id) REFERENCES wv_evidence_items(id)
 );
+
+CREATE TABLE wv_corpus_block (
+  id               TEXT PRIMARY KEY,
+  corpus_id        TEXT NOT NULL,
+  corpus_unit_id   TEXT,
+  cite_scheme      TEXT NOT NULL,
+  cite_raw         TEXT NOT NULL,
+  cite_sort        TEXT NOT NULL,
+  cite_end_raw     TEXT,
+  lang             TEXT NOT NULL,
+  script           TEXT,
+  direction        TEXT NOT NULL DEFAULT 'ltr',
+  text_orig        TEXT,
+  text_en          TEXT,
+  text_norm        TEXT,
+  raw_markup       TEXT,
+  urn              TEXT,
+  edition          TEXT,
+  translator       TEXT,
+  licence          TEXT,
+  attribution      TEXT,
+  source_url       TEXT,
+  block_type       TEXT NOT NULL DEFAULT 'passage',
+  display_order    INTEGER NOT NULL DEFAULT 0,
+  confidence       TEXT DEFAULT 'high',
+  review_status    TEXT NOT NULL DEFAULT 'ingested',
+  extraction_method TEXT,
+  meta_json        TEXT,
+  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (corpus_id)      REFERENCES wv_scriptural_corpora(id),
+  FOREIGN KEY (corpus_unit_id) REFERENCES wv_corpus_units(id),
+  UNIQUE (corpus_id, cite_scheme, cite_raw)
+);
+
+CREATE VIRTUAL TABLE wv_corpus_block_fts USING fts5(text_orig, text_en, text_norm, content='wv_corpus_block', content_rowid='rowid', tokenize='unicode61 remove_diacritics 2');
 
 CREATE TABLE wv_corpus_units (
   id              TEXT PRIMARY KEY,
@@ -1783,6 +1849,22 @@ CREATE TABLE wv_replacement_bedrock_views (
   FOREIGN KEY (diagram_spec_id) REFERENCES wv_diagram_specs(id)
 );
 
+CREATE TABLE wv_revelation_models (
+  id              TEXT PRIMARY KEY,
+  slug            TEXT NOT NULL UNIQUE,
+  title           TEXT NOT NULL,
+  tradition_id    TEXT,
+  revelation_type TEXT NOT NULL DEFAULT 'prophetic',
+    
+    
+  medium          TEXT,                           
+  continuity      TEXT,                           
+  description_md  TEXT,
+  meta_json       TEXT,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
+);
+
 CREATE TABLE wv_rhetoric_devices (
   id               TEXT PRIMARY KEY,
   slug             TEXT NOT NULL UNIQUE,
@@ -1809,24 +1891,29 @@ CREATE TABLE wv_rhetoric_terms (
   term_ar          TEXT,
   term_ur          TEXT,
   device_id        TEXT REFERENCES wv_rhetoric_devices(id),
+
   literal_sense    TEXT,
   figurative_sense TEXT,
   source_domain    TEXT,
   target_domain    TEXT,
+
   register         TEXT NOT NULL DEFAULT 'general'
                    CHECK (register IN ('general','diplomatic','journalistic','academic',
                                        'military','legal','commercial','colloquial','religious')),
   stance           TEXT NOT NULL DEFAULT 'neutral'
                    CHECK (stance IN ('neutral','persuasive','euphemistic','dysphemistic',
                                      'propagandistic','polemical')),
+
   origin_note      TEXT,
   highlights       TEXT,
   hides            TEXT,
   counter_term     TEXT,
+
   tradition_id     TEXT REFERENCES wv_traditions(id),
   al_concept_ref   TEXT,
   quran_ref        TEXT,
   concept_ref      TEXT,
+
   notes_md         TEXT,
   sort_order       INTEGER NOT NULL DEFAULT 0,
   status           TEXT NOT NULL DEFAULT 'live',
@@ -1847,22 +1934,6 @@ CREATE TABLE wv_rhetoric_usages (
   is_locus_classicus INTEGER NOT NULL DEFAULT 0,
   sort_order         INTEGER NOT NULL DEFAULT 0,
   created_at         TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE wv_revelation_models (
-  id              TEXT PRIMARY KEY,
-  slug            TEXT NOT NULL UNIQUE,
-  title           TEXT NOT NULL,
-  tradition_id    TEXT,
-  revelation_type TEXT NOT NULL DEFAULT 'prophetic',
-    
-    
-  medium          TEXT,                           
-  continuity      TEXT,                           
-  description_md  TEXT,
-  meta_json       TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id)
 );
 
 CREATE TABLE wv_route_features (
@@ -2210,7 +2281,7 @@ CREATE TABLE wv_term_links (
     
   note            TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-);
+, quote TEXT, core_user_ref TEXT);
 
 CREATE TABLE wv_thinker_period_links (
   id                  TEXT PRIMARY KEY,
@@ -2283,8 +2354,7 @@ CREATE TABLE wv_topics (
   moral_axis_id   TEXT,
   description_md  TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  source_id       TEXT,
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now')), source_id TEXT,
   FOREIGN KEY (parent_id)     REFERENCES wv_topics(id),
   FOREIGN KEY (tradition_id)  REFERENCES wv_traditions(id),
   FOREIGN KEY (moral_axis_id) REFERENCES wv_moral_axes(id)
@@ -2462,7 +2532,8 @@ CREATE TABLE wv_virtue_profiles (
   FOREIGN KEY (moral_axis_id) REFERENCES wv_moral_axes(id)
 );
 
--- ── Views (6) ─────────────────────────────────────────────────────
+
+-- ── Views (6) ────────────────────────────────────────────────────
 
 CREATE VIEW core_person_violations AS
   SELECT 'id_shape' AS kind, id AS row_id, id AS wrote FROM core_person
@@ -2504,7 +2575,8 @@ CREATE VIEW wv_unit_documents AS SELECT * FROM wv_unit_attachments WHERE attachm
 
 CREATE VIEW wv_unit_episodes AS SELECT * FROM wv_unit_attachments WHERE attachment_type = 'episode' AND status = 'active' ORDER BY source_unit_id, order_index;
 
--- ── Indexes (177) ───────────────────────────────────────────────────
+
+-- ── Indexes (191) ────────────────────────────────────────────────
 
 CREATE INDEX idx_core_concept_domain ON core_concept (domain);
 
@@ -2529,6 +2601,12 @@ CREATE INDEX idx_wv_ar_from ON wv_argument_relations(from_arg_id);
 CREATE INDEX idx_wv_arg_topic ON wv_arguments(topic_id);
 
 CREATE INDEX idx_wv_arg_trad  ON wv_arguments(tradition_id);
+
+CREATE INDEX idx_wv_atlas_arc ON wv_atlas(arc_id);
+
+CREATE INDEX idx_wv_atlas_parent ON wv_atlas(parent_id, sort_order);
+
+CREATE INDEX idx_wv_atlas_source ON wv_atlas (source_id);
 
 CREATE INDEX idx_wv_bs_status ON wv_brainstorm_sessions(status);
 
@@ -2763,12 +2841,19 @@ CREATE INDEX idx_wv_reg_parent ON wv_regions(parent_id);
 CREATE INDEX idx_wv_rf_layer ON wv_route_features(route_layer_id);
 
 CREATE INDEX idx_wv_rhd_family  ON wv_rhetoric_devices(device_family, sort_order);
+
 CREATE INDEX idx_wv_rht_device  ON wv_rhetoric_terms(device_id);
-CREATE INDEX idx_wv_rht_source  ON wv_rhetoric_terms(source_domain);
-CREATE INDEX idx_wv_rht_target  ON wv_rhetoric_terms(target_domain);
-CREATE INDEX idx_wv_rht_stance  ON wv_rhetoric_terms(stance, status);
+
 CREATE INDEX idx_wv_rht_lang    ON wv_rhetoric_terms(lang, status);
+
+CREATE INDEX idx_wv_rht_source  ON wv_rhetoric_terms(source_domain);
+
+CREATE INDEX idx_wv_rht_stance  ON wv_rhetoric_terms(stance, status);
+
+CREATE INDEX idx_wv_rht_target  ON wv_rhetoric_terms(target_domain);
+
 CREATE INDEX idx_wv_rhu_term    ON wv_rhetoric_usages(rhetoric_term_id, sort_order);
+
 CREATE INDEX idx_wv_rm_trad ON wv_revelation_models(tradition_id);
 
 CREATE INDEX idx_wv_rs_layer ON wv_route_segments(map_layer_id);
@@ -2788,6 +2873,8 @@ CREATE INDEX idx_wv_sch_trad ON wv_schools(tradition_id);
 CREATE INDEX idx_wv_sch_type ON wv_schools(school_type);
 
 CREATE INDEX idx_wv_sf_trad ON wv_sacrifice_frameworks(tradition_id);
+
+CREATE INDEX idx_wv_sources_person ON wv_sources(person_ref);
 
 CREATE INDEX idx_wv_sp_person ON wv_source_people(person_id);
 
@@ -2824,6 +2911,8 @@ CREATE INDEX idx_wv_tl_entity ON wv_term_links(entity_type, entity_id);
 CREATE INDEX idx_wv_top_domain ON wv_topics(topic_domain);
 
 CREATE INDEX idx_wv_top_trad   ON wv_topics(tradition_id);
+
+CREATE INDEX idx_wv_topics_source ON wv_topics (source_id);
 
 CREATE INDEX idx_wv_tpl_person ON wv_thinker_period_links(person_id);
 
@@ -2867,10 +2956,15 @@ CREATE INDEX idx_wvvps_position ON wv_value_position_source (position_id);
 
 CREATE INDEX idx_wvvps_source   ON wv_value_position_source (source_id);
 
--- 009: the built Atlas, cached per data version
-CREATE TABLE IF NOT EXISTS wv_atlas_cache (
-  key       TEXT PRIMARY KEY,
-  version   TEXT NOT NULL,
-  body      TEXT NOT NULL,
-  built_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
+CREATE INDEX ix_corpus_block_sort ON wv_corpus_block(corpus_id, cite_sort);
+
+CREATE INDEX ix_corpus_block_unit ON wv_corpus_block(corpus_unit_id, display_order);
+
+
+-- ── Triggers (3) ─────────────────────────────────────────────────
+
+CREATE TRIGGER trg_corpus_block_ad AFTER DELETE ON wv_corpus_block BEGIN INSERT INTO wv_corpus_block_fts(wv_corpus_block_fts, rowid, text_orig, text_en, text_norm) VALUES ('delete', old.rowid, old.text_orig, old.text_en, old.text_norm); END;
+
+CREATE TRIGGER trg_corpus_block_ai AFTER INSERT ON wv_corpus_block BEGIN INSERT INTO wv_corpus_block_fts(rowid, text_orig, text_en, text_norm) VALUES (new.rowid, new.text_orig, new.text_en, new.text_norm); END;
+
+CREATE TRIGGER trg_corpus_block_au AFTER UPDATE ON wv_corpus_block BEGIN INSERT INTO wv_corpus_block_fts(wv_corpus_block_fts, rowid, text_orig, text_en, text_norm) VALUES ('delete', old.rowid, old.text_orig, old.text_en, old.text_norm); INSERT INTO wv_corpus_block_fts(rowid, text_orig, text_en, text_norm) VALUES (new.rowid, new.text_orig, new.text_en, new.text_norm); END;

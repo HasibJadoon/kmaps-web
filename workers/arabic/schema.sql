@@ -1,9 +1,9 @@
 -- Schema for km_arabic.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-09-09.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-10-02.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (49) ────────────────────────────────────────────────────
+-- ── Tables (69) ──────────────────────────────────────────────────
 
 CREATE TABLE ar_acq_audio (
   id            TEXT PRIMARY KEY,
@@ -182,6 +182,10 @@ CREATE TABLE ar_acquisition_ref (
   meta_json      TEXT NOT NULL DEFAULT '{}',
   created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 , author TEXT, capture_status TEXT NOT NULL DEFAULT 'not_started', parent_ref TEXT REFERENCES ar_acquisition_ref(id), notion_ref TEXT, category_ref TEXT REFERENCES ar_acq_category(id), platform TEXT, verse_form TEXT);
+
+CREATE TABLE ar_common_word (
+  bare TEXT PRIMARY KEY, kind TEXT NOT NULL, lemma TEXT, quran_freq INTEGER
+);
 
 CREATE TABLE "ar_curriculum" (
   id              TEXT PRIMARY KEY,
@@ -363,6 +367,28 @@ CREATE TABLE ar_daily_delivery (
   UNIQUE (user_ref, theme_id)
 );
 
+CREATE TABLE ar_daily_dialogue (
+  id          TEXT PRIMARY KEY,               
+  theme_id    TEXT NOT NULL REFERENCES ar_daily_theme(id) ON DELETE CASCADE,
+  title_ar    TEXT NOT NULL,                  
+  title_en    TEXT,
+  setting_ar  TEXT,                           
+  image_key   TEXT,                           
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE ar_daily_dialogue_turn (
+  id          TEXT PRIMARY KEY,               
+  dialogue_id TEXT NOT NULL REFERENCES ar_daily_dialogue(id) ON DELETE CASCADE,
+  speaker_ar  TEXT NOT NULL,                  
+  text_ar     TEXT NOT NULL,                  
+  gloss_en    TEXT NOT NULL,
+  word_id     TEXT REFERENCES ar_daily_word(id),  
+  audio_key   TEXT,                           
+  sort_order  INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE ar_daily_passage (
   id          TEXT PRIMARY KEY,
   theme_id    TEXT NOT NULL UNIQUE REFERENCES ar_daily_theme(id) ON DELETE CASCADE,
@@ -423,7 +449,7 @@ CREATE TABLE ar_daily_word (
   audio_key_sg    TEXT,
   audio_key_pl    TEXT,
   sort_order      INTEGER NOT NULL DEFAULT 0,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')), image_key TEXT,
   UNIQUE (theme_id, singular_ar)
 );
 
@@ -484,6 +510,25 @@ CREATE TABLE ar_grammar_node (
   meta_json      TEXT,
   created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 , teach_order INTEGER, difficulty INTEGER, prereq_json TEXT, track_id TEXT REFERENCES ar_curriculum_track(id));
+
+CREATE TABLE ar_grammar_sentence (
+  id          TEXT PRIMARY KEY,     
+  kind        TEXT NOT NULL,        
+  text_ar     TEXT NOT NULL,        
+  qr_ref      TEXT,                 
+  term_id     TEXT,                 
+  lesson_id   TEXT,                 
+  origin      TEXT NOT NULL,        
+  source_slug TEXT,                 
+  chunk_id    TEXT,                 
+  bab_id      TEXT,
+  volume_no   INTEGER,
+  page_no     INTEGER,
+  word_count  INTEGER NOT NULL,
+  depth       INTEGER,              
+  level       INTEGER NOT NULL,     
+  rnd         INTEGER NOT NULL      
+, bab_title_ar TEXT, bab_order INTEGER, context_ar TEXT);
 
 CREATE TABLE "ar_learn_exposure_log" (
   id             TEXT PRIMARY KEY,
@@ -565,6 +610,22 @@ CREATE TABLE "ar_learn_unit_progress" (
   UNIQUE (unit_id, core_user_ref)
 );
 
+CREATE TABLE ar_learner_level (
+  user_id TEXT NOT NULL, band TEXT NOT NULL, score INTEGER NOT NULL, placed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, band)
+);
+
+CREATE TABLE ar_learner_unit (
+  user_id     TEXT NOT NULL,
+  unit_id     TEXT NOT NULL,
+  band        TEXT NOT NULL,                 -- basic | middle | advanced
+  stage       TEXT NOT NULL DEFAULT 'preview',  -- preview | watch | drill | check | done
+  scenes_json TEXT NOT NULL DEFAULT '[]',    -- scene numbers drilled
+  best_score  INTEGER,                       -- the unit check, in percent
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now')), watched_json TEXT NOT NULL DEFAULT '[]',
+  PRIMARY KEY (user_id, unit_id)
+);
+
 CREATE TABLE ar_learning_source (
   id            TEXT PRIMARY KEY,
   source_kind   TEXT NOT NULL,
@@ -640,6 +701,14 @@ CREATE TABLE ar_lesson_term (
   PRIMARY KEY (lesson_id, term_id)
 );
 
+CREATE TABLE ar_lexeme_passage (
+  ref TEXT NOT NULL, rank INTEGER NOT NULL, kind TEXT NOT NULL,      -- text | audio
+  work_id TEXT, unit_id TEXT, title TEXT, level TEXT, text_ar TEXT NOT NULL,
+  hit_from INTEGER, hit_to INTEGER,                                    -- the lexeme's words in text_ar
+  object_key TEXT, start_sec REAL, end_sec REAL,                       -- audio: the stretch to play
+  PRIMARY KEY (ref, rank)
+);
+
 CREATE TABLE ar_ling_gram_term (
   id TEXT PRIMARY KEY,
   category_key TEXT NOT NULL,
@@ -677,6 +746,54 @@ CREATE TABLE ar_node_source (
   PRIMARY KEY (node_id, source_id, role)
 );
 
+CREATE TABLE ar_pool_word_fix (
+  pool       TEXT NOT NULL,              
+  line_id    TEXT NOT NULL,
+  tok        INTEGER NOT NULL,           
+  old_ar     TEXT NOT NULL,
+  new_ar     TEXT,
+  reason     TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (pool, line_id, tok)
+);
+
+CREATE TABLE ar_practice_label (
+  scope     TEXT NOT NULL,     -- skill | scene_skill | kind | prompt | bucket | scene_tier | quran_tier | pos
+  key       TEXT NOT NULL,
+  label     TEXT NOT NULL,
+  label_ar  TEXT,
+  detail    TEXT,              -- a skill's tagline
+  icon      TEXT,
+  color     TEXT,
+  min_value INTEGER,           -- quran_tier: the fewest Qurʾān occurrences for the tier
+  extra_json TEXT,             -- skill: {source}
+  sort      INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (scope, key)
+);
+
+CREATE TABLE ar_practice_pool (
+  id          TEXT PRIMARY KEY,       -- the segment's id
+  band        TEXT NOT NULL,          -- basic | middle | advanced
+  level       TEXT,                   -- the work's CEFR level
+  audio_id    TEXT NOT NULL,
+  work_id     TEXT,
+  work_title  TEXT,
+  object_key  TEXT NOT NULL,
+  start_sec   REAL NOT NULL,
+  end_sec     REAL NOT NULL,
+  text_ar     TEXT NOT NULL,
+  words_json  TEXT NOT NULL,          -- [[start,end], …] one per word of text_ar
+  word_count  INTEGER NOT NULL,
+  rnd         INTEGER NOT NULL        -- a random key, for cheap random draws
+, text_en TEXT, gloss_json TEXT, blanks_json TEXT);
+
+CREATE TABLE ar_read_pool (
+  id TEXT PRIMARY KEY,            -- <unit id>#<n>
+  band TEXT NOT NULL,             -- basic | middle | advanced (the work's level)
+  work_id TEXT NOT NULL, work_title TEXT, unit_id TEXT NOT NULL,
+  text_ar TEXT NOT NULL, word_count INTEGER NOT NULL
+, object_key TEXT, start_sec REAL, end_sec REAL, words_json TEXT, blanks_json TEXT, grade INTEGER);
+
 CREATE TABLE ar_reading_state (
   user_id         TEXT NOT NULL,
   work_id         TEXT NOT NULL REFERENCES ar_acquisition_ref(id),
@@ -688,6 +805,44 @@ CREATE TABLE ar_reading_state (
   opened_at       TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, work_id)
+);
+
+CREATE TABLE ar_room (
+  id          TEXT PRIMARY KEY,
+  title_en    TEXT NOT NULL,
+  title_ar    TEXT NOT NULL,
+  tagline     TEXT,
+  color       TEXT NOT NULL,
+  icon        TEXT NOT NULL,          -- an SF Symbol name
+  layout      TEXT NOT NULL,          -- collections | shelf | centuries | daily
+  sort_order  INTEGER NOT NULL,
+  rules_json  TEXT NOT NULL DEFAULT '{}',   -- {"series":[…], "shapes":[…], "genres":[…], "fallback":true}
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE ar_scene_feature_term (
+  unit_id     TEXT NOT NULL,             
+  scene_no    INTEGER NOT NULL,
+  feature_idx INTEGER NOT NULL,          
+  term_ar     TEXT NOT NULL,             
+  term_id     TEXT NOT NULL,             
+  match_kind  TEXT NOT NULL,             
+  PRIMARY KEY (unit_id, scene_no, feature_idx, term_id)
+);
+
+CREATE TABLE ar_scene_lexeme (
+  unit_id TEXT NOT NULL, scene_no INTEGER NOT NULL, line INTEGER NOT NULL,
+  span_from INTEGER NOT NULL, span_to INTEGER NOT NULL, ref TEXT NOT NULL, kind TEXT NOT NULL,
+  PRIMARY KEY (unit_id, scene_no, line, span_from, ref)
+);
+
+CREATE TABLE ar_scene_vocab (
+  unit_id    TEXT NOT NULL,
+  scene_no   INTEGER NOT NULL,
+  vocab_json TEXT,          -- [{line, word, lemma, gloss, distractors:[3], note}]
+  gist_json  TEXT,          -- {q, options:[4], answer}
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')), expressions_json TEXT, features_json TEXT,
+  PRIMARY KEY (unit_id, scene_no)
 );
 
 CREATE TABLE ar_teaching_variant (
@@ -717,8 +872,7 @@ CREATE TABLE ar_text_unit (
   word_count   INTEGER NOT NULL DEFAULT 0,
   status       TEXT NOT NULL DEFAULT 'live',
   meta_json    TEXT NOT NULL DEFAULT '{}',
-  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
-  script_json  TEXT,                          -- reconstructed episode script (0008)
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')), script_json TEXT,
   UNIQUE (acq_ref_id, seq)
 );
 
@@ -730,7 +884,42 @@ CREATE VIRTUAL TABLE ar_text_unit_fts USING fts5(
   tokenize="unicode61 remove_diacritics 2"
 );
 
--- ── Views (2) ─────────────────────────────────────────────────────
+CREATE TABLE ar_tts_clip (
+  text_hash    TEXT PRIMARY KEY,
+  text_ar      TEXT NOT NULL,          
+  spoken_ar    TEXT,                   
+  voice        TEXT NOT NULL DEFAULT 'silma',
+  object_key   TEXT NOT NULL,          
+  duration_sec REAL NOT NULL,
+  words_json   TEXT NOT NULL,
+  match_rate   REAL,                   
+  source       TEXT,                   
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE ar_tts_request (
+  text_hash    TEXT PRIMARY KEY,
+  text_ar      TEXT NOT NULL,
+  source       TEXT,
+  requested_at TEXT NOT NULL DEFAULT (datetime('now')),
+  status       TEXT NOT NULL DEFAULT 'pending'   
+);
+
+CREATE TABLE ar_word_freq (
+  bare TEXT PRIMARY KEY,
+  n    INTEGER NOT NULL
+);
+
+CREATE TABLE kmaps_cache_version (
+  family     TEXT PRIMARY KEY,
+  version    TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE zz_script_stage (id TEXT PRIMARY KEY, audio_id TEXT NOT NULL, draft TEXT NOT NULL DEFAULT '', updated_at TEXT DEFAULT (datetime('now')));
+
+
+-- ── Views (2) ────────────────────────────────────────────────────
 
 CREATE VIEW ar_v_audio AS
 SELECT
@@ -781,7 +970,8 @@ FROM ar_acquisition_ref r
 LEFT JOIN ar_acq_category c ON c.id = r.category_ref
 WHERE r.wv_source_ref IS NOT NULL OR r.text_db = 'km_worldview';
 
--- ── Indexes (49) ───────────────────────────────────────────────────
+
+-- ── Indexes (65) ─────────────────────────────────────────────────
 
 CREATE INDEX idx_ar_audio_cat ON ar_acq_audio(category_ref);
 
@@ -803,6 +993,10 @@ CREATE INDEX idx_ar_cut_unit ON "ar_curriculum_container_unit_task"(unit_id);
 
 CREATE INDEX idx_ar_daily_delivery_due   ON ar_daily_delivery(user_ref, due_on, state);
 
+CREATE INDEX idx_ar_daily_dialogue_theme    ON ar_daily_dialogue(theme_id, sort_order);
+
+CREATE INDEX idx_ar_daily_dialogue_turn_dlg ON ar_daily_dialogue_turn(dialogue_id, sort_order);
+
 CREATE INDEX idx_ar_daily_sentence_theme ON ar_daily_sentence(theme_id, sort_order);
 
 CREATE INDEX idx_ar_daily_sentence_word  ON ar_daily_sentence(word_id);
@@ -819,7 +1013,19 @@ CREATE INDEX idx_ar_exercises_unit ON ar_exercises(unit_id);
 
 CREATE INDEX idx_ar_gn_track ON ar_grammar_node(track_id);
 
+CREATE INDEX idx_ar_grammar_sentence_bab ON ar_grammar_sentence(source_slug, bab_order);
+
+CREATE INDEX idx_ar_grammar_sentence_lesson ON ar_grammar_sentence(lesson_id);
+
+CREATE INDEX idx_ar_grammar_sentence_level ON ar_grammar_sentence(level, rnd);
+
+CREATE INDEX idx_ar_grammar_sentence_page ON ar_grammar_sentence(source_slug, volume_no, page_no);
+
+CREATE INDEX idx_ar_grammar_sentence_term ON ar_grammar_sentence(term_id, level);
+
 CREATE INDEX idx_ar_grammar_type ON ar_grammar(grammar_type, level);
+
+CREATE INDEX idx_ar_learner_unit_user ON ar_learner_unit(user_id, band);
 
 CREATE INDEX idx_ar_les_level ON "ar_curriculum_lesson"(level);
 
@@ -833,7 +1039,21 @@ CREATE INDEX idx_ar_mp_skill ON "ar_learn_mastery"(skill);
 
 CREATE INDEX idx_ar_mp_user  ON "ar_learn_mastery"(core_user_ref);
 
+CREATE INDEX idx_ar_pp_band ON ar_practice_pool (band, rnd);
+
+CREATE INDEX idx_ar_pp_band_en ON ar_practice_pool (band, (text_en IS NOT NULL), rnd);
+
+CREATE INDEX idx_ar_practice_pool_band_wc ON ar_practice_pool(band, word_count, rnd);
+
+CREATE INDEX idx_ar_read_pool_band ON ar_read_pool(band);
+
+CREATE INDEX idx_ar_read_pool_grade ON ar_read_pool(grade, object_key);
+
 CREATE INDEX idx_ar_sc_domain ON "ar_curriculum_scenario"(domain_id);
+
+CREATE INDEX idx_ar_scene_feature_term ON ar_scene_feature_term(term_id);
+
+CREATE INDEX idx_ar_scene_lexeme_ref ON ar_scene_lexeme(ref);
 
 CREATE INDEX idx_ar_seg_audio ON ar_acq_audio_segment(audio_id, start_sec);
 
@@ -844,6 +1064,8 @@ CREATE INDEX idx_ar_tc_user ON "ar_learn_task_completion"(core_user_ref);
 CREATE INDEX idx_ar_text_page ON ar_text_unit(acq_ref_id, page_no);
 
 CREATE INDEX idx_ar_text_work ON ar_text_unit(acq_ref_id, seq);
+
+CREATE INDEX idx_ar_tts_request_status ON ar_tts_request(status);
 
 CREATE INDEX idx_ar_up_status ON "ar_learn_unit_progress"(status);
 
@@ -881,7 +1103,8 @@ CREATE INDEX ix_lesson_media_lesson ON ar_lesson_media(lesson_id, sort_order);
 
 CREATE INDEX ix_lesson_media_source ON ar_lesson_media(source_id);
 
--- ── Triggers (5) ──────────────────────────────────────────────────
+
+-- ── Triggers (142) ───────────────────────────────────────────────
 
 CREATE TRIGGER ar_text_unit_ad AFTER DELETE ON ar_text_unit BEGIN
   INSERT INTO ar_text_unit_fts(ar_text_unit_fts, rowid, text_ar, title_ar)
@@ -889,6 +1112,15 @@ CREATE TRIGGER ar_text_unit_ad AFTER DELETE ON ar_text_unit BEGIN
 END;
 
 CREATE TRIGGER ar_text_unit_ai AFTER INSERT ON ar_text_unit BEGIN
+  INSERT INTO ar_text_unit_fts(rowid, text_ar, title_ar)
+  VALUES (new.rowid, new.text_ar, new.title_ar);
+END;
+
+CREATE TRIGGER ar_text_unit_au AFTER UPDATE ON ar_text_unit
+WHEN old.text_ar IS NOT new.text_ar OR old.title_ar IS NOT new.title_ar
+BEGIN
+  INSERT INTO ar_text_unit_fts(ar_text_unit_fts, rowid, text_ar, title_ar)
+  VALUES ('delete', old.rowid, old.text_ar, old.title_ar);
   INSERT INTO ar_text_unit_fts(rowid, text_ar, title_ar)
   VALUES (new.rowid, new.text_ar, new.title_ar);
 END;
@@ -906,28 +1138,274 @@ CREATE TRIGGER trg_ar_seg_au AFTER UPDATE ON ar_acq_audio_segment BEGIN
   INSERT INTO ar_acq_audio_fts(rowid, text_ar, text_en) VALUES (new.rowid, new.text_ar, new.text_en);
 END;
 
--- 0026: the scene questions bound to registry terms (scripts/map-scene-terms.py)
-CREATE TABLE IF NOT EXISTS ar_scene_feature_term (
-  unit_id     TEXT NOT NULL,             -- ar_scene_vocab.unit_id
-  scene_no    INTEGER NOT NULL,
-  feature_idx INTEGER NOT NULL,          -- its place in features_json
-  term_ar     TEXT NOT NULL,             -- the name the scene gave it
-  term_id     TEXT NOT NULL,             -- GT:…
-  match_kind  TEXT NOT NULL,             -- exact | head | pattern
-  PRIMARY KEY (unit_id, scene_no, feature_idx, term_id)
-);
-CREATE INDEX IF NOT EXISTS idx_ar_scene_feature_term ON ar_scene_feature_term(term_id);
+CREATE TRIGGER trg_kcv_ar_acq_audio_d AFTER DELETE ON ar_acq_audio BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
 
--- 0028–0031: the examples the grammar lessons and books give for their rules (kmaps-resources scripts/grammar/mine_examples.py)
-CREATE TABLE IF NOT EXISTS ar_grammar_sentence (
-  id TEXT PRIMARY KEY, kind TEXT NOT NULL, text_ar TEXT NOT NULL, qr_ref TEXT, term_id TEXT, lesson_id TEXT, origin TEXT NOT NULL,
-  source_slug TEXT, chunk_id TEXT, bab_id TEXT, volume_no INTEGER, page_no INTEGER, word_count INTEGER NOT NULL, depth INTEGER,
-  level INTEGER NOT NULL, rnd INTEGER NOT NULL, bab_title_ar TEXT, bab_order INTEGER, context_ar TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_ar_grammar_sentence_level ON ar_grammar_sentence(level, rnd);
-CREATE INDEX IF NOT EXISTS idx_ar_grammar_sentence_term ON ar_grammar_sentence(term_id, level);
-CREATE INDEX IF NOT EXISTS idx_ar_grammar_sentence_lesson ON ar_grammar_sentence(lesson_id);
-CREATE INDEX IF NOT EXISTS idx_ar_grammar_sentence_page ON ar_grammar_sentence(source_slug, volume_no, page_no);
-CREATE INDEX IF NOT EXISTS idx_ar_grammar_sentence_bab ON ar_grammar_sentence(source_slug, bab_order);
--- 0028: ar_read_pool.grade INTEGER (1 plain … 3 hard); 0029: every pool word's Shamela frequency
-CREATE TABLE IF NOT EXISTS ar_word_freq (bare TEXT PRIMARY KEY, n INTEGER NOT NULL);
+CREATE TRIGGER trg_kcv_ar_acq_audio_i AFTER INSERT ON ar_acq_audio BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_audio_segment_d AFTER DELETE ON ar_acq_audio_segment BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_audio_segment_i AFTER INSERT ON ar_acq_audio_segment BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_audio_segment_u AFTER UPDATE ON ar_acq_audio_segment BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_audio_u AFTER UPDATE ON ar_acq_audio BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_capture_d AFTER DELETE ON ar_acq_capture BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_capture_i AFTER INSERT ON ar_acq_capture BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_capture_u AFTER UPDATE ON ar_acq_capture BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_category_d AFTER DELETE ON ar_acq_category BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_category_i AFTER INSERT ON ar_acq_category BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_category_u AFTER UPDATE ON ar_acq_category BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_entry_d AFTER DELETE ON ar_acq_entry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_entry_i AFTER INSERT ON ar_acq_entry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_entry_u AFTER UPDATE ON ar_acq_entry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_item_d AFTER DELETE ON ar_acq_item BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_item_i AFTER INSERT ON ar_acq_item BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_item_u AFTER UPDATE ON ar_acq_item BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_type_d AFTER DELETE ON ar_acq_type BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_type_i AFTER INSERT ON ar_acq_type BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acq_type_u AFTER UPDATE ON ar_acq_type BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acquisition_ref_d AFTER DELETE ON ar_acquisition_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acquisition_ref_i AFTER INSERT ON ar_acquisition_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_acquisition_ref_u AFTER UPDATE ON ar_acquisition_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_container_d AFTER DELETE ON ar_curriculum_container BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_container_i AFTER INSERT ON ar_curriculum_container BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_container_u AFTER UPDATE ON ar_curriculum_container BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_container_unit_d AFTER DELETE ON ar_curriculum_container_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_container_unit_i AFTER INSERT ON ar_curriculum_container_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_container_unit_task_d AFTER DELETE ON ar_curriculum_container_unit_task BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_container_unit_task_i AFTER INSERT ON ar_curriculum_container_unit_task BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_container_unit_task_u AFTER UPDATE ON ar_curriculum_container_unit_task BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_container_unit_u AFTER UPDATE ON ar_curriculum_container_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_d AFTER DELETE ON ar_curriculum BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_domain_d AFTER DELETE ON ar_curriculum_domain BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_domain_i AFTER INSERT ON ar_curriculum_domain BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_domain_phrase_d AFTER DELETE ON ar_curriculum_domain_phrase BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_domain_phrase_i AFTER INSERT ON ar_curriculum_domain_phrase BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_domain_phrase_u AFTER UPDATE ON ar_curriculum_domain_phrase BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_domain_u AFTER UPDATE ON ar_curriculum_domain BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_i AFTER INSERT ON ar_curriculum BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_lesson_d AFTER DELETE ON ar_curriculum_lesson BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_lesson_i AFTER INSERT ON ar_curriculum_lesson BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_lesson_u AFTER UPDATE ON ar_curriculum_lesson BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_scenario_d AFTER DELETE ON ar_curriculum_scenario BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_scenario_i AFTER INSERT ON ar_curriculum_scenario BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_scenario_u AFTER UPDATE ON ar_curriculum_scenario BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_track_d AFTER DELETE ON ar_curriculum_track BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_track_i AFTER INSERT ON ar_curriculum_track BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_track_u AFTER UPDATE ON ar_curriculum_track BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_u AFTER UPDATE ON ar_curriculum BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_unit_concept_map_d AFTER DELETE ON ar_curriculum_unit_concept_map BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_unit_concept_map_i AFTER INSERT ON ar_curriculum_unit_concept_map BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_unit_concept_map_u AFTER UPDATE ON ar_curriculum_unit_concept_map BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_unit_d AFTER DELETE ON ar_curriculum_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_unit_i AFTER INSERT ON ar_curriculum_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_unit_lemma_map_d AFTER DELETE ON ar_curriculum_unit_lemma_map BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_unit_lemma_map_i AFTER INSERT ON ar_curriculum_unit_lemma_map BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_unit_lemma_map_u AFTER UPDATE ON ar_curriculum_unit_lemma_map BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_curriculum_unit_u AFTER UPDATE ON ar_curriculum_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_dialogue_d AFTER DELETE ON ar_daily_dialogue BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_dialogue_i AFTER INSERT ON ar_daily_dialogue BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_dialogue_turn_d AFTER DELETE ON ar_daily_dialogue_turn BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_dialogue_turn_i AFTER INSERT ON ar_daily_dialogue_turn BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_dialogue_turn_u AFTER UPDATE ON ar_daily_dialogue_turn BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_dialogue_u AFTER UPDATE ON ar_daily_dialogue BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_passage_d AFTER DELETE ON ar_daily_passage BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_passage_i AFTER INSERT ON ar_daily_passage BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_passage_u AFTER UPDATE ON ar_daily_passage BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_sentence_d AFTER DELETE ON ar_daily_sentence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_sentence_i AFTER INSERT ON ar_daily_sentence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_sentence_u AFTER UPDATE ON ar_daily_sentence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_theme_d AFTER DELETE ON ar_daily_theme BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_theme_i AFTER INSERT ON ar_daily_theme BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_theme_u AFTER UPDATE ON ar_daily_theme BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_word_d AFTER DELETE ON ar_daily_word BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_word_i AFTER INSERT ON ar_daily_word BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_word_u AFTER UPDATE ON ar_daily_word BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_discipline_d AFTER DELETE ON ar_discipline BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_discipline_i AFTER INSERT ON ar_discipline BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_discipline_u AFTER UPDATE ON ar_discipline BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_exercises_d AFTER DELETE ON ar_exercises BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_exercises_i AFTER INSERT ON ar_exercises BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_exercises_u AFTER UPDATE ON ar_exercises BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_grammar_d AFTER DELETE ON ar_grammar BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_grammar_example_d AFTER DELETE ON ar_grammar_example BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_grammar_example_i AFTER INSERT ON ar_grammar_example BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_grammar_example_u AFTER UPDATE ON ar_grammar_example BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_grammar_i AFTER INSERT ON ar_grammar BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_grammar_node_d AFTER DELETE ON ar_grammar_node BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_grammar_node_i AFTER INSERT ON ar_grammar_node BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_grammar_node_u AFTER UPDATE ON ar_grammar_node BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_grammar_sentence_d AFTER DELETE ON ar_grammar_sentence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_grammar_sentence_i AFTER INSERT ON ar_grammar_sentence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_grammar_sentence_u AFTER UPDATE ON ar_grammar_sentence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_grammar_u AFTER UPDATE ON ar_grammar BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_learning_source_d AFTER DELETE ON ar_learning_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_learning_source_i AFTER INSERT ON ar_learning_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_learning_source_u AFTER UPDATE ON ar_learning_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_lesson_d AFTER DELETE ON ar_lesson BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_lesson_i AFTER INSERT ON ar_lesson BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_lesson_media_d AFTER DELETE ON ar_lesson_media BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_lesson_media_i AFTER INSERT ON ar_lesson_media BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_lesson_media_u AFTER UPDATE ON ar_lesson_media BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_lesson_reading_d AFTER DELETE ON ar_lesson_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_lesson_reading_i AFTER INSERT ON ar_lesson_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_lesson_reading_u AFTER UPDATE ON ar_lesson_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_lesson_term_d AFTER DELETE ON ar_lesson_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_lesson_term_i AFTER INSERT ON ar_lesson_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_lesson_term_u AFTER UPDATE ON ar_lesson_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_lesson_u AFTER UPDATE ON ar_lesson BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_lexeme_passage_i AFTER INSERT ON ar_lexeme_passage BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_d AFTER DELETE ON ar_ling_gram_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_i AFTER INSERT ON ar_ling_gram_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_u AFTER UPDATE ON ar_ling_gram_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_node_gram_term_d AFTER DELETE ON ar_node_gram_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_node_gram_term_i AFTER INSERT ON ar_node_gram_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_node_gram_term_u AFTER UPDATE ON ar_node_gram_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_node_source_d AFTER DELETE ON ar_node_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_node_source_i AFTER INSERT ON ar_node_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_node_source_u AFTER UPDATE ON ar_node_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_practice_label_d AFTER DELETE ON ar_practice_label BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_practice_label_i AFTER INSERT ON ar_practice_label BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_practice_label_u AFTER UPDATE ON ar_practice_label BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_room_d AFTER DELETE ON ar_room BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_room_i AFTER INSERT ON ar_room BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_room_u AFTER UPDATE ON ar_room BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_scene_lexeme_i AFTER INSERT ON ar_scene_lexeme BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_scene_vocab_i AFTER INSERT ON ar_scene_vocab BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_scene_vocab_u AFTER UPDATE ON ar_scene_vocab BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_teaching_variant_d AFTER DELETE ON ar_teaching_variant BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_teaching_variant_i AFTER INSERT ON ar_teaching_variant BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_teaching_variant_u AFTER UPDATE ON ar_teaching_variant BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_text_unit_d AFTER DELETE ON ar_text_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_text_unit_i AFTER INSERT ON ar_text_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_text_unit_u AFTER UPDATE ON ar_text_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;

@@ -7,8 +7,8 @@ carry zero migration files against 38 and 158 live tables, so most objects were
 created outside the migrations system. There is no local D1 either: `.wrangler`
 holds only `tmp`, so nothing is shadowing the remote. Reading `sqlite_master`
 back off each remote database is therefore the only way to know the schema, and
-these files are a checked-in snapshot of that read — documentation, never an
-input to anything.
+these files are a checked-in snapshot of that read. The worker tests build their
+in-memory databases from them, so a refresh is followed by `npm test`.
 
 Every schema.sql already says "do not hand-edit · regenerate with
 scripts/regen_schemas.py". That script had never been committed. This is it.

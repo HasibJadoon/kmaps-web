@@ -1,9 +1,168 @@
 -- Schema for km_arabic_linguistic.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-09-09.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-10-02.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (142) ────────────────────────────────────────────────────
+-- ── Tables (158) ─────────────────────────────────────────────────
+
+CREATE TABLE ar_ling_adima_entry (
+  id              TEXT PRIMARY KEY,          -- ADM:<chunk id>:<n>
+  discipline      TEXT NOT NULL,             -- NH | SF
+  chunk_id        TEXT NOT NULL,             -- ar_ling_gram_chunk.id: the page it is read from
+  volume_no       INTEGER,
+  page_no         INTEGER,
+  seq             INTEGER NOT NULL,          -- book order
+  chapter_ar      TEXT,                      -- the study it belongs to («دراسة (افتعل)»)
+  section_ar      TEXT,                      -- the heading it is listed under
+  head_ar         TEXT,                      -- the word or sub-heading above it
+  pattern_ar      TEXT,                      -- the verb pattern the chapter studies (ṣarf)
+  pattern_term_id TEXT,                      -- GT:form_family:*
+  meaning_ar      TEXT,                      -- the meaning the heading names
+  meaning_term_id TEXT,                      -- GT:sigha_maani:* where it is one
+  section_term_id TEXT,                      -- a GT term the heading names
+  quote_ar        TEXT NOT NULL,
+  surah           INTEGER NOT NULL,
+  ayah            INTEGER NOT NULL,
+  refs_json       TEXT,                      -- every place it lists: [[s, a], …]
+  word_index      INTEGER,                   -- qr_word_occurrence.word_index of the word it is about
+  word_ar         TEXT,
+  quote_match     REAL,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE ar_ling_adima_note (
+  id              TEXT PRIMARY KEY,          -- ADN:<n>
+  discipline      TEXT NOT NULL,
+  chunk_id        TEXT NOT NULL,
+  volume_no       INTEGER,
+  page_no         INTEGER,
+  chapter_ar      TEXT,
+  section_ar      TEXT,
+  head_ar         TEXT,
+  pattern_ar      TEXT,
+  pattern_term_id TEXT,
+  meaning_ar      TEXT,
+  meaning_term_id TEXT,
+  section_term_id TEXT,
+  note_ar         TEXT NOT NULL,             -- his observation, as he writes it
+  drill_ar        TEXT,                      -- its one drillable sentence, or NULL
+  about_readings  INTEGER NOT NULL DEFAULT 0 -- it speaks of the readings (the seven, the shādhdh)
+);
+
+CREATE TABLE ar_ling_arc (
+  id            TEXT PRIMARY KEY,   -- ARC:<root>:<source_slug> | ARC:<root>:combined
+  root_norm     TEXT NOT NULL,
+  scope         TEXT NOT NULL CHECK (scope IN ('source','combined')),
+  source_slug   TEXT,               -- NULL for the combined arc
+  n_rungs       INTEGER NOT NULL,
+  n_edges       INTEGER NOT NULL,
+  n_sources     INTEGER,
+  keys_json     TEXT,               -- the keys the root was read under
+  handbuilt     INTEGER NOT NULL DEFAULT 0,   -- hand-built arcs the root also has (ar_ling_sense_arc) — they outrank this
+  origin        TEXT NOT NULL DEFAULT 'derived',
+  method        TEXT NOT NULL,
+  provenance_json TEXT NOT NULL DEFAULT '[]',
+  built_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE ar_ling_arc_edge (
+  id            TEXT PRIMARY KEY,
+  arc_id        TEXT NOT NULL,
+  root_norm     TEXT NOT NULL,
+  source_slug   TEXT NOT NULL,      -- the source that writes the formula
+  from_id       TEXT NOT NULL,
+  to_id         TEXT NOT NULL,
+  relation      TEXT NOT NULL,      -- branch outside extension metaphor metonymy naming usage origin
+  marker_key    TEXT,
+  formula       TEXT NOT NULL,      -- the formula («ومن الباب», "hence")
+  quote_ar      TEXT,               -- the statement it stands in, verbatim
+  quote_en      TEXT,
+  block_id      TEXT,
+  fact_id       TEXT,
+  also_json     TEXT,               -- combined edges: every source edge that says the same
+  origin        TEXT NOT NULL DEFAULT 'derived',
+  method        TEXT NOT NULL
+);
+
+CREATE TABLE ar_ling_arc_lemma_rung (
+  root_norm     TEXT NOT NULL,
+  lemma_ar      TEXT NOT NULL,      -- the Qurʾān's lemma (qr_word_occurrence.lemma)
+  rung_id       TEXT NOT NULL,      -- the source rung (Lane sub-arc rungs: <arc id>:<section>:<n>)
+  combined_id   TEXT,
+  source_slug   TEXT NOT NULL,
+  how           TEXT NOT NULL,      -- vocalised | folded | lane-form | placed-word | ambiguous
+  seq           INTEGER,            -- its place in the lemma's sub-arc (Lane: his order under the headword)
+  head_ar       TEXT,
+  label_en      TEXT,               -- Lane sub-arc rungs carry his English here
+  marker        TEXT,
+  block_id      TEXT,
+  page          TEXT,
+  n_words       INTEGER,
+  method        TEXT NOT NULL,
+  PRIMARY KEY (lemma_ar, rung_id, how)
+);
+
+CREATE TABLE ar_ling_arc_marker (
+  source_slug   TEXT NOT NULL,
+  marker_key    TEXT NOT NULL,
+  relation      TEXT NOT NULL,      -- thesis branch outside extension metaphor metonymy naming usage origin addendum gloss alternative contrast
+  label         TEXT NOT NULL,      -- the formula as the source writes it («ومن الباب», "then applied to")
+  n_hits        INTEGER NOT NULL,   -- blocks carrying it
+  n_roots       INTEGER NOT NULL,   -- Qurʾānic roots whose entry carries it
+  total_roots   INTEGER NOT NULL,   -- Qurʾānic roots the source has an entry for
+  share         REAL,
+  in_inventory  INTEGER NOT NULL,   -- 1: the source uses it (≥ 3 roots) — the arcs read it
+  examples_json TEXT,               -- up to 3 verbatim samples {root, text}
+  method        TEXT NOT NULL,
+  PRIMARY KEY (source_slug, marker_key)
+);
+
+CREATE TABLE ar_ling_arc_rung (
+  id            TEXT PRIMARY KEY,   -- <arc id>:<seq>
+  arc_id        TEXT NOT NULL,
+  root_norm     TEXT NOT NULL,
+  source_slug   TEXT NOT NULL,      -- 'combined' for the combined arc
+  seq           INTEGER NOT NULL,   -- its place in the source's (or the combined) order
+  tier          TEXT NOT NULL,      -- asl | first | sense | addendum | quranic (source) · asl | lexical | quranic (combined)
+  kind          TEXT NOT NULL,      -- asl branch outside extension metaphor metonymy origin sense tropical quranic idiom
+  head_ar       TEXT,               -- the headword as the source writes it
+  label_ar      TEXT,               -- the source's own words (verbatim, clipped)
+  label_en      TEXT,               -- the source's own English (Lane, Mir) — never a translation of ours
+  quote_ar      TEXT,
+  quote_en      TEXT,
+  marker        TEXT,               -- the source's marker: asl:1/2, A1 ‡, «ومن الباب» …
+  page          TEXT,
+  block_id      TEXT,               -- ar_ling_lexicon_block it is read from
+  fact_id       TEXT,               -- ar_ling_lexicon_fact it is read from
+  vocab_sense_id TEXT,              -- km_quran qr_vocab_sense (al-Rāghib's / Mir's Qurʾānic sense)
+  found_under   TEXT,               -- the key the source files it under
+  key_rank      INTEGER,
+  combined_id   TEXT,               -- source rung → the combined rung it was aligned to
+  attest_json   TEXT,               -- combined rung → [{source, rung_id, seq, of, found_under, kind}]
+  ayat_json     TEXT,               -- the āyāt the source files under it
+  n_words       INTEGER NOT NULL DEFAULT 0,
+  confidence    TEXT NOT NULL DEFAULT 'medium',
+  origin        TEXT NOT NULL DEFAULT 'derived',
+  method        TEXT NOT NULL,
+  provenance_json TEXT NOT NULL DEFAULT '[]'
+, step_en TEXT);
+
+CREATE TABLE ar_ling_arc_word (
+  surah         INTEGER NOT NULL,
+  ayah          INTEGER NOT NULL,
+  word_index    INTEGER NOT NULL,   -- km_quran qr_word_occurrence.word_index
+  root_norm     TEXT NOT NULL,
+  lemma_ar      TEXT,
+  word_text     TEXT,
+  rung_id       TEXT,               -- the combined rung
+  src_rung_id   TEXT NOT NULL,      -- the source rung the source files it under
+  source_slug   TEXT NOT NULL,
+  how           TEXT NOT NULL,      -- qr_vocab_place.how: ayah · quote · head · lemma · link · attested
+  note_ar       TEXT,               -- al-Rāghib's own reading of the āyah («أي: …»)
+  vocab_sense_id TEXT,
+  method        TEXT NOT NULL,
+  PRIMARY KEY (surah, ayah, word_index, src_rung_id)
+);
 
 CREATE TABLE ar_ling_concept_block (
   id                TEXT PRIMARY KEY,
@@ -321,7 +480,7 @@ CREATE TABLE "ar_ling_gram_term" (
   badge_color TEXT, icon TEXT,
   version     INTEGER NOT NULL DEFAULT 1,
   superseded_by TEXT,
-  status      TEXT NOT NULL DEFAULT 'live', discipline TEXT, is_default_when_absent INTEGER NOT NULL DEFAULT 0, uid TEXT, qac_scope TEXT, applies_when TEXT, name_bare TEXT, aliases_json TEXT,
+  status      TEXT NOT NULL DEFAULT 'live', discipline TEXT, is_default_when_absent INTEGER NOT NULL DEFAULT 0, uid TEXT, qac_scope TEXT, applies_when TEXT, name_bare TEXT, aliases_json TEXT, band_key TEXT, badge_color_dark TEXT, badge_color_light TEXT,
   UNIQUE (category_key, term_key),
   UNIQUE (category_key, qac_flag),
   FOREIGN KEY (category_key)   REFERENCES "ar_ling_gram_category"(category_key),
@@ -658,7 +817,8 @@ CREATE TABLE "ar_ling_lexicon_block_annotation" (
 
 CREATE VIRTUAL TABLE ar_ling_lexicon_block_fts USING fts5(
   text_plain, title_ar, title_en, root_norm, source_slug, block_type,
-  content='ar_ling_lexicon_block', content_rowid='rowid'
+  content='ar_ling_lexicon_block', content_rowid='rowid',
+  tokenize="unicode61 remove_diacritics 2"
 );
 
 CREATE TABLE "ar_ling_lexicon_block_link" (
@@ -732,7 +892,8 @@ CREATE TABLE "ar_ling_lexicon_book_page" (
 
 CREATE VIRTUAL TABLE ar_ling_lexicon_book_page_fts USING fts5(
   clean_text, source_slug, root_norm,
-  content='ar_ling_lexicon_book_page', content_rowid='rowid'
+  content='ar_ling_lexicon_book_page', content_rowid='rowid',
+  tokenize="unicode61 remove_diacritics 2"
 );
 
 CREATE TABLE ar_ling_lexicon_display_block_kind (
@@ -836,13 +997,42 @@ CREATE TABLE "ar_ling_lexicon_entry" (
   created_at          TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at          TEXT NOT NULL DEFAULT (datetime('now')), family_json TEXT
   CHECK (family_json IS NULL OR json_valid(family_json)), entry_gloss_json TEXT
-  CHECK (entry_gloss_json IS NULL OR json_valid(entry_gloss_json)), translation_en TEXT, translation_ur TEXT,
+  CHECK (entry_gloss_json IS NULL OR json_valid(entry_gloss_json)), translation_en TEXT, translation_ur TEXT, root_norm_canonical TEXT,
 
   FOREIGN KEY (root_id)          REFERENCES "ar_ling_roots"(id),
   FOREIGN KEY (source_id)        REFERENCES "ar_ling_source"(id),
   FOREIGN KEY (source_chunk_id)  REFERENCES "ar_ling_source_chunk"(id),
 
   UNIQUE(source_slug, root_norm)
+);
+
+CREATE TABLE ar_ling_lexicon_entry_ds (
+  id             TEXT PRIMARY KEY,
+  root_entry_id  TEXT NOT NULL,
+  source_slug    TEXT NOT NULL,
+  root_norm      TEXT NOT NULL,
+
+  -- which contract this row was built to, so a reshape is a new row, not a
+  -- silent rewrite of one the app is already drawing
+  template_key   TEXT NOT NULL,
+  template_ver   INTEGER NOT NULL DEFAULT 1,
+
+  -- the entry as the template asks for it, verbatim from the book
+  doc_json       TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(doc_json)),
+  -- the same entry shaped into sections and blocks for a screen; block ids
+  -- inside are ar_ling_lexicon_block.id
+  ds_json        TEXT CHECK (ds_json IS NULL OR json_valid(ds_json)),
+
+  -- 'raw' | 'clean' | 'blocked' | 'index_only' | 'absent'
+  status         TEXT NOT NULL DEFAULT 'raw',
+  built_by       TEXT,
+  built_at       TEXT,
+
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at     TEXT,
+
+  FOREIGN KEY (root_entry_id) REFERENCES "ar_ling_lexicon_entry"(id),
+  UNIQUE (root_entry_id, template_key)
 );
 
 CREATE TABLE "ar_ling_lexicon_entry_embedding" (
@@ -856,16 +1046,7 @@ CREATE TABLE "ar_ling_lexicon_entry_embedding" (
   error_message TEXT
 );
 
-CREATE VIRTUAL TABLE ar_ling_lexicon_entry_fts USING fts5(
-  root_text,
-  root_norm,
-  source_slug,
-  entry_text_ar,
-  entry_text_en,
-  raw_text,
-  content='ar_ling_lexicon_entry',
-  content_rowid='rowid'
-);
+CREATE VIRTUAL TABLE ar_ling_lexicon_entry_fts USING fts5(root_text, root_norm, source_slug, entry_text_ar, entry_text_en, raw_text, content='ar_ling_lexicon_entry', content_rowid='rowid', tokenize="unicode61 remove_diacritics 2");
 
 CREATE TABLE "ar_ling_lexicon_entry_section" (
   id                        TEXT PRIMARY KEY,
@@ -913,18 +1094,7 @@ CREATE TABLE "ar_ling_lexicon_entry_section" (
   UNIQUE(root_entry_id, section_seq)
 );
 
-CREATE VIRTUAL TABLE ar_ling_lexicon_entry_section_fts USING fts5(
-  root_text,
-  root_norm,
-  heading_ar,
-  heading_norm,
-  heading_bare,
-  section_type,
-  text_ar,
-  text_en,
-  content='ar_ling_lexicon_entry_section',
-  content_rowid='rowid'
-);
+CREATE VIRTUAL TABLE ar_ling_lexicon_entry_section_fts USING fts5(root_text, root_norm, heading_ar, heading_norm, heading_bare, section_type, text_ar, text_en, content='ar_ling_lexicon_entry_section', content_rowid='rowid', tokenize="unicode61 remove_diacritics 2");
 
 CREATE TABLE "ar_ling_lexicon_entry_source" (
   id                TEXT PRIMARY KEY,
@@ -946,6 +1116,45 @@ CREATE TABLE "ar_ling_lexicon_entry_source" (
   FOREIGN KEY (root_entry_id) REFERENCES "ar_ling_lexicon_entry"(id)
 );
 
+CREATE TABLE ar_ling_lexicon_fact (
+  id           TEXT PRIMARY KEY,
+  source_slug  TEXT NOT NULL,
+  root_norm    TEXT NOT NULL,             -- the key the book files the entry under
+  block_id     TEXT,                      -- ar_ling_lexicon_block.id the fact starts in
+  section_id   TEXT,
+  headword_ar  TEXT,
+  fact_kind    TEXT NOT NULL,             -- sense form masdar bab plural didd synonym dialect muarrab majaz mathal qawluhum
+                                          -- tadiya authority quran asl digest taqalib dalala aorist feminine diminutive
+                                          -- nisba participle keyterm verbal_idiom
+  value_ar     TEXT,
+  value_en     TEXT,
+  quote_ar     TEXT,                      -- the book's own words round it (verbatim)
+  surah        INTEGER,                   -- Ḥafṣ numbering (Lane's Flügel numbers converted)
+  ayah         INTEGER,
+  marker       TEXT,                      -- the book's marker: A1/B2, ‡, كنصر, antonym/addad, yadull …
+  method       TEXT NOT NULL,             -- source:rule that read it
+  confidence   TEXT NOT NULL DEFAULT 'medium',
+  seq          INTEGER,
+  data_json    TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE ar_ling_lexicon_profile (
+  source_slug   TEXT NOT NULL,
+  feature       TEXT NOT NULL,            -- family:key, e.g. plural:jim_colon, lane:inf_n, voc:density, ngram:3:قال ابن سيده
+  family        TEXT NOT NULL,            -- synonym contrast asl branch dialect muarrab majaz bab masdar plural apparatus
+                                          -- authority sigla dalala voc struct ngram
+  label         TEXT,
+  n             INTEGER,                  -- entries that show it
+  total         INTEGER,                  -- entries measured (the lexicon's Qurʾānic-root entries)
+  share         REAL,                     -- n / total
+  per_entry     REAL,                     -- occurrences per entry
+  value         REAL,                     -- for measures that are not counts (density, lengths)
+  examples_json TEXT,                     -- 2–3 verbatim samples
+  computed_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (source_slug, feature)
+);
+
 CREATE TABLE "ar_ling_lexicon_quran_ref" (
   id              TEXT PRIMARY KEY,
   source_slug     TEXT NOT NULL,
@@ -957,7 +1166,7 @@ CREATE TABLE "ar_ling_lexicon_quran_ref" (
   ayah            INTEGER NOT NULL CHECK (ayah >= 1),
   raw_ref         TEXT NOT NULL,           -- e.g. 'Kur viii. 62'
   context_snippet TEXT,                    -- short surrounding string
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')), hafs_surah INTEGER, hafs_ayah INTEGER, hafs_method TEXT,
   FOREIGN KEY (root_entry_id) REFERENCES "ar_ling_lexicon_entry"(id),
   FOREIGN KEY (section_id)    REFERENCES "ar_ling_lexicon_entry_section"(id),
   FOREIGN KEY (block_id)      REFERENCES "ar_ling_lexicon_block"(id)
@@ -1090,6 +1299,17 @@ CREATE TABLE "ar_ling_reg_semantic_field" (
   FOREIGN KEY (parent_field_id) REFERENCES "ar_ling_reg_semantic_field"(id)
 );
 
+CREATE TABLE ar_ling_reg_source_alias (
+  alias TEXT NOT NULL,
+  alias_scheme TEXT NOT NULL DEFAULT 'lane',
+  target_kind TEXT NOT NULL,
+  target_slug TEXT,
+  name_ar TEXT,
+  name_en TEXT,
+  note_en TEXT,
+  PRIMARY KEY (alias_scheme, alias)
+);
+
 CREATE TABLE ar_ling_reg_sub_layer (
   sub_code      TEXT PRIMARY KEY,
   band          INTEGER NOT NULL,
@@ -1108,6 +1328,16 @@ CREATE TABLE ar_ling_reg_sub_layer (
   status        TEXT NOT NULL DEFAULT 'live',
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 , tables_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(tables_json)), bab_count   INTEGER NOT NULL DEFAULT 0, fill_state  TEXT NOT NULL DEFAULT 'missing', band_name_ur TEXT, na_when_json TEXT NOT NULL DEFAULT '[]', produced_by TEXT NOT NULL DEFAULT 'ingest', carrier_state TEXT NOT NULL DEFAULT 'unknown', display_icon TEXT);
+
+CREATE TABLE ar_ling_reg_surah (
+  surah INTEGER PRIMARY KEY CHECK (surah BETWEEN 1 AND 114),
+  name_ar TEXT NOT NULL,
+  name_bare TEXT NOT NULL,
+  name_translit TEXT,
+  ayah_count INTEGER NOT NULL,
+  aliases_json TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
 CREATE TABLE ar_ling_reg_table_discipline (table_name TEXT, discipline TEXT, is_primary INTEGER DEFAULT 0, PRIMARY KEY (table_name, discipline));
 
@@ -1162,6 +1392,20 @@ CREATE TABLE ar_ling_root_asl (
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (root_norm, source_slug)
+);
+
+CREATE TABLE ar_ling_root_asl_proposal (
+  id                    TEXT PRIMARY KEY,
+  root_norm             TEXT NOT NULL,
+  asl_id                TEXT,             -- the ar_ling_root_asl row it would correct (NULL: none exists)
+  current_statement_ar  TEXT,
+  proposed_statement_ar TEXT NOT NULL,
+  asl_no                INTEGER,
+  asl_count             INTEGER,
+  reason                TEXT NOT NULL,
+  fact_id               TEXT,             -- ar_ling_lexicon_fact the proposal is read from
+  status                TEXT NOT NULL DEFAULT 'proposed',
+  created_at            TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE "ar_ling_root_backlink" (
@@ -1519,7 +1763,7 @@ CREATE TABLE "ar_ling_root_lemma_tadiya" (
   source_ref TEXT,
   status TEXT NOT NULL DEFAULT 'draft',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
-, transitivity_term_id TEXT, taddiya_route TEXT, meaning_ur TEXT, display_json TEXT, taddiya_route_term_id TEXT REFERENCES ar_ling_gram_term(id));
+, transitivity_term_id TEXT, taddiya_route TEXT, meaning_ur TEXT, display_json TEXT, taddiya_route_term_id TEXT REFERENCES ar_ling_gram_term(id), subject_class_term_id TEXT, object_class_term_id TEXT, frame_ar TEXT, shahid_ar TEXT);
 
 CREATE TABLE "ar_ling_root_lemma_taswib" (
   id              TEXT PRIMARY KEY,
@@ -1655,6 +1899,17 @@ CREATE TABLE ar_ling_root_lexicon_alias (
   lookup_norm   TEXT NOT NULL,
   reason        TEXT NOT NULL,
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE ar_ling_root_lexicon_key (
+  root_norm    TEXT NOT NULL,
+  lookup_norm  TEXT NOT NULL,
+  -- 0 is the root as spelled; higher numbers are the traditions that file it
+  -- elsewhere. A reader wanting one entry takes the lowest rank that hits.
+  key_rank     INTEGER NOT NULL DEFAULT 0,
+  reason       TEXT NOT NULL,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (root_norm, lookup_norm)
 );
 
 CREATE TABLE "ar_ling_root_lugha" (
@@ -1937,7 +2192,8 @@ CREATE TABLE ar_ling_sense_attestation (
                CHECK (agreement IN ('supports','partial','contests')),
   confidence   REAL DEFAULT 0.8,
   status       TEXT NOT NULL DEFAULT 'live',
-  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')), block_id TEXT
+  REFERENCES "ar_ling_lexicon_block"(id), form_id TEXT,
   UNIQUE (target_type, target_id, source_slug, locator)
 );
 
@@ -1951,7 +2207,7 @@ CREATE TABLE "ar_ling_source" (
   period_label    TEXT,
   note_md         TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-, genre TEXT, slug              TEXT, origin            TEXT, bilingual         INTEGER NOT NULL DEFAULT 0, footnote_source   TEXT, quran_block_shape TEXT, source_order      INTEGER, author_death_ah INTEGER, author_death_ce INTEGER, title_ur TEXT, title_short_ar TEXT, canonical_source_id TEXT REFERENCES ar_ling_source(id));
+, genre TEXT, slug              TEXT, origin            TEXT, bilingual         INTEGER NOT NULL DEFAULT 0, footnote_source   TEXT, quran_block_shape TEXT, source_order      INTEGER, author_death_ah INTEGER, author_death_ce INTEGER, title_ur TEXT, title_short_ar TEXT, canonical_source_id TEXT REFERENCES ar_ling_source(id), pub_year_ce INTEGER, title_translit TEXT, title_gloss_en TEXT, author_en TEXT);
 
 CREATE TABLE ar_ling_source_alias (
   alias_slug TEXT PRIMARY KEY,
@@ -1981,7 +2237,7 @@ CREATE TABLE "ar_ling_source_chunk" (
   FOREIGN KEY (edition_id) REFERENCES "ar_ling_source_edition"(id)
 );
 
-CREATE VIRTUAL TABLE ar_ling_source_chunks_fts USING fts5(heading_norm, text_ar, text_en);
+CREATE VIRTUAL TABLE ar_ling_source_chunks_fts USING fts5(heading_norm, text_ar, text_en, content='ar_ling_source_chunk', content_rowid='rowid', tokenize="unicode61 remove_diacritics 2");
 
 CREATE TABLE "ar_ling_source_citation" (
   id TEXT PRIMARY KEY, root_norm TEXT, from_layer TEXT NOT NULL, from_id TEXT NOT NULL,
@@ -2066,9 +2322,16 @@ CREATE TABLE "ar_ling_term_dictionary" (
   PRIMARY KEY (term_text, root_norm)
 );
 
+CREATE TABLE kmaps_cache_version (
+  family     TEXT PRIMARY KEY,
+  version    TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE tmp_qroot (root TEXT PRIMARY KEY);
 
--- ── Views (23) ─────────────────────────────────────────────────────
+
+-- ── Views (30) ───────────────────────────────────────────────────
 
 CREATE VIEW ar_ling_gram_term_signature AS
  SELECT COUNT(*) AS term_count,
@@ -2140,6 +2403,116 @@ SELECT f.root_norm AS root, f.band_code AS sub_code,
 FROM ar_ling_root_band_fill f
 LEFT JOIN ar_ling_reg_sub_layer s ON s.sub_code = f.band_code;
 
+CREATE VIEW ar_ling_root_lexicon_block_v AS
+SELECT
+  k.root_norm          AS root_norm,
+  k.lookup_norm        AS found_under,
+  k.key_rank           AS key_rank,
+  b.id                 AS block_id,
+  b.source_slug        AS source_slug,
+  b.root_entry_id      AS root_entry_id,
+  b.block_type         AS block_type,
+  b.block_seq          AS block_seq,
+  b.depth              AS depth,
+  b.lang               AS lang,
+  b.title_ar           AS title_ar,
+  b.title_en           AS title_en,
+  b.text_plain         AS text_plain,
+  b.translation_en     AS translation_en,
+  b.printed_page       AS printed_page
+FROM ar_ling_root_lexicon_key k
+JOIN ar_ling_lexicon_block b ON b.root_norm = k.lookup_norm;
+
+CREATE VIEW ar_ling_root_lexicon_entry_v AS
+SELECT
+  k.root_norm          AS root_norm,
+  k.lookup_norm        AS found_under,
+  k.key_rank           AS key_rank,
+  e.id                 AS entry_id,
+  e.source_slug        AS source_slug,
+  e.source_id          AS source_id,
+  e.root_id            AS root_id,
+  e.root_text          AS root_text,
+  e.raw_text           AS raw_text,
+  e.entry_text_ar      AS entry_text_ar,
+  e.entry_text_en      AS entry_text_en,
+  e.translation_en     AS translation_en,
+  e.translation_ur     AS translation_ur,
+  e.entry_gloss_json   AS entry_gloss_json,
+  e.family_json        AS family_json,
+  e.page_start         AS page_start,
+  e.page_end           AS page_end,
+  e.volume_no          AS volume_no,
+  e.status             AS status
+FROM ar_ling_root_lexicon_key k
+JOIN ar_ling_lexicon_entry e ON e.root_norm = k.lookup_norm;
+
+CREATE VIEW ar_ling_root_lexicon_fact_v AS
+SELECT k.root_norm, f.root_norm AS found_under, k.key_rank,
+       f.id, f.source_slug, f.block_id, f.section_id, f.headword_ar, f.fact_kind, f.value_ar, f.value_en, f.quote_ar,
+       f.surah, f.ayah, f.marker, f.method, f.confidence, f.seq, f.data_json
+  FROM ar_ling_root_lexicon_key k
+  JOIN ar_ling_lexicon_fact f ON f.root_norm = k.lookup_norm;
+
+CREATE VIEW ar_ling_root_lexicon_page_v AS
+SELECT
+  k.root_norm            AS root_norm,
+  k.lookup_norm          AS found_under,
+  k.key_rank             AS key_rank,
+  p.id                   AS page_id,
+  p.source_slug          AS source_slug,
+  p.volume_no            AS volume_no,
+  p.page_seq             AS page_seq,
+  p.printed_page_start   AS printed_page_start,
+  p.printed_page_end     AS printed_page_end,
+  p.clean_text           AS clean_text,
+  p.source_url           AS source_url,
+  p.r2_key               AS r2_key
+FROM ar_ling_root_lexicon_key k
+JOIN ar_ling_lexicon_book_page p ON p.root_norm = k.lookup_norm;
+
+CREATE VIEW ar_ling_root_lexicon_quran_ref_v AS
+SELECT
+  k.root_norm        AS root_norm,
+  k.lookup_norm      AS found_under,
+  k.key_rank         AS key_rank,
+  q.id               AS ref_id,
+  q.source_slug      AS source_slug,
+  q.root_entry_id    AS root_entry_id,
+  q.section_id       AS section_id,
+  q.block_id         AS block_id,
+  q.surah            AS surah,
+  q.ayah             AS ayah,
+  q.raw_ref          AS raw_ref,
+  q.context_snippet  AS context_snippet
+FROM ar_ling_root_lexicon_key k
+JOIN ar_ling_lexicon_quran_ref q ON q.root_norm = k.lookup_norm;
+
+CREATE VIEW ar_ling_root_lexicon_section_v AS
+SELECT
+  k.root_norm         AS root_norm,
+  k.lookup_norm       AS found_under,
+  k.key_rank          AS key_rank,
+  s.id                AS section_id,
+  s.root_entry_id     AS root_entry_id,
+  s.source_slug       AS source_slug,
+  s.root_text         AS root_text,
+  s.section_seq       AS section_seq,
+  s.section_type      AS section_type,
+  s.heading_ar        AS heading_ar,
+  s.heading_bare      AS heading_bare,
+  s.text_ar           AS text_ar,
+  s.text_en           AS text_en,
+  s.translation_en    AS translation_en,
+  s.translation_ur    AS translation_ur,
+  s.lane_node_num     AS lane_node_num,
+  s.lane_itype        AS lane_itype,
+  s.has_gaps          AS has_gaps,
+  s.page_no           AS page_no,
+  s.volume_no         AS volume_no
+FROM ar_ling_root_lexicon_key k
+JOIN ar_ling_lexicon_entry_section s ON s.root_norm = k.lookup_norm;
+
 CREATE VIEW ar_ling_stage_board AS
 SELECT root_norm, layer_code,
   COUNT(*) AS backlinks,
@@ -2165,6 +2538,8 @@ SELECT m.table_name, m.sub_code, m.root_bind, m.root_bind_col
                       AND s.tables_json LIKE '%"' || m.table_name || '"%');
 
 CREATE VIEW v_ar_ling_quran_lemma AS SELECT * FROM ar_ling_root_lemma WHERE is_quran_word=1 AND record_status='live';
+
+CREATE VIEW v_ar_ling_source_resolved AS SELECT s.id AS ref_id, COALESCE(c.id, s.id) AS source_id, COALESCE(c.slug, s.slug) AS slug, COALESCE(c.title_ar, s.title_ar) AS title_ar, COALESCE(c.title_en, s.title_en) AS title_en, COALESCE(c.author_name, s.author_name) AS author_name, COALESCE(c.author_death_ah, s.author_death_ah) AS author_death_ah, COALESCE(c.author_death_ce, s.author_death_ce) AS author_death_ce, COALESCE(c.pub_year_ce, s.pub_year_ce) AS pub_year_ce, COALESCE(c.genre, s.genre) AS genre, COALESCE(c.period_label, s.period_label) AS period_label, COALESCE(c.source_order, s.source_order) AS source_order, COALESCE(COALESCE(c.author_death_ah, s.author_death_ah), CAST(ROUND((COALESCE(COALESCE(c.author_death_ce, s.author_death_ce), COALESCE(c.pub_year_ce, s.pub_year_ce)) - 622) * 1.0307) AS INTEGER)) AS chrono_ah, CASE WHEN COALESCE(c.author_death_ah, s.author_death_ah) IS NOT NULL THEN 'author death (AH)' WHEN COALESCE(c.author_death_ce, s.author_death_ce) IS NOT NULL THEN 'author death (CE→AH)' WHEN COALESCE(c.pub_year_ce, s.pub_year_ce) IS NOT NULL THEN 'publication (CE→AH)' ELSE 'undated' END AS chrono_basis, CASE WHEN s.canonical_source_id IS NULL THEN 0 ELSE 1 END AS is_alias FROM ar_ling_source s LEFT JOIN ar_ling_source c ON c.id = s.canonical_source_id;
 
 CREATE VIEW v_balagha_bab AS SELECT * FROM ar_ling_gram_bab   WHERE discipline='BL';
 
@@ -2251,7 +2626,8 @@ UNION ALL SELECT 'ar_ling_word_sums', id, lemma_ar FROM "ar_ling_root_lemma_word
 UNION ALL SELECT 'ar_ling_form_paradigms', id, paradigm_name FROM "ar_ling_root_form_paradigm" WHERE source_slug IS NULL
 UNION ALL SELECT 'ar_ling_conjugation_templates', id, template_form FROM "ar_ling_root_form_template" WHERE source_slug IS NULL;
 
--- ── Indexes (218) ───────────────────────────────────────────────────
+
+-- ── Indexes (253) ────────────────────────────────────────────────
 
 CREATE INDEX idx_albk_book_page
   ON "ar_ling_lexicon_block"(book_page_id);
@@ -2633,6 +3009,9 @@ CREATE INDEX idx_rl_norm    ON "ar_ling_roots"(root_normalized);
 
 CREATE INDEX idx_rl_simple  ON "ar_ling_roots"(simple_lat);
 
+CREATE INDEX idx_root_lexicon_key_lookup
+  ON ar_ling_root_lexicon_key (lookup_norm);
+
 CREATE INDEX idx_root_scholarship_kind      ON "ar_ling_root_scholarship"(reading_kind);
 
 CREATE INDEX idx_root_scholarship_root_norm ON "ar_ling_root_scholarship"(root_norm);
@@ -2669,13 +3048,45 @@ CREATE INDEX idx_ws_root ON "ar_ling_root_lemma_word_silsila"(root_norm, bab_key
 
 CREATE INDEX idx_ws_stepof ON "ar_ling_root_lemma_word_silsila"(step_of, step_seq);
 
+CREATE INDEX ix_adima_entry_ayah    ON ar_ling_adima_entry(surah, ayah);
+
+CREATE INDEX ix_adima_entry_meaning ON ar_ling_adima_entry(meaning_term_id);
+
+CREATE INDEX ix_adima_entry_pattern ON ar_ling_adima_entry(discipline, pattern_term_id);
+
+CREATE INDEX ix_adima_entry_section ON ar_ling_adima_entry(discipline, chapter_ar, section_ar);
+
+CREATE INDEX ix_adima_entry_term    ON ar_ling_adima_entry(section_term_id);
+
+CREATE INDEX ix_adima_note_drill ON ar_ling_adima_note(discipline, chapter_ar) WHERE drill_ar IS NOT NULL;
+
+CREATE INDEX ix_arc_edge_arc ON ar_ling_arc_edge(arc_id);
+
 CREATE INDEX ix_arc_lemma ON ar_ling_lemma_arc(lemma_id);
 
+CREATE INDEX ix_arc_lemma_combined ON ar_ling_arc_lemma_rung(combined_id);
+
+CREATE INDEX ix_arc_lemma_root ON ar_ling_arc_lemma_rung(root_norm, lemma_ar);
+
 CREATE INDEX ix_arc_root ON ar_ling_lemma_arc(root_norm, status);
+
+CREATE INDEX ix_arc_rung_arc ON ar_ling_arc_rung(arc_id, seq);
+
+CREATE INDEX ix_arc_rung_combined ON ar_ling_arc_rung(combined_id);
+
+CREATE INDEX ix_arc_rung_root ON ar_ling_arc_rung(root_norm, source_slug);
+
+CREATE INDEX ix_arc_word_root ON ar_ling_arc_word(root_norm, rung_id);
+
+CREATE INDEX ix_arc_word_rung ON ar_ling_arc_word(rung_id);
+
+CREATE INDEX ix_arc_word_src ON ar_ling_arc_word(src_rung_id);
 
 CREATE INDEX ix_arcex_arc ON ar_ling_lemma_arc_example(arc_id, seq);
 
 CREATE INDEX ix_arcex_qr ON ar_ling_lemma_arc_example(surah, ayah);
+
+CREATE INDEX ix_asl_proposal_root ON ar_ling_root_asl_proposal(root_norm);
 
 CREATE INDEX ix_cb_sense ON ar_ling_concept_block(sense_id);
 
@@ -2710,6 +3121,49 @@ CREATE INDEX ix_ilal_apply_lemma ON ar_ling_root_lemma_ilal_apply(lemma_id);
 CREATE INDEX ix_ilal_apply_root ON ar_ling_root_lemma_ilal_apply(root_norm);
 
 CREATE INDEX ix_ilal_apply_rule ON ar_ling_root_lemma_ilal_apply(rule_id);
+
+CREATE INDEX ix_lex_block_entry
+  ON ar_ling_lexicon_block(root_entry_id, block_seq);
+
+CREATE INDEX ix_lex_block_link_ayah
+  ON ar_ling_lexicon_block_link(to_surah, to_ayah)
+  WHERE to_surah IS NOT NULL;
+
+CREATE INDEX ix_lex_block_link_from
+  ON ar_ling_lexicon_block_link(from_block_id, link_kind);
+
+CREATE INDEX ix_lex_block_link_root
+  ON ar_ling_lexicon_block_link(to_root_norm)
+  WHERE to_root_norm IS NOT NULL;
+
+CREATE INDEX ix_lex_block_link_to
+  ON ar_ling_lexicon_block_link(to_block_id, link_kind)
+  WHERE to_block_id IS NOT NULL;
+
+CREATE INDEX ix_lex_block_parent
+  ON ar_ling_lexicon_block(parent_block_id)
+  WHERE parent_block_id IS NOT NULL;
+
+CREATE INDEX ix_lex_block_type
+  ON ar_ling_lexicon_block(root_norm, block_type);
+
+CREATE INDEX ix_lex_entry_ds_root
+  ON ar_ling_lexicon_entry_ds(root_norm, source_slug);
+
+CREATE INDEX ix_lex_entry_ds_template
+  ON ar_ling_lexicon_entry_ds(template_key, status);
+
+CREATE INDEX ix_lex_fact_ayah ON ar_ling_lexicon_fact(surah, ayah) WHERE surah IS NOT NULL;
+
+CREATE INDEX ix_lex_fact_block ON ar_ling_lexicon_fact(block_id);
+
+CREATE INDEX ix_lex_fact_kind_source ON ar_ling_lexicon_fact(fact_kind, source_slug, confidence);
+
+CREATE INDEX ix_lex_fact_root_kind ON ar_ling_lexicon_fact(root_norm, fact_kind);
+
+CREATE INDEX ix_lex_fact_root_kind_src ON ar_ling_lexicon_fact(root_norm, fact_kind, source_slug, confidence);
+
+CREATE INDEX ix_lex_profile_family ON ar_ling_lexicon_profile(family, share);
 
 CREATE INDEX ix_lexicon_display_profile_order
   ON ar_ling_lexicon_display_profile (display_order);
@@ -2749,6 +3203,17 @@ CREATE INDEX ix_roots_canonical ON ar_ling_roots(canonical_id);
 
 CREATE INDEX ix_roots_normalized ON ar_ling_roots(root_normalized);
 
+CREATE INDEX ix_sense_attest_block
+  ON ar_ling_sense_attestation(block_id, target_type)
+  WHERE block_id IS NOT NULL;
+
+CREATE INDEX ix_sense_attest_form
+  ON ar_ling_sense_attestation(source_slug, form_id)
+  WHERE form_id IS NOT NULL;
+
+CREATE INDEX ix_sense_attest_target
+  ON ar_ling_sense_attestation(target_type, target_id, status);
+
 CREATE UNIQUE INDEX ux_ar_ling_roots_root_normalized ON ar_ling_roots(root_normalized);
 
 CREATE UNIQUE INDEX ux_cb_entry_path ON ar_ling_concept_block(concept_entry_id, block_path) WHERE concept_entry_id IS NOT NULL;
@@ -2759,7 +3224,8 @@ CREATE UNIQUE INDEX ux_morph_flags ON "ar_ling_root_lemma_sarf"(qac_flags, pos);
 
 CREATE UNIQUE INDEX ux_roots_norm ON "ar_ling_roots"(root_normalized);
 
--- ── Triggers (16) ──────────────────────────────────────────────────
+
+-- ── Triggers (421) ───────────────────────────────────────────────
 
 CREATE TRIGGER trg_gram_term_del AFTER DELETE ON ar_ling_gram_term BEGIN
   INSERT INTO ar_ling_gram_term_outbox (op,term_id,payload) VALUES ('delete', OLD.id, json_object('id',OLD.id));
@@ -2775,6 +3241,810 @@ CREATE TRIGGER trg_gram_term_upd AFTER UPDATE ON ar_ling_gram_term BEGIN
     json_object('id',NEW.id,'uid',NEW.uid,'category_key',NEW.category_key,'term_key',NEW.term_key,'parent_term_id',NEW.parent_term_id,'name_ar',NEW.name_ar,'name_en',NEW.name_en,'name_ur',NEW.name_ur,'discipline',NEW.discipline,'term_order',NEW.term_order,'status',NEW.status,'old_id',OLD.id));
 END;
 
+CREATE TRIGGER trg_kcv_ar_ling_concept_block_d AFTER DELETE ON ar_ling_concept_block BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_block_i AFTER INSERT ON ar_ling_concept_block BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_block_link_d AFTER DELETE ON ar_ling_concept_block_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_block_link_i AFTER INSERT ON ar_ling_concept_block_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_block_link_u AFTER UPDATE ON ar_ling_concept_block_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_block_u AFTER UPDATE ON ar_ling_concept_block BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_entry_d AFTER DELETE ON ar_ling_concept_entry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_entry_i AFTER INSERT ON ar_ling_concept_entry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_entry_u AFTER UPDATE ON ar_ling_concept_entry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_equivalent_d AFTER DELETE ON ar_ling_concept_equivalent BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_equivalent_i AFTER INSERT ON ar_ling_concept_equivalent BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_equivalent_u AFTER UPDATE ON ar_ling_concept_equivalent BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_external_link_d AFTER DELETE ON ar_ling_concept_external_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_external_link_i AFTER INSERT ON ar_ling_concept_external_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_external_link_u AFTER UPDATE ON ar_ling_concept_external_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_group_d AFTER DELETE ON ar_ling_concept_group BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_group_i AFTER INSERT ON ar_ling_concept_group BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_group_member_d AFTER DELETE ON ar_ling_concept_group_member BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_group_member_i AFTER INSERT ON ar_ling_concept_group_member BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_group_member_u AFTER UPDATE ON ar_ling_concept_group_member BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_group_u AFTER UPDATE ON ar_ling_concept_group BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_section_d AFTER DELETE ON ar_ling_concept_section BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_section_i AFTER INSERT ON ar_ling_concept_section BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_section_u AFTER UPDATE ON ar_ling_concept_section BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_sense_d AFTER DELETE ON ar_ling_concept_sense BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_sense_example_d AFTER DELETE ON ar_ling_concept_sense_example BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_sense_example_i AFTER INSERT ON ar_ling_concept_sense_example BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_sense_example_u AFTER UPDATE ON ar_ling_concept_sense_example BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_sense_i AFTER INSERT ON ar_ling_concept_sense BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_sense_u AFTER UPDATE ON ar_ling_concept_sense BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_synthesis_d AFTER DELETE ON ar_ling_concept_synthesis BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_synthesis_i AFTER INSERT ON ar_ling_concept_synthesis BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_concept_synthesis_u AFTER UPDATE ON ar_ling_concept_synthesis BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_bab_d AFTER DELETE ON ar_ling_gram_bab BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_bab_i AFTER INSERT ON ar_ling_gram_bab BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_bab_u AFTER UPDATE ON ar_ling_gram_bab BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_category_d AFTER DELETE ON ar_ling_gram_category BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_category_i AFTER INSERT ON ar_ling_gram_category BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_category_u AFTER UPDATE ON ar_ling_gram_category BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_chunk_citation_d AFTER DELETE ON ar_ling_gram_chunk_citation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_chunk_citation_i AFTER INSERT ON ar_ling_gram_chunk_citation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_chunk_citation_u AFTER UPDATE ON ar_ling_gram_chunk_citation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_chunk_d AFTER DELETE ON ar_ling_gram_chunk BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_chunk_i AFTER INSERT ON ar_ling_gram_chunk BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_chunk_term_d AFTER DELETE ON ar_ling_gram_chunk_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_chunk_term_i AFTER INSERT ON ar_ling_gram_chunk_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_chunk_term_u AFTER UPDATE ON ar_ling_gram_chunk_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_chunk_u AFTER UPDATE ON ar_ling_gram_chunk BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_ext_bab_d AFTER DELETE ON ar_ling_gram_ext_bab BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_ext_bab_i AFTER INSERT ON ar_ling_gram_ext_bab BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_ext_bab_u AFTER UPDATE ON ar_ling_gram_ext_bab BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_ext_book_d AFTER DELETE ON ar_ling_gram_ext_book BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_ext_book_i AFTER INSERT ON ar_ling_gram_ext_book BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_ext_book_u AFTER UPDATE ON ar_ling_gram_ext_book BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_external_toc_d AFTER DELETE ON ar_ling_gram_external_toc BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_external_toc_i AFTER INSERT ON ar_ling_gram_external_toc BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_external_toc_u AFTER UPDATE ON ar_ling_gram_external_toc BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_khilaf_d AFTER DELETE ON ar_ling_gram_khilaf BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_khilaf_i AFTER INSERT ON ar_ling_gram_khilaf BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_khilaf_u AFTER UPDATE ON ar_ling_gram_khilaf BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_source_toc_rank_d AFTER DELETE ON ar_ling_gram_source_toc_rank BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_source_toc_rank_i AFTER INSERT ON ar_ling_gram_source_toc_rank BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_source_toc_rank_u AFTER UPDATE ON ar_ling_gram_source_toc_rank BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_alias_d AFTER DELETE ON ar_ling_gram_term_alias BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_alias_i AFTER INSERT ON ar_ling_gram_term_alias BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_alias_u AFTER UPDATE ON ar_ling_gram_term_alias BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_d AFTER DELETE ON ar_ling_gram_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_example_d AFTER DELETE ON ar_ling_gram_term_example BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_example_i AFTER INSERT ON ar_ling_gram_term_example BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_example_u AFTER UPDATE ON ar_ling_gram_term_example BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_i AFTER INSERT ON ar_ling_gram_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_relation_d AFTER DELETE ON ar_ling_gram_term_relation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_relation_i AFTER INSERT ON ar_ling_gram_term_relation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_relation_u AFTER UPDATE ON ar_ling_gram_term_relation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_rule_d AFTER DELETE ON ar_ling_gram_term_rule BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_rule_i AFTER INSERT ON ar_ling_gram_term_rule BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_rule_u AFTER UPDATE ON ar_ling_gram_term_rule BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_source_d AFTER DELETE ON ar_ling_gram_term_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_source_i AFTER INSERT ON ar_ling_gram_term_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_source_u AFTER UPDATE ON ar_ling_gram_term_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_toc_d AFTER DELETE ON ar_ling_gram_term_toc BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_toc_i AFTER INSERT ON ar_ling_gram_term_toc BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_toc_u AFTER UPDATE ON ar_ling_gram_term_toc BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_u AFTER UPDATE ON ar_ling_gram_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_example_d AFTER DELETE ON ar_ling_learn_example BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_example_i AFTER INSERT ON ar_ling_learn_example BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_example_u AFTER UPDATE ON ar_ling_learn_example BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_lemma_d AFTER DELETE ON ar_ling_learn_lemma BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_lemma_i AFTER INSERT ON ar_ling_learn_lemma BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_lemma_u AFTER UPDATE ON ar_ling_learn_lemma BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_memlet_d AFTER DELETE ON ar_ling_learn_memlet BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_memlet_i AFTER INSERT ON ar_ling_learn_memlet BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_memlet_kind_d AFTER DELETE ON ar_ling_learn_memlet_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_memlet_kind_i AFTER INSERT ON ar_ling_learn_memlet_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_memlet_kind_u AFTER UPDATE ON ar_ling_learn_memlet_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_memlet_media_d AFTER DELETE ON ar_ling_learn_memlet_media BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_memlet_media_i AFTER INSERT ON ar_ling_learn_memlet_media BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_memlet_media_u AFTER UPDATE ON ar_ling_learn_memlet_media BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_memlet_u AFTER UPDATE ON ar_ling_learn_memlet BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_memory_hook_d AFTER DELETE ON ar_ling_learn_memory_hook BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_memory_hook_i AFTER INSERT ON ar_ling_learn_memory_hook BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_memory_hook_u AFTER UPDATE ON ar_ling_learn_memory_hook BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_question_d AFTER DELETE ON ar_ling_learn_question BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_question_distractor_d AFTER DELETE ON ar_ling_learn_question_distractor BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_question_distractor_i AFTER INSERT ON ar_ling_learn_question_distractor BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_question_distractor_u AFTER UPDATE ON ar_ling_learn_question_distractor BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_question_i AFTER INSERT ON ar_ling_learn_question BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_question_kind_d AFTER DELETE ON ar_ling_learn_question_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_question_kind_i AFTER INSERT ON ar_ling_learn_question_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_question_kind_u AFTER UPDATE ON ar_ling_learn_question_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_question_u AFTER UPDATE ON ar_ling_learn_question BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_vocab_d AFTER DELETE ON ar_ling_learn_vocab BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_vocab_i AFTER INSERT ON ar_ling_learn_vocab BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_learn_vocab_u AFTER UPDATE ON ar_ling_learn_vocab BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lemma_arc_d AFTER DELETE ON ar_ling_lemma_arc BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lemma_arc_example_d AFTER DELETE ON ar_ling_lemma_arc_example BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lemma_arc_example_i AFTER INSERT ON ar_ling_lemma_arc_example BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lemma_arc_example_u AFTER UPDATE ON ar_ling_lemma_arc_example BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lemma_arc_i AFTER INSERT ON ar_ling_lemma_arc BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lemma_arc_u AFTER UPDATE ON ar_ling_lemma_arc BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_block_annotation_d AFTER DELETE ON ar_ling_lexicon_block_annotation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_block_annotation_i AFTER INSERT ON ar_ling_lexicon_block_annotation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_block_annotation_u AFTER UPDATE ON ar_ling_lexicon_block_annotation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_block_d AFTER DELETE ON ar_ling_lexicon_block BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_block_i AFTER INSERT ON ar_ling_lexicon_block BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_block_link_d AFTER DELETE ON ar_ling_lexicon_block_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_block_link_i AFTER INSERT ON ar_ling_lexicon_block_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_block_link_u AFTER UPDATE ON ar_ling_lexicon_block_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_block_tag_d AFTER DELETE ON ar_ling_lexicon_block_tag BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_block_tag_i AFTER INSERT ON ar_ling_lexicon_block_tag BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_block_tag_u AFTER UPDATE ON ar_ling_lexicon_block_tag BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_block_u AFTER UPDATE ON ar_ling_lexicon_block BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_book_page_d AFTER DELETE ON ar_ling_lexicon_book_page BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_book_page_i AFTER INSERT ON ar_ling_lexicon_book_page BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_book_page_u AFTER UPDATE ON ar_ling_lexicon_book_page BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_display_block_kind_d AFTER DELETE ON ar_ling_lexicon_display_block_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_display_block_kind_i AFTER INSERT ON ar_ling_lexicon_display_block_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_display_block_kind_u AFTER UPDATE ON ar_ling_lexicon_display_block_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_display_profile_d AFTER DELETE ON ar_ling_lexicon_display_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_display_profile_i AFTER INSERT ON ar_ling_lexicon_display_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_display_profile_u AFTER UPDATE ON ar_ling_lexicon_display_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_display_rule_d AFTER DELETE ON ar_ling_lexicon_display_rule BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_display_rule_i AFTER INSERT ON ar_ling_lexicon_display_rule BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_display_rule_u AFTER UPDATE ON ar_ling_lexicon_display_rule BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_display_section_d AFTER DELETE ON ar_ling_lexicon_display_section BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_display_section_i AFTER INSERT ON ar_ling_lexicon_display_section BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_display_section_u AFTER UPDATE ON ar_ling_lexicon_display_section BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_entry_d AFTER DELETE ON ar_ling_lexicon_entry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_entry_ds_d AFTER DELETE ON ar_ling_lexicon_entry_ds BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_entry_ds_i AFTER INSERT ON ar_ling_lexicon_entry_ds BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_entry_ds_u AFTER UPDATE ON ar_ling_lexicon_entry_ds BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_entry_embedding_d AFTER DELETE ON ar_ling_lexicon_entry_embedding BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_entry_embedding_i AFTER INSERT ON ar_ling_lexicon_entry_embedding BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_entry_embedding_u AFTER UPDATE ON ar_ling_lexicon_entry_embedding BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_entry_i AFTER INSERT ON ar_ling_lexicon_entry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_entry_section_d AFTER DELETE ON ar_ling_lexicon_entry_section BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_entry_section_i AFTER INSERT ON ar_ling_lexicon_entry_section BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_entry_section_u AFTER UPDATE ON ar_ling_lexicon_entry_section BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_entry_source_d AFTER DELETE ON ar_ling_lexicon_entry_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_entry_source_i AFTER INSERT ON ar_ling_lexicon_entry_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_entry_source_u AFTER UPDATE ON ar_ling_lexicon_entry_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_entry_u AFTER UPDATE ON ar_ling_lexicon_entry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_quran_ref_d AFTER DELETE ON ar_ling_lexicon_quran_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_quran_ref_i AFTER INSERT ON ar_ling_lexicon_quran_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_lexicon_quran_ref_u AFTER UPDATE ON ar_ling_lexicon_quran_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_band_color_d AFTER DELETE ON ar_ling_reg_band_color BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_band_color_i AFTER INSERT ON ar_ling_reg_band_color BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_band_color_u AFTER UPDATE ON ar_ling_reg_band_color BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_band_fill_rule_d AFTER DELETE ON ar_ling_reg_band_fill_rule BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_band_fill_rule_i AFTER INSERT ON ar_ling_reg_band_fill_rule BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_band_fill_rule_u AFTER UPDATE ON ar_ling_reg_band_fill_rule BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_build_layer_d AFTER DELETE ON ar_ling_reg_build_layer BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_build_layer_i AFTER INSERT ON ar_ling_reg_build_layer BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_build_layer_u AFTER UPDATE ON ar_ling_reg_build_layer BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_conformance_check_d AFTER DELETE ON ar_ling_reg_conformance_check BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_conformance_check_i AFTER INSERT ON ar_ling_reg_conformance_check BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_conformance_check_u AFTER UPDATE ON ar_ling_reg_conformance_check BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_decision_d AFTER DELETE ON ar_ling_reg_decision BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_decision_i AFTER INSERT ON ar_ling_reg_decision BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_decision_u AFTER UPDATE ON ar_ling_reg_decision BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_discipline_d AFTER DELETE ON ar_ling_reg_discipline BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_discipline_i AFTER INSERT ON ar_ling_reg_discipline BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_discipline_u AFTER UPDATE ON ar_ling_reg_discipline BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_display_token_d AFTER DELETE ON ar_ling_reg_display_token BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_display_token_i AFTER INSERT ON ar_ling_reg_display_token BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_display_token_u AFTER UPDATE ON ar_ling_reg_display_token BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_heading_style_d AFTER DELETE ON ar_ling_reg_heading_style BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_heading_style_i AFTER INSERT ON ar_ling_reg_heading_style BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_heading_style_u AFTER UPDATE ON ar_ling_reg_heading_style BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_notice_kind_d AFTER DELETE ON ar_ling_reg_notice_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_notice_kind_i AFTER INSERT ON ar_ling_reg_notice_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_notice_kind_u AFTER UPDATE ON ar_ling_reg_notice_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_ref_namespace_d AFTER DELETE ON ar_ling_reg_ref_namespace BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_ref_namespace_i AFTER INSERT ON ar_ling_reg_ref_namespace BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_ref_namespace_u AFTER UPDATE ON ar_ling_reg_ref_namespace BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_root_key_d AFTER DELETE ON ar_ling_reg_root_key BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_root_key_i AFTER INSERT ON ar_ling_reg_root_key BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_root_key_u AFTER UPDATE ON ar_ling_reg_root_key BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_semantic_field_d AFTER DELETE ON ar_ling_reg_semantic_field BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_semantic_field_i AFTER INSERT ON ar_ling_reg_semantic_field BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_semantic_field_u AFTER UPDATE ON ar_ling_reg_semantic_field BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_source_alias_d AFTER DELETE ON ar_ling_reg_source_alias BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_source_alias_i AFTER INSERT ON ar_ling_reg_source_alias BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_source_alias_u AFTER UPDATE ON ar_ling_reg_source_alias BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_sub_layer_d AFTER DELETE ON ar_ling_reg_sub_layer BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_sub_layer_i AFTER INSERT ON ar_ling_reg_sub_layer BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_sub_layer_u AFTER UPDATE ON ar_ling_reg_sub_layer BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_surah_d AFTER DELETE ON ar_ling_reg_surah BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_surah_i AFTER INSERT ON ar_ling_reg_surah BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_surah_u AFTER UPDATE ON ar_ling_reg_surah BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_table_discipline_d AFTER DELETE ON ar_ling_reg_table_discipline BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_table_discipline_i AFTER INSERT ON ar_ling_reg_table_discipline BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_table_discipline_u AFTER UPDATE ON ar_ling_reg_table_discipline BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_table_map_d AFTER DELETE ON ar_ling_reg_table_map BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_table_map_i AFTER INSERT ON ar_ling_reg_table_map BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_table_map_u AFTER UPDATE ON ar_ling_reg_table_map BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_term_role_d AFTER DELETE ON ar_ling_reg_term_role BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_term_role_i AFTER INSERT ON ar_ling_reg_term_role BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_reg_term_role_u AFTER UPDATE ON ar_ling_reg_term_role BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_asl_d AFTER DELETE ON ar_ling_root_asl BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_asl_i AFTER INSERT ON ar_ling_root_asl BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_asl_u AFTER UPDATE ON ar_ling_root_asl BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_backlink_d AFTER DELETE ON ar_ling_root_backlink BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_backlink_i AFTER INSERT ON ar_ling_root_backlink BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_backlink_u AFTER UPDATE ON ar_ling_root_backlink BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_band_fill_d AFTER DELETE ON ar_ling_root_band_fill BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_band_fill_i AFTER INSERT ON ar_ling_root_band_fill BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_band_fill_u AFTER UPDATE ON ar_ling_root_band_fill BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_didd_d AFTER DELETE ON ar_ling_root_didd BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_didd_i AFTER INSERT ON ar_ling_root_didd BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_didd_u AFTER UPDATE ON ar_ling_root_didd BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_display_d AFTER DELETE ON ar_ling_root_display BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_display_i AFTER INSERT ON ar_ling_root_display BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_display_u AFTER UPDATE ON ar_ling_root_display BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_dna_d AFTER DELETE ON ar_ling_root_dna BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_dna_i AFTER INSERT ON ar_ling_root_dna BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_dna_u AFTER UPDATE ON ar_ling_root_dna BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_form_family_d AFTER DELETE ON ar_ling_root_form_family BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_form_family_i AFTER INSERT ON ar_ling_root_form_family BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_form_family_u AFTER UPDATE ON ar_ling_root_form_family BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_form_masmu_d AFTER DELETE ON ar_ling_root_form_masmu BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_form_masmu_i AFTER INSERT ON ar_ling_root_form_masmu BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_form_masmu_u AFTER UPDATE ON ar_ling_root_form_masmu BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_form_paradigm_d AFTER DELETE ON ar_ling_root_form_paradigm BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_form_paradigm_i AFTER INSERT ON ar_ling_root_form_paradigm BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_form_paradigm_u AFTER UPDATE ON ar_ling_root_form_paradigm BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_form_template_d AFTER DELETE ON ar_ling_root_form_template BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_form_template_i AFTER INSERT ON ar_ling_root_form_template BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_form_template_u AFTER UPDATE ON ar_ling_root_form_template BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_form_tier_d AFTER DELETE ON ar_ling_root_form_tier BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_form_tier_i AFTER INSERT ON ar_ling_root_form_tier BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_form_tier_u AFTER UPDATE ON ar_ling_root_form_tier BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_haql_d AFTER DELETE ON ar_ling_root_haql BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_haql_i AFTER INSERT ON ar_ling_root_haql BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_haql_u AFTER UPDATE ON ar_ling_root_haql BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_d AFTER DELETE ON ar_ling_root_lemma BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_form_map_d AFTER DELETE ON ar_ling_root_lemma_form_map BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_form_map_i AFTER INSERT ON ar_ling_root_lemma_form_map BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_form_map_u AFTER UPDATE ON ar_ling_root_lemma_form_map BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_furuq_evidence_d AFTER DELETE ON ar_ling_root_lemma_furuq_evidence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_furuq_evidence_i AFTER INSERT ON ar_ling_root_lemma_furuq_evidence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_furuq_evidence_u AFTER UPDATE ON ar_ling_root_lemma_furuq_evidence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_furuq_member_d AFTER DELETE ON ar_ling_root_lemma_furuq_member BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_furuq_member_i AFTER INSERT ON ar_ling_root_lemma_furuq_member BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_furuq_member_src_d AFTER DELETE ON ar_ling_root_lemma_furuq_member_src BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_furuq_member_src_i AFTER INSERT ON ar_ling_root_lemma_furuq_member_src BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_furuq_member_src_u AFTER UPDATE ON ar_ling_root_lemma_furuq_member_src BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_furuq_member_u AFTER UPDATE ON ar_ling_root_lemma_furuq_member BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_furuq_set_d AFTER DELETE ON ar_ling_root_lemma_furuq_set BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_furuq_set_i AFTER INSERT ON ar_ling_root_lemma_furuq_set BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_furuq_set_src_d AFTER DELETE ON ar_ling_root_lemma_furuq_set_src BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_furuq_set_src_i AFTER INSERT ON ar_ling_root_lemma_furuq_set_src BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_furuq_set_src_u AFTER UPDATE ON ar_ling_root_lemma_furuq_set_src BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_furuq_set_u AFTER UPDATE ON ar_ling_root_lemma_furuq_set BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_i AFTER INSERT ON ar_ling_root_lemma BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_ilal_apply_d AFTER DELETE ON ar_ling_root_lemma_ilal_apply BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_ilal_apply_i AFTER INSERT ON ar_ling_root_lemma_ilal_apply BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_ilal_apply_u AFTER UPDATE ON ar_ling_root_lemma_ilal_apply BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_ilal_d AFTER DELETE ON ar_ling_root_lemma_ilal BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_ilal_i AFTER INSERT ON ar_ling_root_lemma_ilal BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_ilal_u AFTER UPDATE ON ar_ling_root_lemma_ilal BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_link_d AFTER DELETE ON ar_ling_root_lemma_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_link_i AFTER INSERT ON ar_ling_root_lemma_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_link_u AFTER UPDATE ON ar_ling_root_lemma_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_sarf_d AFTER DELETE ON ar_ling_root_lemma_sarf BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_sarf_i AFTER INSERT ON ar_ling_root_lemma_sarf BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_sarf_u AFTER UPDATE ON ar_ling_root_lemma_sarf BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_tabir_d AFTER DELETE ON ar_ling_root_lemma_tabir BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_tabir_i AFTER INSERT ON ar_ling_root_lemma_tabir BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_tabir_kind_d AFTER DELETE ON ar_ling_root_lemma_tabir_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_tabir_kind_i AFTER INSERT ON ar_ling_root_lemma_tabir_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_tabir_kind_u AFTER UPDATE ON ar_ling_root_lemma_tabir_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_tabir_u AFTER UPDATE ON ar_ling_root_lemma_tabir BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_tadiya_d AFTER DELETE ON ar_ling_root_lemma_tadiya BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_tadiya_i AFTER INSERT ON ar_ling_root_lemma_tadiya BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_tadiya_u AFTER UPDATE ON ar_ling_root_lemma_tadiya BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_taswib_d AFTER DELETE ON ar_ling_root_lemma_taswib BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_taswib_i AFTER INSERT ON ar_ling_root_lemma_taswib BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_taswib_u AFTER UPDATE ON ar_ling_root_lemma_taswib BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_u AFTER UPDATE ON ar_ling_root_lemma BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_wazn_d AFTER DELETE ON ar_ling_root_lemma_wazn BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_wazn_detect_d AFTER DELETE ON ar_ling_root_lemma_wazn_detect BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_wazn_detect_i AFTER INSERT ON ar_ling_root_lemma_wazn_detect BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_wazn_detect_u AFTER UPDATE ON ar_ling_root_lemma_wazn_detect BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_wazn_i AFTER INSERT ON ar_ling_root_lemma_wazn BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_wazn_u AFTER UPDATE ON ar_ling_root_lemma_wazn BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_word_quran_link_d AFTER DELETE ON ar_ling_root_lemma_word_quran_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_word_quran_link_i AFTER INSERT ON ar_ling_root_lemma_word_quran_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_word_quran_link_u AFTER UPDATE ON ar_ling_root_lemma_word_quran_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_word_silsila_d AFTER DELETE ON ar_ling_root_lemma_word_silsila BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_word_silsila_i AFTER INSERT ON ar_ling_root_lemma_word_silsila BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lemma_word_silsila_u AFTER UPDATE ON ar_ling_root_lemma_word_silsila BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_letter_d AFTER DELETE ON ar_ling_root_letter BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_letter_i AFTER INSERT ON ar_ling_root_letter BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_letter_slot_d AFTER DELETE ON ar_ling_root_letter_slot BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_letter_slot_i AFTER INSERT ON ar_ling_root_letter_slot BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_letter_slot_u AFTER UPDATE ON ar_ling_root_letter_slot BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_letter_u AFTER UPDATE ON ar_ling_root_letter BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lexicon_alias_d AFTER DELETE ON ar_ling_root_lexicon_alias BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lexicon_alias_i AFTER INSERT ON ar_ling_root_lexicon_alias BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lexicon_alias_u AFTER UPDATE ON ar_ling_root_lexicon_alias BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lexicon_key_d AFTER DELETE ON ar_ling_root_lexicon_key BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lexicon_key_i AFTER INSERT ON ar_ling_root_lexicon_key BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lexicon_key_u AFTER UPDATE ON ar_ling_root_lexicon_key BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lugha_d AFTER DELETE ON ar_ling_root_lugha BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lugha_i AFTER INSERT ON ar_ling_root_lugha BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_lugha_u AFTER UPDATE ON ar_ling_root_lugha BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_naw_sawti_d AFTER DELETE ON ar_ling_root_naw_sawti BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_naw_sawti_i AFTER INSERT ON ar_ling_root_naw_sawti BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_naw_sawti_u AFTER UPDATE ON ar_ling_root_naw_sawti BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_page_index_d AFTER DELETE ON ar_ling_root_page_index BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_page_index_i AFTER INSERT ON ar_ling_root_page_index BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_page_index_u AFTER UPDATE ON ar_ling_root_page_index BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_relation_d AFTER DELETE ON ar_ling_root_relation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_relation_i AFTER INSERT ON ar_ling_root_relation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_relation_u AFTER UPDATE ON ar_ling_root_relation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_sarf_form_index_d AFTER DELETE ON ar_ling_root_sarf_form_index BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_sarf_form_index_i AFTER INSERT ON ar_ling_root_sarf_form_index BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_sarf_form_index_u AFTER UPDATE ON ar_ling_root_sarf_form_index BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_scholarship_d AFTER DELETE ON ar_ling_root_scholarship BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_scholarship_i AFTER INSERT ON ar_ling_root_scholarship BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_scholarship_u AFTER UPDATE ON ar_ling_root_scholarship BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_sense_axis_d AFTER DELETE ON ar_ling_root_sense_axis BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_sense_axis_i AFTER INSERT ON ar_ling_root_sense_axis BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_sense_axis_u AFTER UPDATE ON ar_ling_root_sense_axis BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_sense_d AFTER DELETE ON ar_ling_root_sense BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_sense_i AFTER INSERT ON ar_ling_root_sense BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_sense_u AFTER UPDATE ON ar_ling_root_sense BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_taqalib_d AFTER DELETE ON ar_ling_root_taqalib BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_taqalib_i AFTER INSERT ON ar_ling_root_taqalib BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_taqalib_u AFTER UPDATE ON ar_ling_root_taqalib BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_tatawwur_d AFTER DELETE ON ar_ling_root_tatawwur BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_tatawwur_i AFTER INSERT ON ar_ling_root_tatawwur BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_root_tatawwur_u AFTER UPDATE ON ar_ling_root_tatawwur BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_roots_d AFTER DELETE ON ar_ling_roots BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_roots_i AFTER INSERT ON ar_ling_roots BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_roots_u AFTER UPDATE ON ar_ling_roots BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_sarf_wazn_d AFTER DELETE ON ar_ling_sarf_wazn BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_sarf_wazn_i AFTER INSERT ON ar_ling_sarf_wazn BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_sarf_wazn_rule_d AFTER DELETE ON ar_ling_sarf_wazn_rule BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_sarf_wazn_rule_i AFTER INSERT ON ar_ling_sarf_wazn_rule BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_sarf_wazn_rule_u AFTER UPDATE ON ar_ling_sarf_wazn_rule BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_sarf_wazn_u AFTER UPDATE ON ar_ling_sarf_wazn BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_sense_arc_d AFTER DELETE ON ar_ling_sense_arc BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_sense_arc_i AFTER INSERT ON ar_ling_sense_arc BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_sense_arc_step_d AFTER DELETE ON ar_ling_sense_arc_step BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_sense_arc_step_i AFTER INSERT ON ar_ling_sense_arc_step BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_sense_arc_step_u AFTER UPDATE ON ar_ling_sense_arc_step BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_sense_arc_u AFTER UPDATE ON ar_ling_sense_arc BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_sense_attestation_d AFTER DELETE ON ar_ling_sense_attestation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_sense_attestation_i AFTER INSERT ON ar_ling_sense_attestation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_sense_attestation_u AFTER UPDATE ON ar_ling_sense_attestation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_alias_d AFTER DELETE ON ar_ling_source_alias BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_alias_i AFTER INSERT ON ar_ling_source_alias BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_alias_u AFTER UPDATE ON ar_ling_source_alias BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_chunk_d AFTER DELETE ON ar_ling_source_chunk BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_chunk_i AFTER INSERT ON ar_ling_source_chunk BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_chunk_u AFTER UPDATE ON ar_ling_source_chunk BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_citation_d AFTER DELETE ON ar_ling_source_citation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_citation_i AFTER INSERT ON ar_ling_source_citation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_citation_u AFTER UPDATE ON ar_ling_source_citation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_d AFTER DELETE ON ar_ling_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_edition_d AFTER DELETE ON ar_ling_source_edition BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_edition_i AFTER INSERT ON ar_ling_source_edition BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_edition_u AFTER UPDATE ON ar_ling_source_edition BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_entry_ref_d AFTER DELETE ON ar_ling_source_entry_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_entry_ref_i AFTER INSERT ON ar_ling_source_entry_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_entry_ref_u AFTER UPDATE ON ar_ling_source_entry_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_evidence_d AFTER DELETE ON ar_ling_source_evidence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_evidence_i AFTER INSERT ON ar_ling_source_evidence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_evidence_u AFTER UPDATE ON ar_ling_source_evidence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_i AFTER INSERT ON ar_ling_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_toc_d AFTER DELETE ON ar_ling_source_toc BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_toc_i AFTER INSERT ON ar_ling_source_toc BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_toc_u AFTER UPDATE ON ar_ling_source_toc BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_source_u AFTER UPDATE ON ar_ling_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_src_code_d AFTER DELETE ON ar_ling_src_code BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_src_code_i AFTER INSERT ON ar_ling_src_code BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_src_code_u AFTER UPDATE ON ar_ling_src_code BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_term_dictionary_d AFTER DELETE ON ar_ling_term_dictionary BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_term_dictionary_i AFTER INSERT ON ar_ling_term_dictionary BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_term_dictionary_u AFTER UPDATE ON ar_ling_term_dictionary BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
 CREATE TRIGGER trg_root_lemma_no_typed_prefix
 BEFORE INSERT ON ar_ling_root_lemma
 FOR EACH ROW WHEN NEW.id LIKE 'AL:%'
@@ -2782,403 +4052,54 @@ BEGIN
   SELECT RAISE(ABORT, 'ar_ling_root_lemma.id must be bare - the AL: prefix belongs at the reference site (qr_lemma.lx_lemma_ref), not in the primary key');
 END;
 
-CREATE TRIGGER trig_albk_fts_ad
-AFTER DELETE ON ar_ling_lexicon_block BEGIN
-  INSERT INTO ar_ling_lexicon_block_fts(
-    ar_ling_lexicon_block_fts,
-    rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type
-  ) VALUES (
-    'delete', old.rowid,
-    COALESCE(old.text_plain, ''),
-    COALESCE(old.title_ar, ''),
-    COALESCE(old.title_en, ''),
-    old.root_norm,
-    old.source_slug,
-    old.block_type
-  );
+CREATE TRIGGER trig_albk_fts_ad AFTER DELETE ON ar_ling_lexicon_block BEGIN
+  INSERT INTO ar_ling_lexicon_block_fts(ar_ling_lexicon_block_fts, rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type)
+  VALUES ('delete', old.rowid, COALESCE(old.text_plain,''), COALESCE(old.title_ar,''), COALESCE(old.title_en,''), old.root_norm, old.source_slug, old.block_type);
 END;
 
-CREATE TRIGGER trig_albk_fts_ai
-AFTER INSERT ON ar_ling_lexicon_block BEGIN
-  INSERT INTO ar_ling_lexicon_block_fts(
-    rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type
-  ) VALUES (
-    new.rowid,
-    COALESCE(new.text_plain, ''),
-    COALESCE(new.title_ar, ''),
-    COALESCE(new.title_en, ''),
-    new.root_norm,
-    new.source_slug,
-    new.block_type
-  );
+CREATE TRIGGER trig_albk_fts_ai AFTER INSERT ON ar_ling_lexicon_block BEGIN
+  INSERT INTO ar_ling_lexicon_block_fts(rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type)
+  VALUES (new.rowid, COALESCE(new.text_plain,''), COALESCE(new.title_ar,''), COALESCE(new.title_en,''), new.root_norm, new.source_slug, new.block_type);
 END;
 
-CREATE TRIGGER trig_albk_fts_au
-AFTER UPDATE ON ar_ling_lexicon_block BEGIN
-  INSERT INTO ar_ling_lexicon_block_fts(
-    ar_ling_lexicon_block_fts,
-    rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type
-  ) VALUES (
-    'delete', old.rowid,
-    COALESCE(old.text_plain, ''),
-    COALESCE(old.title_ar, ''),
-    COALESCE(old.title_en, ''),
-    old.root_norm,
-    old.source_slug,
-    old.block_type
-  );
-  INSERT INTO ar_ling_lexicon_block_fts(
-    rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type
-  ) VALUES (
-    new.rowid,
-    COALESCE(new.text_plain, ''),
-    COALESCE(new.title_ar, ''),
-    COALESCE(new.title_en, ''),
-    new.root_norm,
-    new.source_slug,
-    new.block_type
-  );
+CREATE TRIGGER trig_albk_fts_au AFTER UPDATE ON ar_ling_lexicon_block BEGIN
+  INSERT INTO ar_ling_lexicon_block_fts(ar_ling_lexicon_block_fts, rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type)
+  VALUES ('delete', old.rowid, COALESCE(old.text_plain,''), COALESCE(old.title_ar,''), COALESCE(old.title_en,''), old.root_norm, old.source_slug, old.block_type);
+  INSERT INTO ar_ling_lexicon_block_fts(rowid, text_plain, title_ar, title_en, root_norm, source_slug, block_type)
+  VALUES (new.rowid, COALESCE(new.text_plain,''), COALESCE(new.title_ar,''), COALESCE(new.title_en,''), new.root_norm, new.source_slug, new.block_type);
 END;
 
-CREATE TRIGGER trig_albp_fts_ad
-AFTER DELETE ON ar_ling_lexicon_book_page BEGIN
-  INSERT INTO ar_ling_lexicon_book_page_fts(
-    ar_ling_lexicon_book_page_fts,
-    rowid, clean_text, source_slug, root_norm
-  ) VALUES (
-    'delete', old.rowid,
-    COALESCE(old.clean_text, ''),
-    old.source_slug,
-    old.root_norm
-  );
+CREATE TRIGGER trig_albp_fts_ad AFTER DELETE ON ar_ling_lexicon_book_page BEGIN
+  INSERT INTO ar_ling_lexicon_book_page_fts(ar_ling_lexicon_book_page_fts, rowid, clean_text, source_slug, root_norm)
+  VALUES ('delete', old.rowid, COALESCE(old.clean_text,''), old.source_slug, old.root_norm);
 END;
 
-CREATE TRIGGER trig_albp_fts_ai
-AFTER INSERT ON ar_ling_lexicon_book_page BEGIN
-  INSERT INTO ar_ling_lexicon_book_page_fts(
-    rowid, clean_text, source_slug, root_norm
-  ) VALUES (
-    new.rowid,
-    COALESCE(new.clean_text, ''),
-    new.source_slug,
-    new.root_norm
-  );
+CREATE TRIGGER trig_albp_fts_ai AFTER INSERT ON ar_ling_lexicon_book_page BEGIN
+  INSERT INTO ar_ling_lexicon_book_page_fts(rowid, clean_text, source_slug, root_norm)
+  VALUES (new.rowid, COALESCE(new.clean_text,''), new.source_slug, new.root_norm);
 END;
 
-CREATE TRIGGER trig_albp_fts_au
-AFTER UPDATE ON ar_ling_lexicon_book_page BEGIN
-  INSERT INTO ar_ling_lexicon_book_page_fts(
-    ar_ling_lexicon_book_page_fts,
-    rowid, clean_text, source_slug, root_norm
-  ) VALUES (
-    'delete', old.rowid,
-    COALESCE(old.clean_text, ''),
-    old.source_slug,
-    old.root_norm
-  );
-  INSERT INTO ar_ling_lexicon_book_page_fts(
-    rowid, clean_text, source_slug, root_norm
-  ) VALUES (
-    new.rowid,
-    COALESCE(new.clean_text, ''),
-    new.source_slug,
-    new.root_norm
-  );
+CREATE TRIGGER trig_albp_fts_au AFTER UPDATE ON ar_ling_lexicon_book_page BEGIN
+  INSERT INTO ar_ling_lexicon_book_page_fts(ar_ling_lexicon_book_page_fts, rowid, clean_text, source_slug, root_norm)
+  VALUES ('delete', old.rowid, COALESCE(old.clean_text,''), old.source_slug, old.root_norm);
+  INSERT INTO ar_ling_lexicon_book_page_fts(rowid, clean_text, source_slug, root_norm)
+  VALUES (new.rowid, COALESCE(new.clean_text,''), new.source_slug, new.root_norm);
 END;
 
-CREATE TRIGGER trig_ales_fts_ad
-AFTER DELETE ON ar_ling_lexicon_entry_section BEGIN
-  INSERT INTO ar_ling_lexicon_entry_section_fts(
-    ar_ling_lexicon_entry_section_fts,
-    rowid, root_text, root_norm,
-    heading_ar, heading_norm, heading_bare,
-    section_type, text_ar, text_en
-  ) VALUES (
-    'delete',
-    old.rowid, old.root_text, old.root_norm,
-    COALESCE(old.heading_ar, ''),
-    COALESCE(old.heading_norm, ''),
-    COALESCE(old.heading_bare, ''),
-    COALESCE(old.section_type, ''),
-    COALESCE(old.text_ar, ''),
-    COALESCE(old.text_en, '')
-  );
-END;
+CREATE TRIGGER trig_ales_fts_ad AFTER DELETE ON ar_ling_lexicon_entry_section BEGIN INSERT INTO ar_ling_lexicon_entry_section_fts( ar_ling_lexicon_entry_section_fts, rowid, root_text, root_norm, heading_ar, heading_norm, heading_bare, section_type, text_ar, text_en ) VALUES ( 'delete', old.rowid, old.root_text, old.root_norm, COALESCE(old.heading_ar, ''), COALESCE(old.heading_norm, ''), COALESCE(old.heading_bare, ''), COALESCE(old.section_type, ''), COALESCE(old.text_ar, ''), COALESCE(old.text_en, '') ); END;
 
-CREATE TRIGGER trig_ales_fts_ai
-AFTER INSERT ON ar_ling_lexicon_entry_section BEGIN
-  INSERT INTO ar_ling_lexicon_entry_section_fts(
-    rowid, root_text, root_norm,
-    heading_ar, heading_norm, heading_bare,
-    section_type, text_ar, text_en
-  ) VALUES (
-    new.rowid, new.root_text, new.root_norm,
-    COALESCE(new.heading_ar, ''),
-    COALESCE(new.heading_norm, ''),
-    COALESCE(new.heading_bare, ''),
-    COALESCE(new.section_type, ''),
-    COALESCE(new.text_ar, ''),
-    COALESCE(new.text_en, '')
-  );
-END;
+CREATE TRIGGER trig_ales_fts_ai AFTER INSERT ON ar_ling_lexicon_entry_section BEGIN INSERT INTO ar_ling_lexicon_entry_section_fts( rowid, root_text, root_norm, heading_ar, heading_norm, heading_bare, section_type, text_ar, text_en ) VALUES ( new.rowid, new.root_text, new.root_norm, COALESCE(new.heading_ar, ''), COALESCE(new.heading_norm, ''), COALESCE(new.heading_bare, ''), COALESCE(new.section_type, ''), COALESCE(new.text_ar, ''), COALESCE(new.text_en, '') ); END;
 
-CREATE TRIGGER trig_ales_fts_au
-AFTER UPDATE ON ar_ling_lexicon_entry_section BEGIN
-  INSERT INTO ar_ling_lexicon_entry_section_fts(
-    ar_ling_lexicon_entry_section_fts,
-    rowid, root_text, root_norm,
-    heading_ar, heading_norm, heading_bare,
-    section_type, text_ar, text_en
-  ) VALUES (
-    'delete',
-    old.rowid, old.root_text, old.root_norm,
-    COALESCE(old.heading_ar, ''),
-    COALESCE(old.heading_norm, ''),
-    COALESCE(old.heading_bare, ''),
-    COALESCE(old.section_type, ''),
-    COALESCE(old.text_ar, ''),
-    COALESCE(old.text_en, '')
-  );
-  INSERT INTO ar_ling_lexicon_entry_section_fts(
-    rowid, root_text, root_norm,
-    heading_ar, heading_norm, heading_bare,
-    section_type, text_ar, text_en
-  ) VALUES (
-    new.rowid, new.root_text, new.root_norm,
-    COALESCE(new.heading_ar, ''),
-    COALESCE(new.heading_norm, ''),
-    COALESCE(new.heading_bare, ''),
-    COALESCE(new.section_type, ''),
-    COALESCE(new.text_ar, ''),
-    COALESCE(new.text_en, '')
-  );
-END;
+CREATE TRIGGER trig_ales_fts_au AFTER UPDATE ON ar_ling_lexicon_entry_section BEGIN INSERT INTO ar_ling_lexicon_entry_section_fts( ar_ling_lexicon_entry_section_fts, rowid, root_text, root_norm, heading_ar, heading_norm, heading_bare, section_type, text_ar, text_en ) VALUES ( 'delete', old.rowid, old.root_text, old.root_norm, COALESCE(old.heading_ar, ''), COALESCE(old.heading_norm, ''), COALESCE(old.heading_bare, ''), COALESCE(old.section_type, ''), COALESCE(old.text_ar, ''), COALESCE(old.text_en, '') ); INSERT INTO ar_ling_lexicon_entry_section_fts( rowid, root_text, root_norm, heading_ar, heading_norm, heading_bare, section_type, text_ar, text_en ) VALUES ( new.rowid, new.root_text, new.root_norm, COALESCE(new.heading_ar, ''), COALESCE(new.heading_norm, ''), COALESCE(new.heading_bare, ''), COALESCE(new.section_type, ''), COALESCE(new.text_ar, ''), COALESCE(new.text_en, '') ); END;
 
-CREATE TRIGGER trig_alre_fts_ad
-AFTER DELETE ON ar_ling_lexicon_entry BEGIN
-  INSERT INTO ar_ling_lexicon_entry_fts(
-    ar_ling_lexicon_entry_fts,
-    rowid, root_text, root_norm, source_slug,
-    entry_text_ar, entry_text_en, raw_text
-  ) VALUES (
-    'delete',
-    old.rowid, old.root_text, old.root_norm, old.source_slug,
-    COALESCE(old.entry_text_ar, ''),
-    COALESCE(old.entry_text_en, ''),
-    COALESCE(old.raw_text, '')
-  );
-END;
+CREATE TRIGGER trig_alre_fts_ad AFTER DELETE ON ar_ling_lexicon_entry BEGIN INSERT INTO ar_ling_lexicon_entry_fts( ar_ling_lexicon_entry_fts, rowid, root_text, root_norm, source_slug, entry_text_ar, entry_text_en, raw_text ) VALUES ( 'delete', old.rowid, old.root_text, old.root_norm, old.source_slug, COALESCE(old.entry_text_ar, ''), COALESCE(old.entry_text_en, ''), COALESCE(old.raw_text, '') ); END;
 
-CREATE TRIGGER trig_alre_fts_ai
-AFTER INSERT ON ar_ling_lexicon_entry BEGIN
-  INSERT INTO ar_ling_lexicon_entry_fts(
-    rowid, root_text, root_norm, source_slug,
-    entry_text_ar, entry_text_en, raw_text
-  ) VALUES (
-    new.rowid, new.root_text, new.root_norm, new.source_slug,
-    COALESCE(new.entry_text_ar, ''),
-    COALESCE(new.entry_text_en, ''),
-    COALESCE(new.raw_text, '')
-  );
-END;
+CREATE TRIGGER trig_alre_fts_ai AFTER INSERT ON ar_ling_lexicon_entry BEGIN INSERT INTO ar_ling_lexicon_entry_fts( rowid, root_text, root_norm, source_slug, entry_text_ar, entry_text_en, raw_text ) VALUES ( new.rowid, new.root_text, new.root_norm, new.source_slug, COALESCE(new.entry_text_ar, ''), COALESCE(new.entry_text_en, ''), COALESCE(new.raw_text, '') ); END;
 
-CREATE TRIGGER trig_alre_fts_au
-AFTER UPDATE ON ar_ling_lexicon_entry BEGIN
-  INSERT INTO ar_ling_lexicon_entry_fts(
-    ar_ling_lexicon_entry_fts,
-    rowid, root_text, root_norm, source_slug,
-    entry_text_ar, entry_text_en, raw_text
-  ) VALUES (
-    'delete',
-    old.rowid, old.root_text, old.root_norm, old.source_slug,
-    COALESCE(old.entry_text_ar, ''),
-    COALESCE(old.entry_text_en, ''),
-    COALESCE(old.raw_text, '')
-  );
-  INSERT INTO ar_ling_lexicon_entry_fts(
-    rowid, root_text, root_norm, source_slug,
-    entry_text_ar, entry_text_en, raw_text
-  ) VALUES (
-    new.rowid, new.root_text, new.root_norm, new.source_slug,
-    COALESCE(new.entry_text_ar, ''),
-    COALESCE(new.entry_text_en, ''),
-    COALESCE(new.raw_text, '')
-  );
-END;
+CREATE TRIGGER trig_alre_fts_au AFTER UPDATE ON ar_ling_lexicon_entry BEGIN INSERT INTO ar_ling_lexicon_entry_fts( ar_ling_lexicon_entry_fts, rowid, root_text, root_norm, source_slug, entry_text_ar, entry_text_en, raw_text ) VALUES ( 'delete', old.rowid, old.root_text, old.root_norm, old.source_slug, COALESCE(old.entry_text_ar, ''), COALESCE(old.entry_text_en, ''), COALESCE(old.raw_text, '') ); INSERT INTO ar_ling_lexicon_entry_fts( rowid, root_text, root_norm, source_slug, entry_text_ar, entry_text_en, raw_text ) VALUES ( new.rowid, new.root_text, new.root_norm, new.source_slug, COALESCE(new.entry_text_ar, ''), COALESCE(new.entry_text_en, ''), COALESCE(new.raw_text, '') ); END;
 
--- 0110: ʿUḍayma's Dirāsāt as rows (scripts/parse-adima.py)
-CREATE TABLE IF NOT EXISTS ar_ling_adima_entry (
-  id              TEXT PRIMARY KEY,          -- ADM:<chunk id>:<n>
-  discipline      TEXT NOT NULL,             -- NH | SF
-  chunk_id        TEXT NOT NULL,             -- ar_ling_gram_chunk.id: the page it is read from
-  volume_no       INTEGER,
-  page_no         INTEGER,
-  seq             INTEGER NOT NULL,          -- book order
-  chapter_ar      TEXT,                      -- the study it belongs to («دراسة (افتعل)»)
-  section_ar      TEXT,                      -- the heading it is listed under
-  head_ar         TEXT,                      -- the word or sub-heading above it
-  pattern_ar      TEXT,                      -- the verb pattern the chapter studies (ṣarf)
-  pattern_term_id TEXT,                      -- GT:form_family:*
-  meaning_ar      TEXT,                      -- the meaning the heading names
-  meaning_term_id TEXT,                      -- GT:sigha_maani:* where it is one
-  section_term_id TEXT,                      -- a GT term the heading names
-  quote_ar        TEXT NOT NULL,
-  surah           INTEGER NOT NULL,
-  ayah            INTEGER NOT NULL,
-  refs_json       TEXT,                      -- every place it lists: [[s, a], …]
-  word_index      INTEGER,                   -- qr_word_occurrence.word_index of the word it is about
-  word_ar         TEXT,
-  quote_match     REAL,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS ix_adima_entry_pattern ON ar_ling_adima_entry(discipline, pattern_term_id);
-CREATE INDEX IF NOT EXISTS ix_adima_entry_meaning ON ar_ling_adima_entry(meaning_term_id);
-CREATE INDEX IF NOT EXISTS ix_adima_entry_term    ON ar_ling_adima_entry(section_term_id);
-CREATE INDEX IF NOT EXISTS ix_adima_entry_ayah    ON ar_ling_adima_entry(surah, ayah);
-CREATE INDEX IF NOT EXISTS ix_adima_entry_section ON ar_ling_adima_entry(discipline, chapter_ar, section_ar);
+CREATE TRIGGER trig_alsc_fts_ad AFTER DELETE ON ar_ling_source_chunk BEGIN INSERT INTO ar_ling_source_chunks_fts(ar_ling_source_chunks_fts, rowid, heading_norm, text_ar, text_en) VALUES ('delete', old.rowid, COALESCE(old.heading_norm,''), COALESCE(old.text_ar,''), COALESCE(old.text_en,'')); END;
 
-CREATE TABLE IF NOT EXISTS ar_ling_adima_note (
-  id              TEXT PRIMARY KEY,          -- ADN:<n>
-  discipline      TEXT NOT NULL,
-  chunk_id        TEXT NOT NULL,
-  volume_no       INTEGER,
-  page_no         INTEGER,
-  chapter_ar      TEXT,
-  section_ar      TEXT,
-  head_ar         TEXT,
-  pattern_ar      TEXT,
-  pattern_term_id TEXT,
-  meaning_ar      TEXT,
-  meaning_term_id TEXT,
-  section_term_id TEXT,
-  note_ar         TEXT NOT NULL,             -- his observation, as he writes it
-  drill_ar        TEXT,                      -- its one drillable sentence, or NULL
-  about_readings  INTEGER NOT NULL DEFAULT 0 -- it speaks of the readings (the seven, the shādhdh)
-);
-CREATE INDEX IF NOT EXISTS ix_adima_note_drill ON ar_ling_adima_note(discipline, chapter_ar) WHERE drill_ar IS NOT NULL;
+CREATE TRIGGER trig_alsc_fts_ai AFTER INSERT ON ar_ling_source_chunk BEGIN INSERT INTO ar_ling_source_chunks_fts(rowid, heading_norm, text_ar, text_en) VALUES (new.rowid, COALESCE(new.heading_norm,''), COALESCE(new.text_ar,''), COALESCE(new.text_en,'')); END;
 
--- ── 0114 meaning arcs (derived; meaning_arcs.py) ──
-CREATE TABLE IF NOT EXISTS ar_ling_arc_marker (
-  source_slug   TEXT NOT NULL,
-  marker_key    TEXT NOT NULL,
-  relation      TEXT NOT NULL,      -- thesis branch outside extension metaphor metonymy naming usage origin addendum gloss alternative contrast
-  label         TEXT NOT NULL,      -- the formula as the source writes it («ومن الباب», "then applied to")
-  n_hits        INTEGER NOT NULL,   -- blocks carrying it
-  n_roots       INTEGER NOT NULL,   -- Qurʾānic roots whose entry carries it
-  total_roots   INTEGER NOT NULL,   -- Qurʾānic roots the source has an entry for
-  share         REAL,
-  in_inventory  INTEGER NOT NULL,   -- 1: the source uses it (≥ 3 roots) — the arcs read it
-  examples_json TEXT,               -- up to 3 verbatim samples {root, text}
-  method        TEXT NOT NULL,
-  PRIMARY KEY (source_slug, marker_key)
-);
-
-CREATE TABLE IF NOT EXISTS ar_ling_arc (
-  id            TEXT PRIMARY KEY,   -- ARC:<root>:<source_slug> | ARC:<root>:combined
-  root_norm     TEXT NOT NULL,
-  scope         TEXT NOT NULL CHECK (scope IN ('source','combined')),
-  source_slug   TEXT,               -- NULL for the combined arc
-  n_rungs       INTEGER NOT NULL,
-  n_edges       INTEGER NOT NULL,
-  n_sources     INTEGER,
-  keys_json     TEXT,               -- the keys the root was read under
-  handbuilt     INTEGER NOT NULL DEFAULT 0,   -- hand-built arcs the root also has (ar_ling_sense_arc) — they outrank this
-  origin        TEXT NOT NULL DEFAULT 'derived',
-  method        TEXT NOT NULL,
-  provenance_json TEXT NOT NULL DEFAULT '[]',
-  built_at      TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS ix_arc_root ON ar_ling_arc(root_norm, scope);
-
-CREATE TABLE IF NOT EXISTS ar_ling_arc_rung (
-  id            TEXT PRIMARY KEY,   -- <arc id>:<seq>
-  arc_id        TEXT NOT NULL,
-  root_norm     TEXT NOT NULL,
-  source_slug   TEXT NOT NULL,      -- 'combined' for the combined arc
-  seq           INTEGER NOT NULL,   -- its place in the source's (or the combined) order
-  tier          TEXT NOT NULL,      -- asl | first | sense | addendum | quranic (source) · asl | lexical | quranic (combined)
-  kind          TEXT NOT NULL,      -- asl branch outside extension metaphor metonymy origin sense tropical quranic idiom
-  head_ar       TEXT,               -- the headword as the source writes it
-  label_ar      TEXT,               -- the source's own words (verbatim, clipped)
-  label_en      TEXT,               -- the source's own English (Lane, Mir) — never a translation of ours
-  quote_ar      TEXT,
-  quote_en      TEXT,
-  marker        TEXT,               -- the source's marker: asl:1/2, A1 ‡, «ومن الباب» …
-  page          TEXT,
-  block_id      TEXT,               -- ar_ling_lexicon_block it is read from
-  fact_id       TEXT,               -- ar_ling_lexicon_fact it is read from
-  vocab_sense_id TEXT,              -- km_quran qr_vocab_sense (al-Rāghib's / Mir's Qurʾānic sense)
-  found_under   TEXT,               -- the key the source files it under
-  key_rank      INTEGER,
-  combined_id   TEXT,               -- source rung → the combined rung it was aligned to
-  attest_json   TEXT,               -- combined rung → [{source, rung_id, seq, of, found_under, kind}]
-  ayat_json     TEXT,               -- the āyāt the source files under it
-  n_words       INTEGER NOT NULL DEFAULT 0,
-  confidence    TEXT NOT NULL DEFAULT 'medium',
-  origin        TEXT NOT NULL DEFAULT 'derived',
-  method        TEXT NOT NULL,
-  provenance_json TEXT NOT NULL DEFAULT '[]'
-);
-CREATE INDEX IF NOT EXISTS ix_arc_rung_arc ON ar_ling_arc_rung(arc_id, seq);
-CREATE INDEX IF NOT EXISTS ix_arc_rung_root ON ar_ling_arc_rung(root_norm, source_slug);
-CREATE INDEX IF NOT EXISTS ix_arc_rung_combined ON ar_ling_arc_rung(combined_id);
-
-CREATE TABLE IF NOT EXISTS ar_ling_arc_edge (
-  id            TEXT PRIMARY KEY,
-  arc_id        TEXT NOT NULL,
-  root_norm     TEXT NOT NULL,
-  source_slug   TEXT NOT NULL,      -- the source that writes the formula
-  from_id       TEXT NOT NULL,
-  to_id         TEXT NOT NULL,
-  relation      TEXT NOT NULL,      -- branch outside extension metaphor metonymy naming usage origin
-  marker_key    TEXT,
-  formula       TEXT NOT NULL,      -- the formula («ومن الباب», "hence")
-  quote_ar      TEXT,               -- the statement it stands in, verbatim
-  quote_en      TEXT,
-  block_id      TEXT,
-  fact_id       TEXT,
-  also_json     TEXT,               -- combined edges: every source edge that says the same
-  origin        TEXT NOT NULL DEFAULT 'derived',
-  method        TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS ix_arc_edge_arc ON ar_ling_arc_edge(arc_id);
-
-CREATE TABLE IF NOT EXISTS ar_ling_arc_lemma_rung (
-  root_norm     TEXT NOT NULL,
-  lemma_ar      TEXT NOT NULL,      -- the Qurʾān's lemma (qr_word_occurrence.lemma)
-  rung_id       TEXT NOT NULL,      -- the source rung (Lane sub-arc rungs: <arc id>:<section>:<n>)
-  combined_id   TEXT,
-  source_slug   TEXT NOT NULL,
-  how           TEXT NOT NULL,      -- vocalised | folded | lane-form | placed-word | ambiguous
-  seq           INTEGER,            -- its place in the lemma's sub-arc (Lane: his order under the headword)
-  head_ar       TEXT,
-  label_en      TEXT,               -- Lane sub-arc rungs carry his English here
-  marker        TEXT,
-  block_id      TEXT,
-  page          TEXT,
-  n_words       INTEGER,
-  method        TEXT NOT NULL,
-  PRIMARY KEY (lemma_ar, rung_id, how)
-);
-CREATE INDEX IF NOT EXISTS ix_arc_lemma_root ON ar_ling_arc_lemma_rung(root_norm, lemma_ar);
-CREATE INDEX IF NOT EXISTS ix_arc_lemma_combined ON ar_ling_arc_lemma_rung(combined_id);
-
-CREATE TABLE IF NOT EXISTS ar_ling_arc_word (
-  surah         INTEGER NOT NULL,
-  ayah          INTEGER NOT NULL,
-  word_index    INTEGER NOT NULL,   -- km_quran qr_word_occurrence.word_index
-  root_norm     TEXT NOT NULL,
-  lemma_ar      TEXT,
-  word_text     TEXT,
-  rung_id       TEXT,               -- the combined rung
-  src_rung_id   TEXT NOT NULL,      -- the source rung the source files it under
-  source_slug   TEXT NOT NULL,
-  how           TEXT NOT NULL,      -- qr_vocab_place.how: ayah · quote · head · lemma · link · attested
-  note_ar       TEXT,               -- al-Rāghib's own reading of the āyah («أي: …»)
-  vocab_sense_id TEXT,
-  method        TEXT NOT NULL,
-  PRIMARY KEY (surah, ayah, word_index, src_rung_id)
-);
-CREATE INDEX IF NOT EXISTS ix_arc_word_root ON ar_ling_arc_word(root_norm, rung_id);
-CREATE INDEX IF NOT EXISTS ix_arc_word_rung ON ar_ling_arc_word(rung_id);
-CREATE INDEX IF NOT EXISTS ix_arc_word_src ON ar_ling_arc_word(src_rung_id);
+CREATE TRIGGER trig_alsc_fts_au AFTER UPDATE ON ar_ling_source_chunk BEGIN INSERT INTO ar_ling_source_chunks_fts(ar_ling_source_chunks_fts, rowid, heading_norm, text_ar, text_en) VALUES ('delete', old.rowid, COALESCE(old.heading_norm,''), COALESCE(old.text_ar,''), COALESCE(old.text_en,'')); INSERT INTO ar_ling_source_chunks_fts(rowid, heading_norm, text_ar, text_en) VALUES (new.rowid, COALESCE(new.heading_norm,''), COALESCE(new.text_ar,''), COALESCE(new.text_en,'')); END;

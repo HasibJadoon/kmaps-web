@@ -1,9 +1,9 @@
 -- Schema for km_content.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-09-09.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-10-02.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (41) ────────────────────────────────────────────────────
+-- ── Tables (45) ──────────────────────────────────────────────────
 
 CREATE TABLE cm_acquisition_genre (
   genre_id      TEXT PRIMARY KEY,
@@ -573,6 +573,61 @@ CREATE TABLE cm_sources (
   updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 , parent_source_ref TEXT, episode_no INTEGER, published_at TEXT);
 
+CREATE TABLE cm_study_progress (
+  study_id        TEXT NOT NULL REFERENCES cm_documents(doc_id),
+  core_user_ref   TEXT NOT NULL,
+  step_n          INTEGER NOT NULL,
+  started_at      TEXT,
+  last_at         TEXT,
+  completed_at    TEXT,
+  active_seconds  INTEGER NOT NULL DEFAULT 0,
+  slides_seen     INTEGER NOT NULL DEFAULT 0,
+  slide_count     INTEGER,
+  PRIMARY KEY (study_id, core_user_ref, step_n)
+);
+
+CREATE TABLE cm_template (
+  template_key  TEXT PRIMARY KEY,
+  category_key  TEXT NOT NULL REFERENCES cm_template_category(category_key) ON DELETE CASCADE,
+  title_en      TEXT NOT NULL,
+  title_ar      TEXT,
+  subtitle      TEXT,
+  summary       TEXT,
+  glyph         TEXT NOT NULL DEFAULT '▤',
+  version       INTEGER NOT NULL DEFAULT 1,
+  status        TEXT NOT NULL DEFAULT 'active',   -- active | draft | retired
+  spec_json     TEXT NOT NULL,                    -- the template document, verbatim
+  display_json  TEXT,                             -- shaped: { hero, sections[] }
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE cm_template_category (
+  category_key  TEXT PRIMARY KEY,
+  label_en      TEXT NOT NULL,
+  label_ar      TEXT,
+  glyph         TEXT NOT NULL DEFAULT '▤',
+  blurb         TEXT,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE cm_template_sample (
+  sample_id     TEXT PRIMARY KEY,
+  template_key  TEXT NOT NULL REFERENCES cm_template(template_key) ON DELETE CASCADE,
+  title_en      TEXT NOT NULL,
+  title_ar      TEXT,
+  subtitle      TEXT,
+  source_slug   TEXT,                             -- which book this sample is drawn from
+  payload_json  TEXT NOT NULL,                    -- the filled entry, verbatim
+  display_json  TEXT,                             -- shaped: { hero, sections[] }
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE core_person (
   id            TEXT PRIMARY KEY,        -- PN:{slug}
   uid           TEXT NOT NULL UNIQUE,    -- 26-hex, the convention the others use
@@ -595,7 +650,8 @@ CREATE TABLE core_person (
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- ── Views (2) ─────────────────────────────────────────────────────
+
+-- ── Views (2) ────────────────────────────────────────────────────
 
 CREATE VIEW cm_quran_index AS
 SELECT 'asset' AS kind, asset_id AS id, asset_type AS subtype, title, title_ar,
@@ -622,7 +678,8 @@ CREATE VIEW core_person_violations AS
     FROM core_person
    WHERE birth_year IS NOT NULL AND death_year IS NOT NULL AND death_year < birth_year;
 
--- ── Indexes (124) ───────────────────────────────────────────────────
+
+-- ── Indexes (127) ────────────────────────────────────────────────
 
 CREATE INDEX idx_cm_engines_kind ON cm_engines(kind);
 
@@ -638,6 +695,14 @@ CREATE INDEX idx_cm_sources_episode
   ON cm_sources (parent_source_ref, episode_no, published_at);
 
 CREATE INDEX idx_cm_sources_parent ON cm_sources (parent_source_ref);
+
+CREATE INDEX idx_cm_study_progress_study ON cm_study_progress(study_id);
+
+CREATE INDEX idx_cm_template_category
+  ON cm_template(category_key, sort_order);
+
+CREATE INDEX idx_cm_template_sample_template
+  ON cm_template_sample(template_key, sort_order);
 
 CREATE INDEX idx_cmas_asset      ON cm_audio_scenes(asset_id);
 

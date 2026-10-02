@@ -1,9 +1,9 @@
 -- Schema for km_quran.
--- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-09-09.
+-- Generated from remote Cloudflare D1 sqlite_schema with data excluded, 2026-10-02.
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (176) ────────────────────────────────────────────────────
+-- ── Tables (210) ─────────────────────────────────────────────────
 
 CREATE TABLE "ar_ling_gram_category" (
   category_key   TEXT PRIMARY KEY,
@@ -33,6 +33,18 @@ CREATE TABLE "ar_ling_gram_term" (
   UNIQUE (category_key, qac_flag),
   FOREIGN KEY (category_key)   REFERENCES "ar_ling_gram_category"(category_key),
   FOREIGN KEY (parent_term_id) REFERENCES "ar_ling_gram_term"(id)
+);
+
+CREATE TABLE ar_ling_gram_term_alias (
+  alias_bare   TEXT NOT NULL,
+  term_id      TEXT NOT NULL,
+  category_key TEXT NOT NULL,
+  alias_raw    TEXT NOT NULL,
+  alias_lang   TEXT NOT NULL DEFAULT 'ar',
+  alias_kind   TEXT NOT NULL DEFAULT 'variant',
+  source       TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (alias_bare, category_key)
 );
 
 CREATE TABLE ar_ling_gram_term_source (
@@ -99,6 +111,12 @@ CREATE TABLE "gt_term" (
   term_order     INTEGER,
   status         TEXT NOT NULL DEFAULT 'live',
   synced_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE kmaps_cache_version (
+  family     TEXT PRIMARY KEY,
+  version    TEXT NOT NULL,
+  updated_at TEXT NOT NULL
 );
 
 CREATE TABLE "qr_analysis_claim" (
@@ -193,6 +211,8 @@ CREATE TABLE "qr_claim_evidence_link" (
   FOREIGN KEY (evidence_id) REFERENCES "qr_evidence"(id)
 );
 
+CREATE TABLE qr_corpus_version (id INTEGER PRIMARY KEY CHECK (id = 1), version TEXT NOT NULL, built_at TEXT, note TEXT, updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+
 CREATE TABLE qr_cross_ref (
   id                TEXT PRIMARY KEY,
   type_code         TEXT NOT NULL REFERENCES qr_cross_type(type_code),
@@ -259,6 +279,27 @@ CREATE TABLE "qr_doc_link" (
   link_type            TEXT NOT NULL DEFAULT 'discusses',
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE qr_drill_anchor (
+  id          TEXT PRIMARY KEY,     -- ns:<member>:<s>:<a>:<w> · sk:<entry>:<term>:<s>:<a>:<w> · kc:<entry>:<s>:<a> · ex:<source row>[:<s>:<a>]
+  family      TEXT NOT NULL,        -- nearsyn | keyterm | expression
+  source      TEXT NOT NULL,        -- furuq · sinai_key_terms · sinai_cite · mir_verbal_idioms · adima_dirasat · kmaps_tadiya · ibn_ashur · kmaps_passage_study
+  ref         TEXT NOT NULL,        -- AL typed ref: NS:<set>|<member> · SK:<entry>|<term> · TB:<tabir id> · TD:<tadiya id> · SV:<root>|<translit>
+  grp         TEXT,                 -- what the options come from: the set · the entry · <root>|<particle> · type|<expression type>
+  surah       INTEGER NOT NULL,
+  ayah        INTEGER NOT NULL,
+  word_index  INTEGER,              -- the marked word (qr_word_occurrence.word_index); NULL = the āyah as a whole
+  word_to     INTEGER,              -- the particle / the last word of a multi-word term
+  word_text   TEXT,
+  lemma       TEXT,
+  root        TEXT,                 -- the corpus root
+  al_root     TEXT,                 -- the root as the source keys it
+  match       TEXT NOT NULL,        -- lemma · evidence · surface · root · root_geminate · root_weak · …+key<n> (the view's key) · renumbered · cited
+  head_ar     TEXT,                 -- the member / term / expression as the source writes it
+  label_en    TEXT,                 -- its gloss / sense (the set's name for a near-synonym; Sinai's citing sentence for sinai_cite)
+  note        TEXT,                 -- the source's note (Mir's explanation, the frame's Arabic, the term's transliteration)
+  status      TEXT                  -- the source row's review status (a furūq set: source_status:review_status)
 );
 
 CREATE TABLE "qr_evidence" (
@@ -582,6 +623,35 @@ CREATE TABLE "qr_irab_book_entry" (
   al_mapping_note TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE qr_irab_book_word (
+  id             TEXT PRIMARY KEY,  -- <source_slug>:<surah>:<ayah>:<word_index>
+  surah          INTEGER NOT NULL,
+  ayah           INTEGER NOT NULL,
+  word_index     INTEGER NOT NULL,  -- qr_word_occurrence.word_index
+  word_text      TEXT NOT NULL,
+  source_slug    TEXT NOT NULL,     -- qul_irab_muyassar | qul_jadwal_irab_quran | qul_irab_darwish | tibyan_ukbari_irab | qul_irab_quran_daas
+  role_gt        TEXT,              -- the role the parse opens with (GT:irab_role:*), if it opens with one
+  alt_roles_json TEXT,              -- the other roles the book allows the word
+  named_json     TEXT,              -- every role the parse names at all (never a wrong answer)
+  parse_ar       TEXT NOT NULL,     -- the book's words, verbatim
+  alt_ar         TEXT,              -- where it gives the other readings, verbatim
+  entry_id       TEXT NOT NULL,     -- qr_irab_book_entry.id (al-Daʿʿās: the same, via qr_irab_drill_item)
+  n_books        INTEGER NOT NULL DEFAULT 1,   -- how many books parse this word
+  n_roles        INTEGER NOT NULL DEFAULT 1    -- how many first roles they give between them (2+ = they part ways)
+, word_to INTEGER);
+
+CREATE TABLE qr_irab_drill_item (
+  id          TEXT PRIMARY KEY,     -- <source_slug>:<surah>:<ayah>:<word_index>
+  surah       INTEGER NOT NULL,
+  ayah        INTEGER NOT NULL,
+  word_index  INTEGER NOT NULL,     -- qr_word_occurrence.word_index (1-based)
+  word_text   TEXT NOT NULL,        -- the word as the muṣḥaf has it
+  role_gt     TEXT NOT NULL,        -- GT:irab_role:*
+  irab_ar     TEXT NOT NULL,        -- the book's parse of the word, verbatim
+  source_slug TEXT NOT NULL,
+  entry_id    TEXT NOT NULL         -- qr_irab_book_entry.id
 );
 
 CREATE TABLE "qr_irab_extraction_run" (
@@ -997,6 +1067,17 @@ CREATE TABLE qr_nazm_group_member (
   FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
+CREATE TABLE qr_nazm_group_root (
+  group_id   TEXT NOT NULL,
+  root       TEXT NOT NULL,
+  n_group    INTEGER NOT NULL,     -- occurrences in the group's surahs
+  n_surahs   INTEGER NOT NULL,     -- how many of its surahs use it
+  n_quran    INTEGER NOT NULL,     -- occurrences in the whole Qurʾān
+  lift       REAL NOT NULL,        -- its share of the group's rooted words over its share of the Qurʾān's
+  rank       INTEGER NOT NULL,
+  PRIMARY KEY (group_id, root)
+);
+
 CREATE TABLE qr_nazm_link (
   id TEXT PRIMARY KEY,
   group_id TEXT NOT NULL,
@@ -1118,6 +1199,25 @@ CREATE TABLE "qr_quran_bil_quran_link" (
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (from_surah) REFERENCES "qr_surah"(id),
   FOREIGN KEY (to_surah)   REFERENCES "qr_surah"(id)
+);
+
+CREATE TABLE qr_recitation (
+  reciter_id  INTEGER NOT NULL,     -- Quran.com chapter-reciter id (7 = Mishary Rashid al-ʿAfāsī, murattal)
+  reciter     TEXT NOT NULL,
+  surah       INTEGER NOT NULL,
+  audio_url   TEXT NOT NULL,
+  file_size   INTEGER,
+  PRIMARY KEY (reciter_id, surah)
+);
+
+CREATE TABLE qr_recitation_ayah (
+  reciter_id    INTEGER NOT NULL,
+  surah         INTEGER NOT NULL,
+  ayah          INTEGER NOT NULL,
+  start_ms      INTEGER NOT NULL,
+  end_ms        INTEGER NOT NULL,
+  segments_json TEXT,               -- [[word_position, start_ms, end_ms], …] on the surah recording's clock
+  PRIMARY KEY (reciter_id, surah, ayah)
 );
 
 CREATE TABLE qr_root_freq (
@@ -1340,6 +1440,46 @@ CREATE TABLE "qr_scope_topic" (
 
 CREATE TABLE qr_src_code (data_slug TEXT PRIMARY KEY, code TEXT NOT NULL, discipline TEXT NOT NULL, title_en TEXT);
 
+CREATE TABLE qr_ss_book_note (
+  id           TEXT PRIMARY KEY,     -- QR:BN:{s}:{a}:jadwal:{section}:{chunk}:{item}
+  surah        INTEGER NOT NULL,
+  ayah         INTEGER NOT NULL,
+  scope_type   TEXT NOT NULL,        -- word | clause | ayah
+  scope_id     TEXT NOT NULL,        -- qr_word_occurrence.id | qr_ss_occ_clause.id | QR:{s}:{a}
+  word_start   INTEGER,
+  word_end     INTEGER,
+  source_slug  TEXT NOT NULL,
+  section_kind TEXT NOT NULL,        -- sarf | balagha | fawaid
+  item_no      INTEGER NOT NULL DEFAULT 1,
+  head_ar      TEXT,                 -- the word (ṣarf) or the figure (balāgha) the item opens with
+  gt_ref       TEXT,                 -- the balāgha figure's GT term, where it is one
+  text_ar      TEXT NOT NULL,        -- verbatim
+  chunk_id     TEXT                  -- qr_irab_source_chunk.id
+);
+
+CREATE TABLE qr_ss_clause_reading (
+  id             TEXT PRIMARY KEY,   -- QR:CR:{s}:{a}:{book}:…
+  clause_id      TEXT,               -- the derived qr_ss_occ_clause (NULL on an āyah the curated layer covers)
+  surah          INTEGER NOT NULL,
+  ayah           INTEGER NOT NULL,
+  word_start     INTEGER NOT NULL,   -- qr_word_occurrence.word_index: the clause's quoted opening words
+  word_end       INTEGER NOT NULL,
+  quote_ar       TEXT,               -- the words the book quotes (al-Jadwal) or names
+  source_slug    TEXT NOT NULL,      -- qul_jadwal_irab_quran | qul_irab_muyassar | qul_irab_quran_daas | qul_irab_darwish | tibyan_ukbari_irab
+  entry_id       TEXT,               -- qr_irab_book_entry.id / qr_irab_source_chunk.id
+  role_key       TEXT,               -- ss_role label key: istinafiyya, sila, khabar, hal, naat, maqul_qawl, maatufa …
+  role_gt        TEXT,               -- GT:sentence_role:*
+  mahall         TEXT,               -- none | raf | nasb | jarr | jazm
+  alt_roles_json TEXT,               -- the other readings the book allows
+  statement_ar   TEXT NOT NULL,      -- the book's words, verbatim
+  is_backbone    INTEGER NOT NULL DEFAULT 0,
+  agrees         INTEGER,            -- other books: same role as al-Jadwal; al-Jadwal: 0 when a book parts from it, 1 when those that speak agree
+  kind           TEXT,               -- ismiyya | filiyya | shartiyya (al-Jadwal rows; read from the opening words' morphology)
+  kind_head      TEXT,               -- the word that decides the kind
+  kind_head_pos  TEXT,               -- its stem tag (V, N, PRON, DEM, REL, PN …)
+  truncated      INTEGER NOT NULL DEFAULT 0   -- the quote runs on («… ...»): the span is the clause's opening
+);
+
 CREATE TABLE qr_ss_discourse_citation (
   id TEXT PRIMARY KEY,
   note_id TEXT NOT NULL,
@@ -1394,7 +1534,7 @@ CREATE TABLE qr_ss_ellipsis_event (
   elided_element       TEXT NOT NULL,
   rhetorical_effect    TEXT,
   note_md              TEXT,
-  created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at           TEXT NOT NULL DEFAULT (datetime('now')), source_basis TEXT, source_ref TEXT,
   FOREIGN KEY (sentence_id) REFERENCES qr_ss_occ_sentence(id)
 );
 
@@ -1569,7 +1709,7 @@ CREATE TABLE qr_ss_scope_nuance (
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
-, gloss_json TEXT CHECK (gloss_json IS NULL OR json_valid(gloss_json)));
+, gloss_json TEXT CHECK (gloss_json IS NULL OR json_valid(gloss_json)), source_basis TEXT, source_ref TEXT);
 
 CREATE VIRTUAL TABLE qr_ss_scope_nuance_fts USING fts5(scope_type UNINDEXED, scope_id UNINDEXED, nuance_type, nuance_text, nuance_text_ar);
 
@@ -1773,6 +1913,20 @@ CREATE TABLE qr_ss_vocab_register (
   PRIMARY KEY (kind, key)
 );
 
+CREATE TABLE qr_study_label (
+  scope      TEXT NOT NULL,
+  key        TEXT NOT NULL,
+  label      TEXT NOT NULL,
+  label_ar   TEXT,
+  detail     TEXT,
+  icon       TEXT,
+  color      TEXT,
+  min_value  INTEGER,
+  extra_json TEXT,
+  sort       INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (scope, key)
+);
+
 CREATE TABLE "qr_study_question" (
   id            TEXT PRIMARY KEY,
   surah         INTEGER NOT NULL,
@@ -1909,6 +2063,25 @@ CREATE TABLE "qr_surah_ellipsis_pattern" (
   FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
+CREATE TABLE qr_surah_info (
+  surah         INTEGER NOT NULL,
+  source        TEXT NOT NULL,         -- who wrote the introduction
+  short_text    TEXT,
+  sections_json TEXT NOT NULL,         -- [{"heading": "Period of Revelation", "text": "…"}, …]
+  text_html     TEXT NOT NULL,
+  PRIMARY KEY (surah, source)
+);
+
+CREATE TABLE qr_surah_layer (
+  surah         INTEGER NOT NULL,
+  layer         TEXT NOT NULL,                     -- sarf | nahw | balagha | themes | structure
+  payload_json  TEXT NOT NULL CHECK (json_valid(payload_json)),
+  sources_json  TEXT,
+  method        TEXT NOT NULL,
+  built_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (surah, layer)
+);
+
 CREATE TABLE "qr_surah_link" (
   id                   TEXT PRIMARY KEY,
   surah_a              INTEGER NOT NULL,
@@ -1945,6 +2118,25 @@ CREATE TABLE "qr_surah_opening" (
   note_md                TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')), source_slug TEXT, evidence_ref TEXT, gloss_json TEXT,
   FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
+);
+
+CREATE TABLE qr_surah_passage_proposal (
+  id               TEXT PRIMARY KEY,               -- QR:SPP:{surah}:{from}-{to}
+  surah            INTEGER NOT NULL,
+  passage_no       INTEGER NOT NULL,
+  ayah_from        INTEGER NOT NULL,
+  ayah_to          INTEGER NOT NULL,
+  title_en         TEXT,                           -- only a source's own title; else «Āyāt a–b»
+  title_ar         TEXT,
+  words            INTEGER NOT NULL DEFAULT 0,
+  opening_score    REAL,                           -- NULL for a surah's first passage
+  opening_support  INTEGER NOT NULL DEFAULT 0,     -- spine + iʿrāb books that start a group here
+  basis_json       TEXT NOT NULL CHECK (json_valid(basis_json)),
+  method           TEXT NOT NULL,
+  status           TEXT NOT NULL DEFAULT 'derived',
+  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (surah, passage_no),
+  UNIQUE (surah, ayah_from, ayah_to)
 );
 
 CREATE TABLE "qr_surah_profile" (
@@ -1986,6 +2178,15 @@ CREATE TABLE "qr_surah_register_shift" (
   note_md              TEXT,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')), source_slug TEXT, evidence_ref TEXT, gloss_json TEXT,
   FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
+);
+
+CREATE TABLE qr_surah_revelation_rank (
+  surah        INTEGER PRIMARY KEY,
+  rank         INTEGER,                 -- NULL where he says the rank is not settled
+  source_slug  TEXT NOT NULL,           -- ibn_ashur
+  evidence_ar  TEXT NOT NULL,           -- his sentence, verbatim (diacritics stripped)
+  note         TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE "qr_surah_rhetoric_profile" (
@@ -2363,6 +2564,40 @@ CREATE TABLE "qr_surah_worldview_profile" (
   FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
 
+CREATE TABLE qr_tafsir_audio (
+  id            TEXT PRIMARY KEY,                 -- QRTA:<source_slug>:<nnn>
+  source_slug   TEXT NOT NULL,
+  seq           INTEGER NOT NULL,                 -- reading order of the recordings
+  title_ar      TEXT,
+  title_en      TEXT,
+  speaker       TEXT,
+  platform      TEXT,                             -- 'youtube' …
+  source_url    TEXT,
+  bucket        TEXT NOT NULL DEFAULT 'km-arabic-audio',
+  object_key    TEXT NOT NULL UNIQUE,             -- served by /api/ar/audio/<key>
+  mime_type     TEXT,
+  duration_sec  REAL,
+  size_bytes    INTEGER,
+  sha256        TEXT,
+  aligned       INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'live',
+  meta_json     TEXT NOT NULL DEFAULT '{}',       -- {"pages": [...page ids...], "part": n, "reading": "full"|"parts"}
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE qr_tafsir_audio_segment (
+  id          TEXT PRIMARY KEY,                   -- SEG:<audio id>:<seq>
+  audio_id    TEXT NOT NULL REFERENCES qr_tafsir_audio(id),
+  page_id     TEXT NOT NULL REFERENCES qr_tafsir_read_page(id),
+  seq         INTEGER NOT NULL,
+  start_sec   REAL NOT NULL,
+  end_sec     REAL NOT NULL,
+  text_ar     TEXT NOT NULL,
+  confidence  REAL,
+  meta_json   TEXT NOT NULL DEFAULT '{}',         -- {"w": [[start,end],...], "line": n}
+  UNIQUE (audio_id, seq)
+);
+
 CREATE VIRTUAL TABLE qr_tafsir_block_norm_fts USING fts5(
   block_id UNINDEXED, source_slug UNINDEXED, surah_no UNINDEXED, ayah_no UNINDEXED,
   ayah_key UNINDEXED, block_type UNINDEXED, text_norm,
@@ -2538,6 +2773,35 @@ CREATE TABLE "qr_tafsir_book_display_tag" (
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE qr_tafsir_drill_item (
+  id          TEXT PRIMARY KEY,     -- <kind>:<block / piece / section id>
+  ask         TEXT NOT NULL,        -- tafsir_point | surah_intro | tafsir_who | tafsir_where | tafsir_school | tafsir_reading | tafsir_section
+  surah       INTEGER NOT NULL,
+  ayah_from   INTEGER,
+  ayah_to     INTEGER,
+  ayah        INTEGER,              -- the āyah heard with it
+  source_slug TEXT,                 -- the book (qr_tafsir_book_display_source.source_slug, or qr_tafsir_en.source_code, or 'maududi')
+  source_name TEXT,
+  text        TEXT NOT NULL,        -- what is shown: the excerpt or the point, verbatim
+  answer      TEXT,                 -- the book's slug, the āyah key, the surah, the section heading, or the point itself
+  context     TEXT,                 -- more of the source, for after the answer
+  tag         TEXT,                 -- the doctrine or school named, the word of the āyah named, the passage
+  ref         TEXT,                 -- the row it was cut from
+  page        TEXT,
+  others_json TEXT                  -- the wrong answers that sit beside it: books, āyāt, surahs, points, headings
+);
+
+CREATE TABLE qr_tafsir_en (
+  id          TEXT PRIMARY KEY,        -- <source_code>:<surah>:<ayah_from>
+  source_code TEXT NOT NULL,           -- ibn-kathir-abridged | maarif | tazkir
+  source_name TEXT NOT NULL,
+  surah       INTEGER NOT NULL,
+  ayah_from   INTEGER NOT NULL,
+  ayah_to     INTEGER NOT NULL,
+  text_html   TEXT NOT NULL,
+  text_plain  TEXT NOT NULL
+);
+
 CREATE TABLE "qr_tafsir_entry" (
   id                   TEXT PRIMARY KEY,
   surah                INTEGER NOT NULL,
@@ -2553,6 +2817,62 @@ CREATE TABLE "qr_tafsir_entry" (
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at           TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
+);
+
+CREATE TABLE qr_tafsir_page_cut (
+  page_id   TEXT NOT NULL REFERENCES qr_tafsir_read_page(id),
+  audio_id  TEXT NOT NULL REFERENCES qr_tafsir_audio(id),
+  ayah      INTEGER NOT NULL,               -- the āyah whose lines begin here
+  seq       INTEGER NOT NULL,               -- the first line (qr_tafsir_audio_segment.seq) on it
+  note      TEXT,
+  PRIMARY KEY (page_id, audio_id, ayah)
+);
+
+CREATE TABLE qr_tafsir_question (
+  id            TEXT PRIMARY KEY,                 -- QR:TQ:<surah>:<from>-<to>:<nn>
+  passage_id    TEXT NOT NULL REFERENCES qr_surah_study_passage(id),
+  surah         INTEGER NOT NULL,
+  ayah_from     INTEGER NOT NULL,
+  ayah_to       INTEGER NOT NULL,
+  question_en   TEXT NOT NULL,                    -- about the āyah's meaning, never the book
+  interaction   TEXT NOT NULL DEFAULT 'choose',   -- choose | choose_all
+  options_json  TEXT NOT NULL,                    -- the options, in no order (the drill shuffles)
+  correct_json  TEXT NOT NULL,                    -- indices into options
+  explain_en    TEXT,                             -- what rises after the answer
+  support_json  TEXT NOT NULL,                    -- [{audio, page, from, to}] the lines that answer it
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'draft',    -- draft | live
+  note_md       TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE qr_tafsir_read_page (
+  id            TEXT PRIMARY KEY,                 -- QRTP:<source_slug>:<seq>
+  source_slug   TEXT NOT NULL,                    -- → qr_tafsir_book_display_source.source_slug
+  seq           INTEGER NOT NULL,                 -- reading order across the book
+  kind          TEXT NOT NULL DEFAULT 'ayah',     -- 'front' | 'surah_preface' | 'ayah'
+  surah_no      INTEGER,                          -- NULL for front matter
+  ayah_group_key TEXT,                            -- "67:3-4"
+  title_ar      TEXT,
+  text_ar       TEXT NOT NULL,
+  word_count    INTEGER NOT NULL DEFAULT 0,
+  block_ids_json TEXT NOT NULL DEFAULT '[]',      -- the display blocks this page was built from
+  status        TEXT NOT NULL DEFAULT 'live',
+  meta_json     TEXT NOT NULL DEFAULT '{}',
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (source_slug, seq)
+);
+
+CREATE TABLE qr_tafsir_segment_en (
+  segment_id  TEXT PRIMARY KEY REFERENCES qr_tafsir_audio_segment(id),
+  audio_id    TEXT NOT NULL,
+  seq         INTEGER NOT NULL,
+  text_en     TEXT NOT NULL,
+  terms_json  TEXT NOT NULL DEFAULT '[]',
+  status      TEXT NOT NULL DEFAULT 'draft',      -- draft | live
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE qr_tafsir_sura_preface (
@@ -2597,6 +2917,43 @@ CREATE TABLE "qr_translation" (
   FOREIGN KEY (source_id) REFERENCES "qr_translation_source"(id)
 );
 
+CREATE TABLE qr_translation_choice (
+  surah      INTEGER NOT NULL,
+  ayah       INTEGER NOT NULL,
+  feature    TEXT NOT NULL,
+  source_id  TEXT NOT NULL,             -- qr_translation_source.id
+  choice     TEXT NOT NULL,             -- a key of the feature's choices_json
+  evidence   TEXT,                      -- the English words the choice's regex matched
+  value      REAL,                      -- the length ratio (English words ÷ Arabic words), for length_ratio
+  PRIMARY KEY (surah, ayah, feature, source_id)
+) WITHOUT ROWID;
+
+CREATE TABLE qr_translation_feature (
+  key             TEXT PRIMARY KEY,
+  label_en        TEXT NOT NULL,
+  label_ar        TEXT,
+  detail          TEXT,                 -- why translators differ here, for the learner
+  arabic_detector TEXT NOT NULL,        -- what counts as the feature on the Arabic side
+  detector_json   TEXT,                 -- the detector's kind and parameters (lemmas, window …)
+  scope           TEXT NOT NULL DEFAULT 'whole',   -- where the English is read: whole | start | end
+  window_words    INTEGER,              -- … and how many words of it, for start / end
+  choices_json    TEXT NOT NULL,        -- [{key, label, regex, flags, …}] in the order they are tried
+  compare_json    TEXT,                 -- [{ask, yes:[choice], no:[choice]} | {ask, by:'min_value'|'max_value'}]
+  n_ayat          INTEGER,              -- āyāt where the feature stands (written by the script)
+  n_rows          INTEGER,              -- renderings classified
+  computed_at     TEXT,
+  sort            INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE qr_translation_feature_ayah (
+  feature      TEXT NOT NULL,
+  surah        INTEGER NOT NULL,
+  ayah         INTEGER NOT NULL,
+  word_indexes TEXT NOT NULL,           -- '1' or '3,4' — qr_word_occurrence.word_index; '' for a whole-āyah feature
+  ar_words     TEXT,
+  PRIMARY KEY (feature, surah, ayah)
+) WITHOUT ROWID;
+
 CREATE TABLE "qr_translation_passage" (
   id                TEXT PRIMARY KEY,
   source_id         TEXT NOT NULL,
@@ -2609,6 +2966,17 @@ CREATE TABLE "qr_translation_passage" (
   FOREIGN KEY (source_id) REFERENCES "qr_translation_source"(id)
 );
 
+CREATE TABLE qr_translation_profile (
+  feature    TEXT NOT NULL,
+  source_id  TEXT NOT NULL,
+  choice     TEXT NOT NULL,
+  n          INTEGER NOT NULL,          -- renderings taking this choice
+  total      INTEGER NOT NULL,          -- renderings of this feature by this translation
+  share      REAL NOT NULL,             -- n ÷ total
+  lift       REAL,                      -- share ÷ the mean share across translations: a signature is high
+  PRIMARY KEY (feature, source_id, choice)
+) WITHOUT ROWID;
+
 CREATE TABLE "qr_translation_source" (
   id                TEXT PRIMARY KEY,
   source_code       TEXT NOT NULL UNIQUE,
@@ -2617,6 +2985,91 @@ CREATE TABLE "qr_translation_source" (
   edition           TEXT,
   is_default        INTEGER NOT NULL DEFAULT 0,
   created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE qr_vocab_gloss (
+  id          TEXT PRIMARY KEY,
+  surah       INTEGER NOT NULL,
+  ayah        INTEGER NOT NULL,
+  word_index  INTEGER NOT NULL,     -- qr_vocab_item (surah, ayah, word_index)
+  lang        TEXT NOT NULL,        -- ar | en
+  text        TEXT NOT NULL,        -- the gloss, verbatim
+  source_slug TEXT NOT NULL,        -- razi · alusi · zamakhshari · ibn_ashur · tabari · ibn_atiyya · abu_hayyan · ibn_kathir ·
+                                    -- qul_irab_darwish · qul_jadwal_irab_quran · qul_irab_muyassar · ibn-kathir-abridged · maarif · tazkir ·
+                                    -- raghib_mufradat · lane_lexicon · mir_verbal_idioms · sense_arc · adima_dirasat · <grammar book> · kmaps_word_view
+  source_kind TEXT NOT NULL,        -- tafsir | tafsir_en | irab | lexicon | grammar | kmaps
+  citation    TEXT NOT NULL,        -- the book, where, and on which āyah
+  method      TEXT NOT NULL,        -- ay · yani · mana · bimana · murad · colon · lughat · qala · … · lane_ayah · mufradat_ayah · lane_context · tafsir_lemma …
+  confidence  TEXT NOT NULL,        -- high | medium | low
+  rank        REAL NOT NULL,        -- the priority above (lower first)
+  role        TEXT,                 -- primary | en | ar | NULL
+  grp         INTEGER,              -- agreement group within the word
+  quote_ar    TEXT,                 -- the passage as it stands (the word, the formula, the gloss)
+  al_ref      TEXT                  -- the block / fact / entry it was read from
+);
+
+CREATE TABLE qr_vocab_item (
+  surah       INTEGER NOT NULL,
+  ayah        INTEGER NOT NULL,
+  word_index  INTEGER NOT NULL,     -- qr_word_occurrence.word_index
+  word_text   TEXT NOT NULL,
+  root        TEXT NOT NULL,
+  lemma       TEXT,
+  pos         TEXT,
+  form_roman  TEXT,
+  wazn_ar     TEXT,                 -- qr_lemma.wazn_ar
+  lemma_n     INTEGER NOT NULL DEFAULT 0,   -- the lemma's words in the Qurʾān
+  root_n      INTEGER NOT NULL DEFAULT 0,   -- the root's words in the Qurʾān
+  tier        INTEGER NOT NULL,     -- 1 ≥100 · 2 ≥30 · 3 ≥10 · 4 ≥3 · 5 rarer (by lemma_n)
+  n_lemmas    INTEGER NOT NULL DEFAULT 1,   -- the root's lemmas in the Qurʾān
+  gloss_en    TEXT,                 -- the lemma's gloss (Lane: the headword's first sense, or the sense he cites the Qurʾān under)
+  gloss_ref   TEXT,
+  here_en     TEXT,                 -- the sense a source files THIS āyah under, in English (Lane, Mir)
+  here_ref    TEXT,
+  here_sense  TEXT,                 -- qr_vocab_sense.id of here_en
+  senses_json TEXT,                 -- every qr_vocab_sense.id placed on this word
+  n_range     INTEGER NOT NULL DEFAULT 0,   -- the root's Qurʾānic senses, all sources
+  PRIMARY KEY (surah, ayah, word_index)
+);
+
+CREATE TABLE qr_vocab_place (
+  surah       INTEGER NOT NULL,
+  ayah        INTEGER NOT NULL,
+  word_index  INTEGER NOT NULL,
+  sense_id    TEXT NOT NULL,
+  how         TEXT NOT NULL,        -- ayah (the only word of the root there) · quote · head · lemma · link · attested
+  note_ar     TEXT,                 -- al-Rāghib's own reading of this āyah (his «أي: …»)
+  PRIMARY KEY (surah, ayah, word_index, sense_id)
+);
+
+CREATE TABLE qr_vocab_root_core (
+  root        TEXT NOT NULL,
+  source_slug TEXT NOT NULL,        -- maqayis_lugha | kmaps_root_dna
+  text_ar     TEXT,
+  text_en     TEXT,
+  citation    TEXT NOT NULL,
+  al_ref      TEXT,
+  PRIMARY KEY (root, source_slug)
+);
+
+CREATE TABLE qr_vocab_sense (
+  id          TEXT PRIMARY KEY,     -- mfr:<hash> · lane:<block id> · mir:<hash> · arc:<arc id>:<sense id>
+  source      TEXT NOT NULL,        -- raghib_mufradat | lane_lexicon | mir_verbal_idioms | sense_arc
+  root        TEXT NOT NULL,        -- the Qurʾān's root (qr_word_occurrence.root)
+  al_root     TEXT,                 -- the root as the source files it
+  head_ar     TEXT,                 -- the headword / construction the sense is given for
+  label_ar    TEXT,                 -- the source's own words (al-Rāghib's gloss, Mir's construction, the rung)
+  label_en    TEXT,                 -- the source's own English (Lane's definition, Mir's sense, the rung)
+  kind        TEXT,                 -- Lane's sense kind · Mir's construction · the rung's gloss
+  marker      TEXT,                 -- Lane's sense label (A1, B …) · Mir's particle · the rung number
+  page        TEXT,
+  seq         INTEGER,              -- its place in the source's entry / the arc
+  group_key   TEXT NOT NULL,        -- the senses read as one range: mfr:<root> · lane:<root> · mir:<root> · <arc id>
+  ref         TEXT NOT NULL,        -- the citation shown
+  al_ref      TEXT,                 -- the AL rows it was read from (facts, block, tabir, sense)
+  ayat_json   TEXT NOT NULL,        -- the āyāt the source cites under it that hold a word of the root
+  n_ayat      INTEGER NOT NULL,
+  arc_json    TEXT                  -- sense arcs: the arc and its rungs
 );
 
 CREATE TABLE "qr_word_occurrence" (
@@ -2631,7 +3084,7 @@ CREATE TABLE "qr_word_occurrence" (
   pos               TEXT,
   morphology_tag    TEXT,
   created_at        TEXT NOT NULL DEFAULT (datetime('now')), morphology_tag_json JSON
-  CHECK (morphology_tag_json IS NULL OR json_valid(morphology_tag_json)), root_uid TEXT, lemma_ref TEXT, stem_pos           TEXT, gt_case            TEXT, gt_number          TEXT, gt_gender          TEXT, gt_person          TEXT, gt_voice           TEXT, gt_tense           TEXT, gt_mood            TEXT, gt_definiteness    TEXT, gt_derivation_type TEXT, gt_form_family     TEXT, stem_form_ar       TEXT, stem_lemma_ar      TEXT, stem_root_ar       TEXT, form_roman         TEXT, segment_count      INTEGER, prefix_count       INTEGER, suffix_count       INTEGER, has_det_prefix     INTEGER, has_pron_suffix    INTEGER, is_content_word    INTEGER, is_promoted        INTEGER, gid_lemma          TEXT, gid_root           TEXT,
+  CHECK (morphology_tag_json IS NULL OR json_valid(morphology_tag_json)), root_uid TEXT, lemma_ref TEXT, stem_pos           TEXT, gt_case            TEXT, gt_number          TEXT, gt_gender          TEXT, gt_person          TEXT, gt_voice           TEXT, gt_tense           TEXT, gt_mood            TEXT, gt_definiteness    TEXT, gt_derivation_type TEXT, gt_form_family     TEXT, stem_form_ar       TEXT, stem_lemma_ar      TEXT, stem_root_ar       TEXT, form_roman         TEXT, segment_count      INTEGER, prefix_count       INTEGER, suffix_count       INTEGER, has_det_prefix     INTEGER, has_pron_suffix    INTEGER, is_content_word    INTEGER, is_promoted        INTEGER, gid_lemma          TEXT, gid_root           TEXT, gt_jumud TEXT, gt_readings_json TEXT,
   UNIQUE (surah, ayah, word_index),
   FOREIGN KEY (surah) REFERENCES "qr_surah"(id)
 );
@@ -2672,7 +3125,19 @@ CREATE TABLE qr_word_term (
   CHECK (basis <> 'attested' OR source_ref IS NOT NULL)
 );
 
--- ── Views (33) ─────────────────────────────────────────────────────
+CREATE TABLE qr_word_translation (
+  surah     INTEGER NOT NULL,
+  ayah      INTEGER NOT NULL,
+  position  INTEGER NOT NULL,       -- Quran.com word position (1-based)
+  lang      TEXT NOT NULL,          -- en | ur
+  text      TEXT NOT NULL,
+  word_ar   TEXT,                   -- the word as Quran.com writes it (to check the alignment)
+  aligned   INTEGER NOT NULL DEFAULT 0,  -- 1 when the āyah's positions equal the corpus's word_index
+  PRIMARY KEY (surah, ayah, position, lang)
+);
+
+
+-- ── Views (33) ───────────────────────────────────────────────────
 
 CREATE VIEW ar_ling_gram_term_signature AS
  SELECT COUNT(*) AS term_count,
@@ -3119,13 +3584,16 @@ SELECT w.root, w.root_uid, w.lemma_ref, w.lemma AS lemma_surface,
    AND w.ayah BETWEEN s.ayah_from AND s.ayah_to
    AND (s.word_start IS NULL OR w.word_index BETWEEN s.word_start AND s.word_end);
 
--- ── Indexes (201) ───────────────────────────────────────────────────
+
+-- ── Indexes (243) ────────────────────────────────────────────────
 
 CREATE INDEX idx_algts_term ON ar_ling_gram_term_source (term_id);
 
 CREATE INDEX idx_core_concept_domain ON core_concept (domain);
 
 CREATE INDEX idx_core_concept_key    ON core_concept (concept_key);
+
+CREATE INDEX idx_gram_alias_bare ON ar_ling_gram_term_alias (alias_bare);
 
 CREATE INDEX idx_gt_term_cat ON gt_term(category_key);
 
@@ -3188,6 +3656,14 @@ CREATE INDEX idx_morph_media_root ON qr_morph_display_media(root_ar, block_type)
 
 CREATE INDEX idx_morph_media_word ON qr_morph_display_media(surah_no, ayah_no, word_index);
 
+CREATE INDEX idx_qr_drill_anchor_family_source ON qr_drill_anchor(family, source, word_index);
+
+CREATE INDEX idx_qr_drill_anchor_grp ON qr_drill_anchor (family, grp);
+
+CREATE INDEX idx_qr_drill_anchor_ref ON qr_drill_anchor (ref);
+
+CREATE INDEX idx_qr_drill_anchor_scope ON qr_drill_anchor (family, surah, ayah);
+
 CREATE INDEX idx_qr_irab_book_entries_chunk
   ON "qr_irab_book_entry"(source_chunk_id);
 
@@ -3196,6 +3672,18 @@ CREATE INDEX idx_qr_irab_book_entries_mapping
 
 CREATE INDEX idx_qr_irab_book_entries_word_link
   ON "qr_irab_book_entry"(word_link_status);
+
+CREATE INDEX idx_qr_irab_book_word_alt ON qr_irab_book_word (surah, ayah) WHERE alt_roles_json IS NOT NULL;
+
+CREATE INDEX idx_qr_irab_book_word_book ON qr_irab_book_word (source_slug, surah, ayah);
+
+CREATE INDEX idx_qr_irab_book_word_split ON qr_irab_book_word (n_roles, surah);
+
+CREATE INDEX idx_qr_irab_book_word_word ON qr_irab_book_word (surah, ayah, word_index);
+
+CREATE INDEX idx_qr_irab_drill_ayah ON qr_irab_drill_item(surah, ayah);
+
+CREATE INDEX idx_qr_irab_drill_role ON qr_irab_drill_item(role_gt);
 
 CREATE INDEX idx_qr_irab_source_chunks_ayah
   ON "qr_irab_source_chunk"(surah, ayah_from, ayah_to);
@@ -3216,9 +3704,67 @@ CREATE INDEX idx_qr_mushaf_layout_surah
 
 CREATE INDEX idx_qr_passage_sections_passage ON "qr_passage_section"(passage_id, sort_order);
 
+CREATE INDEX idx_qr_ss_book_note_ayah ON qr_ss_book_note (surah, ayah, section_kind);
+
+CREATE INDEX idx_qr_ss_book_note_scope ON qr_ss_book_note (scope_type, scope_id);
+
+CREATE INDEX idx_qr_ss_clause_basis ON qr_ss_occ_clause (source_basis, surah, ayah_from);
+
+CREATE INDEX idx_qr_ss_clause_reading_ayah ON qr_ss_clause_reading (surah, ayah, word_start);
+
+CREATE INDEX idx_qr_ss_clause_reading_backbone ON qr_ss_clause_reading (is_backbone, surah, role_key);
+
+CREATE INDEX idx_qr_ss_clause_reading_clause ON qr_ss_clause_reading (clause_id);
+
+CREATE INDEX idx_qr_ss_clause_sentence ON qr_ss_occ_clause (sentence_id);
+
+CREATE INDEX idx_qr_ss_ellipsis_scope ON qr_ss_ellipsis_event (scope_type, scope_id);
+
+CREATE INDEX idx_qr_ss_link_from ON qr_ss_scope_link (from_scope_type, from_scope_id);
+
+CREATE INDEX idx_qr_ss_nuance_scope ON qr_ss_scope_nuance (scope_type, scope_id);
+
+CREATE INDEX idx_qr_ss_phrase_clause ON qr_ss_occ_phrase (clause_id);
+
+CREATE INDEX idx_qr_ss_sentence_basis ON qr_ss_occ_sentence (source_basis, surah, ayah_from);
+
 CREATE INDEX idx_qr_ss_tree_node_term ON qr_ss_tree_node(term_key);
 
 CREATE INDEX idx_qr_ss_tree_node_word ON qr_ss_tree_node(word_occurrence_id);
+
+CREATE INDEX idx_qr_tafsir_audio_segment_page ON qr_tafsir_audio_segment (page_id, seq);
+
+CREATE INDEX idx_qr_tafsir_audio_source ON qr_tafsir_audio (source_slug, seq);
+
+CREATE INDEX idx_qr_tafsir_drill_ask ON qr_tafsir_drill_item (ask, surah, ayah_from);
+
+CREATE INDEX idx_qr_tafsir_en_range ON qr_tafsir_en(surah, ayah_from, ayah_to);
+
+CREATE INDEX idx_qr_tafsir_question_passage ON qr_tafsir_question(passage_id, status, sort_order);
+
+CREATE INDEX idx_qr_tafsir_read_page_surah ON qr_tafsir_read_page (source_slug, surah_no, seq);
+
+CREATE INDEX idx_qr_tafsir_segment_en_audio ON qr_tafsir_segment_en(audio_id, seq);
+
+CREATE INDEX idx_qr_tfa_ayah ON qr_translation_feature_ayah (surah, ayah);
+
+CREATE INDEX idx_qr_vocab_gloss_role ON qr_vocab_gloss (surah, role) WHERE role IS NOT NULL;
+
+CREATE INDEX idx_qr_vocab_gloss_word ON qr_vocab_gloss (surah, ayah, word_index);
+
+CREATE INDEX idx_qr_vocab_item_placed ON qr_vocab_item (surah, ayah) WHERE senses_json IS NOT NULL;
+
+CREATE INDEX idx_qr_vocab_item_root ON qr_vocab_item (root, lemma);
+
+CREATE INDEX idx_qr_vocab_item_tier ON qr_vocab_item (surah, tier, ayah);
+
+CREATE INDEX idx_qr_vocab_place_sense ON qr_vocab_place (sense_id);
+
+CREATE INDEX idx_qr_vocab_sense_group ON qr_vocab_sense (group_key, seq);
+
+CREATE INDEX idx_qr_vocab_sense_root ON qr_vocab_sense (root, source);
+
+CREATE INDEX idx_qr_word_translation_ayah ON qr_word_translation(surah, ayah, lang);
 
 CREATE INDEX idx_qra_page  ON qr_ayah(page_number);
 
@@ -3419,6 +3965,8 @@ CREATE INDEX idx_qrtp_source_surah ON "qr_translation_passage"(source_id, surah)
 
 CREATE INDEX idx_qrtr_source_surah ON "qr_translation"(source_id, surah);
 
+CREATE INDEX idx_qrtr_surah_ayah ON qr_translation(surah, ayah);
+
 CREATE INDEX idx_qrwo_derivation  ON qr_word_occurrence (gt_derivation_type);
 
 CREATE INDEX idx_qrwo_form_roman  ON qr_word_occurrence (form_roman);
@@ -3437,6 +3985,8 @@ CREATE INDEX idx_qrwo_promoted_grid
 CREATE INDEX idx_qrwo_root       ON "qr_word_occurrence"(root);
 
 CREATE INDEX idx_qrwo_root_lemma  ON qr_word_occurrence (stem_root_ar, stem_lemma_ar);
+
+CREATE INDEX idx_qrwo_root_lemma_cov ON qr_word_occurrence(root, lemma);
 
 CREATE INDEX idx_qrwo_stem_pos ON qr_word_occurrence (stem_pos);
 
@@ -3558,71 +4108,1129 @@ CREATE UNIQUE INDEX ux_gram_term_uid ON ar_ling_gram_term(uid);
 CREATE UNIQUE INDEX ux_qr_irab_entry_dedupe
   ON "qr_irab_book_entry"(source_slug, source_chunk_id, entry_order, target_text_bare, source_quote_hash);
 
--- qr_057: derived passages and surah-level atlas layers (scripts/quran/atlas_layers.py in kmaps-resources)
-CREATE TABLE qr_surah_passage_proposal (
-  id               TEXT PRIMARY KEY,               -- QR:SPP:{surah}:{from}-{to}
-  surah            INTEGER NOT NULL,
-  passage_no       INTEGER NOT NULL,
-  ayah_from        INTEGER NOT NULL,
-  ayah_to          INTEGER NOT NULL,
-  title_en         TEXT,                           -- only a source's own title; else «Āyāt a–b»
-  title_ar         TEXT,
-  words            INTEGER NOT NULL DEFAULT 0,
-  opening_score    REAL,                           -- NULL for a surah's first passage
-  opening_support  INTEGER NOT NULL DEFAULT 0,     -- spine + iʿrāb books that start a group here
-  basis_json       TEXT NOT NULL CHECK (json_valid(basis_json)),
-  method           TEXT NOT NULL,
-  status           TEXT NOT NULL DEFAULT 'derived',
-  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE (surah, passage_no),
-  UNIQUE (surah, ayah_from, ayah_to)
-);
 
-CREATE TABLE qr_surah_layer (
-  surah         INTEGER NOT NULL,
-  layer         TEXT NOT NULL,                     -- sarf | nahw | balagha | themes | structure
-  payload_json  TEXT NOT NULL CHECK (json_valid(payload_json)),
-  sources_json  TEXT,
-  method        TEXT NOT NULL,
-  built_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  PRIMARY KEY (surah, layer)
-);
+-- ── Triggers (562) ───────────────────────────────────────────────
 
-CREATE TABLE qr_tafsir_page_cut (
-  page_id   TEXT NOT NULL REFERENCES qr_tafsir_read_page(id),
-  audio_id  TEXT NOT NULL REFERENCES qr_tafsir_audio(id),
-  ayah      INTEGER NOT NULL,               -- the āyah whose lines begin here
-  seq       INTEGER NOT NULL,               -- the first line (qr_tafsir_audio_segment.seq) on it
-  note      TEXT,
-  PRIMARY KEY (page_id, audio_id, ayah)
-);
-CREATE TABLE qr_tafsir_segment_en (
-  segment_id  TEXT PRIMARY KEY REFERENCES qr_tafsir_audio_segment(id),
-  audio_id    TEXT NOT NULL,
-  seq         INTEGER NOT NULL,
-  text_en     TEXT NOT NULL,
-  terms_json  TEXT NOT NULL DEFAULT '[]',
-  status      TEXT NOT NULL DEFAULT 'draft',      -- draft | live
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE TABLE qr_tafsir_question (
-  id            TEXT PRIMARY KEY,                 -- QR:TQ:<surah>:<from>-<to>:<nn>
-  passage_id    TEXT NOT NULL REFERENCES qr_surah_study_passage(id),
-  surah         INTEGER NOT NULL,
-  ayah_from     INTEGER NOT NULL,
-  ayah_to       INTEGER NOT NULL,
-  question_en   TEXT NOT NULL,                    -- about the āyah's meaning, never the book
-  interaction   TEXT NOT NULL DEFAULT 'choose',   -- choose | choose_all
-  options_json  TEXT NOT NULL,                    -- the options, in no order (the drill shuffles)
-  correct_json  TEXT NOT NULL,                    -- indices into options
-  explain_en    TEXT,                             -- what rises after the answer
-  support_json  TEXT NOT NULL,                    -- [{audio, page, from, to}] the lines that answer it
-  sort_order    INTEGER NOT NULL DEFAULT 0,
-  status        TEXT NOT NULL DEFAULT 'draft',    -- draft | live
-  note_md       TEXT,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX idx_qr_tafsir_segment_en_audio ON qr_tafsir_segment_en(audio_id, seq);
-CREATE INDEX idx_qr_tafsir_question_passage ON qr_tafsir_question(passage_id, status, sort_order);
+CREATE TRIGGER trg_cv_analysis_i AFTER INSERT ON qr_passage_analysis BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_passage_analysis' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_analysis_u AFTER UPDATE ON qr_passage_analysis BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_passage_analysis' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_flow_i AFTER INSERT ON qr_surah_topic_flow BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_surah_topic_flow' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_passage_d AFTER DELETE ON qr_surah_study_passage BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_surah_study_passage' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_passage_i AFTER INSERT ON qr_surah_study_passage BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_surah_study_passage' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_passage_u AFTER UPDATE ON qr_surah_study_passage BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_surah_study_passage' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_reading_d AFTER DELETE ON qr_ss_scope_reading BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_ss_scope_reading' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_reading_i AFTER INSERT ON qr_ss_scope_reading BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_ss_scope_reading' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_reading_u AFTER UPDATE ON qr_ss_scope_reading BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_ss_scope_reading' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_sent_d AFTER DELETE ON qr_ss_occ_sentence BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_ss_occ_sentence' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_sent_i AFTER INSERT ON qr_ss_occ_sentence BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_ss_occ_sentence' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_sent_u AFTER UPDATE ON qr_ss_occ_sentence BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_ss_occ_sentence' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_step_i AFTER INSERT ON qr_surah_study_step BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_surah_study_step' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_step_u AFTER UPDATE ON qr_surah_study_step BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_surah_study_step' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_task_i AFTER INSERT ON qr_surah_study_task BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_surah_study_task' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_task_u AFTER UPDATE ON qr_surah_study_task BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_surah_study_task' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_treenode_d AFTER DELETE ON qr_ss_tree_node BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_ss_tree_node' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_treenode_i AFTER INSERT ON qr_ss_tree_node BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_ss_tree_node' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_treenode_u AFTER UPDATE ON qr_ss_tree_node BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_ss_tree_node' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_tunit_i AFTER INSERT ON qr_ss_translation_unit BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_ss_translation_unit' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_tunit_u AFTER UPDATE ON qr_ss_translation_unit BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_ss_translation_unit' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_unit_d AFTER DELETE ON qr_surah_structure_unit BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_surah_structure_unit' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_unit_i AFTER INSERT ON qr_surah_structure_unit BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_surah_structure_unit' WHERE id=1; END;
+
+CREATE TRIGGER trg_cv_unit_u AFTER UPDATE ON qr_surah_structure_unit BEGIN UPDATE qr_corpus_version SET version='qr-'||strftime('%Y-%m-%dT%H:%M:%SZ','now'), built_at=datetime('now'), updated_at=datetime('now'), note='auto:qr_surah_structure_unit' WHERE id=1; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_category_d AFTER DELETE ON ar_ling_gram_category BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_category_i AFTER INSERT ON ar_ling_gram_category BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_category_u AFTER UPDATE ON ar_ling_gram_category BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_d AFTER DELETE ON ar_ling_gram_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_i AFTER INSERT ON ar_ling_gram_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_source_d AFTER DELETE ON ar_ling_gram_term_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_source_i AFTER INSERT ON ar_ling_gram_term_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_source_u AFTER UPDATE ON ar_ling_gram_term_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_ar_ling_gram_term_u AFTER UPDATE ON ar_ling_gram_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_core_concept_d AFTER DELETE ON core_concept BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_core_concept_i AFTER INSERT ON core_concept BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_core_concept_u AFTER UPDATE ON core_concept BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_gc_concept_d AFTER DELETE ON gc_concept BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_gc_concept_i AFTER INSERT ON gc_concept BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_gc_concept_u AFTER UPDATE ON gc_concept BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_gc_sync_meta_d AFTER DELETE ON gc_sync_meta BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_gc_sync_meta_i AFTER INSERT ON gc_sync_meta BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_gc_sync_meta_u AFTER UPDATE ON gc_sync_meta BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_gt_sync_meta_d AFTER DELETE ON gt_sync_meta BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_gt_sync_meta_i AFTER INSERT ON gt_sync_meta BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_gt_sync_meta_u AFTER UPDATE ON gt_sync_meta BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_gt_term_d AFTER DELETE ON gt_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_gt_term_i AFTER INSERT ON gt_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_gt_term_u AFTER UPDATE ON gt_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_analysis_claim_d AFTER DELETE ON qr_analysis_claim BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_analysis_claim_i AFTER INSERT ON qr_analysis_claim BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_analysis_claim_u AFTER UPDATE ON qr_analysis_claim BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_analysis_scope_d AFTER DELETE ON qr_analysis_scope BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_analysis_scope_i AFTER INSERT ON qr_analysis_scope BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_analysis_scope_u AFTER UPDATE ON qr_analysis_scope BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_argument_d AFTER DELETE ON qr_argument BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_argument_i AFTER INSERT ON qr_argument BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_argument_link_d AFTER DELETE ON qr_argument_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_argument_link_i AFTER INSERT ON qr_argument_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_argument_link_u AFTER UPDATE ON qr_argument_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_argument_u AFTER UPDATE ON qr_argument BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ayah_d AFTER DELETE ON qr_ayah BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_ayah_i AFTER INSERT ON qr_ayah BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_ayah_u AFTER UPDATE ON qr_ayah BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_citation_d AFTER DELETE ON qr_citation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_citation_i AFTER INSERT ON qr_citation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_citation_u AFTER UPDATE ON qr_citation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_claim_evidence_link_d AFTER DELETE ON qr_claim_evidence_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_claim_evidence_link_i AFTER INSERT ON qr_claim_evidence_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_claim_evidence_link_u AFTER UPDATE ON qr_claim_evidence_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_cross_ref_d AFTER DELETE ON qr_cross_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_cross_ref_i AFTER INSERT ON qr_cross_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_cross_ref_u AFTER UPDATE ON qr_cross_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_cross_type_d AFTER DELETE ON qr_cross_type BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_cross_type_i AFTER INSERT ON qr_cross_type BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_cross_type_u AFTER UPDATE ON qr_cross_type BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_debate_cluster_d AFTER DELETE ON qr_debate_cluster BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_debate_cluster_i AFTER INSERT ON qr_debate_cluster BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_debate_cluster_u AFTER UPDATE ON qr_debate_cluster BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_doc_link_d AFTER DELETE ON qr_doc_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_doc_link_i AFTER INSERT ON qr_doc_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_doc_link_u AFTER UPDATE ON qr_doc_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_evidence_d AFTER DELETE ON qr_evidence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_evidence_i AFTER INSERT ON qr_evidence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_evidence_u AFTER UPDATE ON qr_evidence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_historical_context_d AFTER DELETE ON qr_historical_context BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_historical_context_i AFTER INSERT ON qr_historical_context BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_historical_context_u AFTER UPDATE ON qr_historical_context BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_inquiry_d AFTER DELETE ON qr_inquiry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_inquiry_i AFTER INSERT ON qr_inquiry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_inquiry_position_d AFTER DELETE ON qr_inquiry_position BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_inquiry_position_i AFTER INSERT ON qr_inquiry_position BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_inquiry_position_u AFTER UPDATE ON qr_inquiry_position BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_inquiry_ref_d AFTER DELETE ON qr_inquiry_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_inquiry_ref_i AFTER INSERT ON qr_inquiry_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_inquiry_ref_u AFTER UPDATE ON qr_inquiry_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_inquiry_scope_d AFTER DELETE ON qr_inquiry_scope BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_inquiry_scope_i AFTER INSERT ON qr_inquiry_scope BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_inquiry_scope_kind_d AFTER DELETE ON qr_inquiry_scope_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_inquiry_scope_kind_i AFTER INSERT ON qr_inquiry_scope_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_inquiry_scope_kind_u AFTER UPDATE ON qr_inquiry_scope_kind BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_inquiry_scope_u AFTER UPDATE ON qr_inquiry_scope BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_inquiry_u AFTER UPDATE ON qr_inquiry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_interpretive_difference_d AFTER DELETE ON qr_interpretive_difference BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_interpretive_difference_i AFTER INSERT ON qr_interpretive_difference BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_interpretive_difference_u AFTER UPDATE ON qr_interpretive_difference BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_block_d AFTER DELETE ON qr_irab_book_display_block BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_block_i AFTER INSERT ON qr_irab_book_display_block BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_block_u AFTER UPDATE ON qr_irab_book_display_block BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_link_d AFTER DELETE ON qr_irab_book_display_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_link_i AFTER INSERT ON qr_irab_book_display_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_link_u AFTER UPDATE ON qr_irab_book_display_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_note_d AFTER DELETE ON qr_irab_book_display_note BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_note_i AFTER INSERT ON qr_irab_book_display_note BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_note_u AFTER UPDATE ON qr_irab_book_display_note BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_ref_d AFTER DELETE ON qr_irab_book_display_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_ref_i AFTER INSERT ON qr_irab_book_display_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_ref_u AFTER UPDATE ON qr_irab_book_display_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_source_d AFTER DELETE ON qr_irab_book_display_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_source_i AFTER INSERT ON qr_irab_book_display_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_source_u AFTER UPDATE ON qr_irab_book_display_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_tag_d AFTER DELETE ON qr_irab_book_display_tag BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_tag_i AFTER INSERT ON qr_irab_book_display_tag BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_display_tag_u AFTER UPDATE ON qr_irab_book_display_tag BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_entry_d AFTER DELETE ON qr_irab_book_entry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_entry_i AFTER INSERT ON qr_irab_book_entry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_book_entry_u AFTER UPDATE ON qr_irab_book_entry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_drill_item_d AFTER DELETE ON qr_irab_drill_item BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_drill_item_i AFTER INSERT ON qr_irab_drill_item BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_extraction_run_d AFTER DELETE ON qr_irab_extraction_run BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_extraction_run_i AFTER INSERT ON qr_irab_extraction_run BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_extraction_run_u AFTER UPDATE ON qr_irab_extraction_run BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_import_error_d AFTER DELETE ON qr_irab_import_error BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_import_error_i AFTER INSERT ON qr_irab_import_error BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_import_error_u AFTER UPDATE ON qr_irab_import_error BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_source_chunk_d AFTER DELETE ON qr_irab_source_chunk BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_source_chunk_i AFTER INSERT ON qr_irab_source_chunk BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_source_chunk_u AFTER UPDATE ON qr_irab_source_chunk BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_source_d AFTER DELETE ON qr_irab_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_source_i AFTER INSERT ON qr_irab_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_irab_source_u AFTER UPDATE ON qr_irab_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_lc_binding_d AFTER DELETE ON qr_lc_binding BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_lc_binding_i AFTER INSERT ON qr_lc_binding BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_lc_binding_u AFTER UPDATE ON qr_lc_binding BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_lc_concept_d AFTER DELETE ON qr_lc_concept BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_lc_concept_i AFTER INSERT ON qr_lc_concept BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_lc_concept_u AFTER UPDATE ON qr_lc_concept BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_lc_discipline_d AFTER DELETE ON qr_lc_discipline BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_lc_discipline_i AFTER INSERT ON qr_lc_discipline BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_lc_discipline_u AFTER UPDATE ON qr_lc_discipline BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_lemma_d AFTER DELETE ON qr_lemma BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_lemma_i AFTER INSERT ON qr_lemma BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_lemma_occurrence_d AFTER DELETE ON qr_lemma_occurrence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_lemma_occurrence_i AFTER INSERT ON qr_lemma_occurrence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_lemma_occurrence_u AFTER UPDATE ON qr_lemma_occurrence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_lemma_ref_resolution_d AFTER DELETE ON qr_lemma_ref_resolution BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_lemma_ref_resolution_i AFTER INSERT ON qr_lemma_ref_resolution BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_lemma_ref_resolution_u AFTER UPDATE ON qr_lemma_ref_resolution BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_lemma_u AFTER UPDATE ON qr_lemma BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_block_d AFTER DELETE ON qr_morph_display_block BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_block_i AFTER INSERT ON qr_morph_display_block BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_block_u AFTER UPDATE ON qr_morph_display_block BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_build_d AFTER DELETE ON qr_morph_display_build BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_build_i AFTER INSERT ON qr_morph_display_build BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_build_u AFTER UPDATE ON qr_morph_display_build BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_lemma_d AFTER DELETE ON qr_morph_display_lemma BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_lemma_i AFTER INSERT ON qr_morph_display_lemma BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_lemma_u AFTER UPDATE ON qr_morph_display_lemma BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_media_d AFTER DELETE ON qr_morph_display_media BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_media_i AFTER INSERT ON qr_morph_display_media BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_media_u AFTER UPDATE ON qr_morph_display_media BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_root_d AFTER DELETE ON qr_morph_display_root BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_root_i AFTER INSERT ON qr_morph_display_root BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_root_u AFTER UPDATE ON qr_morph_display_root BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_source_d AFTER DELETE ON qr_morph_display_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_source_i AFTER INSERT ON qr_morph_display_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_display_source_u AFTER UPDATE ON qr_morph_display_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_editorial_d AFTER DELETE ON qr_morph_editorial BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_editorial_i AFTER INSERT ON qr_morph_editorial BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_editorial_u AFTER UPDATE ON qr_morph_editorial BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_flag_decomp_d AFTER DELETE ON qr_morph_flag_decomp BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_flag_decomp_i AFTER INSERT ON qr_morph_flag_decomp BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_flag_decomp_u AFTER UPDATE ON qr_morph_flag_decomp BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_form_family_d AFTER DELETE ON qr_morph_form_family BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_form_family_i AFTER INSERT ON qr_morph_form_family BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_form_family_u AFTER UPDATE ON qr_morph_form_family BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_form_tier_d AFTER DELETE ON qr_morph_form_tier BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_form_tier_i AFTER INSERT ON qr_morph_form_tier BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_form_tier_u AFTER UPDATE ON qr_morph_form_tier BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_pos_rule_d AFTER DELETE ON qr_morph_pos_rule BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_pos_rule_i AFTER INSERT ON qr_morph_pos_rule BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_pos_rule_u AFTER UPDATE ON qr_morph_pos_rule BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_word_override_d AFTER DELETE ON qr_morph_word_override BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_word_override_i AFTER INSERT ON qr_morph_word_override BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_morph_word_override_u AFTER UPDATE ON qr_morph_word_override BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_mushaf_layout_line_d AFTER DELETE ON qr_mushaf_layout_line BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_mushaf_layout_line_i AFTER INSERT ON qr_mushaf_layout_line BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_mushaf_layout_line_u AFTER UPDATE ON qr_mushaf_layout_line BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_group_d AFTER DELETE ON qr_nazm_group BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_group_i AFTER INSERT ON qr_nazm_group BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_group_member_d AFTER DELETE ON qr_nazm_group_member BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_group_member_i AFTER INSERT ON qr_nazm_group_member BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_group_member_u AFTER UPDATE ON qr_nazm_group_member BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_group_root_d AFTER DELETE ON qr_nazm_group_root BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_group_root_i AFTER INSERT ON qr_nazm_group_root BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_group_u AFTER UPDATE ON qr_nazm_group BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_link_d AFTER DELETE ON qr_nazm_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_link_i AFTER INSERT ON qr_nazm_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_link_u AFTER UPDATE ON qr_nazm_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_pass_d AFTER DELETE ON qr_nazm_pass BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_pass_i AFTER INSERT ON qr_nazm_pass BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_pass_u AFTER UPDATE ON qr_nazm_pass BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_reading_d AFTER DELETE ON qr_nazm_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_reading_i AFTER INSERT ON qr_nazm_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_reading_u AFTER UPDATE ON qr_nazm_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_theme_attestation_d AFTER DELETE ON qr_nazm_theme_attestation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_theme_attestation_i AFTER INSERT ON qr_nazm_theme_attestation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_theme_attestation_u AFTER UPDATE ON qr_nazm_theme_attestation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_theme_d AFTER DELETE ON qr_nazm_theme BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_theme_i AFTER INSERT ON qr_nazm_theme BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_nazm_theme_u AFTER UPDATE ON qr_nazm_theme BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_passage_analysis_d AFTER DELETE ON qr_passage_analysis BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_passage_analysis_i AFTER INSERT ON qr_passage_analysis BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_passage_analysis_u AFTER UPDATE ON qr_passage_analysis BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_passage_section_d AFTER DELETE ON qr_passage_section BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_passage_section_i AFTER INSERT ON qr_passage_section BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_passage_section_u AFTER UPDATE ON qr_passage_section BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_quran_bil_quran_link_d AFTER DELETE ON qr_quran_bil_quran_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_quran_bil_quran_link_i AFTER INSERT ON qr_quran_bil_quran_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_quran_bil_quran_link_u AFTER UPDATE ON qr_quran_bil_quran_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_recitation_ayah_i AFTER INSERT ON qr_recitation_ayah BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_recitation_ayah_u AFTER UPDATE ON qr_recitation_ayah BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_recitation_i AFTER INSERT ON qr_recitation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_recitation_u AFTER UPDATE ON qr_recitation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_root_freq_d AFTER DELETE ON qr_root_freq BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_root_freq_i AFTER INSERT ON qr_root_freq BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_root_freq_u AFTER UPDATE ON qr_root_freq BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_root_raw_d AFTER DELETE ON qr_root_raw BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_root_raw_i AFTER INSERT ON qr_root_raw BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_root_raw_u AFTER UPDATE ON qr_root_raw BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_root_registry_d AFTER DELETE ON qr_root_registry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_root_registry_i AFTER INSERT ON qr_root_registry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_root_registry_u AFTER UPDATE ON qr_root_registry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_method_profile_d AFTER DELETE ON qr_scholar_method_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_method_profile_i AFTER INSERT ON qr_scholar_method_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_method_profile_u AFTER UPDATE ON qr_scholar_method_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_paradigm_link_d AFTER DELETE ON qr_scholar_paradigm_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_paradigm_link_i AFTER INSERT ON qr_scholar_paradigm_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_paradigm_link_u AFTER UPDATE ON qr_scholar_paradigm_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_passage_movement_d AFTER DELETE ON qr_scholar_passage_movement BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_passage_movement_i AFTER INSERT ON qr_scholar_passage_movement BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_passage_movement_u AFTER UPDATE ON qr_scholar_passage_movement BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_passage_reading_d AFTER DELETE ON qr_scholar_passage_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_passage_reading_i AFTER INSERT ON qr_scholar_passage_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_passage_reading_u AFTER UPDATE ON qr_scholar_passage_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_passage_section_d AFTER DELETE ON qr_scholar_passage_section BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_passage_section_i AFTER INSERT ON qr_scholar_passage_section BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_passage_section_u AFTER UPDATE ON qr_scholar_passage_section BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_passage_term_d AFTER DELETE ON qr_scholar_passage_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_passage_term_i AFTER INSERT ON qr_scholar_passage_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_passage_term_u AFTER UPDATE ON qr_scholar_passage_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_passage_xref_d AFTER DELETE ON qr_scholar_passage_xref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_passage_xref_i AFTER INSERT ON qr_scholar_passage_xref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_passage_xref_u AFTER UPDATE ON qr_scholar_passage_xref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_position_d AFTER DELETE ON qr_scholar_position BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_position_i AFTER INSERT ON qr_scholar_position BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_position_u AFTER UPDATE ON qr_scholar_position BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_profile_d AFTER DELETE ON qr_scholar_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_profile_i AFTER INSERT ON qr_scholar_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_profile_u AFTER UPDATE ON qr_scholar_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_work_d AFTER DELETE ON qr_scholar_work BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_work_i AFTER INSERT ON qr_scholar_work BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholar_work_u AFTER UPDATE ON qr_scholar_work BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholarly_paradigm_d AFTER DELETE ON qr_scholarly_paradigm BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholarly_paradigm_i AFTER INSERT ON qr_scholarly_paradigm BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scholarly_paradigm_u AFTER UPDATE ON qr_scholarly_paradigm BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scope_nuance_d AFTER DELETE ON qr_scope_nuance BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scope_nuance_i AFTER INSERT ON qr_scope_nuance BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scope_nuance_u AFTER UPDATE ON qr_scope_nuance BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scope_topic_d AFTER DELETE ON qr_scope_topic BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scope_topic_i AFTER INSERT ON qr_scope_topic BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_scope_topic_u AFTER UPDATE ON qr_scope_topic BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_src_code_d AFTER DELETE ON qr_src_code BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_src_code_i AFTER INSERT ON qr_src_code BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_src_code_u AFTER UPDATE ON qr_src_code BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_book_note_d AFTER DELETE ON qr_ss_book_note BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_book_note_i AFTER INSERT ON qr_ss_book_note BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_clause_reading_d AFTER DELETE ON qr_ss_clause_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_clause_reading_i AFTER INSERT ON qr_ss_clause_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_discourse_citation_d AFTER DELETE ON qr_ss_discourse_citation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_discourse_citation_i AFTER INSERT ON qr_ss_discourse_citation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_discourse_citation_u AFTER UPDATE ON qr_ss_discourse_citation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_discourse_note_d AFTER DELETE ON qr_ss_discourse_note BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_discourse_note_i AFTER INSERT ON qr_ss_discourse_note BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_discourse_note_u AFTER UPDATE ON qr_ss_discourse_note BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_discourse_source_link_d AFTER DELETE ON qr_ss_discourse_source_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_discourse_source_link_i AFTER INSERT ON qr_ss_discourse_source_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_discourse_source_link_u AFTER UPDATE ON qr_ss_discourse_source_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_ellipsis_event_d AFTER DELETE ON qr_ss_ellipsis_event BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_ellipsis_event_i AFTER INSERT ON qr_ss_ellipsis_event BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_ellipsis_event_u AFTER UPDATE ON qr_ss_ellipsis_event BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_occ_clause_d AFTER DELETE ON qr_ss_occ_clause BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_occ_clause_i AFTER INSERT ON qr_ss_occ_clause BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_occ_clause_u AFTER UPDATE ON qr_ss_occ_clause BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_occ_phrase_d AFTER DELETE ON qr_ss_occ_phrase BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_occ_phrase_i AFTER INSERT ON qr_ss_occ_phrase BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_occ_phrase_u AFTER UPDATE ON qr_ss_occ_phrase BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_occ_segment_d AFTER DELETE ON qr_ss_occ_segment BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_occ_segment_i AFTER INSERT ON qr_ss_occ_segment BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_occ_segment_u AFTER UPDATE ON qr_ss_occ_segment BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_occ_sentence_d AFTER DELETE ON qr_ss_occ_sentence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_occ_sentence_i AFTER INSERT ON qr_ss_occ_sentence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_occ_sentence_u AFTER UPDATE ON qr_ss_occ_sentence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_pattern_register_d AFTER DELETE ON qr_ss_pattern_register BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_pattern_register_i AFTER INSERT ON qr_ss_pattern_register BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_pattern_register_u AFTER UPDATE ON qr_ss_pattern_register BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_pattern_term_link_d AFTER DELETE ON qr_ss_pattern_term_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_pattern_term_link_i AFTER INSERT ON qr_ss_pattern_term_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_pattern_term_link_u AFTER UPDATE ON qr_ss_pattern_term_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_balagha_link_d AFTER DELETE ON qr_ss_scope_balagha_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_balagha_link_i AFTER INSERT ON qr_ss_scope_balagha_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_balagha_link_u AFTER UPDATE ON qr_ss_scope_balagha_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_grammar_link_d AFTER DELETE ON qr_ss_scope_grammar_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_grammar_link_i AFTER INSERT ON qr_ss_scope_grammar_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_grammar_link_u AFTER UPDATE ON qr_ss_scope_grammar_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_link_d AFTER DELETE ON qr_ss_scope_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_link_i AFTER INSERT ON qr_ss_scope_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_link_u AFTER UPDATE ON qr_ss_scope_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_member_map_d AFTER DELETE ON qr_ss_scope_member_map BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_member_map_i AFTER INSERT ON qr_ss_scope_member_map BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_member_map_u AFTER UPDATE ON qr_ss_scope_member_map BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_morph_link_d AFTER DELETE ON qr_ss_scope_morph_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_morph_link_i AFTER INSERT ON qr_ss_scope_morph_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_morph_link_u AFTER UPDATE ON qr_ss_scope_morph_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_nuance_d AFTER DELETE ON qr_ss_scope_nuance BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_nuance_i AFTER INSERT ON qr_ss_scope_nuance BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_nuance_u AFTER UPDATE ON qr_ss_scope_nuance BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_reading_d AFTER DELETE ON qr_ss_scope_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_reading_evidence_link_d AFTER DELETE ON qr_ss_scope_reading_evidence_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_reading_evidence_link_i AFTER INSERT ON qr_ss_scope_reading_evidence_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_reading_evidence_link_u AFTER UPDATE ON qr_ss_scope_reading_evidence_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_reading_i AFTER INSERT ON qr_ss_scope_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_scope_reading_u AFTER UPDATE ON qr_ss_scope_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_source_register_d AFTER DELETE ON qr_ss_source_register BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_source_register_i AFTER INSERT ON qr_ss_source_register BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_source_register_u AFTER UPDATE ON qr_ss_source_register BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_syntax_link_d AFTER DELETE ON qr_ss_syntax_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_syntax_link_i AFTER INSERT ON qr_ss_syntax_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_syntax_link_u AFTER UPDATE ON qr_ss_syntax_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_translation_buildup_d AFTER DELETE ON qr_ss_translation_buildup BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_translation_buildup_i AFTER INSERT ON qr_ss_translation_buildup BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_translation_buildup_u AFTER UPDATE ON qr_ss_translation_buildup BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_translation_decision_d AFTER DELETE ON qr_ss_translation_decision BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_translation_decision_i AFTER INSERT ON qr_ss_translation_decision BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_translation_decision_u AFTER UPDATE ON qr_ss_translation_decision BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_translation_nuance_d AFTER DELETE ON qr_ss_translation_nuance BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_translation_nuance_i AFTER INSERT ON qr_ss_translation_nuance BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_translation_nuance_u AFTER UPDATE ON qr_ss_translation_nuance BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_translation_passage_d AFTER DELETE ON qr_ss_translation_passage BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_translation_passage_i AFTER INSERT ON qr_ss_translation_passage BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_translation_passage_u AFTER UPDATE ON qr_ss_translation_passage BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_translation_unit_d AFTER DELETE ON qr_ss_translation_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_translation_unit_i AFTER INSERT ON qr_ss_translation_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_translation_unit_u AFTER UPDATE ON qr_ss_translation_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_tree_d AFTER DELETE ON qr_ss_tree BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_tree_edge_d AFTER DELETE ON qr_ss_tree_edge BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_tree_edge_i AFTER INSERT ON qr_ss_tree_edge BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_tree_edge_u AFTER UPDATE ON qr_ss_tree_edge BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_tree_i AFTER INSERT ON qr_ss_tree BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_tree_layout_d AFTER DELETE ON qr_ss_tree_layout BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_tree_layout_i AFTER INSERT ON qr_ss_tree_layout BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_tree_layout_u AFTER UPDATE ON qr_ss_tree_layout BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_tree_node_d AFTER DELETE ON qr_ss_tree_node BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_tree_node_i AFTER INSERT ON qr_ss_tree_node BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_tree_node_u AFTER UPDATE ON qr_ss_tree_node BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_tree_u AFTER UPDATE ON qr_ss_tree BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_vocab_register_d AFTER DELETE ON qr_ss_vocab_register BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_vocab_register_i AFTER INSERT ON qr_ss_vocab_register BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_ss_vocab_register_u AFTER UPDATE ON qr_ss_vocab_register BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_study_label_d AFTER DELETE ON qr_study_label BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_study_label_i AFTER INSERT ON qr_study_label BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_study_label_u AFTER UPDATE ON qr_study_label BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_study_question_d AFTER DELETE ON qr_study_question BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_study_question_i AFTER INSERT ON qr_study_question BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_study_question_u AFTER UPDATE ON qr_study_question BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_analysis_d AFTER DELETE ON qr_surah_analysis BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_analysis_i AFTER INSERT ON qr_surah_analysis BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_analysis_u AFTER UPDATE ON qr_surah_analysis BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_atomic_profile_d AFTER DELETE ON qr_surah_atomic_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_atomic_profile_i AFTER INSERT ON qr_surah_atomic_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_atomic_profile_u AFTER UPDATE ON qr_surah_atomic_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_ayah_meta_d AFTER DELETE ON qr_surah_ayah_meta BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_ayah_meta_i AFTER INSERT ON qr_surah_ayah_meta BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_ayah_meta_u AFTER UPDATE ON qr_surah_ayah_meta BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_clause_pattern_d AFTER DELETE ON qr_surah_clause_pattern BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_clause_pattern_i AFTER INSERT ON qr_surah_clause_pattern BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_clause_pattern_u AFTER UPDATE ON qr_surah_clause_pattern BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_closure_d AFTER DELETE ON qr_surah_closure BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_closure_i AFTER INSERT ON qr_surah_closure BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_closure_u AFTER UPDATE ON qr_surah_closure BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_coherence_signal_d AFTER DELETE ON qr_surah_coherence_signal BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_coherence_signal_i AFTER INSERT ON qr_surah_coherence_signal BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_coherence_signal_u AFTER UPDATE ON qr_surah_coherence_signal BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_d AFTER DELETE ON qr_surah BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_diamond_pattern_d AFTER DELETE ON qr_surah_diamond_pattern BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_diamond_pattern_i AFTER INSERT ON qr_surah_diamond_pattern BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_diamond_pattern_u AFTER UPDATE ON qr_surah_diamond_pattern BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_ellipsis_pattern_d AFTER DELETE ON qr_surah_ellipsis_pattern BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_ellipsis_pattern_i AFTER INSERT ON qr_surah_ellipsis_pattern BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_ellipsis_pattern_u AFTER UPDATE ON qr_surah_ellipsis_pattern BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_i AFTER INSERT ON qr_surah BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_info_i AFTER INSERT ON qr_surah_info BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_layer_d AFTER DELETE ON qr_surah_layer BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_layer_i AFTER INSERT ON qr_surah_layer BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_layer_u AFTER UPDATE ON qr_surah_layer BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_link_d AFTER DELETE ON qr_surah_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_link_i AFTER INSERT ON qr_surah_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_link_u AFTER UPDATE ON qr_surah_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_motif_cluster_d AFTER DELETE ON qr_surah_motif_cluster BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_motif_cluster_i AFTER INSERT ON qr_surah_motif_cluster BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_motif_cluster_u AFTER UPDATE ON qr_surah_motif_cluster BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_opening_d AFTER DELETE ON qr_surah_opening BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_opening_i AFTER INSERT ON qr_surah_opening BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_opening_u AFTER UPDATE ON qr_surah_opening BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_passage_proposal_d AFTER DELETE ON qr_surah_passage_proposal BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_passage_proposal_i AFTER INSERT ON qr_surah_passage_proposal BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_passage_proposal_u AFTER UPDATE ON qr_surah_passage_proposal BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_profile_d AFTER DELETE ON qr_surah_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_profile_i AFTER INSERT ON qr_surah_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_profile_u AFTER UPDATE ON qr_surah_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_reception_d AFTER DELETE ON qr_surah_reception BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_reception_i AFTER INSERT ON qr_surah_reception BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_reception_u AFTER UPDATE ON qr_surah_reception BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_register_shift_d AFTER DELETE ON qr_surah_register_shift BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_register_shift_i AFTER INSERT ON qr_surah_register_shift BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_register_shift_u AFTER UPDATE ON qr_surah_register_shift BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_revelation_rank_d AFTER DELETE ON qr_surah_revelation_rank BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_revelation_rank_i AFTER INSERT ON qr_surah_revelation_rank BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_revelation_rank_u AFTER UPDATE ON qr_surah_revelation_rank BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_rhetoric_profile_d AFTER DELETE ON qr_surah_rhetoric_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_rhetoric_profile_i AFTER INSERT ON qr_surah_rhetoric_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_rhetoric_profile_u AFTER UPDATE ON qr_surah_rhetoric_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_sequence_pattern_d AFTER DELETE ON qr_surah_sequence_pattern BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_sequence_pattern_i AFTER INSERT ON qr_surah_sequence_pattern BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_sequence_pattern_u AFTER UPDATE ON qr_surah_sequence_pattern BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_structural_pivot_d AFTER DELETE ON qr_surah_structural_pivot BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_structural_pivot_i AFTER INSERT ON qr_surah_structural_pivot BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_structural_pivot_u AFTER UPDATE ON qr_surah_structural_pivot BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_structure_link_d AFTER DELETE ON qr_surah_structure_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_structure_link_i AFTER INSERT ON qr_surah_structure_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_structure_link_u AFTER UPDATE ON qr_surah_structure_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_structure_reading_d AFTER DELETE ON qr_surah_structure_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_structure_reading_i AFTER INSERT ON qr_surah_structure_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_structure_reading_u AFTER UPDATE ON qr_surah_structure_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_structure_unit_d AFTER DELETE ON qr_surah_structure_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_structure_unit_i AFTER INSERT ON qr_surah_structure_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_structure_unit_u AFTER UPDATE ON qr_surah_structure_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_study_passage_d AFTER DELETE ON qr_surah_study_passage BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_study_passage_i AFTER INSERT ON qr_surah_study_passage BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_study_passage_u AFTER UPDATE ON qr_surah_study_passage BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_study_step_d AFTER DELETE ON qr_surah_study_step BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_study_step_i AFTER INSERT ON qr_surah_study_step BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_study_step_u AFTER UPDATE ON qr_surah_study_step BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_study_task_chunk_d AFTER DELETE ON qr_surah_study_task_chunk BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_study_task_chunk_i AFTER INSERT ON qr_surah_study_task_chunk BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_study_task_chunk_u AFTER UPDATE ON qr_surah_study_task_chunk BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_study_task_d AFTER DELETE ON qr_surah_study_task BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_study_task_i AFTER INSERT ON qr_surah_study_task BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_study_task_u AFTER UPDATE ON qr_surah_study_task BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_symmetry_pattern_d AFTER DELETE ON qr_surah_symmetry_pattern BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_symmetry_pattern_i AFTER INSERT ON qr_surah_symmetry_pattern BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_symmetry_pattern_u AFTER UPDATE ON qr_surah_symmetry_pattern BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_chunk_d AFTER DELETE ON qr_surah_tafsir_chunk BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_chunk_i AFTER INSERT ON qr_surah_tafsir_chunk BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_chunk_u AFTER UPDATE ON qr_surah_tafsir_chunk BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_hadith_d AFTER DELETE ON qr_surah_tafsir_hadith BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_hadith_i AFTER INSERT ON qr_surah_tafsir_hadith BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_hadith_u AFTER UPDATE ON qr_surah_tafsir_hadith BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_reading_d AFTER DELETE ON qr_surah_tafsir_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_reading_i AFTER INSERT ON qr_surah_tafsir_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_reading_u AFTER UPDATE ON qr_surah_tafsir_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_term_d AFTER DELETE ON qr_surah_tafsir_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_term_i AFTER INSERT ON qr_surah_tafsir_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_term_u AFTER UPDATE ON qr_surah_tafsir_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_theme_d AFTER DELETE ON qr_surah_tafsir_theme BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_theme_i AFTER INSERT ON qr_surah_tafsir_theme BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_theme_u AFTER UPDATE ON qr_surah_tafsir_theme BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_xref_d AFTER DELETE ON qr_surah_tafsir_xref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_xref_i AFTER INSERT ON qr_surah_tafsir_xref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_tafsir_xref_u AFTER UPDATE ON qr_surah_tafsir_xref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_theme_profile_d AFTER DELETE ON qr_surah_theme_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_theme_profile_i AFTER INSERT ON qr_surah_theme_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_theme_profile_u AFTER UPDATE ON qr_surah_theme_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_theology_profile_d AFTER DELETE ON qr_surah_theology_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_theology_profile_i AFTER INSERT ON qr_surah_theology_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_theology_profile_u AFTER UPDATE ON qr_surah_theology_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_topic_flow_d AFTER DELETE ON qr_surah_topic_flow BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_topic_flow_i AFTER INSERT ON qr_surah_topic_flow BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_topic_flow_u AFTER UPDATE ON qr_surah_topic_flow BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_u AFTER UPDATE ON qr_surah BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_worldview_profile_d AFTER DELETE ON qr_surah_worldview_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_worldview_profile_i AFTER INSERT ON qr_surah_worldview_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_surah_worldview_profile_u AFTER UPDATE ON qr_surah_worldview_profile BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_audio_d AFTER DELETE ON qr_tafsir_audio BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_audio_i AFTER INSERT ON qr_tafsir_audio BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_audio_segment_d AFTER DELETE ON qr_tafsir_audio_segment BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_audio_segment_i AFTER INSERT ON qr_tafsir_audio_segment BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_audio_segment_u AFTER UPDATE ON qr_tafsir_audio_segment BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_audio_u AFTER UPDATE ON qr_tafsir_audio BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_block_d AFTER DELETE ON qr_tafsir_book_display_block BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_block_i AFTER INSERT ON qr_tafsir_book_display_block BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_block_u AFTER UPDATE ON qr_tafsir_book_display_block BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_link_d AFTER DELETE ON qr_tafsir_book_display_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_link_i AFTER INSERT ON qr_tafsir_book_display_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_link_u AFTER UPDATE ON qr_tafsir_book_display_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_note_d AFTER DELETE ON qr_tafsir_book_display_note BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_note_i AFTER INSERT ON qr_tafsir_book_display_note BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_note_u AFTER UPDATE ON qr_tafsir_book_display_note BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_ref_d AFTER DELETE ON qr_tafsir_book_display_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_ref_i AFTER INSERT ON qr_tafsir_book_display_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_ref_u AFTER UPDATE ON qr_tafsir_book_display_ref BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_source_d AFTER DELETE ON qr_tafsir_book_display_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_source_i AFTER INSERT ON qr_tafsir_book_display_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_source_u AFTER UPDATE ON qr_tafsir_book_display_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_tag_d AFTER DELETE ON qr_tafsir_book_display_tag BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_tag_i AFTER INSERT ON qr_tafsir_book_display_tag BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_book_display_tag_u AFTER UPDATE ON qr_tafsir_book_display_tag BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_en_i AFTER INSERT ON qr_tafsir_en BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_entry_d AFTER DELETE ON qr_tafsir_entry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_entry_i AFTER INSERT ON qr_tafsir_entry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_entry_u AFTER UPDATE ON qr_tafsir_entry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_read_page_d AFTER DELETE ON qr_tafsir_read_page BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_read_page_i AFTER INSERT ON qr_tafsir_read_page BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_read_page_u AFTER UPDATE ON qr_tafsir_read_page BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_sura_preface_d AFTER DELETE ON qr_tafsir_sura_preface BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_sura_preface_i AFTER INSERT ON qr_tafsir_sura_preface BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_tafsir_sura_preface_u AFTER UPDATE ON qr_tafsir_sura_preface BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_topic_registry_d AFTER DELETE ON qr_topic_registry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_topic_registry_i AFTER INSERT ON qr_topic_registry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_topic_registry_u AFTER UPDATE ON qr_topic_registry BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_translation_d AFTER DELETE ON qr_translation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_translation_feature_d AFTER DELETE ON qr_translation_feature BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_translation_feature_i AFTER INSERT ON qr_translation_feature BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_translation_feature_u AFTER UPDATE ON qr_translation_feature BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_translation_i AFTER INSERT ON qr_translation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_translation_passage_d AFTER DELETE ON qr_translation_passage BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_translation_passage_i AFTER INSERT ON qr_translation_passage BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_translation_passage_u AFTER UPDATE ON qr_translation_passage BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_translation_source_d AFTER DELETE ON qr_translation_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_translation_source_i AFTER INSERT ON qr_translation_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_translation_source_u AFTER UPDATE ON qr_translation_source BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_translation_u AFTER UPDATE ON qr_translation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_word_occurrence_d AFTER DELETE ON qr_word_occurrence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_word_occurrence_i AFTER INSERT ON qr_word_occurrence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_word_occurrence_u AFTER UPDATE ON qr_word_occurrence BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_word_sense_link_d AFTER DELETE ON qr_word_sense_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_word_sense_link_i AFTER INSERT ON qr_word_sense_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_word_sense_link_u AFTER UPDATE ON qr_word_sense_link BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_word_term_d AFTER DELETE ON qr_word_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_word_term_i AFTER INSERT ON qr_word_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_word_term_u AFTER UPDATE ON qr_word_term BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'rest'; END;
+
+CREATE TRIGGER trg_kcv_qr_word_translation_i AFTER INSERT ON qr_word_translation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TRIGGER trg_kcv_qr_word_translation_u AFTER UPDATE ON qr_word_translation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
