@@ -36,6 +36,10 @@ jobs:
       - run: npm install -g wrangler
       - name: run the Qurʾān worker against the live database
         run: |
+          # wrangler dev --remote reads a preview database unless told otherwise: point it at the live one
+          # (read-only use — the dump only reads)
+          sed -i 's/^database_id   = "\(.*\)"$/database_id   = "\1"\npreview_database_id = "\1"/' workers/quran/wrangler.toml
+          grep -n "database_id" workers/quran/wrangler.toml
           (wrangler dev --remote --config workers/quran/wrangler.toml --port 8787 > dev.log 2>&1 &)
           for i in $(seq 1 60); do curl -s -o /dev/null http://localhost:8787/ && break; sleep 3; done
           tail -5 dev.log
