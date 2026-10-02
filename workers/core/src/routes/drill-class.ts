@@ -20,6 +20,7 @@ import { MODULES, fileCards } from '../srs/file-cards';
 //   GET  /core/drill/class?scope=QR:SP:40:1-3             one class: steps, open items, days
 //   POST /core/drill/class/progress                       one sprint's answers
 //   POST /core/drill/class/complete                       mark it studied: rate it, file every drill
+//   GET  /core/drill/scores?module=QR                     each person's study: mine, and the standings
 
 interface ClassRow {
   id: string; user_ref: string; scope_ref: string; module: string; status: string;
@@ -108,6 +109,45 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
         ORDER BY c.scope_ref`,
       [ctx.userId, module, module, prefix]);
     return ok({ classes: rows.map(summary) });
+  });
+
+  /**
+   * Each person's study, measured: the reader's own classes (studied or under way, with their
+   * stars, first-try score and days), and the standing of every active learner by the classes
+   * they have studied — counted from each one's own record, never shared between them.
+   *   GET /core/drill/scores?module=QR
+   */
+  router.get('/core/drill/scores', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const module = new URL(req.url).searchParams.get('module');
+    const [mine, standings] = await Promise.all([
+      query<ClassRow & { open: number }>(env.DB_CORE,
+        `SELECT c.*, (SELECT COUNT(*) FROM core_drill_class_item i WHERE i.class_id = c.id AND i.state = 'open') AS open
+           FROM core_drill_class c
+          WHERE c.user_ref = ? AND (? IS NULL OR c.module = ?)
+          ORDER BY c.status = 'studied' DESC, COALESCE(c.completed_at, c.last_at, c.started_at) DESC`,
+        [ctx.userId, module, module]),
+      query<{ user_id: string; display_name: string | null; studied: number; stars: number; score: number | null;
+              active_days: number; under_way: number }>(env.DB_CORE,
+        `SELECT u.id AS user_id, u.display_name,
+                SUM(c.status = 'studied') AS studied,
+                COALESCE(SUM(CASE WHEN c.status = 'studied' THEN c.rating END), 0) AS stars,
+                ROUND(AVG(CASE WHEN c.status = 'studied' THEN c.score END)) AS score,
+                COALESCE(SUM(c.active_days), 0) AS active_days,
+                SUM(c.status = 'in_progress') AS under_way
+           FROM core_users u JOIN core_drill_class c ON c.user_ref = u.id
+          WHERE u.account_status = 'active' AND (? IS NULL OR c.module = ?)
+          GROUP BY u.id, u.display_name
+          ORDER BY studied DESC, stars DESC, score DESC
+          LIMIT 100`, [module, module]),
+    ]);
+    return ok({
+      me: ctx.userId,
+      mine: mine.map(summary),
+      standings: standings.map((r) => ({ userId: r.user_id, name: r.display_name, studied: r.studied, stars: r.stars,
+                                         score: r.score, activeDays: r.active_days, underWay: r.under_way })),
+    });
   });
 
   router.get('/core/drill/class', async (req, env) => {

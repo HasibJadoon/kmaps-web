@@ -11,10 +11,25 @@ export interface ModuleConfig {
   /// registries — reference data that names books and topics and holds nothing
   /// about anyone. Everything else on the module stays behind the token.
   publicGetPaths?: string[];
+  /// Paths that are never readable without a session, whatever the module's public reads say:
+  /// every drill is a user's. A drill is dealt to someone, graded for someone and filed to their
+  /// review, so the routes that deal them answer only to a signed-in reader. Patterns, matched
+  /// against the path after /api/ (no leading slash).
+  privateGetPaths?: RegExp[];
+}
+
+/** Whether a module path is closed to a reader without a session. */
+export function isPrivatePath(mod: ModuleConfig, remainder: string): boolean {
+  return (mod.privateGetPaths ?? []).some((re) => re.test(remainder));
 }
 
 export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
-  qr:   { binding: 'QURAN',          publicGet: true  },
+  qr:   {
+    binding: 'QURAN',
+    publicGet: true,
+    // practice skills, rounds, the class path and its sprints, the listen gate, the stage's words
+    privateGetPaths: [/^qr\/practice(\/|\?|$)/],
+  },
   wv:   { binding: 'WORLDVIEW',      publicGet: true  },
   worldview: { binding: 'WORLDVIEW', publicGet: true  },
   ar:   {
@@ -33,7 +48,10 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     // Its sibling 'ar/vendor-audio', which mints them, is deliberately not here.
     // 'ar/corpus-version' is the cache-version beacon: two timestamps, nothing
     // about anyone; the app reads it before it has a session.
-    publicGetPaths: ['ar/corpus-version', 'ar/atlas/home', 'ar/atlas/room', 'ar/atlas/collection', 'ar/atlas/search', 'ar/practice', 'ar/scenes', 'ar/path', 'ar/grammar', 'ar/acq', 'ar/text', 'ar/audio', 'ar/vendor-stream', 'ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons', 'ar/daily/themes', 'ar/daily/domains'],
+    // Drills are the reader's own: practice rounds, a scene's drill, a unit's check, placement.
+    privateGetPaths: [/^ar\/practice(\/|\?|$)/, /^ar\/scenes\/[^/?]+\/[^/?]+\/practice(\/|\?|$)/,
+                      /^ar\/path\/(placement|unit\/[^/?]+\/check)(\/|\?|$)/],
+    publicGetPaths: ['ar/corpus-version', 'ar/atlas/home', 'ar/atlas/room', 'ar/atlas/collection', 'ar/atlas/search', 'ar/scenes', 'ar/path', 'ar/grammar', 'ar/acq', 'ar/text', 'ar/audio', 'ar/vendor-stream', 'ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons', 'ar/daily/themes', 'ar/daily/domains'],
   },
   al:   { binding: 'AR_LINGUISTICS', publicGet: true  },
   cm:   {

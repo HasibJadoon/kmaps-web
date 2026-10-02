@@ -1,5 +1,5 @@
 import type { BackendEnv } from './env';
-import { MODULE_MAP, type ModuleKey } from './modules';
+import { MODULE_MAP, isPrivatePath, type ModuleKey } from './modules';
 import { preflight, withCors } from './cors';
 import { authenticate, verifyJwt } from '../../shared/src/auth';
 import { unauthorized, err } from '../../shared/src/response';
@@ -171,9 +171,9 @@ export default {
       && (mod.publicGetPaths ?? []).some(
         (prefix) => remainder === prefix || remainder.startsWith(`${prefix}/`)
                     || remainder.startsWith(`${prefix}?`));
+    // a drill is always a signed-in reader's, even on a module whose reads are public
     const isPublic = isAuthEndpoint
-      || (mod.publicGet && request.method === 'GET')
-      || isPublicPath;
+      || (((mod.publicGet && request.method === 'GET') || isPublicPath) && !isPrivatePath(mod, remainder));
     let authCtx = await authenticate(request, env.JWT_SECRET ?? '');
 
     if (!authCtx && isWebSocket) {

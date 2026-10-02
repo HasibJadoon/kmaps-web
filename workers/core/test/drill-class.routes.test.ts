@@ -34,7 +34,7 @@ function d1(db: DatabaseSync) {
   };
 }
 
-async function setup() {
+async function setup(user = 'U1') {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
   db.exec(readFileSync(new URL('../migrations/039_drill_class.sql', import.meta.url), 'utf8'));
@@ -45,7 +45,7 @@ async function setup() {
     post: (p: string, h: Handler) => routes.set(`POST ${p}`, h),
   } as never);
   const secret = 'test-secret';
-  const token = await signJwt({ sub: 'U1', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 }, secret);
+  const token = await signJwt({ sub: user, role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 }, secret);
   const env = { DB_CORE: d1(db), JWT_SECRET: secret };
   const call = async (method: 'GET' | 'POST', path: string, body?: unknown) => {
     const [p, q] = path.split('?');
@@ -55,7 +55,18 @@ async function setup() {
     }), env, {});
     return { status: res.status, body: await res.json() as Record<string, any> };
   };
-  return { db, call };
+  const as = async (who: string) => {
+    const t = await signJwt({ sub: who, role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 }, secret);
+    return async (method: 'GET' | 'POST', path: string, body?: unknown) => {
+      const [p, q] = path.split('?');
+      const res = await routes.get(`${method} ${p}`)!(new Request(`http://x${p}${q ? `?${q}` : ''}`, {
+        method, headers: { authorization: `Bearer ${t}`, 'content-type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      }), env, {});
+      return { status: res.status, body: await res.json() as Record<string, any> };
+    };
+  };
+  return { db, call, as };
 }
 
 const card = (ref: string) => ({ module: 'QR', resource_type: 'passage', resource_ref: ref, card_kind: 'fill',
@@ -151,6 +162,43 @@ test('words not caught are kept with the line, every sprint, and filed on its ca
   assert.equal(r.body.data.class.open.length, 0);
   const after = db.prepare('SELECT card_json FROM core_drill_class_item WHERE item_ref = ?').get(ref) as { card_json: string };
   assert.deepEqual(JSON.parse(after.card_json).extra.drill.missed, [1, 3, 5]);
+});
+
+test('each person has their own study and their own score', async () => {
+  const { db, as } = await setup();
+  db.exec(`INSERT INTO core_users (id, email, display_name) VALUES ('U1', 'a@x', 'Amina'), ('U2', 'b@x', 'Bilal')`);
+  const amina = await as('U1');
+  const bilal = await as('U2');
+  // Amina studies 40:1-3 cleanly; Bilal misses one and only starts
+  const run = (who: typeof amina, first: boolean) => who('POST', '/core/drill/class/progress', {
+    scope, module: 'QR', node: 'read', sprint: 0, of: 1, seconds: 60, day: '2026-10-02', bands,
+    items: [{ ref: 'QR:fill:40:1', first, misses: first ? 0 : 1, streak: 1, card: card('QR:fill:40:1') }],
+  });
+  await run(amina, true);
+  await run(bilal, false);
+  assert.equal((await amina('POST', '/core/drill/class/complete', { scope, bands })).status, 200);
+  assert.equal((await bilal('POST', '/core/drill/class/complete', { scope, bands })).status, 409);   // his miss is still open
+
+  // each sees only their own record of the same passage
+  const a = (await amina('GET', `/core/drill/class?scope=${scope}`)).body.data.class;
+  const b = (await bilal('GET', `/core/drill/class?scope=${scope}`)).body.data.class;
+  assert.equal(a.status, 'studied');
+  assert.equal(a.score, 100);
+  assert.equal(b.status, 'in_progress');
+  assert.equal(b.open.length, 1);
+  assert.equal(a.open.length, 0);
+
+  // the scores: mine is mine; the standings count each from their own record
+  const s1 = (await amina('GET', '/core/drill/scores?module=QR')).body.data;
+  assert.equal(s1.me, 'U1');
+  assert.deepEqual(s1.mine.map((c: { scope: string; status: string }) => [c.scope, c.status]), [[scope, 'studied']]);
+  assert.deepEqual(s1.standings.map((r: { name: string; studied: number; underWay: number }) => [r.name, r.studied, r.underWay]),
+    [['Amina', 1, 0], ['Bilal', 0, 1]]);
+  const s2 = (await bilal('GET', '/core/drill/scores?module=QR')).body.data;
+  assert.deepEqual(s2.mine.map((c: { status: string }) => c.status), ['in_progress']);
+  // and the cards filed went to Amina's review alone
+  const owners = db.prepare('SELECT DISTINCT user_ref FROM core_srs_card').all() as Array<{ user_ref: string }>;
+  assert.deepEqual(owners.map((o) => o.user_ref), ['U1']);
 });
 
 test('bad input is refused', async () => {
