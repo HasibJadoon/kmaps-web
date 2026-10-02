@@ -2,6 +2,7 @@ import { query, queryOne } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import { attachGt } from '../../../shared/src/gt-attach';
 import { withCard, shuffle, parseJson, rangeOf, type Drill, type Scope } from './practice-kit';
+import { cutQuote } from './practice-sarf';
 
 // ── The class's steps 6 and 7: the passage's questions, and its tafsīr heard then drilled ─────────
 //
@@ -440,7 +441,9 @@ export function sentencesOf<L extends { text: string; words: { t: string; s: num
   }, []);
 }
 
-export async function tafsirReadDrills(env: QuranEnv, scope: Scope, slugs: string[]): Promise<Drill[]> {
+/** Rung 3 (read): the line shown and played. Rung 4 (heard): the same sentences, nothing on the screen
+ *  but the recording — the learner follows by ear alone. */
+export async function tafsirReadDrills(env: QuranEnv, scope: Scope, slugs: string[], heard = false): Promise<Drill[]> {
   if (!scope.surah || !scope.from) return [];
   const works = await listenWorks(env, slugs, { surah: scope.surah, from: scope.from, to: scope.to ?? scope.from });
   const out: Drill[] = [];
@@ -459,18 +462,65 @@ export async function tafsirReadDrills(env: QuranEnv, scope: Scope, slugs: strin
         .sort((a, b) => Math.abs(a.length - en.length) - Math.abs(b.length - en.length)).slice(0, 3);
       if (others.length < 3) continue;
       const from = g[0].seq, to = g[g.length - 1].seq;
-      const id = `tafsir_read:${part.audio}:${from === to ? from : `${from}-${to}`}`;
+      const kind = heard ? 'tafsir_hear' : 'tafsir_read';
+      const id = `${kind}:${part.audio}:${from === to ? from : `${from}-${to}`}`;
       const seen = new Set<string>();
       const terms = g.flatMap((l) => l.terms).filter((t) => !seen.has(t.ref) && !!seen.add(t.ref)).map((t) => t.ref);
       out.push(withCard({
-        id, kind: 'tafsir_read', ask: 'tq_read', interaction: 'choose', script: 'arabic',
-        audio: { url: part.url, start: Math.max(0, g[0].start - 0.2), end: g[g.length - 1].end + 0.2 }, words,
+        id, kind, ask: heard ? 'tq_hear' : 'tq_read', interaction: 'choose', script: 'arabic',
+        audio: { url: part.url, start: Math.max(0, g[0].start - 0.2), end: g[g.length - 1].end + 0.2 }, ...(heard ? {} : { words }),
+        // heard: the line itself is shown only once answered
+        ...(heard ? { note: { en, ar: words.map((x) => x.t).join(' ') } } : {}),
         options: shuffle([en, ...others]), answer: en, terms,
         explanation: cite || null,
         source: { workId: `QR:SURAH:${scope.surah}`, title: `${where} · ${w.titleAr ?? w.title ?? ''}`, level: null },
-      }, { ref: `QR:${id}`, type: 'passage', kind: 'tafsir_read', front: words.map((x) => x.t).join(' '), back: en,
+      }, { ref: `QR:${id}`, type: 'passage', kind, front: words.map((x) => x.t).join(' '), back: en,
            surah: scope.surah, ayah: scope.from, series: 'tafsir' }));
     }
+  }
+  return out;
+}
+
+// ── the commentators' language (rung 2) ─────────────────────────────────────
+
+type Gloss = { key: string; kind: 'phrase' | 'term'; ar: string; needle: string | null; gt_ref: string | null; en: string; use_en: string | null };
+
+/** The commentators' stock phrases and terms, each met in this passage's own commentary: the line that
+ *  uses it plays, and the learner chooses what the phrase does or what the term means. */
+export async function tafsirLangDrills(env: QuranEnv, scope: Scope, slugs: string[]): Promise<Drill[]> {
+  if (!scope.surah || !scope.from) return [];
+  const [works, glosses] = await Promise.all([
+    listenWorks(env, slugs, { surah: scope.surah, from: scope.from, to: scope.to ?? scope.from }),
+    query<Gloss>(env.DB_QR, `SELECT key, kind, ar, needle, gt_ref, en, use_en FROM qr_tafsir_gloss WHERE status = 'live' ORDER BY sort`),
+  ]);
+  const lines = works.flatMap((w) => w.parts.flatMap((part) => part.lines.map((line) => ({ w, part, line }))));
+  const where = rangeOf(scope.surah, scope.from, scope.to);
+  const phrases = glosses.filter((g) => g.kind === 'phrase'), terms = glosses.filter((g) => g.kind === 'term');
+  const out: Drill[] = [];
+  const make = (g: Gloss, hit: (typeof lines)[number], shown: string, answer: string, pool: string[]) => {
+    const others = [...new Set(pool.filter((x) => x && x !== answer))].sort(() => Math.random() - 0.5).slice(0, 3);
+    if (others.length < 3) return;
+    const { w, part, line } = hit;
+    const id = `tafsir_lang:${g.key}`;
+    out.push(withCard({
+      id, kind: 'tafsir_lang', ask: g.kind === 'phrase' ? 'tq_phrase' : 'tq_term', interaction: 'choose', script: 'arabic',
+      audio: { url: part.url, start: Math.max(0, line.start - 0.2), end: line.end + 0.2 }, words: spokenWords(line.words),
+      prompt: shown, options: shuffle([answer, ...others]), answer, terms: g.gt_ref ? [g.gt_ref] : [],
+      explanation: [`${g.ar} — ${g.en}${g.use_en ? `: ${g.use_en.toLowerCase()}` : ''}`, line.en, [w.titleAr ?? w.title, w.author].filter(Boolean).join(' — ')]
+        .filter(Boolean).join('\n'),
+      source: { workId: `QR:SURAH:${scope.surah}`, title: `${where} · ${w.titleAr ?? w.title ?? ''}`, level: null },
+    }, { ref: `QR:${id}`, type: 'passage', kind: 'tafsir_lang', front: g.ar, back: answer, surah: scope.surah, ayah: scope.from, series: 'tafsir' }));
+  };
+  // a phrase: the first line of the passage's commentary that uses it, matched by its bare form
+  for (const g of phrases) {
+    const hit = lines.find((x) => g.needle && cutQuote(x.line.text, g.needle));
+    if (hit) make(g, hit, cutQuote(hit.line.text, g.needle!)!, g.use_en ?? g.en, phrases.map((p) => p.use_en ?? p.en));
+  }
+  // a term: the first line that names it
+  for (const g of terms) {
+    const hit = lines.find((x) => x.line.terms.some((t) => t.ref === g.gt_ref));
+    const shown = hit?.line.terms.find((t) => t.ref === g.gt_ref)?.ar;
+    if (hit && shown) make(g, hit, shown, g.en, terms.map((t) => t.en));
   }
   return out;
 }

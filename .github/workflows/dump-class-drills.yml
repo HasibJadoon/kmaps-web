@@ -56,7 +56,7 @@ jobs:
             const t = await r.text();
             try { return JSON.parse(t); } catch { return { error: t.slice(0, 400), status: r.status }; }
           };
-          const cls = await get(`/qr/practice/class/path?passage=${encodeURIComponent(passage)}`);
+          const cls = await get(`/qr/practice/class/path?passage=${encodeURIComponent(passage)}&fresh=${Date.now()}`);
           const nodes = (cls?.data?.nodes ?? []).filter((n) => n.kind === 'step');
           const out = { passage, nodes: [] };
           for (const n of nodes) {

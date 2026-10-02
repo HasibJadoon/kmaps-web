@@ -16,7 +16,7 @@ import { surahLexDrills, surahLexCounts } from './practice-surah-lex';
 import { groupDrills, groupsCount } from './practice-groups';
 import { ssDrills, ssCount } from './practice-ss';
 import { structureDrills, structureCount } from './practice-structure';
-import { questionDrills, tafsirDrillsQ, questionsCount, tafsirReadDrills } from './practice-tafsirq';
+import { questionDrills, tafsirDrillsQ, questionsCount, tafsirReadDrills, tafsirLangDrills } from './practice-tafsirq';
 import { sarfDrills, sarfSheet } from './practice-sarf';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
@@ -115,6 +115,9 @@ export function practiceRoutes(router: Router<QuranEnv>) {
  * kind's label row gives, and the registry terms its own rows name. The session draws a round
  * with it; the class (practice-class.ts) draws a step's whole pool. Unknown skill: none.
  */
+/** The four commentaries a passage is read in, concise to extensive. */
+const WORKS = ['zamakhshari', 'ibn_ashur', 'razi', 'alusi'];
+
 export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill: string, band: Band, n: number,
                                 scope: Scope, u: URL | null = null, only?: string[]): Promise<Array<Record<string, unknown>>> {
   const meta = byKey(L.skill).get(skill);
@@ -144,7 +147,9 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
     : src === 'questions' ? await questionDrills(env, n, scope)
     : src === 'tafsirq' ? await tafsirDrillsQ(env, meta.extra?.interaction === 'listen_mark' ? 'listen' : 'meaning', n, scope)
     : src === 'sarf' ? await sarfDrills(env, n, scope)
-    : src === 'tafsir_read' ? (await tafsirReadDrills(env, scope, (meta.extra?.works as string[] | undefined) ?? ['zamakhshari', 'ibn_ashur', 'razi', 'alusi'])).slice(0, n)
+    : src === 'tafsir_read' || src === 'tafsir_hear'
+      ? (await tafsirReadDrills(env, scope, (meta.extra?.works as string[] | undefined) ?? WORKS, src === 'tafsir_hear')).slice(0, n)
+    : src === 'tafsir_lang' ? (await tafsirLangDrills(env, scope, (meta.extra?.works as string[] | undefined) ?? WORKS)).slice(0, n)
     : [];
   const kinds = byKey(L.kind);
   const shaped = items.map((it) => {
