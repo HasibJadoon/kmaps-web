@@ -170,3 +170,23 @@ INSERT OR REPLACE INTO qr_study_label (scope, key, label, label_ar, detail, icon
 ('kind', 'pairs_gloss', 'Each word and its meaning', 'كل كلمة ومعناها', NULL, NULL, NULL, NULL, NULL, 201),
 ('kind', 'pairs_root', 'Each word and its root', 'كل كلمة وجذرها', NULL, NULL, NULL, NULL, NULL, 202),
 ('kind', 'pairs_wazn', 'Each word and its pattern', 'كل كلمة ووزنها', NULL, NULL, NULL, NULL, NULL, 203);
+
+-- The session around the stage: the grades, the answer panel, the results, the filing line.
+INSERT OR REPLACE INTO qr_study_label (scope, key, label, label_ar, detail, icon, color, min_value, extra_json, sort) VALUES
+('stage', 'grade_again', 'Again', 'مجددًا', NULL, NULL, NULL, NULL, NULL, 40),
+('stage', 'grade_hard', 'Hard', 'صعب', NULL, NULL, NULL, NULL, NULL, 41),
+('stage', 'grade_good', 'Good', 'جيد', NULL, NULL, NULL, NULL, NULL, 42),
+('stage', 'grade_easy', 'Easy', 'سهل', NULL, NULL, NULL, NULL, NULL, 43),
+('stage', 'not_quite', 'Not quite', 'ليس تمامًا', NULL, NULL, NULL, NULL, NULL, 44),
+('stage', 'result_flawless', 'Flawless.', 'بلا خطأ.', NULL, NULL, NULL, NULL, NULL, 45),
+('stage', 'filed_both', '{new} new · {again} reviewed in your {deck} deck', '{new} جديدة · {again} رُوجعت في مجموعة {deck}', NULL, NULL, NULL, NULL, NULL, 46),
+('stage', 'filed_new', '{new} added to your {deck} deck', 'أُضيفت {new} إلى مجموعة {deck}', NULL, NULL, NULL, NULL, NULL, 47),
+('stage', 'filed_again', '{again} reviewed in your {deck} deck', 'رُوجعت {again} في مجموعة {deck}', NULL, NULL, NULL, NULL, NULL, 48),
+('stage', 'signed_out', 'Sign in to keep these for review', 'سجّل الدخول لتحفظها للمراجعة', NULL, NULL, NULL, NULL, NULL, 49),
+('stage', 'review_failed', 'Couldn’t reach review — try another round', 'تعذّر الوصول إلى المراجعة — جرّب جولة أخرى', NULL, NULL, NULL, NULL, NULL, 50),
+('stage', 'another_round', 'Another round', 'جولة أخرى', NULL, NULL, NULL, NULL, NULL, 51),
+('stage', 'from', 'From', 'من', NULL, NULL, NULL, NULL, NULL, 52),
+('stage', 'praise', 'Well heard | Exactly | That’s it | Spot on | أَحْسَنْتَ', 'أحسنت | تمامًا | هو ذاك | مصيب | أَحْسَنْتَ', NULL, NULL, NULL, NULL, NULL, 53),
+('stage', 'result_good', 'Well done.', 'أحسنت.', NULL, NULL, NULL, NULL, NULL, 54),
+('stage', 'result_keep_at', 'Keep at it — what you missed comes back, spaced.', 'واصل — ما فاتك يعود متباعدًا.', NULL, NULL, NULL, NULL, NULL, 55),
+('stage', 'review_badge', 'Review', 'مراجعة', NULL, NULL, NULL, NULL, NULL, 56);
