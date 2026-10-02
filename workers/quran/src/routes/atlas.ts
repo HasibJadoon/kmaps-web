@@ -230,5 +230,7 @@ async function passageSlice(env: QuranEnv, s: number, from: number, to: number,
       };
     }),
     layers: layersFor(L.layer, has),
+    // the passage's doors (the class) are worded by the step labels, as the surah's are
+    steps: (L.step ?? []).map(card),
   };
 }
