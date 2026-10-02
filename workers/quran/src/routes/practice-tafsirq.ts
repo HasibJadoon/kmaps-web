@@ -1,6 +1,7 @@
 import { query, queryOne } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import { attachGt } from '../../../shared/src/gt-attach';
+import { spelled } from '../lib/tafsir-text';
 import { withCard, shuffle, parseJson, rangeOf, type Drill, type Scope } from './practice-kit';
 import { cutQuote } from './practice-sarf';
 
@@ -85,9 +86,11 @@ export async function questionDrills(env: QuranEnv, n: number, scope: Scope): Pr
 // ── step 7: the recorded lines ──────────────────────────────────────────────
 
 /// A line's words with their times; a word the aligner never heard ([0,0]) has none.
-export function timedWords(text: string, w: string | null): { t: string; s: number; e: number }[] {
+export function timedWords(raw: string, w: string | null): { t: string; s: number; e: number }[] {
+  // the basmala sign spelt out as its four words, its time shared among them
+  const { text, times: spelt } = spelled(raw, parseJson<unknown[]>(w, []));
   const tokens = text.split(/\s+/).filter(Boolean);
-  const times = parseJson<unknown[]>(w, []);
+  const times = spelt ?? [];
   return tokens.map((t, i) => {
     const x = times.length === tokens.length ? times[i] : null;
     const ok = Array.isArray(x) && x.length === 2 && Number(x[1]) > Number(x[0]);
@@ -390,7 +393,7 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
       const last = parts[parts.length - 1];
       const part = last && last.audio === audio ? last : { audio, url: AUDIO(rec.get(audio)!.object_key), start: 0, end: 0, lines: [] };
       part.lines.push(...lines.map((s) => ({ id: lineRef(audio, s.seq, s.seq), seq: s.seq, start: s.start_sec, end: s.end_sec,
-                                             text: s.text_ar, words: timedWords(s.text_ar, s.w),
+                                             text: spelled(s.text_ar, null).text, words: timedWords(s.text_ar, s.w),
                                              en: s.en, terms: lineTerms(s) })));
       if (part !== last) parts.push(part);
     }

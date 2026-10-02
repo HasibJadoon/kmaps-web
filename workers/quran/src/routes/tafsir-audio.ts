@@ -3,6 +3,7 @@ import { ok, notFound } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
 import { query, queryOne } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
+import { spelled } from '../lib/tafsir-text';
 
 // A tafsīr read aloud: the book's read pages (qr_tafsir_read_page) with the
 // recordings cut to page boundaries (qr_tafsir_audio) and their per-line,
@@ -106,7 +107,9 @@ export function tafsirAudioRoutes(router: Router<QuranEnv>) {
       // rather than claiming it was read — the page still shows the text, and
       // the light simply passes it by.
       const anchored = s.end_sec > s.start_sec;
-      const l = byPage.get(s.page_id) ?? []; l.push({ seq: s.seq, start: s.start_sec, end: s.end_sec, text: s.text_ar, speaker: null, anchored, words }); byPage.set(s.page_id, l);
+      // the basmala sign spelt out as its four words, its time shared among them
+      const sp = spelled(s.text_ar, words);
+      const l = byPage.get(s.page_id) ?? []; l.push({ seq: s.seq, start: s.start_sec, end: s.end_sec, text: sp.text, speaker: null, anchored, words: sp.times as typeof words }); byPage.set(s.page_id, l);
     }
     // Where on the recording's timeline each page it reads begins and ends —
     // every page, not only the ones being sent. A scrub can land an hour away,
