@@ -346,13 +346,13 @@ export async function sarfSheet(env: QuranEnv, scope: Scope) {
         id: v.id, form: formNo(v), line: `${v.madi} ${v.mudari} ${masadirOf(v).join(' وَ')}`, meaning: v.meaning_en,
         inQuran: v.quran_n, quote: cite(parseJson<Cite | null>(v.cite_json, null)) })) })).filter((f) => f.lines.length),
     // every preposition a verb takes in the Qurʾān, and what it does
-    preps: preps.map((p) => ({ verb: verbs.find((v) => v.id === p.verb_id)?.madi ?? '', prep: p.prep_ar, name: name(p.prep_gt),
+    preps: preps.map((p) => ({ root: verbs.find((v) => v.id === p.verb_id)?.root ?? '', verb: verbs.find((v) => v.id === p.verb_id)?.madi ?? '', prep: p.prep_ar, name: name(p.prep_gt),
                                usage: p.usage_ar, meaning: p.meaning_en, quote: cite(parseJson<Cite | null>(p.cite_json, null)) })),
     // each word's senses across the Qurʾān, by lemma; the one in this passage marked
-    ranges: roots.flatMap((r) => lemmas(r).map((l) => ({ lemma: l, gloss: pic(r)?.en ?? null,
+    ranges: roots.flatMap((r) => lemmas(r).map((l) => ({ root: r, lemma: l, gloss: pic(r)?.en ?? null,
       senses: senses.filter((x) => x.root === r && x.lemma_ar === l).map((x) => ({ en: x.sense_en, ar: x.sense_ar, here: !!x.here,
         quotes: parseJson<Cite[]>(x.cites_json, []).map(cite).filter(Boolean) })) }))),
-    near: nears.map((n) => ({ title: n.title_en, titleAr: n.title_ar,
+    near: nears.map((n) => ({ root: n.root, title: n.title_en, titleAr: n.title_ar,
       members: parseJson<{ ar: string; en: string; cite: Cite }[]>(n.members_json, []).map((m) => ({ ar: m.ar, en: m.en, quote: cite(m.cite) })) })),
     words: words.map((w) => ({
       ref: `${w.surah}:${w.ayah}:${w.word_index}`, place: `${w.surah}:${w.ayah} · ${w.word_index}`, word: w.word_ar, here: w.here_en, root: w.root,
