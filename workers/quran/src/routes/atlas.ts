@@ -26,19 +26,22 @@ type Depth = 'built' | 'source' | null;
 /// where the step serves what the books give (every step does now — study-derived.ts),
 /// left out where there is nothing yet. `has` here is the grid's `built`, so a layer is
 /// never called built while its step holds no authored rows.
-function layersFor(L: Label[] | undefined, has: Record<string, number>): Array<ReturnType<typeof card> & { depth: Depth; step: string | null }> {
+function layersFor(L: Label[] | undefined, has: Record<string, number>): Array<ReturnType<typeof card> & {
+  depth: Depth; step: string | null; lenses: string[] | null; hide: string[] | null }> {
   const depth: Record<string, Depth> = {
     reading: has.reading ? 'built' : 'source',
     translation: has.passage_structure ? 'built' : 'source',
     // الصرف is its own authored rows (qr_sarf_word): shown where the passage has them, else left out
     sarf: has.sarf ? 'built' : null,
+    // grammar and rhetoric are one screen: the sentence, its parse and its figures together
     nahw: has.sentence_structure ? 'built' : 'source',
-    balagha: has.sentence_structure ? 'built' : 'source',
     structure: has.passage_structure ? 'built' : 'source',
     tafsir: has.tafsir ? 'built' : 'source',
   };
   return (L ?? [])
-    .map((l) => ({ ...card(l), depth: depth[l.key] ?? null, step: (l.extra?.step as string | undefined) ?? null }))
+    // a layer is a screen: its step, and the part of that step it shows (only these lenses, or all but these)
+    .map((l) => ({ ...card(l), depth: depth[l.key] ?? null, step: (l.extra?.step as string | undefined) ?? null,
+                   lenses: (l.extra?.lenses as string[] | undefined) ?? null, hide: (l.extra?.hide as string[] | undefined) ?? null }))
     .filter((l) => l.depth);
 }
 

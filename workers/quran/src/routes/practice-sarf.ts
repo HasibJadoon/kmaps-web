@@ -29,6 +29,10 @@ type Sense = { id: string; root: string; lemma_ar: string; sense_en: string; sen
 type Near = { id: string; root: string; focus_ar: string; title_en: string; title_ar: string; members_json: string };
 type Cell = { label: string; value: string };
 
+/** The mazīd forms by number, as the family table names them. */
+const FORM_ORDER = ['form_i', 'form_ii', 'form_iii', 'form_iv', 'form_v', 'form_vi', 'form_vii', 'form_viii', 'form_ix', 'form_x'];
+const FORM_NO: Record<string, string> = Object.fromEntries(FORM_ORDER.map((f, i) => [f, ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][i]]));
+
 /** The table cells drilled (row.column): مصدر, فاعل; مجهول, مفعول; أمر, ظرف. */
 const TABLE_CELLS = new Set(['0.2', '0.3', '1.0', '1.3', '2.0', '2.2']);
 const PREPS = ['عَلَى', 'إِلَى', 'مِنْ', 'عَنْ', 'لِ', 'بِ', 'فِي', 'مَعَ'];
@@ -325,9 +329,34 @@ export async function sarfSheet(env: QuranEnv, scope: Scope) {
                                                                   meaning: p.meaning_en, quote: cite(parseJson<Cite | null>(p.cite_json, null)) })),
   });
   const roots = [...new Set(words.map((w) => w.root))];
+  const pic = (r: string) => (picture.get(r) ? { en: picture.get(r)!.text_en, ar: picture.get(r)!.text_ar } : null);
+  const formNo = (v: Verb) => FORM_NO[v.form_gt.split(':').pop() ?? ''] ?? '';
+  const byForm = (a: Verb, b: Verb) => FORM_ORDER.indexOf(a.form_gt.split(':').pop() ?? '') - FORM_ORDER.indexOf(b.form_gt.split(':').pop() ?? '');
+  const lemmas = (r: string) => [...new Set(senses.filter((x) => x.root === r).map((x) => x.lemma_ar))];
+  // the section heads and their ledes, as label rows (scope sarf_section)
+  const heads = await query<{ key: string; label: string; label_ar: string | null; detail: string | null }>(env.DB_QR,
+    `SELECT key, label, label_ar, detail FROM qr_study_label WHERE scope = 'sarf_section' ORDER BY sort`);
   return {
+    sections: heads.map((h) => ({ key: h.key, title: h.label, titleAr: h.label_ar, lede: h.detail })),
+    // one table per focus verb, in the textbook's order
+    tables: verbs.filter((v) => v.full).map(verbView),
+    // each root's verbs the Qurʾān uses, as family lines, Form I first
+    families: roots.map((r) => ({ root: r, letters: [...r].join(' '), gloss: pic(r)?.en ?? null,
+      lines: verbs.filter((v) => v.root === r).sort(byForm).map((v) => ({
+        id: v.id, form: formNo(v), line: `${v.madi} ${v.mudari} ${masadirOf(v).join(' وَ')}`, meaning: v.meaning_en,
+        inQuran: v.quran_n, quote: cite(parseJson<Cite | null>(v.cite_json, null)) })) })).filter((f) => f.lines.length),
+    // every preposition a verb takes in the Qurʾān, and what it does
+    preps: preps.map((p) => ({ verb: verbs.find((v) => v.id === p.verb_id)?.madi ?? '', prep: p.prep_ar, name: name(p.prep_gt),
+                               usage: p.usage_ar, meaning: p.meaning_en, quote: cite(parseJson<Cite | null>(p.cite_json, null)) })),
+    // each word's senses across the Qurʾān, by lemma; the one in this passage marked
+    ranges: roots.flatMap((r) => lemmas(r).map((l) => ({ lemma: l, gloss: pic(r)?.en ?? null,
+      senses: senses.filter((x) => x.root === r && x.lemma_ar === l).map((x) => ({ en: x.sense_en, ar: x.sense_ar, here: !!x.here,
+        quotes: parseJson<Cite[]>(x.cites_json, []).map(cite).filter(Boolean) })) }))),
+    near: nears.map((n) => ({ title: n.title_en, titleAr: n.title_ar,
+      members: parseJson<{ ar: string; en: string; cite: Cite }[]>(n.members_json, []).map((m) => ({ ar: m.ar, en: m.en, quote: cite(m.cite) })) })),
     words: words.map((w) => ({
-      ref: `${w.surah}:${w.ayah}:${w.word_index}`, word: w.word_ar, here: w.here_en, root: w.root,
+      ref: `${w.surah}:${w.ayah}:${w.word_index}`, place: `${w.surah}:${w.ayah} · ${w.word_index}`, word: w.word_ar, here: w.here_en, root: w.root,
+      letters: [...w.root].join(' '),
       picture: picture.get(w.root) ? { en: picture.get(w.root)!.text_en, ar: picture.get(w.root)!.text_ar } : null,
       form: name(w.sigha_gt), pattern: w.pattern_ar, verb: w.verb_id,
       plurals: parseJson<{ ar: string; cite: Cite }[]>(w.plurals_json, []).map((p) => ({ ar: p.ar, quote: cite(p.cite) })),
