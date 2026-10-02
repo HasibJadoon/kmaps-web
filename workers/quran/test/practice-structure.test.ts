@@ -19,12 +19,13 @@ function setup() {
     CREATE TABLE qr_surah_study_passage (id TEXT, surah INT, passage_no INT, ayah_from INT, ayah_to INT, title_en TEXT, title_ar TEXT, status TEXT);
     CREATE TABLE qr_passage_section (passage_id TEXT, surah INT, renderer TEXT, data_json TEXT, status TEXT, sort_order INT);
     CREATE TABLE ar_ling_gram_term (id TEXT, category_key TEXT, term_key TEXT, name_ar TEXT, status TEXT, term_order INT);`);
-  const P = db.prepare(`INSERT INTO qr_surah_study_passage VALUES (?, 40, ?, ?, ?, ?, NULL, 'live')`);
-  [[1, 1, 3, 'Tanzil'], [2, 4, 5, 'The Charge'], [3, 6, 6, 'The Word Falls Due'], [4, 7, 9, 'The Throne-Bearers'], [5, 10, 12, 'The Cry']]
-    .forEach(([no, a, b, t]) => P.run(`QR:SP:40:${a}-${b}`, no, a, b, t));
+  const P = db.prepare(`INSERT INTO qr_surah_study_passage VALUES (?, 40, ?, ?, ?, ?, ?, 'live')`);
+  [[1, 1, 3, 'Tanzil', 'تنزيل الكتاب'], [2, 4, 5, 'The Charge', 'الجدال'], [3, 6, 6, 'The Word Falls Due', null], [4, 7, 9, 'The Throne-Bearers', null],
+   [5, 10, 12, 'The Cry', 'النداء']]
+    .forEach(([no, a, b, t, ar]) => P.run(`QR:SP:40:${a}-${b}`, no, a, b, t, ar));
   const S = db.prepare(`INSERT INTO qr_passage_section VALUES (?, 40, ?, ?, NULL, 0)`);
   S.run('QR:SP:40:4-5', 'nazm_relation', JSON.stringify({ relation: { type: 'premise', partner: 'QR:SP:40:1-3', evidence_ar: 'فلا يغررك', note: 'the dependent side' } }));
-  S.run('QR:SP:40:4-5', 'nazm_ring', JSON.stringify({ ring: { side: 'first', partner: 'QR:SP:40:10-12' }, evidence: '40:4 ↔ 40:10' }));
+  S.run('QR:SP:40:4-5', 'nazm_ring', JSON.stringify({ ring: { side: 'first', partner: 'QR:SP:40:10-12' }, evidence: '40:4 ما يجادل ↔ 40:10 ينادون' }));
   S.run('QR:SP:40:6-6', 'nazm_ring', JSON.stringify({ ring: { side: 'unpaired' } }));
   for (const p of ['QR:SP:40:4-5', 'QR:SP:40:6-6', 'QR:SP:40:7-9'])
     S.run(p, 'nazm_arc', JSON.stringify({ arc: { key: 'indictment', label_en: 'The Indictment', label_ar: 'جدال', type: 'escalation' } }));
@@ -49,8 +50,12 @@ test('a passage in scope yields every structure drill it holds, each with its te
   assert.equal(rel.explanation, 'the dependent side');
 
   const [ring] = byAsk('st_ring');
-  assert.equal(ring.answer, '40:10–12 · The Cry');
-  assert.ok(!(ring.options as string[]).includes('40:4–5 · The Charge'));   // never itself
+  // options are the āyāt and the Arabic title, never a transliterated one; the prompt holds only this
+  // passage's side, so the answer is not on the screen; the whole pairing comes after
+  assert.equal(ring.answer, '40:10–12 · النداء');
+  assert.ok(!(ring.options as string[]).includes('40:4–5 · الجدال'));      // never itself
+  assert.equal(ring.prompt, '40:4 ما يجادل');
+  assert.match(String(ring.explanation), /40:10 ينادون/);
 
   const [arc] = byAsk('st_arc');
   assert.equal(arc.answer, 'The Indictment');

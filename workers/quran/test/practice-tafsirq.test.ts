@@ -4,7 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { dealt, pageSpan, groupRange, parseLineRef, lineRef, timedWords, questionDrills, listenWorks, lineDrills, tafsirDrillsQ }
+import { dealt, pageSpan, groupRange, parseLineRef, lineRef, timedWords, questionDrills, listenWorks, lineDrills, tafsirDrillsQ,
+         sentenceSpan, endsSentence, endsClause, spokenWords }
   from '../src/routes/practice-tafsirq';
 
 function d1(db: DatabaseSync) {
@@ -48,7 +49,7 @@ function setup() {
     INSERT INTO ar_ling_gram_term VALUES ('GT:irab_role:badal', 'بدل', '#aa0000');`);
   const S = db.prepare(`INSERT INTO qr_tafsir_audio_segment VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
   S.run('SEG:A:razi:1', 'A:razi', 'P:razi', 1, 0, 10, 'تنزيل مصدر', JSON.stringify({ w: [[0, 4], [4, 9]] }));
-  S.run('SEG:A:razi:2', 'A:razi', 'P:razi', 2, 10, 20, 'جعله الزجاج بدلا', JSON.stringify({ w: [[10, 12], [0, 0], [15, 19]] }));
+  S.run('SEG:A:razi:2', 'A:razi', 'P:razi', 2, 10, 20, 'جعله الزجاج بدلا.', JSON.stringify({ w: [[10, 12], [0, 0], [15, 19]] }));
   S.run('SEG:A:razi:3', 'A:razi', 'P:razi', 3, 20, 30, 'ما يجادل في آيات الله', '{}');          // on 40:4
   S.run('SEG:A:zam:1', 'A:zam', 'P:zam', 1, 0, 5, 'التوب والأوب', '{}');
   S.run('SEG:A:zam:2', 'A:zam', 'P:zam2', 2, 5, 9, 'ما يجادل', '{}');
@@ -124,7 +125,7 @@ test('step 7: the meaning drill plays its lines and reveals their English; the l
   const [m] = await tafsirDrillsQ(env, 'meaning', 30, scope);
   assert.equal(m.id, 'tafsirq:QR:TQ:40:1-3:01');
   assert.deepEqual(m.audio, { url: '/api/ar/audio/tafsir/razi/40-01.m4a', start: 0, end: 20.2 });
-  assert.deepEqual(m.note, { en: 'Sending down is a verbal noun (مصدر) al-Zajjāj made it a substitute (بدل)', ar: 'تنزيل مصدر جعله الزجاج بدلا' });
+  assert.deepEqual(m.note, { en: 'Sending down is a verbal noun (مصدر) al-Zajjāj made it a substitute (بدل)', ar: 'تنزيل مصدر جعله الزجاج بدلا.' });
   assert.match(String(m.explanation), /the thing sent down\n— مفاتيح الغيب — الرازي/);
   const [l] = await tafsirDrillsQ(env, 'listen', 30, scope);
   assert.equal(l.id, 'tafsir_line:A:razi:1-2');
@@ -134,4 +135,22 @@ test('step 7: the meaning drill plays its lines and reveals their English; the l
   const [back] = await lineDrills(env, ['tafsir_line:A:razi:2', 'QR:fill:40:1'], scope);
   assert.equal(back.id, 'tafsir_line:A:razi:2');
   assert.deepEqual(back.gt, [{ ref: 'GT:irab_role:badal', nameAr: 'بدل', color: '#aa0000' }]);
+});
+
+test('a listen run is whole sentences, and holds only what was spoken', () => {
+  const lines = [{ seq: 1, text_ar: 'كلام تام.' }, { seq: 2, text_ar: 'فكأنه إنما ذكر عقيب' }, { seq: 3, text_ar: 'قوله تنزيل هذه الأسماء،' },
+                 { seq: 4, text_ar: 'لزم أن يكون حقا.' }, { seq: 5, text_ar: 'وقيل:' }];
+  // asked 2–2: it runs on to the sentence's end at 4; asked 3–3: it reaches back to its start at 2
+  assert.deepEqual(sentenceSpan(lines, 2, 2), { from: 2, to: 4 });
+  assert.deepEqual(sentenceSpan(lines, 3, 3), { from: 2, to: 4 });
+  assert.deepEqual(sentenceSpan(lines, 1, 1), { from: 1, to: 1 });
+  // where no full stop is within reach, a semicolon closes the run
+  const long = [{ seq: 1, text_ar: 'تم.' }, ...Array.from({ length: 12 }, (_, k) => ({ seq: k + 2, text_ar: k === 3 ? 'أمران؛' : 'ثم' }))];
+  assert.deepEqual(sentenceSpan(long, 2, 2), { from: 2, to: 5 });
+  // a citation bracket open at a line's end carries on
+  assert.equal(endsSentence('مقتدرون﴾ [الزخرف:'), false);
+  // the printed citation and bare marks the reciter never spoke are dropped; an untimed real word stays
+  const ws = [{ t: '٣٧]', s: 0, e: 0 }, { t: '.', s: 0, e: 0 }, { t: 'وأعقب', s: 1, e: 2 }, { t: 'ذِي', s: 0, e: 0 },
+              { t: '[الأنعام:', s: 0, e: 0 }, { t: '٣٧]', s: 0, e: 0 }, { t: '*', s: 0, e: 0 }, { t: 'ذلك', s: 3, e: 4 }];
+  assert.deepEqual(spokenWords(ws).map((w) => w.t), ['وأعقب', 'ذِي', 'ذلك']);
 });

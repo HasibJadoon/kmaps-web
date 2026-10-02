@@ -226,6 +226,36 @@ async function pickAyat(env: QuranEnv, scope: Scope, minWords: number, maxWords:
   return rows.map((r) => [r.surah, r.ayah]);
 }
 
+type PoolWord = { word_text: string; pos: string | null; lemma: string | null; gt_case: string | null; has_det_prefix: number | null;
+                  prefix_count: number | null };
+const leadingConj = (w: PoolWord) => (Number(w.prefix_count ?? 0) > 0 && /^[وف]/.test(w.word_text) ? w.word_text[0] : '');
+
+/** Three words that fit the gap the target leaves: its part of speech, definite or not like it, in
+ *  its case, with its leading وَ / فَ — so the gap's form gives nothing away — one form per lemma, and
+ *  for a word heard, close to it in length. Loosened step by step only when the sūra has too few. */
+export function gapFillers(target: PoolWord, pool: PoolWord[], heard: boolean): string[] {
+  const len = (w: string) => fold(w).length;
+  const tries: ((p: PoolWord) => boolean)[] = [
+    (p) => p.pos === target.pos && (p.has_det_prefix ?? 0) === (target.has_det_prefix ?? 0) && p.gt_case === target.gt_case && leadingConj(p) === leadingConj(target),
+    (p) => p.pos === target.pos && (p.has_det_prefix ?? 0) === (target.has_det_prefix ?? 0) && leadingConj(p) === leadingConj(target),
+    (p) => p.pos === target.pos && leadingConj(p) === leadingConj(target),
+  ];
+  for (const fits of tries) {
+    const seen = new Set<string>([loose(target.lemma ?? target.word_text)]);
+    let cands = pool.filter((p) => fits(p) && loose(p.word_text) !== loose(target.word_text));
+    cands = heard ? cands.sort((x, y) => Math.abs(len(x.word_text) - len(target.word_text)) - Math.abs(len(y.word_text) - len(target.word_text)))
+                  : shuffle(cands);
+    const out: string[] = [];
+    for (const c of (heard ? shuffle(cands.slice(0, 12)) : cands)) {
+      const k = loose(c.lemma ?? c.word_text);
+      if (seen.has(k)) continue;
+      seen.add(k); out.push(c.word_text);
+      if (out.length === 3) return out;
+    }
+  }
+  return [];
+}
+
 // ── listen & fill · build the āyah · catch the word · shadow ──────────────────
 
 async function lineDrills(env: QuranEnv, skill: string, n: number, scope: Scope, lv: Record<string, unknown>, timed: boolean,
@@ -235,8 +265,13 @@ async function lineDrills(env: QuranEnv, skill: string, n: number, scope: Scope,
   const ayat = [...(await loadAyat(env, pairs)).values()].filter((a) => a.ws.length && (!timed || a.aligned));
   // the other words to choose from: content words of the same surahs
   const surahIds = [...new Set(ayat.map((a) => a.surah))];
-  const pool = surahIds.length ? await query<{ word_text: string; pos: string | null }>(env.DB_QR,
-    `SELECT DISTINCT word_text, pos FROM qr_word_occurrence WHERE surah IN (${surahIds.map(() => '?').join(',')}) AND is_content_word = 1 LIMIT 1500`, surahIds) : [];
+  const pool = surahIds.length ? await query<PoolWord>(env.DB_QR,
+    `SELECT DISTINCT word_text, pos, lemma, gt_case, has_det_prefix, prefix_count FROM qr_word_occurrence
+      WHERE surah IN (${surahIds.map(() => '?').join(',')}) AND is_content_word = 1 LIMIT 3000`, surahIds) : [];
+  const facts = surahIds.length ? await query<PoolWord & { surah: number; ayah: number; word_index: number }>(env.DB_QR,
+    `SELECT surah, ayah, word_index, word_text, pos, lemma, gt_case, has_det_prefix, prefix_count FROM qr_word_occurrence
+      WHERE (surah, ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`, [JSON.stringify(pairs)]) : [];
+  const factOf = new Map(facts.map((f) => [`${f.surah}:${f.ayah}:${f.word_index}`, f]));
   const out: Record<string, unknown>[] = [];
   for (const a of ayat) {
     if (out.length >= n) break;
@@ -253,10 +288,11 @@ async function lineDrills(env: QuranEnv, skill: string, n: number, scope: Scope,
       if (!content.length) continue;
       const pick = content[Math.floor(Math.random() * content.length)];
       const answer = pick.w.word_text;
-      const same = pool.filter((p) => p.pos === pick.w.pos && loose(p.word_text) !== loose(answer));
-      const options = shuffle([answer, ...shuffle(same.length >= 3 ? same : pool.filter((p) => loose(p.word_text) !== loose(answer)))
-        .map((p) => p.word_text).filter((x, i, xs) => xs.indexOf(x) === i).slice(0, 3)]);
-      if (options.length < 4) continue;
+      const target = factOf.get(`${a.surah}:${a.ayah}:${pick.w.word_index}`);
+      const wrong = gapFillers(target ?? { word_text: answer, pos: pick.w.pos, lemma: pick.w.lemma, gt_case: null, has_det_prefix: null, prefix_count: null },
+                               pool, skill === 'hear');
+      if (wrong.length < 3) continue;
+      const options = shuffle([answer, ...wrong]);
       if (skill === 'fill') { base.blank = pick.i; base.answer = answer; base.options = options; }
       else {
         const t = a.words[pick.i];

@@ -26,6 +26,13 @@ type Term = { id: string; category_key: string; term_key: string; name_ar: strin
 const RENDERERS = ['nazm_relation', 'nazm_ring', 'nazm_arc'];
 
 const named = (p: Passage) => `${rangeOf(p.surah, p.ayah_from, p.ayah_to)} · ${p.title_en ?? p.title_ar ?? ''}`.trim();
+/** A passage as an option: its āyāt and its Arabic title — never a transliterated one. */
+const shortName = (p: Passage) => `${rangeOf(p.surah, p.ayah_from, p.ayah_to)}${p.title_ar ? ` · ${p.title_ar}` : ''}`;
+/** Whether an evidence side ("40:3 غافر الذنب …") cites an āyah of the passage. */
+const inPassage = (side: string, p: Passage) => {
+  const m = side.match(/(\d+):(\d+)/);
+  return !!m && Number(m[1]) === p.surah && Number(m[2]) >= p.ayah_from && Number(m[2]) <= p.ayah_to;
+};
 
 /// Up to `k` others besides `answer`, drawn from `pool`.
 function choices(answer: string, pool: string[], k = 3): string[] {
@@ -100,9 +107,13 @@ export async function structureDrills(env: QuranEnv, n: number, scope: Scope, _l
       if (!side) continue;
       const partner = d.ring?.partner ? byId.get(d.ring.partner) : undefined;
       if (partner) {
-        const answer = named(partner);
-        card({ ...head(p), id: `structure:ring:${p.id}`, term: side.id, prompt: d.evidence ?? null, promptEn: named(p),
-               options: choices(answer, passages.filter((x) => x.id !== p.id).map(named)), answer, script: 'english' },
+        // the prompt holds only this passage's side of the pairing; the other side is the answer, shown after
+        const sides = String(d.evidence ?? '').split('↔').map((x) => x.trim()).filter(Boolean);
+        const mine = sides.find((x) => inPassage(x, p)) ?? null;
+        const answer = shortName(partner);
+        card({ ...head(p), id: `structure:ring:${p.id}`, term: side.id, prompt: mine, promptEn: 'Which passage answers this one, across the chapter?',
+               options: choices(answer, passages.filter((x) => x.id !== p.id).map(shortName)), answer, script: 'arabic',
+               explanation: d.evidence ? `The two ends of the ring:\n${sides.join('\n')}` : null },
              p, 'st_ring', `ring:${p.id}`, named(p), answer);
       } else {
         card({ ...head(p), id: `structure:ring_side:${p.id}`, term: side.id, prompt: d.evidence ?? null, promptEn: named(p),

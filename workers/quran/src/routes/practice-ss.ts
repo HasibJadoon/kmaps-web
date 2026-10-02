@@ -118,9 +118,10 @@ export async function ssDrills(env: QuranEnv, n: number, scope: Scope, lv: Recor
     },
   };
   const piles = await Promise.all(asks.filter((a) => draw[a]).map((a) => draw[a]().catch(() => [] as Pick[])));
-  // one drill per āyah, the asks taken in turn
+  // one drill of each ask per āyah, the asks taken in turn — so a short passage still meets its
+  // translation build-up beside its grammar
   const seen = new Set<string>();
-  const chosen = interleave(piles, take).filter((p) => { const k = `${p.surah}:${p.ayah}`; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, n);
+  const chosen = interleave(piles, take).filter((p) => { const k = `${p.ask}:${p.surah}:${p.ayah}`; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, n);
   if (!chosen.length) return [];
 
   // what the drills need beyond their own rows
@@ -219,16 +220,20 @@ export async function ssDrills(env: QuranEnv, n: number, scope: Scope, lv: Recor
       }, `books:${r.id}`, `${line}\n${marked} — ${bookName(r.source_slug)}?`, `${roleLabel(r.role_key)}\n${said.map(cite).join('\n')}`));
     } else if (c.ask === 'ss_ellipsis') {
       const r = c.row;
+      // a fronted khabar 'tied to an elided word' is grammar's bookkeeping, not something a reader hears as missing
+      if (String(r.ellipsis_type) === 'hadhf_khabar_muqaddam') continue;
       const k = ellipsisKey.get(String(r.ellipsis_type));
       const ans = k ? ellipses.get(k) : undefined;
       if (!k || !ans) continue;
-      const wrong = shuffle([...ellipses.keys()].filter((x) => x !== k)).slice(0, 3).map((x) => ellipses.get(x)!.label);
+      // the other half of a nominal sentence is the usual competing reading, so it is never offered as wrong
+      const rival: Record<string, string> = { hadhf_mubtada: 'hadhf_khabar', hadhf_khabar: 'hadhf_mubtada' };
+      const wrong = shuffle([...ellipses.keys()].filter((x) => x !== k && x !== rival[k])).slice(0, 3).map((x) => ellipses.get(x)!.label);
       const derived = String(r.source_basis ?? '').startsWith('derived');
       const said = derived ? `${r.note_md} — ${bookName('qul_jadwal_irab_quran')}` : [r.rhetorical_effect, r.note_md && !String(r.note_md).startsWith('{') ? r.note_md : null].filter(Boolean).join('\n') + ` — ${curatedName}`;
       out.push(card({
-        ...base, id: `ss:ellipsis:${r.id}`, prompt: 'Something is left unsaid in the marked words. What is elided?',
+        ...base, id: `ss:ellipsis:${r.id}`, prompt: 'A word is left unsaid in the marked words. Which one?',
         options: shuffle([ans.label, ...wrong]), answer: ans.label, note: { en: ans.label, ar: String(r.elided_element ?? ans.labelAr ?? '') },
-        explanation: `Supplied: ${r.elided_element}\n${said}`,
+        explanation: `Unsaid: ${r.elided_element}\n${said}`,
       }, `ellipsis:${r.id}`, `${line}\n${marked} — what is elided?`, `${ans.label}: ${r.elided_element}`));
     } else if (c.ask === 'ss_nuance') {
       const r = c.row;

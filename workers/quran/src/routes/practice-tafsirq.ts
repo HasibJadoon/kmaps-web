@@ -106,6 +106,52 @@ export function parseLineRef(ref: string): { audio: string; from: number; to: nu
   return Number.isInteger(a) && Number.isInteger(to) && to >= a ? { audio: rest.slice(0, at), from: a, to } : null;
 }
 
+/// A line ends a sentence when its last mark is . ؟ ? ! — a comma, colon or semicolon carries on, and
+/// so does a line that leaves a citation bracket open.
+export const endsSentence = (t: string) => /[.؟?!]["»”)\]]*\s*$/.test(t.trim()) && !/\[[^\]]*$/.test(t);
+
+/// How far a listen run reaches: back to where its sentence starts, on to where a sentence ends.
+const SPAN_BACK = 4, SPAN_MAX = 8;
+
+/// A line closes a clause when it ends at a semicolon — the next best edge where a full stop is far.
+export const endsClause = (t: string) => endsSentence(t) || (/[؛;]\s*$/.test(t.trim()) && !/\[[^\]]*$/.test(t));
+
+/** The lines (by seq) a run should hold so it is whole sentences: back from `from` to the line after a
+ *  sentence end (at most SPAN_BACK lines), and on from `to` to a line that ends one (at most `max` lines
+ *  in all). Where no full stop is within reach a semicolon serves; where neither is, the run stays
+ *  as it was asked (at the start) or stops at `max` lines (at the end). */
+export function sentenceSpan(lines: { seq: number; text_ar: string }[], from: number, to: number, max = SPAN_MAX): { from: number; to: number } {
+  const at = (seq: number) => lines.findIndex((l) => l.seq === seq);
+  const fi = at(from), ti = Math.max(at(to), fi);
+  if (fi < 0) return { from, to };
+  const back = (ends: (t: string) => boolean) => {
+    for (let s = fi; s >= Math.max(0, fi - SPAN_BACK); s--) if (s === 0 || ends(lines[s - 1].text_ar)) return s;
+    return -1;
+  };
+  const s = [back(endsSentence), back(endsClause)].find((x) => x >= 0) ?? fi;
+  const last = Math.min(lines.length - 1, s + max - 1);
+  const ahead = (ends: (t: string) => boolean) => {
+    for (let e = Math.max(ti, s); e <= last; e++) if (ends(lines[e].text_ar)) return e;
+    return -1;
+  };
+  const e = [ahead(endsSentence), ahead(endsClause)].find((x) => x >= 0) ?? last;
+  return { from: lines[s].seq, to: lines[Math.max(e, ti)].seq };
+}
+
+/** The words of a run the reciter actually spoke: a printed citation in brackets ([الزخرف: ٤٢]) and
+ *  bare marks (* * *, ٣٧] .) left untimed by the aligner are dropped; an untimed real word stays. */
+export function spokenWords<W extends { t: string; s: number; e: number }>(words: W[]): W[] {
+  let open = false;
+  return words.filter((w) => {
+    const opens = w.t.includes('['), closes = w.t.includes(']');
+    const bracketed = open || opens || closes;
+    if (opens && !closes) open = true;
+    if (closes) open = false;
+    const marks = /^[[\]()*.:،؛,\-–—0-9٠-٩٫\s]+$/.test(w.t);
+    return !((bracketed || marks) && w.e <= w.s);
+  });
+}
+
 type Work = { slug: string; title: string | null; titleAr: string | null; author: string | null };
 type Run = { audio: string; key: string; from: number; to: number; lines: Seg[]; work: Work };
 
@@ -136,7 +182,14 @@ async function loadRuns(env: QuranEnv, runs: { audio: string; from: number; to: 
 }
 
 const clipOf = (r: Run) => ({ url: AUDIO(r.key), start: Math.max(0, r.lines[0].start_sec - 0.2), end: r.lines[r.lines.length - 1].end_sec + 0.2 });
-const textOf = (r: Run) => r.lines.map((l) => l.text_ar).join(' ');
+const wordsOf = (r: Run) => spokenWords(r.lines.flatMap((l) => timedWords(l.text_ar, l.w)));
+const textOf = (r: Run) => wordsOf(r).map((w) => w.t).join(' ');
+
+/** A run cut down to the lines from..to (inclusive) — as its own run, named by them. */
+function narrow(r: Run, from: number, to: number): Run | undefined {
+  const lines = r.lines.filter((l) => l.seq >= from && l.seq <= to);
+  return lines.length ? { ...r, from, to, lines } : undefined;
+}
 const citeOf = (r: Run) => [r.work.titleAr ?? r.work.title, r.work.author].filter(Boolean).join(' — ');
 /// The run's accurate English, line by line joined; null unless every line has its English.
 const enOf = (r: Run) => (r.lines.every((l) => l.en) ? r.lines.map((l) => l.en).join(' ') : null);
@@ -150,7 +203,7 @@ const termsOfRun = (r: Run): Term[] => {
 function listenDrill(r: Run, surah: number, ayah: number, title: string): Drill {
   return withCard({
     id: lineRef(r.audio, r.from, r.to), kind: 'tafsir_listen', ask: 'tq_listen', interaction: 'listen_mark', script: 'arabic',
-    audio: clipOf(r), words: r.lines.flatMap((l) => timedWords(l.text_ar, l.w)),
+    audio: clipOf(r), words: wordsOf(r),
     // the line's English, held back until asked for or answered; its terms become GT chips
     en: enOf(r), terms: termsOfRun(r),
     explanation: citeOf(r) || null,
@@ -169,9 +222,22 @@ export async function tafsirDrillsQ(env: QuranEnv, mode: 'meaning' | 'listen', n
     `SELECT id, surah, ayah_from, ayah_to, question_en, interaction, options_json, correct_json, explain_en, support_json
        FROM qr_tafsir_question WHERE status = 'live' AND ${w.sql} ORDER BY sort_order LIMIT ?`, [...w.args, n]);
   const support = (q: TafsirQ) => parseJson<Support[]>(q.support_json, []).filter((s) => s.audio && Number.isInteger(s.from));
+  // each run read with lines around it, then cut to whole sentences: a listen drill a line or three
+  // (to a sentence end), a meaning drill the lines that answer it (widened the same way)
+  const asked = (s: Support) => ({ from: s.from, to: mode === 'listen' ? Math.min(s.to ?? s.from, s.from + LISTEN_LINES - 1) : (s.to ?? s.from) });
   const want = qs.map((q) => support(q)[0]).filter(Boolean)
-    .map((s) => ({ audio: s.audio, from: s.from, to: mode === 'listen' ? Math.min(s.to ?? s.from, s.from + LISTEN_LINES - 1) : (s.to ?? s.from) }));
-  const runs = await loadRuns(env, want);
+    .map((s) => ({ audio: s.audio, from: Math.max(1, s.from - SPAN_BACK), to: asked(s).to + SPAN_MAX + 2 }));
+  const windows = await loadRuns(env, want);
+  const runs = new Map<string, Run>();
+  const spanOf = (s: Support) => {
+    const w = windows.get(lineRef(s.audio, Math.max(1, s.from - SPAN_BACK), asked(s).to + SPAN_MAX + 2));
+    if (!w) return undefined;
+    const a = asked(s);
+    const span = sentenceSpan(w.lines, a.from, a.to, Math.max(SPAN_MAX, a.to - a.from + 1));
+    const r = narrow(w, span.from, span.to);
+    if (r) runs.set(lineRef(s.audio, s.from, s.to ?? s.from) + ':' + mode, r);
+    return r;
+  };
 
   const out: Drill[] = [];
   const seen = new Set<string>();
@@ -180,7 +246,7 @@ export async function tafsirDrillsQ(env: QuranEnv, mode: 'meaning' | 'listen', n
     if (!s) continue;
     const where = rangeOf(q.surah, q.ayah_from, q.ayah_to);
     if (mode === 'listen') {
-      const r = runs.get(lineRef(s.audio, s.from, Math.min(s.to ?? s.from, s.from + LISTEN_LINES - 1)));
+      const r = spanOf(s);
       if (!r || seen.has(lineRef(r.audio, r.from, r.to))) continue;
       seen.add(lineRef(r.audio, r.from, r.to));
       out.push(listenDrill(r, q.surah, q.ayah_from, where));
@@ -189,7 +255,7 @@ export async function tafsirDrillsQ(env: QuranEnv, mode: 'meaning' | 'listen', n
     const options = parseJson<string[]>(q.options_json, []);
     const correct = parseJson<number[]>(q.correct_json, []);
     if (options.length < 2 || !correct.length) continue;
-    const r = runs.get(lineRef(s.audio, s.from, s.to ?? s.from));
+    const r = spanOf(s);
     const all = q.interaction === 'choose_all';
     const d = dealt(options, correct);
     out.push(withCard({
