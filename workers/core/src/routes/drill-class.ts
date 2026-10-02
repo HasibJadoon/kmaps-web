@@ -21,6 +21,7 @@ import { MODULES, fileCards } from '../srs/file-cards';
 //   POST /core/drill/class/progress                       one sprint's answers
 //   POST /core/drill/class/complete                       mark it studied: rate it, file every drill
 //   GET  /core/drill/scores?module=QR                     each person's study: mine, and the standings
+//   POST /core/drill/class/resume                         where the learner left off (after each answer)
 
 interface ClassRow {
   id: string; user_ref: string; scope_ref: string; module: string; status: string;
@@ -28,6 +29,7 @@ interface ClassRow {
   days_taken: number | null; active_days: number; sessions: number; active_seconds: number;
   items_total: number; first_try_right: number; score: number | null; rating: number | null;
   steps_json: string;
+  resume_json?: string | null; resume_at?: string | null;
 }
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
@@ -37,6 +39,18 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 function parseMissed(raw: string | null): unknown {
   try { return JSON.parse(raw ?? '[]'); } catch { return []; }
 }
+
+/** The checkpoint as stored, with when it was written; null when there is none. */
+function resumeOf(c: ClassRow): Record<string, unknown> | null {
+  if (!c.resume_json) return null;
+  try {
+    const r = JSON.parse(c.resume_json);
+    return r && typeof r === 'object' ? { ...r, savedAt: c.resume_at } : null;
+  } catch { return null; }
+}
+
+/** The largest checkpoint kept: a sprint's ids, order, answers and marks are a few kilobytes. */
+const RESUME_MAX = 32_000;
 
 function steps(raw: string | null): Record<string, NodeProgress> {
   try { return JSON.parse(raw ?? '{}') ?? {}; } catch { return {}; }
@@ -82,6 +96,8 @@ async function view(env: CoreEnv, c: ClassRow) {
     // each open item with the words missed on it (a listen line), none for the rest
     open: open.map(({ missed_json, ...o }) => ({ ...o, missed: mergeMissed(parseMissed(missed_json), []) })),
     days,
+    // where the learner left off: the sprint under way, or the listen-through; null when nowhere
+    resume: resumeOf(c),
   };
 }
 
@@ -148,6 +164,40 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
       standings: standings.map((r) => ({ userId: r.user_id, name: r.display_name, studied: r.studied, stars: r.stars,
                                          score: r.score, activeDays: r.active_days, underWay: r.under_way })),
     });
+  });
+
+  /**
+   * Where the learner is: { scope, module, resume } — the sprint under way (kind 'sprint': its node,
+   * sprint, of, drill ids in order, the queue by id, the position, each drill's answers so far, the
+   * words marked, the seconds) or the listen-through (kind 'listen': its node). resume null clears it.
+   * Starts the class when it is the first thing done in it.
+   */
+  router.post('/core/drill/class/resume', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const body = await readJsonObject(req);
+    const scope = str(body?.['scope']);
+    const module = str(body?.['module']);
+    if (!scope) return badRequest('scope is required');
+    if (!module || !MODULES.has(module)) return badRequest('module is required');
+    const r = body?.['resume'];
+    if (r !== null && (typeof r !== 'object' || Array.isArray(r))) return badRequest('resume must be an object or null');
+    const raw = r === null ? null : JSON.stringify(r);
+    if (raw && raw.length > RESUME_MAX) return badRequest('resume is too large');
+    if (raw && !str((r as Record<string, unknown>)['node'])) return badRequest('resume.node is required');
+
+    let c = await findClass(env, ctx.userId, scope);
+    if (!c && raw) {
+      await env.DB_CORE.prepare(`INSERT OR IGNORE INTO core_drill_class (id, user_ref, scope_ref, module) VALUES (?, ?, ?, ?)`)
+        .bind(typedId('DCL'), ctx.userId, scope, module).run();
+      c = await findClass(env, ctx.userId, scope);
+    }
+    if (!c) return ok({ resume: null });
+    await env.DB_CORE.prepare(
+      `UPDATE core_drill_class SET resume_json = ?, resume_at = CASE WHEN ? IS NULL THEN NULL ELSE strftime('%Y-%m-%dT%H:%M:%SZ','now') END
+        WHERE id = ?`).bind(raw, raw, c.id).run();
+    const fresh = (await findClass(env, ctx.userId, scope))!;
+    return ok({ resume: resumeOf(fresh) });
   });
 
   router.get('/core/drill/class', async (req, env) => {
@@ -242,9 +292,12 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
          last_at = strftime('%Y-%m-%dT%H:%M:%SZ','now'),
          active_days = (SELECT COUNT(*) FROM core_drill_class_day WHERE class_id = ?),
          items_total = (SELECT COUNT(*) FROM core_drill_class_item WHERE class_id = ?),
-         first_try_right = (SELECT COUNT(*) FROM core_drill_class_item WHERE class_id = ? AND first_right = 1)
+         first_try_right = (SELECT COUNT(*) FROM core_drill_class_item WHERE class_id = ? AND first_right = 1),
+         -- the sprint sent is no longer where the learner is: its checkpoint goes
+         resume_json = CASE WHEN json_extract(resume_json, '$.node') = ? AND json_extract(resume_json, '$.sprint') = ?
+                            THEN NULL ELSE resume_json END
        WHERE id = ?`)
-      .bind(JSON.stringify(nodes), seconds, c.id, c.id, c.id, c.id));
+      .bind(JSON.stringify(nodes), seconds, c.id, c.id, c.id, node, sprint, c.id));
     await db.batch(stmts);
 
     const fresh = (await findClass(env, ctx.userId, scope))!;

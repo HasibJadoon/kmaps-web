@@ -39,6 +39,7 @@ async function setup(user = 'U1') {
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
   db.exec(readFileSync(new URL('../migrations/039_drill_class.sql', import.meta.url), 'utf8'));
   db.exec(readFileSync(new URL('../migrations/040_drill_class_missed.sql', import.meta.url), 'utf8'));
+  db.exec(readFileSync(new URL('../migrations/042_drill_class_resume.sql', import.meta.url), 'utf8'));
   const routes = new Map<string, Handler>();
   drillClassRoutes({
     get: (p: string, h: Handler) => routes.set(`GET ${p}`, h),
@@ -199,6 +200,42 @@ test('each person has their own study and their own score', async () => {
   // and the cards filed went to Amina's review alone
   const owners = db.prepare('SELECT DISTINCT user_ref FROM core_srs_card').all() as Array<{ user_ref: string }>;
   assert.deepEqual(owners.map((o) => o.user_ref), ['U1']);
+});
+
+test('a class picks up exactly where the learner left it, and only theirs', async () => {
+  const { as } = await setup();
+  const amina = await as('U1');
+  const bilal = await as('U2');
+  // mid-sprint: the third drill of node 'words' sprint 1 is up; one was missed, a word marked
+  const where = { kind: 'sprint', node: 'words', sprint: 1, of: 3, drills: ['a', 'b', 'c', 'd'], queue: ['a', 'b', 'c', 'd', 'b'],
+                  pos: 2, tally: { a: { first: true, misses: 0, streak: 1 }, b: { first: false, misses: 1, streak: 0 } },
+                  marked: { a: [2] }, seconds: 95 };
+  let r = await amina('POST', '/core/drill/class/resume', { scope, module: 'QR', resume: where });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.data.resume.pos, 2);
+
+  // the class (made by the checkpoint) hands it back, with when it was saved
+  const c = (await amina('GET', `/core/drill/class?scope=${scope}`)).body.data.class;
+  assert.deepEqual({ ...c.resume, savedAt: undefined }, { ...where, savedAt: undefined });
+  assert.ok(c.resume.savedAt);
+  // Bilal's same passage has nothing
+  assert.equal((await bilal('GET', `/core/drill/class?scope=${scope}`)).body.data.class, null);
+
+  // a different sprint sent leaves it; the sprint it holds, sent, clears it
+  const send = (sprint: number) => amina('POST', '/core/drill/class/progress', {
+    scope, module: 'QR', node: 'words', sprint, of: 3, seconds: 10, day: '2026-10-02', bands, items: [] });
+  r = await send(0);
+  assert.equal(r.body.data.class.resume.pos, 2);
+  r = await send(1);
+  assert.equal(r.body.data.class.resume, null);
+
+  // a listen-through is a place too; null clears; junk is refused
+  r = await amina('POST', '/core/drill/class/resume', { scope, module: 'QR', resume: { kind: 'listen', node: 'listen' } });
+  assert.equal(r.body.data.resume.kind, 'listen');
+  r = await amina('POST', '/core/drill/class/resume', { scope, module: 'QR', resume: null });
+  assert.equal(r.body.data.resume, null);
+  assert.equal((await amina('POST', '/core/drill/class/resume', { scope, module: 'QR', resume: [1] })).status, 400);
+  assert.equal((await amina('POST', '/core/drill/class/resume', { scope, module: 'QR', resume: { kind: 'sprint' } })).status, 400);
 });
 
 test('bad input is refused', async () => {
