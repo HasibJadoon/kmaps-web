@@ -31,6 +31,8 @@ export function atlasOf(rows: LabelRow[]) {
   return {
     rooms: rows.filter((r) => r.scope === 'room').map((room) => ({
       ...word(room),
+      // a room that opens with the learner's active lessons (Path)
+      active: extraOf(room)?.active === true,
       doors: doors.filter((d) => d.parent === room.key)
         .map((d) => ({ ...word(d), module: (extraOf(d)?.module as string | undefined) ?? null })),
     })).filter((room) => room.doors.length > 0),
@@ -48,10 +50,14 @@ export function appsRoutes(router: Router<CoreEnv>) {
 
     const [due, classes] = await Promise.all([
       new SrsRepo(env.DB_CORE).dueCounts(ctx.userId).catch(() => [] as Array<{ module: string; n: number }>),
-      query<{ scope_ref: string; module: string; last_at: string | null; started_at: string }>(env.DB_CORE,
-        `SELECT scope_ref, module, last_at, started_at FROM core_drill_class
-          WHERE user_ref = ? AND status = 'in_progress'
-          ORDER BY COALESCE(last_at, started_at) DESC LIMIT 3`, [ctx.userId]),
+      // every lesson under way, the latest first: the landing shows the first few, Path all of them
+      query<{ scope_ref: string; module: string; last_at: string | null; started_at: string;
+              active_days: number; open: number; resume_at: string | null }>(env.DB_CORE,
+        `SELECT c.scope_ref, c.module, c.last_at, c.started_at, c.active_days, c.resume_at,
+                (SELECT COUNT(*) FROM core_drill_class_item i WHERE i.class_id = c.id AND i.state = 'open') AS open
+           FROM core_drill_class c
+          WHERE c.user_ref = ? AND c.status = 'in_progress'
+          ORDER BY COALESCE(c.resume_at, c.last_at, c.started_at) DESC LIMIT 30`, [ctx.userId]),
     ]);
     const byModule: Record<string, number> = {};
     for (const d of due) byModule[String(d.module).toUpperCase()] = (byModule[String(d.module).toUpperCase()] ?? 0) + (Number(d.n) || 0);
@@ -59,7 +65,8 @@ export function appsRoutes(router: Router<CoreEnv>) {
       ...atlasOf(rows),
       today: {
         due: { all: Object.values(byModule).reduce((a, b) => a + b, 0), byModule },
-        classes: classes.map((c) => ({ scope: c.scope_ref, module: c.module, lastAt: c.last_at ?? c.started_at })),
+        classes: classes.map((c) => ({ scope: c.scope_ref, module: c.module, lastAt: c.resume_at ?? c.last_at ?? c.started_at,
+                                       activeDays: c.active_days ?? 0, open: c.open ?? 0 })),
       },
     });
   });

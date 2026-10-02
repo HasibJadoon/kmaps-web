@@ -9,6 +9,7 @@ import { atlasOf } from '../src/routes/apps';
 test('the migration\'s rows make six rooms, one door per thing', () => {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync(new URL('../migrations/041_app_atlas.sql', import.meta.url), 'utf8'));
+  db.exec(readFileSync(new URL('../migrations/044_path_active_lessons.sql', import.meta.url), 'utf8'));
   const rows = db.prepare('SELECT scope, key, parent, label, label_ar, detail, icon, color, extra_json, sort FROM core_app_label ORDER BY scope, sort').all() as never[];
   const a = atlasOf(rows);
   assert.deepEqual(a.rooms.map((r) => r.key), ['review', 'path', 'practice', 'quiz', 'table', 'scores']);
@@ -20,6 +21,9 @@ test('the migration\'s rows make six rooms, one door per thing', () => {
   const keys = a.rooms.flatMap((r) => r.doors.map((d) => d.key));
   assert.equal(new Set(keys).size, keys.length);
   assert.ok(a.words.some((w) => w.key === 'due' && w.label.includes('{n}')));
+  // Path opens with the active lessons; no other room does
+  assert.deepEqual(a.rooms.filter((r) => r.active).map((r) => r.key), ['path']);
+  assert.ok(a.words.some((w) => w.key === 'active_line' && w.label.includes('{open}')));
 });
 
 test('a room without doors is not drawn', () => {
