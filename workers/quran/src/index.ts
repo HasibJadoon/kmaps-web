@@ -36,6 +36,7 @@ import { atlasLayerRoutes } from './routes/atlas-layers';
 import { atlasGroupRoutes } from './routes/atlas-groups';
 import { practiceRoutes } from './routes/practice';
 import { practiceClassRoutes } from './routes/practice-class';
+import { drillSourceRoutes } from './routes/drill-source';
 import { practiceGrammarRoutes } from './routes/practice-grammar';
 import { translationChoiceRoutes } from './routes/translation-choices';
 
@@ -71,6 +72,7 @@ atlasLayerRoutes(router);
 atlasGroupRoutes(router);
 practiceRoutes(router);
 practiceClassRoutes(router);
+drillSourceRoutes(router);
 practiceGrammarRoutes(router);
 translationChoiceRoutes(router);
 pageRoutes(router);

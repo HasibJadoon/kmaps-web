@@ -16,6 +16,13 @@ import type { CoreEnv } from '../env';
 //   GET   /core/drill/feedback?status=open|…|all  the Flagged room (046): a reviewer sees everyone's
 //                                        reports, anyone else their own — each drawn as shown, with
 //                                        its reason, its state and the actions this reader may take
+//   POST  /core/drill/remove             { drillId, module?, note? } — a reviewer removes any drill for
+//                                        everyone, flagged or not (filed as a removed report)
+//   POST  /core/drill/restore            { drillId } — a reviewer deals it again
+//   POST  /core/drill/refresh            { drillId, module, drill? } — a reviewer, after fixing a drill's
+//                                        rows, corrects the copies already filed: review cards and
+//                                        class items keep their scheduling and missed words. With no
+//                                        drill given, a Qurʾān drill is rebuilt by its worker
 //   PATCH /core/drill/feedback/:id       { action, note? } — an action of 'flag_action' (046): a
 //                                        reviewer's resolve · remove · dismiss · reopen, an owner's
 //                                        withdraw (which gives back a drill they removed). The older
@@ -36,7 +43,19 @@ const hides = (r: Reason | null | undefined) => {
 async function reasons(env: CoreEnv) {
   return query<Reason & { scope: string }>(env.DB_CORE,
     `SELECT scope, key, label, label_ar, detail, icon, color, extra_json FROM core_app_label
-      WHERE scope IN ('feedback', 'feedback_ui') ORDER BY scope, sort`);
+      WHERE scope IN ('feedback', 'feedback_ui', 'drill_fix', 'drill_field') ORDER BY scope, sort`);
+}
+
+/** A Qurʾān drill as its worker rebuilds it now from its corrected rows (null where it cannot). */
+async function rebuiltQr(env: CoreEnv, id: string, userId: string, role: string | undefined): Promise<Record<string, unknown> | null> {
+  if (!env.QURAN) return null;
+  try {
+    const res = await env.QURAN.fetch(new Request(`http://internal.k-maps.local/qr/drill/source?id=${encodeURIComponent(id)}`,
+      { headers: { 'X-KM-User-Id': userId, 'X-KM-Role': role ?? '' } }));
+    if (!res.ok) return null;
+    const body = await res.json<{ data?: { drill?: Record<string, unknown> | null } }>();
+    return body?.data?.drill ?? null;
+  } catch { return null; }
 }
 
 const word = (r: Reason) => ({ key: r.key, label: r.label, labelAr: r.label_ar, detail: r.detail, icon: r.icon, color: r.color });
@@ -55,6 +74,10 @@ export function drillFeedbackRoutes(router: Router<CoreEnv>) {
     return ok({
       reasons: rows.filter((r) => r.scope === 'feedback').map((r) => ({ ...word(r), hides: hides(r) })),
       words: rows.filter((r) => r.scope === 'feedback_ui').map(word),
+      // a reviewer finds and fixes any drill (047): the words of it, and what each column is called
+      reviewer: ctx.isAdmin,
+      fix: rows.filter((r) => r.scope === 'drill_fix').map(word),
+      fields: rows.filter((r) => r.scope === 'drill_field').map(word),
       hidden: [...new Set(mine.filter((m) => hiding.has(m.reason)).map((m) => m.drill_id))],
       removed: all.map((r) => r.drill_id),
     });
@@ -144,6 +167,64 @@ export function drillFeedbackRoutes(router: Router<CoreEnv>) {
         };
       }),
     });
+  });
+
+  router.post('/core/drill/remove', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    if (!ctx.isAdmin) return forbidden('Reviewers only');
+    const b = await readJsonObject(req);
+    const drillId = str(b?.['drillId'] ?? b?.['drill_id'], 300);
+    if (!drillId) return badRequest('drillId is required');
+    const id = typedId('DFB');
+    await env.DB_CORE.prepare(
+      `INSERT INTO core_drill_feedback (id, user_ref, drill_id, module, reason, note, status, resolved_by, resolution_note, resolved_at)
+       VALUES (?, ?, ?, ?, 'remove', ?, 'removed', ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))`)
+      .bind(id, ctx.userId, drillId, str(b?.['module'], 10) ?? null, str(b?.['note']) ?? null, ctx.userId, str(b?.['note']) ?? null).run();
+    return ok({ id, drillId, removed: true });
+  });
+
+  router.post('/core/drill/restore', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    if (!ctx.isAdmin) return forbidden('Reviewers only');
+    const b = await readJsonObject(req);
+    const drillId = str(b?.['drillId'] ?? b?.['drill_id'], 300);
+    if (!drillId) return badRequest('drillId is required');
+    const r = await env.DB_CORE.prepare(
+      `UPDATE core_drill_feedback SET status = 'resolved', resolved_by = ?, resolved_at = strftime('%Y-%m-%dT%H:%M:%SZ','now'),
+              resolution_note = COALESCE(resolution_note || ' · ', '') || 'restored'
+        WHERE drill_id = ? AND status = 'removed'`).bind(ctx.userId, drillId).run();
+    return ok({ drillId, restored: Number((r as { meta?: { changes?: number } }).meta?.changes ?? 0) });
+  });
+
+  router.post('/core/drill/refresh', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    if (!ctx.isAdmin) return forbidden('Reviewers only');
+    const b = await readJsonObject(req);
+    const drillId = str(b?.['drillId'] ?? b?.['drill_id'], 300);
+    const module = str(b?.['module'], 10)?.toUpperCase();
+    let drill = b?.['drill'] && typeof b['drill'] === 'object' ? (b['drill'] as Record<string, unknown>) : null;
+    if (!drillId || !module) return badRequest('drillId and module are required');
+    if (!drill && module === 'QR') drill = await rebuiltQr(env, drillId, ctx.userId, ctx.role);
+    if (!drill) return ok({ drillId, cards: 0, items: 0, refreshed: 0, rebuilt: false });
+    if (drill['id'] !== drillId) return badRequest('the drill is not the one named');
+    // the copy as filed carries no card of its own; laid over the old one, so what the learner
+    // added to it (the words they missed) stays
+    const { srs: _srs, ...copy } = drill;
+    const json = JSON.stringify(copy);
+    const [cards, items] = await env.DB_CORE.batch([
+      env.DB_CORE.prepare(
+        `UPDATE core_srs_card SET extra_json = json_set(extra_json, '$.drill', json_patch(json_extract(extra_json, '$.drill'), json(?)))
+          WHERE module = ? AND json_extract(extra_json, '$.drill.id') = ?`).bind(json, module, drillId),
+      env.DB_CORE.prepare(
+        `UPDATE core_drill_class_item SET card_json = json_set(card_json, '$.extra.drill', json_patch(json_extract(card_json, '$.extra.drill'), json(?)))
+          WHERE item_ref = ? AND json_extract(card_json, '$.extra.drill.id') = ?
+            AND class_id IN (SELECT id FROM core_drill_class WHERE module = ?)`).bind(json, drillId, drillId, module),
+    ]);
+    const n = (r: unknown) => Number((r as { meta?: { changes?: number } }).meta?.changes ?? 0);
+    return ok({ drillId, cards: n(cards), items: n(items), refreshed: n(cards) + n(items), rebuilt: true });
   });
 
   router.patch('/core/drill/feedback/:id', async (req, env, { id }) => {

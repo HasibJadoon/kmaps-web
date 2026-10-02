@@ -99,3 +99,11 @@ export function actorRef(req: Request): string | null {
   const id = req.headers.get('X-KM-User-Id');
   return id && id.trim() ? id.trim() : null;
 }
+
+/** Whether the gateway forwarded a reviewer (an admin) — for a domain worker's reviewer-only routes,
+ *  which hold no JWT secret. Only the gateway reaches a domain worker, and it strips any X-KM-
+ *  header a caller sent before setting its own. */
+export function forwardedReviewer(req: Request): boolean {
+  const role = req.headers.get('X-KM-Role');
+  return !!actorRef(req) && (role === 'admin' || role === 'superadmin');
+}

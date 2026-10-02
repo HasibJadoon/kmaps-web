@@ -28,7 +28,7 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     binding: 'QURAN',
     publicGet: true,
     // practice skills, rounds, the class path and its sprints, the listen gate, the stage's words
-    privateGetPaths: [/^qr\/practice(\/|\?|$)/],
+    privateGetPaths: [/^qr\/practice(\/|\?|$)/, /^qr\/drill(\/|\?|$)/],
   },
   wv:   { binding: 'WORLDVIEW',      publicGet: true  },
   worldview: { binding: 'WORLDVIEW', publicGet: true  },
@@ -49,7 +49,7 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     // 'ar/corpus-version' is the cache-version beacon: two timestamps, nothing
     // about anyone; the app reads it before it has a session.
     // Drills are the reader's own: practice rounds, a scene's drill, a unit's check, placement.
-    privateGetPaths: [/^ar\/practice(\/|\?|$)/, /^ar\/scenes\/[^/?]+\/[^/?]+\/practice(\/|\?|$)/,
+    privateGetPaths: [/^ar\/practice(\/|\?|$)/, /^ar\/drill(\/|\?|$)/, /^ar\/scenes\/[^/?]+\/[^/?]+\/practice(\/|\?|$)/,
                       /^ar\/path\/(placement|unit\/[^/?]+\/check)(\/|\?|$)/],
     publicGetPaths: ['ar/corpus-version', 'ar/atlas/home', 'ar/atlas/room', 'ar/atlas/collection', 'ar/atlas/search', 'ar/scenes', 'ar/path', 'ar/grammar', 'ar/acq', 'ar/text', 'ar/audio', 'ar/vendor-stream', 'ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons', 'ar/daily/themes', 'ar/daily/domains'],
   },

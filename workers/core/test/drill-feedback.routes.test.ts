@@ -37,7 +37,7 @@ function d1(db: DatabaseSync) {
 async function setup() {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
-  for (const m of ['041_app_atlas.sql', '045_drill_feedback.sql', '046_flagged_room.sql'])
+  for (const m of ['041_app_atlas.sql', '045_drill_feedback.sql', '046_flagged_room.sql', '047_drill_fix.sql'])
     db.exec(readFileSync(new URL(`../migrations/${m}`, import.meta.url), 'utf8'));
   db.exec(`INSERT INTO core_users (id, email, display_name) VALUES ('U1', 'a@x', 'Amina'), ('U2', 'b@x', 'Bilal');
            INSERT INTO core_srs_deck (id, user_ref, title) VALUES ('D1', 'U1', 'QR');
@@ -152,4 +152,49 @@ test('the Flagged room: reports drawn with their words; an owner withdraws, a re
   await admin('PATCH', `/core/drill/feedback/${audio.id}`, { action: 'reopen' }, { id: audio.id });
   assert.deepEqual((await amina('GET', '/core/drill/feedback/reasons')).body.data.removed, []);
   assert.equal((await admin('PATCH', `/core/drill/feedback/${audio.id}`, { action: 'nope' }, { id: audio.id })).status, 400);
+});
+
+test('a reviewer removes any drill, restores it, and corrects the copies already filed', async () => {
+  const { db, as } = await setup();
+  const amina = await as('U1');
+  const admin = await as('A1', 'admin');
+  const id = 'questions:QR:Q:40:1:05';
+  db.exec(`UPDATE core_srs_card SET extra_json = '${JSON.stringify({ drill: { id, kind: 'questions', promptEn: 'Old?', options: ['a', 'b'], missed: [2] }, group: { s: 1 } })}' WHERE id = 'K1';
+           INSERT INTO core_drill_class (id, user_ref, module, scope_ref, status) VALUES ('C1', 'U1', 'QR', 'QR:SP:40:1-3', 'in_progress');
+           INSERT INTO core_drill_class_item (class_id, item_ref, node_key, state, card_json)
+             VALUES ('C1', '${id}', 'questions', 'open', '${JSON.stringify({ module: 'QR', extra: { drill: { id, promptEn: 'Old?' } } })}');`);
+
+  // the flag sheet tells a reviewer they are one, with the words of fixing
+  let r = (await admin('GET', '/core/drill/feedback/reasons')).body.data;
+  assert.equal(r.reviewer, true);
+  assert.ok(r.fix.some((w: { key: string }) => w.key === 'fix'));
+  assert.ok(r.fields.some((w: { key: string }) => w.key === 'qr_study_question.options_json'));
+  assert.equal((await amina('GET', '/core/drill/feedback/reasons')).body.data.reviewer, false);
+
+  // only a reviewer refreshes; the copy is the drill named
+  const fresh = { id, kind: 'questions', promptEn: 'Why تنزيل and not إنزال?', options: ['In stages', 'At once'], srs: { module: 'QR' } };
+  assert.equal((await amina('POST', '/core/drill/refresh', { drillId: id, module: 'QR', drill: fresh })).status, 403);
+  assert.equal((await admin('POST', '/core/drill/refresh', { drillId: id, module: 'QR', drill: { ...fresh, id: 'x' } })).status, 400);
+  r = (await admin('POST', '/core/drill/refresh', { drillId: id, module: 'QR', drill: fresh })).body.data;
+  assert.equal(r.cards, 1);
+  assert.equal(r.items, 1);
+  const card = JSON.parse((db.prepare(`SELECT extra_json FROM core_srs_card WHERE id = 'K1'`).get() as { extra_json: string }).extra_json);
+  assert.equal(card.drill.promptEn, 'Why تنزيل and not إنزال?');
+  assert.deepEqual(card.drill.options, ['In stages', 'At once']);
+  assert.deepEqual(card.drill.missed, [2]);             // what the learner added stays
+  assert.equal(card.drill.srs, undefined);              // no card inside the card
+  assert.deepEqual(card.group, { s: 1 });
+  const item = JSON.parse((db.prepare(`SELECT card_json FROM core_drill_class_item WHERE class_id = 'C1'`).get() as { card_json: string }).card_json);
+  assert.equal(item.extra.drill.promptEn, 'Why تنزيل and not إنزال?');
+  assert.equal(item.module, 'QR');
+  // another module's copies are left alone
+  assert.equal((await admin('POST', '/core/drill/refresh', { drillId: id, module: 'AR', drill: fresh })).body.data.refreshed, 0);
+
+  // remove for everyone, unflagged; restore deals it again
+  assert.equal((await amina('POST', '/core/drill/remove', { drillId: id })).status, 403);
+  await admin('POST', '/core/drill/remove', { drillId: id, module: 'QR', note: 'ambiguous' });
+  assert.deepEqual((await amina('GET', '/core/drill/feedback/reasons')).body.data.removed, [id]);
+  r = (await admin('POST', '/core/drill/restore', { drillId: id })).body.data;
+  assert.equal(r.restored, 1);
+  assert.deepEqual((await amina('GET', '/core/drill/feedback/reasons')).body.data.removed, []);
 });
