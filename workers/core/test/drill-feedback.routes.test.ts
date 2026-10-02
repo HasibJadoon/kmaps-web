@@ -37,7 +37,7 @@ function d1(db: DatabaseSync) {
 async function setup() {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
-  for (const m of ['041_app_atlas.sql', '045_drill_feedback.sql'])
+  for (const m of ['041_app_atlas.sql', '045_drill_feedback.sql', '046_flagged_room.sql'])
     db.exec(readFileSync(new URL(`../migrations/${m}`, import.meta.url), 'utf8'));
   db.exec(`INSERT INTO core_users (id, email, display_name) VALUES ('U1', 'a@x', 'Amina'), ('U2', 'b@x', 'Bilal');
            INSERT INTO core_srs_deck (id, user_ref, title) VALUES ('D1', 'U1', 'QR');
@@ -105,4 +105,51 @@ test('a learner reports, removes, and a reviewer resolves', async () => {
   // bad input
   assert.equal((await amina('POST', '/core/drill/feedback', { drillId: 'x', reason: 'nope' })).status, 400);
   assert.equal((await admin('PATCH', '/core/drill/feedback/DFB:none', { status: 'resolved' }, { id: 'DFB:none' })).status, 404);
+});
+
+test('the Flagged room: reports drawn with their words; an owner withdraws, a reviewer reopens', async () => {
+  const { db, as } = await setup();
+  const amina = await as('U1');
+  const bilal = await as('U2');
+  const admin = await as('A1', 'admin');
+  await amina('POST', '/core/drill/feedback', { drill_id: 'questions:QR:Q:40:1:05', reason: 'remove', resource_ref: 'QR:questions:QR:Q:40:1:05' });
+  await bilal('POST', '/core/drill/feedback', { drillId: 'tafsir:razi:12', reason: 'audio', drill: { prompt: 'اسمع' } });
+
+  // Amina sees her own, drawn: reason and state worded, and she may withdraw it
+  let r = (await amina('GET', '/core/drill/feedback')).body.data;
+  assert.equal(r.reviewer, false);
+  assert.equal(r.feedback.length, 1);
+  const mine = r.feedback[0];
+  assert.equal(mine.mine, true);
+  assert.equal(mine.reasonWord.label, 'Remove this drill');
+  assert.equal(mine.statusWord.key, 'open');
+  assert.deepEqual(mine.actions.map((a: { key: string }) => a.key), ['withdraw']);
+  assert.equal(r.statuses.find((s: { key: string }) => s.key === 'open').count, 1);
+  assert.ok(r.words.some((w: { key: string }) => w.key === 'empty'));
+
+  // the reviewer sees both, with the reviewer's actions and not the owner's
+  r = (await admin('GET', '/core/drill/feedback?status=all')).body.data;
+  assert.equal(r.feedback.length, 2);
+  assert.deepEqual(r.feedback[0].actions.map((a: { key: string }) => a.key), ['resolve', 'remove', 'dismiss']);
+
+  // only the sender withdraws; withdrawing a removal gives the drill and its card back
+  assert.equal((await bilal('PATCH', `/core/drill/feedback/${mine.id}`, { action: 'withdraw' }, { id: mine.id })).status, 403);
+  assert.equal((await amina('PATCH', `/core/drill/feedback/${mine.id}`, { action: 'resolve' }, { id: mine.id })).status, 403);
+  r = (await amina('PATCH', `/core/drill/feedback/${mine.id}`, { action: 'withdraw' }, { id: mine.id })).body.data;
+  assert.equal(r.status, 'withdrawn');
+  assert.equal(r.restored, 1);
+  assert.equal((db.prepare(`SELECT suspended FROM core_srs_card WHERE id = 'K1'`).get() as { suspended: number }).suspended, 0);
+  assert.deepEqual((await amina('GET', '/core/drill/feedback/reasons')).body.data.hidden, []);
+  assert.equal((await amina('PATCH', `/core/drill/feedback/${mine.id}`, { action: 'withdraw' }, { id: mine.id })).status, 400);
+
+  // a reviewer removes for all, then reopens: the drill is dealt again
+  const audio = (await admin('GET', '/core/drill/feedback?status=open')).body.data.feedback[0];
+  await admin('PATCH', `/core/drill/feedback/${audio.id}`, { action: 'remove', note: 'recording cut' }, { id: audio.id });
+  assert.deepEqual((await amina('GET', '/core/drill/feedback/reasons')).body.data.removed, ['tafsir:razi:12']);
+  const done = (await admin('GET', '/core/drill/feedback?status=removed')).body.data.feedback[0];
+  assert.equal(done.resolution, 'recording cut');
+  assert.deepEqual(done.actions.map((a: { key: string }) => a.key), ['reopen']);
+  await admin('PATCH', `/core/drill/feedback/${audio.id}`, { action: 'reopen' }, { id: audio.id });
+  assert.deepEqual((await amina('GET', '/core/drill/feedback/reasons')).body.data.removed, []);
+  assert.equal((await admin('PATCH', `/core/drill/feedback/${audio.id}`, { action: 'nope' }, { id: audio.id })).status, 400);
 });
