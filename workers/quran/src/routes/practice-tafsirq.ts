@@ -128,13 +128,17 @@ export function sentenceSpan(lines: { seq: number; text_ar: string }[], from: nu
     for (let s = fi; s >= Math.max(0, fi - SPAN_BACK); s--) if (s === 0 || ends(lines[s - 1].text_ar)) return s;
     return -1;
   };
-  const s = [back(endsSentence), back(endsClause)].find((x) => x >= 0) ?? fi;
-  const last = Math.min(lines.length - 1, s + max - 1);
-  const ahead = (ends: (t: string) => boolean) => {
-    for (let e = Math.max(ti, s); e <= last; e++) if (ends(lines[e].text_ar)) return e;
+  const ahead = (start: number, ends: (t: string) => boolean) => {
+    const last = Math.min(lines.length - 1, start + max - 1);
+    for (let e = Math.max(ti, start); e <= last; e++) if (ends(lines[e].text_ar)) return e;
     return -1;
   };
-  const e = [ahead(endsSentence), ahead(endsClause)].find((x) => x >= 0) ?? last;
+  const endFrom = (start: number) => [ahead(start, endsSentence), ahead(start, endsClause)].find((x) => x >= 0) ?? -1;
+  let s = [back(endsSentence), back(endsClause)].find((x) => x >= 0) ?? fi;
+  let e = endFrom(s);
+  // reaching back used up the reach before the sentence ends: keep the asked start, look ahead from it
+  if (e < 0 && s < fi && endFrom(fi) >= 0) { s = fi; e = endFrom(fi); }
+  if (e < 0) e = Math.min(lines.length - 1, s + max - 1);
   return { from: lines[s].seq, to: lines[Math.max(e, ti)].seq };
 }
 
@@ -147,8 +151,9 @@ export function spokenWords<W extends { t: string; s: number; e: number }>(words
     const bracketed = open || opens || closes;
     if (opens && !closes) open = true;
     if (closes) open = false;
+    // bare marks and numbers (٨٦] , * , .) are never words to hear; a bracketed word goes when unspoken
     const marks = /^[[\]()*.:،؛,\-–—0-9٠-٩٫\s]+$/.test(w.t);
-    return !((bracketed || marks) && w.e <= w.s);
+    return !(marks || (bracketed && w.e <= w.s));
   });
 }
 

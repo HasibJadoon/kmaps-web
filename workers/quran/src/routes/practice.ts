@@ -228,7 +228,8 @@ async function pickAyat(env: QuranEnv, scope: Scope, minWords: number, maxWords:
 
 type PoolWord = { word_text: string; pos: string | null; lemma: string | null; gt_case: string | null; has_det_prefix: number | null;
                   prefix_count: number | null };
-const leadingConj = (w: PoolWord) => (Number(w.prefix_count ?? 0) > 0 && /^[وف]/.test(w.word_text) ? w.word_text[0] : '');
+/** The particle a word carries in front (وَ فَ بِ لِ كَ سَ), or none — a gap's word and its options share it. */
+const leadingConj = (w: PoolWord) => (Number(w.prefix_count ?? 0) > 0 && /^[وفبلكس]/.test(w.word_text) && !/^ال/.test(w.word_text) ? w.word_text[0] : '');
 
 /** Three words that fit the gap the target leaves: its part of speech, definite or not like it, in
  *  its case, with its leading وَ / فَ — so the gap's form gives nothing away — one form per lemma, and

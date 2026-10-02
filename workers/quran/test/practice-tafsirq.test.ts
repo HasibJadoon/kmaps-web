@@ -147,10 +147,13 @@ test('a listen run is whole sentences, and holds only what was spoken', () => {
   // where no full stop is within reach, a semicolon closes the run
   const long = [{ seq: 1, text_ar: 'تم.' }, ...Array.from({ length: 12 }, (_, k) => ({ seq: k + 2, text_ar: k === 3 ? 'أمران؛' : 'ثم' }))];
   assert.deepEqual(sentenceSpan(long, 2, 2), { from: 2, to: 5 });
+  // reaching back would leave the sentence's end out of reach: the asked start stays
+  const far = [{ seq: 1, text_ar: 'تم.' }, ...Array.from({ length: 10 }, (_, k) => ({ seq: k + 2, text_ar: k === 8 ? 'انتهى.' : 'ثم' }))];
+  assert.deepEqual(sentenceSpan(far, 6, 6, 6), { from: 6, to: 10 });
   // a citation bracket open at a line's end carries on
   assert.equal(endsSentence('مقتدرون﴾ [الزخرف:'), false);
   // the printed citation and bare marks the reciter never spoke are dropped; an untimed real word stays
-  const ws = [{ t: '٣٧]', s: 0, e: 0 }, { t: '.', s: 0, e: 0 }, { t: 'وأعقب', s: 1, e: 2 }, { t: 'ذِي', s: 0, e: 0 },
+  const ws = [{ t: '٣٧]', s: 0, e: 0 }, { t: '.', s: 0, e: 0 }, { t: 'وأعقب', s: 1, e: 2 }, { t: 'ذِي', s: 0, e: 0 }, { t: '٨٦]', s: 2, e: 3 },
               { t: '[الأنعام:', s: 0, e: 0 }, { t: '٣٧]', s: 0, e: 0 }, { t: '*', s: 0, e: 0 }, { t: 'ذلك', s: 3, e: 4 }];
   assert.deepEqual(spokenWords(ws).map((w) => w.t), ['وأعقب', 'ذِي', 'ذلك']);
 });

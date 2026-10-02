@@ -75,6 +75,12 @@ UPDATE qr_study_label SET label = 'The noun being described (الموصوف)' WH
 UPDATE qr_study_label SET label = 'The first word of a pair like «the Book of God» (المضاف)' WHERE scope = 'ss_ellipsis' AND key = 'hadhf_mudaf';
 UPDATE qr_study_label SET label = 'The calling word يا (حرف النداء)' WHERE scope = 'ss_ellipsis' AND key = 'hadhf_harf_nida';
 
+-- the Sentences step holds the drills that teach the sentence in plain terms and the ones that build its
+-- translation; 'which book reads it so' (a who-said-it question) and the fine-point drills (their wrong
+-- options are other passages' notes) wait until they are rewritten plainly
+UPDATE qr_study_label SET extra_json = json_set(extra_json, '$.only', json('{"ss":["ss_kind","ss_mahall","ss_role","ss_ellipsis","ss_buildup","ss_why"]}'))
+ WHERE scope = 'class_node' AND key = 'sentences';
+
 -- ── 40:2: what is left unsaid, on the well-known reading ───────────────────────────────────────
 UPDATE qr_ss_ellipsis_event
    SET ellipsis_type = 'hadhf_mubtada',
