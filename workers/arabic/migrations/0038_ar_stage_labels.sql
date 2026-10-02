@@ -58,4 +58,5 @@ INSERT OR REPLACE INTO ar_practice_label (scope, key, label, label_ar, detail, i
 ('stage', 'from', 'From', 'من', NULL, NULL, NULL, NULL, NULL, 52),
 ('stage', 'praise', 'Well heard | Exactly | That’s it | Spot on | ممتاز', 'أحسنت | تمامًا | هو ذاك | مصيب | ممتاز', NULL, NULL, NULL, NULL, NULL, 53),
 ('stage', 'result_good', 'Good listening.', 'استماع جيد.', NULL, NULL, NULL, NULL, NULL, 54),
-('stage', 'result_keep_at', 'Keep at it — every line is real speech.', 'واصل — كل سطر كلام حقيقي.', NULL, NULL, NULL, NULL, NULL, 55);
+('stage', 'result_keep_at', 'Keep at it — every line is real speech.', 'واصل — كل سطر كلام حقيقي.', NULL, NULL, NULL, NULL, NULL, 55),
+('stage', 'review_badge', 'Review', 'مراجعة', NULL, NULL, NULL, NULL, NULL, 56);
