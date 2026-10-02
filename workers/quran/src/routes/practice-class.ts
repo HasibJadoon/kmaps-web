@@ -5,6 +5,7 @@ import type { QuranEnv } from '../env';
 import { labels, byKey, type Label } from '../lib/labels';
 import { drawSkill, type Scope } from './practice';
 import { interleave } from './practice-kit';
+import { listenWorks, lineDrills, parseLineRef } from './practice-tafsirq';
 
 // ── The Class: a passage studied as one lesson ─────────────────────────────────
 // What the class is: its path of graded sprints, in the order the class_node label rows give
@@ -16,7 +17,11 @@ import { interleave } from './practice-kit';
 //   GET /qr/practice/class/path?passage=QR:SP:40:1-3 the unit's nodes, how many drills each holds
 //   GET /qr/practice/class/node?passage=…&node=words  a node's drills, whole: the device cuts the
 //       sprints and keeps them. check: drawn from every step; review: &steps=read,words;
-//       practice: &refs=<drill ids> (the class's to-perfect set, from CORE)
+//       practice: &refs=<drill ids> (the class's to-perfect set, from CORE — a tafsīr line
+//       marked in the listen gate is named by its line ref and drawn as its listen drill)
+//   GET /qr/practice/class/listen?passage=…&node=listen  the listen gate: each work the node
+//       names, its recordings over the passage with every line timed; one sprint per work, run
+//       when that work is heard to the node's `heard` percent
 
 type Passage = { id: string; surah: number; passage_no: number; ayah_from: number; ayah_to: number;
                  label: string | null; title_en: string | null; title_ar: string | null };
@@ -47,16 +52,21 @@ async function stepPool(env: QuranEnv, L: Record<string, Label[]>, node: Label, 
 
 const stepNodes = (L: Record<string, Label[]>) => (L.class_node ?? []).filter((n) => kindOf(n) === 'step');
 
-/** The node rows as the device draws them. */
-const nodeCard = (n: Label, drills: number) => {
+/** The node rows as the device draws them. A listen node's sprints are its works, given. */
+const nodeCard = (n: Label, drills: number, works = 0) => {
   const sprint = num(n.extra?.sprint, 12);
+  const kind = kindOf(n);
   return {
-    key: n.key, kind: kindOf(n), step: n.extra?.step ?? null,
+    key: n.key, kind, step: n.extra?.step ?? null,
     title: n.label, titleAr: n.labelAr ?? '', tagline: n.detail ?? '', icon: n.icon ?? 'circle', color: n.color ?? '#D8B657',
-    drills, sprint, sprints: kindOf(n) === 'step' ? Math.max(1, Math.ceil(drills / sprint)) : 1,
-    pass: n.extra?.pass ?? null,
+    drills, sprint,
+    sprints: kind === 'step' ? Math.max(1, Math.ceil(drills / sprint)) : kind === 'listen' ? Math.max(1, works) : 1,
+    pass: n.extra?.pass ?? n.extra?.heard ?? null,
   };
 };
+
+const worksOf = (n: Label) => (Array.isArray(n.extra?.works) ? n.extra!.works as string[] : []);
+const listenOf = (env: QuranEnv, n: Label, p: Passage) => listenWorks(env, worksOf(n), { surah: p.surah, from: p.ayah_from, to: p.ayah_to });
 
 const bandsOf = (L: Record<string, Label[]>) =>
   (L.class_band ?? []).map((b) => ({ stars: Number(b.extra?.stars ?? 0), min: Number(b.min ?? 0) })).filter((b) => b.stars > 0);
@@ -92,12 +102,18 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     if (!p) return notFound(`passage ${id}`);
     const scope = scopeOf(p);
     const steps = stepNodes(L);
-    const pools = await Promise.all(steps.map((n) => stepPool(env, L, n, scope)));
+    const listens = (L.class_node ?? []).filter((n) => kindOf(n) === 'listen');
+    const [pools, heard] = await Promise.all([
+      Promise.all(steps.map((n) => stepPool(env, L, n, scope))),
+      Promise.all(listens.map((n) => listenOf(env, n, p).catch(() => []))),
+    ]);
     const held = new Map(steps.map((n, i) => [n.key, pools[i].length]));
-    // a step none of whose skills has a drill for this passage is left off its path
+    const works = new Map(listens.map((n, i) => [n.key, heard[i].length]));
+    // a step none of whose skills has a drill for this passage is left off its path; so is a
+    // listen gate none of whose works is recorded over it
     const nodes = (L.class_node ?? [])
-      .filter((n) => kindOf(n) !== 'step' || (held.get(n.key) ?? 0) > 0)
-      .map((n) => nodeCard(n, held.get(n.key) ?? 0));
+      .filter((n) => kindOf(n) === 'step' ? (held.get(n.key) ?? 0) > 0 : kindOf(n) === 'listen' ? (works.get(n.key) ?? 0) > 0 : true)
+      .map((n) => nodeCard(n, held.get(n.key) ?? 0, works.get(n.key) ?? 0));
     return ok({
       passage: passageCard(p),
       nodes: [...held.values()].some((n) => n > 0) ? nodes : [],
@@ -132,12 +148,30 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
       if (kind === 'practice') {
         const refs = new Set((u.searchParams.get('refs') ?? '').split(',').filter(Boolean));
         items = pools.flat().filter((d) => refs.has(String(d.id)));
+        // lines marked in the listen gate are drills of no step: drawn by their refs
+        const found = new Set(items.map((d) => String(d.id)));
+        const lines = [...refs].filter((r) => !found.has(r) && parseLineRef(r));
+        if (lines.length) items = [...items, ...await lineDrills(env, lines, scope)];
       } else {
         // check and review: drawn across the steps in turn, a sprint's worth
         items = interleave(pools.map(shuffle), size);
       }
     }
     return ok({ passage: passageCard(p), node: nodeCard(node, items.length), items, bands: bandsOf(L), stage: L.stage ?? [] });
+  });
+
+  router.get('/qr/practice/class/listen', async (req, env) => {
+    const u = new URL(req.url);
+    const id = u.searchParams.get('passage');
+    const key = u.searchParams.get('node') ?? 'listen';
+    if (!id) return badRequest('passage is required');
+    const [L, p] = await Promise.all([labels(env), passageOf(env, id)]);
+    if (!p) return notFound(`passage ${id}`);
+    const node = byKey(L.class_node).get(key);
+    if (!node || kindOf(node) !== 'listen') return badRequest(`not a listen node: ${key}`);
+    const works = await listenOf(env, node, p);
+    return ok({ passage: passageCard(p), node: nodeCard(node, 0, works.length), works,
+                heard: num(node.extra?.heard, 90), words: L.class_ui ?? [] });
   });
 }
 

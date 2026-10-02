@@ -5,7 +5,7 @@ import { query, queryOne } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import { readJsonObject } from '../../../shared/src/validate';
 import {
-  nextItem, nextNode, starsFor, scoreOf, daysTaken, seededRating,
+  nextItem, nextNode, starsFor, scoreOf, daysTaken, seededRating, mergeMissed, cardWithMissed,
   type ItemRecord, type ItemState, type NodeProgress, type SprintAnswer, type StarBand,
 } from '../../../shared/src/drill-class';
 import type { CoreEnv } from '../env';
@@ -33,6 +33,10 @@ const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v 
 const int = (v: unknown, d = 0): number => (Number.isFinite(Number(v)) ? Math.max(0, Math.round(Number(v))) : d);
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
+function parseMissed(raw: string | null): unknown {
+  try { return JSON.parse(raw ?? '[]'); } catch { return []; }
+}
+
 function steps(raw: string | null): Record<string, NodeProgress> {
   try { return JSON.parse(raw ?? '{}') ?? {}; } catch { return {}; }
 }
@@ -53,8 +57,8 @@ async function findClass(env: CoreEnv, user: string, scope: string) {
 /** One class as the device reads it. */
 async function view(env: CoreEnv, c: ClassRow) {
   const [open, days, perNode] = await Promise.all([
-    query<{ item_ref: string; node_key: string; misses: number; streak: number }>(env.DB_CORE,
-      `SELECT item_ref, node_key, misses, streak FROM core_drill_class_item
+    query<{ item_ref: string; node_key: string; misses: number; streak: number; missed_json: string | null }>(env.DB_CORE,
+      `SELECT item_ref, node_key, misses, streak, missed_json FROM core_drill_class_item
         WHERE class_id = ? AND state = 'open' ORDER BY updated_at`, [c.id]),
     query<{ day: string; seconds: number; items: number; right: number }>(env.DB_CORE,
       'SELECT day, seconds, items, right FROM core_drill_class_day WHERE class_id = ? ORDER BY day', [c.id]),
@@ -74,7 +78,9 @@ async function view(env: CoreEnv, c: ClassRow) {
       const met = perNode.find((r) => r.node_key === node);
       return { node, ...p, met: met?.n ?? 0, perfected: met?.perfected ?? 0 };
     }),
-    open, days,
+    // each open item with the words missed on it (a listen line), none for the rest
+    open: open.map(({ missed_json, ...o }) => ({ ...o, missed: mergeMissed(parseMissed(missed_json), []) })),
+    days,
   };
 }
 
@@ -115,7 +121,7 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
 
   /**
    * One sprint's answers: { scope, module, node, sprint, of, seconds, day, bands?,
-   *   items: [{ ref, first, misses, streak, marked?, card? }] }.
+   *   items: [{ ref, first, misses, streak, marked?, missed?: [word indices], card? }] }.
    * Starts the class when it is the first; keeps each item's state, the day, the node.
    */
   router.post('/core/drill/class/progress', async (req, env) => {
@@ -147,8 +153,8 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
     const prev = new Map<string, ItemRecord>();
     for (let i = 0; i < refs.length; i += 90) {
       const chunk = refs.slice(i, i + 90);
-      const rows = await query<ItemRecord & { item_ref: string }>(db,
-        `SELECT item_ref, first_right, misses, streak, state FROM core_drill_class_item
+      const rows = await query<ItemRecord & { item_ref: string; missed_json: string | null }>(db,
+        `SELECT item_ref, first_right, misses, streak, state, missed_json FROM core_drill_class_item
           WHERE class_id = ? AND item_ref IN (${chunk.map(() => '?').join(',')})`, [c.id, ...chunk]);
       for (const r of rows) prev.set(r.item_ref, r);
     }
@@ -164,15 +170,21 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
       // a studied class is replayed for stars only: its items and rating stay as they were
       if (c.status === 'studied') continue;
       const next = nextItem(prev.get(ref) ?? null, a);
-      const card = it['card'] && typeof it['card'] === 'object' ? JSON.stringify(it['card']) : null;
+      // the words not caught: every sprint's kept, and written into the card it files
+      const before = prev.get(ref) as (ItemRecord & { missed_json?: string | null }) | undefined;
+      const missed = mergeMissed(parseMissed(before?.missed_json ?? null), it['missed']);
+      const raw = it['card'] && typeof it['card'] === 'object' ? it['card'] as Record<string, unknown> : null;
+      const card = raw ? JSON.stringify(cardWithMissed(raw, missed)) : null;
       stmts.push(db.prepare(
-        `INSERT INTO core_drill_class_item (class_id, item_ref, node_key, first_right, misses, streak, state, card_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO core_drill_class_item (class_id, item_ref, node_key, first_right, misses, streak, state, card_json, missed_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (class_id, item_ref) DO UPDATE SET
            misses = excluded.misses, streak = excluded.streak, state = excluded.state,
            card_json = COALESCE(excluded.card_json, card_json),
+           missed_json = COALESCE(excluded.missed_json, missed_json),
            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')`)
-        .bind(c.id, ref, node, next.first_right, next.misses, next.streak, next.state, card));
+        .bind(c.id, ref, node, next.first_right, next.misses, next.streak, next.state, card,
+              missed.length ? JSON.stringify(missed) : null));
     }
 
     const stars = starsFor(firsts, items.length, bandsOf(body?.['bands']));

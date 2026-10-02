@@ -3587,3 +3587,42 @@ CREATE TABLE qr_surah_layer (
   built_at      TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (surah, layer)
 );
+
+CREATE TABLE qr_tafsir_page_cut (
+  page_id   TEXT NOT NULL REFERENCES qr_tafsir_read_page(id),
+  audio_id  TEXT NOT NULL REFERENCES qr_tafsir_audio(id),
+  ayah      INTEGER NOT NULL,               -- the āyah whose lines begin here
+  seq       INTEGER NOT NULL,               -- the first line (qr_tafsir_audio_segment.seq) on it
+  note      TEXT,
+  PRIMARY KEY (page_id, audio_id, ayah)
+);
+CREATE TABLE qr_tafsir_segment_en (
+  segment_id  TEXT PRIMARY KEY REFERENCES qr_tafsir_audio_segment(id),
+  audio_id    TEXT NOT NULL,
+  seq         INTEGER NOT NULL,
+  text_en     TEXT NOT NULL,
+  terms_json  TEXT NOT NULL DEFAULT '[]',
+  status      TEXT NOT NULL DEFAULT 'draft',      -- draft | live
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE qr_tafsir_question (
+  id            TEXT PRIMARY KEY,                 -- QR:TQ:<surah>:<from>-<to>:<nn>
+  passage_id    TEXT NOT NULL REFERENCES qr_surah_study_passage(id),
+  surah         INTEGER NOT NULL,
+  ayah_from     INTEGER NOT NULL,
+  ayah_to       INTEGER NOT NULL,
+  question_en   TEXT NOT NULL,                    -- about the āyah's meaning, never the book
+  interaction   TEXT NOT NULL DEFAULT 'choose',   -- choose | choose_all
+  options_json  TEXT NOT NULL,                    -- the options, in no order (the drill shuffles)
+  correct_json  TEXT NOT NULL,                    -- indices into options
+  explain_en    TEXT,                             -- what rises after the answer
+  support_json  TEXT NOT NULL,                    -- [{audio, page, from, to}] the lines that answer it
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'draft',    -- draft | live
+  note_md       TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_qr_tafsir_segment_en_audio ON qr_tafsir_segment_en(audio_id, seq);
+CREATE INDEX idx_qr_tafsir_question_passage ON qr_tafsir_question(passage_id, status, sort_order);

@@ -38,6 +38,7 @@ async function setup() {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
   db.exec(readFileSync(new URL('../migrations/039_drill_class.sql', import.meta.url), 'utf8'));
+  db.exec(readFileSync(new URL('../migrations/040_drill_class_missed.sql', import.meta.url), 'utf8'));
   const routes = new Map<string, Handler>();
   drillClassRoutes({
     get: (p: string, h: Handler) => routes.set(`GET ${p}`, h),
@@ -122,6 +123,34 @@ test('a class from first sprint to studied', async () => {
   r = await call('GET', '/core/drill/classes?module=QR&prefix=QR:SP:40:');
   assert.equal(r.body.data.classes.length, 1);
   assert.equal(r.body.data.classes[0].rating, 1);
+});
+
+test('words not caught are kept with the line, every sprint, and filed on its card', async () => {
+  const { db, call } = await setup();
+  const ref = 'tafsir_line:QRTA:razi:40-01:55';
+  // heard in the listen gate (work 0 of 4): two words tapped, the line comes back to perfect
+  let r = await call('POST', '/core/drill/class/progress', {
+    scope, module: 'QR', node: 'listen', sprint: 0, of: 4, seconds: 900, day: '2026-10-01', bands,
+    items: [{ ref, first: false, misses: 0, streak: 0, marked: true, missed: [3, 1], card: card(ref) }],
+  });
+  assert.deepEqual(r.body.data.class.open.map((o: { item_ref: string; missed: number[] }) => [o.item_ref, o.missed]), [[ref, [1, 3]]]);
+  // in practice another word is missed: both sprints' words are kept
+  r = await call('POST', '/core/drill/class/progress', {
+    scope, module: 'QR', node: 'practice', sprint: 0, of: 1, seconds: 20, day: '2026-10-01', bands,
+    items: [{ ref, first: false, misses: 0, streak: 0, marked: true, missed: [5, 3], card: card(ref) }],
+  });
+  assert.deepEqual(r.body.data.class.open[0].missed, [1, 3, 5]);
+  const row = db.prepare('SELECT card_json, missed_json FROM core_drill_class_item WHERE item_ref = ?').get(ref) as { card_json: string; missed_json: string };
+  assert.deepEqual(JSON.parse(row.missed_json), [1, 3, 5]);
+  assert.deepEqual(JSON.parse(row.card_json).extra.drill.missed, [1, 3, 5]);
+  // a clean replay keeps them: the card still shows which words were hard
+  r = await call('POST', '/core/drill/class/progress', {
+    scope, module: 'QR', node: 'practice', sprint: 0, of: 1, seconds: 20, day: '2026-10-02', bands,
+    items: [{ ref, first: true, misses: 0, streak: 2, card: card(ref) }],
+  });
+  assert.equal(r.body.data.class.open.length, 0);
+  const after = db.prepare('SELECT card_json FROM core_drill_class_item WHERE item_ref = ?').get(ref) as { card_json: string };
+  assert.deepEqual(JSON.parse(after.card_json).extra.drill.missed, [1, 3, 5]);
 });
 
 test('bad input is refused', async () => {

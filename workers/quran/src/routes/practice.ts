@@ -16,6 +16,7 @@ import { surahLexDrills, surahLexCounts } from './practice-surah-lex';
 import { groupDrills, groupsCount } from './practice-groups';
 import { ssDrills, ssCount } from './practice-ss';
 import { structureDrills, structureCount } from './practice-structure';
+import { questionDrills, tafsirDrillsQ, questionsCount } from './practice-tafsirq';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
 // The Qurʾān drilled as the Arabic side is (DrillKit shapes): each āyah a line heard in
@@ -55,7 +56,8 @@ export function practiceRoutes(router: Router<QuranEnv>) {
                                                          gramTermCounts(env, L.skill ?? []).catch(() => ({} as Record<string, number>)),
                                                          vocabCount(env).catch(() => 0), ssCount(env).catch(() => 0)]);
     const structure = await structureCount(env).catch(() => 0);
-    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, tafsir, irabbooks, vocab, pairs: Math.floor(vocab / 5), ss, structure, ...(counts ?? {}), ...gram, ...(await surahLexCounts(env).catch(() => ({}))), groups: await groupsCount(env, L).catch(() => 0) };
+    const asked = await questionsCount(env).catch(() => ({ questions: 0, tafsirq: 0 }));
+    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, tafsir, irabbooks, vocab, pairs: Math.floor(vocab / 5), ss, structure, ...asked, ...(counts ?? {}), ...gram, ...(await surahLexCounts(env).catch(() => ({}))), groups: await groupsCount(env, L).catch(() => 0) };
     return ok({
       skills: (L.skill ?? []).map((s) => {
         const src = String(s.extra?.source ?? s.key);
@@ -128,6 +130,8 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
     : src === 'groups' ? await groupDrills(env, n, scope, lv, L, u)
     : src === 'ss' ? await ssDrills(env, n, scope, lv, L)
     : src === 'structure' ? await structureDrills(env, n, scope, lv, L)
+    : src === 'questions' ? await questionDrills(env, n, scope)
+    : src === 'tafsirq' ? await tafsirDrillsQ(env, meta.extra?.interaction === 'listen_mark' ? 'listen' : 'meaning', n, scope)
     : [];
   const kinds = byKey(L.kind);
   const shaped = items.map((it) => {

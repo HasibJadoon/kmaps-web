@@ -108,3 +108,18 @@ export function nextNode(prev: NodeProgress | undefined, sprint: number, of: num
 export function seededRating(state: ItemState): 2 | 3 {
   return state === 'right' ? 3 : 2;
 }
+
+/** Words missed on an item, every sprint's together: indices, ascending, each once. */
+export function mergeMissed(prev: unknown, now: unknown): number[] {
+  const ok = (x: unknown) => (Array.isArray(x) ? x : []).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < 10_000);
+  return [...new Set([...ok(prev), ...ok(now)])].sort((a, b) => a - b);
+}
+
+/** The card an item files, carrying the words missed on it (extra.drill.missed); as it was when none. */
+export function cardWithMissed(card: Record<string, unknown> | null, missed: number[]): Record<string, unknown> | null {
+  if (!card || !missed.length) return card;
+  const extra = (card['extra'] && typeof card['extra'] === 'object' ? card['extra'] : {}) as Record<string, unknown>;
+  const drill = (extra['drill'] && typeof extra['drill'] === 'object' ? extra['drill'] : null) as Record<string, unknown> | null;
+  if (!drill) return card;
+  return { ...card, extra: { ...extra, drill: { ...drill, missed } } };
+}
