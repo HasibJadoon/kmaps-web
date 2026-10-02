@@ -9,7 +9,8 @@
 --                            scripts/project-gram-terms.mjs). AL 0121 adds every spelling the
 --                            scope tables use, so qr_ss_scope_morph_link resolves by lookup.
 --   ss_slot      which registry categories a slot is resolved in, first to last
---                (extra_json.categories): function, position, sign
+--                (extra_json.categories): function, position, sign — and prose, the
+--                categories whose Latin spellings in English text are shown in Arabic
 --   ss_lens      the sentence tab's lenses, in order
 --   ss_layer     the strips under a tree node
 --   ss_keynote   the kinds of key note (label_ar = the band; detail = the line under it)
@@ -41,6 +42,8 @@ INSERT OR REPLACE INTO qr_study_label (scope, key, label, label_ar, detail, icon
  '{"categories":["mahall","case","mood","irab_sign"]}', 2),
 ('ss_slot', 'sign', 'Sign', 'العلامة', NULL, NULL, NULL, NULL,
  '{"categories":["irab_sign"]}', 3),
+('ss_slot', 'prose', 'Terms in English prose', 'المصطلح في النص الإنجليزي', NULL, NULL, NULL, NULL,
+ '{"categories":["irab_role","derivation_type","balagha_maani","balagha_bayan"]}', 4),
 
 ('ss_lens', 'keynotes', 'Key notes', 'النقاط', NULL, NULL, NULL, NULL, NULL, 1),
 ('ss_lens', 'document', 'Text', 'النص', NULL, NULL, NULL, NULL, NULL, 2),

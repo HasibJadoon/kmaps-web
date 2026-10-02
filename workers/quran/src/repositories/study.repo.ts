@@ -1,6 +1,6 @@
 import { query, queryOne } from '../../../shared/src/db';
 import { nonBlank } from '../../../shared/src/validate';
-import { makeGtResolver, type GtAliasRow, type GtSlots } from '../../../shared/src/gt-resolve';
+import { makeGtResolver, latinGlossary, type GtAliasRow, type GtSlots } from '../../../shared/src/gt-resolve';
 import type { AlClient } from '../clients/al.client';
 import { parseQacMorphology, posGroup as qacPosGroup, QacMorphology } from '../lib/qac-morph';
 import { labels, byKey } from '../lib/labels';
@@ -2089,6 +2089,10 @@ export class StudyRepo {
       trimmed.push('tafsir_openings_and_irab_text_dropped');
     }
     if (trimmed.length) (body as JsonRecord)['trimmed'] = trimmed;
+
+    // A term the English prose writes in Latin (khabar, maṣdar …) is shown by its Arabic name:
+    // the registry's Latin spellings found in the step, in the categories the prose slot names.
+    (body as JsonRecord)['glossary'] = latinGlossary(aliasRows, slots['prose'] ?? [], JSON.stringify(body));
 
     // Only the terms (and colours) this passage names, with the terms above
     // them: the registry is ~500 terms and ~700 colours, a passage uses a

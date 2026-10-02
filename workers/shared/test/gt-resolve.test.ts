@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeGtResolver, aliasKey, type GtAliasRow } from '../src/gt-resolve';
+import { makeGtResolver, aliasKey, latinGlossary, type GtAliasRow } from '../src/gt-resolve';
 
 // a slice of the registry's spellings, as AL 0111 / 0121 store them
 const aliases: GtAliasRow[] = [
@@ -53,5 +53,27 @@ describe('a value resolves only through a spelling the registry holds', () => {
     assert.equal(resolve('nowhere', 'مبتدا'), null);                // a slot with no categories
     assert.equal(resolve('function', ''), null);
     assert.equal(resolve('function', null), null);
+  });
+});
+
+describe('Latin spellings in English prose', () => {
+  const rows: GtAliasRow[] = [
+    { alias_bare: 'khabar', term_id: 'GT:irab_role:khabar', category_key: 'irab_role' },
+    { alias_bare: 'mafʿūl bihi', term_id: 'GT:irab_role:maful_bih', category_key: 'irab_role' },
+    { alias_bare: 'maṣdar', term_id: 'GT:derivation_type:masdar', category_key: 'derivation_type' },
+    { alias_bare: 'kasra', term_id: 'GT:irab_sign:kasra', category_key: 'irab_sign' },
+    { alias_bare: 'خبر', term_id: 'GT:irab_role:khabar', category_key: 'irab_role' },
+  ];
+  test('whole words in the given categories, longest first', () => {
+    const g = latinGlossary(rows, ['irab_role', 'derivation_type'],
+      'It is the Khabar of Ḥā Mīm; a maṣdar meaning the thing sent down, as mafʿūl bihi. The kasra …');
+    assert.deepEqual(g, [
+      { en: 'mafʿūl bihi', ref: 'GT:irab_role:maful_bih' },
+      { en: 'khabar', ref: 'GT:irab_role:khabar' },
+      { en: 'maṣdar', ref: 'GT:derivation_type:masdar' },
+    ]);
+  });
+  test('not inside another word', () => {
+    assert.deepEqual(latinGlossary(rows, ['irab_role'], 'khabarayn'), []);
   });
 });

@@ -7,6 +7,9 @@
 -- and the term's name_ar and badge_color are what a reader sees. Every spelling in the
 -- table on 2026-10-02 is here; a new spelling is a new row, never a rule in code.
 --
+-- The transliterations English prose uses for a term (khabar, maṣdar, iltifāt …) are variants
+-- of it too, so the reader is shown the Arabic name where the prose wrote the Latin.
+--
 -- The case signs had no category: irab_sign is added with its terms (الضمّة … مبنيّ على الفتح).
 -- alias_bare follows 0111: Arabic without its ḥarakāt (U+064B–U+0652, U+0670), anything
 -- else lower-cased; the worker computes a lookup key the same way.
@@ -163,4 +166,41 @@ INSERT OR IGNORE INTO ar_ling_gram_term_alias (alias_bare, term_id, category_key
 ('ya', 'GT:irab_sign:ya', 'irab_sign', 'ya', 'en', 'variant', 'ss_sign'),
 ('الضمة', 'GT:irab_sign:damma', 'irab_sign', 'الضمة', 'ar', 'variant', 'ss_sign'),
 ('الكسرة', 'GT:irab_sign:kasra', 'irab_sign', 'الكسرة', 'ar', 'variant', 'ss_sign'),
-('الفتحة', 'GT:irab_sign:fatha', 'irab_sign', 'الفتحة', 'ar', 'variant', 'ss_sign');
+('الفتحة', 'GT:irab_sign:fatha', 'irab_sign', 'الفتحة', 'ar', 'variant', 'ss_sign'),
+('khabar', 'GT:irab_role:khabar', 'irab_role', 'khabar', 'en', 'variant', 'transliteration'),
+('mubtadaʾ', 'GT:irab_role:mubtada', 'irab_role', 'mubtadaʾ', 'en', 'variant', 'transliteration'),
+('mubtada''', 'GT:irab_role:mubtada', 'irab_role', 'mubtada''', 'en', 'variant', 'transliteration'),
+('fāʿil', 'GT:irab_role:fail', 'irab_role', 'fāʿil', 'en', 'variant', 'transliteration'),
+('fa''il', 'GT:irab_role:fail', 'irab_role', 'fa''il', 'en', 'variant', 'transliteration'),
+('mafʿūl bihi', 'GT:irab_role:maful_bih', 'irab_role', 'mafʿūl bihi', 'en', 'variant', 'transliteration'),
+('maf''ul bihi', 'GT:irab_role:maful_bih', 'irab_role', 'maf''ul bihi', 'en', 'variant', 'transliteration'),
+('naʿt', 'GT:irab_role:naat', 'irab_role', 'naʿt', 'en', 'variant', 'transliteration'),
+('na''t', 'GT:irab_role:naat', 'irab_role', 'na''t', 'en', 'variant', 'transliteration'),
+('badal', 'GT:irab_role:badal', 'irab_role', 'badal', 'en', 'variant', 'transliteration'),
+('ḥāl', 'GT:irab_role:hal', 'irab_role', 'ḥāl', 'en', 'variant', 'transliteration'),
+('tamyīz', 'GT:irab_role:tamyiz', 'irab_role', 'tamyīz', 'en', 'variant', 'transliteration'),
+('tamyiz', 'GT:irab_role:tamyiz', 'irab_role', 'tamyiz', 'en', 'variant', 'transliteration'),
+('muḍāf ilayhi', 'GT:irab_role:mudaf_ilayh', 'irab_role', 'muḍāf ilayhi', 'en', 'variant', 'transliteration'),
+('mudaf ilayhi', 'GT:irab_role:mudaf_ilayh', 'irab_role', 'mudaf ilayhi', 'en', 'variant', 'transliteration'),
+('muḍāf', 'GT:irab_role:mudaf', 'irab_role', 'muḍāf', 'en', 'variant', 'transliteration'),
+('mudaf', 'GT:irab_role:mudaf', 'irab_role', 'mudaf', 'en', 'variant', 'transliteration'),
+('tawkīd', 'GT:irab_role:tawkid', 'irab_role', 'tawkīd', 'en', 'variant', 'transliteration'),
+('tawkid', 'GT:irab_role:tawkid', 'irab_role', 'tawkid', 'en', 'variant', 'transliteration'),
+('maṣdar', 'GT:derivation_type:masdar', 'derivation_type', 'maṣdar', 'en', 'variant', 'transliteration'),
+('masdar', 'GT:derivation_type:masdar', 'derivation_type', 'masdar', 'en', 'variant', 'transliteration'),
+('istiʿāra', 'GT:balagha_bayan:istiara', 'balagha_bayan', 'istiʿāra', 'en', 'variant', 'transliteration'),
+('isti''ara', 'GT:balagha_bayan:istiara', 'balagha_bayan', 'isti''ara', 'en', 'variant', 'transliteration'),
+('istiara', 'GT:balagha_bayan:istiara', 'balagha_bayan', 'istiara', 'en', 'variant', 'transliteration'),
+('kināya', 'GT:balagha_bayan:kinaya', 'balagha_bayan', 'kināya', 'en', 'variant', 'transliteration'),
+('kinaya', 'GT:balagha_bayan:kinaya', 'balagha_bayan', 'kinaya', 'en', 'variant', 'transliteration'),
+('majāz', 'GT:balagha_bayan:majaz', 'balagha_bayan', 'majāz', 'en', 'variant', 'transliteration'),
+('majaz', 'GT:balagha_bayan:majaz', 'balagha_bayan', 'majaz', 'en', 'variant', 'transliteration'),
+('tashbīh', 'GT:balagha_bayan:tashbih', 'balagha_bayan', 'tashbīh', 'en', 'variant', 'transliteration'),
+('tashbih', 'GT:balagha_bayan:tashbih', 'balagha_bayan', 'tashbih', 'en', 'variant', 'transliteration'),
+('iltifāt', 'GT:balagha_maani:iltifat', 'balagha_maani', 'iltifāt', 'en', 'variant', 'transliteration'),
+('iltifat', 'GT:balagha_maani:iltifat', 'balagha_maani', 'iltifat', 'en', 'variant', 'transliteration'),
+('qaṣr', 'GT:balagha_maani:qasr', 'balagha_maani', 'qaṣr', 'en', 'variant', 'transliteration'),
+('qasr', 'GT:balagha_maani:qasr', 'balagha_maani', 'qasr', 'en', 'variant', 'transliteration'),
+('ḥadhf', 'GT:balagha_maani:hadhf', 'balagha_maani', 'ḥadhf', 'en', 'variant', 'transliteration'),
+('hadhf', 'GT:balagha_maani:hadhf', 'balagha_maani', 'hadhf', 'en', 'variant', 'transliteration'),
+('faṣl', 'GT:balagha_maani:fasl', 'balagha_maani', 'faṣl', 'en', 'variant', 'transliteration');
