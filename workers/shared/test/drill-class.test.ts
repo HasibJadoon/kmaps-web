@@ -73,6 +73,7 @@ describe('nextNode', () => {
     assert.equal(c.stars, 3);
     assert.equal(c.items, 36);
     assert.equal(c.of, 3);
+    assert.equal(c.best, 100);
   });
 });
 

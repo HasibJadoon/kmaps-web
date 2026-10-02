@@ -35,6 +35,7 @@ import { atlasIntroRoutes } from './routes/atlas-intro';
 import { atlasLayerRoutes } from './routes/atlas-layers';
 import { atlasGroupRoutes } from './routes/atlas-groups';
 import { practiceRoutes } from './routes/practice';
+import { practiceClassRoutes } from './routes/practice-class';
 import { practiceGrammarRoutes } from './routes/practice-grammar';
 import { translationChoiceRoutes } from './routes/translation-choices';
 
@@ -69,6 +70,7 @@ atlasIntroRoutes(router);
 atlasLayerRoutes(router);
 atlasGroupRoutes(router);
 practiceRoutes(router);
+practiceClassRoutes(router);
 practiceGrammarRoutes(router);
 translationChoiceRoutes(router);
 pageRoutes(router);
@@ -181,7 +183,11 @@ router.post('/qr/internal/root-spread', async (req, env) => {
 const BOOKS = { fresh: 30 * 86400, stale: 90 * 86400, family: 'books' };
 const AUTHORED = { fresh: 60, stale: 3600, family: ['books', 'rest'] };
 const MIXED = { fresh: 86400, stale: 30 * 86400, family: ['books', 'rest'] };
+// the class: what a passage's lesson is, the same for every reader. Its pools are drawn whole
+// and kept a day, so a device that opens a node a second time is dealt the same drills.
+const CLASS = { fresh: 86400, stale: 7 * 86400, family: ['books', 'rest'] };
 const KEPT: SwrRoute[] = [
+  { re: /^\/qr\/practice\/class\//, ...CLASS },
   { re: /^\/qr\/atlas\//, ...AUTHORED },
   { re: /^\/qr\/translation\//, ...AUTHORED },
   { re: /^\/qr\/study\/morph\//, ...MIXED },

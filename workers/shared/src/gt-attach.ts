@@ -32,8 +32,11 @@ export async function attachGt<T extends Record<string, unknown>>(
       .catch(() => [] as { id: string; name_ar: string | null; badge_color: string | null }[]);
     for (const r of rows) if (r.name_ar) byRef.set(r.id, { ref: r.id, nameAr: r.name_ar, color: r.badge_color });
   }
-  return items.map((it, i) => ({
-    ...it,
-    gt: perItem[i].map((ref) => byRef.get(ref)).filter((c): c is GtChip => !!c),
-  }));
+  return items.map((it, i) => {
+    const gt = perItem[i].map((ref) => byRef.get(ref)).filter((c): c is GtChip => !!c);
+    // the card a drill files keeps a copy of the drill to replay: it carries the terms too
+    const srs = it.srs as { extra?: { drill?: Record<string, unknown> } } | undefined;
+    const filed = srs?.extra?.drill ? { srs: { ...srs, extra: { ...srs.extra, drill: { ...srs.extra.drill, gt } } } } : {};
+    return { ...it, ...filed, gt };
+  });
 }

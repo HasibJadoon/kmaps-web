@@ -81,6 +81,8 @@ export interface NodeProgress {
   of: number;
   /** best stars of any sprint */
   stars: number;
+  /** best first-try percentage of any sprint (the check's pass mark is read against it) */
+  best: number;
   items: number;
   right: number;
   seconds: number;
@@ -95,6 +97,7 @@ export function nextNode(prev: NodeProgress | undefined, sprint: number, of: num
     sprints: [...done].sort((a, b) => a - b),
     of: Math.max(of, prev?.of ?? 0),
     stars: Math.max(stars, prev?.stars ?? 0),
+    best: Math.max(items > 0 ? Math.round((right * 100) / items) : 0, prev?.best ?? 0),
     items: (prev?.items ?? 0) + items,
     right: (prev?.right ?? 0) + right,
     seconds: (prev?.seconds ?? 0) + seconds,

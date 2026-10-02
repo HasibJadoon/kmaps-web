@@ -29,9 +29,9 @@ import { ssDrills, ssCount } from './practice-ss';
 
 const RECITER = 7;
 const BOOKS: Record<string, string> = { qul_irab_quran_daas: 'al-Daʿʿās, Iʿrāb al-Qurʾān' };
-type Band = 'basic' | 'middle' | 'advanced' | 'all';
+export type Band = 'basic' | 'middle' | 'advanced' | 'all';
 type Levels = Record<string, Record<string, unknown>>;
-type Scope = { surah: number | null; from: number | null; to: number | null };
+export type Scope = { surah: number | null; from: number | null; to: number | null };
 
 const shuffle = <T>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const cap = (s: string | null | undefined) => (s ?? '').replace(/^\w/, (c) => c.toUpperCase());
@@ -82,38 +82,11 @@ export function practiceRoutes(router: Router<QuranEnv>) {
     const L = await labels(env);
     const meta = byKey(L.skill).get(skill);
     if (!meta) return badRequest(`unknown skill ${skill}`);
-    const levels = (meta.extra?.levels ?? {}) as Levels;
-    const lv = band === 'all' ? {} : (levels[band] ?? {});
-    const src = String(meta.extra?.source ?? skill);
-    const items =
-      src === 'irab' ? await irabDrills(env, n, scope, lv, band, levels)
-      : src === 'lines' ? await lineDrills(env, skill, n, scope, lv, !!meta.extra?.timed)
-      : src === 'gram' ? await gramDrills(env, skill, String(meta.extra?.discipline ?? 'NH'), n, scope, lv)
-      : src === 'idiom' ? await idiomDrills(env, n, scope, lv, L)
-      : src === 'arc' ? await arcDrills(env, n, lv, L)
-      : src === 'translation' ? await translationDrills(env, n, scope, band, levels)
-      : src === 'tafsir' ? await tafsirDrills(env, n, scope, lv, L)
-      : src === 'irabbooks' ? await irabBookDrills(env, n, scope, lv, L)
-      : src === 'gramterm' ? await gramTermDrills(env, skill, meta, n, scope, lv, band, L)
-      : src === 'lexicon' ? await lexiconDrills(env, n, scope, lv, L)
-      : src === 'vocab' ? await vocabDrills(env, n, scope, lv, L)
-      : src === 'pairs' ? await pairsDrills(env, Math.max(1, Math.round(n / 3)), scope)
-      : src === 'arc2' ? await arc2Drills(env, n, scope, lv, L)
-      : ['nearsyn', 'keyterm', 'expression'].includes(src) ? await surahLexDrills(env, src, n, scope, lv, L)
-      : src === 'groups' ? await groupDrills(env, n, scope, lv, L, u)
-      : src === 'ss' ? await ssDrills(env, n, scope, lv, L)
-      : [];
-    const kinds = byKey(L.kind);
+    const items = await drawSkill(env, L, skill, band, n, scope, u);
     const deck = byKey(L.path).get('srs_deck');
-    const shaped = items.map((it) => {
-      const k = kinds.get(String(it.ask ?? skill)) ?? kinds.get(skill);
-      const { ask: _a, ...rest } = it;
-      return { ...rest, instruction: k?.label ?? null, instructionAr: k?.labelAr ?? null };
-    });
     const res = ok({
       skill: card(meta), level: band,
-      // every drill carries the registry terms its own rows name
-      items: await attachGt(env.DB_QR, shaped as Array<Record<string, unknown>>),
+      items,
       srsDeck: deck ? { title: deck.label, description: deck.detail } : null,
       // the drill stage's own words (Check, Listen, Slower …), as label rows
       stage: L.stage ?? [],
@@ -121,6 +94,46 @@ export function practiceRoutes(router: Router<QuranEnv>) {
     res.headers.set('Cache-Control', 'no-store');
     return res;
   });
+}
+
+/**
+ * n drills of one skill over a scope, as the device takes them: each with the instruction its
+ * kind's label row gives, and the registry terms its own rows name. The session draws a round
+ * with it; the class (practice-class.ts) draws a step's whole pool. Unknown skill: none.
+ */
+export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill: string, band: Band, n: number,
+                                scope: Scope, u: URL | null = null): Promise<Array<Record<string, unknown>>> {
+  const meta = byKey(L.skill).get(skill);
+  if (!meta) return [];
+  const levels = (meta.extra?.levels ?? {}) as Levels;
+  const lv = band === 'all' ? {} : (levels[band] ?? {});
+  const src = String(meta.extra?.source ?? skill);
+  const items =
+    src === 'irab' ? await irabDrills(env, n, scope, lv, band, levels)
+    : src === 'lines' ? await lineDrills(env, skill, n, scope, lv, !!meta.extra?.timed, meta.extra?.interaction as string | undefined)
+    : src === 'gram' ? await gramDrills(env, skill, String(meta.extra?.discipline ?? 'NH'), n, scope, lv)
+    : src === 'idiom' ? await idiomDrills(env, n, scope, lv, L)
+    : src === 'arc' ? await arcDrills(env, n, lv, L)
+    : src === 'translation' ? await translationDrills(env, n, scope, band, levels)
+    : src === 'tafsir' ? await tafsirDrills(env, n, scope, lv, L)
+    : src === 'irabbooks' ? await irabBookDrills(env, n, scope, lv, L)
+    : src === 'gramterm' ? await gramTermDrills(env, skill, meta, n, scope, lv, band, L)
+    : src === 'lexicon' ? await lexiconDrills(env, n, scope, lv, L)
+    : src === 'vocab' ? await vocabDrills(env, n, scope, lv, L)
+    : src === 'pairs' ? await pairsDrills(env, Math.max(1, Math.round(n / 3)), scope)
+    : src === 'arc2' ? await arc2Drills(env, n, scope, lv, L)
+    : ['nearsyn', 'keyterm', 'expression'].includes(src) ? await surahLexDrills(env, src, n, scope, lv, L)
+    : src === 'groups' ? await groupDrills(env, n, scope, lv, L, u)
+    : src === 'ss' ? await ssDrills(env, n, scope, lv, L)
+    : [];
+  const kinds = byKey(L.kind);
+  const shaped = items.map((it) => {
+    const k = kinds.get(String(it.ask ?? skill)) ?? kinds.get(skill);
+    const { ask: _a, ...rest } = it;
+    return { ...rest, instruction: k?.label ?? null, instructionAr: k?.labelAr ?? null };
+  });
+  // every drill carries the registry terms its own rows name
+  return attachGt(env.DB_QR, shaped as Array<Record<string, unknown>>);
 }
 
 // ── shared ──────────────────────────────────────────────────────────────────
@@ -205,7 +218,8 @@ async function pickAyat(env: QuranEnv, scope: Scope, minWords: number, maxWords:
 
 // ── listen & fill · build the āyah · catch the word · shadow ──────────────────
 
-async function lineDrills(env: QuranEnv, skill: string, n: number, scope: Scope, lv: Record<string, unknown>, timed: boolean) {
+async function lineDrills(env: QuranEnv, skill: string, n: number, scope: Scope, lv: Record<string, unknown>, timed: boolean,
+                          interaction?: string) {
   const minW = Number(lv.minWords ?? 3), maxW = Number(lv.maxWords ?? 60);
   const pairs = await pickAyat(env, scope, minW, maxW, n * (timed ? 3 : 2));
   const ayat = [...(await loadAyat(env, pairs)).values()].filter((a) => a.ws.length && (!timed || a.aligned));
@@ -218,6 +232,8 @@ async function lineDrills(env: QuranEnv, skill: string, n: number, scope: Scope,
     if (out.length >= n) break;
     const base: Record<string, unknown> = { id: `${skill}:${a.key}`, kind: skill, script: 'quran', audio: a.audio, words: a.words, en: a.en,
                                             source: { workId: `QR:SURAH:${a.surah}`, title: a.title, level: null } };
+    // a skill row may name its interaction (mark: listen, then tap each word not caught)
+    if (interaction) base.interaction = interaction;
     const line = a.ws.map((w) => w.word_text).join(' ');
     const card = (front: string, back: string) => withCard(base, { ref: `QR:${skill}:${a.key}`, type: 'passage', kind: skill, front, back,
                                                                    surah: a.surah, ayah: a.ayah, series: a.title.replace(/ \d+:\d+$/, '') });
