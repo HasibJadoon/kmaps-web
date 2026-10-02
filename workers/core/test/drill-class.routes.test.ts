@@ -94,6 +94,8 @@ test('a class from first sprint to studied', async () => {
   assert.equal(listen.met, 3);
   assert.equal(listen.best, 67);
   assert.equal(r.body.data.sprint.stars, 1);   // 2 of 3 first time: 67%
+  // what is learnt goes to review at once: the two right the first time; the missed one waits
+  assert.equal(r.body.data.sprint.filed, 2);
 
   // completion refused while one is open
   r = await call('POST', '/core/drill/class/complete', { scope, bands });
@@ -107,6 +109,7 @@ test('a class from first sprint to studied', async () => {
   assert.equal(r.body.data.class.open.length, 0);
   assert.equal(r.body.data.class.activeDays, 2);
   assert.equal(r.body.data.class.firstTryRight, 2);   // first-time right is kept from day 1
+  assert.equal(r.body.data.sprint.filed, 1);          // perfected now, so filed now
 
   r = await call('POST', '/core/drill/class/complete', { scope, bands });
   assert.equal(r.status, 200);
@@ -115,7 +118,7 @@ test('a class from first sprint to studied', async () => {
   assert.equal(c.score, 67);
   assert.equal(c.rating, 1);
   assert.equal(c.daysTaken, 3);
-  assert.equal(r.body.data.filed, 3);
+  assert.equal(r.body.data.filed, 0);                 // all already filed as they were learnt
 
   // every drill is a card, graded: the perfected one Hard, the rest Good
   const reviews = db.prepare(

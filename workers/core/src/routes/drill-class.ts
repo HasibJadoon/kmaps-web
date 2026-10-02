@@ -111,6 +111,38 @@ function summary(c: ClassRow & { open: number }) {
   };
 }
 
+/**
+ * Files a class's items to the SRS as they are learnt: each item right the first time (Good) or
+ * perfected after a miss (Hard) that carries a card and is not yet filed — those of `refs`, or all
+ * of the class's when null. So every drill of a passage reaches review as soon as it is learnt,
+ * not only when the class is completed.
+ */
+async function fileItems(env: CoreEnv, userId: string, classId: string, refs: string[] | null): Promise<number> {
+  const db = env.DB_CORE;
+  const toFile = await query<{ item_ref: string; state: ItemState; card_json: string }>(db,
+    `SELECT item_ref, state, card_json FROM core_drill_class_item
+      WHERE class_id = ? AND card_json IS NOT NULL AND filed_card IS NULL AND state IN ('right', 'perfected')
+        AND (? IS NULL OR item_ref IN (SELECT value FROM json_each(?)))`,
+    [classId, refs ? 1 : null, refs ? JSON.stringify(refs) : '[]']);
+  let filed = 0;
+  for (let i = 0; i < toFile.length; i += 100) {
+    const chunk = toFile.slice(i, i + 100);
+    const entries = chunk.map((r) => {
+      let card: Record<string, unknown> = {};
+      try { card = JSON.parse(r.card_json) ?? {}; } catch { /* an unreadable card files nothing */ }
+      return { ...card, rating: seededRating(r.state) };
+    });
+    const out = await fileCards(env, userId, entries, { byModule: true });
+    const marks = out.cards.map((card, k) => card['id']
+      ? db.prepare('UPDATE core_drill_class_item SET filed_card = ? WHERE class_id = ? AND item_ref = ?')
+          .bind(String(card['id']), classId, chunk[k].item_ref)
+      : null).filter((x): x is D1PreparedStatement => !!x);
+    if (marks.length) await db.batch(marks);
+    filed += marks.length;
+  }
+  return filed;
+}
+
 export function drillClassRoutes(router: Router<CoreEnv>) {
   router.get('/core/drill/classes', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
@@ -299,9 +331,11 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
        WHERE id = ?`)
       .bind(JSON.stringify(nodes), seconds, c.id, c.id, c.id, node, sprint, c.id));
     await db.batch(stmts);
+    // what is learnt goes to review now — this sprint's, and any learnt before this rule and not yet filed
+    const filed = c.status === 'studied' ? 0 : await fileItems(env, ctx.userId, c.id, null);
 
     const fresh = (await findClass(env, ctx.userId, scope))!;
-    return ok({ class: await view(env, fresh), sprint: { items: items.length, right: firsts, stars } });
+    return ok({ class: await view(env, fresh), sprint: { items: items.length, right: firsts, stars, filed } });
   });
 
   /**
@@ -335,25 +369,7 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
     }
 
     // file what is not filed yet (a retry after a partial failure files the rest)
-    const toFile = await query<{ item_ref: string; state: ItemState; card_json: string }>(db,
-      `SELECT item_ref, state, card_json FROM core_drill_class_item
-        WHERE class_id = ? AND card_json IS NOT NULL AND filed_card IS NULL`, [c.id]);
-    let filed = 0;
-    for (let i = 0; i < toFile.length; i += 100) {
-      const chunk = toFile.slice(i, i + 100);
-      const entries = chunk.map((r) => {
-        let card: Record<string, unknown> = {};
-        try { card = JSON.parse(r.card_json) ?? {}; } catch { /* an unreadable card files nothing */ }
-        return { ...card, rating: seededRating(r.state) };
-      });
-      const out = await fileCards(env, ctx.userId, entries, { byModule: true });
-      const marks = out.cards.map((card, k) => card['id']
-        ? db.prepare('UPDATE core_drill_class_item SET filed_card = ? WHERE class_id = ? AND item_ref = ?')
-            .bind(String(card['id']), c.id, chunk[k].item_ref)
-        : null).filter((s): s is D1PreparedStatement => !!s);
-      if (marks.length) await db.batch(marks);
-      filed += marks.length;
-    }
+    const filed = await fileItems(env, ctx.userId, c.id, null);
 
     const fresh = (await findClass(env, ctx.userId, scope))!;
     return ok({ class: await view(env, fresh), filed });
