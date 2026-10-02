@@ -1,4 +1,5 @@
 import type { Router } from '../../../shared/src/router';
+import { attachGt } from '../../../shared/src/gt-attach';
 import { ok, badRequest } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
@@ -96,14 +97,18 @@ export function practiceRoutes(router: Router<QuranEnv>) {
       : [];
     const kinds = byKey(L.kind);
     const deck = byKey(L.path).get('srs_deck');
+    const shaped = items.map((it) => {
+      const k = kinds.get(String(it.ask ?? skill)) ?? kinds.get(skill);
+      const { ask: _a, ...rest } = it;
+      return { ...rest, instruction: k?.label ?? null, instructionAr: k?.labelAr ?? null };
+    });
     const res = ok({
       skill: card(meta), level: band,
-      items: items.map((it) => {
-        const k = kinds.get(String(it.ask ?? skill)) ?? kinds.get(skill);
-        const { ask: _a, ...rest } = it;
-        return { ...rest, instruction: k?.label ?? null, instructionAr: k?.labelAr ?? null };
-      }),
+      // every drill carries the registry terms its own rows name
+      items: await attachGt(env.DB_QR, shaped as Array<Record<string, unknown>>),
       srsDeck: deck ? { title: deck.label, description: deck.detail } : null,
+      // the drill stage's own words (Check, Listen, Slower …), as label rows
+      stage: L.stage ?? [],
     });
     res.headers.set('Cache-Control', 'no-store');
     return res;

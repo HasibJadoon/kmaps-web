@@ -1,4 +1,5 @@
 import type { Router } from '../../../shared/src/router';
+import { attachGt } from '../../../shared/src/gt-attach';
 import { ok, notFound, badRequest, unauthorized } from '../../../shared/src/response';
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { actorRef } from '../../../shared/src/auth';
@@ -164,7 +165,9 @@ export function pathRoutes(router: Router<ArabicEnv>) {
     if (!good.length) return badRequest('no scenes to check');
     const card = byKey(L.path).get('check');
     const items = good.flatMap((r) => r.items).sort(() => Math.random() - 0.5).slice(0, size);
-    const res = ok({ skill: card ? skillCard(card) : good[0].skill, level: good[0].level, items, srsDeck: good[0].srsDeck });
+    const res = ok({ skill: card ? skillCard(card) : good[0].skill, level: good[0].level,
+                     items: await attachGt(env.DB_AR, items as unknown as Array<Record<string, unknown>>),
+                     srsDeck: good[0].srsDeck, stage: L.stage ?? [] });
     res.headers.set('Cache-Control', 'no-store');
     return res;
   });
@@ -181,7 +184,9 @@ export function pathRoutes(router: Router<ArabicEnv>) {
     if (!good.length) return badRequest('nothing to place with at this level yet');
     const card = byKey(L.path).get('placement');
     const res = ok({ skill: card ? skillCard(card) : good[0].skill, level: b, srsDeck: good[0].srsDeck,
-                     items: good.flatMap((r) => r.items).sort(() => Math.random() - 0.5).slice(0, size) });
+                     items: await attachGt(env.DB_AR, good.flatMap((r) => r.items).sort(() => Math.random() - 0.5)
+                       .slice(0, size) as unknown as Array<Record<string, unknown>>),
+                     stage: L.stage ?? [] });
     res.headers.set('Cache-Control', 'no-store');
     return res;
   });

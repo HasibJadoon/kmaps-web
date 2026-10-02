@@ -1,4 +1,5 @@
 import type { Router } from '../../../shared/src/router';
+import { attachGt } from '../../../shared/src/gt-attach';
 import { ok, notFound, badRequest, unauthorized } from '../../../shared/src/response';
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { actorRef } from '../../../shared/src/auth';
@@ -215,8 +216,10 @@ export function grammarPathRoutes(router: Router<ArabicEnv>) {
       const P = byKey(all.grammar_path);
       const card = P.get(step);
       const deck = P.get('srs_deck');
-      const res = ok({ skill: card ? skillCard(card) : null, unit: id, track: track.label.key, level, terms, items,
-                       srsDeck: deck ? { title: deck.label, description: deck.detail } : null });
+      const res = ok({ skill: card ? skillCard(card) : null, unit: id, track: track.label.key, level, terms,
+                       items: await attachGt(env.DB_AR, items as unknown as Array<Record<string, unknown>>),
+                       srsDeck: deck ? { title: deck.label, description: deck.detail } : null,
+                       stage: all.stage ?? [] });
       res.headers.set('Cache-Control', 'no-store');
       return res;
     });

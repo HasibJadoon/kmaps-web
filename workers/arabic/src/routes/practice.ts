@@ -1,4 +1,5 @@
 import type { Router } from '../../../shared/src/router';
+import { attachGt } from '../../../shared/src/gt-attach';
 import { ok, badRequest } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
@@ -548,8 +549,13 @@ export function practiceRoutes(router: Router<ArabicEnv>) {
       const w = (it.source as { workId?: string } | undefined)?.workId;
       return { ...it, srs: it.srs ?? srsCardFor(it, { skill, band, series: w ? series.get(w) ?? null : null }) };
     });
-    const res = ok({ skill: meta, level: band, items: instruct(withCards as unknown as Array<{ kind: string }>, all),
-                     srsDeck: deck ? { title: deck.label, description: deck.detail } : null });
+    const instructed = instruct(withCards as unknown as Array<{ kind: string }>, all) as unknown as Array<Record<string, unknown>>;
+    const res = ok({ skill: meta, level: band,
+                     // every drill carries the registry terms its own rows name
+                     items: await attachGt(env.DB_AR, instructed),
+                     srsDeck: deck ? { title: deck.label, description: deck.detail } : null,
+                     // the drill stage's own words (Check, Listen, Slower …), as label rows
+                     stage: all.stage ?? [] });
     res.headers.set('Cache-Control', 'no-store');
     return res;
   });

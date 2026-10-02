@@ -1,4 +1,5 @@
 import type { Router } from '../../../shared/src/router';
+import { attachGt } from '../../../shared/src/gt-attach';
 import { ok, notFound, badRequest } from '../../../shared/src/response';
 import { query, queryOne } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
@@ -411,7 +412,9 @@ export function sceneRoutes(router: Router<ArabicEnv>) {
   router.get('/ar/scenes/:unit/:no/practice', async (req, env, { unit, no }) => {
     const round = await sceneRound(env, unit, no, new URL(req.url).searchParams.get('tier'));
     if (round instanceof Response) return round;
-    const res = ok(round);
+    // every drill carries the registry terms its rows name; the stage's words travel with it
+    const res = ok({ ...round, items: await attachGt(env.DB_AR, round.items as unknown as Array<Record<string, unknown>>),
+                     stage: (await labels(env)).stage ?? [] });
     res.headers.set('Cache-Control', 'no-store');
     return res;
   });
