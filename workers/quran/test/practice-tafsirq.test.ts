@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { dealt, pageSpan, groupRange, parseLineRef, lineRef, timedWords, questionDrills, listenWorks, lineDrills, tafsirDrillsQ,
-         sentenceSpan, endsSentence, endsClause, spokenWords }
+         sentenceSpan, endsSentence, endsClause, spokenWords, sentencesOf }
   from '../src/routes/practice-tafsirq';
 
 function d1(db: DatabaseSync) {
@@ -156,4 +156,11 @@ test('a listen run is whole sentences, and holds only what was spoken', () => {
   const ws = [{ t: '٣٧]', s: 0, e: 0 }, { t: '.', s: 0, e: 0 }, { t: 'وأعقب', s: 1, e: 2 }, { t: 'ذِي', s: 0, e: 0 }, { t: '٨٦]', s: 2, e: 3 },
               { t: '[الأنعام:', s: 0, e: 0 }, { t: '٣٧]', s: 0, e: 0 }, { t: '*', s: 0, e: 0 }, { t: 'ذلك', s: 3, e: 4 }];
   assert.deepEqual(spokenWords(ws).map((w) => w.t), ['وأعقب', 'ذِي', 'ذلك']);
+});
+
+test('a work is read as sentences: lines joined to a sentence end, scraps joined to the sentence before', () => {
+  const L = (t: string, n = 5) => ({ text: t, words: Array.from({ length: n }, (_, k) => ({ t: `w${k}`, s: k, e: k + 1 })) });
+  const lines = [L('أول السطر'), L('تمامه.'), L('جملة ثانية.'), L('٣٧] .', 2), L('ثالثة؛'), L('تتمتها.')];
+  const g = sentencesOf(lines);
+  assert.deepEqual(g.map((x) => x.map((l) => l.text)), [['أول السطر', 'تمامه.'], ['جملة ثانية.', '٣٧] .'], ['ثالثة؛', 'تتمتها.']]);
 });

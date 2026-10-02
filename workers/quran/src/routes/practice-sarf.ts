@@ -294,3 +294,53 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
 
   return interleave(piles.map((groups) => interleave(groups, Number.MAX_SAFE_INTEGER)), n);
 }
+
+// ── the passage's الصرف, to read ────────────────────────────────────────────
+//
+// The same rows the drills are dealt from, laid out for reading (the passage study's الصرف tab):
+// each focus word with what it means here, its root's picture, its form and its Qurʾānic plurals;
+// each verb's table and its family; the prepositions and what they do; the Qurʾān's meaning range
+// of each word; the near-synonyms. Every label a GT term's Arabic name, every quotation cut from
+// the muṣḥaf.
+
+export async function sarfSheet(env: QuranEnv, scope: Scope) {
+  const D = await load(env, scope);
+  if (!D) return null;
+  const { verbs, preps, senses, nears, words, texts, gt, picture } = D;
+  const extra = await query<{ id: string; name_ar: string }>(env.DB_QR,
+    `SELECT id, name_ar FROM ar_ling_gram_term WHERE id IN (SELECT value FROM json_each(?))`,
+    [JSON.stringify([...new Set([...verbs.flatMap((v) => [v.bab_gt, v.root_type_gt, v.route_gt, v.maani_gt]),
+                                  ...preps.map((p) => p.prep_gt), ...words.map((w) => w.sigha_gt),
+                                  ...verbs.flatMap((v) => parseJson<string[][]>(v.others_json, []).map((o) => o[1]))])].filter(Boolean))]);
+  for (const g of extra) gt.set(g.id, g.name_ar);
+  const name = (id: string | null | undefined) => (id ? gt.get(id) ?? null : null);
+  const cite = (c: Cite | null | undefined) => (c ? quote(c, texts) : null);
+  const verbView = (v: Verb) => ({
+    id: v.id, root: v.root, title: `${v.madi} ${v.mudari}`, meaning: v.meaning_en,
+    chips: [v.bab_gt, v.form_gt, v.root_type_gt, v.route_gt, v.maani_gt].map(name).filter(Boolean),
+    table: v.full ? tableOf(v, gt) : null, chant: chantOf(v), masadir: masadirOf(v),
+    others: parseJson<string[][]>(v.others_json, []).map(([form, g, pattern, meaning]) => ({ form, name: name(g), pattern, meaning })),
+    note: v.note_en, quote: cite(parseJson<Cite | null>(v.cite_json, null)), inQuran: v.quran_n,
+    preps: preps.filter((p) => p.verb_id === v.id).map((p) => ({ prep: p.prep_ar, name: name(p.prep_gt), usage: p.usage_ar,
+                                                                  meaning: p.meaning_en, quote: cite(parseJson<Cite | null>(p.cite_json, null)) })),
+  });
+  const roots = [...new Set(words.map((w) => w.root))];
+  return {
+    words: words.map((w) => ({
+      ref: `${w.surah}:${w.ayah}:${w.word_index}`, word: w.word_ar, here: w.here_en, root: w.root,
+      picture: picture.get(w.root) ? { en: picture.get(w.root)!.text_en, ar: picture.get(w.root)!.text_ar } : null,
+      form: name(w.sigha_gt), pattern: w.pattern_ar, verb: w.verb_id,
+      plurals: parseJson<{ ar: string; cite: Cite }[]>(w.plurals_json, []).map((p) => ({ ar: p.ar, quote: cite(p.cite) })),
+      prep: (() => { const p = parseJson<{ ar: string; gt: string; how: string } | null>(w.prep_json, null);
+                     return p ? { prep: p.ar, name: name(p.gt), how: p.how } : null; })(),
+    })),
+    roots: roots.map((r) => ({
+      root: r, letters: [...r].join(' '), picture: picture.get(r) ? { en: picture.get(r)!.text_en, ar: picture.get(r)!.text_ar } : null,
+      verbs: verbs.filter((v) => v.root === r).map(verbView),
+      range: senses.filter((s) => s.root === r).map((s) => ({ lemma: s.lemma_ar, en: s.sense_en, ar: s.sense_ar, here: !!s.here,
+                                                            quotes: parseJson<Cite[]>(s.cites_json, []).map(cite).filter(Boolean) })),
+      near: nears.filter((n) => n.root === r).map((n) => ({ title: n.title_en, titleAr: n.title_ar,
+        members: parseJson<{ ar: string; en: string; cite: Cite }[]>(n.members_json, []).map((m) => ({ ar: m.ar, en: m.en, quote: cite(m.cite) })) })),
+    })),
+  };
+}

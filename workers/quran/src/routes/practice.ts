@@ -16,8 +16,8 @@ import { surahLexDrills, surahLexCounts } from './practice-surah-lex';
 import { groupDrills, groupsCount } from './practice-groups';
 import { ssDrills, ssCount } from './practice-ss';
 import { structureDrills, structureCount } from './practice-structure';
-import { questionDrills, tafsirDrillsQ, questionsCount } from './practice-tafsirq';
-import { sarfDrills } from './practice-sarf';
+import { questionDrills, tafsirDrillsQ, questionsCount, tafsirReadDrills } from './practice-tafsirq';
+import { sarfDrills, sarfSheet } from './practice-sarf';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
 // The Qurʾān drilled as the Arabic side is (DrillKit shapes): each āyah a line heard in
@@ -44,6 +44,15 @@ const fold = (w: string) => (w ?? '').replace(/[ؐ-ًؚ-ٰٟۖ-ۭـ]/g, '')
 const loose = (w: string) => fold(w).replace(/[اوي]/g, '');
 
 export function practiceRoutes(router: Router<QuranEnv>) {
+  // the passage's الصرف, to read (the passage study's الصرف tab): public, like the atlas
+  router.get('/qr/sarf/passage', async (req, env) => {
+    const u = new URL(req.url);
+    const surah = Number(u.searchParams.get('surah')), from = Number(u.searchParams.get('from')), to = Number(u.searchParams.get('to'));
+    if (!Number.isInteger(surah) || surah < 1) return badRequest('surah is required');
+    const sheet = await sarfSheet(env, { surah, from: Number.isInteger(from) && from > 0 ? from : null, to: Number.isInteger(to) && to > 0 ? to : null });
+    return ok(sheet ?? { words: [], roots: [] });
+  });
+
   router.get('/qr/practice/home', async (_req, env) => {
     const [L, irab, ayat, tr, counts] = await Promise.all([
       labels(env),
@@ -135,6 +144,7 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
     : src === 'questions' ? await questionDrills(env, n, scope)
     : src === 'tafsirq' ? await tafsirDrillsQ(env, meta.extra?.interaction === 'listen_mark' ? 'listen' : 'meaning', n, scope)
     : src === 'sarf' ? await sarfDrills(env, n, scope)
+    : src === 'tafsir_read' ? (await tafsirReadDrills(env, scope, (meta.extra?.works as string[] | undefined) ?? ['zamakhshari', 'ibn_ashur', 'razi', 'alusi'])).slice(0, n)
     : [];
   const kinds = byKey(L.kind);
   const shaped = items.map((it) => {

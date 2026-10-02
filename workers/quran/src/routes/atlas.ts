@@ -30,15 +30,12 @@ function layersFor(L: Label[] | undefined, has: Record<string, number>): Array<R
   const depth: Record<string, Depth> = {
     reading: has.reading ? 'built' : 'source',
     translation: has.passage_structure ? 'built' : 'source',
-    words: has.vocabulary ? 'built' : 'source',
-    sarf: has.vocabulary ? 'built' : 'source',
+    // الصرف is its own authored rows (qr_sarf_word): shown where the passage has them, else left out
+    sarf: has.sarf ? 'built' : null,
     nahw: has.sentence_structure ? 'built' : 'source',
     balagha: has.sentence_structure ? 'built' : 'source',
-    idioms: has.vocabulary ? 'built' : 'source',
-    lexicon: 'source',
     structure: has.passage_structure ? 'built' : 'source',
     tafsir: has.tafsir ? 'built' : 'source',
-    context: null,
   };
   return (L ?? [])
     .map((l) => ({ ...card(l), depth: depth[l.key] ?? null, step: (l.extra?.step as string | undefined) ?? null }))
@@ -207,6 +204,8 @@ async function passageSlice(env: QuranEnv, s: number, from: number, to: number,
   for (const w of words) wordsOf.set(w.ayah, [...(wordsOf.get(w.ayah) ?? []), w]);
   const unit = meta && !meta.derived ? grid?.units.find((x) => x.passage_no === (meta.curatedNo ?? meta.no)) : null;
   const has: Record<string, number> = unit ? builtOf(unit) : {};
+  has.sarf = (await queryOne<{ n: number }>(env.DB_QR,
+    `SELECT COUNT(*) AS n FROM qr_sarf_word WHERE surah = ? AND ayah BETWEEN ? AND ?`, [s, from, to]).catch(() => null))?.n ?? 0;
   return {
     surah: s, from, to, passage: meta,
     ayat: ayat.map((a) => {

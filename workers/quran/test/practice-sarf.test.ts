@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import { sarfDrills, cutQuote, skeleton, tableOf, chantOf } from '../src/routes/practice-sarf';
+import { sarfDrills, sarfSheet, cutQuote, skeleton, tableOf, chantOf } from '../src/routes/practice-sarf';
 
 function d1(db: DatabaseSync) {
   const bound = (sql: string, params: unknown[]) => {
@@ -104,4 +104,22 @@ test('every drill of 40:1–3 is sound', async () => {
   const v = db.prepare(`SELECT * FROM qr_sarf_verb WHERE id = 'SV:عزز:I:daraba'`).get() as never;
   assert.equal(tableOf(v, new Map()).length, 1);
   assert.equal(chantOf(v), 'عَزَّ يَعِزُّ عِزًّا وَعِزَّةً وَعَزَازَةً فَهُوَ عَزِيزٌ');
+});
+
+test('the passage’s الصرف to read: every word, each root with its verbs, range and near-synonyms', async () => {
+  const { env } = setup();
+  const sheet = (await sarfSheet(env, { surah: 40, from: 1, to: 3 }))!;
+  assert.equal(sheet.words.length, 13);
+  const tawb = sheet.words.find((w) => w.root === 'توب')!;
+  assert.equal(tawb.here, 'repentance — turning back to God');
+  assert.equal(tawb.picture?.en, 'Returning — coming back.');
+  const root = sheet.roots.find((r) => r.root === 'توب')!;
+  assert.equal(root.letters, 'ت و ب');
+  const v = root.verbs[0];
+  assert.ok(v.table && v.table.length === 3);
+  assert.deepEqual(v.preps.map((p) => p.prep), ['إِلَى', 'عَلَى']);
+  assert.ok(v.chips.includes('بابُ نَصَرَ'));
+  if (existsSync(FIXTURE)) assert.match(String(v.preps[0].quote), /﴿.+﴾ 66:8/);
+  assert.ok(root.range.some((s) => s.here));
+  assert.equal(sheet.roots.find((r) => r.root === 'ذنب')!.near[0].members[0].ar, 'ذَنْب');
 });

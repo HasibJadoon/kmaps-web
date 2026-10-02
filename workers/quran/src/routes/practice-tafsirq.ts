@@ -413,3 +413,64 @@ export async function questionsCount(env: QuranEnv): Promise<{ questions: number
   return { questions: r?.q ?? 0, tafsirq: r?.t ?? 0 };
 }
 
+
+// ── reading the commentary through ──────────────────────────────────────────
+//
+// The four works over the passage, each read through in its author's order, a sentence at a time:
+// the line plays and its words light as they are said; the learner chooses the English that says
+// what it says. The other choices are other sentences of the same work, nearest in length, so only
+// reading the line tells them apart; the English is never shown before the answer. A sentence missed
+// comes back until it is right, so a passage's step is passed only when all four works are understood.
+
+/** A work's lines as sentences: lines joined until one ends a sentence (or, past four lines, a
+ *  clause), at most six; a scrap of three words or fewer joins the sentence before it. */
+export function sentencesOf<L extends { text: string; words: { t: string; s: number; e: number }[] }>(lines: L[]): L[][] {
+  const out: L[][] = [];
+  let acc: L[] = [];
+  for (const l of lines) {
+    acc.push(l);
+    if (endsSentence(l.text) || (acc.length >= 4 && endsClause(l.text)) || acc.length >= 6) { out.push(acc); acc = []; }
+  }
+  if (acc.length) out.push(acc);
+  return out.reduce<L[][]>((xs, g) => {
+    const n = spokenWords(g.flatMap((l) => l.words)).length;
+    if (n <= 3 && xs.length) xs[xs.length - 1] = [...xs[xs.length - 1], ...g];
+    else xs.push(g);
+    return xs;
+  }, []);
+}
+
+export async function tafsirReadDrills(env: QuranEnv, scope: Scope, slugs: string[]): Promise<Drill[]> {
+  if (!scope.surah || !scope.from) return [];
+  const works = await listenWorks(env, slugs, { surah: scope.surah, from: scope.from, to: scope.to ?? scope.from });
+  const out: Drill[] = [];
+  const where = rangeOf(scope.surah, scope.from, scope.to);
+  for (const w of works) {
+    const cite = [w.titleAr ?? w.title, w.author].filter(Boolean).join(' — ');
+    const groups = w.parts.flatMap((part) => sentencesOf(part.lines).map((g) => ({ part, g })))
+      .map(({ part, g }) => ({ part, g, en: g.every((l) => l.en) ? g.map((l) => l.en).join(' ') : null }));
+    const english = groups.map((x) => x.en).filter((x): x is string => !!x);
+    for (const { part, g, en } of groups) {
+      if (!en) continue;
+      const words = spokenWords(g.flatMap((l) => l.words));
+      if (words.length < 4) continue;
+      // the other choices: this work's other sentences, nearest in length
+      const others = [...new Set(english.filter((x) => x !== en))]
+        .sort((a, b) => Math.abs(a.length - en.length) - Math.abs(b.length - en.length)).slice(0, 3);
+      if (others.length < 3) continue;
+      const from = g[0].seq, to = g[g.length - 1].seq;
+      const id = `tafsir_read:${part.audio}:${from === to ? from : `${from}-${to}`}`;
+      const seen = new Set<string>();
+      const terms = g.flatMap((l) => l.terms).filter((t) => !seen.has(t.ref) && !!seen.add(t.ref)).map((t) => t.ref);
+      out.push(withCard({
+        id, kind: 'tafsir_read', ask: 'tq_read', interaction: 'choose', script: 'arabic',
+        audio: { url: part.url, start: Math.max(0, g[0].start - 0.2), end: g[g.length - 1].end + 0.2 }, words,
+        options: shuffle([en, ...others]), answer: en, terms,
+        explanation: cite || null,
+        source: { workId: `QR:SURAH:${scope.surah}`, title: `${where} · ${w.titleAr ?? w.title ?? ''}`, level: null },
+      }, { ref: `QR:${id}`, type: 'passage', kind: 'tafsir_read', front: words.map((x) => x.t).join(' '), back: en,
+           surah: scope.surah, ayah: scope.from, series: 'tafsir' }));
+    }
+  }
+  return out;
+}
