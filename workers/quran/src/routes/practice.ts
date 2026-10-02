@@ -16,7 +16,7 @@ import { surahLexDrills, surahLexCounts } from './practice-surah-lex';
 import { groupDrills, groupsCount } from './practice-groups';
 import { ssDrills, ssCount } from './practice-ss';
 import { structureDrills, structureCount } from './practice-structure';
-import { questionDrills, tafsirDrillsQ, questionsCount, tafsirReadDrills, tafsirLangDrills } from './practice-tafsirq';
+import { questionDrills, tafsirDrillsQ, questionsCount, tafsirReadDrills, tafsirLangDrills, listenWorks } from './practice-tafsirq';
 import { sarfDrills, sarfSheet } from './practice-sarf';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
@@ -44,6 +44,15 @@ const fold = (w: string) => (w ?? '').replace(/[ؐ-ًؚ-ٰٟۖ-ۭـ]/g, '')
 const loose = (w: string) => fold(w).replace(/[اوي]/g, '');
 
 export function practiceRoutes(router: Router<QuranEnv>) {
+  // the passage's commentary, to read and follow (the passage study's commentary section): the four
+  // works over the passage, every line timed, with its English and its terms — public, like the atlas
+  router.get('/qr/tafsir/passage', async (req, env) => {
+    const u = new URL(req.url);
+    const surah = Number(u.searchParams.get('surah')), from = Number(u.searchParams.get('from')), to = Number(u.searchParams.get('to'));
+    if (!Number.isInteger(surah) || surah < 1 || !Number.isInteger(from) || from < 1) return badRequest('surah and from are required');
+    return ok({ works: await listenWorks(env, WORKS, { surah, from, to: Number.isInteger(to) && to >= from ? to : from }) });
+  });
+
   // the passage's الصرف, to read (the passage study's الصرف tab): public, like the atlas
   router.get('/qr/sarf/passage', async (req, env) => {
     const u = new URL(req.url);
