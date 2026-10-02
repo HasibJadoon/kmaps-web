@@ -64,6 +64,13 @@ export function practiceRoutes(router: Router<QuranEnv>) {
     });
   });
 
+  // The drill stage's own words alone, for a host that plays drills it did not draw here
+  // (an SRS review, the full drill): Check, Listen, the grades, the result lines …
+  router.get('/qr/practice/stage', async (_req, env) => {
+    const L = await labels(env);
+    return ok({ stage: L.stage ?? [] });
+  });
+
   router.get('/qr/practice/session', async (req, env) => {
     const u = new URL(req.url);
     const skill = u.searchParams.get('skill') ?? 'irab';

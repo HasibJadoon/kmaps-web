@@ -542,6 +542,13 @@ export function practiceRoutes(router: Router<ArabicEnv>) {
     });
   });
 
+  // The drill stage's own words alone, for a host that plays drills it did not draw here
+  // (an SRS review, the full drill): Check, Listen, the grades, the result lines …
+  router.get('/ar/practice/stage', async (_req, env) => {
+    const all = await labels(env);
+    return ok({ stage: all.stage ?? [] });
+  });
+
   // A session: n drills of one skill, drawn fresh.
   router.get('/ar/practice/session', async (req, env) => {
     const url = new URL(req.url);
