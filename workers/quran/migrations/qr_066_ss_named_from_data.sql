@@ -161,3 +161,12 @@ INSERT OR REPLACE INTO qr_study_label (scope, key, label, label_ar, detail, icon
 ('stage', 'i_pairs', 'Tap the matching pairs', 'المس الأزواج المتطابقة', NULL, NULL, NULL, NULL, NULL, 25),
 ('stage', 'i_order_units', 'Put them in order', 'رتّبها', NULL, NULL, NULL, NULL, NULL, 26),
 ('stage', 'i_shadow', 'Listen, then say it', 'استمع ثم قلها', NULL, NULL, NULL, NULL, NULL, 27);
+
+-- Tap the matching pairs: a skill of its own, drawn from the scope's lemmas (qr_vocab_item),
+-- each lemma beside its meaning, its root or its pattern.
+INSERT OR REPLACE INTO qr_study_label (scope, key, label, label_ar, detail, icon, color, min_value, extra_json, sort) VALUES
+('skill', 'pairs', 'Match pairs', 'طَابِقِ الأَزْوَاج', 'Tap each word of the sūra, then its meaning, its root or its pattern', 'square.grid.2x2', '#7FB3D5', NULL, '{"source":"pairs"}', 40),
+('kind', 'pairs', 'Tap the matching pairs', 'المس الأزواج المتطابقة', NULL, NULL, NULL, NULL, NULL, 200),
+('kind', 'pairs_gloss', 'Each word and its meaning', 'كل كلمة ومعناها', NULL, NULL, NULL, NULL, NULL, 201),
+('kind', 'pairs_root', 'Each word and its root', 'كل كلمة وجذرها', NULL, NULL, NULL, NULL, NULL, 202),
+('kind', 'pairs_wazn', 'Each word and its pattern', 'كل كلمة ووزنها', NULL, NULL, NULL, NULL, NULL, 203);

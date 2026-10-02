@@ -454,3 +454,33 @@ function build(ask: string, o: Item, ay: Ayah, idx: number, c: Ctx, wordsAt: Map
   }
   return null;
 }
+
+/// Tap the matching pairs, from the scope's lemmas: five a round, each beside its meaning, its
+/// root or its pattern — the facets the lemma's own row holds, taken in turn. No two lemmas in a
+/// round share a partner, so every pair has one answer.
+export async function pairsDrills(env: QuranEnv, n: number, scope: Scope): Promise<Drill[]> {
+  const w = scopeSql(scope);
+  const rows = await query<{ lemma: string; root: string | null; gloss: string | null; wazn: string | null }>(env.DB_QR,
+    `SELECT lemma, MAX(root) AS root, MAX(gloss_en) AS gloss, MAX(wazn_ar) AS wazn FROM qr_vocab_item
+      WHERE ${w.sql} AND lemma IS NOT NULL GROUP BY lemma`, w.args);
+  const facets = ['gloss', 'root', 'wazn'] as const;
+  const out: Drill[] = [];
+  for (let k = 0; out.length < n && k < n * facets.length; k++) {
+    const facet = facets[k % facets.length];
+    const round: typeof rows = [];
+    for (const r of shuffle(rows.filter((x) => x[facet]))) {
+      if (round.some((x) => x[facet] === r[facet] || x.lemma === r.lemma)) continue;
+      round.push(r);
+      if (round.length === 5) break;
+    }
+    if (round.length < 3) continue;
+    const pairs = round.map((r) => [r.lemma, String(r[facet])]);
+    const key = round.map((r) => r.lemma).join('+');
+    const d: Drill = { id: `pairs:${facet}:${scope.surah ?? 'all'}:${key}`, kind: 'pairs', ask: `pairs_${facet}`,
+                       interaction: 'pairs', pairs };
+    out.push(withCard(d, { ref: `QR:pairs:${facet}:${key}`, type: 'vocabulary', kind: 'pairs',
+                           front: pairs.map((p) => p[0]).join('\n'), back: pairs.map((p) => p[1]).join('\n'),
+                           surah: scope.surah }));
+  }
+  return out;
+}

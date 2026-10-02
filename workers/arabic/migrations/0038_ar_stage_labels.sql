@@ -3,7 +3,7 @@
 -- The drill stage names nothing itself. Its own words — Check, Done, Listen, Slower, the
 -- meaning switch, the listening turns' lines, and the instruction each interaction falls back
 -- on when a drill's kind has none (i_<interaction>) — are these rows, sent with every round
--- as `stage`. `{n}` in a row is the count it is said with. A word missing here is not shown.
+-- as `stage`. Also the Tap-the-matching-pairs skill and its kind. `{n}` in a row is the count it is said with. A word missing here is not shown.
 --
 -- Applied by hand when the ledger is out of step: d1 execute --file, then
 --   INSERT OR IGNORE INTO d1_migrations (name) VALUES ('0038_ar_stage_labels.sql');
@@ -36,3 +36,7 @@ INSERT OR REPLACE INTO ar_practice_label (scope, key, label, label_ar, detail, i
 ('stage', 'i_pairs', 'Tap the matching pairs', 'المس الأزواج المتطابقة', NULL, NULL, NULL, NULL, NULL, 25),
 ('stage', 'i_order_units', 'Put them in order', 'رتّبها', NULL, NULL, NULL, NULL, NULL, 26),
 ('stage', 'i_shadow', 'Listen, then say it', 'استمع ثم قلها', NULL, NULL, NULL, NULL, NULL, 27);
+
+INSERT OR REPLACE INTO ar_practice_label (scope, key, label, label_ar, detail, icon, color, min_value, extra_json, sort) VALUES
+('skill', 'pairs', 'Match pairs', 'طَابِقِ الأَزْوَاج', 'Tap each word, then its meaning', 'square.grid.2x2', '#7FB3D5', NULL, '{"source":"pairs"}', 9),
+('kind', 'pairs', 'Tap the matching pairs', 'المس الأزواج المتطابقة', NULL, NULL, NULL, NULL, NULL, 40);

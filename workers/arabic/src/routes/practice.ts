@@ -273,6 +273,25 @@ async function wordDrills(env: ArabicEnv, all: L, band: Band, n: number) {
   return shuffle([...a, ...b.slice(0, n - a.length)]);
 }
 
+/// Tap the matching pairs: the meaning pool dealt five words at a time, each beside its gloss.
+/// No two words in a round share a gloss, so every pair has one partner.
+async function pairsDrills(env: ArabicEnv, band: Band, n: number) {
+  const pool = await listWordDrills(env, band, n * 8);
+  const out: Array<Record<string, unknown>> = [];
+  let round: typeof pool = [];
+  for (const d of pool) {
+    if (round.some((r) => r.answer === d.answer || r.prompt === d.prompt)) continue;
+    round.push(d);
+    if (round.length === 5) {
+      out.push({ id: `pairs:${round.map((r) => r.id.replace(/^meaning:/, '')).join('+')}`, kind: 'pairs', interaction: 'pairs',
+                 pairs: round.map((r) => [r.prompt, r.answer]) });
+      round = [];
+      if (out.length === n) break;
+    }
+  }
+  return out;
+}
+
 const PLURAL_KIND: Record<string, { en: string; ar: string }> = {
   taksir: { en: 'broken plural', ar: 'جمع تكسير' },
   salim_m: { en: 'sound masculine plural', ar: 'جمع مذكر سالم' },
@@ -537,6 +556,7 @@ export function practiceRoutes(router: Router<ArabicEnv>) {
       : skill === 'mine' ? await mineDrills(env, n)
       : skill === 'read' ? await readDrills(env, all, band, n)
       : skill === 'meaning' ? await wordDrills(env, all, band, n)
+      : skill === 'pairs' ? await pairsDrills(env, band, Math.max(1, Math.round(n / 3)))
       : skill === 'plural' ? await pluralDrills(env, band, n)
       : await grammarDrills(env, all, band, n, url.searchParams.get('lesson'));
     const deck = (all.path ?? []).find((x) => x.key === 'srs_deck');

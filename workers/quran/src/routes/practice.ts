@@ -10,7 +10,7 @@ import { tafsirDrills, tafsirCount } from './practice-tafsir';
 import { irabBookDrills, irabBookCount } from './practice-irabbooks';
 import { gramTermDrills, gramTermCounts } from './practice-grammar';
 import { lexiconDrills } from './practice-lexicon';
-import { vocabDrills, vocabCount } from './practice-vocab';
+import { vocabDrills, vocabCount, pairsDrills } from './practice-vocab';
 import { arc2Drills } from './practice-arc2';
 import { surahLexDrills, surahLexCounts } from './practice-surah-lex';
 import { groupDrills, groupsCount } from './practice-groups';
@@ -53,7 +53,7 @@ export function practiceRoutes(router: Router<QuranEnv>) {
     const [tafsir, irabbooks, gram, vocab, ss] = await Promise.all([tafsirCount(env).catch(() => 0), irabBookCount(env).catch(() => 0),
                                                          gramTermCounts(env, L.skill ?? []).catch(() => ({} as Record<string, number>)),
                                                          vocabCount(env).catch(() => 0), ssCount(env).catch(() => 0)]);
-    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, tafsir, irabbooks, vocab, ss, ...(counts ?? {}), ...gram, ...(await surahLexCounts(env).catch(() => ({}))), groups: await groupsCount(env, L).catch(() => 0) };
+    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, tafsir, irabbooks, vocab, pairs: Math.floor(vocab / 5), ss, ...(counts ?? {}), ...gram, ...(await surahLexCounts(env).catch(() => ({}))), groups: await groupsCount(env, L).catch(() => 0) };
     return ok({
       skills: (L.skill ?? []).map((s) => {
         const src = String(s.extra?.source ?? s.key);
@@ -90,6 +90,7 @@ export function practiceRoutes(router: Router<QuranEnv>) {
       : src === 'gramterm' ? await gramTermDrills(env, skill, meta, n, scope, lv, band, L)
       : src === 'lexicon' ? await lexiconDrills(env, n, scope, lv, L)
       : src === 'vocab' ? await vocabDrills(env, n, scope, lv, L)
+      : src === 'pairs' ? await pairsDrills(env, Math.max(1, Math.round(n / 3)), scope)
       : src === 'arc2' ? await arc2Drills(env, n, scope, lv, L)
       : ['nearsyn', 'keyterm', 'expression'].includes(src) ? await surahLexDrills(env, src, n, scope, lv, L)
       : src === 'groups' ? await groupDrills(env, n, scope, lv, L, u)

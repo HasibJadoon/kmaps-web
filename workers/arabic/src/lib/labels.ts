@@ -81,6 +81,11 @@ export function srsCardFor(it: Record<string, unknown>, g: DrillGroup = {}): Rec
       front = line; back = en; type = 'passage'; break;
     case 'meaning': case 'plural':
       front = prompt; back = [ans, s(it.gloss)].filter(Boolean).join('\n'); break;
+    case 'pairs': {
+      // the words on the front, each meaning on the back, in the same order
+      const pairs = ((it.pairs as string[][] | undefined) ?? []).filter((p) => p.length >= 2);
+      front = pairs.map((p) => p[0]).join('\n') || null; back = pairs.map((p) => p[1]).join('\n') || null; break;
+    }
     case 'grammar': case 'feature':
       // the sentence it was asked in, then the question — the line only where the prompt is not already it
       front = [line && !(prompt ?? '').includes(line) ? line : null, prompt, s(it.promptEn)].filter(Boolean).join('\n');
