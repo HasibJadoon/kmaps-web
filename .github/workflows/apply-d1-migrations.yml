@@ -1,0 +1,54 @@
+name: Apply D1 migrations
+
+# Run by hand: applies the named migration files of one worker to its remote D1 database, in the
+# order given, and records each in d1_migrations — the same table `wrangler d1 migrations apply`
+# keeps — so a file is never applied twice. Named files only: a worker's migrations folder also
+# holds files that were applied by other means and are not tracked, so "apply whatever is new"
+# would replay them.
+#
+#   gh workflow run apply-d1-migrations.yml -f worker=quran -f files="qr_070_tafsir_class.sql qr_071_tafsir_segment_en.sql"
+
+on:
+  workflow_dispatch:
+    inputs:
+      worker:
+        description: "Worker folder under workers/ (quran, core, ar-linguistics, …)"
+        required: true
+      files:
+        description: "Migration file names in that worker's migrations/ folder, space-separated, in order"
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  apply:
+    name: "apply ${{ inputs.worker }}: ${{ inputs.files }}"
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npm install -g wrangler
+      - name: apply
+        working-directory: workers/${{ inputs.worker }}
+        env:
+          FILES: ${{ inputs.files }}
+        run: |
+          set -euo pipefail
+          db=$(sed -n 's/^database_name *= *"\(.*\)"/\1/p' wrangler.toml | head -1)
+          [ -n "$db" ] || { echo "::error::no database_name in workers/${{ inputs.worker }}/wrangler.toml"; exit 1; }
+          for f in $FILES; do
+            case "$f" in */*|*..*|"") echo "::error::bad file name: $f"; exit 1;; esac
+            [ -f "migrations/$f" ] || { echo "::error::no such file: migrations/$f"; exit 1; }
+            done=$(wrangler d1 execute "$db" --remote --json \
+                     --command "SELECT COUNT(*) AS n FROM d1_migrations WHERE name = '$f'" | jq '.[0].results[0].n')
+            if [ "$done" != "0" ]; then echo "── $f: already applied"; continue; fi
+            echo "── $f → $db"
+            wrangler d1 execute "$db" --remote --file "migrations/$f" -y
+            wrangler d1 execute "$db" --remote --command "INSERT INTO d1_migrations (name) VALUES ('$f')"
+          done
