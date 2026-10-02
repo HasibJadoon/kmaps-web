@@ -159,7 +159,9 @@ const nearsynDrills: Make = async (env, n, scope, asks, band, L) => {
     query<Anchor>(env.DB_QR, `SELECT * FROM qr_drill_anchor WHERE family = 'nearsyn' AND grp IN (SELECT value FROM json_each(?))
                                ORDER BY (match = 'evidence') DESC, random() LIMIT 1500`, [JSON.stringify(setIds)]),
   ]);
-  const sets = nsets.sets ?? {};
+  // only a reviewed set is dealt: a draft grouping is not yet a fact to drill a learner on
+  const sets = Object.fromEntries(Object.entries(nsets.sets ?? {})
+    .filter(([, set]) => ['reviewed', 'live'].includes(set.reviewStatus ?? ''))) as Record<string, NSet>;
   const placedOf = new Map<string, Anchor[]>();
   for (const a of placed) placedOf.set(a.ref, [...(placedOf.get(a.ref) ?? []), a]);
   const memberOf = (ref: string) => ref.split('|')[1];
@@ -199,7 +201,7 @@ const nearsynDrills: Make = async (env, n, scope, asks, band, L) => {
 
   // the places, one per set and āyah
   const seen = new Set<string>();
-  const places = shuffle(pool).filter((a) => { const k = `${a.grp}:${a.surah}:${a.ayah}`; if (!setIds.includes(a.grp!) || seen.has(k)) return false; seen.add(k); return true; });
+  const places = shuffle(pool).filter((a) => { const k = `${a.grp}:${a.surah}:${a.ayah}`; if (!sets[a.grp!] || seen.has(k)) return false; seen.add(k); return true; });
   const ayat = await loadAyat(env, places.slice(0, n * 5).map((a) => [a.surah, a.ayah]));
   // "where else": the other members' places (and the word's own, and some other āyāt of the scope) as options
   const whereRows = new Map<string, { answer: Anchor; wrong: Anchor[]; other: Member }>();

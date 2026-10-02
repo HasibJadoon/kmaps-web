@@ -39,7 +39,8 @@ const num = (v: unknown, d: number) => (Number.isFinite(Number(v)) && Number(v) 
 /** Every drill a step holds over the passage: each of its skills drawn whole, once each by id. */
 async function stepPool(env: QuranEnv, L: Record<string, Label[]>, node: Label, scope: Scope): Promise<Drill[]> {
   const max = num(node.extra?.max, 30);
-  const piles = await Promise.all(skillsOf(node).map((s) => drawSkill(env, L, s, 'all', max, scope).catch(() => [] as Drill[])));
+  const only = (node.extra?.only ?? {}) as Record<string, string[]>;
+  const piles = await Promise.all(skillsOf(node).map((s) => drawSkill(env, L, s, 'all', max, scope, null, only[s]).catch(() => [] as Drill[])));
   const seen = new Set<string>();
   // the skills interleaved, so a sprint is not all one kind of drill
   return interleave(piles, Number.MAX_SAFE_INTEGER).filter((d) => {

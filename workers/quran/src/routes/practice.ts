@@ -17,6 +17,7 @@ import { groupDrills, groupsCount } from './practice-groups';
 import { ssDrills, ssCount } from './practice-ss';
 import { structureDrills, structureCount } from './practice-structure';
 import { questionDrills, tafsirDrillsQ, questionsCount } from './practice-tafsirq';
+import { sarfDrills } from './practice-sarf';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
 // The Qurʾān drilled as the Arabic side is (DrillKit shapes): each āyah a line heard in
@@ -106,11 +107,12 @@ export function practiceRoutes(router: Router<QuranEnv>) {
  * with it; the class (practice-class.ts) draws a step's whole pool. Unknown skill: none.
  */
 export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill: string, band: Band, n: number,
-                                scope: Scope, u: URL | null = null): Promise<Array<Record<string, unknown>>> {
+                                scope: Scope, u: URL | null = null, only?: string[]): Promise<Array<Record<string, unknown>>> {
   const meta = byKey(L.skill).get(skill);
   if (!meta) return [];
   const levels = (meta.extra?.levels ?? {}) as Levels;
-  const lv = band === 'all' ? {} : (levels[band] ?? {});
+  // a class step may hold only some of a skill's asks (class_node extra.only): those, at every level
+  const lv = only?.length ? { asks: only, types: only } : band === 'all' ? {} : (levels[band] ?? {});
   const src = String(meta.extra?.source ?? skill);
   const items =
     src === 'irab' ? await irabDrills(env, n, scope, lv, band, levels)
@@ -132,6 +134,7 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
     : src === 'structure' ? await structureDrills(env, n, scope, lv, L)
     : src === 'questions' ? await questionDrills(env, n, scope)
     : src === 'tafsirq' ? await tafsirDrillsQ(env, meta.extra?.interaction === 'listen_mark' ? 'listen' : 'meaning', n, scope)
+    : src === 'sarf' ? await sarfDrills(env, n, scope)
     : [];
   const kinds = byKey(L.kind);
   const shaped = items.map((it) => {
