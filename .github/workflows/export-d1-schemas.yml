@@ -1,7 +1,8 @@
 name: Export D1 schemas
 
 # Run by hand: for every worker that owns a D1 database, the remote schema as it really is
-# (wrangler d1 export --no-data) and which of its migration files the database has recorded
+# (scripts/regen_schemas.py reads sqlite_master — `wrangler d1 export` refuses any database
+# holding an FTS5 table, which is all but one of ours) and which of its migration files the database has recorded
 # (d1_migrations), uploaded as one artifact. The workspace's schema.sql snapshots are refreshed
 # from it, and any migration file the database has not recorded is looked at by hand — a folder
 # also holds files applied by other means, so nothing here applies anything.
@@ -34,8 +35,8 @@ jobs:
             db=$(sed -n 's/^database_name *= *"\(.*\)"/\1/p' "$dir/wrangler.toml" | head -1)
             [ -n "$db" ] || continue
             echo "── $w → $db"
-            (cd "$dir" && wrangler d1 export "$db" --remote --no-data --output "../../out/$w.schema.sql") \
-              || echo "::warning::export failed for $w"
+            python3 scripts/regen_schemas.py "$w" && cp "$dir/schema.sql" "out/$w.schema.sql" \
+              || echo "::warning::schema read failed for $w"
             (cd "$dir" && wrangler d1 execute "$db" --remote --json \
                --command "SELECT name FROM d1_migrations ORDER BY id") > "out/$w.applied.json" \
               || echo "::warning::d1_migrations unreadable for $w"
