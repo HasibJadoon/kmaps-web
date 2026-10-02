@@ -18,6 +18,7 @@ import {
 } from '../srs/fsrs';
 import type { FSRSParameters } from 'ts-fsrs';
 import { storedOf } from '../srs/stored-params';
+import { fileLearnt } from './drill-class';
 import { answerCard } from '../srs/answer';
 import {
   MODULES, RESOURCE_TYPES, CONCEPT_DOMAINS, domainOfModule, introOf, deckForModule, fileCards,
@@ -1190,6 +1191,8 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const to = Number(url.searchParams.get('to') ?? '0');
     const step = url.searchParams.get('step') ?? undefined;
     const kind = url.searchParams.get('kind') ?? undefined;
+    // a learnt class drill not yet filed is filed before the queue is read, so it is in it
+    await fileLearnt(env, ctx.userId).catch(() => 0);
     const domain = url.searchParams.get('domain') ?? undefined;
     const deck = url.searchParams.get('deck') ?? undefined;
     const ahead = Number(url.searchParams.get('ahead') ?? '0');

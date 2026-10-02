@@ -33,6 +33,15 @@ describe('attachGt', () => {
     assert.deepEqual((out.srs as { extra: { group: unknown } }).extra.group, {});
   });
 
+  test('the card keeps the drill exactly as dealt, all but its card and context panel', async () => {
+    const drill = { id: 'd3', kind: 'fill', instruction: 'Listen, then pick the missing word', instructionAr: 'اِسْمَعْ',
+                    options: ['a', 'b'], context: { big: true }, badges: ['x'],
+                    srs: { module: 'QR', extra: { drill: { id: 'd3', ask: 'fill' }, group: {} } } };
+    const [out] = await attachGt(db, [drill]);
+    const { srs: _s, context: _c, badges: _b, ...dealt } = out;
+    assert.deepEqual((out.srs as { extra: { drill: unknown } }).extra.drill, dealt);
+  });
+
   test('a drill with no card is left without one', async () => {
     const [out] = await attachGt(db, [{ id: 'd2', role: 'GT:irab_role:mubtada' }]);
     assert.equal('srs' in out, false);

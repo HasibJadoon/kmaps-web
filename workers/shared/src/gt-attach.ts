@@ -34,9 +34,13 @@ export async function attachGt<T extends Record<string, unknown>>(
   }
   return items.map((it, i) => {
     const gt = perItem[i].map((ref) => byRef.get(ref)).filter((c): c is GtChip => !!c);
-    // the card a drill files keeps a copy of the drill to replay: it carries the terms too
+    // The card a drill files keeps a copy of the drill to replay, and review plays that copy: so
+    // it is taken here, last, from the drill exactly as it is dealt — its instruction, its terms,
+    // all it was given after the card was first made. Only the card itself and the context panel
+    // (a review fetches that when it is opened) stay out.
     const srs = it.srs as { extra?: { drill?: Record<string, unknown> } } | undefined;
-    const filed = srs?.extra?.drill ? { srs: { ...srs, extra: { ...srs.extra, drill: { ...srs.extra.drill, gt } } } } : {};
+    const { srs: _s, context: _c, badges: _b, ...dealt } = it;
+    const filed = srs?.extra?.drill ? { srs: { ...srs, extra: { ...srs.extra, drill: { ...dealt, gt } } } } : {};
     return { ...it, ...filed, gt };
   });
 }

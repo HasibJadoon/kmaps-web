@@ -143,6 +143,21 @@ async function fileItems(env: CoreEnv, userId: string, classId: string, refs: st
   return filed;
 }
 
+/**
+ * Files every learnt item of the learner's that is not filed yet, across their classes — so a
+ * drill learnt before filing was immediate (or whose filing failed) still reaches review. The
+ * review queue and the class list run it before they read.
+ */
+export async function fileLearnt(env: CoreEnv, userId: string): Promise<number> {
+  const classes = await query<{ id: string }>(env.DB_CORE,
+    `SELECT DISTINCT c.id FROM core_drill_class c JOIN core_drill_class_item i ON i.class_id = c.id
+      WHERE c.user_ref = ? AND i.card_json IS NOT NULL AND i.filed_card IS NULL AND i.state IN ('right', 'perfected')`,
+    [userId]);
+  let filed = 0;
+  for (const c of classes) filed += await fileItems(env, userId, c.id, null);
+  return filed;
+}
+
 export function drillClassRoutes(router: Router<CoreEnv>) {
   router.get('/core/drill/classes', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
@@ -150,6 +165,7 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
     const u = new URL(req.url);
     const module = u.searchParams.get('module');
     const prefix = u.searchParams.get('prefix') ?? '';
+    await fileLearnt(env, ctx.userId).catch(() => 0);
     const rows = await query<ClassRow & { open: number }>(env.DB_CORE,
       `SELECT c.*, (SELECT COUNT(*) FROM core_drill_class_item i WHERE i.class_id = c.id AND i.state = 'open') AS open
          FROM core_drill_class c
