@@ -1,5 +1,6 @@
 import { query, queryOne } from '../../../shared/src/db';
 import { nonBlank } from '../../../shared/src/validate';
+import { makeGtResolver, type GtAliasRow, type GtSlots } from '../../../shared/src/gt-resolve';
 import type { AlClient } from '../clients/al.client';
 import { parseQacMorphology, posGroup as qacPosGroup, QacMorphology } from '../lib/qac-morph';
 import { labels, byKey } from '../lib/labels';
@@ -1763,6 +1764,7 @@ export class StudyRepo {
       balagha: { ref: string | null; category: string | null; effect: string | null;
                  note: string | null; gloss: unknown }[];
       irab:    { ref: string; fn: string | null; position: string | null; sign: string | null;
+                 fnRef: string | null; positionRef: string | null; signRef: string | null;
                  disputed: boolean; dispute: string | null; note: string | null }[];
       hadhf:   { type: string; elided: string; effect: string | null; note: string | null }[];
     }
@@ -1790,9 +1792,19 @@ export class StudyRepo {
         type: e.ellipsis_type, elided: e.elided_element, effect: e.effect, note: e.note,
       });
     }
+    // The function, case and sign come free-form (Arabic, slugs, English phrases). Each is
+    // looked up among the registry's spellings, in the categories its slot names (ss_slot
+    // labels); the term's Arabic name and colour are what the reader is shown.
+    const ssLabels = await labels({ DB_QR: this.db } as unknown as QuranEnv);
+    const slots: GtSlots = Object.fromEntries((ssLabels.ss_slot ?? []).map((l) =>
+      [l.key, Array.isArray(l.extra?.['categories']) ? (l.extra!['categories'] as string[]) : []]));
+    const aliasRows = await query<GtAliasRow>(this.db,
+      `SELECT alias_bare, term_id, category_key FROM ar_ling_gram_term_alias`, []).catch(() => [] as GtAliasRow[]);
+    const gt = makeGtResolver(aliasRows, slots);
     for (const m of sarfRows) {
       layersFor(m.scope_id).irab.push({
         ref: m.ref, fn: m.fn, position: m.position, sign: m.sign,
+        fnRef: gt('function', m.fn), positionRef: gt('position', m.position), signRef: gt('sign', m.sign),
         disputed: !!m.disputed, dispute: m.dispute, note: m.note,
       });
     }
@@ -2016,6 +2028,19 @@ export class StudyRepo {
       sentences,
       ...(clauseReadings.length ? { clauseReadings } : {}),
       ...(bookNotes.length ? { bookNotes } : {}),
+      // Every word the tab shows that is not a registry term: its lenses, strips, key-note
+      // bands and its own words, and how the prose names a source (hidden with Sources off).
+      labels: {
+        lens: ssLabels.ss_lens ?? [],
+        layer: ssLabels.ss_layer ?? [],
+        keynote: ssLabels.ss_keynote ?? [],
+        ui: ssLabels.ss_ui ?? [],
+        ellipsis: ssLabels.ss_ellipsis ?? [],
+      },
+      sourceNames: [...new Set((ssLabels.source_name ?? []).flatMap((l) => [
+        l.label, l.labelAr,
+        ...(Array.isArray(l.extra?.['also']) ? (l.extra!['also'] as string[]) : []),
+      ]).filter((n): n is string => !!n))],
     };
 
     // A step stays under ~200 KB. The per-āyah layers (each book's iʿrāb of the āyah, each

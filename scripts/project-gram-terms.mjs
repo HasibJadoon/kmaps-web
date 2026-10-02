@@ -9,6 +9,7 @@
 //   node scripts/project-gram-terms.mjs            # both mirrors
 //   node scripts/project-gram-terms.mjs quran      # one
 //
+// A mirror that keeps ar_ling_gram_term_alias (km_quran) has it replaced whole from the registry.
 // Each mirror takes the columns it has in common with the registry, upserted by id. A mirror row whose term
 // the registry no longer holds is reported, not deleted: the domain's links may still name it.
 import { execFileSync } from 'node:child_process';
@@ -66,6 +67,18 @@ for (const m of MIRRORS) {
     const set = [...cols, ...extra].filter((c) => c !== 'id').map((c) => `${c} = excluded.${c}`).join(', ');
     statements.push(`INSERT INTO ar_ling_gram_term (${[...cols, ...extra].join(',')}) VALUES ${values.join(',')}`
       + ` ON CONFLICT (id) DO UPDATE SET ${set};`);
+  }
+  // the registry's spellings of its terms, for a mirror that keeps them (km_quran resolves the
+  // sentence-structure tables' free-form functions and cases by them): replaced whole
+  const myAlias = columnsOf(m.dir, m.db, 'ar_ling_gram_term_alias');
+  if (myAlias.length) {
+    const ac = columnsOf('ar-linguistics', 'km_arabic_linguistic', 'ar_ling_gram_term_alias').filter((c) => myAlias.includes(c));
+    const aliases = sql('ar-linguistics', 'km_arabic_linguistic', `SELECT ${ac.join(',')} FROM ar_ling_gram_term_alias`);
+    statements.push('DELETE FROM ar_ling_gram_term_alias;');
+    for (let i = 0; i < aliases.length; i += 80) {
+      statements.push(`INSERT OR REPLACE INTO ar_ling_gram_term_alias (${ac.join(',')}) VALUES `
+        + aliases.slice(i, i + 80).map((a) => '(' + ac.map((c) => lit(a[c])).join(',') + ')').join(',') + ';');
+    }
   }
   statements.unshift('PRAGMA defer_foreign_keys = ON;');
   const file = join(dir, `${m.name}.sql`);
