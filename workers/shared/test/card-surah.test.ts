@@ -98,7 +98,7 @@ describe('one timestamp format reaches the column', () => {
         id TEXT, deck_id TEXT, user_ref TEXT, module TEXT, resource_type TEXT,
         resource_ref TEXT, card_template TEXT, front_text TEXT, back_text TEXT,
         extra_json TEXT, tags TEXT, card_kind TEXT, concept_domain TEXT,
-        note_type_id TEXT, fields_json TEXT, root_norm TEXT, intro_surah INTEGER,
+        note_type_id TEXT, fields_json TEXT, root_norm TEXT, intro_surah INTEGER, intro_ayah INTEGER,
         next_review_at TEXT,
         suspended INTEGER DEFAULT 0, stability REAL, difficulty REAL,
         card_state TEXT DEFAULT 'new', learning_step INTEGER DEFAULT 0,
