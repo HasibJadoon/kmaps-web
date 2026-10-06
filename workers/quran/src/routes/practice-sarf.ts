@@ -149,6 +149,12 @@ async function load(env: QuranEnv, scope: Scope, refresh = false) {
     return (g && sheet?.lemmas[g]?.plurals || []).filter((p) => p.surah && p.ayah && p.needle)
       .map((p) => ({ ar: p.plural_ar, cite: { surah: p.surah!, ayah: p.ayah!, needle: p.needle! } }));
   };
+  // plurals a book gives that the Qurʾān does not use — shown as such, never as Qurʾānic
+  const otherPluralsOf = (w: Word) => {
+    const g = occAt.get(at3(w))?.gid_lemma?.replace(/^AL:/, '');
+    return (g && sheet?.lemmas[g]?.plurals || []).filter((p) => !(p.surah && p.ayah && p.needle))
+      .map((p) => ({ ar: p.plural_ar, kind: p.kind_ar, note: p.note_en }));
+  };
   const lemmaOf = (gid: string | null | undefined) => (gid ? resolved[gid] ?? resolved[gid.replace(/^AL:/, '')] : undefined);
   // a lemma's range in the Qurʾān: its AL senses that some Qurʾānic word links to, cited from those words
   const alSenseIds = gids.flatMap((g) => (lemmaOf(g)?.senses ?? []).map((x) => x.id));
@@ -210,7 +216,9 @@ async function load(env: QuranEnv, scope: Scope, refresh = false) {
     words, verbs, preps, senses, nears, pluralsOf, opposites, constructions,
     occ: new Map(occs.map((o) => [`${o.surah}:${o.ayah}:${o.word_index}`, o])),
     link: new Map(links.map((l) => [`${l.s}:${l.a}:${l.w}`, l])),
-    arcOf, lemmaPropsOf,
+    arcOf, lemmaPropsOf, otherPluralsOf,
+    // a lemma's derivation and pattern, from AL (the word screen's الصيغة)
+    formOf: (gid: string | null | undefined) => { const z = lemmaOf(gid)?.wazn?.[0]; return z ? { form: z.derivation_ar, pattern: z.wazn_ar } : null; },
     // a lemma's dictionary form, from AL (QR's copy keeps the shadda of the word before it: تَّوْب)
     lemmaTextOf: (gid: string | null | undefined) => lemmaOf(gid)?.lemma_ar ?? null,
     irab: irab.reduce((m, r) => m.set(`${r.surah}:${r.ayah}:${r.word_index}`, [...(m.get(`${r.surah}:${r.ayah}:${r.word_index}`) ?? []), r.term_ref]),
@@ -476,7 +484,7 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
 export async function sarfSheet(env: QuranEnv, scope: Scope, refresh = false) {
   const D = await load(env, scope, refresh);
   if (!D) return null;
-  const { verbs, preps, senses, nears, words, texts, gt, picture, occ, irab, link, arcOf, lemmaPropsOf, lemmaTextOf, pluralsOf, opposites, constructions } = D;
+  const { verbs, preps, senses, nears, words, texts, gt, picture, occ, irab, link, arcOf, lemmaPropsOf, lemmaTextOf, formOf, otherPluralsOf, pluralsOf, opposites, constructions } = D;
   const occOf = (w: Word) => occ.get(`${w.surah}:${w.ayah}:${w.word_index}`);
   // every GT tag QAC gives each word, named Arabic first
   const props = await query<{ id: string; name_ar: string; name_en: string | null }>(env.DB_QR,
@@ -545,7 +553,7 @@ export async function sarfSheet(env: QuranEnv, scope: Scope, refresh = false) {
       arcSteps: (arcOf(occOf(w)?.gid_lemma, linkOf(w)?.al_arc_id) ?? '').split('→').map((x) => x.trim()).filter(Boolean), here: occOf(w)?.here_en ?? '', root: w.root,
       letters: [...w.root].join(' '),
       picture: picture.get(w.root) ? { en: picture.get(w.root)!.text_en, ar: picture.get(w.root)!.text_ar } : null,
-      form: name(w.sigha_gt), pattern: w.pattern_ar, verb: w.verb_id,
+      form: formOf(occOf(w)?.gid_lemma)?.form ?? name(w.sigha_gt), pattern: formOf(occOf(w)?.gid_lemma)?.pattern ?? w.pattern_ar, verb: w.verb_id,
       // the word in this verse (card): its iʿrāb and QAC tags
       props: tagsOf(w).map((g) => ({ id: g, ar: prop.get(g)!.name_ar, en: prop.get(g)!.name_en })),
       // the lemma (detail screen): its own form facts from AL, the same in every verse
@@ -570,6 +578,7 @@ export async function sarfSheet(env: QuranEnv, scope: Scope, refresh = false) {
         return [...all.filter(mine), ...all.filter((o) => !mine(o))].map(oppositeView);
       })(),
       plurals: pluralsOf(w).map((p) => ({ ar: p.ar, quote: cite(p.cite) })),
+      otherPlurals: otherPluralsOf(w),
       prep: (() => { const p = parseJson<{ ar: string; gt: string; how: string } | null>(w.prep_json, null);
                      return p ? { prep: p.ar, name: name(p.gt), how: p.how } : null; })(),
     })),
