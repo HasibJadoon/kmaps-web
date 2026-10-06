@@ -484,12 +484,12 @@ export function lexiconRoutes(router: Router<ArLinguisticsEnv>) {
     let lemmas: Array<Record<string, unknown>> = [];
     if (rootRow) {
       const { results: lemmaRows } = await env.DB_AL
-        .prepare(`SELECT l.id, l.lemma_text, l.lemma_text_bare, l.part_of_speech,
+        .prepare(`SELECT l.id, coalesce(l.lemma_text_canonical, l.lemma_text) AS lemma_text, l.lemma_text_bare, l.part_of_speech,
                          l.verb_form, l.is_quran_word, l.frequency_quran
                   FROM   ar_ling_root_lemma l
                   WHERE  l.root_id = ?
                   UNION
-                  SELECT l.id, l.lemma_text, l.lemma_text_bare, l.part_of_speech,
+                  SELECT l.id, coalesce(l.lemma_text_canonical, l.lemma_text) AS lemma_text, l.lemma_text_bare, l.part_of_speech,
                          l.verb_form, l.is_quran_word, l.frequency_quran
                   FROM   ar_ling_root_lemma l
                   JOIN   ar_ling_root_lemma_link lr ON lr.lemma_id = l.id

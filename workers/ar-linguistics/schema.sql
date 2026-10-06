@@ -1588,7 +1588,7 @@ CREATE TABLE "ar_ling_root_lemma" (
   frequency_quran INTEGER NOT NULL DEFAULT 0,
   note_md         TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now')), root_status TEXT NOT NULL DEFAULT 'pending', verb_form_ref TEXT REFERENCES ar_ling_gram_term(id), bab_ref TEXT REFERENCES ar_ling_gram_term(id), record_status TEXT NOT NULL DEFAULT 'live', merged_into TEXT REFERENCES ar_ling_root_lemma(id),
+  updated_at      TEXT NOT NULL DEFAULT (datetime('now')), root_status TEXT NOT NULL DEFAULT 'pending', verb_form_ref TEXT REFERENCES ar_ling_gram_term(id), bab_ref TEXT REFERENCES ar_ling_gram_term(id), record_status TEXT NOT NULL DEFAULT 'live', merged_into TEXT REFERENCES ar_ling_root_lemma(id), lemma_text_canonical TEXT,
   FOREIGN KEY (root_id) REFERENCES "ar_ling_roots"(id)
 );
 

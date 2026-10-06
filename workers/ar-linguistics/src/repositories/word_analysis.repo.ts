@@ -182,7 +182,7 @@ export class WordAnalysisRepo {
     const familyRows = await query<{ root_text: string; root_normalized: string | null; lemma_text: string; part_of_speech: string | null; verb_form: string | null; is_quran_word: number }>(
       this.db,
       `SELECT r.root_text, r.root_normalized,
-              l.lemma_text, l.part_of_speech, l.verb_form, l.is_quran_word
+              coalesce(l.lemma_text_canonical, l.lemma_text) AS lemma_text, l.part_of_speech, l.verb_form, l.is_quran_word
          FROM ar_ling_root_lemma l JOIN ar_ling_roots r ON l.root_id = r.id
         WHERE (r.root_text IN (${ph}) OR r.root_normalized IN (${ph}))
           AND l.is_quran_word = 1

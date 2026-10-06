@@ -74,7 +74,7 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
       query<{ id: string; root_id: string; lemma_id: string; lemma_ar: string; construction_ar: string; harf: string | null;
               attest_count: number; arc_ar: string; arc_en: string; boundary_note_en: string | null; branches_json: string | null;
               ex_surah: number | null; ex_ayah: number | null; ex_text: string | null; ex_en: string | null; ex_note: string | null }>(db,
-        `SELECT a.id, l.root_id, a.lemma_id, l.lemma_text AS lemma_ar, a.construction_ar, a.harf, a.attest_count, a.arc_ar, a.arc_en,
+        `SELECT a.id, l.root_id, a.lemma_id, coalesce(l.lemma_text_canonical, l.lemma_text) AS lemma_ar, a.construction_ar, a.harf, a.attest_count, a.arc_ar, a.arc_en,
                 a.boundary_note_en, a.branches_json,
                 e.surah AS ex_surah, e.ayah AS ex_ayah, e.text_ar AS ex_text, e.fluent_en AS ex_en, e.note_en AS ex_note
            FROM ar_ling_lemma_arc a JOIN ar_ling_root_lemma l ON l.id = a.lemma_id

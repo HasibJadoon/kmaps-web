@@ -4,7 +4,7 @@ import type { PaginateOptions } from '../../../shared/src/types';
 import type { Lemma, LemmaCreate } from '../schemas/lemma.schema';
 
 const SELECT = `
-  l.id, l.lemma_text AS lemma_ar,
+  l.id, coalesce(l.lemma_text_canonical, l.lemma_text) AS lemma_ar,
   l.root_id, r.root_text,
   l.part_of_speech AS pos,
   NULL AS gloss_en, NULL AS gloss_ar,

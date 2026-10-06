@@ -178,7 +178,7 @@ export class LemmaResolveRepo {
       meaning_core_ar: string | null; meaning_core_en: string | null;
     }>(
       this.db,
-      `SELECT l.id, l.lemma_text, l.lemma_text_bare, l.part_of_speech, l.verb_form,
+      `SELECT l.id, coalesce(l.lemma_text_canonical, l.lemma_text) AS lemma_text, l.lemma_text_bare, l.part_of_speech, l.verb_form,
               l.frequency_quran, l.note_md,
               l.root_id, r.root_text, r.root_normalized, r.meaning_core_ar, r.meaning_core_en
          FROM ar_ling_root_lemma l

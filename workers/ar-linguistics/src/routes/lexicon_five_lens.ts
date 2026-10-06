@@ -137,7 +137,7 @@ export function lexiconFiveLensRoutes(router: Router<ArLinguisticsEnv>) {
 
       env.DB_AL
         .prepare(
-          `SELECT l.lemma_text, l.lemma_text_bare, l.part_of_speech, l.is_quran_word
+          `SELECT coalesce(l.lemma_text_canonical, l.lemma_text) AS lemma_text, l.lemma_text_bare, l.part_of_speech, l.is_quran_word
              FROM ar_ling_root_lemma l
              JOIN ar_ling_roots r ON l.root_id = r.id
             WHERE r.root_text = ?1 AND l.part_of_speech <> 'root_entry'

@@ -59,7 +59,7 @@ export function lookupRoutes(router: Router<ArLinguisticsEnv>) {
       /// returning one looks like an answer while being none.
       const rows = await query(
         env.DB_AL,
-        `SELECT l.id, l.lemma_text AS lemma_ar, l.part_of_speech AS pos,
+        `SELECT l.id, coalesce(l.lemma_text_canonical, l.lemma_text) AS lemma_ar, l.part_of_speech AS pos,
                 l.frequency_quran AS frequency, l.verb_form,
                 r.id AS root_id, r.root_text, r.root_normalized,
                 r.meaning_core_en AS root_en, r.meaning_core_ar AS root_ar_gloss,
