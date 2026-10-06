@@ -24,12 +24,20 @@ export interface ResolvedLemma {
     wazn: string | null; example_ar: string | null; kind: string;
     derivation_type: string | null;
   } | null;
+  /** the lemma's pattern and derivation, best-attested first */
+  wazn?: Array<{
+    id: string; wazn_id: string; wazn_ar: string; derivation_id: string; derivation_ar: string;
+    family_id: string | null; family_ar: string | null; jumud_id?: string | null; jumud_ar?: string | null;
+    transitivity_id?: string | null; transitivity_ar?: string | null; base_verb: string | null; basis: string;
+    source_slug: string | null; source_ref: string | null; quote_ar: string | null;
+  }>;
   senses: Array<{
+    id: string; label_ar: string | null; label_en: string | null;
     sense_key: string; gloss_ar: string | null; gloss_en: string | null;
     gloss_ur: string | null; is_core: number; status: string;
   }>;
   arcs: Array<{
-    arc_key: string; arc_ar: string | null; arc_en: string | null;
+    id: string; arc_key: string; arc_ar: string | null; arc_en: string | null;
     arc_ur: string | null; is_primary: number; status: string;
   }>;
   governance: unknown[];
@@ -97,12 +105,41 @@ export class AlClient {
     );
   }
 
-  resolveLemmas(ids: string[]): Promise<{ ok: true; data: Record<string, ResolvedLemma> }> {
+  /** The الصرف of a passage's roots and lemmas, by global id: verb tables, prepositions, opposites, root
+   *  pictures, plurals and near-synonym sets (/al/sarf/sheet). */
+  sarfSheet(roots: string[], lemmas: string[], opts: { refresh?: boolean } = {}): Promise<{ ok: true; data: AlSarfSheet }> {
     return callService(
       this.fetcher,
-      `/al/lemmas/resolve?ids=${encodeURIComponent(ids.join(','))}`,
+      `/al/sarf/sheet?roots=${encodeURIComponent(roots.join(','))}&lemmas=${encodeURIComponent(lemmas.join(','))}${opts.refresh ? '&refresh=1' : ''}`,
     );
   }
+
+  /** `refresh` rebuilds AL's kept answer too — a refresh at the top reaches the language data under it. */
+  resolveLemmas(ids: string[], opts: { refresh?: boolean } = {}): Promise<{ ok: true; data: Record<string, ResolvedLemma> }> {
+    return callService(
+      this.fetcher,
+      `/al/lemmas/resolve?ids=${encodeURIComponent(ids.join(','))}${opts.refresh ? '&refresh=1' : ''}`,
+    );
+  }
+}
+
+type AlCite = { surah: number; ayah: number; needle: string };
+export interface AlSarfSheet {
+  roots: Record<string, {
+    root_id: string; root_norm: string | null; picture: { en: string; ar: string | null } | null;
+    paradigms: Array<{ id: string; root_id: string; lemma_id: string | null; verb_form: string | null; bab_key: string | null;
+                       source_ref: string | null; paradigm: Record<string, unknown> }>;
+    preps: Array<{ id: string; root_id: string; lemma_id: string | null; verb_form: string | null; harf: string | null;
+                   harf_term_id: string | null; frame_ar: string | null; meaning_en: string | null; cite: AlCite;
+                   qr_ref: string | null; sort_order: number }>;
+    opposites: Array<{ id: string; antonym_ar: string; antonym_root_id: string | null; antonym_en: string | null;
+                       relation_kind: string; note_en: string | null; source_ref: string | null;
+                       display: { quran?: AlCite[] } | null }>;
+  }>;
+  lemmas: Record<string, { plurals: Array<{ plural_ar: string; kind_ref: string; kind_ar: string; wazn_ar: string | null;
+                                            surah: number | null; ayah: number | null; needle: string | null; note_en: string | null }> }>;
+  sets: Array<{ id: string; title_en: string | null; title_ar: string | null; contrast: string | null;
+                members: Array<{ lemma_id: string; root_id: string | null; ar: string; en: string | null; contrast: string | null; cite: AlCite | null }> }>;
 }
 
 export interface GramTermLabel {

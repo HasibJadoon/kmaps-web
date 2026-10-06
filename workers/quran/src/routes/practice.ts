@@ -1,3 +1,4 @@
+import { cached } from '../../../shared/src/cache';
 import type { Router } from '../../../shared/src/router';
 import { attachGt } from '../../../shared/src/gt-attach';
 import { ok, badRequest } from '../../../shared/src/response';
@@ -54,12 +55,16 @@ export function practiceRoutes(router: Router<QuranEnv>) {
   });
 
   // the passage's الصرف, to read (the passage study's الصرف tab): public, like the atlas
+  // the JSON is kept at the edge (an hour; ETag, 304s); the app's refresh (?refresh=1) rebuilds it
   router.get('/qr/sarf/passage', async (req, env) => {
     const u = new URL(req.url);
     const surah = Number(u.searchParams.get('surah')), from = Number(u.searchParams.get('from')), to = Number(u.searchParams.get('to'));
     if (!Number.isInteger(surah) || surah < 1) return badRequest('surah is required');
-    const sheet = await sarfSheet(env, { surah, from: Number.isInteger(from) && from > 0 ? from : null, to: Number.isInteger(to) && to > 0 ? to : null });
-    return ok(sheet ?? { words: [], roots: [] });
+    return cached(req, async () => {
+      const sheet = await sarfSheet(env, { surah, from: Number.isInteger(from) && from > 0 ? from : null, to: Number.isInteger(to) && to > 0 ? to : null },
+                                     u.searchParams.has('refresh'));
+      return ok(sheet ?? { words: [], roots: [] });
+    }, { browser: 60, edge: 3600 });
   });
 
   router.get('/qr/practice/home', async (_req, env) => {

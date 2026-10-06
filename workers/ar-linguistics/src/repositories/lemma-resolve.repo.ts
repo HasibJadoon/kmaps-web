@@ -57,6 +57,17 @@ export interface ResolvedForm {
   wazn: string | null; example_ar: string | null; kind: string; derivation_type: string | null;
 }
 
+/** The lemma's pattern and derivation (ar_ling_root_lemma_wazn) — lemma facts, each with its source. */
+export interface ResolvedWazn {
+  id: string; wazn_id: string; wazn_ar: string;
+  derivation_id: string; derivation_ar: string; derivation_en: string | null;
+  family_id: string | null; family_ar: string | null;
+  jumud_id: string | null; jumud_ar: string | null;
+  transitivity_id: string | null; transitivity_ar: string | null;
+  base_verb: string | null; basis: string; is_disputed: number; dispute_note: string | null;
+  source_slug: string | null; source_ref: string | null; quote_ar: string | null;
+}
+
 export interface ResolvedLemma {
   id: string;
   lemma_ar: string;
@@ -70,6 +81,8 @@ export interface ResolvedLemma {
     meaning_core_ar: string | null; meaning_core_en: string | null;
   } | null;
   form: ResolvedForm | null;
+  /** best-attested first: attested, then from a source, then derived by rule */
+  wazn: ResolvedWazn[];
   senses: ResolvedSense[];
   arcs: ResolvedArc[];
   governance: ResolvedGovernance[];
@@ -179,7 +192,7 @@ export class LemmaResolveRepo {
       lemmas.map(l => l.root_normalized ?? l.root_text).filter(Boolean),
     )] as string[];
 
-    const [senses, arcs, steps, furuq, tabir, forms, gov] = await Promise.all([
+    const [senses, arcs, steps, furuq, tabir, forms, gov, wazn] = await Promise.all([
       query<{ scope_key: string } & ResolvedSense>(
         this.db,
         `SELECT scope_key, id, sense_key, gloss_ar, gloss_en, gloss_ur,
@@ -263,6 +276,24 @@ export class LemmaResolveRepo {
             govNorms,
           ).catch(() => [])
         : Promise.resolve([]),
+
+      query<{ lemma_id: string } & ResolvedWazn>(
+        this.db,
+        `SELECT w.lemma_id, w.id, w.wazn_id, z.wazn_ar,
+                w.gram_term_ref AS derivation_id, g.name_ar AS derivation_ar, g.name_en AS derivation_en,
+                f.id AS family_id, f.name_ar AS family_ar, j.id AS jumud_id, j.name_ar AS jumud_ar,
+                t.id AS transitivity_id, t.name_ar AS transitivity_ar,
+                w.base_verb, w.basis, w.is_disputed, w.dispute_note, w.source_slug, w.source_ref, w.quote_ar
+           FROM ar_ling_root_lemma_wazn w
+           JOIN ar_ling_sarf_wazn z ON z.id = w.wazn_id
+           JOIN ar_ling_gram_term g ON g.id = w.gram_term_ref
+           LEFT JOIN ar_ling_gram_term f ON f.id = 'GT:form_family:' || w.base_bab
+          LEFT JOIN ar_ling_gram_term j ON j.id = w.jumud_ref
+          LEFT JOIN ar_ling_gram_term t ON t.id = w.transitivity_ref
+          WHERE w.status = 'live' AND w.lemma_id IN (${ph})
+          ORDER BY CASE w.basis WHEN 'attested' THEN 0 WHEN 'source_attested' THEN 1 ELSE 2 END, w.id`,
+        uniq,
+      ).catch(() => []),
     ]);
 
     const senseBy = groupBy(senses, s => s.scope_key);
@@ -271,6 +302,7 @@ export class LemmaResolveRepo {
     const furuqBy = groupBy(furuq, f => f.lemma_id);
     const tabirBy = groupBy(tabir, t => t.primary_lemma_id);
     const govByRoot = groupBy(gov, g => g.root_norm);
+    const waznBy = groupBy(wazn, w => w.lemma_id);
 
     for (const l of lemmas) {
       const rootNorm = l.root_normalized ?? l.root_text;
@@ -306,6 +338,7 @@ export class LemmaResolveRepo {
             }
           : null,
         form,
+        wazn: (waznBy.get(l.id) ?? []).map(({ lemma_id: _li, ...w }) => w),
         senses: mySenses.map(({ scope_key: _sk, ...s }) => s),
         arcs: myArcs,
         governance: myGov.map(({ row: { root_norm: _rn, verb_ar, ...g }, basis }) => ({
@@ -325,6 +358,7 @@ export class LemmaResolveRepo {
           furuq: myFuruq.length > 0,
           tabir: myTabir.length > 0,
           form: !!form,
+          wazn: waznBy.has(l.id),
           root_meaning: !!(l.meaning_core_ar || l.meaning_core_en),
         },
       };

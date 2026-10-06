@@ -1,4 +1,4 @@
-// The ṣarf step over a real SQLite loaded with its own migration (qr_073): every drill it deals for
+// The ṣarf step over a real SQLite loaded with its own migrations (qr_073, qr_082–085): every drill it deals for
 // Ghāfir 40:1–3 is well formed, its answer is among its options, its Qurʾān quotes are cut from the
 // muṣḥaf text, and its GT terms are named. Set SARF_DUMP=<file> to write the drills out for review.
 import { test } from 'node:test';
@@ -21,6 +21,39 @@ function d1(db: DatabaseSync) {
 
 const FIXTURE = new URL('./fixtures/sarf-ayat.json', import.meta.url);
 
+/** AL's /al/sarf/sheet for the seeded roots, built from the QR rows (qr_073) the way AL 0130/0129/0138/0140/0142 took
+ *  them in: verb tables, cited prepositions, root pictures, plurals, near-synonym sets. */
+function alSarfSheet(db: DatabaseSync) {
+  const all = (sql: string) => db.prepare(sql).all() as Record<string, string | number | null>[];
+  const J = (x: unknown) => (x == null ? null : JSON.parse(String(x)));
+  const roots: Record<string, unknown> = {};
+  const rootOf = (r: string) => (roots[`R:${r}`] ??= { root_id: `R:${r}`, root_norm: r, picture: null, paradigms: [], preps: [], opposites: [] }) as
+    { picture: unknown; paradigms: unknown[]; preps: unknown[]; opposites: unknown[] };
+  for (const v of all(`SELECT * FROM qr_sarf_verb WHERE status = 'live'`)) rootOf(String(v.root)).paradigms.push({
+    id: `PAR:${v.id}`, root_id: `R:${v.root}`, lemma_id: null, verb_form: null, bab_key: null, source_ref: `qr_sarf_verb ${v.id}`, paradigm: {
+      past: v.madi, present: v.mudari, masadir: J(v.masadir_json), active_participle: v.fail, active_participle_gt: v.fail_gt,
+      passive_past: v.madi_majhul, passive_present: v.mudari_majhul, passive_participle: v.maful, imperative: v.amr, prohibition: v.nahy,
+      noun_of_place_time: J(v.zarf_json), noun_of_instrument: J(v.ala_json),
+      derived: (J(v.others_json) as string[][] | null)?.map(([word, gt, pattern, meaning]) => ({ word, gt, pattern, meaning })),
+      meaning: v.meaning_en, note: v.note_en, bab_gt: v.bab_gt, form_gt: v.form_gt, root_type_gt: v.root_type_gt, route_gt: v.route_gt,
+      maani_gt: v.maani_gt, quran_n: v.quran_n, cite: J(v.cite_json), full_table: !!v.full } });
+  for (const p of all(`SELECT p.*, v.root FROM qr_sarf_prep p JOIN qr_sarf_verb v ON v.id = p.verb_id`)) rootOf(String(p.root)).preps.push({
+    id: `TDY:QR:${p.id}`, root_id: `R:${p.root}`, lemma_id: null, verb_form: null, harf: p.prep_ar, harf_term_id: p.prep_gt, frame_ar: p.usage_ar,
+    meaning_en: p.meaning_en, cite: J(p.cite_json), qr_ref: null, sort_order: p.sort });
+  for (const c of all(`SELECT * FROM qr_vocab_root_core WHERE source_slug = 'kmaps_root_dna'`)) rootOf(String(c.root)).picture = { en: c.text_en, ar: c.text_ar };
+  const lemmas: Record<string, { plurals: unknown[] }> = {};
+  for (const w of all(`SELECT w.plurals_json, o.gid_lemma FROM qr_sarf_word w JOIN qr_word_occurrence o ON o.surah = w.surah AND o.ayah = w.ayah
+                         AND o.word_index = w.word_index WHERE o.gid_lemma IS NOT NULL`)) {
+    const id = String(w.gid_lemma).replace(/^AL:/, '');
+    lemmas[id] = { plurals: ((J(w.plurals_json) ?? []) as { ar: string; cite: { surah: number; ayah: number; needle: string } }[]).map((p) => ({
+      plural_ar: p.ar, kind_ref: 'GT:noun_process:jam_taksir', kind_ar: 'جمع التكسير', wazn_ar: null, ...p.cite, note_en: null })) };
+  }
+  const sets = all(`SELECT * FROM qr_sarf_near WHERE status = 'live'`).map((n) => ({ id: n.id, title_en: n.title_en, title_ar: n.title_ar, contrast: null,
+    members: (J(n.members_json) as { ar: string; en: string; cite: unknown }[]).map((m, k) => ({ lemma_id: `${n.id}:${k}`, root_id: k ? null : `R:${n.root}`,
+      ar: m.ar, en: m.en, contrast: null, cite: m.cite })) }));
+  return { roots, lemmas, sets };
+}
+
 function setup() {
   const db = new DatabaseSync(':memory:');
   db.exec(`
@@ -36,19 +69,77 @@ function setup() {
     CREATE TABLE qr_vocab_item (surah INT, ayah INT, word_index INT, here_en TEXT, gloss_en TEXT);
     CREATE TABLE ar_ling_gram_term (id TEXT PRIMARY KEY, category_key TEXT, term_key TEXT, term_order INT, name_ar TEXT, name_en TEXT,
                                     name_ur TEXT, short_ar TEXT, short_en TEXT, status TEXT);
-    CREATE TABLE qr_ayah (surah INT, ayah INT, text TEXT, text_uthmani TEXT);`);
+    CREATE TABLE qr_ayah (surah INT, ayah INT, text TEXT, text_uthmani TEXT);
+    CREATE TABLE qr_word_sense_link (id TEXT PRIMARY KEY, word_occ_id TEXT, al_sense_id TEXT, al_arc_id TEXT, surah_no INT, ayah_no INT,
+                                     word_index INT, is_contextual INT DEFAULT 0, display_order INT DEFAULT 0, status TEXT DEFAULT 'live');
+    CREATE TABLE qr_word_occurrence (id TEXT, word_text_bare TEXT, surah INT, ayah INT, word_index INT, lemma TEXT, gid_lemma TEXT, gt_derivation_type TEXT,
+                                     gt_form_family TEXT, gt_jumud TEXT, gt_case TEXT, gt_number TEXT, gt_gender TEXT, gt_definiteness TEXT);
+    CREATE TABLE qr_morph_display_lemma (gid_lemma TEXT, lemma_ar TEXT, sense_arc_en TEXT, updated_at TEXT);`);
+  // the QAC parse of the 13 focus words and their lemmas (live rows, trimmed)
+  const occ = db.prepare(`INSERT INTO qr_word_occurrence VALUES (NULL, NULL, 40, ?, ?, ?, ?, ?, ?, ?, ?, 'GT:number:singular', 'GT:gender:masculine', ?)`);
+  const lem = db.prepare(`INSERT INTO qr_morph_display_lemma (gid_lemma, lemma_ar) VALUES (?, ?)`);
+  for (const [a, i, l, g, d, f, j, c, def] of [
+    [2, 1, 'تَنزِيل', '1bc35f366d52a6776e838f0c4d', 'GT:derivation_type:masdar', 'GT:form_family:form_ii', 'GT:jumud:mushtaqq', 'GT:case:nominative', null],
+    [2, 2, 'كِتَٰب', '26ec9894256ccd2fcb77820470', 'GT:derivation_type:masdar_bi_mana_al_maful', null, 'GT:jumud:mushtaqq', 'GT:case:genitive', 'GT:definiteness:definite'],
+    [2, 5, 'عَزِيز', '3d42f257c274c5d8463f1b8371', null, null, 'GT:jumud:mushtaqq', 'GT:case:genitive', 'GT:definiteness:definite'],
+    [2, 6, 'عَلِيم', '9ba7ce572be40ce777e0d44853', 'GT:derivation_type:mubalagha', null, 'GT:jumud:mushtaqq', 'GT:case:genitive', 'GT:definiteness:definite'],
+    [3, 1, 'غَافِر', 'ea923679f32861b46d50eade95', 'GT:derivation_type:active_participle', 'GT:form_family:form_i', 'GT:jumud:mushtaqq', 'GT:case:genitive', null],
+    [3, 2, 'ذَنب', '2e7a23ca384799c20b92778cf7', null, null, 'GT:jumud:jamid', 'GT:case:genitive', 'GT:definiteness:definite'],
+    [3, 3, 'قَابِل', '89060f9f3668b069e4ca2ada7a', 'GT:derivation_type:active_participle', 'GT:form_family:form_i', 'GT:jumud:mushtaqq', 'GT:case:genitive', null],
+    [3, 4, 'تَّوْب', 'a8886e1216f97189f836165615', null, 'GT:form_family:form_i', 'GT:jumud:mushtaqq', 'GT:case:genitive', 'GT:definiteness:definite'],
+    [3, 5, 'شَدِيد', 'd598d16f55259b05ab7239513e', 'GT:derivation_type:sifa_mushabbaha', null, 'GT:jumud:mushtaqq', 'GT:case:genitive', null],
+    [3, 6, 'عِقَاب', 'ef9ac712524e50d06a2a1f98de', null, 'GT:form_family:form_iii', 'GT:jumud:mushtaqq', 'GT:case:genitive', 'GT:definiteness:definite'],
+    [3, 8, 'طَوْل', '9e553feca8a3dea46195b29917', null, 'GT:form_family:form_i', 'GT:jumud:mushtaqq', 'GT:case:genitive', 'GT:definiteness:definite'],
+    [3, 10, 'إِلَٰه', 'c88f937fab2a9108ab54922b75', null, null, null, 'GT:case:accusative', null],
+    [3, 14, 'مَصِير', 'a6a5a940211be758e1edae8a66', 'GT:derivation_type:masdar_mimi', 'GT:form_family:form_i', 'GT:jumud:mushtaqq', 'GT:case:nominative', 'GT:definiteness:definite'],
+  ] as const) { occ.run(a, i, l, `AL:${g}`, d, f, j, c, def); lem.run(`AL:${g}`, l); }
   const gt = db.prepare(`INSERT INTO ar_ling_gram_term (id, name_ar) VALUES (?, ?)`);
   for (const [id, ar] of [['GT:form_family:bab_nasara', 'بابُ نَصَرَ'], ['GT:form_family:bab_daraba', 'بابُ ضَرَبَ'], ['GT:form_family:bab_fataha', 'بابُ فَتَحَ'],
     ['GT:form_family:bab_samia', 'بابُ سَمِعَ'], ['GT:form_family:bab_hasiba', 'بابُ حَسِبَ'], ['GT:form_family:bab_karuma', 'بابُ كَرُمَ'],
     ['GT:form_family:form_ii', 'تَفْعِيل'], ['GT:form_family:form_iii', 'مُفَاعَلَة'], ['GT:form_family:form_iv', 'إِفْعَال'], ['GT:form_family:form_v', 'تَفَعُّل'],
     ['GT:form_family:form_vi', 'تَفَاعُل'], ['GT:form_family:form_vii', 'اِنْفِعَال'], ['GT:form_family:form_viii', 'اِفْتِعَال'], ['GT:form_family:form_x', 'اِسْتِفْعَال'],
     ['GT:derivation_type:active_participle', 'اسم الفاعل'], ['GT:derivation_type:sifa_mushabbaha', 'الصفة المشبّهة'],
-    ['GT:derivation_type:passive_participle', 'اسم المفعول']]) gt.run(id, ar);
+    ['GT:derivation_type:passive_participle', 'اسم المفعول'], ['GT:derivation_type:masdar', 'مَصْدَر'], ['GT:case:nominative', 'مَرْفُوع'],
+    ['GT:jumud:mushtaqq', 'مُشتقّ'], ['GT:number:singular', 'مُفْرَد'], ['GT:gender:masculine', 'مُذَكَّر']]) gt.run(id, ar);
+  db.prepare(`UPDATE ar_ling_gram_term SET name_en = 'verbal noun' WHERE id = 'GT:derivation_type:masdar'`).run();
+  // the words of 40:2 as the muṣḥaf has them bare, and the senses تَنزِيل's occurrences use (qr_word_sense_link)
+  db.exec(`INSERT INTO qr_word_occurrence (surah, ayah, word_index, word_text_bare) VALUES (40, 2, 3, 'من'), (40, 2, 4, 'الله'),
+             (26, 192, 1, 'وانه'), (26, 192, 2, 'لتنزيل'), (26, 192, 3, 'رب'), (17, 106, 8, 'ونزلناه'), (17, 106, 9, 'تنزيلا'),
+             (25, 25, 5, 'ونزل'), (25, 25, 6, 'الملائكة'), (25, 25, 7, 'تنزيلا')`);
+  db.exec(`UPDATE qr_word_occurrence SET word_text_bare = 'تنزيل' WHERE surah = 40 AND ayah = 2 AND word_index = 1`);
+  db.exec(`UPDATE qr_word_occurrence SET word_text_bare = 'الكتاب' WHERE surah = 40 AND ayah = 2 AND word_index = 2`);
+  db.exec(`INSERT INTO qr_word_sense_link (id, al_sense_id, al_arc_id, surah_no, ayah_no, word_index, is_contextual) VALUES
+             ('a', 'SNS:نزل:tanzil_revelation', 'ARC:نزل:tanzil', 40, 2, 1, 1), ('b', 'SNS:نزل:tanzil_revelation', NULL, 26, 192, 2, 1),
+             ('c', 'SNS:نزل:tanzil_stages', NULL, 17, 106, 9, 1), ('d', 'SNS:نزل:tanzil_angels', NULL, 25, 25, 7, 1)`);
   db.exec(readFileSync(new URL('../migrations/qr_073_sarf_saghir.sql', import.meta.url), 'utf8'));
+  db.exec(readFileSync(new URL('../migrations/qr_082_sarf_word_arc.sql', import.meta.url), 'utf8'));
+  db.exec(readFileSync(new URL('../migrations/qr_083_sarf_lemma_level.sql', import.meta.url), 'utf8'));
+  db.exec(readFileSync(new URL('../migrations/qr_084_sarf_word_compact.sql', import.meta.url), 'utf8'));
+  db.exec(readFileSync(new URL('../migrations/qr_085_meaning_on_occurrence.sql', import.meta.url), 'utf8'));
   const ayat = existsSync(FIXTURE) ? JSON.parse(readFileSync(FIXTURE, 'utf8')) as Record<string, string> : {};
   const ins = db.prepare(`INSERT INTO qr_ayah (surah, ayah, text_uthmani) VALUES (?, ?, ?)`);
   for (const [k, t] of Object.entries(ayat)) { const [s, a] = k.split(':').map(Number); ins.run(s, a, t); }
-  return { db, env: { DB_QR: d1(db) } as never };
+  // AL, the language authority, as /al/lemmas/resolve answers for تَنزِيل — its senses (one never cited in the Qurʾān) and arcs
+  // each focus word's global root id, as qr_word_occurrence.root_uid carries it
+  db.exec(`ALTER TABLE qr_word_occurrence ADD COLUMN root_uid TEXT`);
+  db.exec(`UPDATE qr_word_occurrence SET root_uid = 'R:' || (SELECT w.root FROM qr_sarf_word w WHERE w.surah = qr_word_occurrence.surah
+             AND w.ayah = qr_word_occurrence.ayah AND w.word_index = qr_word_occurrence.word_index)`);
+  const sheet = alSarfSheet(db);
+  const resolve = { 'AL:1bc35f366d52a6776e838f0c4d': {
+    id: '1bc35f366d52a6776e838f0c4d', lemma_ar: 'تَنزِيل', senses: [
+      { id: 'SNS:نزل:tanzil_revelation', gloss_en: 'the Revelation sent down from God — the Qurʾān', gloss_ar: 'الوحي المنزَّل من الله', is_core: 1, status: 'live' },
+      { id: 'SNS:نزل:tanzil_stages', gloss_en: 'sent down part by part, in stages', gloss_ar: 'التنزيل منجَّمًا', is_core: 0, status: 'live' },
+      { id: 'SNS:نزل:tanzil_angels', gloss_en: 'the angels sent down, on the Day', gloss_ar: 'تنزيل الملائكة', is_core: 0, status: 'live' },
+      { id: 'SNS:نزل:tanzil_order', gloss_en: 'putting a thing in its place', gloss_ar: 'ترتيب الشيء', is_core: 0, status: 'live' }],
+    wazn: [{ id: 'LW:tanzil:masdar', wazn_id: 'WZ:tafiyl', wazn_ar: 'تَفْعِيل', derivation_id: 'GT:derivation_type:masdar', derivation_ar: 'مَصْدَر',
+             family_id: 'GT:form_family:form_ii', family_ar: 'تَفْعِيل', jumud_id: 'GT:jumud:mushtaqq', jumud_ar: 'مُشتقّ', transitivity_id: 'GT:transitivity:transitive', transitivity_ar: 'مُتَعَدٍّ', base_verb: 'نَزَّلَ يُنَزِّلُ', basis: 'derived', source_slug: 'kmaps_synth', source_ref: null, quote_ar: null }],
+    arcs: [{ id: 'ARC:نزل:old', arc_en: 'superseded', is_primary: 0, status: 'superseded' },
+           { id: 'ARC:نزل:tanzil', arc_en: 'coming down → sent down in stages → the Revelation', is_primary: 1, status: 'live' }] } };
+  const AR_LINGUISTICS = { fetch: async (req: Request | string) => {
+    const url = new URL(typeof req === 'string' ? req : req.url, 'https://al');
+    return Response.json({ ok: true, data: url.pathname === '/al/sarf/sheet' ? sheet : resolve });
+  } };
+  return { db, env: { DB_QR: d1(db), AR_LINGUISTICS } as never };
 }
 
 test('a bare needle finds its words in the Uthmānī text', () => {
@@ -112,6 +203,23 @@ test('the passage’s الصرف to read: every word, each root with its verbs, 
   assert.equal(sheet.words.length, 13);
   const tawb = sheet.words.find((w) => w.root === 'توب')!;
   assert.equal(tawb.here, 'repentance — turning back to God');
+  // a word whose lemma AL has not resolved carries no arc rather than a guess
+  assert.equal(tawb.arc, null);
+  // the arc and the range are the lemma's, for the whole Qurʾān; the word only says which sense it uses
+  const tanzil = sheet.words.find((w) => w.root === 'نزل')!;
+  assert.equal(tanzil.lemma, 'تَنزِيل');
+  assert.equal(tanzil.arc, 'coming down → sent down in stages → the Revelation');
+  assert.deepEqual(tanzil.arcSteps, ['coming down', 'sent down in stages', 'the Revelation']);
+  assert.deepEqual(tanzil.props.slice(0, 4).map((p) => p.ar), ['مَرْفُوع', 'مَصْدَر', 'تَفْعِيل', 'مُشتقّ']);
+  assert.equal(tanzil.props[1].en, 'verbal noun');
+  // the detail screen is the lemma's: AL's derivation + pattern only, no verse tags (case, iʿrāb)
+  assert.deepEqual(tanzil.lemmaProps.map((p) => p.ar), ['مَصْدَر', 'مُشتقّ', 'مُتَعَدٍّ', 'وَزْن تَفْعِيل']);
+  // the range is AL's senses of the lemma that some Qurʾānic word links to — the uncited one stays out
+  const range = sheet.ranges!.filter((r) => r.root === 'نزل');
+  assert.deepEqual(range.map((r) => r.lemma), ['تَنزِيل']);
+  assert.deepEqual(range[0].senses.map((x) => [x.en, x.here]),
+    [['the Revelation sent down from God — the Qurʾān', true], ['sent down part by part, in stages', false], ['the angels sent down, on the Day', false]]);
+  if (existsSync(FIXTURE)) assert.ok(range[0].senses[0].quotes.some((q) => /﴿تَنزِيلُ ٱلۡكِتَٰبِ﴾ 40:2$/.test(String(q))));
   assert.equal(tawb.picture?.en, 'Returning — coming back.');
   const root = sheet.roots.find((r) => r.root === 'توب')!;
   assert.equal(root.letters, 'ت و ب');
@@ -120,6 +228,6 @@ test('the passage’s الصرف to read: every word, each root with its verbs, 
   assert.deepEqual(v.preps.map((p) => p.prep), ['إِلَى', 'عَلَى']);
   assert.ok(v.chips.includes('بابُ نَصَرَ'));
   if (existsSync(FIXTURE)) assert.match(String(v.preps[0].quote), /﴿.+﴾ 66:8/);
-  assert.ok(root.range.some((s) => s.here));
+  assert.ok(sheet.roots.find((r) => r.root === 'نزل')!.range.some((s) => s.here));
   assert.equal(sheet.roots.find((r) => r.root === 'ذنب')!.near[0].members[0].ar, 'ذَنْب');
 });
