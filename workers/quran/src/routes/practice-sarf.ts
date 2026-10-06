@@ -42,13 +42,14 @@ type Near = { id: string; root: string; roots: string[]; lemmas: string[]; focus
               contrast: string | null };
 type NearMember = { ar: string; en: string; contrast?: string | null; cite: Cite | null };
 type Plural = { ar: string; cite: Cite };
-type Opposite = { ar: string; en: string | null; kind: string; note: string | null; cites: Cite[] };
+/** An opposite as a book states it; `forWord` names the word of the root it belongs to when that is not the root's main sense. */
+type Opposite = { ar: string; en: string | null; kind: string; note: string | null; cites: Cite[]; lemmaId: string | null; forWord: string | null };
 type Construction = { lemmaId: string; lemma: string; construction: string; count: number; line: string; lineAr: string; note: string | null;
                       quote: string | null; quoteEn: string | null };
 /** What kind of opposite, in plain words (ar_ling_root_didd.relation_kind). */
 const OPPOSITE_KIND: Record<string, string> = {
   antonym: 'opposite', naqid: 'opposite', contrary: 'opposite', contrast: 'set against it',
-  addad_internal: 'one word, both meanings', antithetical_pair: 'paired in the Qurʾān', derived_contrary: 'opposite' };
+  addad_internal: 'one word, both meanings', contronym_internal: 'one word, both meanings', antithetical_pair: 'paired in the Qurʾān', derived_contrary: 'opposite' };
 type Cell = { label: string; value: string };
 
 /** The mazīd forms by number, as the family table names them. */
@@ -136,7 +137,8 @@ async function load(env: QuranEnv, scope: Scope, refresh = false) {
     .map((r) => ({ root: rootText.get(r.root_id)!, text_en: r.picture!.en, text_ar: r.picture!.ar ?? '' })) : [];
   const opposites = new Map<string, Opposite[]>(sheet ? Object.values(sheet.roots).filter((r) => rootText.has(r.root_id))
     .map((r) => [rootText.get(r.root_id)!, r.opposites.map((o) => ({ ar: o.antonym_ar, en: o.antonym_en, kind: o.relation_kind,
-      note: o.note_en, cites: o.display?.quran ?? [] }))]) : []);
+      note: o.note_en, cites: o.display?.quran ?? [], lemmaId: o.lemma_id,
+      forWord: o.for_word_ar ? (o.for_word_en ? `${o.for_word_ar} — ${o.for_word_en}` : o.for_word_ar) : null }))]) : []);
   // how each root's lemmas are used: the construction arcs, with the primary worked verse cut from the muṣḥaf
   const constructions = new Map<string, Construction[]>(sheet ? Object.values(sheet.roots).filter((r) => rootText.has(r.root_id))
     .map((r) => [rootText.get(r.root_id)!, (r.constructions ?? []).map((a) => ({
@@ -495,6 +497,8 @@ export async function sarfSheet(env: QuranEnv, scope: Scope, refresh = false) {
   for (const g of extra) gt.set(g.id, g.name_ar);
   const name = (id: string | null | undefined) => (id ? gt.get(id) ?? null : null);
   const cite = (c: Cite | null | undefined) => (c ? quote(c, texts) : null);
+  const oppositeView = (o: Opposite) => ({ ar: o.ar, en: o.en, kind: OPPOSITE_KIND[o.kind] ?? o.kind, forWord: o.forWord,
+    note: o.note, quote: o.cites.map(cite).find(Boolean) ?? null });
   const nearView = (n: Near) => ({ title: n.title_en, titleAr: n.title_ar, contrast: n.contrast,
     members: parseJson<NearMember[]>(n.members_json, []).map((m) => ({ ar: m.ar, en: m.en, contrast: m.contrast ?? null, quote: cite(m.cite) })) });
   const verbView = (v: Verb) => ({
@@ -533,8 +537,7 @@ export async function sarfSheet(env: QuranEnv, scope: Scope, refresh = false) {
     // how each root's lemmas are used — one line per construction, with a worked verse
     constructions: roots.flatMap((r) => (constructions.get(r) ?? []).map(({ lemmaId: _l, ...c }) => ({ root: r, ...c }))),
     // each root's opposites as the books state them, the kind in plain words
-    opposites: roots.flatMap((r) => (opposites.get(r) ?? []).map((o) => ({ root: r, ar: o.ar, en: o.en, kind: OPPOSITE_KIND[o.kind] ?? o.kind,
-      note: o.note, quote: o.cites.map(cite).find(Boolean) ?? null }))),
+    opposites: roots.flatMap((r) => (opposites.get(r) ?? []).map((o) => ({ root: r, ...oppositeView(o) }))),
     near: nears.map((n) => ({ root: n.root, ...nearView(n) })),
     words: words.map((w) => ({
       ref: `${w.surah}:${w.ayah}:${w.word_index}`, place: `${w.surah}:${w.ayah} · ${w.word_index}`, word: w.word_ar, lemma: lemmaTextOf(occOf(w)?.gid_lemma) ?? occOf(w)?.lemma ?? null, arc: arcOf(occOf(w)?.gid_lemma, linkOf(w)?.al_arc_id),
@@ -559,6 +562,13 @@ export async function sarfSheet(env: QuranEnv, scope: Scope, refresh = false) {
         const all = nears.filter((n) => n.roots.includes(w.root));
         return [...all.filter((n) => own && n.lemmas.includes(own)), ...all.filter((n) => !own || !n.lemmas.includes(own))].map(nearView);
       })(),
+      // its opposites — the ones for this word (or the root's main sense) first, then those of the root's other words, named
+      opposites: (() => {
+        const own = occOf(w)?.gid_lemma?.replace(/^AL:/, '');
+        const all = opposites.get(w.root) ?? [];
+        const mine = (o: Opposite) => !o.forWord || (!!own && o.lemmaId === own);
+        return [...all.filter(mine), ...all.filter((o) => !mine(o))].map(oppositeView);
+      })(),
       plurals: pluralsOf(w).map((p) => ({ ar: p.ar, quote: cite(p.cite) })),
       prep: (() => { const p = parseJson<{ ar: string; gt: string; how: string } | null>(w.prep_json, null);
                      return p ? { prep: p.ar, name: name(p.gt), how: p.how } : null; })(),
@@ -570,7 +580,7 @@ export async function sarfSheet(env: QuranEnv, scope: Scope, refresh = false) {
                                                             quotes: parseJson<Cite[]>(s.cites_json, []).map(cite).filter(Boolean) })),
       near: nears.filter((n) => n.roots.includes(r)).map(nearView),
       // the root's opposites, as the books state them (and the Qurʾān sets them side by side)
-      opposites: (opposites.get(r) ?? []).map((o) => ({ ar: o.ar, en: o.en, kind: o.kind, note: o.note,
+      opposites: (opposites.get(r) ?? []).map((o) => ({ ar: o.ar, en: o.en, kind: o.kind, forWord: o.forWord, note: o.note,
         quotes: o.cites.map(cite).filter(Boolean) })),
     })),
   };

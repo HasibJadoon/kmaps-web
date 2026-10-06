@@ -134,6 +134,7 @@ export interface AlSarfSheet {
                    qr_ref: string | null; sort_order: number }>;
     opposites: Array<{ id: string; antonym_ar: string; antonym_root_id: string | null; antonym_en: string | null;
                        relation_kind: string; note_en: string | null; source_ref: string | null;
+                       lemma_id: string | null; for_word_ar: string | null; for_word_en: string | null;
                        display: { quran?: AlCite[] } | null }>;
     constructions?: Array<{ id: string; lemma_id: string; lemma_ar: string; construction_ar: string; harf: string | null;
                             attest_count: number; arc_ar: string; arc_en: string; boundary_note_en: string | null;

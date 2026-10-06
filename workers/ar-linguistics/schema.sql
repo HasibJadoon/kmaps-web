@@ -1449,7 +1449,7 @@ CREATE TABLE "ar_ling_root_didd" (
   source_ref TEXT,
   status TEXT NOT NULL DEFAULT 'draft',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
-, root_id TEXT, confidence REAL DEFAULT 0.8, generated_by TEXT, antonym_ur TEXT, note_ar TEXT, note_ur TEXT, note_en TEXT, display_json TEXT);
+, root_id TEXT, confidence REAL DEFAULT 0.8, generated_by TEXT, antonym_ur TEXT, note_ar TEXT, note_ur TEXT, note_en TEXT, display_json TEXT, antonym_root_id TEXT REFERENCES ar_ling_roots(id), lemma_id TEXT REFERENCES ar_ling_root_lemma(id), for_word_ar TEXT, for_word_en TEXT);
 
 CREATE TABLE ar_ling_root_display (
   id TEXT PRIMARY KEY,

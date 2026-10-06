@@ -8,7 +8,7 @@ import type { ArLinguisticsEnv } from '../env';
 // Everything the "Forms & words" screen shows about the LANGUAGE, by global id (AL:ROOT / AL:LEMMA):
 //   per root   its picture (ar_ling_root_dna.picture_*), its verb tables (ar_ling_root_form_paradigm,
 //              22-BAB), the prepositions its words take (ar_ling_root_lemma_tadiya, 20-GOV, the cited rows),
-//              its opposites (ar_ling_root_didd, 30-KIN), and how its lemmas are used — the construction arcs
+//              its opposites (ar_ling_root_didd, 30-KIN; each names the word it is for when not the root's main sense), and how its lemmas are used — the construction arcs
 //              (ar_ling_lemma_arc, each with its primary worked verse)
 //   per lemma  its plurals (ar_ling_root_lemma_jam, 200-LEM)
 //   sets       the near-synonym sets with a checked member from these roots (furūq, 80-KIN)
@@ -43,8 +43,10 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
            FROM ar_ling_root_lemma_tadiya
           WHERE status = 'live' AND cite_json IS NOT NULL AND root_id IN ${inList} ORDER BY root_id, sort_order`, [R]),
       query<{ id: string; root_id: string; antonym_ar: string; antonym_root_id: string | null; antonym_en: string | null;
-              relation_kind: string; note_en: string | null; source_ref: string | null; display_json: string | null }>(db,
-        `SELECT id, root_id, antonym_ar, antonym_root_id, antonym_en, relation_kind, note_en, source_ref, display_json
+              relation_kind: string; note_en: string | null; source_ref: string | null; display_json: string | null;
+              lemma_id: string | null; for_word_ar: string | null; for_word_en: string | null }>(db,
+        `SELECT id, root_id, antonym_ar, antonym_root_id, antonym_en, relation_kind, note_en, source_ref, display_json,
+                lemma_id, for_word_ar, for_word_en
            FROM ar_ling_root_didd WHERE status = 'live' AND root_id IN ${inList} ORDER BY root_id, sort_order`, [R]),
       query<{ lemma_id: string; plural_ar: string; kind_ref: string; kind_ar: string; wazn_ar: string | null;
               surah: number | null; ayah: number | null; needle: string | null; note_en: string | null }>(db,
