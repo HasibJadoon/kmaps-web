@@ -8,7 +8,8 @@ import type { ArLinguisticsEnv } from '../env';
 // Everything the "Forms & words" screen shows about the LANGUAGE, by global id (AL:ROOT / AL:LEMMA):
 //   per root   its picture (ar_ling_root_dna.picture_*), its verb tables (ar_ling_root_form_paradigm,
 //              22-BAB), the prepositions its words take (ar_ling_root_lemma_tadiya, 20-GOV, the cited rows),
-//              its opposites (ar_ling_root_didd, 30-KIN)
+//              its opposites (ar_ling_root_didd, 30-KIN), and how its lemmas are used — the construction arcs
+//              (ar_ling_lemma_arc, each with its primary worked verse)
 //   per lemma  its plurals (ar_ling_root_lemma_jam, 200-LEM)
 //   sets       the near-synonym sets with a checked member from these roots (furūq, 80-KIN)
 // What a word means in its verse stays with QR; this is the same for every verse.
@@ -25,7 +26,7 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
     if (!roots.length && !lemmas.length) return badRequest('roots and/or lemmas (comma-separated global ids) required');
     const R = JSON.stringify(roots), L = JSON.stringify(lemmas);
     const db = env.DB_AL;
-    const [dna, paradigms, preps, didd, jam, members, contrasts] = await Promise.all([
+    const [dna, paradigms, preps, didd, jam, members, contrasts, arcs] = await Promise.all([
       query<{ root_id: string; root_norm: string; picture_en: string | null; picture_ar: string | null }>(db,
         `SELECT root_id, root_norm, picture_en, picture_ar FROM ar_ling_root_dna WHERE root_id IN ${inList}`, [R]),
       query<{ id: string; root_id: string; lemma_id: string | null; verb_form: string | null; bab_key: string | null;
@@ -69,6 +70,18 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
           ORDER BY m.set_id, m.sort_order`, [R]),
       query<{ set_id: string; note_md: string }>(db,
         `SELECT set_id, note_md FROM ar_ling_root_lemma_furuq_set_src WHERE source_role = 'contrast'`),
+      // every construction arc of the roots' lemmas, with its primary worked verse
+      query<{ id: string; root_id: string; lemma_id: string; lemma_ar: string; construction_ar: string; harf: string | null;
+              attest_count: number; arc_ar: string; arc_en: string; boundary_note_en: string | null; branches_json: string | null;
+              ex_surah: number | null; ex_ayah: number | null; ex_text: string | null; ex_en: string | null; ex_note: string | null }>(db,
+        `SELECT a.id, l.root_id, a.lemma_id, l.lemma_text AS lemma_ar, a.construction_ar, a.harf, a.attest_count, a.arc_ar, a.arc_en,
+                a.boundary_note_en, a.branches_json,
+                e.surah AS ex_surah, e.ayah AS ex_ayah, e.text_ar AS ex_text, e.fluent_en AS ex_en, e.note_en AS ex_note
+           FROM ar_ling_lemma_arc a JOIN ar_ling_root_lemma l ON l.id = a.lemma_id
+           LEFT JOIN ar_ling_lemma_arc_example e ON e.id = (SELECT e2.id FROM ar_ling_lemma_arc_example e2 WHERE e2.arc_id = a.id
+                                                             ORDER BY e2.is_primary DESC, e2.seq LIMIT 1)
+          WHERE a.status = 'live' AND l.root_id IN ${inList}
+          ORDER BY l.root_id, a.lemma_id, a.attest_count DESC`, [R]),
     ]);
 
     const contrast = new Map(contrasts.map((c) => [c.set_id, c.note_md]));
@@ -88,6 +101,7 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
           paradigms: byRoot(paradigms, r).map((p) => ({ ...p, paradigm: JSON.parse(p.paradigm_json), paradigm_json: undefined })),
           preps: byRoot(preps, r).map((p) => ({ ...p, cite: JSON.parse(p.cite_json), cite_json: undefined })),
           opposites: byRoot(didd, r).map((o) => ({ ...o, display: o.display_json ? JSON.parse(o.display_json) : null, display_json: undefined })),
+          constructions: byRoot(arcs, r).map((a) => ({ ...a, branches: a.branches_json ? JSON.parse(a.branches_json) : [], branches_json: undefined })),
         }];
       })),
       lemmas: Object.fromEntries(lemmas.map((l) => [l, { plurals: jam.filter((j) => j.lemma_id === l) }])),

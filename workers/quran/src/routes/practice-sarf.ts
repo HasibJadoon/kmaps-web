@@ -40,6 +40,12 @@ type Near = { id: string; root: string; roots: string[]; focus_ar: string; title
 type NearMember = { ar: string; en: string; contrast?: string | null; cite: Cite | null };
 type Plural = { ar: string; cite: Cite };
 type Opposite = { ar: string; en: string | null; kind: string; note: string | null; cites: Cite[] };
+type Construction = { lemma: string; construction: string; count: number; line: string; lineAr: string; note: string | null;
+                      senses: string[]; quote: string | null; quoteEn: string | null };
+/** What kind of opposite, in plain words (ar_ling_root_didd.relation_kind). */
+const OPPOSITE_KIND: Record<string, string> = {
+  antonym: 'opposite', naqid: 'opposite', contrary: 'opposite', contrast: 'set against it',
+  addad_internal: 'one word, both meanings', antithetical_pair: 'paired in the Qurʾān', derived_contrary: 'opposite' };
 type Cell = { label: string; value: string };
 
 /** The mazīd forms by number, as the family table names them. */
@@ -128,6 +134,12 @@ async function load(env: QuranEnv, scope: Scope, refresh = false) {
   const opposites = new Map<string, Opposite[]>(sheet ? Object.values(sheet.roots).filter((r) => rootText.has(r.root_id))
     .map((r) => [rootText.get(r.root_id)!, r.opposites.map((o) => ({ ar: o.antonym_ar, en: o.antonym_en, kind: o.relation_kind,
       note: o.note_en, cites: o.display?.quran ?? [] }))]) : []);
+  // how each root's lemmas are used: the construction arcs, with the primary worked verse cut from the muṣḥaf
+  const constructions = new Map<string, Construction[]>(sheet ? Object.values(sheet.roots).filter((r) => rootText.has(r.root_id))
+    .map((r) => [rootText.get(r.root_id)!, (r.constructions ?? []).map((a) => ({
+      lemma: a.lemma_ar, construction: a.construction_ar, count: a.attest_count, line: a.arc_en, lineAr: a.arc_ar, note: a.boundary_note_en,
+      senses: a.branches.filter((b) => b.kind === 'sense' && b.arc_en).map((b) => b.arc_en!),
+      quote: a.ex_text ? `﴿${a.ex_text}﴾ ${a.ex_surah}:${a.ex_ayah}` : null, quoteEn: a.ex_en }))]) : []);
   const pluralsOf = (w: Word): Plural[] => {
     const g = occAt.get(at3(w))?.gid_lemma?.replace(/^AL:/, '');
     return (g && sheet?.lemmas[g]?.plurals || []).filter((p) => p.surah && p.ayah && p.needle)
@@ -191,7 +203,7 @@ async function load(env: QuranEnv, scope: Scope, refresh = false) {
       [JSON.stringify(gtIds)]),
   ]);
   return {
-    words, verbs, preps, senses, nears, pluralsOf, opposites,
+    words, verbs, preps, senses, nears, pluralsOf, opposites, constructions,
     occ: new Map(occs.map((o) => [`${o.surah}:${o.ayah}:${o.word_index}`, o])),
     link: new Map(links.map((l) => [`${l.s}:${l.a}:${l.w}`, l])),
     arcOf, lemmaPropsOf,
@@ -458,7 +470,7 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
 export async function sarfSheet(env: QuranEnv, scope: Scope, refresh = false) {
   const D = await load(env, scope, refresh);
   if (!D) return null;
-  const { verbs, preps, senses, nears, words, texts, gt, picture, occ, irab, link, arcOf, lemmaPropsOf, pluralsOf, opposites } = D;
+  const { verbs, preps, senses, nears, words, texts, gt, picture, occ, irab, link, arcOf, lemmaPropsOf, pluralsOf, opposites, constructions } = D;
   const occOf = (w: Word) => occ.get(`${w.surah}:${w.ayah}:${w.word_index}`);
   // every GT tag QAC gives each word, named Arabic first
   const props = await query<{ id: string; name_ar: string; name_en: string | null }>(env.DB_QR,
@@ -512,6 +524,11 @@ export async function sarfSheet(env: QuranEnv, scope: Scope, refresh = false) {
     ranges: roots.flatMap((r) => lemmas(r).map((l) => ({ root: r, lemma: l, gloss: pic(r)?.en ?? null,
       senses: senses.filter((x) => x.root === r && x.lemma_ar === l).map((x) => ({ en: x.sense_en, ar: x.sense_ar, here: used.has(x.id),
         quotes: parseJson<Cite[]>(x.cites_json, []).map(cite).filter(Boolean) })) }))),
+    // how each root's lemmas are used — one line per construction, with a worked verse
+    constructions: roots.flatMap((r) => (constructions.get(r) ?? []).map((c) => ({ root: r, ...c }))),
+    // each root's opposites as the books state them, the kind in plain words
+    opposites: roots.flatMap((r) => (opposites.get(r) ?? []).map((o) => ({ root: r, ar: o.ar, en: o.en, kind: OPPOSITE_KIND[o.kind] ?? o.kind,
+      note: o.note, quote: o.cites.map(cite).find(Boolean) ?? null }))),
     near: nears.map((n) => ({ root: n.root, title: n.title_en, titleAr: n.title_ar, contrast: n.contrast,
       members: parseJson<NearMember[]>(n.members_json, []).map((m) => ({ ar: m.ar, en: m.en, contrast: m.contrast ?? null, quote: cite(m.cite) })) })),
     words: words.map((w) => ({

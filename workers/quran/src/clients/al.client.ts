@@ -135,6 +135,10 @@ export interface AlSarfSheet {
     opposites: Array<{ id: string; antonym_ar: string; antonym_root_id: string | null; antonym_en: string | null;
                        relation_kind: string; note_en: string | null; source_ref: string | null;
                        display: { quran?: AlCite[] } | null }>;
+    constructions?: Array<{ id: string; lemma_id: string; lemma_ar: string; construction_ar: string; harf: string | null;
+                            attest_count: number; arc_ar: string; arc_en: string; boundary_note_en: string | null;
+                            branches: Array<{ kind?: string; label?: string; arc_en?: string }>;
+                            ex_surah: number | null; ex_ayah: number | null; ex_text: string | null; ex_en: string | null; ex_note: string | null }>;
   }>;
   lemmas: Record<string, { plurals: Array<{ plural_ar: string; kind_ref: string; kind_ar: string; wazn_ar: string | null;
                                             surah: number | null; ayah: number | null; needle: string | null; note_en: string | null }> }>;
