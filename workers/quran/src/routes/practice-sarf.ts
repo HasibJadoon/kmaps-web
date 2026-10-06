@@ -34,13 +34,16 @@ type Occ = { surah: number; ayah: number; word_index: number; lemma: string | nu
              gt_number: string | null; gt_gender: string | null; gt_definiteness: string | null };
 // the case first (the iʿrāb sign), then what the word is made of
 const OCC_GT = ['gt_case', 'gt_derivation_type', 'gt_form_family', 'gt_jumud', 'gt_number', 'gt_gender', 'gt_definiteness'] as const;
+/** The card is the word in its verse: its case and what it is in this sentence (number, gender, definiteness). What the
+ *  word IS — derivation, form family, مشتق/جامد, pattern — is the lemma's, and the detail screen has it (lemmaProps). */
+const VERSE_GT = ['gt_case', 'gt_number', 'gt_gender', 'gt_definiteness'] as const;
 type Sense = { id: string; root: string; lemma_ar: string; lemma_id: string | null; sense_en: string; sense_ar: string | null; cites_json: string };
 type Near = { id: string; root: string; roots: string[]; focus_ar: string; title_en: string; title_ar: string; members_json: string;
               contrast: string | null };
 type NearMember = { ar: string; en: string; contrast?: string | null; cite: Cite | null };
 type Plural = { ar: string; cite: Cite };
 type Opposite = { ar: string; en: string | null; kind: string; note: string | null; cites: Cite[] };
-type Construction = { lemma: string; construction: string; count: number; line: string; lineAr: string; note: string | null;
+type Construction = { lemmaId: string; lemma: string; construction: string; count: number; line: string; lineAr: string; note: string | null;
                       senses: string[]; quote: string | null; quoteEn: string | null };
 /** What kind of opposite, in plain words (ar_ling_root_didd.relation_kind). */
 const OPPOSITE_KIND: Record<string, string> = {
@@ -137,7 +140,7 @@ async function load(env: QuranEnv, scope: Scope, refresh = false) {
   // how each root's lemmas are used: the construction arcs, with the primary worked verse cut from the muṣḥaf
   const constructions = new Map<string, Construction[]>(sheet ? Object.values(sheet.roots).filter((r) => rootText.has(r.root_id))
     .map((r) => [rootText.get(r.root_id)!, (r.constructions ?? []).map((a) => ({
-      lemma: a.lemma_ar, construction: a.construction_ar, count: a.attest_count, line: a.arc_en, lineAr: a.arc_ar, note: a.boundary_note_en,
+      lemmaId: a.lemma_id, lemma: a.lemma_ar, construction: a.construction_ar, count: a.attest_count, line: a.arc_en, lineAr: a.arc_ar, note: a.boundary_note_en,
       senses: a.branches.filter((b) => b.kind === 'sense' && b.arc_en).map((b) => b.arc_en!),
       quote: a.ex_text ? `﴿${a.ex_text}﴾ ${a.ex_surah}:${a.ex_ayah}` : null, quoteEn: a.ex_en }))]) : []);
   const pluralsOf = (w: Word): Plural[] => {
@@ -477,7 +480,7 @@ export async function sarfSheet(env: QuranEnv, scope: Scope, refresh = false) {
     `SELECT id, name_ar, name_en FROM ar_ling_gram_term WHERE id IN (SELECT value FROM json_each(?))`,
     [JSON.stringify([...new Set([...occ.values()].flatMap((o) => OCC_GT.map((c) => o[c])).concat([...irab.values()].flat()).filter(Boolean))])]);
   // a word's tags: its iʿrāb first, then QAC's
-  const tagsOf = (w: Word) => [...new Set([...(irab.get(`${w.surah}:${w.ayah}:${w.word_index}`) ?? []), ...OCC_GT.map((c) => occOf(w)?.[c])])]
+  const tagsOf = (w: Word) => [...new Set([...(irab.get(`${w.surah}:${w.ayah}:${w.word_index}`) ?? []), ...VERSE_GT.map((c) => occOf(w)?.[c])])]
     .filter((g): g is string => !!g && prop.has(g));
   const prop = new Map(props.map((p) => [p.id, p]));
   // the sense each word of the scope uses — marked in its lemma's range
@@ -525,7 +528,7 @@ export async function sarfSheet(env: QuranEnv, scope: Scope, refresh = false) {
       senses: senses.filter((x) => x.root === r && x.lemma_ar === l).map((x) => ({ en: x.sense_en, ar: x.sense_ar, here: used.has(x.id),
         quotes: parseJson<Cite[]>(x.cites_json, []).map(cite).filter(Boolean) })) }))),
     // how each root's lemmas are used — one line per construction, with a worked verse
-    constructions: roots.flatMap((r) => (constructions.get(r) ?? []).map((c) => ({ root: r, ...c }))),
+    constructions: roots.flatMap((r) => (constructions.get(r) ?? []).map(({ lemmaId: _l, ...c }) => ({ root: r, ...c }))),
     // each root's opposites as the books state them, the kind in plain words
     opposites: roots.flatMap((r) => (opposites.get(r) ?? []).map((o) => ({ root: r, ar: o.ar, en: o.en, kind: OPPOSITE_KIND[o.kind] ?? o.kind,
       note: o.note, quote: o.cites.map(cite).find(Boolean) ?? null }))),
@@ -542,6 +545,12 @@ export async function sarfSheet(env: QuranEnv, scope: Scope, refresh = false) {
       props: tagsOf(w).map((g) => ({ id: g, ar: prop.get(g)!.name_ar, en: prop.get(g)!.name_en })),
       // the lemma (detail screen): its own form facts from AL, the same in every verse
       lemmaProps: lemmaPropsOf(occOf(w)?.gid_lemma),
+      // how the root's words are used — this word's own lemma first, then the root's other lemmas
+      constructions: (() => {
+        const own = occOf(w)?.gid_lemma?.replace(/^AL:/, '');
+        const all = constructions.get(w.root) ?? [];
+        return [...all.filter((c) => c.lemmaId === own), ...all.filter((c) => c.lemmaId !== own)].map(({ lemmaId: _l, ...c }) => c);
+      })(),
       plurals: pluralsOf(w).map((p) => ({ ar: p.ar, quote: cite(p.cite) })),
       prep: (() => { const p = parseJson<{ ar: string; gt: string; how: string } | null>(w.prep_json, null);
                      return p ? { prep: p.ar, name: name(p.gt), how: p.how } : null; })(),

@@ -210,8 +210,8 @@ test('the passage’s الصرف to read: every word, each root with its verbs, 
   assert.equal(tanzil.lemma, 'تَنزِيل');
   assert.equal(tanzil.arc, 'coming down → sent down in stages → the Revelation');
   assert.deepEqual(tanzil.arcSteps, ['coming down', 'sent down in stages', 'the Revelation']);
-  assert.deepEqual(tanzil.props.slice(0, 4).map((p) => p.ar), ['مَرْفُوع', 'مَصْدَر', 'تَفْعِيل', 'مُشتقّ']);
-  assert.equal(tanzil.props[1].en, 'verbal noun');
+  // the card is the word in its verse — case, number, gender; what the word IS stays on the lemma (lemmaProps)
+  assert.deepEqual(tanzil.props.map((p) => p.ar), ['مَرْفُوع', 'مُفْرَد', 'مُذَكَّر']);
   // the detail screen is the lemma's: AL's derivation + pattern only, no verse tags (case, iʿrāb)
   assert.deepEqual(tanzil.lemmaProps.map((p) => p.ar), ['مَصْدَر', 'مُشتقّ', 'مُتَعَدٍّ', 'وَزْن تَفْعِيل']);
   // the range is AL's senses of the lemma that some Qurʾānic word links to — the uncited one stays out
