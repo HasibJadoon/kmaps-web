@@ -490,11 +490,35 @@ const HAS_AR = new RegExp(`[${AR_CH}]`);
 const AR_RUN = new RegExp(`[«﴿]?[${AR_CH}]+(?:[\\s\\u00A0،؛]+[${AR_CH}]+)*[»﴾]?`, 'g');
 export const bidiEn = (s: string) => (HAS_AR.test(s) ? '\u200E' + s.replace(AR_RUN, (m) => '\u2067' + m + '\u2069\u200E') : s);
 const EN_KEYS = new Set(['note', 'line', 'quoteEn', 'contrast', 'en', 'meaning', 'here', 'forWord', 'gloss']);
-const bidiTree = (v: unknown, key = ''): unknown =>
-  typeof v === 'string' ? (EN_KEYS.has(key) ? bidiEn(v) : v)
-  : Array.isArray(v) ? v.map((x) => bidiTree(x, key))
-  : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, bidiTree(x, k)]))
-  : v;
+// Arabic and English kept apart: a note or a contrast line is served as English text (`note`) plus its Arabic quotes
+// as their own list (`noteAr`: [{ ar, ref }]). A quote with its verse — «…» (4:24) — leaves "(4:24)" in the English; a
+// longer quote with no verse leaves "[n]". One- or two-word Arabic (a particle, a word) stays in the line, isolated.
+const QUOTE = /«([^»]+)»(?:\s*\(([^)]+)\))?/g;
+export function splitArabic(s: string): { en: string; ar: { ar: string; ref: string | null; n: number | null }[] } {
+  const ar: { ar: string; ref: string | null; n: number | null }[] = [];
+  let k = 0;
+  const en = s.replace(QUOTE, (m, q: string, ref?: string) => {
+    if (!HAS_AR.test(q)) return m;
+    if (!ref && q.trim().split(/\s+/).length <= 2) return q.trim();
+    if (ref) { ar.push({ ar: q.trim(), ref: ref.trim(), n: null }); return `(${ref.trim()})`; }
+    k += 1; ar.push({ ar: q.trim(), ref: null, n: k }); return `[${k}]`;
+  }).replace(/:\s*\(/g, ' (').replace(/\s{2,}/g, ' ').replace(/\s+([.,;:])/g, '$1').replace(/:\s*\./g, '.').trim();
+  return { en, ar };
+}
+const SPLIT_KEYS: Record<string, string> = { note: 'noteAr', contrast: 'contrastAr' };
+const bidiTree = (v: unknown, key = ''): unknown => {
+  if (typeof v === 'string') return EN_KEYS.has(key) ? bidiEn(v) : v;
+  if (Array.isArray(v)) return v.map((x) => bidiTree(x, key));
+  if (!v || typeof v !== 'object') return v;
+  const out: Record<string, unknown> = {};
+  for (const [k, x] of Object.entries(v)) {
+    if (SPLIT_KEYS[k] && typeof x === 'string') {
+      const { en, ar } = splitArabic(x);
+      out[k] = bidiEn(en); out[SPLIT_KEYS[k]] = ar;
+    } else out[k] = bidiTree(x, k);
+  }
+  return out;
+};
 
 export async function sarfSheet(env: QuranEnv, scope: Scope, refresh = false) {
   const sheet = await sarfSheetRaw(env, scope, refresh);
