@@ -731,8 +731,11 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
     root, letters: [...root].join(' '), picture: K.pic(root), count: rows.reduce((t, r) => t + r.n, 0),
     lemmas: rows.map((r) => ({ id: r.gid_lemma, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', count: r.n,
       form: D.formOf(r.gid_lemma)?.form ?? null, pattern: D.formOf(r.gid_lemma)?.pattern ?? null, arc: D.arcOf(r.gid_lemma, null) })),
-    // the family is shared with each word's page; the verb tables are the words' (a lemma's page), not the root's
+    // the family and the prepositions its verbs take are shared with each word's page (where they are that word's);
+    // the verb tables are the words' alone (a lemma's page)
     families: [K.familyOf(root)].filter((f) => f.lines.length),
+    preps: D.preps.map((p) => ({ root, verb: D.verbs.find((v) => v.id === p.verb_id)?.madi ?? '', prep: p.prep_ar, name: K.name(p.prep_gt),
+      usage: p.usage_ar, meaning: p.meaning_en, quote: K.cite(parseJson<Cite | null>(p.cite_json, null)), sources: p.sources })),
     // the root's own opposites (those a book gives for one of its words are on that word's page)
     opposites: (D.opposites.get(root) ?? []).filter((o) => !o.forWord).map((o) => ({ root, ...K.oppositeView(o) })),
   };
