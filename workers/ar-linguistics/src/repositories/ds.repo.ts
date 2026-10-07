@@ -1,7 +1,7 @@
 import { query } from '../../../shared/src/db';
 import {
   byDeathHijri, normaliseWeights, arcNodes, offArcSenses, sortedBy,
-  sortedByInferredKey, slotName, str, num, flag, jsonArrayOf,
+  sortedByInferredKey, slotName, str, num, numOrNull, flag, jsonArrayOf,
 } from '../../../shared/src/shaping';
 import type {
   DisplaySpec, DsBlock, DsForm, DsSection, DsState, DsText, DsCell,
@@ -198,6 +198,7 @@ export class DsRepo {
       case '32-FIELD':     return this.weightBlocks(rowsOf('ar_ling_root_haql'), 'field', cap);
       case '30-KIN':       return this.antonymBlocks(rowsOf('ar_ling_root_didd'), cap);
       case '19-ATT':       return this.attestationBlocks(rowsOf('ar_ling_sense_attestation'), cap);
+      case '010-SRC':      return first?.rows.length ? this.coverageBlocks(first.rows, cap) : [];
       case '40-LINK':      return this.links.length ? this.linkBlocks(cap) : first ? [this.tableBlock(first, cap)] : [];
       default:             return first ? [this.tableBlock(first, cap)] : [];
     }
@@ -515,7 +516,7 @@ export class DsRepo {
     return [{
       kind: 'ledger',
       title: 'Every book',
-      hint: `${this.links.length} books · each opens at its page`,
+      hint: `${this.links.length} book${this.links.length === 1 ? '' : 's'} · each opens at its page`,
       records: this.links.map((b): DsRecord => ({
         id: `book-${b.slug}`,
         badges: [{ label: '', value: this.bookName(b.slug), tone: 'strong' }],
@@ -525,6 +526,33 @@ export class DsRepo {
         sources: [...b.blocks.entries()].slice(0, 12).map(([block, page]): DsSource =>
           ({ book: this.bookName(b.slug), page: page ?? undefined, source: b.slug, root, block })),
       })),
+      overflow_count: 0,
+    }];
+  }
+
+  /** Where the root was read: one record per book that files it, oldest first — its name, author and death, how many
+   *  entries it gives, and the book itself a back-link to the root's entry in it. */
+  private coverageBlocks(rows: Row[], cap: typeof CAP['desktop']): DsBlock[] {
+    const root = this.rootRef;
+    const sorted = [...rows].sort((a, b) => (numOrNull(a['died_ah']) ?? 9999) - (numOrNull(b['died_ah']) ?? 9999));
+    return [{
+      kind: 'ledger',
+      title: 'Where it was read',
+      hint: `${rows.length} book${rows.length === 1 ? '' : 's'} · oldest first · each opens at the root`,
+      records: sorted.map((r, i): DsRecord => {
+        const slug = str(r['source_slug']);
+        const died = numOrNull(r['died_ah']);
+        const entries = num(r['entries']);
+        return {
+          id: `src-${slug || i}`,
+          badges: [{ label: '', value: this.bookName(slug), tone: 'strong' },
+                   ...(died ? [{ label: 'd.', value: `${died} AH`, tone: 'plain' as const }] : [])],
+          ar: str(r['book_full']) ? t(clamp(str(r['book_full']), cap.chars), 'ar') : undefined,
+          en: str(r['author_en']) || str(r['book_en']) ? t([str(r['book_en']), str(r['author_en'])].filter(Boolean).join(' — ')) : undefined,
+          facts: entries ? [{ label: 'entries', value: t(String(entries)) }] : undefined,
+          sources: slug ? [{ book: this.bookName(slug), source: slug, root }] : undefined,
+        };
+      }),
       overflow_count: 0,
     }];
   }
