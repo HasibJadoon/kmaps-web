@@ -731,16 +731,10 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
     root, letters: [...root].join(' '), picture: K.pic(root), count: rows.reduce((t, r) => t + r.n, 0),
     lemmas: rows.map((r) => ({ id: r.gid_lemma, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', count: r.n,
       form: D.formOf(r.gid_lemma)?.form ?? null, pattern: D.formOf(r.gid_lemma)?.pattern ?? null, arc: D.arcOf(r.gid_lemma, null) })),
-    // the family and the prepositions its verbs take are shared with each word's page (where they are that word's);
-    // the verb tables are the words' alone (a lemma's page)
+    // root-scoped only: the root's verbs as family lines, and the opposites of the root as a whole. Prepositions
+    // (government), near-synonyms and a word's own opposites are lemma-scoped: they are on each lemma's page.
     families: [K.familyOf(root)].filter((f) => f.lines.length),
-    preps: D.preps.map((p) => ({ root, verb: D.verbs.find((v) => v.id === p.verb_id)?.madi ?? '', prep: p.prep_ar, name: K.name(p.prep_gt),
-      usage: p.usage_ar, meaning: p.meaning_en, quote: K.cite(parseJson<Cite | null>(p.cite_json, null)), sources: p.sources })),
-    // the whole root: every near-synonym set its words are in, and every opposite — the root's own first, then each
-    // word's, named (the same rows are each word's on its lemma's page)
-    near: D.nears.map((n) => ({ root: n.root, ...K.nearView(n) })),
-    opposites: [...(D.opposites.get(root) ?? []).filter((o) => !o.forWord), ...(D.opposites.get(root) ?? []).filter((o) => !!o.forWord)]
-      .map((o) => ({ root, ...K.oppositeView(o) })),
+    opposites: (D.opposites.get(root) ?? []).filter((o) => !o.lemmaId && !o.forWord).map((o) => ({ root, ...K.oppositeView(o) })),
   };
 }
 
@@ -771,7 +765,8 @@ async function lexiconLemmaRaw(env: QuranEnv, gid: string, refresh: boolean) {
       GROUP BY gt_derivation_type ORDER BY COUNT(*) DESC LIMIT 1`, [id]).catch(() => []);
   const base = own.length ? null : baseVerbOf(D.lemmaOf(id)?.wazn?.[0] ?? null, qac[0]?.d ?? null, D.verbs);
   const verbsHere = own.length ? own : base ? [base] : [];
-  const mine = (o: Opposite) => !o.forWord || o.lemmaId === bare;
+  // lemma-scoped only: the opposites tied to this lemma (the root's own are on the root's page)
+  const mine = (o: Opposite) => o.lemmaId === bare;
   return {
     sections: sectionsOf(K), lex: K.lex,
     id, lemma, root, letters: root ? [...root].join(' ') : null, count: rows.reduce((t, r) => t + r.n, 0),
@@ -791,9 +786,8 @@ async function lexiconLemmaRaw(env: QuranEnv, gid: string, refresh: boolean) {
                      derivation: D.lemmaOf(id)?.wazn?.[0]?.derivation_ar ?? K.name(qac[0]?.d) ?? null,
                      line: `${base.madi} ${base.mudari} ${masadirOf(base).join(' وَ')}`, meaning: base.meaning_en } : null,
     // الصرف الصغير: the lemma's own verb, or the verb a derived word is made from — with the prepositions it takes —
-    // and the family it belongs to (the root's verbs as family lines)
+    // (the root's family is on the root's page)
     tables: verbsHere.map(K.verbView),
-    families: root ? [K.familyOf(root)].filter((f) => f.lines.length) : [],
     preps: D.preps.filter((p) => verbsHere.some((v) => v.id === p.verb_id)).map((p) => ({ root: root ?? '', verb: verbsHere.find((v) => v.id === p.verb_id)?.madi ?? '',
       prep: p.prep_ar, name: K.name(p.prep_gt), usage: p.usage_ar, meaning: p.meaning_en, quote: K.cite(parseJson<Cite | null>(p.cite_json, null)), sources: p.sources })),
   };
