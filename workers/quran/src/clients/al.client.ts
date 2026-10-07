@@ -132,6 +132,9 @@ type AlCite = { surah: number; ayah: number; needle: string };
 export interface AlSarfSheet {
   roots: Record<string, {
     root_id: string; root_norm: string | null; picture: { en: string; ar: string | null } | null;
+    /** the root's words: its live single-word lemmas (nouns, verbs), Qurʾānic first */
+    words?: Array<{ id: string; lemma_text: string; lemma_text_bare: string | null; part_of_speech: string | null; verb_form: string | null;
+                     is_quran_word: number; frequency_quran: number }>;
     paradigms: Array<{ id: string; root_id: string; lemma_id: string | null; verb_form: string | null; bab_key: string | null;
                        source_ref: string | null; paradigm: Record<string, unknown> }>;
     preps: Array<{ id: string; root_id: string; lemma_id: string | null; verb_form: string | null; harf: string | null;

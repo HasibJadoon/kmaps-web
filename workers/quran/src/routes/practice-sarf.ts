@@ -1,6 +1,6 @@
 import { query } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
-import { createAlClient, type AlSarfSheet } from '../clients/al.client';
+import { createAlClient, type AlSarfSheet, type ResolvedLemma } from '../clients/al.client';
 import { withCard, shuffle, parseJson, rangeOf, interleave, type Drill, type Scope } from './practice-kit';
 
 // ── الصرف: the passage's words, their forms, prepositions, family and meanings in the Qurʾān ──────
@@ -266,6 +266,8 @@ async function core(env: QuranEnv, seed: Seed, refresh = false) {
   ]);
   return {
     verbs, preps, senses, nears, opposites, constructions, pluralsOfGid, otherPluralsOfGid, lemmaOf,
+    // each root's words as AL lists them (live single-word lemmas), for the root's grid
+    wordsOf: (r: string) => (sheet ? Object.values(sheet.roots).find((x) => rootText.get(x.root_id) === r)?.words ?? [] : []),
     arcOf, lemmaPropsOf,
     // a lemma's derivation and pattern, from AL (the word screen's الصيغة)
     formOf: (gid: string | null | undefined) => { const z = lemmaOf(gid)?.wazn?.[0]; return z ? { form: z.derivation_ar, pattern: z.wazn_ar } : null; },
@@ -746,8 +748,19 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
     asl: deep?.asl ?? null, core: deep?.core ?? null, layers: deep?.layers ?? [], stages: deep?.stages ?? [],
     sections: sectionsOf(K), lex: K.lex,
     root, letters: [...root].join(' '), picture: K.pic(root), count: rows.reduce((t, r) => t + r.n, 0),
-    lemmas: rows.map((r) => ({ id: r.gid_lemma, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', count: r.n,
-      form: D.formOf(r.gid_lemma)?.form ?? null, pattern: D.formOf(r.gid_lemma)?.pattern ?? null, arc: D.arcOf(r.gid_lemma, null) })),
+    // every word of the root: the Qurʾān's lemmas first (most used first), then the root's other words in AL, once each
+    lemmas: (() => {
+      const quran = rows.map((r) => ({ id: r.gid_lemma, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', count: r.n,
+        form: D.formOf(r.gid_lemma)?.form ?? null, pattern: D.formOf(r.gid_lemma)?.pattern ?? null, arc: D.arcOf(r.gid_lemma, null) }));
+      const seen = new Set([...quran.map((q) => q.id.replace(/^AL:/, '')), ...quran.map((q) => spelling(q.lemma))]);
+      const more = D.wordsOf(root).filter((w) => {
+        const k = spelling(w.lemma_text);
+        if (seen.has(w.id) || seen.has(k)) return false;
+        seen.add(w.id); seen.add(k);
+        return true;
+      }).map((w) => ({ id: `AL:${w.id}`, lemma: w.lemma_text, count: 0, form: null, pattern: null, arc: null }));
+      return [...quran, ...more];
+    })(),
     // root-scoped only: the root's verbs as family lines, and the opposites of the root as a whole. Prepositions
     // (government), near-synonyms and a word's own opposites are lemma-scoped: they are on each lemma's page.
     families: [K.familyOf(root)].filter((f) => f.lines.length),
@@ -767,9 +780,19 @@ async function lexiconLemmaRaw(env: QuranEnv, gid: string, refresh: boolean) {
   const rows = await query<{ root: string | null; root_uid: string | null; lemma: string | null; n: number }>(env.DB_QR,
     `SELECT root, MAX(root_uid) AS root_uid, MIN(lemma) AS lemma, COUNT(*) AS n FROM qr_word_occurrence
       WHERE gid_lemma = ? GROUP BY root ORDER BY n DESC`, [id]);
-  if (!rows.length) return null;
-  const root = rows.find((r) => r.root && r.root_uid)?.root ?? null;
-  const uid = rows.find((r) => r.root && r.root_uid)?.root_uid ?? null;
+  // a word the Qurʾān does not use: its root from AL, and the text the Qurʾān files that root under
+  let root = rows.find((r) => r.root && r.root_uid)?.root ?? null;
+  let uid = rows.find((r) => r.root && r.root_uid)?.root_uid ?? null;
+  if (!rows.length) {
+    const al = createAlClient(env);
+    const l = al ? (await al.resolveLemmas([bare]).then((r) => r.data).catch(() => ({})) as Record<string, ResolvedLemma>)[bare] : undefined;
+    if (!l?.root?.id) return null;
+    uid = l.root.id;
+    root = (await query<{ root: string }>(env.DB_QR, `SELECT MIN(root) AS root FROM qr_word_occurrence WHERE root_uid = ?`, [uid]))[0]?.root
+      ?? l.root.root_norm ?? null;
+    if (!root) return null;
+    rows.push({ root, root_uid: uid, lemma: l.lemma_ar, n: 0 });
+  }
   const D = await core(env, { roots: root ? [root] : [], uidOf: new Map(root && uid ? [[root, uid]] : []), gids: [id],
                               rootOfGid: new Map(root ? [[id, root]] : []) }, refresh);
   const K = await kitOf(env, D);
@@ -811,6 +834,9 @@ async function lexiconLemmaRaw(env: QuranEnv, gid: string, refresh: boolean) {
 }
 
 const bareAr = (t: string) => t.replace(/[\u064B-\u0652\u0670\u0640]/g, '').trim();
+/** A word's spelling key, so كِتَٰب and كِتَابٌ, اكْتَتَبَ and إِكْتَتَبَ are one word: dagger alif as alif, hamza seats as
+ *  alif, no marks or tatweel. */
+const spelling = (t: string) => t.replace(/\u0670/g, 'ا').replace(/[أإآٱ]/g, 'ا').replace(/[\u064B-\u0652\u0640]/g, '').trim();
 /** The verb a derived (مشتق) lemma is made from, among its root's verbs: the one AL names (its base verb, in its باب), else
  *  the one of the form family AL names, else — for a participle or verbal noun with no family named — the root's Form I
  *  verb when it has only one. A جامد word, or one that cannot be told, has none: never a guess between verbs. */

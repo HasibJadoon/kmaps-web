@@ -26,6 +26,13 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
     if (!roots.length && !lemmas.length) return badRequest('roots and/or lemmas (comma-separated global ids) required');
     const R = JSON.stringify(roots), L = JSON.stringify(lemmas);
     const db = env.DB_AL;
+    // a root's words: its live lemmas that are single words (a noun or a verb), merged staging rows left out
+    const words = roots.length ? await query<{ id: string; root_id: string; lemma_text: string; lemma_text_bare: string | null;
+                                                 part_of_speech: string | null; verb_form: string | null; is_quran_word: number; frequency_quran: number }>(db,
+      `SELECT id, root_id, lemma_text, lemma_text_bare, part_of_speech, verb_form, is_quran_word, frequency_quran FROM ar_ling_root_lemma
+        WHERE root_id IN ${inList} AND record_status = 'live' AND merged_into IS NULL
+          AND part_of_speech IN ('noun', 'verb') AND instr(trim(lemma_text), ' ') = 0
+        ORDER BY is_quran_word DESC, frequency_quran DESC, lemma_text`, [R]).catch(() => []) : [];
     const [dna, paradigms, preps, didd, jam, members, contrasts, arcs, memberSrc] = await Promise.all([
       query<{ root_id: string; root_norm: string; picture_en: string | null; picture_ar: string | null }>(db,
         `SELECT root_id, root_norm, picture_en, picture_ar FROM ar_ling_root_dna WHERE root_id IN ${inList}`, [R]),
@@ -133,6 +140,7 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
           paradigms: byRoot(paradigms, r).map((p) => ({ ...p, paradigm: JSON.parse(p.paradigm_json), paradigm_json: undefined })),
           preps: byRoot(preps, r).map((p) => ({ ...p, cite: JSON.parse(p.cite_json), cite_json: undefined, display_json: undefined, sources: sourcesOf(p.display_json) })),
           opposites: byRoot(didd, r).map((o) => ({ ...o, display: o.display_json ? JSON.parse(o.display_json) : null, display_json: undefined, sources: sourcesOf(o.source_ref, o.note_en) })),
+          words: byRoot(words, r).map(({ root_id: _r, ...w }) => w),
           constructions: byRoot(arcs, r).map((a) => ({ ...a, branches: a.branches_json ? JSON.parse(a.branches_json) : [], branches_json: undefined, provenance_json: undefined, sources: sourcesOf(a.provenance_json) })),
         }];
       })),
