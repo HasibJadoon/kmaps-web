@@ -864,9 +864,12 @@ export function baseVerbOf(z: { base_verb: string | null; family_id: string | nu
                            qacDerivation: string | null, verbs: Verb[], lemma?: string | null): Verb | null {
   if (z?.jumud_id && /jamid/.test(z.jumud_id)) return null;
   if (z?.base_verb) {
+    // spelt with its shadda first (نَزَّلَ is not نَزَلَ), then bare; the family AL names decides between the two
+    const [madiV, mudariV] = z.base_verb.trim().split(/\s+/);
+    const exact = verbs.filter((v) => spelling(v.madi) === spelling(madiV) && (!mudariV || spelling(v.mudari) === spelling(mudariV)));
     const [madi, mudari] = bareAr(z.base_verb).split(/\s+/);
-    const named = verbs.filter((v) => bareAr(v.madi) === madi && (!mudari || bareAr(v.mudari) === mudari));
-    const hit = named.find((v) => v.bab_gt === z.family_id) ?? named[0];
+    const named = exact.length ? exact : verbs.filter((v) => bareAr(v.madi) === madi && (!mudari || bareAr(v.mudari) === mudari));
+    const hit = named.find((v) => v.bab_gt === z.family_id || v.form_gt === z.family_id) ?? named[0];
     if (hit) return hit;
   }
   if (z?.family_id) {

@@ -96,3 +96,11 @@ test('a derived word with no form facts comes from the verb whose masdar or part
   assert.equal((baseVerbOf(null, 'active_participle', verbs, 'مُنَزِّل') as { id: string } | null)?.id, 'II');
   assert.equal((baseVerbOf(null, 'masdar', verbs, 'نُزُول') as { id: string } | null)?.id, 'I');
 });
+
+test('a base verb AL names keeps its shadda: نَزَّلَ is Form II, not نَزَلَ', () => {
+  const v = (id: string, madi: string, mudari: string, form: string) =>
+    ({ id, madi, mudari, form_gt: `GT:form_family:${form}`, bab_gt: null, masadir_json: '[]', fail: null, maful: null }) as never;
+  const verbs = [v('I', 'نَزَلَ', 'يَنْزِلُ', 'form_i'), v('II', 'نَزَّلَ', 'يُنَزِّلُ', 'form_ii')];
+  const z = { base_verb: 'نَزَّلَ يُنَزِّلُ', family_id: 'GT:form_family:form_ii', derivation_id: 'GT:derivation_type:masdar' };
+  assert.equal((baseVerbOf(z, null, verbs) as { id: string } | null)?.id, 'II');
+});
