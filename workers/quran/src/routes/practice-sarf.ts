@@ -39,7 +39,24 @@ const OCC_GT = ['gt_case', 'gt_derivation_type', 'gt_form_family', 'gt_jumud', '
 const VERSE_GT = ['gt_case', 'gt_number', 'gt_gender', 'gt_definiteness'] as const;
 type Sense = { id: string; root: string; lemma_ar: string; lemma_id: string | null; sense_en: string; sense_ar: string | null; cites_json: string };
 type Near = { id: string; root: string; roots: string[]; lemmas: string[]; focus_ar: string; title_en: string; title_ar: string; members_json: string;
+              sources: Src[];
               contrast: string | null };
+/** A book a line rests on, for the app's back-link: the book's short name, its printed page, and where to open it
+ *  (the lexicon reader: source + root). */
+type Src = { book: string; page: number | null; source: string; root: string };
+const BOOK: Record<string, string> = {
+  raghib_mufradat: 'al-Rāghib', lane_lexicon: 'Lane', ibn_manzur_lisan_arab: 'Lisān', maqayis_lugha: 'Maqāyīs',
+  jawhari_sihah: 'al-Ṣiḥāḥ', zabidi_taj_arus: 'Tāj', fayyumi_misbah_munir: 'al-Miṣbāḥ', qamus_muhit: 'al-Qāmūs',
+  khalil_kitab_ayn: 'al-ʿAyn', ibn_durayd_jamharat_lugha: 'Jamhara', zamakhshari_asas_balagha: 'al-Asās',
+};
+const sourcesOf = (rows: { source_slug: string; page: number | null; root_norm: string }[]): Src[] => {
+  const seen = new Set<string>();
+  return rows.map((r) => ({ book: BOOK[r.source_slug] ?? r.source_slug, page: r.page, source: r.source_slug, root: r.root_norm }))
+    .filter((x) => { const k = `${x.source}|${x.page}|${x.root}`; if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b) => a.book.localeCompare(b.book) || (a.page ?? 0) - (b.page ?? 0));
+};
+/** The "— al-Rāghib pp. 699, 286; Lane p. 2590" tail of a line: the books now come as links (sources), so it is cut. */
+const stripRefs = (s: string | null) => (s ? s.replace(/\s+—\s+(?:al-|Lane|Lisān|Maqāyīs|Tāj|Ibn |Jamhara|Kitāb)[^—]*$/u, '').trim() : s);
 type NearMember = { ar: string; en: string; contrast?: string | null; cite: Cite | null };
 type Plural = { ar: string; cite: Cite };
 /** An opposite as a book states it; `forWord` names the word of the root it belongs to when that is not the root's main sense. */
@@ -278,7 +295,7 @@ function nearsOf(sheet: AlSarfSheet, rootText: Map<string, string>, order: strin
       .sort((a, b) => order.indexOf(a) - order.indexOf(b));
     const focus = st.members.find((m) => m.root_id && rootText.get(m.root_id) === roots[0]);
     return { id: st.id, root: roots[0] ?? '', roots, lemmas: st.members.map((m) => m.lemma_id), focus_ar: focus?.ar ?? '', title_en: st.title_en ?? '', title_ar: st.title_ar ?? '',
-             contrast: st.contrast,
+             contrast: st.contrast, sources: sourcesOf(st.sources ?? []),
              members_json: JSON.stringify(st.members.map((m): NearMember => ({ ar: m.ar, en: m.en ?? '', contrast: m.contrast, cite: m.cite }))) };
   }).filter((n) => n.roots.length).sort((a, b) => order.indexOf(a.root) - order.indexOf(b.root));
 }
@@ -552,7 +569,7 @@ async function sarfSheetRaw(env: QuranEnv, scope: Scope, refresh = false) {
   const cite = (c: Cite | null | undefined) => (c ? quote(c, texts) : null);
   const oppositeView = (o: Opposite) => ({ ar: o.ar, en: o.en, kind: OPPOSITE_KIND[o.kind] ?? o.kind, forWord: o.forWord,
     note: o.note, quote: o.cites.map(cite).find(Boolean) ?? null });
-  const nearView = (n: Near) => ({ title: n.title_en, titleAr: n.title_ar, contrast: n.contrast,
+  const nearView = (n: Near) => ({ title: n.title_en, titleAr: n.title_ar, contrast: stripRefs(n.contrast), sources: n.sources,
     members: parseJson<NearMember[]>(n.members_json, []).map((m) => ({ ar: m.ar, en: m.en, contrast: m.contrast ?? null, quote: cite(m.cite) })) });
   const verbView = (v: Verb) => ({
     id: v.id, root: v.root, title: `${v.madi} ${v.mudari}`, meaning: v.meaning_en,

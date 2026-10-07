@@ -144,7 +144,8 @@ export interface AlSarfSheet {
   lemmas: Record<string, { plurals: Array<{ plural_ar: string; kind_ref: string; kind_ar: string; wazn_ar: string | null;
                                             surah: number | null; ayah: number | null; needle: string | null; note_en: string | null }> }>;
   sets: Array<{ id: string; title_en: string | null; title_ar: string | null; contrast: string | null;
-                members: Array<{ lemma_id: string; root_id: string | null; ar: string; en: string | null; contrast: string | null; cite: AlCite | null }> }>;
+                members: Array<{ lemma_id: string; root_id: string | null; ar: string; en: string | null; contrast: string | null; cite: AlCite | null }>;
+                sources?: Array<{ source_slug: string; page: number | null; root_norm: string; block_id: string }> }>;
 }
 
 export interface GramTermLabel {

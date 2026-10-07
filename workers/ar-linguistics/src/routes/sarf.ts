@@ -26,7 +26,7 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
     if (!roots.length && !lemmas.length) return badRequest('roots and/or lemmas (comma-separated global ids) required');
     const R = JSON.stringify(roots), L = JSON.stringify(lemmas);
     const db = env.DB_AL;
-    const [dna, paradigms, preps, didd, jam, members, contrasts, arcs] = await Promise.all([
+    const [dna, paradigms, preps, didd, jam, members, contrasts, arcs, memberSrc] = await Promise.all([
       query<{ root_id: string; root_norm: string; picture_en: string | null; picture_ar: string | null }>(db,
         `SELECT root_id, root_norm, picture_en, picture_ar FROM ar_ling_root_dna WHERE root_id IN ${inList}`, [R]),
       query<{ id: string; root_id: string; lemma_id: string | null; verb_form: string | null; bab_key: string | null;
@@ -84,12 +84,24 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
                                                              ORDER BY e2.is_primary DESC, e2.seq LIMIT 1)
           WHERE a.status = 'live' AND l.root_id IN ${inList}
           ORDER BY l.root_id, a.lemma_id, a.attest_count DESC`, [R]),
+      // the books behind each checked near-synonym member — book, printed page, the root it is filed under — so the
+      // app can link back to the page (the set's sources)
+      query<{ set_id: string; source_slug: string; printed_page: number | null; root_norm: string; block_id: string }>(db,
+        `SELECT DISTINCT m.set_id, b.source_slug, b.printed_page, coalesce(rk.root_norm_canonical, b.root_norm) AS root_norm, b.id AS block_id
+           FROM ar_ling_root_lemma_furuq_member_src ms
+           JOIN ar_ling_root_lemma_furuq_member m ON m.id = ms.member_id AND m.source_status = 'lexicon_checked'
+           JOIN ar_ling_lexicon_block b ON b.id = ms.chunk_id
+           LEFT JOIN ar_ling_lexicon_block_rekey rk ON rk.block_id = b.id
+          WHERE m.set_id IN (SELECT m2.set_id FROM ar_ling_root_lemma_furuq_member m2 JOIN ar_ling_root_lemma l2 ON l2.id = m2.lemma_id
+                              WHERE m2.source_status = 'lexicon_checked' AND l2.root_id IN ${inList})`, [R]),
     ]);
 
     const contrast = new Map(contrasts.map((c) => [c.set_id, c.note_md]));
-    const sets = new Map<string, { id: string; title_en: string | null; title_ar: string | null; contrast: string | null; members: unknown[] }>();
+    const sets = new Map<string, { id: string; title_en: string | null; title_ar: string | null; contrast: string | null; members: unknown[];
+                                    sources: { source_slug: string; page: number | null; root_norm: string; block_id: string }[] }>();
     for (const m of members) {
-      if (!sets.has(m.set_id)) sets.set(m.set_id, { id: m.set_id, title_en: m.title_en, title_ar: m.title_ar, contrast: contrast.get(m.set_id) ?? null, members: [] });
+      if (!sets.has(m.set_id)) sets.set(m.set_id, { id: m.set_id, title_en: m.title_en, title_ar: m.title_ar, contrast: contrast.get(m.set_id) ?? null, members: [],
+        sources: memberSrc.filter((x) => x.set_id === m.set_id).map((x) => ({ source_slug: x.source_slug, page: x.printed_page, root_norm: x.root_norm, block_id: x.block_id })) });
       sets.get(m.set_id)!.members.push({ lemma_id: m.lemma_id, root_id: m.root_id, ar: m.ar, en: m.en, contrast: m.contrast,
         cite: m.surah && m.quote ? { surah: m.surah, ayah: m.ayah, needle: m.quote } : null });
     }
