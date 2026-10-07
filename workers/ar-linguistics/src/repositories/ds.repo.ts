@@ -520,7 +520,7 @@ export class DsRepo {
         id: `book-${b.slug}`,
         badges: [{ label: '', value: this.bookName(b.slug), tone: 'strong' }],
         ar: b.quote ? t(clamp(b.quote, cap.chars), 'ar') : undefined,
-        en: t([b.cites ? `cited ${b.cites}×` : '', b.refs.length ? `${b.refs.length} Qurʾān references` : ''].filter(Boolean).join(' · ')),
+        en: t([b.cites ? `cited ${b.cites}×` : '', b.refs.length ? `${b.refs.length} Qurʾān reference${b.refs.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ')),
         facts: b.refs.length ? [{ label: 'Qurʾān', value: t(b.refs.slice(0, 10).join(' · ') + (b.refs.length > 10 ? ' …' : '')) }] : undefined,
         sources: [...b.blocks.entries()].slice(0, 12).map(([block, page]): DsSource =>
           ({ book: this.bookName(b.slug), page: page ?? undefined, source: b.slug, root, block })),
