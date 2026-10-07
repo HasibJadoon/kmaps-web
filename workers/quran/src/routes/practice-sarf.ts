@@ -761,10 +761,21 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
       }).map((w) => ({ id: `AL:${w.id}`, lemma: w.lemma_text, count: 0, form: null, pattern: null, arc: null }));
       return [...quran, ...more];
     })(),
-    // root-scoped only: the root's verbs as family lines, and the opposites of the root as a whole. Prepositions
-    // (government), near-synonyms and a word's own opposites are lemma-scoped: they are on each lemma's page.
+    // the whole root, every lemma's detail gathered on one page (each is also on its own lemma's page): every verb's
+    // table, the root's verbs as family lines, every preposition its verbs take and what it means, each lemma's
+    // meanings across the Qurʾān, how its words are used, every near-synonym set, every opposite — the root's own first
+    tables: D.verbs.filter((v) => v.root === root).sort(K.byForm).map(K.verbView),
     families: [K.familyOf(root)].filter((f) => f.lines.length),
-    opposites: (D.opposites.get(root) ?? []).filter((o) => !o.lemmaId && !o.forWord).map((o) => ({ root, ...K.oppositeView(o) })),
+    preps: D.preps.map((p) => ({ root, verb: D.verbs.find((v) => v.id === p.verb_id)?.madi ?? '', prep: p.prep_ar, name: K.name(p.prep_gt),
+      usage: p.usage_ar, meaning: p.meaning_en, quote: K.cite(parseJson<Cite | null>(p.cite_json, null)), sources: p.sources })),
+    ranges: rows.map((r) => ({ root, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', gloss: null,
+      senses: D.senses.filter((x) => x.lemma_id === r.gid_lemma).map((x) => ({ en: x.sense_en, ar: x.sense_ar, here: false,
+        quotes: parseJson<Cite[]>(x.cites_json, []).map(K.cite).filter(Boolean) })) })).filter((r) => r.senses.length),
+    constructions: (D.constructions.get(root) ?? []).map(({ lemmaId: _l, ...c }) => ({ root, ...c })),
+    near: D.nears.map((n) => ({ root: n.root, ...K.nearView(n) })),
+    opposites: [...(D.opposites.get(root) ?? []).filter((o) => !o.lemmaId && !o.forWord),
+                ...(D.opposites.get(root) ?? []).filter((o) => !!o.lemmaId || !!o.forWord)]
+      .map((o) => ({ root, ...K.oppositeView(o) })),
   };
 }
 
@@ -803,7 +814,7 @@ async function lexiconLemmaRaw(env: QuranEnv, gid: string, refresh: boolean) {
   const qac = await query<{ d: string | null }>(env.DB_QR,
     `SELECT gt_derivation_type AS d FROM qr_word_occurrence WHERE gid_lemma = ? AND gt_derivation_type IS NOT NULL
       GROUP BY gt_derivation_type ORDER BY COUNT(*) DESC LIMIT 1`, [id]).catch(() => []);
-  const base = own.length ? null : baseVerbOf(D.lemmaOf(id)?.wazn?.[0] ?? null, qac[0]?.d ?? null, D.verbs);
+  const base = own.length ? null : baseVerbOf(D.lemmaOf(id)?.wazn?.[0] ?? null, qac[0]?.d ?? null, D.verbs, lemma);
   const verbsHere = own.length ? own : base ? [base] : [];
   // lemma-scoped only: the opposites tied to this lemma (the root's own are on the root's page)
   const mine = (o: Opposite) => o.lemmaId === bare;
@@ -826,7 +837,7 @@ async function lexiconLemmaRaw(env: QuranEnv, gid: string, refresh: boolean) {
                      derivation: D.lemmaOf(id)?.wazn?.[0]?.derivation_ar ?? K.name(qac[0]?.d) ?? null,
                      line: `${base.madi} ${base.mudari} ${masadirOf(base).join(' وَ')}`, meaning: base.meaning_en } : null,
     // الصرف الصغير: the lemma's own verb, or the verb a derived word is made from — with the prepositions it takes —
-    // (the root's family is on the root's page)
+    // — that lemma's table only (the root's whole family is on the root's page)
     tables: verbsHere.map(K.verbView),
     preps: D.preps.filter((p) => verbsHere.some((v) => v.id === p.verb_id)).map((p) => ({ root: root ?? '', verb: verbsHere.find((v) => v.id === p.verb_id)?.madi ?? '',
       prep: p.prep_ar, name: K.name(p.prep_gt), usage: p.usage_ar, meaning: p.meaning_en, quote: K.cite(parseJson<Cite | null>(p.cite_json, null)), sources: p.sources })),
@@ -844,7 +855,7 @@ export const spelling = (t: string) => t.trim()
  *  the one of the form family AL names, else — for a participle or verbal noun with no family named — the root's Form I
  *  verb when it has only one. A جامد word, or one that cannot be told, has none: never a guess between verbs. */
 export function baseVerbOf(z: { base_verb: string | null; family_id: string | null; jumud_id?: string | null; derivation_id?: string } | null,
-                           qacDerivation: string | null, verbs: Verb[]): Verb | null {
+                           qacDerivation: string | null, verbs: Verb[], lemma?: string | null): Verb | null {
   if (z?.jumud_id && /jamid/.test(z.jumud_id)) return null;
   if (z?.base_verb) {
     const [madi, mudari] = bareAr(z.base_verb).split(/\s+/);
@@ -855,6 +866,13 @@ export function baseVerbOf(z: { base_verb: string | null; family_id: string | nu
   if (z?.family_id) {
     const fam = verbs.filter((v) => v.bab_gt === z.family_id || v.form_gt === z.family_id);
     if (fam.length === 1) return fam[0];
+  }
+  // the word is one verb's own masdar or participle, as AL spells them (تَنْزِيل is نَزَّلَ's masdar, not نَزَلَ's)
+  if (lemma) {
+    const key = (t: string) => spelling(t.replace(/\u064Bا$|ا\u064B$/, ''));
+    const own = key(lemma);
+    const makes = verbs.filter((v) => [...masadirOf(v), v.fail, v.maful].some((f) => !!f && key(f) === own));
+    if (makes.length === 1) return makes[0];
   }
   const derived = /participle|masdar|sifa|tafdil|mubalagha|makan|zaman|ala/.test(`${z?.derivation_id ?? ''} ${qacDerivation ?? ''}`);
   const formI = verbs.filter((v) => formKey(v.form_gt) === 'form_i');

@@ -40,8 +40,10 @@ test('a root\'s page lists its words across the Qurʾān, most used first, and i
     [['AL:aaaaaaaaaaaaaaaaaaaaaa', 'كِتَٰب', 3], ['AL:bbbbbbbbbbbbbbbbbbbbbb', 'كَتَبَ', 1]]);
   assert.deepEqual(p.lex.map((l) => l.key), ['lemma']);
   assert.deepEqual(p.sections.map((s) => s.key), ['tables']);
-  // the root's page holds the root's alone: no verb tables (those are each word's)
-  assert.equal('tables' in p, false);
+  // the root's page gathers every lemma's detail: its verbs' tables, prepositions, meanings and uses (none in this fixture)
+  assert.deepEqual(p.tables, []);
+  assert.deepEqual(p.preps, []);
+  assert.deepEqual(p.ranges, []);
 });
 
 test('a root the Qurʾān does not use has no page', async () => {
@@ -84,4 +86,13 @@ test('a derived word comes from the verb AL names, in its باب; else its famil
   assert.equal(baseVerbOf(null, 'GT:derivation_type:active_participle', [daraba, nasara]), null);
   // a جامد word has no verb behind it
   assert.equal(baseVerbOf({ base_verb: null, family_id: null, jumud_id: 'GT:jumud:jamid' }, 'GT:derivation_type:active_participle', [nasara]), null);
+});
+
+test('a derived word with no form facts comes from the verb whose masdar or participle it is', () => {
+  const v = (id: string, madi: string, form: string, masadir: string[], fail: string | null) =>
+    ({ id, madi, mudari: '', form_gt: `GT:form_family:${form}`, bab_gt: null, masadir_json: JSON.stringify(masadir), fail, maful: null }) as never;
+  const verbs = [v('I', 'نَزَلَ', 'form_i', ['نُزُولًا'], null), v('II', 'نَزَّلَ', 'form_ii', ['تَنْزِيلًا'], 'مُنَزِّلٌ')];
+  assert.equal((baseVerbOf(null, 'masdar', verbs, 'تَنزِيل') as { id: string } | null)?.id, 'II');
+  assert.equal((baseVerbOf(null, 'active_participle', verbs, 'مُنَزِّل') as { id: string } | null)?.id, 'II');
+  assert.equal((baseVerbOf(null, 'masdar', verbs, 'نُزُول') as { id: string } | null)?.id, 'I');
 });

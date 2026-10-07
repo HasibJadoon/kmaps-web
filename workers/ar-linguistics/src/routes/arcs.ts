@@ -1,6 +1,7 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
+import { cached } from '../../../shared/src/cache';
 import type { ArLinguisticsEnv } from '../env';
 
 // ── Meaning arcs: root → lemma → word ─────────────────────────────────────────
@@ -219,7 +220,33 @@ export function deepRoot(root: string, asl: AslRow[], hand: Hand) {
   };
 }
 
+/** A synthesized root, as a row of the Root Synthesis list: its aṣl (the primary statement), how many books it is
+ *  read from, how many meaning layers it has. */
+type SynthRow = { root: string; books: number; en: string | null; ar: string | null; layers: number };
+
 export function arcRoutes(router: Router<ArLinguisticsEnv>) {
+  // every root with an aṣl, root by root in letter order — the Root Synthesis list; each opens the root's own page
+  router.get('/al/root/synthesis', (req, env) => cached(req, async () => {
+    const rows = await query<SynthRow>(env.DB_AL,
+      `WITH asl AS (SELECT root_norm, COUNT(*) AS books,
+                           MAX(CASE WHEN is_primary = 1 THEN statement_en END) AS en,
+                           MAX(CASE WHEN is_primary = 1 THEN statement_ar END) AS ar
+                      FROM ar_ling_root_asl WHERE status = 'active' GROUP BY root_norm),
+            lay AS (SELECT root_norm, COUNT(*) AS layers FROM ar_ling_sense_arc
+                     WHERE scope_level = 'root' AND status <> 'rejected' GROUP BY root_norm)
+       SELECT asl.root_norm AS root, books, en, ar, COALESCE(layers, 0) AS layers
+         FROM asl LEFT JOIN lay USING (root_norm) ORDER BY asl.root_norm`);
+    return ok({
+      labels: {
+        title: 'Root Synthesis', titleAr: 'توليف الجذر',
+        detail: 'Every root whose first meaning is drawn from the books — root by root',
+        search: 'Find a root', books: 'books', layers: 'layers',
+      },
+      total: rows.length,
+      roots: rows.map((r) => ({ ...r, letter: [...r.root][0] ?? '' })),
+    });
+  }, { browser: 60, edge: 3600 }));
+
   router.get('/al/root/deep/:root', async (_req, env, params) => {
     const root = norm(params.root ?? '');
     if (!root) return badRequest('root required');
