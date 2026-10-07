@@ -117,12 +117,19 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
         cite: m.surah && m.quote ? { surah: m.surah, ayah: m.ayah, needle: m.quote } : null });
     }
     const byRoot = <T extends { root_id: string }>(rows: T[], r: string) => rows.filter((x) => x.root_id === r);
+    // a root with no written picture shows its primary aṣl — the meaning most books share (ar_ling_root_asl)
+    const unpictured = roots.filter((r) => !dna.find((x) => x.root_id === r)?.picture_en);
+    const asl = unpictured.length ? await query<{ root_id: string; root_norm: string; statement_en: string | null; statement_ar: string }>(db,
+      `SELECT r.id AS root_id, a.root_norm, a.statement_en, a.statement_ar FROM ar_ling_roots r
+         JOIN ar_ling_root_asl a ON a.root_norm = r.root_normalized AND a.is_primary = 1 AND a.status = 'active'
+        WHERE r.id IN ${inList}`, [JSON.stringify(unpictured)]).catch(() => []) : [];
     return ok({
       roots: Object.fromEntries(roots.map((r) => {
         const d = dna.find((x) => x.root_id === r);
         return [r, {
-          root_id: r, root_norm: d?.root_norm ?? null,
-          picture: d?.picture_en ? { en: d.picture_en, ar: d.picture_ar } : null,
+          root_id: r, root_norm: d?.root_norm ?? asl.find((a) => a.root_id === r)?.root_norm ?? null,
+          picture: d?.picture_en ? { en: d.picture_en, ar: d.picture_ar }
+            : (() => { const a = asl.find((x) => x.root_id === r && x.statement_en); return a ? { en: a.statement_en!, ar: a.statement_ar } : null; })(),
           paradigms: byRoot(paradigms, r).map((p) => ({ ...p, paradigm: JSON.parse(p.paradigm_json), paradigm_json: undefined })),
           preps: byRoot(preps, r).map((p) => ({ ...p, cite: JSON.parse(p.cite_json), cite_json: undefined, display_json: undefined, sources: sourcesOf(p.display_json) })),
           opposites: byRoot(didd, r).map((o) => ({ ...o, display: o.display_json ? JSON.parse(o.display_json) : null, display_json: undefined, sources: sourcesOf(o.source_ref, o.note_en) })),

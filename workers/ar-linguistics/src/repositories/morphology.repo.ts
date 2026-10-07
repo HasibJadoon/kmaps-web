@@ -38,7 +38,7 @@ export class MorphologyRepo {
          JOIN ar_ling_sarf_wazn z ON z.id = w.wazn_id
          LEFT JOIN ar_ling_gram_term g ON g.id = w.gram_term_ref
         WHERE w.status = 'live' AND w.lemma_id = ?
-        ORDER BY CASE w.basis WHEN 'attested' THEN 0 WHEN 'source_attested' THEN 1 ELSE 2 END, w.id`,
+        ORDER BY w.is_disputed, CASE w.basis WHEN 'attested' THEN 0 WHEN 'source_attested' THEN 1 ELSE 2 END, w.id`,
       [lemmaId.replace(/^AL:/, '')],
     );
   }

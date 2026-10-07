@@ -704,9 +704,9 @@ async function sarfSheetRaw(env: QuranEnv, scope: Scope, refresh = false) {
 
 const sectionsOf = (K: Awaited<ReturnType<typeof kitOf>>) => K.heads.map((h) => ({ key: h.key, title: h.label, titleAr: h.label_ar, lede: h.detail }));
 
-/** A root's page — what belongs to the root alone: its picture, its words in the Qurʾān (most used first, each opening
- *  its lemma's page), its verbs as family lines, and its own opposites. Tables, prepositions, near-synonyms and uses
- *  are each word's, on its lemma's page. */
+/** A root's page — the whole root: its picture, its words in the Qurʾān (most used first, each opening its lemma's
+ *  page), its verbs as family lines, every preposition they take, every near-synonym set and opposite of its words.
+ *  The verb tables and uses are each word's, on its lemma's page. */
 export async function lexiconRoot(env: QuranEnv, root: string, refresh = false) {
   const page = await lexiconRootRaw(env, root, refresh);
   return page ? (bidiTree(page) as typeof page) : page;
@@ -736,8 +736,11 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
     families: [K.familyOf(root)].filter((f) => f.lines.length),
     preps: D.preps.map((p) => ({ root, verb: D.verbs.find((v) => v.id === p.verb_id)?.madi ?? '', prep: p.prep_ar, name: K.name(p.prep_gt),
       usage: p.usage_ar, meaning: p.meaning_en, quote: K.cite(parseJson<Cite | null>(p.cite_json, null)), sources: p.sources })),
-    // the root's own opposites (those a book gives for one of its words are on that word's page)
-    opposites: (D.opposites.get(root) ?? []).filter((o) => !o.forWord).map((o) => ({ root, ...K.oppositeView(o) })),
+    // the whole root: every near-synonym set its words are in, and every opposite — the root's own first, then each
+    // word's, named (the same rows are each word's on its lemma's page)
+    near: D.nears.map((n) => ({ root: n.root, ...K.nearView(n) })),
+    opposites: [...(D.opposites.get(root) ?? []).filter((o) => !o.forWord), ...(D.opposites.get(root) ?? []).filter((o) => !!o.forWord)]
+      .map((o) => ({ root, ...K.oppositeView(o) })),
   };
 }
 

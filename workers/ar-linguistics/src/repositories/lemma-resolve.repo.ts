@@ -291,7 +291,7 @@ export class LemmaResolveRepo {
           LEFT JOIN ar_ling_gram_term j ON j.id = w.jumud_ref
           LEFT JOIN ar_ling_gram_term t ON t.id = w.transitivity_ref
           WHERE w.status = 'live' AND w.lemma_id IN (${ph})
-          ORDER BY CASE w.basis WHEN 'attested' THEN 0 WHEN 'source_attested' THEN 1 ELSE 2 END, w.id`,
+          ORDER BY w.is_disputed, CASE w.basis WHEN 'attested' THEN 0 WHEN 'source_attested' THEN 1 ELSE 2 END, w.id`,
         uniq,
       ).catch(() => []),
     ]);
