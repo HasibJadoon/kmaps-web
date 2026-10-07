@@ -606,11 +606,13 @@ async function kitOf(env: QuranEnv, D: CoreData, extraIds: (string | null)[] = [
   // the section heads and their ledes, as label rows (scope sarf_section)
   const heads = await query<{ key: string; label: string; label_ar: string | null; detail: string | null }>(env.DB_QR,
     `SELECT key, label, label_ar, detail FROM qr_study_label WHERE scope = 'sarf_section' ORDER BY sort`);
-  // a root's verbs the Qurʾān uses, as family lines, Form I first
+  // a root's verbs the Qurʾān uses, as family lines, Form I first — each with the prepositions it takes and what each does
   const familyOf = (r: string) => ({ root: r, letters: [...r].join(' '), gloss: pic(r)?.en ?? null,
     lines: verbs.filter((v) => v.root === r).sort(byForm).map((v) => ({
       id: v.id, form: formNo(v), line: `${v.madi} ${v.mudari} ${masadirOf(v).join(' وَ')}`, meaning: v.meaning_en,
-      inQuran: v.quran_n, quote: cite(parseJson<Cite | null>(v.cite_json, null)) })) });
+      inQuran: v.quran_n, quote: cite(parseJson<Cite | null>(v.cite_json, null)),
+      preps: preps.filter((p) => p.verb_id === v.id).map((p) => ({ prep: p.prep_ar, name: name(p.prep_gt), usage: p.usage_ar,
+        meaning: p.meaning_en, quote: cite(parseJson<Cite | null>(p.cite_json, null)), sources: p.sources })) })) });
   // the words the word, lemma and root screens say (scope lex_page)
   const lex = await query<{ key: string; label: string; label_ar: string | null; detail: string | null; icon: string | null }>(env.DB_QR,
     `SELECT key, label, label_ar, detail, icon FROM qr_study_label WHERE scope = 'lex_page' ORDER BY sort`)
@@ -766,7 +768,11 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
     // meanings across the Qurʾān, how its words are used, every near-synonym set, every opposite — the root's own first
     tables: D.verbs.filter((v) => v.root === root).sort(K.byForm).map(K.verbView),
     families: [K.familyOf(root)].filter((f) => f.lines.length),
-    preps: D.preps.map((p) => ({ root, verb: D.verbs.find((v) => v.id === p.verb_id)?.madi ?? '', prep: p.prep_ar, name: K.name(p.prep_gt),
+    // every word's arc in full, most used first: how each lemma's meaning runs from the root's picture
+    arcs: rows.map((r) => ({ id: r.gid_lemma, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', count: r.n,
+      steps: (D.arcOf(r.gid_lemma, null) ?? '').split('→').map((x) => x.trim()).filter(Boolean) })).filter((a) => a.steps.length),
+    // the prepositions are on their verb's family line; here, only those whose verb has no line
+    preps: D.preps.filter((p) => !D.verbs.some((v) => v.id === p.verb_id && v.root === root)).map((p) => ({ root, verb: D.verbs.find((v) => v.id === p.verb_id)?.madi ?? '', prep: p.prep_ar, name: K.name(p.prep_gt),
       usage: p.usage_ar, meaning: p.meaning_en, quote: K.cite(parseJson<Cite | null>(p.cite_json, null)), sources: p.sources })),
     ranges: rows.map((r) => ({ root, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', gloss: null,
       senses: D.senses.filter((x) => x.lemma_id === r.gid_lemma).map((x) => ({ en: x.sense_en, ar: x.sense_ar, here: false,
