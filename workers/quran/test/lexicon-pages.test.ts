@@ -40,8 +40,9 @@ test('a root\'s page lists its words across the Qurʾān, most used first, and i
     [['AL:aaaaaaaaaaaaaaaaaaaaaa', 'كِتَٰب', 3], ['AL:bbbbbbbbbbbbbbbbbbbbbb', 'كَتَبَ', 1]]);
   assert.deepEqual(p.lex.map((l) => l.key), ['lemma']);
   assert.deepEqual(p.sections.map((s) => s.key), ['tables']);
-  // the root's page gathers every lemma's detail: its verbs' tables, prepositions, meanings and uses (none in this fixture)
-  assert.deepEqual(p.tables, []);
+  // the root's page gathers every lemma's detail — prepositions, meanings and uses (none in this fixture); the full
+  // verb tables are each lemma's, on its own page
+  assert.equal('tables' in p, false);
   assert.deepEqual(p.preps, []);
   assert.deepEqual(p.ranges, []);
 });

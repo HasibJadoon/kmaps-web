@@ -763,10 +763,9 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
       }).map((w) => ({ id: `AL:${w.id}`, lemma: w.lemma_text, count: 0, form: null, pattern: null, arc: null }));
       return [...quran, ...more];
     })(),
-    // the whole root, every lemma's detail gathered on one page (each is also on its own lemma's page): every verb's
-    // table, the root's verbs as family lines, every preposition its verbs take and what it means, each lemma's
-    // meanings across the Qurʾān, how its words are used, every near-synonym set, every opposite — the root's own first
-    tables: D.verbs.filter((v) => v.root === root).sort(K.byForm).map(K.verbView),
+    // the whole root, every lemma's detail gathered on one page: the root's verbs as family lines (ماض مضارع مصادر, each
+    // with its prepositions), each lemma's meanings across the Qurʾān, how its words are used, every near-synonym set,
+    // every opposite — the root's own first. The full الصرف الصغير tables are each lemma's, on its own page.
     families: [K.familyOf(root)].filter((f) => f.lines.length),
     // every word's arc in full, most used first: how each lemma's meaning runs from the root's picture
     arcs: rows.map((r) => ({ id: r.gid_lemma, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', count: r.n,
