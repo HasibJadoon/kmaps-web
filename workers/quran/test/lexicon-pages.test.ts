@@ -44,7 +44,7 @@ test('a root\'s page lists its words across the Qurʾān, most used first, and i
   // verb tables are each lemma's, on its own page
   assert.equal('tables' in p, false);
   assert.deepEqual(p.preps, []);
-  assert.deepEqual(p.ranges, []);
+  assert.equal('ranges' in p, false);   // a lemma's meaning range is on its own page
 });
 
 test('a root the Qurʾān does not use has no page', async () => {

@@ -763,9 +763,9 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
       }).map((w) => ({ id: `AL:${w.id}`, lemma: w.lemma_text, count: 0, form: null, pattern: null, arc: null }));
       return [...quran, ...more];
     })(),
-    // the whole root, every lemma's detail gathered on one page: the root's verbs as family lines (ماض مضارع مصادر, each
-    // with its prepositions), each lemma's meanings across the Qurʾān, how its words are used, every near-synonym set,
-    // every opposite — the root's own first. The full الصرف الصغير tables are each lemma's, on its own page.
+    // root-focused: the root's verbs as family lines (ماض مضارع مصادر, each with its prepositions), how its words are used
+    // in the Qurʾān, every word's arc, every near-synonym set, every opposite — the root's own first. A lemma's own
+    // meaning range and its full الصرف الصغير table are on the lemma's page.
     families: [K.familyOf(root)].filter((f) => f.lines.length),
     // every word's arc in full, most used first: how each lemma's meaning runs from the root's picture
     arcs: rows.map((r) => ({ id: r.gid_lemma, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', count: r.n,
@@ -773,9 +773,6 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
     // the prepositions are on their verb's family line; here, only those whose verb has no line
     preps: D.preps.filter((p) => !D.verbs.some((v) => v.id === p.verb_id && v.root === root)).map((p) => ({ root, verb: D.verbs.find((v) => v.id === p.verb_id)?.madi ?? '', prep: p.prep_ar, name: K.name(p.prep_gt),
       usage: p.usage_ar, meaning: p.meaning_en, quote: K.cite(parseJson<Cite | null>(p.cite_json, null)), sources: p.sources })),
-    ranges: rows.map((r) => ({ root, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', gloss: null,
-      senses: D.senses.filter((x) => x.lemma_id === r.gid_lemma).map((x) => ({ en: x.sense_en, ar: x.sense_ar, here: false,
-        quotes: parseJson<Cite[]>(x.cites_json, []).map(K.cite).filter(Boolean) })) })).filter((r) => r.senses.length),
     constructions: (D.constructions.get(root) ?? []).map(({ lemmaId: _l, ...c }) => ({ root, ...c })),
     near: D.nears.map((n) => ({ root: n.root, ...K.nearView(n) })),
     opposites: [...(D.opposites.get(root) ?? []).filter((o) => !o.lemmaId && !o.forWord),
