@@ -50,6 +50,16 @@ export interface DsBar {
 
 export interface DsFact { label: string; value: DsText }
 
+/** A book a record rests on, as the app's one source back-link reads it (KMSource): the book's short name, its page,
+ *  and where to open it — the lexicon reader at `source` + `root`, at `block` when known. */
+export interface DsSource {
+  book: string;
+  page?: number;
+  source: string;
+  root?: string;
+  block?: string;
+}
+
 export interface DsRecord {
   id: string;
 
@@ -59,6 +69,8 @@ export interface DsRecord {
   ur?: DsText;
   facts?: DsFact[];
   provenance?: DsProvenance;
+  /** the books it rests on, each a back-link to its page */
+  sources?: DsSource[];
 }
 
 export type DsProseRole = 'heading' | 'definition' | 'verse' | 'narration' | 'aside';

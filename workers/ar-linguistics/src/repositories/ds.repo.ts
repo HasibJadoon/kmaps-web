@@ -7,9 +7,12 @@ import type {
   DisplaySpec, DsBlock, DsForm, DsSection, DsState, DsText, DsCell,
   DsRecord, DsFact,
 } from '../../../shared/src/contracts/ds';
+import type { DsSource } from '../../../shared/src/contracts/ds';
 import { RegistryRepo, type CarrierRows } from './registry.repo';
+import { SOURCES } from '../routes/arcs';
 
 type Row = Record<string, unknown>;
+type BookLink = { slug: string; blocks: Map<string, number | null>; quote: string | null; cites: number; refs: string[] };
 
 const CAP: Record<DsForm, { rows: number; cells: number; chars: number }> = {
   desktop: { rows: 8, cells: 24, chars: 220 },
@@ -71,6 +74,11 @@ export class DsRepo {
 
   async root(rootRef: string, form: DsForm = 'desktop', scope = 'root'): Promise<DisplaySpec> {
     const cap = CAP[form] ?? CAP.desktop;
+
+    // the books that bridge to this root, whole (the carriers above are capped per table): its citations and the
+    // Qurʾān references each book files under it — and every book's short name
+    const [links, books] = await Promise.all([this.bookLinks(rootRef), this.bookNames()]);
+    this.links = links; this.books = books; this.rootRef = rootRef;
 
     const [model, fill, carriers, bands, coverage] = await Promise.all([
       this.registry.layerModel(),
@@ -190,6 +198,7 @@ export class DsRepo {
       case '32-FIELD':     return this.weightBlocks(rowsOf('ar_ling_root_haql'), 'field', cap);
       case '30-KIN':       return this.antonymBlocks(rowsOf('ar_ling_root_didd'), cap);
       case '19-ATT':       return this.attestationBlocks(rowsOf('ar_ling_sense_attestation'), cap);
+      case '40-LINK':      return this.links.length ? this.linkBlocks(cap) : first ? [this.tableBlock(first, cap)] : [];
       default:             return first ? [this.tableBlock(first, cap)] : [];
     }
   }
@@ -319,6 +328,7 @@ export class DsRepo {
           ...(str(a['page_ref']) ? [{ label: 'page', value: t(a['page_ref']) }] : []),
         ],
         provenance: this.provenanceOf(a),
+        sources: this.sourcesOf(a),
       })),
       overflow_count: Math.max(0, rows.length - cap.rows),
     }];
@@ -343,6 +353,7 @@ export class DsRepo {
         en: str(s['gloss_en']) ? t(clamp(str(s['gloss_en']), cap.chars)) : undefined,
         ur: str(s['gloss_ur']) ? t(s['gloss_ur'], 'urdu') : undefined,
         provenance: this.provenanceOf(s),
+        sources: this.sourcesOf(s),
       })),
       overflow_count: Math.max(0, rows.length - cap.rows),
     }];
@@ -424,6 +435,7 @@ export class DsRepo {
         en: str(a['quote_en']) ? t(clamp(str(a['quote_en']), cap.chars)) : undefined,
         facts: str(a['locator']) ? [{ label: 'at', value: t(a['locator']) }] : undefined,
         provenance: this.provenanceOf(a),
+        sources: this.sourcesOf(a),
       })),
       overflow_count: Math.max(0, rows.length - cap.rows),
     }];
@@ -449,6 +461,81 @@ export class DsRepo {
       null_columns: nulls.length ? nulls : undefined,
       overflow_count: Math.max(0, c.total - rows.length),
     };
+  }
+
+  private links: BookLink[] = [];
+  private books = new Map<string, string>();
+  private rootRef = '';
+
+  /** A book's short name: AL's own (al-Rāghib, Lane), else the author its English title names. */
+  private bookName(slug: string): string {
+    return SOURCES[slug]?.short?.replace(/^the /, '') ?? this.books.get(slug) ?? slug;
+  }
+
+  private async bookNames(): Promise<Map<string, string>> {
+    const rows = await query<{ slug: string; title_en: string | null }>(this.db,
+      `SELECT slug, title_en FROM ar_ling_source WHERE slug IS NOT NULL`).catch(() => []);
+    // "Jamharat al-lugha (Ibn Durayd)" → "Ibn Durayd"
+    return new Map(rows.map((r) => [r.slug, r.title_en?.match(/\(([^)]+)\)\s*$/)?.[1] ?? r.title_en ?? r.slug]));
+  }
+
+  /** Each book that bridges to the root: what it is cited for (its blocks, pages, quotes) and the Qurʾān verses it files under it. */
+  private async bookLinks(root: string): Promise<BookLink[]> {
+    const [cites, refs] = await Promise.all([
+      query<{ source_slug: string; to_ref: string; page_no: number | null; quote_ar: string | null }>(this.db,
+        `SELECT source_slug, to_ref, page_no, quote_ar FROM ar_ling_source_citation
+          WHERE root_norm = ? AND to_kind = 'lexicon_block' AND status = 'live' AND source_slug IS NOT NULL
+          ORDER BY source_slug, page_no`, [root]).catch(() => []),
+      query<{ source_slug: string; block_id: string | null; s: number; a: number }>(this.db,
+        `SELECT source_slug, block_id, COALESCE(hafs_surah, surah) AS s, COALESCE(hafs_ayah, ayah) AS a
+           FROM ar_ling_lexicon_quran_ref WHERE root_norm = ? ORDER BY s, a`, [root]).catch(() => []),
+    ]);
+    const by = new Map<string, BookLink>();
+    const of = (slug: string) => by.get(slug) ?? (by.set(slug, { slug, blocks: new Map(), quote: null, cites: 0, refs: [] }), by.get(slug)!);
+    for (const c of cites) {
+      const b = of(c.source_slug);
+      b.cites += 1;
+      b.quote ??= c.quote_ar;
+      const block = c.to_ref.replace(/^ALB:/, '');
+      if (!b.blocks.has(block)) b.blocks.set(block, c.page_no);
+    }
+    for (const r of refs) {
+      const b = of(r.source_slug);
+      const ref = `${r.s}:${r.a}`;
+      if (!b.refs.includes(ref)) b.refs.push(ref);
+      if (r.block_id && !b.blocks.has(r.block_id)) b.blocks.set(r.block_id, null);
+    }
+    return [...by.values()].sort((x, y) => (y.cites + y.refs.length) - (x.cites + x.refs.length));
+  }
+
+  /** The bridge, as back-links: one record per book — its name, what it is cited for and the verses it files under the
+   *  root, each of its pages a back-link to the lexicon reader. */
+  private linkBlocks(cap: typeof CAP['desktop']): DsBlock[] {
+    const root = this.rootRef;
+    return [{
+      kind: 'ledger',
+      title: 'Every book',
+      hint: `${this.links.length} books · each opens at its page`,
+      records: this.links.map((b): DsRecord => ({
+        id: `book-${b.slug}`,
+        badges: [{ label: '', value: this.bookName(b.slug), tone: 'strong' }],
+        ar: b.quote ? t(clamp(b.quote, cap.chars), 'ar') : undefined,
+        en: t([b.cites ? `cited ${b.cites}×` : '', b.refs.length ? `${b.refs.length} Qurʾān references` : ''].filter(Boolean).join(' · ')),
+        facts: b.refs.length ? [{ label: 'Qurʾān', value: t(b.refs.slice(0, 10).join(' · ') + (b.refs.length > 10 ? ' …' : '')) }] : undefined,
+        sources: [...b.blocks.entries()].slice(0, 12).map(([block, page]): DsSource =>
+          ({ book: this.bookName(b.slug), page: page ?? undefined, source: b.slug, root, block })),
+      })),
+      overflow_count: 0,
+    }];
+  }
+
+  /** A row's book as a back-link, when it names a book (not a K-Maps synthesis). */
+  private sourcesOf(r: Row): DsSource[] | undefined {
+    const source = str(r['source_slug']);
+    if (!source || source.startsWith('kmaps')) return undefined;
+    const page = Number(str(r['page_ref']) || str(r['page_no']));
+    const block = str(r['block_id']) || undefined;
+    return [{ book: this.bookName(source), page: Number.isInteger(page) && page > 0 ? page : undefined, source, root: this.rootRef, block }];
   }
 
   private provenanceOf(r: Row): DsRecord['provenance'] {
