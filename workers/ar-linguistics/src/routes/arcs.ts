@@ -236,6 +236,17 @@ export function arcRoutes(router: Router<ArLinguisticsEnv>) {
                      WHERE scope_level = 'root' AND status <> 'rejected' GROUP BY root_norm)
        SELECT asl.root_norm AS root, books, en, ar, COALESCE(layers, 0) AS layers
          FROM asl LEFT JOIN lay USING (root_norm) ORDER BY asl.root_norm`);
+    // each root's meaning arc, short: the combined arc's steps in its order (each step named once), the first four
+    const steps = await query<{ root_norm: string; step_en: string }>(env.DB_AL,
+      `SELECT root_norm, step_en FROM ar_ling_arc_rung
+        WHERE source_slug = 'combined' AND step_en IS NOT NULL AND step_en <> '' ORDER BY root_norm, seq`);
+    const arcOf = new Map<string, string[]>();
+    for (const r of steps) {
+      const arc = arcOf.get(r.root_norm) ?? [];
+      const step = r.step_en.trim();
+      if (arc.length < 4 && !arc.some((x) => x.toLowerCase() === step.toLowerCase())) arc.push(step);
+      arcOf.set(r.root_norm, arc);
+    }
     return ok({
       labels: {
         title: 'Root Synthesis', titleAr: 'توليف الجذر',
@@ -243,7 +254,7 @@ export function arcRoutes(router: Router<ArLinguisticsEnv>) {
         search: 'Find a root', books: 'books', layers: 'layers',
       },
       total: rows.length,
-      roots: rows.map((r) => ({ ...r, letter: [...r.root][0] ?? '' })),
+      roots: rows.map((r) => ({ ...r, letter: [...r.root][0] ?? '', arc: arcOf.get(r.root) ?? [] })),
     });
   }, { browser: 60, edge: 3600 }));
 
