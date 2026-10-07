@@ -430,6 +430,38 @@ export function alignParagraphs(lines: { seq: number; text: string }[], chunks: 
   return found.map((f, i) => ({ from: f.from, to: i + 1 < found.length ? found[i + 1].from - 1 : last, en: f.en }));
 }
 
+/** A reader's paragraphs over the whole part: the English-pinned ones as they are, and every stretch no English covers
+ *  (a work with no English, or lines before / between them) cut into passages at sentence ends — a passage closes at a
+ *  full stop, question or colon once it holds about `soft` letters, and at the next line past `hard` — so a long
+ *  commentary reads as passages, not one block. A passage with no English of its own carries en ''. */
+export function passagesOf(lines: { seq: number; text: string }[], pinned: ListenParagraph[], soft = 420, hard = 900): ListenParagraph[] {
+  if (!lines.length) return [];
+  const out: ListenParagraph[] = [];
+  const cut = (run: { seq: number; text: string }[]) => {
+    let from: number | null = null, size = 0;
+    run.forEach((l, i) => {
+      from ??= l.seq;
+      size += l.text.length;
+      const ends = /[.!؟?:؛]\s*[»”"')\]]*\s*$/.test(l.text.trim());
+      if ((size >= soft && ends) || size >= hard || i === run.length - 1) {
+        out.push({ from, to: l.seq, en: '' });
+        from = null; size = 0;
+      }
+    });
+  };
+  const sorted = [...pinned].sort((a, b) => a.from - b.from);
+  let at = 0;
+  for (const g of sorted) {
+    const before = lines.filter((l) => l.seq < g.from && (at === 0 || l.seq > at));
+    if (before.length) cut(before);
+    out.push(g);
+    at = g.to;
+  }
+  const after = lines.filter((l) => !sorted.length || l.seq > at);
+  if (after.length) cut(after);
+  return out;
+}
+
 /// Every work the gate names, its span over the passage: the recordings in reading order, each
 /// with its lines. A work with no recorded line over the passage is left out.
 export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: number; from: number; to: number }): Promise<ListenWork[]> {
@@ -507,7 +539,8 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
       x.start = Math.max(0, x.lines[0].start - 0.3);
       x.end = x.lines[x.lines.length - 1].end + 0.3;
       // English that opens on (or holds) Arabic still reads left to right: the Arabic runs are isolated
-      x.paragraphs = alignParagraphs(x.lines, chunks.filter((c) => c.source_slug === slug)).map((g) => ({ ...g, en: bidiEn(g.en) }));
+      x.paragraphs = passagesOf(x.lines,
+        alignParagraphs(x.lines, chunks.filter((c) => c.source_slug === slug)).map((g) => ({ ...g, en: bidiEn(g.en) })));
       const first = x.lines[0].seq, lastSeq = x.lines[x.lines.length - 1].seq;
       x.sentences = sents.filter((r) => r.audio_id === x.audio && r.seq_from >= first && r.seq_to <= lastSeq)
         .map((r) => ({ id: r.id, from: r.seq_from, to: r.seq_to, gist: bidiEn(r.gist_en), concept: bidiEn(r.concept_en),

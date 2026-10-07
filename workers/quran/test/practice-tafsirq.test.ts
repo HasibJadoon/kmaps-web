@@ -164,3 +164,21 @@ test('a work is read as sentences: lines joined to a sentence end, scraps joined
   const g = sentencesOf(lines);
   assert.deepEqual(g.map((x) => x.map((l) => l.text)), [['أول السطر', 'تمامه.'], ['جملة ثانية.', '٣٧] .'], ['ثالثة؛', 'تتمتها.']]);
 });
+
+import { passagesOf } from '../src/routes/practice-tafsirq';
+test('a commentary with no English reads as passages cut at sentence ends', () => {
+  const lines = Array.from({ length: 12 }, (_, i) => ({ seq: i + 1, text: `${'كلمة '.repeat(30)}${i % 3 === 2 ? '.' : '،'}` }));
+  const ps = passagesOf(lines, []);
+  assert.ok(ps.length > 1);
+  assert.equal(ps[0].from, 1);
+  assert.equal(ps[ps.length - 1].to, 12);
+  for (let i = 1; i < ps.length; i++) assert.equal(ps[i].from, ps[i - 1].to + 1);
+  assert.ok(ps.every((p) => p.en === ''));
+});
+test('the English-pinned paragraphs stay whole; only the uncovered lines are cut', () => {
+  const lines = Array.from({ length: 6 }, (_, i) => ({ seq: i + 1, text: 'نص.' }));
+  const ps = passagesOf(lines, [{ from: 3, to: 4, en: 'English' }], 1, 10);
+  assert.deepEqual(ps.find((p) => p.en === 'English'), { from: 3, to: 4, en: 'English' });
+  assert.equal(ps[0].from, 1);
+  assert.equal(ps[ps.length - 1].to, 6);
+});
