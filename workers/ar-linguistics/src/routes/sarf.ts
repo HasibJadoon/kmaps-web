@@ -36,10 +36,10 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
       // the prepositions the Qurʾān shows — the cited rows; plain English where the ingested gloss is older
       query<{ id: string; root_id: string; lemma_id: string | null; verb_form: string | null; harf: string | null;
               harf_term_id: string | null; frame_ar: string | null; meaning_en: string | null; cite_json: string;
-              qr_ref: string | null; sort_order: number }>(db,
+              qr_ref: string | null; sort_order: number; display_json: string | null }>(db,
         `SELECT id, root_id, lemma_id, verb_form, harf, harf_term_id, frame_ar,
                 coalesce(json_extract(display_json, '$.plain_en'), meaning_en) AS meaning_en, cite_json,
-                json_extract(display_json, '$.qr_ref') AS qr_ref, sort_order
+                json_extract(display_json, '$.qr_ref') AS qr_ref, sort_order, display_json
            FROM ar_ling_root_lemma_tadiya
           WHERE status = 'live' AND cite_json IS NOT NULL AND root_id IN ${inList} ORDER BY root_id, sort_order`, [R]),
       query<{ id: string; root_id: string; antonym_ar: string; antonym_root_id: string | null; antonym_en: string | null;
@@ -74,10 +74,10 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
         `SELECT set_id, note_md FROM ar_ling_root_lemma_furuq_set_src WHERE source_role = 'contrast'`),
       // every construction arc of the roots' lemmas, with its primary worked verse
       query<{ id: string; root_id: string; lemma_id: string; lemma_ar: string; construction_ar: string; harf: string | null;
-              attest_count: number; arc_ar: string; arc_en: string; boundary_note_en: string | null; branches_json: string | null;
+              attest_count: number; arc_ar: string; arc_en: string; boundary_note_en: string | null; branches_json: string | null; provenance_json: string | null;
               ex_surah: number | null; ex_ayah: number | null; ex_text: string | null; ex_en: string | null; ex_note: string | null }>(db,
         `SELECT a.id, l.root_id, a.lemma_id, coalesce(l.lemma_text_canonical, l.lemma_text) AS lemma_ar, a.construction_ar, a.harf, a.attest_count, a.arc_ar, a.arc_en,
-                a.boundary_note_en, a.branches_json,
+                a.boundary_note_en, a.branches_json, a.provenance_json,
                 e.surah AS ex_surah, e.ayah AS ex_ayah, e.text_ar AS ex_text, e.fluent_en AS ex_en, e.note_en AS ex_note
            FROM ar_ling_lemma_arc a JOIN ar_ling_root_lemma l ON l.id = a.lemma_id
            LEFT JOIN ar_ling_lemma_arc_example e ON e.id = (SELECT e2.id FROM ar_ling_lemma_arc_example e2 WHERE e2.arc_id = a.id
@@ -96,6 +96,17 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
                               WHERE m2.source_status = 'lexicon_checked' AND l2.root_id IN ${inList})`, [R]),
     ]);
 
+    // every lexicon block a row cites → its book, printed page and the root it is filed under, so the app can link back
+    const BLK = /blk_[a-z]+_[0-9a-f]{8,}/g;
+    const blocksIn = (...texts: (string | null | undefined)[]) => [...new Set(texts.flatMap((t) => (t ?? '').match(BLK) ?? []))];
+    const cited = [...new Set([...didd.flatMap((o) => blocksIn(o.source_ref, o.note_en)), ...arcs.flatMap((a) => blocksIn(a.provenance_json)),
+                               ...preps.flatMap((p) => blocksIn(p.display_json))])];
+    const blk = new Map((cited.length ? await query<{ id: string; source_slug: string; printed_page: number | null; root_norm: string }>(db,
+      `SELECT b.id, b.source_slug, b.printed_page, coalesce(rk.root_norm_canonical, b.root_norm) AS root_norm
+         FROM ar_ling_lexicon_block b LEFT JOIN ar_ling_lexicon_block_rekey rk ON rk.block_id = b.id
+        WHERE b.id IN ${inList}`, [JSON.stringify(cited)]) : []).map((b) => [b.id, b]));
+    const sourcesOf = (...texts: (string | null | undefined)[]) => blocksIn(...texts).map((id) => blk.get(id)).filter((b): b is NonNullable<typeof b> => !!b)
+      .map((b) => ({ source_slug: b.source_slug, page: b.printed_page, root_norm: b.root_norm, block_id: b.id }));
     const contrast = new Map(contrasts.map((c) => [c.set_id, c.note_md]));
     const sets = new Map<string, { id: string; title_en: string | null; title_ar: string | null; contrast: string | null; members: unknown[];
                                     sources: { source_slug: string; page: number | null; root_norm: string; block_id: string }[] }>();
@@ -113,9 +124,9 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
           root_id: r, root_norm: d?.root_norm ?? null,
           picture: d?.picture_en ? { en: d.picture_en, ar: d.picture_ar } : null,
           paradigms: byRoot(paradigms, r).map((p) => ({ ...p, paradigm: JSON.parse(p.paradigm_json), paradigm_json: undefined })),
-          preps: byRoot(preps, r).map((p) => ({ ...p, cite: JSON.parse(p.cite_json), cite_json: undefined })),
-          opposites: byRoot(didd, r).map((o) => ({ ...o, display: o.display_json ? JSON.parse(o.display_json) : null, display_json: undefined })),
-          constructions: byRoot(arcs, r).map((a) => ({ ...a, branches: a.branches_json ? JSON.parse(a.branches_json) : [], branches_json: undefined })),
+          preps: byRoot(preps, r).map((p) => ({ ...p, cite: JSON.parse(p.cite_json), cite_json: undefined, display_json: undefined, sources: sourcesOf(p.display_json) })),
+          opposites: byRoot(didd, r).map((o) => ({ ...o, display: o.display_json ? JSON.parse(o.display_json) : null, display_json: undefined, sources: sourcesOf(o.source_ref, o.note_en) })),
+          constructions: byRoot(arcs, r).map((a) => ({ ...a, branches: a.branches_json ? JSON.parse(a.branches_json) : [], branches_json: undefined, provenance_json: undefined, sources: sourcesOf(a.provenance_json) })),
         }];
       })),
       lemmas: Object.fromEntries(lemmas.map((l) => [l, { plurals: jam.filter((j) => j.lemma_id === l) }])),

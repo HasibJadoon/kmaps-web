@@ -24,7 +24,7 @@ type Verb = { id: string; root: string; form_gt: string; bab_gt: string | null; 
               fail_gt: string | null; madi_majhul: string | null; mudari_majhul: string | null; maful: string | null; amr: string | null;
               nahy: string | null; zarf_json: string | null; ala_json: string | null; others_json: string | null; quran_n: number;
               cite_json: string | null; full: number; note_en: string | null; lemma_id?: string | null };
-type Prep = { id: string; verb_id: string; prep_ar: string; prep_gt: string | null; usage_ar: string; meaning_en: string; cite_json: string };
+type Prep = { id: string; verb_id: string; prep_ar: string; prep_gt: string | null; usage_ar: string; meaning_en: string; cite_json: string; sources: Src[] };
 type Word = { surah: number; ayah: number; word_index: number; word_ar: string; root: string; verb_id: string | null; sigha_gt: string | null;
               pattern_ar: string | null; prep_json: string | null };
 // the Qurʾānic word itself (qr_word_occurrence): QAC's parse and what it means in this āyah
@@ -43,25 +43,25 @@ type Near = { id: string; root: string; roots: string[]; lemmas: string[]; focus
               contrast: string | null };
 /** A book a line rests on, for the app's back-link: the book's short name, its printed page, and where to open it
  *  (the lexicon reader: source + root). */
-type Src = { book: string; page: number | null; source: string; root: string };
+type Src = { book: string; page: number | null; source: string; root: string; block?: string };
 const BOOK: Record<string, string> = {
   raghib_mufradat: 'al-Rāghib', lane_lexicon: 'Lane', ibn_manzur_lisan_arab: 'Lisān', maqayis_lugha: 'Maqāyīs',
   jawhari_sihah: 'al-Ṣiḥāḥ', zabidi_taj_arus: 'Tāj', fayyumi_misbah_munir: 'al-Miṣbāḥ', qamus_muhit: 'al-Qāmūs',
   khalil_kitab_ayn: 'al-ʿAyn', ibn_durayd_jamharat_lugha: 'Jamhara', zamakhshari_asas_balagha: 'al-Asās',
 };
-const sourcesOf = (rows: { source_slug: string; page: number | null; root_norm: string }[]): Src[] => {
+export const sourcesOf = (rows: { source_slug: string; page: number | null; root_norm: string; block_id?: string }[]): Src[] => {
   const seen = new Set<string>();
-  return rows.map((r) => ({ book: BOOK[r.source_slug] ?? r.source_slug, page: r.page, source: r.source_slug, root: r.root_norm }))
+  return rows.map((r) => ({ book: BOOK[r.source_slug] ?? r.source_slug, page: r.page, source: r.source_slug, root: r.root_norm, block: r.block_id }))
     .filter((x) => { const k = `${x.source}|${x.page}|${x.root}`; if (seen.has(k)) return false; seen.add(k); return true; })
     .sort((a, b) => a.book.localeCompare(b.book) || (a.page ?? 0) - (b.page ?? 0));
 };
 /** The "— al-Rāghib pp. 699, 286; Lane p. 2590" tail of a line: the books now come as links (sources), so it is cut. */
-const stripRefs = (s: string | null) => (s ? s.replace(/\s+—\s+(?:al-|Lane|Lisān|Maqāyīs|Tāj|Ibn |Jamhara|Kitāb)[^—]*$/u, '').trim() : s);
+export const stripRefs = (s: string | null) => (s ? s.replace(/\s+—\s+(?:al-|Lane|Lisān|Maqāyīs|Tāj|Ibn |Jamhara|Kitāb)[^—]*$/u, '').trim() : s);
 type NearMember = { ar: string; en: string; contrast?: string | null; cite: Cite | null };
 type Plural = { ar: string; cite: Cite };
 /** An opposite as a book states it; `forWord` names the word of the root it belongs to when that is not the root's main sense. */
-type Opposite = { ar: string; en: string | null; kind: string; note: string | null; cites: Cite[]; lemmaId: string | null; forWord: string | null };
-type Construction = { lemmaId: string; lemma: string; construction: string; count: number; line: string; lineAr: string; note: string | null;
+type Opposite = { ar: string; en: string | null; kind: string; note: string | null; cites: Cite[]; lemmaId: string | null; forWord: string | null; sources: Src[] };
+type Construction = { lemmaId: string; lemma: string; construction: string; count: number; line: string; lineAr: string; note: string | null; sources: Src[];
                       quote: string | null; quoteEn: string | null };
 /** What kind of opposite, in plain words (ar_ling_root_didd.relation_kind). */
 const OPPOSITE_KIND: Record<string, string> = {
@@ -154,12 +154,12 @@ async function load(env: QuranEnv, scope: Scope, refresh = false) {
     .map((r) => ({ root: rootText.get(r.root_id)!, text_en: r.picture!.en, text_ar: r.picture!.ar ?? '' })) : [];
   const opposites = new Map<string, Opposite[]>(sheet ? Object.values(sheet.roots).filter((r) => rootText.has(r.root_id))
     .map((r) => [rootText.get(r.root_id)!, r.opposites.map((o) => ({ ar: o.antonym_ar, en: o.antonym_en, kind: o.relation_kind,
-      note: o.note_en, cites: o.display?.quran ?? [], lemmaId: o.lemma_id,
+      note: o.note_en, cites: o.display?.quran ?? [], lemmaId: o.lemma_id, sources: sourcesOf(o.sources ?? []),
       forWord: o.for_word_ar ? (o.for_word_en ? `${o.for_word_ar} — ${o.for_word_en}` : o.for_word_ar) : null }))]) : []);
   // how each root's lemmas are used: the construction arcs, with the primary worked verse cut from the muṣḥaf
   const constructions = new Map<string, Construction[]>(sheet ? Object.values(sheet.roots).filter((r) => rootText.has(r.root_id))
     .map((r) => [rootText.get(r.root_id)!, (r.constructions ?? []).map((a) => ({
-      lemmaId: a.lemma_id, lemma: a.lemma_ar, construction: a.construction_ar, count: a.attest_count, line: a.arc_en, lineAr: a.arc_ar, note: a.boundary_note_en,
+      lemmaId: a.lemma_id, lemma: a.lemma_ar, construction: a.construction_ar, count: a.attest_count, line: a.arc_en, lineAr: a.arc_ar, note: a.boundary_note_en, sources: sourcesOf(a.sources ?? []),
       quote: a.ex_text ? `﴿${a.ex_text}﴾ ${a.ex_surah}:${a.ex_ayah}` : null, quoteEn: a.ex_en }))]) : []);
   const pluralsOf = (w: Word): Plural[] => {
     const g = occAt.get(at3(w))?.gid_lemma?.replace(/^AL:/, '');
@@ -282,7 +282,7 @@ function prepsOf(sheet: AlSarfSheet, verbs: Verb[], rootText: Map<string, string
     const verb = (fromRef && ids.has(fromRef) ? fromRef : null) ?? verbs.find((v) => v.lemma_id && v.lemma_id === p.lemma_id)?.id
       ?? verbs.find((v) => v.root === rootText.get(r.root_id))?.id;
     return verb ? { id: ref, verb_id: verb, prep_ar: p.harf ?? '', prep_gt: p.harf_term_id, usage_ar: p.frame_ar ?? '', meaning_en: p.meaning_en ?? '',
-                    cite_json: JSON.stringify(p.cite), n: Number(ref.match(/:(\d+)$/)?.[1] ?? p.sort_order) } : null;
+                    cite_json: JSON.stringify(p.cite), sources: sourcesOf(p.sources ?? []), n: Number(ref.match(/:(\d+)$/)?.[1] ?? p.sort_order) } : null;
   })).filter((x): x is Prep & { n: number } => !!x);
   const at = new Map(verbs.map((v, i) => [v.id, i]));
   return rows.sort((a, b) => (at.get(a.verb_id)! - at.get(b.verb_id)!) || a.n - b.n).map(({ n: _n, ...p }) => p);
@@ -567,7 +567,7 @@ async function sarfSheetRaw(env: QuranEnv, scope: Scope, refresh = false) {
   for (const g of extra) gt.set(g.id, g.name_ar);
   const name = (id: string | null | undefined) => (id ? gt.get(id) ?? null : null);
   const cite = (c: Cite | null | undefined) => (c ? quote(c, texts) : null);
-  const oppositeView = (o: Opposite) => ({ ar: o.ar, en: o.en, kind: OPPOSITE_KIND[o.kind] ?? o.kind, forWord: o.forWord,
+  const oppositeView = (o: Opposite) => ({ ar: o.ar, en: o.en, kind: OPPOSITE_KIND[o.kind] ?? o.kind, forWord: o.forWord, sources: o.sources,
     note: o.note, quote: o.cites.map(cite).find(Boolean) ?? null });
   const nearView = (n: Near) => ({ title: n.title_en, titleAr: n.title_ar, contrast: stripRefs(n.contrast), sources: n.sources,
     members: parseJson<NearMember[]>(n.members_json, []).map((m) => ({ ar: m.ar, en: m.en, contrast: m.contrast ?? null, quote: cite(m.cite) })) });
@@ -578,7 +578,7 @@ async function sarfSheetRaw(env: QuranEnv, scope: Scope, refresh = false) {
     others: parseJson<string[][]>(v.others_json, []).map(([form, g, pattern, meaning]) => ({ form, name: name(g), pattern, meaning })),
     note: v.note_en, quote: cite(parseJson<Cite | null>(v.cite_json, null)), inQuran: v.quran_n,
     preps: preps.filter((p) => p.verb_id === v.id).map((p) => ({ prep: p.prep_ar, name: name(p.prep_gt), usage: p.usage_ar,
-                                                                  meaning: p.meaning_en, quote: cite(parseJson<Cite | null>(p.cite_json, null)) })),
+                                                                  meaning: p.meaning_en, quote: cite(parseJson<Cite | null>(p.cite_json, null)), sources: p.sources })),
   });
   const roots = [...new Set(words.map((w) => w.root))];
   const pic = (r: string) => (picture.get(r) ? { en: picture.get(r)!.text_en, ar: picture.get(r)!.text_ar } : null);
@@ -599,7 +599,7 @@ async function sarfSheetRaw(env: QuranEnv, scope: Scope, refresh = false) {
         inQuran: v.quran_n, quote: cite(parseJson<Cite | null>(v.cite_json, null)) })) })).filter((f) => f.lines.length),
     // every preposition a verb takes in the Qurʾān, and what it does
     preps: preps.map((p) => ({ root: verbs.find((v) => v.id === p.verb_id)?.root ?? '', verb: verbs.find((v) => v.id === p.verb_id)?.madi ?? '', prep: p.prep_ar, name: name(p.prep_gt),
-                               usage: p.usage_ar, meaning: p.meaning_en, quote: cite(parseJson<Cite | null>(p.cite_json, null)) })),
+                               usage: p.usage_ar, meaning: p.meaning_en, quote: cite(parseJson<Cite | null>(p.cite_json, null)), sources: p.sources })),
     // each word's senses across the Qurʾān, by lemma; the one in this passage marked
     ranges: roots.flatMap((r) => lemmas(r).map((l) => ({ root: r, lemma: l, gloss: pic(r)?.en ?? null,
       senses: senses.filter((x) => x.root === r && x.lemma_ar === l).map((x) => ({ en: x.sense_en, ar: x.sense_ar, here: used.has(x.id),

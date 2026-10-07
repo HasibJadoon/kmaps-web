@@ -131,15 +131,15 @@ export interface AlSarfSheet {
                        source_ref: string | null; paradigm: Record<string, unknown> }>;
     preps: Array<{ id: string; root_id: string; lemma_id: string | null; verb_form: string | null; harf: string | null;
                    harf_term_id: string | null; frame_ar: string | null; meaning_en: string | null; cite: AlCite;
-                   qr_ref: string | null; sort_order: number }>;
+                   qr_ref: string | null; sort_order: number; sources?: Array<{ source_slug: string; page: number | null; root_norm: string; block_id: string }> }>;
     opposites: Array<{ id: string; antonym_ar: string; antonym_root_id: string | null; antonym_en: string | null;
                        relation_kind: string; note_en: string | null; source_ref: string | null;
                        lemma_id: string | null; for_word_ar: string | null; for_word_en: string | null;
-                       display: { quran?: AlCite[] } | null }>;
+                       display: { quran?: AlCite[] } | null; sources?: Array<{ source_slug: string; page: number | null; root_norm: string; block_id: string }> }>;
     constructions?: Array<{ id: string; lemma_id: string; lemma_ar: string; construction_ar: string; harf: string | null;
                             attest_count: number; arc_ar: string; arc_en: string; boundary_note_en: string | null;
                             branches: Array<{ kind?: string; label?: string; arc_en?: string }>;
-                            ex_surah: number | null; ex_ayah: number | null; ex_text: string | null; ex_en: string | null; ex_note: string | null }>;
+                            ex_surah: number | null; ex_ayah: number | null; ex_text: string | null; ex_en: string | null; ex_note: string | null; sources?: Array<{ source_slug: string; page: number | null; root_norm: string; block_id: string }> }>;
   }>;
   lemmas: Record<string, { plurals: Array<{ plural_ar: string; kind_ref: string; kind_ar: string; wazn_ar: string | null;
                                             surah: number | null; ayah: number | null; needle: string | null; note_en: string | null }> }>;
