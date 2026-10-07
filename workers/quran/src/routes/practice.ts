@@ -20,6 +20,9 @@ import { structureDrills, structureCount } from './practice-structure';
 import { questionDrills, tafsirDrillsQ, questionsCount, tafsirReadDrills, tafsirLangDrills, listenWorks } from './practice-tafsirq';
 import { sarfDrills, sarfSheet } from './practice-sarf';
 
+/** Bump when the الصرف sheet's JSON changes shape or wording rules, so the edge cache starts afresh. */
+const SARF_SHEET_V = '2026-10-07c';
+
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
 // The Qurʾān drilled as the Arabic side is (DrillKit shapes): each āyah a line heard in
 // al-ʿAfāsī's recitation, its words timed — listen & fill, build the āyah, catch the word,
@@ -60,7 +63,9 @@ export function practiceRoutes(router: Router<QuranEnv>) {
     const u = new URL(req.url);
     const surah = Number(u.searchParams.get('surah')), from = Number(u.searchParams.get('from')), to = Number(u.searchParams.get('to'));
     if (!Number.isInteger(surah) || surah < 1) return badRequest('surah is required');
-    return cached(req, async () => {
+    // the sheet's shape version is part of the cache key: a deploy that changes the JSON never serves an old copy
+    const keyed = new URL(req.url); keyed.searchParams.set('v', SARF_SHEET_V);
+    return cached(new Request(keyed.toString(), req), async () => {
       const sheet = await sarfSheet(env, { surah, from: Number.isInteger(from) && from > 0 ? from : null, to: Number.isInteger(to) && to > 0 ? to : null },
                                      u.searchParams.has('refresh'));
       return ok(sheet ?? { words: [], roots: [] });
