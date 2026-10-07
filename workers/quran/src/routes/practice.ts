@@ -1,7 +1,7 @@
 import { cached } from '../../../shared/src/cache';
 import type { Router } from '../../../shared/src/router';
 import { attachGt } from '../../../shared/src/gt-attach';
-import { ok, badRequest } from '../../../shared/src/response';
+import { ok, badRequest, notFound } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import { labels, byKey, card, type Label } from '../lib/labels';
@@ -18,10 +18,11 @@ import { groupDrills, groupsCount } from './practice-groups';
 import { ssDrills, ssCount } from './practice-ss';
 import { structureDrills, structureCount } from './practice-structure';
 import { questionDrills, tafsirDrillsQ, questionsCount, tafsirReadDrills, tafsirLangDrills, listenWorks } from './practice-tafsirq';
-import { sarfDrills, sarfSheet } from './practice-sarf';
+import { sarfDrills, sarfSheet, lexiconRoot, lexiconLemma } from './practice-sarf';
 
 /** Bump when the الصرف sheet's JSON changes shape or wording rules, so the edge cache starts afresh. */
-const SARF_SHEET_V = '2026-10-07e';
+const SARF_SHEET_V = '2026-10-07g'
+const LEX_PAGE_V = '2026-10-07b';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
 // The Qurʾān drilled as the Arabic side is (DrillKit shapes): each āyah a line heard in
@@ -71,6 +72,29 @@ export function practiceRoutes(router: Router<QuranEnv>) {
       const sheet = await sarfSheet(env, { surah, from: Number.isInteger(from) && from > 0 ? from : null, to: Number.isInteger(to) && to > 0 ? to : null },
                                      u.searchParams.has('refresh'));
       return ok(sheet ?? { words: [], roots: [] });
+    }, { browser: 60, edge: 3600 });
+  });
+
+  // the lexicon's pages — a root and a lemma across the whole Qurʾān, the same from every passage: public, kept at the
+  // edge like the sheet (the shape version is part of the key)
+  router.get('/qr/lexicon/root', async (req, env) => {
+    const u = new URL(req.url);
+    const root = (u.searchParams.get('root') ?? '').trim();
+    if (!root) return badRequest('root is required');
+    const keyed = new URL(req.url); keyed.searchParams.set('v', LEX_PAGE_V);
+    return cached(new Request(keyed.toString(), req), async () => {
+      const page = await lexiconRoot(env, root, u.searchParams.has('refresh'));
+      return page ? ok(page) : notFound(`root ${root}`);
+    }, { browser: 60, edge: 3600 });
+  });
+  router.get('/qr/lexicon/lemma', async (req, env) => {
+    const u = new URL(req.url);
+    const id = (u.searchParams.get('id') ?? '').trim();
+    if (!/^(AL:)?[0-9a-f]{20,}$/.test(id)) return badRequest('id is a lemma\'s global id (AL:…)');
+    const keyed = new URL(req.url); keyed.searchParams.set('v', LEX_PAGE_V);
+    return cached(new Request(keyed.toString(), req), async () => {
+      const page = await lexiconLemma(env, id, u.searchParams.has('refresh'));
+      return page ? ok(page) : notFound(`lemma ${id}`);
     }, { browser: 60, edge: 3600 });
   });
 
