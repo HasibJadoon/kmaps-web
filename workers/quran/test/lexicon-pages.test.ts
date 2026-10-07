@@ -63,3 +63,23 @@ test('a lemma with no root (a particle) still has its page; an unknown lemma has
   assert.deepEqual(p.constructions, []);
   assert.equal(await lexiconLemma(setup(), 'AL:eeeeeeeeeeeeeeeeeeeeee'), null);
 });
+
+import { baseVerbOf } from '../src/routes/practice-sarf';
+const verb = (id: string, madi: string, mudari: string, form: string, bab: string | null) =>
+  ({ id, madi, mudari, form_gt: `GT:form_family:${form}`, bab_gt: bab }) as never;
+
+test('a derived word comes from the verb AL names, in its باب; else its family; else the root\'s one Form I verb', () => {
+  const daraba = verb('V1', 'كَتَبَ', 'يَكْتِبُ', 'form_i', 'GT:form_family:bab_daraba');
+  const nasara = verb('V2', 'كَتَبَ', 'يَكْتُبُ', 'form_i', 'GT:form_family:bab_nasara');
+  const iftaala = verb('V3', 'اكْتَتَبَ', 'يَكْتَتِبُ', 'form_viii', null);
+  // AL names the verb and its باب: that one, even where the root has two باب of the same past
+  assert.equal((baseVerbOf({ base_verb: 'كَتَبَ يَكْتُبُ', family_id: 'GT:form_family:bab_nasara' }, null, [daraba, nasara, iftaala]) as { id: string }).id, 'V2');
+  // a named form family with one verb in it
+  assert.equal((baseVerbOf({ base_verb: null, family_id: 'GT:form_family:form_viii' }, null, [nasara, iftaala]) as { id: string }).id, 'V3');
+  // a participle with nothing named: the root's only Form I verb
+  assert.equal((baseVerbOf(null, 'GT:derivation_type:active_participle', [nasara, iftaala]) as { id: string }).id, 'V2');
+  // two Form I verbs and nothing named: no guess
+  assert.equal(baseVerbOf(null, 'GT:derivation_type:active_participle', [daraba, nasara]), null);
+  // a جامد word has no verb behind it
+  assert.equal(baseVerbOf({ base_verb: null, family_id: null, jumud_id: 'GT:jumud:jamid' }, 'GT:derivation_type:active_participle', [nasara]), null);
+});
