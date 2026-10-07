@@ -254,7 +254,7 @@ async function core(env: QuranEnv, seed: Seed, refresh = false) {
     ...[...opposites.values()].flat().flatMap((o) => o.cites),
   ].filter((c): c is Cite => !!c && Number.isInteger(c.surah));
   const pairs = [...new Set(cites.map((c) => `${c.surah}:${c.ayah}`))].map((k) => k.split(':').map(Number));
-  const gtIds = [...new Set([...BABS, ...FORMS, 'GT:form_family:form_i', ...verbs.flatMap((v) => [v.fail_gt, v.form_gt]), 'GT:derivation_type:passive_participle']
+  const gtIds = [...new Set([...BABS, ...FORMS, 'GT:form_family:form_i', 'GT:pos:fil', 'GT:pos:ism', ...verbs.flatMap((v) => [v.fail_gt, v.form_gt]), 'GT:derivation_type:passive_participle']
     .filter((x): x is string => !!x))];
   const [ayat, gts] = await Promise.all([
     pairs.length ? query<{ surah: number; ayah: number; t: string }>(env.DB_QR,
@@ -746,9 +746,12 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
     al ? al.rootDeep(root).then((r) => r.data).catch(() => null) : Promise.resolve(null),
   ]);
   const K = await kitOf(env, D);
-  // a word's form: its derivation as AL names it (اسم الفاعل، مصدر، بابُ نَصَرَ …), else its verb's form family
+  // a word's form: its derivation as AL names it (اسم الفاعل، مصدر، بابُ نَصَرَ …), else its verb's form family, else — for a
+  // book's headword AL knows only as a verb or a noun — that (فِعْل / اِسْم)
+  const POS: Record<string, string> = { verb: 'GT:pos:fil', noun: 'GT:pos:ism' };
   const formFor = (l: ResolvedLemma | undefined) => l?.wazn?.[0]?.derivation_ar
-    ?? (l?.verb_form ? K.name(`GT:form_family:form_${l.verb_form.toLowerCase()}`) : null) ?? null;
+    ?? (l?.verb_form ? K.name(`GT:form_family:form_${l.verb_form.toLowerCase()}`) : null)
+    ?? (l?.pos && POS[l.pos] ? K.name(POS[l.pos]) : null) ?? null;
   const quranWords = rows.map((r) => ({ id: r.gid_lemma, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', count: r.n,
     form: formFor(D.lemmaOf(r.gid_lemma)), pattern: D.formOf(r.gid_lemma)?.pattern ?? null, arc: D.arcOf(r.gid_lemma, null) }));
   const seen = new Set([...quranWords.map((q) => q.id.replace(/^AL:/, '')), ...quranWords.map((q) => spelling(q.lemma))]);
