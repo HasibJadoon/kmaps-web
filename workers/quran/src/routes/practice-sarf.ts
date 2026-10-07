@@ -57,10 +57,11 @@ export const sourcesOf = (rows: { source_slug: string; page: number | null; root
 };
 /** The "— al-Rāghib pp. 699, 286; Lane p. 2590" tail of a line: the books now come as links (sources), so it is cut. */
 export const stripRefs = (s: string | null) => (s ? s.replace(/\s+—\s+(?:al-|Lane|Lisān|Maqāyīs|Tāj|Ibn |Jamhara|Kitāb)[^—]*$/u, '').trim() : s);
-type NearMember = { ar: string; en: string; contrast?: string | null; cite: Cite | null };
+type NearMember = { ar: string; en: string; contrast?: string | null; cite: Cite | null; lemmaId?: string | null };
 type Plural = { ar: string; cite: Cite };
 /** An opposite as a book states it; `forWord` names the word of the root it belongs to when that is not the root's main sense. */
-type Opposite = { ar: string; en: string | null; kind: string; note: string | null; cites: Cite[]; lemmaId: string | null; forWord: string | null; sources: Src[] };
+type Opposite = { ar: string; en: string | null; kind: string; note: string | null; cites: Cite[]; lemmaId: string | null; forWord: string | null; sources: Src[];
+                  /** the opposite's own root, as text, when the Qurʾān uses it — its page can be opened */ root: string | null };
 type Construction = { lemmaId: string; lemma: string; construction: string; count: number; line: string; lineAr: string; note: string | null; sources: Src[];
                       quote: string | null; quoteEn: string | null };
 /** What kind of opposite, in plain words (ar_ling_root_didd.relation_kind). */
@@ -170,11 +171,25 @@ async function core(env: QuranEnv, seed: Seed, refresh = false) {
   const order = roots;                                            // the seed's roots, in order
   const verbs = sheet ? verbsOf(sheet, rootText, order) : [];
   const preps = sheet ? prepsOf(sheet, verbs, rootText) : [];
-  const nears = sheet ? nearsOf(sheet, rootText, order) : [];
+  const nearsAll = sheet ? nearsOf(sheet, rootText, order) : [];
+  // a near-synonym member opens its own lemma page — when the Qurʾān uses that lemma
+  const memberIds = [...new Set(nearsAll.flatMap((n) => parseJson<NearMember[]>(n.members_json, []).map((m) => m.lemmaId).filter((x): x is string => !!x)))];
+  const quranic = new Set(memberIds.length ? (await query<{ g: string }>(env.DB_QR,
+    `SELECT DISTINCT gid_lemma AS g FROM qr_word_occurrence WHERE gid_lemma IN (SELECT value FROM json_each(?))`, [JSON.stringify(memberIds)])
+    .catch(() => [])).map((r) => r.g) : []);
+  const nears = nearsAll.map((n) => ({ ...n, members_json: JSON.stringify(parseJson<NearMember[]>(n.members_json, [])
+    .map((m) => ({ ...m, lemmaId: m.lemmaId && quranic.has(m.lemmaId) ? m.lemmaId : null }))) }));
   const pictures = sheet ? Object.values(sheet.roots).filter((r) => r.picture && rootText.has(r.root_id))
     .map((r) => ({ root: rootText.get(r.root_id)!, text_en: r.picture!.en, text_ar: r.picture!.ar ?? '' })) : [];
+  // an opposite's root (AL global id) as the text the Qurʾān files it under, so its page can be opened
+  const antonymIds = sheet ? [...new Set(Object.values(sheet.roots).flatMap((r) => r.opposites.map((o) => o.antonym_root_id))
+    .filter((x): x is string => !!x))] : [];
+  const antonymRoot = new Map((antonymIds.length ? await query<{ root_uid: string; root: string }>(env.DB_QR,
+    `SELECT root_uid, MIN(root) AS root FROM qr_word_occurrence WHERE root_uid IN (SELECT value FROM json_each(?)) GROUP BY root_uid`,
+    [JSON.stringify(antonymIds)]).catch(() => []) : []).map((x) => [x.root_uid, x.root] as const));
   const opposites = new Map<string, Opposite[]>(sheet ? Object.values(sheet.roots).filter((r) => rootText.has(r.root_id))
     .map((r) => [rootText.get(r.root_id)!, r.opposites.map((o) => ({ ar: o.antonym_ar, en: o.antonym_en, kind: o.relation_kind,
+      root: o.antonym_root_id ? antonymRoot.get(o.antonym_root_id) ?? null : null,
       note: o.note_en, cites: o.display?.quran ?? [], lemmaId: o.lemma_id, sources: sourcesOf(o.sources ?? []),
       forWord: o.for_word_ar ? (o.for_word_en ? `${o.for_word_ar} — ${o.for_word_en}` : o.for_word_ar) : null }))]) : []);
   // how each root's lemmas are used: the construction arcs, with the primary worked verse cut from the muṣḥaf
@@ -312,7 +327,8 @@ function nearsOf(sheet: AlSarfSheet, rootText: Map<string, string>, order: strin
     const focus = st.members.find((m) => m.root_id && rootText.get(m.root_id) === roots[0]);
     return { id: st.id, root: roots[0] ?? '', roots, lemmas: st.members.map((m) => m.lemma_id), focus_ar: focus?.ar ?? '', title_en: st.title_en ?? '', title_ar: st.title_ar ?? '',
              contrast: st.contrast, sources: sourcesOf(st.sources ?? []),
-             members_json: JSON.stringify(st.members.map((m): NearMember => ({ ar: m.ar, en: m.en ?? '', contrast: m.contrast, cite: m.cite }))) };
+             members_json: JSON.stringify(st.members.map((m): NearMember => ({ ar: m.ar, en: m.en ?? '', contrast: m.contrast, cite: m.cite,
+                                                                                lemmaId: m.lemma_id ? `AL:${m.lemma_id.replace(/^AL:/, '')}` : null }))) };
   }).filter((n) => n.roots.length).sort((a, b) => order.indexOf(a.root) - order.indexOf(b.root));
 }
 
@@ -568,10 +584,11 @@ async function kitOf(env: QuranEnv, D: CoreData, extraIds: (string | null)[] = [
   for (const g of extra) gt.set(g.id, g.name_ar);
   const name = (id: string | null | undefined) => (id ? gt.get(id) ?? null : null);
   const cite = (c: Cite | null | undefined) => (c ? quote(c, texts) : null);
-  const oppositeView = (o: Opposite) => ({ ar: o.ar, en: o.en, kind: OPPOSITE_KIND[o.kind] ?? o.kind, forWord: o.forWord, sources: o.sources,
+  const oppositeView = (o: Opposite) => ({ ar: o.ar, en: o.en, kind: OPPOSITE_KIND[o.kind] ?? o.kind, forWord: o.forWord, sources: o.sources, toRoot: o.root,
     note: o.note, quote: o.cites.map(cite).find(Boolean) ?? null });
   const nearView = (n: Near) => ({ title: n.title_en, titleAr: n.title_ar, contrast: stripRefs(n.contrast), sources: n.sources,
-    members: parseJson<NearMember[]>(n.members_json, []).map((m) => ({ ar: m.ar, en: m.en, contrast: m.contrast ?? null, quote: cite(m.cite) })) });
+    members: parseJson<NearMember[]>(n.members_json, []).map((m) => ({ ar: m.ar, en: m.en, contrast: m.contrast ?? null, quote: cite(m.cite),
+                                                                        lemmaId: m.lemmaId ?? null })) });
   const verbView = (v: Verb) => ({
     id: v.id, root: v.root, title: `${v.madi} ${v.mudari}`, meaning: v.meaning_en,
     chips: [v.bab_gt, v.form_gt, v.root_type_gt, v.route_gt, v.maani_gt].map(name).filter(Boolean),

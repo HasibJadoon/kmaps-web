@@ -21,8 +21,8 @@ import { questionDrills, tafsirDrillsQ, questionsCount, tafsirReadDrills, tafsir
 import { sarfDrills, sarfSheet, lexiconRoot, lexiconLemma } from './practice-sarf';
 
 /** Bump when the الصرف sheet's JSON changes shape or wording rules, so the edge cache starts afresh. */
-const SARF_SHEET_V = '2026-10-07g'
-const LEX_PAGE_V = '2026-10-07h';
+const SARF_SHEET_V = '2026-10-07h'
+const LEX_PAGE_V = '2026-10-07i';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
 // The Qurʾān drilled as the Arabic side is (DrillKit shapes): each āyah a line heard in
