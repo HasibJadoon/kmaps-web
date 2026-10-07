@@ -497,10 +497,11 @@ const QUOTE = /«([^»]+)»(?:\s*\(([^)]+)\))?/g;
 export function splitArabic(s: string): { en: string; ar: { ar: string; ref: string | null; n: number | null }[] } {
   const ar: { ar: string; ref: string | null; n: number | null }[] = [];
   let k = 0;
-  const en = s.replace(QUOTE, (m, q: string, ref?: string) => {
+  const en = s.replace(QUOTE, (m, q: string, ref: string | undefined, at: number, all: string) => {
     if (!HAS_AR.test(q)) return m;
     if (!ref && q.trim().split(/\s+/).length <= 2) return q.trim();
-    if (ref) { ar.push({ ar: q.trim(), ref: ref.trim(), n: null }); return `(${ref.trim()})`; }
+    // after 'on', 'in', 'at' … the verse reads as a plain reference ('on 4:24'); elsewhere it stands in brackets
+    if (ref) { ar.push({ ar: q.trim(), ref: ref.trim(), n: null }); return /\b(on|in|at|of|and|see)\s*$/i.test(all.slice(Math.max(0, at - 6), at)) ? ref.trim() : `(${ref.trim()})`; }
     k += 1; ar.push({ ar: q.trim(), ref: null, n: k }); return `[${k}]`;
   }).replace(/:\s*\(/g, ' (').replace(/\s{2,}/g, ' ').replace(/\s+([.,;:])/g, '$1').replace(/:\s*\./g, '.').trim();
   return { en, ar };
