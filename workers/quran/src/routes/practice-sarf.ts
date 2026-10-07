@@ -764,8 +764,8 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
       return [...quran, ...more];
     })(),
     // root-focused: the root's verbs as family lines (ماض مضارع مصادر, each with its prepositions), how its words are used
-    // in the Qurʾān, every word's arc, the root's own opposites. A lemma's meaning range, its full الصرف الصغير table,
-    // its near-synonym sets and its own opposites are on the lemma's page.
+    // in the Qurʾān, every word's arc, its near-synonyms at a glance, the root's own opposites. The lemma goes deeper: its
+    // meaning range, its full الصرف الصغير table, its near-synonym sets in full and its own opposites are on its page.
     families: [K.familyOf(root)].filter((f) => f.lines.length),
     // every word's arc in full, most used first: how each lemma's meaning runs from the root's picture
     arcs: rows.map((r) => ({ id: r.gid_lemma, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', count: r.n,
@@ -774,8 +774,11 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
     preps: D.preps.filter((p) => !D.verbs.some((v) => v.id === p.verb_id && v.root === root)).map((p) => ({ root, verb: D.verbs.find((v) => v.id === p.verb_id)?.madi ?? '', prep: p.prep_ar, name: K.name(p.prep_gt),
       usage: p.usage_ar, meaning: p.meaning_en, quote: K.cite(parseJson<Cite | null>(p.cite_json, null)), sources: p.sources })),
     constructions: (D.constructions.get(root) ?? []).map(({ lemmaId: _l, ...c }) => ({ root, ...c })),
-    // the root's own opposites only: one tied to a lemma or a word is on that lemma's page, as is every near-synonym
-    // set (its members are lemmas)
+    // near-synonyms at a glance: each set its words are in, by name, and its members (each opening its lemma's page) —
+    // what sets each apart, and the sources, are on the lemma's page
+    nearOverview: D.nears.map((n) => ({ title: n.title_en, titleAr: n.title_ar,
+      members: parseJson<NearMember[]>(n.members_json, []).map((m) => ({ ar: m.ar, en: m.en, lemmaId: m.lemmaId ?? null })) })),
+    // the root's own opposites only: one tied to a lemma or a word is on that lemma's page
     opposites: (D.opposites.get(root) ?? []).filter((o) => !o.lemmaId && !o.forWord).map((o) => ({ root, ...K.oppositeView(o) })),
   };
 }
