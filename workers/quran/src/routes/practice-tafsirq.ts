@@ -513,7 +513,7 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
     return n ? [{ ar: t.ar, ref: t.ref, nameAr: n.name_ar, color: n.badge_color }] : [];
   });
 
-  return slugs.flatMap((slug) => {
+  const works: ListenWork[] = slugs.flatMap((slug) => {
     const parts: ListenPart[] = [];
     for (const page of near.filter((x) => x.source_slug === slug)) {
       const g = groupRange(page.ayah_group_key)!;
@@ -545,15 +545,21 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
       x.sentences = sents.filter((r) => r.audio_id === x.audio && r.seq_from >= first && r.seq_to <= lastSeq)
         .map((r) => ({ id: r.id, from: r.seq_from, to: r.seq_to, gist: bidiEn(r.gist_en), concept: bidiEn(r.concept_en),
                        conceptAr: r.concept_ar, meaning: bidiEn(r.meaning_en) }));
-      // each passage's heading: the idea of the first recorded sentence that starts in it (qr_tafsir_sentence)
-      x.paragraphs = x.paragraphs.map((g) => ({ ...g,
-        heading: x.sentences.filter((t) => t.from >= g.from && t.from <= g.to).sort((a, b) => a.from - b.from)[0]?.concept ?? null }));
     }
     if (!parts.length) return [];
     const b = book.get(slug);
     const seconds = Math.round(parts.reduce((t, x) => t + (x.end - x.start), 0));
     return [{ slug, title: b?.title_en ?? null, titleAr: b?.title_ar ?? null, author: b?.author ?? null, seconds, parts }];
   });
+  // each passage's heading, crafted from what it covers (qr_tafsir_passage_heading), by its recording and first line
+  const audios = [...new Set(works.flatMap((w) => w.parts.map((x) => x.audio)))];
+  const heads = audios.length ? await query<{ audio_id: string; seq_from: number; heading_en: string }>(env.DB_QR,
+    `SELECT audio_id, seq_from, heading_en FROM qr_tafsir_passage_heading
+      WHERE status = 'live' AND audio_id IN (${audios.map(() => '?').join(',')})`, audios).catch(() => []) : [];
+  const headOf = new Map(heads.map((h) => [`${h.audio_id}|${h.seq_from}`, h.heading_en]));
+  for (const w of works) for (const x of w.parts)
+    x.paragraphs = x.paragraphs.map((g) => ({ ...g, heading: headOf.get(`${x.audio}|${g.from}`) ?? null }));
+  return works;
 }
 
 /// The practice home's counts: live passage questions with options; live tafsīr questions.
