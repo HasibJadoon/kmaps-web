@@ -22,7 +22,7 @@ import { sarfDrills, sarfSheet, lexiconRoot, lexiconLemma } from './practice-sar
 
 /** Bump when the الصرف sheet's JSON changes shape or wording rules, so the edge cache starts afresh. */
 const SARF_SHEET_V = '2026-10-07h'
-const LEX_PAGE_V = '2026-10-08a';
+const LEX_PAGE_V = '2026-10-08b';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
 // The Qurʾān drilled as the Arabic side is (DrillKit shapes): each āyah a line heard in
@@ -90,7 +90,8 @@ export function practiceRoutes(router: Router<QuranEnv>) {
   router.get('/qr/lexicon/lemma', async (req, env) => {
     const u = new URL(req.url);
     const id = (u.searchParams.get('id') ?? '').trim();
-    if (!/^(AL:)?[0-9a-f]{20,}$/.test(id)) return badRequest('id is a lemma\'s global id (AL:…)');
+    // a lemma's AL id: its global id, or the id an imported book's headword was filed under (lane_lemma_n…)
+    if (!/^(AL:)?[A-Za-z0-9_-]{6,80}$/.test(id)) return badRequest('id is a lemma\'s AL id (AL:…)');
     const keyed = new URL(req.url); keyed.searchParams.set('v', LEX_PAGE_V);
     return cached(new Request(keyed.toString(), req), async () => {
       const page = await lexiconLemma(env, id, u.searchParams.has('refresh'));
