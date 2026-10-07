@@ -254,7 +254,7 @@ async function core(env: QuranEnv, seed: Seed, refresh = false) {
     ...[...opposites.values()].flat().flatMap((o) => o.cites),
   ].filter((c): c is Cite => !!c && Number.isInteger(c.surah));
   const pairs = [...new Set(cites.map((c) => `${c.surah}:${c.ayah}`))].map((k) => k.split(':').map(Number));
-  const gtIds = [...new Set([...BABS, ...FORMS, ...verbs.flatMap((v) => [v.fail_gt, v.form_gt]), 'GT:derivation_type:passive_participle']
+  const gtIds = [...new Set([...BABS, ...FORMS, 'GT:form_family:form_i', ...verbs.flatMap((v) => [v.fail_gt, v.form_gt]), 'GT:derivation_type:passive_participle']
     .filter((x): x is string => !!x))];
   const [ayat, gts] = await Promise.all([
     pairs.length ? query<{ surah: number; ayah: number; t: string }>(env.DB_QR,
@@ -746,23 +746,30 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
     al ? al.rootDeep(root).then((r) => r.data).catch(() => null) : Promise.resolve(null),
   ]);
   const K = await kitOf(env, D);
+  // a word's form: its derivation as AL names it (اسم الفاعل، مصدر، بابُ نَصَرَ …), else its verb's form family
+  const formFor = (l: ResolvedLemma | undefined) => l?.wazn?.[0]?.derivation_ar
+    ?? (l?.verb_form ? K.name(`GT:form_family:form_${l.verb_form.toLowerCase()}`) : null) ?? null;
+  const quranWords = rows.map((r) => ({ id: r.gid_lemma, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', count: r.n,
+    form: formFor(D.lemmaOf(r.gid_lemma)), pattern: D.formOf(r.gid_lemma)?.pattern ?? null, arc: D.arcOf(r.gid_lemma, null) }));
+  const seen = new Set([...quranWords.map((q) => q.id.replace(/^AL:/, '')), ...quranWords.map((q) => spelling(q.lemma))]);
+  const moreWords = D.wordsOf(root).filter((w) => {
+    const k = spelling(w.lemma_text);
+    if (seen.has(w.id) || seen.has(k)) return false;
+    seen.add(w.id); seen.add(k);
+    return true;
+  });
+  // the words the Qurʾān does not use are not in the page's data yet: their form facts from AL
+  const extra: Record<string, ResolvedLemma> = al && moreWords.length
+    ? await al.resolveLemmas(moreWords.map((w) => w.id), { refresh }).then((r) => r.data as Record<string, ResolvedLemma>).catch(() => ({}))
+    : {};
   return {
     asl: deep?.asl ?? null, core: deep?.core ?? null, layers: deep?.layers ?? [], stages: deep?.stages ?? [],
     sections: sectionsOf(K), lex: K.lex,
     root, letters: [...root].join(' '), picture: K.pic(root), count: rows.reduce((t, r) => t + r.n, 0),
-    // every word of the root: the Qurʾān's lemmas first (most used first), then the root's other words in AL, once each
-    lemmas: (() => {
-      const quran = rows.map((r) => ({ id: r.gid_lemma, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', count: r.n,
-        form: D.formOf(r.gid_lemma)?.form ?? null, pattern: D.formOf(r.gid_lemma)?.pattern ?? null, arc: D.arcOf(r.gid_lemma, null) }));
-      const seen = new Set([...quran.map((q) => q.id.replace(/^AL:/, '')), ...quran.map((q) => spelling(q.lemma))]);
-      const more = D.wordsOf(root).filter((w) => {
-        const k = spelling(w.lemma_text);
-        if (seen.has(w.id) || seen.has(k)) return false;
-        seen.add(w.id); seen.add(k);
-        return true;
-      }).map((w) => ({ id: `AL:${w.id}`, lemma: w.lemma_text, count: 0, form: null, pattern: null, arc: null }));
-      return [...quran, ...more];
-    })(),
+    // every word of the root: the Qurʾān's lemmas first (most used first), then the root's other words in AL, once each —
+    // each with its form (its derivation, or its verb's form family) and how often the Qurʾān uses it
+    lemmas: [...quranWords, ...moreWords.map((w) => ({ id: `AL:${w.id}`, lemma: w.lemma_text, count: 0,
+      form: formFor(extra[w.id]), pattern: extra[w.id]?.wazn?.[0]?.wazn_ar ?? null, arc: null }))],
     // root-focused: the root's verbs as family lines (ماض مضارع مصادر, each with its prepositions), how its words are used
     // in the Qurʾān, every word's arc, its near-synonyms at a glance, the root's own opposites. The lemma goes deeper: its
     // meaning range, its full الصرف الصغير table, its near-synonym sets in full and its own opposites are on its page.
