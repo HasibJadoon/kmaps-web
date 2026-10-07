@@ -380,7 +380,7 @@ export type ListenLine = { id: string; seq: number; start: number; end: number; 
                            en: string | null; terms: ListenTerm[] };
 /** A paragraph of the work's own English for the passage (qr_surah_tafsir_chunk), pinned to the recorded lines its
  *  Arabic spans — the "passage" view shows the Arabic run on, the English under it, the paragraph lit as it is read. */
-export type ListenParagraph = { from: number; to: number; en: string };
+export type ListenParagraph = { from: number; to: number; en: string; heading?: string | null };
 /** A sentence of the recording with what it says and means (qr_tafsir_sentence): the "Understanding" view. */
 export type ListenSentence = { id: string; from: number; to: number; gist: string; concept: string; conceptAr: string | null; meaning: string };
 export type ListenPart = { audio: string; url: string; start: number; end: number; lines: ListenLine[];
@@ -545,6 +545,9 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
       x.sentences = sents.filter((r) => r.audio_id === x.audio && r.seq_from >= first && r.seq_to <= lastSeq)
         .map((r) => ({ id: r.id, from: r.seq_from, to: r.seq_to, gist: bidiEn(r.gist_en), concept: bidiEn(r.concept_en),
                        conceptAr: r.concept_ar, meaning: bidiEn(r.meaning_en) }));
+      // each passage's heading: the idea of the first recorded sentence that starts in it (qr_tafsir_sentence)
+      x.paragraphs = x.paragraphs.map((g) => ({ ...g,
+        heading: x.sentences.filter((t) => t.from >= g.from && t.from <= g.to).sort((a, b) => a.from - b.from)[0]?.concept ?? null }));
     }
     if (!parts.length) return [];
     const b = book.get(slug);
