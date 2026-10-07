@@ -704,8 +704,9 @@ async function sarfSheetRaw(env: QuranEnv, scope: Scope, refresh = false) {
 
 const sectionsOf = (K: Awaited<ReturnType<typeof kitOf>>) => K.heads.map((h) => ({ key: h.key, title: h.label, titleAr: h.label_ar, lede: h.detail }));
 
-/** A root's page: its picture, its words in the Qurʾān (most used first, each opening its lemma's page), its verbs as
- *  family lines and tables (with the prepositions each takes), and its opposites as the books state them. */
+/** A root's page — what belongs to the root alone: its picture, its words in the Qurʾān (most used first, each opening
+ *  its lemma's page), its verbs as family lines, and its own opposites. Tables, prepositions, near-synonyms and uses
+ *  are each word's, on its lemma's page. */
 export async function lexiconRoot(env: QuranEnv, root: string, refresh = false) {
   const page = await lexiconRootRaw(env, root, refresh);
   return page ? (bidiTree(page) as typeof page) : page;
@@ -724,8 +725,8 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
     root, letters: [...root].join(' '), picture: K.pic(root), count: rows.reduce((t, r) => t + r.n, 0),
     lemmas: rows.map((r) => ({ id: r.gid_lemma, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', count: r.n,
       form: D.formOf(r.gid_lemma)?.form ?? null, pattern: D.formOf(r.gid_lemma)?.pattern ?? null, arc: D.arcOf(r.gid_lemma, null) })),
+    // the family is shared with each word's page; the verb tables are the words' (a lemma's page), not the root's
     families: [K.familyOf(root)].filter((f) => f.lines.length),
-    tables: D.verbs.filter((v) => v.full).map(K.verbView),
     // the root's own opposites (those a book gives for one of its words are on that word's page)
     opposites: (D.opposites.get(root) ?? []).filter((o) => !o.forWord).map((o) => ({ root, ...K.oppositeView(o) })),
   };
@@ -777,8 +778,10 @@ async function lexiconLemmaRaw(env: QuranEnv, gid: string, refresh: boolean) {
     origin: base ? { verb: `${base.madi} ${base.mudari}`, family: K.name(base.bab_gt) ?? K.name(base.form_gt),
                      derivation: D.lemmaOf(id)?.wazn?.[0]?.derivation_ar ?? K.name(qac[0]?.d) ?? null,
                      line: `${base.madi} ${base.mudari} ${masadirOf(base).join(' وَ')}`, meaning: base.meaning_en } : null,
-    // الصرف الصغير: the lemma's own verb, or the verb a derived word is made from — with the prepositions it takes
+    // الصرف الصغير: the lemma's own verb, or the verb a derived word is made from — with the prepositions it takes —
+    // and the family it belongs to (the root's verbs as family lines)
     tables: verbsHere.map(K.verbView),
+    families: root ? [K.familyOf(root)].filter((f) => f.lines.length) : [],
     preps: D.preps.filter((p) => verbsHere.some((v) => v.id === p.verb_id)).map((p) => ({ root: root ?? '', verb: verbsHere.find((v) => v.id === p.verb_id)?.madi ?? '',
       prep: p.prep_ar, name: K.name(p.prep_gt), usage: p.usage_ar, meaning: p.meaning_en, quote: K.cite(parseJson<Cite | null>(p.cite_json, null)), sources: p.sources })),
   };

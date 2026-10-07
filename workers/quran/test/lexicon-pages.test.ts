@@ -40,6 +40,8 @@ test('a root\'s page lists its words across the Qurʾān, most used first, and i
     [['AL:aaaaaaaaaaaaaaaaaaaaaa', 'كِتَٰب', 3], ['AL:bbbbbbbbbbbbbbbbbbbbbb', 'كَتَبَ', 1]]);
   assert.deepEqual(p.lex.map((l) => l.key), ['lemma']);
   assert.deepEqual(p.sections.map((s) => s.key), ['tables']);
+  // the root's page holds the root's alone: no verb tables (those are each word's)
+  assert.equal('tables' in p, false);
 });
 
 test('a root the Qurʾān does not use has no page', async () => {
