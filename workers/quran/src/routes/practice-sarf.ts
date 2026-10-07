@@ -834,9 +834,12 @@ async function lexiconLemmaRaw(env: QuranEnv, gid: string, refresh: boolean) {
 }
 
 const bareAr = (t: string) => t.replace(/[\u064B-\u0652\u0670\u0640]/g, '').trim();
-/** A word's spelling key, so كِتَٰب and كِتَابٌ, اكْتَتَبَ and إِكْتَتَبَ are one word: dagger alif as alif, hamza seats as
- *  alif, no marks or tatweel. */
-const spelling = (t: string) => t.replace(/\u0670/g, 'ا').replace(/[أإآٱ]/g, 'ا').replace(/[\u064B-\u0652\u0640]/g, '').trim();
+/** A word's spelling key, so the same word written two ways is one (كِتَٰب and كِتَابٌ; اكْتَتَبَ and إِكْتَتَبَ) while two
+ *  words stay two (كَتَبَ and كَتَّبَ; كِتَاب and كُتَّاب; مَكْتَب and مُكْتَب): dagger alif as alif, hamza seats as alif,
+ *  no tatweel, tanween, sukun or final case vowel, no vowel on a word-initial alif — the inner vowels and shadda kept. */
+export const spelling = (t: string) => t.trim()
+  .replace(/\u0670/g, 'ا').replace(/[أإآٱ]/g, 'ا').replace(/[\u0640\u064B-\u064D\u0652]/g, '')
+  .replace(/^ا[\u064E-\u0650]/, 'ا').replace(/[\u064E-\u0650]+$/, '').replace(/ى$/, 'ي');
 /** The verb a derived (مشتق) lemma is made from, among its root's verbs: the one AL names (its base verb, in its باب), else
  *  the one of the form family AL names, else — for a participle or verbal noun with no family named — the root's Form I
  *  verb when it has only one. A جامد word, or one that cannot be told, has none: never a guess between verbs. */
