@@ -718,9 +718,15 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
   const uid = rows.find((r) => r.root_uid)?.root_uid;
   if (!uid) return null;
   const gids = rows.map((r) => r.gid_lemma);
-  const D = await core(env, { roots: [root], uidOf: new Map([[root, uid]]), gids, rootOfGid: new Map(gids.map((g) => [g, root])) }, refresh);
+  const al = createAlClient(env);
+  const [D, deep] = await Promise.all([
+    core(env, { roots: [root], uidOf: new Map([[root, uid]]), gids, rootOfGid: new Map(gids.map((g) => [g, root])) }, refresh),
+    // the root, deeper — AL's: its aṣl by every book, its core, its meaning's layers, its stages
+    al ? al.rootDeep(root).then((r) => r.data).catch(() => null) : Promise.resolve(null),
+  ]);
   const K = await kitOf(env, D);
   return {
+    asl: deep?.asl ?? null, core: deep?.core ?? null, layers: deep?.layers ?? [], stages: deep?.stages ?? [],
     sections: sectionsOf(K), lex: K.lex,
     root, letters: [...root].join(' '), picture: K.pic(root), count: rows.reduce((t, r) => t + r.n, 0),
     lemmas: rows.map((r) => ({ id: r.gid_lemma, lemma: D.lemmaTextOf(r.gid_lemma) ?? r.lemma ?? '', count: r.n,

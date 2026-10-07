@@ -114,6 +114,11 @@ export class AlClient {
     );
   }
 
+  /** A root, deeper (/al/root/deep/:root): its aṣl by every book (back-links), its core, its meaning's layers, its stages. */
+  rootDeep(root: string): Promise<{ ok: true; data: Record<string, unknown> }> {
+    return callService(this.fetcher, `/al/root/deep/${encodeURIComponent(root)}`);
+  }
+
   /** `refresh` rebuilds AL's kept answer too — a refresh at the top reaches the language data under it. */
   resolveLemmas(ids: string[], opts: { refresh?: boolean } = {}): Promise<{ ok: true; data: Record<string, ResolvedLemma> }> {
     return callService(

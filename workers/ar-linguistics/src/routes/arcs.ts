@@ -178,7 +178,59 @@ async function derived(env: ArLinguisticsEnv, root: string, wordsPerRung = 3) {
   };
 }
 
+
+// ── a root, deeper: its aṣl by every book, its core and its meaning's layers ─────────────────────
+//
+// What a root's page shows under its card. The aṣl (ar_ling_root_asl): the meaning most books share as the
+// primary, then each book's own words, oldest first, each with the page and block it rests on. The core
+// (ar_ling_root_dna), the root's meaning as layers — its root-scope arcs, step by step (ar_ling_sense_arc) — and
+// the stages its meaning went through (ar_ling_root_tatawwur).
+
+/** Books the aṣl reads that the arc sources do not name. */
+const ASL_BOOK: Record<string, string> = {
+  ibn_durayd_jamharat_lugha: 'Jamhara', azhari_tahdhib_lugha: 'al-Tahdhīb', ibn_sidah_muhkam: 'al-Muḥkam',
+  zamakhshari_asas_balagha: 'al-Asās', ibn_sida_mukhassas: 'al-Mukhaṣṣaṣ',
+};
+export type AslRow = { id: string; source_slug: string | null; statement_ar: string; statement_en: string | null; page_ref: string | null;
+                       block_id: string | null; death_hijri: number | null; is_primary: number; confidence: string };
+type Hand = Awaited<ReturnType<typeof handBuilt>>;
+
+/** The deep root: the aṣl (primary first, then each book oldest first), the core, the layers, the stages. */
+export function deepRoot(root: string, asl: AslRow[], hand: Hand) {
+  const book = (slug: string | null) => (slug ? ASL_BOOK[slug] ?? SOURCES[slug]?.short?.replace(/^the /, '') ?? slug : '');
+  const row = (r: AslRow) => ({
+    ar: r.statement_ar, en: r.statement_en, deathHijri: r.death_hijri,
+    // the book it rests on, as a back-link: the lexicon reader at that block
+    source: r.source_slug ? { book: book(r.source_slug), page: r.page_ref && /^\d+$/.test(r.page_ref) ? Number(r.page_ref) : null,
+                              source: r.source_slug, root, block: r.block_id } : null,
+  });
+  const primary = asl.find((r) => r.is_primary === 1) ?? null;
+  const rest = asl.filter((r) => r !== primary)
+    .sort((a, b) => (a.death_hijri ?? 9999) - (b.death_hijri ?? 9999) || (a.source_slug ?? '').localeCompare(b.source_slug ?? ''));
+  return {
+    root,
+    asl: primary || rest.length ? { primary: primary ? row(primary) : null, books: rest.map(row) } : null,
+    core: hand.dna ? { en: hand.dna.coreEn, ar: hand.dna.coreAr, headline: hand.dna.headlineEn, headlineAr: hand.dna.headlineAr } : null,
+    // the root-scope arcs, primary first: how its meaning grows, step by step, each step with its Arabic
+    layers: hand.arcs.filter((a) => a.scope === 'root' && a.status !== 'rejected').map((a) => ({
+      id: a.id, title: a.title, titleAr: a.titleAr, primary: a.primary,
+      steps: a.steps.map((s) => ({ n: s.n, en: s.labelEn ?? s.glossEn, ar: s.labelAr, glossEn: s.glossEn, glossAr: s.glossAr })) })),
+    stages: hand.tatawwur.map((t) => ({ n: t.n, ar: t.ar, en: t.en, note: t.note })),
+  };
+}
+
 export function arcRoutes(router: Router<ArLinguisticsEnv>) {
+  router.get('/al/root/deep/:root', async (_req, env, params) => {
+    const root = norm(params.root ?? '');
+    if (!root) return badRequest('root required');
+    const [asl, hand] = await Promise.all([
+      query<AslRow>(env.DB_AL,
+        `SELECT id, source_slug, statement_ar, statement_en, page_ref, block_id, death_hijri, is_primary, confidence
+           FROM ar_ling_root_asl WHERE root_norm = ? AND status = 'active'`, [root]),
+      handBuilt(env, root),
+    ]);
+    return ok(deepRoot(root, asl, hand));
+  });
   router.get('/al/arc/root/:root', async (_req, env, params) => {
     const root = norm(params.root ?? '');
     if (!root) return badRequest('root required');
