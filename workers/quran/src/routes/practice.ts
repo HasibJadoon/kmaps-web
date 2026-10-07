@@ -54,7 +54,9 @@ export function practiceRoutes(router: Router<QuranEnv>) {
     const u = new URL(req.url);
     const surah = Number(u.searchParams.get('surah')), from = Number(u.searchParams.get('from')), to = Number(u.searchParams.get('to'));
     if (!Number.isInteger(surah) || surah < 1 || !Number.isInteger(from) || from < 1) return badRequest('surah and from are required');
-    return ok({ works: await listenWorks(env, WORKS, { surah, from, to: Number.isInteger(to) && to >= from ? to : from }) });
+    const [works, L] = await Promise.all([listenWorks(env, WORKS, { surah, from, to: Number.isInteger(to) && to >= from ? to : from }), labels(env)]);
+    // each work is studied in four views (qr_study_label tafsir_view), with the words its screens say (tafsir_ui)
+    return ok({ works, views: L.tafsir_view ?? [], ui: L.tafsir_ui ?? [] });
   });
 
   // the passage's الصرف, to read (the passage study's الصرف tab): public, like the atlas

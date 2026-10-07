@@ -3,7 +3,7 @@ import type { QuranEnv } from '../env';
 import { attachGt } from '../../../shared/src/gt-attach';
 import { spelled } from '../lib/tafsir-text';
 import { withCard, shuffle, parseJson, rangeOf, type Drill, type Scope } from './practice-kit';
-import { cutQuote } from './practice-sarf';
+import { cutQuote, bidiEn } from './practice-sarf';
 
 // ── The class's steps 6 and 7: the passage's questions, and its tafsīr heard then drilled ─────────
 //
@@ -300,6 +300,51 @@ export async function lineDrills(env: QuranEnv, refs: string[], scope: Scope): P
   return attachGt(env.DB_QR, drills);
 }
 
+/// A sentence marked "not understood", as one id: tafsir_sent:<audio>:<from>-<to> (qr_tafsir_sentence.id).
+export const sentenceRef = (audio: string, from: number, to: number) => `tafsir_sent:${audio}:${from}-${to}`;
+export function parseSentenceRef(ref: string): { audio: string; from: number; to: number } | null {
+  return ref.startsWith('tafsir_sent:') ? parseLineRef(`tafsir_line:${ref.slice('tafsir_sent:'.length)}`) : null;
+}
+
+/** The understanding drills a set of sentence refs names — the sentences the learner marked "not understood". The
+ *  sentence plays, its words shown; the learner chooses what it says among the near misses written for it (and the
+ *  work's nearest other sentence); its meaning is the explanation after the answer. */
+export async function sentenceDrills(env: QuranEnv, refs: string[], scope: Scope): Promise<Drill[]> {
+  const ids = [...new Set(refs.filter((r) => parseSentenceRef(r)))];
+  if (!ids.length) return [];
+  const rows = await query<SentenceRow & { source_slug: string; surah: number; ayah_from: number; wrong_json: string; terms_json: string }>(env.DB_QR,
+    `SELECT id, audio_id, source_slug, seq_from, seq_to, surah, ayah_from, gist_en, wrong_json, concept_en, concept_ar, meaning_en, terms_json
+       FROM qr_tafsir_sentence WHERE status = 'live' AND id IN (${ids.map(() => '?').join(',')})`, ids);
+  if (!rows.length) return [];
+  // the work's other gists, for a fourth choice nearest in length
+  const audios = [...new Set(rows.map((r) => r.audio_id))];
+  const siblings = await query<{ audio_id: string; id: string; gist_en: string }>(env.DB_QR,
+    `SELECT audio_id, id, gist_en FROM qr_tafsir_sentence WHERE status = 'live' AND audio_id IN (${audios.map(() => '?').join(',')})`, audios);
+  const runs = await loadRuns(env, rows.map((r) => ({ audio: r.audio_id, from: r.seq_from, to: r.seq_to })));
+  const title = scope.surah ? rangeOf(scope.surah, scope.from ?? 1, scope.to) : '';
+  const out: Drill[] = [];
+  for (const r of rows) {
+    const run = runs.get(lineRef(r.audio_id, r.seq_from, r.seq_to));
+    if (!run) continue;
+    const wrong = parseJson<string[]>(r.wrong_json, []).filter((x) => x && x !== r.gist_en);
+    const other = siblings.filter((x) => x.audio_id === r.audio_id && x.id !== r.id && !wrong.includes(x.gist_en))
+      .sort((a, b) => Math.abs(a.gist_en.length - r.gist_en.length) - Math.abs(b.gist_en.length - r.gist_en.length))[0];
+    const options = [r.gist_en, ...wrong, ...(other ? [other.gist_en] : [])].slice(0, 4).map(bidiEn);
+    if (options.length < 3) continue;
+    const terms = parseJson<string[]>(r.terms_json, []).filter((t) => /^GT:[a-z_]+:[a-z0-9_]+$/.test(t));
+    out.push(withCard({
+      id: r.id, kind: 'tafsir_understand', ask: 'tq_read', interaction: 'choose', script: 'arabic',
+      audio: clipOf(run), words: wordsOf(run),
+      options: shuffle(options), answer: options[0], terms,
+      note: { en: bidiEn(r.concept_en), ar: r.concept_ar ?? '' },
+      explanation: bidiEn(r.meaning_en),
+      source: { workId: `QR:SURAH:${scope.surah ?? r.surah}`, title: `${title} · ${citeOf(run)}`, level: null },
+    }, { ref: `QR:${r.id}`, type: 'passage', kind: 'tafsir_understand', front: textOf(run), back: `${r.gist_en}\n\n${r.meaning_en}`,
+         surah: scope.surah ?? r.surah, ayah: scope.from ?? r.ayah_from, series: 'tafsir' }));
+  }
+  return attachGt(env.DB_QR, out);
+}
+
 // ── the listen gate ─────────────────────────────────────────────────────────
 
 /// Which lines of a read page a passage hears: from `from` (null: its first) to before `before`
@@ -333,8 +378,57 @@ export function groupRange(key: string | null): { surah: number; from: number; t
 export type ListenTerm = { ar: string; ref: string; nameAr: string; color: string | null };
 export type ListenLine = { id: string; seq: number; start: number; end: number; text: string; words: { t: string; s: number; e: number }[];
                            en: string | null; terms: ListenTerm[] };
-export type ListenPart = { audio: string; url: string; start: number; end: number; lines: ListenLine[] };
+/** A paragraph of the work's own English for the passage (qr_surah_tafsir_chunk), pinned to the recorded lines its
+ *  Arabic spans — the "passage" view shows the Arabic run on, the English under it, the paragraph lit as it is read. */
+export type ListenParagraph = { from: number; to: number; en: string };
+/** A sentence of the recording with what it says and means (qr_tafsir_sentence): the "Understanding" view. */
+export type ListenSentence = { id: string; from: number; to: number; gist: string; concept: string; conceptAr: string | null; meaning: string };
+export type ListenPart = { audio: string; url: string; start: number; end: number; lines: ListenLine[];
+                           paragraphs: ListenParagraph[]; sentences: ListenSentence[] };
 export type ListenWork = { slug: string; title: string | null; titleAr: string | null; author: string | null; seconds: number; parts: ListenPart[] };
+
+type Chunk = { source_slug: string; text_ar: string; text_en: string };
+type SentenceRow = { id: string; audio_id: string; seq_from: number; seq_to: number; gist_en: string; concept_en: string;
+                     concept_ar: string | null; meaning_en: string };
+
+/// Arabic letters only, spellings unified: for finding a paragraph's opening among the recorded words.
+export const arTokens = (t: string) => (t ?? '').replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+  .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').match(/[\u0621-\u064A]+/g) ?? [];
+
+/** The work's English paragraphs pinned to the recorded lines: each paragraph starts at the line where its Arabic's
+ *  opening words are read (the first 6, else 5, 4 or 3). A paragraph not found in the recording is not this part's
+ *  (another passage's, or unread); two that start on one line are one paragraph; lines before the first found
+ *  paragraph belong to it; each runs to the line before the next. */
+export function alignParagraphs(lines: { seq: number; text: string }[], chunks: { text_ar: string; text_en: string }[]): ListenParagraph[] {
+  if (!lines.length) return [];
+  const toks: string[] = [], seqOf: number[] = [];
+  for (const l of lines) for (const t of arTokens(l.text)) { toks.push(t); seqOf.push(l.seq); }
+  const startOf = (ar: string): number | null => {
+    const ct = arTokens(ar);
+    for (const k of [6, 5, 4, 3]) {
+      if (ct.length < k) continue;
+      for (let i = 0; i + k <= toks.length; i++) {
+        let same = true;
+        for (let j = 0; j < k && same; j++) same = toks[i + j] === ct[j];
+        if (same) return seqOf[i];
+      }
+    }
+    return null;
+  };
+  const found: { from: number; en: string }[] = [];
+  for (const c of chunks) {
+    const at = startOf(c.text_ar);
+    if (at === null) continue;
+    const same = found.find((f) => f.from === at);
+    if (same) same.en = `${same.en} ${c.text_en.trim()}`;
+    else found.push({ from: at, en: c.text_en.trim() });
+  }
+  found.sort((a, b) => a.from - b.from);
+  if (!found.length) return [];
+  found[0].from = lines[0].seq;
+  const last = lines[lines.length - 1].seq;
+  return found.map((f, i) => ({ from: f.from, to: i + 1 < found.length ? found[i + 1].from - 1 : last, en: f.en }));
+}
 
 /// Every work the gate names, its span over the passage: the recordings in reading order, each
 /// with its lines. A work with no recorded line over the passage is left out.
@@ -352,7 +446,7 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
   const near = pages.filter((x) => { const g = groupRange(x.ayah_group_key); return !!g && g.to >= p.from && g.from <= p.to; });
   if (!near.length) return [];
   const ids = near.map((x) => x.id);
-  const [segs, cuts, recs] = await Promise.all([
+  const [segs, cuts, recs, chunks, sents] = await Promise.all([
     query<Seg>(env.DB_QR,
       `SELECT ${SEG_COLS} FROM ${SEG_FROM} WHERE s.page_id IN (${ids.map(() => '?').join(',')}) ORDER BY s.audio_id, s.seq`, ids),
     query<{ page_id: string; audio_id: string; ayah: number; seq: number }>(env.DB_QR,
@@ -360,6 +454,16 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
     query<{ id: string; object_key: string; seq: number }>(env.DB_QR,
       `SELECT id, object_key, seq FROM qr_tafsir_audio WHERE status = 'live' AND id IN
          (SELECT DISTINCT audio_id FROM qr_tafsir_audio_segment WHERE page_id IN (${ids.map(() => '?').join(',')}))`, ids),
+    // the works' own English over the passage, paragraph by paragraph, in reading order
+    query<Chunk>(env.DB_QR,
+      `SELECT c.source_slug, c.text_ar, c.text_en FROM qr_surah_tafsir_chunk c JOIN qr_surah_tafsir_reading r ON r.id = c.reading_id
+        WHERE r.surah = ? AND r.ayah_from <= ? AND r.ayah_to >= ? AND c.text_en IS NOT NULL AND c.text_en <> ''
+          AND c.source_slug IN (${slugs.map(() => '?').join(',')})
+        ORDER BY c.source_slug, r.ayah_from, c.chunk_index`, [p.surah, p.to, p.from, ...slugs]).catch(() => [] as Chunk[]),
+    query<SentenceRow>(env.DB_QR,
+      `SELECT id, audio_id, seq_from, seq_to, gist_en, concept_en, concept_ar, meaning_en FROM qr_tafsir_sentence
+        WHERE status = 'live' AND surah = ? AND source_slug IN (${slugs.map(() => '?').join(',')}) ORDER BY audio_id, seq_from`,
+      [p.surah, ...slugs]).catch(() => [] as SentenceRow[]),
   ]);
   const rec = new Map(recs.map((r) => [r.id, r]));
   const book = new Map(books.map((b) => [b.source_slug, b]));
@@ -391,7 +495,8 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
         && (span.from === null || s.seq >= span.from) && (span.before === null || s.seq < span.before));
       if (!lines.length) continue;
       const last = parts[parts.length - 1];
-      const part = last && last.audio === audio ? last : { audio, url: AUDIO(rec.get(audio)!.object_key), start: 0, end: 0, lines: [] };
+      const part: ListenPart = last && last.audio === audio ? last
+        : { audio, url: AUDIO(rec.get(audio)!.object_key), start: 0, end: 0, lines: [], paragraphs: [], sentences: [] };
       part.lines.push(...lines.map((s) => ({ id: lineRef(audio, s.seq, s.seq), seq: s.seq, start: s.start_sec, end: s.end_sec,
                                              text: spelled(s.text_ar, null).text, words: timedWords(s.text_ar, s.w),
                                              en: s.en, terms: lineTerms(s) })));
@@ -401,6 +506,12 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
       x.lines.sort((a, b) => a.seq - b.seq);
       x.start = Math.max(0, x.lines[0].start - 0.3);
       x.end = x.lines[x.lines.length - 1].end + 0.3;
+      // English that opens on (or holds) Arabic still reads left to right: the Arabic runs are isolated
+      x.paragraphs = alignParagraphs(x.lines, chunks.filter((c) => c.source_slug === slug)).map((g) => ({ ...g, en: bidiEn(g.en) }));
+      const first = x.lines[0].seq, lastSeq = x.lines[x.lines.length - 1].seq;
+      x.sentences = sents.filter((r) => r.audio_id === x.audio && r.seq_from >= first && r.seq_to <= lastSeq)
+        .map((r) => ({ id: r.id, from: r.seq_from, to: r.seq_to, gist: bidiEn(r.gist_en), concept: bidiEn(r.concept_en),
+                       conceptAr: r.concept_ar, meaning: bidiEn(r.meaning_en) }));
     }
     if (!parts.length) return [];
     const b = book.get(slug);

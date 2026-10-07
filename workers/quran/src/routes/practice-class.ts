@@ -5,7 +5,7 @@ import type { QuranEnv } from '../env';
 import { labels, byKey, type Label } from '../lib/labels';
 import { drawSkill, type Scope } from './practice';
 import { interleave } from './practice-kit';
-import { listenWorks, lineDrills, parseLineRef } from './practice-tafsirq';
+import { listenWorks, lineDrills, parseLineRef, sentenceDrills, parseSentenceRef } from './practice-tafsirq';
 
 // ── The Class: a passage studied as one lesson ─────────────────────────────────
 // What the class is: its path of graded sprints, in the order the class_node label rows give
@@ -153,6 +153,9 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
         const found = new Set(items.map((d) => String(d.id)));
         const lines = [...refs].filter((r) => !found.has(r) && parseLineRef(r));
         if (lines.length) items = [...items, ...await lineDrills(env, lines, scope)];
+        // sentences marked "not understood" in the commentary's Understanding step: first, by their refs
+        const sents = [...refs].filter((r) => !found.has(r) && parseSentenceRef(r));
+        if (sents.length) items = [...await sentenceDrills(env, sents, scope), ...items];
       } else {
         // check and review: drawn across the steps in turn, a sprint's worth
         items = interleave(pools.map(shuffle), size);
