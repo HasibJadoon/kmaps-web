@@ -481,7 +481,27 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
 // of each word; the near-synonyms. Every label a GT term's Arabic name, every quotation cut from
 // the muṣḥaf.
 
+// ── English lines that quote Arabic ───────────────────────────────────────────
+// The word screen sits in a right-to-left layout, so an English line holding an Arabic phrase can come out
+// scrambled (the full stop jumps to the front, a verse number lands on the wrong side). Each English line is marked
+// left-to-right (LRM) and each Arabic phrase in it is isolated (RLI … PDI), so both keep their own order.
+const AR_CH = '\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\uFB50-\\uFDFF\\uFE70-\\uFEFF';
+const HAS_AR = new RegExp(`[${AR_CH}]`);
+const AR_RUN = new RegExp(`[«﴿]?[${AR_CH}]+(?:[\\s\\u00A0،؛]+[${AR_CH}]+)*[»﴾]?`, 'g');
+export const bidiEn = (s: string) => (HAS_AR.test(s) ? '\u200E' + s.replace(AR_RUN, (m) => '\u2067' + m + '\u2069\u200E') : s);
+const EN_KEYS = new Set(['note', 'line', 'quoteEn', 'contrast', 'en', 'meaning', 'here', 'forWord', 'gloss']);
+const bidiTree = (v: unknown, key = ''): unknown =>
+  typeof v === 'string' ? (EN_KEYS.has(key) ? bidiEn(v) : v)
+  : Array.isArray(v) ? v.map((x) => bidiTree(x, key))
+  : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, bidiTree(x, k)]))
+  : v;
+
 export async function sarfSheet(env: QuranEnv, scope: Scope, refresh = false) {
+  const sheet = await sarfSheetRaw(env, scope, refresh);
+  return sheet ? (bidiTree(sheet) as typeof sheet) : sheet;
+}
+
+async function sarfSheetRaw(env: QuranEnv, scope: Scope, refresh = false) {
   const D = await load(env, scope, refresh);
   if (!D) return null;
   const { verbs, preps, senses, nears, words, texts, gt, picture, occ, irab, link, arcOf, lemmaPropsOf, lemmaTextOf, formOf, otherPluralsOf, pluralsOf, opposites, constructions } = D;
