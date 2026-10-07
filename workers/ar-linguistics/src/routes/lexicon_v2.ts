@@ -268,6 +268,31 @@ function bindFootnoteMarks(sections: any[], footnotes: Footnote[]):
   return ordinalHolds ? 'ordinal' : 'by_number';
 }
 
+const ENTRY_COLS = `id, source_slug, root_text, root_norm, root_id,
+       raw_text, entry_text_ar, entry_text_en,
+       page_start, page_end, volume_no, source_url,
+       source_native_id, status`;
+
+/** A book's entry for a root: under the root as spelled (or its folded spelling), else under this book's own key for
+ *  it — a geminate under its biliteral, a weak root under its other letter (ar_ling_root_lexicon_key), the lowest rank
+ *  that hits. A back-link carries the root as the Qurʾān spells it; al-Rāghib and Lane file عزز under عز. */
+export async function findEntry(db: D1Database, slug: string, requested: string): Promise<any | null> {
+  const cands = rootQueryCandidates(requested);
+  for (const candidate of cands) {
+    const hit = await db.prepare(
+      `SELECT ${ENTRY_COLS} FROM ar_ling_lexicon_entry WHERE source_slug = ? AND root_norm = ? LIMIT 1`
+    ).bind(slug, candidate).first<any>();
+    if (hit) return hit;
+  }
+  return db.prepare(
+    `SELECT ${ENTRY_COLS.replace(/(\w+)/g, 'e.$1')}
+     FROM ar_ling_root_lexicon_key k
+     JOIN ar_ling_lexicon_entry e ON e.source_slug = ? AND e.root_norm = k.lookup_norm
+     WHERE k.root_norm IN (${cands.map(() => '?').join(',')})
+     ORDER BY k.key_rank LIMIT 1`
+  ).bind(slug, ...cands).first<any>();
+}
+
 export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
 
   router.get('/al/lex/v2/sources', (req, env) => cached(req, async () => {
@@ -410,94 +435,74 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     const requested = (params.root_norm ?? '').trim();
     if (!slug || !requested) return badRequest('slug + root_norm required');
 
-    let entry: any = null;
-    let root_norm = requested;
-    for (const candidate of rootQueryCandidates(requested)) {
-
-      entry = await env.DB_AL.prepare(
-        `SELECT id, source_slug, root_text, root_norm, root_id,
-                raw_text, entry_text_ar, entry_text_en,
-                page_start, page_end, volume_no, source_url,
-                source_native_id, status
-         FROM ar_ling_lexicon_entry
-         WHERE source_slug = ? AND root_norm = ? LIMIT 1`
-      ).bind(slug, candidate).first<any>();
-      if (entry) { root_norm = candidate; break; }
-    }
+    const entry = await findEntry(env.DB_AL, slug, requested);
+    const root_norm: string = entry?.root_norm ?? requested;
     if (!entry) return notFound('entry not found');
 
-    const sections = (await env.DB_AL.prepare(
-      `SELECT id, section_seq, heading_ar, heading_norm, heading_bare,
-              section_type, text_ar, text_en, page_no, source_native_section_id,
-              lane_itype
-       FROM ar_ling_lexicon_entry_section
-       WHERE source_slug = ? AND root_norm = ?
-       ORDER BY section_seq`
-    ).bind(slug, root_norm).all()).results ?? [];
-
-    const blocks = (await env.DB_AL.prepare(
-      `SELECT id, section_id, book_page_id, parent_block_id, block_path,
-              block_seq, depth, block_type, lang, title_ar,
-              text_plain, text_html, data_json,
-              origin, origin_ref, printed_page
-       FROM ar_ling_lexicon_block
-       WHERE source_slug = ? AND root_norm = ?
-         AND origin <> 'derived'
-       ORDER BY block_seq`
-    ).bind(slug, root_norm).all()).results ?? [];
-
-    const links = blocks.length
-      ? (await env.DB_AL.prepare(
-          `SELECT id, from_block_id, link_kind, to_root_norm, to_surah,
-                  to_ayah, to_ayah_to, to_block_id, to_url, label, weight,
-                  position_offset
-           FROM ar_ling_lexicon_block_link
-           WHERE source_slug = ?
-             AND from_block_id IN (
-               SELECT id FROM ar_ling_lexicon_block
-               WHERE source_slug = ? AND root_norm = ? AND origin <> 'derived'
-             )`
-        ).bind(slug, slug, root_norm).all()).results ?? []
-      : [];
-
-    const tags = blocks.length
-      ? (await env.DB_AL.prepare(
-          `SELECT block_id, tag, source, weight
-           FROM ar_ling_lexicon_block_tag
-           WHERE block_id IN (
-             SELECT id FROM ar_ling_lexicon_block
-             WHERE source_slug = ? AND root_norm = ? AND origin <> 'derived'
-           )`
-        ).bind(slug, root_norm).all()).results ?? []
-      : [];
-
-    const quran_refs = (await env.DB_AL.prepare(
-      `SELECT id, block_id, section_id, surah, ayah, raw_ref, context_snippet
-       FROM ar_ling_lexicon_quran_ref
-       WHERE source_slug = ? AND root_norm = ?
-       ORDER BY surah, ayah`
-    ).bind(slug, root_norm).all()).results ?? [];
-
-    const sources_of_entry = (await env.DB_AL.prepare(
-      `SELECT id, source_kind, source_native_id, source_url
-       FROM ar_ling_lexicon_entry_source
-       WHERE source_slug = ? AND root_entry_id = ?`
-    ).bind(slug, entry.id).all()).results ?? [];
-
+    // every read below needs only the entry's key, so they go out together: one round of D1 latency, not nine
+    const all = (stmt: D1PreparedStatement) => stmt.all().then((r) => r.results ?? []);
     const canonicalSelect =
       `SELECT id, root_text, root_letters, root_type, weak_pattern,
               frequency_quran, frequency_hadith, meaning_core_en
          FROM ar_ling_roots`;
-    const canonical =
-      (entry.root_id
-        ? await env.DB_AL.prepare(`${canonicalSelect} WHERE id = ? LIMIT 1`)
-            .bind(entry.root_id).first()
-        : null)
-      ?? await env.DB_AL.prepare(
-           `${canonicalSelect} WHERE root_normalized = ? OR root_text = ? LIMIT 1`
-         ).bind(root_norm, root_norm).first();
-
-    const profile = await new SourcesRepo(env.DB_AL).profileBySlug(slug);
+    const [sections, blocks, links, tags, quran_refs, sources_of_entry, canonical, profile] = await Promise.all([
+      all(env.DB_AL.prepare(
+        `SELECT id, section_seq, heading_ar, heading_norm, heading_bare,
+                section_type, text_ar, text_en, page_no, source_native_section_id,
+                lane_itype
+         FROM ar_ling_lexicon_entry_section
+         WHERE source_slug = ? AND root_norm = ?
+         ORDER BY section_seq`
+      ).bind(slug, root_norm)),
+      all(env.DB_AL.prepare(
+        `SELECT id, section_id, book_page_id, parent_block_id, block_path,
+                block_seq, depth, block_type, lang, title_ar,
+                text_plain, text_html, data_json,
+                origin, origin_ref, printed_page
+         FROM ar_ling_lexicon_block
+         WHERE source_slug = ? AND root_norm = ?
+           AND origin <> 'derived'
+         ORDER BY block_seq`
+      ).bind(slug, root_norm)),
+      all(env.DB_AL.prepare(
+        `SELECT id, from_block_id, link_kind, to_root_norm, to_surah,
+                to_ayah, to_ayah_to, to_block_id, to_url, label, weight,
+                position_offset
+         FROM ar_ling_lexicon_block_link
+         WHERE source_slug = ?
+           AND from_block_id IN (
+             SELECT id FROM ar_ling_lexicon_block
+             WHERE source_slug = ? AND root_norm = ? AND origin <> 'derived'
+           )`
+      ).bind(slug, slug, root_norm)),
+      all(env.DB_AL.prepare(
+        `SELECT block_id, tag, source, weight
+         FROM ar_ling_lexicon_block_tag
+         WHERE block_id IN (
+           SELECT id FROM ar_ling_lexicon_block
+           WHERE source_slug = ? AND root_norm = ? AND origin <> 'derived'
+         )`
+      ).bind(slug, root_norm)),
+      all(env.DB_AL.prepare(
+        `SELECT id, block_id, section_id, surah, ayah, raw_ref, context_snippet
+         FROM ar_ling_lexicon_quran_ref
+         WHERE source_slug = ? AND root_norm = ?
+         ORDER BY surah, ayah`
+      ).bind(slug, root_norm)),
+      all(env.DB_AL.prepare(
+        `SELECT id, source_kind, source_native_id, source_url
+         FROM ar_ling_lexicon_entry_source
+         WHERE source_slug = ? AND root_entry_id = ?`
+      ).bind(slug, entry.id)),
+      (async () =>
+        (entry.root_id
+          ? await env.DB_AL.prepare(`${canonicalSelect} WHERE id = ? LIMIT 1`).bind(entry.root_id).first()
+          : null)
+        ?? await env.DB_AL.prepare(
+             `${canonicalSelect} WHERE root_normalized = ? OR root_text = ? LIMIT 1`
+           ).bind(root_norm, root_norm).first())(),
+      new SourcesRepo(env.DB_AL).profileBySlug(slug),
+    ]) as [any[], any[], any[], any[], any[], any[], any, Awaited<ReturnType<SourcesRepo['profileBySlug']>>];
 
     const PROSE_BLOCKS = new Set(['definition', 'entry_header']);
     const isStub = (s: any) => {
