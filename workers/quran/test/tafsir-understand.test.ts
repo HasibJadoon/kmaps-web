@@ -119,3 +119,20 @@ test('English that opens on Arabic is served to read left to right, the Arabic i
   const [d] = await sentenceDrills(setup(), ['tafsir_sent:A:zam:4-4'], { surah: 40, from: 1, to: 3 });
   assert.ok((d.options as string[]).includes(d.answer as string));
 });
+
+import { passageDrills } from '../src/routes/practice-tafsirq';
+test("a passage is drilled on its own text: its sentences understood, its lines put in order and heard", async () => {
+  const env = setup();
+  const [w] = await listenWorks(env, ['zam'], { surah: 40, from: 1, to: 3 });
+  const g = w.parts[0].paragraphs[0];
+  const scope = { surah: 40, from: 1, to: 3 };
+  const understand = await passageDrills(env, scope, 'zam', 'A:zam', g.from, 'understand');
+  assert.ok(understand.length > 0);
+  assert.ok(understand.every((d) => d.kind === 'tafsir_understand' && String(d.id).startsWith('tafsir_sent:A:zam:')));
+  const master = await passageDrills(env, scope, 'zam', 'A:zam', g.from, 'master');
+  const seqs = master.map((d) => Number(String(d.id).split(':').pop()!.split('-')[0]));
+  assert.ok(master.some((d) => d.kind === 'order') && master.some((d) => d.kind === 'tafsir_listen'));
+  assert.ok(seqs.every((s) => s >= g.from && s <= g.to), 'only the passage\'s own lines');
+  assert.ok(master.every((d) => (d as { srs?: unknown }).srs), 'every drill files its review card');
+  assert.deepEqual(await passageDrills(env, scope, 'zam', 'A:zam', 999, 'master'), []);
+});

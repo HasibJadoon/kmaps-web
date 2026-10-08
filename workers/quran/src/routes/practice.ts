@@ -17,7 +17,7 @@ import { surahLexDrills, surahLexCounts } from './practice-surah-lex';
 import { groupDrills, groupsCount } from './practice-groups';
 import { ssDrills, ssCount } from './practice-ss';
 import { structureDrills, structureCount } from './practice-structure';
-import { questionDrills, tafsirDrillsQ, questionsCount, tafsirReadDrills, tafsirLangDrills, listenWorks } from './practice-tafsirq';
+import { questionDrills, tafsirDrillsQ, questionsCount, tafsirReadDrills, tafsirLangDrills, listenWorks, passageDrills, type PassageStage } from './practice-tafsirq';
 import { sarfDrills, sarfSheet, lexiconRoot, lexiconLemma } from './practice-sarf';
 
 /** Bump when the الصرف sheet's JSON changes shape or wording rules, so the edge cache starts afresh. */
@@ -56,8 +56,29 @@ export function practiceRoutes(router: Router<QuranEnv>) {
     const surah = Number(u.searchParams.get('surah')), from = Number(u.searchParams.get('from')), to = Number(u.searchParams.get('to'));
     if (!Number.isInteger(surah) || surah < 1 || !Number.isInteger(from) || from < 1) return badRequest('surah and from are required');
     const [works, L] = await Promise.all([listenWorks(env, WORKS, { surah, from, to: Number.isInteger(to) && to >= from ? to : from }), labels(env)]);
-    // each work is studied in four views (qr_study_label tafsir_view), with the words its screens say (tafsir_ui)
-    return ok({ works, views: L.tafsir_view ?? [], ui: L.tafsir_ui ?? [] });
+    // each work is studied in four views (qr_study_label tafsir_view), with the words its screens say (tafsir_ui), and
+    // each passage drilled in three stages (tafsir_stage)
+    return ok({ works, views: L.tafsir_view ?? [], ui: L.tafsir_ui ?? [], stages: L.tafsir_stage ?? [] });
+  });
+
+  // one passage of one work, drilled (the commentary's Drills view): stage understand · translate · master. The passage
+  // is named by its recording and the line it starts on, as the commentary serves it
+  router.get('/qr/tafsir/passage/drills', async (req, env) => {
+    const u = new URL(req.url);
+    const surah = Number(u.searchParams.get('surah')), from = Number(u.searchParams.get('from')), to = Number(u.searchParams.get('to'));
+    const work = u.searchParams.get('work') ?? '', audio = u.searchParams.get('audio') ?? '', at = Number(u.searchParams.get('passage'));
+    const stage = u.searchParams.get('stage') as PassageStage;
+    if (!Number.isInteger(surah) || !Number.isInteger(from) || !work || !audio || !Number.isInteger(at)
+        || !['understand', 'translate', 'master'].includes(stage)) return badRequest('surah, from, work, audio, passage and stage are required');
+    const scope = { surah, from, to: Number.isInteger(to) && to >= from ? to : from };
+    const [items, L] = await Promise.all([passageDrills(env, scope, work, audio, at, stage), labels(env)]);
+    const kinds = byKey(L.kind);
+    const drills = items.map((it) => {
+      const k = kinds.get(String(it.ask ?? it.kind));
+      const { ask: _a, ...rest } = it;
+      return { ...rest, instruction: k?.label ?? null, instructionAr: k?.labelAr ?? null };
+    });
+    return ok({ drills, stage: (L.tafsir_stage ?? []).find((x) => x.key === stage) ?? null });
   });
 
   // the passage's الصرف, to read (the passage study's الصرف tab): public, like the atlas

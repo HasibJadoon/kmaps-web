@@ -735,3 +735,110 @@ export async function tafsirLangDrills(env: QuranEnv, scope: Scope, slugs: strin
   }
   return out;
 }
+
+// ─── A commentary passage, drilled ────────────────────────────────────────────────────────────────────────────────
+//
+// The commentary's Drills view: one passage of one work — the editor's cut (passagesByCut) — drilled in three stages,
+// so the learner comes to understand it, translate it and master its text. Every drill is the passage's own text:
+//   understand · each of its sentences: what it says, among the near misses written for it (sentenceDrills)
+//   translate  · each of its recorded lines: its own English among the work's other lines' (translate_pick); a short
+//                line's English built from its words (English tiles)
+//   master     · each line with a word blanked, the word chosen among the work's like words (fill); short lines put
+//                back in order (tiles); lines heard and the words not caught marked (listen_mark)
+
+export type PassageStage = 'understand' | 'translate' | 'master';
+
+const unmark = (t: string) => t.replace(/[ً-ٰٟـ]/g, '');
+const ARABIC = /[؀-ۿ]/;
+/// Words never blanked: the particles and pronouns any line is full of.
+const SMALL = new Set(['من', 'في', 'على', 'الى', 'إلى', 'عن', 'أن', 'ان', 'إن', 'الذي', 'التي', 'الذين', 'هذا', 'هذه', 'ذلك', 'تلك',
+  'وهو', 'هو', 'هي', 'وهي', 'كان', 'كانت', 'قد', 'وقد', 'لم', 'لا', 'ما', 'ثم', 'أو', 'او', 'بل', 'لأن', 'لان', 'كما', 'إذا', 'اذا', 'حتى',
+  'عليه', 'فيه', 'منه', 'إليه', 'اليه', 'قال', 'وقال', 'يقال', 'وقيل', 'قيل', 'فإن', 'وإن', 'وأما', 'أما', 'فهو', 'بين', 'كل', 'غير']);
+/// A word fit to blank: a whole word of the commentary's own (not a Qurʾān quote, a reference or a mark), not small.
+const blankable = (t: string) => !/[﴿﴾\[\]()«»"“”:؛،.,؟!0-9٠-٩]/.test(t) && unmark(t).length >= 4 && !SMALL.has(unmark(t));
+
+export async function passageDrills(env: QuranEnv, scope: Scope, slug: string, audio: string, from: number,
+                                    stage: PassageStage): Promise<Drill[]> {
+  if (!scope.surah || !scope.from) return [];
+  const [work] = await listenWorks(env, [slug], { surah: scope.surah, from: scope.from, to: scope.to ?? scope.from });
+  const part = work?.parts.find((x) => x.audio === audio);
+  const g = part?.paragraphs.find((p) => p.from === from);
+  if (!work || !part || !g) return [];
+  const startW = g.fromWord ?? 0;
+  // the passage's lines: each line whose first word is in it
+  const own = part.lines.filter((l) => l.seq >= g.from && l.seq <= g.to && !(l.seq === g.from && startW > 0));
+  const everyLine = work.parts.flatMap((x) => x.lines);
+  const title = `${rangeOf(scope.surah, scope.from, scope.to)} · ${work.titleAr ?? work.title ?? slug}${g.heading ? ` · ${g.heading}` : ''}`;
+  const source = { workId: `QR:SURAH:${scope.surah}`, title, level: null };
+  const clip = (l: ListenLine) => ({ url: part.url, start: Math.max(0, l.start - 0.05), end: l.end + 0.1 });
+  const filed = (d: Drill, kind: string, front: string, back: string) =>
+    withCard(d, { ref: `QR:${d.id}`, type: 'passage', kind, front, back, surah: scope.surah, ayah: scope.from, series: 'tafsir' });
+
+  if (stage === 'understand') {
+    const inside = (s: ListenSentence) => (s.from > g.from || (s.from === g.from && (s.fromWord ?? 0) >= startW))
+      && (g.toWord == null ? s.from <= g.to : s.from < g.to || (s.from === g.to && (s.fromWord ?? 0) < g.toWord));
+    return sentenceDrills(env, part.sentences.filter(inside).map((s) => s.id), scope);
+  }
+
+  const out: Drill[] = [];
+  if (stage === 'translate') {
+    const withEn = everyLine.filter((l) => (l.en ?? '').trim());
+    for (const l of own) {
+      const en = (l.en ?? '').trim();
+      if (!en) continue;
+      // its own English among the work's other lines', nearest in length: only reading tells them apart
+      const wrong = withEn.filter((o) => o.seq !== l.seq && o.en!.trim() !== en)
+        .sort((a, b) => Math.abs(a.en!.length - en.length) - Math.abs(b.en!.length - en.length)).slice(0, 3).map((o) => bidiEn(o.en!.trim()));
+      if (wrong.length < 3) continue;
+      const answer = bidiEn(en);
+      out.push(filed({ id: `tafsir_tr:${audio}:${l.seq}`, kind: 'tafsir_translate', ask: 'tq_pd_translate', interaction: 'translate_pick',
+                       script: 'arabic', audio: clip(l), words: l.words, prompt: l.text, options: shuffle([answer, ...wrong]), answer, source },
+                     'tafsir_translate', l.text, en));
+      // a short line's English, built from its words with two of the work's others among them
+      const words = en.split(/\s+/);
+      if (!ARABIC.test(en) && words.length >= 4 && words.length <= 12) {
+        const pool = [...new Set(withEn.filter((o) => o.seq !== l.seq).flatMap((o) => o.en!.split(/\s+/))
+          .filter((w) => !ARABIC.test(w) && w.length >= 3 && !words.includes(w)))];
+        const decoys = shuffle(pool).slice(0, 2);
+        const tiles = shuffle([...words.map((w, i) => ({ w, at: i })), ...decoys.map((w) => ({ w, at: -1 }))]);
+        const solution = words.map((_, i) => tiles.findIndex((t) => t.at === i));
+        out.push(filed({ id: `tafsir_build:${audio}:${l.seq}`, kind: 'tafsir_build', ask: 'tq_pd_build', interaction: 'tiles', lang: 'en',
+                         tileMode: 'arrange', tokens: tiles.map((t) => t.w), solution, script: 'arabic', audio: clip(l), words: l.words,
+                         prompt: l.text, answer: en, source }, 'tafsir_build', l.text, en));
+      }
+    }
+    return out;
+  }
+
+  // master the text
+  const likeWords = everyLine.flatMap((l) => l.words.map((w) => w.t)).filter(blankable);
+  let ordered = 0, heard = 0;
+  for (const l of own) {
+    const ws = l.words.map((w) => w.t);
+    const at = ws.map((t, i) => ({ t, i })).filter(({ t }) => blankable(t)).sort((a, b) => unmark(b.t).length - unmark(a.t).length)[0];
+    if (at) {
+      const n = unmark(at.t).length, al = unmark(at.t).replace(/^و/, '').startsWith('ال');
+      const wrong = shuffle([...new Set(likeWords.filter((w) => unmark(w) !== unmark(at.t) && Math.abs(unmark(w).length - n) <= 1
+        && unmark(w).replace(/^و/, '').startsWith('ال') === al))]).slice(0, 3);
+      if (wrong.length === 3) {
+        out.push(filed({ id: `tafsir_fill:${audio}:${l.seq}`, kind: 'tafsir_fill', ask: 'tq_pd_fill', interaction: 'choose', script: 'arabic',
+                         audio: clip(l), words: l.words, blank: at.i, answer: at.t, options: shuffle([at.t, ...wrong]), en: l.en, source },
+                       'tafsir_fill', ws.map((t, i) => (i === at.i ? '＿＿＿' : t)).join(' '), `${at.t}\n${l.text}`));
+      }
+    }
+    if (ordered < 3 && ws.length >= 4 && ws.length <= 9) {
+      const idx = ws.map((_, i) => i);
+      let sh = shuffle(idx);
+      for (let k = 0; k < 4 && sh.every((v, i) => v === i); k++) sh = shuffle(idx);
+      ordered++;
+      out.push(filed({ id: `tafsir_order:${audio}:${l.seq}`, kind: 'order', ask: 'tq_pd_order', interaction: 'tiles', script: 'arabic',
+                       audio: clip(l), words: l.words, shuffled: sh, en: l.en, source }, 'tafsir_order', l.en ?? l.text, l.text));
+    }
+    if (heard < 3 && l.words.length >= 3) {
+      heard++;
+      out.push(filed({ id: lineRef(audio, l.seq, l.seq), kind: 'tafsir_listen', ask: 'tq_listen', interaction: 'listen_mark',
+                       script: 'arabic', audio: clip(l), words: l.words, en: l.en, source }, 'tafsir_listen', l.text, l.en ?? ''));
+    }
+  }
+  return out;
+}
