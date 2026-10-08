@@ -380,7 +380,12 @@ export type ListenLine = { id: string; seq: number; start: number; end: number; 
                            en: string | null; terms: ListenTerm[] };
 /** A paragraph of the work's own English for the passage (qr_surah_tafsir_chunk), pinned to the recorded lines its
  *  Arabic spans — the "passage" view shows the Arabic run on, the English under it, the paragraph lit as it is read. */
-export type ListenParagraph = { from: number; to: number; en: string; heading?: string | null };
+export type ListenParagraph = { from: number; to: number; en: string; heading?: string | null; enAudio?: ListenClip | null;
+                                /** where in its first line it starts, and before which word of its last line it stops, when a
+                                 *  line is shared with the passage beside it (an editor's cut at the word) */
+                                fromWord?: number; toWord?: number | null };
+/** A span of a recording: the English of a passage read aloud (qr_tafsir_passage_audio_en). */
+export type ListenClip = { url: string; start: number; end: number };
 /** A sentence of the recording with what it says and means (qr_tafsir_sentence): the "Understanding" view. */
 export type ListenSentence = { id: string; from: number; to: number; gist: string; concept: string; conceptAr: string | null; meaning: string };
 export type ListenPart = { audio: string; url: string; start: number; end: number; lines: ListenLine[];
@@ -555,31 +560,50 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
   // recording has its cut, the cut is the passage, and its English is its own lines' — the Arabic and English one to one
   const audios = [...new Set(works.flatMap((w) => w.parts.map((x) => x.audio)))];
   const heads = audios.length ? await query<PassageCut & { audio_id: string }>(env.DB_QR,
-    `SELECT audio_id, seq_from, seq_to, heading_en FROM qr_tafsir_passage_heading
+    `SELECT audio_id, seq_from, seq_to, heading_en, word_from, en_from FROM qr_tafsir_passage_heading
       WHERE status = 'live' AND audio_id IN (${audios.map(() => '?').join(',')})`, audios).catch(() => []) : [];
   const cutsOf = new Map<string, PassageCut[]>();
   for (const h of heads) cutsOf.set(h.audio_id, [...(cutsOf.get(h.audio_id) ?? []), h]);
+  // each cut's English read aloud: a span of the work's English recording for the passage
+  const clips = audios.length ? await query<{ audio_id: string; seq_from: number; object_key: string; start_sec: number; end_sec: number }>(env.DB_QR,
+    `SELECT audio_id, seq_from, object_key, start_sec, end_sec FROM qr_tafsir_passage_audio_en
+      WHERE status = 'live' AND audio_id IN (${audios.map(() => '?').join(',')})`, audios).catch(() => []) : [];
+  const clipOf = new Map(clips.map((c) => [`${c.audio_id}|${c.seq_from}`, { url: AUDIO(c.object_key), start: c.start_sec, end: c.end_sec }]));
   for (const w of works) for (const x of w.parts) {
     const cuts = cutsOf.get(x.audio);
-    if (cuts?.length) x.paragraphs = passagesByCut(x.lines, cuts);
+    if (cuts?.length) x.paragraphs = passagesByCut(x.lines, cuts)
+      .map((g) => ({ ...g, enAudio: clipOf.get(`${x.audio}|${g.from}`) ?? null }));
   }
   return works;
 }
 
-type PassageCut = { seq_from: number; seq_to: number; heading_en: string };
+type PassageCut = { seq_from: number; seq_to: number; heading_en: string; word_from?: number | null; en_from?: number | null };
 
 /** A part's passages from its editor's cut: each cut that holds recorded lines is one passage, under its heading, its
- *  English its lines' English run on. Lines no cut holds keep the reader's own passages (passagesOf). */
+ *  English its lines' English run on. A cut may start at a word inside its first line (word_from, and en_from in that
+ *  line's English): the line is then shared, its words and English before that point the passage before's. Lines no
+ *  cut holds keep the reader's own passages (passagesOf). */
 export function passagesByCut(lines: ListenLine[], cuts: PassageCut[]): ListenParagraph[] {
   const out: ListenParagraph[] = [];
   const held = new Set<number>();
-  for (const c of [...cuts].sort((a, b) => a.seq_from - b.seq_from)) {
+  const sorted = [...cuts].sort((a, b) => a.seq_from - b.seq_from);
+  sorted.forEach((c, i) => {
+    const next = sorted[i + 1];
     const own = lines.filter((l) => l.seq >= c.seq_from && l.seq <= c.seq_to);
-    if (!own.length) continue;
+    if (!own.length) return;
     own.forEach((l) => held.add(l.seq));
-    out.push({ from: own[0].seq, to: own[own.length - 1].seq, heading: c.heading_en,
-               en: bidiEn(own.map((l) => (l.en ?? '').trim()).filter(Boolean).join(' ')) });
-  }
+    const first = own[0].seq, last = own[own.length - 1].seq;
+    const fromWord = first === c.seq_from ? (c.word_from ?? 0) : 0;
+    const shared = next && next.seq_from === last && (next.word_from ?? 0) > 0;
+    const en = own.map((l) => {
+      const t = l.en ?? '';
+      const a = l.seq === c.seq_from ? (c.en_from ?? 0) : 0;
+      const b = shared && l.seq === last ? (next.en_from ?? t.length) : t.length;
+      return t.slice(a, b).trim();
+    }).filter(Boolean).join(' ');
+    out.push({ from: first, to: last, heading: c.heading_en, en: bidiEn(en),
+               fromWord, toWord: shared ? next.word_from ?? null : null });
+  });
   const rest = lines.filter((l) => !held.has(l.seq));
   if (rest.length) out.push(...passagesOf(rest, []).map((g) => ({ ...g, heading: null })));
   return out.sort((a, b) => a.from - b.from);

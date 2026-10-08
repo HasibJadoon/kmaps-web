@@ -190,9 +190,20 @@ test("an editor's cut is the passage: its heading, its lines' English run on; un
   const ps = passagesByCut(lines, [{ seq_from: 3, seq_to: 4, heading_en: 'How many verses' },
                                    { seq_from: 1, seq_to: 2, heading_en: 'Where it came down' }]);
   assert.deepEqual(ps.slice(0, 2), [
-    { from: 1, to: 2, heading: 'Where it came down', en: 'Meccan. Al-Ḥasan said: except His words.' },
-    { from: 3, to: 4, heading: 'How many verses', en: 'Its verses.' },
+    { from: 1, to: 2, heading: 'Where it came down', en: 'Meccan. Al-Ḥasan said: except His words.', fromWord: 0, toWord: null },
+    { from: 3, to: 4, heading: 'How many verses', en: 'Its verses.', fromWord: 0, toWord: null },
   ]);
   assert.equal(ps.length, 3);
   assert.deepEqual([ps[2].from, ps[2].to, ps[2].heading], [5, 5, null]);
+});
+
+test('a cut at the word shares its line: the words and English before it are the passage before\'s', () => {
+  const line = (seq: number, en: string) => ({ id: `l${seq}`, seq, start: seq, end: seq + 1, text: 'نص', words: [], en, terms: [] });
+  const lines = [line(1, 'In the name of God, the Most Gracious,'), line(2, 'the Most Merciful. It has been read with imāla.'), line(3, 'More.')];
+  const ps = passagesByCut(lines, [{ seq_from: 1, seq_to: 2, heading_en: 'One' },
+                                   { seq_from: 2, seq_to: 3, heading_en: 'Two', word_from: 2, en_from: 19 }]);
+  assert.deepEqual(ps.map((p) => [p.from, p.to, p.fromWord, p.toWord, p.en]), [
+    [1, 2, 0, 2, 'In the name of God, the Most Gracious, the Most Merciful.'],
+    [2, 3, 2, null, 'It has been read with imāla. More.'],
+  ]);
 });
