@@ -1,0 +1,18 @@
+{
+  "GT:kalam_kind:khabar": "GT:balagha_maani:khabar",
+  "GT:kalam_kind:insha": "GT:balagha_maani:insha",
+  "GT:kalam_kind:insha_talabi": "GT:balagha_maani:insha_talabi",
+  "GT:kalam_kind:insha_ghayr_talabi": "GT:balagha_maani:insha_ghayr_talabi",
+  "GT:kalam_kind:amr": "GT:balagha_maani:amr",
+  "GT:kalam_kind:nahy": "GT:balagha_maani:nahy",
+  "GT:kalam_kind:istifham": "GT:balagha_maani:istifham_balaghi",
+  "GT:kalam_kind:nida": "GT:balagha_maani:nida",
+  "GT:kalam_kind:tamanni": "GT:balagha_maani:tamanni",
+  "GT:kalam_kind:raja": "GT:balagha_maani:tarajji",
+  "GT:kalam_kind:qasam": "GT:balagha_maani:insha_qasam",
+  "GT:kalam_kind:taajjub": "GT:balagha_maani:insha_taajjub",
+  "GT:kalam_kind:madh_dhamm": "GT:balagha_maani:insha_madh_dhamm",
+  "GT:kalam_kind:khabar_ibtidai": "GT:balagha_maani:khabar_ibtidai",
+  "GT:kalam_kind:khabar_talabi": "GT:balagha_maani:khabar_talabi",
+  "GT:kalam_kind:khabar_inkari": "GT:balagha_maani:khabar_inkari"
+}

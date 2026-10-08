@@ -1,0 +1,241 @@
+===  QR:SST:UT:C:QURAN:12:1-7:SS:301 9
+[0/134] 301:$.tree | تِلْكَ آيَاتُ الْكِتَابِ الْمُبِينِ | tk=jumlah_ismiyyah gt=GT:sentence_class:ismiyya w=None v=0 | جملة اسمية 
+  [1/289] 301:$.tree.children[0] | تِلْكَ | tk=mubtada gt=GT:irab_role:mubtada w=QR:WO:12:1:2 v=0 |  
+  [1/352] 301:$.tree.children[1] | آيَاتُ الْكِتَابِ الْمُبِينِ | tk=khabar gt=GT:irab_role:khabar w=None v=0 |  
+    [2/465] 301:$.tree.children[1].children[0] | آيَاتُ الْكِتَابِ | tk=idafa gt=GT:irab_role:mudaf_ilayh w=None v=0 | مركب إضافي 
+      [3/568] 301:$.tree.children[1].children[0].children[0] | آيَاتُ | tk=mudaf gt=GT:irab_role:mudaf w=None v=0 |  
+      [3/627] 301:$.tree.children[1].children[0].children[1] | الْكِتَابِ | tk=mudaf_ilayh gt=GT:irab_role:mudaf_ilayh w=QR:WO:12:1:4 v=0 |  
+    [2/710] 301:$.tree.children[1].children[1] | الْكِتَابِ الْمُبِينِ | tk=mudaf_ilayh gt=GT:irab_role:mudaf_ilayh w=None v=0 | نعت + منعوت 
+      [3/836] 301:$.tree.children[1].children[1].children[0] | الْكِتَابِ | tk=mudaf_ilayh gt=GT:irab_role:mudaf_ilayh w=QR:WO:12:1:4 v=0 | منعوت 
+      [3/911] 301:$.tree.children[1].children[1].children[1] | الْمُبِينِ | tk=naat gt=GT:irab_role:naat w=QR:WO:12:1:5 v=0 |  
+===  QR:SST:UT:C:QURAN:12:1-7:SS:302 18
+[0/347] 302:$.tree | إِنَّا أَنزَلْنَاهُ قُرْآنًا عَرَبِيًّا لَعَلَّكُمْ تَعْقِلُونَ | tk=jumlah gt=GT:sentence_class:jumla w=None v=0 | جملة 
+  [1/534] 302:$.tree.children[0] | إِنَّا أَنزَلْنَاهُ قُرْآنًا عَرَبِيًّا | tk=jumlah_raisiyyah gt=GT:sentence_class:raisiyya w=None v=0 | الجملة الرئيسة 
+    [2/701] 302:$.tree.children[0].children[0] | إِنَّا | tk=inna_wa_ismuha gt=GT:irab_role:ism_inna w=None v=0 | إنّ واسمها 
+      [3/793] 302:$.tree.children[0].children[0].children[0] | إِنَّ | tk=harf_tawkid_wa_nasb gt=GT:irab_role:ism_inna w=None v=0 | حرف توكيد ونصب 
+      [3/883] 302:$.tree.children[0].children[0].children[1] | نَا | tk=ism_inna gt=GT:irab_role:ism_inna w=None v=0 |  
+    [2/944] 302:$.tree.children[0].children[1] | أَنزَلْنَاهُ قُرْآنًا عَرَبِيًّا | tk=khabar_inna gt=GT:irab_role:khabar_inna w=None v=0 |  
+      [3/1078] 302:$.tree.children[0].children[1].children[0] | أَنزَلْنَاهُ | tk=jumlah_filiyyah gt=GT:sentence_class:filiyya w=None v=0 | فعل + فاعل + مفعول به 
+        [4/1195] 302:$.tree.children[0].children[1].children[0].children[0] | أَنزَلْ | tk=fiil gt=GT:pos:fil w=None v=0 |  
+        [4/1253] 302:$.tree.children[0].children[1].children[0].children[1] | نَا | tk=fail gt=GT:irab_role:fail w=None v=0 |  
+        [4/1304] 302:$.tree.children[0].children[1].children[0].children[2] | هُ | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 |  
+      [3/1366] 302:$.tree.children[0].children[1].children[1] | قُرْآنًا عَرَبِيًّا | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 | مفعول به + نعت 
+        [4/1484] 302:$.tree.children[0].children[1].children[1].children[0] | قُرْآنًا | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 |  
+        [4/1560] 302:$.tree.children[0].children[1].children[1].children[1] | عَرَبِيًّا | tk=naat gt=GT:irab_role:naat w=QR:WO:12:2:4 v=0 |  
+  [1/1625] 302:$.tree.children[1] | لَعَلَّكُمْ تَعْقِلُونَ | tk=jumlah_ghayah gt=GT:irab_role:maful_liajlih w=None v=0 | جملة الغاية 
+    [2/1754] 302:$.tree.children[1].children[0] | لَعَلَّكُمْ | tk=laalla_wa_ismuha gt=GT:irab_role:ism_inna w=None v=0 | لعلّ واسمها 
+      [3/1862] 302:$.tree.children[1].children[0].children[0] | لَعَلَّ | tk=harf_tarajji_wa_nasb gt=GT:irab_role:ism_inna w=None v=0 | حرف ترجٍّ ونصب 
+      [3/1959] 302:$.tree.children[1].children[0].children[1] | كُمْ | tk=ism_laalla gt=GT:irab_role:ism_inna w=None v=0 | اسم لعلّ 
+    [2/2027] 302:$.tree.children[1].children[1] | تَعْقِلُونَ | tk=khabar_laalla gt=GT:irab_role:khabar_inna w=QR:WO:12:2:6 v=0 | خبر لعلّ 
+===  QR:SST:UT:C:QURAN:12:1-7:SS:303 35
+[0/526] 303:$.tree | نَحْنُ نَقُصُّ عَلَيْكَ أَحْسَنَ الْقَصَصِ بِمَا أَوْحَيْنَا إِلَيْكَ هَذَا الْقُرْآنَ وَإِن كُنتَ مِن قَبْلِهِ لَمِنَ الْغَافِلِينَ | tk=jumlah gt=GT:sentence_class:jumla w=None v=0 | جمل�
+  [1/841] 303:$.tree.children[0] | نَحْنُ نَقُصُّ عَلَيْكَ أَحْسَنَ الْقَصَصِ بِمَا أَوْحَيْنَا إِلَيْكَ هَذَا الْقُرْآنَ | tk=jumlah_filiyyah gt=GT:sentence_class:filiyya w=None v=0 | الجملة الرئيسة 
+    [2/1096] 303:$.tree.children[0].children[0] | نَحْنُ | tk=mubtada gt=GT:irab_role:mubtada w=QR:WO:12:3:1 v=0 | ضمير فصل / توكيد 
+    [2/1178] 303:$.tree.children[0].children[1] | نَقُصُّ عَلَيْكَ أَحْسَنَ الْقَصَصِ بِمَا أَوْحَيْنَا إِلَيْكَ هَذَا الْقُرْآنَ | tk=jumlah_filiyyah gt=GT:sentence_class:filiyya w=None v=0 | جملة فعلية 
+      [3/1406] 303:$.tree.children[0].children[1].children[0] | نَقُصُّ | tk=fiil_mudari gt=GT:pos:fil w=QR:WO:12:3:2 v=0 | فعل مضارع 
+      [3/1483] 303:$.tree.children[0].children[1].children[1] | نَحْنُ | tk=fail gt=GT:irab_role:fail w=QR:WO:12:3:1 v=0 |  
+      [3/1541] 303:$.tree.children[0].children[1].children[2] | عَلَيْكَ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=QR:WO:12:3:3 v=0 |  
+      [3/1625] 303:$.tree.children[0].children[1].children[3] | أَحْسَنَ الْقَصَصِ | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 |  
+        [4/1730] 303:$.tree.children[0].children[1].children[3].children[0] | أَحْسَنَ | tk=mudaf gt=GT:irab_role:mudaf w=None v=0 |  
+        [4/1793] 303:$.tree.children[0].children[1].children[3].children[1] | الْقَصَصِ | tk=mudaf_ilayh gt=GT:irab_role:mudaf_ilayh w=QR:WO:12:3:5 v=0 |  
+      [3/1874] 303:$.tree.children[0].children[1].children[4] | note: قراءة أخرى | tk=annotation gt=None w=None v=0 | ملاحظة 
+        [4/1962] 303:$.tree.children[0].children[1].children[4].children[0] | أَحْسَنَ الْقَصَصِ | tk=maful_mutlaq_qiraah gt=GT:irab_role:maful_mutlaq w=None v=0 | قراءة على معنى المفعول المطلق 
+      [3/2107] 303:$.tree.children[0].children[1].children[5] | بِمَا أَوْحَيْنَا إِلَيْكَ هَذَا الْقُرْآنَ | tk=shibh_jumlah gt=GT:irab_role:jarr_majrur w=None v=0 | باء السببية + ما المصدرية 
+        [4/2296] 303:$.tree.children[0].children[1].children[5].children[0] | بِمَا | tk=ba_sababiyyah gt=GT:balagha_bayan:alaqa_sababiyya w=QR:WO:12:3:6 v=0 | باء السببية + ما المصدرية 
+        [4/2400] 303:$.tree.children[0].children[1].children[5].children[1] | أَوْحَيْنَا إِلَيْكَ هَذَا الْقُرْآنَ | tk=jumlah_filiyyah gt=GT:sentence_class:filiyya w=None v=0 | المصدر المؤول / صلة ما 
+          [5/2570] 303:$.tree.children[0].children[1].children[5].children[1].children[0] | أَوْحَيْنَا | tk=jumlah_filiyyah gt=GT:sentence_class:filiyya w=None v=0 | فعل + فاعل 
+            [6/2667] 303:$.tree.children[0].children[1].children[5].children[1].children[0].children[0] | أَوْحَى | tk=fiil_madi gt=GT:pos:fil w=None v=0 | فعل ماض 
+            [6/2739] 303:$.tree.children[0].children[1].children[5].children[1].children[0].children[1] | نَا | tk=fail gt=GT:irab_role:fail w=None v=0 |  
+          [5/2791] 303:$.tree.children[0].children[1].children[5].children[1].children[1] | إِلَيْكَ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 |  
+          [5/2876] 303:$.tree.children[0].children[1].children[5].children[1].children[2] | هَذَا الْقُرْآنَ | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 |  
+            [6/2979] 303:$.tree.children[0].children[1].children[5].children[1].children[2].children[0] | هَذَا | tk=ism_isharah gt=GT:pos:ishara w=QR:WO:12:3:9 v=0 |  
+            [6/3052] 303:$.tree.children[0].children[1].children[5].children[1].children[2].children[1] | الْقُرْآنَ | tk=badal_aw_bayan gt=GT:irab_role:badal w=None v=0 | بدل / عطف بيان 
+  [1/3147] 303:$.tree.children[1] | وَإِن كُنتَ مِن قَبْلِهِ لَمِنَ الْغَافِلِينَ | tk=jumlah_hal_wa_taliliyyah gt=GT:balagha_maani:jumla_haliyya w=None v=0 | الواو للحال - وإن مخففة من الثقيلة 
+    [2/3367] 303:$.tree.children[1].children[0] | إِن كُنتَ مِن قَبْلِهِ لَمِنَ الْغَافِلِينَ | tk=jumlah_shartiyyah gt=GT:sentence_class:shartiyya w=None v=0 | إن مخففة من الثقيلة 
+      [3/3550] 303:$.tree.children[1].children[0].children[0] | إِن | tk=harf_shart gt=GT:pos:shart_harf w=None v=0 | إن مخففة من الثقيلة 
+      [3/3636] 303:$.tree.children[1].children[0].children[1] | كُنتَ مِن قَبْلِهِ لَمِنَ الْغَافِلِينَ | tk=kana_wa_ismuha gt=GT:irab_role:ism_kana w=None v=0 | كان واسمها وخبرها 
+        [4/3806] 303:$.tree.children[1].children[0].children[1].children[0] | كُنتَ | tk=kana_wa_ismuha gt=GT:irab_role:ism_kana w=None v=0 | كان واسمها 
+          [5/3896] 303:$.tree.children[1].children[0].children[1].children[0].children[0] | كَانَ | tk=fiil_madi gt=GT:pos:fil w=None v=0 | فعل ماض ناقص 
+          [5/3972] 303:$.tree.children[1].children[0].children[1].children[0].children[1] | تَ | tk=ism_kana gt=GT:irab_role:ism_kana w=None v=0 |  
+        [4/4032] 303:$.tree.children[1].children[0].children[1].children[1] | مِن قَبْلِهِ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 |  
+        [4/4124] 303:$.tree.children[1].children[0].children[1].children[2] | لَمِنَ الْغَافِلِينَ | tk=khabar_kana gt=GT:irab_role:khabar_kana w=None v=0 |  
+          [5/4236] 303:$.tree.children[1].children[0].children[1].children[2].children[0] | لَ | tk=lam_tawkid gt=GT:harf_maani:tawkid w=None v=0 | لام التوكيد 
+          [5/4306] 303:$.tree.children[1].children[0].children[1].children[2].children[1] | مِنَ الْغَافِلِينَ | tk=khabar_kana gt=GT:irab_role:khabar_kana w=None v=0 |  
+            [6/4413] 303:$.tree.children[1].children[0].children[1].children[2].children[1].children[0] | مِنَ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=QR:WO:12:3:13 v=0 | حرف جر زائد 
+            [6/4490] 303:$.tree.children[1].children[0].children[1].children[2].children[1].children[1] | الْغَافِلِينَ | tk=khabar_kana gt=GT:irab_role:khabar_kana w=QR:WO:12:3:16 v=0 | اسم مجرور لفظًا منصوب محلًا 
+===  QR:SST:UT:C:QURAN:12:1-7:SS:304 28
+[0/348] 304:$.tree | إِذْ قَالَ يُوسُفُ لِأَبِيهِ يَا أَبَتِ إِنِّي رَأَيْتُ أَحَدَ عَشَرَ كَوْكَبًا وَالشَّمْسَ وَالْقَمَرَ رَأَيْتُهُمْ لِي سَاجِدِينَ | tk=jumlah gt=GT:sentence_class:jumla w=None v=0 | جملة 
+  [1/661] 304:$.tree.children[0] | اذكر | tk=fiil_mahzuf gt=GT:balagha_maani:hadhf w=None v=0 | فعل محذوف 
+  [1/731] 304:$.tree.children[1] | إِذْ | tk=zarf_zaman gt=GT:harf_maani:zarf_zaman w=None v=0 |  
+  [1/798] 304:$.tree.children[2] | قَالَ يُوسُفُ لِأَبِيهِ | tk=jumlah_qawl gt=GT:irab_role:maful_bih w=None v=0 | جملة القول 
+    [2/919] 304:$.tree.children[2].children[0] | قَالَ | tk=fiil_madi gt=GT:pos:fil w=QR:WO:12:4:2 v=0 | فعل ماض 
+    [2/985] 304:$.tree.children[2].children[1] | يُوسُفُ | tk=fail gt=GT:irab_role:fail w=QR:WO:12:4:3 v=0 |  
+    [2/1045] 304:$.tree.children[2].children[2] | لِأَبِيهِ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 |  
+  [1/1131] 304:$.tree.children[3] | يَا أَبَتِ | tk=harf_nida gt=GT:pos:nida_harf w=None v=0 | نداء 
+  [1/1196] 304:$.tree.children[4] | إِنِّي رَأَيْتُ أَحَدَ عَشَرَ كَوْكَبًا وَالشَّمْسَ وَالْقَمَرَ رَأَيْتُهُمْ لِي سَاجِدِينَ | tk=jumlah_qawl gt=GT:irab_role:maful_bih w=None v=0 | مقول القول 
+    [2/1447] 304:$.tree.children[4].children[0] | إِنِّي | tk=inna_wa_ismuha gt=GT:irab_role:ism_inna w=None v=0 | إنّ واسمها 
+      [3/1539] 304:$.tree.children[4].children[0].children[0] | إِنَّ | tk=harf_tawkid_wa_nasb gt=GT:irab_role:ism_inna w=None v=0 | حرف توكيد ونصب 
+      [3/1630] 304:$.tree.children[4].children[0].children[1] | ي | tk=ism_inna gt=GT:irab_role:ism_inna w=None v=0 |  
+    [2/1688] 304:$.tree.children[4].children[1] | رَأَيْتُ أَحَدَ عَشَرَ كَوْكَبًا | tk=jumlah_filiyyah gt=GT:sentence_class:filiyya w=None v=0 | فعلية 
+      [3/1818] 304:$.tree.children[4].children[1].children[0] | رَأَيْتُ | tk=jumlah_filiyyah gt=GT:sentence_class:filiyya w=None v=0 | فعل + فاعل 
+        [4/1909] 304:$.tree.children[4].children[1].children[0].children[0] | رَأَى | tk=fiil_madi gt=GT:pos:fil w=None v=0 | فعل ماض 
+        [4/1976] 304:$.tree.children[4].children[1].children[0].children[1] | تُ | tk=fail gt=GT:irab_role:fail w=None v=0 |  
+      [3/2026] 304:$.tree.children[4].children[1].children[1] | أَحَدَ عَشَرَ كَوْكَبًا | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 |  
+        [4/2142] 304:$.tree.children[4].children[1].children[1].children[0] | أَحَدَ عَشَرَ | tk=adad_murakkab gt=GT:noun_process:adad_murakkab w=None v=0 | عدد مركب 
+        [4/2232] 304:$.tree.children[4].children[1].children[1].children[1] | كَوْكَبًا | tk=tamyiz gt=GT:irab_role:tamyiz w=QR:WO:12:4:10 v=0 |  
+    [2/2301] 304:$.tree.children[4].children[2] | وَالشَّمْسَ وَالْقَمَرَ | tk=harf_atf gt=GT:pos:harf_atf w=None v=0 | معطوفات 
+    [2/2399] 304:$.tree.children[4].children[3] | رَأَيْتُهُمْ | tk=jumlah_filiyyah gt=GT:sentence_class:filiyya w=None v=0 | إعادة الفعل 
+      [3/2504] 304:$.tree.children[4].children[3].children[0] | رَأَيْتُ | tk=jumlah_filiyyah gt=GT:sentence_class:filiyya w=None v=0 | فعل + فاعل 
+        [4/2595] 304:$.tree.children[4].children[3].children[0].children[0] | رَأَى | tk=fiil_madi gt=GT:pos:fil w=None v=0 | فعل ماض 
+        [4/2662] 304:$.tree.children[4].children[3].children[0].children[1] | تُ | tk=fail gt=GT:irab_role:fail w=None v=0 |  
+      [3/2712] 304:$.tree.children[4].children[3].children[1] | هُمْ | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 |  
+    [2/2779] 304:$.tree.children[4].children[4] | لِي سَاجِدِينَ | tk=jumlah_haliyyah gt=GT:balagha_maani:jumla_haliyya w=None v=0 | جملة الحال 
+      [3/2882] 304:$.tree.children[4].children[4].children[0] | لِي | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=QR:WO:12:4:14 v=0 |  
+      [3/2956] 304:$.tree.children[4].children[4].children[1] | سَاجِدِينَ | tk=hal gt=GT:irab_role:hal w=QR:WO:12:4:15 v=0 |  
+===  QR:SST:UT:C:QURAN:12:1-7:SS:305 21
+[0/330] 305:$.tree | قَالَ يَا بُنَيَّ لَا تَقْصُصْ رُؤْيَاكَ عَلَىٰ إِخْوَتِكَ فَيَكِيدُوا لَكَ كَيْدًا | tk=None gt=None w=None v=0 |  
+  [1/513] 305:$.tree.children[0] | قَالَ | tk=None gt=None w=None v=0 | افتتاح القول 
+    [2/590] 305:$.tree.children[0].children[0] | قَالَ | tk=fiil_madi gt=GT:pos:fil w=QR:WO:12:5:1 v=0 | فعل ماض 
+    [2/665] 305:$.tree.children[0].children[1] | هو | tk=fail_mustatir gt=GT:irab_role:fail w=None v=0 | فاعل مستتر 
+  [1/745] 305:$.tree.children[1] | يَا بُنَيَّ | tk=None gt=None w=None v=0 | النداء العاطفي 
+    [2/838] 305:$.tree.children[1].children[0] | يَا | tk=harf_nida gt=GT:pos:nida_harf w=None v=0 |  
+    [2/911] 305:$.tree.children[1].children[1] | بُنَيَّ | tk=munada gt=GT:irab_role:munada w=None v=0 |  
+  [1/984] 305:$.tree.children[2] | لَا تَقْصُصْ رُؤْيَاكَ عَلَىٰ إِخْوَتِكَ | tk=None gt=None w=None v=0 | النهي 
+    [2/1116] 305:$.tree.children[2].children[0] | لَا تَقْصُصْ | tk=harf_nahy gt=GT:harf_maani:nahiya w=None v=0 | جملة النهي 
+      [3/1217] 305:$.tree.children[2].children[0].children[0] | لَا | tk=harf_nahy gt=GT:harf_maani:nahiya w=QR:WO:12:5:3 v=0 | لا الناهية 
+      [3/1294] 305:$.tree.children[2].children[0].children[1] | تَقْصُصْ | tk=fiil_mudari_majzum gt=GT:mahall:jazm w=QR:WO:12:5:4 v=0 | فعل مضارع مجزوم 
+    [2/1401] 305:$.tree.children[2].children[1] | رُؤْيَاكَ | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 |  
+    [2/1486] 305:$.tree.children[2].children[2] | عَلَىٰ إِخْوَتِكَ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 |  
+  [1/1595] 305:$.tree.children[3] | فَيَكِيدُوا لَكَ كَيْدًا | tk=None gt=None w=None v=0 | النتيجة والتحذير 
+    [2/1719] 305:$.tree.children[3].children[0] | فَيَكِيدُوا | tk=jumlah_natijah gt=GT:harf_maani:taliliyya w=None v=0 | جملة النتيجة 
+      [3/1835] 305:$.tree.children[3].children[0].children[0] | فَ | tk=fa_sababiyyah gt=GT:pos:fa_sababiyya w=None v=0 |  
+      [3/1917] 305:$.tree.children[3].children[0].children[1] | يَكِيدُوا | tk=fiil_mudari_mansub gt=GT:mahall:nasb w=None v=0 | فعل مضارع منصوب 
+      [3/2026] 305:$.tree.children[3].children[0].children[2] | واو الجماعة | tk=fail_waw gt=GT:irab_role:fail w=None v=0 |  
+    [2/2106] 305:$.tree.children[3].children[1] | لَكَ كَيْدًا | tk=GT:balagha_maani:tafsil gt=GT:balagha_maani:tafsil w=None v=0 | تفصيل الكيد 
+      [3/2220] 305:$.tree.children[3].children[1].children[0] | لَكَ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=QR:WO:12:5:9 v=0 |  
+      [3/2304] 305:$.tree.children[3].children[1].children[1] | كَيْدًا | tk=maful_mutlaq gt=GT:irab_role:maful_mutlaq w=QR:WO:12:5:10 v=0 |  
+===  QR:SST:UT:C:QURAN:12:1-7:SS:306 38
+[0/361] 306:$.tree | وَكَذَٰلِكَ يَجْتَبِيكَ رَبُّكَ وَيُعَلِّمُكَ مِن تَأْوِيلِ الْأَحَادِيثِ وَيُتِمُّ نِعْمَتَهُ عَلَيْكَ وَعَلَىٰ آلِ يَعْقُوبَ | tk=None gt=None w=None v=0 |  
+  [1/628] 306:$.tree.children[0] | وَكَذَٰلِكَ | tk=None gt=None w=None v=0 | الاستئناف والتشبيه 
+    [2/731] 306:$.tree.children[0].children[0] | وَ | tk=harf_istinaf gt=GT:harf_maani:istinafiyya w=None v=0 | حرف استئناف 
+    [2/812] 306:$.tree.children[0].children[1] | كَذَٰلِكَ | tk=kaf_tashbih gt=GT:balagha_bayan:adat_tashbih w=None v=0 | كاف التشبيه + اسم الإشارة 
+  [1/930] 306:$.tree.children[1] | يَجْتَبِيكَ رَبُّكَ | tk=None gt=None w=None v=0 | الاصطفاء 
+    [2/1030] 306:$.tree.children[1].children[0] | يَجْتَبِيكَ | tk=jumlah_filiyyah gt=GT:sentence_class:filiyya w=None v=0 | جملة فعلية 
+      [3/1144] 306:$.tree.children[1].children[0].children[0] | يَجْتَبِي | tk=fiil_mudari gt=GT:pos:fil w=None v=0 | فعل مضارع 
+      [3/1236] 306:$.tree.children[1].children[0].children[1] | هو | tk=fail_mustatir gt=GT:irab_role:fail w=None v=0 | فاعل مستتر 
+      [3/1318] 306:$.tree.children[1].children[0].children[2] | كَ | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 |  
+    [2/1391] 306:$.tree.children[1].children[1] | رَبُّكَ | tk=khabar gt=GT:irab_role:khabar w=None v=0 | فاعل ظاهر 
+      [3/1483] 306:$.tree.children[1].children[1].children[0] | رَبُّ | tk=mudaf gt=GT:irab_role:mudaf w=None v=0 |  
+      [3/1550] 306:$.tree.children[1].children[1].children[1] | كَ | tk=mudaf_ilayh gt=GT:irab_role:mudaf_ilayh w=None v=0 |  
+  [1/1627] 306:$.tree.children[2] | وَيُعَلِّمُكَ مِن تَأْوِيلِ الْأَحَادِيثِ | tk=None gt=None w=None v=0 | التعليم 
+    [2/1767] 306:$.tree.children[2].children[0] | وَيُعَلِّمُكَ | tk=jumlah_filiyyah gt=GT:sentence_class:filiyya w=None v=0 | جملة فعلية 
+      [3/1886] 306:$.tree.children[2].children[0].children[0] | وَ | tk=fa_atf gt=GT:pos:harf_atf w=None v=0 |  
+      [3/1954] 306:$.tree.children[2].children[0].children[1] | يُعَلِّمُ | tk=fiil_mudari gt=GT:pos:fil w=None v=0 | فعل مضارع 
+      [3/2046] 306:$.tree.children[2].children[0].children[2] | هو | tk=fail_mustatir gt=GT:irab_role:fail w=None v=0 | فاعل مستتر 
+      [3/2128] 306:$.tree.children[2].children[0].children[3] | كَ | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 |  
+    [2/2201] 306:$.tree.children[2].children[1] | مِن تَأْوِيلِ الْأَحَادِيثِ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 |  
+      [3/2343] 306:$.tree.children[2].children[1].children[0] | مِن | tk=min_tabaid gt=GT:pos:harf_jarr w=None v=0 |  
+      [3/2414] 306:$.tree.children[2].children[1].children[1] | تَأْوِيلِ الْأَحَادِيثِ | tk=harf_atf gt=GT:pos:harf_atf w=None v=0 | مركب إضافي 
+        [4/2539] 306:$.tree.children[2].children[1].children[1].children[0] | تَأْوِيلِ | tk=mudaf gt=GT:irab_role:mudaf w=None v=0 |  
+        [4/2616] 306:$.tree.children[2].children[1].children[1].children[1] | الْأَحَادِيثِ | tk=mudaf_ilayh gt=GT:irab_role:mudaf_ilayh w=None v=0 |  
+  [1/2717] 306:$.tree.children[3] | وَيُتِمُّ نِعْمَتَهُ عَلَيْكَ وَعَلَىٰ آلِ يَعْقُوبَ | tk=None gt=None w=None v=0 | إتمام النعمة 
+    [2/2886] 306:$.tree.children[3].children[0] | وَيُتِمُّ | tk=jumlah_filiyyah gt=GT:sentence_class:filiyya w=None v=0 | جملة فعلية 
+      [3/2996] 306:$.tree.children[3].children[0].children[0] | وَ | tk=fa_atf gt=GT:pos:harf_atf w=None v=0 |  
+      [3/3064] 306:$.tree.children[3].children[0].children[1] | يُتِمُّ | tk=fiil_mudari gt=GT:pos:fil w=None v=0 | فعل مضارع 
+      [3/3152] 306:$.tree.children[3].children[0].children[2] | هو | tk=fail_mustatir gt=GT:irab_role:fail w=None v=0 | فاعل مستتر 
+    [2/3234] 306:$.tree.children[3].children[1] | نِعْمَتَهُ | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 |  
+      [3/3333] 306:$.tree.children[3].children[1].children[0] | نِعْمَةَ | tk=mudaf gt=GT:irab_role:mudaf w=None v=0 |  
+      [3/3407] 306:$.tree.children[3].children[1].children[1] | هُ | tk=mudaf_ilayh gt=GT:irab_role:mudaf_ilayh w=None v=0 |  
+    [2/3484] 306:$.tree.children[3].children[2] | عَلَيْكَ وَعَلَىٰ آلِ يَعْقُوبَ | tk=GT:balagha_maani:tafsil gt=GT:balagha_maani:tafsil w=None v=0 | متعلقات النعمة 
+      [3/3640] 306:$.tree.children[3].children[2].children[0] | عَلَيْكَ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 |  
+      [3/3735] 306:$.tree.children[3].children[2].children[1] | وَعَلَىٰ آلِ يَعْقُوبَ | tk=harf_atf gt=GT:pos:harf_atf w=None v=0 | معطوف 
+        [4/3848] 306:$.tree.children[3].children[2].children[1].children[0] | وَعَلَىٰ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 | حرف عطف + جار 
+        [4/3947] 306:$.tree.children[3].children[2].children[1].children[1] | آلِ يَعْقُوبَ | tk=harf_atf gt=GT:pos:harf_atf w=None v=0 | مركب إضافي 
+          [5/4053] 306:$.tree.children[3].children[2].children[1].children[1].children[0] | آلِ | tk=mudaf gt=GT:irab_role:mudaf w=None v=0 |  
+          [5/4118] 306:$.tree.children[3].children[2].children[1].children[1].children[1] | يَعْقُوبَ | tk=mudaf_ilayh gt=GT:irab_role:mudaf_ilayh w=None v=0 |  
+===  QR:SST:UT:C:QURAN:12:1-7:SS:307 27
+[0/403] 307:$.tree | قَالَ يَا بُنَيَّ لَا تَقْصُصْ رُؤْيَاكَ عَلَىٰ إِخْوَتِكَ فَيَكِيدُوا لَكَ كَيْدًا إِنَّ الشَّيْطَانَ لِلْإِنسَانِ عَدُوٌّ مُّبِينٌ | tk=None gt=None w=None v=0 |  
+  [1/679] 307:$.tree.children[0] | قَالَ | tk=None gt=None w=None v=0 | بداية القول 
+    [2/760] 307:$.tree.children[0].children[0] | قَالَ | tk=fiil_madi gt=GT:pos:fil w=QR:WO:12:5:1 v=0 | فعل ماض 
+    [2/841] 307:$.tree.children[0].children[1] | هو | tk=fail_mustatir gt=GT:irab_role:fail w=None v=0 | فاعل مستتر 
+  [1/927] 307:$.tree.children[1] | يَا بُنَيَّ | tk=None gt=None w=None v=0 | النداء العاطفي 
+    [2/1026] 307:$.tree.children[1].children[0] | يَا | tk=harf_nida gt=GT:pos:nida_harf w=None v=0 |  
+    [2/1105] 307:$.tree.children[1].children[1] | بُنَيَّ | tk=munada gt=GT:irab_role:munada w=None v=0 |  
+  [1/1184] 307:$.tree.children[2] | لَا تَقْصُصْ رُؤْيَاكَ عَلَىٰ إِخْوَتِكَ | tk=None gt=None w=None v=0 | النهي 
+    [2/1322] 307:$.tree.children[2].children[0] | لَا تَقْصُصْ | tk=harf_nahy gt=GT:harf_maani:nahiya w=None v=0 | جملة نهي 
+      [3/1425] 307:$.tree.children[2].children[0].children[0] | لَا | tk=harf_nahy gt=GT:harf_maani:nahiya w=QR:WO:12:5:3 v=0 | لا الناهية 
+      [3/1508] 307:$.tree.children[2].children[0].children[1] | تَقْصُصْ | tk=fiil_mudari_majzum gt=GT:mahall:jazm w=QR:WO:12:5:4 v=0 | فعل مضارع مجزوم 
+    [2/1621] 307:$.tree.children[2].children[1] | رُؤْيَاكَ | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 |  
+    [2/1713] 307:$.tree.children[2].children[2] | عَلَىٰ إِخْوَتِكَ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 |  
+  [1/1829] 307:$.tree.children[3] | فَيَكِيدُوا لَكَ كَيْدًا | tk=None gt=None w=None v=0 | النتيجة 
+    [2/1942] 307:$.tree.children[3].children[0] | فَيَكِيدُوا | tk=jumlah_natijah gt=GT:harf_maani:taliliyya w=None v=0 | جملة نتيجة 
+      [3/2060] 307:$.tree.children[3].children[0].children[0] | فَ | tk=fa_sababiyyah gt=GT:pos:fa_sababiyya w=None v=0 |  
+      [3/2148] 307:$.tree.children[3].children[0].children[1] | يَكِيدُوا | tk=fiil_mudari_mansub gt=GT:mahall:nasb w=None v=0 | فعل مضارع منصوب 
+      [3/2263] 307:$.tree.children[3].children[0].children[2] | واو الجماعة | tk=fail_waw gt=GT:irab_role:fail w=None v=0 |  
+    [2/2349] 307:$.tree.children[3].children[1] | لَكَ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=QR:WO:12:5:9 v=0 |  
+    [2/2439] 307:$.tree.children[3].children[2] | كَيْدًا | tk=maful_mutlaq gt=GT:irab_role:maful_mutlaq w=QR:WO:12:5:10 v=0 |  
+  [1/2535] 307:$.tree.children[4] | إِنَّ الشَّيْطَانَ لِلْإِنسَانِ عَدُوٌّ مُّبِينٌ | tk=None gt=None w=None v=0 | التعليل 
+    [2/2694] 307:$.tree.children[4].children[0] | إِنَّ | tk=harf_tawkid gt=GT:harf_maani:tawkid w=None v=0 | حرف توكيد 
+    [2/2780] 307:$.tree.children[4].children[1] | الشَّيْطَانَ | tk=ism_inna gt=GT:irab_role:ism_inna w=QR:WO:12:5:12 v=0 |  
+    [2/2871] 307:$.tree.children[4].children[2] | لِلْإِنسَانِ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 | متعلّق الخبر 
+    [2/2981] 307:$.tree.children[4].children[3] | عَدُوٌّ مُّبِينٌ | tk=khabar_inna gt=GT:irab_role:khabar_inna w=None v=0 | خبر إن + نعت 
+      [3/3105] 307:$.tree.children[4].children[3].children[0] | عَدُوٌّ | tk=khabar_inna gt=GT:irab_role:khabar_inna w=QR:WO:12:5:14 v=0 |  
+      [3/3189] 307:$.tree.children[4].children[3].children[1] | مُّبِينٌ | tk=naat gt=GT:irab_role:naat w=QR:WO:12:5:15 v=0 |  
+===  QR:SST:UT:C:QURAN:12:1-7:SS:308 22
+[0/265] 308:$.tree | كَذَٰلِكَ يَجْتَبِيكَ رَبُّكَ وَيُعَلِّمُكَ مِن تَأْوِيلِ الْأَحَادِيثِ | tk=None gt=None w=None v=0 |  
+  [1/428] 308:$.tree.children[0] | كَذَٰلِكَ | tk=None gt=None w=None v=0 | تمهيد تشبيهي 
+    [2/521] 308:$.tree.children[0].children[0] | كَ | tk=kaf_tashbih gt=GT:balagha_bayan:adat_tashbih w=None v=0 | كاف التشبيه 
+    [2/606] 308:$.tree.children[0].children[1] | ذَٰلِكَ | tk=ism_isharah gt=GT:pos:ishara w=None v=0 |  
+  [1/698] 308:$.tree.children[1] | يَجْتَبِيكَ رَبُّكَ | tk=None gt=None w=None v=0 | الاصطفاء 
+    [2/804] 308:$.tree.children[1].children[0] | يَجْتَبِيكَ | tk=jumlah_filiyyah gt=GT:sentence_class:filiyya w=None v=0 | فعل + مفعول به 
+      [3/928] 308:$.tree.children[1].children[0].children[0] | يَجْتَبِي | tk=fiil_mudari gt=GT:pos:fil w=None v=0 | فعل مضارع 
+      [3/1024] 308:$.tree.children[1].children[0].children[1] | كَ | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 |  
+    [2/1101] 308:$.tree.children[1].children[1] | رَبُّكَ | tk=fail_zahir gt=GT:irab_role:fail w=None v=0 |  
+      [3/1192] 308:$.tree.children[1].children[1].children[0] | رَبُّ | tk=mudaf gt=GT:irab_role:mudaf w=None v=0 |  
+      [3/1263] 308:$.tree.children[1].children[1].children[1] | كَ | tk=mudaf_ilayh gt=GT:irab_role:mudaf_ilayh w=None v=0 |  
+  [1/1344] 308:$.tree.children[2] | وَيُعَلِّمُكَ مِن تَأْوِيلِ الْأَحَادِيثِ | tk=None gt=None w=None v=0 | التعليم 
+    [2/1490] 308:$.tree.children[2].children[0] | وَيُعَلِّمُكَ | tk=jumlah_filiyyah gt=GT:sentence_class:filiyya w=None v=0 | فعل معطوف + مفعول به 
+      [3/1630] 308:$.tree.children[2].children[0].children[0] | وَ | tk=harf_atf gt=GT:pos:harf_atf w=None v=0 |  
+      [3/1704] 308:$.tree.children[2].children[0].children[1] | يُعَلِّمُ | tk=fiil_mudari gt=GT:pos:fil w=None v=0 | فعل مضارع 
+      [3/1800] 308:$.tree.children[2].children[0].children[2] | هو | tk=fail_mustatir gt=GT:irab_role:fail w=None v=0 | فاعل مستتر 
+      [3/1886] 308:$.tree.children[2].children[0].children[3] | كَ | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 |  
+    [2/1963] 308:$.tree.children[2].children[1] | مِن تَأْوِيلِ الْأَحَادِيثِ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 |  
+      [3/2110] 308:$.tree.children[2].children[1].children[0] | مِن | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 | حرف جر 
+      [3/2189] 308:$.tree.children[2].children[1].children[1] | تَأْوِيلِ الْأَحَادِيثِ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 | اسم مجرور بالإضافة 
+        [4/2344] 308:$.tree.children[2].children[1].children[1].children[0] | تَأْوِيلِ | tk=mudaf gt=GT:irab_role:mudaf w=None v=0 |  
+        [4/2425] 308:$.tree.children[2].children[1].children[1].children[1] | الْأَحَادِيثِ | tk=mudaf_ilayh gt=GT:irab_role:mudaf_ilayh w=None v=0 |  
+===  QR:SST:UT:C:QURAN:12:1-7:SS:309 34
+[0/264] 309:$.tree | وَيُتِمُّ نِعْمَتَهُ عَلَيْكَ وَعَلَىٰ آلِ يَعْقُوبَ كَمَا أَتَمَّهَا عَلَىٰ أَبَوَيْكَ مِن قَبْلُ إِبْرَاهِيمَ وَإِسْحَاقَ | tk=None gt=None w=None v=0 |  
+  [1/524] 309:$.tree.children[0] | وَيُتِمُّ نِعْمَتَهُ | tk=None gt=None w=None v=0 | إتمام النعمة 
+    [2/640] 309:$.tree.children[0].children[0] | وَيُتِمُّ | tk=fiil_mudari gt=GT:pos:fil w=None v=0 | فعل مضارع معطوف 
+      [3/759] 309:$.tree.children[0].children[0].children[0] | وَ | tk=harf_atf gt=GT:pos:harf_atf w=None v=0 |  
+      [3/834] 309:$.tree.children[0].children[0].children[1] | يُتِمُّ | tk=fiil_mudari gt=GT:pos:fil w=None v=0 | فعل مضارع 
+      [3/927] 309:$.tree.children[0].children[0].children[2] | هو | tk=fail_mustatir gt=GT:irab_role:fail w=None v=0 | فاعل مستتر 
+    [2/1014] 309:$.tree.children[0].children[1] | نِعْمَتَهُ | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 |  
+      [3/1120] 309:$.tree.children[0].children[1].children[0] | نِعْمَةَ | tk=mudaf gt=GT:irab_role:mudaf w=None v=0 |  
+      [3/1199] 309:$.tree.children[0].children[1].children[1] | هُ | tk=mudaf_ilayh gt=GT:irab_role:mudaf_ilayh w=None v=0 |  
+  [1/1281] 309:$.tree.children[1] | عَلَيْكَ وَعَلَىٰ آلِ يَعْقُوبَ | tk=None gt=None w=None v=0 | مجال النعمة 
+    [2/1415] 309:$.tree.children[1].children[0] | عَلَيْكَ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=QR:WO:12:6:10 v=0 |  
+    [2/1514] 309:$.tree.children[1].children[1] | وَعَلَىٰ آلِ يَعْقُوبَ | tk=maatuf gt=GT:irab_role:maatuf w=None v=0 |  
+      [3/1634] 309:$.tree.children[1].children[1].children[0] | وَعَلَىٰ | tk=harf_atf gt=GT:pos:harf_atf w=QR:WO:12:6:11 v=0 | حرف عطف + حرف جر 
+      [3/1736] 309:$.tree.children[1].children[1].children[1] | آلِ يَعْقُوبَ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 | اسم مجرور بالإضافة 
+        [4/1872] 309:$.tree.children[1].children[1].children[1].children[0] | آلِ | tk=mudaf gt=GT:irab_role:mudaf w=None v=0 |  
+        [4/1941] 309:$.tree.children[1].children[1].children[1].children[1] | يَعْقُوبَ | tk=mudaf_ilayh gt=GT:irab_role:mudaf_ilayh w=QR:WO:12:6:13 v=0 |  
+  [1/2039] 309:$.tree.children[2] | كَمَا أَتَمَّهَا عَلَىٰ أَبَوَيْكَ مِن قَبْلُ إِبْرَاهِيمَ وَإِسْحَاقَ | tk=None gt=None w=None v=0 | المقارنة التاريخية 
+    [2/2261] 309:$.tree.children[2].children[0] | كَمَا أَتَمَّهَا | tk=jumlah_tashbih gt=GT:balagha_bayan:tashbih w=None v=0 | بداية المقارنة 
+      [3/2397] 309:$.tree.children[2].children[0].children[0] | كَمَا | tk=harf_tashbih gt=GT:balagha_bayan:adat_tashbih w=QR:WO:12:6:14 v=0 | أداة تشبيه 
+      [3/2489] 309:$.tree.children[2].children[0].children[1] | أَتَمَّهَا | tk=fiil_madi gt=GT:pos:fil w=None v=0 | فعل ماض + مفعول به 
+        [4/2613] 309:$.tree.children[2].children[0].children[1].children[0] | أَتَمَّ | tk=fiil_madi gt=GT:pos:fil w=None v=0 | فعل ماض 
+        [4/2701] 309:$.tree.children[2].children[0].children[1].children[1] | هو | tk=fail_mustatir gt=GT:irab_role:fail w=None v=0 | فاعل مستتر 
+        [4/2789] 309:$.tree.children[2].children[0].children[1].children[2] | هَا | tk=maful_bih gt=GT:irab_role:maful_bih w=None v=0 |  
+    [2/2870] 309:$.tree.children[2].children[1] | عَلَىٰ أَبَوَيْكَ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 | متعلق الفعل 
+      [3/3001] 309:$.tree.children[2].children[1].children[0] | عَلَىٰ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=QR:WO:12:6:16 v=0 | حرف جر 
+      [3/3088] 309:$.tree.children[2].children[1].children[1] | أَبَوَيْكَ | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 | اسم مجرور 
+        [4/3202] 309:$.tree.children[2].children[1].children[1].children[0] | أَبَوَيْ | tk=mudaf gt=GT:irab_role:mudaf w=None v=0 |  
+        [4/3282] 309:$.tree.children[2].children[1].children[1].children[1] | كَ | tk=mudaf_ilayh gt=GT:irab_role:mudaf_ilayh w=None v=0 |  
+    [2/3365] 309:$.tree.children[2].children[2] | مِن قَبْلُ | tk=zarf_zaman gt=GT:harf_maani:zarf_zaman w=None v=0 |  
+      [3/3471] 309:$.tree.children[2].children[2].children[0] | مِن | tk=jar_wa_majrur gt=GT:irab_role:jarr_majrur w=None v=0 | حرف جر 
+      [3/3551] 309:$.tree.children[2].children[2].children[1] | قَبْلُ | tk=zarf_zaman gt=GT:harf_maani:zarf_zaman w=QR:WO:12:6:19 v=0 |  
+    [2/3639] 309:$.tree.children[2].children[3] | إِبْرَاهِيمَ وَإِسْحَاقَ | tk=badal gt=GT:irab_role:badal w=None v=0 | بدل ومعطوف 
+      [3/3773] 309:$.tree.children[2].children[3].children[0] | إِبْرَاهِيمَ | tk=badal gt=GT:irab_role:badal w=None v=0 |  
+      [3/3857] 309:$.tree.children[2].children[3].children[1] | وَإِسْحَاقَ | tk=maatuf gt=GT:irab_role:maatuf w=None v=0 |  

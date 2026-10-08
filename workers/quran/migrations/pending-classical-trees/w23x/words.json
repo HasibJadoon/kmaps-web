@@ -1,0 +1,2582 @@
+[
+{
+"id": "44e37bb4ea777c06d9a9a4c875",
+"ayah": 41,
+"word_index": 1,
+"word_text": "وَيَاقَوْمِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:qawom|ROOT:qwm|M|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "1deadfba966c52482b206bc903",
+"ayah": 41,
+"word_index": 2,
+"word_text": "مَا",
+"pos": "REL",
+"morphology_tag": "STEM|POS:REL|LEM:maA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "fed71eca1a9201566f6e468826",
+"ayah": 41,
+"word_index": 3,
+"word_text": "لِي",
+"pos": "PRON",
+"morphology_tag": "STEM|POS:PRON|1S",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "fa2da26749dc592229a6e2ed5a",
+"ayah": 41,
+"word_index": 4,
+"word_text": "أَدْعُوكُمْ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:daEaA|ROOT:dEw|1S",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "468826a86e95dc48e7509acdb0",
+"ayah": 41,
+"word_index": 5,
+"word_text": "إِلَى",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:<ilaY`",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "959ed07535d996f65a2592698f",
+"ayah": 41,
+"word_index": 6,
+"word_text": "النَّجَاةِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:n~ajaw`p|ROOT:njw|F|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "f4fcbc7de66d915b89c12cbd41",
+"ayah": 41,
+"word_index": 7,
+"word_text": "وَتَدْعُونَنِي",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:daEaA|ROOT:dEw|2MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "38f5b3a568293d055fd935a82b",
+"ayah": 41,
+"word_index": 8,
+"word_text": "إِلَى",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:<ilaY`",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "f11fa9dc417d8d7a505d6cb4fc",
+"ayah": 41,
+"word_index": 9,
+"word_text": "النَّارِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:naAr|ROOT:nwr|F|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "b25d711a137d3fa17524307490",
+"ayah": 42,
+"word_index": 1,
+"word_text": "تَدْعُونَنِي",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:daEaA|ROOT:dEw|2MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "4dc8b146eac032ddc2b52b05d3",
+"ayah": 42,
+"word_index": 2,
+"word_text": "لِأَكْفُرَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:kafara|ROOT:kfr|1S|MOOD:SUBJ",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "3c513c71853ac5551aed76941c",
+"ayah": 42,
+"word_index": 3,
+"word_text": "بِاللَّهِ",
+"pos": "PN",
+"morphology_tag": "STEM|POS:PN|LEM:{ll~ah|ROOT:Alh|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "df6cf876f8690af6f34ddf7bcd",
+"ayah": 42,
+"word_index": 4,
+"word_text": "وَأُشْرِكَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|(IV)|LEM:>a$oraka|ROOT:$rk|1S|MOOD:SUBJ",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "0c918c28fd58d7c7bcc0405f0a",
+"ayah": 42,
+"word_index": 5,
+"word_text": "بِهِ",
+"pos": "PRON",
+"morphology_tag": "STEM|POS:PRON|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "f3943c2ecab317c4dd445ae8d7",
+"ayah": 42,
+"word_index": 6,
+"word_text": "مَا",
+"pos": "REL",
+"morphology_tag": "STEM|POS:REL|LEM:maA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "7c2ceb8b235fa3c103470e1a32",
+"ayah": 42,
+"word_index": 7,
+"word_text": "لَيْسَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|LEM:l~ayosa|ROOT:lys|SP:kaAn|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "513c5df3d81863b2cb77ac7bc6",
+"ayah": 42,
+"word_index": 8,
+"word_text": "لِي",
+"pos": "PRON",
+"morphology_tag": "STEM|POS:PRON|1S",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "08c060f7e68c3473512a0eba11",
+"ayah": 42,
+"word_index": 9,
+"word_text": "بِهِ",
+"pos": "PRON",
+"morphology_tag": "STEM|POS:PRON|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "307d86e211975366d30809e8ff",
+"ayah": 42,
+"word_index": 10,
+"word_text": "عِلْمٌ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:Eilom|ROOT:Elm|M|INDEF|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "21a1f01204160f865b8556587b",
+"ayah": 42,
+"word_index": 11,
+"word_text": "وَأَنَا",
+"pos": "PRON",
+"morphology_tag": "STEM|POS:PRON|1S",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "a70f9fcef02700250c6185ab03",
+"ayah": 42,
+"word_index": 12,
+"word_text": "أَدْعُوكُمْ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:daEaA|ROOT:dEw|1S",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "6c0822aa729e9ea40060f642be",
+"ayah": 42,
+"word_index": 13,
+"word_text": "إِلَى",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:<ilaY`",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "33dc0cdae271ae13c55a2160f5",
+"ayah": 42,
+"word_index": 14,
+"word_text": "الْعَزِيزِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:Eaziyz|ROOT:Ezz|MS|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "b9c420d2320a5c3056d78df34b",
+"ayah": 42,
+"word_index": 15,
+"word_text": "الْغَفَّارِ",
+"pos": "ADJ",
+"morphology_tag": "STEM|POS:ADJ|LEM:gaf~aAr|ROOT:gfr|MS|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "2a08c942319a413ddc38155176",
+"ayah": 43,
+"word_index": 1,
+"word_text": "لَا",
+"pos": "NEG",
+"morphology_tag": "STEM|POS:NEG|LEM:laA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "d3540fffc243fc5b599159b8df",
+"ayah": 43,
+"word_index": 2,
+"word_text": "جَرَمَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:jaram|ROOT:jrm|M|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "4da8325cac0e4a3d921f1e4cfb",
+"ayah": 43,
+"word_index": 3,
+"word_text": "أَنَّمَا",
+"pos": "ACC",
+"morphology_tag": "STEM|POS:ACC|LEM:>an~|SP:<in~",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "eacb5bb8a78a85601e96a88540",
+"ayah": 43,
+"word_index": 4,
+"word_text": "تَدْعُونَنِي",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:daEaA|ROOT:dEw|2MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "d1a14479ad7eccde33d3204c0a",
+"ayah": 43,
+"word_index": 5,
+"word_text": "إِلَيْهِ",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:<ilaY`",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "ac981180bb0b5fab8244133921",
+"ayah": 43,
+"word_index": 6,
+"word_text": "لَيْسَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|LEM:l~ayosa|ROOT:lys|SP:kaAn|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "54906834d609a07c1d56597789",
+"ayah": 43,
+"word_index": 7,
+"word_text": "لَهُ",
+"pos": "PRON",
+"morphology_tag": "STEM|POS:PRON|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "b434c4e6f1d7dabea6b49eb928",
+"ayah": 43,
+"word_index": 8,
+"word_text": "دَعْوَةٌ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:daEowap|ROOT:dEw|F|INDEF|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "7dc921c3a8ed248d27378ecb3c",
+"ayah": 43,
+"word_index": 9,
+"word_text": "فِي",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:fiY",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "7bdc23e423ae2b3feb03514e0d",
+"ayah": 43,
+"word_index": 10,
+"word_text": "الدُّنْيَا",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:d~unoyaA|ROOT:dnw|FS|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "00f7e3ccf118b48330519fb588",
+"ayah": 43,
+"word_index": 11,
+"word_text": "وَلَا",
+"pos": "NEG",
+"morphology_tag": "STEM|POS:NEG|LEM:laA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "57ced9462a3bea29d853be5406",
+"ayah": 43,
+"word_index": 12,
+"word_text": "فِي",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:fiY",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "0dde506dc12d0cde7d58c41872",
+"ayah": 43,
+"word_index": 13,
+"word_text": "الْآخِرَةِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:A^xir|ROOT:Axr|FS|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "d012a2d5ee65b1865de2f7ed5a",
+"ayah": 43,
+"word_index": 14,
+"word_text": "وَأَنَّ",
+"pos": "ACC",
+"morphology_tag": "STEM|POS:ACC|LEM:>an~|SP:<in~",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "9fcc66ab04ad08425d8fd9be17",
+"ayah": 43,
+"word_index": 15,
+"word_text": "مَرَدَّنَا",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:marad~|ROOT:rdd|M|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "1c79a96948cf6c89467187ff96",
+"ayah": 43,
+"word_index": 16,
+"word_text": "إِلَى",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:<ilaY`",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "9c0c7f90e8919de2cb138097a7",
+"ayah": 43,
+"word_index": 17,
+"word_text": "اللَّهِ",
+"pos": "PN",
+"morphology_tag": "STEM|POS:PN|LEM:{ll~ah|ROOT:Alh|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "4d7c73e8182a0d89cf622da605",
+"ayah": 43,
+"word_index": 18,
+"word_text": "وَأَنَّ",
+"pos": "ACC",
+"morphology_tag": "STEM|POS:ACC|LEM:>an~|SP:<in~",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "8ffd5cd71a88744d0e8d93a968",
+"ayah": 43,
+"word_index": 19,
+"word_text": "الْمُسْرِفِينَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|ACT|PCPL|(IV)|LEM:musorif|ROOT:srf|MP|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "62518a534afec5b57c71a1cb8d",
+"ayah": 43,
+"word_index": 20,
+"word_text": "هُمْ",
+"pos": "PRON",
+"morphology_tag": "STEM|POS:PRON|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "693355b5fc83c456e797111904",
+"ayah": 43,
+"word_index": 21,
+"word_text": "أَصْحَابُ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:>aSoHa`b|ROOT:SHb|MP|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "359f3e026dc2bf38d32f2dc326",
+"ayah": 43,
+"word_index": 22,
+"word_text": "النَّارِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:naAr|ROOT:nwr|F|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "77c019cd8e82fadf511a606268",
+"ayah": 44,
+"word_index": 1,
+"word_text": "فَسَتَذْكُرُونَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:*akara|ROOT:*kr|2MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "42cb4f83da32e221b919587185",
+"ayah": 44,
+"word_index": 2,
+"word_text": "مَا",
+"pos": "REL",
+"morphology_tag": "STEM|POS:REL|LEM:maA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "740a957c7e5144dab1e7e645b5",
+"ayah": 44,
+"word_index": 3,
+"word_text": "أَقُولُ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:qaAla|ROOT:qwl|1S",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "6c4cd10bbe9073da8555cd9504",
+"ayah": 44,
+"word_index": 4,
+"word_text": "لَكُمْ",
+"pos": "PRON",
+"morphology_tag": "STEM|POS:PRON|2MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "8325a25ea470653e635e3d7458",
+"ayah": 44,
+"word_index": 5,
+"word_text": "وَأُفَوِّضُ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|(II)|LEM:>ufaw~iDu|ROOT:fwD|1S",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "f7f72f02fd2371890cdcb8b881",
+"ayah": 44,
+"word_index": 6,
+"word_text": "أَمْرِي",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:>amor|ROOT:Amr|M|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "7b91d1240aeb580bf359158c95",
+"ayah": 44,
+"word_index": 7,
+"word_text": "إِلَى",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:<ilaY`",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "2bc3c36c875731239646ba1c61",
+"ayah": 44,
+"word_index": 8,
+"word_text": "اللَّهِ",
+"pos": "PN",
+"morphology_tag": "STEM|POS:PN|LEM:{ll~ah|ROOT:Alh|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "ef0ce4321b617d30fa76c6143e",
+"ayah": 44,
+"word_index": 9,
+"word_text": "إِنَّ",
+"pos": "ACC",
+"morphology_tag": "STEM|POS:ACC|LEM:<in~|SP:<in~",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "684ad87c2f39fbfcdc09be48bd",
+"ayah": 44,
+"word_index": 10,
+"word_text": "اللَّهَ",
+"pos": "PN",
+"morphology_tag": "STEM|POS:PN|LEM:{ll~ah|ROOT:Alh|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "cc3dacb077cda097d008ce3a96",
+"ayah": 44,
+"word_index": 11,
+"word_text": "بَصِيرٌ",
+"pos": "ADJ",
+"morphology_tag": "STEM|POS:ADJ|LEM:baSiyr|ROOT:bSr|MS|INDEF|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "75ae62777c59e4106fcd821e7f",
+"ayah": 44,
+"word_index": 12,
+"word_text": "بِالْعِبَادِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:Eabod|ROOT:Ebd|MP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "8fee2f4921a93274414aa88d8f",
+"ayah": 45,
+"word_index": 1,
+"word_text": "فَوَقَاهُ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|LEM:waqaY`|ROOT:wqy|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "746db50cced2da52ea1051e5a3",
+"ayah": 45,
+"word_index": 2,
+"word_text": "اللَّهُ",
+"pos": "PN",
+"morphology_tag": "STEM|POS:PN|LEM:{ll~ah|ROOT:Alh|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "01396c29e31c2e20e680022a69",
+"ayah": 45,
+"word_index": 3,
+"word_text": "سَيِّئَاتِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:say~i_#aAt|ROOT:swA|FP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "858758519db1f965104564ef1b",
+"ayah": 45,
+"word_index": 4,
+"word_text": "مَا",
+"pos": "REL",
+"morphology_tag": "STEM|POS:REL|LEM:maA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "d18747f53cc4982c7f977332f8",
+"ayah": 45,
+"word_index": 5,
+"word_text": "مَكَرُوا",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|LEM:makara|ROOT:mkr|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "14e39c06aab175272587646917",
+"ayah": 45,
+"word_index": 6,
+"word_text": "وَحَاقَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|LEM:HaAqa|ROOT:Hyq|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "ed62a7153845e71a101f6be251",
+"ayah": 45,
+"word_index": 7,
+"word_text": "بِآلِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:'aAl|ROOT:Awl|M|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "862333950f206855a678422e83",
+"ayah": 45,
+"word_index": 8,
+"word_text": "فِرْعَوْنَ",
+"pos": "PN",
+"morphology_tag": "STEM|POS:PN|LEM:firoEawon|M|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "475eb6213f4c59470315c39b0c",
+"ayah": 45,
+"word_index": 9,
+"word_text": "سُوءُ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:suw^'|ROOT:swA|M|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "ad8f02874a661c52fe1b7529a3",
+"ayah": 45,
+"word_index": 10,
+"word_text": "الْعَذَابِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:Ea*aAb|ROOT:E*b|M|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "50f708236c926a68466bbc00ba",
+"ayah": 46,
+"word_index": 1,
+"word_text": "النَّارُ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:naAr|ROOT:nwr|F|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "9d2c9409e466efccecf719ce77",
+"ayah": 46,
+"word_index": 2,
+"word_text": "يُعْرَضُونَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:EaraDa|ROOT:ErD|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "dc85f18b5826f0a32d74c4cca4",
+"ayah": 46,
+"word_index": 3,
+"word_text": "عَلَيْهَا",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:EalaY`",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "9e38b33ba7d0aebf3c5605e15e",
+"ayah": 46,
+"word_index": 4,
+"word_text": "غُدُوَّاً",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:guduw~|ROOT:gdw|M|INDEF|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "a43979eae1bb43e78b953b8d27",
+"ayah": 46,
+"word_index": 5,
+"word_text": "وَعَشِيَّاً",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:Ea$iY~|ROOT:E$w|M|INDEF|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "30034a7da002b18e11ce8a85f4",
+"ayah": 46,
+"word_index": 6,
+"word_text": "وَيَوْمَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:yawom|ROOT:ywm|M|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "e1eb68d5d920e0e753434dfae6",
+"ayah": 46,
+"word_index": 7,
+"word_text": "تَقُومُ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:qaAma|ROOT:qwm|3FS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "94a9119f864bf1c0ad1b35143a",
+"ayah": 46,
+"word_index": 8,
+"word_text": "السَّاعَةُ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:saAEap|ROOT:swE|F|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "c4592d480858558988e9192b72",
+"ayah": 46,
+"word_index": 9,
+"word_text": "أَدْخِلُوا",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPV|(IV)|LEM:>udoxila|ROOT:dxl|2MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "146a23f205b8a2ae083407728c",
+"ayah": 46,
+"word_index": 10,
+"word_text": "آلَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:'aAl|ROOT:Awl|M|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "a9a715cc433358bdf57ce24e61",
+"ayah": 46,
+"word_index": 11,
+"word_text": "فِرْعَوْنَ",
+"pos": "PN",
+"morphology_tag": "STEM|POS:PN|LEM:firoEawon|M|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "da9b39c0baca77b29e9b36b63c",
+"ayah": 46,
+"word_index": 12,
+"word_text": "أَشَدَّ",
+"pos": "ADJ",
+"morphology_tag": "STEM|POS:ADJ|LEM:>a$ad~|ROOT:$dd|MS|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "859db0562b65dd768c30636c9e",
+"ayah": 46,
+"word_index": 13,
+"word_text": "الْعَذَابِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:Ea*aAb|ROOT:E*b|M|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "b720001d603200393b8ff401e9",
+"ayah": 47,
+"word_index": 1,
+"word_text": "وَإِذْ",
+"pos": "T",
+"morphology_tag": "STEM|POS:T|LEM:<i*",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "7d4683af5ca720f18b54d90731",
+"ayah": 47,
+"word_index": 2,
+"word_text": "يَتَحَاجُّونَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|(VI)|LEM:yataHaA^j~u|ROOT:Hjj|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "bd5689afcf2f98bc90fadd6286",
+"ayah": 47,
+"word_index": 3,
+"word_text": "فِي",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:fiY",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "0d0098fbe5e6da3e73e52f9d25",
+"ayah": 47,
+"word_index": 4,
+"word_text": "النَّارِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:naAr|ROOT:nwr|F|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "12e8181e54d1218639d17b265e",
+"ayah": 47,
+"word_index": 5,
+"word_text": "فَيَقُولُ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:qaAla|ROOT:qwl|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "9e16b2793641b300f55bf8acd1",
+"ayah": 47,
+"word_index": 6,
+"word_text": "الضُّعَفَاءُ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:DaEiyf|ROOT:DEf|MP|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "374511ae458ef7537b2bc96b19",
+"ayah": 47,
+"word_index": 7,
+"word_text": "لِلَّذِينَ",
+"pos": "REL",
+"morphology_tag": "STEM|POS:REL|LEM:{l~a*iY|MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "509a49418ae1ccdff83b327d1e",
+"ayah": 47,
+"word_index": 8,
+"word_text": "اسْتَكْبَرُوا",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|(X)|LEM:{sotakobara|ROOT:kbr|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "02835f6b17e90df0f379ddec4c",
+"ayah": 47,
+"word_index": 9,
+"word_text": "إِنَّا",
+"pos": "ACC",
+"morphology_tag": "STEM|POS:ACC|LEM:<in~|SP:<in~",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "fb31895df9f7a179810cef7979",
+"ayah": 47,
+"word_index": 10,
+"word_text": "كُنَّا",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|LEM:kaAna|ROOT:kwn|SP:kaAn|1P",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "a75ce9cc120a7a3f1f9fcebb7a",
+"ayah": 47,
+"word_index": 11,
+"word_text": "لَكُمْ",
+"pos": "PRON",
+"morphology_tag": "STEM|POS:PRON|2MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "8f3e15506d66a34831bae7a45d",
+"ayah": 47,
+"word_index": 12,
+"word_text": "تَبَعَاً",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:tabaE|ROOT:tbE|M|INDEF|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "c4b0984f10e90cdb3cae6c8ee2",
+"ayah": 47,
+"word_index": 13,
+"word_text": "فَهَلْ",
+"pos": "INTG",
+"morphology_tag": "STEM|POS:INTG|LEM:hal",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "97cd5e0f19e803ef5c4654cce2",
+"ayah": 47,
+"word_index": 14,
+"word_text": "أَنْتُمْ",
+"pos": "PRON",
+"morphology_tag": "STEM|POS:PRON|2MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "0b41a41927419731b783c18a35",
+"ayah": 47,
+"word_index": 15,
+"word_text": "مُغْنُونَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|ACT|PCPL|(IV)|LEM:m~ugonuwn|ROOT:gny|MP|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "fe374bd8d41791fea1edba0d0d",
+"ayah": 47,
+"word_index": 16,
+"word_text": "عَنَّا",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:Ean",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "4c7b7aa98b7375c0bb8489ff8f",
+"ayah": 47,
+"word_index": 17,
+"word_text": "نَصِيبَاً",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:naSiyb|ROOT:nSb|M|INDEF|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "e6586ebf10e2434d6f163818d4",
+"ayah": 47,
+"word_index": 18,
+"word_text": "مِنَ",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:min",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "9fca141cda099e1648ca29d997",
+"ayah": 47,
+"word_index": 19,
+"word_text": "النَّارِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:naAr|ROOT:nwr|F|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "907d1eaa3a116e1ad5e675cffb",
+"ayah": 48,
+"word_index": 1,
+"word_text": "قَالَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|LEM:qaAla|ROOT:qwl|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "f549f0d8563ffa9b5867aa2192",
+"ayah": 48,
+"word_index": 2,
+"word_text": "الَّذِينَ",
+"pos": "REL",
+"morphology_tag": "STEM|POS:REL|LEM:{l~a*iY|MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "70d9e4a1afe11db3c9c0c9dda1",
+"ayah": 48,
+"word_index": 3,
+"word_text": "اسْتَكْبَرُوا",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|(X)|LEM:{sotakobara|ROOT:kbr|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "3a3106dce49657b0a3115621d5",
+"ayah": 48,
+"word_index": 4,
+"word_text": "إِنَّا",
+"pos": "ACC",
+"morphology_tag": "STEM|POS:ACC|LEM:<in~|SP:<in~",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "76df24900652d472d8bfd07520",
+"ayah": 48,
+"word_index": 5,
+"word_text": "كُلٌّ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:kul~|ROOT:kll|M|INDEF|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "5852f452cdf657eb05d0dbb645",
+"ayah": 48,
+"word_index": 6,
+"word_text": "فِيهَا",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:fiY",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "06608a805755a6ce2c6c84f0f9",
+"ayah": 48,
+"word_index": 7,
+"word_text": "إِنَّ",
+"pos": "ACC",
+"morphology_tag": "STEM|POS:ACC|LEM:<in~|SP:<in~",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "20c1982309cd51ec097846bf41",
+"ayah": 48,
+"word_index": 8,
+"word_text": "اللَّهَ",
+"pos": "PN",
+"morphology_tag": "STEM|POS:PN|LEM:{ll~ah|ROOT:Alh|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "8e01ed37b465e19af2b3dc0060",
+"ayah": 48,
+"word_index": 9,
+"word_text": "قَدْ",
+"pos": "CERT",
+"morphology_tag": "STEM|POS:CERT|LEM:qad",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "2e6f282c4bbb018cb07ee5f11f",
+"ayah": 48,
+"word_index": 10,
+"word_text": "حَكَمَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|LEM:Hakama|ROOT:Hkm|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "14835eaacd2a92c837b0d0cffc",
+"ayah": 48,
+"word_index": 11,
+"word_text": "بَيْنَ",
+"pos": "LOC",
+"morphology_tag": "STEM|POS:LOC|LEM:bayon|ROOT:byn|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "cf3fc6a07ffe577ebabb3a129a",
+"ayah": 48,
+"word_index": 12,
+"word_text": "الْعِبَادِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:Eabod|ROOT:Ebd|MP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "54172258c83b9aa56397f7931e",
+"ayah": 49,
+"word_index": 1,
+"word_text": "وَقَالَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|LEM:qaAla|ROOT:qwl|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "8cca541acd9c5a1d3fb0da486a",
+"ayah": 49,
+"word_index": 2,
+"word_text": "الَّذِينَ",
+"pos": "REL",
+"morphology_tag": "STEM|POS:REL|LEM:{l~a*iY|MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "68ae1830a9a0994a0b9e6f4f28",
+"ayah": 49,
+"word_index": 3,
+"word_text": "فِي",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:fiY",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "03666cebe202de66490d0944b8",
+"ayah": 49,
+"word_index": 4,
+"word_text": "النَّارِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:naAr|ROOT:nwr|F|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "4f211afd51adb796a32d5ca458",
+"ayah": 49,
+"word_index": 5,
+"word_text": "لِخَزَنَةِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:xazanat|ROOT:xzn|MP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "a783263c9dd27887d5d595c837",
+"ayah": 49,
+"word_index": 6,
+"word_text": "جَهَنَّمَ",
+"pos": "PN",
+"morphology_tag": "STEM|POS:PN|LEM:jahan~am|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "155044a1962a487cd54f645fa3",
+"ayah": 49,
+"word_index": 7,
+"word_text": "ادْعُوا",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPV|LEM:daEaA|ROOT:dEw|2MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "e649085acd88ae67af0850b705",
+"ayah": 49,
+"word_index": 8,
+"word_text": "رَبَّكُمْ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:rab~|ROOT:rbb|M|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "6ba4d0283787a54e0a990de6af",
+"ayah": 49,
+"word_index": 9,
+"word_text": "يُخَفِّفْ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|(II)|LEM:xaf~afa|ROOT:xff|3MS|MOOD:JUS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "fe7468801a1fbce51a85cade38",
+"ayah": 49,
+"word_index": 10,
+"word_text": "عَنَّا",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:Ean",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "f27945dc3bb949e18c4a02d15b",
+"ayah": 49,
+"word_index": 11,
+"word_text": "يَوْمَاً",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:yawom|ROOT:ywm|M|INDEF|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "ba5d24a41feb2ca78a28919d17",
+"ayah": 49,
+"word_index": 12,
+"word_text": "مِنَ",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:min",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "542e0ea5debf5c7eff16359bc8",
+"ayah": 49,
+"word_index": 13,
+"word_text": "الْعَذَابِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:Ea*aAb|ROOT:E*b|M|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "1ced1bc8b17e4898ff4e75cc19",
+"ayah": 50,
+"word_index": 1,
+"word_text": "قَالُوا",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|LEM:qaAla|ROOT:qwl|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "d9a912f4eb9519c1cec44e5c98",
+"ayah": 50,
+"word_index": 2,
+"word_text": "أَوَلَمْ",
+"pos": "NEG",
+"morphology_tag": "STEM|POS:NEG|LEM:lam",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "dd21cd396e792e2f0f23fe707a",
+"ayah": 50,
+"word_index": 3,
+"word_text": "تَكُ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:kaAna|ROOT:kwn|SP:kaAn|3FS|MOOD:JUS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "4515cc4fa1fba7b86d4783c4e4",
+"ayah": 50,
+"word_index": 4,
+"word_text": "تَأْتِيكُمْ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:>ataY|ROOT:Aty|3FS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "90c2663e6d4482a89c4088352c",
+"ayah": 50,
+"word_index": 5,
+"word_text": "رُسُلُكُمْ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:rasuwl|ROOT:rsl|MP|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "b5ac164ed09c2d10b7a2c75843",
+"ayah": 50,
+"word_index": 6,
+"word_text": "بِالْبَيِّنَاتِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:bay~inap|ROOT:byn|FP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "468503dca5fa7b9761ed4287d0",
+"ayah": 50,
+"word_index": 7,
+"word_text": "قَالُوا",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|LEM:qaAla|ROOT:qwl|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "5e6b5ed72b709895f57e6dd97a",
+"ayah": 50,
+"word_index": 8,
+"word_text": "بَلَى",
+"pos": "ANS",
+"morphology_tag": "STEM|POS:ANS|LEM:balaY`",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "8ffbaeb1fcee664a669a80dcf2",
+"ayah": 50,
+"word_index": 9,
+"word_text": "قَالُوا",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|LEM:qaAla|ROOT:qwl|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "985f8f3c64fb1ed80fb7f6656d",
+"ayah": 50,
+"word_index": 10,
+"word_text": "فَادْعُوا",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPV|LEM:daEaA|ROOT:dEw|2MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "24dd22acf980d9941c9f38b665",
+"ayah": 50,
+"word_index": 11,
+"word_text": "وَمَا",
+"pos": "NEG",
+"morphology_tag": "STEM|POS:NEG|LEM:maA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "6dcad6b5c0475ba0a2a4cf3b6c",
+"ayah": 50,
+"word_index": 12,
+"word_text": "دُعَاءُ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:duEaA^'|ROOT:dEw|M|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "ac6a09459d4eadcc4597f19b62",
+"ayah": 50,
+"word_index": 13,
+"word_text": "الْكَافِرِينَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|ACT|PCPL|LEM:ka`firuwn|ROOT:kfr|MP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "87272d339e14b58bc0d2564e28",
+"ayah": 50,
+"word_index": 14,
+"word_text": "إِلَّا",
+"pos": "RES",
+"morphology_tag": "STEM|POS:RES|LEM:<il~aA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "cacd392162a6bc31170bd31546",
+"ayah": 50,
+"word_index": 15,
+"word_text": "فِي",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:fiY",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "a836178d51fb83d5c6e719ae57",
+"ayah": 50,
+"word_index": 16,
+"word_text": "ضَلَالٍ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:Dala`l|ROOT:Dll|M|INDEF|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "86db7ff2905bfb5e3160208e95",
+"ayah": 51,
+"word_index": 1,
+"word_text": "إِنَّا",
+"pos": "ACC",
+"morphology_tag": "STEM|POS:ACC|LEM:<in~|SP:<in~",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "57d374a9119f63727e3a728425",
+"ayah": 51,
+"word_index": 2,
+"word_text": "لَنَنْصُرُ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:naSara|ROOT:nSr|1P",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "f66ee474654e660232499c56c6",
+"ayah": 51,
+"word_index": 3,
+"word_text": "رُسُلَنَا",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:rasuwl|ROOT:rsl|MP|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "7f21b026318c286d01f349a0de",
+"ayah": 51,
+"word_index": 4,
+"word_text": "وَالَّذِينَ",
+"pos": "REL",
+"morphology_tag": "STEM|POS:REL|LEM:{l~a*iY|MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "e8b4e02d1ee20060865b964fb5",
+"ayah": 51,
+"word_index": 5,
+"word_text": "آمَنُوا",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|(IV)|LEM:'aAmana|ROOT:Amn|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "5ef8ed52bb6f4b31e76aec03ed",
+"ayah": 51,
+"word_index": 6,
+"word_text": "فِي",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:fiY",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "9281028e8be80d5fd1148cd885",
+"ayah": 51,
+"word_index": 7,
+"word_text": "الْحَيَاةِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:Hayaw`p|ROOT:Hyy|F|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "319b0756970278d997c32c0268",
+"ayah": 51,
+"word_index": 8,
+"word_text": "الدُّنْيَا",
+"pos": "ADJ",
+"morphology_tag": "STEM|POS:ADJ|LEM:d~unoyaA|ROOT:dnw|FS|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "cfafdaf0ba911290eb9b83eb14",
+"ayah": 51,
+"word_index": 9,
+"word_text": "وَيَوْمَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:yawom|ROOT:ywm|M|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "e51376e63288fab9201d69d2bf",
+"ayah": 51,
+"word_index": 10,
+"word_text": "يَقُومُ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:qaAma|ROOT:qwm|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "844d967a7f8fd2f733e1d128ee",
+"ayah": 51,
+"word_index": 11,
+"word_text": "الْأَشْهَادُ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|ACT|PCPL|LEM:$aAhid|ROOT:$hd|MP|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "0eecae7e9fa750904a76f69d47",
+"ayah": 52,
+"word_index": 1,
+"word_text": "يَوْمَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:yawom|ROOT:ywm|M|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "9c29d71d370c4bd77b2b0f87e4",
+"ayah": 52,
+"word_index": 2,
+"word_text": "لَا",
+"pos": "NEG",
+"morphology_tag": "STEM|POS:NEG|LEM:laA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "89268c10d443f7c06ab7aade4a",
+"ayah": 52,
+"word_index": 3,
+"word_text": "يَنْفَعُ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:nafaEa|ROOT:nfE|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "e90cc89d6b1c52af90fa03260c",
+"ayah": 52,
+"word_index": 4,
+"word_text": "الظَّالِمِينَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|ACT|PCPL|LEM:ZaAlim|ROOT:Zlm|MP|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "2ba74f86adc05c50d37765f8fa",
+"ayah": 52,
+"word_index": 5,
+"word_text": "مَعْذِرَتُهُمْ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:maEo*irap|ROOT:E*r|F|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "b896a38e1daa86fe85e7dc7f58",
+"ayah": 52,
+"word_index": 6,
+"word_text": "وَلَهُمُ",
+"pos": "PRON",
+"morphology_tag": "STEM|POS:PRON|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "2d0fd943d3708be25e2d231192",
+"ayah": 52,
+"word_index": 7,
+"word_text": "اللَّعْنَةُ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:laEonap|ROOT:lEn|F|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "d32c0eec9c39b5aecabaedd307",
+"ayah": 52,
+"word_index": 8,
+"word_text": "وَلَهُمْ",
+"pos": "PRON",
+"morphology_tag": "STEM|POS:PRON|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "3a827b00a44c02db26255c10ce",
+"ayah": 52,
+"word_index": 9,
+"word_text": "سُوءُ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:suw^'|ROOT:swA|M|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "9cb6b98ea91bfb810678df6701",
+"ayah": 52,
+"word_index": 10,
+"word_text": "الدَّارِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:daAr|ROOT:dwr|FS|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "e64262c5aa436a1dca45c7b3ac",
+"ayah": 53,
+"word_index": 1,
+"word_text": "وَلَقَدْ",
+"pos": "CERT",
+"morphology_tag": "STEM|POS:CERT|LEM:qad",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "862e23311f32a7267d20eec0c6",
+"ayah": 53,
+"word_index": 2,
+"word_text": "آتَيْنَا",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|(IV)|LEM:A^taY|ROOT:Aty|1P",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "e89d3dc492f130a6c8c64958dc",
+"ayah": 53,
+"word_index": 3,
+"word_text": "مُوسَى",
+"pos": "PN",
+"morphology_tag": "STEM|POS:PN|LEM:muwsaY`|M|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "504d37db0700107e444b6d3580",
+"ayah": 53,
+"word_index": 4,
+"word_text": "الْهُدَى",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:hudFY|ROOT:hdy|M|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "6b3fbd2c4d4cd67a8ccc2f0419",
+"ayah": 53,
+"word_index": 5,
+"word_text": "وَأَوْرَثْنَا",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|(IV)|LEM:>aworava|ROOT:wrv|1P",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "c6313356742e6626e985305548",
+"ayah": 53,
+"word_index": 6,
+"word_text": "بَنِي",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:bunaY~|ROOT:bny|MP|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "12828b379cabab8be0c556d15e",
+"ayah": 53,
+"word_index": 7,
+"word_text": "إِسْرَائِيلَ",
+"pos": "PN",
+"morphology_tag": "STEM|POS:PN|LEM:<isoraA}iyl|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "4c48127d67c12a7effedae8644",
+"ayah": 53,
+"word_index": 8,
+"word_text": "الْكِتَابَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:kita`b|ROOT:ktb|M|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "8875c747fb20b2248a9c709ff0",
+"ayah": 54,
+"word_index": 1,
+"word_text": "هُدَىً",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:hudFY|ROOT:hdy|M|INDEF|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "eba1a22d7ba6ac4a7d175e9b32",
+"ayah": 54,
+"word_index": 2,
+"word_text": "وَذِكْرَى",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:*ikoraY`|ROOT:*kr|F|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "d3c144382475917316c862b002",
+"ayah": 54,
+"word_index": 3,
+"word_text": "لِأُولِي",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:>uwliY|ROOT:Awl|MP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "a4ad43ccaaee87c43af04858ab",
+"ayah": 54,
+"word_index": 4,
+"word_text": "الْأَلْبَابِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:>aloba`b|ROOT:lbb|MP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "ded3986ca8b4f0355fc5270d0d",
+"ayah": 55,
+"word_index": 1,
+"word_text": "فَاصْبِرْ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPV|LEM:Sabara|ROOT:Sbr|2MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "2b230e7d7caedfc0bb7d5434b5",
+"ayah": 55,
+"word_index": 2,
+"word_text": "إِنَّ",
+"pos": "ACC",
+"morphology_tag": "STEM|POS:ACC|LEM:<in~|SP:<in~",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "857bc3c0f35ee1c9d89b0ea9f0",
+"ayah": 55,
+"word_index": 3,
+"word_text": "وَعْدَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:waEod|ROOT:wEd|M|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "1e896a41f6e6e15c2d46e9f309",
+"ayah": 55,
+"word_index": 4,
+"word_text": "اللَّهِ",
+"pos": "PN",
+"morphology_tag": "STEM|POS:PN|LEM:{ll~ah|ROOT:Alh|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "06ef603a9e15acc2cfb475fd72",
+"ayah": 55,
+"word_index": 5,
+"word_text": "حَقٌّ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:Haq~|ROOT:Hqq|M|INDEF|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "4f870b83fc1d3568f84bd9d5eb",
+"ayah": 55,
+"word_index": 6,
+"word_text": "وَاسْتَغْفِرْ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPV|(X)|LEM:{sotagofara|ROOT:gfr|2MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "fe0ec3592fe220746e643ef3d3",
+"ayah": 55,
+"word_index": 7,
+"word_text": "لِذَنْبِكَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:*anb|ROOT:*nb|M|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "216b8b608db8fe07aa7fa667ce",
+"ayah": 55,
+"word_index": 8,
+"word_text": "وَسَبِّحْ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPV|(II)|LEM:sab~aHa|ROOT:sbH|2MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "654482d1dbcfbacada15d349c4",
+"ayah": 55,
+"word_index": 9,
+"word_text": "بِحَمْدِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:Hamod|ROOT:Hmd|M|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "e7a163f5a965f24b42459b6682",
+"ayah": 55,
+"word_index": 10,
+"word_text": "رَبِّكَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:rab~|ROOT:rbb|M|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "93e5a8d323fdbeaa21336ac90b",
+"ayah": 55,
+"word_index": 11,
+"word_text": "بِالْعَشِيِّ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:Ea$iY~|ROOT:E$w|M|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "9b505f94ad866564405e89798d",
+"ayah": 55,
+"word_index": 12,
+"word_text": "وَالْإِبْكَارِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:<iboka`r|ROOT:bkr|M|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "38adb8cfe94fa328aecfceeb5d",
+"ayah": 56,
+"word_index": 1,
+"word_text": "إِنَّ",
+"pos": "ACC",
+"morphology_tag": "STEM|POS:ACC|LEM:<in~|SP:<in~",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "ff85e1a414255689c0ff8086e2",
+"ayah": 56,
+"word_index": 2,
+"word_text": "الَّذِينَ",
+"pos": "REL",
+"morphology_tag": "STEM|POS:REL|LEM:{l~a*iY|MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "f71d287ed47bf1de96bb549aa8",
+"ayah": 56,
+"word_index": 3,
+"word_text": "يُجَادِلُونَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|(III)|LEM:ja`dalu|ROOT:jdl|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "cd7c44cac3fb8060fad172826f",
+"ayah": 56,
+"word_index": 4,
+"word_text": "فِي",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:fiY",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "18deb1b9e1a2a5a2a87378de8a",
+"ayah": 56,
+"word_index": 5,
+"word_text": "آيَاتِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:'aAyap|ROOT:Ayy|FP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "a0283a8043015a8e548956a19d",
+"ayah": 56,
+"word_index": 6,
+"word_text": "اللَّهِ",
+"pos": "PN",
+"morphology_tag": "STEM|POS:PN|LEM:{ll~ah|ROOT:Alh|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "c6145a89a8403fbc34cf417069",
+"ayah": 56,
+"word_index": 7,
+"word_text": "بِغَيْرِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:gayor|ROOT:gyr|M|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "b6e608ded5dbe8960a504af1b0",
+"ayah": 56,
+"word_index": 8,
+"word_text": "سُلْطَانٍ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:suloTa`n|ROOT:slT|M|INDEF|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "c86c313fa6b153fe180e342f20",
+"ayah": 56,
+"word_index": 9,
+"word_text": "أَتَاهُمْ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|LEM:>ataY|ROOT:Aty|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "110a6dee53020b97cd99b60a66",
+"ayah": 56,
+"word_index": 10,
+"word_text": "إِنْ",
+"pos": "NEG",
+"morphology_tag": "STEM|POS:NEG|LEM:<in",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "ee88f35aaf4863b18e3223cfa0",
+"ayah": 56,
+"word_index": 11,
+"word_text": "فِي",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:fiY",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "7acfa1344792a71db246694a2c",
+"ayah": 56,
+"word_index": 12,
+"word_text": "صُدُورِهِمْ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:Sador|ROOT:Sdr|MP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "5a426f5adcac82ca861fb9ec4d",
+"ayah": 56,
+"word_index": 13,
+"word_text": "إِلَّا",
+"pos": "RES",
+"morphology_tag": "STEM|POS:RES|LEM:<il~aA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "f9ff6729a2be3c03e1b49c7649",
+"ayah": 56,
+"word_index": 14,
+"word_text": "كِبْرٌ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:kibor|ROOT:kbr|M|INDEF|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "47dc30b0e24fc3f0147b8bda29",
+"ayah": 56,
+"word_index": 15,
+"word_text": "مَا",
+"pos": "NEG",
+"morphology_tag": "STEM|POS:NEG|LEM:maA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "c34b15faf129b8808d4c23affe",
+"ayah": 56,
+"word_index": 16,
+"word_text": "هُمْ",
+"pos": "PRON",
+"morphology_tag": "STEM|POS:PRON|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "b4b10f4451e61c733e8dbc2c75",
+"ayah": 56,
+"word_index": 17,
+"word_text": "بِبَالِغِيهِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|ACT|PCPL|LEM:ba`lig|ROOT:blg|MP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "365cbea5897b18e988015fd2c4",
+"ayah": 56,
+"word_index": 18,
+"word_text": "فَاسْتَعِذْ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPV|(X)|LEM:{sotaEi*o|ROOT:Ew*|2MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "4eef75744a4066daf44e0fb02a",
+"ayah": 56,
+"word_index": 19,
+"word_text": "بِاللَّهِ",
+"pos": "PN",
+"morphology_tag": "STEM|POS:PN|LEM:{ll~ah|ROOT:Alh|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "8e387d44ca856359c10578e281",
+"ayah": 56,
+"word_index": 20,
+"word_text": "إِنَّهُ",
+"pos": "ACC",
+"morphology_tag": "STEM|POS:ACC|LEM:<in~|SP:<in~",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "e7fe8971ffc4bf8e955ef967bd",
+"ayah": 56,
+"word_index": 21,
+"word_text": "هُوَ",
+"pos": "PRON",
+"morphology_tag": "STEM|POS:PRON|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "8ce72246892f79da414e14055e",
+"ayah": 56,
+"word_index": 22,
+"word_text": "السَّمِيعُ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:samiyE|ROOT:smE|MS|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "ba4d33abf5e15c6e3e3643a22e",
+"ayah": 56,
+"word_index": 23,
+"word_text": "الْبَصِيرُ",
+"pos": "ADJ",
+"morphology_tag": "STEM|POS:ADJ|LEM:baSiyr|ROOT:bSr|MS|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "a050c9200c287f87fc9c42b804",
+"ayah": 57,
+"word_index": 1,
+"word_text": "لَخَلْقُ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:xaloq|ROOT:xlq|M|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "35ac18fa56d8a32948074e35f2",
+"ayah": 57,
+"word_index": 2,
+"word_text": "السَّمَاوَاتِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:samaA^'|ROOT:smw|FP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "b20db97ed4115cc8cc605c6ca9",
+"ayah": 57,
+"word_index": 3,
+"word_text": "وَالْأَرْضِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:>aroD|ROOT:ArD|F|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "49811b11234b458a1e6ab2ded1",
+"ayah": 57,
+"word_index": 4,
+"word_text": "أَكْبَرُ",
+"pos": "ADJ",
+"morphology_tag": "STEM|POS:ADJ|LEM:>akobar|ROOT:kbr|MS|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "f9ab7f57d033b62a973ef253bf",
+"ayah": 57,
+"word_index": 5,
+"word_text": "مِنْ",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:min",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "672174c19e6f8084449f5f0feb",
+"ayah": 57,
+"word_index": 6,
+"word_text": "خَلْقِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:xaloq|ROOT:xlq|M|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "593453b112b34af76f3bd44072",
+"ayah": 57,
+"word_index": 7,
+"word_text": "النَّاسِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:n~aAs|ROOT:nws|MP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "d37b4947b9b7e2ed131e97b27a",
+"ayah": 57,
+"word_index": 8,
+"word_text": "وَلَكِنَّ",
+"pos": "ACC",
+"morphology_tag": "STEM|POS:ACC|LEM:la`kin~|SP:<in~",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "3d98415d787690f98beed4dde8",
+"ayah": 57,
+"word_index": 9,
+"word_text": "أَكْثَرَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:>akovar|ROOT:kvr|MS|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "e05f4d5bf1b5e4d9b577bcbfca",
+"ayah": 57,
+"word_index": 10,
+"word_text": "النَّاسِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:n~aAs|ROOT:nws|MP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "ab0ae4f5d588acb0db15b8bfee",
+"ayah": 57,
+"word_index": 11,
+"word_text": "لَا",
+"pos": "NEG",
+"morphology_tag": "STEM|POS:NEG|LEM:laA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "957784774b285c3967eadf2587",
+"ayah": 57,
+"word_index": 12,
+"word_text": "يَعْلَمُونَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:Ealima|ROOT:Elm|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "781cbeac57a73b03a5e3156868",
+"ayah": 58,
+"word_index": 1,
+"word_text": "وَمَا",
+"pos": "NEG",
+"morphology_tag": "STEM|POS:NEG|LEM:maA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "ab905eb54753abf21903b08741",
+"ayah": 58,
+"word_index": 2,
+"word_text": "يَسْتَوِي",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|(VIII)|LEM:{sotawaY`^|ROOT:swy|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "46f0dbfd48701a193e0c5b714b",
+"ayah": 58,
+"word_index": 3,
+"word_text": "الْأَعْمَى",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:>aEomaY`|ROOT:Emy|M|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "52732fe09da8a6291cd61ca3c6",
+"ayah": 58,
+"word_index": 4,
+"word_text": "وَالْبَصِيرُ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:baSiyr|ROOT:bSr|MS|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "0f7f639c5c507f4853c744fa06",
+"ayah": 58,
+"word_index": 5,
+"word_text": "وَالَّذِينَ",
+"pos": "REL",
+"morphology_tag": "STEM|POS:REL|LEM:{l~a*iY|MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "3055a9de04f2578fb4ce32dbef",
+"ayah": 58,
+"word_index": 6,
+"word_text": "آمَنُوا",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|(IV)|LEM:'aAmana|ROOT:Amn|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "fd2f4df92351a95af6b2cea78a",
+"ayah": 58,
+"word_index": 7,
+"word_text": "وَعَمِلُوا",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|LEM:Eamila|ROOT:Eml|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "96e86114fca4857135d2fc5591",
+"ayah": 58,
+"word_index": 8,
+"word_text": "الصَّالِحَاتِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|ACT|PCPL|LEM:S~a`liHa`t|ROOT:SlH|FP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "45e256a1b41a50c30d30b6fa23",
+"ayah": 58,
+"word_index": 9,
+"word_text": "وَلَا",
+"pos": "NEG",
+"morphology_tag": "STEM|POS:NEG|LEM:laA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "4aebcdee11de4df5c37978b7e9",
+"ayah": 58,
+"word_index": 10,
+"word_text": "الْمُسِيءُ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|ACT|PCPL|(IV)|LEM:musiY^'|ROOT:swA|M|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "213d4d6ddc4d4b53ff7919f08d",
+"ayah": 58,
+"word_index": 11,
+"word_text": "قَلِيلَاً",
+"pos": "ADJ",
+"morphology_tag": "STEM|POS:ADJ|LEM:qaliyl|ROOT:qll|MS|INDEF|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "4a25bca27e3c4228f83e1f6885",
+"ayah": 58,
+"word_index": 12,
+"word_text": "مَا",
+"pos": "REL",
+"morphology_tag": "STEM|POS:REL|LEM:maA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "3fb23f2746768c7f6789505066",
+"ayah": 58,
+"word_index": 13,
+"word_text": "تَتَذَكَّرُونَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|(V)|LEM:ta*ak~ara|ROOT:*kr|2MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "0d648da0673c0776b68926a5d0",
+"ayah": 59,
+"word_index": 1,
+"word_text": "إِنَّ",
+"pos": "ACC",
+"morphology_tag": "STEM|POS:ACC|LEM:<in~|SP:<in~",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "2a4baaaa9107ed5a32fa0576f7",
+"ayah": 59,
+"word_index": 2,
+"word_text": "السَّاعَةَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:saAEap|ROOT:swE|F|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "1d5b68da7978a4b095618229ec",
+"ayah": 59,
+"word_index": 3,
+"word_text": "لَآتِيَةٌ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|ACT|PCPL|LEM:A^tiy|ROOT:Aty|F|INDEF|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "d2d5c4a79b9575ee27f696a202",
+"ayah": 59,
+"word_index": 4,
+"word_text": "لَا",
+"pos": "NEG",
+"morphology_tag": "STEM|POS:NEG|LEM:laA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "c6d81628d3e7d3696ded471093",
+"ayah": 59,
+"word_index": 5,
+"word_text": "رَيْبَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:rayob|ROOT:ryb|M|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "79061becd8eed4a8269562f90d",
+"ayah": 59,
+"word_index": 6,
+"word_text": "فِيهَا",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:fiY",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "a7001dde1337b3031b1262282c",
+"ayah": 59,
+"word_index": 7,
+"word_text": "وَلَكِنَّ",
+"pos": "ACC",
+"morphology_tag": "STEM|POS:ACC|LEM:la`kin~|SP:<in~",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "a1b74e4d5b7c41f22958e89279",
+"ayah": 59,
+"word_index": 8,
+"word_text": "أَكْثَرَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:>akovar|ROOT:kvr|MS|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+},
+{
+"id": "fbee412610a77b07f33bed83d6",
+"ayah": 59,
+"word_index": 9,
+"word_text": "النَّاسِ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:n~aAs|ROOT:nws|MP|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "f47bfe12366c1aaf155bdd43b9",
+"ayah": 59,
+"word_index": 10,
+"word_text": "لَا",
+"pos": "NEG",
+"morphology_tag": "STEM|POS:NEG|LEM:laA",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "3a436b6f669358eb5e4ad1faf4",
+"ayah": 59,
+"word_index": 11,
+"word_text": "يُؤْمِنُونَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|(IV)|LEM:'aAmana|ROOT:Amn|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "64f205ffb85d19ac3cc9e8741f",
+"ayah": 60,
+"word_index": 1,
+"word_text": "وَقَالَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|PERF|LEM:qaAla|ROOT:qwl|3MS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "05c8ee63d879d144f02178d493",
+"ayah": 60,
+"word_index": 2,
+"word_text": "رَبُّكُمُ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:rab~|ROOT:rbb|M|NOM",
+"gt_case": "GT:case:nominative",
+"gt_mood": null
+},
+{
+"id": "419f85b9734f0641a2c69fe108",
+"ayah": 60,
+"word_index": 3,
+"word_text": "ادْعُونِي",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPV|LEM:daEaA|ROOT:dEw|2MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "cf67730dafdb8f6fd9bf10e777",
+"ayah": 60,
+"word_index": 4,
+"word_text": "أَسْتَجِبْ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|(X)|LEM:{sotajaAba|ROOT:jwb|1S|MOOD:JUS",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "6746efe53857c3c00547c3196f",
+"ayah": 60,
+"word_index": 5,
+"word_text": "لَكُمْ",
+"pos": "PRON",
+"morphology_tag": "STEM|POS:PRON|2MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "3d3420d78768931c1f73802af9",
+"ayah": 60,
+"word_index": 6,
+"word_text": "إِنَّ",
+"pos": "ACC",
+"morphology_tag": "STEM|POS:ACC|LEM:<in~|SP:<in~",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "284601c410bda5064f16aa875a",
+"ayah": 60,
+"word_index": 7,
+"word_text": "الَّذِينَ",
+"pos": "REL",
+"morphology_tag": "STEM|POS:REL|LEM:{l~a*iY|MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "19a5176b91dad1aaea2352aef1",
+"ayah": 60,
+"word_index": 8,
+"word_text": "يَسْتَكْبِرُونَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|(X)|LEM:{sotakobara|ROOT:kbr|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "ec937151c602bbdf6a68ee7fdc",
+"ayah": 60,
+"word_index": 9,
+"word_text": "عَنْ",
+"pos": "P",
+"morphology_tag": "STEM|POS:P|LEM:Ean",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "9d23e109b40b07832e62688c7e",
+"ayah": 60,
+"word_index": 10,
+"word_text": "عِبَادَتِي",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|LEM:EibaAdat|ROOT:Ebd|F|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "a2a0a070742802ed40efd3d130",
+"ayah": 60,
+"word_index": 11,
+"word_text": "سَيَدْخُلُونَ",
+"pos": "V",
+"morphology_tag": "STEM|POS:V|IMPF|LEM:daxala|ROOT:dxl|3MP",
+"gt_case": null,
+"gt_mood": null
+},
+{
+"id": "758715159c39f29e41657ee446",
+"ayah": 60,
+"word_index": 12,
+"word_text": "جَهَنَّمَ",
+"pos": "PN",
+"morphology_tag": "STEM|POS:PN|LEM:jahan~am|GEN",
+"gt_case": "GT:case:genitive",
+"gt_mood": null
+},
+{
+"id": "40bd8960f373ac515a501317cf",
+"ayah": 60,
+"word_index": 13,
+"word_text": "دَاخِرِينَ",
+"pos": "N",
+"morphology_tag": "STEM|POS:N|ACT|PCPL|LEM:da`xiruwn|ROOT:dxr|MP|ACC",
+"gt_case": "GT:case:accusative",
+"gt_mood": null
+}
+]
