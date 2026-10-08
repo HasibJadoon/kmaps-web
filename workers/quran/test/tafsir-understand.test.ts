@@ -53,7 +53,8 @@ function setup() {
       ('tafsir_sent:A:zam:3-3', 'A:zam', 'zam', 3, 3, 40, 1, 3, 'It has eighty-five verses.', '["It has fifty-eight verses.","It has eighty-five words."]',
        'How many verses', NULL, '[]', 'He counts the verses.', 'live'),
       ('tafsir_sent:A:zam:4-4', 'A:zam', 'zam', 4, 4, 40, 1, 3, 'Three words share the sense of returning.', '["Three words mean clothing.","The words are opposites."]',
-       'Words for returning', 'الوقف', '["GT:x:waqf","bad"]', 'التوب and الأوب both mean coming back.', 'live');`);
+       'Words for returning', 'الوقف', '["GT:x:waqf","bad"]', 'التوب and الأوب both mean coming back.', 'live');
+    ALTER TABLE qr_tafsir_sentence ADD COLUMN word_from INT NOT NULL DEFAULT 0;`);
   return { DB_QR: d1(db) } as never;
 }
 
