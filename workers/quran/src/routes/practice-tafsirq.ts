@@ -551,15 +551,38 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
     const seconds = Math.round(parts.reduce((t, x) => t + (x.end - x.start), 0));
     return [{ slug, title: b?.title_en ?? null, titleAr: b?.title_ar ?? null, author: b?.author ?? null, seconds, parts }];
   });
-  // each passage's heading, crafted from what it covers (qr_tafsir_passage_heading), by its recording and first line
+  // the passages as an editor cuts them (qr_tafsir_passage_heading: the lines each spans, and its heading). Where a
+  // recording has its cut, the cut is the passage, and its English is its own lines' — the Arabic and English one to one
   const audios = [...new Set(works.flatMap((w) => w.parts.map((x) => x.audio)))];
-  const heads = audios.length ? await query<{ audio_id: string; seq_from: number; heading_en: string }>(env.DB_QR,
-    `SELECT audio_id, seq_from, heading_en FROM qr_tafsir_passage_heading
+  const heads = audios.length ? await query<PassageCut & { audio_id: string }>(env.DB_QR,
+    `SELECT audio_id, seq_from, seq_to, heading_en FROM qr_tafsir_passage_heading
       WHERE status = 'live' AND audio_id IN (${audios.map(() => '?').join(',')})`, audios).catch(() => []) : [];
-  const headOf = new Map(heads.map((h) => [`${h.audio_id}|${h.seq_from}`, h.heading_en]));
-  for (const w of works) for (const x of w.parts)
-    x.paragraphs = x.paragraphs.map((g) => ({ ...g, heading: headOf.get(`${x.audio}|${g.from}`) ?? null }));
+  const cutsOf = new Map<string, PassageCut[]>();
+  for (const h of heads) cutsOf.set(h.audio_id, [...(cutsOf.get(h.audio_id) ?? []), h]);
+  for (const w of works) for (const x of w.parts) {
+    const cuts = cutsOf.get(x.audio);
+    if (cuts?.length) x.paragraphs = passagesByCut(x.lines, cuts);
+  }
   return works;
+}
+
+type PassageCut = { seq_from: number; seq_to: number; heading_en: string };
+
+/** A part's passages from its editor's cut: each cut that holds recorded lines is one passage, under its heading, its
+ *  English its lines' English run on. Lines no cut holds keep the reader's own passages (passagesOf). */
+export function passagesByCut(lines: ListenLine[], cuts: PassageCut[]): ListenParagraph[] {
+  const out: ListenParagraph[] = [];
+  const held = new Set<number>();
+  for (const c of [...cuts].sort((a, b) => a.seq_from - b.seq_from)) {
+    const own = lines.filter((l) => l.seq >= c.seq_from && l.seq <= c.seq_to);
+    if (!own.length) continue;
+    own.forEach((l) => held.add(l.seq));
+    out.push({ from: own[0].seq, to: own[own.length - 1].seq, heading: c.heading_en,
+               en: bidiEn(own.map((l) => (l.en ?? '').trim()).filter(Boolean).join(' ')) });
+  }
+  const rest = lines.filter((l) => !held.has(l.seq));
+  if (rest.length) out.push(...passagesOf(rest, []).map((g) => ({ ...g, heading: null })));
+  return out.sort((a, b) => a.from - b.from);
 }
 
 /// The practice home's counts: live passage questions with options; live tafsīr questions.

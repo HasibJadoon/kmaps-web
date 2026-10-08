@@ -182,3 +182,17 @@ test('the English-pinned paragraphs stay whole; only the uncovered lines are cut
   assert.equal(ps[0].from, 1);
   assert.equal(ps[ps.length - 1].to, 6);
 });
+
+import { passagesByCut } from '../src/routes/practice-tafsirq';
+test("an editor's cut is the passage: its heading, its lines' English run on; uncovered lines keep the reader's cut", () => {
+  const line = (seq: number, en: string | null) => ({ id: `l${seq}`, seq, start: seq, end: seq + 1, text: 'نص.', words: [], en, terms: [] });
+  const lines = [line(1, 'Meccan. Al-Ḥasan said:'), line(2, 'except His words.'), line(3, 'Its verses.'), line(4, null), line(5, 'Left over.')];
+  const ps = passagesByCut(lines, [{ seq_from: 3, seq_to: 4, heading_en: 'How many verses' },
+                                   { seq_from: 1, seq_to: 2, heading_en: 'Where it came down' }]);
+  assert.deepEqual(ps.slice(0, 2), [
+    { from: 1, to: 2, heading: 'Where it came down', en: 'Meccan. Al-Ḥasan said: except His words.' },
+    { from: 3, to: 4, heading: 'How many verses', en: 'Its verses.' },
+  ]);
+  assert.equal(ps.length, 3);
+  assert.deepEqual([ps[2].from, ps[2].to, ps[2].heading], [5, 5, null]);
+});
