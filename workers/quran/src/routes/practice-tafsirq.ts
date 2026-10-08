@@ -194,6 +194,18 @@ const clipOf = (r: Run) => ({ url: AUDIO(r.key), start: Math.max(0, r.lines[0].s
 const wordsOf = (r: Run) => spokenWords(r.lines.flatMap((l) => timedWords(l.text_ar, l.w)));
 const textOf = (r: Run) => wordsOf(r).map((w) => w.t).join(' ');
 
+/** A run cut at the word, as a sentence is (qr_tafsir_sentence.word_from): from word `fromWord` of its first line (in
+ *  the words the commentary serves) to before word `toWord` of its last — its own words, and the stretch they are said in. */
+function cutRun(r: Run, fromWord: number, toWord: number | null) {
+  const per = r.lines.map((l) => timedWords(l.text_ar, l.w));
+  if (toWord != null) per[per.length - 1] = per[per.length - 1].slice(0, toWord);
+  if (fromWord > 0) per[0] = per[0].slice(fromWord);
+  const words = spokenWords(per.flat());
+  const said = words.filter((w) => w.e > w.s);
+  const start = said.length ? said[0].s : r.lines[0].start_sec, end = said.length ? said[said.length - 1].e : r.lines[r.lines.length - 1].end_sec;
+  return { words, text: words.map((w) => w.t).join(' '), clip: { url: AUDIO(r.key), start: Math.max(0, start - 0.15), end: end + 0.2 } };
+}
+
 /** A run cut down to the lines from..to (inclusive) — as its own run, named by them. */
 function narrow(r: Run, from: number, to: number): Run | undefined {
   const lines = r.lines.filter((l) => l.seq >= from && l.seq <= to);
@@ -313,19 +325,22 @@ export async function sentenceDrills(env: QuranEnv, refs: string[], scope: Scope
   const ids = [...new Set(refs.filter((r) => parseSentenceRef(r)))];
   if (!ids.length) return [];
   const rows = await query<SentenceRow & { source_slug: string; surah: number; ayah_from: number; wrong_json: string; terms_json: string }>(env.DB_QR,
-    `SELECT id, audio_id, source_slug, seq_from, seq_to, surah, ayah_from, gist_en, wrong_json, concept_en, concept_ar, meaning_en, terms_json
-       FROM qr_tafsir_sentence WHERE status = 'live' AND id IN (${ids.map(() => '?').join(',')})`, ids);
+    `SELECT id, audio_id, source_slug, seq_from, seq_to, surah, ayah_from, gist_en, wrong_json, concept_en, concept_ar, meaning_en, terms_json,
+            word_from FROM qr_tafsir_sentence WHERE status = 'live' AND id IN (${ids.map(() => '?').join(',')})`, ids);
   if (!rows.length) return [];
   // the work's other gists, for a fourth choice nearest in length
   const audios = [...new Set(rows.map((r) => r.audio_id))];
-  const siblings = await query<{ audio_id: string; id: string; gist_en: string }>(env.DB_QR,
-    `SELECT audio_id, id, gist_en FROM qr_tafsir_sentence WHERE status = 'live' AND audio_id IN (${audios.map(() => '?').join(',')})`, audios);
+  const siblings = await query<{ audio_id: string; id: string; gist_en: string; seq_from: number; word_from: number | null }>(env.DB_QR,
+    `SELECT audio_id, id, gist_en, seq_from, word_from FROM qr_tafsir_sentence WHERE status = 'live' AND audio_id IN (${audios.map(() => '?').join(',')})`, audios);
   const runs = await loadRuns(env, rows.map((r) => ({ audio: r.audio_id, from: r.seq_from, to: r.seq_to })));
   const title = scope.surah ? rangeOf(scope.surah, scope.from ?? 1, scope.to) : '';
   const out: Drill[] = [];
   for (const r of rows) {
     const run = runs.get(lineRef(r.audio_id, r.seq_from, r.seq_to));
     if (!run) continue;
+    // its own words: from its first word, to before the next sentence's when that starts on its last line
+    const next = siblings.find((x) => x.audio_id === r.audio_id && x.id !== r.id && x.seq_from === r.seq_to && (x.word_from ?? 0) > 0);
+    const own = cutRun(run, r.word_from ?? 0, next?.word_from ?? null);
     const wrong = parseJson<string[]>(r.wrong_json, []).filter((x) => x && x !== r.gist_en);
     const other = siblings.filter((x) => x.audio_id === r.audio_id && x.id !== r.id && !wrong.includes(x.gist_en))
       .sort((a, b) => Math.abs(a.gist_en.length - r.gist_en.length) - Math.abs(b.gist_en.length - r.gist_en.length))[0];
@@ -334,12 +349,12 @@ export async function sentenceDrills(env: QuranEnv, refs: string[], scope: Scope
     const terms = parseJson<string[]>(r.terms_json, []).filter((t) => /^GT:[a-z_]+:[a-z0-9_]+$/.test(t));
     out.push(withCard({
       id: r.id, kind: 'tafsir_understand', ask: 'tq_read', interaction: 'choose', script: 'arabic',
-      audio: clipOf(run), words: wordsOf(run),
+      audio: own.clip, words: own.words,
       options: shuffle(options), answer: options[0], terms,
       note: { en: bidiEn(r.concept_en), ar: r.concept_ar ?? '' },
       explanation: bidiEn(r.meaning_en),
       source: { workId: `QR:SURAH:${scope.surah ?? r.surah}`, title: `${title} · ${citeOf(run)}`, level: null },
-    }, { ref: `QR:${r.id}`, type: 'passage', kind: 'tafsir_understand', front: textOf(run), back: `${r.gist_en}\n\n${r.meaning_en}`,
+    }, { ref: `QR:${r.id}`, type: 'passage', kind: 'tafsir_understand', front: own.text, back: `${r.gist_en}\n\n${r.meaning_en}`,
          surah: scope.surah ?? r.surah, ayah: scope.from ?? r.ayah_from, series: 'tafsir' }));
   }
   return attachGt(env.DB_QR, out);
@@ -817,9 +832,11 @@ export async function passageDrills(env: QuranEnv, scope: Scope, slug: string, a
     const ws = l.words.map((w) => w.t);
     const at = ws.map((t, i) => ({ t, i })).filter(({ t }) => blankable(t)).sort((a, b) => unmark(b.t).length - unmark(a.t).length)[0];
     if (at) {
-      const n = unmark(at.t).length, al = unmark(at.t).replace(/^و/, '').startsWith('ال');
+      // the work's like words: near its length, and with the same و and ال before them, so no choice gives itself away
+      const sig = (w: string) => { const u = unmark(w); return `${u.startsWith('و') ? 'w' : ''}${u.replace(/^و/, '').startsWith('ال') ? 'al' : ''}`; };
+      const n = unmark(at.t).length;
       const wrong = shuffle([...new Set(likeWords.filter((w) => unmark(w) !== unmark(at.t) && Math.abs(unmark(w).length - n) <= 1
-        && unmark(w).replace(/^و/, '').startsWith('ال') === al))]).slice(0, 3);
+        && sig(w) === sig(at.t)))]).slice(0, 3);
       if (wrong.length === 3) {
         out.push(filed({ id: `tafsir_fill:${audio}:${l.seq}`, kind: 'tafsir_fill', ask: 'tq_pd_fill', interaction: 'choose', script: 'arabic',
                          audio: clip(l), words: l.words, blank: at.i, answer: at.t, options: shuffle([at.t, ...wrong]), en: l.en, source },
