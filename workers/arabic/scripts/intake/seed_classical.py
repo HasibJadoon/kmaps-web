@@ -14,7 +14,7 @@ usage: seed_classical.py poetry.tsv prose.tsv [more.tsv …] wv.sql ar.sql
   A further TSV has prose.tsv's columns plus author_slug, author_type, work_slug, work_title, and
   names its own people and works. Re-running is safe: INSERT OR IGNORE in WV, upsert on url in AR.
 """
-import csv, hashlib, re, sys
+import csv, hashlib, json, re, sys, unicodedata
 
 TRAD = {'modernity': 'wv-tradition-modernity', 'islam': 'wv-tradition-islam', 'sufism': 'wv-tradition-sufism', 'falsafa': 'wv-tradition-falsafa',
         'greek-philosophy': 'wv-tradition-greek-philosophy', 'jahiliyya': 'wv-tradition-jahiliyya'}
@@ -124,8 +124,25 @@ def prose_work(r):
     en = re.sub(r'\s*\(.*?\)\s*', '', r['work_en']).strip()
     return (slug(en), en, w_ar, r['author_en'], 'book')
 
+def norm_ar(t):
+    t = unicodedata.normalize('NFKD', t or '')
+    t = ''.join(c for c in t if not unicodedata.combining(c))
+    return re.sub(r'[\s\u0640]+', ' ', t.replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا').replace('ة', 'ه')).strip()
+
 def main(poetry, *rest):
+    # --existing <wv_existing.json>: what km_worldview already holds, so a work met again — under
+    # another slug, from another TSV — reuses its row, and a known person is linked, not added
+    rest = list(rest); existing = {'works': {}, 'slugs': set(), 'db_slugs': set(), 'people': set()}
+    if '--existing' in rest:
+        i = rest.index('--existing'); path = rest[i + 1]; del rest[i:i + 2]
+        for r in json.load(open(path))[0]['results']:
+            if r['id'] == 'PERSON': existing['people'].add(r['slug']); continue
+            existing['slugs'].add(r['slug']); existing['db_slugs'].add(r['slug'])
+            if r['title_ar']: existing['works'][(norm_ar(r['title_ar']), r['person_ref'])] = r['id']
+    EXISTING.update(existing['people'])
     *prose_files, wv_out, ar_out = rest
+    pipe_out = {d: ar_out.replace('.sql', f'_{d}_pipeline.sql') for d in ('qr', 'wv')}
+    pipes = {'qr': [], 'wv': []}
     rows = [dict(r, _src='poetry') for r in csv.DictReader(open(poetry, encoding='utf8'), delimiter='\t')]
     for f in prose_files:
         rows += [dict(r, _src='prose') for r in csv.DictReader(open(f, encoding='utf8'), delimiter='\t')]
@@ -136,17 +153,30 @@ def main(poetry, *rest):
         if route != 'ar':
             w = poetry_work(r) if r['_src'] == 'poetry' else prose_work(r)
             if w:
-                wid = 'wv-src-' + w[0]; ref = 'WV:' + wid
-                author = w[3]; trad = r['wv_tradition'] if r['wv_tradition'] in TRAD else 'islam'
+                author = w[3]
+                pkey = person(author, r) if author else None
+                key = (norm_ar(w[2]), pkey)
+                near = next((v for (t, pk), v in existing['works'].items()
+                             if pk == pkey and t and (key[0].startswith(t) or t.startswith(key[0]))), None)
+                if key in existing['works'] or near:
+                    wid = existing['works'].get(key) or near           # the same work, met again (maybe with its subtitle)
+                else:
+                    wid = 'wv-src-' + w[0]
+                    taken = wid.removeprefix('wv-src-') in existing['slugs'] or wid in works
+                    if taken:                                          # the same title by another author
+                        wid = f"wv-src-{w[0]}-{(pkey or 'anon').removeprefix('PN:')}"
+                    existing['works'][key] = wid
+                    existing['slugs'].add(wid.removeprefix('wv-src-'))
+                ref = 'WV:' + wid
+                trad = r['wv_tradition'] if r['wv_tradition'] in TRAD else 'islam'
                 trad = TRAD_FIX.get(w[2], trad)
                 no_trad = author == 'Abū al-ʿAlāʾ al-Maʿarrī'   # a sceptic, not a Peripatetic: no tradition fits
-                pref = person(author, r) if author else None
-                key = 'slug:' + r['author_slug'].strip() if r.get('author_slug') else author
-                if key in NEW and NEW[key][1] and NEW[key][0] not in EXISTING: people[NEW[key][0]] = NEW[key]
-                if wid not in works:
+                key2 = 'slug:' + r['author_slug'].strip() if r.get('author_slug') else author
+                if key2 in NEW and NEW[key2][1] and NEW[key2][0] not in EXISTING: people[NEW[key2][0]] = NEW[key2]
+                if wid not in works and wid.removeprefix('wv-src-') not in existing['db_slugs']:
                     domain = 'historical' if w[2] == 'المقدمة' else 'philosophical' if no_trad else DOMAIN.get(trad, 'general')
-                    works[wid] = dict(id=wid, slug=w[0], title=w[1], title_ar=w[2], type=w[4], domain=domain,
-                                      trad=None if no_trad else TRAD[trad], person=pref, author_ar=(r.get('author_ar') or r.get('poet_ar')))
+                    works[wid] = dict(id=wid, slug=wid.removeprefix('wv-src-'), title=w[1], title_ar=w[2], type=w[4], domain=domain,
+                                      trad=None if no_trad else TRAD[trad], person=pkey, author_ar=(r.get('author_ar') or r.get('poet_ar')))
         pri = max(1, min(5, int(r['priority'] or 3)))
         kind = r['kind'] if r['kind'] in ('playlist', 'video') else 'video'
         ext = r['external_id']
@@ -156,14 +186,26 @@ def main(poetry, *rest):
         level = r['level'] if r['level'] in ('easy', 'middle', 'advanced', 'super') else 'advanced'
         genre = 'AG:shiar' if r['_src'] == 'poetry' else 'AG:adab'
         note = r['note'] + (' [brief word glosses]' if r['form'] == 'original_glossed' else '')
+        doms = {'ar': ['ar'], 'wv': ['wv'], 'both': ['ar', 'wv']}[route]
+        if strand == 'quran': doms = ['qr' if d == 'ar' else d for d in doms]
+        status = 'queued' if pri >= 4 else 'logged'
+        iid = 'IN:yt:' + ext
         ar.append(
             "INSERT INTO ar_intake_item (id,kind,url,platform,external_id,title_ar,channel,item_count,register,genre_ref,strand,level,"
-            "priority,status,form,route,wv_source_ref,note,added_by) VALUES (" + ",".join([
+            "priority,status,form,route,to_ar,to_qr,to_wv,wv_source_ref,note,added_by) VALUES (" + ",".join([
                 q('IN:yt:' + ext), q(kind), q(url), q('youtube'), q(ext), q(r['title']), q(r['channel']), n or 'NULL',
-                q('fusha_turath'), q(genre), q(strand), q(level), str(pri), q('queued' if pri >= 4 else 'logged'),
-                q('original'), q(route), q(ref), q(note), q('research:2026-10-14:classical')]) + ")"
-            " ON CONFLICT(url) DO UPDATE SET form = excluded.form, route = excluded.route,"
-            " wv_source_ref = excluded.wv_source_ref, updated_at = datetime('now');")
+                q('fusha_turath'), q(genre), q(strand), q(level), str(pri), q(status),
+                q('original'), q(route), *[str(+(d in doms)) for d in ('ar', 'qr', 'wv')], q(ref), q(note), q('research:2026-10-14:classical')]) + ")"
+            " ON CONFLICT(url) DO UPDATE SET form = excluded.form, wv_source_ref = COALESCE(excluded.wv_source_ref, ar_intake_item.wv_source_ref),"
+            " updated_at = datetime('now');")
+        # a queued item enters each of its domains' pipelines (the inbox row decides; an existing row keeps its own route)
+        ar.append(f"INSERT OR IGNORE INTO ar_intake_pipeline (intake_id) SELECT id FROM ar_intake_item WHERE id = {q(iid)} AND status = 'queued' AND to_ar = 1;")
+        if status == 'queued':
+            for d in ('qr', 'wv'):
+                if d in doms:
+                    tgt = ref.replace('WV:', '') if (d == 'wv' and ref) else None
+                    pipes[d].append(f"INSERT OR IGNORE INTO {d}_intake_pipeline (intake_ref, url, title, kind, item_count, target_ref) VALUES ("
+                                    + ",".join([q('AR:' + iid), q(url), q(r['title']), q(kind), n or 'NULL', q(tgt)]) + ");")
 
     wv = ["-- 010_wv_classical_sources.sql",
           "-- Classical works that hold a worldview, filed as sources: the jāhilī poetry the Qurʾān answers, and the",
@@ -186,6 +228,7 @@ def main(poetry, *rest):
                   + ",".join([q(w['id']), q(w['slug']), q(w['title']), q(w['title_ar']), q(w['type']), q(w['domain']),
                               q(w['trad']), q('ar'), q(w['person']), q(meta)]) + ");")
     open(wv_out, 'w', encoding='utf8').write("\n".join(wv) + "\n")
+    for d, lines in pipes.items(): open(pipe_out[d], 'w', encoding='utf8').write("\n".join(lines) + "\n")
     open(ar_out, 'w', encoding='utf8').write("\n".join(ar) + "\n")
     print(f'{len(people)} people, {len(works)} works → {wv_out}; {len(ar)} intake rows → {ar_out}')
 
