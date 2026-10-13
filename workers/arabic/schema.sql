@@ -1409,3 +1409,48 @@ CREATE TRIGGER trg_kcv_ar_text_unit_d AFTER DELETE ON ar_text_unit BEGIN UPDATE 
 CREATE TRIGGER trg_kcv_ar_text_unit_i AFTER INSERT ON ar_text_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
 
 CREATE TRIGGER trg_kcv_ar_text_unit_u AFTER UPDATE ON ar_text_unit BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+-- 0039: the intake queue
+CREATE TABLE ar_intake_item (
+  id           TEXT PRIMARY KEY,                 -- IN:<platform>:<external id>
+  parent_id    TEXT REFERENCES ar_intake_item(id),
+  kind         TEXT NOT NULL,                    -- channel | playlist | video | short | audiobook | podcast | book | page
+  url          TEXT NOT NULL UNIQUE,
+  platform     TEXT NOT NULL DEFAULT 'youtube',
+  external_id  TEXT,
+  title_ar     TEXT,
+  title_en     TEXT,
+  channel      TEXT,
+  seq          INTEGER,                          -- its place in its playlist
+  duration_sec INTEGER,
+  item_count   INTEGER,                          -- a playlist's or channel's episodes
+  register     TEXT NOT NULL DEFAULT 'fusha_muasira'
+               CHECK (register IN ('fusha_turath', 'fusha_muasira')),   -- Arabic only, classical or fuṣḥā: nothing else is taken
+  genre_ref    TEXT,                             -- AG:qissa, AG:adab, AG:shiar … as ar_acquisition_ref
+  strand       TEXT NOT NULL DEFAULT 'lugha',    -- ar_practice_label scope 'intake_strand'
+  level        TEXT NOT NULL DEFAULT 'middle',   -- ar_practice_label scope 'intake_level'
+  priority     INTEGER NOT NULL DEFAULT 3 CHECK (priority BETWEEN 1 AND 5),
+  status       TEXT NOT NULL DEFAULT 'logged',   -- ar_practice_label scope 'intake_status'
+  acq_ref_id   TEXT REFERENCES ar_acquisition_ref(id),
+  note         TEXT,
+  added_by     TEXT,
+  meta_json    TEXT NOT NULL DEFAULT '{}',
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_ar_intake_parent ON ar_intake_item(parent_id, seq);
+CREATE INDEX idx_ar_intake_queue  ON ar_intake_item(status, strand, level, priority DESC);
+
+CREATE VIEW ar_intake_queue_v AS
+SELECT i.*,
+       st.min_value AS strand_step,
+       lv.min_value AS level_step,
+       s.min_value AS status_step,
+       (SELECT COUNT(1) FROM ar_intake_item c WHERE c.parent_id = i.id) AS child_count
+  FROM ar_intake_item i
+  JOIN ar_practice_label st ON st.scope = 'intake_strand' AND st.key = i.strand
+  JOIN ar_practice_label lv ON lv.scope = 'intake_level'  AND lv.key = i.level
+  JOIN ar_practice_label s  ON s.scope = 'intake_status' AND s.key = i.status
+ WHERE i.parent_id IS NULL
+   AND json_extract(s.extra_json, '$.active') = 1
+ ORDER BY lv.min_value, i.priority DESC, s.min_value DESC, i.created_at;
