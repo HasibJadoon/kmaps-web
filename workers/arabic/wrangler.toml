@@ -25,6 +25,10 @@ service = "km-ar-linguistics-worker"
 binding = "QURAN"
 service = "km-quran-worker"
 
+[[services]]
+binding = "WORLDVIEW"
+service = "km-worldview-worker"
+
 [[r2_buckets]]
 binding     = "AR_AUDIO"
 bucket_name = "km-arabic-audio"

@@ -29,8 +29,13 @@ import { arcRoutes }         from './routes/arcs';
 import { atlasRoutes }       from './routes/atlas';
 import { intakeRoutes }      from './routes/intake';
 import { debateRoutes }      from './routes/debates';
+import { intakePipelineRoutes } from '../../shared/src/intake-pipeline';
 
 const router = new Router<WorldviewEnv>();
+
+// The intake's pipeline for this domain (shared/src/intake-pipeline.ts): literal paths, so first.
+for (const prefix of ['/wv', '/worldview'])
+  intakePipelineRoutes(router, { prefix, db: (e) => e.DB_WV, table: 'wv_intake_pipeline', stages: 'wv_intake_stage' });
 
 router.get('/health', async (_req, env) =>
   ok({ domain: 'worldview', db: 'DB_WV', db_ok: await dbHealth(env.DB_WV) }),

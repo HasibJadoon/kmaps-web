@@ -5234,3 +5234,21 @@ CREATE TRIGGER trg_kcv_qr_word_term_u AFTER UPDATE ON qr_word_term BEGIN UPDATE 
 CREATE TRIGGER trg_kcv_qr_word_translation_i AFTER INSERT ON qr_word_translation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
 
 CREATE TRIGGER trg_kcv_qr_word_translation_u AFTER UPDATE ON qr_word_translation BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'books'; END;
+
+CREATE TABLE qr_intake_pipeline (
+  intake_ref  TEXT PRIMARY KEY,                -- AR:IN:yt:<id>
+  url         TEXT NOT NULL,
+  title       TEXT,
+  kind        TEXT,
+  item_count  INTEGER,
+  stage       TEXT NOT NULL DEFAULT 'queued',  -- qr_intake_stage.key
+  target_ref  TEXT,                            -- the book it reads: QRTB:<source_slug>
+  note        TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_qr_intake_pipeline_stage ON qr_intake_pipeline(stage);
+
+CREATE TABLE qr_intake_stage (
+  key TEXT PRIMARY KEY, label TEXT NOT NULL, label_ar TEXT, detail TEXT, icon TEXT, color TEXT, sort INTEGER NOT NULL
+);

@@ -2968,3 +2968,21 @@ CREATE TRIGGER trg_corpus_block_ad AFTER DELETE ON wv_corpus_block BEGIN INSERT 
 CREATE TRIGGER trg_corpus_block_ai AFTER INSERT ON wv_corpus_block BEGIN INSERT INTO wv_corpus_block_fts(rowid, text_orig, text_en, text_norm) VALUES (new.rowid, new.text_orig, new.text_en, new.text_norm); END;
 
 CREATE TRIGGER trg_corpus_block_au AFTER UPDATE ON wv_corpus_block BEGIN INSERT INTO wv_corpus_block_fts(wv_corpus_block_fts, rowid, text_orig, text_en, text_norm) VALUES ('delete', old.rowid, old.text_orig, old.text_en, old.text_norm); INSERT INTO wv_corpus_block_fts(rowid, text_orig, text_en, text_norm) VALUES (new.rowid, new.text_orig, new.text_en, new.text_norm); END;
+
+CREATE TABLE wv_intake_pipeline (
+  intake_ref  TEXT PRIMARY KEY,                -- AR:IN:yt:<id>
+  url         TEXT NOT NULL,
+  title       TEXT,
+  kind        TEXT,
+  item_count  INTEGER,
+  stage       TEXT NOT NULL DEFAULT 'queued',  -- wv_intake_stage.key
+  target_ref  TEXT,                            -- wv_sources.id
+  note        TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_wv_intake_pipeline_stage ON wv_intake_pipeline(stage);
+
+CREATE TABLE wv_intake_stage (
+  key TEXT PRIMARY KEY, label TEXT NOT NULL, label_ar TEXT, detail TEXT, icon TEXT, color TEXT, sort INTEGER NOT NULL
+);

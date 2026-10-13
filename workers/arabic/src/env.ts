@@ -12,6 +12,8 @@ export interface ArabicEnv {
 
   AR_LINGUISTICS?: Fetcher;
   QURAN?: Fetcher;
+  // The intake routes Worldview's share to its pipeline (lib/intake-domains.ts).
+  WORLDVIEW?: Fetcher;
 
   JWT_SECRET?: string;
 

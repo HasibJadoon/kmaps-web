@@ -28,10 +28,11 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     binding: 'QURAN',
     publicGet: true,
     // practice skills, rounds, the class path and its sprints, the listen gate, the stage's words
-    privateGetPaths: [/^qr\/practice(\/|\?|$)/, /^qr\/drill(\/|\?|$)/],
+    privateGetPaths: [/^qr\/practice(\/|\?|$)/, /^qr\/drill(\/|\?|$)/, /^qr\/intake-pipeline(\/|\?|$)/],
   },
-  wv:   { binding: 'WORLDVIEW',      publicGet: true  },
-  worldview: { binding: 'WORLDVIEW', publicGet: true  },
+  // the intake's worldview pipeline is a work queue, not reading: signed in only
+  wv:   { binding: 'WORLDVIEW',      publicGet: true, privateGetPaths: [/^wv\/intake-pipeline(\/|\?|$)/] },
+  worldview: { binding: 'WORLDVIEW', publicGet: true, privateGetPaths: [/^worldview\/intake-pipeline(\/|\?|$)/] },
   ar:   {
     binding: 'ARABIC',
     publicGet: false,

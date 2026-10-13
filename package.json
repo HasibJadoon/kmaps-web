@@ -6,7 +6,7 @@
   ],
   "scripts": {
     "dev:api": "wrangler dev --config workers/backend/wrangler.toml --port 8788",
-    "test": "tsx --test workers/shared/test/*.test.ts workers/core/test/*.test.ts workers/quran/test/*.test.ts workers/ar-linguistics/test/*.test.ts workers/backend/test/*.test.ts",
+    "test": "tsx --test workers/shared/test/*.test.ts workers/core/test/*.test.ts workers/quran/test/*.test.ts workers/ar-linguistics/test/*.test.ts workers/backend/test/*.test.ts workers/arabic/test/*.test.ts",
     "typecheck:workers": "for w in core ar-linguistics studio content worldview quran arabic backend; do npx tsc --noEmit -p workers/$w/tsconfig.json || exit 1; done",
     "deploy:pages": "npm run build -w apps/k-maps && npx wrangler pages deploy apps/k-maps/dist/k-maps/browser --project-name k-maps --branch main",
     "deploy:all": "npm run deploy:pages"

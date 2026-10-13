@@ -10,13 +10,15 @@ Writes two files:
   ar.sql   km_arabic: an ar_intake_item per recording, form 'original', its route, and for a
            worldview work its typed ref wv_source_ref = 'WV:<wv_sources.id>'.
 
-usage: seed_classical.py poetry.tsv prose.tsv wv.sql ar.sql
+usage: seed_classical.py poetry.tsv prose.tsv [more.tsv …] wv.sql ar.sql
+  A further TSV has prose.tsv's columns plus author_slug, author_type, work_slug, work_title, and
+  names its own people and works. Re-running is safe: INSERT OR IGNORE in WV, upsert on url in AR.
 """
 import csv, hashlib, re, sys
 
-TRAD = {'islam': 'wv-tradition-islam', 'sufism': 'wv-tradition-sufism', 'falsafa': 'wv-tradition-falsafa',
+TRAD = {'modernity': 'wv-tradition-modernity', 'islam': 'wv-tradition-islam', 'sufism': 'wv-tradition-sufism', 'falsafa': 'wv-tradition-falsafa',
         'greek-philosophy': 'wv-tradition-greek-philosophy', 'jahiliyya': 'wv-tradition-jahiliyya'}
-DOMAIN = {'islam': 'religious', 'sufism': 'religious', 'falsafa': 'philosophical', 'jahiliyya': 'literary'}
+DOMAIN = {'modernity': 'philosophical', 'islam': 'religious', 'sufism': 'religious', 'falsafa': 'philosophical', 'jahiliyya': 'literary'}
 
 # people already in core_person, by the name the research used
 KNOWN = {'al-Ghazali': 'PN:al-ghazali', 'Ibn Khaldun': 'PN:ibn-khaldun', 'Ibn Qayyim al-Jawziyya': 'PN:ibn-qayyim',
@@ -40,7 +42,21 @@ NEW = {
  'al-Būṣīrī': ('al-busiri', 'al-Būṣīrī', 'البوصيري', 'poet', 1294),
 }
 
-def person(name):
+# slugs already in core_person (km_worldview), so a TSV that names them links rather than adds
+EXISTING = {'al-ghazali', 'ibn-khaldun', 'ibn-qayyim', 'ibn-rushd', 'ibn-sina', 'ibn-taymiyya', 'al-farabi', 'al-kindi',
+            'al-jahiz', 'rashid-rida', 'jamal-al-din-afghani', 'al-mawardi', 'ibn-hazm', 'al-harith-al-muhasibi',
+            'abu-hayyan-al-tawhidi', 'ibn-tufayl', 'abu-bakr-al-razi'}
+
+def person(name, row=None):
+    # a TSV with author_slug says who it is itself
+    if row and row.get('author_slug'):
+        sl = row['author_slug'].strip()
+        if sl not in EXISTING and row.get('author_en'):
+            try: death = int(re.sub(r'\D', '', row.get('author_death_ce') or '') or 0) or None
+            except ValueError: death = None
+            NEW.setdefault('slug:' + sl, (sl, row['author_en'], row.get('author_ar') or None,
+                                          row.get('author_type') or 'scholar', death))
+        return 'PN:' + sl
     if name in KNOWN: return KNOWN[name]
     if name in NEW: return 'PN:' + NEW[name][0]
     return None
@@ -100,15 +116,19 @@ TRAD_FIX = {'تهافت الفلاسفة': 'islam', 'ميزان العمل': 'is
 
 def prose_work(r):
     w_ar = r['work_ar']
+    if r.get('work_slug') and r.get('work_title'):
+        return (r['work_slug'].strip(), r['work_title'].strip(), w_ar, r['author_en'], 'diwan' if 'ديوان' in w_ar else 'book')
     if w_ar.startswith('إحياء علوم الدين'): w_ar = 'إحياء علوم الدين'
     if w_ar == 'كتب أبو حامد الغزالي': return None          # a mixed playlist of several works
     if w_ar in TITLE: return (TITLE[w_ar][0], TITLE[w_ar][1], w_ar, r['author_en'], 'book')
     en = re.sub(r'\s*\(.*?\)\s*', '', r['work_en']).strip()
     return (slug(en), en, w_ar, r['author_en'], 'book')
 
-def main(poetry, prose, wv_out, ar_out):
-    rows = [dict(r, _src='poetry') for r in csv.DictReader(open(poetry, encoding='utf8'), delimiter='\t')] + \
-           [dict(r, _src='prose') for r in csv.DictReader(open(prose, encoding='utf8'), delimiter='\t')]
+def main(poetry, *rest):
+    *prose_files, wv_out, ar_out = rest
+    rows = [dict(r, _src='poetry') for r in csv.DictReader(open(poetry, encoding='utf8'), delimiter='\t')]
+    for f in prose_files:
+        rows += [dict(r, _src='prose') for r in csv.DictReader(open(f, encoding='utf8'), delimiter='\t')]
     works, people, ar = {}, {}, []
     for r in rows:
         route = r['route'] if r['route'] in ('ar', 'wv', 'both') else 'ar'
@@ -120,8 +140,9 @@ def main(poetry, prose, wv_out, ar_out):
                 author = w[3]; trad = r['wv_tradition'] if r['wv_tradition'] in TRAD else 'islam'
                 trad = TRAD_FIX.get(w[2], trad)
                 no_trad = author == 'Abū al-ʿAlāʾ al-Maʿarrī'   # a sceptic, not a Peripatetic: no tradition fits
-                pref = person(author) if author else None
-                if author in NEW and NEW[author][1]: people[NEW[author][0]] = NEW[author]
+                pref = person(author, r) if author else None
+                key = 'slug:' + r['author_slug'].strip() if r.get('author_slug') else author
+                if key in NEW and NEW[key][1] and NEW[key][0] not in EXISTING: people[NEW[key][0]] = NEW[key]
                 if wid not in works:
                     domain = 'historical' if w[2] == 'المقدمة' else 'philosophical' if no_trad else DOMAIN.get(trad, 'general')
                     works[wid] = dict(id=wid, slug=w[0], title=w[1], title_ar=w[2], type=w[4], domain=domain,
@@ -169,4 +190,4 @@ def main(poetry, prose, wv_out, ar_out):
     print(f'{len(people)} people, {len(works)} works → {wv_out}; {len(ar)} intake rows → {ar_out}')
 
 if __name__ == '__main__':
-    main(*sys.argv[1:5])
+    main(*sys.argv[1:])

@@ -4,9 +4,11 @@ import { query, queryOne, execute } from '../../../shared/src/db';
 import { actorRef, forwardedReviewer } from '../../../shared/src/auth';
 import { labels, byKey, type Label } from '../lib/labels';
 import type { ArabicEnv } from '../env';
+import { DOMAINS, FLAG, boards, stagesOf, enter, leave, setStage, type Domain, type DomainStage } from '../lib/intake-domains';
 
-// The intake queue (migration 0039): everything found for the climb toward classical tafsīr,
-// logged before it is scraped, then worked through the pipeline. Every word and colour the
+// The intake (migrations 0039–0042): the one inbox where everything found on the way to classical
+// tafsīr is logged and triaged, then routed to up to three domains — Arabic, Qurʾān, Worldview —
+// each of which runs its own pipeline (lib/intake-domains.ts). Every word and colour the
 // screens show comes from ar_practice_label (scopes intake, intake_strand, intake_level,
 // intake_status, intake_register), resolved here, so the apps only render.
 
@@ -14,7 +16,7 @@ interface Row {
   id: string; parent_id: string | null; kind: string; url: string; platform: string; external_id: string | null;
   title_ar: string | null; title_en: string | null; channel: string | null; seq: number | null; duration_sec: number | null;
   item_count: number | null; register: string; genre_ref: string | null; strand: string; level: string; priority: number;
-  status: string; form: string; route: string; wv_source_ref: string | null; acq_ref_id: string | null; note: string | null; added_by: string | null; meta_json: string;
+  status: string; form: string; to_ar: number; to_qr: number; to_wv: number; wv_source_ref: string | null; acq_ref_id: string | null; note: string | null; added_by: string | null; meta_json: string;
   created_at: string; child_count?: number; live_count?: number;
 }
 
@@ -25,7 +27,9 @@ const badge = (l: Label | undefined, key: string) => ({
 const fill = (t: string | null | undefined, v: Record<string, string | number>) =>
   (t ?? '').replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''));
 
-function shape(r: Row, L: Scopes) {
+type Stages = Record<Domain, Map<string, DomainStage>>;
+
+function shape(r: Row, L: Scopes, st?: Stages) {
   const W = byKey(L.intake);
   let meta: Record<string, unknown> = {};
   try { meta = JSON.parse(r.meta_json || '{}'); } catch { /* keep empty */ }
@@ -42,7 +46,11 @@ function shape(r: Row, L: Scopes) {
     status: badge(byKey(L.intake_status).get(r.status), r.status),
     register: badge(byKey(L.intake_register).get(r.register), r.register),
     form: badge(byKey(L.intake_form).get(r.form), r.form),
-    route: badge(byKey(L.intake_route).get(r.route), r.route),
+    // where it goes, and how far each domain has taken it
+    domains: (L.intake_domain ?? []).filter((l) => (DOMAINS as readonly string[]).includes(l.key)).map((l) => {
+      const d = l.key as Domain, at = st?.[d].get(r.id);
+      return { domain: badge(l, d), on: !!(r as unknown as Record<string, number>)[FLAG[d]], stage: at?.stage ?? null, targetRef: at?.targetRef ?? null };
+    }),
     wvSourceRef: r.wv_source_ref,
     acqRefId: r.acq_ref_id, sent: meta.sent === true, createdAt: r.created_at,
   };
@@ -57,7 +65,7 @@ const JOINS = `JOIN ar_practice_label st ON st.scope = 'intake_strand' AND st.ke
                JOIN ar_practice_label lv ON lv.scope = 'intake_level'  AND lv.key = i.level
                JOIN ar_practice_label s  ON s.scope  = 'intake_status' AND s.key  = i.status`;
 const COUNTS = `(SELECT COUNT(1) FROM ar_intake_item c WHERE c.parent_id = i.id) AS child_count,
-                (SELECT COUNT(1) FROM ar_intake_item c WHERE c.parent_id = i.id AND c.status = 'live') AS live_count`;
+                0 AS live_count`;
 
 /** What a pasted link is: its platform, kind and the id it is known by there. */
 export function readLink(raw: string): { url: string; platform: string; kind: string; externalId: string | null } | null {
@@ -96,6 +104,9 @@ async function titleOf(url: string, platform: string): Promise<{ title: string |
   } catch { return { title: null, channel: null }; }
 }
 
+const err503 = (d: string) => new Response(JSON.stringify({ ok: false, error: { code: 'unavailable', message: `${d} pipeline unreachable` } }),
+  { status: 503, headers: { 'content-type': 'application/json' } });
+
 export function intakeRoutes(router: Router<ArabicEnv>) {
   // The intake: its words, the strands with their counts, what is next, and the items asked for.
   router.get('/ar/intake', async (req, env) => {
@@ -103,9 +114,11 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
     const p = new URL(req.url).searchParams;
     const L = await labels(env);
     const where: string[] = ['i.parent_id IS NULL'], args: unknown[] = [];
-    for (const k of ['strand', 'level', 'status', 'form', 'route'] as const) {
+    for (const k of ['strand', 'level', 'status', 'form'] as const) {
       const v = p.get(k); if (v) { where.push(`i.${k} = ?`); args.push(v); }
     }
+    const dom = p.get('domain') as Domain | null;
+    if (dom && (DOMAINS as readonly string[]).includes(dom)) where.push(`i.${FLAG[dom]} = 1`);
     const q = p.get('q')?.trim();
     if (q) { where.push(`(i.title_ar LIKE ? OR i.title_en LIKE ? OR i.channel LIKE ? OR i.note LIKE ?)`); args.push(...Array(4).fill(`%${q}%`)); }
     const nextSize = byKey(L.intake).get('next_up')?.min ?? 12;
@@ -125,10 +138,15 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
     const tally = (strand: string) => {
       const rows = counts.filter((c) => c.strand === strand);
       const sum = (f: (s: string) => boolean) => rows.filter((c) => f(c.status)).reduce((a, c) => a + c.n, 0);
-      return { total: sum(() => true), live: sum((s) => s === 'live'), logged: sum((s) => s === 'logged') };
+      return { total: sum(() => true), queued: sum((s) => s === 'queued'), logged: sum((s) => s === 'logged') };
     };
+    const ids = [...new Set([...items, ...next].map((r) => r.id))];
+    const [st, board] = await Promise.all([stagesOf(env, L, ids), boards(env, L)]);
     return ok({
       words: words(L),
+      // each domain's pipeline, stage by stage, with counts
+      pipelines: (L.intake_domain ?? []).filter((l) => (DOMAINS as readonly string[]).includes(l.key))
+        .map((l) => ({ domain: option(l), stages: board[l.key as Domain] })),
       strands: (L.intake_strand ?? []).map((l) => {
         const c = tally(l.key), line = byKey(L.intake).get('strand_count');
         return { ...option(l), counts: c, countLine: fill(line?.label, c) || null, countLineAr: fill(line?.labelAr, c) || null };
@@ -137,9 +155,9 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
       statuses: (L.intake_status ?? []).map(option),
       registers: (L.intake_register ?? []).map(option),
       forms: (L.intake_form ?? []).map(option),
-      routes: (L.intake_route ?? []).map(option),
-      next: next.map((r) => shape(r, L)),
-      items: items.map((r) => shape(r, L)),
+      domains: (L.intake_domain ?? []).map(option),
+      next: next.map((r) => shape(r, L, st)),
+      items: items.map((r) => shape(r, L, st)),
     });
   });
 
@@ -151,7 +169,10 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
     if (!item) return notFound(`intake item ${id}`);
     const children = await query<Row>(env.DB_AR,
       `SELECT i.*, 0 AS child_count, 0 AS live_count FROM ar_intake_item i WHERE i.parent_id = ? ORDER BY i.seq, i.created_at`, [id]);
-    return ok({ words: words(L), item: shape(item, L), children: children.map((r) => shape(r, L)) });
+    const st = await stagesOf(env, L, [item.id]);
+    return ok({ words: words(L), pipelines: await boards(env, L).then((b) => (L.intake_domain ?? [])
+                  .filter((l) => (DOMAINS as readonly string[]).includes(l.key)).map((l) => ({ domain: option(l), stages: b[l.key as Domain] }))),
+                item: shape(item, L, st), children: children.map((r) => shape(r, L)) });
   });
 
   // Log something new: a link, and optionally why it is good and where it sits.
@@ -168,8 +189,9 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
     };
     const strand = pick('intake_strand', b.strand, 'lugha'), level = pick('intake_level', b.level, 'middle');
     const register = pick('intake_register', b.register, 'fusha_muasira');
-    const form = pick('intake_form', b.form, 'explained'), route = pick('intake_route', b.route, 'ar');
-    if (!form || !route) return badRequest('unknown form or route');
+    const form = pick('intake_form', b.form, 'explained');
+    if (!form) return badRequest('unknown form');
+    const doms = Array.isArray(b.domains) ? (b.domains as unknown[]).map(String).filter((d) => (DOMAINS as readonly string[]).includes(d)) : ['ar'];
     if (!strand || !level) return badRequest('unknown strand or level');
     if (!register) return badRequest('only classical or fuṣḥā Arabic is taken');
     const priority = Math.min(5, Math.max(1, Number(b.priority) || 3));
@@ -178,10 +200,11 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
     const t = await titleOf(link.url, link.platform);
     const id = `IN:${link.platform === 'youtube' ? 'yt' : link.platform}:${link.externalId ?? crypto.randomUUID()}`;
     await execute(env.DB_AR,
-      `INSERT INTO ar_intake_item (id, kind, url, platform, external_id, title_ar, channel, register, strand, level, form, route, priority, status, note, added_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'logged', ?, ?)`,
+      `INSERT INTO ar_intake_item (id, kind, url, platform, external_id, title_ar, channel, register, strand, level, form, to_ar, to_qr, to_wv, priority, status, note, added_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'logged', ?, ?)`,
       [id, link.kind, link.url, link.platform, link.externalId, (b.title as string) || t.title, t.channel,
-       register, strand, level, form, route, priority, (b.note as string) || null, me]);
+       register, strand, level, form, +doms.includes('ar'), +doms.includes('qr'), +doms.includes('wv'),
+       priority, (b.note as string) || null, me]);
     const row = await queryOne<Row>(env.DB_AR, `SELECT i.*, ${COUNTS} FROM ar_intake_item i WHERE i.id = ?`, [id]);
     return created(shape(row!, L));
   });
@@ -198,7 +221,7 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
     const L = await labels(env);
     const sets: string[] = [], args: unknown[] = [];
     const scoped: Record<string, string> = { status: 'intake_status', strand: 'intake_strand', level: 'intake_level',
-      register: 'intake_register', form: 'intake_form', route: 'intake_route' };
+      register: 'intake_register', form: 'intake_form' };
     for (const [col, scope] of Object.entries(scoped)) {
       if (b[col] === undefined) continue;
       if (!byKey(L[scope]).has(String(b[col]))) return badRequest(`unknown ${col}`);
@@ -212,14 +235,47 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
       sets.push('wv_source_ref = ?'); args.push(ref);
     }
     if (b.title !== undefined) { sets.push('title_ar = ?'); args.push(b.title ? String(b.title) : null); }
-    if (!sets.length) return badRequest('nothing to change');
-    // a playlist's or channel's strand, level and register carry to what it holds
-    const carry = ['strand', 'level', 'register', 'form', 'route'].filter((c) => b[c] !== undefined);
-    await execute(env.DB_AR, `UPDATE ar_intake_item SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ?`, [...args, id]);
-    if (carry.length)
-      await execute(env.DB_AR, `UPDATE ar_intake_item SET ${carry.map((c) => `${c} = ?`).join(', ')}, updated_at = datetime('now') WHERE parent_id = ?`,
-        [...carry.map((c) => String(b[c])), id]);
+    // routing: which domains take it on
+    let doms: Domain[] | null = null;
+    if (b.domains !== undefined) {
+      if (!Array.isArray(b.domains)) return badRequest('domains is a list: ar, qr, wv');
+      doms = (b.domains as unknown[]).map(String).filter((d): d is Domain => (DOMAINS as readonly string[]).includes(d));
+      for (const d of DOMAINS) { sets.push(`${FLAG[d]} = ?`); args.push(+doms.includes(d)); }
+    }
+    // a stage in one domain's pipeline
+    const stage = b.stage as { domain?: string; stage?: string; targetRef?: string | null } | undefined;
+    if (!sets.length && !stage) return badRequest('nothing to change');
+    // keep the pipelines in step with the route and the triage, before anything is written: a domain
+    // that has started on the item keeps it, and the change is refused
+    const nextStatus = b.status !== undefined ? String(b.status) : row.status;
+    const was = DOMAINS.filter((d) => (row as unknown as Record<string, number>)[FLAG[d]]);
+    const want = doms ?? was;
+    if (row.parent_id === null) {
+      const drop = nextStatus === 'queued' ? was.filter((d) => !want.includes(d)) : was;
+      for (const d of drop) {
+        const r = await leave(env, d, id);
+        if (r === 'busy' && (nextStatus === 'queued' || doms)) return conflict(byKey(L.intake).get('unroute_busy')?.detail ?? `${d} has started on it`);
+      }
+      if (nextStatus === 'queued')
+        for (const d of want) if (!(await enter(env, d, { ...row, title: row.title_ar ?? row.title_en }))) return err503(d);
+    }
+    if (sets.length) {
+      await execute(env.DB_AR, `UPDATE ar_intake_item SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ?`, [...args, id]);
+      // a playlist's or channel's strand, level, register, form and route carry to what it holds
+      const carry = ['strand', 'level', 'register', 'form'].filter((c) => b[c] !== undefined);
+      const cs = [...carry.map((c) => `${c} = ?`), ...(doms ? DOMAINS.map((d) => `${FLAG[d]} = ?`) : [])];
+      if (cs.length)
+        await execute(env.DB_AR, `UPDATE ar_intake_item SET ${cs.join(', ')}, updated_at = datetime('now') WHERE parent_id = ?`,
+          [...carry.map((c) => String(b[c])), ...(doms ? DOMAINS.map((d) => +doms!.includes(d)) : []), id]);
+    }
+    if (stage) {
+      const d = stage.domain as Domain;
+      if (!(DOMAINS as readonly string[]).includes(d) || !stage.stage) return badRequest('stage needs {domain, stage}');
+      const r = await setStage(env, L, d, id, stage.stage, stage.targetRef);
+      if (r.status === 404) return notFound(`${d} pipeline item ${id}`);
+      if (r.status >= 400) return badRequest(`unknown ${d} stage`);
+    }
     const fresh = await queryOne<Row>(env.DB_AR, `SELECT i.*, ${COUNTS} FROM ar_intake_item i WHERE i.id = ?`, [id]);
-    return ok(shape(fresh!, L));
+    return ok(shape(fresh!, L, await stagesOf(env, L, [id])));
   });
 }

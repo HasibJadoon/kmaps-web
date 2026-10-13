@@ -39,8 +39,12 @@ import { practiceClassRoutes } from './routes/practice-class';
 import { drillSourceRoutes } from './routes/drill-source';
 import { practiceGrammarRoutes } from './routes/practice-grammar';
 import { translationChoiceRoutes } from './routes/translation-choices';
+import { intakePipelineRoutes } from '../../shared/src/intake-pipeline';
 
 const router = new Router<QuranEnv>();
+
+// The intake's pipeline for this domain (shared/src/intake-pipeline.ts): literal paths, so first.
+intakePipelineRoutes(router, { prefix: '/qr', db: (e) => e.DB_QR, table: 'qr_intake_pipeline', stages: 'qr_intake_stage' });
 
 router.get('/health', async (_req, env) =>
   ok({ domain: 'quran', db: 'DB_QR', db_ok: await dbHealth(env.DB_QR) }),

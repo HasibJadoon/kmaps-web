@@ -1454,3 +1454,12 @@ SELECT i.*,
  WHERE i.parent_id IS NULL
    AND json_extract(s.extra_json, '$.active') = 1
  ORDER BY lv.min_value, i.priority DESC, s.min_value DESC, i.created_at;
+
+CREATE TABLE ar_intake_pipeline (
+  intake_id   TEXT PRIMARY KEY REFERENCES ar_intake_item(id),
+  stage       TEXT NOT NULL DEFAULT 'queued',
+  target_ref  TEXT,
+  note        TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
