@@ -11,19 +11,23 @@ import { environment } from '../../../../environments/environment';
 interface Word { label: string; labelAr: string | null; detail: string | null; icon: string | null; }
 interface Badge { key: string; label: string; labelAr: string | null; icon: string | null; color: string | null; }
 interface Option extends Badge { detail: string | null; }
-interface Strand extends Option { counts: { total: number; live: number; logged: number }; countLine: string | null; countLineAr: string | null; }
+interface Strand extends Option { counts: { total: number; queued: number; logged: number }; countLine: string | null; countLineAr: string | null; }
+/// One domain's place for an item: routed there (`on`), and how far that domain's pipeline has taken it.
+interface DomainState { domain: Badge; on: boolean; stage: Badge | null; targetRef: string | null; }
+interface Stage extends Option { count?: number; }
+interface Pipeline { domain: Option; stages: Stage[]; }
 interface Item {
   id: string; kind: string; url: string; title: string; titleEn: string | null; channel: string | null;
   subtitle: string | null; subtitleAr: string | null; seq: number | null; durationSec: number | null;
   priority: number; note: string | null; childCount: number; liveCount: number;
-  strand: Badge; level: Badge; status: Badge; register: Badge; form: Badge; route: Badge; wvSourceRef: string | null; acqRefId: string | null; sent: boolean; createdAt: string;
+  strand: Badge; level: Badge; status: Badge; register: Badge; form: Badge; domains: DomainState[]; wvSourceRef: string | null; acqRefId: string | null; sent: boolean; createdAt: string;
 }
 interface Intake {
-  words: Record<string, Word>; strands: Strand[]; levels: Option[]; statuses: Option[]; registers: Option[]; forms: Option[]; routes: Option[];
+  words: Record<string, Word>; strands: Strand[]; levels: Option[]; statuses: Option[]; registers: Option[]; forms: Option[]; domains: Option[]; pipelines: Pipeline[];
   next: Item[]; items: Item[];
 }
-interface Detail { words: Record<string, Word>; item: Item; children: Item[]; }
-type FormKey = 'url' | 'note' | 'strand' | 'level' | 'priority' | 'register' | 'form' | 'route';
+interface Detail { words: Record<string, Word>; pipelines: Pipeline[]; item: Item; children: Item[]; }
+type FormKey = 'url' | 'note' | 'strand' | 'level' | 'priority' | 'register' | 'form';
 interface Envelope<T> { ok: boolean; data?: T; error?: { code: string; message: string }; }
 
 @Component({
@@ -48,11 +52,13 @@ export class ArabicIntakeComponent implements OnInit {
   readonly level = signal('');
   readonly status = signal('');
   readonly formF = signal('');
-  readonly routeF = signal('');
+  readonly domainF = signal('');
   readonly q = signal('');
 
   // log form
-  readonly form = signal({ url: '', note: '', strand: '', level: '', priority: '', register: '', form: '', route: '' });
+  readonly form = signal({ url: '', note: '', strand: '', level: '', priority: '', register: '', form: '' });
+  /// domains the new item is routed to; empty until the user picks (the worker then defaults it)
+  readonly formDomains = signal<string[]>([]);
   readonly saving = signal(false);
   readonly formError = signal<string | null>(null);
 
@@ -68,7 +74,7 @@ export class ArabicIntakeComponent implements OnInit {
 
   load(): void {
     let params = new HttpParams();
-    for (const [k, v] of [['strand', this.strand()], ['level', this.level()], ['status', this.status()], ['form', this.formF()], ['route', this.routeF()], ['q', this.q().trim()]])
+    for (const [k, v] of [['strand', this.strand()], ['level', this.level()], ['status', this.status()], ['form', this.formF()], ['domain', this.domainF()], ['q', this.q().trim()]])
       if (v) params = params.set(k, v);
     this.loading.set(true);
     this.http.get<Envelope<Intake>>(this.base, { params }).subscribe({
@@ -83,10 +89,14 @@ export class ArabicIntakeComponent implements OnInit {
   setLevel(k: string): void { this.level.set(k); this.load(); }
   setStatus(k: string): void { this.status.set(k); this.load(); }
   setFormFilter(k: string): void { this.formF.set(k); this.load(); }
-  setRoute(k: string): void { this.routeF.set(k); this.load(); }
+  setDomain(k: string): void { this.domainF.set(this.domainF() === k ? '' : k); this.load(); }
   search(): void { this.load(); }
 
   patchForm(k: FormKey, v: string): void { this.form.update((f) => ({ ...f, [k]: v })); }
+
+  toggleFormDomain(k: string): void {
+    this.formDomains.update((ds) => (ds.includes(k) ? ds.filter((x) => x !== k) : [...ds, k]));
+  }
 
   save(): void {
     const f = this.form();
@@ -97,7 +107,7 @@ export class ArabicIntakeComponent implements OnInit {
     if (f.level) body['level'] = f.level;
     if (f.register) body['register'] = f.register;
     if (f.form) body['form'] = f.form;
-    if (f.route) body['route'] = f.route;
+    if (this.formDomains().length) body['domains'] = this.formDomains();
     if (f.priority) body['priority'] = Number(f.priority);
     this.saving.set(true);
     this.formError.set(null);
@@ -114,17 +124,42 @@ export class ArabicIntakeComponent implements OnInit {
   open(it: Item): void {
     if (this.openId() === it.id) { this.openId.set(null); this.detail.set(null); return; }
     this.openId.set(it.id);
-    this.detail.set(null);
     this.patchError.set(null);
+    this.fetchDetail(it.id);
+  }
+
+  /// (Re)load the opened item. Clearing first re-renders the controls, so a refused change
+  /// (409/400) snaps the checkboxes and selects back to what the server holds.
+  private fetchDetail(id: string): void {
+    this.detail.set(null);
     this.detailLoading.set(true);
-    this.http.get<Envelope<Detail>>(`${this.base}/${encodeURIComponent(it.id)}`).subscribe({
-      next: (res) => { this.detail.set(res?.data ?? null); this.detailLoading.set(false); },
+    this.http.get<Envelope<Detail>>(`${this.base}/${encodeURIComponent(id)}`).subscribe({
+      next: (res) => { if (this.openId() === id) this.detail.set(res?.data ?? null); this.detailLoading.set(false); },
       error: (e: HttpErrorResponse) => { this.patchError.set(this.message(e)); this.detailLoading.set(false); },
     });
   }
 
-  change(it: Item, field: 'status' | 'strand' | 'level' | 'priority' | 'form' | 'route', value: string): void {
-    const body = { [field]: field === 'priority' ? Number(value) : value };
+  change(it: Item, field: 'status' | 'strand' | 'level' | 'priority' | 'form', value: string): void {
+    this.patch(it, { [field]: field === 'priority' ? Number(value) : value });
+  }
+
+  /// Route the item to / away from one domain; the worker refuses (409) un-routing a domain that has started.
+  toggleDomain(it: Item, key: string): void {
+    const on = it.domains.filter((x) => x.on).map((x) => x.domain.key);
+    this.patch(it, { domains: on.includes(key) ? on.filter((k) => k !== key) : [...on, key] });
+  }
+
+  /// Move the item to a stage in one domain's own pipeline.
+  setStage(it: Item, domain: string, stage: string): void {
+    this.patch(it, { stage: { domain, stage } });
+  }
+
+  /// The stages a domain's pipeline offers (from the detail's `pipelines`).
+  stagesFor(dt: Detail, domain: string): Stage[] {
+    return dt.pipelines.find((p) => p.domain.key === domain)?.stages ?? [];
+  }
+
+  private patch(it: Item, body: Record<string, unknown>): void {
     this.patchError.set(null);
     this.http.patch<Envelope<Item>>(`${this.base}/${encodeURIComponent(it.id)}`, body).subscribe({
       next: (res) => {
@@ -132,7 +167,7 @@ export class ArabicIntakeComponent implements OnInit {
         if (fresh) this.detail.update((d) => (d && d.item.id === fresh.id ? { ...d, item: fresh } : d));
         this.load();
       },
-      error: (e: HttpErrorResponse) => this.patchError.set(this.message(e)),
+      error: (e: HttpErrorResponse) => { this.patchError.set(this.message(e)); this.fetchDetail(it.id); },
     });
   }
 

@@ -127,3 +127,34 @@
 .in__children-head { margin: .75rem 0 .35rem; font-size: .9rem; font-weight: 600; opacity: .85; }
 
 .in__wv { margin: .25rem 0; font-size: .85rem; opacity: .85; }
+
+// domains: the three an item can be routed to, each with its own pipeline (colours from the API)
+.in__doms { display: flex; flex-wrap: wrap; gap: .35rem; }
+.in__dom-pick {
+  display: inline-flex; align-items: baseline; gap: .35rem; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.12); border-radius: 999px; padding: .3rem .7rem;
+  font-size: .76rem; color: var(--km-text-3);
+  input { margin: 0; accent-color: currentColor; }
+}
+.in__dom-pick--on { background: rgba(255,255,255,.04); }
+.in__dom--off { opacity: .35; }
+
+.in__board { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .7rem; }
+.in__lane {
+  border: 1px solid rgba(255,255,255,.08); border-top: 3px solid rgba(255,255,255,.15);
+  border-radius: 6px; padding: .55rem .7rem; background: rgba(255,255,255,.02);
+}
+.in__lane--on { background: rgba(255,255,255,.05); border-color: rgba(201,168,76,.3); }
+.in__lane-head {
+  background: none; border: none; padding: 0; cursor: pointer; font-size: .85rem; font-weight: 600;
+  display: inline-flex; align-items: baseline; gap: .45rem; margin-bottom: .4rem; color: var(--km-text);
+  &:hover { text-decoration: underline; }
+}
+.in__stages { list-style: none; margin: 0; padding: 0; }
+.in__stage {
+  display: flex; align-items: baseline; gap: .45rem; padding: .18rem 0; font-size: .78rem; color: var(--km-text-2);
+  border-bottom: 1px solid rgba(255,255,255,.04);
+}
+.in__stage--empty { opacity: .5; }
+.in__stage-dot { width: .45rem; height: .45rem; border-radius: 50%; background: rgba(255,255,255,.25); flex: none; align-self: center; }
+.in__stage-name { flex: 1; min-width: 0; }

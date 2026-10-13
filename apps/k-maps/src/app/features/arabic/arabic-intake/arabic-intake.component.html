@@ -57,13 +57,19 @@
               @for (o of d.forms; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
             </select>
           </label>
-          <label class="in__field">
-            <span>{{ w('route')?.label }} <span class="in__ar-s" dir="rtl">{{ w('route')?.labelAr }}</span></span>
-            <select name="route" [ngModel]="form().route" (ngModelChange)="patchForm('route', $event)">
-              <option value="">—</option>
-              @for (o of d.routes; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
-            </select>
-          </label>
+          <div class="in__field">
+            <span>{{ w('domains')?.label }} <span class="in__ar-s" dir="rtl">{{ w('domains')?.labelAr }}</span></span>
+            <span class="in__doms" [title]="w('domains')?.detail ?? ''">
+              @for (o of d.domains; track o.key) {
+                <label class="in__dom-pick" [class.in__dom-pick--on]="formDomains().includes(o.key)"
+                       [style.border-color]="formDomains().includes(o.key) ? o.color : null"
+                       [style.color]="formDomains().includes(o.key) ? o.color : null">
+                  <input type="checkbox" [checked]="formDomains().includes(o.key)" (change)="toggleFormDomain(o.key)" />
+                  {{ o.label }} <span class="in__ar-s" dir="rtl">{{ o.labelAr }}</span>
+                </label>
+              }
+            </span>
+          </div>
           <label class="in__field in__field--narrow">
             <span>{{ w('priority')?.label }} <span class="in__ar-s" dir="rtl">{{ w('priority')?.labelAr }}</span></span>
             <select name="priority" [ngModel]="form().priority" (ngModelChange)="patchForm('priority', $event)"
@@ -78,6 +84,35 @@
         </form>
         @if (formError()) { <p class="in__error">{{ formError() }}</p> }
       </section>
+
+      <!-- Pipelines: each domain's own stages, with counts -->
+      @if (d.pipelines.length) {
+        <section class="in__section">
+          @if (w('pipelines'); as t) {
+            <h2 class="in__h">{{ t.label }} @if (t.labelAr) { <span class="in__ar" dir="rtl">{{ t.labelAr }}</span> }</h2>
+            @if (t.detail) { <p class="in__hint">{{ t.detail }}</p> }
+          }
+          <div class="in__board">
+            @for (p of d.pipelines; track p.domain.key) {
+              <div class="in__lane" [class.in__lane--on]="domainF() === p.domain.key" [style.border-top-color]="p.domain.color">
+                <button type="button" class="in__lane-head" [style.color]="p.domain.color" [title]="p.domain.detail ?? ''"
+                        (click)="setDomain(p.domain.key)">
+                  {{ p.domain.label }} @if (p.domain.labelAr) { <span class="in__ar-s" dir="rtl">{{ p.domain.labelAr }}</span> }
+                </button>
+                <ol class="in__stages">
+                  @for (s of p.stages; track s.key) {
+                    <li class="in__stage" [class.in__stage--empty]="!s.count" [title]="s.detail ?? ''">
+                      <span class="in__stage-dot" [style.background]="s.color"></span>
+                      <span class="in__stage-name">{{ s.label }} @if (s.labelAr) { <span class="in__ar-s" dir="rtl">{{ s.labelAr }}</span> }</span>
+                      <span class="in__count">{{ s.count ?? 0 }}</span>
+                    </li>
+                  }
+                </ol>
+              </div>
+            }
+          </div>
+        </section>
+      }
 
       <!-- Next up -->
       @if (d.next.length) {
@@ -139,10 +174,10 @@
             </select>
           </label>
           <label class="in__field">
-            <span>{{ w('route')?.label }}</span>
-            <select [ngModel]="routeF()" (ngModelChange)="setRoute($event)">
+            <span>{{ w('domains')?.label }}</span>
+            <select [ngModel]="domainF()" (ngModelChange)="domainF.set($event); load()">
               <option value="">{{ w('all')?.label }}</option>
-              @for (o of d.routes; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+              @for (o of d.domains; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
             </select>
           </label>
           <form class="in__field in__field--wide" (ngSubmit)="search()">
@@ -172,9 +207,16 @@
                     @if (it.note) { <span class="in__row-note">{{ it.note }}</span> }
                   </div>
                   <span class="in__badges">
-                    @for (b of [it.strand, it.level, it.form, it.route, it.status]; track $index) {
+                    @for (b of [it.strand, it.level, it.form, it.status]; track $index) {
                       <span class="in__badge" [style.color]="b.color" [style.border-color]="b.color">
                         {{ b.label }} <span class="in__ar-s" dir="rtl">{{ b.labelAr }}</span>
+                      </span>
+                    }
+                    @for (x of it.domains; track x.domain.key) {
+                      <span class="in__badge in__dom" [class.in__dom--off]="!x.on"
+                            [style.color]="x.on ? x.domain.color : null" [style.border-color]="x.on ? x.domain.color : null"
+                            [title]="x.domain.labelAr ?? ''">
+                        {{ x.domain.label }}@if (x.on && x.stage) { · <span [style.color]="x.stage.color">{{ x.stage.label }}</span> }
                       </span>
                     }
                     <span class="in__prio" [title]="w('priority')?.label ?? ''">{{ it.priority }}</span>
@@ -202,12 +244,6 @@
                           </select>
                         </label>
                         <label class="in__field">
-                          <span>{{ w('route')?.label }}</span>
-                          <select [ngModel]="dt.item.route.key" (ngModelChange)="change(dt.item, 'route', $event)">
-                            @for (o of d.routes; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
-                          </select>
-                        </label>
-                        <label class="in__field">
                           <span>{{ w('strand')?.label }}</span>
                           <select [ngModel]="dt.item.strand.key" (ngModelChange)="change(dt.item, 'strand', $event)">
                             @for (o of d.strands; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
@@ -225,6 +261,32 @@
                             @for (p of priorities; track p) { <option [value]="'' + p">{{ p }}</option> }
                           </select>
                         </label>
+                      </div>
+
+                      <div class="in__filters">
+                        <div class="in__field">
+                          <span>{{ w('domains')?.label }} <span class="in__ar-s" dir="rtl">{{ w('domains')?.labelAr }}</span></span>
+                          <span class="in__doms">
+                            @for (x of dt.item.domains; track x.domain.key) {
+                              <label class="in__dom-pick" [class.in__dom-pick--on]="x.on"
+                                     [style.border-color]="x.on ? x.domain.color : null" [style.color]="x.on ? x.domain.color : null">
+                                <input type="checkbox" [checked]="x.on" (change)="toggleDomain(dt.item, x.domain.key)" />
+                                {{ x.domain.label }} <span class="in__ar-s" dir="rtl">{{ x.domain.labelAr }}</span>
+                              </label>
+                            }
+                          </span>
+                        </div>
+                        @for (x of dt.item.domains; track x.domain.key) {
+                          @if (x.on && x.stage) {
+                            <label class="in__field">
+                              <span [style.color]="x.domain.color">{{ x.domain.label }} · {{ w('stage')?.label }}
+                                <span class="in__ar-s" dir="rtl">{{ w('stage')?.labelAr }}</span></span>
+                              <select [ngModel]="x.stage.key" (ngModelChange)="setStage(dt.item, x.domain.key, $event)">
+                                @for (o of stagesFor(dt, x.domain.key); track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+                              </select>
+                            </label>
+                          }
+                        }
                       </div>
 
                       @if (dt.item.wvSourceRef) {
