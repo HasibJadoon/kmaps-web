@@ -50,6 +50,20 @@
               @for (o of d.registers; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
             </select>
           </label>
+          <label class="in__field">
+            <span>{{ w('form')?.label }} <span class="in__ar-s" dir="rtl">{{ w('form')?.labelAr }}</span></span>
+            <select name="form" [ngModel]="form().form" (ngModelChange)="patchForm('form', $event)">
+              <option value="">—</option>
+              @for (o of d.forms; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+            </select>
+          </label>
+          <label class="in__field">
+            <span>{{ w('route')?.label }} <span class="in__ar-s" dir="rtl">{{ w('route')?.labelAr }}</span></span>
+            <select name="route" [ngModel]="form().route" (ngModelChange)="patchForm('route', $event)">
+              <option value="">—</option>
+              @for (o of d.routes; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+            </select>
+          </label>
           <label class="in__field in__field--narrow">
             <span>{{ w('priority')?.label }} <span class="in__ar-s" dir="rtl">{{ w('priority')?.labelAr }}</span></span>
             <select name="priority" [ngModel]="form().priority" (ngModelChange)="patchForm('priority', $event)"
@@ -117,6 +131,20 @@
               @for (o of d.statuses; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
             </select>
           </label>
+          <label class="in__field">
+            <span>{{ w('form')?.label }}</span>
+            <select [ngModel]="formF()" (ngModelChange)="setFormFilter($event)">
+              <option value="">{{ w('all')?.label }}</option>
+              @for (o of d.forms; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+            </select>
+          </label>
+          <label class="in__field">
+            <span>{{ w('route')?.label }}</span>
+            <select [ngModel]="routeF()" (ngModelChange)="setRoute($event)">
+              <option value="">{{ w('all')?.label }}</option>
+              @for (o of d.routes; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+            </select>
+          </label>
           <form class="in__field in__field--wide" (ngSubmit)="search()">
             <span>{{ w('search')?.label }} <span class="in__ar-s" dir="rtl">{{ w('search')?.labelAr }}</span></span>
             <input type="search" name="q" [ngModel]="q()" (ngModelChange)="q.set($event)" />
@@ -144,7 +172,7 @@
                     @if (it.note) { <span class="in__row-note">{{ it.note }}</span> }
                   </div>
                   <span class="in__badges">
-                    @for (b of [it.strand, it.level, it.status]; track b.key) {
+                    @for (b of [it.strand, it.level, it.form, it.route, it.status]; track $index) {
                       <span class="in__badge" [style.color]="b.color" [style.border-color]="b.color">
                         {{ b.label }} <span class="in__ar-s" dir="rtl">{{ b.labelAr }}</span>
                       </span>
@@ -168,6 +196,18 @@
                           </select>
                         </label>
                         <label class="in__field">
+                          <span>{{ w('form')?.label }}</span>
+                          <select [ngModel]="dt.item.form.key" (ngModelChange)="change(dt.item, 'form', $event)">
+                            @for (o of d.forms; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+                          </select>
+                        </label>
+                        <label class="in__field">
+                          <span>{{ w('route')?.label }}</span>
+                          <select [ngModel]="dt.item.route.key" (ngModelChange)="change(dt.item, 'route', $event)">
+                            @for (o of d.routes; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+                          </select>
+                        </label>
+                        <label class="in__field">
                           <span>{{ w('strand')?.label }}</span>
                           <select [ngModel]="dt.item.strand.key" (ngModelChange)="change(dt.item, 'strand', $event)">
                             @for (o of d.strands; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
@@ -187,6 +227,9 @@
                         </label>
                       </div>
 
+                      @if (dt.item.wvSourceRef) {
+                        <p class="in__wv">{{ w('wv_source')?.label }} <span class="in__ar-s" dir="rtl">{{ w('wv_source')?.labelAr }}</span> · {{ dt.item.wvSourceRef }}</p>
+                      }
                       <div class="in__detail-bar">
                         <button type="button" class="in__close" (click)="open(it)">{{ w('close')?.label }}
                           <span class="in__ar-s" dir="rtl">{{ w('close')?.labelAr }}</span></button>

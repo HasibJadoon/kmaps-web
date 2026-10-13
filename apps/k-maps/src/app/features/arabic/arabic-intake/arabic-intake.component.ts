@@ -16,14 +16,14 @@ interface Item {
   id: string; kind: string; url: string; title: string; titleEn: string | null; channel: string | null;
   subtitle: string | null; subtitleAr: string | null; seq: number | null; durationSec: number | null;
   priority: number; note: string | null; childCount: number; liveCount: number;
-  strand: Badge; level: Badge; status: Badge; register: Badge; acqRefId: string | null; sent: boolean; createdAt: string;
+  strand: Badge; level: Badge; status: Badge; register: Badge; form: Badge; route: Badge; wvSourceRef: string | null; acqRefId: string | null; sent: boolean; createdAt: string;
 }
 interface Intake {
-  words: Record<string, Word>; strands: Strand[]; levels: Option[]; statuses: Option[]; registers: Option[];
+  words: Record<string, Word>; strands: Strand[]; levels: Option[]; statuses: Option[]; registers: Option[]; forms: Option[]; routes: Option[];
   next: Item[]; items: Item[];
 }
 interface Detail { words: Record<string, Word>; item: Item; children: Item[]; }
-type FormKey = 'url' | 'note' | 'strand' | 'level' | 'priority' | 'register';
+type FormKey = 'url' | 'note' | 'strand' | 'level' | 'priority' | 'register' | 'form' | 'route';
 interface Envelope<T> { ok: boolean; data?: T; error?: { code: string; message: string }; }
 
 @Component({
@@ -47,10 +47,12 @@ export class ArabicIntakeComponent implements OnInit {
   readonly strand = signal('');
   readonly level = signal('');
   readonly status = signal('');
+  readonly formF = signal('');
+  readonly routeF = signal('');
   readonly q = signal('');
 
   // log form
-  readonly form = signal({ url: '', note: '', strand: '', level: '', priority: '', register: '' });
+  readonly form = signal({ url: '', note: '', strand: '', level: '', priority: '', register: '', form: '', route: '' });
   readonly saving = signal(false);
   readonly formError = signal<string | null>(null);
 
@@ -66,7 +68,7 @@ export class ArabicIntakeComponent implements OnInit {
 
   load(): void {
     let params = new HttpParams();
-    for (const [k, v] of [['strand', this.strand()], ['level', this.level()], ['status', this.status()], ['q', this.q().trim()]])
+    for (const [k, v] of [['strand', this.strand()], ['level', this.level()], ['status', this.status()], ['form', this.formF()], ['route', this.routeF()], ['q', this.q().trim()]])
       if (v) params = params.set(k, v);
     this.loading.set(true);
     this.http.get<Envelope<Intake>>(this.base, { params }).subscribe({
@@ -80,6 +82,8 @@ export class ArabicIntakeComponent implements OnInit {
   setStrand(k: string): void { this.strand.set(this.strand() === k ? '' : k); this.load(); }
   setLevel(k: string): void { this.level.set(k); this.load(); }
   setStatus(k: string): void { this.status.set(k); this.load(); }
+  setFormFilter(k: string): void { this.formF.set(k); this.load(); }
+  setRoute(k: string): void { this.routeF.set(k); this.load(); }
   search(): void { this.load(); }
 
   patchForm(k: FormKey, v: string): void { this.form.update((f) => ({ ...f, [k]: v })); }
@@ -92,6 +96,8 @@ export class ArabicIntakeComponent implements OnInit {
     if (f.strand) body['strand'] = f.strand;
     if (f.level) body['level'] = f.level;
     if (f.register) body['register'] = f.register;
+    if (f.form) body['form'] = f.form;
+    if (f.route) body['route'] = f.route;
     if (f.priority) body['priority'] = Number(f.priority);
     this.saving.set(true);
     this.formError.set(null);
@@ -117,7 +123,7 @@ export class ArabicIntakeComponent implements OnInit {
     });
   }
 
-  change(it: Item, field: 'status' | 'strand' | 'level' | 'priority', value: string): void {
+  change(it: Item, field: 'status' | 'strand' | 'level' | 'priority' | 'form' | 'route', value: string): void {
     const body = { [field]: field === 'priority' ? Number(value) : value };
     this.patchError.set(null);
     this.http.patch<Envelope<Item>>(`${this.base}/${encodeURIComponent(it.id)}`, body).subscribe({

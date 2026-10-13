@@ -14,7 +14,7 @@ interface Row {
   id: string; parent_id: string | null; kind: string; url: string; platform: string; external_id: string | null;
   title_ar: string | null; title_en: string | null; channel: string | null; seq: number | null; duration_sec: number | null;
   item_count: number | null; register: string; genre_ref: string | null; strand: string; level: string; priority: number;
-  status: string; acq_ref_id: string | null; note: string | null; added_by: string | null; meta_json: string;
+  status: string; form: string; route: string; wv_source_ref: string | null; acq_ref_id: string | null; note: string | null; added_by: string | null; meta_json: string;
   created_at: string; child_count?: number; live_count?: number;
 }
 
@@ -41,6 +41,9 @@ function shape(r: Row, L: Scopes) {
     level: badge(byKey(L.intake_level).get(r.level), r.level),
     status: badge(byKey(L.intake_status).get(r.status), r.status),
     register: badge(byKey(L.intake_register).get(r.register), r.register),
+    form: badge(byKey(L.intake_form).get(r.form), r.form),
+    route: badge(byKey(L.intake_route).get(r.route), r.route),
+    wvSourceRef: r.wv_source_ref,
     acqRefId: r.acq_ref_id, sent: meta.sent === true, createdAt: r.created_at,
   };
 }
@@ -100,7 +103,7 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
     const p = new URL(req.url).searchParams;
     const L = await labels(env);
     const where: string[] = ['i.parent_id IS NULL'], args: unknown[] = [];
-    for (const k of ['strand', 'level', 'status'] as const) {
+    for (const k of ['strand', 'level', 'status', 'form', 'route'] as const) {
       const v = p.get(k); if (v) { where.push(`i.${k} = ?`); args.push(v); }
     }
     const q = p.get('q')?.trim();
@@ -133,6 +136,8 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
       levels: (L.intake_level ?? []).map(option),
       statuses: (L.intake_status ?? []).map(option),
       registers: (L.intake_register ?? []).map(option),
+      forms: (L.intake_form ?? []).map(option),
+      routes: (L.intake_route ?? []).map(option),
       next: next.map((r) => shape(r, L)),
       items: items.map((r) => shape(r, L)),
     });
@@ -163,6 +168,8 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
     };
     const strand = pick('intake_strand', b.strand, 'lugha'), level = pick('intake_level', b.level, 'middle');
     const register = pick('intake_register', b.register, 'fusha_muasira');
+    const form = pick('intake_form', b.form, 'explained'), route = pick('intake_route', b.route, 'ar');
+    if (!form || !route) return badRequest('unknown form or route');
     if (!strand || !level) return badRequest('unknown strand or level');
     if (!register) return badRequest('only classical or fuṣḥā Arabic is taken');
     const priority = Math.min(5, Math.max(1, Number(b.priority) || 3));
@@ -171,10 +178,10 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
     const t = await titleOf(link.url, link.platform);
     const id = `IN:${link.platform === 'youtube' ? 'yt' : link.platform}:${link.externalId ?? crypto.randomUUID()}`;
     await execute(env.DB_AR,
-      `INSERT INTO ar_intake_item (id, kind, url, platform, external_id, title_ar, channel, register, strand, level, priority, status, note, added_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'logged', ?, ?)`,
+      `INSERT INTO ar_intake_item (id, kind, url, platform, external_id, title_ar, channel, register, strand, level, form, route, priority, status, note, added_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'logged', ?, ?)`,
       [id, link.kind, link.url, link.platform, link.externalId, (b.title as string) || t.title, t.channel,
-       register, strand, level, priority, (b.note as string) || null, me]);
+       register, strand, level, form, route, priority, (b.note as string) || null, me]);
     const row = await queryOne<Row>(env.DB_AR, `SELECT i.*, ${COUNTS} FROM ar_intake_item i WHERE i.id = ?`, [id]);
     return created(shape(row!, L));
   });
@@ -190,7 +197,8 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
     const b = await req.json().catch(() => ({})) as Record<string, unknown>;
     const L = await labels(env);
     const sets: string[] = [], args: unknown[] = [];
-    const scoped: Record<string, string> = { status: 'intake_status', strand: 'intake_strand', level: 'intake_level', register: 'intake_register' };
+    const scoped: Record<string, string> = { status: 'intake_status', strand: 'intake_strand', level: 'intake_level',
+      register: 'intake_register', form: 'intake_form', route: 'intake_route' };
     for (const [col, scope] of Object.entries(scoped)) {
       if (b[col] === undefined) continue;
       if (!byKey(L[scope]).has(String(b[col]))) return badRequest(`unknown ${col}`);
@@ -198,10 +206,15 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
     }
     if (b.priority !== undefined) { sets.push('priority = ?'); args.push(Math.min(5, Math.max(1, Number(b.priority) || 3))); }
     if (b.note !== undefined) { sets.push('note = ?'); args.push(b.note ? String(b.note) : null); }
+    if (b.wvSourceRef !== undefined) {
+      const ref = b.wvSourceRef ? String(b.wvSourceRef) : null;
+      if (ref && !/^WV:[\w-]+$/.test(ref)) return badRequest('wvSourceRef is a typed ref, WV:<id>');
+      sets.push('wv_source_ref = ?'); args.push(ref);
+    }
     if (b.title !== undefined) { sets.push('title_ar = ?'); args.push(b.title ? String(b.title) : null); }
     if (!sets.length) return badRequest('nothing to change');
     // a playlist's or channel's strand, level and register carry to what it holds
-    const carry = ['strand', 'level', 'register'].filter((c) => b[c] !== undefined);
+    const carry = ['strand', 'level', 'register', 'form', 'route'].filter((c) => b[c] !== undefined);
     await execute(env.DB_AR, `UPDATE ar_intake_item SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ?`, [...args, id]);
     if (carry.length)
       await execute(env.DB_AR, `UPDATE ar_intake_item SET ${carry.map((c) => `${c} = ?`).join(', ')}, updated_at = datetime('now') WHERE parent_id = ?`,
