@@ -46,6 +46,8 @@ export class ArabicMenuCardComponent implements OnInit {
       description: 'Watch with the script running under the video', route: '/arabic/series' },
     { icon: '♪', title: 'Listening', arabicTitle: 'الاستماع',
       description: 'Readers, stories, dīwāns — recorded', route: '/arabic/listening' },
+    { icon: '⇣', title: 'Intake', arabicTitle: 'الوارد',
+      description: 'Log fuṣḥā sources and work them toward tafsīr', route: '/arabic/intake', gated: true },
     { icon: '↻', title: 'Capture review', arabicTitle: 'المراجعة',
       description: 'Machine-read Arabic awaiting a human', route: '/arabic/review' },
     { icon: 'ك', title: 'Content Library', arabicTitle: 'المكتبة',

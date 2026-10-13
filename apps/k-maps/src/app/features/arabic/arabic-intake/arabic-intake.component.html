@@ -1,0 +1,215 @@
+<div class="in">
+  <header class="in__header">
+    <button class="in__back" (click)="goBack()">← Arabic</button>
+    @if (w('title'); as t) {
+      <h1 class="in__title">
+        {{ t.label }}
+        @if (t.labelAr) { <span class="in__ar" dir="rtl">{{ t.labelAr }}</span> }
+      </h1>
+      @if (t.detail) { <p class="in__sub">{{ t.detail }}</p> }
+    }
+  </header>
+
+  <div class="in__body">
+    @if (error()) { <p class="in__error">{{ error() }}</p> }
+
+    @if (data(); as d) {
+      <!-- Log something new -->
+      <section class="in__card">
+        @if (w('log_new'); as t) {
+          <h2 class="in__h">{{ t.label }} @if (t.labelAr) { <span class="in__ar" dir="rtl">{{ t.labelAr }}</span> }</h2>
+          @if (t.detail) { <p class="in__hint">{{ t.detail }}</p> }
+        }
+        <form class="in__form" (ngSubmit)="save()">
+          <label class="in__field in__field--wide">
+            <span>{{ w('url')?.label }} <span class="in__ar-s" dir="rtl">{{ w('url')?.labelAr }}</span></span>
+            <input type="url" name="url" required [ngModel]="form().url" (ngModelChange)="patchForm('url', $event)" />
+          </label>
+          <label class="in__field in__field--wide">
+            <span>{{ w('note')?.label }} <span class="in__ar-s" dir="rtl">{{ w('note')?.labelAr }}</span></span>
+            <input type="text" name="note" [ngModel]="form().note" (ngModelChange)="patchForm('note', $event)" />
+          </label>
+          <label class="in__field">
+            <span>{{ w('strand')?.label }} <span class="in__ar-s" dir="rtl">{{ w('strand')?.labelAr }}</span></span>
+            <select name="strand" [ngModel]="form().strand" (ngModelChange)="patchForm('strand', $event)">
+              <option value="">—</option>
+              @for (o of d.strands; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+            </select>
+          </label>
+          <label class="in__field">
+            <span>{{ w('level')?.label }} <span class="in__ar-s" dir="rtl">{{ w('level')?.labelAr }}</span></span>
+            <select name="level" [ngModel]="form().level" (ngModelChange)="patchForm('level', $event)">
+              <option value="">—</option>
+              @for (o of d.levels; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+            </select>
+          </label>
+          <label class="in__field">
+            <span>{{ w('register')?.label }} <span class="in__ar-s" dir="rtl">{{ w('register')?.labelAr }}</span></span>
+            <select name="register" [ngModel]="form().register" (ngModelChange)="patchForm('register', $event)">
+              <option value="">—</option>
+              @for (o of d.registers; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+            </select>
+          </label>
+          <label class="in__field in__field--narrow">
+            <span>{{ w('priority')?.label }} <span class="in__ar-s" dir="rtl">{{ w('priority')?.labelAr }}</span></span>
+            <select name="priority" [ngModel]="form().priority" (ngModelChange)="patchForm('priority', $event)"
+                    [title]="w('priority')?.detail ?? ''">
+              <option value="">—</option>
+              @for (p of priorities; track p) { <option [value]="p">{{ p }}</option> }
+            </select>
+          </label>
+          <button class="in__save" type="submit" [disabled]="saving() || !form().url.trim()">
+            {{ w('save')?.label }} <span class="in__ar-s" dir="rtl">{{ w('save')?.labelAr }}</span>
+          </button>
+        </form>
+        @if (formError()) { <p class="in__error">{{ formError() }}</p> }
+      </section>
+
+      <!-- Next up -->
+      @if (d.next.length) {
+        <section class="in__section">
+          @if (w('next_up'); as t) {
+            <h2 class="in__h">{{ t.label }} @if (t.labelAr) { <span class="in__ar" dir="rtl">{{ t.labelAr }}</span> }</h2>
+            @if (t.detail) { <p class="in__hint">{{ t.detail }}</p> }
+          }
+          <div class="in__next">
+            @for (it of d.next; track it.id) {
+              <button class="in__tile" [style.border-color]="it.strand.color" (click)="open(it)">
+                <span class="in__tile-title" dir="auto">{{ it.title }}</span>
+                @if (it.channel) { <span class="in__tile-ch" dir="auto">{{ it.channel }}</span> }
+                <span class="in__badges">
+                  <span class="in__badge" [style.color]="it.level.color" [style.border-color]="it.level.color">{{ it.level.label }}</span>
+                  <span class="in__badge" [style.color]="it.status.color" [style.border-color]="it.status.color">{{ it.status.label }}</span>
+                </span>
+              </button>
+            }
+          </div>
+        </section>
+      }
+
+      <!-- Filters -->
+      <section class="in__section">
+        <div class="in__chips">
+          <button class="in__chip" [class.in__chip--on]="!strand()" (click)="strand.set(''); load()">
+            {{ w('all')?.label }} <span class="in__ar-s" dir="rtl">{{ w('all')?.labelAr }}</span>
+          </button>
+          @for (s of d.strands; track s.key) {
+            <button class="in__chip" [class.in__chip--on]="strand() === s.key" [title]="s.detail ?? ''"
+                    [style.border-color]="strand() === s.key ? s.color : null"
+                    [style.color]="strand() === s.key ? s.color : null" (click)="setStrand(s.key)">
+              {{ s.label }} <span class="in__ar-s" dir="rtl">{{ s.labelAr }}</span>
+              <span class="in__count">{{ s.counts.total }}</span>
+            </button>
+          }
+        </div>
+        <div class="in__filters">
+          <label class="in__field">
+            <span>{{ w('level')?.label }}</span>
+            <select [ngModel]="level()" (ngModelChange)="setLevel($event)">
+              <option value="">{{ w('all')?.label }}</option>
+              @for (o of d.levels; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+            </select>
+          </label>
+          <label class="in__field">
+            <span>{{ w('status')?.label }}</span>
+            <select [ngModel]="status()" (ngModelChange)="setStatus($event)">
+              <option value="">{{ w('all')?.label }}</option>
+              @for (o of d.statuses; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+            </select>
+          </label>
+          <form class="in__field in__field--wide" (ngSubmit)="search()">
+            <span>{{ w('search')?.label }} <span class="in__ar-s" dir="rtl">{{ w('search')?.labelAr }}</span></span>
+            <input type="search" name="q" [ngModel]="q()" (ngModelChange)="q.set($event)" />
+          </form>
+        </div>
+      </section>
+
+      <!-- Items -->
+      <section class="in__section">
+        @if (loading()) { <div class="in__spinner"></div> }
+        @else if (!d.items.length) {
+          <p class="in__empty">{{ w('empty')?.label }} <span class="in__ar" dir="rtl">{{ w('empty')?.labelAr }}</span></p>
+        } @else {
+          <ol class="in__list">
+            @for (it of d.items; track it.id) {
+              <li class="in__row" [class.in__row--on]="openId() === it.id" [style.border-left-color]="it.strand.color">
+                <div class="in__row-main" (click)="open(it)" tabindex="0" (keydown.enter)="open(it)">
+                  <div class="in__row-text">
+                    <span class="in__row-title" dir="auto">{{ it.title }}</span>
+                    <span class="in__row-meta">
+                      @if (it.channel) { <span dir="auto">{{ it.channel }}</span> }
+                      @if (it.subtitle) { <span>· {{ it.subtitle }}</span> }
+                      @if (it.subtitleAr) { <span class="in__ar-s" dir="rtl">{{ it.subtitleAr }}</span> }
+                    </span>
+                    @if (it.note) { <span class="in__row-note">{{ it.note }}</span> }
+                  </div>
+                  <span class="in__badges">
+                    @for (b of [it.strand, it.level, it.status]; track b.key) {
+                      <span class="in__badge" [style.color]="b.color" [style.border-color]="b.color">
+                        {{ b.label }} <span class="in__ar-s" dir="rtl">{{ b.labelAr }}</span>
+                      </span>
+                    }
+                    <span class="in__prio" [title]="w('priority')?.label ?? ''">{{ it.priority }}</span>
+                  </span>
+                  <a class="in__open" [href]="it.url" target="_blank" rel="noopener" (click)="$event.stopPropagation()"
+                     [title]="w('open_source')?.label ?? ''">↗</a>
+                </div>
+
+                @if (openId() === it.id) {
+                  <div class="in__detail">
+                    @if (detailLoading()) { <div class="in__spinner"></div> }
+                    @if (patchError()) { <p class="in__error">{{ patchError() }}</p> }
+                    @if (detail(); as dt) {
+                      <div class="in__filters">
+                        <label class="in__field">
+                          <span>{{ w('status')?.label }}</span>
+                          <select [ngModel]="dt.item.status.key" (ngModelChange)="change(dt.item, 'status', $event)">
+                            @for (o of d.statuses; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+                          </select>
+                        </label>
+                        <label class="in__field">
+                          <span>{{ w('strand')?.label }}</span>
+                          <select [ngModel]="dt.item.strand.key" (ngModelChange)="change(dt.item, 'strand', $event)">
+                            @for (o of d.strands; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+                          </select>
+                        </label>
+                        <label class="in__field">
+                          <span>{{ w('level')?.label }}</span>
+                          <select [ngModel]="dt.item.level.key" (ngModelChange)="change(dt.item, 'level', $event)">
+                            @for (o of d.levels; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
+                          </select>
+                        </label>
+                        <label class="in__field in__field--narrow">
+                          <span>{{ w('priority')?.label }}</span>
+                          <select [ngModel]="'' + dt.item.priority" (ngModelChange)="change(dt.item, 'priority', $event)">
+                            @for (p of priorities; track p) { <option [value]="'' + p">{{ p }}</option> }
+                          </select>
+                        </label>
+                      </div>
+
+                      @if (dt.children.length) {
+                        <ol class="in__children">
+                          @for (c of dt.children; track c.id) {
+                            <li class="in__child">
+                              <span class="in__child-seq">{{ c.seq }}</span>
+                              <span class="in__child-title" dir="auto">{{ c.title }}</span>
+                              <span class="in__badge" [style.color]="c.status.color" [style.border-color]="c.status.color">{{ c.status.label }}</span>
+                              <span class="in__child-dur">{{ duration(c.durationSec) }}</span>
+                              <a class="in__open" [href]="c.url" target="_blank" rel="noopener" [title]="w('open_source')?.label ?? ''">↗</a>
+                            </li>
+                          }
+                        </ol>
+                      }
+                    }
+                  </div>
+                }
+              </li>
+            }
+          </ol>
+        }
+      </section>
+    } @else if (loading()) {
+      <div class="in__spinner"></div>
+    }
+  </div>
+</div>
