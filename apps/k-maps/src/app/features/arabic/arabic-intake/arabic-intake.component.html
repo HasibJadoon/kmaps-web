@@ -98,7 +98,7 @@
                     [style.border-color]="strand() === s.key ? s.color : null"
                     [style.color]="strand() === s.key ? s.color : null" (click)="setStrand(s.key)">
               {{ s.label }} <span class="in__ar-s" dir="rtl">{{ s.labelAr }}</span>
-              <span class="in__count">{{ s.counts.total }}</span>
+              <span class="in__count" [title]="s.countLineAr ?? ''">{{ s.countLine ?? s.counts.total }}</span>
             </button>
           }
         </div>
@@ -187,7 +187,13 @@
                         </label>
                       </div>
 
+                      <div class="in__detail-bar">
+                        <button type="button" class="in__close" (click)="open(it)">{{ w('close')?.label }}
+                          <span class="in__ar-s" dir="rtl">{{ w('close')?.labelAr }}</span></button>
+                      </div>
                       @if (dt.children.length) {
+                        <h4 class="in__children-head">{{ w('children')?.label }}
+                          <span class="in__ar-s" dir="rtl">{{ w('children')?.labelAr }}</span></h4>
                         <ol class="in__children">
                           @for (c of dt.children; track c.id) {
                             <li class="in__child">

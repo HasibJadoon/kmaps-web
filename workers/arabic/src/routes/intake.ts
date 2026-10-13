@@ -126,7 +126,10 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
     };
     return ok({
       words: words(L),
-      strands: (L.intake_strand ?? []).map((l) => ({ ...option(l), counts: tally(l.key) })),
+      strands: (L.intake_strand ?? []).map((l) => {
+        const c = tally(l.key), line = byKey(L.intake).get('strand_count');
+        return { ...option(l), counts: c, countLine: fill(line?.label, c) || null, countLineAr: fill(line?.labelAr, c) || null };
+      }),
       levels: (L.intake_level ?? []).map(option),
       statuses: (L.intake_status ?? []).map(option),
       registers: (L.intake_register ?? []).map(option),

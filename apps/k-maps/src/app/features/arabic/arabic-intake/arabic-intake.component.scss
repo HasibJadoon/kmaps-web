@@ -121,3 +121,7 @@
   .in__header, .in__body { padding-left: 1rem; padding-right: 1rem; }
   .in__row-main { flex-wrap: wrap; }
 }
+
+.in__detail-bar { display: flex; justify-content: flex-end; margin: .25rem 0 .5rem; }
+.in__close { background: none; border: 1px solid currentColor; border-radius: 999px; padding: .15rem .7rem; cursor: pointer; color: inherit; opacity: .8; }
+.in__children-head { margin: .75rem 0 .35rem; font-size: .9rem; font-weight: 600; opacity: .85; }

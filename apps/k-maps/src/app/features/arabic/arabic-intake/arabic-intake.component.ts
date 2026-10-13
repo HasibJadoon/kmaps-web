@@ -11,7 +11,7 @@ import { environment } from '../../../../environments/environment';
 interface Word { label: string; labelAr: string | null; detail: string | null; icon: string | null; }
 interface Badge { key: string; label: string; labelAr: string | null; icon: string | null; color: string | null; }
 interface Option extends Badge { detail: string | null; }
-interface Strand extends Option { counts: { total: number; live: number; logged: number }; }
+interface Strand extends Option { counts: { total: number; live: number; logged: number }; countLine: string | null; countLineAr: string | null; }
 interface Item {
   id: string; kind: string; url: string; title: string; titleEn: string | null; channel: string | null;
   subtitle: string | null; subtitleAr: string | null; seq: number | null; durationSec: number | null;
