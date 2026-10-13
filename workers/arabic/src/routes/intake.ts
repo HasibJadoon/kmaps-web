@@ -108,9 +108,14 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
     const nextSize = byKey(L.intake).get('next_up')?.min ?? 12;
     const [items, next, counts] = await Promise.all([
       query<Row>(env.DB_AR, `SELECT i.*, ${COUNTS} FROM ar_intake_item i ${JOINS} WHERE ${where.join(' AND ')} ORDER BY st.min_value, ${ORDER} LIMIT 500`, args),
-      query<Row>(env.DB_AR, `SELECT i.*, ${COUNTS} FROM ar_intake_item i ${JOINS}
-                              WHERE i.parent_id IS NULL AND json_extract(s.extra_json, '$.active') = 1 AND i.status <> 'logged'
-                              ORDER BY ${ORDER} LIMIT ?`, [nextSize]),
+      // every strand moves at once: the first few of each, easiest first within it, taken in turn
+      query<Row>(env.DB_AR, `SELECT * FROM (
+          SELECT i.*, ${COUNTS}, st.min_value AS strand_step,
+                 ROW_NUMBER() OVER (PARTITION BY i.strand ORDER BY ${ORDER}) AS turn
+            FROM ar_intake_item i ${JOINS}
+           WHERE i.parent_id IS NULL AND json_extract(s.extra_json, '$.active') = 1 AND i.status <> 'logged')
+         WHERE turn <= ? ORDER BY turn, strand_step`,
+        [Math.max(1, Math.ceil(nextSize / Math.max(1, (L.intake_strand ?? []).length)))]),
       query<{ strand: string; status: string; n: number }>(env.DB_AR,
         `SELECT strand, status, COUNT(1) AS n FROM ar_intake_item GROUP BY 1, 2`),
     ]);
