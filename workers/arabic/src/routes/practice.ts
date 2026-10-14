@@ -6,7 +6,8 @@ import type { ArabicEnv } from '../env';
 import { labels, byKey, skillCard, instruct, srsCardFor } from '../lib/labels';
 import { worksOfStep } from './learn-path';
 import { commonWords, isCommon } from '../lib/common';
-import { parseBand, bare, type Band } from '../lib/levels';
+import { parseBand, bare, BANDS, type Band } from '../lib/levels';
+const BANDS_CEFR: Record<string, readonly string[]> = Object.fromEntries(BANDS.map((b) => [b.key, b.cefr]));
 import { mineDrills } from './words';
 import { al, asDrills, drawSentences, registry, round, sceneDrills, sentenceDrills, shuffle, stage, termsOf, hadd,
          type GramDrill, type Group, type L } from '../lib/grammar';
@@ -306,6 +307,53 @@ async function pairsDrills(env: ArabicEnv, band: Band, n: number) {
   return out;
 }
 
+// ── Ṣarf from the scenes (AR 0045/0046): the words heard in the series, drilled by form ────────────────
+interface SW { unit_id: string; scene_no: number; line: number; word_index: number; surface: string; lemma_ar: string | null;
+               word_class: string; link_kind: string; al_lemma_ref: string | null; sarf_json: string | null }
+const plain = (t: string | null) => (t ?? '').replace(/[\u064B-\u0652\u0670\u0640]/g, '');
+
+async function sarfDrills(env: ArabicEnv, band: Band, n: number, works: string[] = []) {
+  // a path step's own scenes when practising it; else the scenes of the level, Qurʾānic words first
+  const lv: string[] = band === 'all' ? [] : [...(BANDS_CEFR[band] ?? [])];
+  const where = works.length ? `r.id IN (${works.slice(0, 90).map(() => '?').join(',')})`
+    : lv.length ? `r.level IN (${lv.map(() => '?').join(',')})` : '1';
+  const rows = await query<SW>(env.DB_AR,
+    `SELECT w.unit_id, w.scene_no, w.line, w.word_index, w.surface, w.lemma_ar, w.word_class, w.link_kind, w.al_lemma_ref, w.sarf_json
+       FROM ar_scene_word w JOIN ar_text_unit t ON t.id = w.unit_id JOIN ar_acquisition_ref r ON r.id = t.acq_ref_id
+      WHERE ${where} AND w.word_class IN ('verb', 'noun') AND w.sarf_json IS NOT NULL
+      ORDER BY (w.link_kind = 'lemma') DESC, abs(random()) % 1000 LIMIT 400`, works.length ? works.slice(0, 90) : lv);
+  const verbs = new Map<string, { madi: string; mudari: string; surface: string; ref: string | null }>();
+  const nouns = new Map<string, { mufrad: string; jam: string; surface: string; ref: string | null }>();
+  const lemmas: Array<{ surface: string; lemma: string; ref: string | null }> = [];
+  for (const r of rows) {
+    let f: Record<string, string> = {};
+    try { f = JSON.parse(r.sarf_json ?? '{}'); } catch { continue; }
+    if (r.word_class === 'verb' && f.madi && f.mudari && !verbs.has(plain(f.madi))) verbs.set(plain(f.madi), { madi: f.madi, mudari: f.mudari, surface: r.surface, ref: r.al_lemma_ref });
+    if (r.word_class === 'noun' && f.mufrad && f.jam && plain(f.jam) !== plain(f.mufrad) && !nouns.has(plain(f.mufrad)))
+      nouns.set(plain(f.mufrad), { mufrad: f.mufrad, jam: f.jam, surface: r.surface, ref: r.al_lemma_ref });
+    if (r.lemma_ar && plain(r.lemma_ar) !== plain(r.surface.replace(/[^\u0600-\u06FF]/g, ''))) lemmas.push({ surface: r.surface, lemma: r.lemma_ar, ref: r.al_lemma_ref });
+  }
+  const V = shuffle([...verbs.values()]), N = shuffle([...nouns.values()]), M = shuffle(lemmas);
+  const out: Array<Record<string, unknown>> = [];
+  const opts = (answer: string, pool: string[]) => shuffle([answer, ...shuffle(pool.filter((x) => plain(x) !== plain(answer))).slice(0, 3)]);
+  const quran = (ref: string | null) => (ref ? { lemmaRef: ref } : null);
+  // one pairs round of five verbs, then choose drills in turn: present, plural, dictionary form
+  if (V.length >= 5) out.push({ id: `sarf_pairs:${V.slice(0, 5).map((v) => plain(v.madi)).join('+')}`, kind: 'sarf_pairs', interaction: 'pairs',
+                                 pairs: V.slice(0, 5).map((v) => [v.madi, v.mudari]) });
+  let i = 0;
+  while (out.length < n && (i < V.length || i < N.length || i < M.length)) {
+    const v = V[i + 5], m = N[i], w = M[i];
+    if (v) out.push({ id: `sarf_mudari:${plain(v.madi)}`, kind: 'sarf_mudari', prompt: v.madi, answer: v.mudari, heard: v.surface,
+                      options: opts(v.mudari, V.map((x) => x.mudari)), quran: quran(v.ref) });
+    if (m && out.length < n) out.push({ id: `sarf_jam:${plain(m.mufrad)}`, kind: 'sarf_jam', prompt: m.mufrad, answer: m.jam, heard: m.surface,
+                                         options: opts(m.jam, N.map((x) => x.jam)), quran: quran(m.ref) });
+    if (w && out.length < n) out.push({ id: `sarf_lemma:${plain(w.surface)}`, kind: 'sarf_lemma', prompt: w.surface, answer: w.lemma,
+                                         options: opts(w.lemma, M.map((x) => x.lemma)), quran: quran(w.ref) });
+    i++;
+  }
+  return out.slice(0, n);
+}
+
 const PLURAL_KIND: Record<string, { en: string; ar: string }> = {
   taksir: { en: 'broken plural', ar: 'جمع تكسير' },
   salim_m: { en: 'sound masculine plural', ar: 'جمع مذكر سالم' },
@@ -582,6 +630,7 @@ export function practiceRoutes(router: Router<ArabicEnv>) {
       : skill === 'meaning' ? await wordDrills(env, all, band, n)
       : skill === 'pairs' ? await pairsDrills(env, band, Math.max(1, Math.round(n / 3)))
       : skill === 'plural' ? await pluralDrills(env, band, n)
+      : skill === 'sarf' ? await sarfDrills(env, band, n, stepWorks)
       : await grammarDrills(env, all, band, n, url.searchParams.get('lesson'));
     const deck = (all.path ?? []).find((x) => x.key === 'srs_deck');
     // each card grouped by the series or book it came from
