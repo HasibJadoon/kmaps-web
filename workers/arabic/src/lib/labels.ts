@@ -97,6 +97,13 @@ export function srsCardFor(it: Record<string, unknown>, g: DrillGroup = {}): Rec
       front = [line, prompt].filter(Boolean).join('\n'); back = [ans, en].filter(Boolean).join('\n'); type = 'passage'; break;
     case 'gist':
       front = prompt; back = [ans, en].filter(Boolean).join('\n'); type = 'passage'; break;
+    case 'sarf_mudari': case 'sarf_jam': case 'sarf_lemma':
+      // a word's ṣarf: the form given, the form asked for (past → present, singular → plural, word → dictionary form)
+      front = [prompt, s(it.heard) && s(it.heard) !== prompt ? s(it.heard) : null].filter(Boolean).join('\n'); back = ans; break;
+    case 'sarf_pairs': {
+      const pairs = ((it.pairs as string[][] | undefined) ?? []).filter((p) => p.length >= 2);
+      front = pairs.map((p) => p[0]).join('\n') || null; back = pairs.map((p) => p[1]).join('\n') || null; break;
+    }
     case 'dialogue': {
       // the exchange as it was spoken, turn by turn, and its English
       const turns = (it.dialogue as Array<{ speaker?: string | null; ar: string; en?: string | null }> | undefined) ?? [];

@@ -51,41 +51,6 @@ function cardsForTerms(
   return out;
 }
 
-/**
- * Hands the batch to CORE, which owns km_core. The caller's Authorization
- * header rides along, so the cards land in that user's own deck and WV never
- * needs to know who they are.
- */
-async function pushToCore(
-  env: WorldviewEnv,
-  req: Request,
-  cards: RhetoricCard[],
-  body: Record<string, unknown>,
-): Promise<Response> {
-  if (!env.CORE) return err('service_unavailable', 'CORE service binding is not configured', 503);
-  const auth = req.headers.get('Authorization');
-  if (!auth) return err('unauthorized', 'Valid Bearer token required', 401);
-
-  const headers = new Headers({ 'Content-Type': 'application/json', Authorization: auth });
-  for (const h of ['X-KM-Internal', 'X-KM-Internal-Secret', 'X-KM-User-Id', 'X-KM-Workspace-Id', 'X-KM-Role']) {
-    const v = req.headers.get(h);
-    if (v) headers.set(h, v);
-  }
-
-  const payload: Record<string, unknown> = { cards };
-  if (typeof body['deck_id'] === 'string') payload['deck_id'] = body['deck_id'];
-  else payload['title'] = typeof body['title'] === 'string' ? body['title'] : 'English — rhetoric (WGRT)';
-  if (typeof body['description'] === 'string') payload['description'] = body['description'];
-
-  const upstream = await env.CORE.fetch(new Request(
-    'https://domain.internal/core/srs/cards/bulk',
-    { method: 'POST', headers, body: JSON.stringify(payload) },
-  ));
-  return new Response(upstream.body, {
-    status: upstream.status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
 
 /**
  * WGRT — WorldView Global Rhetorical Terms.
@@ -94,6 +59,9 @@ async function pushToCore(
  * expression, the picture underneath it, what it foregrounds and what it
  * hides. Mounted at /wv/rhetoric/* (and /worldview/rhetoric/*).
  */
+const gone = (message: string, would: number) => new Response(JSON.stringify({ ok: false, error: { code: 'gone', message }, would_have_built: would }),
+  { status: 410, headers: { 'Content-Type': 'application/json' } });
+
 export function rhetoricRoutes(router: Router<WorldviewEnv>) {
 
   dual(router, 'get', '/rhetoric/devices', async (req, env) => {
@@ -237,7 +205,9 @@ export function rhetoricRoutes(router: Router<WorldviewEnv>) {
     const cards = buildRhetoricCards(term, device, usages)
       .filter(c => !only || only.has(c.card_template));
     if (!cards.length) return badRequest('nothing to build for this term');
-    return pushToCore(env, req, cards, body);
+    // Review takes only what was practised: an entry reaches SRS through its drills (GET /wv/practice/rhetoric?term=),
+    // each filed as it is answered — never pushed in unpractised.
+    return gone(`Practise this entry instead: /wv/practice/rhetoric?term=${term.id} — each drill goes to review once answered`, cards.length);
   });
 
   /** The whole filtered set at once — the same filters the term list takes. */
@@ -257,7 +227,7 @@ export function rhetoricRoutes(router: Router<WorldviewEnv>) {
     );
     const cards = cardsForTerms(terms, devices, usages, only);
     if (!cards.length) return badRequest('no terms matched, so there is nothing to build');
-    return pushToCore(env, req, cards, body);
+    return gone('Practise these entries instead: /wv/practice/rhetoric (same filters) — each drill goes to review once answered', cards.length);
   });
 
   dual(router, 'post', '/rhetoric/terms/:id/usages', async (req, env, { id }) => {
@@ -283,7 +253,7 @@ export function rhetoricRoutes(router: Router<WorldviewEnv>) {
 }
 
 /** The filtered term set plus everything the card builder needs, in 3 queries. */
-async function collect(env: WorldviewEnv, url: URL) {
+export async function collect(env: WorldviewEnv, url: URL) {
   const repo = new RhetoricRepo(env.DB_WV);
   const page = await repo.listTerms({
     device_id:     url.searchParams.get('device'),

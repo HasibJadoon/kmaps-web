@@ -587,6 +587,13 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
   // Review: each link turned into a recall card — the concept asks, the
   // passage answers.
   dual(router, 'get', '/arcs/:id/phases/:phase/review', async (_req, env, { id, phase }) => {
+    return ok(await arcReview(env, id, phase));
+  });
+}
+
+/// A phase's links as recall items — the concept asks, the passage answers. Shared by the reveal view and the drills
+/// (routes/practice.ts), which turn each into a choice among the phase's other passages.
+export async function arcReview(env: WorldviewEnv, id: string, phase: string) {
     const found = await loadArc(env.DB_WV, id);
     const L = found?.meta.labels ?? {};
     const rows = await query<{ id: string; label_en: string; label_ar: string | null; quote: string | null; note: string | null; cite_raw: string; cite_end_raw: string | null; work: string; lines: string | null; en: string | null }>(env.DB_WV,
@@ -598,8 +605,8 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
          JOIN core_concept k ON k.id = l.al_concept_ref
         WHERE l.entity_type = 'corpus_block' AND json_extract(c.meta_json, '$.phase') = ?
         ORDER BY l.created_at DESC LIMIT 100`, [phase]);
-    return ok({
-      empty: L.review_empty ?? null, reveal: L.reveal ?? 'Reveal',
+    return {
+      empty: L.review_empty ?? null, reveal: L.reveal ?? 'Reveal', title: found?.arc.title ?? null,
       items: rows.map((r) => {
         const lines = parse<Array<{ n: string; t: string }>>(r.lines, []);
         const hit = r.quote ? lines.find((l) => l.t.includes(r.quote as string)) : undefined;
@@ -611,6 +618,5 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
           quote: r.quote, note: r.note, en: r.en,
         };
       }),
-    });
-  });
+    };
 }

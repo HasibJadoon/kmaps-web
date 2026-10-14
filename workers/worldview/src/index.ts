@@ -26,6 +26,7 @@ import { termRoutes }        from './routes/terms';
 import { rhetoricRoutes }    from './routes/rhetoric';
 import { audioRoutes }       from './routes/audio';
 import { arcRoutes }         from './routes/arcs';
+import { practiceRoutes }    from './routes/practice';
 import { atlasRoutes }       from './routes/atlas';
 import { intakeRoutes }      from './routes/intake';
 import { debateRoutes }      from './routes/debates';
@@ -65,6 +66,7 @@ nodeRoutes(router);
 
 sourceRoutes(router);
 arcRoutes(router);
+practiceRoutes(router);
 atlasRoutes(router);
 intakeRoutes(router);
 debateRoutes(router);
