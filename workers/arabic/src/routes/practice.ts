@@ -6,6 +6,7 @@ import type { ArabicEnv } from '../env';
 import { labels, byKey, skillCard, instruct, srsCardFor, dropEmpty } from '../lib/labels';
 import { worksOfStep } from './learn-path';
 import { commonWords, isCommon } from '../lib/common';
+import { freqKey, freqOf, highEndOf } from '../lib/highend';
 import { parseBand, bare, BANDS, type Band } from '../lib/levels';
 const BANDS_CEFR: Record<string, readonly string[]> = Object.fromEntries(BANDS.map((b) => [b.key, b.cefr]));
 import { mineDrills } from './words';
@@ -49,18 +50,6 @@ type BandCfg = { lines?: { min: number; max: number }; upper?: { min: number; sh
 const bandCfg = (all: L, band: Band): BandCfg => (byKey(all.sentence_band).get(band === 'all' ? 'middle' : band)?.extra ?? {}) as BandCfg;
 
 /// how common a word is in the Shamela library (ar_word_freq, kmaps-resources drill_words.py grade)
-const freqKey = (w: string) => w.replace(/[ً-ْٰـۖ-ۭ]/g, '').replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
-  .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/[^ء-ي]/g, '');
-async function freqOf(env: ArabicEnv, ws: string[]) {
-  const keys = [...new Set(ws.map(freqKey).filter((k) => k.length >= 2))];
-  const out = new Map<string, number>();
-  for (let i = 0; i < keys.length; i += 90) {
-    const part = keys.slice(i, i + 90);
-    for (const r of await query<{ bare: string; n: number }>(env.DB_AR, `SELECT bare, n FROM ar_word_freq WHERE bare IN (${part.map(() => '?').join(',')})`, part))
-      out.set(r.bare, r.n);
-  }
-  return (w: string) => out.get(freqKey(w)) ?? 0;
-}
 /// of the words a line could blank, the one its level prefers: the commonest (Level 1), the rarest (Level 3), any (Level 2)
 function prefer<T>(xs: T[], n: (x: T) => number, mode: BandCfg['blank']): T | undefined {
   if (!xs.length) return undefined;
@@ -155,7 +144,8 @@ async function lineDrills(env: ArabicEnv, all: L, skill: string, band: Band, n: 
   const light = (w: string) => isCommon(common, w, band === 'basic');
   // more lines than asked: a line with no word worth drilling is passed over. The level's own lines, a share
   // from its upper band, and at Level 3 a share of classical sentences heard in their SILMA voice
-  const want = skill === 'fill' || skill === 'hear' ? n * 3 : n;
+  // more lines than asked: only a line holding a high-end word is drilled
+  const want = n * 4;
   const upN = cfg.upper ? Math.round(want * cfg.upper.share) : 0;
   const bookN = cfg.book ? Math.round(want * cfg.book.share) : 0;
   // a path step's practice draws its own lines first; the level's pool only tops it up
@@ -170,8 +160,11 @@ async function lineDrills(env: ArabicEnv, all: L, skill: string, band: Band, n: 
   const lines = shuffle([...main, ...upper, ...book]);
   const pool = [...new Set(others.flatMap((l) => l.text_ar.split(/\s+/).map(clean)).filter((w) => bare(w).length >= 2))];
   const freq = await freqOf(env, lines.flatMap((l) => blanksOf(l).map((b) => b.a)).concat(lines.flatMap((l) => l.text_ar.split(/\s+/))));
+  const hi = await highEndOf(env, lines.flatMap((l) => blanksOf(l).map((b) => b.a)).concat(lines.flatMap((l) => l.text_ar.split(/\s+/))));
   return lines.map((l) => {
     const words = wordsOf(l);
+    // a line with nothing high-end in it is not drilled — whether a word of it is asked, or the line whole
+    if (!words.some((w) => hi(w.t))) return null;
     const audio = { url: audioUrl(l.object_key), start: l.start_sec, end: l.end_sec };
     const source = { workId: l.work_id, title: l.work_title, level: l.level };
     // the meaning, for the learner to reveal: the sentence, and a gloss per word
@@ -181,10 +174,10 @@ async function lineDrills(env: ArabicEnv, all: L, skill: string, band: Band, n: 
       // a content word, long enough to hear, clearly timed — the lightest words never; the blanks
       // chosen offline first (their options are the same kind of word), else one chosen here; of
       // those, the one the level prefers (commoner at Level 1, rarer at Level 3)
-      const chosen = blanksOf(l).filter((b) => words[b.i] && words[b.i].e - words[b.i].s >= 0.22 && !light(words[b.i].t));
+      const chosen = blanksOf(l).filter((b) => words[b.i] && words[b.i].e - words[b.i].s >= 0.22 && !light(words[b.i].t) && hi(words[b.i].t));
       const content = words.map((w, i) => ({ w, i }))
-        .filter(({ w }) => bare(w.t).length >= 3 && !light(w.t) && w.e - w.s >= 0.22);
-      if (!chosen.length && (l.blanks_json || !content.length)) return null;   // a line with blanks_json [] has nothing worth drilling
+        .filter(({ w }) => bare(w.t).length >= 3 && !light(w.t) && hi(w.t) && w.e - w.s >= 0.22);
+      if (!chosen.length && !content.length) return null;   // only a high-end word is ever blanked
       // a name is no vocabulary: where the line has another word to blank, never a proper noun
       const named = chosen.filter((x) => x.p !== 'PN');
       const b = prefer(named.length ? named : chosen, (x) => freq(x.a), cfg.blank) ?? null;
@@ -219,9 +212,9 @@ async function vocabDrills(env: ArabicEnv, all: L, band: Band, n: number) {
   const start = Math.floor(Math.random() * 1e9);
   const where = `${band === 'all' ? '' : 'band = ? AND '}gloss_json IS NOT NULL AND blanks_json IS NOT NULL AND blanks_json <> '[]'`;
   const args = band === 'all' ? [] : [band];
-  let lines = await query<Line>(env.DB_AR, `SELECT * FROM ar_practice_pool WHERE ${where} AND rnd >= ? ORDER BY rnd LIMIT ?`, [...args, start, n * 5]);
-  if (lines.length < n * 5) lines = lines.concat(await query<Line>(env.DB_AR,
-    `SELECT * FROM ar_practice_pool WHERE ${where} AND rnd < ? ORDER BY rnd LIMIT ?`, [...args, start, n * 5 - lines.length]));
+  let lines = await query<Line>(env.DB_AR, `SELECT * FROM ar_practice_pool WHERE ${where} AND rnd >= ? ORDER BY rnd LIMIT ?`, [...args, start, n * 12]);
+  if (lines.length < n * 12) lines = lines.concat(await query<Line>(env.DB_AR,
+    `SELECT * FROM ar_practice_pool WHERE ${where} AND rnd < ? ORDER BY rnd LIMIT ?`, [...args, start, n * 12 - lines.length]));
   type Cand = { l: Line; words: ReturnType<typeof wordsOf>; b: Blank; gloss: string };
   const cands: Cand[] = [];
   for (const l of lines) {
@@ -234,8 +227,9 @@ async function vocabDrills(env: ArabicEnv, all: L, band: Band, n: number) {
     }
   }
   const freq = await freqOf(env, cands.map((c) => c.b.a));
+  const hi = await highEndOf(env, cands.map((c) => c.b.a));
   const byLine = new Map<string, Cand[]>();
-  for (const c of cands) byLine.set(c.l.id, [...(byLine.get(c.l.id) ?? []), c]);
+  for (const c of cands.filter((c) => hi(c.b.a))) byLine.set(c.l.id, [...(byLine.get(c.l.id) ?? []), c]);   // high-end words only
   const picked = [...byLine.values()].map((cs) => prefer(cs, (c) => freq(c.b.a), cfg.blank)!).slice(0, n);
   const low = (x: string) => x.toLowerCase().replace(/[^a-z ]/g, '').trim();
   // the root and its core sense (AL /al/lookup), for the note once answered
@@ -263,18 +257,17 @@ async function vocabDrills(env: ArabicEnv, all: L, band: Band, n: number) {
 
 async function listWordDrills(env: ArabicEnv, band: Band, n: number) {
   if (n <= 0) return [];
-  const daily = await query<{ id: string; singular_ar: string; plural_ar: string; gloss_en: string; gender: string }>(env.DB_AR,
-    `SELECT id, singular_ar, plural_ar, gloss_en, gender FROM ar_daily_word`);
+  // the everyday themed lists (ar_daily_word) are not drilled: high-end words only
   const mined = await query<{ id: string; text_ar: string; vocalised_ar: string | null; gloss_en: string; register: string | null }>(env.DB_AR,
     `SELECT id, text_ar, vocalised_ar, gloss_en, register FROM ar_acq_item WHERE gloss_en IS NOT NULL AND status = 'live'`);
   const words = [
-    ...daily.map((d) => ({ id: d.id, word: d.singular_ar, gloss: d.gloss_en, band: 'basic' })),
     ...mined.map((m) => ({ id: m.id, word: m.vocalised_ar ?? m.text_ar, gloss: m.gloss_en,
                             band: m.register === 'fusha_turath' ? 'advanced' : 'middle' })),
   ];
   // never a function word; above Basic, never a word the Qurʾān or the corpus makes common
   const common = await commonWords(env);
-  const mine = words.filter((w) => (band === 'all' || w.band === band) && !isCommon(common, w.word, band === 'basic'));
+  const hi = await highEndOf(env, words.map((w) => w.word));
+  const mine = words.filter((w) => (band === 'all' || w.band === band) && !isCommon(common, w.word, band === 'basic') && hi(w.word));
   const glosses = [...new Set(words.map((w) => w.gloss))];
   return shuffle(mine).slice(0, n).map((w) => ({
     id: `meaning:${w.id}`, kind: 'meaning', prompt: w.word, answer: w.gloss,
@@ -361,16 +354,10 @@ const PLURAL_KIND: Record<string, { en: string; ar: string }> = {
   salim_f: { en: 'sound feminine plural', ar: 'جمع مؤنث سالم' },
 };
 
-async function pluralDrills(env: ArabicEnv, band: Band, n: number) {
-  if (band !== 'all' && band !== 'basic') return [];
-  const rows = await query<{ id: string; singular_ar: string; plural_ar: string; gloss_en: string; plural_kind: string; pattern_ar: string | null }>(env.DB_AR,
-    `SELECT id, singular_ar, plural_ar, gloss_en, plural_kind, pattern_ar FROM ar_daily_word`);
-  const plurals = rows.map((r) => r.plural_ar);
-  return shuffle(rows).slice(0, n).map((r) => ({
-    id: `plural:${r.id}`, kind: 'plural', prompt: r.singular_ar, gloss: r.gloss_en, answer: r.plural_ar,
-    options: shuffle([r.plural_ar, ...distractors(r.plural_ar, plurals)]),
-    note: PLURAL_KIND[r.plural_kind] ?? null, pattern: r.pattern_ar,
-  }));
+/// Retired: its words were the everyday themed list (ar_daily_word). Plurals are drilled on high-end words — hard in the
+/// Qurʾān — by Word forms (sarf_jam).
+async function pluralDrills(_env: ArabicEnv, _band: Band, _n: number): Promise<Array<Record<string, unknown>>> {
+  return [];
 }
 
 // ── Grammar: the lessons and the books, three levels (ar_practice_label grammar_drill 'practice') ────
@@ -485,22 +472,25 @@ async function readDrills(env: ArabicEnv, all: L, band: Band, n: number) {
         WHERE grade IN (${grades.map(() => '?').join(',')}) AND object_key IS ${voiced ? 'NOT ' : ''}NULL
         ORDER BY (abs(hashof) % 1000) LIMIT ?`.replace('hashof', `(rowid * 2654435761 + ${start})`), [...grades, k]);
   };
-  let rows = await draw(true, n * 2);
-  if (rows.length < n * 3) rows = shuffle(rows.concat(await draw(false, n * 4)));
+  // more lines than asked: only a line with a high-end word to blank is drilled
+  let rows = await draw(true, n * 6);
+  if (rows.length < n * 9) rows = shuffle(rows.concat(await draw(false, n * 12)));
   const freq = await freqOf(env, rows.flatMap((r) => blanksOf(r).map((b) => b.a)));
+  const hi = await highEndOf(env, rows.flatMap((r) => r.text_ar.split(/\s+/)));
   const pool = [...new Set(rows.flatMap((r) => r.text_ar.split(/\s+/).map(clean)).filter((w) => bare(w).length >= 3 && !light(w)))];
   const out: unknown[] = [];
   for (const r of rows) {
     if (out.length >= n) break;
     const toks = r.text_ar.trim().split(/\s+/);
-    const chosen = blanksOf(r).filter((b) => toks[b.i] && !light(toks[b.i]));
-    const cands = toks.map((t, i) => ({ t, i })).filter(({ t }) => bare(clean(t)).length >= 4 && !light(t));
+    // only a high-end word is ever blanked
+    const chosen = blanksOf(r).filter((b) => toks[b.i] && !light(toks[b.i]) && hi(toks[b.i]));
+    const cands = toks.map((t, i) => ({ t, i })).filter(({ t }) => bare(clean(t)).length >= 4 && !light(t) && hi(t));
     let answer: string, opts: string[], at: number;
     if (chosen.length) {
       const b = prefer(chosen, (x) => freq(x.a), cfg.blank)!;
       answer = b.a; opts = b.o; at = b.i;
     } else {
-      if (r.blanks_json || !cands.length) continue;
+      if (!cands.length) continue;
       const pick = cands[Math.floor(Math.random() * cands.length)];
       answer = shown(pick.t); opts = distractors(answer, pool, 3, light).map(shown); at = pick.i;
       if (opts.length < 3) continue;

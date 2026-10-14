@@ -5,6 +5,7 @@ import { callService } from '../../../shared/src/service-client';
 import type { ArabicEnv } from '../env';
 import { labels, byKey, type Label } from '../lib/labels';
 import { commonWords, isCommon } from '../lib/common';
+import { highEndOf } from '../lib/highend';
 import { bare } from '../lib/levels';
 
 // ── My words ─────────────────────────────────────────────────────────────────
@@ -213,7 +214,10 @@ export function wordRoutes(router: Router<ArabicEnv>) {
 export async function mineDrills(env: ArabicEnv, n: number) {
   // your words worth drilling: no particle, and none of the simple common ones
   const common = await commonWords(env);
-  const all = (await items(env)).filter((i) => (meta(i).pos ?? 'noun') !== 'particle' && !isCommon(common, i.text_ar));
+  const got = await items(env);
+  // high end only: never a particle, a common word, or one neither hard in the Qurʾān nor rare in the library
+  const hi = await highEndOf(env, got.map((i) => i.text_ar));
+  const all = got.filter((i) => (meta(i).pos ?? 'noun') !== 'particle' && !isCommon(common, i.text_ar) && hi(i.text_ar));
   const shuffled = [...all].sort(() => Math.random() - 0.5);
   const out: unknown[] = [];
   for (const i of shuffled) {

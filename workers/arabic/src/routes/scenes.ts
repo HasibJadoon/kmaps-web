@@ -6,6 +6,7 @@ import type { ArabicEnv } from '../env';
 import { parseBand, bandOf, bare, type Band } from '../lib/levels';
 import { labels, byKey, badge, skillCard, instruct, srsCardFor, dropEmpty } from '../lib/labels';
 import { commonWords, isCommon } from '../lib/common';
+import { highEndOf } from '../lib/highend';
 
 // ── Scenes: watch, then practise in context ──────────────────────────────────
 // The scripted episodes (ar_text_unit.script_json: scenes of lines, each with
@@ -193,10 +194,13 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     if (!sc || !scene) return notFound(`scene ${no} of ${unit}`);
     const url = audioUrl(sc.audio);
     if (!url) return badRequest('this episode has no recording to practise with');
-    // Basic drills its everyday words too (never a function word); Middle and Advanced only the higher-end
-    const hardOnly = (w: string) => !isCommon(common, w, sc.level.startsWith('A'));
     const clip = (l: Line) => ({ url, start: l.start, end: l.end });
     const lines = scene.lines.filter((l) => l.ar && l.end > l.start);
+    // HIGH-END only (lib/highend.ts): a word is drilled when it is hard in the Qurʾān or rare in the classical library;
+    // a line is drilled whole (who said it, its meaning, the exchange, dictation) only when it holds such a word
+    const hi = await highEndOf(env, sc.s.scenes.flatMap((x) => x.lines.flatMap((l) => (l.ar ?? '').split(/\s+/))));
+    const hardOnly = (w: string) => !isCommon(common, w, false) && hi(w);
+    const rich = (l: Line) => (l.ar ?? '').split(/\s+/).some((w) => hi(w));
     const items: unknown[] = [];
     const source = { workId: sc.work, title: [sc.s.series_ar, titled(scene.title_ar)].filter(Boolean).join(' · '), level: sc.level };
 
@@ -244,7 +248,7 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     }
 
     // who said it — where the scene has more than one voice
-    const named = lines.filter((l) => l.speaker);
+    const named = lines.filter((l) => l.speaker && rich(l));
     const voices = [...new Set(named.map((l) => l.speaker!))];
     const allVoices = [...new Set(sc.s.scenes.flatMap((x) => x.lines.map((l) => l.speaker).filter(Boolean) as string[]))];
     if (voices.length >= 2) {
@@ -256,7 +260,7 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     }
 
     // what it means — the line's English among the scene's (and episode's) other lines
-    const withEn = lines.filter((l) => l.en && l.ar.split(/\s+/).length >= 4);
+    const withEn = lines.filter((l) => l.en && l.ar.split(/\s+/).length >= 4 && rich(l));
     const epEn = [...new Set(sc.s.scenes.flatMap((x) => x.lines.map((l) => l.en).filter(Boolean) as string[]))];
     const sceneEn = new Set(lines.map((l) => l.en).filter(Boolean));
     const words = (e: string) => e.split(/\s+/).length;
@@ -271,8 +275,10 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     }
 
     // the dialogue, back in order — four lines that follow one another
-    if (lines.length >= 4) {
-      const at = Math.floor(Math.random() * (lines.length - 3));
+    // a run of four that holds high-end language
+    const starts = [...Array(Math.max(0, lines.length - 3)).keys()].filter((i) => lines.slice(i, i + 4).some(rich));
+    if (starts.length) {
+      const at = starts[Math.floor(Math.random() * starts.length)];
       const run = lines.slice(at, at + 4);
       const order = run.map((_, i) => i);
       let shuffled = shuffle(order);
@@ -337,7 +343,7 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
       it.badges = [badge(it.bucket ? buckets.get(it.bucket) : undefined), badge(it.tier ? tiers.get(it.tier) : undefined)].filter(Boolean);
     }
     // dictation: one line of a speakable length, heard, then written out
-    const dict = shuffle(lines.filter((l) => { const n = l.ar.split(/\s+/).length; return n >= 4 && n <= 10; }))[0];
+    const dict = shuffle(lines.filter((l) => { const n = l.ar.split(/\s+/).length; return n >= 4 && n <= 10 && rich(l); }))[0];
     if (dict) items.push({ id: `dictation:${unit}:${no}:${dict.start}`, kind: 'dictation', audio: clip(dict), words: timedWords(dict),
                            answer: dict.ar, en: dict.en ?? null, source, bucket: 'sound' });
     // every drill files its review card (CORE SRS): the words, idioms and terms, and the lines too

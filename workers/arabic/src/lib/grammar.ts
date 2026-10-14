@@ -123,7 +123,10 @@ export async function drawSentences(env: ArabicEnv, n: number,
   if (w.withTerm) where.push('term_id IS NOT NULL');
   else if (w.babOnly) where.push('term_id IS NULL AND bab_title_ar IS NOT NULL');
   else if (w.asked) where.push('(term_id IS NOT NULL OR bab_title_ar IS NOT NULL)');
-  const cond = where.length ? where.join(' AND ') : '1 = 1';
+  // high end only: a sentence is drilled for an EXPERT-tier term (ar_ling_gram_term.tier, AR 0047) — never basic
+  // grammar (فاعل، مبتدأ …) or a bāb asked by name
+  where.push(`term_id IN (SELECT id FROM ar_ling_gram_term WHERE tier = 'expert')`);
+  const cond = where.join(' AND ');
   const start = Math.floor(Math.random() * 2 ** 31);
   let rows = await query<Sentence>(env.DB_AR, `SELECT ${S_COLS} FROM ar_grammar_sentence WHERE ${cond} AND rnd >= ? ORDER BY rnd LIMIT ?`, [...args, start, n]);
   if (rows.length < n) rows = rows.concat(await query<Sentence>(env.DB_AR,
@@ -338,7 +341,8 @@ export async function sceneDrills(env: ArabicEnv, all: L, terms: string[], k: nu
   const ids = shuffle(terms).slice(0, 90);
   const picks = await query<{ unit_id: string; scene_no: number; feature_idx: number; term_id: string }>(env.DB_AR,
     `SELECT unit_id, scene_no, feature_idx, MIN(term_id) AS term_id FROM ar_scene_feature_term
-      WHERE term_id IN (${ids.map(() => '?').join(',')}) GROUP BY unit_id, scene_no, feature_idx ORDER BY random() LIMIT ?`, [...ids, k * 2]);
+      WHERE term_id IN (${ids.map(() => '?').join(',')}) AND term_id IN (SELECT id FROM ar_ling_gram_term WHERE tier = 'expert')
+      GROUP BY unit_id, scene_no, feature_idx ORDER BY random() LIMIT ?`, [...ids, k * 2]);
   const kinds = byKey(all.kind);
   const out: Record<string, unknown>[] = [];
   // the scenes read at once, not one after another
@@ -414,7 +418,7 @@ export async function round(env: ArabicEnv, all: L, plan: Array<{ source: string
 export async function termsOf(env: ArabicEnv, lessonIds: string[]) {
   if (!lessonIds.length) return [] as string[];
   const rows = await query<{ term_id: string }>(env.DB_AR,
-    `SELECT DISTINCT t.term_id FROM ar_lesson_term t JOIN ar_ling_gram_term g ON g.id = t.term_id AND g.status = 'live'
+    `SELECT DISTINCT t.term_id FROM ar_lesson_term t JOIN ar_ling_gram_term g ON g.id = t.term_id AND g.status = 'live' AND g.tier = 'expert'
       WHERE t.lesson_id IN (${lessonIds.map(() => '?').join(',')}) ORDER BY t.sort_order`, lessonIds);
   return rows.map((r) => r.term_id);
 }
