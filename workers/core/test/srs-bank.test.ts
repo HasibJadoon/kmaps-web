@@ -85,4 +85,8 @@ test('a resent answer changes nothing; review deals drills only; a leech goes ba
   db.exec(`UPDATE core_srs_card SET leech = 1`);
   assert.equal((await repo.due('U1', {})).length, 0);
   assert.equal((await repo.due('U1', { state: 'bank', work: 'QR:SURAH:40' })).length, 1);
+  // an authored drill (cyb_drill) is filed under its own global id, whatever the registries would make
+  await fileCards(env, 'U1', [{ module: 'QR', resource_type: 'vocabulary', resource_ref: 'DRL:QR:DL:rg:spot:x', card_template: 'choose',
+    front_text: 'q', back_text: 'a', extra: { drill: { id: 'rg:spot:x', kind: 'feature' } }, rating: 3, op_id: 'op-d' }], { byModule: true, holdMisses: true });
+  assert.equal(db.prepare(`SELECT drill_gid FROM core_srs_card WHERE resource_ref = 'DRL:QR:DL:rg:spot:x'`).get()!.drill_gid, 'DRL:QR:DL:rg:spot:x');
 });

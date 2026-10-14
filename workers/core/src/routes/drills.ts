@@ -13,7 +13,7 @@ import type { CoreEnv } from '../env';
 //   GET /core/cyb/drills/audit
 //        every AGR:DRL rule run over the bank: how many drills break it (0 expected) — a drill goes live only clean
 
-interface DrillRow { gid: string; skill: string | null; work_ref: string | null; intro_ayah: number | null; payload_json: string }
+interface DrillRow { gid: string; domain: string | null; skill: string | null; work_ref: string | null; intro_ayah: number | null; payload_json: string }
 interface RuleRow { id: string; rule_md: string; severity: string; check_sql: string | null; expected: number }
 
 export async function auditDrills(db: D1Database): Promise<Array<{ id: string; rule: string; severity: string; found: number | null; ok: boolean }>> {
@@ -27,6 +27,23 @@ export async function auditDrills(db: D1Database): Promise<Array<{ id: string; r
     }
     return { id: r.id, rule: r.rule_md, severity: r.severity, found, ok: found === (r.expected ?? 0) };
   }));
+}
+
+/** An authored drill as dealt: its payload, its gid, and the card the app files the answer on — the drill itself is the
+ *  card's content (no faces of its own: front/back are the prompt and answer, for lists), its lesson the work. */
+export function withCard(r: Pick<DrillRow, 'gid' | 'skill' | 'work_ref' | 'payload_json'> & { domain?: string | null }) {
+  const d = JSON.parse(r.payload_json) as Record<string, unknown>;
+  const module = r.domain ?? r.gid.split(':')[1] ?? 'AR';
+  const text = (v: unknown) => (typeof v === 'string' ? v : Array.isArray(v) ? (v as unknown[]).join(' ') : '');
+  const srs = {
+    // the card's kind from the drill's science (the card table's own list): grammar, vocabulary, else a passage
+    module, resourceType: /^DRL:[A-Z]+:(BL|NH|SF):/.test(r.gid) ? 'grammar' : /^DRL:[A-Z]+:DL:/.test(r.gid) ? 'vocabulary' : 'passage',
+    resourceRef: r.gid, cardKind: (d.kind as string) ?? null,
+    frontText: text(d.prompt) || text(d.instruction) || r.gid, backText: text(d.answer) || '—',
+    cardTemplate: (d.interaction as string) ?? (d.kind as string) ?? null,
+    extra: { drill: d, ...(r.work_ref ? { group: { workId: r.work_ref } } : {}) },
+  };
+  return { ...d, gid: r.gid, skill: r.skill, srs };
 }
 
 export function drillBankRoutes(router: Router<CoreEnv>) {
@@ -49,20 +66,25 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
     // first rows over and over
     if (!p('work') && !(from > 0 && to >= from)) {
       const n = Math.min(40, Math.max(1, Number(p('concepts')) || 6));
+      // a concept begun comes first (its next steps), then the ones never met; a concept met through is left to review
       const works = await query<{ work_ref: string }>(env.DB_CORE,
-        `SELECT d.work_ref, COUNT(c.id) AS met FROM cyb_drill d
+        `SELECT d.work_ref, COUNT(c.id) AS met, COUNT(*) AS n FROM cyb_drill d
            LEFT JOIN core_srs_card c ON c.drill_gid = d.gid AND c.user_ref = ?
           WHERE ${where.map((w) => 'd.' + w).join(' AND ')} AND d.work_ref IS NOT NULL
-          GROUP BY d.work_ref ORDER BY met, random() LIMIT ${n}`, [ctx.userId, ...args]);
+          GROUP BY d.work_ref HAVING met < n
+          ORDER BY CASE WHEN met > 0 THEN 0 ELSE 1 END, met, random() LIMIT ${n}`, [ctx.userId, ...args]);
       if (works.length) {
         where.push(`work_ref IN (${works.map(() => '?').join(',')})`);
         args.push(...works.map((w) => w.work_ref));
       }
+      // a drill the learner already holds comes back through review or the bank, not as new
+      where.push(`NOT EXISTS (SELECT 1 FROM core_srs_card c WHERE c.drill_gid = cyb_drill.gid AND c.user_ref = ?)`);
+      args.push(ctx.userId);
     }
     const rows = await query<DrillRow>(env.DB_CORE,
-      `SELECT gid, skill, work_ref, intro_ayah, payload_json FROM cyb_drill WHERE ${where.join(' AND ')}
+      `SELECT gid, domain, skill, work_ref, intro_ayah, payload_json FROM cyb_drill WHERE ${where.join(' AND ')}
         ORDER BY intro_ayah, gid LIMIT ${limit}`, args);
-    return ok({ drills: rows.map((r) => ({ ...(JSON.parse(r.payload_json) as Record<string, unknown>), gid: r.gid, skill: r.skill })) });
+    return ok({ drills: rows.map((r) => withCard(r)) });
   });
 
   router.get('/core/cyb/drills/audit', async (req, env) => {

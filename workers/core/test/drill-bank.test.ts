@@ -56,15 +56,16 @@ test('AGR:DRL: a clean drill passes; a broken one is caught by its rule', async 
   }
 });
 
-test('a skill practice with no lesson gets whole concepts, the least met first', async () => {
+test('a skill practice with no lesson continues a begun concept, its unmet steps, each with its filing card', async () => {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
   const put = db.prepare(`INSERT INTO cyb_drill (gid, domain, discipline, kind, interaction, skill, work_ref, payload_json, status) VALUES (?, 'AR', 'BL', 'feature', 'choose', 'grammar', ?, ?, 'live')`);
   for (const c of ['A', 'B', 'C']) for (const st of [1, 2, 3]) put.run(`DRL:AR:BL:bl:${st}:${c}`, `GT:${c}`, JSON.stringify({ id: `bl:${st}:${c}`, step: st }));
   db.exec('PRAGMA foreign_keys = OFF');
-  // the learner has met A and B, never C
+  // the learner began A (one step) and met B through (all three); C never
   db.exec(`INSERT INTO core_srs_card (id, user_ref, deck_id, module, resource_type, resource_ref, front_text, back_text, drill_gid)
-           VALUES ('k1', 'U1', 'D', 'AR', 'grammar', 'r1', 'q', 'a', 'DRL:AR:BL:bl:1:A'), ('k2', 'U1', 'D', 'AR', 'grammar', 'r2', 'q', 'a', 'DRL:AR:BL:bl:1:B')`);
+           VALUES ('k1', 'U1', 'D', 'AR', 'grammar', 'r1', 'q', 'a', 'DRL:AR:BL:bl:1:A'), ('k2', 'U1', 'D', 'AR', 'grammar', 'r2', 'q', 'a', 'DRL:AR:BL:bl:1:B'),
+                  ('k3', 'U1', 'D', 'AR', 'grammar', 'r3', 'q', 'a', 'DRL:AR:BL:bl:2:B'), ('k4', 'U1', 'D', 'AR', 'grammar', 'r4', 'q', 'a', 'DRL:AR:BL:bl:3:B')`);
   type H = (r: Request, e: unknown, p: unknown) => Promise<Response>;
   const routes = new Map<string, H>();
   drillBankRoutes({ get: (p: string, h: H) => routes.set(p, h), post: () => {} } as never);
@@ -72,6 +73,13 @@ test('a skill practice with no lesson gets whole concepts, the least met first',
   const res = await routes.get('/core/cyb/drills')!(new Request('http://x/core/cyb/drills?domain=AR&skill=grammar&concepts=1',
     { headers: { authorization: `Bearer ${t}` } }), { DB_CORE: d1(db), JWT_SECRET: 's' }, {});
   const body = await res.json() as { data: { drills: Array<{ gid: string }> } };
-  assert.deepEqual(body.data.drills.map((d) => d.gid).sort(), ['DRL:AR:BL:bl:1:C', 'DRL:AR:BL:bl:2:C', 'DRL:AR:BL:bl:3:C'],
-    'one whole concept, the one never met');
+  // A is begun (one of three met): its next steps come first, never the step already met
+  assert.deepEqual(body.data.drills.map((d) => d.gid).sort(), ['DRL:AR:BL:bl:2:A', 'DRL:AR:BL:bl:3:A'],
+    'the begun concept, its unmet steps');
+  // every dealt drill carries the card its answer is filed on, under its own gid
+  const first = body.data.drills[0] as unknown as { srs: { module: string; resourceType: string; resourceRef: string; extra: { drill: { id: string }; group: { workId: string } } } };
+  assert.equal(first.srs.resourceType, 'grammar');
+  assert.equal(first.srs.resourceRef, (body.data.drills[0] as { gid: string }).gid);
+  assert.equal(first.srs.module, 'AR');
+  assert.equal(first.srs.extra.group.workId, 'GT:A');
 });

@@ -347,7 +347,10 @@ export class SrsRepo {
        input.note_type_id ?? null, input.fields_json ?? null,
        input.root_norm ?? null, input.intro_surah ?? null, input.intro_ayah ?? null,
 
-       new Date().toISOString(), workOf(input.extra_json), await this.drillGid(input.module, input.card_kind ?? null, input.extra_json)]);
+       new Date().toISOString(), workOf(input.extra_json),
+       // an authored drill (core cyb_drill) is filed under its own global id; any other drill gets one from the registries
+       /^DRL:[A-Z]+:[A-Z]{2}:/.test(input.resource_ref) ? input.resource_ref
+         : await this.drillGid(input.module, input.card_kind ?? null, input.extra_json)]);
     const row = await queryOne<SrsCard>(this.db,
       `SELECT ${CARD_COLS} WHERE deck_id = ? AND resource_ref = ? AND card_template = ?`,
       [input.deck_id, input.resource_ref, input.card_template ?? 'freeform']);
