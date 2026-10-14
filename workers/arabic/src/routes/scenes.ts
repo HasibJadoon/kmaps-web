@@ -319,7 +319,12 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
       // what is worth noticing in how a line is built — its grammar or its rhetoric
       type Feat = { line: number; text: string; span: [number, number]; feature: string; term_ar?: string; q: string;
                     options: string[]; answer: number; explanation?: string; tier?: string; bucket?: string };
-      for (const x of shuffle((parse<Feat[]>(read?.features_json ?? null) ?? []).filter(inTier).filter((f) => worth(f.line, f.span))).slice(0, 3)) {
+      // high end only: a feature whose term is EXPERT tier (ar_scene_feature_term → ar_ling_gram_term.tier) — never basic naḥw
+      const expertIdx = new Set((await query<{ feature_idx: number }>(env.DB_AR,
+        `SELECT f.feature_idx FROM ar_scene_feature_term f JOIN ar_ling_gram_term g ON g.id = f.term_id AND g.tier = 'expert'
+          WHERE f.unit_id = ? AND f.scene_no = ?`, [unit, Number(no)]).catch(() => [] as Array<{ feature_idx: number }>)).map((r) => r.feature_idx));
+      const feats = (parse<Feat[]>(read?.features_json ?? null) ?? []).map((f, i) => ({ f, i })).filter(({ i }) => expertIdx.has(i)).map(({ f }) => f);
+      for (const x of shuffle(feats.filter(inTier).filter((f) => worth(f.line, f.span))).slice(0, 3)) {
         const l = scene.lines[x.line];
         if (!l) continue;
         items.push({ id: `feature:${unit}:${no}:${x.line}:${x.span[0]}`, kind: 'feature', audio: clip(l), words: timedWords(l),

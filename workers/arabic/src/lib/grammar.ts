@@ -238,6 +238,10 @@ export async function sentenceDrills(env: ArabicEnv, all: L, rows: Sentence[], w
 /// term (or on its page of the book); else a Qurʾānic shāhid of the term from the registry; else, for a drill
 /// whose own prompt is a book's words (a page, a masʾala, a rule), those words, voiced. A drill with none is left out.
 export async function asDrills(env: ArabicEnv, all: L, items: GramDrill[], group: Group, levels: number[] = [1, 2, 3]) {
+  // high end only: a drill whose terms hold no EXPERT-tier term is not dealt
+  const expert = new Set((await query<{ id: string }>(env.DB_AR, `SELECT id FROM ar_ling_gram_term WHERE tier = 'expert'`)
+    .catch(() => [] as Array<{ id: string }>)).map((r) => r.id));
+  items = items.filter((it) => [it.termId, ...(it.terms ?? [])].some((t) => t && expert.has(t)));
   const kinds = byKey(all.kind);
   const named = (scope: string | undefined, x: string) => {
     const l = scope ? byKey(all[scope]).get(x) : undefined;

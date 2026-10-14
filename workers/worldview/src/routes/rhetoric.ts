@@ -176,19 +176,7 @@ export function rhetoricRoutes(router: Router<WorldviewEnv>) {
   // WGRT entries become English study cards. WV builds the payloads; CORE owns
   // km_core and does the writing.
 
-  dual(router, 'get', '/rhetoric/terms/:id/cards', async (req, env, { id }) => {
-    const repo = new RhetoricRepo(env.DB_WV);
-    const term = await repo.findTerm(id);
-    if (!term) return notFound(`rhetoric term ${id}`);
-    const [device, usages] = await Promise.all([
-      term.device_id ? repo.findDevice(term.device_id) : Promise.resolve(null),
-      repo.listUsagesForTerm(term.id),
-    ]);
-    const only = templateFilter(new URL(req.url).searchParams.get('only'));
-    const cards = buildRhetoricCards(term, device, usages)
-      .filter(c => !only || only.has(c.card_template));
-    return ok({ term: term.slug, total: cards.length, cards });
-  });
+  dual(router, 'get', '/rhetoric/terms/:id/cards', async () => gone('Drills, not cards: practise with /wv/practice/rhetoric — each drill goes to review once answered', 0));
 
   dual(router, 'post', '/rhetoric/terms/:id/cards', async (req, env, { id }) => {
     const repo = new RhetoricRepo(env.DB_WV);
@@ -211,12 +199,7 @@ export function rhetoricRoutes(router: Router<WorldviewEnv>) {
   });
 
   /** The whole filtered set at once — the same filters the term list takes. */
-  dual(router, 'get', '/rhetoric/cards', async (req, env) => {
-    const url = new URL(req.url);
-    const { terms, devices, usages } = await collect(env, url);
-    const cards = cardsForTerms(terms, devices, usages, templateFilter(url.searchParams.get('only')));
-    return ok({ terms: terms.length, total: cards.length, cards });
-  });
+  dual(router, 'get', '/rhetoric/cards', async () => gone('Drills, not cards: practise with /wv/practice/rhetoric — each drill goes to review once answered', 0));
 
   dual(router, 'post', '/rhetoric/cards', async (req, env) => {
     const url = new URL(req.url);

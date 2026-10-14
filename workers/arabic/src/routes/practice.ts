@@ -374,29 +374,10 @@ const levelsOf = (band: Band) => (band === 'basic' ? [1] : band === 'middle' ? [
 const SENT_ORIGINS: Record<string, string[]> = { lesson: ['lesson', 'title'], books: ['reading', 'toc', 'page', 'bab'], example: ['curated'] };
 
 /// the grammar questions of ar_exercises, each in the sentence it asks about (the words after «في:», the āyah it quotes)
-async function exerciseDrills(env: ArabicEnv, all: L, levels: string[], k: number, group: Group) {
-  if (k <= 0 || !levels.length) return [];
-  const rows = await query<{ id: string; prompt_ar: string; prompt_en: string | null; options_json: string; answer_json: string; explanation_md: string | null; level: string | null }>(env.DB_AR,
-    `SELECT id, prompt_ar, prompt_en, options_json, answer_json, explanation_md, level FROM ar_exercises
-      WHERE exercise_type = 'mcq' AND level IN (${levels.map(() => '?').join(',')}) ORDER BY random() LIMIT ?`, [...levels, k]);
-  const sentenceOf = (p: string) => (p.match(/﴿([^﴾]+)﴾/)?.[1] ?? p.match(/[«"]([^»"]{3,})[»"]/)?.[1] ?? p.split(/[:：]/).slice(1).join(':').replace(/[؟?]\s*$/, '')).trim();
-  const staged = await stage(env, rows.map((r) => ({ key: r.id, kind: 'prose', text: sentenceOf(r.prompt_ar) || r.prompt_ar })));
-  const kinds = byKey(all.kind);
-  return rows.flatMap((r) => {
-    try {
-      const options = JSON.parse(r.options_json) as string[];
-      const answer = options[(JSON.parse(r.answer_json) as { correct: number }).correct];
-      const st = staged.get(r.id);
-      if (!st || !answer) return [];
-      const d: Record<string, unknown> = { id: `grammar:${r.id}`, kind: 'feature', ask: 'grammar', audio: st.audio, words: st.words, span: [],
-        prompt: r.prompt_ar, promptEn: null, answer, options: shuffle(options), note: r.prompt_en ? { en: r.prompt_en, ar: '' } : null,
-        explanation: r.explanation_md, level: r.level, ...(st.voice ? { voice: st.voice } : {}),
-        source: { workId: null, title: null, level: r.level },
-        instruction: kinds.get('grammar')?.label ?? null, instructionAr: kinds.get('grammar')?.labelAr ?? null };
-      d.srs = srsCardFor(d, { skill: group.skill, band: group.band });
-      return d.srs ? [d] : [];   // an empty drill is dropped
-    } catch { return []; }
-  });
+/// Retired: these MCQs (ar_exercises) carry no registry term, so they cannot be held to the expert tier — high end only.
+/// Their content returns as Claude-authored drills under the Cybernetics rules.
+async function exerciseDrills(_env: ArabicEnv, _all: L, _levels: string[], _k: number, _group: Group): Promise<Array<Record<string, unknown>>> {
+  return [];
 }
 
 /// the scene questions on the registry terms at these depths
