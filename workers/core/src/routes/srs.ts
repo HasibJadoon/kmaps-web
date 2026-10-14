@@ -1,4 +1,5 @@
 import type { Router } from '../../../shared/src/router';
+import { gradeOrBank, cleanSecs } from '../srs/grade-or-bank';
 import {
   ok, created, notFound, badRequest, forbidden, noContent,
 } from '../../../shared/src/response';
@@ -713,7 +714,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
                      ELSE date(next_review_at) END AS day,
                 COUNT(*) AS n
            FROM core_srs_card
-          WHERE user_ref = ? AND suspended = 0 AND next_review_at IS NOT NULL
+          WHERE user_ref = ? AND suspended = 0 AND card_state != 'new' AND leech = 0 AND next_review_at IS NOT NULL
             AND date(next_review_at) <= date('now', '+30 day')
           GROUP BY day ORDER BY day`, [ctx.userId]),
       query(env.DB_CORE,
@@ -912,7 +913,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
               d.new_per_day, d.review_per_day, d.limit_scope,
               (SELECT COUNT(*) FROM core_srs_card c WHERE c.deck_id = d.id) AS card_count,
               (SELECT COUNT(*) FROM core_srs_card c
-                WHERE c.deck_id = d.id AND c.suspended = 0
+                WHERE c.deck_id = d.id AND c.suspended = 0 AND c.card_state != 'new' AND c.leech = 0
                   AND (c.next_review_at IS NULL
                        OR datetime(c.next_review_at) <= datetime('now'))) AS due_count,
               (SELECT COUNT(*) FROM core_srs_card c
@@ -1171,12 +1172,13 @@ export function srsRoutes(router: Router<CoreEnv>) {
     if (!isRating(rating)) {
       return badRequest('rating must be 1 (Again), 2 (Hard), 3 (Good) or 4 (Easy)');
     }
-    const duration = typeof body?.['duration_secs'] === 'number'
-      ? Math.round(body['duration_secs'] as number) : null;
+    const duration = cleanSecs(body?.['duration_secs']);
+    const opId = typeof body?.['op_id'] === 'string' ? body['op_id'] as string : null;
 
     const params = buildParams(storedOf(await repo.params(ctx.userId)));
-    const updated = await answerCard(repo, c, ctx.userId, rating, duration);
-    return ok(cardToApi(updated, params));
+    // the one rule (gradeOrBank): a resend changes nothing; a banked drill missed stays banked; answered well, review
+    const g = await gradeOrBank(repo, c, ctx.userId, rating, duration, opId);
+    return ok({ ...cardToApi(g.card, params), banked: g.outcome === 'banked', repeat: g.outcome === 'repeat' });
   });
 
   // The bank: the learner's drills filed but never practised. Review never deals them; their lesson does (a surah's
@@ -1190,15 +1192,13 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const repo = new SrsRepo(env.DB_CORE);
     const params = buildParams(storedOf(await repo.params(ctx.userId)));
     const cards = await repo.due(ctx.userId, {
-      state: 'bank', module: url.searchParams.get('module') ?? undefined,
+      state: 'bank', module: url.searchParams.get('module') ?? undefined, work: url.searchParams.get('work') ?? undefined,
       limit: Math.min(500, Math.max(1, n('limit') || 100)),
       surah: surah > 0 ? surah : undefined,
       from: from > 0 && to > 0 ? from : undefined, to: from > 0 && to > 0 ? to : undefined,
       kind: url.searchParams.get('kind') ?? undefined,
     });
-    // only drills: a bank item is played, never read as a card
-    const drills = cards.filter((c) => (c.extra_json ?? '').includes('"drill"'));
-    return ok({ bank: drills.map((c) => cardToApi(c, params)) });
+    return ok({ bank: cards.map((c) => cardToApi(c, params)) });   // drills only, filtered in SQL before the limit
   });
 
   router.get('/core/srs/review', async (req, env) => {

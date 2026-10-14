@@ -8,6 +8,7 @@ export async function answerCard(
   userRef: string,
   rating: RatingValue,
   durationSecs: number | null,
+  opId?: string | null,
 ): Promise<SrsCard> {
   const params = buildParams(storedOf(await repo.params(userRef)));
   const now = new Date();
@@ -23,6 +24,7 @@ export async function answerCard(
     state_after: next.columns.card_state,
     review_duration_secs: durationSecs,
     reviewed_at: now.toISOString(),
+    op_id: opId ?? null,
   });
   return (await repo.applySchedule(card.id, next.columns))!;
 }

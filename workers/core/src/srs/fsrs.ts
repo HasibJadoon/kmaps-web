@@ -47,7 +47,8 @@ export function buildParams(stored?: StoredParams | null): FSRSParameters {
     ...(w ? { w } : {}),
     ...(stored?.request_retention != null ? { request_retention: stored.request_retention } : {}),
     ...(stored?.maximum_interval != null ? { maximum_interval: stored.maximum_interval } : {}),
-    ...(stored?.learning_steps ? { learning_steps: stored.learning_steps as never } : {}),
+    // a drill reaches review only once answered well in its lesson: its first review is the next day, not ten minutes on
+    learning_steps: (stored?.learning_steps ?? ['1d']) as never,
     ...(stored?.relearning_steps ? { relearning_steps: stored.relearning_steps as never } : {}),
     ...(stored?.enable_fuzz != null ? { enable_fuzz: stored.enable_fuzz } : {}),
   });

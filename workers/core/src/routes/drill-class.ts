@@ -119,10 +119,12 @@ function summary(c: ClassRow & { open: number }) {
  */
 async function fileItems(env: CoreEnv, userId: string, classId: string, refs: string[] | null): Promise<number> {
   const db = env.DB_CORE;
+  // claimed in one statement, so two reads at once never file (and grade) the same item twice
   const toFile = await query<{ item_ref: string; state: ItemState; card_json: string }>(db,
-    `SELECT item_ref, state, card_json FROM core_drill_class_item
+    `UPDATE core_drill_class_item SET filed_card = 'pending'
       WHERE class_id = ? AND card_json IS NOT NULL AND filed_card IS NULL AND state IN ('right', 'perfected')
-        AND (? IS NULL OR item_ref IN (SELECT value FROM json_each(?)))`,
+        AND (? IS NULL OR item_ref IN (SELECT value FROM json_each(?)))
+      RETURNING item_ref, state, card_json`,
     [classId, refs ? 1 : null, refs ? JSON.stringify(refs) : '[]']);
   let filed = 0;
   for (let i = 0; i < toFile.length; i += 100) {
@@ -130,14 +132,18 @@ async function fileItems(env: CoreEnv, userId: string, classId: string, refs: st
     const entries = chunk.map((r) => {
       let card: Record<string, unknown> = {};
       try { card = JSON.parse(r.card_json) ?? {}; } catch { /* an unreadable card files nothing */ }
-      return { ...card, rating: seededRating(r.state) };
+      // learnt is learnt: right first time or perfected after a miss, it files as Good (a Hard would undercut the bank rule)
+      return { ...card, rating: Math.max(3, seededRating(r.state)), op_id: `class:${classId}:${r.item_ref}` };
     });
     const out = await fileCards(env, userId, entries, { byModule: true });
     const marks = out.cards.map((card, k) => card['id']
       ? db.prepare('UPDATE core_drill_class_item SET filed_card = ? WHERE class_id = ? AND item_ref = ?')
           .bind(String(card['id']), classId, chunk[k].item_ref)
       : null).filter((x): x is D1PreparedStatement => !!x);
-    if (marks.length) await db.batch(marks);
+    // an item that did not file is released, to be filed on a later read
+    const failed = chunk.filter((_, k) => !out.cards[k]?.['id']).map((r) => db.prepare(
+      'UPDATE core_drill_class_item SET filed_card = NULL WHERE class_id = ? AND item_ref = ?').bind(classId, r.item_ref));
+    if (marks.length || failed.length) await db.batch([...marks, ...failed]);
     filed += marks.length;
   }
   return filed;

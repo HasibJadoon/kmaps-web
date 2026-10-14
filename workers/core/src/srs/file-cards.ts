@@ -1,4 +1,5 @@
 import { query, queryOne } from '../../../shared/src/db';
+import { gradeOrBank, cleanSecs } from './grade-or-bank';
 import type { CoreEnv } from '../env';
 import { SrsRepo } from '../repositories/srs.repo';
 import { isRating } from './fsrs';
@@ -81,10 +82,11 @@ export async function fileCards(
   const results: Array<Record<string, unknown>> = [];
   let inserted = 0;
   let skipped  = 0;
-  // holdMisses (the open drill rounds): review takes in only what has been mastered — a drill met
-  // for the first time and missed (Again · Hard) is not filed; it comes back in the drills until it
-  // is answered well, and is filed then. A card already in review is graded as always, a miss
-  // included. Class drills gate their own filing (only what is right or perfected) and leave it off.
+  // holdMisses (the open drill rounds): review takes in only what has been mastered. A drill met for the
+  // first time and missed (Again · Hard) goes to the BANK — kept, ungraded (state 'new'), so its lesson deals
+  // it again first (GET /core/srs/bank) until it is answered well; that answer moves it into review, which
+  // adapts to every answer from then on. A card already in review is graded as always, a miss included.
+  // Class drills gate their own filing (only what is right or perfected) and leave it off.
   let held = 0;
 
   for (const raw of entries) {
@@ -110,22 +112,28 @@ export async function fileCards(
       continue;
     }
 
+    // a drill filed by practice: it must carry its drill and how it went — nothing reaches SRS unpractised
+    const extra0 = entry!['extra'] as { drill?: unknown } | undefined;
+    if (byModule && (!extra0?.drill || !isRating(entry!['rating']))) {
+      results.push({ resource_ref: resourceRef, error: 'a drill and its answer are required' });
+      skipped += 1;
+      continue;
+    }
+
     let cardDeck = deckId!;
     if (byModule) {
       if (!moduleDecks.has(module)) moduleDecks.set(module, await deckForModule(env, ctx.userId, module));
       cardDeck = moduleDecks.get(module)!;
     }
-    const rating0: unknown = entry!['rating'];
-    if (opts.holdMisses && (rating0 === 1 || rating0 === 2)) {
-      const known = await queryOne<{ id: string }>(env.DB_CORE,
-        `SELECT id FROM core_srs_card WHERE deck_id = ? AND resource_ref = ? AND card_template = ? LIMIT 1`,
-        [cardDeck, resourceRef, str(entry!['card_template']) ?? 'freeform']);
-      if (!known) {
-        held += 1;
-        results.push({ graded: false, id: null, resource_ref: resourceRef, card_template: str(entry!['card_template']) ?? 'freeform',
-                       inserted: false, held: true });
-        continue;
-      }
+    // a drill already in review and not yet due, met again in practice: seen, not graded off its schedule
+    const known = await queryOne<{ id: string; card_state: string; next_review_at: string | null }>(env.DB_CORE,
+      `SELECT id, card_state, next_review_at FROM core_srs_card WHERE deck_id = ? AND resource_ref = ? AND card_template = ? LIMIT 1`,
+      [cardDeck, resourceRef, str(entry!['card_template']) ?? 'freeform']);
+    if (known && known.card_state !== 'new' && known.next_review_at && Date.parse(known.next_review_at) > Date.now()) {
+      results.push({ graded: false, id: known.id, resource_ref: resourceRef, card_template: str(entry!['card_template']) ?? 'freeform',
+                     inserted: false, seen: true });
+      skipped += 1;
+      continue;
     }
     const outcome = await repo.insertCard({
       deck_id: cardDeck, user_ref: ctx.userId,
@@ -149,10 +157,15 @@ export async function fileCards(
     // a card filed from a drill carries how the learner did: graded now, as a review would be
     const rating: unknown = entry!['rating'];
     let graded = false;
+    // the one rule (gradeOrBank): a resend changes nothing; a first miss — or a banked drill missed again — stays in
+    // the bank for its lesson; answered well, it graduates into review
+    let banked = false;
     if (outcome.card && isRating(rating)) {
-      const secs = Number(entry!['duration_secs']);
-      await answerCard(repo, outcome.card, ctx.userId, rating, Number.isFinite(secs) && secs > 0 ? secs : null);
-      graded = true;
+      const g = await gradeOrBank(repo, outcome.card, ctx.userId, rating, cleanSecs(entry!['duration_secs']),
+                                  str(entry!['op_id']) ?? null);
+      graded = g.outcome === 'graded';
+      banked = g.outcome === 'banked';
+      if (banked) held += 1;
     }
     results.push({
       graded,
@@ -160,6 +173,7 @@ export async function fileCards(
       resource_ref: resourceRef,
       card_template: str(entry!['card_template']) ?? 'freeform',
       inserted: outcome.inserted,
+      ...(banked ? { held: true, banked: true } : {}),
     });
   }
 

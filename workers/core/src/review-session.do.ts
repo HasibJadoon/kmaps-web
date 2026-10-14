@@ -1,4 +1,5 @@
 import type { CoreEnv } from './env';
+import { gradeOrBank } from './srs/grade-or-bank';
 import { SrsRepo, type SrsCard } from './repositories/srs.repo';
 import { answerCard } from './srs/answer';
 import { isRating, type RatingValue } from './srs/fsrs';
@@ -145,9 +146,10 @@ export class ReviewSession {
     let scheduled = false;
     let nextInDays: number | null = null;
     if (mine) {
-      const updated = await answerCard(repo, mine, me.userId, rating, secs);
-      scheduled = true;
-      nextInDays = updated.scheduled_days;
+      // the one rule: a banked drill missed stays banked
+      const g = await gradeOrBank(repo, mine, me.userId, rating, secs);
+      scheduled = g.outcome === 'graded';
+      nextInDays = scheduled ? g.card.scheduled_days : null;
     }
 
     answers.push({ userId: me.userId, name: me.name, rating, scheduled, nextInDays });

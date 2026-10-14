@@ -120,12 +120,12 @@ test('a class from first sprint to studied', async () => {
   assert.equal(c.daysTaken, 3);
   assert.equal(r.body.data.filed, 0);                 // all already filed as they were learnt
 
-  // every drill is a card, graded: the perfected one Hard, the rest Good
+  // every drill is filed Good — learnt is learnt, a perfected one too (a Hard would undercut the bank rule)
   const reviews = db.prepare(
     `SELECT c.resource_ref AS ref, r.rating FROM core_srs_review r JOIN core_srs_card c ON c.id = r.card_id ORDER BY c.resource_ref`,
   ).all() as Array<{ ref: string; rating: number }>;
   assert.deepEqual(reviews.map((x) => [x.ref, x.rating]),
-    [['QR:fill:40:1', 3], ['QR:fill:40:2', 2], ['QR:fill:40:3', 3]]);
+    [['QR:fill:40:1', 3], ['QR:fill:40:2', 3], ['QR:fill:40:3', 3]]);
 
   // completing again files nothing twice
   r = await call('POST', '/core/drill/class/complete', { scope, bands });

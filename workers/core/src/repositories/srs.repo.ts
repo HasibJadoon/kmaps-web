@@ -25,6 +25,9 @@ export interface SrsDeck {
 }
 
 export interface SrsCard {
+  /** the lesson the drill belongs to (extra.group.workId), and whether it lapsed so often its lesson deals it again */
+  work_ref?: string | null;
+  leech?: number | null;
   id: string;
   deck_id: string;
   user_ref: string;
@@ -87,10 +90,16 @@ const DECK_COLS = `
   parent_id, slug, sort_order, new_per_day, review_per_day, limit_scope
 FROM core_srs_deck`;
 
+/** the lesson a drill belongs to: its extra.group.workId (QR:SURAH:n, ACQ:…, WV:…) */
+const workOf = (extra: string | null | undefined): string | null => {
+  try { const g = extra ? (JSON.parse(extra) as { group?: { workId?: unknown } }).group : null; return typeof g?.workId === 'string' ? g.workId : null; }
+  catch { return null; }
+};
+
 const CARD_COLS = `
   id, deck_id, user_ref, module, resource_type, resource_ref, card_template,
   front_text, back_text, extra_json, tags, card_kind, concept_domain, suspended,
-  note_type_id, fields_json, root_norm, intro_surah,
+  note_type_id, fields_json, root_norm, intro_surah, work_ref, leech,
   stability, difficulty, card_state, learning_step, reps, lapses,
   elapsed_days, scheduled_days, last_review_at, next_review_at,
   created_at, updated_at
@@ -172,6 +181,8 @@ export class SrsRepo {
     deck?: string; deckIds?: string[];
     /** 'practised' (review: drills met at least once) or 'bank' (filed but never practised — dealt by their lesson, not by review) */
     state?: 'practised' | 'bank';
+    /** the lesson (extra.group.workId) — a lesson deals its own bank */
+    work?: string;
   } = {}): Promise<SrsCard[]> {
     const args: unknown[] = [userRef];
     const bank = opts.state === 'bank';
@@ -181,11 +192,14 @@ export class SrsRepo {
 
     // Review deals only what was practised: a drill comes to SRS once it has been met in its lesson. One filed and never
     // practised waits in the bank (state 'new'), and its lesson deals it (GET /core/srs/bank).
+    // drills only (a review item replays its drill), and never a leech: its lesson deals it again
+    const drill = `json_valid(extra_json) AND json_extract(extra_json, '$.drill') IS NOT NULL`;
     let where = bank
-      ? `WHERE user_ref = ? AND suspended = 0 AND card_state = 'new'`
-      : `WHERE user_ref = ? AND suspended = 0 AND card_state != 'new'
+      ? `WHERE user_ref = ? AND suspended = 0 AND (card_state = 'new' OR leech = 1) AND ${drill}`
+      : `WHERE user_ref = ? AND suspended = 0 AND card_state != 'new' AND leech = 0 AND ${drill}
                  AND (next_review_at IS NULL
                       OR datetime(next_review_at) <= ${horizon})`;
+    if (opts.work) { where += ` AND work_ref = ?`; args.push(opts.work); }
     if (opts.module) { where += ` AND module = ?`; args.push(opts.module); }
 
     if (opts.surah && opts.surah > 0) {
@@ -274,7 +288,8 @@ export class SrsRepo {
   dueCounts(userRef: string): Promise<Array<{ module: string; n: number }>> {
     return query<{ module: string; n: number }>(this.db,
       `SELECT module, COUNT(*) AS n FROM core_srs_card
-       WHERE user_ref = ? AND suspended = 0 AND card_state != 'new'
+       WHERE user_ref = ? AND suspended = 0 AND card_state != 'new' AND leech = 0
+         AND json_valid(extra_json) AND json_extract(extra_json, '$.drill') IS NOT NULL
          AND (next_review_at IS NULL
               OR datetime(next_review_at) <= datetime('now'))
        GROUP BY module`, [userRef]);
@@ -294,8 +309,8 @@ export class SrsRepo {
       `INSERT INTO core_srs_card
          (id, deck_id, user_ref, module, resource_type, resource_ref, card_template,
           front_text, back_text, extra_json, tags, card_kind, concept_domain,
-          note_type_id, fields_json, root_norm, intro_surah, intro_ayah, next_review_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          note_type_id, fields_json, root_norm, intro_surah, intro_ayah, next_review_at, work_ref)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (deck_id, resource_ref, card_template) DO NOTHING`,
       [id, input.deck_id, input.user_ref, input.module, input.resource_type,
        input.resource_ref, input.card_template ?? 'freeform',
@@ -305,7 +320,7 @@ export class SrsRepo {
        input.note_type_id ?? null, input.fields_json ?? null,
        input.root_norm ?? null, input.intro_surah ?? null, input.intro_ayah ?? null,
 
-       new Date().toISOString()]);
+       new Date().toISOString(), workOf(input.extra_json)]);
     const row = await queryOne<SrsCard>(this.db,
       `SELECT ${CARD_COLS} WHERE deck_id = ? AND resource_ref = ? AND card_template = ?`,
       [input.deck_id, input.resource_ref, input.card_template ?? 'freeform']);
@@ -367,17 +382,27 @@ export class SrsRepo {
     card_id: string; user_ref: string; rating: RatingValue; state_before: string;
     stability_after: number; difficulty_after: number; elapsed_days: number;
     scheduled_days_after: number; state_after: string;
-    review_duration_secs: number | null; reviewed_at: string;
+    review_duration_secs: number | null; reviewed_at: string; op_id?: string | null;
   }): Promise<void> {
     await execute(this.db,
       `INSERT INTO core_srs_review
          (id, card_id, user_ref, rating, state_before, stability_after, difficulty_after,
-          elapsed_days, scheduled_days_after, state_after, review_duration_secs, reviewed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          elapsed_days, scheduled_days_after, state_after, review_duration_secs, reviewed_at, op_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [typedId('SRSREV'), input.card_id, input.user_ref, input.rating, input.state_before,
        input.stability_after, input.difficulty_after, input.elapsed_days,
        input.scheduled_days_after, input.state_after, input.review_duration_secs,
-       input.reviewed_at]);
+       input.reviewed_at, input.op_id ?? null]);
+  }
+
+  /** an answer already applied (its op_id seen) — a resend changes nothing */
+  async seenOp(opId: string | null | undefined): Promise<boolean> {
+    if (!opId) return false;
+    return !!(await queryOne<{ id: string }>(this.db, `SELECT id FROM core_srs_review WHERE op_id = ? LIMIT 1`, [opId]));
+  }
+
+  async setLeech(cardId: string, on: boolean): Promise<void> {
+    await execute(this.db, `UPDATE core_srs_card SET leech = ? WHERE id = ?`, [on ? 1 : 0, cardId]);
   }
 
   reviewLog(userRef: string): Promise<Array<{ card_id: string; rating: RatingValue; reviewed_at: string }>> {

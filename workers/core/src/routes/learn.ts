@@ -34,13 +34,14 @@ async function countsByPrefix(
     env.DB_CORE,
     `SELECT resource_ref AS ref,
             COUNT(*) AS cards,
-            SUM(CASE WHEN card_state = 'review' THEN 1 ELSE 0 END) AS known,
+            SUM(CASE WHEN card_state IN ('review', 'relearning') THEN 1 ELSE 0 END) AS known,
             SUM(CASE WHEN suspended = 0
                       AND (next_review_at IS NULL
                            OR datetime(next_review_at) <= datetime('now'))
                      THEN 1 ELSE 0 END) AS due
        FROM core_srs_card
-      WHERE user_ref = ? AND module = ?
+      WHERE user_ref = ? AND suspended = 0 AND json_valid(extra_json) AND json_extract(extra_json, '$.drill') IS NOT NULL
+         AND module = ?
       GROUP BY resource_ref`,
     [userId, module],
   );
@@ -126,13 +127,14 @@ export function learnRoutes(router: Router<CoreEnv>): void {
       env.DB_CORE,
       `SELECT module,
               COUNT(*) AS cards,
-              SUM(CASE WHEN card_state = 'review' THEN 1 ELSE 0 END) AS known,
+              SUM(CASE WHEN card_state IN ('review', 'relearning') THEN 1 ELSE 0 END) AS known,
               SUM(CASE WHEN suspended = 0
                         AND (next_review_at IS NULL
                              OR datetime(next_review_at) <= datetime('now'))
                        THEN 1 ELSE 0 END) AS due
          FROM core_srs_card
-        WHERE user_ref = ?
+        WHERE user_ref = ? AND suspended = 0 AND json_valid(extra_json) AND json_extract(extra_json, '$.drill') IS NOT NULL
+          
         GROUP BY module`,
       [ctx.userId],
     );
@@ -143,9 +145,10 @@ export function learnRoutes(router: Router<CoreEnv>): void {
       env.DB_CORE,
       `SELECT CAST(substr(resource_ref, 1, instr(resource_ref || ':', ':') - 1) AS INTEGER) AS surah,
               COUNT(*) AS cards,
-              SUM(CASE WHEN card_state = 'review' THEN 1 ELSE 0 END) AS known
+              SUM(CASE WHEN card_state IN ('review', 'relearning') THEN 1 ELSE 0 END) AS known
          FROM core_srs_card
-        WHERE user_ref = ? AND module = 'QR' AND resource_ref GLOB '[0-9]*'
+        WHERE user_ref = ? AND suspended = 0 AND json_valid(extra_json) AND json_extract(extra_json, '$.drill') IS NOT NULL
+           AND module = 'QR' AND resource_ref GLOB '[0-9]*'
         GROUP BY surah
         HAVING surah > 0
         ORDER BY surah`,
@@ -269,13 +272,14 @@ export function learnRoutes(router: Router<CoreEnv>): void {
                 ELSE 'other'
               END AS step,
               COUNT(*) AS cards,
-              SUM(CASE WHEN card_state = 'review' THEN 1 ELSE 0 END) AS known,
+              SUM(CASE WHEN card_state IN ('review', 'relearning') THEN 1 ELSE 0 END) AS known,
               SUM(CASE WHEN suspended = 0
                         AND (next_review_at IS NULL
                              OR datetime(next_review_at) <= datetime('now'))
                        THEN 1 ELSE 0 END) AS due
          FROM core_srs_card
-        WHERE user_ref = ?
+        WHERE user_ref = ? AND suspended = 0 AND json_valid(extra_json) AND json_extract(extra_json, '$.drill') IS NOT NULL
+          
           AND ((resource_ref GLOB ?
                 AND CAST(substr(resource_ref, instr(resource_ref, ':') + 1) AS INTEGER)
                     BETWEEN ? AND ?)
@@ -381,13 +385,14 @@ export function learnRoutes(router: Router<CoreEnv>): void {
       env.DB_CORE,
       `SELECT COALESCE(concept_domain, concept_topic, 'Other') AS bucket,
               COUNT(*) AS cards,
-              SUM(CASE WHEN card_state = 'review' THEN 1 ELSE 0 END) AS known,
+              SUM(CASE WHEN card_state IN ('review', 'relearning') THEN 1 ELSE 0 END) AS known,
               SUM(CASE WHEN suspended = 0
                         AND (next_review_at IS NULL
                              OR datetime(next_review_at) <= datetime('now'))
                        THEN 1 ELSE 0 END) AS due
          FROM core_srs_card
-        WHERE user_ref = ? AND module = ?
+        WHERE user_ref = ? AND suspended = 0 AND json_valid(extra_json) AND json_extract(extra_json, '$.drill') IS NOT NULL
+           AND module = ?
         GROUP BY bucket
         ORDER BY cards DESC`,
       [userId, module],
@@ -416,13 +421,14 @@ export function learnRoutes(router: Router<CoreEnv>): void {
       env.DB_CORE,
       `SELECT COALESCE(card_kind, resource_type, 'Other') AS bucket,
               COUNT(*) AS cards,
-              SUM(CASE WHEN card_state = 'review' THEN 1 ELSE 0 END) AS known,
+              SUM(CASE WHEN card_state IN ('review', 'relearning') THEN 1 ELSE 0 END) AS known,
               SUM(CASE WHEN suspended = 0
                         AND (next_review_at IS NULL
                              OR datetime(next_review_at) <= datetime('now'))
                        THEN 1 ELSE 0 END) AS due
          FROM core_srs_card
-        WHERE user_ref = ? AND module IN ('AR','AL')
+        WHERE user_ref = ? AND suspended = 0 AND json_valid(extra_json) AND json_extract(extra_json, '$.drill') IS NOT NULL
+           AND module IN ('AR','AL')
         GROUP BY bucket
         ORDER BY cards DESC`,
       [userId],

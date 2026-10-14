@@ -756,6 +756,8 @@ CREATE TABLE "core_srs_card" (
   concept_topic  TEXT,
   UNIQUE (deck_id, resource_ref, card_template)
 );
+ALTER TABLE core_srs_card ADD COLUMN work_ref TEXT;
+ALTER TABLE core_srs_card ADD COLUMN leech INTEGER NOT NULL DEFAULT 0;
 
 CREATE TABLE core_srs_card_concept (
   card_id      TEXT NOT NULL REFERENCES core_srs_card(id) ON DELETE CASCADE,
@@ -868,6 +870,8 @@ CREATE TABLE core_srs_review (
   review_duration_secs INTEGER,
   reviewed_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );
+ALTER TABLE core_srs_review ADD COLUMN op_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_core_srs_review_op ON core_srs_review (op_id) WHERE op_id IS NOT NULL;
 
 CREATE TABLE core_study_session (
   id            TEXT PRIMARY KEY,
