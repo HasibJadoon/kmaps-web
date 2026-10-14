@@ -101,3 +101,23 @@ test('held: of the drills a round would deal, the ones the learner already holds
   const body = await res.json() as { data: { held: string[] } };
   assert.deepEqual(body.data.held, ['AR:drill:gs:gs_term:1'], 'only this learner\'s card counts');
 });
+
+test('a drill placed in two passages is dealt in each (its own place, or cyb_drill_place)', async () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
+  db.exec(`INSERT INTO cyb_drill (gid, domain, discipline, kind, interaction, skill, work_ref, intro_surah, intro_ayah, payload_json, status)
+           VALUES ('DRL:QR:DL:rg:core:x', 'QR', 'DL', 'lex_asl', 'choose', 'vocab', 'QR:SURAH:30', 30, 5, '{"id":"rg:core:x"}', 'live');
+           INSERT INTO cyb_drill_place (gid, work_ref, intro_surah, intro_ayah) VALUES ('DRL:QR:DL:rg:core:x', 'QR:SURAH:34', 34, 12);`);
+  type H = (r: Request, e: unknown, p: unknown) => Promise<Response>;
+  const routes = new Map<string, H>();
+  drillBankRoutes({ get: (p: string, h: H) => routes.set(p, h), post: () => {} } as never);
+  const t = await signJwt({ sub: 'U1', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 }, 's');
+  const deal = async (q: string) => {
+    const res = await routes.get('/core/cyb/drills')!(new Request(`http://x/core/cyb/drills?domain=QR&${q}`, { headers: { authorization: `Bearer ${t}` } }),
+      { DB_CORE: d1(db), JWT_SECRET: 's' }, {});
+    return ((await res.json()) as { data: { drills: Array<{ gid: string }> } }).data.drills.length;
+  };
+  assert.equal(await deal('work=QR:SURAH:30&from=1&to=10'), 1, 'its own passage');
+  assert.equal(await deal('work=QR:SURAH:34&from=10&to=20'), 1, 'the second passage it stands in');
+  assert.equal(await deal('work=QR:SURAH:34&from=30&to=40'), 0, 'not another unit of that sūra');
+});

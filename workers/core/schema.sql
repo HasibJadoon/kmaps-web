@@ -2187,3 +2187,11 @@ CREATE TABLE IF NOT EXISTS cyb_drill (
   created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_cyb_drill_scope ON cyb_drill (domain, work_ref, intro_ayah, status);
+CREATE TABLE IF NOT EXISTS cyb_drill_place (
+  gid         TEXT NOT NULL,
+  work_ref    TEXT NOT NULL,
+  intro_surah INTEGER,
+  intro_ayah  INTEGER,
+  PRIMARY KEY (gid, work_ref, intro_ayah)
+);
+CREATE INDEX IF NOT EXISTS idx_cyb_drill_place_work ON cyb_drill_place (work_ref, intro_ayah);

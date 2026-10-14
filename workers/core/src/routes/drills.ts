@@ -55,16 +55,23 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
     const where = [`status = 'live'`];
     const args: unknown[] = [];
     if (p('domain')) { where.push('domain = ?'); args.push(p('domain')); }
-    if (p('work')) { where.push('work_ref = ?'); args.push(p('work')); }
     if (p('kind')) { where.push('kind = ?'); args.push(p('kind')); }
     if (p('skill')) { where.push('skill = ?'); args.push(p('skill')); }
     const from = Number(p('from')), to = Number(p('to'));
-    if (from > 0 && to >= from) { where.push('intro_ayah BETWEEN ? AND ?'); args.push(from, to); }
+    const ayat = from > 0 && to >= from;
+    // the lesson: the drill's own place, or any other place it is met (core 055 cyb_drill_place)
+    if (p('work') || ayat) {
+      const own = [p('work') ? 'work_ref = ?' : null, ayat ? 'intro_ayah BETWEEN ? AND ?' : null].filter(Boolean).join(' AND ');
+      const other = [p('work') ? 'pl.work_ref = ?' : null, ayat ? 'pl.intro_ayah BETWEEN ? AND ?' : null].filter(Boolean).join(' AND ');
+      const bind = [...(p('work') ? [p('work')] : []), ...(ayat ? [from, to] : [])];
+      where.push(`((${own}) OR EXISTS (SELECT 1 FROM cyb_drill_place pl WHERE pl.gid = cyb_drill.gid AND ${other}))`);
+      args.push(...bind, ...bind);
+    }
     const limit = Math.min(500, Math.max(1, Number(p('limit')) || 200));
     // no lesson given (a skill's own practice — the grammar concepts): whole concepts, the ones this learner has met
     // least first, then at random — so a round climbs one concept's steps and the bank is walked through, not its
     // first rows over and over
-    if (!p('work') && !(from > 0 && to >= from)) {
+    if (!p('work') && !ayat) {
       const n = Math.min(40, Math.max(1, Number(p('concepts')) || 6));
       // a concept begun comes first (its next steps), then the ones never met; a concept met through is left to review
       const works = await query<{ work_ref: string }>(env.DB_CORE,
