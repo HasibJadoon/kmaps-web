@@ -211,7 +211,7 @@ export function grammarPathRoutes(router: Router<ArabicEnv>) {
       const terms = await termsOf(env, lessons);
       if (!terms.length) return badRequest('this lesson teaches no registry term yet');
       const size = setting(all, step === 'drill' ? 'grammar_drill_size' : 'grammar_check_size', step === 'drill' ? 10 : 12);
-      const items = await round(env, all, plan, terms, size, { band: track.label.key, series: lesson.title_en ?? lesson.title_ar, episode: id },
+      const items = await round(env, all, plan, terms, size, { skill: 'grammar_path', band: track.label.key, series: lesson.title_en ?? lesson.title_ar, episode: id },
                                 step === 'drill' ? [id] : lessons, step === 'drill' ? (level === 'advanced' ? [1, 2, 3] : [1, 2]) : [1, 2, 3]);
       const P = byKey(all.grammar_path);
       const card = P.get(step);

@@ -134,6 +134,15 @@ export function learnPathRoutes(router: Router<ArabicEnv>) {
     const step = await queryOne<Step>(env.DB_AR,
       `SELECT i.*, p.target_ref FROM ar_intake_item i LEFT JOIN ar_intake_pipeline p ON p.intake_id = i.id WHERE i.id = ? AND i.path_rank IS NOT NULL`, [id]);
     if (!step) return notFound(`path step ${id}`);
+    // a locked step (the one before it in its lane not done) can be neither started nor closed — as the path shows it
+    if (b.state !== 'reset') {
+      const prev = await queryOne<{ id: string; done: number }>(env.DB_AR,
+        `SELECT i.id, EXISTS (SELECT 1 FROM ar_learner_path p WHERE p.user_id = ? AND p.intake_id = i.id AND p.state = 'done') AS done
+           FROM ar_intake_item i WHERE i.path_lane IS ? AND i.path_rank < ? ORDER BY i.path_rank DESC LIMIT 1`,
+        [me, (step as { path_lane?: string | null }).path_lane ?? null, (step as { path_rank?: number }).path_rank ?? 0]);
+      const mine = await queryOne<{ state: string }>(env.DB_AR, `SELECT state FROM ar_learner_path WHERE user_id = ? AND intake_id = ?`, [me, id]);
+      if (prev && !prev.done && mine?.state !== 'done') return conflict('The step before this one is not done yet');
+    }
     if (b.state === 'reset') {
       await execute(env.DB_AR, `DELETE FROM ar_learner_path WHERE user_id = ? AND intake_id = ?`, [me, id]);
     } else {
