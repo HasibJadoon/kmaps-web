@@ -4,6 +4,7 @@ import { ok, badRequest } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { labels, byKey, skillCard, instruct, srsCardFor } from '../lib/labels';
+import { worksOfStep } from './learn-path';
 import { commonWords, isCommon } from '../lib/common';
 import { parseBand, bare, type Band } from '../lib/levels';
 import { mineDrills } from './words';
@@ -68,6 +69,16 @@ function prefer<T>(xs: T[], n: (x: T) => number, mode: BandCfg['blank']): T | un
 }
 
 /// Random lines at a level, within its word counts — translated ones first, so the meaning can be shown.
+/// Lines from the works one path step holds (step=… on a session): its own scenes, every band.
+async function stepLines(env: ArabicEnv, works: string[], n: number, wc?: { min: number; max: number }): Promise<Line[]> {
+  if (n <= 0 || !works.length) return [];
+  const ids = works.slice(0, 90);
+  return query<Line>(env.DB_AR,
+    `SELECT * FROM ar_practice_pool WHERE work_id IN (${ids.map(() => '?').join(',')})
+       ${wc ? 'AND word_count BETWEEN ? AND ?' : ''} ORDER BY (abs(rnd * 2654435761 + ?) % 1000003) LIMIT ?`,
+    [...ids, ...(wc ? [wc.min, wc.max] : []), Math.floor(Math.random() * 1e6), n]);
+}
+
 async function drawLines(env: ArabicEnv, band: Band, n: number, translated = true, wc?: { min: number; max: number }): Promise<Line[]> {
   if (n <= 0) return [];
   const start = Math.floor(Math.random() * 1e9);
@@ -137,7 +148,7 @@ const clean = (w: string) => w.replace(/[؟،؛.!?"«»:…,()]/g, '');
 /// Options shown bare, so the vowel marks of the right one do not give it away.
 const shown = (w: string) => bare(clean(w));
 
-async function lineDrills(env: ArabicEnv, all: L, skill: string, band: Band, n: number) {
+async function lineDrills(env: ArabicEnv, all: L, skill: string, band: Band, n: number, works: string[] = []) {
   const cfg = bandCfg(all, band);
   const common = await commonWords(env);
   const light = (w: string) => isCommon(common, w, band === 'basic');
@@ -146,9 +157,12 @@ async function lineDrills(env: ArabicEnv, all: L, skill: string, band: Band, n: 
   const want = skill === 'fill' || skill === 'hear' ? n * 3 : n;
   const upN = cfg.upper ? Math.round(want * cfg.upper.share) : 0;
   const bookN = cfg.book ? Math.round(want * cfg.book.share) : 0;
+  // a path step's practice draws its own lines first; the level's pool only tops it up
+  const own = works.length ? await stepLines(env, works, want - bookN, cfg.lines) : [];
   const [main, upper, book, others] = await Promise.all([
-    drawLines(env, band, want - upN - bookN, true, cfg.lines),
-    cfg.upper ? drawLines(env, band, upN, true, { min: cfg.upper.min, max: cfg.lines?.max ?? 99 }) : Promise.resolve([] as Line[]),
+    works.length ? Promise.resolve(own) : drawLines(env, band, want - upN - bookN, true, cfg.lines),
+    cfg.upper && !works.length ? drawLines(env, band, upN, true, { min: cfg.upper.min, max: cfg.lines?.max ?? 99 })
+      : works.length && own.length < want - bookN ? drawLines(env, band, want - bookN - own.length, false, cfg.lines) : Promise.resolve([] as Line[]),
     cfg.book ? bookLines(env, cfg.book.grades, bookN, skill === 'order' ? 18 : 40) : Promise.resolve([] as Line[]),
     drawLines(env, band, 24, false),
   ]);
@@ -559,7 +573,10 @@ export function practiceRoutes(router: Router<ArabicEnv>) {
     const row = (all.skill ?? []).find((s) => s.key === skill);
     if (!row) return badRequest(`unknown skill ${skill}`);
     const meta = skillCard(row);
-    const items = row.extra?.source === 'lines' ? await lineDrills(env, all, skill, band, n)
+    // step=<intake id>: the drills of one step of the learning path, from the works it holds
+    const step = url.searchParams.get('step');
+    const stepWorks = step ? await worksOfStep(env, step) : [];
+    const items = row.extra?.source === 'lines' ? await lineDrills(env, all, skill, band, n, stepWorks)
       : skill === 'mine' ? await mineDrills(env, n)
       : skill === 'read' ? await readDrills(env, all, band, n)
       : skill === 'meaning' ? await wordDrills(env, all, band, n)

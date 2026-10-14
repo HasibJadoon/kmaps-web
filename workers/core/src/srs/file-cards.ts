@@ -1,4 +1,4 @@
-import { query } from '../../../shared/src/db';
+import { query, queryOne } from '../../../shared/src/db';
 import type { CoreEnv } from '../env';
 import { SrsRepo } from '../repositories/srs.repo';
 import { isRating } from './fsrs';
@@ -71,8 +71,8 @@ export async function deckForModule(env: CoreEnv, userId: string, module: string
  */
 export async function fileCards(
   env: CoreEnv, userId: string, entries: unknown[],
-  opts: { deckId?: string; byModule: boolean },
-): Promise<{ inserted: number; skipped: number; cards: Array<Record<string, unknown>>; moduleDecks: Map<string, string> }> {
+  opts: { deckId?: string; byModule: boolean; holdMisses?: boolean },
+): Promise<{ inserted: number; skipped: number; held: number; cards: Array<Record<string, unknown>>; moduleDecks: Map<string, string> }> {
   const repo = new SrsRepo(env.DB_CORE);
   const { deckId, byModule } = opts;
   const ctx = { userId };
@@ -81,6 +81,11 @@ export async function fileCards(
   const results: Array<Record<string, unknown>> = [];
   let inserted = 0;
   let skipped  = 0;
+  // holdMisses (the open drill rounds): review takes in only what has been mastered — a drill met
+  // for the first time and missed (Again · Hard) is not filed; it comes back in the drills until it
+  // is answered well, and is filed then. A card already in review is graded as always, a miss
+  // included. Class drills gate their own filing (only what is right or perfected) and leave it off.
+  let held = 0;
 
   for (const raw of entries) {
     const entry = typeof raw === 'object' && raw !== null && !Array.isArray(raw)
@@ -109,6 +114,18 @@ export async function fileCards(
     if (byModule) {
       if (!moduleDecks.has(module)) moduleDecks.set(module, await deckForModule(env, ctx.userId, module));
       cardDeck = moduleDecks.get(module)!;
+    }
+    const rating0: unknown = entry!['rating'];
+    if (opts.holdMisses && (rating0 === 1 || rating0 === 2)) {
+      const known = await queryOne<{ id: string }>(env.DB_CORE,
+        `SELECT id FROM core_srs_card WHERE deck_id = ? AND resource_ref = ? AND card_template = ? LIMIT 1`,
+        [cardDeck, resourceRef, str(entry!['card_template']) ?? 'freeform']);
+      if (!known) {
+        held += 1;
+        results.push({ graded: false, id: null, resource_ref: resourceRef, card_template: str(entry!['card_template']) ?? 'freeform',
+                       inserted: false, held: true });
+        continue;
+      }
     }
     const outcome = await repo.insertCard({
       deck_id: cardDeck, user_ref: ctx.userId,
@@ -146,5 +163,5 @@ export async function fileCards(
     });
   }
 
-  return { inserted, skipped, cards: results, moduleDecks };
+  return { inserted, skipped, held, cards: results, moduleDecks };
 }

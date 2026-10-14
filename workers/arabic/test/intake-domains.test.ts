@@ -31,7 +31,7 @@ function arDb() {
   db.exec(`CREATE TABLE ar_practice_label (scope TEXT, key TEXT, label TEXT, label_ar TEXT, detail TEXT, icon TEXT, color TEXT,
              min_value INTEGER, extra_json TEXT, sort INTEGER, PRIMARY KEY (scope, key));
            CREATE TABLE ar_acquisition_ref (id TEXT PRIMARY KEY);`);
-  for (const m of ['0039_ar_intake.sql', '0040_ar_intake_words.sql', '0041_ar_intake_form_route.sql', '0042_ar_intake_domains.sql', '0043_ar_intake_path.sql'])
+  for (const m of ['0039_ar_intake.sql', '0040_ar_intake_words.sql', '0041_ar_intake_form_route.sql', '0042_ar_intake_domains.sql', '0043_ar_intake_path.sql', '0044_ar_learner_path.sql'])
     db.exec(sql('arabic/migrations/' + m));
   return db;
 }

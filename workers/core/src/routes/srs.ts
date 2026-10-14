@@ -1079,9 +1079,9 @@ export function srsRoutes(router: Router<CoreEnv>) {
       if (!deck) return notFound(`deck ${deckId}`);
       if (deck.user_ref !== ctx.userId) return forbidden('Not your deck');
     }
-    const { inserted, skipped, cards: results, moduleDecks } = await fileCards(env, ctx.userId, entries, { deckId, byModule });
+    const { inserted, skipped, held, cards: results, moduleDecks } = await fileCards(env, ctx.userId, entries, { deckId, byModule, holdMisses: byModule });
 
-    return created({ deck_id: deckId ?? [...moduleDecks.values()][0] ?? null, inserted, skipped, cards: results });
+    return created({ deck_id: deckId ?? [...moduleDecks.values()][0] ?? null, inserted, skipped, held, cards: results });
   });
 
   router.post('/core/srs/cards', async (req, env) => {
