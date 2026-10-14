@@ -77,7 +77,38 @@ const passageCard = (p: Passage) => ({
   label: p.label, title: p.title_en, titleAr: p.title_ar,
 });
 
+/** One full round over a unit (qr_127): each style of `unit_round` in its order, `n` of its drills, the styles with
+ *  nothing over the passage left out. Not kept: a round is dealt afresh each time (it is not under /class/). */
+async function unitRound(env: QuranEnv, L: Record<string, Label[]>, scope: Scope): Promise<{ items: Drill[]; styles: unknown[] }> {
+  const rows = L.unit_round ?? [];          // in their sort order, as labels() reads them
+  const piles = await Promise.all(rows.map((r) => drawSkill(env, L, r.key, 'all', num(r.extra?.n, 2) * 4, scope).catch(() => [] as Drill[])));
+  const seen = new Set<string>();
+  const items: Drill[] = [], styles: unknown[] = [];
+  rows.forEach((r, i) => {
+    const take = piles[i].filter((d) => { const id = String(d.id ?? ''); if (!id || seen.has(id)) return false; seen.add(id); return true; })
+      .sort(() => Math.random() - 0.5).slice(0, num(r.extra?.n, 2));
+    if (!take.length) return;
+    items.push(...take);
+    styles.push({ id: r.key, title: r.label, titleAr: r.labelAr ?? '', icon: r.icon ?? 'circle', color: r.color ?? '#D8B657', count: take.length });
+  });
+  return { items, styles };
+}
+
 export function practiceClassRoutes(router: Router<QuranEnv>) {
+  router.get('/qr/practice/round', async (req, env) => {
+    const id = new URL(req.url).searchParams.get('passage');
+    if (!id) return badRequest('passage is required');
+    const [L, p] = await Promise.all([labels(env), passageOf(env, id)]);
+    if (!p) return notFound(`passage ${id}`);
+    const { items, styles } = await unitRound(env, L, scopeOf(p));
+    const head = (L.class_ui ?? []).find((l) => l.key === 'full_round');
+    return ok({
+      skill: { id: 'unit_round', title: head?.label ?? 'One full round', titleAr: head?.labelAr ?? '', tagline: head?.detail ?? '',
+               icon: head?.icon ?? 'circle.hexagongrid', color: head?.color ?? '#D8B657', count: items.length },
+      items, styles, stage: L.stage ?? [],
+    });
+  });
+
   router.get('/qr/practice/class/surah', async (req, env) => {
     const surah = Number(new URL(req.url).searchParams.get('surah'));
     if (!Number.isInteger(surah) || surah < 1 || surah > 114) return badRequest('surah 1–114');
@@ -104,10 +135,17 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     const scope = scopeOf(p);
     const steps = stepNodes(L);
     const listens = (L.class_node ?? []).filter((n) => kindOf(n) === 'listen');
-    const [pools, heard] = await Promise.all([
+    const [pools, heard, round] = await Promise.all([
       Promise.all(steps.map((n) => stepPool(env, L, n, scope))),
       Promise.all(listens.map((n) => listenOf(env, n, p).catch(() => []))),
+      unitRound(env, L, scope).catch(() => ({ items: [] as Drill[], styles: [] as unknown[] })),
     ]);
+    // the full round, shown only when the unit has drills for it — and only the styles it has
+    const head = (L.class_ui ?? []).find((l) => l.key === 'full_round');
+    const fullRound = round.items.length
+      ? { title: head?.label ?? 'One full round', titleAr: head?.labelAr ?? '', icon: head?.icon ?? 'circle.hexagongrid',
+          color: head?.color ?? '#D8B657', styles: round.styles }
+      : null;
     const held = new Map(steps.map((n, i) => [n.key, pools[i].length]));
     const works = new Map(listens.map((n, i) => [n.key, heard[i].length]));
     // a step none of whose skills has a drill for this passage is left off its path; so is a
@@ -121,6 +159,7 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
       bands: bandsOf(L),
       words: L.class_ui ?? [],
       stage: L.stage ?? [],
+      round: fullRound,
     });
   });
 
