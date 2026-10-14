@@ -237,7 +237,7 @@ function build(ask: string, x: any, ctx: Ctx): Drill | null {
     let sh = shuffle(order);
     for (let k = 0; k < 4 && sh.every((v, i) => v === i); k++) sh = shuffle(order);
     const drill: Drill = { id: `arc2:order:${x.root}`, kind: 'dialogue', ask: 'arc2_order',
-      prompt: `${spaced(x.root)} — put its arc of meaning in order, from its first image on`,
+      prompt: `\u200E\u2068${spaced(x.root)}\u2069 — put its arc of meaning in order, from its first image on`,   // Arabic isolated, line LTR
       dialogue: steps.map((st) => ({ speaker: null, ar: st.ar, en: st.en, clip: null })),
       shuffled: sh, badges: [badge('combined')], source: source(x.root),
       explanation: `${LTR}The arc:\n\n${arcClean(steps)}` };

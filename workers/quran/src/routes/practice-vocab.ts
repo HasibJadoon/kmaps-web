@@ -341,7 +341,7 @@ function build(ask: string, o: Item, ay: Ayah, idx: number, c: Ctx, wordsAt: Map
     const scopeLemmas = shuffle(c.groups.filter((g) => g.root !== o.root && g.pos === o.pos).map((g) => g.lemma));
     const others = pickOthers(fold(lemma), [...sameRoot, ...scopeLemmas], (x) => fold(x));
     if (others.length < 3) return null;
-    const d: Drill = { ...base, id, kind: 'feature', ask, prompt: `${o.word_text} — which dictionary form (lemma) is it?`,
+    const d: Drill = { ...base, id, kind: 'feature', ask, prompt: `\u200E\u2068${o.word_text}\u2069 — which dictionary form (lemma) is it?`,   // the Arabic isolated, the line LTR
       options: shuffle([lemma, ...others]), answer: lemma, note: { en: o.wazn_ar ? `pattern ${o.wazn_ar}` : 'lemma', ar: lemma },
       explanation: `${o.word_text} is a form of ${lemma}${o.wazn_ar ? ` (pattern ${o.wazn_ar})` : ''}, root ${root} — ${o.lemma_n}× in the Qurʾān.${meaning ? ` Here: «${meaning}» — ${mRef}.` : ''}`,
       badges: badge('Qurʾān · lemma', 'اللَّفْظَة') };
