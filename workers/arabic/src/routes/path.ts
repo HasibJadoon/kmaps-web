@@ -165,7 +165,13 @@ export function pathRoutes(router: Router<ArabicEnv>) {
     if (!good.length) return badRequest('no scenes to check');
     const card = byKey(L.path).get('check');
     const items = good.flatMap((r) => r.items).sort(() => Math.random() - 0.5).slice(0, size);
-    const res = ok({ skill: card ? skillCard(card) : good[0].skill, level: good[0].level,
+    // kept as dealt, so the score is computed here from the answers (POST progress with check_id + outcomes)
+    const checkId = `CHK:${crypto.randomUUID()}`;
+    await execute(env.DB_AR, `INSERT INTO ar_unit_check (id, user_id, unit_id, items_json) VALUES (?, ?, ?, ?)`,
+      [checkId, req.headers.get('X-KM-User-Id'), unit,
+       JSON.stringify((items as Array<{ id?: unknown; answer?: unknown }>).map((x) => ({ id: String(x.id ?? ''), answer: x.answer ?? null })))])
+      .catch(() => null);
+    const res = ok({ checkId, skill: card ? skillCard(card) : good[0].skill, level: good[0].level,
                      items: await attachGt(env.DB_AR, items as unknown as Array<Record<string, unknown>>),
                      srsDeck: good[0].srsDeck, stage: L.stage ?? [] });
     res.headers.set('Cache-Control', 'no-store');
@@ -210,7 +216,8 @@ export function pathRoutes(router: Router<ArabicEnv>) {
   router.post('/ar/path/unit/:unit/progress', async (req, env, { unit }) => {
     const me = actorRef(req);
     if (!me) return unauthorized('Sign in to keep your progress');
-    const body = await req.json().catch(() => null) as { band?: string; stage?: string; scene?: number; watched?: number; score?: number } | null;
+    const body = await req.json().catch(() => null) as { band?: string; stage?: string; scene?: number; watched?: number; score?: number;
+      checkId?: string; outcomes?: Array<{ id?: unknown; right?: unknown }> } | null;
     if (!body) return badRequest('a body is required');
     // the unit's own level decides its band when the caller does not say
     if (!body.band || !BANDS.includes(body.band as never)) {
@@ -223,12 +230,27 @@ export function pathRoutes(router: Router<ArabicEnv>) {
       `SELECT unit_id, band, stage, scenes_json, watched_json, best_score FROM ar_learner_unit WHERE user_id = ? AND unit_id = ?`, [me, unit]);
     const order = ['preview', 'watch', 'drill', 'check', 'done'];
     const L = await labels(env);
-    const pass = setting(L, 'unit_pass_score', 80);
+    const pass = setting(L, 'unit_pass_score', 90);   // one pass mark with the learning path (learn-path.ts)
     const scenes = new Set(cur ? JSON.parse(cur.scenes_json) as number[] : []);
     if (typeof body.scene === 'number') scenes.add(body.scene);
     const watched = new Set(cur ? JSON.parse(cur.watched_json ?? '[]') as number[] : []);
     if (typeof body.watched === 'number') watched.add(body.watched);
-    const best = Math.max(cur?.best_score ?? 0, typeof body.score === 'number' ? Math.round(body.score) : 0) || null;
+    // the score: computed here from a stored check and the learner's outcomes (each item right or not — an item left out
+    // counts as missed, so leaving items out never raises it); a bare score from an older app is clamped to 0–100
+    let score: number | null = null;
+    if (typeof body.checkId === 'string' && Array.isArray(body.outcomes)) {
+      const chk = await queryOne<{ items_json: string; user_id: string | null }>(env.DB_AR,
+        `SELECT items_json, user_id FROM ar_unit_check WHERE id = ? AND unit_id = ?`, [body.checkId, unit]);
+      if (chk && (!chk.user_id || chk.user_id === me)) {
+        const dealt = (JSON.parse(chk.items_json) as Array<{ id: string }>).map((x) => x.id);
+        const right = new Set((body.outcomes as Array<{ id?: unknown; right?: unknown }>).filter((o) => o.right === true).map((o) => String(o.id)));
+        score = dealt.length ? Math.round((dealt.filter((id) => right.has(id)).length / dealt.length) * 100) : 0;
+        await execute(env.DB_AR, `UPDATE ar_unit_check SET score = ? WHERE id = ?`, [score, body.checkId]).catch(() => null);
+      }
+    } else if (typeof body.score === 'number' && Number.isFinite(body.score)) {
+      score = Math.min(100, Math.max(0, Math.round(body.score <= 1 && body.score > 0 ? body.score * 100 : body.score)));
+    }
+    const best = Math.max(cur?.best_score ?? 0, score ?? 0) || null;
     let stage = [cur?.stage ?? 'preview', body.stage ?? 'preview'].sort((a, b) => order.indexOf(b) - order.indexOf(a))[0];
     if ((best ?? 0) >= pass) stage = 'done';
     await execute(env.DB_AR,
