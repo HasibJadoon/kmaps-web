@@ -276,7 +276,8 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
 
     // the dialogue, back in order — four lines that follow one another
     // a run of four that holds high-end language
-    const starts = [...Array(Math.max(0, lines.length - 3)).keys()].filter((i) => lines.slice(i, i + 4).some(rich));
+    // fixed windows (lines 0–3, 4–7 …), so one exchange is always the same review item
+    const starts = [...Array(Math.max(0, lines.length - 3)).keys()].filter((i) => i % 4 === 0 && lines.slice(i, i + 4).some(rich));
     if (starts.length) {
       const at = starts[Math.floor(Math.random() * starts.length)];
       const run = lines.slice(at, at + 4);
