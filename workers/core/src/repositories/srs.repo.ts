@@ -170,13 +170,20 @@ export class SrsRepo {
     step?: string;
 
     deck?: string; deckIds?: string[];
+    /** 'practised' (review: drills met at least once) or 'bank' (filed but never practised — dealt by their lesson, not by review) */
+    state?: 'practised' | 'bank';
   } = {}): Promise<SrsCard[]> {
     const args: unknown[] = [userRef];
+    const bank = opts.state === 'bank';
 
     const ahead = Math.min(3650, Math.max(0, Math.floor(opts.ahead ?? 0)));
     const horizon = ahead > 0 ? `datetime('now', '+${ahead} day')` : `datetime('now')`;
 
-    let where = `WHERE user_ref = ? AND suspended = 0
+    // Review deals only what was practised: a drill comes to SRS once it has been met in its lesson. One filed and never
+    // practised waits in the bank (state 'new'), and its lesson deals it (GET /core/srs/bank).
+    let where = bank
+      ? `WHERE user_ref = ? AND suspended = 0 AND card_state = 'new'`
+      : `WHERE user_ref = ? AND suspended = 0 AND card_state != 'new'
                  AND (next_review_at IS NULL
                       OR datetime(next_review_at) <= ${horizon})`;
     if (opts.module) { where += ` AND module = ?`; args.push(opts.module); }
@@ -267,7 +274,7 @@ export class SrsRepo {
   dueCounts(userRef: string): Promise<Array<{ module: string; n: number }>> {
     return query<{ module: string; n: number }>(this.db,
       `SELECT module, COUNT(*) AS n FROM core_srs_card
-       WHERE user_ref = ? AND suspended = 0
+       WHERE user_ref = ? AND suspended = 0 AND card_state != 'new'
          AND (next_review_at IS NULL
               OR datetime(next_review_at) <= datetime('now'))
        GROUP BY module`, [userRef]);

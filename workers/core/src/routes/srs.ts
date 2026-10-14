@@ -1179,6 +1179,28 @@ export function srsRoutes(router: Router<CoreEnv>) {
     return ok(cardToApi(updated, params));
   });
 
+  // The bank: the learner's drills filed but never practised. Review never deals them; their lesson does (a surah's
+  // practice, a step), and the first answer moves each into review. Same filters as the review queue.
+  router.get('/core/srs/bank', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const url = new URL(req.url);
+    const n = (k: string) => Number(url.searchParams.get(k) ?? '0');
+    const surah = n('surah'), from = n('from'), to = n('to');
+    const repo = new SrsRepo(env.DB_CORE);
+    const params = buildParams(storedOf(await repo.params(ctx.userId)));
+    const cards = await repo.due(ctx.userId, {
+      state: 'bank', module: url.searchParams.get('module') ?? undefined,
+      limit: Math.min(500, Math.max(1, n('limit') || 100)),
+      surah: surah > 0 ? surah : undefined,
+      from: from > 0 && to > 0 ? from : undefined, to: from > 0 && to > 0 ? to : undefined,
+      kind: url.searchParams.get('kind') ?? undefined,
+    });
+    // only drills: a bank item is played, never read as a card
+    const drills = cards.filter((c) => (c.extra_json ?? '').includes('"drill"'));
+    return ok({ bank: drills.map((c) => cardToApi(c, params)) });
+  });
+
   router.get('/core/srs/review', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
