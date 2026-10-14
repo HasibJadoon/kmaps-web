@@ -13,5 +13,5 @@ INSERT OR REPLACE INTO cyb_agent_rule (id, domain, db_scope, applies_to, trigger
  'A concept is always met in an example: the drill shows it in an āyah, a line or an Arabic phrase (its words, or an Arabic prompt) — never as a bare definition. Over a concept''s drills, the examples should cover its shapes and layers (different forms, positions, sources).',
  'Owner, 2026-10-14: concepts with examples, every flavour; a definition alone is information, not mastery.',
  'Which term means X? with no example', 'the marked words of an āyah: which device / role / sense is this?',
- 'SELECT count(*) FROM cyb_drill WHERE status = ''live'' AND discipline IN (''NH'', ''BL'', ''DL'', ''TF'') AND interaction IN (''choose'', ''choose_all'', ''odd_one_out'') AND json_type(payload_json, ''$.words'') IS NOT ''array'' AND COALESCE(json_extract(payload_json, ''$.prompt''), '''') NOT GLOB ''*[ء-ي]*''',
+ 'SELECT count(*) FROM cyb_drill WHERE status = ''live'' AND discipline IN (''NH'', ''BL'', ''DL'', ''TF'') AND interaction IN (''choose'', ''choose_all'', ''odd_one_out'') AND json_type(payload_json, ''$.words'') IS NOT ''array'' AND COALESCE(json_extract(payload_json, ''$.prompt''), '''') NOT GLOB ''*[ء-ي]*'' AND NOT EXISTS (SELECT 1 FROM json_each(payload_json, ''$.options'') o WHERE o.value GLOB ''*[ء-ي]*'')',
  0, 'high', '2026-10-14', 'live');

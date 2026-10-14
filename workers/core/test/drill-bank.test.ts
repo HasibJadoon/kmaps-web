@@ -46,7 +46,7 @@ test('AGR:DRL: a clean drill passes; a broken one is caught by its rule', async 
   put('DRL:QR:SF:i', 'fill', { id: 'i', words: [{ t: 'حم' }] });                                 // 008 no audio
   put('DRL:QR:SF:j', 'x', { id: 'j', prompt: 'Who glosses it so?', answer: 'x', options: ['x', 'y', 'z'] });      // 009 who
   put('DRL:QR:SF:k', 'x', { id: 'k', prompt: 'The meaning', answer: 'al-Ṭabarī (d. 310 AH)', options: ['al-Ṭabarī (d. 310 AH)', 'y', 'z'] }); // 009 date
-  put('DRL:QR:BL:l', 'feature', { id: 'l', prompt: 'Which term means fronting?', answer: 'تقديم', options: ['تقديم', 'تأخير', 'حذف'] }, 'choose', 'BL'); // 010 no example
+  put('DRL:QR:BL:l', 'feature', { id: 'l', prompt: 'Which term means fronting?', answer: 'taqdīm', options: ['taqdīm', 'taʾkhīr', 'ḥadhf'] }, 'choose', 'BL'); // 010 no example
   audit = await auditDrills(d1(db));
   const bad = Object.fromEntries(audit.map((r) => [r.id, r.found]));
   assert.equal(bad['AGR:DRL:009'], 2, 'the person question and the date — not the relative who');
