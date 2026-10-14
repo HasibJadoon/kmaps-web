@@ -20,3 +20,23 @@ test('ṣarf drills file to review, each carrying its drill', () => {
   assert.equal(srsCardFor(drills[0])!.front_text, 'كَتَبَ\nكَتَبُوا');
   assert.equal(srsCardFor(drills[3])!.back_text, 'يَكْتُبُ\nيَذْهَبُ\nيَجْلِسُ');
 });
+
+test('a drill kind with no rule of its own still files — nothing practised is left out of review', () => {
+  const unknown = { id: 'brand_new:1', kind: 'brand_new_kind', interaction: 'choose', prompt: 'أَيُّهَا؟', answer: 'هٰذا', options: ['هٰذا', 'ذٰلك'] };
+  const c = srsCardFor(unknown, { skill: 'future' });
+  assert.equal(c.front_text, 'أَيُّهَا؟');
+  assert.equal(c.back_text, 'هٰذا');
+  assert.equal((c.extra as { drill: { id: string } }).drill.id, 'brand_new:1');
+  assert.equal(c.card_template, 'brand_new_kind');
+
+  // a known kind whose faces come out empty (no prompt, no answer): still filed, named by what it holds
+  const bare = { id: 'meaning:x', kind: 'meaning', interaction: 'order_units', units: ['ب', 'أ', 'ج'] };
+  const b = srsCardFor(bare);
+  assert.ok(b.front_text && b.back_text);
+  assert.equal(b.back_text, 'ب → أ → ج');
+
+  // nothing at all to name it by: the kind and the id
+  const empty = srsCardFor({ id: 'z:1', kind: 'z' });
+  assert.equal(empty.front_text, 'z');
+  assert.equal(empty.back_text, 'z:1');
+});

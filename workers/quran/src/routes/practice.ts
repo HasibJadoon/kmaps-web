@@ -19,6 +19,7 @@ import { ssDrills, ssCount } from './practice-ss';
 import { structureDrills, structureCount } from './practice-structure';
 import { questionDrills, tafsirDrillsQ, questionsCount, tafsirReadDrills, tafsirLangDrills, listenWorks, passageDrills, type PassageStage } from './practice-tafsirq';
 import { sarfDrills, sarfSheet, lexiconRoot, lexiconLemma } from './practice-sarf';
+import { ensureCard } from './practice-kit';
 
 /** Bump when the الصرف sheet's JSON changes shape or wording rules, so the edge cache starts afresh. */
 const SARF_SHEET_V = '2026-10-07h'
@@ -222,7 +223,8 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
   const shaped = items.map((it) => {
     const k = kinds.get(String(it.ask ?? skill)) ?? kinds.get(skill);
     const { ask: _a, ...rest } = it;
-    return { ...rest, instruction: k?.label ?? null, instructionAr: k?.labelAr ?? null };
+    // a drill a builder dealt without its card still files one: nothing practised is left out of review
+    return ensureCard({ ...rest, instruction: k?.label ?? null, instructionAr: k?.labelAr ?? null }, skill);
   });
   // every drill carries the registry terms its own rows name
   return attachGt(env.DB_QR, shaped as Array<Record<string, unknown>>);

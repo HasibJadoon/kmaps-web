@@ -52,12 +52,13 @@ export function instruct<T extends { kind: string; instruction?: string | null; 
 
 /// Every drill files a review card (CORE SRS) keyed to what it asks about, so the same word or line
 /// meets the same card again and the schedule follows the learner's answers. What a card asks and
-/// answers, by kind of drill; null where a drill has nothing to remember by itself.
+/// answers, by kind of drill. Never null: a kind with no case of its own (a new one) still files, through the general
+/// rule below — whatever is practised goes to review. A drill kind added later needs no change here to reach SRS.
 /// Where a drill sits, so its card can be grouped: the skill it was drilled in, the level,
 /// and the series or book, episode and scene it came from.
 export type DrillGroup = { skill?: string; band?: string; series?: string | null; episode?: string | null; scene?: number | null };
 
-export function srsCardFor(it: Record<string, unknown>, g: DrillGroup = {}): Record<string, unknown> | null {
+export function srsCardFor(it: Record<string, unknown>, g: DrillGroup = {}): Record<string, unknown> {
   const s = (x: unknown) => (typeof x === 'string' && x.trim() ? x.trim() : null);
   const line = ((it.words as Array<{ t: string }> | undefined) ?? []).map((w) => w.t).join(' ') || null;
   const en = s(it.en), ans = s(it.answer), prompt = s(it.prompt);
@@ -110,11 +111,17 @@ export function srsCardFor(it: Record<string, unknown>, g: DrillGroup = {}): Rec
       front = turns.map((d) => (d.speaker ? `${d.speaker}: ${d.ar}` : d.ar)).join('\n') || null;
       back = turns.map((d) => s(d.en)).filter(Boolean).join('\n') || null; type = 'passage'; break;
     }
-    default: return null;
+    default: break;   // a kind with no rule of its own: the general one below
   }
-  // every drill files a card: with nothing else to put on the back, the line itself or where it is from
-  back = back || line || s((it.source as { title?: string } | undefined)?.title);
-  if (!front || !back) return null;
+  // The general rule — and the fill-in for any face a kind left empty: the question (or the line, or the units to
+  // order, or the pairs' left side) on the front; the answer (or the pairs' right side, the units in order, the
+  // explanation) on the back. The drill itself is what review replays; the faces only name the card.
+  const pairs = ((it.pairs as string[][] | undefined) ?? []).filter((p) => Array.isArray(p) && p.length >= 2);
+  const units = ((it.units as unknown[] | undefined) ?? []).filter((u): u is string => typeof u === 'string');
+  front = front || prompt || s(it.promptEn) || line || (pairs.length ? pairs.map((p) => p[0]).join('\n') : null)
+    || (units.length ? [...units].sort().join(' · ') : null) || s(it.instruction) || String(it.kind ?? 'drill');
+  back = back || ans || (pairs.length ? pairs.map((p) => p[1]).join('\n') : null) || (units.length ? units.join(' → ') : null)
+    || s(it.explanation) || en || line || s((it.source as { title?: string } | undefined)?.title) || String(it.id);
   // what a review needs to play it again: the whole drill as it was drilled (the clip, the
   // timed words, the blank, the options) — review replays it as a drill, not a flipped card.
   // Its context panel is left out: a review fetches that when it is opened.

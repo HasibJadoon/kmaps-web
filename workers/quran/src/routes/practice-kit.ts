@@ -79,6 +79,25 @@ export function withCard(drill: Drill, a: { ref: string; type: string; kind: str
   return drill;
 }
 
+/// The guarantee behind every QR drill: one a builder dealt without its card gets one here, named by what it asks and
+/// answers, so nothing practised is left out of review (iOS files nothing for a drill with no card). A builder's own
+/// card always wins.
+export function ensureCard(drill: Drill, skill: string, band?: Band): Drill {
+  if (drill.srs) return drill;
+  const s = (x: unknown) => (typeof x === 'string' && x.trim() ? x.trim() : null);
+  const line = ((drill.words as Array<{ t: string }> | undefined) ?? []).map((w) => w.t).join(' ') || null;
+  const pairs = ((drill.pairs as string[][] | undefined) ?? []).filter((p) => Array.isArray(p) && p.length >= 2);
+  const units = ((drill.units as unknown[] | undefined) ?? []).filter((u): u is string => typeof u === 'string');
+  const front = s(drill.prompt) ?? s(drill.promptEn) ?? line ?? (pairs.length ? pairs.map((p) => p[0]).join('\n') : null)
+    ?? (units.length ? [...units].sort().join(' · ') : null) ?? String(drill.kind ?? skill);
+  const back = s(drill.answer) ?? (pairs.length ? pairs.map((p) => p[1]).join('\n') : null) ?? (units.length ? units.join(' → ') : null)
+    ?? s(drill.explanation) ?? s(drill.en) ?? line ?? String(drill.id);
+  const ws = /:(\d{1,3}):(\d{1,3})(?::|$)/.exec(String(drill.id ?? ''));
+  const surah = (drill.source as { workId?: string } | undefined)?.workId?.match(/^QR:SURAH:(\d+)/)?.[1] ?? ws?.[1];
+  return withCard(drill, { ref: `QR:${skill}:${String(drill.id)}`, type: 'passage', kind: skill, front, back,
+                           surah: surah ? Number(surah) : null, ayah: ws ? Number(ws[2]) : null, series: skill, band });
+}
+
 /// Which of a skill's levels these settings are (the card files under it), and every ask the skill has.
 export function levelOf(L: Record<string, Label[]>, skill: string, lv: Record<string, unknown>) {
   const meta = (L.skill ?? []).find((s) => s.key === skill);
