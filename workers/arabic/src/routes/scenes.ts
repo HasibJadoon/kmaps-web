@@ -344,8 +344,17 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     }
     // dictation: one line of a speakable length, heard, then written out
     const dict = shuffle(lines.filter((l) => { const n = l.ar.split(/\s+/).length; return n >= 4 && n <= 10 && rich(l); }))[0];
-    if (dict) items.push({ id: `dictation:${unit}:${no}:${dict.start}`, kind: 'dictation', audio: clip(dict), words: timedWords(dict),
-                           answer: dict.ar, en: dict.en ?? null, source, bucket: 'sound' });
+    // no typing: the line heard, then its words tapped back in order from tiles (two decoys from the scene's other lines)
+    if (dict) {
+      const toks = dict.ar.split(/\s+/).filter(Boolean);
+      const decoys = shuffle(lines.filter((l) => l !== dict).flatMap((l) => l.ar.split(/\s+/))
+        .filter((w) => w.length >= 3 && !toks.includes(w))).filter((w, i, a) => a.indexOf(w) === i).slice(0, 2);
+      const order = shuffle([...toks.map((_, i) => i), ...decoys.map((_, i) => -1 - i)]);
+      const tokens = order.map((i) => (i >= 0 ? toks[i] : decoys[-1 - i]));
+      const solution = toks.map((_, i) => order.indexOf(i));
+      items.push({ id: `dictation:${unit}:${no}:${dict.start}`, kind: 'dictation', interaction: 'listen_tiles', tileMode: 'arrange',
+                   tokens, solution, audio: clip(dict), words: timedWords(dict), answer: dict.ar, en: dict.en ?? null, source, bucket: 'sound' });
+    }
     // every drill files its review card (CORE SRS): the words, idioms and terms, and the lines too
     for (const it of items as Array<Record<string, unknown>>)
       it.srs = srsCardFor(it, { skill: 'scene', band: bandOf(sc.level) ?? undefined, series: sc.s.series_ar ?? null, episode: unit, scene: Number(no) });
