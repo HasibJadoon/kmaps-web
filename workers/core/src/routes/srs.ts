@@ -1,7 +1,7 @@
 import type { Router } from '../../../shared/src/router';
 import { gradeOrBank, cleanSecs } from '../srs/grade-or-bank';
 import {
-  ok, created, notFound, badRequest, forbidden, noContent,
+  ok, created, notFound, badRequest, forbidden, noContent, err,
 } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
 import { query, queryOne, execute } from '../../../shared/src/db';
@@ -26,6 +26,10 @@ import {
 } from '../srs/file-cards';
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
+
+/** The flip model is gone (owner, 2026-10-14): review holds drills only, each filed from the lesson it was practised in.
+ *  The routes that made flip cards (the library's take / enroll / submit, the Anki and TSV imports) answer this. */
+const flipRetired = () => err('flip_retired', 'Flip cards are retired: review holds drills only, filed from the lessons they were practised in.', 410);
 
 function parseJson(raw: string | null): unknown {
   if (!raw) return null;
@@ -298,7 +302,8 @@ export function srsRoutes(router: Router<CoreEnv>) {
 
     let added = 0;
     for (const c of cards) {
-
+      // only drills are copied: review holds nothing else
+      if (!c.extra_json || !c.extra_json.includes('"drill"')) continue;
       const origin = c.card_template && c.card_template !== 'freeform' ? c.card_template : c.id;
       if (taken.has(origin)) continue;
       const { inserted } = await repo.insertCard({
@@ -397,85 +402,9 @@ export function srsRoutes(router: Router<CoreEnv>) {
     return ok({ items, available: items.length, enrolled: items.filter((i) => i.taken).length });
   });
 
-  router.post('/core/srs/library/take', async (req, env) => {
-    const ctx = await requireAuth(req, env.JWT_SECRET);
-    if (ctx instanceof Response) return ctx;
-    const body = await readJsonObject(req);
-    const ids = Array.isArray(body?.['ids']) ? (body['ids'] as unknown[]).filter((i) => typeof i === 'string') as string[] : [];
-    if (ids.length === 0) return badRequest('ids is required');
+  router.post('/core/srs/library/take', async () => flipRetired());
 
-    const repo = new SrsRepo(env.DB_CORE);
-    let added = 0;
-    for (const id of ids) {
-      const authored = await query<{
-        id: string; node_id: string; card_kind: string; front_md: string | null; back_md: string | null;
-      }>(env.DB_CORE, 'SELECT id, node_id, card_kind, front_md, back_md FROM cyb_card WHERE id = ?', [id]);
-      if (authored[0]) {
-        const c = authored[0];
-        const module = c.node_id.startsWith('CYB:ling:') ? 'AL' : 'QR';
-        const m = /:ss:(\d+):(\d+)/.exec(c.node_id);
-        const { inserted } = await repo.insertCard({
-          deck_id: await deckForModule(env, ctx.userId, module),
-          user_ref: ctx.userId, module, resource_type: 'concept',
-          resource_ref: module === 'AL' ? (c.node_id.split(':')[3] ?? c.node_id) : (m ? `${m[1]}:${m[2]}` : c.node_id),
-          card_template: c.id,
-          front_text: c.front_md ?? '', back_text: c.back_md ?? '',
-          extra_json: JSON.stringify({ cyb_card: c.id, node_id: c.node_id, kind: c.card_kind }),
-          tags: c.card_kind,
-        });
-        if (inserted) added += 1;
-        continue;
-      }
-      const shared = await query<{
-        id: string; module: string; resource_type: string; resource_ref: string;
-        card_kind: string | null; front_text: string; back_text: string | null; tags: string | null;
-      }>(env.DB_CORE,
-        `SELECT id, module, resource_type, resource_ref, card_kind, front_text, back_text, tags
-           FROM core_srs_library_card WHERE id = ? AND status = 'approved'`, [id]);
-      if (!shared[0]) continue;
-      const c = shared[0];
-      const { inserted } = await repo.insertCard({
-        deck_id: await deckForModule(env, ctx.userId, c.module),
-        user_ref: ctx.userId, module: c.module, resource_type: c.resource_type,
-        resource_ref: c.resource_ref, card_template: c.id,
-        front_text: c.front_text, back_text: c.back_text ?? '',
-        extra_json: JSON.stringify({ library_card: c.id, kind: c.card_kind }),
-        tags: c.tags,
-      });
-      if (inserted) added += 1;
-    }
-    return created({ added, requested: ids.length });
-  });
-
-  router.post('/core/srs/library/submit', async (req, env) => {
-    const ctx = await requireAuth(req, env.JWT_SECRET);
-    if (ctx instanceof Response) return ctx;
-    const body = await readJsonObject(req);
-    const module = str(body?.['module']) ?? 'QR';
-    const resourceRef = str(body?.['resource_ref']);
-    const front = str(body?.['front_text']);
-    if (!resourceRef) return badRequest('resource_ref is required');
-    if (!front) return badRequest('front_text is required');
-
-    const id = typedId('SRSLIB');
-    await execute(env.DB_CORE,
-      `INSERT INTO core_srs_library_card
-         (id, author_ref, module, resource_type, resource_ref, card_kind,
-          front_text, back_text, tags, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
-       ON CONFLICT (author_ref, resource_ref, front_text) DO NOTHING`,
-      [id, ctx.userId, module, str(body?.['resource_type']) ?? 'concept', resourceRef,
-       str(body?.['card_kind']) ?? null, front, str(body?.['back_text']) ?? null,
-       str(body?.['tags']) ?? null]);
-
-    const row = await query<{ id: string; status: string }>(
-      env.DB_CORE,
-      `SELECT id, status FROM core_srs_library_card
-        WHERE author_ref = ? AND resource_ref = ? AND front_text = ?`,
-      [ctx.userId, resourceRef, front]);
-    if (!row[0]) return badRequest('Could not record the submission');
-    return created({ id: row[0].id, status: row[0].status, duplicate: row[0].id !== id });
-  });
+  router.post('/core/srs/library/submit', async () => flipRetired());
 
   router.get('/core/srs/library/pending', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
@@ -610,62 +539,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     });
   });
 
-  router.post('/core/srs/library/enroll', async (req, env) => {
-    const ctx = await requireAuth(req, env.JWT_SECRET);
-    if (ctx instanceof Response) return ctx;
-    const body = await readJsonObject(req);
-    const surah = Number(body?.['surah'] ?? 0);
-    const scope = str(body?.['scope']) ?? (surah > 0 ? 'quran' : 'all');
-    const like = scope === 'roots' ? 'CYB:ling:root:%'
-      : surah > 0 ? `CYB:quran:${surah}:%`
-      : 'CYB:%';
-
-    const repo = new SrsRepo(env.DB_CORE);
-
-    const source = await query<{
-      id: string; node_id: string; card_kind: string;
-      front_md: string | null; back_md: string | null; tags_json: string | null;
-    }>(
-      env.DB_CORE,
-      'SELECT id, node_id, card_kind, front_md, back_md, tags_json FROM cyb_card WHERE node_id LIKE ?',
-      [like],
-    );
-
-    const mine = await query<{ extra_json: string | null }>(
-      env.DB_CORE,
-      `SELECT extra_json FROM core_srs_card WHERE user_ref = ? AND extra_json LIKE '%"cyb_card"%'`,
-      [ctx.userId],
-    );
-    const taken = new Set<string>();
-    for (const row of mine) {
-      try { const e = JSON.parse(row.extra_json ?? '{}'); if (e.cyb_card) taken.add(e.cyb_card); }
-      catch {  }
-    }
-
-    let enrolled = 0;
-    for (const c of source) {
-      if (taken.has(c.id)) continue;
-
-      const module = c.node_id.startsWith('CYB:ling:') ? 'AL' : 'QR';
-      const { inserted } = await repo.insertCard({
-        deck_id: await deckForModule(env, ctx.userId, module),
-        user_ref: ctx.userId,
-        module,
-        resource_type: 'concept',
-        resource_ref: module === 'AL'
-          ? (c.node_id.split(':')[3] ?? c.node_id)
-          : refOfNode(c.node_id, surah),
-
-        card_template: c.id,
-        front_text: c.front_md ?? '',
-        back_text: c.back_md ?? '',
-        extra_json: JSON.stringify({ cyb_card: c.id, node_id: c.node_id, kind: c.card_kind }),
-        tags: c.card_kind,
-      });
-      if (inserted) enrolled += 1;
-    }
-    return created({ enrolled, skipped: source.length - enrolled });
-  });
+  router.post('/core/srs/library/enroll', async () => flipRetired());
 
   router.patch('/core/srs/cards/:id', async (req, env, { id }) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
@@ -790,115 +664,9 @@ export function srsRoutes(router: Router<CoreEnv>) {
     });
   });
 
-  router.post('/core/srs/import/anki', async (req, env) => {
-    const ctx = await requireAuth(req, env.JWT_SECRET);
-    if (ctx instanceof Response) return ctx;
-    const body = await readJsonObject(req);
-    const incoming = Array.isArray(body?.['cards']) ? body['cards'] as Array<Record<string, unknown>> : [];
-    if (incoming.length === 0) return badRequest('cards is required');
-    if (incoming.length > 50) return badRequest('send at most 50 cards per request');
+  router.post('/core/srs/import/anki', async () => flipRetired());
 
-    const repo = new SrsRepo(env.DB_CORE);
-    const params = buildParams(storedOf(await repo.params(ctx.userId)));
-    let imported = 0, skipped = 0, replayed = 0;
-
-    for (const raw of incoming) {
-      const module = str(raw['module']) ?? 'other';
-      if (!MODULES.has(module)) { skipped += 1; continue; }
-      const front = str(raw['front_text']) ?? '';
-      if (!front.trim()) { skipped += 1; continue; }
-      const origin = str(raw['origin']) ?? front.slice(0, 80);
-
-      const { card, inserted } = await repo.insertCard({
-        deck_id: await deckForModule(env, ctx.userId, module),
-        user_ref: ctx.userId,
-        module,
-        resource_type: module === 'QR' ? 'ayah' : 'other',
-        resource_ref: str(raw['resource_ref']) ?? origin,
-
-        card_template: origin,
-        front_text: front,
-        back_text: str(raw['back_text']) ?? '',
-        card_kind: str(raw['card_kind']) ?? null,
-
-        concept_domain: domainOfModule(module),
-        tags: Array.isArray(raw['tags']) ? (raw['tags'] as string[]).join(',') : null,
-        extra_json: JSON.stringify({ source: 'anki', origin }),
-      });
-      if (!inserted) { skipped += 1; continue; }
-      imported += 1;
-
-      const reviews = (Array.isArray(raw['reviews']) ? raw['reviews'] : [])
-        .map((r) => r as Record<string, unknown>)
-        .filter((r) => isRating(r['rating']) && typeof r['at'] === 'number')
-        .sort((a, b) => (a['at'] as number) - (b['at'] as number));
-      if (reviews.length === 0) continue;
-
-      let row = { ...card } as typeof card;
-      for (const r of reviews) {
-        const at = new Date(r['at'] as number);
-        const rating = r['rating'] as RatingValue;
-        const next = gradeCard(row, rating, at, params);
-        await repo.logReview({
-          card_id: card.id, user_ref: ctx.userId, rating,
-          state_before: next.state_before,
-          stability_after: next.columns.stability,
-          difficulty_after: next.columns.difficulty,
-          elapsed_days: next.columns.elapsed_days,
-          scheduled_days_after: next.columns.scheduled_days,
-          state_after: next.columns.card_state,
-          review_duration_secs: null,
-          reviewed_at: at.toISOString(),
-        });
-        row = { ...row, ...next.columns };
-        replayed += 1;
-      }
-      await repo.applySchedule(card.id, {
-        card_state: row.card_state, stability: row.stability!, difficulty: row.difficulty!,
-        elapsed_days: row.elapsed_days, scheduled_days: row.scheduled_days,
-        learning_step: row.learning_step, reps: row.reps, lapses: row.lapses,
-        next_review_at: row.next_review_at!, last_review_at: row.last_review_at!,
-      });
-    }
-    return created({ imported, skipped, replayed });
-  });
-
-  router.post('/core/srs/import', async (req, env) => {
-    const ctx = await requireAuth(req, env.JWT_SECRET);
-    if (ctx instanceof Response) return ctx;
-    const body = await readJsonObject(req);
-    const text = typeof body?.['text'] === 'string' ? body['text'] : '';
-    if (!text.trim()) return badRequest('text is required');
-
-    const repo = new SrsRepo(env.DB_CORE);
-    const deckId = str(body?.['deck_id'])
-      ?? (await repo.createDeck({
-            user_ref: ctx.userId,
-            title: str(body?.['title']) ?? 'Imported',
-          })).id;
-    const deck = await repo.findDeck(deckId);
-    if (!deck) return notFound(`deck ${deckId}`);
-    if (deck.user_ref !== ctx.userId) return forbidden('Not your deck');
-
-    let imported = 0;
-    for (const raw of text.split(/\r?\n/)) {
-      const line = raw.trim();
-      if (!line || line.startsWith('#')) continue;
-      const cols = line.split('\t');
-      const front = (cols[0] ?? '').trim();
-      if (!front) continue;
-      const { inserted } = await repo.insertCard({
-        deck_id: deckId, user_ref: ctx.userId,
-        module: 'other', resource_type: 'other',
-        resource_ref: front.slice(0, 120),
-        front_text: front,
-        back_text: (cols[1] ?? '').trim(),
-        tags: (cols[2] ?? '').trim().split(/\s+/).filter(Boolean).join(',') || null,
-      });
-      if (inserted) imported += 1;
-    }
-    return created({ deck_id: deckId, imported });
-  });
+  router.post('/core/srs/import', async () => flipRetired());
 
   router.get('/core/srs/taxonomy', async () => ok(TAXONOMY));
 
@@ -1099,6 +867,11 @@ export function srsRoutes(router: Router<CoreEnv>) {
       return badRequest(`resource_type must be one of ${[...RESOURCE_TYPES].join(', ')}`);
     }
     if (!resourceRef) return badRequest('resource_ref is required');
+    // review holds drills only: a card is the drill it replays
+    const drill = (body?.['extra'] as { drill?: Record<string, unknown> } | undefined)?.drill;
+    if (!drill || typeof drill !== 'object' || drill.id == null) {
+      return err('drill_required', 'Review holds drills only: send the drill to file (extra.drill with its id).', 422);
+    }
 
     const repo = new SrsRepo(env.DB_CORE);
     const deckId = str(body?.['deck_id']) ?? (await repo.defaultDeck(ctx.userId)).id;
@@ -1117,8 +890,9 @@ export function srsRoutes(router: Router<CoreEnv>) {
       card_kind: str(body?.['card_kind']) ?? null,
       concept_domain: domainOfModule(module),
       card_template: str(body?.['card_template']) ?? 'freeform',
-      front_text: str(body?.['front_text']) ?? '',
-      back_text: str(body?.['back_text']) ?? '',
+      // the label a list shows is the drill's own prompt and answer (no faces are authored)
+      front_text: str(body?.['front_text']) ?? str(drill.prompt) ?? str(drill.promptEn) ?? '',
+      back_text: str(body?.['back_text']) ?? str(drill.answer) ?? str(drill.en) ?? '',
       extra_json: body?.['extra'] ? JSON.stringify(body['extra']) : null,
       tags: Array.isArray(body?.['tags']) ? (body['tags'] as string[]).join(',') : null,
 
