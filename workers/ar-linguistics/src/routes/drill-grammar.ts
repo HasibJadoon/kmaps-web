@@ -32,7 +32,7 @@ interface Term { id: string; category_key: string; term_key: string; parent_term
                  name_en: string | null; short_ar: string | null; short_en: string | null; definition_ar: string | null;
                  definition_en: string | null; discipline: string | null; name_bare: string | null; depth: number }
 interface Cat { category_key: string; name_ar: string; name_en: string | null; discipline: string | null }
-interface Reg { terms: Term[]; byId: Map<string, Term>; kids: Map<string | null, Term[]>; cats: Map<string, Cat> }
+interface Reg { terms: Term[]; byId: Map<string, Term>; kids: Map<string | null, Term[]>; cats: Map<string, Cat>; overlaps: Set<string> }
 interface Q { n: number; ask: string; terms: Set<string> | null; discipline: string | null; category: string | null;
               minDepth: number; maxDepth: number; surah: number | null }
 export interface GramDrill {
@@ -78,12 +78,16 @@ function maskEn(text: string, name: string | null): string {
 let memo: { at: number; reg: Reg } | null = null;
 async function registry(env: ArLinguisticsEnv): Promise<Reg> {
   if (memo && Date.now() - memo.at < 300_000) return memo.reg;
-  const [terms, cats] = await Promise.all([
+  const [terms, cats, ov] = await Promise.all([
     env.DB_AL.prepare(
       `SELECT id, category_key, term_key, parent_term_id, term_order, name_ar, name_en, short_ar, short_en,
               substr(definition_ar, 1, 700) AS definition_ar, substr(definition_en, 1, 700) AS definition_en, discipline, name_bare
          FROM ar_ling_gram_term WHERE status = 'live'`).all<Omit<Term, 'depth'>>(),
     env.DB_AL.prepare(`SELECT category_key, name_ar, name_en, discipline FROM ar_ling_gram_category`).all<Cat>(),
+    // terms one line can carry at once (an istiʿāra is taṣrīḥiyya AND aṣliyya; لَقَدْ is the oath's lām too): never each
+    // other's wrong choice, else 'which is it?' has two right answers
+    env.DB_AL.prepare(`SELECT from_term_id, to_term_id FROM ar_ling_gram_term_relation WHERE relation_kind = 'overlaps'`)
+      .all<{ from_term_id: string; to_term_id: string }>().catch(() => ({ results: [] as Array<{ from_term_id: string; to_term_id: string }> })),
   ]);
   const list = (terms.results ?? []).map((t) => ({ ...t, depth: 0 }));
   const byId = new Map(list.map((t) => [t.id, t]));
@@ -93,7 +97,9 @@ async function registry(env: ArLinguisticsEnv): Promise<Reg> {
   const kids = new Map<string | null, Term[]>();
   for (const t of list) kids.set(t.parent_term_id, [...(kids.get(t.parent_term_id) ?? []), t]);
   for (const v of kids.values()) v.sort((a, b) => (a.term_order ?? 0) - (b.term_order ?? 0));
-  const reg = { terms: list, byId, kids, cats: new Map((cats.results ?? []).map((c) => [c.category_key, c])) };
+  const overlaps = new Set<string>();
+  for (const r of ov.results ?? []) { overlaps.add(`${r.from_term_id}|${r.to_term_id}`); overlaps.add(`${r.to_term_id}|${r.from_term_id}`); }
+  const reg = { terms: list, byId, kids, cats: new Map((cats.results ?? []).map((c) => [c.category_key, c])), overlaps };
   memo = { at: Date.now(), reg };
   return reg;
 }
@@ -115,8 +121,9 @@ const inScope = (t: Term, q: Q) => (!q.terms || q.terms.has(t.id)) && (!q.discip
   && (!q.category || t.category_key === q.category) && t.depth >= q.minDepth && t.depth <= q.maxDepth;
 /// the terms beside a term: its siblings under the same parent first, then the rest of its category
 const beside = (reg: Reg, t: Term) => {
-  const sib = (reg.kids.get(t.parent_term_id) ?? []).filter((x) => x.id !== t.id && x.category_key === t.category_key);
-  const cat = reg.terms.filter((x) => x.id !== t.id && x.category_key === t.category_key && !sib.includes(x));
+  const free = (x: Term) => x.id !== t.id && !reg.overlaps.has(`${t.id}|${x.id}`);
+  const sib = (reg.kids.get(t.parent_term_id) ?? []).filter((x) => free(x) && x.category_key === t.category_key);
+  const cat = reg.terms.filter((x) => free(x) && x.category_key === t.category_key && !sib.includes(x));
   return [...shuffle(sib), ...shuffle(cat)];
 };
 /// a definition is a sentence: some registry rows hold a key ("manawi", "thulathi_mazeed") where a gloss would be
@@ -644,7 +651,7 @@ export function drillGrammarRoutes(router: Router<ArLinguisticsEnv>) {
         id: t.id, nameAr: t.name_ar, nameEn: cap(t.name_en) || null, short: t.short_en, definitionEn: t.definition_en, definitionAr: t.definition_ar,
         discipline: t.discipline, category: c ? { key: c.category_key, nameAr: c.name_ar, nameEn: c.name_en } : null,
         parent: p ? { id: p.id, nameAr: p.name_ar, nameEn: cap(p.name_en) || null } : null,
-        siblings: (reg.kids.get(t.parent_term_id) ?? []).filter((x) => x.id !== t.id && x.category_key === t.category_key).slice(0, 8)
+        siblings: (reg.kids.get(t.parent_term_id) ?? []).filter((x) => x.id !== t.id && x.category_key === t.category_key && !reg.overlaps.has(`${t.id}|${x.id}`)).slice(0, 8)
           .map((x) => ({ id: x.id, nameAr: x.name_ar, nameEn: cap(x.name_en) || null })),
         shawahid: [
           ...(ex.results ?? []).filter((e) => e.term_id === t.id && /^\d+:\d+$/.test(e.qr_ref))
