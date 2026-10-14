@@ -321,6 +321,7 @@ async function sarfDrills(env: ArabicEnv, band: Band, n: number, works: string[]
     `SELECT w.unit_id, w.scene_no, w.line, w.word_index, w.surface, w.lemma_ar, w.word_class, w.link_kind, w.al_lemma_ref, w.sarf_json
        FROM ar_scene_word w JOIN ar_text_unit t ON t.id = w.unit_id JOIN ar_acquisition_ref r ON r.id = t.acq_ref_id
       WHERE ${where} AND w.word_class IN ('verb', 'noun') AND w.sarf_json IS NOT NULL
+        AND w.qr_grade IN ('hard', 'super')   -- high-end only: words hard in the Qurʾān, never everyday verbs and nouns
       ORDER BY (w.link_kind = 'lemma') DESC, abs(random()) % 1000 LIMIT 400`, works.length ? works.slice(0, 90) : lv);
   const verbs = new Map<string, { madi: string; mudari: string; surface: string; ref: string | null }>();
   const nouns = new Map<string, { mufrad: string; jam: string; surface: string; ref: string | null }>();
