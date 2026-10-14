@@ -544,7 +544,8 @@ async function counts(env: ArabicEnv, all: L, band: Band) {
   const grades = band === 'all' ? [0, 1, 2, 3] : cfg.read?.grades ?? [];
   const [pool, daily, mined, glossed, mine, read, voiced, grammar] = await Promise.all([
     query<{ n: number }>(env.DB_AR, `SELECT COUNT(*) AS n FROM ar_practice_pool WHERE (? = 'all' OR band = ?) AND word_count BETWEEN ? AND ?`, [band, band, wc.min, wc.max]),
-    query<{ n: number }>(env.DB_AR, `SELECT COUNT(*) AS n FROM ar_daily_word`),
+    // the everyday themed lists are retired from drilling (high end only): they count for nothing
+    Promise.resolve([{ n: 0 }]),
     query<{ register: string | null; n: number }>(env.DB_AR,
       `SELECT register, COUNT(*) AS n FROM ar_acq_item WHERE gloss_en IS NOT NULL AND status = 'live' GROUP BY register`),
     query<{ n: number }>(env.DB_AR, `SELECT COUNT(*) AS n FROM ar_practice_pool WHERE (? = 'all' OR band = ?) AND gloss_json IS NOT NULL
