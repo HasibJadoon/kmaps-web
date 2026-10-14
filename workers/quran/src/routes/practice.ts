@@ -322,15 +322,48 @@ async function pickAyat(env: QuranEnv, scope: Scope, minWords: number, maxWords:
 }
 
 type PoolWord = { word_text: string; pos: string | null; lemma: string | null; gt_case: string | null; has_det_prefix: number | null;
-                  prefix_count: number | null };
+                  prefix_count: number | null; root?: string | null; gt_derivation_type?: string | null; form_roman?: string | null;
+                  gt_number?: string | null; gt_tense?: string | null; gt_person?: string | null };
+const POOL_COLS = 'word_text, pos, lemma, gt_case, has_det_prefix, prefix_count, root, gt_derivation_type, form_roman, gt_number, gt_tense, gt_person';
 /** The particle a word carries in front (وَ فَ بِ لِ كَ سَ), or none — a gap's word and its options share it. */
 const leadingConj = (w: PoolWord) => (Number(w.prefix_count ?? 0) > 0 && /^[وفبلكس]/.test(w.word_text) && !/^ال/.test(w.word_text) ? w.word_text[0] : '');
 
 /** Three words that fit the gap the target leaves: its part of speech, definite or not like it, in
  *  its case, with its leading وَ / فَ — so the gap's form gives nothing away — one form per lemma, and
  *  for a word heard, close to it in length. Loosened step by step only when the sūra has too few. */
-export function gapFillers(target: PoolWord, pool: PoolWord[], heard: boolean): string[] {
+export function gapFillers(target: PoolWord, pool: PoolWord[], heard: boolean, kin: PoolWord[] = []): string[] {
   const len = (w: string) => fold(w).length;
+  // NEAR-MISSES first (owner, 2026-10-14): another word of the same root, then a word of the same pattern (its
+  // derivation, or for a verb its form, tense and person) — each in the gap's own shape (part of speech, definite
+  // or not, case, number, leading وَ/فَ), so the form gives nothing away. Two at most from the root, so the choice is
+  // not all one family; the rest by pattern, then by the gap's shape alone (the sūra's words, as before).
+  const shape = (p: PoolWord) => p.pos === target.pos && (p.has_det_prefix ?? 0) === (target.has_det_prefix ?? 0)
+    && p.gt_case === target.gt_case && (p.gt_number ?? null) === (target.gt_number ?? null) && leadingConj(p) === leadingConj(target);
+  // lemmas compared WITH their vowels here: مُنذَر (warned) is not مُنذِر (warner) — the nearest miss of all
+  // (the app grades such choices by their vowels, DrillGrading.same)
+  const lemmaKey = (p: PoolWord) => (p.lemma ?? p.word_text).normalize('NFC');
+  const own = lemmaKey(target);
+  const near: Array<{ fits: (p: PoolWord) => boolean; max: number; from: PoolWord[] }> = [
+    { fits: (p) => !!target.root && p.root === target.root && shape(p), max: 2, from: kin },
+    { fits: (p) => shape(p) && (target.pos === 'V'
+        ? !!target.form_roman && p.form_roman === target.form_roman && p.gt_tense === target.gt_tense && p.gt_person === target.gt_person
+        : !!target.gt_derivation_type && p.gt_derivation_type === target.gt_derivation_type), max: 3, from: [...kin, ...pool] },
+    { fits: shape, max: 3, from: pool },
+  ];
+  {
+    const seen = new Set<string>([own]);
+    const out: string[] = [];
+    for (const t of near) {
+      let took = 0;
+      for (const c of shuffle(t.from.filter((p) => t.fits(p) && p.word_text.normalize('NFC') !== target.word_text.normalize('NFC')))) {
+        const k = lemmaKey(c);
+        if (seen.has(k) || took >= t.max) continue;
+        seen.add(k); out.push(c.word_text); took += 1;
+        if (out.length === 3) return out;
+      }
+    }
+  }
+  // too few of the gap's exact shape: the old loosening, one tier at a time
   const tries: ((p: PoolWord) => boolean)[] = [
     (p) => p.pos === target.pos && (p.has_det_prefix ?? 0) === (target.has_det_prefix ?? 0) && p.gt_case === target.gt_case && leadingConj(p) === leadingConj(target),
     (p) => p.pos === target.pos && (p.has_det_prefix ?? 0) === (target.has_det_prefix ?? 0) && leadingConj(p) === leadingConj(target),
@@ -363,10 +396,10 @@ async function lineDrills(env: QuranEnv, skill: string, n: number, scope: Scope,
   // the other words to choose from: content words of the same surahs
   const surahIds = [...new Set(ayat.map((a) => a.surah))];
   const pool = surahIds.length ? await query<PoolWord>(env.DB_QR,
-    `SELECT DISTINCT word_text, pos, lemma, gt_case, has_det_prefix, prefix_count FROM qr_word_occurrence
+    `SELECT DISTINCT ${POOL_COLS} FROM qr_word_occurrence
       WHERE surah IN (${surahIds.map(() => '?').join(',')}) AND is_content_word = 1 LIMIT 3000`, surahIds) : [];
   const facts = surahIds.length ? await query<PoolWord & { surah: number; ayah: number; word_index: number }>(env.DB_QR,
-    `SELECT surah, ayah, word_index, word_text, pos, lemma, gt_case, has_det_prefix, prefix_count FROM qr_word_occurrence
+    `SELECT surah, ayah, word_index, ${POOL_COLS} FROM qr_word_occurrence
       WHERE (surah, ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`, [JSON.stringify(pairs)]) : [];
   const factOf = new Map(facts.map((f) => [`${f.surah}:${f.ayah}:${f.word_index}`, f]));
   // HIGH-END only (the learner's rule for the Qurʾān): a word graded medium → super (qr_vocab_grade, a verb, noun or
@@ -378,6 +411,11 @@ async function lineDrills(env: QuranEnv, skill: string, n: number, scope: Scope,
         AND ((g.grade IN ('medium', 'hard', 'super') AND g.focus = 1)
              OR EXISTS (SELECT 1 FROM qr_vocab_flag f WHERE f.surah = i.surah AND f.ayah = i.ayah AND f.word_index = i.word_index))`,
     [JSON.stringify(pairs)]).catch(() => [] as Array<{ k: string }>) : []).map((r) => r.k));
+  // the words of the same roots across the whole Qurʾān: a gap's nearest misses
+  const roots = [...new Set(facts.filter((f) => f.root && high.has(`${f.surah}:${f.ayah}:${f.word_index}`)).map((f) => f.root as string))];
+  const kin = (skill === 'fill' || skill === 'hear') && roots.length ? await query<PoolWord>(env.DB_QR,
+    `SELECT DISTINCT ${POOL_COLS} FROM qr_word_occurrence WHERE root IN (${roots.map(() => '?').join(',')}) AND is_content_word = 1 LIMIT 4000`,
+    roots).catch(() => [] as PoolWord[]) : [];
   const out: Record<string, unknown>[] = [];
   for (const a of ayat) {
     if (out.length >= n) break;
@@ -398,7 +436,7 @@ async function lineDrills(env: QuranEnv, skill: string, n: number, scope: Scope,
       const answer = pick.w.word_text;
       const target = factOf.get(`${a.surah}:${a.ayah}:${pick.w.word_index}`);
       const wrong = gapFillers(target ?? { word_text: answer, pos: pick.w.pos, lemma: pick.w.lemma, gt_case: null, has_det_prefix: null, prefix_count: null },
-                               pool, skill === 'hear');
+                               pool, skill === 'hear', kin);
       if (wrong.length < 3) continue;
       const options = shuffle([answer, ...wrong]);
       if (skill === 'fill') { base.blank = pick.i; base.answer = answer; base.options = options; }
