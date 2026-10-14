@@ -29,6 +29,7 @@ import { sceneRoutes } from './routes/scenes';
 import { pathRoutes } from './routes/path';
 import { intakeRoutes } from './routes/intake';
 import { learnPathRoutes } from './routes/learn-path';
+import { sceneWordRoutes } from './routes/scene-words';
 
 const router = new Router<ArabicEnv>();
 
@@ -66,6 +67,7 @@ practiceRoutes(router);
 drillSourceRoutes(router);
 ttsRoutes(router);
 wordRoutes(router);
+sceneWordRoutes(router);   // before sceneRoutes: /ar/scenes/:unit/:no would not take …/words, but keep it plain
 sceneRoutes(router);
 pathRoutes(router);
 intakeRoutes(router);

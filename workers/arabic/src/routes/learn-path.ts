@@ -91,6 +91,9 @@ async function walk(env: ArabicEnv, me: string | null) {
       gradedLine: graded ? word(L, 'graded_progress', { passed, units: units.length }) : null,
       lockedWhy: locked ? word(L, 'locked_why', { prev: prev!.title.slice(0, 60) }) : null,
       startedAt: marked ? true : false, doneAt: marked?.done_at ?? null,
+      // what the learner may do with it now — the screens show only these
+      can: { start: state === 'open', close: !graded && (state === 'open' || state === 'started'),
+             reopen: !!marked && !(graded && done) },
     });
   }
   return { L, pass, steps: out };

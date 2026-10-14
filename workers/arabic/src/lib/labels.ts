@@ -35,7 +35,9 @@ export const byKey = (xs: Label[] | undefined) => new Map((xs ?? []).map((x) => 
 
 /// A skill card as the app shows it.
 export const skillCard = (s: Label) => ({ id: s.key, title: s.label, titleAr: s.labelAr ?? '', tagline: s.detail ?? '',
-                                          icon: s.icon ?? 'circle', color: s.color ?? '#D8B657' });
+                                          icon: s.icon ?? 'circle', color: s.color ?? '#D8B657',
+                                          // 'lines' when the skill draws recorded lines — what a path step's practice can narrow
+                                          source: (s.extra?.source as string | undefined) ?? null });
 
 /// A badge: what a drill works on, or how hard it is.
 export const badge = (l: Label | undefined) => (l ? { label: l.label, labelAr: l.labelAr, color: l.color ?? '#D8B657' } : null);
