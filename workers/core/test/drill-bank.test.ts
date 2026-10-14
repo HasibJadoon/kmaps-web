@@ -83,3 +83,21 @@ test('a skill practice with no lesson continues a begun concept, its unmet steps
   assert.equal(first.srs.module, 'AR');
   assert.equal(first.srs.extra.group.workId, 'GT:A');
 });
+
+test('held: of the drills a round would deal, the ones the learner already holds as cards', async () => {
+  const { srsRoutes } = await import('../src/routes/srs');
+  const db = new DatabaseSync(':memory:');
+  db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
+  db.exec(`PRAGMA foreign_keys = OFF;
+           INSERT INTO core_srs_card (id, user_ref, deck_id, module, resource_type, resource_ref, front_text, back_text)
+           VALUES ('k1', 'U1', 'D', 'AR', 'grammar', 'AR:drill:gs:gs_term:1', 'q', 'a'), ('k2', 'U2', 'D', 'AR', 'grammar', 'AR:drill:gs:gs_term:2', 'q', 'a')`);
+  type H = (r: Request, e: unknown, p: unknown) => Promise<Response>;
+  const routes = new Map<string, H>();
+  srsRoutes({ get: () => {}, put: () => {}, patch: () => {}, delete: () => {}, post: (p: string, h: H) => routes.set(p, h) } as never);
+  const t = await signJwt({ sub: 'U1', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 }, 's');
+  const res = await routes.get('/core/srs/held')!(new Request('http://x/core/srs/held', { method: 'POST',
+    headers: { authorization: `Bearer ${t}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ refs: ['AR:drill:gs:gs_term:1', 'AR:drill:gs:gs_term:2', 'AR:drill:new'] }) }), { DB_CORE: d1(db), JWT_SECRET: 's' }, {});
+  const body = await res.json() as { data: { held: string[] } };
+  assert.deepEqual(body.data.held, ['AR:drill:gs:gs_term:1'], 'only this learner\'s card counts');
+});

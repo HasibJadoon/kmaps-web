@@ -957,6 +957,20 @@ export function srsRoutes(router: Router<CoreEnv>) {
 
   // The bank: the learner's drills filed but never practised. Review never deals them; their lesson does (a surah's
   // practice, a step), and the first answer moves each into review. Same filters as the review queue.
+  // Which of these drills the learner already holds (a card on the same ref): a round deals them through review or
+  // the bank, never again as new. Body {refs: string[]} (≤ 300) → {held: string[]}.
+  router.post('/core/srs/held', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const body = (await readJsonObject(req)) ?? {};
+    const refs = [...new Set((Array.isArray(body.refs) ? body.refs : []).filter((r): r is string => typeof r === 'string' && r.length > 0))].slice(0, 300);
+    if (!refs.length) return ok({ held: [] });
+    const rows = await query<{ resource_ref: string }>(env.DB_CORE,
+      `SELECT DISTINCT resource_ref FROM core_srs_card WHERE user_ref = ? AND resource_ref IN (${refs.map(() => '?').join(',')})`,
+      [ctx.userId, ...refs]);
+    return ok({ held: rows.map((r) => r.resource_ref) });
+  });
+
   router.get('/core/srs/bank', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
