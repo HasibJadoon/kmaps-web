@@ -220,11 +220,12 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
     : src === 'tafsir_lang' ? (await tafsirLangDrills(env, scope, (meta.extra?.works as string[] | undefined) ?? WORKS)).slice(0, n)
     : [];
   const kinds = byKey(L.kind);
-  const shaped = items.map((it) => {
+  const shaped = items.flatMap((it) => {
     const k = kinds.get(String(it.ask ?? skill)) ?? kinds.get(skill);
     const { ask: _a, ...rest } = it;
     // a drill a builder dealt without its card still files one: nothing practised is left out of review
-    return ensureCard({ ...rest, instruction: k?.label ?? null, instructionAr: k?.labelAr ?? null }, skill);
+    const d = ensureCard({ ...rest, instruction: k?.label ?? null, instructionAr: k?.labelAr ?? null }, skill);
+    return d ? [d] : [];   // an empty drill is dropped, never dealt
   });
   // every drill carries the registry terms its own rows name
   return attachGt(env.DB_QR, shaped as Array<Record<string, unknown>>);

@@ -226,7 +226,7 @@ export async function sentenceDrills(env: ArabicEnv, all: L, rows: Sentence[], w
       instruction: kinds.get(ask)?.label ?? null, instructionAr: kinds.get(ask)?.labelAr ?? null,
     };
     d.srs = srsCardFor(d, { skill: group.skill ?? 'grammar', band: group.band, series: group.series, episode: group.episode });
-    return d;
+    return d.srs ? d : null;   // an empty drill is dropped
   }));
   return built.filter((d): d is Record<string, unknown> => !!d);
 }
@@ -307,7 +307,7 @@ export async function asDrills(env: ArabicEnv, all: L, items: GramDrill[], group
       instruction: kinds.get(it.ask)?.label ?? null, instructionAr: kinds.get(it.ask)?.labelAr ?? null,
     };
     d.srs = srsCardFor(d, { skill: group.skill ?? 'grammar_path', band: group.band, series: group.series, episode: group.episode });
-    out.push(d);
+    if (d.srs) out.push(d);   // an empty drill is dropped
   }
   return out;
 }
@@ -372,7 +372,7 @@ export async function sceneDrills(env: ArabicEnv, all: L, terms: string[], k: nu
         instruction: kinds.get('feature')?.label ?? null, instructionAr: kinds.get('feature')?.labelAr ?? null,
       };
       d.srs = srsCardFor(d, { skill: group.skill ?? 'grammar_path', band: group.band, series: group.series, episode: group.episode });
-      out.push(d);
+      if (d.srs) out.push(d);   // an empty drill is dropped
     } catch { /* a scene whose reading does not parse is passed over */ }
   }
   return out;

@@ -86,7 +86,7 @@ test('common words come only where flagged; adverbial nouns never; each drill ca
 
 test('a QR drill dealt without its card gets one — nothing practised is left out of review', async () => {
   const { ensureCard } = await import('../src/routes/practice-kit');
-  const d = ensureCard({ id: 'newkind:44:3', kind: 'newkind', prompt: 'لِمَ؟', answer: 'لأنّ', source: { workId: 'QR:SURAH:44' } }, 'newkind');
+  const d = ensureCard({ id: 'newkind:44:3', kind: 'newkind', prompt: 'لِمَ؟', answer: 'لأنّ', source: { workId: 'QR:SURAH:44' } }, 'newkind')!;
   const srs = d.srs as { module: string; front_text: string; back_text: string; extra: { drill: { id: string }; group: { work: string } } };
   assert.equal(srs.module, 'QR');
   assert.equal(srs.front_text, 'لِمَ؟');
@@ -94,5 +94,6 @@ test('a QR drill dealt without its card gets one — nothing practised is left o
   assert.equal(srs.extra.drill.id, 'newkind:44:3');
   assert.equal(srs.extra.group.work, '44:3');
   const own = { id: 'x', kind: 'fill', srs: { module: 'QR', front_text: 'mine' } };
-  assert.equal((ensureCard(own, 'fill').srs as { front_text: string }).front_text, 'mine', "a builder's own card wins");
+  assert.equal((ensureCard(own, 'fill')!.srs as { front_text: string }).front_text, 'mine', "a builder's own card wins");
+  assert.equal(ensureCard({ id: 'e:1', kind: 'e' }, 'e'), null, 'an empty drill is dropped');
 });

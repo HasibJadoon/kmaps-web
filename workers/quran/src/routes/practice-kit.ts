@@ -81,17 +81,18 @@ export function withCard(drill: Drill, a: { ref: string; type: string; kind: str
 
 /// The guarantee behind every QR drill: one a builder dealt without its card gets one here, named by what it asks and
 /// answers, so nothing practised is left out of review (iOS files nothing for a drill with no card). A builder's own
-/// card always wins.
-export function ensureCard(drill: Drill, skill: string, band?: Band): Drill {
+/// card always wins. An EMPTY drill (nothing asked or nothing to answer) gives null: it is dropped, never dealt.
+export function ensureCard(drill: Drill, skill: string, band?: Band): Drill | null {
   if (drill.srs) return drill;
   const s = (x: unknown) => (typeof x === 'string' && x.trim() ? x.trim() : null);
   const line = ((drill.words as Array<{ t: string }> | undefined) ?? []).map((w) => w.t).join(' ') || null;
   const pairs = ((drill.pairs as string[][] | undefined) ?? []).filter((p) => Array.isArray(p) && p.length >= 2);
   const units = ((drill.units as unknown[] | undefined) ?? []).filter((u): u is string => typeof u === 'string');
   const front = s(drill.prompt) ?? s(drill.promptEn) ?? line ?? (pairs.length ? pairs.map((p) => p[0]).join('\n') : null)
-    ?? (units.length ? [...units].sort().join(' · ') : null) ?? String(drill.kind ?? skill);
+    ?? (units.length ? [...units].sort().join(' · ') : null);
   const back = s(drill.answer) ?? (pairs.length ? pairs.map((p) => p[1]).join('\n') : null) ?? (units.length ? units.join(' → ') : null)
-    ?? s(drill.explanation) ?? s(drill.en) ?? line ?? String(drill.id);
+    ?? s(drill.explanation) ?? s(drill.en) ?? line;
+  if (!front || !back) return null;
   const ws = /:(\d{1,3}):(\d{1,3})(?::|$)/.exec(String(drill.id ?? ''));
   const surah = (drill.source as { workId?: string } | undefined)?.workId?.match(/^QR:SURAH:(\d+)/)?.[1] ?? ws?.[1];
   return withCard(drill, { ref: `QR:${skill}:${String(drill.id)}`, type: 'passage', kind: skill, front, back,

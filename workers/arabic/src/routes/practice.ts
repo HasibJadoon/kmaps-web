@@ -3,7 +3,7 @@ import { attachGt } from '../../../shared/src/gt-attach';
 import { ok, badRequest } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
-import { labels, byKey, skillCard, instruct, srsCardFor } from '../lib/labels';
+import { labels, byKey, skillCard, instruct, srsCardFor, dropEmpty } from '../lib/labels';
 import { worksOfStep } from './learn-path';
 import { commonWords, isCommon } from '../lib/common';
 import { parseBand, bare, BANDS, type Band } from '../lib/levels';
@@ -404,7 +404,7 @@ async function exerciseDrills(env: ArabicEnv, all: L, levels: string[], k: numbe
         source: { workId: null, title: null, level: r.level },
         instruction: kinds.get('grammar')?.label ?? null, instructionAr: kinds.get('grammar')?.labelAr ?? null };
       d.srs = srsCardFor(d, { skill: group.skill, band: group.band });
-      return [d];
+      return d.srs ? [d] : [];   // an empty drill is dropped
     } catch { return []; }
   });
 }
@@ -638,10 +638,11 @@ export function practiceRoutes(router: Router<ArabicEnv>) {
     const series = new Map((works.length ? await query<{ id: string; series: string | null }>(env.DB_AR,
       `SELECT id, json_extract(meta_json, '$.series') AS series FROM ar_acquisition_ref WHERE id IN (${works.map(() => '?').join(',')})`, works) : [])
       .map((r) => [r.id, r.series] as const));
-    const withCards = (items as Array<Record<string, unknown>>).map((it) => {
+    // every drill with its review card; an empty one (nothing asked or answered) is dropped, never dealt
+    const withCards = dropEmpty((items as Array<Record<string, unknown>>).map((it) => {
       const w = (it.source as { workId?: string } | undefined)?.workId;
       return { ...it, srs: it.srs ?? srsCardFor(it, { skill, band, series: w ? series.get(w) ?? null : null }) };
-    });
+    }));
     const instructed = instruct(withCards as unknown as Array<{ kind: string }>, all) as unknown as Array<Record<string, unknown>>;
     const res = ok({ skill: meta, level: band,
                      // every drill carries the registry terms its own rows name

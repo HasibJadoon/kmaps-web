@@ -52,13 +52,17 @@ export function instruct<T extends { kind: string; instruction?: string | null; 
 
 /// Every drill files a review card (CORE SRS) keyed to what it asks about, so the same word or line
 /// meets the same card again and the schedule follows the learner's answers. What a card asks and
-/// answers, by kind of drill. Never null: a kind with no case of its own (a new one) still files, through the general
-/// rule below — whatever is practised goes to review. A drill kind added later needs no change here to reach SRS.
+/// answers, by kind of drill. A kind with no case of its own (a new one) still files, through the general rule below —
+/// whatever is practised goes to review. Null only for an EMPTY drill (nothing asked, nothing to answer): such a drill
+/// is dropped, never dealt and never filed (dropEmpty).
 /// Where a drill sits, so its card can be grouped: the skill it was drilled in, the level,
 /// and the series or book, episode and scene it came from.
+/// The drills worth dealing: an empty one (no card can be made of it) is dropped.
+export const dropEmpty = <T extends Record<string, unknown>>(xs: T[]) => xs.filter((x) => x.srs != null);
+
 export type DrillGroup = { skill?: string; band?: string; series?: string | null; episode?: string | null; scene?: number | null };
 
-export function srsCardFor(it: Record<string, unknown>, g: DrillGroup = {}): Record<string, unknown> {
+export function srsCardFor(it: Record<string, unknown>, g: DrillGroup = {}): Record<string, unknown> | null {
   const s = (x: unknown) => (typeof x === 'string' && x.trim() ? x.trim() : null);
   const line = ((it.words as Array<{ t: string }> | undefined) ?? []).map((w) => w.t).join(' ') || null;
   const en = s(it.en), ans = s(it.answer), prompt = s(it.prompt);
@@ -119,9 +123,11 @@ export function srsCardFor(it: Record<string, unknown>, g: DrillGroup = {}): Rec
   const pairs = ((it.pairs as string[][] | undefined) ?? []).filter((p) => Array.isArray(p) && p.length >= 2);
   const units = ((it.units as unknown[] | undefined) ?? []).filter((u): u is string => typeof u === 'string');
   front = front || prompt || s(it.promptEn) || line || (pairs.length ? pairs.map((p) => p[0]).join('\n') : null)
-    || (units.length ? [...units].sort().join(' · ') : null) || s(it.instruction) || String(it.kind ?? 'drill');
+    || (units.length ? [...units].sort().join(' · ') : null);
   back = back || ans || (pairs.length ? pairs.map((p) => p[1]).join('\n') : null) || (units.length ? units.join(' → ') : null)
-    || s(it.explanation) || en || line || s((it.source as { title?: string } | undefined)?.title) || String(it.id);
+    || s(it.explanation) || en || line;
+  // an empty drill — nothing asked or nothing to answer by — is not filed under a made-up name: it is dropped
+  if (!front || !back) return null;
   // what a review needs to play it again: the whole drill as it was drilled (the clip, the
   // timed words, the blank, the options) — review replays it as a drill, not a flipped card.
   // Its context panel is left out: a review fetches that when it is opened.

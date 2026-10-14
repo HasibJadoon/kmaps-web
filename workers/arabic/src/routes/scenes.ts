@@ -4,7 +4,7 @@ import { ok, notFound, badRequest } from '../../../shared/src/response';
 import { query, queryOne } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { parseBand, bandOf, bare, type Band } from '../lib/levels';
-import { labels, byKey, badge, skillCard, instruct, srsCardFor } from '../lib/labels';
+import { labels, byKey, badge, skillCard, instruct, srsCardFor, dropEmpty } from '../lib/labels';
 import { commonWords, isCommon } from '../lib/common';
 
 // ── Scenes: watch, then practise in context ──────────────────────────────────
@@ -343,6 +343,8 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     // every drill files its review card (CORE SRS): the words, idioms and terms, and the lines too
     for (const it of items as Array<Record<string, unknown>>)
       it.srs = srsCardFor(it, { skill: 'scene', band: bandOf(sc.level) ?? undefined, series: sc.s.series_ar ?? null, episode: unit, scene: Number(no) });
+    // an empty drill (nothing asked or answered) is dropped, never dealt
+    items.splice(0, items.length, ...dropEmpty(items as Array<Record<string, unknown>>));
     const base = byKey(L.scene_skill).get('scene');
     const card = base ? skillCard(base) : { id: 'scene', title: '', titleAr: '', tagline: '', icon: 'film', color: '#E07A5F' };
     const deck = byKey(L.path).get('srs_deck');
