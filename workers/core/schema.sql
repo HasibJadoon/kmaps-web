@@ -2176,3 +2176,14 @@ CREATE TABLE IF NOT EXISTS core_learner_skill (
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_ref, module, skill)
 );
+
+-- 052 · the authored drill bank (rules AGR:DRL in cyb_agent_rule)
+CREATE TABLE IF NOT EXISTS cyb_drill (
+  gid TEXT PRIMARY KEY, domain TEXT NOT NULL, discipline TEXT NOT NULL, kind TEXT NOT NULL, interaction TEXT, skill TEXT,
+  work_ref TEXT, intro_surah INTEGER, intro_ayah INTEGER,
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json)), sources_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(sources_json)),
+  author TEXT NOT NULL DEFAULT 'claude', authored_by TEXT,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'live', 'retired')), version INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_cyb_drill_scope ON cyb_drill (domain, work_ref, intro_ayah, status);

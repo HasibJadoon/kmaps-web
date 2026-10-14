@@ -12,6 +12,7 @@ import { activityRoutes } from './routes/activity';
 import { grantRoutes } from './routes/grants';
 import { srsRoutes } from './routes/srs';
 import { learnerRoutes } from './routes/learner';
+import { drillBankRoutes } from './routes/drills';
 import { drillClassRoutes } from './routes/drill-class';
 import { appsRoutes } from './routes/apps';
 import { scoresRoutes } from './routes/scores';
@@ -64,6 +65,7 @@ cybRoutes(router);
 dsRoutes(router);
 studySessionRoutes(router);
 learnerRoutes(router);
+drillBankRoutes(router);
 
 export { ReviewSession } from './review-session.do';
 export { QuizSession } from './quiz-session.do';
