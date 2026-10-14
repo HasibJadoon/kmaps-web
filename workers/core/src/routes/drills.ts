@@ -6,7 +6,7 @@ import type { CoreEnv } from '../env';
 
 // ── The authored drill bank (core 052) ──────────────────────────────────────────────────────────────────────────
 //
-//   GET /core/cyb/drills?domain=QR&work=QR:SURAH:44&from=1&to=8&kind=…&limit=…
+//   GET /core/cyb/drills?domain=QR&work=QR:SURAH:44&from=1&to=8&kind=…&skill=…&limit=…
 //        the live authored drills of a lesson (its work, and for the Qurʾān its āyāt), each as dealt with its gid —
 //        a lesson deals them among its own
 //   GET /core/cyb/drills/audit
@@ -39,6 +39,7 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
     if (p('domain')) { where.push('domain = ?'); args.push(p('domain')); }
     if (p('work')) { where.push('work_ref = ?'); args.push(p('work')); }
     if (p('kind')) { where.push('kind = ?'); args.push(p('kind')); }
+    if (p('skill')) { where.push('skill = ?'); args.push(p('skill')); }
     const from = Number(p('from')), to = Number(p('to'));
     if (from > 0 && to >= from) { where.push('intro_ayah BETWEEN ? AND ?'); args.push(from, to); }
     const limit = Math.min(500, Math.max(1, Number(p('limit')) || 200));
