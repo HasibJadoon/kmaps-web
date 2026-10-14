@@ -72,7 +72,10 @@ export function sceneWordRoutes(router: Router<ArabicEnv>) {
     }
     const counts = { words: rows.length, quranLemma: rows.filter((r) => r.link_kind === 'lemma').length,
                      quranRoot: rows.filter((r) => r.link_kind === 'root').length };
-    return ok({ unit, scene: Number(no), counts,
+    const words = Object.fromEntries((L.word_words ?? []).map((l) => [l.key, { label: l.label, labelAr: l.labelAr, detail: l.detail, icon: l.icon }]));
+    const fill = (t: string | undefined) => t?.replace('{words}', String(counts.words)).replace('{lemma}', String(counts.quranLemma))
+      .replace('{root}', String(counts.quranRoot)) ?? null;
+    return ok({ unit, scene: Number(no), counts, countLine: fill((L.word_words ?? []).find((l) => l.key === 'counts')?.label), words,
                 legend: { class: (L.word_class ?? []).map((l) => badge(l, l.key)), derivation: (L.word_derivation ?? []).map((l) => badge(l, l.key)),
                           link: (L.word_link ?? []).map((l) => badge(l, l.key)),
                           quranGrade: (L.quran_grade ?? []).map((l) => badge(l, l.key)) },
