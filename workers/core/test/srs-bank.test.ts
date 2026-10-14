@@ -52,6 +52,11 @@ test('a resent answer changes nothing; review deals drills only; a leech goes ba
   const entry = (ref: string, rating: number, op: string) => ({ module: 'QR', resource_type: 'passage', resource_ref: ref, card_template: 'fill',
     front_text: 'q', back_text: 'a', extra: { drill: { id: ref, kind: 'fill' }, group: { workId: 'QR:SURAH:40' } }, rating, op_id: op });
 
+  // the id standard (core 050): the registries classify each drill — its kind, else its focus, else its own discipline
+  db.exec(`INSERT INTO cyb_discipline (code, ord, name_ar, name_en, question_en, deck_id) VALUES
+             ('SM', 50, 'سماع', 'Listening', 'q', 'DECK:AL'), ('SF', 10, 'صرف', 'Morphology', 'q', 'DECK:AL'),
+             ('NH', 20, 'نحو', 'Syntax', 'q', 'DECK:AL');
+           INSERT INTO cyb_drill_type (domain, scope, code, discipline) VALUES ('QR', 'kind', 'fill', 'SM'), ('QR', 'focus', 'gt_define', 'NH');`);
   await fileCards(env, 'U1', [entry('QR:fill:40:1', 3, 'op-1')], { byModule: true, holdMisses: true });
   const reps = () => (db.prepare(`SELECT reps FROM core_srs_card WHERE resource_ref = 'QR:fill:40:1'`).get() as { reps: number }).reps;
   assert.equal(reps(), 1);
@@ -62,7 +67,12 @@ test('a resent answer changes nothing; review deals drills only; a leech goes ba
   assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM core_srs_review WHERE op_id = 'op-1'`).get()!.n, 1);
   assert.equal(db.prepare(`SELECT work_ref FROM core_srs_card WHERE resource_ref = 'QR:fill:40:1'`).get()!.work_ref, 'QR:SURAH:40');
   // every drill has one global id
-  assert.equal(db.prepare(`SELECT drill_gid FROM core_srs_card WHERE resource_ref = 'QR:fill:40:1'`).get()!.drill_gid, 'DRL:QR:QR:fill:40:1');
+  assert.equal(db.prepare(`SELECT drill_gid FROM core_srs_card WHERE resource_ref = 'QR:fill:40:1'`).get()!.drill_gid, 'DRL:QR:SM:QR:fill:40:1');
+  // a grammar-term drill carries its term's science, which outranks its focus; a drill nothing classifies is XX
+  assert.equal(await repo.drillGid('QR', 'gt_define', JSON.stringify({ drill: { id: 'gt:define:x', discipline: 'SF' } })), 'DRL:QR:SF:gt:define:x');
+  assert.equal(await repo.drillGid('QR', 'gt_define', JSON.stringify({ drill: { id: 'gt:define:y' } })), 'DRL:QR:NH:gt:define:y');
+  assert.equal(await repo.drillGid('AR', 'new_focus', JSON.stringify({ drill: { id: 'z:1', kind: 'z' } })), 'DRL:AR:XX:z:1');
+  assert.equal(await repo.drillGid('QR', 'fill', JSON.stringify({ front: 'no drill' })), null);
 
   // nothing reaches SRS without its drill and its answer
   const bare = await fileCards(env, 'U1', [{ module: 'QR', resource_type: 'passage', resource_ref: 'QR:x', front_text: 'q', back_text: 'a' }],

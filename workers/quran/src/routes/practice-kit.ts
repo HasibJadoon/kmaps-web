@@ -1,5 +1,5 @@
 import { query } from '../../../shared/src/db';
-import { validOptions, drillGid } from '../../../shared/src/drill-check';
+import { validOptions } from '../../../shared/src/drill-check';
 import type { QuranEnv } from '../env';
 import type { Label } from '../lib/labels';
 
@@ -70,7 +70,6 @@ export async function loadAyat(env: QuranEnv, pairs: number[][]): Promise<Map<st
 /// The review card every drill files: the whole drill kept so review replays it, and where it sits.
 export function withCard(drill: Drill, a: { ref: string; type: string; kind: string; front: string; back: string;
                          surah?: number | null; ayah?: number | null; series?: string | null; band?: Band }) {
-  drill.gid = drillGid('QR', drill.id);
   drill.srs = {
     module: 'QR', resource_type: a.type, card_kind: a.kind, card_template: String(drill.kind),
     resource_ref: a.ref, front_text: a.front, back_text: a.back,

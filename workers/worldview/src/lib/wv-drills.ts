@@ -1,5 +1,5 @@
 import type { WvRhetoricDevice, WvRhetoricTerm, WvRhetoricUsage } from '../repositories/rhetoric.repo';
-import { validOptions, drillGid } from '../../../shared/src/drill-check';
+import { validOptions } from '../../../shared/src/drill-check';
 import { clozeQuote } from './rhetoric-cards';
 
 /**
@@ -36,7 +36,6 @@ function others(answer: string, pool: Array<string | null | undefined>, seed: st
 
 /** The review card a drill files when it is answered: the drill itself kept to replay. */
 function filed(d: Drill, ref: string, kind: string, front: string, back: string, group: Record<string, unknown>): Drill {
-  d = { ...d, gid: drillGid('WV', d.id) };
   const { srs: _s, ...drill } = d;
   return { ...d, srs: { module: 'WV', resource_type: 'concept', resource_ref: ref, card_kind: kind, card_template: String(d.kind),
                         front_text: front, back_text: back, extra: { drill, group } } };

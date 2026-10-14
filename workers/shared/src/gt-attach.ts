@@ -25,15 +25,24 @@ export async function attachGt<T extends Record<string, unknown>>(
   const perItem = items.map((it) => gtRefsOf(it));
   const all = [...new Set(perItem.flat())];
   const byRef = new Map<string, GtChip>();
+  const disc = new Map<string, string>();   // the term's science (SF NH BL DL): the drill's sub-domain in its global id
   for (let i = 0; i < all.length; i += 90) {
     const ids = all.slice(i, i + 90);
-    const rows = await query<{ id: string; name_ar: string | null; badge_color: string | null }>(db,
-      `SELECT id, name_ar, badge_color FROM ar_ling_gram_term WHERE id IN (${ids.map(() => '?').join(',')})`, ids)
-      .catch(() => [] as { id: string; name_ar: string | null; badge_color: string | null }[]);
-    for (const r of rows) if (r.name_ar) byRef.set(r.id, { ref: r.id, nameAr: r.name_ar, color: r.badge_color });
+    const rows = await query<{ id: string; name_ar: string | null; badge_color: string | null; discipline: string | null }>(db,
+      `SELECT id, name_ar, badge_color, discipline FROM ar_ling_gram_term WHERE id IN (${ids.map(() => '?').join(',')})`, ids)
+      // a mirror without the discipline column still gives its chips
+      .catch(() => query<{ id: string; name_ar: string | null; badge_color: string | null; discipline: string | null }>(db,
+        `SELECT id, name_ar, badge_color, NULL AS discipline FROM ar_ling_gram_term WHERE id IN (${ids.map(() => '?').join(',')})`, ids))
+      .catch(() => [] as { id: string; name_ar: string | null; badge_color: string | null; discipline: string | null }[]);
+    for (const r of rows) {
+      if (r.name_ar) byRef.set(r.id, { ref: r.id, nameAr: r.name_ar, color: r.badge_color });
+      if (r.discipline) disc.set(r.id, r.discipline);
+    }
   }
   return items.map((it, i) => {
     const gt = perItem[i].map((ref) => byRef.get(ref)).filter((c): c is GtChip => !!c);
+    const discipline = it.discipline ?? perItem[i].map((ref) => disc.get(ref)).find(Boolean);
+    if (discipline) it = { ...it, discipline };
     // The card a drill files keeps a copy of the drill to replay, and review plays that copy: so
     // it is taken here, last, from the drill exactly as it is dealt — its instruction, its terms,
     // all it was given after the card was first made. Only the card itself and the context panel

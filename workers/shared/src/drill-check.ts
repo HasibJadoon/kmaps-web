@@ -21,6 +21,6 @@ export function validOptions(d: Record<string, unknown>): boolean {
   return typeof d.answer === 'string' && list.includes(d.answer);
 }
 
-/** A drill's GLOBAL id: the stream it belongs to and its own stable id — the same drill is the same id for every learner,
- *  every session, every surface (core keeps it as drill_gid; Phase 1's cyb_drill uses it as its key). */
-export const drillGid = (stream: 'AR' | 'QR' | 'WV', id: unknown): string => `DRL:${stream}:${String(id)}`;
+// A drill's GLOBAL id is made by core when it is filed, by the km_core standard (core migration 050):
+// DRL:<cyb_domain.code>:<cyb_discipline.code>:<the drill's stable id>. A worker gives the stable id, and a drill that
+// knows its discipline better than its kind (a grammar-term drill: its term's) carries it as `discipline`.

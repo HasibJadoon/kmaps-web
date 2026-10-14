@@ -2151,3 +2151,16 @@ BEGIN
   SELECT RAISE(ABORT,
     'a card must stay in its own owner''s deck');
 END;
+
+-- 050 · the drill-id standard: DRL:<cyb_domain.code>:<cyb_discipline.code>:<drill id>
+ALTER TABLE cyb_domain ADD COLUMN code TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cyb_domain_code ON cyb_domain (code);
+CREATE TABLE IF NOT EXISTS cyb_drill_type (
+  domain     TEXT NOT NULL,
+  scope      TEXT NOT NULL CHECK (scope IN ('kind', 'focus')),
+  code       TEXT NOT NULL,
+  discipline TEXT NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'live',
+  note       TEXT,
+  PRIMARY KEY (domain, scope, code)
+);

@@ -96,11 +96,14 @@ const workOf = (extra: string | null | undefined): string | null => {
   catch { return null; }
 };
 
-/** the drill's global id: its own gid, or DRL:<module>:<drill id> */
-const gidOf = (module: string, extra: string | null | undefined): string | null => {
+/** a drill's own stable id and what classifies it: its discipline (a grammar-term drill's term), kind, and focus */
+const drillOf = (extra: string | null | undefined) => {
   try {
-    const d = extra ? (JSON.parse(extra) as { drill?: { gid?: unknown; id?: unknown } }).drill : null;
-    return typeof d?.gid === 'string' ? d.gid : d?.id != null ? `DRL:${module}:${String(d.id)}` : null;
+    const x = extra ? (JSON.parse(extra) as { drill?: Record<string, unknown>; group?: { skill?: unknown } }) : null;
+    const d = x?.drill;
+    if (d?.id == null) return null;
+    const str = (v: unknown) => (typeof v === 'string' && v ? v : null);
+    return { id: String(d.id), discipline: str(d.discipline), kind: str(d.ask) ?? str(d.kind), skill: str(x?.group?.skill) };
   } catch { return null; }
 };
 
@@ -303,6 +306,22 @@ export class SrsRepo {
        GROUP BY module`, [userRef]);
   }
 
+  /** A drill's GLOBAL id, by the km_core standard (migration 050): DRL:<cyb_domain.code>:<cyb_discipline.code>:<its id>.
+   *  The discipline is the drill's own (a grammar-term drill carries its term's), else its kind's cyb_drill_type row,
+   *  else its focus's (card kind, then skill), else XX — unclassified, listed by the audit, never left out. */
+  async drillGid(module: string, cardKind: string | null, extra: string | null | undefined): Promise<string | null> {
+    const d = drillOf(extra);
+    if (!d) return null;
+    const row = await queryOne<{ disc: string | null }>(this.db,
+      `SELECT COALESCE(
+         (SELECT code FROM cyb_discipline WHERE code = ?1),
+         (SELECT discipline FROM cyb_drill_type WHERE domain = ?2 AND scope = 'kind' AND code = ?3),
+         (SELECT discipline FROM cyb_drill_type WHERE domain = ?2 AND scope = 'focus' AND code = ?4),
+         (SELECT discipline FROM cyb_drill_type WHERE domain = ?2 AND scope = 'focus' AND code = ?5)) AS disc`,
+      [d.discipline, module, d.kind, cardKind, d.skill]).catch(() => null);
+    return `DRL:${module}:${row?.disc ?? 'XX'}:${d.id}`;
+  }
+
   async insertCard(input: {
     deck_id: string; user_ref: string; module: string; resource_type: string;
     resource_ref: string; card_template?: string; front_text?: string;
@@ -328,7 +347,7 @@ export class SrsRepo {
        input.note_type_id ?? null, input.fields_json ?? null,
        input.root_norm ?? null, input.intro_surah ?? null, input.intro_ayah ?? null,
 
-       new Date().toISOString(), workOf(input.extra_json), gidOf(input.module, input.extra_json)]);
+       new Date().toISOString(), workOf(input.extra_json), await this.drillGid(input.module, input.card_kind ?? null, input.extra_json)]);
     const row = await queryOne<SrsCard>(this.db,
       `SELECT ${CARD_COLS} WHERE deck_id = ? AND resource_ref = ? AND card_template = ?`,
       [input.deck_id, input.resource_ref, input.card_template ?? 'freeform']);
