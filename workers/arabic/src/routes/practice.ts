@@ -185,9 +185,11 @@ async function lineDrills(env: ArabicEnv, all: L, skill: string, band: Band, n: 
       const answer = b ? b.a : shown(pick.w.t);
       const options = shuffle([answer, ...(b ? b.o : distractors(answer, pool, 3, light).map(shown))]);
       if (options.length < 3) return null;
+      // one drill per line AND word: the blank is part of its identity, so the same blank meets the same review item
+      const id = `${skill}:${l.id}:${pick.i}`;
       return skill === 'fill'
-        ? { ...base, blank: pick.i, answer, options }
-        : { ...base, audio: { ...audio, start: Math.max(l.start_sec, pick.w.s - 0.04), end: Math.min(l.end_sec, pick.w.e + 0.06) },
+        ? { ...base, id, blank: pick.i, answer, options }
+        : { ...base, id, audio: { ...audio, start: Math.max(l.start_sec, pick.w.s - 0.04), end: Math.min(l.end_sec, pick.w.e + 0.06) },
             target: pick.i, answer, options, line: audio };
     }
     if (skill === 'order') {
@@ -499,7 +501,7 @@ async function readDrills(env: ArabicEnv, all: L, band: Band, n: number) {
     try { times = r.words_json ? JSON.parse(r.words_json) : []; } catch { times = []; }
     const voiced = !!r.object_key && times.length === toks.length;
     const end = r.end_sec ?? 0;
-    out.push({ id: `read:${r.id}`, kind: 'read', blank: at, answer, options: shuffle([answer, ...opts]),
+    out.push({ id: `read:${r.id}:${at}`, kind: 'read', blank: at, answer, options: shuffle([answer, ...opts]),
                words: toks.map((t, i) => ({ t, s: voiced ? times[i][0] : 0, e: voiced ? times[i][1] : 0 })),
                ...(voiced ? { audio: { url: audioUrl(r.object_key!), start: r.start_sec ?? 0, end },
                               ...(r.object_key!.startsWith('tts/') ? { voice: 'silma' } : {}) } : {}),

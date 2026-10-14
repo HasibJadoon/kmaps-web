@@ -405,7 +405,11 @@ async function lineDrills(env: QuranEnv, skill: string, n: number, scope: Scope,
         base.audio = { ...a.audio!, start: Math.max(a.audio!.start, t.s - 0.04), end: Math.min(a.audio!.end, t.e + 0.08) };
         base.target = pick.i; base.answer = answer; base.options = options; base.line = a.audio;
       }
-      out.push(card(line.replace(answer, '＿＿＿'), `${answer}\n${line}`));
+      // the blank is part of its identity: one review item per āyah and word
+      base.id = `${skill}:${a.key}:${pick.w.word_index}`;
+      out.push(withCard(base, { ref: `QR:${skill}:${a.key}:${pick.w.word_index}`, type: 'passage', kind: skill,
+        front: line.replace(answer, '＿＿＿'), back: `${answer}\n${line}`, surah: a.surah, ayah: a.ayah,
+        series: a.title.replace(/ \d+:\d+$/, '') }));
     } else if (skill === 'order') {
       const order = a.ws.map((_, i) => i);
       let sh = shuffle(order);

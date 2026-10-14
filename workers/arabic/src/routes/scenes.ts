@@ -243,7 +243,7 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
         .map((w) => ({ w, s: [...new Set(stem(w))].filter((c) => letters.has(c)).length * 2 - Math.abs(bare(w).length - a.length) + Math.random() }))
         .sort((x, y) => y.s - x.s).map((x) => bare(x.w))
         .filter((w, i, arr) => arr.indexOf(w) === i).slice(0, 3);
-      items.push({ id: `fill:${unit}:${no}:${h.line}`, kind: 'fill', audio: clip(l), words: timedWords(l), blank: h.index,
+      items.push({ id: `fill:${unit}:${no}:${h.line}:${h.index}`, kind: 'fill', audio: clip(l), words: timedWords(l), blank: h.index,
                    answer: a, options: shuffle([a, ...opts]), en: l.en ?? null, source, tier: (h as { tier?: string }).tier ?? null, bucket: 'vocab' });
     }
 
