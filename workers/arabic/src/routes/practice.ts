@@ -343,11 +343,11 @@ async function sarfDrills(env: ArabicEnv, band: Band, n: number, works: string[]
   let i = 0;
   while (out.length < n && (i < V.length || i < N.length || i < M.length)) {
     const v = V[i + 5], m = N[i], w = M[i];
-    if (v) out.push({ id: `sarf_mudari:${plain(v.madi)}`, kind: 'sarf_mudari', prompt: v.madi, answer: v.mudari, heard: v.surface,
+    if (v) out.push({ id: `sarf_mudari:${plain(v.madi)}`, kind: 'sarf_mudari', interaction: 'choose', prompt: v.madi, answer: v.mudari, heard: v.surface,
                       options: opts(v.mudari, V.map((x) => x.mudari)), quran: quran(v.ref) });
-    if (m && out.length < n) out.push({ id: `sarf_jam:${plain(m.mufrad)}`, kind: 'sarf_jam', prompt: m.mufrad, answer: m.jam, heard: m.surface,
+    if (m && out.length < n) out.push({ id: `sarf_jam:${plain(m.mufrad)}`, kind: 'sarf_jam', interaction: 'choose', prompt: m.mufrad, answer: m.jam, heard: m.surface,
                                          options: opts(m.jam, N.map((x) => x.jam)), quran: quran(m.ref) });
-    if (w && out.length < n) out.push({ id: `sarf_lemma:${plain(w.surface)}`, kind: 'sarf_lemma', prompt: w.surface, answer: w.lemma,
+    if (w && out.length < n) out.push({ id: `sarf_lemma:${plain(w.surface)}`, kind: 'sarf_lemma', interaction: 'choose', prompt: w.surface, answer: w.lemma,
                                          options: opts(w.lemma, M.map((x) => x.lemma)), quran: quran(w.ref) });
     i++;
   }
