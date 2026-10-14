@@ -507,7 +507,7 @@ CREATE TABLE "ar_ling_gram_term_example" (
   example_kind  TEXT NOT NULL DEFAULT 'quran',
   qr_ref        TEXT,
   source_ref    TEXT,
-  sort_order    INTEGER NOT NULL DEFAULT 0, evidence TEXT,
+  sort_order    INTEGER NOT NULL DEFAULT 0, evidence TEXT, focus_ar TEXT,
   FOREIGN KEY (term_id) REFERENCES "ar_ling_gram_term"(id)
 );
 
