@@ -58,6 +58,13 @@ export function instruct<T extends { kind: string; instruction?: string | null; 
 /// is dropped, never dealt and never filed (dropEmpty).
 /// Where a drill sits, so its card can be grouped: the skill it was drilled in, the level,
 /// and the series or book, episode and scene it came from.
+/// Concept-based only: drills of a kind retired in its label row (about a person, a book, a bāb, a school's position —
+/// information gathering, AR 0053) are dropped.
+export const dropRetired = <T extends Record<string, unknown>>(xs: T[], L: Record<string, Label[]>) => {
+  const K = new Map((L.kind ?? []).map((l) => [l.key, l]));
+  return xs.filter((x) => !(K.get(String(x.ask ?? x.kind ?? ''))?.extra as { retired?: unknown } | null)?.retired);
+};
+
 /// The drills worth dealing: an empty one (no card can be made of it) is dropped.
 export const dropEmpty = <T extends Record<string, unknown>>(xs: T[]) => xs.filter((x) => x.srs != null);
 

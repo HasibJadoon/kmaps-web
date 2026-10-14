@@ -3,7 +3,7 @@ import { attachGt } from '../../../shared/src/gt-attach';
 import { ok, badRequest } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
-import { labels, byKey, skillCard, instruct, srsCardFor, dropEmpty } from '../lib/labels';
+import { labels, byKey, skillCard, instruct, srsCardFor, dropEmpty, dropRetired } from '../lib/labels';
 import { worksOfStep } from './learn-path';
 import { commonWords, isCommon } from '../lib/common';
 import { freqKey, freqOf, highEndOf } from '../lib/highend';
@@ -619,7 +619,7 @@ export function practiceRoutes(router: Router<ArabicEnv>) {
       `SELECT id, json_extract(meta_json, '$.series') AS series FROM ar_acquisition_ref WHERE id IN (${works.map(() => '?').join(',')})`, works) : [])
       .map((r) => [r.id, r.series] as const));
     // every drill with its review card; an empty one (nothing asked or answered) is dropped, never dealt
-    const withCards = dropEmpty((items as Array<Record<string, unknown>>).map((it) => {
+    const withCards = dropEmpty(dropRetired(items as Array<Record<string, unknown>>, all).map((it) => {
       const w = (it.source as { workId?: string } | undefined)?.workId;
       return { ...it, srs: it.srs ?? srsCardFor(it, { skill, band, series: w ? series.get(w) ?? null : null }) };
     }));

@@ -230,6 +230,8 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
   }
   const shaped = pool.flatMap((it) => {
     const k = kinds.get(String(it.ask ?? skill)) ?? kinds.get(skill);
+    // concept-based only: a kind about a person, a book, a school or where something stands is retired (qr_124)
+    if ((kinds.get(String(it.ask ?? it.kind ?? ''))?.extra as { retired?: unknown } | null)?.retired) return [];
     const { ask: _a, ...rest } = it;
     // a drill a builder dealt without its card still files one: nothing practised is left out of review
     const d = ensureCard({ ...rest, instruction: k?.label ?? null, instructionAr: k?.labelAr ?? null }, skill);

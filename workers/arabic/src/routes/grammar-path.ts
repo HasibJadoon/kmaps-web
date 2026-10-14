@@ -4,7 +4,7 @@ import { ok, notFound, badRequest, unauthorized } from '../../../shared/src/resp
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { actorRef } from '../../../shared/src/auth';
 import type { ArabicEnv } from '../env';
-import { labels, byKey, skillCard } from '../lib/labels';
+import { labels, byKey, skillCard, dropRetired } from '../lib/labels';
 import { al, qr, heardOf, spanOf, round, setting, fill, termsOf, lessonPreview, type L, type TermCard } from '../lib/grammar';
 
 // ── The grammar path: tracks, lessons, one after another ────────────────────
@@ -211,8 +211,8 @@ export function grammarPathRoutes(router: Router<ArabicEnv>) {
       const terms = await termsOf(env, lessons);
       if (!terms.length) return badRequest('this lesson teaches no registry term yet');
       const size = setting(all, step === 'drill' ? 'grammar_drill_size' : 'grammar_check_size', step === 'drill' ? 10 : 12);
-      const items = await round(env, all, plan, terms, size, { skill: 'grammar_path', band: track.label.key, series: lesson.title_en ?? lesson.title_ar, episode: id },
-                                step === 'drill' ? [id] : lessons, step === 'drill' ? (level === 'advanced' ? [1, 2, 3] : [1, 2]) : [1, 2, 3]);
+      const items = dropRetired(await round(env, all, plan, terms, size, { skill: 'grammar_path', band: track.label.key, series: lesson.title_en ?? lesson.title_ar, episode: id },
+                                step === 'drill' ? [id] : lessons, step === 'drill' ? (level === 'advanced' ? [1, 2, 3] : [1, 2]) : [1, 2, 3]), all);
       const P = byKey(all.grammar_path);
       const card = P.get(step);
       const deck = P.get('srs_deck');
