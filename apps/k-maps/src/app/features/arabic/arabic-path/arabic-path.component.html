@@ -1,0 +1,143 @@
+<div class="pa">
+  <header class="pa__header">
+    <button class="pa__back" (click)="goBack()">← ARABIC</button>
+    @if (data(); as d) {
+      <h1 class="pa__title">
+        {{ d.title.label }}
+        @if (d.title.labelAr) { <span class="pa__ar" dir="rtl" lang="ar">{{ d.title.labelAr }}</span> }
+      </h1>
+      @if (d.title.detail) { <p class="pa__sub">{{ d.title.detail }}</p> }
+      <div class="pa__progress">
+        <div class="pa__bar" role="progressbar" [attr.aria-valuenow]="d.progress.percent" aria-valuemin="0" aria-valuemax="100">
+          <div class="pa__bar-fill" [style.width.%]="d.progress.percent"></div>
+        </div>
+        <span class="pa__progress-label">
+          {{ d.progress.label }} · {{ d.progress.percent }}%
+          @if (d.progress.labelAr) { <span class="pa__ar-s" dir="rtl" lang="ar">{{ d.progress.labelAr }}</span> }
+        </span>
+      </div>
+      <p class="pa__hint">
+        {{ d.graded.label }}
+        @if (d.graded.detail) { — {{ d.graded.detail }} }
+      </p>
+    }
+  </header>
+
+  <div class="pa__body">
+    @if (loading()) {
+      <div class="pa__spinner"></div>
+    } @else if (error()) {
+      <p class="pa__error">{{ error() }}</p>
+    } @else if (data(); as d) {
+
+      <!-- Today: one step from each lane -->
+      <section class="pa__section">
+        <h2 class="pa__h">
+          {{ d.today.label }}
+          @if (d.today.labelAr) { <span class="pa__ar" dir="rtl" lang="ar">{{ d.today.labelAr }}</span> }
+        </h2>
+        @if (d.today.detail) { <p class="pa__hint">{{ d.today.detail }}</p> }
+        <div class="pa__today">
+          @for (s of d.today.steps; track s.id) {
+            <button class="pa__card" [style.border-left-color]="s.lane.color" (click)="toggle(s)"
+                    [class.pa__card--on]="openId() === s.id">
+              <span class="pa__card-lane" [style.color]="s.lane.color">{{ s.lane.label }}</span>
+              <span class="pa__card-title" dir="auto">{{ s.title }}</span>
+              <span class="pa__card-meta">
+                <span class="pa__badge">{{ s.level }}</span>
+                <span class="pa__state" [style.color]="s.state.color" [style.border-color]="s.state.color">{{ s.state.label }}</span>
+              </span>
+              @if (s.gradedLine) { <span class="pa__card-line">{{ s.gradedLine.label }}</span> }
+              @if (s.lockedWhy) { <span class="pa__card-line" dir="auto">{{ s.lockedWhy.label }}</span> }
+            </button>
+          }
+        </div>
+        @for (s of d.today.steps; track s.id) {
+          @if (openId() === s.id) {
+            <div class="pa__card-detail">
+              <ng-container *ngTemplateOutlet="detailTpl; context: { $implicit: s, d: d }"></ng-container>
+            </div>
+          }
+        }
+      </section>
+
+      <!-- Lanes -->
+      <section class="pa__section">
+        <div class="pa__lanes">
+          @for (l of d.lanes; track l.key) {
+            <button class="pa__lane" [style.border-top-color]="l.color" [class.pa__lane--on]="lane() === l.key"
+                    (click)="setLane(l.key)" [attr.title]="l.detail">
+              <span class="pa__lane-name">{{ l.label }}</span>
+              @if (l.labelAr) { <span class="pa__ar-s" dir="rtl" lang="ar">{{ l.labelAr }}</span> }
+              <span class="pa__lane-count">{{ l.done }} / {{ l.total }}</span>
+              <span class="pa__lane-bar"><span [style.width.%]="l.total ? (l.done * 100 / l.total) : 0" [style.background]="l.color"></span></span>
+            </button>
+          }
+        </div>
+      </section>
+
+      <!-- Every step, in step order -->
+      <section class="pa__section">
+        <div class="pa__chips">
+          @for (l of d.lanes; track l.key) {
+            <button class="pa__chip" [class.pa__chip--on]="lane() === l.key"
+                    [style.color]="lane() === l.key ? l.color : null" [style.border-color]="lane() === l.key ? l.color : null"
+                    (click)="setLane(l.key)">
+              <span class="pa__dot" [style.background]="l.color"></span>{{ l.label }}
+            </button>
+          }
+          <span class="pa__legend">
+            @for (st of d.states; track st.key) {
+              <span class="pa__legend-item"><span class="pa__dot" [style.background]="st.color"></span>{{ st.label }}</span>
+            }
+          </span>
+        </div>
+
+        <ol class="pa__list">
+          @for (s of steps(); track s.id) {
+            <li class="pa__row" [style.border-left-color]="s.lane.color" [class.pa__row--on]="openId() === s.id"
+                [class.pa__row--locked]="s.state.key === 'locked'">
+              <div class="pa__row-main" (click)="toggle(s)" (keydown.enter)="toggle(s)" tabindex="0" role="button">
+                <span class="pa__row-n">{{ s.step }}</span>
+                <span class="pa__row-text">
+                  <span class="pa__row-title" dir="auto">{{ s.title }}</span>
+                  <span class="pa__row-meta">
+                    <span [style.color]="s.lane.color">{{ s.lane.label }}</span>
+                    <span>· {{ s.level }}</span>
+                    @if (s.gradedLine) { <span>· {{ s.gradedLine.label }}</span> }
+                    @if (s.lockedWhy) { <span dir="auto">· {{ s.lockedWhy.label }}</span> }
+                  </span>
+                </span>
+                <span class="pa__state" [style.color]="s.state.color" [style.border-color]="s.state.color">{{ s.state.label }}</span>
+              </div>
+              @if (openId() === s.id) {
+                <div class="pa__detail">
+                  <ng-container *ngTemplateOutlet="detailTpl; context: { $implicit: s, d: d }"></ng-container>
+                </div>
+              }
+            </li>
+          }
+        </ol>
+      </section>
+    }
+  </div>
+</div>
+
+<ng-template #detailTpl let-s let-d="d">
+  <div class="pa__actions">
+    <a class="pa__link" [href]="s.url" target="_blank" rel="noopener">{{ s.url }} ↗</a>
+    @if (s.state.key === 'open') {
+      <button class="pa__btn" [disabled]="busy() === s.id" (click)="move(s, 'started')">{{ d.actions.start.label }}</button>
+    }
+    @if (s.state.key === 'open' || s.state.key === 'started') {
+      <button class="pa__btn pa__btn--main" [disabled]="busy() === s.id" (click)="move(s, 'done')"
+              [attr.title]="d.actions.close.detail">{{ d.actions.close.label }}</button>
+    }
+    @if (s.state.key === 'done' || s.state.key === 'started') {
+      <button class="pa__btn" [disabled]="busy() === s.id" (click)="move(s, 'reset')">{{ d.actions.reopen.label }}</button>
+    }
+    <button class="pa__btn" disabled [attr.title]="d.actions.practice.detail">{{ d.actions.practice.label }}</button>
+  </div>
+  @if (d.actions.practice.detail) { <p class="pa__hint">{{ d.actions.practice.label }}: {{ d.actions.practice.detail }}</p> }
+  @if (errorFor(s); as msg) { <p class="pa__error">{{ msg }}</p> }
+</ng-template>

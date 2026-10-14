@@ -94,6 +94,12 @@ export const ARABIC_ROUTES: Routes = [
         title: 'Intake — Arabic',
       },
       {
+        path: 'path',
+        loadComponent: () =>
+          import('./arabic-path/arabic-path.component').then((m) => m.ArabicPathComponent),
+        title: 'Your way — Arabic',
+      },
+      {
         path: 'review',
         loadComponent: () =>
           import('./arabic-review/arabic-review.component').then(

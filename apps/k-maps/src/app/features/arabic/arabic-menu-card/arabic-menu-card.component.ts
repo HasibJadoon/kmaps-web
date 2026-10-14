@@ -40,6 +40,8 @@ export class ArabicMenuCardComponent implements OnInit {
   /// `gated` marks a door that needs a session. Saying so on the tile is kinder
   /// than letting someone open an empty screen and conclude there is no data.
   readonly features: ArabicFeature[] = [
+    { icon: '⚑', title: 'Your way to the goal', arabicTitle: 'طَرِيقُكَ إِلَى الغَايَة',
+      description: 'Reading classical tafsīr with ease — one step of each lane at a time', route: '/arabic/path', gated: true },
     { icon: 'ق', title: 'Read', arabicTitle: 'القراءة',
       description: 'Stories, maqāmāt, proverbs, dīwāns — tap any word', route: '/arabic/read' },
     { icon: '▶', title: 'Series', arabicTitle: 'المسلسلات',
