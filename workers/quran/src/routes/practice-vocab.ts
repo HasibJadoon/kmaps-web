@@ -18,15 +18,20 @@ import { loadAyat, withCard, levelOf, shuffle, uniq, parseJson, type Ayah, type 
 //   L1 vocab_root · vocab_lemma · vocab_meaning     — the scope's frequent lemmas first
 //   L2 vocab_family · vocab_kin · vocab_form · vocab_who   — the root's family; which book glosses it so
 //   L3 vocab_range · vocab_same · vocab_rung · vocab_books — only words a source places; how the books gloss it
-// A surah session walks the surah: its lemmas drawn tier by tier (frequent first, a little shuffled),
-// the drills in āyah order. The asks a level has come from qr_study_label (skill.extra_json.levels).
+// A surah session walks the surah's medium-to-super verbs, nouns and adjectives (qr_vocab_grade), medium first,
+// a little shuffled, and the places where a word is hard come first — an idiom, a meaning the books dispute,
+// a word the schools debate, an iʿrāb the books split on (qr_vocab_flag). A common word comes only at such a
+// place. The drills in āyah order; each carries its grade and its flags, the source quoted. The asks a level has come from qr_study_label (skill.extra_json.levels).
 
 type Item = { surah: number; ayah: number; word_index: number; word_text: string; root: string; lemma: string | null; pos: string | null;
               form_roman: string | null; wazn_ar: string | null; lemma_n: number; root_n: number; tier: number; n_lemmas: number;
               gloss_en: string | null; gloss_ref: string | null; here_en: string | null; here_ref: string | null; here_sense: string | null;
               senses_json: string | null };
 type Group = { root: string; lemma: string; tier: number; first: number; k: number; nl: number; pos: string | null;
-               gloss: string | null; wazn: string | null; lemma_n: number; placed: number };
+               gloss: string | null; wazn: string | null; lemma_n: number; placed: number; grade: string; flagged: number };
+type Flag = { surah: number; ayah: number; word_index: number; kind: string; detail: string | null; ref: string | null; quote_ar: string | null };
+/// the walk: medium → hard → super (qr_120; scripts/quran/vocab_grade.py)
+const GRADE_RANK: Record<string, number> = { medium: 0, hard: 1, super: 2, common: 1 };
 type Gloss = { surah: number; ayah: number; word_index: number; lang: string; text: string; source_slug: string; source_kind: string;
                citation: string; method: string; confidence: string; rank: number; role: string | null; grp: number | null; quote_ar: string | null };
 type Prim = { root: string; lemma: string; lang: string; text: string; source_kind: string; source_slug: string };
@@ -95,14 +100,22 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
   const advanced = want.every((a) => L3.has(a));
   const w = scopeSql(scope);
   // the scope's lemmas: how frequent (tier), where they first stand, whether a source places them
+  const wi = scopeSql(scope, 'i');
   const groups = await query<Group>(env.DB_QR,
-    `SELECT root, lemma, MIN(tier) AS tier, MIN(surah * 1000 + ayah) AS first, COUNT(*) AS k, MAX(n_lemmas) AS nl, MAX(pos) AS pos,
-            MAX(gloss_en) AS gloss, MAX(wazn_ar) AS wazn, MAX(lemma_n) AS lemma_n, MAX(senses_json IS NOT NULL) AS placed
-       FROM qr_vocab_item WHERE ${w.sql} AND lemma IS NOT NULL GROUP BY root, lemma`, w.args);
-  if (!groups.length) return [];
-  // walk: frequent first (a little shuffled within the walk), L3 only what a source places
-  const eligible = groups.filter((g) => !advanced || g.placed);
-  const order = eligible.map((g) => ({ g, r: g.tier + Math.random() * 1.6 })).sort((a, b) => a.r - b.r).map((x) => x.g);
+    `SELECT i.root, i.lemma, MIN(i.tier) AS tier, MIN(i.surah * 1000 + i.ayah) AS first, COUNT(*) AS k, MAX(i.n_lemmas) AS nl, MAX(i.pos) AS pos,
+            MAX(i.gloss_en) AS gloss, MAX(i.wazn_ar) AS wazn, MAX(i.lemma_n) AS lemma_n, MAX(i.senses_json IS NOT NULL) AS placed,
+            COALESCE(MAX(g.grade), 'medium') AS grade,
+            SUM(EXISTS (SELECT 1 FROM qr_vocab_flag f WHERE f.surah = i.surah AND f.ayah = i.ayah AND f.word_index = i.word_index)) AS flagged
+       FROM qr_vocab_item i LEFT JOIN qr_vocab_grade g ON g.root = i.root AND g.lemma = i.lemma
+      WHERE ${wi.sql} AND i.lemma IS NOT NULL AND COALESCE(g.focus, 1) = 1
+      GROUP BY i.root, i.lemma`, wi.args);
+  // common words only where they are flagged
+  const kept = groups.filter((g) => g.grade !== 'common' || g.flagged > 0);
+  if (!kept.length) return [];
+  // walk: medium → super, the flagged first (a little shuffled within the walk), L3 only what a source places
+  const eligible = kept.filter((g) => !advanced || g.placed);
+  const order = eligible.map((g) => ({ g, r: GRADE_RANK[g.grade] - (g.flagged ? 1 : 0) + Math.random() * 1.6 }))
+    .sort((a, b) => a.r - b.r).map((x) => x.g);
   const chosen = order.slice(0, Math.max(n * 3, 24));
   // their words in scope
   const occ = await query<Item>(env.DB_QR,
@@ -111,8 +124,20 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
        FROM qr_vocab_item WHERE ${w.sql} ${advanced ? 'AND senses_json IS NOT NULL' : ''}
         AND (root, lemma) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`,
     [...w.args, JSON.stringify(chosen.map((g) => [g.root, g.lemma]))]);
+  // where each is hard: its flags in scope
+  const flagRows = occ.length ? await query<Flag>(env.DB_QR,
+    `SELECT surah, ayah, word_index, kind, detail, ref, quote_ar FROM qr_vocab_flag
+      WHERE (surah, ayah, word_index) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]'), json_extract(value, '$[2]') FROM json_each(?))`,
+    [JSON.stringify(occ.map((o) => [o.surah, o.ayah, o.word_index]))]) : [];
+  const flagsOf = new Map<string, Flag[]>();
+  for (const f of flagRows) flagsOf.set(key(f), [...(flagsOf.get(key(f)) ?? []), f]);
+  const gradeOf = new Map(chosen.map((g) => [`${g.root}|${g.lemma}`, g.grade]));
   const occOf = new Map<string, Item[]>();
-  for (const o of occ) occOf.set(`${o.root}|${o.lemma}`, [...(occOf.get(`${o.root}|${o.lemma}`) ?? []), o]);
+  for (const o of occ) {
+    // a common word is drilled only at a flagged place
+    if (gradeOf.get(`${o.root}|${o.lemma}`) === 'common' && !flagsOf.has(key(o))) continue;
+    occOf.set(`${o.root}|${o.lemma}`, [...(occOf.get(`${o.root}|${o.lemma}`) ?? []), o]);
+  }
   // each root's family in the Qurʾān (its lemmas, their pattern and gloss, where one first stands)
   const roots = uniq(chosen.map((g) => g.root));
   const [fam, allRoots] = await Promise.all([
@@ -163,7 +188,8 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
   const spare = Math.ceil(n * 1.5);
   for (const g of chosen) {
     if (plans.length >= spare) break;
-    const os = shuffle(occOf.get(`${g.root}|${g.lemma}`) ?? []);
+    // the flagged places first: that is where the word is hard
+    const os = shuffle(occOf.get(`${g.root}|${g.lemma}`) ?? []).sort((a, b) => Number(flagsOf.has(key(b))) - Number(flagsOf.has(key(a))));
     if (!os.length) continue;
     for (let k = 0; k < want.length; k++) {
       const ask = want[(t + k) % want.length];
@@ -187,7 +213,7 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
     const idx = ay.ws.findIndex((x) => x.word_index === p.o.word_index);
     if (idx < 0) continue;
     const d = build(p.ask, p.o, ay, idx, ctx, wordsAt);
-    if (d) out.push(d);
+    if (d) out.push(marked(d, gradeOf.get(`${p.o.root}|${p.o.lemma}`) ?? 'medium', flagsOf.get(key(p.o)) ?? [], L));
   }
   // keep n, the asks still mixed, in āyah order
   if (out.length <= n) return out;
@@ -253,6 +279,26 @@ async function wordsOf(env: QuranEnv, refs: string[], roots: string[]) {
   const out = new Map<string, string>();
   for (const r of rows) out.set(`${r.surah}:${r.ayah}|${r.root}`, r.word_text);
   return out;
+}
+
+/// the drill's grade and, where it is hard here, why — each a badge from qr_study_label, the source quoted below
+function marked(d: Drill, grade: string, flags: Flag[], L: Record<string, Label[]>): Drill {
+  const gl = (L.vocab_grade ?? []).find((x) => x.key === grade);
+  const fl = new Map((L.vocab_flag ?? []).map((x) => [x.key, x]));
+  const badges = [...((d.badges as Array<Record<string, unknown>>) ?? []),
+    ...(gl ? [{ label: gl.label, labelAr: gl.labelAr, color: gl.color }] : []),
+    ...flags.flatMap((f) => { const x = fl.get(f.kind); return x ? [{ label: x.label, labelAr: x.labelAr, color: x.color }] : []; })];
+  const why = flags.map((f) => {
+    const x = fl.get(f.kind);
+    const head = `${x?.label ?? f.kind}${f.detail ? ` — ${f.detail}` : ''}`;
+    const tail = f.kind === 'grammar' ? '' : f.quote_ar ? `: «${clip(f.quote_ar, 220)}»` : '';
+    // the source: the books that differ · the tafsīr that names the schools (its slug, then its block) · Mir's page
+    const src = !f.ref || f.kind === 'grammar' ? '' : f.kind === 'meaning' ? f.ref.split(',').map((x) => bookOf(x).en).join(', ')
+      : f.kind === 'theology' ? `${bookOf(f.ref.split(' ')[0]).en}${/ p\.(\S+)/.exec(f.ref) ? `, p. ${/ p\.(\S+)/.exec(f.ref)![1]}` : ''}` : clip(f.ref, 80);
+    return `${head}${tail}${src ? ` (${src})` : ''}`;
+  });
+  return { ...d, badges, grade, hard: flags.map((f) => f.kind),
+           explanation: [d.explanation, ...why].filter(Boolean).join('\n') };
 }
 
 function build(ask: string, o: Item, ay: Ayah, idx: number, c: Ctx, wordsAt: Map<string, string>): Drill | null {
