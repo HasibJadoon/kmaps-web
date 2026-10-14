@@ -2164,3 +2164,15 @@ CREATE TABLE IF NOT EXISTS cyb_drill_type (
   note       TEXT,
   PRIMARY KEY (domain, scope, code)
 );
+
+-- 051 · the learner's level per skill (learner model, first piece)
+CREATE TABLE IF NOT EXISTS core_learner_skill (
+  user_ref   TEXT NOT NULL,
+  module     TEXT NOT NULL,
+  skill      TEXT NOT NULL,
+  level      TEXT NOT NULL,
+  rounds     INTEGER NOT NULL DEFAULT 0,
+  last_right INTEGER, last_total INTEGER,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_ref, module, skill)
+);

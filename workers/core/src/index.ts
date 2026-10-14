@@ -11,6 +11,7 @@ import { workspaceRoleRoutes } from './routes/workspace-roles';
 import { activityRoutes } from './routes/activity';
 import { grantRoutes } from './routes/grants';
 import { srsRoutes } from './routes/srs';
+import { learnerRoutes } from './routes/learner';
 import { drillClassRoutes } from './routes/drill-class';
 import { appsRoutes } from './routes/apps';
 import { scoresRoutes } from './routes/scores';
@@ -62,6 +63,7 @@ talkRoutes(router);
 cybRoutes(router);
 dsRoutes(router);
 studySessionRoutes(router);
+learnerRoutes(router);
 
 export { ReviewSession } from './review-session.do';
 export { QuizSession } from './quiz-session.do';
