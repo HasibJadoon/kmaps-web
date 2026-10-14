@@ -225,7 +225,7 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
   if (src === 'gram' || src === 'gramterm') {
     const expert = new Set((await query<{ id: string }>(env.DB_QR, `SELECT id FROM ar_ling_gram_term WHERE tier = 'expert'`)
       .catch(() => [] as Array<{ id: string }>)).map((r) => r.id));
-    if (expert.size) pool = items.filter((it) => ((it.terms as string[] | undefined) ?? [it.termId as string | undefined].filter(Boolean) as string[])
+    pool = items.filter((it) => ((it.terms as string[] | undefined) ?? [it.termId as string | undefined].filter(Boolean) as string[])
       .some((t) => expert.has(t)));
   }
   const shaped = pool.flatMap((it) => {
@@ -511,6 +511,8 @@ async function gramDrills(env: QuranEnv, skill: string, discipline: string, n: n
       options: shuffle([answer, ...others]), answer,
       note: { en: cap(e.nameEn), ar: e.nameAr }, explanation: e.definition,
       source: { workId: `QR:SURAH:${a.surah}`, title: a.title, level: null },
+      // the term it tests — the expert-tier filter (drawSkill) keeps only drills whose term is expert
+      termId: e.termId, terms: [e.termId],
     };
     return withCard(drill, { ref: `QR:${skill}:${e.id}`, type: 'grammar', kind: skill,
       front: `${e.exampleAr}\n(${e.ref}) — ?`, back: `${answer}${e.definition ? `\n${e.definition}` : ''}`,
