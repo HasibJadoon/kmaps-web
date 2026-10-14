@@ -203,7 +203,7 @@ function candidates(P: Pools, L: Record<string, Label[]>, scope: { surahs: Set<n
         prompt: `﴿${o.text}﴾ — the opening of Sūrat ${s.translit ?? s.name_en} (${s.id}). Which group shares it?`,
         options: shuffle([groupLabel(g), ...wrong]), answer: groupLabel(g),
         explanation: `${groupName(g)}: ${g.summary_md.split(/(?<=\.)\s/)[0]}`,
-      }, { ref: `QR:groups:shared_opening:${s.id}`, front: `﴿${o.text}﴾ — which group shares this opening?`, back: `${groupName(g)} (${s.id})`, surah: s.id, series: groupName(g), band });
+      }, { ref: `QR:groups:shared_opening:${g.slug}:${s.id}`, front: `﴿${o.text}﴾ — which group shares this opening?`, back: `${groupName(g)} (${s.id})`, surah: s.id, series: groupName(g), band });
     });
   }
 
@@ -238,7 +238,7 @@ function candidates(P: Pools, L: Record<string, Label[]>, scope: { surahs: Set<n
         id: `groups:surah_aim:${g.slug}:${s.id}`, kind: 'gist', ask: 'surah_aim', ...base(s.id),
         prompt: `Ibn ʿĀshūr on the aims of one surah of ${groupName(g)}:\n“${aim}”`, options: shuffle([surahLabel(s), ...wrong]), answer: surahLabel(s),
         explanation: `${surahLabel(s)} — ${cite('ibn_ashur')}, the surah's aims (aghrāḍ)`,
-      }, { ref: `QR:groups:surah_aim:${s.id}`, front: `“${aim}”\n— which surah of ${groupName(g)}?`, back: `${surahLabel(s)}\n${cite('ibn_ashur')}`, surah: s.id, series: groupName(g), band });
+      }, { ref: `QR:groups:surah_aim:${g.slug}:${s.id}`, front: `“${aim}”\n— which surah of ${groupName(g)}?`, back: `${surahLabel(s)}\n${cite('ibn_ashur')}`, surah: s.id, series: groupName(g), band });
     });
   }
 

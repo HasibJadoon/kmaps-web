@@ -274,7 +274,7 @@ function familyDrill(type: string, o: Occ, lemmasOf: Map<string, string[]>, occ:
       prompt: `The marked word is of the root ${spaced(o.root)}. Which of these is NOT of that root?`, options: shuffle([outsider, ...mine]), answer: outsider,
       note: { en: 'not of the root', ar: 'لَيْسَ مِنَ الجَذْر' },
       explanation: `${outsider} is of ${spaced(near[0]?.root ?? '')}. The root ${spaced(o.root)} gives:\n${meanings}` };
-    return withCard(drill, { ref: `QR:lexicon:odd:${o.root}`, type: 'lexicon', band, front: `${spaced(o.root)} — which is not of it?\n${mine.join('، ')}، ${outsider}`,
+    return withCard(drill, { ref: `QR:lexicon:odd:${ay.key}:${o.word_index}`, type: 'lexicon', band, front: `${spaced(o.root)} — which is not of it?\n${mine.join('، ')}، ${outsider}`,
       back: outsider, surah: ay.surah, ayah: ay.ayah, series: 'Lemma families' });
   }
   // form: the marked verb's form, and what Lane says it means in that form
@@ -285,6 +285,6 @@ function familyDrill(type: string, o: Occ, lemmasOf: Map<string, string[]>, occ:
   const drill = { ...base, id: `lexicon:form:${ay.key}:${o.word_index}`, kind: 'feature', ask: 'lex_form', span: [idx],
     prompt: `Which form (wazn) is the marked verb?`, options: opts, answer: label(f), note: { en: `Form ${f}`, ar: FORMS[f] },
     explanation: `${o.word_text} is Form ${f} (${FORMS[f]}) of ${spaced(o.root)}.${lane ? ` Lane, ${lane.head}: ${gl.find((g) => loose(g.head) === loose(lane.head) && g.gloss)?.gloss ?? ''}` : ''}` };
-  return withCard(drill, { ref: `QR:lexicon:form:${o.root}:${f}`, type: 'lexicon', band, front: `${ay.ws.map((x) => x.word_text).join(' ')}\n${o.word_text} — form?`,
+  return withCard(drill, { ref: `QR:lexicon:form:${ay.key}:${o.word_index}`, type: 'lexicon', band, front: `${ay.ws.map((x) => x.word_text).join(' ')}\n${o.word_text} — form?`,
     back: label(f), surah: ay.surah, ayah: ay.ayah, series: 'Verb forms' });
 }

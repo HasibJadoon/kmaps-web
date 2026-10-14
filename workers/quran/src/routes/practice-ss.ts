@@ -246,11 +246,11 @@ export async function ssDrills(env: QuranEnv, n: number, scope: Scope, lv: Recor
         const wrong = uniq([...pool, ...shuffle([...term.keys()].filter((x) => x !== id))]).slice(0, 3).map(figureLabel);
         if (wrong.length < 3) continue;
         out.push(card({
-          ...base, id: `ss:nuance:${r.id}`, prompt: 'Which figure of balāgha does al-Jadwal find in the marked words?',
+          ...base, id: `ss:nuance:jadwal:${r.id}`, prompt: 'Which figure of balāgha does al-Jadwal find in the marked words?',
           options: shuffle([figureLabel(id), ...wrong]), answer: figureLabel(id),
           note: { en: cap(term.get(id)?.name_en ?? ''), ar: term.get(id)?.name_ar ?? '' },
           explanation: `${r.nuance_text_ar} — ${bookName('qul_jadwal_irab_quran')}`,
-        }, `nuance:${r.id}`, `${line}\n${marked} — which figure?`, `${figureLabel(id)}\n${r.nuance_text_ar}`));
+        }, `nuance:jadwal:${r.id}`, `${line}\n${marked} — which figure?`, `${figureLabel(id)}\n${r.nuance_text_ar}`));
       } else {
         const text = String(r.nuance_text ?? '');
         if (!text || text.length > 220) continue;
