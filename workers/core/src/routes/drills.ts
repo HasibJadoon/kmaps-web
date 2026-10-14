@@ -6,7 +6,8 @@ import type { CoreEnv } from '../env';
 
 // ── The authored drill bank (core 052) ──────────────────────────────────────────────────────────────────────────
 //
-//   GET /core/cyb/drills?domain=QR&work=QR:SURAH:44&from=1&to=8&kind=…&skill=…&limit=…
+//   GET /core/cyb/drills?domain=QR&work=QR:SURAH:44&from=1&to=8&kind=…&skill=…&limit=…&concepts=…
+//        (no work and no āyāt: `concepts` whole concepts, least met by this learner first)
 //        the live authored drills of a lesson (its work, and for the Qurʾān its āyāt), each as dealt with its gid —
 //        a lesson deals them among its own
 //   GET /core/cyb/drills/audit
@@ -43,6 +44,21 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
     const from = Number(p('from')), to = Number(p('to'));
     if (from > 0 && to >= from) { where.push('intro_ayah BETWEEN ? AND ?'); args.push(from, to); }
     const limit = Math.min(500, Math.max(1, Number(p('limit')) || 200));
+    // no lesson given (a skill's own practice — the grammar concepts): whole concepts, the ones this learner has met
+    // least first, then at random — so a round climbs one concept's steps and the bank is walked through, not its
+    // first rows over and over
+    if (!p('work') && !(from > 0 && to >= from)) {
+      const n = Math.min(40, Math.max(1, Number(p('concepts')) || 6));
+      const works = await query<{ work_ref: string }>(env.DB_CORE,
+        `SELECT d.work_ref, COUNT(c.id) AS met FROM cyb_drill d
+           LEFT JOIN core_srs_card c ON c.drill_gid = d.gid AND c.user_ref = ?
+          WHERE ${where.map((w) => 'd.' + w).join(' AND ')} AND d.work_ref IS NOT NULL
+          GROUP BY d.work_ref ORDER BY met, random() LIMIT ${n}`, [ctx.userId, ...args]);
+      if (works.length) {
+        where.push(`work_ref IN (${works.map(() => '?').join(',')})`);
+        args.push(...works.map((w) => w.work_ref));
+      }
+    }
     const rows = await query<DrillRow>(env.DB_CORE,
       `SELECT gid, skill, work_ref, intro_ayah, payload_json FROM cyb_drill WHERE ${where.join(' AND ')}
         ORDER BY intro_ayah, gid LIMIT ${limit}`, args);

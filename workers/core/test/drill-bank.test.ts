@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import { auditDrills } from '../src/routes/drills';
+import { auditDrills, drillBankRoutes } from '../src/routes/drills';
+import { signJwt } from '../src/jwt';
 
 function d1(db: DatabaseSync) {
   return { prepare: (sql: string) => {
@@ -53,4 +54,24 @@ test('AGR:DRL: a clean drill passes; a broken one is caught by its rule', async 
   for (const id of ['AGR:DRL:001', 'AGR:DRL:002', 'AGR:DRL:003', 'AGR:DRL:004', 'AGR:DRL:005', 'AGR:DRL:006', 'AGR:DRL:007', 'AGR:DRL:008', 'AGR:DRL:010']) {
     assert.ok((bad[id] ?? 0) >= 1, `${id} catches its fault (found ${bad[id]})`);
   }
+});
+
+test('a skill practice with no lesson gets whole concepts, the least met first', async () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
+  const put = db.prepare(`INSERT INTO cyb_drill (gid, domain, discipline, kind, interaction, skill, work_ref, payload_json, status) VALUES (?, 'AR', 'BL', 'feature', 'choose', 'grammar', ?, ?, 'live')`);
+  for (const c of ['A', 'B', 'C']) for (const st of [1, 2, 3]) put.run(`DRL:AR:BL:bl:${st}:${c}`, `GT:${c}`, JSON.stringify({ id: `bl:${st}:${c}`, step: st }));
+  db.exec('PRAGMA foreign_keys = OFF');
+  // the learner has met A and B, never C
+  db.exec(`INSERT INTO core_srs_card (id, user_ref, deck_id, module, resource_type, resource_ref, front_text, back_text, drill_gid)
+           VALUES ('k1', 'U1', 'D', 'AR', 'grammar', 'r1', 'q', 'a', 'DRL:AR:BL:bl:1:A'), ('k2', 'U1', 'D', 'AR', 'grammar', 'r2', 'q', 'a', 'DRL:AR:BL:bl:1:B')`);
+  type H = (r: Request, e: unknown, p: unknown) => Promise<Response>;
+  const routes = new Map<string, H>();
+  drillBankRoutes({ get: (p: string, h: H) => routes.set(p, h), post: () => {} } as never);
+  const t = await signJwt({ sub: 'U1', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 }, 's');
+  const res = await routes.get('/core/cyb/drills')!(new Request('http://x/core/cyb/drills?domain=AR&skill=grammar&concepts=1',
+    { headers: { authorization: `Bearer ${t}` } }), { DB_CORE: d1(db), JWT_SECRET: 's' }, {});
+  const body = await res.json() as { data: { drills: Array<{ gid: string }> } };
+  assert.deepEqual(body.data.drills.map((d) => d.gid).sort(), ['DRL:AR:BL:bl:1:C', 'DRL:AR:BL:bl:2:C', 'DRL:AR:BL:bl:3:C'],
+    'one whole concept, the one never met');
 });
