@@ -99,7 +99,7 @@ describe('one timestamp format reaches the column', () => {
         resource_ref TEXT, card_template TEXT, front_text TEXT, back_text TEXT,
         extra_json TEXT, tags TEXT, card_kind TEXT, concept_domain TEXT,
         note_type_id TEXT, fields_json TEXT, root_norm TEXT, intro_surah INTEGER, intro_ayah INTEGER,
-        next_review_at TEXT, work_ref TEXT, leech INTEGER DEFAULT 0,
+        next_review_at TEXT, work_ref TEXT, leech INTEGER DEFAULT 0, drill_gid TEXT,
         suspended INTEGER DEFAULT 0, stability REAL, difficulty REAL,
         card_state TEXT DEFAULT 'new', learning_step INTEGER DEFAULT 0,
         reps INTEGER DEFAULT 0, lapses INTEGER DEFAULT 0,

@@ -61,6 +61,8 @@ test('a resent answer changes nothing; review deals drills only; a leech goes ba
   assert.ok(again.cards[0].seen || again.cards[0].graded === false);
   assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM core_srs_review WHERE op_id = 'op-1'`).get()!.n, 1);
   assert.equal(db.prepare(`SELECT work_ref FROM core_srs_card WHERE resource_ref = 'QR:fill:40:1'`).get()!.work_ref, 'QR:SURAH:40');
+  // every drill has one global id
+  assert.equal(db.prepare(`SELECT drill_gid FROM core_srs_card WHERE resource_ref = 'QR:fill:40:1'`).get()!.drill_gid, 'DRL:QR:QR:fill:40:1');
 
   // nothing reaches SRS without its drill and its answer
   const bare = await fileCards(env, 'U1', [{ module: 'QR', resource_type: 'passage', resource_ref: 'QR:x', front_text: 'q', back_text: 'a' }],

@@ -1,5 +1,5 @@
 import { query } from '../../../shared/src/db';
-import { validOptions } from '../../../shared/src/drill-check';
+import { validOptions, drillGid } from '../../../shared/src/drill-check';
 import type { ArabicEnv } from '../env';
 
 // Every label an exercise shows lives in ar_practice_label (migration 0013):
@@ -140,7 +140,8 @@ export function srsCardFor(it: Record<string, unknown>, g: DrillGroup = {}): Rec
   // what a review needs to play it again: the whole drill as it was drilled (the clip, the
   // timed words, the blank, the options) — review replays it as a drill, not a flipped card.
   // Its context panel is left out: a review fetches that when it is opened.
-  const { srs: _s, context: _c, badges: _b, ...drill } = it;
+  const { srs: _s, context: _c, badges: _b, ...rest } = it;
+  const drill = { ...rest, gid: drillGid('AR', it.id) };
   const src = (it.source ?? {}) as { workId?: string; title?: string; level?: string | null };
   const extra: Record<string, unknown> = {
     drill,

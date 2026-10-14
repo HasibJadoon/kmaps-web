@@ -20,3 +20,7 @@ export function validOptions(d: Record<string, unknown>): boolean {
   if (Array.isArray(d.correct)) return (d.correct as unknown[]).length > 0 && (d.correct as number[]).every((i) => i >= 0 && i < list.length);
   return typeof d.answer === 'string' && list.includes(d.answer);
 }
+
+/** A drill's GLOBAL id: the stream it belongs to and its own stable id — the same drill is the same id for every learner,
+ *  every session, every surface (core keeps it as drill_gid; Phase 1's cyb_drill uses it as its key). */
+export const drillGid = (stream: 'AR' | 'QR' | 'WV', id: unknown): string => `DRL:${stream}:${String(id)}`;

@@ -96,6 +96,14 @@ const workOf = (extra: string | null | undefined): string | null => {
   catch { return null; }
 };
 
+/** the drill's global id: its own gid, or DRL:<module>:<drill id> */
+const gidOf = (module: string, extra: string | null | undefined): string | null => {
+  try {
+    const d = extra ? (JSON.parse(extra) as { drill?: { gid?: unknown; id?: unknown } }).drill : null;
+    return typeof d?.gid === 'string' ? d.gid : d?.id != null ? `DRL:${module}:${String(d.id)}` : null;
+  } catch { return null; }
+};
+
 const CARD_COLS = `
   id, deck_id, user_ref, module, resource_type, resource_ref, card_template,
   front_text, back_text, extra_json, tags, card_kind, concept_domain, suspended,
@@ -309,8 +317,8 @@ export class SrsRepo {
       `INSERT INTO core_srs_card
          (id, deck_id, user_ref, module, resource_type, resource_ref, card_template,
           front_text, back_text, extra_json, tags, card_kind, concept_domain,
-          note_type_id, fields_json, root_norm, intro_surah, intro_ayah, next_review_at, work_ref)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          note_type_id, fields_json, root_norm, intro_surah, intro_ayah, next_review_at, work_ref, drill_gid)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (deck_id, resource_ref, card_template) DO NOTHING`,
       [id, input.deck_id, input.user_ref, input.module, input.resource_type,
        input.resource_ref, input.card_template ?? 'freeform',
@@ -320,7 +328,7 @@ export class SrsRepo {
        input.note_type_id ?? null, input.fields_json ?? null,
        input.root_norm ?? null, input.intro_surah ?? null, input.intro_ayah ?? null,
 
-       new Date().toISOString(), workOf(input.extra_json)]);
+       new Date().toISOString(), workOf(input.extra_json), gidOf(input.module, input.extra_json)]);
     const row = await queryOne<SrsCard>(this.db,
       `SELECT ${CARD_COLS} WHERE deck_id = ? AND resource_ref = ? AND card_template = ?`,
       [input.deck_id, input.resource_ref, input.card_template ?? 'freeform']);

@@ -758,6 +758,7 @@ CREATE TABLE "core_srs_card" (
 );
 ALTER TABLE core_srs_card ADD COLUMN work_ref TEXT;
 ALTER TABLE core_srs_card ADD COLUMN leech INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE core_srs_card ADD COLUMN drill_gid TEXT;
 
 CREATE TABLE core_srs_card_concept (
   card_id      TEXT NOT NULL REFERENCES core_srs_card(id) ON DELETE CASCADE,
