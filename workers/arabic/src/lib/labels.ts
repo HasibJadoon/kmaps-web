@@ -1,4 +1,5 @@
 import { query } from '../../../shared/src/db';
+import { validOptions } from '../../../shared/src/drill-check';
 import type { ArabicEnv } from '../env';
 
 // Every label an exercise shows lives in ar_practice_label (migration 0013):
@@ -126,8 +127,9 @@ export function srsCardFor(it: Record<string, unknown>, g: DrillGroup = {}): Rec
     || (units.length ? [...units].sort().join(' · ') : null);
   back = back || ans || (pairs.length ? pairs.map((p) => p[1]).join('\n') : null) || (units.length ? units.join(' → ') : null)
     || s(it.explanation) || en || line;
-  // an empty drill — nothing asked or nothing to answer by — is not filed under a made-up name: it is dropped
-  if (!front || !back) return null;
+  // an empty drill — nothing asked or nothing to answer by — is not filed under a made-up name: it is dropped;
+  // so is one whose choices are unsound (answer missing, two the same, fewer than two)
+  if (!front || !back || !validOptions(it)) return null;
   // what a review needs to play it again: the whole drill as it was drilled (the clip, the
   // timed words, the blank, the options) — review replays it as a drill, not a flipped card.
   // Its context panel is left out: a review fetches that when it is opened.

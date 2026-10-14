@@ -1,4 +1,5 @@
 import { query } from '../../../shared/src/db';
+import { validOptions } from '../../../shared/src/drill-check';
 import type { QuranEnv } from '../env';
 import type { Label } from '../lib/labels';
 
@@ -83,6 +84,7 @@ export function withCard(drill: Drill, a: { ref: string; type: string; kind: str
 /// answers, so nothing practised is left out of review (iOS files nothing for a drill with no card). A builder's own
 /// card always wins. An EMPTY drill (nothing asked or nothing to answer) gives null: it is dropped, never dealt.
 export function ensureCard(drill: Drill, skill: string, band?: Band): Drill | null {
+  if (!validOptions(drill)) return null;            // unsound choices: dropped, never dealt
   if (drill.srs) return drill;
   const s = (x: unknown) => (typeof x === 'string' && x.trim() ? x.trim() : null);
   const line = ((drill.words as Array<{ t: string }> | undefined) ?? []).map((w) => w.t).join(' ') || null;

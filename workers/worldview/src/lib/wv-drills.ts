@@ -1,4 +1,5 @@
 import type { WvRhetoricDevice, WvRhetoricTerm, WvRhetoricUsage } from '../repositories/rhetoric.repo';
+import { validOptions } from '../../../shared/src/drill-check';
 import { clozeQuote } from './rhetoric-cards';
 
 /**
@@ -42,8 +43,9 @@ function filed(d: Drill, ref: string, kind: string, front: string, back: string,
 
 function choose(id: string, prompt: string, answer: string, wrong: string[], extra: Drill): Drill | null {
   if (wrong.length < 2) return null;
-  return { id, kind: 'feature', interaction: 'choose', script: 'english', prompt, answer,
-           options: shuffle([clip(answer), ...wrong], id), ...extra, ...(extra.answer ? {} : { answer: clip(answer) }) };
+  const d: Drill = { id, kind: 'feature', interaction: 'choose', script: 'english', prompt, answer,
+           options: shuffle([clip(answer), ...wrong.filter((w) => w !== clip(answer))], id), ...extra, ...(extra.answer ? {} : { answer: clip(answer) }) };
+  return validOptions(d) ? d : null;
 }
 
 export function rhetoricDrills(terms: WvRhetoricTerm[], pool: WvRhetoricTerm[], devices: WvRhetoricDevice[],
