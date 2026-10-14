@@ -58,7 +58,9 @@ export async function ssDrills(env: QuranEnv, n: number, scope: Scope, lv: Recor
 
   // ── draw each ask's pile ──
   const draw: Record<string, () => Promise<Pick[]>> = {
-    ss_kind: async () => { const w = sc(); return (await query<Reading>(env.DB_QR,
+    // retired: nominal vs verbal clause is basic grammar, not the high end the learner drills
+    ss_kind: async () => [],
+    ss_kind_basic: async () => { const w = sc(); return (await query<Reading>(env.DB_QR,
       `SELECT rowid AS rid, * FROM qr_ss_clause_reading WHERE is_backbone = 1 AND clause_id IS NOT NULL AND kind IN ('ismiyya','filiyya')
          AND kind_head IS NOT NULL AND ${w.sql} ORDER BY random() LIMIT ?`, [...w.args, take]))
       .map((r) => ({ ask: 'ss_kind', surah: r.surah, ayah: r.ayah, from: r.word_start, to: r.word_end, key: r.id, row: r })); },

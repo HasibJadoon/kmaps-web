@@ -33,7 +33,8 @@ export async function irabBookDrills(env: QuranEnv, n: number, scope: Scope, lv:
     : scope.from && scope.to ? { sql: 'surah = ? AND ayah BETWEEN ? AND ?', args: [scope.surah, scope.from, scope.to] }
     : { sql: 'surah = ?', args: [scope.surah] };
   const pick: Record<string, string> = {
-    irab_muyassar: `source_slug = '${MUYASSAR}' AND role_gt IS NOT NULL`,
+    // high end only: a word the books parse more than one way, never a plain role
+    irab_muyassar: `source_slug = '${MUYASSAR}' AND role_gt IS NOT NULL AND (n_roles >= 2 OR alt_roles_json IS NOT NULL)`,
     irab_which_book: 'n_roles >= 2 AND role_gt IS NOT NULL',
     irab_allowed: 'alt_roles_json IS NOT NULL',
     irab_who_allows: 'alt_roles_json IS NOT NULL',

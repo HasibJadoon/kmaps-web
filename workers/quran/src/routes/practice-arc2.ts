@@ -129,9 +129,14 @@ export async function arc2Drills(env: QuranEnv, n: number, scope: Scope, lv: Rec
   const want = uniq((asks.length ? asks : LEVEL_ASKS.basic).map((a) => (MEANING.has(a) ? a : 'arc_word')));
   const w = scopeWhere(scope);
   // the scope's roots, as the Qurʾān has them, and a few words of each (the āyah a drill stands in)
-  const occ = await query<Occ>(env.DB_QR,
-    `SELECT surah, ayah, word_index, word_text, root, lemma FROM qr_word_occurrence
-      WHERE root IS NOT NULL AND is_content_word = 1 AND ${w.sql} ORDER BY random() LIMIT 600`, w.args);
+  // high end only: a root with a lemma the Qurʾān makes medium → super (qr_vocab_grade); a database without the
+  // grades (no qr_120) takes every root
+  const sel = (high: boolean) => query<Occ>(env.DB_QR,
+    `SELECT surah, ayah, word_index, word_text, root, lemma FROM qr_word_occurrence o
+      WHERE root IS NOT NULL AND is_content_word = 1 AND ${w.sql}
+        ${high ? `AND EXISTS (SELECT 1 FROM qr_vocab_grade g WHERE g.root = o.root AND g.focus = 1 AND g.grade IN ('medium', 'hard', 'super'))` : ''}
+      ORDER BY random() LIMIT 600`, w.args);
+  const occ = await sel(true).catch(() => sel(false));
   const occOf = new Map<string, Occ[]>();
   for (const o of occ) occOf.set(o.root, [...(occOf.get(o.root) ?? []), o]);
   const roots = shuffle([...occOf.keys()]).slice(0, 80);

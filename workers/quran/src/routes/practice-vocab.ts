@@ -104,7 +104,7 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
   const groups = await query<Group>(env.DB_QR,
     `SELECT i.root, i.lemma, MIN(i.tier) AS tier, MIN(i.surah * 1000 + i.ayah) AS first, COUNT(*) AS k, MAX(i.n_lemmas) AS nl, MAX(i.pos) AS pos,
             MAX(i.gloss_en) AS gloss, MAX(i.wazn_ar) AS wazn, MAX(i.lemma_n) AS lemma_n, MAX(i.senses_json IS NOT NULL) AS placed,
-            COALESCE(MAX(g.grade), 'medium') AS grade,
+            COALESCE(MAX(g.grade), 'common') AS grade,   -- an ungraded lemma is not assumed hard
             SUM(EXISTS (SELECT 1 FROM qr_vocab_flag f WHERE f.surah = i.surah AND f.ayah = i.ayah AND f.word_index = i.word_index)) AS flagged
        FROM qr_vocab_item i LEFT JOIN qr_vocab_grade g ON g.root = i.root AND g.lemma = i.lemma
       WHERE ${wi.sql} AND i.lemma IS NOT NULL AND COALESCE(g.focus, 1) = 1
@@ -507,8 +507,9 @@ function build(ask: string, o: Item, ay: Ayah, idx: number, c: Ctx, wordsAt: Map
 export async function pairsDrills(env: QuranEnv, n: number, scope: Scope): Promise<Drill[]> {
   const w = scopeSql(scope);
   const rows = await query<{ lemma: string; root: string | null; gloss: string | null; wazn: string | null }>(env.DB_QR,
-    `SELECT lemma, MAX(root) AS root, MAX(gloss_en) AS gloss, MAX(wazn_ar) AS wazn FROM qr_vocab_item
-      WHERE ${w.sql} AND lemma IS NOT NULL GROUP BY lemma`, w.args);
+    `SELECT i.lemma, MAX(i.root) AS root, MAX(i.gloss_en) AS gloss, MAX(i.wazn_ar) AS wazn FROM qr_vocab_item i
+       JOIN qr_vocab_grade g ON g.root = i.root AND g.lemma = i.lemma AND g.grade IN ('medium', 'hard', 'super') AND g.focus = 1
+      WHERE ${scopeSql(scope, 'i').sql} AND i.lemma IS NOT NULL GROUP BY i.lemma`, w.args);   // medium → super only, never common words
   const facets = ['gloss', 'root', 'wazn'] as const;
   const out: Drill[] = [];
   for (let k = 0; out.length < n && k < n * facets.length; k++) {

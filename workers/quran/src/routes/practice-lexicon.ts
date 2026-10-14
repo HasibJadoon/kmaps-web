@@ -128,9 +128,14 @@ export async function lexiconDrills(env: QuranEnv, n: number, scope: Scope, lv: 
   const qrTypes = types.filter((t) => QR_TYPES.includes(t));
   const w = scopeWhere(scope);
   // the roots in scope, as the Qurʾān has them: a sample of their words, a few per root
-  const occ = await query<Occ>(env.DB_QR,
-    `SELECT surah, ayah, word_index, word_text, root, lemma, pos, form_roman FROM qr_word_occurrence
-      WHERE root IS NOT NULL AND is_content_word = 1 AND ${w.sql} ORDER BY random() LIMIT 400`, w.args);
+  // high end only: a root with a lemma the Qurʾān makes medium → super (qr_vocab_grade); a database without the
+  // grades (no qr_120) takes every root
+  const sel = (high: boolean) => query<Occ>(env.DB_QR,
+    `SELECT surah, ayah, word_index, word_text, root, lemma, pos, form_roman FROM qr_word_occurrence o
+      WHERE root IS NOT NULL AND is_content_word = 1 AND ${w.sql}
+        ${high ? `AND EXISTS (SELECT 1 FROM qr_vocab_grade g WHERE g.root = o.root AND g.focus = 1 AND g.grade IN ('medium', 'hard', 'super'))` : ''}
+      ORDER BY random() LIMIT 400`, w.args);
+  const occ = await sel(true).catch(() => sel(false));
   const occOf = new Map<string, Occ[]>();
   for (const o of occ) occOf.set(o.root, [...(occOf.get(o.root) ?? []), o]);
   const roots = shuffle([...occOf.keys()]).slice(0, 60);

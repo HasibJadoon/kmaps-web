@@ -107,10 +107,21 @@ const quote = (c: Cite, texts: Map<string, string>) => {
 
 // ── what a scope holds ──────────────────────────────────────────────────────
 
-async function load(env: QuranEnv, scope: Scope, refresh = false) {
-  const words = await query<Word>(env.DB_QR,
+async function load(env: QuranEnv, scope: Scope, refresh = false, highOnly = false) {
+  let words = await query<Word>(env.DB_QR,
     `SELECT * FROM qr_sarf_word WHERE surah = ? AND (? IS NULL OR ayah >= ?) AND (? IS NULL OR ayah <= ?) ORDER BY ayah, word_index`,
     [scope.surah, scope.from, scope.from, scope.to, scope.to]);
+  // the DRILLS take the high end only: a word whose lemma is medium → super in the Qurʾān (qr_vocab_grade), or a verb
+  // with the particle it takes (prep_json) — never the ṣarf of قال or كان. The reading sheet keeps every word.
+  if (highOnly && words.length) {
+    const rows = await query<{ k: string }>(env.DB_QR,
+      `SELECT o.surah || ':' || o.ayah || ':' || o.word_index AS k FROM qr_word_occurrence o
+         JOIN qr_vocab_grade g ON g.root = o.root AND g.lemma = o.lemma AND g.grade IN ('medium', 'hard', 'super')
+        WHERE (o.surah, o.ayah, o.word_index) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]'), json_extract(value, '$[2]') FROM json_each(?))`,
+      [JSON.stringify(words.map((w) => [w.surah, w.ayah, w.word_index]))]).catch(() => null);
+    // no grades to read (a database without qr_120) leaves the words as they are; otherwise only the high end stays
+    if (rows) { const graded = new Set(rows.map((r) => r.k)); words = words.filter((w) => w.prep_json || graded.has(`${w.surah}:${w.ayah}:${w.word_index}`)); }
+  }
   const roots = [...new Set(words.map((w) => w.root))];
   if (!roots.length) return null;
   const at = JSON.stringify(words.map((w) => [w.surah, w.ayah, w.word_index]));
@@ -383,7 +394,7 @@ function choose(answer: string, pool: string[], k = 3) {
 
 export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promise<Drill[]> {
   if (!scope.surah) return [];
-  const D = await load(env, scope);
+  const D = await load(env, scope, false, true);
   if (!D) return [];
   const { verbs, preps, senses, nears, words, texts, gt, picture, occ, pluralsOf } = D;
   const where = rangeOf(scope.surah, scope.from ?? 1, scope.to);

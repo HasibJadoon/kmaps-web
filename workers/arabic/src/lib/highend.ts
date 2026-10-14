@@ -19,14 +19,21 @@ export async function freqOf(env: ArabicEnv, ws: string[]) {
 /// HIGH-END words only (the learner reads at an intermediate level and wants the high end): a word is worth drilling
 /// when it is hard or gharīb in the Qurʾān (ar_scene_word.qr_grade — the forms heard in the series) or rare in the
 /// classical library (ar_word_freq: used fewer than RARE_MAX times across Shamela — calibrated 2026-10-14 on samples:
-/// below it الأحدوثة، المهابة، الندماء; above it مشقّة، بهجة). An unknown form (n = 0) is not taken for rare.
-const RARE_MAX = 1500;
+/// under 1500 the rarest (الأحدوثة، المهابة، الندماء); 1500–5000 the good fuṣḥā an intermediate reader is growing into
+/// (مشقّة، بهجة، تسمو، عاجزًا) — kept too, so general classical and fuṣḥā Arabic grow, not only the Qurʾān's), or a word a
+/// reader chose as hard in a scene (ar_scene_vocab.vocab_json). An unknown form (n = 0) is not taken for rare.
+const RARE_MAX = 5000;
 let hardMemo: { at: number; set: Set<string> } | null = null;
 async function hardForms(env: ArabicEnv): Promise<Set<string>> {
   if (hardMemo && Date.now() - hardMemo.at < 600_000) return hardMemo.set;
-  const rows = await query<{ surface: string }>(env.DB_AR,
-    `SELECT DISTINCT surface FROM ar_scene_word WHERE qr_grade IN ('hard', 'super')`).catch(() => [] as Array<{ surface: string }>);
-  hardMemo = { at: Date.now(), set: new Set(rows.map((r) => freqKey(r.surface)).filter((k) => k.length >= 2)) };
+  const [rows, chosen] = await Promise.all([
+    query<{ surface: string }>(env.DB_AR, `SELECT DISTINCT surface FROM ar_scene_word WHERE qr_grade IN ('hard', 'super')`)
+      .catch(() => [] as Array<{ surface: string }>),
+    query<{ word: string }>(env.DB_AR, `SELECT DISTINCT json_extract(v.value, '$.word') AS word FROM ar_scene_vocab s, json_each(s.vocab_json) v
+                                         WHERE s.vocab_json IS NOT NULL AND json_valid(s.vocab_json)`).catch(() => [] as Array<{ word: string }>),
+  ]);
+  hardMemo = { at: Date.now(), set: new Set([...rows.map((r) => r.surface), ...chosen.map((r) => r.word ?? '')]
+    .map(freqKey).filter((k) => k.length >= 2)) };
   return hardMemo.set;
 }
 export async function highEndOf(env: ArabicEnv, ws: string[]): Promise<(w: string) => boolean> {

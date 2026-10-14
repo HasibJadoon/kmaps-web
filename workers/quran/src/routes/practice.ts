@@ -220,7 +220,15 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
     : src === 'tafsir_lang' ? (await tafsirLangDrills(env, scope, (meta.extra?.works as string[] | undefined) ?? WORKS)).slice(0, n)
     : [];
   const kinds = byKey(L.kind);
-  const shaped = items.flatMap((it) => {
+  // grammar and balāgha keep to the high end: a drill whose terms hold no EXPERT-tier term (qr_122) is not dealt
+  let pool = items;
+  if (src === 'gram' || src === 'gramterm') {
+    const expert = new Set((await query<{ id: string }>(env.DB_QR, `SELECT id FROM ar_ling_gram_term WHERE tier = 'expert'`)
+      .catch(() => [] as Array<{ id: string }>)).map((r) => r.id));
+    if (expert.size) pool = items.filter((it) => ((it.terms as string[] | undefined) ?? [it.termId as string | undefined].filter(Boolean) as string[])
+      .some((t) => expert.has(t)));
+  }
+  const shaped = pool.flatMap((it) => {
     const k = kinds.get(String(it.ask ?? skill)) ?? kinds.get(skill);
     const { ask: _a, ...rest } = it;
     // a drill a builder dealt without its card still files one: nothing practised is left out of review
@@ -347,7 +355,8 @@ export function gapFillers(target: PoolWord, pool: PoolWord[], heard: boolean): 
 async function lineDrills(env: QuranEnv, skill: string, n: number, scope: Scope, lv: Record<string, unknown>, timed: boolean,
                           interaction?: string) {
   const minW = Number(lv.minWords ?? 3), maxW = Number(lv.maxWords ?? 60);
-  const pairs = await pickAyat(env, scope, minW, maxW, n * (timed ? 3 : 2));
+  // more āyāt than asked: only one holding high-end language is drilled
+  const pairs = await pickAyat(env, scope, minW, maxW, n * (timed ? 6 : 4));
   const ayat = [...(await loadAyat(env, pairs)).values()].filter((a) => a.ws.length && (!timed || a.aligned));
   // the other words to choose from: content words of the same surahs
   const surahIds = [...new Set(ayat.map((a) => a.surah))];
@@ -358,9 +367,20 @@ async function lineDrills(env: QuranEnv, skill: string, n: number, scope: Scope,
     `SELECT surah, ayah, word_index, word_text, pos, lemma, gt_case, has_det_prefix, prefix_count FROM qr_word_occurrence
       WHERE (surah, ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`, [JSON.stringify(pairs)]) : [];
   const factOf = new Map(facts.map((f) => [`${f.surah}:${f.ayah}:${f.word_index}`, f]));
+  // HIGH-END only (the learner's rule for the Qurʾān): a word graded medium → super (qr_vocab_grade, a verb, noun or
+  // adjective), or one flagged where it stands (an idiom, a disputed meaning, a debated word, an iʿrāb split — qr_vocab_flag)
+  const high = new Set((pairs.length ? await query<{ k: string }>(env.DB_QR,
+    `SELECT i.surah || ':' || i.ayah || ':' || i.word_index AS k FROM qr_vocab_item i
+       LEFT JOIN qr_vocab_grade g ON g.root = i.root AND g.lemma = i.lemma
+      WHERE (i.surah, i.ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))
+        AND ((g.grade IN ('medium', 'hard', 'super') AND g.focus = 1)
+             OR EXISTS (SELECT 1 FROM qr_vocab_flag f WHERE f.surah = i.surah AND f.ayah = i.ayah AND f.word_index = i.word_index))`,
+    [JSON.stringify(pairs)]).catch(() => [] as Array<{ k: string }>) : []).map((r) => r.k));
   const out: Record<string, unknown>[] = [];
   for (const a of ayat) {
     if (out.length >= n) break;
+    // an āyah with nothing high-end in it is not drilled — whether a word of it is asked, or the āyah whole
+    if (!a.ws.some((w) => high.has(`${a.surah}:${a.ayah}:${w.word_index}`))) continue;
     const base: Record<string, unknown> = { id: `${skill}:${a.key}`, kind: skill, script: 'quran', audio: a.audio, words: a.words, en: a.en,
                                             source: { workId: `QR:SURAH:${a.surah}`, title: a.title, level: null } };
     // a skill row may name its interaction (mark: listen, then tap each word not caught)
@@ -370,7 +390,7 @@ async function lineDrills(env: QuranEnv, skill: string, n: number, scope: Scope,
                                                                    surah: a.surah, ayah: a.ayah, series: a.title.replace(/ \d+:\d+$/, '') });
     if (skill === 'fill' || skill === 'hear') {
       const content = a.ws.map((w, i) => ({ w, i })).filter(({ w, i }) => (w.is_content_word ?? 0) === 1 && fold(w.word_text).length >= 3
-        && (skill !== 'hear' || a.words[i].e - a.words[i].s >= 0.25));
+        && high.has(`${a.surah}:${a.ayah}:${w.word_index}`) && (skill !== 'hear' || a.words[i].e - a.words[i].s >= 0.25));
       if (!content.length) continue;
       const pick = content[Math.floor(Math.random() * content.length)];
       const answer = pick.w.word_text;
@@ -407,10 +427,14 @@ async function irabDrills(env: QuranEnv, n: number, scope: Scope, lv: Record<str
   const w = scopeWhere(scope);
   const roles = (lv.roles as string[] | undefined)?.map((r) => `GT:irab_role:${r}`);
   const alt = lv.alternative === true;
+  // high end only: never a basic role alone (the basic level's mubtadaʾ, khabar, fāʿil …) — an iʿrāb with a second
+  // reading (ويجوز) is always kept, it is the nuance
+  const basic = ((levels as Record<string, { roles?: string[] }> | undefined)?.basic?.roles ?? []).map((r) => `GT:irab_role:${r}`);
   const pool = await query<IrabItem>(env.DB_QR,
     `SELECT id, surah, ayah, word_index, word_text, role_gt, irab_ar, source_slug FROM qr_irab_drill_item
       WHERE ${w.sql} ${roles ? `AND role_gt IN (${roles.map(() => '?').join(',')})` : ''} ${alt ? `AND irab_ar LIKE '%ويجوز%'` : ''}
-      ORDER BY random() LIMIT ?`, [...w.args, ...(roles ?? []), n * 4]);
+        ${basic.length ? `AND (irab_ar LIKE '%ويجوز%' OR role_gt NOT IN (${basic.map(() => '?').join(',')}))` : ''}
+      ORDER BY random() LIMIT ?`, [...w.args, ...(roles ?? []), ...basic, n * 4]);
   const seen = new Set<string>();
   const picked = pool.filter((it) => { const k = `${it.surah}:${it.ayah}`; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, n);
   if (!picked.length) return [];
