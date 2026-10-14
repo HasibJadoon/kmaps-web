@@ -4,7 +4,7 @@ import { ok, notFound, badRequest } from '../../../shared/src/response';
 import { query, queryOne } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { parseBand, bandOf, bare, type Band } from '../lib/levels';
-import { labels, byKey, badge, skillCard, instruct, srsCardFor, dropEmpty } from '../lib/labels';
+import { labels, byKey, badge, skillCard, instruct, srsCardFor, dropEmpty, dropRetired } from '../lib/labels';
 import { commonWords, isCommon } from '../lib/common';
 import { highEndOf } from '../lib/highend';
 
@@ -325,7 +325,7 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
         `SELECT f.feature_idx FROM ar_scene_feature_term f JOIN ar_ling_gram_term g ON g.id = f.term_id AND g.tier = 'expert'
           WHERE f.unit_id = ? AND f.scene_no = ?`, [unit, Number(no)]).catch(() => [] as Array<{ feature_idx: number }>)).map((r) => r.feature_idx));
       const feats = (parse<Feat[]>(read?.features_json ?? null) ?? []).map((f, i) => ({ f, i })).filter(({ i }) => expertIdx.has(i)).map(({ f }) => f);
-      for (const x of shuffle(feats.filter(inTier).filter((f) => worth(f.line, f.span))).slice(0, 3)) {
+      for (const x of shuffle(feats.filter((f) => f.q && f.options?.length).filter(inTier).filter((f) => worth(f.line, f.span))).slice(0, 3)) {
         const l = scene.lines[x.line];
         if (!l) continue;
         items.push({ id: `feature:${unit}:${no}:${x.line}:${x.span[0]}`, kind: 'feature', audio: clip(l), words: timedWords(l),
@@ -365,7 +365,8 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     for (const it of items as Array<Record<string, unknown>>)
       it.srs = srsCardFor(it, { skill: 'scene', band: bandOf(sc.level) ?? undefined, series: sc.s.series_ar ?? null, episode: unit, scene: Number(no) });
     // an empty drill (nothing asked or answered) is dropped, never dealt
-    items.splice(0, items.length, ...dropEmpty(items as Array<Record<string, unknown>>));
+    // and a drill of a retired kind (about a person or the story, not the language — AR 0053/0057) is never dealt
+    items.splice(0, items.length, ...dropRetired(dropEmpty(items as Array<Record<string, unknown>>), L));
     const base = byKey(L.scene_skill).get('scene');
     const card = base ? skillCard(base) : { id: 'scene', title: '', titleAr: '', tagline: '', icon: 'film', color: '#E07A5F' };
     const deck = byKey(L.path).get('srs_deck');

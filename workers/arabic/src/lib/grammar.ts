@@ -93,11 +93,21 @@ const said = (s: string | null | undefined) => (s && /\s/.test(s.trim()) && s.tr
 export const hadd = (t: Term) => said(t.definition_en) ?? said(t.short_en) ?? said(t.definition_ar);
 
 /// the wrong answers beside a term: its siblings under its heading, then its category — never a term above or below it
-export function besideTerm(reg: Reg, t: Term): Term[] {
+/// Crossing axes (AR 0057, scope term_axis): a term's group and axis — one line is one of each axis at once, so a term
+/// on another axis of the same group is never a wrong choice beside it (else 'which is it?' has two right answers).
+export const crossing = (L: L | undefined) => {
+  const ax = new Map((L?.term_axis ?? []).map((l) => [l.key, l.extra as { group?: string; axis?: number } | null]));
+  return (a: string, b: string) => {
+    const x = ax.get(a), y = ax.get(b);
+    return !!x && !!y && x.group === y.group && x.axis !== y.axis;
+  };
+};
+
+export function besideTerm(reg: Reg, t: Term, clash: (a: string, b: string) => boolean = () => false): Term[] {
   const up = new Set<string>();
   for (let p = t.parent_term_id, n = 0; p && n < 9; p = reg.byId.get(p)?.parent_term_id ?? null, n++) up.add(p);
   const under = (x: Term) => { for (let p = x.parent_term_id, n = 0; p && n < 9; p = reg.byId.get(p)?.parent_term_id ?? null, n++) if (p === t.id) return true; return false; };
-  const ok = (x: Term) => x.id !== t.id && !up.has(x.id) && !under(x) && x.name_ar !== t.name_ar;
+  const ok = (x: Term) => x.id !== t.id && !up.has(x.id) && !under(x) && x.name_ar !== t.name_ar && !clash(t.id, x.id);
   const sib = (reg.kids.get(t.parent_term_id) ?? []).filter((x) => ok(x) && x.category_key === t.category_key);
   const cat = reg.terms.filter((x) => ok(x) && x.category_key === t.category_key && !sib.includes(x));
   const disc = reg.terms.filter((x) => ok(x) && x.discipline === t.discipline && x.category_key !== t.category_key && x.depth === t.depth);
@@ -199,7 +209,7 @@ export async function sentenceDrills(env: ArabicEnv, all: L, rows: Sentence[], w
     let answer: string, options: string[];
     if (ask === 'gs_term' && t) {
       answer = termLabel(t);
-      options = [...new Set(besideTerm(reg, t).map(termLabel))].filter((x) => x !== answer).slice(0, 3);
+      options = [...new Set(besideTerm(reg, t, crossing(all)).map(termLabel))].filter((x) => x !== answer).slice(0, 3);
     } else if (ask === 'gs_lesson' && l) {
       answer = lessonTitle(l);
       const near = await query<{ title_ar: string; title_en: string | null }>(env.DB_AR,
