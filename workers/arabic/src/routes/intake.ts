@@ -16,7 +16,7 @@ interface Row {
   id: string; parent_id: string | null; kind: string; url: string; platform: string; external_id: string | null;
   title_ar: string | null; title_en: string | null; channel: string | null; seq: number | null; duration_sec: number | null;
   item_count: number | null; register: string; genre_ref: string | null; strand: string; level: string; priority: number;
-  status: string; form: string; to_ar: number; to_qr: number; to_wv: number; wv_source_ref: string | null; acq_ref_id: string | null; note: string | null; added_by: string | null; meta_json: string;
+  status: string; form: string; to_ar: number; to_qr: number; to_wv: number; path_lane: string | null; path_rank: number | null; wv_source_ref: string | null; acq_ref_id: string | null; note: string | null; added_by: string | null; meta_json: string;
   created_at: string; child_count?: number; live_count?: number;
 }
 
@@ -52,6 +52,11 @@ function shape(r: Row, L: Scopes, st?: Stages) {
       return { domain: badge(l, d), on: !!(r as unknown as Record<string, number>)[FLAG[d]], stage: at?.stage ?? null, targetRef: at?.targetRef ?? null };
     }),
     wvSourceRef: r.wv_source_ref,
+    // its place on the learning path (migration 0043): the lane and the step
+    lane: r.path_lane ? badge(byKey(L.intake_lane).get(r.path_lane), r.path_lane) : null,
+    pathRank: r.path_rank,
+    pathStep: r.path_rank ? fill(W.get('path_rank')?.label, { n: r.path_rank }) : null,
+    pathStepAr: r.path_rank ? fill(W.get('path_rank')?.labelAr, { n: r.path_rank }) : null,
     acqRefId: r.acq_ref_id, sent: meta.sent === true, createdAt: r.created_at,
   };
 }
@@ -123,15 +128,11 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
     if (q) { where.push(`(i.title_ar LIKE ? OR i.title_en LIKE ? OR i.channel LIKE ? OR i.note LIKE ?)`); args.push(...Array(4).fill(`%${q}%`)); }
     const nextSize = byKey(L.intake).get('next_up')?.min ?? 12;
     const [items, next, counts] = await Promise.all([
-      query<Row>(env.DB_AR, `SELECT i.*, ${COUNTS} FROM ar_intake_item i ${JOINS} WHERE ${where.join(' AND ')} ORDER BY st.min_value, ${ORDER} LIMIT 500`, args),
-      // every strand moves at once: the first few of each, easiest first within it, taken in turn
-      query<Row>(env.DB_AR, `SELECT * FROM (
-          SELECT i.*, ${COUNTS}, st.min_value AS strand_step,
-                 ROW_NUMBER() OVER (PARTITION BY i.strand ORDER BY ${ORDER}) AS turn
-            FROM ar_intake_item i ${JOINS}
-           WHERE i.parent_id IS NULL AND json_extract(s.extra_json, '$.active') = 1 AND i.status <> 'logged')
-         WHERE turn <= ? ORDER BY turn, strand_step`,
-        [Math.max(1, Math.ceil(nextSize / Math.max(1, (L.intake_strand ?? []).length)))]),
+      query<Row>(env.DB_AR, `SELECT i.*, ${COUNTS} FROM ar_intake_item i ${JOINS} WHERE ${where.join(' AND ')} ORDER BY (i.path_rank IS NULL), i.path_rank, st.min_value, ${ORDER} LIMIT 500`, args),
+      // what is next on the learning path (path_rank, migration 0043): the lowest steps still to do
+      query<Row>(env.DB_AR, `SELECT i.*, ${COUNTS} FROM ar_intake_item i ${JOINS}
+                              WHERE i.parent_id IS NULL AND i.path_rank IS NOT NULL
+                              ORDER BY i.path_rank LIMIT ?`, [nextSize]),
       query<{ strand: string; status: string; n: number }>(env.DB_AR,
         `SELECT strand, status, COUNT(1) AS n FROM ar_intake_item GROUP BY 1, 2`),
     ]);
@@ -156,6 +157,7 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
       registers: (L.intake_register ?? []).map(option),
       forms: (L.intake_form ?? []).map(option),
       domains: (L.intake_domain ?? []).map(option),
+      lanes: (L.intake_lane ?? []).map(option),
       next: next.map((r) => shape(r, L, st)),
       items: items.map((r) => shape(r, L, st)),
     });
