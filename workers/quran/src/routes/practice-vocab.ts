@@ -514,8 +514,11 @@ export async function pairsDrills(env: QuranEnv, n: number, scope: Scope): Promi
   const out: Drill[] = [];
   for (let k = 0; out.length < n && k < n * facets.length; k++) {
     const facet = facets[k % facets.length];
+    // fixed rounds: the lemmas in a stable order from a chosen point — the same five come back as the same review item
+    const ordered = rows.filter((x) => x[facet]).sort((x, y) => x.lemma.localeCompare(y.lemma));
+    const from = ordered.length ? Math.floor(Math.random() * Math.ceil(ordered.length / 5)) * 5 : 0;
     const round: typeof rows = [];
-    for (const r of shuffle(rows.filter((x) => x[facet]))) {
+    for (const r of [...ordered.slice(from), ...ordered.slice(0, from)]) {
       if (round.some((x) => x[facet] === r[facet] || x.lemma === r.lemma)) continue;
       round.push(r);
       if (round.length === 5) break;

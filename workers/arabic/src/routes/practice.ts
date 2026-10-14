@@ -286,10 +286,12 @@ async function wordDrills(env: ArabicEnv, all: L, band: Band, n: number) {
 /// Tap the matching pairs: the meaning pool dealt five words at a time, each beside its gloss.
 /// No two words in a round share a gloss, so every pair has one partner.
 async function pairsDrills(env: ArabicEnv, band: Band, n: number) {
-  const pool = await listWordDrills(env, band, n * 8);
+  // fixed rounds: the pool in a stable order, cut into fives — the same five come back as the same review item
+  const pool = (await listWordDrills(env, band, 400)).sort((a, b) => a.id.localeCompare(b.id));
   const out: Array<Record<string, unknown>> = [];
   let round: typeof pool = [];
-  for (const d of pool) {
+  const start = pool.length ? Math.floor(Math.random() * Math.ceil(pool.length / 5)) * 5 : 0;
+  for (const d of [...pool.slice(start), ...pool.slice(0, start)]) {
     if (round.some((r) => r.answer === d.answer || r.prompt === d.prompt)) continue;
     round.push(d);
     if (round.length === 5) {
@@ -334,8 +336,11 @@ async function sarfDrills(env: ArabicEnv, band: Band, n: number, works: string[]
   const opts = (answer: string, pool: string[]) => shuffle([answer, ...shuffle(pool.filter((x) => plain(x) !== plain(answer))).slice(0, 3)]);
   const quran = (ref: string | null) => (ref ? { lemmaRef: ref } : null);
   // one pairs round of five verbs, then choose drills in turn: present, plural, dictionary form
-  if (V.length >= 5) out.push({ id: `sarf_pairs:${V.slice(0, 5).map((v) => plain(v.madi)).join('+')}`, kind: 'sarf_pairs', interaction: 'pairs',
-                                 pairs: V.slice(0, 5).map((v) => [v.madi, v.mudari]) });
+  // a fixed set of five (verbs in a stable order, cut into fives), so the same set is the same review item
+  const Vs = [...V].sort((a, b) => plain(a.madi).localeCompare(plain(b.madi)));
+  const at = Vs.length >= 5 ? Math.floor(Math.random() * Math.floor(Vs.length / 5)) * 5 : 0;
+  if (Vs.length >= 5) out.push({ id: `sarf_pairs:${Vs.slice(at, at + 5).map((v) => plain(v.madi)).join('+')}`, kind: 'sarf_pairs', interaction: 'pairs',
+                                 pairs: Vs.slice(at, at + 5).map((v) => [v.madi, v.mudari]) });
   let i = 0;
   while (out.length < n && (i < V.length || i < N.length || i < M.length)) {
     const v = V[i + 5], m = N[i], w = M[i];
