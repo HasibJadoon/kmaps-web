@@ -39,8 +39,13 @@ test('a first miss is banked, stays banked when missed again, and goes to review
   await fileCards(env, 'U1', [card(2)], { byModule: true, holdMisses: true });
   assert.equal(state()!.card_state, 'new', 'missed again: still banked');
 
+  // right answers keep it in its lesson's rotation until the third (GRADUATE_AFTER), which sends it to review
   await fileCards(env, 'U1', [card(3)], { byModule: true, holdMisses: true });
-  assert.notEqual(state()!.card_state, 'new', 'answered well: into review');
+  assert.equal(state()!.card_state, 'new', 'right once: still in its lesson');
+  await fileCards(env, 'U1', [card(3)], { byModule: true, holdMisses: true });
+  assert.equal(state()!.card_state, 'new', 'right twice: still in its lesson');
+  await fileCards(env, 'U1', [card(3)], { byModule: true, holdMisses: true });
+  assert.notEqual(state()!.card_state, 'new', 'right three times: into review');
   assert.equal(state()!.reps, 1);
 });
 
@@ -57,6 +62,9 @@ test('a resent answer changes nothing; review deals drills only; a leech goes ba
              ('SM', 50, 'سماع', 'Listening', 'q', 'DECK:AL'), ('SF', 10, 'صرف', 'Morphology', 'q', 'DECK:AL'),
              ('NH', 20, 'نحو', 'Syntax', 'q', 'DECK:AL');
            INSERT INTO cyb_drill_type (domain, scope, code, discipline) VALUES ('QR', 'kind', 'fill', 'SM'), ('QR', 'focus', 'gt_define', 'NH');`);
+  // right three times in its lesson: it graduates into review (op-0a, op-0b the first two)
+  await fileCards(env, 'U1', [entry('QR:fill:40:1', 3, 'op-0a')], { byModule: true, holdMisses: true });
+  await fileCards(env, 'U1', [entry('QR:fill:40:1', 3, 'op-0b')], { byModule: true, holdMisses: true });
   await fileCards(env, 'U1', [entry('QR:fill:40:1', 3, 'op-1')], { byModule: true, holdMisses: true });
   const reps = () => (db.prepare(`SELECT reps FROM core_srs_card WHERE resource_ref = 'QR:fill:40:1'`).get() as { reps: number }).reps;
   assert.equal(reps(), 1);

@@ -426,6 +426,13 @@ export class SrsRepo {
   }
 
   /** an answer already applied (its op_id seen) — a resend changes nothing */
+  /** Right answers a drill has had in its lesson (before review): Good or Easy while still new. */
+  async lessonRights(cardId: string): Promise<number> {
+    const r = await queryOne<{ n: number }>(this.db,
+      `SELECT COUNT(*) AS n FROM core_srs_review WHERE card_id = ? AND state_before = 'new' AND rating >= 3`, [cardId]);
+    return r?.n ?? 0;
+  }
+
   async seenOp(opId: string | null | undefined): Promise<boolean> {
     if (!opId) return false;
     return !!(await queryOne<{ id: string }>(this.db, `SELECT id FROM core_srs_review WHERE op_id = ? LIMIT 1`, [opId]));

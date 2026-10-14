@@ -88,27 +88,33 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
       where.push(`NOT EXISTS (SELECT 1 FROM core_srs_card c WHERE c.drill_gid = cyb_drill.gid AND c.user_ref = ?)`);
       args.push(ctx.userId);
     }
-    // a lesson (a passage): every drill of it is met once, then lives in review — so it deals only what this learner has
-    // not met, by level: the roots (concepts) already begun first, each climbing its steps in order; and says how far
-    // through the passage the learner is (met / total)
-    let lesson: { total: number; met: number } | null = null;
+    // a lesson (a passage): its drills go round robin until each is right three times (core GRADUATE_AFTER), then live
+    // in review — so it deals what has not graduated, the least practised first, by level within a round; and says how
+    // far through the passage the learner is (met · graduated · total)
+    let lesson: { total: number; met: number; graduated: number } | null = null;
     let order = 'intro_ayah, gid';
     const lessonArgs: unknown[] = [];
     if (p('work') || ayat) {
       const scope = where.join(' AND ');
-      const counts = await query<{ total: number; met: number }>(env.DB_CORE,
-        `SELECT COUNT(*) AS total, SUM(EXISTS (SELECT 1 FROM core_srs_card c WHERE c.drill_gid = cyb_drill.gid AND c.user_ref = ?)) AS met
-           FROM cyb_drill WHERE ${scope}`, [ctx.userId, ...args]);
-      lesson = { total: counts[0]?.total ?? 0, met: counts[0]?.met ?? 0 };
+      const counts = await query<{ total: number; met: number; graduated: number }>(env.DB_CORE,
+        `SELECT COUNT(*) AS total,
+                SUM(EXISTS (SELECT 1 FROM core_srs_card c WHERE c.drill_gid = cyb_drill.gid AND c.user_ref = ?)) AS met,
+                SUM(EXISTS (SELECT 1 FROM core_srs_card c WHERE c.drill_gid = cyb_drill.gid AND c.user_ref = ? AND c.card_state <> 'new')) AS graduated
+           FROM cyb_drill WHERE ${scope}`, [ctx.userId, ctx.userId, ...args]);
+      lesson = { total: counts[0]?.total ?? 0, met: counts[0]?.met ?? 0, graduated: counts[0]?.graduated ?? 0 };
       const begun = await query<{ root: string }>(env.DB_CORE,
         `SELECT DISTINCT COALESCE(json_extract(d.payload_json, '$.links.root'), d.work_ref) AS root
            FROM core_srs_card c JOIN cyb_drill d ON d.gid = c.drill_gid WHERE c.user_ref = ? AND d.domain = ?`,
         [ctx.userId, p('domain') ?? 'QR']);
-      where.push(`NOT EXISTS (SELECT 1 FROM core_srs_card c WHERE c.drill_gid = cyb_drill.gid AND c.user_ref = ?)`);
+      // graduated drills live in review; the rest go ROUND ROBIN — fewest right answers in the lesson first (never met =
+      // none), so every drill comes round before any comes again; within a round, begun roots first, by step
+      where.push(`NOT EXISTS (SELECT 1 FROM core_srs_card c WHERE c.drill_gid = cyb_drill.gid AND c.user_ref = ? AND c.card_state <> 'new')`);
       args.push(ctx.userId);
-      order = `CASE WHEN COALESCE(json_extract(payload_json, '$.links.root'), work_ref) IN (SELECT value FROM json_each(?)) THEN 0 ELSE 1 END,
+      order = `(SELECT COUNT(*) FROM core_srs_review r JOIN core_srs_card c ON c.id = r.card_id
+                 WHERE c.drill_gid = cyb_drill.gid AND c.user_ref = ? AND r.state_before = 'new' AND r.rating >= 3),
+               CASE WHEN COALESCE(json_extract(payload_json, '$.links.root'), work_ref) IN (SELECT value FROM json_each(?)) THEN 0 ELSE 1 END,
                COALESCE(json_extract(payload_json, '$.step'), 9), intro_ayah, gid`;
-      lessonArgs.push(JSON.stringify(begun.map((b) => b.root)));
+      lessonArgs.push(ctx.userId, JSON.stringify(begun.map((b) => b.root)));
     }
     const rows = await query<DrillRow>(env.DB_CORE,
       `SELECT gid, domain, skill, work_ref, intro_ayah, payload_json FROM cyb_drill WHERE ${where.join(' AND ')}

@@ -90,16 +90,18 @@ test('held: of the drills a round would deal, the ones the learner already holds
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
   db.exec(`PRAGMA foreign_keys = OFF;
            INSERT INTO core_srs_card (id, user_ref, deck_id, module, resource_type, resource_ref, front_text, back_text)
-           VALUES ('k1', 'U1', 'D', 'AR', 'grammar', 'AR:drill:gs:gs_term:1', 'q', 'a'), ('k2', 'U2', 'D', 'AR', 'grammar', 'AR:drill:gs:gs_term:2', 'q', 'a')`);
+           VALUES ('k1', 'U1', 'D', 'AR', 'grammar', 'AR:drill:gs:gs_term:1', 'q', 'a'), ('k2', 'U2', 'D', 'AR', 'grammar', 'AR:drill:gs:gs_term:2', 'q', 'a'),
+                  ('k3', 'U1', 'D', 'AR', 'grammar', 'AR:drill:gs:gs_term:3', 'q', 'a');
+           UPDATE core_srs_card SET card_state = 'review' WHERE id IN ('k1', 'k2');`);
   type H = (r: Request, e: unknown, p: unknown) => Promise<Response>;
   const routes = new Map<string, H>();
   srsRoutes({ get: () => {}, put: () => {}, patch: () => {}, delete: () => {}, post: (p: string, h: H) => routes.set(p, h) } as never);
   const t = await signJwt({ sub: 'U1', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 }, 's');
   const res = await routes.get('/core/srs/held')!(new Request('http://x/core/srs/held', { method: 'POST',
     headers: { authorization: `Bearer ${t}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ refs: ['AR:drill:gs:gs_term:1', 'AR:drill:gs:gs_term:2', 'AR:drill:new'] }) }), { DB_CORE: d1(db), JWT_SECRET: 's' }, {});
+    body: JSON.stringify({ refs: ['AR:drill:gs:gs_term:1', 'AR:drill:gs:gs_term:2', 'AR:drill:gs:gs_term:3', 'AR:drill:new'] }) }), { DB_CORE: d1(db), JWT_SECRET: 's' }, {});
   const body = await res.json() as { data: { held: string[] } };
-  assert.deepEqual(body.data.held, ['AR:drill:gs:gs_term:1'], 'only this learner\'s card counts');
+  assert.deepEqual(body.data.held, ['AR:drill:gs:gs_term:1'], 'only this learner\'s graduated card counts — one still in its lesson keeps coming round');
 });
 
 test('a drill placed in two passages is dealt in each (its own place, or cyb_drill_place)', async () => {
@@ -122,7 +124,7 @@ test('a drill placed in two passages is dealt in each (its own place, or cyb_dri
   assert.equal(await deal('work=QR:SURAH:34&from=30&to=40'), 0, 'not another unit of that sūra');
 });
 
-test('a passage deals only the drills not yet met, begun roots first by step, and says how far through it is', async () => {
+test('a passage goes round robin until each drill is right three times, then leaves it to review', async () => {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
   const put = db.prepare(`INSERT INTO cyb_drill (gid, domain, discipline, kind, interaction, skill, work_ref, intro_surah, intro_ayah, payload_json, status) VALUES (?, 'QR', 'DL', 'k', 'choose', 'vocab', 'QR:SURAH:30', 30, ?, ?, 'live')`);
@@ -130,7 +132,11 @@ test('a passage deals only the drills not yet met, begun roots first by step, an
     for (const st of [1, 2, 3]) put.run(`DRL:QR:DL:rg:${st}:${root}`, ay, JSON.stringify({ id: `rg:${st}:${root}`, step: st, links: { root } }));
   db.exec(`PRAGMA foreign_keys = OFF;
            INSERT INTO core_srs_card (id, user_ref, deck_id, module, resource_type, resource_ref, front_text, back_text, drill_gid)
-           VALUES ('k1', 'U1', 'D', 'QR', 'vocabulary', 'DRL:QR:DL:rg:1:B', 'q', 'a', 'DRL:QR:DL:rg:1:B')`);
+           VALUES ('k1', 'U1', 'D', 'QR', 'vocabulary', 'DRL:QR:DL:rg:1:B', 'q', 'a', 'DRL:QR:DL:rg:1:B'),
+                  ('k2', 'U1', 'D', 'QR', 'vocabulary', 'DRL:QR:DL:rg:2:B', 'q', 'a', 'DRL:QR:DL:rg:2:B');
+           UPDATE core_srs_card SET card_state = 'review' WHERE id = 'k2';
+           INSERT INTO core_srs_review (id, card_id, user_ref, rating, state_before, state_after, reviewed_at)
+           VALUES ('r1', 'k1', 'U1', 3, 'new', 'new', '2026-10-15T00:00:00Z');`);
   type H = (r: Request, e: unknown, p: unknown) => Promise<Response>;
   const routes = new Map<string, H>();
   drillBankRoutes({ get: (p: string, h: H) => routes.set(p, h), post: () => {} } as never);
@@ -138,8 +144,8 @@ test('a passage deals only the drills not yet met, begun roots first by step, an
   const res = await routes.get('/core/cyb/drills')!(new Request('http://x/core/cyb/drills?domain=QR&work=QR:SURAH:30&from=1&to=5',
     { headers: { authorization: `Bearer ${t}` } }), { DB_CORE: d1(db), JWT_SECRET: 's' }, {});
   const body = await res.json() as { data: { drills: Array<{ gid: string }>; lesson: { total: number; met: number } } };
-  assert.deepEqual(body.data.lesson, { total: 6, met: 1 });
+  assert.deepEqual(body.data.lesson, { total: 6, met: 2, graduated: 1 });
   assert.deepEqual(body.data.drills.map((d) => d.gid),
-    ['DRL:QR:DL:rg:2:B', 'DRL:QR:DL:rg:3:B', 'DRL:QR:DL:rg:1:A', 'DRL:QR:DL:rg:2:A', 'DRL:QR:DL:rg:3:A'],
-    'B begun: its next steps first; the met step never again; then A from step 1');
+    ['DRL:QR:DL:rg:3:B', 'DRL:QR:DL:rg:1:A', 'DRL:QR:DL:rg:2:A', 'DRL:QR:DL:rg:3:A', 'DRL:QR:DL:rg:1:B'],
+    'round robin: the drills not yet right come first (begun root B first, by step); B1, right once, comes round after; B2 graduated');
 });
