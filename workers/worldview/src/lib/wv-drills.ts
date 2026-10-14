@@ -49,7 +49,7 @@ function choose(id: string, prompt: string, answer: string, wrong: string[], ext
 export function rhetoricDrills(terms: WvRhetoricTerm[], pool: WvRhetoricTerm[], devices: WvRhetoricDevice[],
                                usages: WvRhetoricUsage[]): Drill[] {
   const dev = new Map(devices.map((d) => [d.id, d]));
-  const name = (d: WvRhetoricDevice | undefined) => (d ? (d.title_ar ? `${d.title} (${d.title_ar})` : d.title) : null);
+  const name = (d: WvRhetoricDevice | undefined) => (d ? (d.title_ar && d.title_ar.replace(/[—\-\s]/g, '') ? `${d.title} (${d.title_ar})` : d.title) : null);
   const out: Drill[] = [];
   for (const t of terms) {
     const d = t.device_id ? dev.get(t.device_id) : undefined;
