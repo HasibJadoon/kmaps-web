@@ -717,6 +717,19 @@ type Gloss = { key: string; kind: 'phrase' | 'term'; ar: string; needle: string 
 
 /** The commentators' stock phrases and terms, each met in this passage's own commentary: the line that
  *  uses it plays, and the learner chooses what the phrase does or what the term means. */
+/** A phrase in a line, on its exact letters: marks and punctuation off, alif and yāʾ forms evened — the words found and
+ *  where they start. */
+function exactQuote(text: string, needle: string): { text: string; i: number } | null {
+  const norm = (t: string) => t.replace(/[\u064B-\u065F\u0670\u0640]/g, '').replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي')
+    .replace(/[^\u0621-\u064A]/g, '');
+  const words = text.split(/\s+/).filter((w) => norm(w).length > 0);
+  const want = needle.split(/\s+/).map(norm).filter(Boolean);
+  const have = words.map(norm);
+  for (let i = 0; i + want.length <= have.length; i++)
+    if (want.every((s, k) => have[i + k] === s)) return { text: words.slice(i, i + want.length).join(' '), i };
+  return null;
+}
+
 export async function tafsirLangDrills(env: QuranEnv, scope: Scope, slugs: string[]): Promise<Drill[]> {
   if (!scope.surah || !scope.from) return [];
   const [works, glosses] = await Promise.all([
@@ -736,15 +749,27 @@ export async function tafsirLangDrills(env: QuranEnv, scope: Scope, slugs: strin
       id, kind: 'tafsir_lang', ask: g.kind === 'phrase' ? 'tq_phrase' : 'tq_term', interaction: 'choose', script: 'arabic',
       audio: { url: part.url, start: Math.max(0, line.start - 0.2), end: line.end + 0.2 }, words: spokenWords(line.words),
       prompt: shown, options: shuffle([answer, ...others]), answer, terms: g.gt_ref ? [g.gt_ref] : [],
-      explanation: [`${g.ar} — ${g.en}${g.use_en ? `: ${g.use_en.toLowerCase()}` : ''}`, line.en, [w.titleAr ?? w.title, w.author].filter(Boolean).join(' — ')]
+      // English first: a line opening in Arabic is laid out right to left
+      explanation: [`“${g.en}” (${g.ar})${g.use_en ? `: ${g.use_en.toLowerCase()}` : ''}`, line.en, [w.author, w.titleAr ?? w.title].filter(Boolean).join(', ')]
         .filter(Boolean).join('\n'),
       source: { workId: `QR:SURAH:${scope.surah}`, title: `${where} · ${w.titleAr ?? w.title ?? ''}`, level: null },
     }, { ref: `QR:${id}`, type: 'passage', kind: 'tafsir_lang', front: g.ar, back: answer, surah: scope.surah, ayah: scope.from, series: 'tafsir' }));
   };
-  // a phrase: the first line of the passage's commentary that uses it, matched by its bare form
+  // a phrase: the first line of the passage's commentary that uses it — matched on its exact letters (marks off, alif
+  // forms evened), not the consonant skeleton, which took وَقِيلَ and يُقَالُ for قال, and جُوِّزَ for يَجُوزُ; and a line's
+  // words serve one phrase only, so two phrases never mark the same words with different answers
+  const taken = new Set<string>();
   for (const g of phrases) {
-    const hit = lines.find((x) => g.needle && cutQuote(x.line.text, g.needle));
-    if (hit) make(g, hit, cutQuote(hit.line.text, g.needle!)!, g.use_en ?? g.en, phrases.map((p) => p.use_en ?? p.en));
+    if (!g.needle) continue;
+    for (const x of lines) {
+      const at = exactQuote(x.line.text, g.needle);
+      if (!at) continue;
+      const k = `${x.part.audio}:${x.line.seq}:${at.i}`;
+      if (taken.has(k)) continue;
+      taken.add(k);
+      make(g, x, at.text, g.use_en ?? g.en, phrases.filter((p) => p.key !== g.key).map((p) => p.use_en ?? p.en));
+      break;
+    }
   }
   // a term: the first line that names it
   for (const g of terms) {
