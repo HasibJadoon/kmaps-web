@@ -268,3 +268,37 @@ test('the roadmap: a sūra\'s classes, the streak from the learner\'s days, only
   assert.deepEqual(other.body.data.sections, []);
   assert.equal(other.body.data.streak.current, 0);
 });
+
+test('a filing that died is taken again once its claim is stale; a live claim is left alone', async () => {
+  const { db, call } = await setup();
+  const send = (ref: string, day = '2026-10-01') => call('POST', '/core/drill/class/progress', {
+    scope, module: 'QR', node: 'read', sprint: 0, of: 1, seconds: 10, day, bands,
+    items: [{ ref, first: true, misses: 0, streak: 1, card: card(ref) }],
+  });
+  await send('fill:40:1:1');
+  await send('fill:40:1:2');
+  const filedAs = (ref: string) => (db.prepare('SELECT filed_card FROM core_drill_class_item WHERE item_ref = ?').get(ref) as { filed_card: string }).filed_card;
+  const firstCard = filedAs('fill:40:1:1');
+  assert.match(firstCard, /^SRSCARD:|^[^p]/, 'filed at once');
+  // one left claimed by a filing that died long ago, one claimed by a filing still under way
+  db.prepare(`UPDATE core_drill_class_item SET filed_card = 'pending:2000-01-01T00:00:00Z' WHERE item_ref = 'fill:40:1:1'`).run();
+  db.prepare(`UPDATE core_drill_class_item SET filed_card = 'pending:' || strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE item_ref = 'fill:40:1:2'`).run();
+  await send('fill:40:1:3', '2026-10-02');
+  assert.equal(filedAs('fill:40:1:1'), firstCard, 'the stale claim is filed again, to the same card');
+  assert.match(filedAs('fill:40:1:2'), /^pending:/, 'a live claim is not taken from the filing that holds it');
+  const cards = db.prepare(`SELECT COUNT(*) AS n FROM core_srs_card WHERE resource_ref = 'fill:40:1:1'`).get() as { n: number };
+  assert.equal(cards.n, 1, 'filing again makes no second card');
+});
+
+test("a vocabulary drill kept with the old 'vocab' type still reaches review", async () => {
+  const { db, call } = await setup();
+  const ref = 'vocab:vocab_lemma:40:3:3';
+  await call('POST', '/core/drill/class/progress', {
+    scope, module: 'QR', node: 'words', sprint: 0, of: 1, seconds: 10, day: '2026-10-01', bands,
+    items: [{ ref, first: true, misses: 0, streak: 1, card: { ...card('QR:vocab:lemma:قبل:قَابِل'), resource_type: 'vocab' } }],
+  });
+  const row = db.prepare('SELECT filed_card FROM core_drill_class_item WHERE item_ref = ?').get(ref) as { filed_card: string | null };
+  assert.ok(row.filed_card && !row.filed_card.startsWith('pending'), 'filed');
+  const c = db.prepare('SELECT resource_type FROM core_srs_card WHERE id = ?').get(row.filed_card) as { resource_type: string };
+  assert.equal(c.resource_type, 'vocabulary');
+});

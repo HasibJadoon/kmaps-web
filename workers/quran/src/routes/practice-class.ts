@@ -1,6 +1,6 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest, notFound } from '../../../shared/src/response';
-import { query, queryOne } from '../../../shared/src/db';
+import { query, queryOne, execute } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import { labels, byKey, type Label } from '../lib/labels';
 import { drawSkill, type Scope } from './practice';
@@ -36,8 +36,32 @@ const kindOf = (n: Label) => String(n.extra?.kind ?? 'step');
 const skillsOf = (n: Label) => (Array.isArray(n.extra?.skills) ? n.extra!.skills as string[] : []);
 const num = (v: unknown, d: number) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
 
+/** A step's drills over a passage, kept (qr_140): the first draw is served from then on, so the path's
+ *  counts, a node's drills and any later day's draw agree, and an item kept open can always be dealt
+ *  back. Drawn again only when the step's definition changes (or the passage's rows are deleted). */
+async function stepPool(env: QuranEnv, L: Record<string, Label[]>, node: Label, p: Passage): Promise<Drill[]> {
+  const definition = JSON.stringify(node.extra ?? {});
+  const kept = await queryOne<{ definition: string; items_json: string }>(env.DB_QR,
+    'SELECT definition, items_json FROM qr_class_pool WHERE passage_id = ? AND step_key = ?', [p.id, node.key]).catch(() => null);
+  if (kept && kept.definition === definition) {
+    try { return JSON.parse(kept.items_json) as Drill[]; } catch { /* drawn again below */ }
+  }
+  const drawn = await drawPool(env, L, node, scopeOf(p));
+  if (!drawn.length) return drawn;            // nothing to keep: a step with no drills here stays off the path
+  // the first draw wins: two first reads at once keep one draw, and both are served it
+  await execute(env.DB_QR,
+    `INSERT INTO qr_class_pool (passage_id, step_key, definition, items_json) VALUES (?, ?, ?, ?)
+     ON CONFLICT (passage_id, step_key) DO UPDATE SET definition = excluded.definition, items_json = excluded.items_json,
+       created_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
+     WHERE qr_class_pool.definition <> excluded.definition`,
+    [p.id, node.key, definition, JSON.stringify(drawn)]).catch(() => null);
+  const now = await queryOne<{ items_json: string }>(env.DB_QR,
+    'SELECT items_json FROM qr_class_pool WHERE passage_id = ? AND step_key = ?', [p.id, node.key]).catch(() => null);
+  try { return now ? JSON.parse(now.items_json) as Drill[] : drawn; } catch { return drawn; }
+}
+
 /** Every drill a step holds over the passage: each of its skills drawn whole, once each by id. */
-async function stepPool(env: QuranEnv, L: Record<string, Label[]>, node: Label, scope: Scope): Promise<Drill[]> {
+async function drawPool(env: QuranEnv, L: Record<string, Label[]>, node: Label, scope: Scope): Promise<Drill[]> {
   const max = num(node.extra?.max, 30);
   const only = (node.extra?.only ?? {}) as Record<string, string[]>;
   const piles = await Promise.all(skillsOf(node).map((s) => drawSkill(env, L, s, 'all', max, scope, null, only[s]).catch(() => [] as Drill[])));
@@ -211,7 +235,7 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     const steps = stepNodes(L);
     const listens = (L.class_node ?? []).filter((n) => kindOf(n) === 'listen');
     const [pools, heard, round] = await Promise.all([
-      Promise.all(steps.map((n) => stepPool(env, L, n, scope))),
+      Promise.all(steps.map((n) => stepPool(env, L, n, p))),
       Promise.all(listens.map((n) => listenOf(env, n, p).catch(() => []))),
       unitRound(env, L, scope).catch(() => ({ items: [] as Drill[], styles: [] as unknown[] })),
     ]);
@@ -264,19 +288,19 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
 
     let items: Drill[];
     if (kind === 'step' && sentence) {
-      const [pool, sentences] = await Promise.all([stepPool(env, L, base, scope), sentencesOf(env, p)]);
+      const [pool, sentences] = await Promise.all([stepPool(env, L, base, p), sentencesOf(env, p)]);
       const i = sentences.findIndex((s) => s.id === sentence);
       if (i < 0) return notFound(`sentence ${sentence}`);
       items = placeBySentence(pool, sentences).get(sentence) ?? [];
       node = sentenceLabel(L, base, sentences[i], i + 1, p.surah);
     } else if (kind === 'step') {
-      items = await stepPool(env, L, base, scope);
+      items = await stepPool(env, L, base, p);
     } else {
       const wanted = kind === 'review'
         ? new Set((u.searchParams.get('steps') ?? '').split(',').filter(Boolean).map((k) => splitKey(k).step))
         : null;
       const steps = stepNodes(L).filter((n) => !wanted || wanted.has(n.key));
-      const pools = await Promise.all(steps.map((n) => stepPool(env, L, n, scope)));
+      const pools = await Promise.all(steps.map((n) => stepPool(env, L, n, p)));
       if (kind === 'practice') {
         const refs = new Set((u.searchParams.get('refs') ?? '').split(',').filter(Boolean));
         items = pools.flat().filter((d) => refs.has(String(d.id)));

@@ -122,12 +122,35 @@ function summary(c: ClassRow & { open: number }) {
 async function fileItems(env: CoreEnv, userId: string, classId: string, refs: string[] | null): Promise<number> {
   const db = env.DB_CORE;
   // claimed in one statement, so two reads at once never file (and grade) the same item twice
+  // the claim carries its time ('pending:<iso>'): a claim left by a filing that died (the isolate killed,
+  // the database lost mid-batch) is taken again after CLAIM_STALE, so an item can never be stranded unfiled
   const toFile = await query<{ item_ref: string; state: ItemState; card_json: string }>(db,
-    `UPDATE core_drill_class_item SET filed_card = 'pending'
-      WHERE class_id = ? AND card_json IS NOT NULL AND filed_card IS NULL AND state IN ('right', 'perfected')
+    `UPDATE core_drill_class_item SET filed_card = 'pending:' || strftime('%Y-%m-%dT%H:%M:%SZ','now')
+      WHERE class_id = ? AND card_json IS NOT NULL AND ${UNFILED} AND state IN ('right', 'perfected')
         AND (? IS NULL OR item_ref IN (SELECT value FROM json_each(?)))
       RETURNING item_ref, state, card_json`,
     [classId, refs ? 1 : null, refs ? JSON.stringify(refs) : '[]']);
+  let filed = 0;
+  try {
+    filed = await fileClaimed(env, userId, classId, toFile);
+  } catch (e) {
+    // a filing that throws gives back what it claimed and did not file, to be filed on a later read
+    await db.prepare(`UPDATE core_drill_class_item SET filed_card = NULL WHERE class_id = ? AND filed_card LIKE 'pending:%'
+                        AND item_ref IN (SELECT value FROM json_each(?))`)
+      .bind(classId, JSON.stringify(toFile.map((r) => r.item_ref))).run().catch(() => null);
+    throw e;
+  }
+  return filed;
+}
+
+/** Not filed yet: never claimed, or claimed by a filing that died more than CLAIM_STALE ago (old bare 'pending' too). */
+const CLAIM_STALE = '-10 minutes';
+const UNFILED = `(filed_card IS NULL OR filed_card = 'pending'
+  OR (filed_card LIKE 'pending:%' AND substr(filed_card, 9) < strftime('%Y-%m-%dT%H:%M:%SZ','now','${CLAIM_STALE}')))`;
+
+async function fileClaimed(env: CoreEnv, userId: string, classId: string,
+                           toFile: Array<{ item_ref: string; state: ItemState; card_json: string }>): Promise<number> {
+  const db = env.DB_CORE;
   let filed = 0;
   for (let i = 0; i < toFile.length; i += 100) {
     const chunk = toFile.slice(i, i + 100);
@@ -159,7 +182,7 @@ async function fileItems(env: CoreEnv, userId: string, classId: string, refs: st
 export async function fileLearnt(env: CoreEnv, userId: string): Promise<number> {
   const classes = await query<{ id: string }>(env.DB_CORE,
     `SELECT DISTINCT c.id FROM core_drill_class c JOIN core_drill_class_item i ON i.class_id = c.id
-      WHERE c.user_ref = ? AND i.card_json IS NOT NULL AND i.filed_card IS NULL AND i.state IN ('right', 'perfected')`,
+      WHERE c.user_ref = ? AND i.card_json IS NOT NULL AND ${UNFILED.replace(/filed_card/g, 'i.filed_card')} AND i.state IN ('right', 'perfected')`,
     [userId]);
   let filed = 0;
   for (const c of classes) filed += await fileItems(env, userId, c.id, null);

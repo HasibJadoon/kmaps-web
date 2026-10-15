@@ -320,7 +320,7 @@ function build(ask: string, o: Item, ay: Ayah, idx: number, c: Ctx, wordsAt: Map
                  source: { workId: `QR:SURAH:${o.surah}`, title: ay.title, level: null } };
   const badge = (label: string, labelAr: string, color = COLOR) => [{ label, labelAr, color }];
   const card = (d: Drill, ref: string, front: string, back: string, series: string) =>
-    withCard(d, { ref: `QR:vocab:${ref}`, type: 'vocab', kind: 'vocab', front: `${ay.ws.map((x) => x.word_text).join(' ')}\n${front}`, back,
+    withCard(d, { ref: `QR:vocab:${ref}`, type: 'vocabulary', kind: 'vocab', front: `${ay.ws.map((x) => x.word_text).join(' ')}\n${front}`, back,
                   surah: o.surah, ayah: o.ayah, series, band: c.band });
   const id = `vocab:${ask}:${key(o)}`;
 

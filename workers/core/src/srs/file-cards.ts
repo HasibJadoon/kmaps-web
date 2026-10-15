@@ -31,6 +31,8 @@ export const RESOURCE_TYPES = new Set([
   'ayah', 'passage', 'concept', 'other',
 ]);
 
+const RESOURCE_ALIASES: Record<string, string> = { vocab: 'vocabulary' };
+
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 
 export const DECK_TITLES: Record<string, string> = {
@@ -93,7 +95,9 @@ export async function fileCards(
     const entry = typeof raw === 'object' && raw !== null && !Array.isArray(raw)
       ? raw as Record<string, unknown> : null;
     const module       = entry ? str(entry['module']) : undefined;
-    const resourceType = entry ? str(entry['resource_type']) : undefined;
+    // 'vocab' is the name the Qurʾān's vocabulary drills once carried (practice-vocab.ts): cards kept with it in class
+    // records and kept draws are filed under the contract's name, never refused (refused, they could never reach review)
+    const resourceType = entry ? RESOURCE_ALIASES[str(entry['resource_type']) ?? ''] ?? str(entry['resource_type']) : undefined;
     const resourceRef  = entry ? str(entry['resource_ref']) : undefined;
 
     if (!module || !MODULES.has(module)) {
