@@ -204,7 +204,9 @@ async function lexemeDrills(env: ArabicEnv, unit: string, no: number, scene: Sce
 /// dialogue, drawn fresh — or a Response saying why there is none.
 export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier: string | null, size = 12, rand: Rand = Math.random) {
     const mix = <U,>(xs: U[]) => shuffle(xs, rand);
-    const inTier = (x: { tier?: string }) => !tier || !x.tier || x.tier === tier;
+    // a tier asked for keeps the read items of that tier; with none asked (a plain round, a class) the items a reader
+    // marked easy are left out — scene drills are high-end only (an easy word was asked as "what does it mean")
+    const inTier = (x: { tier?: string }) => (tier ? !x.tier || x.tier === tier : x.tier !== 'easy');
     const [L, common] = await Promise.all([labels(env), commonWords(env)]);
     const sc = await script(env, unit);
     const scene = sc?.s.scenes.find((x) => String(x.scene_no) === no);

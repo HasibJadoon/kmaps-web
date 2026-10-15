@@ -129,9 +129,11 @@ const sentencesOf = (env: QuranEnv, p: Passage) => query<Sentence>(env.DB_QR,
 function sentenceLabel(L: Record<string, Label[]>, step: Label, s: Sentence, n: number, surah: number): Label {
   const w = (L.class_ui ?? []).find((l) => l.key === 'sentence_n');
   const range = s.ayah_to > s.ayah_from ? `${surah}:${s.ayah_from}–${s.ayah_to}` : `${surah}:${s.ayah_from}`;
-  const fill = (t: string | null | undefined) => (t ?? '').replace('{n}', String(n)).replace('{range}', range);
+  const fill = (t: string | null | undefined, r = range) => (t ?? '').replace('{n}', String(n)).replace('{range}', r);
+  // in the Arabic line the range sits isolated left-to-right (LRI … PDI): bare, "40:2–3" would read "3–40:2"
+  const isolated = `\u2066${range}\u2069`;
   return { ...step, key: sentenceKey(step.key, s.id),
-           label: w ? fill(w.label) : `${step.label} ${n}`, labelAr: w ? fill(w.labelAr) : step.labelAr,
+           label: w ? fill(w.label) : `${step.label} ${n}`, labelAr: w ? fill(w.labelAr, isolated) : step.labelAr,
            detail: range };
 }
 
