@@ -27,6 +27,7 @@ import { ttsRoutes } from './routes/tts';
 import { wordRoutes } from './routes/words';
 import { sceneRoutes } from './routes/scenes';
 import { pathRoutes } from './routes/path';
+import { practiceClassRoutes } from './routes/practice-class';
 import { intakeRoutes } from './routes/intake';
 import { learnPathRoutes } from './routes/learn-path';
 import { sceneWordRoutes } from './routes/scene-words';
@@ -65,6 +66,7 @@ exerciseRoutes(router);
 dailyRoutes(router);
 roomRoutes(router);
 practiceRoutes(router);
+practiceClassRoutes(router);
 drillSourceRoutes(router);
 ttsRoutes(router);
 wordRoutes(router);
@@ -96,6 +98,8 @@ const KEPT: SwrRoute[] = [
   // the rooms and the skill list (not /ar/atlas/continue — the reader's own — nor a practice session, drawn fresh)
   { re: /^\/ar\/atlas\/(home|room|collection|search)$/, ...CONTENT },
   { re: /^\/ar\/practice\/home$/, ...CONTENT },
+  // the class: what an episode's lesson is, the same for every reader and drawn seeded, so kept as content
+  { re: /^\/ar\/practice\/class\//, ...CONTENT },
   // the scripted scenes (not a scene's practice round, drawn fresh)
   { re: /^\/ar\/scenes(\/[^/]+(\/\d+)?)?$/, ...CONTENT },
   { re: /^\/ar\/daily\/(themes|domains)(\/|$)/, ...CONTENT },

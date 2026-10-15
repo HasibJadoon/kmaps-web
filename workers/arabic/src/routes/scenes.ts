@@ -64,7 +64,21 @@ const titled = (t?: string) => (t ?? '').replace(/^\s*(Scene\s+\d+|المشهد\
 
 const range = ([a, b]: [number, number]) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 const audioUrl = (key: string | null) => (key ? `/api/ar/audio/${encodeURI(key)}` : null);
-const shuffle = <T,>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+/// A draw's chance: Math.random for a fresh round; a seeded one (seeded) for a class, so the same scene deals the same drills.
+export type Rand = () => number;
+const shuffle = <T,>(xs: T[], rand: Rand = Math.random) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+/// A generator seeded by a text (FNV-1a into mulberry32): the same text, the same sequence.
+export function seeded(text: string): Rand {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+  let t = h >>> 0;
+  return () => {
+    t = (t + 0x6D2B79F5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
 const clean = (w: string) => w.replace(/[؟،؛.!?"«»:…,()\[\]]/g, '');
 const stem = (w: string) => bare(w).replace(/^(وال|فال|بال|كال|لل|ال|و|ف|ب|ل)/, '');
 // common and function words are data (ar_common_word) — filtered where the drills are built
@@ -95,9 +109,10 @@ function hardWords(sc: Scene, ep: Script) {
 
 /// A round of n: taken in turn from each kind of drill (a verbal idiom, a key term, a word, an idiom,
 /// a feature, the listening drills), so every round mixes them; then shuffled.
-function balance<T extends { kind: string; bucket?: string | null }>(items: T[], n: number) {
+function balance<T extends { kind: string; bucket?: string | null }>(items: T[], n: number, rand: Rand = Math.random) {
+  const mix = <U,>(xs: U[]) => shuffle(xs, rand);
   const groups = new Map<string, T[]>();
-  for (const it of shuffle(items)) {
+  for (const it of mix(items)) {
     const k = it.bucket === 'verbal_idiom' || it.bucket === 'keyterm' || it.bucket === 'near_synonym' ? it.bucket : it.kind;
     groups.set(k, [...(groups.get(k) ?? []), it]);
   }
@@ -107,7 +122,7 @@ function balance<T extends { kind: string; bucket?: string | null }>(items: T[],
   while (out.length < n && keys.some((k) => groups.get(k)!.length)) {
     for (const k of keys) { const g = groups.get(k)!; if (g.length && out.length < n) out.push(g.shift()!); }
   }
-  return shuffle(out);
+  return mix(out);
 }
 
 type LexHit = { line: number; span_from: number; span_to: number; ref: string; kind: string };
@@ -118,13 +133,14 @@ type Lexeme = { kind: string; phrase?: string; meanings?: Array<{ en: string; re
                                                            lexica: Array<{ source: string; text: string; page: number | null }> }> };
 
 async function lexemeDrills(env: ArabicEnv, unit: string, no: number, scene: Scene, clip: (l: Line) => unknown,
-                            L: Record<string, import('../lib/labels').Label[]>, source: unknown, tier: string | null) {
+                            L: Record<string, import('../lib/labels').Label[]>, source: unknown, tier: string | null, rand: Rand = Math.random) {
+  const mix = <U,>(xs: U[]) => shuffle(xs, rand);
   if (tier === 'easy') return [];                                     // idioms and key terms are the stretch, not the warm-up
   const hits = await query<LexHit>(env.DB_AR,
     `SELECT line, span_from, span_to, ref, kind FROM ar_scene_lexeme WHERE unit_id = ? AND scene_no = ?`, [unit, no]).catch(() => []);
   if (!hits.length || !env.AR_LINGUISTICS) return [];
-  const chosen = [...shuffle(hits.filter((h) => h.kind === 'verbal_idiom')).slice(0, 2), ...shuffle(hits.filter((h) => h.kind === 'keyterm')).slice(0, 1),
-                  ...shuffle(hits.filter((h) => h.kind === 'near_synonym')).slice(0, 2)];
+  const chosen = [...mix(hits.filter((h) => h.kind === 'verbal_idiom')).slice(0, 2), ...mix(hits.filter((h) => h.kind === 'keyterm')).slice(0, 1),
+                  ...mix(hits.filter((h) => h.kind === 'near_synonym')).slice(0, 2)];
   const refs = [...new Set(chosen.map((h) => h.ref.replace(/^AL:/, '')))];
   const lexRes = await env.AR_LINGUISTICS.fetch(`https://al/al/lex/v2/lexemes?refs=${encodeURIComponent(refs.join(','))}`)
     .then((r) => r.json() as Promise<{ data?: { lexemes?: Record<string, Lexeme> } }>).catch(() => null);
@@ -151,7 +167,7 @@ async function lexemeDrills(env: ArabicEnv, unit: string, no: number, scene: Sce
       const others = (x.distractors ?? []).slice(0, 3);
       if (!x.used || others.length < 2) continue;
       out.push({ id: `nuance:${unit}:${no}:${h.line}:${h.span_from}`, kind: 'nuance', audio: clip(l), words: timedWords(l),
-                 blank: h.span_from, answer: x.used, options: shuffle([x.used, ...others]), en: l.en ?? null, source,
+                 blank: h.span_from, answer: x.used, options: mix([x.used, ...others]), en: l.en ?? null, source,
                  prompt: x.set ?? null, tier: null, bucket: 'near_synonym',
                  context: { synonyms: { title: titles.get('synonyms')?.label ?? null, set: x.set ?? null,
                    items: (x.members ?? []).map((m) => ({ ar: m.ar, gloss: m.gloss, note: m.note, used: m.used,
@@ -178,7 +194,7 @@ async function lexemeDrills(env: ArabicEnv, unit: string, no: number, scene: Sce
     };
     out.push({ id: `lexeme:${unit}:${no}:${h.line}:${h.span_from}`, kind: h.kind === 'keyterm' ? 'vocab' : 'idiom',
                audio: clip(l), words: timedWords(l), span: range([h.span_from, h.span_to]), target: h.kind === 'keyterm' ? h.span_from : null,
-               prompt: phrase, answer, options: shuffle([answer, ...wrong]), en: l.en ?? null, source,
+               prompt: phrase, answer, options: mix([answer, ...wrong]), en: l.en ?? null, source,
                explanation: x.meanings?.[0]?.ayahEn ? null : null, tier: null, bucket: h.kind, context });
   }
   return out;
@@ -186,7 +202,8 @@ async function lexemeDrills(env: ArabicEnv, unit: string, no: number, scene: Sce
 
 /// One scene's round: its words, idioms, verbal idioms, key terms, near-synonyms, features and
 /// dialogue, drawn fresh — or a Response saying why there is none.
-export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier: string | null, size = 12) {
+export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier: string | null, size = 12, rand: Rand = Math.random) {
+    const mix = <U,>(xs: U[]) => shuffle(xs, rand);
     const inTier = (x: { tier?: string }) => !tier || !x.tier || x.tier === tier;
     const [L, common] = await Promise.all([labels(env), commonWords(env)]);
     const sc = await script(env, unit);
@@ -222,7 +239,7 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     // the scene's hard words, heard and filled — the words a reader chose where there are any, else the rarest;
     // options from the episode's other hard words, confusable by ear
     // a word is asked once a round: its meaning here (up to four), or else heard and filled
-    const asked = shuffle(vocab).slice(0, 4);
+    const asked = mix(vocab).slice(0, 4);
     const chosen = vocab.filter((v) => !asked.includes(v)).map((v) => {
       const toks = (scene.lines[v.line]?.ar ?? '').trim().split(/\s+/);
       const index = toks.findIndex((t) => bare(clean(t)) === bare(clean(v.word)));
@@ -239,12 +256,12 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
       const l = scene.lines[h.line];
       const a = bare(h.word);
       const letters = new Set(stem(h.word));
-      const opts = shuffle(epHard.filter((w) => bare(w) !== a))
-        .map((w) => ({ w, s: [...new Set(stem(w))].filter((c) => letters.has(c)).length * 2 - Math.abs(bare(w).length - a.length) + Math.random() }))
+      const opts = mix(epHard.filter((w) => bare(w) !== a))
+        .map((w) => ({ w, s: [...new Set(stem(w))].filter((c) => letters.has(c)).length * 2 - Math.abs(bare(w).length - a.length) + rand() }))
         .sort((x, y) => y.s - x.s).map((x) => bare(x.w))
         .filter((w, i, arr) => arr.indexOf(w) === i).slice(0, 3);
       items.push({ id: `fill:${unit}:${no}:${h.line}:${h.index}`, kind: 'fill', audio: clip(l), words: timedWords(l), blank: h.index,
-                   answer: a, options: shuffle([a, ...opts]), en: l.en ?? null, source, tier: (h as { tier?: string }).tier ?? null, bucket: 'vocab' });
+                   answer: a, options: mix([a, ...opts]), en: l.en ?? null, source, tier: (h as { tier?: string }).tier ?? null, bucket: 'vocab' });
     }
 
     // who said it — where the scene has more than one voice
@@ -252,10 +269,10 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     const voices = [...new Set(named.map((l) => l.speaker!))];
     const allVoices = [...new Set(sc.s.scenes.flatMap((x) => x.lines.map((l) => l.speaker).filter(Boolean) as string[]))];
     if (voices.length >= 2) {
-      for (const l of shuffle(named).slice(0, 2)) {
-        const others = shuffle([...voices, ...allVoices].filter((v) => v !== l.speaker)).filter((v, i, arr) => arr.indexOf(v) === i).slice(0, 3);
+      for (const l of mix(named).slice(0, 2)) {
+        const others = mix([...voices, ...allVoices].filter((v) => v !== l.speaker)).filter((v, i, arr) => arr.indexOf(v) === i).slice(0, 3);
         items.push({ id: `speaker:${unit}:${no}:${l.start}`, kind: 'speaker', audio: clip(l), words: timedWords(l),
-                     prompt: byKey(L.prompt).get('speaker')?.label ?? null, answer: l.speaker, options: shuffle([l.speaker!, ...others]), en: l.en ?? null, source });
+                     prompt: byKey(L.prompt).get('speaker')?.label ?? null, answer: l.speaker, options: mix([l.speaker!, ...others]), en: l.en ?? null, source });
       }
     }
 
@@ -264,14 +281,14 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     const epEn = [...new Set(sc.s.scenes.flatMap((x) => x.lines.map((l) => l.en).filter(Boolean) as string[]))];
     const sceneEn = new Set(lines.map((l) => l.en).filter(Boolean));
     const words = (e: string) => e.split(/\s+/).length;
-    for (const l of shuffle(withEn).slice(0, 2)) {
+    for (const l of mix(withEn).slice(0, 2)) {
       // the wrong meanings are as long as the right one, and from this scene where they can be
       const n = words(l.en!);
       const others = epEn.filter((e) => e !== l.en)
-        .map((e) => ({ e, d: Math.abs(words(e) - n) / n + (sceneEn.has(e) ? 0 : 0.35) + Math.random() * 0.3 }))
+        .map((e) => ({ e, d: Math.abs(words(e) - n) / n + (sceneEn.has(e) ? 0 : 0.35) + rand() * 0.3 }))
         .sort((a, b) => a.d - b.d).slice(0, 3).map((x) => x.e);
       items.push({ id: `match:${unit}:${no}:${l.start}`, kind: 'match', audio: clip(l), words: timedWords(l),
-                   answer: l.en, options: shuffle([l.en!, ...others]), en: l.en ?? null, source });
+                   answer: l.en, options: mix([l.en!, ...others]), en: l.en ?? null, source });
     }
 
     // the dialogue, back in order — four lines that follow one another
@@ -279,11 +296,11 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     // fixed windows (lines 0–3, 4–7 …), so one exchange is always the same review item
     const starts = [...Array(Math.max(0, lines.length - 3)).keys()].filter((i) => i % 4 === 0 && lines.slice(i, i + 4).some(rich));
     if (starts.length) {
-      const at = starts[Math.floor(Math.random() * starts.length)];
+      const at = starts[Math.floor(rand() * starts.length)];
       const run = lines.slice(at, at + 4);
       const order = run.map((_, i) => i);
-      let shuffled = shuffle(order);
-      for (let k = 0; k < 4 && shuffled.every((v, i) => v === i); k++) shuffled = shuffle(order);
+      let shuffled = mix(order);
+      for (let k = 0; k < 4 && shuffled.every((v, i) => v === i); k++) shuffled = mix(order);
       items.push({ id: `dialogue:${unit}:${no}:${at}`, kind: 'dialogue',
                    audio: { url, start: run[0].start, end: run[run.length - 1].end },
                    dialogue: run.map((l) => ({ speaker: l.speaker ?? null, ar: l.ar, en: l.en ?? null, clip: clip(l) })),
@@ -298,7 +315,7 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
         const toks = l.ar.trim().split(/\s+/);
         const idx = toks.findIndex((t) => bare(clean(t)) === bare(clean(v.word)));
         items.push({ id: `vocab:${unit}:${no}:${v.line}:${v.word}`, kind: 'vocab', audio: clip(l), words: timedWords(l),
-                     target: idx >= 0 ? idx : null, prompt: v.word, answer: v.gloss, options: shuffle([v.gloss, ...(v.distractors ?? []).slice(0, 3)]),
+                     target: idx >= 0 ? idx : null, prompt: v.word, answer: v.gloss, options: mix([v.gloss, ...(v.distractors ?? []).slice(0, 3)]),
                      explanation: [v.lemma ? `lemma ${v.lemma}` : null, v.note].filter(Boolean).join(' — ') || null,
                      en: l.en ?? null, source, tier: v.tier ?? null, bucket: 'vocab' });
       }
@@ -309,11 +326,11 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
         const toks = (scene.lines[line]?.ar ?? '').trim().split(/\s+/).slice(span[0], span[1] + 1);
         return toks.some((t) => hardOnly(t));
       };
-      for (const x of shuffle((parse<Expr[]>(read?.expressions_json ?? null) ?? []).filter(inTier).filter((e) => worth(e.line, e.span))).slice(0, 2)) {
+      for (const x of mix((parse<Expr[]>(read?.expressions_json ?? null) ?? []).filter(inTier).filter((e) => worth(e.line, e.span))).slice(0, 2)) {
         const l = scene.lines[x.line];
         if (!l) continue;
         items.push({ id: `idiom:${unit}:${no}:${x.line}:${x.span[0]}`, kind: 'idiom', audio: clip(l), words: timedWords(l),
-                     span: range(x.span), prompt: x.phrase, answer: x.meaning, options: shuffle([x.meaning, ...x.distractors.slice(0, 3)]),
+                     span: range(x.span), prompt: x.phrase, answer: x.meaning, options: mix([x.meaning, ...x.distractors.slice(0, 3)]),
                      explanation: [x.literal ? `Literally: ${x.literal}` : null, x.note].filter(Boolean).join(' — ') || null,
                      en: l.en ?? null, source, tier: x.tier ?? null, bucket: 'idiom' });
       }
@@ -325,21 +342,21 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
         `SELECT f.feature_idx FROM ar_scene_feature_term f JOIN ar_ling_gram_term g ON g.id = f.term_id AND g.tier = 'expert'
           WHERE f.unit_id = ? AND f.scene_no = ?`, [unit, Number(no)]).catch(() => [] as Array<{ feature_idx: number }>)).map((r) => r.feature_idx));
       const feats = (parse<Feat[]>(read?.features_json ?? null) ?? []).map((f, i) => ({ f, i })).filter(({ i }) => expertIdx.has(i)).map(({ f }) => f);
-      for (const x of shuffle(feats.filter((f) => f.q && f.options?.length).filter(inTier).filter((f) => worth(f.line, f.span))).slice(0, 3)) {
+      for (const x of mix(feats.filter((f) => f.q && f.options?.length).filter(inTier).filter((f) => worth(f.line, f.span))).slice(0, 3)) {
         const l = scene.lines[x.line];
         if (!l) continue;
         items.push({ id: `feature:${unit}:${no}:${x.line}:${x.span[0]}`, kind: 'feature', audio: clip(l), words: timedWords(l),
-                     span: range(x.span), prompt: x.q, answer: x.options[x.answer], options: shuffle(x.options),
+                     span: range(x.span), prompt: x.q, answer: x.options[x.answer], options: mix(x.options),
                      note: { en: x.feature, ar: x.term_ar ?? '' }, explanation: x.explanation ?? null, en: l.en ?? null, source,
                      tier: x.tier ?? null, bucket: x.bucket ?? 'grammar' });
       }
       // its verbal idioms and Qurʾān key terms (ar_scene_lexeme), each drilled with its range of meanings —
       // Mir's senses with their āyāt, Lane's renderings, Sinai's entry — and its contexts in the books and recordings
-      for (const x of await lexemeDrills(env, unit, Number(no), scene, clip, L, source, tier)) items.push(x);
+      for (const x of await lexemeDrills(env, unit, Number(no), scene, clip, L, source, tier, rand)) items.push(x);
       const gist = parse<{ q: string; options: string[]; answer: number }>(read?.gist_json ?? null);
       if (gist?.q && gist.options?.length) {
         items.push({ id: `gist:${unit}:${no}`, kind: 'gist', prompt: gist.q, answer: gist.options[gist.answer],
-                     options: shuffle(gist.options), en: scene.summary_en ?? null, source });
+                     options: mix(gist.options), en: scene.summary_en ?? null, source });
       }
     } catch (e) { console.log('scene reading', unit, no, String(e)); }
 
@@ -349,13 +366,13 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
       it.badges = [badge(it.bucket ? buckets.get(it.bucket) : undefined), badge(it.tier ? tiers.get(it.tier) : undefined)].filter(Boolean);
     }
     // dictation: one line of a speakable length, heard, then written out
-    const dict = shuffle(lines.filter((l) => { const n = l.ar.split(/\s+/).length; return n >= 4 && n <= 10 && rich(l); }))[0];
+    const dict = mix(lines.filter((l) => { const n = l.ar.split(/\s+/).length; return n >= 4 && n <= 10 && rich(l); }))[0];
     // no typing: the line heard, then its words tapped back in order from tiles (two decoys from the scene's other lines)
     if (dict) {
       const toks = dict.ar.split(/\s+/).filter(Boolean);
-      const decoys = shuffle(lines.filter((l) => l !== dict).flatMap((l) => l.ar.split(/\s+/))
+      const decoys = mix(lines.filter((l) => l !== dict).flatMap((l) => l.ar.split(/\s+/))
         .filter((w) => w.length >= 3 && !toks.includes(w))).filter((w, i, a) => a.indexOf(w) === i).slice(0, 2);
-      const order = shuffle([...toks.map((_, i) => i), ...decoys.map((_, i) => -1 - i)]);
+      const order = mix([...toks.map((_, i) => i), ...decoys.map((_, i) => -1 - i)]);
       const tokens = order.map((i) => (i >= 0 ? toks[i] : decoys[-1 - i]));
       const solution = toks.map((_, i) => order.indexOf(i));
       items.push({ id: `dictation:${unit}:${no}:${dict.start}`, kind: 'dictation', interaction: 'listen_tiles', tileMode: 'arrange',
@@ -372,7 +389,7 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     const deck = byKey(L.path).get('srs_deck');
     return { srsDeck: deck ? { title: deck.label, description: deck.detail } : null,
              skill: { ...card, title: titled(scene.title_en) ?? card.title, titleAr: titled(scene.title_ar) ?? card.titleAr },
-                     level: sc.level, items: instruct(balance(items as Array<{ kind: string; bucket?: string | null }>, size), L) };
+                     level: sc.level, items: instruct(balance(items as Array<{ kind: string; bucket?: string | null }>, size, rand), L) };
 }
 
 export function sceneRoutes(router: Router<ArabicEnv>) {
