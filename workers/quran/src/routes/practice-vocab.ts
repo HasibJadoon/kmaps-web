@@ -219,6 +219,9 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
     const d = build(p.ask, p.o, ay, idx, ctx, wordsAt);
     if (d) out.push(marked(d, gradeOf.get(`${p.o.root}|${p.o.lemma}`) ?? 'medium', flagsOf.get(key(p.o)) ?? [], L));
   }
+  // a word-initial shadda is the article's assimilation left on a lemma or pattern (تَّوْب, فَّعْل — 2,371 lemmas): never
+  // written so; taken off every text the learner reads (the lemma stays the data's join key)
+  for (const d of out) cleanShadda(d);
   // keep n, the asks still mixed, in āyah order (a class step asking for every word keeps them all)
   if (every || out.length <= n) return out;
   const byAsk = new Map<string, Drill[]>();
@@ -226,6 +229,16 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
   const keep = new Set<Drill>();
   for (let i = 0; keep.size < n; i++) for (const xs of byAsk.values()) if (i < xs.length && keep.size < n) keep.add(xs[i]);
   return out.filter((d) => keep.has(d));
+}
+
+const INITIAL_SHADDA = /(^|[\s«»()\[\]،:;—\-·/])([\u0621-\u064A])\u0651/g;
+const unShadda = (t: unknown) => (typeof t === 'string' ? t.replace(INITIAL_SHADDA, '$1$2') : t);
+/** The texts a drill shows, with no word opening on a shadda; the Qurʾān's own words (words, the āyah) are left as written. */
+function cleanShadda(d: Drill) {
+  for (const k of ['prompt', 'answer', 'explanation', 'promptEn']) if (typeof d[k] === 'string') d[k] = unShadda(d[k]);
+  if (Array.isArray(d.options)) d.options = (d.options as unknown[]).map(unShadda);
+  const note = d.note as { en?: string; ar?: string } | undefined;
+  if (note) d.note = { ...note, en: unShadda(note.en) as string, ar: unShadda(note.ar) as string };
 }
 
 type Ctx = { groups: Group[]; famOf: Map<string, Fam[]>; senseOf: Map<string, Sense>; rangeOf: Map<string, Sense[]>;
@@ -265,7 +278,8 @@ function feasible(ask: string, o: Item, famOf: Map<string, Fam[]>, senseOf: Map<
     case 'vocab_who': case 'vocab_books': return differing(gs).length >= 1;
     case 'vocab_family': return fam.length >= 3 && !!o.lemma;
     case 'vocab_kin': return fam.some((f) => f.lemma !== o.lemma);
-    case 'vocab_form': return fam.some((f) => f.gloss && f.wazn);
+    // a proper noun has no pattern to learn (اللَّه carried a made-up فعلَّل)
+    case 'vocab_form': return o.pos !== 'PN' && fam.some((f) => f.gloss && f.wazn);
     case 'vocab_range': return placedOf(o, senseOf).some((s) => s.source !== 'sense_arc' && rangeFor(s, rangeOf).length >= 3);
     case 'vocab_same': return placedOf(o, senseOf).some((s) => s.source !== 'sense_arc' && parseJson<string[]>(s.ayat_json, []).length >= 2
                                                         && rangeFor(s, rangeOf).filter((x) => x.id !== s.id).length >= 1);

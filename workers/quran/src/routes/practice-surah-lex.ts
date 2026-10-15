@@ -472,9 +472,15 @@ const expressionDrills: Make = async (env, n, scope, asks, band, L) => {
       if (ask === 'ex_meaning' && sense) {
         const isForm = a.source === 'adima_dirasat';
         const pool2 = isForm ? all.filter((x) => x.source === 'adima_dirasat') : all.filter((x) => x.grp !== a.grp && x.source !== 'adima_dirasat');
-        const samePart = shuffle(pool2.filter((x) => partOf(x.grp) && partOf(x.grp) === partOf(a.grp)));
-        const inScope = shuffle(pool2.filter((x) => x.surah === a.surah));
-        const wrong = distinct([...samePart, ...inScope, ...shuffle(pool2)].map((x) => x.label_en)).filter((x) => x.toLowerCase() !== sense.toLowerCase()).slice(0, 3);
+        // near misses, in tiers: the same particle's senses, then the expressions of nearby āyāt (the passage's own), then
+        // the sūra's, then the same source's — each tier nearest in length first, so the answer's length gives nothing away
+        const byLen = (xs: typeof pool2) => shuffle(xs).sort((x, y) => Math.abs(x.label_en.length - sense.length) - Math.abs(y.label_en.length - sense.length));
+        const samePart = byLen(pool2.filter((x) => partOf(x.grp) && partOf(x.grp) === partOf(a.grp)));
+        const nearby = byLen(pool2.filter((x) => x.surah === a.surah && Math.abs(x.ayah - a.ayah) <= 10));
+        const inScope = byLen(pool2.filter((x) => x.surah === a.surah));
+        const sameSrc = byLen(pool2.filter((x) => x.source === a.source));
+        const wrong = distinct([...samePart, ...nearby, ...inScope, ...sameSrc, ...shuffle(pool2)].map((x) => x.label_en))
+          .filter((x) => x.toLowerCase() !== sense.toLowerCase()).slice(0, 3);
         if (wrong.length >= 3) piles[k].push(card({ ...b, id: `expression:meaning:${a.id}`, kind: 'idiom', ask, prompt: head, options: shuffle([sense, ...wrong]),
           answer: sense, note: { en: src.en, ar: head }, explanation: expl, context }, ask, `${head}\n${line(ay)}`, `${sense}\n(${a.surah}:${a.ayah})`));
       }
