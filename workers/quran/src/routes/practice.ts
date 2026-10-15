@@ -252,6 +252,16 @@ type Word = { word_index: number; word_text: string; pos: string | null; lemma: 
 type Ayah = { key: string; surah: number; ayah: number; ws: Word[]; words: { t: string; s: number; e: number }[]; aligned: boolean;
               audio: { url: string; start: number; end: number } | null; en: string | null; title: string };
 
+/** An āyah's English that runs on into the next āyah (the translation carries one sentence over several, ending
+ *  this one on a dash, comma or bare word — a quarter of the default's āyāt) ends on an ellipsis, so a drill showing
+ *  the one āyah does not read as cut off: "…can only go wrong-" → "…can only go wrong …". */
+export function runOn(text: string | null): string | null {
+  if (!text) return text;
+  const t = text.trim();
+  if (/[.!?…’”"')\]]$/.test(t)) return t;
+  return `${t.replace(/[\s\-–—,;:]+$/, '')} …`;
+}
+
 /// Each āyah with its words, their times in the recitation (where it numbers the words as the
 /// corpus does), its clip, its default English, and where it stands.
 async function loadAyat(env: QuranEnv, pairs: number[][]): Promise<Map<string, Ayah>> {
@@ -273,7 +283,7 @@ async function loadAyat(env: QuranEnv, pairs: number[][]): Promise<Map<string, A
   ]);
   const names = new Map(surahs.map((s) => [s.id, s.name_en]));
   const recOf = new Map(rec.map((r) => [`${r.surah}:${r.ayah}`, r]));
-  const enOf = new Map(tr.map((r) => [`${r.surah}:${r.ayah}`, r.text]));
+  const enOf = new Map(tr.map((r) => [`${r.surah}:${r.ayah}`, runOn(r.text)]));
   const wsOf = new Map<string, Word[]>();
   for (const w of words) wsOf.set(`${w.surah}:${w.ayah}`, [...(wsOf.get(`${w.surah}:${w.ayah}`) ?? []), w]);
   const out = new Map<string, Ayah>();
