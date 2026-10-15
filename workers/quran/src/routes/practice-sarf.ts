@@ -637,6 +637,18 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
     });
   }
 
+  // audio on every drill (owner): a drill with none plays its own prompt in a SILMA voice — the verb pair of a table, the
+  // verb of a preposition drill, a near-synonym set's title. Its prompt, not the verb's whole line, which would say the
+  // answer (the maṣādir, the hidden cell). Root letters and the Qurʾān's own words (﴿…﴾) are left as they are.
+  const mute = piles.flat(2).filter((d) => !d.audio);
+  const spoken = (d: Drill) => {
+    const p = String(d.prompt ?? '').replace(/[…؟?]/g, '').replace(/\s+/g, ' ').trim();
+    if (!p || p.includes('﴿') || /^(\S\s)+\S$/.test(p) || !/[ء-ي]/.test(p)) return '';
+    return p;
+  };
+  const said = await voiced(env, [...new Set(mute.map(spoken).filter(Boolean))], 'qr-sarf');
+  for (const d of mute) { const c = said[spoken(d)]; if (c) d.audio = c.audio; }
+
   return interleave(piles.map((groups) => interleave(groups, Number.MAX_SAFE_INTEGER)), n);
 }
 
