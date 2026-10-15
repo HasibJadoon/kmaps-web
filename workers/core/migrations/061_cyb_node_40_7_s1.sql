@@ -1,0 +1,3 @@
+-- Ghāfir 40:7 sentence 1 registered as a sentence of passage 4 in the control plane.
+INSERT OR IGNORE INTO cyb_node (id, domain, lane, parent_id, scale, target_kind, target_ref, layer, piece_kind, build_state, build_pct, study_state, study_pct, content_state, content_pct, setpoint_json, priority, meta_json, updated_at, retention_state, retention_pct, build_measured, study_measured, content_measured, retention_measured, build_stale) VALUES
+('CYB:quran:40:7-9:ss:40:7:jadwal:s1', 'quran', 'quran', 'CYB:quran:40:7-9:ss', 'piece', 'sentence', 'QR:SS:40:7:jadwal:s1', 'ss', 'sentence', 'building', 0, 'unseen', 0, 'none', 0, '{}', 10, '{"ayah": 7, "words": 13, "kind": "nominal", "role": "istinaf_ibtidai_muqabala"}', '2026-10-15T18:00:00Z', 'none', 0, 0, 0, 0, 0, 0);
