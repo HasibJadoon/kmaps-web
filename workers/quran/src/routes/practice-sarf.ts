@@ -478,7 +478,7 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
 
   // the باب of a bare verb, the form of a derived one
   for (const v of verbs) {
-    const mas = masadirOf(v)[0] ?? '';
+    const mas = masadirOf(v).join(' وَ');
     if (v.bab_gt) {
       const o = choose(gt.get(v.bab_gt) ?? '', BABS.map((b) => gt.get(b) ?? ''));
       if (o) group(1, v.root).push(make(`bab:${v.id}`, 'sf_bab', { prompt: `${v.madi} ${v.mudari} ${mas}`, promptEn: v.meaning_en, script: 'arabic', ...o,
@@ -545,7 +545,8 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
   // the root's verbs in the Qurʾān: what each one means. The verb's line (ماضٍ مضارعٌ مصدر) is heard in a SILMA voice
   // (km_arabic ar_tts_clip; a line not yet rendered is queued); the prompt quotes the passage's āyah where the word was
   // met (40:3 «وَقَابِلِ ٱلتَّوۡبِ» for قَبِلَ), and the verb's own Qurʾānic use goes to the explanation.
-  const lineOf = (v: Verb) => `${v.madi} ${v.mudari} ${masadirOf(v)[0] ?? ''}`.trim();
+  // every maṣdar the lexicons give, not the first only (owner, 2026-10-16: قَبِلَ يَقْبَلُ قَبُولًا وَقُبُولًا)
+  const lineOf = (v: Verb) => `${v.madi} ${v.mudari} ${masadirOf(v).join(' وَ')}`.trim();
   const clips = await voiced(env, verbs.map(lineOf), 'qr-sarf');
   for (const v of verbs) {
     const c = parseJson<Cite | null>(v.cite_json, null);
