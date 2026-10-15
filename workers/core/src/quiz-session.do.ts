@@ -2,6 +2,7 @@ import type { CoreEnv } from './env';
 import { query, execute } from '../../shared/src/db';
 import { typedId } from '../../shared/src/ulid';
 import { speedPoints } from './bank/score';
+import { quizDrillOf } from './quiz/drills';
 
 interface Player {
   userId: string;
@@ -21,6 +22,8 @@ interface Live {
 
   correctIndex: number | null;
   explanation: string | null;
+  /** The Arabic a drill is asked of, when it is a drill. */
+  line?: string | null;
 }
 
 interface Given {
@@ -83,7 +86,7 @@ export class QuizSession {
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    let msg: { t?: string; question?: string; choice?: number };
+    let msg: { t?: string; question?: string; choice?: number; drill?: string; scope?: string };
     try {
       const text = typeof message === 'string' ? message : new TextDecoder().decode(message);
       msg = JSON.parse(text);
@@ -94,7 +97,10 @@ export class QuizSession {
     if (!me) return;
 
     switch (msg.t) {
-      case 'push':   if (me.isHost && msg.question) await this.push(msg.question); return;
+      case 'push':
+        if (me.isHost && msg.drill && msg.scope) await this.pushDrill(msg.scope, msg.drill);
+        else if (me.isHost && msg.question) await this.push(msg.question);
+        return;
       case 'answer': if (typeof msg.choice === 'number') await this.answer(me, msg.choice); return;
       case 'reveal': if (me.isHost) await this.reveal(); return;
       case 'end':    if (me.isHost) await this.end(); return;
@@ -155,6 +161,30 @@ export class QuizSession {
     this.broadcast({ t: 'question', live: this.publicLive(live), given: [] });
   }
 
+  /** A drill of a passage the host studied, from the host's own class record. Its answer stays here. */
+  private async pushDrill(scope: string, itemRef: string): Promise<void> {
+    const host = await this.state.storage.get<string>('hostRef');
+    if (!host) return;
+    const rows = await query<{ card_json: string | null; module: string }>(this.env.DB_CORE,
+      `SELECT i.card_json, c.module FROM core_drill_class_item i JOIN core_drill_class c ON c.id = i.class_id
+        WHERE c.user_ref = ? AND c.scope_ref = ? AND i.item_ref = ?`, [host, scope, itemRef]);
+    const q = quizDrillOf(rows[0]?.card_json ?? null);
+    if (!q) return;
+    await this.state.storage.put('drillAnswer', { questionId: itemRef, correctIndex: q.correctIndex, explanation: q.explanation });
+    await this.state.storage.put('optionIds', [] as string[]);
+    // a drill's answers are kept under its passage, as a bank question's are under its pack
+    await this.state.storage.put('packRef', scope);
+    const live: Live = {
+      questionId: itemRef, prompt: q.prompt, options: q.options, seconds: 20,
+      module: rows[0]?.module ?? 'QR', resourceRef: scope, askedAt: Date.now(),
+      correctIndex: null, explanation: null, line: q.line,
+    };
+    await this.state.storage.put('live', live);
+    await this.state.storage.put('given', [] as Given[]);
+    await this.markLive();
+    this.broadcast({ t: 'question', live: this.publicLive(live), given: [] });
+  }
+
   private publicLive(live: Live | null) {
     if (!live) return null;
     return {
@@ -168,6 +198,7 @@ export class QuizSession {
       revealed: live.correctIndex !== null,
       correctIndex: live.correctIndex,
       explanation: live.explanation,
+      line: live.line ?? null,
     };
   }
 
@@ -347,6 +378,8 @@ export class QuizSession {
   }
 
   private async correctIndexOf(questionId: string): Promise<number | null> {
+    const drill = await this.state.storage.get<{ questionId: string; correctIndex: number }>('drillAnswer');
+    if (drill?.questionId === questionId) return drill.correctIndex;
     const rows = await query<{ n: number }>(
       this.env.DB_CORE,
       `SELECT COUNT(*) AS n FROM core_bank_item_option
@@ -363,6 +396,8 @@ export class QuizSession {
   }
 
   private async explanationOf(questionId: string): Promise<string | null> {
+    const drill = await this.state.storage.get<{ questionId: string; explanation: string | null }>('drillAnswer');
+    if (drill?.questionId === questionId) return drill.explanation;
     const rows = await query<{ explanation: string | null }>(
       this.env.DB_CORE,
       `SELECT COALESCE(explanation_en, explanation_ar) AS explanation

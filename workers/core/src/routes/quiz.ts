@@ -6,6 +6,7 @@ import { typedId, randomCode } from '../../../shared/src/ulid';
 import { readJsonObject, nonBlank } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
 import { generateDrafts, type SourceCard } from '../quiz/generate';
+import { quizDrillOf } from '../quiz/drills';
 
 const MODULES = ['QR', 'AL', 'AR', 'WV', 'EN', 'other'] as const;
 const num = (v: unknown): number | null => {
@@ -14,6 +15,38 @@ const num = (v: unknown): number | null => {
 };
 
 export function quizRoutes(router: Router<CoreEnv>): void {
+
+  /**
+   * What a host can quiz on: their classes (studied first), each with how many of its drills
+   * have one right answer among their choices — and, given a scope, those drills (never their
+   * answers). The room looks the drill up again by its ref, in the host's own record.
+   *   GET /core/quiz/drills            → { classes: [{ scope, module, status, n }] }
+   *   GET /core/quiz/drills?scope=…    → { scope, drills: [{ id, prompt, line, options }] }
+   */
+  router.get('/core/quiz/drills', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const scope = new URL(req.url).searchParams.get('scope');
+    const rows = await query<{ scope_ref: string; module: string; status: string; item_ref: string; card_json: string | null }>(env.DB_CORE,
+      `SELECT c.scope_ref, c.module, c.status, i.item_ref, i.card_json
+         FROM core_drill_class c JOIN core_drill_class_item i ON i.class_id = c.id
+        WHERE c.user_ref = ? AND (? IS NULL OR c.scope_ref = ?) AND i.card_json IS NOT NULL
+        ORDER BY c.status = 'studied' DESC, c.scope_ref, i.item_ref`, [ctx.userId, scope, scope]);
+    if (scope) {
+      return ok({ scope, drills: rows.flatMap((r) => {
+        const q = quizDrillOf(r.card_json);
+        return q ? [{ id: r.item_ref, prompt: q.prompt, line: q.line, options: q.options }] : [];
+      }) });
+    }
+    const classes = new Map<string, { scope: string; module: string; status: string; n: number }>();
+    for (const r of rows) {
+      if (!quizDrillOf(r.card_json)) continue;
+      const c = classes.get(r.scope_ref) ?? { scope: r.scope_ref, module: r.module, status: r.status, n: 0 };
+      c.n++;
+      classes.set(r.scope_ref, c);
+    }
+    return ok({ classes: [...classes.values()] });
+  });
 
   router.get('/core/quiz/questions', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
