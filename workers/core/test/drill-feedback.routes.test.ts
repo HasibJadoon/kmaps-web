@@ -198,3 +198,19 @@ test('a reviewer removes any drill, restores it, and corrects the copies already
   assert.equal(r.restored, 1);
   assert.deepEqual((await amina('GET', '/core/drill/feedback/reasons')).body.data.removed, []);
 });
+
+test('several reasons at once: one report each, the drill withheld when any of them removes it', async () => {
+  const { db, as } = await setup();
+  const amina = await as('U1');
+  let r = await amina('POST', '/core/drill/feedback', { drillId: 'sarf:prep:SP:SV:نزل:II:2', reasons: ['data_issue', 'audio'],
+    note: 'the bāʾ is not ilṣāq', drill: { prompt: 'نَزَّلَ … ؟' } });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.data.ids.length, 2);
+  assert.equal(r.body.data.hidden, false);
+  const rows = db.prepare(`SELECT reason, note FROM core_drill_feedback WHERE drill_id = 'sarf:prep:SP:SV:نزل:II:2' ORDER BY reason`).all() as Array<{ reason: string; note: string }>;
+  assert.deepEqual(rows.map((x) => x.reason), ['audio', 'data_issue']);
+  assert.ok(rows.every((x) => x.note === 'the bāʾ is not ilṣāq'));
+  r = await amina('POST', '/core/drill/feedback', { drillId: 'sarf:x', reasons: ['data_issue', 'remove'] });
+  assert.equal(r.body.data.hidden, true);
+  assert.equal((await amina('POST', '/core/drill/feedback', { drillId: 'sarf:y', reasons: ['data_issue', 'nope'] })).status, 400);
+});

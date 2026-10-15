@@ -91,28 +91,34 @@ export function drillFeedbackRoutes(router: Router<CoreEnv>) {
     const b: Record<string, unknown> | null = raw ? { ...raw, drillId: raw['drillId'] ?? raw['drill_id'],
                                                       resourceRef: raw['resourceRef'] ?? raw['resource_ref'] } : null;
     const drillId = str(b?.['drillId'], 300);
-    const reasonKey = str(b?.['reason'], 60);
-    if (!drillId || !reasonKey) return badRequest('drillId and reason are required');
-    const reason = await queryOne<Reason>(env.DB_CORE,
-      `SELECT key, label, label_ar, detail, icon, color, extra_json FROM core_app_label WHERE scope = 'feedback' AND key = ?`, [reasonKey]);
-    if (!reason) return badRequest(`unknown reason ${reasonKey}`);
+    // several reasons at once (a wrong term and an unclear question): `reasons`, else the one `reason`
+    const keys = [...new Set((Array.isArray(b?.['reasons']) ? (b!['reasons'] as unknown[]) : [b?.['reason']])
+      .map((k) => str(k, 60)).filter((k): k is string => !!k))].slice(0, 8);
+    if (!drillId || !keys.length) return badRequest('drillId and reason are required');
+    const found = await query<Reason>(env.DB_CORE,
+      `SELECT key, label, label_ar, detail, icon, color, extra_json FROM core_app_label WHERE scope = 'feedback'
+        AND key IN (SELECT value FROM json_each(?))`, [JSON.stringify(keys)]);
+    const unknown = keys.filter((k) => !found.some((r) => r.key === k));
+    if (unknown.length) return badRequest(`unknown reason ${unknown.join(', ')}`);
     const drill = b?.['drill'] && typeof b['drill'] === 'object' ? JSON.stringify(b['drill']).slice(0, 32_000) : null;
     const resourceRef = str(b?.['resourceRef'], 300) ?? null;
-    const id = typedId('DFB');
-    await env.DB_CORE.prepare(
+    // one report per reason: the review list, its filters and statuses stay as they are
+    const ids = keys.map(() => typedId('DFB'));
+    await env.DB_CORE.batch(keys.map((k, i) => env.DB_CORE.prepare(
       `INSERT INTO core_drill_feedback (id, user_ref, drill_id, module, kind, resource_ref, reason, note, drill_json)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, ctx.userId, drillId, str(b?.['module'], 10) ?? null, str(b?.['kind'], 60) ?? null, resourceRef,
-            reasonKey, str(b?.['note']) ?? null, drill).run();
+      .bind(ids[i], ctx.userId, drillId, str(b?.['module'], 10) ?? null, str(b?.['kind'], 60) ?? null, resourceRef,
+            k, str(b?.['note']) ?? null, drill)));
     // a drill the learner removes leaves their review too
+    const hidden = found.some(hides);
     let suspended = 0;
-    if (hides(reason) && resourceRef) {
+    if (hidden && resourceRef) {
       const r = await env.DB_CORE.prepare(
         `UPDATE core_srs_card SET suspended = 1 WHERE user_ref = ? AND resource_ref = ? AND suspended = 0`)
         .bind(ctx.userId, resourceRef).run();
       suspended = Number((r as { meta?: { changes?: number } }).meta?.changes ?? 0);
     }
-    return ok({ id, hidden: hides(reason), suspended });
+    return ok({ id: ids[0], ids, hidden, suspended });
   });
 
   router.get('/core/drill/feedback', async (req, env) => {
