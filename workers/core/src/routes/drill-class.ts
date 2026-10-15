@@ -409,8 +409,14 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
        WHERE id = ?`)
       .bind(JSON.stringify(nodes), seconds, c.id, c.id, c.id, node, sprint, c.id));
     await db.batch(stmts);
-    // what is learnt goes to review now — this sprint's, and any learnt before this rule and not yet filed
-    const filed = c.status === 'studied' ? 0 : await fileItems(env, ctx.userId, c.id, null);
+    // what is learnt goes to review now — this sprint's, and any learnt before this rule and not yet filed. Filing grades
+    // each card and can take seconds, so it runs after the answer where it can (the learner is not kept waiting at the end
+    // of a sprint); a filing cut short is taken again after its claim goes stale, and completing the class files the rest
+    let filed = 0;
+    if (c.status !== 'studied') {
+      const filing = fileItems(env, ctx.userId, c.id, null);
+      if (env.ctx) env.ctx.waitUntil(filing.catch(() => 0)); else filed = await filing;
+    }
 
     const fresh = (await findClass(env, ctx.userId, scope))!;
     return ok({ class: await view(env, fresh), sprint: { items: items.length, right: firsts, stars, filed } });

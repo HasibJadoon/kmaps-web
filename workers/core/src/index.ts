@@ -101,5 +101,6 @@ router.post('/core/internal/memberships', async (req, env) => {
 });
 
 export default {
-  fetch: (request: Request, env: CoreEnv) => router.handle(request, env),
+  // the request's context travels with env, so a route can finish work after it has answered (env.ctx.waitUntil)
+  fetch: (request: Request, env: CoreEnv, ctx: ExecutionContext) => router.handle(request, { ...env, ctx }),
 } satisfies ExportedHandler<CoreEnv>;

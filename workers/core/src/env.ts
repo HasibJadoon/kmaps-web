@@ -1,4 +1,6 @@
 export interface CoreEnv {
+  /** The request's context (index.ts): work a route finishes after it has answered. Absent in tests. */
+  ctx?: ExecutionContext;
 
   DB_CORE: D1Database;
 
