@@ -191,7 +191,8 @@ export function lessonOf(L: Record<string, Label[]>, items: Drill[], only?: stri
     const words = withLine ? (withLine.words as Array<{ t: string }>).map((w) => w.t).join(' ') : null;
     return {
       id, style, styleTitle: names.get(style)?.label ?? style, styleTitleAr: names.get(style)?.labelAr ?? '',
-      headingAr: ar, heading: ans ?? (names.get(style)?.label ?? ''),
+      // a verb's meanings: its first, as the heading's English (not the sub-node's title again)
+      headingAr: ar, heading: ans ?? (/^1\. (.+?) — /.exec(points.find((x) => /^1\. /.test(x)) ?? '')?.[1] ?? names.get(style)?.label ?? ''),
       points: points.filter((x) => x !== ar),
       example: words ? { ar: words, en: (withLine?.en as string | undefined) ?? null, ref: (withLine?.source as { title?: string } | undefined)?.title ?? null,
                          audio: withLine?.audio ?? null } : null,
@@ -223,7 +224,7 @@ async function readingSession(env: QuranEnv, L: Record<string, Label[]>, p: Pass
   const termOf = new Map(terms.map((t) => [t.id, t]));
   const names = byKey(L.class_style ?? []);
   const order = ['zamakhshari', 'razi', 'alusi', 'ibn_ashur'];
-  return rows.sort((a, b) => order.indexOf(a.source_slug) - order.indexOf(b.source_slug))
+  const reading = rows.sort((a, b) => order.indexOf(a.source_slug) - order.indexOf(b.source_slug))
     .flatMap((r) => {
       const d = byId.get(r.id);
       if (!d) return [];
@@ -239,6 +240,49 @@ async function readingSession(env: QuranEnv, L: Record<string, Label[]>, p: Pass
         example: null, audio: d.audio ?? null, drills: [r.id],
       }];
     });
+  // then the four set side by side (qr_tafsir_contrast): what they share, where they part, what each dwells on, where a
+  // school shows
+  const contrast = await query<{ id: string; kind: string; ayah: string | null; topic_en: string; topic_ar: string | null; point_en: string;
+                                 positions_json: string | null }>(env.DB_QR,
+    `SELECT id, kind, ayah, topic_en, topic_ar, point_en, positions_json FROM qr_tafsir_contrast
+      WHERE passage_id = ? AND status = 'live' ORDER BY ord`, [p.id]).catch(() => []);
+  const kinds = byKey(L.class_style ?? []);
+  const book = (slug: string) => names.get(`tafsir_read:${slug}`)?.label ?? slug;
+  return [...reading, ...contrast.map((c) => ({
+    id: c.id, style: `tafsir_contrast:${c.kind}`, styleTitle: kinds.get(`tafsir_contrast:${c.kind}`)?.label ?? c.kind,
+    styleTitleAr: kinds.get(`tafsir_contrast:${c.kind}`)?.labelAr ?? '',
+    headingAr: c.topic_ar ?? '', heading: c.topic_en,
+    points: [c.point_en, ...Object.entries(parseJson<Record<string, string>>(c.positions_json ?? '', {})).map(([b, x]) => `${book(b)}: ${x}`)],
+    example: null, audio: null, drills: [] as string[],
+  }))];
+}
+
+/** A lesson as a deck in the slides contract (KMAPSSlides, the Iḍāfa deck's format): a title slide, then each slide in the
+ *  layout its content fits — a list of words with their English (examples), a commentary sentence (shahid), else a
+ *  subject with its lines (definition); the points go to the slide's notes. */
+function deckOf(id: string, title: string, titleAr: string, slides: Array<{ id: string; style: string; styleTitle: string; styleTitleAr: string;
+  headingAr: string; heading: string; points: string[]; example: { ar: string; en: string | null } | null }>) {
+  const pair = /^([^A-Za-z]*[\u0600-\u06FF][^A-Za-z]*?)\s+—\s+(.+)$/;
+  const out = slides.map((sl, i) => {
+    const pairs = sl.points.map((x) => pair.exec(x)).filter((m): m is RegExpExecArray => !!m);
+    const reading = sl.style.startsWith('tafsir_read:');
+    const listing = !reading && pairs.length >= 2;
+    // the example only where it adds a line (a verb's example is its own line again)
+    const ex = sl.example && !sl.headingAr.includes(sl.example.ar) && !sl.example.ar.includes(sl.headingAr) ? sl.example : null;
+    const linesAr = reading ? [sl.headingAr] : listing ? pairs.map((m) => m[1].trim()) : [sl.headingAr, ...(ex ? [ex.ar] : [])].filter(Boolean);
+    const linesEn = reading ? [sl.heading] : listing ? pairs.map((m) => m[2].trim()) : [sl.heading, ...(ex ? [ex.en ?? ''] : [])];
+    const notes = reading || !listing ? sl.points : sl.points.filter((x) => !pair.test(x));
+    return { n: i + 2, blockId: `BLK:${sl.id}`, layout: reading ? 'shahid' : listing ? 'examples' : 'definition', accent: null,
+             kicker: sl.styleTitleAr || sl.styleTitle, source: sl.styleTitle, linesAr, linesEn: linesEn.slice(0, linesAr.length),
+             notesEn: notes, verseRefs: [] as unknown[] };
+  });
+  return {
+    docId: id, slug: id.toLowerCase().replace(/[^a-z0-9]+/g, '-'), contractVersion: 1, title, titleAr, language: 'ar', direction: 'rtl',
+    domain: 'quran', subdomain: 'class', slideCount: out.length + 1, durationMin: Math.max(1, Math.round((out.length + 1) / 3)), videos: [] as string[],
+    theme: {}, collection: null, motion: null,
+    slides: [{ n: 1, blockId: `BLK:${id}:title`, layout: 'title', accent: null, kicker: titleAr, source: null, linesAr: [titleAr || title],
+               linesEn: [title], notesEn: [] as string[], verseRefs: [] as unknown[] }, ...out],
+  };
 }
 
 /** A step's sub-nodes: each style its drills hold, in the order first met, titled by class_style (qr_149). */
@@ -415,12 +459,19 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     if (!base || kindOf(base) !== 'step') return badRequest(`unknown step ${key}`);
     // the commentaries' study is a reading session: each sentence of each book read aloud, then broken down
     if ((base.extra?.module as { study?: string } | undefined)?.study === 'tafsir') {
-      return ok({ passage: passageCard(p), node: nodeCard(base, 0), slides: await readingSession(env, L, p) });
+      const slides = await readingSession(env, L, p);
+      return ok({ passage: passageCard(p), node: nodeCard(base, 0), slides,
+                  deck: deckOf(`LESSON:${p.id}:${base.key}`, base.label, base.labelAr ?? '', slides),
+                  audio: [null, ...slides.map((x) => x.audio ?? null)] });
     }
     let items = await stepPool(env, L, base, p);
     if (sentence) items = placeBySentence(items, await sentencesOf(env, p)).get(sentence) ?? [];
-    const slides = lessonOf(L, items, u.searchParams.get('style'));
-    return ok({ passage: passageCard(p), node: nodeCard(base, items.length), slides });
+    // one slide alone (a drill's own, opened from the drill), or the step's whole lesson
+    const one = u.searchParams.get('slide');
+    const slides = lessonOf(L, items, u.searchParams.get('style')).filter((x) => !one || x.id === one);
+    return ok({ passage: passageCard(p), node: nodeCard(base, items.length), slides,
+                deck: deckOf(`LESSON:${p.id}:${key}`, base.label, base.labelAr ?? '', slides),
+                audio: [null, ...slides.map((x) => x.example?.audio ?? null)] });
   });
 
   router.get('/qr/practice/class/node', async (req, env) => {
