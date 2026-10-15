@@ -40,6 +40,16 @@ export function atlasOf(rows: LabelRow[]) {
   };
 }
 
+/** The words a unit path drawn from CORE's own data shows (056): a learn track's, a course's. */
+export const pathWordsOf = (rows: LabelRow[]) => rows.filter((r) => r.scope === 'path').map(word);
+
+export async function pathWords(env: CoreEnv) {
+  const rows = await query<LabelRow>(env.DB_CORE,
+    `SELECT scope, key, parent, label, label_ar, detail, icon, color, extra_json, sort
+       FROM core_app_label WHERE scope = 'path' ORDER BY sort`);
+  return pathWordsOf(rows);
+}
+
 export function appsRoutes(router: Router<CoreEnv>) {
   router.get('/core/apps/atlas', async (req, env) => {
     const ctx = await authenticate(req, env.JWT_SECRET);

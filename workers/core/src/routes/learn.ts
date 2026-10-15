@@ -3,6 +3,7 @@ import { ok, badRequest } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
 import { query } from '../../../shared/src/db';
 import type { CoreEnv } from '../env';
+import { pathWords } from './apps';
 
 type UnitState = 'locked' | 'open' | 'started' | 'done';
 
@@ -194,20 +195,23 @@ export function learnRoutes(router: Router<CoreEnv>): void {
     const from = Number(url.searchParams.get('from') ?? '0');
     const to = Number(url.searchParams.get('to') ?? '0');
 
+    // the path, with the words the device draws it with (056)
+    const withWords = async (body: Promise<object>) => ok({ ...(await body), words: await pathWords(env) });
+
     switch (track) {
       case 'quran':
       case 'corpus':
         if (surah > 0 && from > 0 && to > 0) {
-          return ok(await stepPath(env, ctx.userId, surah, from, to));
+          return withWords(stepPath(env, ctx.userId, surah, from, to));
         }
-        if (surah > 0) return ok(await surahPath(env, ctx.userId, surah));
-        return ok(await corpusPath(env, ctx.userId));
+        if (surah > 0) return withWords(surahPath(env, ctx.userId, surah));
+        return withWords(corpusPath(env, ctx.userId));
       case 'surah': {
         if (!(surah > 0)) return badRequest('surah is required for this track');
-        return ok(await surahPath(env, ctx.userId, surah));
+        return withWords(surahPath(env, ctx.userId, surah));
       }
-      case 'worldview': return ok(await modulePath(env, ctx.userId, 'WV', 'Worldviews'));
-      case 'arabic':    return ok(await arabicPath(env, ctx.userId));
+      case 'worldview': return withWords(modulePath(env, ctx.userId, 'WV', 'Worldviews'));
+      case 'arabic':    return withWords(arabicPath(env, ctx.userId));
       default:          return badRequest(`unknown track: ${track}`);
     }
   });

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import { atlasOf } from '../src/routes/apps';
+import { atlasOf, pathWordsOf } from '../src/routes/apps';
 
 test('the migration\'s rows make six rooms, one door per thing', () => {
   const db = new DatabaseSync(':memory:');
@@ -34,4 +34,19 @@ test('a room without doors is not drawn', () => {
   ]);
   assert.deepEqual(a.rooms.map((r) => r.key), ['one']);
   assert.equal(a.rooms[0].doors[0].module, 'QR');
+});
+
+test('the path words (056) are rows apart from the landing, with every key a unit path asks for', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(readFileSync(new URL('../migrations/041_app_atlas.sql', import.meta.url), 'utf8'));
+  db.exec(readFileSync(new URL('../migrations/056_path_words.sql', import.meta.url), 'utf8'));
+  const rows = db.prepare('SELECT scope, key, parent, label, label_ar, detail, icon, color, extra_json, sort FROM core_app_label ORDER BY scope, sort').all() as never[];
+  const words = pathWordsOf(rows);
+  for (const k of ['start', 'continue', 'locked', 'complete', 'due', 'stops', 'known_of', 'questions', 'nothing_yet', 'empty', 'no_units'])
+    assert.ok(words.some((w) => w.key === k), k);
+  assert.ok(words.find((w) => w.key === 'complete')!.label.includes('{done}'));
+  assert.ok(words.find((w) => w.key === 'stops')!.label.includes('{m}'));
+  // nothing of the path scope leaks into the landing
+  const a = atlasOf(rows);
+  assert.ok(!a.words.some((w) => w.key === 'start'));
 });

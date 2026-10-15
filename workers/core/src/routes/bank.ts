@@ -5,6 +5,7 @@ import { query, queryOne } from '../../../shared/src/db';
 import type { CoreEnv } from '../env';
 import { importPack } from '../bank/import';
 import type { PackDoc } from '../bank/types';
+import { pathWords } from './apps';
 
 async function isOwner(env: CoreEnv, ctx: { userId: string; isAdmin: boolean }): Promise<boolean> {
   if (ctx.isAdmin) return true;
@@ -136,6 +137,8 @@ export function bankRoutes(router: Router<CoreEnv>): void {
     return ok({
       pack,
       units,
+      // the words the course is drawn with as a unit path (056)
+      words: await pathWords(env),
       items: loose.map((i) => {
         const own = byLoose.get(String(i['id'])) ?? [];
         return {
