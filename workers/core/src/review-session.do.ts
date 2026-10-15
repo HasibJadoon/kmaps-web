@@ -19,12 +19,28 @@ interface Asked {
   module: string;
   resourceRef: string;
   askedAt: string;
+  /** The card as its drill (extra.drill) — everyone plays it at once, and each is graded by their own
+   *  answer: no reveal. A card with no drill is asked, revealed and rated as it always was. */
+  drill?: Record<string, unknown> | null;
 }
+
+/** A card's drill, as it was filed (extra.drill), or null. */
+export function drillOf(extraJson: string | null): Record<string, unknown> | null {
+  try {
+    const d = extraJson ? JSON.parse(extraJson)?.drill : null;
+    return d && typeof d === 'object' ? d as Record<string, unknown> : null;
+  } catch { return null; }
+}
+
+/** Whether a rating can be taken now: a drill at once (each answers it), a card once revealed. */
+export const canRateNow = (asked: Pick<Asked, 'back' | 'drill'> | null) => !!asked && (!!asked.drill || asked.back !== null);
 
 interface Answered {
   userId: string;
   name: string | null;
   rating: RatingValue;
+  /** Answered right (a drill's own grading); null for a card rated by hand. */
+  right: boolean | null;
 
   scheduled: boolean;
 
@@ -75,7 +91,7 @@ export class ReviewSession {
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    let msg: { t?: string; card?: string; rating?: number; secs?: number };
+    let msg: { t?: string; card?: string; rating?: number; secs?: number; right?: boolean };
     try {
       const text = typeof message === 'string' ? message : new TextDecoder().decode(message);
       msg = JSON.parse(text);
@@ -90,7 +106,8 @@ export class ReviewSession {
       case 'reveal': await this.reveal(); return;
       case 'rate':
         if (isRating(msg.rating)) {
-          await this.rate(me, msg.rating, typeof msg.secs === 'number' ? Math.round(msg.secs) : null);
+          await this.rate(me, msg.rating, typeof msg.secs === 'number' ? Math.round(msg.secs) : null,
+                          typeof msg.right === 'boolean' ? msg.right : null);
         }
         return;
       default: return;
@@ -115,6 +132,7 @@ export class ReviewSession {
       module: card.module,
       resourceRef: card.resource_ref,
       askedAt: new Date().toISOString(),
+      drill: drillOf(card.extra_json),
     };
     await this.state.storage.put('asked', asked);
 
@@ -132,9 +150,9 @@ export class ReviewSession {
     this.broadcast({ t: 'revealed', asked: revealed });
   }
 
-  private async rate(me: Identity, rating: RatingValue, secs: number | null): Promise<void> {
+  private async rate(me: Identity, rating: RatingValue, secs: number | null, right: boolean | null): Promise<void> {
     const asked = await this.getAsked();
-    if (!asked || asked.back === null) return;
+    if (!asked || !canRateNow(asked)) return;
     if (asked.askedBy === me.userId) return;
 
     const answers = await this.getAnswers();
@@ -143,16 +161,18 @@ export class ReviewSession {
     const repo = new SrsRepo(this.env.DB_CORE);
     const mine: SrsCard | null = await repo.counterpart(me.userId, asked.cardId);
 
+    // a drill answered wrong is Again, whatever was tapped
+    const r: RatingValue = asked.drill && right === false ? 1 as RatingValue : rating;
     let scheduled = false;
     let nextInDays: number | null = null;
     if (mine) {
       // the one rule: a banked drill missed stays banked
-      const g = await gradeOrBank(repo, mine, me.userId, rating, secs);
+      const g = await gradeOrBank(repo, mine, me.userId, r, secs);
       scheduled = g.outcome === 'graded';
       nextInDays = scheduled ? g.card.scheduled_days : null;
     }
 
-    answers.push({ userId: me.userId, name: me.name, rating, scheduled, nextInDays });
+    answers.push({ userId: me.userId, name: me.name, rating: r, right: asked.drill ? right : null, scheduled, nextInDays });
     await this.state.storage.put('answers', answers);
     this.broadcast({ t: 'answers', answers });
   }
