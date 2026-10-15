@@ -123,3 +123,73 @@ export function cardWithMissed(card: Record<string, unknown> | null, missed: num
   if (!drill) return card;
   return { ...card, extra: { ...extra, drill: { ...drill, missed } } };
 }
+
+// ── The roadmap (§2.3b): the map's progress, from the learner's classes ─────────────────────
+//
+// A class's section is its scope less its last part (QR:SP:40:1-3 → QR:SP:40, the sūra). Per
+// section: classes studied, under way, the stars of those studied, the days they took, items
+// still to perfect. The streak counts the learner's days with any study, running back from today
+// — or from yesterday, while today is not yet studied — and the longest run there has been.
+
+export interface RoadmapClass {
+  scope: string; status: string; rating: number | null; daysTaken: number | null; activeDays: number; open: number;
+}
+export interface RoadmapDay { day: string; seconds: number; items: number; right: number }
+
+export const sectionOf = (scope: string) => {
+  const i = scope.lastIndexOf(':');
+  return i > 0 ? scope.slice(0, i) : scope;
+};
+
+const dayMs = (d: string) => Date.parse(`${d}T00:00:00Z`);
+const dayOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+
+/** The current run of study days (alive while yesterday was studied), and the longest run. */
+export function streakOf(studied: string[], today: string): { current: number; best: number; today: boolean } {
+  const set = new Set(studied.filter((d) => Number.isFinite(dayMs(d))));
+  const t = dayMs(today);
+  const runBack = (from: number) => { let n = 0; while (set.has(dayOf(from - n * 86_400_000))) n++; return n; };
+  const current = set.has(today) ? runBack(t) : runBack(t - 86_400_000);
+  let best = 0;
+  for (const d of set) {
+    if (set.has(dayOf(dayMs(d) - 86_400_000))) continue;     // not the first day of its run
+    let n = 0;
+    while (set.has(dayOf(dayMs(d) + n * 86_400_000))) n++;
+    best = Math.max(best, n);
+  }
+  return { current, best: Math.max(best, current), today: set.has(today) };
+}
+
+/** The last `span` days to today, oldest first, each summed over every class (0 when none). */
+export function recentDays(days: RoadmapDay[], today: string, span = 28): RoadmapDay[] {
+  const by = new Map<string, RoadmapDay>();
+  for (const d of days) {
+    const a = by.get(d.day) ?? { day: d.day, seconds: 0, items: 0, right: 0 };
+    by.set(d.day, { day: d.day, seconds: a.seconds + (d.seconds || 0), items: a.items + (d.items || 0), right: a.right + (d.right || 0) });
+  }
+  const t = dayMs(today);
+  return Array.from({ length: span }, (_, i) => {
+    const day = dayOf(t - (span - 1 - i) * 86_400_000);
+    return by.get(day) ?? { day, seconds: 0, items: 0, right: 0 };
+  });
+}
+
+export function roadmapOf(classes: RoadmapClass[], days: RoadmapDay[], today: string) {
+  const sections = new Map<string, { section: string; studied: number; underWay: number; stars: number; days: number; open: number }>();
+  for (const c of classes) {
+    const key = sectionOf(c.scope);
+    const s = sections.get(key) ?? { section: key, studied: 0, underWay: 0, stars: 0, days: 0, open: 0 };
+    if (c.status === 'studied') { s.studied++; s.stars += c.rating ?? 0; s.days += c.daysTaken ?? c.activeDays ?? 0; }
+    else s.underWay++;
+    s.open += c.open || 0;
+    sections.set(key, s);
+  }
+  const studiedDays = [...new Set(days.filter((d) => (d.items || 0) > 0 || (d.seconds || 0) > 0).map((d) => d.day))];
+  return {
+    sections: [...sections.values()].sort((a, b) => a.section.localeCompare(b.section, 'en', { numeric: true })),
+    units: classes.map((c) => ({ scope: c.scope, section: sectionOf(c.scope), status: c.status, rating: c.rating,
+                                 daysTaken: c.daysTaken, activeDays: c.activeDays, open: c.open })),
+    streak: streakOf(studiedDays, today),
+    days: recentDays(days, today),
+  };
+}

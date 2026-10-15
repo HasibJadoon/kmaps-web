@@ -5,7 +5,7 @@ import { query, queryOne } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import { readJsonObject } from '../../../shared/src/validate';
 import {
-  nextItem, nextNode, starsFor, scoreOf, daysTaken, seededRating, mergeMissed, cardWithMissed,
+  nextItem, nextNode, starsFor, scoreOf, daysTaken, seededRating, mergeMissed, cardWithMissed, roadmapOf,
   type ItemRecord, type ItemState, type NodeProgress, type SprintAnswer, type StarBand,
 } from '../../../shared/src/drill-class';
 import type { CoreEnv } from '../env';
@@ -22,6 +22,8 @@ import { MODULES, fileCards } from '../srs/file-cards';
 //   POST /core/drill/class/complete                       mark it studied: rate it, file every drill
 //   GET  /core/drill/scores?module=QR                     each person's study: mine, and the standings
 //   POST /core/drill/class/resume                         where the learner left off (after each answer)
+//   GET  /core/drill/roadmap?module=QR&today=2026-10-15   the map's progress: per section (a sūra), per class,
+//                                                         the streak and the last four weeks, with its words
 
 interface ClassRow {
   id: string; user_ref: string; scope_ref: string; module: string; status: string;
@@ -179,6 +181,37 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
         ORDER BY c.scope_ref`,
       [ctx.userId, module, module, prefix]);
     return ok({ classes: rows.map(summary) });
+  });
+
+  /**
+   * The roadmap (§2.3b): the learner's progress over the map — each section's classes studied and
+   * under way with their stars and days, each class's state, the streak, the last four weeks — and
+   * the words it is shown with (057). `today` is the learner's day (the device's), else UTC's.
+   *   GET /core/drill/roadmap?module=QR&today=2026-10-15
+   */
+  router.get('/core/drill/roadmap', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const u = new URL(req.url);
+    const module = u.searchParams.get('module');
+    const asked = u.searchParams.get('today') ?? '';
+    const today = DAY.test(asked) ? asked : new Date().toISOString().slice(0, 10);
+    const [rows, days, words] = await Promise.all([
+      query<ClassRow & { open: number }>(env.DB_CORE,
+        `SELECT c.*, (SELECT COUNT(*) FROM core_drill_class_item i WHERE i.class_id = c.id AND i.state = 'open') AS open
+           FROM core_drill_class c WHERE c.user_ref = ? AND (? IS NULL OR c.module = ?) ORDER BY c.scope_ref`,
+        [ctx.userId, module, module]),
+      query<{ day: string; seconds: number; items: number; right: number }>(env.DB_CORE,
+        `SELECT d.day, d.seconds, d.items, d.right FROM core_drill_class_day d
+           JOIN core_drill_class c ON c.id = d.class_id
+          WHERE c.user_ref = ? AND (? IS NULL OR c.module = ?)`, [ctx.userId, module, module]),
+      query<{ key: string; label: string; label_ar: string | null; icon: string | null; color: string | null }>(env.DB_CORE,
+        `SELECT key, label, label_ar, icon, color FROM core_app_label WHERE scope = 'roadmap' ORDER BY sort`).catch(() => []),
+    ]);
+    const map = roadmapOf(rows.map((c) => ({ scope: c.scope_ref, status: c.status, rating: c.rating, daysTaken: c.days_taken,
+                                             activeDays: c.active_days ?? 0, open: c.open ?? 0 })), days, today);
+    return ok({ module, today, ...map,
+                words: words.map((w) => ({ key: w.key, label: w.label, labelAr: w.label_ar, icon: w.icon, color: w.color })) });
   });
 
   /**

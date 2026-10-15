@@ -245,3 +245,26 @@ test('bad input is refused', async () => {
   assert.equal((await call('POST', '/core/drill/class/complete', { scope })).status, 404);
   assert.equal((await call('GET', '/core/drill/class?scope=nope')).body.data.class, null);
 });
+
+test('the roadmap: a sūra\'s classes, the streak from the learner\'s days, only the reader\'s own', async () => {
+  const { call, as } = await setup();
+  await call('POST', '/core/drill/class/progress', {
+    scope, module: 'QR', node: 'read', sprint: 0, of: 2, seconds: 60, day: '2026-10-14', bands,
+    items: [{ ref: 'QR:fill:40:9', first: false, misses: 1, streak: 1, card: card('QR:fill:40:9') }],
+  });
+  await call('POST', '/core/drill/class/progress', {
+    scope, module: 'QR', node: 'read', sprint: 1, of: 2, seconds: 30, day: '2026-10-15', bands,
+    items: [{ ref: 'QR:fill:40:8', first: true, misses: 0, streak: 1, card: card('QR:fill:40:8') }],
+  });
+  const r = await call('GET', '/core/drill/roadmap?module=QR&today=2026-10-15');
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.data.sections, [{ section: 'QR:SP:40', studied: 0, underWay: 1, stars: 0, days: 0, open: 1 }]);
+  assert.equal(r.body.data.units[0].scope, scope);
+  assert.deepEqual(r.body.data.streak, { current: 2, best: 2, today: true });
+  assert.equal(r.body.data.days.length, 28);
+  assert.equal(r.body.data.days[27].seconds, 30);
+  // another reader sees nothing of it
+  const other = await (await as('U2'))('GET', '/core/drill/roadmap?module=QR&today=2026-10-15');
+  assert.deepEqual(other.body.data.sections, []);
+  assert.equal(other.body.data.streak.current, 0);
+});
