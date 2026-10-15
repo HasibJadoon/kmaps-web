@@ -436,7 +436,9 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
   // the root is not a line of the explanation: it travels as the drill's root (its letters, its picture, its AL ref), shown
   // as a chip that opens the root's page — a line opening in Arabic ran right to left ("ت و ب: Returning …" read ".… :ت و ب")
   const after = (v: Verb) => [chantOf(v), v.note_en].filter(Boolean).join('\n');
-  const rootOf = (r: string) => (pic(r) ? { ref: `AL:root:${r}`, ar: [...r].join(' '), en: pic(r)!.text_en } : { ref: `AL:root:${r}`, ar: [...r].join(' '), en: null });
+  // the root's lexicon (each dictionary's entry) as the app opens it by URI: com.kmaps.app://lexicon/root/<root>
+  const rootOf = (r: string) => ({ ref: `AL:root:${r}`, ar: [...r].join(' '), en: pic(r)?.text_en ?? null,
+                                   uri: `com.kmaps.app://lexicon/root/${encodeURIComponent(r)}` });
   const make = (id: string, kind: string, d: Drill, front: string, back: string) => withCard({
     id: `sarf:${id}`, kind: 'sarf', ask: kind, interaction: 'choose', source, ...d,
   }, { ref: `QR:sarf:${id}`, type: 'passage', kind: 'sarf', front, back, surah: scope.surah, ayah, series: 'sarf' });
