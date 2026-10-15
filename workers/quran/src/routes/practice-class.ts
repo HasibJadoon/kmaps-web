@@ -4,7 +4,7 @@ import { query, queryOne, execute } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import { labels, byKey, type Label } from '../lib/labels';
 import { drawSkill, type Scope } from './practice';
-import { interleave } from './practice-kit';
+import { interleave, parseJson } from './practice-kit';
 import { listenWorks, lineDrills, parseLineRef, sentenceDrills, parseSentenceRef } from './practice-tafsirq';
 
 // ── The Class: a passage studied as one lesson ─────────────────────────────────
@@ -147,6 +147,98 @@ export function styleOf(d: Drill): string {
   if (p[0] === 'tafsir_read' || p[0] === 'tafsir_hear') return `${p[0]}:${p[1] === 'QRTA' ? p[2] ?? '' : p[1] ?? ''}`;
   if (p[0] === 'tafsir_lang') return `tafsir_lang:${(p[1] ?? '').startsWith('p_') ? 'phrase' : 'term'}`;
   return p[0];
+}
+
+/** The subject a drill teaches within its style — one lesson slide per subject: a verb (SV:<root>:<form>), a near-synonym
+ *  set, a word (<sūra>:<āyah>:<word>), a key term, an expression; else the drill itself. */
+export function subjectOf(d: Drill): string {
+  const id = String(d.id ?? '');
+  const sv = /SV:[^:]+:[A-Z]+/.exec(id);
+  if (sv) return sv[0];
+  const ns = /NS:[^:]+:[^:]+/.exec(id);
+  if (ns) return ns[0];
+  const w = /^vocab:[^:]+:(\d+:\d+:\d+)/.exec(id);
+  if (w) return `w:${w[1]}`;
+  const kt = /^keyterm:[^:]+:(.+?):\d+:\d+(:\d+)?$/.exec(id);
+  if (kt) return `kt:${kt[1]}`;
+  return id;
+}
+const lessonId = (d: Drill) => `${styleOf(d)}|${subjectOf(d)}`;
+
+const ARABIC_RE = /[\u0600-\u06FF]/;
+const LATIN_RE = /[A-Za-z]/;
+/** A step's lesson: for each sub-node, a slide per subject its drills teach — the subject (its Arabic, its English), the
+ *  points the drills rest on (their explanations, each line once), and its example from the passage (the drill's line and
+ *  its English). Drawn from the very drills the learner is about to answer, so every drill has its slide. */
+export function lessonOf(L: Record<string, Label[]>, items: Drill[], only?: string | null) {
+  const names = byKey(L.class_style ?? []);
+  const order = new Map((L.class_style ?? []).map((x, i) => [x.key, i]));
+  const groups = new Map<string, Drill[]>();
+  for (const d of items) {
+    if (only && styleOf(d) !== only) continue;
+    const k = lessonId(d);
+    groups.set(k, [...(groups.get(k) ?? []), d]);
+  }
+  const slides = [...groups].map(([id, ds]) => {
+    const style = styleOf(ds[0]);
+    const lines = ds.flatMap((d) => String(d.explanation ?? '').split('\n')).map((x) => x.trim()).filter(Boolean);
+    const points = [...new Set(lines)].slice(0, 8);
+    // the heading: the first Arabic line (a verb's table line, a phrase) — else the drill's prompt; its English: a single
+    // drill's answer when that is English, else the sub-node's title
+    const ar = points.find((x) => ARABIC_RE.test(x) && !LATIN_RE.test(x)) ?? (ARABIC_RE.test(String(ds[0].prompt ?? '')) ? String(ds[0].prompt) : '');
+    const ans = ds.length === 1 && typeof ds[0].answer === 'string' && LATIN_RE.test(ds[0].answer as string) ? String(ds[0].answer) : null;
+    const withLine = ds.find((d) => Array.isArray(d.words) && (d.words as unknown[]).length > 0 && String((d.source as { title?: string } | undefined)?.title ?? '').length);
+    const words = withLine ? (withLine.words as Array<{ t: string }>).map((w) => w.t).join(' ') : null;
+    return {
+      id, style, styleTitle: names.get(style)?.label ?? style, styleTitleAr: names.get(style)?.labelAr ?? '',
+      headingAr: ar, heading: ans ?? (names.get(style)?.label ?? ''),
+      points: points.filter((x) => x !== ar),
+      example: words ? { ar: words, en: (withLine?.en as string | undefined) ?? null, ref: (withLine?.source as { title?: string } | undefined)?.title ?? null,
+                         audio: withLine?.audio ?? null } : null,
+      drills: ds.map((d) => d.id),
+    };
+  });
+  return slides.sort((a, b) => (order.get(a.style) ?? 999) - (order.get(b.style) ?? 999));
+}
+
+/** The commentaries read as a session: every prepared sentence of the passage's commentary (qr_tafsir_sentence), book by
+ *  book in reading order — its Arabic, read aloud from the recording; its translation; then its breakdown: the concept,
+ *  the meaning in full (a historical point with it), and each term it turns on, named with its science (naḥw, ṣarf,
+ *  balāgha). */
+async function readingSession(env: QuranEnv, L: Record<string, Label[]>, p: Passage) {
+  const rows = await query<{ id: string; source_slug: string; audio_id: string; seq_from: number; seq_to: number; concept_en: string | null;
+                             concept_ar: string | null; gist_en: string; meaning_en: string | null; terms_json: string | null }>(env.DB_QR,
+    `SELECT id, source_slug, audio_id, seq_from, seq_to, concept_en, concept_ar, gist_en, meaning_en, terms_json FROM qr_tafsir_sentence
+      WHERE surah = ? AND status = 'live' AND ayah_from <= ? AND ayah_to >= ? ORDER BY source_slug, audio_id, seq_from`,
+    [p.surah, p.ayah_to, p.ayah_from]).catch(() => []);
+  if (!rows.length) return [];
+  // in batches: one query binds at most 100 values
+  const ids = rows.map((r) => r.id), drills: Drill[] = [];
+  for (let i = 0; i < ids.length; i += 25) drills.push(...await sentenceDrills(env, ids.slice(i, i + 25), scopeOf(p)));
+  const byId = new Map(drills.map((d) => [String(d.id), d]));
+  const termIds = [...new Set(rows.flatMap((r) => parseJson<string[]>(r.terms_json ?? '', [])))];
+  const terms = termIds.length ? await query<{ id: string; name_en: string | null; name_ar: string; discipline: string | null }>(env.DB_QR,
+    `SELECT id, name_en, name_ar, discipline FROM ar_ling_gram_term WHERE id IN (SELECT value FROM json_each(?))`, [JSON.stringify(termIds)]).catch(() => []) : [];
+  const science: Record<string, string> = { NH: 'Naḥw', nahw: 'Naḥw', SF: 'Ṣarf', sarf: 'Ṣarf', BL: 'Balāgha', balagha: 'Balāgha' };
+  const termOf = new Map(terms.map((t) => [t.id, t]));
+  const names = byKey(L.class_style ?? []);
+  const order = ['zamakhshari', 'razi', 'alusi', 'ibn_ashur'];
+  return rows.sort((a, b) => order.indexOf(a.source_slug) - order.indexOf(b.source_slug))
+    .flatMap((r) => {
+      const d = byId.get(r.id);
+      if (!d) return [];
+      const style = `tafsir_read:${r.source_slug}`;
+      const words = (d.words as Array<{ t: string }> | undefined) ?? [];
+      const termLines = parseJson<string[]>(r.terms_json ?? '', []).map((id) => termOf.get(id)).filter((t): t is NonNullable<typeof t> => !!t)
+        .map((t) => `${science[t.discipline ?? ''] ?? 'Term'}: ${t.name_en ?? ''} (${t.name_ar})`);
+      return [{
+        id: r.id, style, styleTitle: names.get(style)?.label ?? r.source_slug, styleTitleAr: names.get(style)?.labelAr ?? '',
+        headingAr: words.map((w) => w.t).join(' '), heading: r.gist_en,
+        points: [r.concept_en ? `Concept: ${r.concept_en}${r.concept_ar ? ` (${r.concept_ar})` : ''}` : null, r.meaning_en, ...termLines]
+          .filter((x): x is string => !!x),
+        example: null, audio: d.audio ?? null, drills: [r.id],
+      }];
+    });
 }
 
 /** A step's sub-nodes: each style its drills hold, in the order first met, titled by class_style (qr_149). */
@@ -311,6 +403,26 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     });
   });
 
+  // A step's lesson, before its drills: GET /qr/practice/class/lesson?passage=…&node=words[&style=sarf:table]
+  router.get('/qr/practice/class/lesson', async (req, env) => {
+    const u = new URL(req.url);
+    const id = u.searchParams.get('passage'), key = u.searchParams.get('node');
+    if (!id || !key) return badRequest('passage and node are required');
+    const [L, p] = await Promise.all([labels(env), passageOf(env, id)]);
+    if (!p) return notFound(`passage ${id}`);
+    const { step: stepKey, sentence } = splitKey(key);
+    const base = byKey(L.class_node).get(stepKey);
+    if (!base || kindOf(base) !== 'step') return badRequest(`unknown step ${key}`);
+    // the commentaries' study is a reading session: each sentence of each book read aloud, then broken down
+    if ((base.extra?.module as { study?: string } | undefined)?.study === 'tafsir') {
+      return ok({ passage: passageCard(p), node: nodeCard(base, 0), slides: await readingSession(env, L, p) });
+    }
+    let items = await stepPool(env, L, base, p);
+    if (sentence) items = placeBySentence(items, await sentencesOf(env, p)).get(sentence) ?? [];
+    const slides = lessonOf(L, items, u.searchParams.get('style'));
+    return ok({ passage: passageCard(p), node: nodeCard(base, items.length), slides });
+  });
+
   router.get('/qr/practice/class/node', async (req, env) => {
     const u = new URL(req.url);
     const id = u.searchParams.get('passage');
@@ -357,7 +469,8 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
       }
     }
     // each drill names its style, the sub-node it counts toward (the device sends it back with the answer)
-    const styled = items.map((d) => ({ ...d, style: styleOf(d) }));
+    // and the lesson slide that teaches it (GET /qr/practice/class/lesson), opened from the drill
+    const styled = items.map((d) => ({ ...d, style: styleOf(d), lesson: lessonId(d) }));
     return ok({ passage: passageCard(p), node: nodeCard(node, items.length, 0, stylesOf(L, items)), items: styled, bands: bandsOf(L), stage: L.stage ?? [] });
   });
 
