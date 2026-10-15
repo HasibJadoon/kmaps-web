@@ -17,6 +17,7 @@ import { loadAyat, withCard, levelOf, interleave, shuffle, uniq, cap, parseJson,
 //   ss_nuance    the figure / discourse force at work                                             L3
 //   ss_buildup   order the translation's build-up steps                                           L3
 //   ss_why       why was it rendered so                                                           L3
+//   ss_tree      place each part of a built sentence in its role on the tree (tree_slots)         L3
 //
 // The derived rows stand only on āyāt the curated layer does not cover (clause_id IS NOT NULL), so a curated
 // āyah is drilled from the curated rows alone.
@@ -29,8 +30,68 @@ type Pick = { ask: string; surah: number; ayah: number; from: number | null; to:
 
 const J = (xs: unknown[]) => JSON.stringify(xs);
 
+// ── tree_slots: a built sentence's pillars, each to its role ─────────────────────
+// A sentence with an authored tree (qr_ss_tree) gives one drill: its first-level parts — the pillars in the iʿrāb's
+// own order — become slots named by their registry role (ar_ling_gram_term: Arabic name, English name, colour), and
+// their words become tiles to place. A particle pillar (و، ف، a ḥarf) is not asked; an elided (virtual) one has no
+// words to place. Two to six roles, each part's words distinct, or no drill.
+
+export type TreePillar = { node_label: string; gram_term_ref: string | null; is_virtual: number; node_order: number };
+export type TermName = { id: string; name_ar: string; name_en: string; badge_color: string | null };
+export type TreeSentence = { id: string; surah: number; ayah_from: number; ws: number | null; label: string };
+
+const asked = (p: TreePillar) => !p.is_virtual && !!p.node_label?.trim() && !!p.gram_term_ref
+  && !/^GT:(harf_maani|pos:harf)/.test(p.gram_term_ref);
+
+/** One sentence's tree_slots drill, or null when its tree has too few (or too many) parts to place. */
+export function treeSlotDrill(sent: TreeSentence, pillars: TreePillar[], terms: Map<string, TermName>, seed = Math.random): Drill | null {
+  const parts = [...pillars].sort((a, b) => a.node_order - b.node_order).filter(asked)
+    .filter((p) => terms.has(p.gram_term_ref!));
+  if (parts.length < 2 || parts.length > 6) return null;
+  const texts = parts.map((p) => p.node_label.trim());
+  if (new Set(texts).size !== texts.length) return null;
+  // the tiles dealt in a shuffled order; solution[i] is the tile that belongs in slot i
+  const order = texts.map((_, i) => i).sort(() => seed() - 0.5);
+  if (order.every((v, i) => v === i) && order.length > 1) [order[0], order[1]] = [order[1], order[0]];
+  const tokens = order.map((i) => texts[i]);
+  const solution = texts.map((_, i) => order.indexOf(i));
+  const slots = parts.map((p) => { const t = terms.get(p.gram_term_ref!)!; return { id: t.id, label: t.name_en, labelAr: t.name_ar, color: t.badge_color }; });
+  const drill: Drill = {
+    id: `ss:tree:${sent.id}`, kind: 'tree', ask: 'ss_tree', interaction: 'tree_slots', script: 'quran',
+    prompt: sent.label, tokens, solution, slots, at: { ayah: sent.ayah_from, word: sent.ws ?? 1 },
+    source: { workId: `QR:SURAH:${sent.surah}`, title: null, level: null },
+  };
+  return withCard(drill, { ref: `QR:ss:tree:${sent.id}`, type: 'grammar', kind: 'ss', front: `${sent.label}\n— place each part in its role`,
+    back: parts.map((p, i) => `${texts[i]} — ${slots[i].labelAr}`).join('\n'), surah: sent.surah, ayah: sent.ayah_from, series: null });
+}
+
+/** Every built sentence in the scope as a tree_slots drill. */
+export async function treeSlotDrills(env: QuranEnv, scope: Scope): Promise<Drill[]> {
+  const w = scope.surah === null ? { sql: '1=1', args: [] as number[] }
+    : scope.from && scope.to ? { sql: 's.surah = ? AND s.ayah_from <= ? AND s.ayah_to >= ?', args: [scope.surah, scope.to, scope.from] }
+    : { sql: 's.surah = ?', args: [scope.surah] };
+  const rows = await query<TreeSentence & { tree_id: string }>(env.DB_QR,
+    `SELECT s.id, s.surah, s.ayah_from, s.word_start_index AS ws, t.id AS tree_id,
+            (SELECT n.node_label FROM qr_ss_tree_node n WHERE n.tree_id = t.id AND n.parent_node_id IS NULL LIMIT 1) AS label
+       FROM qr_ss_occ_sentence s JOIN qr_ss_tree t ON t.sentence_id = s.id
+      WHERE ${w.sql} AND COALESCE(s.is_virtual, 0) = 0 ORDER BY s.ayah_from, s.word_start_index LIMIT 200`, w.args);
+  if (!rows.length) return [];
+  const pillars = await query<TreePillar & { tree_id: string }>(env.DB_QR,
+    `SELECT n.tree_id, n.node_label, n.gram_term_ref, n.is_virtual, n.node_order FROM qr_ss_tree_node n
+      WHERE n.depth = 1 AND n.tree_id IN (${rows.map(() => '?').join(',')})`, rows.map((r) => r.tree_id));
+  const refs = uniq(pillars.map((p) => p.gram_term_ref).filter((r): r is string => !!r));
+  const terms = new Map((refs.length ? await query<TermName>(env.DB_QR,
+    `SELECT id, name_ar, name_en, badge_color FROM ar_ling_gram_term WHERE id IN (${refs.map(() => '?').join(',')})`, refs) : []).map((t) => [t.id, t]));
+  return rows.flatMap((r) => {
+    const d = r.label ? treeSlotDrill(r, pillars.filter((p) => p.tree_id === r.tree_id), terms) : null;
+    return d ? [d] : [];
+  });
+}
+
 export async function ssDrills(env: QuranEnv, n: number, scope: Scope, lv: Record<string, unknown>, L: Record<string, Label[]>): Promise<Drill[]> {
   const { band, asks, extra } = levelOf(L, 'ss', lv);
+  // a built sentence's tree, to place its parts in (drawn apart from the clause asks below)
+  const trees = asks.includes('ss_tree') ? await treeSlotDrills(env, scope).catch(() => [] as Drill[]) : [];
   const books = (extra.books ?? {}) as Record<string, Book>;
   const curatedName = ((extra.curated ?? {}) as Book).en ?? 'curated';
   const bookName = (slug: string) => books[slug]?.en ?? slug;
@@ -124,7 +185,7 @@ export async function ssDrills(env: QuranEnv, n: number, scope: Scope, lv: Recor
   // translation build-up beside its grammar
   const seen = new Set<string>();
   const chosen = interleave(piles, take).filter((p) => { const k = `${p.ask}:${p.surah}:${p.ayah}`; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, n);
-  if (!chosen.length) return [];
+  if (!chosen.length) return trees;
 
   // what the drills need beyond their own rows
   const bookClauses = uniq(chosen.filter((c) => c.ask === 'ss_books').map((c) => String((c.row as Reading).clause_id)));
@@ -297,7 +358,7 @@ export async function ssDrills(env: QuranEnv, n: number, scope: Scope, lv: Recor
       }, `why:${r.id}`, `${line}\n${r.target_span_ar} → “${rendered.en}” — why?`, `${ans.label}\n${why.en}`));
     }
   }
-  return out;
+  return [...out, ...trees];
 }
 
 /// The marked words' positions in the āyah (word_index from … to), or none when the row gives no span.
