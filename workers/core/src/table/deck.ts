@@ -8,6 +8,12 @@ export interface TableClass { scope: string; status: string; lastAt: string | nu
 export interface QrPrompt { id: string; en: string; ar: string | null; kind: string; from: number; to: number }
 export interface QrPassage { title: string | null; titleAr: string | null; label: string | null; surah: number }
 
+/** A passage's range as it is read: QR:SP:40:1-3 → 40:1–3 (a label like "Passage 1" repeats across sūras). */
+export function rangeOf(scope: string): string {
+  const p = scope.split(':');
+  return p.length === 4 && p[0] === 'QR' ? `${p[2]}:${p[3].replace('-', '–')}` : scope;
+}
+
 /** A QR reflection as the Table's bank item. */
 export function promptAsItem(p: QrPrompt, surah: number, scope: string): Record<string, unknown> {
   return {
@@ -29,6 +35,6 @@ export function tableDeck(classes: TableClass[], bank: Array<Record<string, unkn
       .map((p) => promptAsItem(p, q!.passage.surah, c.scope));
     const cards = [...own, ...reflections];
     return cards.length ? [{ scope: c.scope, status: c.status, title: q?.passage.title ?? null, titleAr: q?.passage.titleAr ?? null,
-                             label: q?.passage.label ?? null, cards }] : [];
+                             label: q?.passage.label ?? null, range: rangeOf(c.scope), cards }] : [];
   });
 }

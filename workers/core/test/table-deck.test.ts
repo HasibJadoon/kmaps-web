@@ -18,6 +18,7 @@ test('a passage\'s deck: its pack prompts, then its reflections; a prompt met in
   assert.equal(deck.length, 1, 'a passage with nothing to talk over is not dealt');
   assert.equal(deck[0].scope, 'QR:SP:40:1-3');
   assert.equal(deck[0].title, 'Tanzīl and the Four Attributes');
+  assert.equal(deck[0].range, '40:1–3');
   assert.deepEqual(deck[0].cards.map((c) => c.id), ['B1', 'Q1']);
   const q = deck[0].cards[1];
   assert.equal(q.scoring, 'none');
