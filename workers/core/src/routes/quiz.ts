@@ -21,7 +21,7 @@ export function quizRoutes(router: Router<CoreEnv>): void {
    * have one right answer among their choices — and, given a scope, those drills (never their
    * answers). The room looks the drill up again by its ref, in the host's own record.
    *   GET /core/quiz/drills            → { classes: [{ scope, module, status, n }] }
-   *   GET /core/quiz/drills?scope=…    → { scope, drills: [{ id, prompt, line, options }] }
+   *   GET /core/quiz/drills?scope=…    → { scope, drills: [{ id, prompt, line, options, mode }] }
    */
   router.get('/core/quiz/drills', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
@@ -35,7 +35,7 @@ export function quizRoutes(router: Router<CoreEnv>): void {
     if (scope) {
       return ok({ scope, drills: rows.flatMap((r) => {
         const q = quizDrillOf(r.card_json);
-        return q ? [{ id: r.item_ref, prompt: q.prompt, line: q.line, options: q.options }] : [];
+        return q ? [{ id: r.item_ref, prompt: q.prompt, line: q.line, options: q.options, mode: q.mode }] : [];
       }) });
     }
     const classes = new Map<string, { scope: string; module: string; status: string; n: number }>();

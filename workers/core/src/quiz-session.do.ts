@@ -2,7 +2,7 @@ import type { CoreEnv } from './env';
 import { query, execute } from '../../shared/src/db';
 import { typedId } from '../../shared/src/ulid';
 import { speedPoints } from './bank/score';
-import { quizDrillOf } from './quiz/drills';
+import { quizDrillOf, quizAnswerHolds, type QuizMode } from './quiz/drills';
 
 interface Player {
   userId: string;
@@ -24,12 +24,18 @@ interface Live {
   explanation: string | null;
   /** The Arabic a drill is asked of, when it is a drill. */
   line?: string | null;
+  /** How it is answered: one plate (a bank question is always one), every plate that holds, or tiles in order. */
+  mode?: QuizMode;
+  /** all / order: the plates that hold, or the tiles' order — sent only once revealed. */
+  correct?: number[] | null;
 }
 
 interface Given {
   userId: string;
   name: string | null;
   choice: number;
+  /** all / order: the plates picked, or the tiles in the order built. */
+  picked?: number[] | null;
   ms: number;
   correct: boolean;
   points: number;
@@ -86,7 +92,7 @@ export class QuizSession {
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    let msg: { t?: string; question?: string; choice?: number; drill?: string; scope?: string };
+    let msg: { t?: string; question?: string; choice?: number; picked?: number[]; drill?: string; scope?: string };
     try {
       const text = typeof message === 'string' ? message : new TextDecoder().decode(message);
       msg = JSON.parse(text);
@@ -101,7 +107,10 @@ export class QuizSession {
         if (me.isHost && msg.drill && msg.scope) await this.pushDrill(msg.scope, msg.drill);
         else if (me.isHost && msg.question) await this.push(msg.question);
         return;
-      case 'answer': if (typeof msg.choice === 'number') await this.answer(me, msg.choice); return;
+      case 'answer':
+        if (typeof msg.choice === 'number') await this.answer(me, msg.choice, null);
+        else if (Array.isArray(msg.picked) && msg.picked.every((x) => Number.isInteger(x))) await this.answer(me, -1, msg.picked);
+        return;
       case 'reveal': if (me.isHost) await this.reveal(); return;
       case 'end':    if (me.isHost) await this.end(); return;
       default: return;
@@ -170,14 +179,14 @@ export class QuizSession {
         WHERE c.user_ref = ? AND c.scope_ref = ? AND i.item_ref = ?`, [host, scope, itemRef]);
     const q = quizDrillOf(rows[0]?.card_json ?? null);
     if (!q) return;
-    await this.state.storage.put('drillAnswer', { questionId: itemRef, correctIndex: q.correctIndex, explanation: q.explanation });
+    await this.state.storage.put('drillAnswer', { questionId: itemRef, mode: q.mode, correctIndex: q.correctIndex, correct: q.correct, explanation: q.explanation });
     await this.state.storage.put('optionIds', [] as string[]);
     // a drill's answers are kept under its passage, as a bank question's are under its pack
     await this.state.storage.put('packRef', scope);
     const live: Live = {
       questionId: itemRef, prompt: q.prompt, options: q.options, seconds: 20,
       module: rows[0]?.module ?? 'QR', resourceRef: scope, askedAt: Date.now(),
-      correctIndex: null, explanation: null, line: q.line,
+      correctIndex: null, explanation: null, line: q.line, mode: q.mode, correct: null,
     };
     await this.state.storage.put('live', live);
     await this.state.storage.put('given', [] as Given[]);
@@ -195,27 +204,37 @@ export class QuizSession {
       module: live.module,
       resourceRef: live.resourceRef,
       askedAt: live.askedAt,
-      revealed: live.correctIndex !== null,
+      revealed: live.correctIndex !== null || !!live.correct,
       correctIndex: live.correctIndex,
       explanation: live.explanation,
       line: live.line ?? null,
+      mode: live.mode ?? 'one',
+      correct: live.correct ?? null,
     };
   }
 
-  private async answer(me: Player, choice: number): Promise<void> {
+  private async answer(me: Player, choice: number, picked: number[] | null): Promise<void> {
     const live = await this.getLive();
-    if (!live || live.correctIndex !== null) return;
-    if (choice < 0 || choice >= live.options.length) return;
+    if (!live || live.correctIndex !== null || live.correct) return;
+    const mode = live.mode ?? 'one';
+    if (mode === 'one' ? (choice < 0 || choice >= live.options.length)
+                       : (!picked || !picked.length || picked.some((i) => i < 0 || i >= live.options.length))) return;
 
-    const correctIndex = await this.correctIndexOf(live.questionId);
     const ms = Math.max(0, Date.now() - live.askedAt);
-    const correct = correctIndex === choice;
+    let correct: boolean;
+    if (mode === 'one') {
+      correct = (await this.correctIndexOf(live.questionId)) === choice;
+    } else {
+      const key = await this.state.storage.get<{ questionId: string; mode: QuizMode; correctIndex: number; correct: number[] }>('drillAnswer');
+      if (!key || key.questionId !== live.questionId) return;
+      correct = quizAnswerHolds(key, { picked: picked ?? [] });
+    }
 
     const given = await this.getGiven();
     if (given.some((g) => g.userId === me.userId)) return;
 
     given.push({
-      userId: me.userId, name: me.name, choice, ms, correct,
+      userId: me.userId, name: me.name, choice, picked, ms, correct,
       points: scoreFor(correct, ms, live.seconds),
     });
     await this.state.storage.put('given', given);
@@ -238,13 +257,17 @@ export class QuizSession {
 
   private async reveal(): Promise<void> {
     const live = await this.getLive();
-    if (!live || live.correctIndex !== null) return;
+    if (!live || live.correctIndex !== null || live.correct) return;
 
-    const correctIndex = await this.correctIndexOf(live.questionId);
+    const mode = live.mode ?? 'one';
+    const key = await this.state.storage.get<{ questionId: string; correct: number[] }>('drillAnswer');
+    const correctIndex = mode === 'one' ? await this.correctIndexOf(live.questionId) : -1;
     if (correctIndex === null) return;
+    const correct = mode === 'one' ? null : (key?.questionId === live.questionId ? key.correct : null);
+    if (mode !== 'one' && !correct) return;
     const explanation = await this.explanationOf(live.questionId);
 
-    const revealed: Live = { ...live, correctIndex, explanation };
+    const revealed: Live = { ...live, correctIndex, correct, explanation };
     await this.state.storage.put('live', revealed);
 
     const given = await this.getGiven();
@@ -294,8 +317,8 @@ export class QuizSession {
               credit, latency_ms, points)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (attempt_ref, item_ref) DO NOTHING`,
-          [typedId('BRS'), attemptRef, questionId, g.userId, g.choice ?? 0,
-           JSON.stringify(optionIds[g.choice ?? -1] ? [optionIds[g.choice ?? -1]] : []),
+          [typedId('BRS'), attemptRef, questionId, g.userId, Math.max(0, g.choice ?? 0),
+           JSON.stringify(g.picked ?? (optionIds[g.choice ?? -1] ? [optionIds[g.choice ?? -1]] : [])),
            g.correct ? 1 : 0, g.correct ? 1 : 0, g.ms, g.points],
         );
 
