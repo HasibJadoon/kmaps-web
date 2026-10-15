@@ -210,7 +210,7 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
     : src === 'arc2' ? await arc2Drills(env, n, scope, lv, L)
     : ['nearsyn', 'keyterm', 'expression'].includes(src) ? await surahLexDrills(env, src, n, scope, lv, L)
     : src === 'groups' ? await groupDrills(env, n, scope, lv, L, u)
-    : src === 'ss' ? await ssDrills(env, n, scope, lv, L)
+    : src === 'ss' ? [...await ssDrills(env, n, scope, lv, L), ...await sentenceLineDrills(env, scope, (lv.asks as string[] | undefined) ?? [])]
     : src === 'structure' ? await structureDrills(env, n, scope, lv, L)
     : src === 'questions' ? await questionDrills(env, n, scope)
     : src === 'tafsirq' ? await tafsirDrillsQ(env, meta.extra?.interaction === 'listen_mark' ? 'listen' : 'meaning', n, scope)
@@ -393,15 +393,31 @@ async function lineDrills(env: QuranEnv, skill: string, n: number, scope: Scope,
   // more āyāt than asked: only one holding high-end language is drilled
   const pairs = await pickAyat(env, scope, minW, maxW, n * (timed ? 6 : 4));
   const ayat = [...(await loadAyat(env, pairs)).values()].filter((a) => a.ws.length && (!timed || a.aligned));
-  // the other words to choose from: content words of the same surahs
-  const surahIds = [...new Set(ayat.map((a) => a.surah))];
+  const ctx = await lineContext(env, pairs, skill === 'fill' || skill === 'hear');
+  const out: Record<string, unknown>[] = [];
+  for (const a of ayat) {
+    if (out.length >= n) break;
+    const d = lineDrill(skill, { ...a, id: a.key, ays: a.ws.map(() => a.ayah), wordKey: (i) => String(a.ws[i].word_index) }, ctx, interaction);
+    if (d) out.push(d);
+  }
+  return out;
+}
+
+/** A line drilled by ear: an āyah, or one sentence of the passage (its words, which may run over two āyāt). */
+type Line = Ayah & { id: string; ays: number[]; wordKey: (i: number) => string; at?: { ayah: number; word: number }; sentence?: boolean };
+type LineCtx = { pool: PoolWord[]; factOf: Map<string, PoolWord>; high: Set<string>; kin: PoolWord[] };
+
+/** What a line's drills choose from: the sūras' content words, each word's facts, which words are high-end,
+ *  and (for a gap) the words of the same roots across the Qurʾān. */
+async function lineContext(env: QuranEnv, pairs: number[][], gaps: boolean): Promise<LineCtx> {
+  const surahIds = [...new Set(pairs.map((p) => p[0]))];
   const pool = surahIds.length ? await query<PoolWord>(env.DB_QR,
     `SELECT DISTINCT ${POOL_COLS} FROM qr_word_occurrence
       WHERE surah IN (${surahIds.map(() => '?').join(',')}) AND is_content_word = 1 LIMIT 3000`, surahIds) : [];
   const facts = surahIds.length ? await query<PoolWord & { surah: number; ayah: number; word_index: number }>(env.DB_QR,
     `SELECT surah, ayah, word_index, ${POOL_COLS} FROM qr_word_occurrence
       WHERE (surah, ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`, [JSON.stringify(pairs)]) : [];
-  const factOf = new Map(facts.map((f) => [`${f.surah}:${f.ayah}:${f.word_index}`, f]));
+  const factOf = new Map(facts.map((f) => [`${f.surah}:${f.ayah}:${f.word_index}`, f as PoolWord]));
   // HIGH-END only (the learner's rule for the Qurʾān): a word graded medium → super (qr_vocab_grade, a verb, noun or
   // adjective), or one flagged where it stands (an idiom, a disputed meaning, a debated word, an iʿrāb split — qr_vocab_flag)
   const high = new Set((pairs.length ? await query<{ k: string }>(env.DB_QR,
@@ -413,51 +429,108 @@ async function lineDrills(env: QuranEnv, skill: string, n: number, scope: Scope,
     [JSON.stringify(pairs)]).catch(() => [] as Array<{ k: string }>) : []).map((r) => r.k));
   // the words of the same roots across the whole Qurʾān: a gap's nearest misses
   const roots = [...new Set(facts.filter((f) => f.root && high.has(`${f.surah}:${f.ayah}:${f.word_index}`)).map((f) => f.root as string))];
-  const kin = (skill === 'fill' || skill === 'hear') && roots.length ? await query<PoolWord>(env.DB_QR,
+  const kin = gaps && roots.length ? await query<PoolWord>(env.DB_QR,
     `SELECT DISTINCT ${POOL_COLS} FROM qr_word_occurrence WHERE root IN (${roots.map(() => '?').join(',')}) AND is_content_word = 1 LIMIT 4000`,
     roots).catch(() => [] as PoolWord[]) : [];
+  return { pool, factOf, high, kin };
+}
+
+/** One line's drill of a listening skill — fill, hear, order, shadow (or mark) — or null when it has nothing to ask. */
+function lineDrill(skill: string, a: Line, ctx: LineCtx, interaction?: string): Record<string, unknown> | null {
+  const { pool, factOf, high, kin } = ctx;
+  const hi = (i: number) => high.has(`${a.surah}:${a.ays[i]}:${a.ws[i].word_index}`);
+  // an āyah with nothing high-end in it is not drilled — whether a word of it is asked, or the āyah whole. A sentence of
+  // the class's passage is built and recited whatever its words; only a word asked alone (fill, hear) must be high-end.
+  if (!a.sentence && !a.ws.some((_, i) => hi(i))) return null;
+  if (a.sentence && skill === 'order' && a.ws.length < 3) return null;   // two tiles are a coin toss, not a build
+  const base: Record<string, unknown> = { id: `${skill}:${a.id}`, kind: skill, script: 'quran', audio: a.audio, words: a.words, en: a.en,
+                                          source: { workId: `QR:SURAH:${a.surah}`, title: a.title, level: null } };
+  if (a.at) base.at = a.at;
+  // a skill row may name its interaction (mark: listen, then tap each word not caught)
+  if (interaction) base.interaction = interaction;
+  const line = a.ws.map((w) => w.word_text).join(' ');
+  const series = a.title.replace(/ \d+:\d+(–\d+)?$/, '');
+  const card = (front: string, back: string) => withCard(base, { ref: `QR:${skill}:${a.id}`, type: 'passage', kind: skill, front, back,
+                                                                 surah: a.surah, ayah: a.ayah, series });
+  if (skill === 'fill' || skill === 'hear') {
+    const content = a.ws.map((w, i) => ({ w, i })).filter(({ w, i }) => (w.is_content_word ?? 0) === 1 && fold(w.word_text).length >= 3
+      && hi(i) && (skill !== 'hear' || a.words[i].e - a.words[i].s >= 0.25));
+    if (!content.length) return null;
+    const pick = content[Math.floor(Math.random() * content.length)];
+    const answer = pick.w.word_text;
+    const target = factOf.get(`${a.surah}:${a.ays[pick.i]}:${pick.w.word_index}`);
+    const wrong = gapFillers(target ?? { word_text: answer, pos: pick.w.pos, lemma: pick.w.lemma, gt_case: null, has_det_prefix: null, prefix_count: null },
+                             pool, skill === 'hear', kin);
+    if (wrong.length < 3) return null;
+    const options = shuffle([answer, ...wrong]);
+    if (skill === 'fill') { base.blank = pick.i; base.answer = answer; base.options = options; }
+    else {
+      const t = a.words[pick.i];
+      base.audio = { ...a.audio!, start: Math.max(a.audio!.start, t.s - 0.04), end: Math.min(a.audio!.end, t.e + 0.08) };
+      base.target = pick.i; base.answer = answer; base.options = options; base.line = a.audio;
+    }
+    // the blank is part of its identity: one review item per line and word
+    base.id = `${skill}:${a.id}:${a.wordKey(pick.i)}`;
+    return withCard(base, { ref: `QR:${skill}:${a.id}:${a.wordKey(pick.i)}`, type: 'passage', kind: skill,
+      front: line.replace(answer, '＿＿＿'), back: `${answer}\n${line}`, surah: a.surah, ayah: a.ayah, series });
+  }
+  if (skill === 'order') {
+    const order = a.ws.map((_, i) => i);
+    let sh = shuffle(order);
+    for (let k = 0; k < 4 && sh.every((v, i) => v === i); k++) sh = shuffle(order);
+    base.shuffled = sh;
+  }
+  return card(a.en ?? a.title, line);   // order: the line rebuilt; shadow / mark: the line and its timings
+}
+
+/** The listening drills of each sentence of the passage (class step "Sentences", ss asks ss_fill · ss_order · ss_hear ·
+ *  ss_shadow): the sentence's own words cut from its āyāt, timed in the recitation, with the English of those āyāt.
+ *  Each stands at the sentence's first word, so the class places it in that sentence. */
+export async function sentenceLineDrills(env: QuranEnv, scope: Scope, asks: string[]): Promise<Record<string, unknown>[]> {
+  const skills = ['order', 'fill', 'hear', 'shadow'].filter((s) => asks.includes(`ss_${s}`));
+  if (!skills.length || !scope.surah) return [];
+  const from = scope.from ?? 1, to = scope.to ?? 999;
+  const sentences = await query<{ id: string; ayah_from: number; ayah_to: number; ws: number | null; we: number | null }>(env.DB_QR,
+    `SELECT id, ayah_from, ayah_to, word_start_index AS ws, word_end_index AS we FROM qr_ss_occ_sentence
+      WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ? AND COALESCE(is_virtual, 0) = 0 AND word_start_index IS NOT NULL
+      ORDER BY ayah_from, word_start_index, (id LIKE '%:jadwal:%'), id`, [scope.surah, from, to]);
+  if (!sentences.length) return [];
+  const nums = [...new Set(sentences.flatMap((s) => Array.from({ length: s.ayah_to - s.ayah_from + 1 }, (_, i) => s.ayah_from + i)))];
+  const pairs = nums.map((a) => [scope.surah!, a]);
+  const ayat = await loadAyat(env, pairs);
+  const ctx = await lineContext(env, pairs, skills.includes('fill') || skills.includes('hear'));
   const out: Record<string, unknown>[] = [];
-  for (const a of ayat) {
-    if (out.length >= n) break;
-    // an āyah with nothing high-end in it is not drilled — whether a word of it is asked, or the āyah whole
-    if (!a.ws.some((w) => high.has(`${a.surah}:${a.ayah}:${w.word_index}`))) continue;
-    const base: Record<string, unknown> = { id: `${skill}:${a.key}`, kind: skill, script: 'quran', audio: a.audio, words: a.words, en: a.en,
-                                            source: { workId: `QR:SURAH:${a.surah}`, title: a.title, level: null } };
-    // a skill row may name its interaction (mark: listen, then tap each word not caught)
-    if (interaction) base.interaction = interaction;
-    const line = a.ws.map((w) => w.word_text).join(' ');
-    const card = (front: string, back: string) => withCard(base, { ref: `QR:${skill}:${a.key}`, type: 'passage', kind: skill, front, back,
-                                                                   surah: a.surah, ayah: a.ayah, series: a.title.replace(/ \d+:\d+$/, '') });
-    if (skill === 'fill' || skill === 'hear') {
-      const content = a.ws.map((w, i) => ({ w, i })).filter(({ w, i }) => (w.is_content_word ?? 0) === 1 && fold(w.word_text).length >= 3
-        && high.has(`${a.surah}:${a.ayah}:${w.word_index}`) && (skill !== 'hear' || a.words[i].e - a.words[i].s >= 0.25));
-      if (!content.length) continue;
-      const pick = content[Math.floor(Math.random() * content.length)];
-      const answer = pick.w.word_text;
-      const target = factOf.get(`${a.surah}:${a.ayah}:${pick.w.word_index}`);
-      const wrong = gapFillers(target ?? { word_text: answer, pos: pick.w.pos, lemma: pick.w.lemma, gt_case: null, has_det_prefix: null, prefix_count: null },
-                               pool, skill === 'hear', kin);
-      if (wrong.length < 3) continue;
-      const options = shuffle([answer, ...wrong]);
-      if (skill === 'fill') { base.blank = pick.i; base.answer = answer; base.options = options; }
-      else {
-        const t = a.words[pick.i];
-        base.audio = { ...a.audio!, start: Math.max(a.audio!.start, t.s - 0.04), end: Math.min(a.audio!.end, t.e + 0.08) };
-        base.target = pick.i; base.answer = answer; base.options = options; base.line = a.audio;
-      }
-      // the blank is part of its identity: one review item per āyah and word
-      base.id = `${skill}:${a.key}:${pick.w.word_index}`;
-      out.push(withCard(base, { ref: `QR:${skill}:${a.key}:${pick.w.word_index}`, type: 'passage', kind: skill,
-        front: line.replace(answer, '＿＿＿'), back: `${answer}\n${line}`, surah: a.surah, ayah: a.ayah,
-        series: a.title.replace(/ \d+:\d+$/, '') }));
-    } else if (skill === 'order') {
-      const order = a.ws.map((_, i) => i);
-      let sh = shuffle(order);
-      for (let k = 0; k < 4 && sh.every((v, i) => v === i); k++) sh = shuffle(order);
-      base.shuffled = sh;
-      out.push(card(a.en ?? a.title, line));
-    } else {
-      out.push(card(a.en ?? a.title, line));   // shadow: the āyah and its timings
+  const seen = new Set<string>();
+  for (const s of sentences) {
+    // one reading of the same words is enough: two sentence rows over one span give one set of drills
+    const span = `${s.ayah_from}:${s.ws}-${s.ayah_to}:${s.we}`;
+    if (seen.has(span)) continue;
+    seen.add(span);
+    const parts = Array.from({ length: s.ayah_to - s.ayah_from + 1 }, (_, i) => ayat.get(`${scope.surah}:${s.ayah_from + i}`));
+    if (parts.some((p) => !p || !p.aligned || !p.audio) || new Set(parts.map((p) => p!.audio!.url)).size > 1) continue;
+    const ws: Word[] = [], words: Ayah['words'] = [], ays: number[] = [];
+    for (const p of parts as Ayah[]) {
+      p.ws.forEach((w, i) => {
+        if (p.ayah === s.ayah_from && w.word_index < (s.ws ?? 1)) return;
+        if (p.ayah === s.ayah_to && w.word_index > (s.we ?? 9_999)) return;
+        ws.push(w); words.push(p.words[i]); ays.push(p.ayah);
+      });
+    }
+    if (ws.length < 2) continue;             // a single word (حم) is heard in the āyah step, not built
+    const first = parts[0]!, last = parts[parts.length - 1]!;
+    const range = s.ayah_to > s.ayah_from ? `${scope.surah}:${s.ayah_from}–${s.ayah_to}` : `${scope.surah}:${s.ayah_from}`;
+    // the English only where the sentence is its āyāt whole: a part of an āyah is not given the whole āyah's English
+    const whole = (s.ws ?? 1) === 1 && parts[parts.length - 1]!.ws.every((w) => w.word_index <= (s.we ?? 9_999));
+    const en = whole ? [...new Set(parts.map((p) => p!.en).filter(Boolean))].join(' ') || null : null;
+    const line: Line = {
+      key: s.id, id: s.id, surah: scope.surah, ayah: s.ayah_from, ws, words, ays, aligned: true, en,
+      title: first.title.replace(/ \d+:\d+$/, ` ${range}`),
+      audio: { url: first.audio!.url, start: Math.max(first.audio!.start, words[0].s - 0.05), end: Math.min(last.audio!.end, words[words.length - 1].e + 0.15) },
+      wordKey: (i) => `${ays[i]}.${ws[i].word_index}`, at: { ayah: s.ayah_from, word: s.ws ?? 1 }, sentence: true,
+    };
+    for (const k of skills) {
+      const d = lineDrill(k, line, ctx);
+      if (d) out.push({ ...d, ask: k });
     }
   }
   return out;
