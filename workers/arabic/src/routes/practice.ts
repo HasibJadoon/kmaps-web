@@ -192,6 +192,16 @@ async function lineDrills(env: ArabicEnv, all: L, skill: string, band: Band, n: 
         : { ...base, id, audio: { ...audio, start: Math.max(l.start_sec, pick.w.s - 0.04), end: Math.min(l.end_sec, pick.w.e + 0.06) },
             target: pick.i, answer, options, line: audio };
     }
+    if (skill === 'to_en' || skill === 'to_ar') return translateTiles(skill, l, base, lines, pool, light);
+    if (skill === 'odd') {
+      // hear the line: three of its own words, and one that is not in it — the one to pick
+      const own = [...new Map(words.filter((w) => bare(w.t).length >= 3 && !light(w.t)).map((w) => [bare(clean(w.t)), shown(w.t)])).values()];
+      if (own.length < 3) return null;
+      const three = shuffle(own).slice(0, 3);
+      const outsider = distractors(three[0], pool.filter((w) => !own.some((o) => bare(o) === bare(w))), 1, light).map(shown)[0];
+      if (!outsider) return null;
+      return { ...base, id: `odd:${l.id}`, interaction: 'odd_one_out', answer: outsider, options: shuffle([...three, outsider]) };
+    }
     if (skill === 'order') {
       const order = words.map((_, i) => i);
       let shuffled = shuffle(order);
@@ -200,6 +210,33 @@ async function lineDrills(env: ArabicEnv, all: L, skill: string, band: Band, n: 
     }
     return base;   // shadow: the line and its timings
   }).filter(Boolean).slice(0, n);
+}
+
+/// Translation built from tiles (drill-engine plan Phase 1.3), from the pool's translated lines:
+///   to_en  the Arabic heard and shown, its English built from tiles (three decoys from other lines' English)
+///   to_ar  the English shown, its Arabic built from tiles (three decoys of the same kind of word); no recording,
+///          which would give the answer away — it is heard in the reveal
+/// A line with no English, or too long to build (over 14 words), gives no drill.
+export function translateTiles(skill: 'to_en' | 'to_ar', l: { id: string; text_ar: string; text_en: string | null },
+                               base: Record<string, unknown>, lines: Array<{ id: string; text_en: string | null }>, pool: string[],
+                               light: (w: string) => boolean = () => false): Record<string, unknown> | null {
+  if (!l.text_en) return null;
+  const enWords = l.text_en.replace(/[.,!?;:"“”()]/g, '').split(/\s+/).filter(Boolean);
+  const arWords = l.text_ar.split(/\s+/).map(clean).filter(Boolean);
+  const target = skill === 'to_en' ? enWords : arWords;
+  if (target.length < 2 || target.length > 14) return null;
+  const decoys = skill === 'to_en'
+    ? shuffle([...new Set(lines.filter((x) => x.id !== l.id && x.text_en).flatMap((x) => x.text_en!.replace(/[.,!?;:"“”()]/g, '').split(/\s+/))
+        .filter((w) => w.length >= 3 && !enWords.some((t) => t.toLowerCase() === w.toLowerCase())))]).slice(0, 3)
+    : distractors(target[Math.floor(target.length / 2)], pool.filter((w) => !arWords.some((t) => bare(t) === bare(w))), 3, light);
+  if (decoys.length < 2) return null;
+  // the tiles in a dealt order; solution: the tile for each word of the line, in order
+  const tiles = target.map((t, i) => ({ t, i })).concat(decoys.map((t) => ({ t, i: -1 })));
+  const dealt = shuffle(tiles);
+  const solution = target.map((_, i) => dealt.findIndex((x) => x.i === i));
+  return { ...base, id: `${skill}:${l.id}`, kind: skill, interaction: 'tiles', tileMode: 'arrange', lang: skill === 'to_en' ? 'en' : 'ar',
+           tokens: dealt.map((x) => x.t), solution, answer: target.join(' '),
+           ...(skill === 'to_ar' ? { prompt: l.text_en, audio: null, line: base.audio } : {}) };
 }
 
 /// Words: what a word means in the line it was said in — a hard word of a recorded line, marked where it is
