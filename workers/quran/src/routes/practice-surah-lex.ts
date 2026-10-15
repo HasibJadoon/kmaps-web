@@ -352,14 +352,17 @@ const keytermDrills: Make = async (env, n, scope, asks, band, L) => {
     asks.forEach((ask, k) => {
       if (piles[k].length >= n) return;
       if (ask === 'kt_gloss') {
-        // Lane's rendering only where it opens on a meaning, not a note ("It is also pl. of …", ʿiqāb)
-        const lane = ln && !/^(it |also|pl\.|and |or |see |as |in )/i.test(ln.text.trim()) ? clip(ln.text, 120) : null;
-        const answer = gloss ?? lane;
+        // Sinai's own gloss only: Lane's long rendering beside short glosses gave itself away by its length
+        const answer = gloss;
         if (!answer) return;
-        const wrong = distinct([...glossPool.filter((g) => g.grp !== a.grp).map((g) => g.label_en)]).filter((g) => g.toLowerCase() !== answer.toLowerCase()).slice(0, 3);
+        // near misses first: the other key terms of this passage, then any (never random filler from far afield first)
+        const near = places.filter((x) => x.grp !== a.grp && good(x.label_en)).map((x) => x.label_en!);
+        const wrong = distinct([...shuffle(near), ...glossPool.filter((g) => g.grp !== a.grp).map((g) => g.label_en)])
+          .filter((g) => g.toLowerCase() !== answer.toLowerCase()).slice(0, 3);
         if (wrong.length < 3) return;
+        // the word itself, in Arabic script — no transliteration, no book named in the question
         piles[k].push(card({ ...b, id: `keyterm:gloss:${a.id}`, kind: 'idiom', ask, prompt: a.head_ar, options: shuffle([answer, ...wrong]), answer,
-          note: { en: `${translit}${gloss ? '' : ' — Sinai gives no gloss; Lane’s rendering'}`, ar: a.head_ar ?? '' },
+          note: { en: gloss ? '' : 'Lane’s rendering', ar: a.head_ar ?? '' },
           explanation: expl || null, context: sinaiCtx(e, a) }, ask, `${a.head_ar} (${translit}) — ?\n${line(ay)}`, answer));
       }
       if (ask === 'kt_form' && !a.match.includes('~root')) {
@@ -370,12 +373,12 @@ const keytermDrills: Make = async (env, n, scope, asks, band, L) => {
           prompt: `Sinai's key term: ${translit}${gloss ? ` — “${gloss}”` : ''}`, explanation: `${ay.ws[idx].word_text} — ${a.head_ar} (${translit}).\n${expl}`,
           context: sinaiCtx(e, a) }, ask, `${line(ay).replace(ay.ws[idx].word_text, '＿＿＿')}\n${translit}`, `${a.head_ar}`));
       }
-      if (ask === 'kt_word') {
+      if (ask === 'kt_word' && gloss) {
         const content = distinctAr(ay.ws.filter((w) => w.is_content_word === 1 && w.word_index !== a.word_index && fold(w.word_text).length >= 2).map((w) => w.word_text));
         if (content.length < 2) return;
         const opts = [ay.ws[idx].word_text, ...shuffle(content).slice(0, 3)];
         piles[k].push(card({ ...b, id: `keyterm:word:${a.id}`, kind: 'feature', ask, span: [], options: shuffle(opts), answer: ay.ws[idx].word_text,
-          prompt: `Which word of this āyah is Sinai's key term ${translit}${gloss ? ` (“${gloss}”)` : ''}?`, note: { en: translit, ar: a.head_ar ?? '' },
+          prompt: `Which word of this āyah means “${gloss}”?`, note: { en: '', ar: a.head_ar ?? '' },
           explanation: `${ay.ws[idx].word_text} — ${a.head_ar}.\n${expl}` }, ask, `${line(ay)}\nwhich is ${translit}?`, ay.ws[idx].word_text));
       }
       if (ask === 'kt_lane' && ln) {

@@ -359,6 +359,8 @@ const masadirOf = (v: Verb) => parseJson<string[]>(v.masadir_json, []);
 type Meaning = { en: string; n: number; ayat: string[] };
 const quranMeanings = (v: Verb) => parseJson<Meaning[]>(v.meanings_json ?? null, []);
 /** The verb's meanings in the Qurʾān, as one answer ("to repent · of God: to accept repentance"), or its one line. */
+/** The meaning the Qurʾān uses most (its first), or the one line. */
+const primaryOf = (v: Verb) => quranMeanings(v)[0]?.en ?? v.meaning_en;
 const meaningsOf = (v: Verb) => { const m = quranMeanings(v); return m.length ? m.map((x) => x.en).join(' · ') : v.meaning_en; };
 /** Each meaning with how often the Qurʾān uses the verb so, and where. */
 const usesOf = (v: Verb) => {
@@ -405,7 +407,15 @@ export function chantOf(v: Verb): string {
 
 /** k wrong options from a pool: unique, not the answer, in a new order. */
 function wrong(answer: string, pool: string[], k = 3): string[] {
-  return shuffle([...new Set(pool.filter((x) => x && x !== answer))]).slice(0, k);
+  // a wrong choice is never part of the answer nor the answer with more (عِقَابًا beside عِقَابًا وَمُعَاقَبَةً; مَصِيرٌ beside
+  // مَصِيرٌ إِلَيْهِ): both would be right, or give it away
+  const bare = (t: string) => t.replace(MARKS, '').trim();
+  const a = bare(answer), parts = new Set(answer.split(/\s+وَ/).map(bare));
+  return shuffle([...new Set(pool.filter((x) => {
+    if (!x || x === answer) return false;
+    const b = bare(x);
+    return b !== a && !parts.has(b) && !b.startsWith(a + ' ') && !a.startsWith(b + ' ');
+  }))]).slice(0, k);
 }
 function choose(answer: string, pool: string[], k = 3) {
   const ws = wrong(answer, pool, k);
@@ -422,7 +432,11 @@ function metIn(v: Verb, words: Word[], texts: Map<string, string>): string | nul
   let i = want ? toks.findIndex((x) => skeleton(x) === want) : -1;
   if (i < 0) i = w.word_index - 1;
   if (i < 0 || i >= toks.length) return null;
-  return `﴿${toks.slice(i, i + 2).join(' ')}﴾ ${w.surah}:${w.ayah}`;
+  // the phrase the word stands in, not a cut across two: a word with the article closes its phrase (the second of an
+  // annexation — وَقَابِلِ ٱلتَّوۡبِ, شَدِيدِ ٱلۡعِقَابِ, إِلَيۡهِ ٱلۡمَصِيرُ), so the word before it; else the word and the next
+  const definite = /^[وفب]?[ٱا]ل/.test(toks[i].replace(MARKS, ''));
+  const span = definite && i > 0 ? toks.slice(i - 1, i + 1) : toks.slice(i, i + 2);
+  return `﴿${span.join(' ')}﴾ ${w.surah}:${w.ayah}`;
 }
 
 /** SILMA clips for Arabic lines (km_arabic ar_tts_clip, through the arabic worker); a line with none is queued there. */
@@ -478,8 +492,14 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
     const rows = tableOf(v, gt);
     const all = rows.flat().map((c) => c.value);
     const sib = verbs.filter((x) => x.root === v.root && x.id !== v.id).flatMap((x) => tableOf(x, gt).flat().map((c) => c.value));
+    const asked = new Set<string>();
     rows.forEach((row, r) => row.forEach((cell, c) => {
       if (!TABLE_CELLS.has(`${r}.${c}`)) return;               // the forms a learner most needs; the ماضي is the drill's name
+      // one drill per form: a cell whose form another asked cell already has (اسم المفعول = الظرف, مُنَزَّلٌ) is not asked twice
+      if (asked.has(cell.value)) return;
+      asked.add(cell.value);
+      // the maṣdar cell of a verb with several maṣādir is asked by the masadir drill (choose all), not as a joined line
+      if (r === 0 && c === 2 && masadirOf(v).length > 1) return;
       const o = choose(cell.value, [...all, ...sib]);
       if (!o) return;
       group(0, v.id).push(make(`table:${v.id}:${r}.${c}`, 'sf_table', {
@@ -525,7 +545,8 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
     group(3, w.root).push(make(`plural:${w.surah}:${w.ayah}:${w.word_index}:${k}`, 'sf_plural', {
       prompt: w.word_ar.replace(/^وَ/, ''), promptEn: occ.get(`${w.surah}:${w.ayah}:${w.word_index}`)?.here_en ?? null, script: 'arabic', ...o,
       explanation: [quote(p.cite, texts), v ? chantOf(v) : null].filter(Boolean).join('\n'),
-      terms: ['GT:noun_process:jam_taksir', ...(w.sigha_gt ? [w.sigha_gt] : [])] }, `${w.word_ar}: الجمع`, answer));
+      // a sound plural (ـون ـين ـات) is not a broken one: غَافِرُون carries no جمع تكسير chip
+      terms: [...(/(ونَ?|ينَ?|اتٍ?|اتٌ?|اتِ?)$/.test(answer.replace(MARKS, '')) ? [] : ['GT:noun_process:jam_taksir']), ...(w.sigha_gt ? [w.sigha_gt] : [])] }, `${w.word_ar}: الجمع`, answer));
   }
 
   // which preposition gives this meaning — and what it does
@@ -565,9 +586,9 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
     const c = parseJson<Cite | null>(v.cite_json, null);
     const q = c ? quote(c, texts) : null;
     const here = metIn(v, words, texts);
-    // every meaning the verb has in the Qurʾān (AL paradigm quran_meanings — read from each use and its translations),
-    // not one line: تَابَ is "to repent" AND, of God, "to accept repentance"; the other choices are the root's verbs' meanings
-    const o = choose(meaningsOf(v), [...verbs.filter((x) => x.root === v.root).map(meaningsOf), ...verbs.map(meaningsOf)]);
+    // one meaning at a time, the one the Qurʾān uses most (AL paradigm quran_meanings), against the other verbs' own:
+    // a joined list beside single meanings gave itself away by its length. Every meaning is asked by family_all below.
+    const o = choose(primaryOf(v), [...verbs.filter((x) => x.root === v.root).map(primaryOf), ...verbs.map(primaryOf)]);
     if (!o) continue;
     const line = lineOf(v), clip = clips[line];
     group(6, v.root).push(make(`family:${v.id}`, 'sf_family', {
@@ -575,7 +596,23 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
       words: clip?.words ?? line.split(/\s+/).map((t) => ({ t, s: 0, e: 0 })), audio: clip?.audio ?? null,
       // the verb's line, its meanings in the Qurʾān one a line, the note, then the verb's own āyah
       explanation: [chantOf(v), usesOf(v), v.note_en, here && q && q !== here ? `The verb itself: ${q}` : null].filter(Boolean).join('\n'),
-      root: rootOf(v.root), terms: termsOf(v) }, `${v.madi} ${v.mudari}`, meaningsOf(v)));
+      root: rootOf(v.root), terms: termsOf(v) }, `${v.madi} ${v.mudari}`, primaryOf(v)));
+    // every meaning it has in the Qurʾān (choose all): its own, against the near misses of its root's other verbs
+    const all = quranMeanings(v).map((m) => m.en);
+    if (all.length >= 2) {
+      const near = [...verbs.filter((x) => x.root === v.root && x.id !== v.id).flatMap((x) => [...quranMeanings(x).map((m) => m.en), x.meaning_en]),
+                    ...verbs.filter((x) => x.root !== v.root).map(primaryOf)];
+      const ws = wrong(all.join(' وَ'), near.filter((x) => !all.includes(x)), 2);
+      if (ws.length >= 1) {
+        const options = shuffle([...all, ...ws]);
+        group(6, v.root).push(make(`family_all:${v.id}`, 'sf_family_all', {
+          interaction: 'choose_all', prompt: here ?? q ?? line, promptEn: null, script: 'arabic', options,
+          correct: options.flatMap((x, i) => (all.includes(x) ? [i] : [])),
+          words: clip?.words ?? line.split(/\s+/).map((t) => ({ t, s: 0, e: 0 })), audio: clip?.audio ?? null,
+          explanation: [chantOf(v), usesOf(v)].filter(Boolean).join('\n'),
+          root: rootOf(v.root), terms: termsOf(v) }, `${v.madi} — every meaning`, all.join(' · ')));
+      }
+    }
   }
 
   // the root's picture

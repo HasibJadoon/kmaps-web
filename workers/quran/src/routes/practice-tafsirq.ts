@@ -700,8 +700,12 @@ export async function tafsirReadDrills(env: QuranEnv, scope: Scope, slugs: strin
         options: shuffle([en, ...others]), answer: en, terms,
         explanation: cite || null,
         source: { workId: `QR:SURAH:${scope.surah}`, title: `${where} · ${w.titleAr ?? w.title ?? ''}`, level: null },
-      }, { ref: `QR:${id}`, type: 'passage', kind, front: words.map((x) => x.t).join(' '), back: en,
+      }, { ref: `QR:tafsir_line:${part.audio}:${from === to ? from : `${from}-${to}`}`, type: 'passage', kind, front: words.map((x) => x.t).join(' '), back: en,
            surah: scope.surah, ayah: scope.from, series: 'tafsir' }));
+      // read and heard, one line is one review card: the same ref and template, so CORE files it once (the audit found the
+      // hear drill a copy of the read one — the same card twice)
+      const srs = out[out.length - 1].srs as Record<string, unknown> | undefined;
+      if (srs) srs.card_template = 'tafsir_line';
     }
   }
   return out;

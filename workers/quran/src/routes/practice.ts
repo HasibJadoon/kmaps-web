@@ -575,7 +575,9 @@ async function irabDrills(env: QuranEnv, n: number, scope: Scope, lv: Record<str
     query<{ id: string; name_ar: string; name_en: string | null }>(env.DB_QR, `SELECT id, name_ar, name_en FROM ar_ling_gram_term WHERE id LIKE 'GT:irab_role:%'`),
   ]);
   const name = new Map(names.map((t) => [t.id, t]));
-  const optionOf = (gt: string) => { const t = name.get(gt); return t ? (t.name_en ? `${cap(t.name_en)} · ${t.name_ar}` : t.name_ar) : null; };
+  // plain English, then the Arabic term: a transliteration in brackets ("Adjective (naʿt)") is dropped — the Arabic says it
+  const plainEn = (en: string) => en.replace(/\s*\([^)]*\)/g, '').trim();
+  const optionOf = (gt: string) => { const t = name.get(gt); return t ? (t.name_en ? `${cap(plainEn(t.name_en))} · ${t.name_ar}` : t.name_ar) : null; };
   // distractors from the same level first (then all roles), and the roles standing in the same āyah
   const levelRoles = band !== 'all' ? ((levels[band]?.roles as string[] | undefined) ?? []).map((r) => `GT:irab_role:${r}`) : [];
   const allRoles = [...name.keys()];
