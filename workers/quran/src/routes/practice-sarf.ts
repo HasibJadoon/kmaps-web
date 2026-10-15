@@ -431,7 +431,15 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
   const ayah = scope.from ?? words[0]?.ayah ?? null;
   const source = { workId: `QR:SURAH:${scope.surah}`, title: where, level: null };
   const byId = new Map(verbs.map((v) => [v.id, v]));
-  const termsOf = (v: Verb) => [v.bab_gt, v.form_gt, v.root_type_gt, v.route_gt, v.maani_gt, v.fail_gt].filter(Boolean) as string[];
+  // a drill's chips name what it is about — never the verb's participle term by default (an اسم الفاعل chip sat on every
+  // verb drill, also where the word met was a maṣdar: تَنزِيلُ 40:2); the word's own derivation comes from where it was met
+  const metAs = (v: Verb) => {
+    const w = words.find((x) => x.verb_id === v.id);
+    return w ? occ.get(`${w.surah}:${w.ayah}:${w.word_index}`)?.gt_derivation_type ?? null : null;
+  };
+  const termsOf = (v: Verb) => [v.bab_gt, v.form_gt, v.root_type_gt, v.route_gt, v.maani_gt, metAs(v)].filter(Boolean) as string[];
+  // a preposition drill: the preposition's meaning, حرف جر, the verb's form and how it takes its object — nothing else
+  const prepTermsOf = (v: Verb) => [v.form_gt, v.route_gt].filter(Boolean) as string[];
   const pic = (root: string) => picture.get(root);
   // the root is not a line of the explanation: it travels as the drill's root (its letters, its picture, its AL ref), shown
   // as a chip that opens the root's page — a line opening in Arabic ran right to left ("ت و ب: Returning …" read ".… :ت و ب")
@@ -516,7 +524,7 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
     const q = quote(parseJson<Cite>(p.cite_json, { surah: 0, ayah: 0, needle: '' }), texts);
     group(4, v.id).push(make(`prep:${p.id}`, 'sf_prep', { prompt: `${v.madi} … ؟`, promptEn: p.meaning_en, script: 'arabic', ...o,
       explanation: [`${p.usage_ar}: ${p.meaning_en}`, q].filter(Boolean).join('\n'),
-      terms: [...(p.prep_gt ? [p.prep_gt] : []), 'GT:pos:harf_jarr', ...termsOf(v)] }, `${v.madi} + ؟ (${p.meaning_en})`, p.prep_ar));
+      terms: [...(p.prep_gt ? [p.prep_gt] : []), 'GT:pos:harf_jarr', ...prepTermsOf(v)] }, `${v.madi} + ؟ (${p.meaning_en})`, p.prep_ar));
   }
 
   // what the word means in this āyah — its range across the Qurʾān

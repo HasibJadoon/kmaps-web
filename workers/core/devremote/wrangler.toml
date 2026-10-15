@@ -1,0 +1,104 @@
+name = "km-core-worker"
+main = "../src/index.ts"
+compatibility_date = "2025-01-01"
+workers_dev = false   # internal only — accessed via km-backend-worker service binding
+
+[[d1_databases]]
+remote = true
+binding = "DB_CORE"
+database_name = "km_core"
+database_id = "afe84ce7-04dd-45a1-99ac-f42ca53276d2"
+migrations_dir = "migrations"
+
+# The sensor engine reaches each carrier database through its owner —
+# CORE never binds another domain's D1 directly.
+[[services]]
+binding = "QURAN"
+service = "km-quran-worker"
+
+[[services]]
+binding = "AR_LINGUISTICS"
+service = "km-ar-linguistics-worker"
+
+[[services]]
+binding = "CONTENT"
+service = "km-content-worker"
+
+[vars]
+JWT_SECRET = "b940e563ab28d8df53a4b2b99a0c14980ffac7810bd93f80cc17d8bfaa3bf609"
+# 12 hours. A shoot runs longer than an hour, and while the apps do refresh
+# transparently on a 401, that only recovers a request that was already in
+# flight — an app reopened cold mid-session showed a signed-out screen first.
+# The refresh token still governs the real session length (30 days).
+JWT_EXPIRY_SECONDS = "43200"
+
+# OAuth — client IDs are not secret, so they live here rather than in secrets.
+# Each is a comma-separated audience list, because one provider can front
+# several clients (a web services-id plus a native bundle-id, say). A provider
+# with no id stays off, and /core/auth/providers reports that, so a login
+# screen only ever draws a button that will actually work.
+
+# Apple: the native iOS app's audience is its bundle id — Sign in with Apple
+# puts the bundle id in `aud`, so this is the whole configuration for the
+# kmaps-ios app. APPLE_REDIRECT_URI is intentionally absent: it is only needed
+# for the *web* popup, which needs its own Apple services-id registered with
+# that redirect. Leaving it unset keeps apple.enabled=false in /providers, so
+# the web login hides a button it cannot complete, while the native
+# POST /core/auth/oauth/apple route (which checks APPLE_CLIENT_ID alone) works.
+# Add the services-id to this list and set the redirect when web is set up.
+# com.kmaps.studio is the macOS Studio app, which signs in the same way.
+APPLE_CLIENT_ID = "com.kmaps.app,com.kmaps.studio"
+
+# Who may publish a submitted card into the shared SRS library. Approving puts
+# a card under a surah for everyone, so this is an explicit list rather than a
+# role anyone can acquire. Comma-separated emails.
+# system@test.com is the full-rights test account — approver and admin.
+# Remove it from this list to disable its approval rights.
+CARD_APPROVERS = "hasibjadoon@gmail.com,system@test.com"
+
+# Google: two audiences, WEB FIRST then iOS.
+#
+# /core/auth/providers hands the browser google[0], and Google Identity
+# Services validates the calling page's origin against that client's Authorized
+# JavaScript origins. An iOS client has no such origins at all, which is why the
+# web login failed with `invalid_client` / "no registered origin" — the list
+# previously held only the iOS client for bundle com.kmaps.app.
+#
+# The iOS id stays second: verifyGoogleIdToken accepts any listed audience, so
+# kmaps-ios keeps working. Neither is a secret (public clients, PKCE).
+GOOGLE_CLIENT_ID = "246205307788-iig05bvkiclr3oggcfnkk96s1frds8h8.apps.googleusercontent.com,246205307788-tl2pl1rah47t980o219p007p4650kg5s.apps.googleusercontent.com,246205307788-mg182lpe759521r5manlfh367givil8v.apps.googleusercontent.com"
+
+# Secrets (set via wrangler secret put):
+#   JWT_SECRET      — shared with km-backend-worker
+#   INTERNAL_SECRET — shared with km-backend-worker
+
+# ─── Reviewing together ───────────────────────────────────────────────────────
+# One shared question on every screen; each person's own card is scheduled from
+# their own rating. The object holds only the shared half — which card is up and
+# whether the back has been shown.
+[[durable_objects.bindings]]
+name = "REVIEW_SESSION"
+class_name = "ReviewSession"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ReviewSession"]
+
+# ─── A question asked to a room ───────────────────────────────────────────────
+# The host pushes a question, the room answers at once, speed is half the score.
+# The correct answer never leaves this object before the reveal.
+[[durable_objects.bindings]]
+name = "QUIZ_SESSION"
+class_name = "QuizSession"
+
+[[durable_objects.bindings]]
+name = "TABLE_SESSION"
+class_name = "TableSession"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["QuizSession"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["TableSession"]

@@ -1,0 +1,46 @@
+name = "km-arabic-worker"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+workers_dev = false   # internal only — accessed via km-backend-worker service binding
+
+# Run beside the database, not beside the reader: the D1 primary is in ENAM, and a practice
+# round makes 10–60 queries, each a full round trip from wherever the isolate runs (≈250 ms
+# from Sydney). Smart Placement moves the isolate next to D1; the gateway's single service-binding
+# hop is the only long-haul trip left.
+[[d1_databases]]
+remote = true
+binding = "DB_AR"
+database_name = "km_arabic"
+database_id = "7ffa77c9-2d6c-46cb-a360-b198da502252"
+migrations_dir = "migrations"
+# Pedagogy tables only (ar_*). Linguistic truth lives in DB_AL via AL:ULID refs.
+
+[[services]]
+binding = "AR_LINGUISTICS"
+service = "km-ar-linguistics-worker"
+
+[[services]]
+binding = "QURAN"
+service = "km-quran-worker"
+
+[[services]]
+binding = "WORLDVIEW"
+service = "km-worldview-worker"
+
+[[r2_buckets]]
+remote = true
+binding     = "AR_AUDIO"
+bucket_name = "km-arabic-audio"
+
+[[r2_buckets]]
+remote = true
+binding     = "AR_VENDOR"
+bucket_name = "km-arabic-vendor"
+# Third-party publisher audio. Deliberately absent from the gateway's
+# publicGetPaths: reached only through GET /ar/vendor-audio/:key+, which
+# requires a token and returns a signed, expiring stream URL.
+# Acquisition audio. Served read-only via GET /ar/audio/:key+ which the gateway
+# allowlists for anonymous GET — an <audio> tag cannot send a Bearer token.
+
+[vars]
+JWT_SECRET = "b940e563ab28d8df53a4b2b99a0c14980ffac7810bd93f80cc17d8bfaa3bf609"
