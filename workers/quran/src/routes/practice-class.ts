@@ -246,10 +246,22 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
       queryOne<{ name_ar: string; name_en: string; name_transliteration: string }>(env.DB_QR,
         'SELECT name_ar, name_en, name_transliteration FROM qr_surah WHERE id = ?', [surah]),
     ]);
+    // the next stop on the study path (study_path, qr_151): it opens once every passage here is graded; a sūra whose
+    // passages are not cut yet is named, not opened (ready = false)
+    const path = (L.study_path ?? []).filter((x) => x.extra?.kind === 'surah');
+    const at = path.findIndex((x) => Number(x.extra?.surah) === surah);
+    const nextSurah = at >= 0 && at + 1 < path.length ? Number(path[at + 1].extra?.surah) : null;
+    const next = nextSurah ? await Promise.all([
+      queryOne<{ name_ar: string; name_en: string; name_transliteration: string }>(env.DB_QR,
+        'SELECT name_ar, name_en, name_transliteration FROM qr_surah WHERE id = ?', [nextSurah]),
+      queryOne<{ n: number }>(env.DB_QR, `SELECT COUNT(*) AS n FROM qr_surah_study_passage WHERE surah = ? AND status = 'live'`, [nextSurah]),
+    ]).then(([nm, c]) => ({ id: nextSurah, nameAr: nm?.name_ar ?? null, name: nm?.name_transliteration ?? nm?.name_en ?? null,
+                             passages: c?.n ?? 0, ready: (c?.n ?? 0) > 0 })) : null;
     return ok({
       surah: { id: surah, nameAr: name?.name_ar ?? null, name: name?.name_transliteration ?? name?.name_en ?? null },
       passages: rows.map(passageCard),
       words: L.class_ui ?? [],
+      next,
     });
   });
 
