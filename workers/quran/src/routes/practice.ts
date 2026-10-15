@@ -187,12 +187,14 @@ export function practiceRoutes(router: Router<QuranEnv>) {
 const WORKS = ['zamakhshari', 'ibn_ashur', 'razi', 'alusi'];
 
 export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill: string, band: Band, n: number,
-                                scope: Scope, u: URL | null = null, only?: string[]): Promise<Array<Record<string, unknown>>> {
+                                scope: Scope, u: URL | null = null, only?: string[], every = false): Promise<Array<Record<string, unknown>>> {
   const meta = byKey(L.skill).get(skill);
   if (!meta) return [];
   const levels = (meta.extra?.levels ?? {}) as Levels;
   // a class step may hold only some of a skill's asks (class_node extra.only): those, at every level
   const lv = only?.length ? { asks: only, types: only } : band === 'all' ? {} : (levels[band] ?? {});
+  // a class step over its own passage may ask for every word of it (class_node extra.every), not only the hard ones
+  if (every) (lv as Record<string, unknown>).every = true;
   const src = String(meta.extra?.source ?? skill);
   const items =
     src === 'irab' ? await irabDrills(env, n, scope, lv, band, levels)

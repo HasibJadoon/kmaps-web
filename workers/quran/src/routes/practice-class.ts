@@ -64,7 +64,8 @@ async function stepPool(env: QuranEnv, L: Record<string, Label[]>, node: Label, 
 async function drawPool(env: QuranEnv, L: Record<string, Label[]>, node: Label, scope: Scope): Promise<Drill[]> {
   const max = num(node.extra?.max, 30);
   const only = (node.extra?.only ?? {}) as Record<string, string[]>;
-  const piles = await Promise.all(skillsOf(node).map((s) => drawSkill(env, L, s, 'all', max, scope, null, only[s]).catch(() => [] as Drill[])));
+  const piles = await Promise.all(skillsOf(node).map((s) => drawSkill(env, L, s, 'all', max, scope, null, only[s], node.extra?.every === true)
+    .catch(() => [] as Drill[])));
   const seen = new Set<string>();
   // the skills interleaved, so a sprint is not all one kind of drill
   return interleave(piles, Number.MAX_SAFE_INTEGER).filter((d) => {

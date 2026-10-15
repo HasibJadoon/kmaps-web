@@ -352,7 +352,9 @@ const keytermDrills: Make = async (env, n, scope, asks, band, L) => {
     asks.forEach((ask, k) => {
       if (piles[k].length >= n) return;
       if (ask === 'kt_gloss') {
-        const answer = gloss ?? (ln ? clip(ln.text, 120) : null);
+        // Lane's rendering only where it opens on a meaning, not a note ("It is also pl. of …", ʿiqāb)
+        const lane = ln && !/^(it |also|pl\.|and |or |see |as |in )/i.test(ln.text.trim()) ? clip(ln.text, 120) : null;
+        const answer = gloss ?? lane;
         if (!answer) return;
         const wrong = distinct([...glossPool.filter((g) => g.grp !== a.grp).map((g) => g.label_en)]).filter((g) => g.toLowerCase() !== answer.toLowerCase()).slice(0, 3);
         if (wrong.length < 3) return;

@@ -96,6 +96,7 @@ export async function vocabCount(env: QuranEnv): Promise<number> {
 
 export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Record<string, unknown>, L: Record<string, Label[]>): Promise<Drill[]> {
   const { band, asks } = levelOf(L, 'vocab', lv);
+  const every = lv.every === true;
   const want = asks.length ? asks : LEVEL_ASKS.basic;
   const advanced = want.every((a) => L3.has(a));
   const w = scopeSql(scope);
@@ -107,10 +108,10 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
             COALESCE(MAX(g.grade), 'common') AS grade,   -- an ungraded lemma is not assumed hard
             SUM(EXISTS (SELECT 1 FROM qr_vocab_flag f WHERE f.surah = i.surah AND f.ayah = i.ayah AND f.word_index = i.word_index)) AS flagged
        FROM qr_vocab_item i LEFT JOIN qr_vocab_grade g ON g.root = i.root AND g.lemma = i.lemma
-      WHERE ${wi.sql} AND i.lemma IS NOT NULL AND COALESCE(g.focus, 1) = 1
-      GROUP BY i.root, i.lemma`, wi.args);
-  // common words only where they are flagged
-  const kept = groups.filter((g) => g.grade !== 'common' || g.flagged > 0);
+      WHERE ${wi.sql} AND i.lemma IS NOT NULL AND (COALESCE(g.focus, 1) = 1 OR ?)
+      GROUP BY i.root, i.lemma`, [...wi.args, every ? 1 : 0]);
+  // common words only where they are flagged — except in a class step that asks for every word of its passage
+  const kept = every ? groups : groups.filter((g) => g.grade !== 'common' || g.flagged > 0);
   if (!kept.length) return [];
   // walk: medium → super, the flagged first (a little shuffled within the walk), L3 only what a source places
   const eligible = kept.filter((g) => !advanced || g.placed);
@@ -135,7 +136,7 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
   const occOf = new Map<string, Item[]>();
   for (const o of occ) {
     // a common word is drilled only at a flagged place
-    if (gradeOf.get(`${o.root}|${o.lemma}`) === 'common' && !flagsOf.has(key(o))) continue;
+    if (!every && gradeOf.get(`${o.root}|${o.lemma}`) === 'common' && !flagsOf.has(key(o))) continue;
     occOf.set(`${o.root}|${o.lemma}`, [...(occOf.get(`${o.root}|${o.lemma}`) ?? []), o]);
   }
   // each root's family in the Qurʾān (its lemmas, their pattern and gloss, where one first stands)
@@ -185,7 +186,7 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
   const plans: Array<{ o: Item; ask: string }> = [];
   let t = 0;
   // a few more than asked: a word whose options come up short is dropped, and the round is still full
-  const spare = Math.ceil(n * 1.5);
+  const spare = every ? Number.MAX_SAFE_INTEGER : Math.ceil(n * 1.5);
   for (const g of chosen) {
     if (plans.length >= spare) break;
     // the flagged places first: that is where the word is hard
@@ -194,7 +195,10 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
     for (let k = 0; k < want.length; k++) {
       const ask = want[(t + k) % want.length];
       const o = os.find((x) => feasible(ask, x, famOf, senseOf, rangeOf, glossOf.get(key(x)) ?? []));
-      if (o) { plans.push({ o, ask }); t = (t + k + 1) % want.length; break; }
+      if (!o) continue;
+      plans.push({ o, ask });
+      // a class step that asks for every word drills each word every way it can; a round takes one ask per word
+      if (!every) { t = (t + k + 1) % want.length; break; }
     }
   }
   if (!plans.length) return [];
@@ -215,8 +219,8 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
     const d = build(p.ask, p.o, ay, idx, ctx, wordsAt);
     if (d) out.push(marked(d, gradeOf.get(`${p.o.root}|${p.o.lemma}`) ?? 'medium', flagsOf.get(key(p.o)) ?? [], L));
   }
-  // keep n, the asks still mixed, in āyah order
-  if (out.length <= n) return out;
+  // keep n, the asks still mixed, in āyah order (a class step asking for every word keeps them all)
+  if (every || out.length <= n) return out;
   const byAsk = new Map<string, Drill[]>();
   for (const d of out) byAsk.set(String(d.ask), [...(byAsk.get(String(d.ask)) ?? []), d]);
   const keep = new Set<Drill>();
@@ -452,10 +456,12 @@ function build(ask: string, o: Item, ay: Ayah, idx: number, c: Ctx, wordsAt: Map
     const others = shuffle(range.filter((x) => x.id !== s.id && !placed.some((p) => p.id === x.id)))
       .filter((x, i, xs) => xs.findIndex((y) => labelOf(y) === labelOf(x)) === i && labelOf(x) !== labelOf(s)).slice(0, 3);
     if (others.length < 2) return null;
-    const opt = (x: Sense) => { const ex = exOf(x, here); const lab = clip(labelOf(x), 150); return ex ? `${lab} · e.g. ${ex}` : lab; };
+    const note = c.noteOf.get(`${key(o)}|${s.id}`);
+    // where the place names the clause of a long sense that fits it (qr_vocab_place.note_ar — al-Rāghib's قابل paragraph
+    // opens on the bucket at the well and only then «قَبِلْتُ عذره وتوبته»), the answer is that clause
+    const opt = (x: Sense) => { const ex = exOf(x, here); const lab = clip(x.id === s.id && note ? note : labelOf(x), 150); return ex ? `${lab} · e.g. ${ex}` : lab; };
     const answer = opt(s);
     const src = SRC[s.source];
-    const note = c.noteOf.get(`${key(o)}|${s.id}`);
     const rangeLine = range.slice(0, 8).map((x) => `${x.id === s.id ? '▸ ' : '· '}${clip(labelOf(x), 90)}${x.marker && x.source === 'lane_lexicon' ? ` [${x.head_ar} ${x.marker}]` : ''} — ${parseJson<string[]>(x.ayat_json, []).slice(0, 3).join(', ')}`).join('\n');
     const d: Drill = { ...base, id, kind: 'feature', ask, prompt: `${o.word_text} — which of its Qurʾānic senses (in ${src.en}) does this āyah use?`,
       options: shuffle([answer, ...others.map(opt)]), answer, note: { en: `${src.en} · ${range.length} senses in the Qurʾān`, ar: o.lemma ?? o.word_text },
