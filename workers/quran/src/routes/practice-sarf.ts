@@ -23,7 +23,7 @@ type Verb = { id: string; root: string; form_gt: string; bab_gt: string | null; 
               maani_gt: string | null; meaning_en: string; madi: string; mudari: string; masadir_json: string; fail: string | null;
               fail_gt: string | null; madi_majhul: string | null; mudari_majhul: string | null; maful: string | null; amr: string | null;
               nahy: string | null; zarf_json: string | null; ala_json: string | null; others_json: string | null; quran_n: number;
-              cite_json: string | null; full: number; note_en: string | null; lemma_id?: string | null };
+              cite_json: string | null; full: number; note_en: string | null; lemma_id?: string | null; meanings_json?: string | null };
 type Prep = { id: string; verb_id: string; prep_ar: string; prep_gt: string | null; usage_ar: string; meaning_en: string; cite_json: string; sources: Src[] };
 type Word = { surah: number; ayah: number; word_index: number; word_ar: string; root: string; verb_id: string | null; sigha_gt: string | null;
               pattern_ar: string | null; prep_json: string | null };
@@ -318,6 +318,7 @@ function verbsOf(sheet: AlSarfSheet, rootText: Map<string, string>, order: strin
       zarf_json: js(j.noun_of_place_time), ala_json: js(j.noun_of_instrument),
       others_json: Array.isArray(j.derived) ? JSON.stringify((j.derived as Record<string, string>[]).map((d) => [d.word, d.gt, d.pattern, d.meaning])) : null,
       quran_n: Number(j.quran_n ?? 0), cite_json: js(j.cite), full: j.full_table ? 1 : 0, note_en: s(j.note),
+      meanings_json: js(j.quran_meanings),
     };
   }));
   return out.sort((a, b) => order.indexOf(a.root) - order.indexOf(b.root) || FORM_ORDER.indexOf(formKey(a.form_gt)) - FORM_ORDER.indexOf(formKey(b.form_gt))
@@ -355,6 +356,15 @@ function nearsOf(sheet: AlSarfSheet, rootText: Map<string, string>, order: strin
 // ── the table ───────────────────────────────────────────────────────────────
 
 const masadirOf = (v: Verb) => parseJson<string[]>(v.masadir_json, []);
+type Meaning = { en: string; n: number; ayat: string[] };
+const quranMeanings = (v: Verb) => parseJson<Meaning[]>(v.meanings_json ?? null, []);
+/** The verb's meanings in the Qurʾān, as one answer ("to repent · of God: to accept repentance"), or its one line. */
+const meaningsOf = (v: Verb) => { const m = quranMeanings(v); return m.length ? m.map((x) => x.en).join(' · ') : v.meaning_en; };
+/** Each meaning with how often the Qurʾān uses the verb so, and where. */
+const usesOf = (v: Verb) => {
+  const m = quranMeanings(v);
+  return m.length > 1 ? `In the Qurʾān: ${m.map((x) => `${x.en} (${x.n}×, ${x.ayat.join(', ')})`).join('; ')}` : null;
+};
 const listOf = (s: string | null) => parseJson<string[]>(s, []);
 
 /** The verb's الصرف الصغير as rows of cells, in the textbook's order; cells with no form are left out. */
@@ -552,14 +562,16 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
     const c = parseJson<Cite | null>(v.cite_json, null);
     const q = c ? quote(c, texts) : null;
     const here = metIn(v, words, texts);
-    const o = choose(v.meaning_en, [...verbs.filter((x) => x.root === v.root).map((x) => x.meaning_en), ...verbs.map((x) => x.meaning_en)]);
+    // every meaning the verb has in the Qurʾān (AL paradigm quran_meanings — read from each use and its translations),
+    // not one line: تَابَ is "to repent" AND, of God, "to accept repentance"; the other choices are the root's verbs' meanings
+    const o = choose(meaningsOf(v), [...verbs.filter((x) => x.root === v.root).map(meaningsOf), ...verbs.map(meaningsOf)]);
     if (!o) continue;
     const line = lineOf(v), clip = clips[line];
     group(6, v.root).push(make(`family:${v.id}`, 'sf_family', {
       prompt: here ?? q ?? line, promptEn: null, script: 'arabic', ...o,
       words: clip?.words ?? line.split(/\s+/).map((t) => ({ t, s: 0, e: 0 })), audio: clip?.audio ?? null,
-      explanation: [after(v), here && q && q !== here ? `The verb itself: ${q}` : null].filter(Boolean).join('\n'),
-      root: rootOf(v.root), terms: termsOf(v) }, `${v.madi} ${v.mudari}`, v.meaning_en));
+      explanation: [usesOf(v), after(v), here && q && q !== here ? `The verb itself: ${q}` : null].filter(Boolean).join('\n'),
+      root: rootOf(v.root), terms: termsOf(v) }, `${v.madi} ${v.mudari}`, meaningsOf(v)));
   }
 
   // the root's picture
