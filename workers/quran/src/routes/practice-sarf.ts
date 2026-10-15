@@ -153,8 +153,15 @@ async function load(env: QuranEnv, scope: Scope, refresh = false, highOnly = fal
   const rootOfGid = new Map(words.map((w) => [occAt.get(at3(w))?.gid_lemma ?? '', w.root]));
   const C = await core(env, { roots, uidOf, gids, rootOfGid }, refresh);
   const gidOf = (w: Word) => occAt.get(at3(w))?.gid_lemma;
+  // the passage's own āyāt beside the cites' (a drill quotes the āyah its word was met in)
+  const own = [...new Set(words.map((w) => `${w.surah}:${w.ayah}`))].filter((k) => !C.texts.has(k)).map((k) => k.split(':').map(Number));
+  const texts = new Map(C.texts);
+  if (own.length) for (const a of await query<{ surah: number; ayah: number; t: string }>(env.DB_QR,
+    `SELECT surah, ayah, COALESCE(text_uthmani, text) AS t FROM qr_ayah
+      WHERE (surah, ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`, [JSON.stringify(own)]).catch(() => []))
+    texts.set(`${a.surah}:${a.ayah}`, a.t);
   return {
-    ...C, words,
+    ...C, words, texts,
     pluralsOf: (w: Word) => C.pluralsOfGid(gidOf(w)),
     otherPluralsOf: (w: Word) => C.otherPluralsOfGid(gidOf(w)),
     occ: new Map(occs.map((o) => [`${o.surah}:${o.ayah}:${o.word_index}`, o])),
@@ -392,6 +399,29 @@ function choose(answer: string, pool: string[], k = 3) {
   return ws.length >= 2 ? { options: shuffle([answer, ...ws]), answer } : null;
 }
 
+/** The passage's āyah where a verb's word stands, as the muṣḥaf writes it: the word and the one after it. */
+function metIn(v: Verb, words: Word[], texts: Map<string, string>): string | null {
+  const w = words.find((x) => x.verb_id === v.id);
+  const t = w ? texts.get(`${w.surah}:${w.ayah}`) : undefined;
+  if (!w || !t) return null;
+  const toks = t.split(/\s+/).filter((x) => x.replace(MARKS, '').length > 0);
+  const want = w.word_ar ? skeleton(w.word_ar) : '';
+  let i = want ? toks.findIndex((x) => skeleton(x) === want) : -1;
+  if (i < 0) i = w.word_index - 1;
+  if (i < 0 || i >= toks.length) return null;
+  return `﴿${toks.slice(i, i + 2).join(' ')}﴾ ${w.surah}:${w.ayah}`;
+}
+
+/** SILMA clips for Arabic lines (km_arabic ar_tts_clip, through the arabic worker); a line with none is queued there. */
+type Clip = { audio: { url: string; start: number; end: number }; words: Array<{ t: string; s: number; e: number }> };
+async function voiced(env: QuranEnv, texts: string[], source: string): Promise<Record<string, Clip>> {
+  const want = [...new Set(texts.filter((t) => t && t.trim()))];
+  if (!want.length || !env.ARABIC) return {};
+  return env.ARABIC.fetch('https://ar/ar/practice/tts', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ texts: want.slice(0, 200), source }) })
+    .then((r) => r.json() as Promise<{ data?: { clips?: Record<string, Clip> } }>).then((j) => j.data?.clips ?? {}).catch(() => ({}));
+}
+
 export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promise<Drill[]> {
   if (!scope.surah) return [];
   const D = await load(env, scope, false, true);
@@ -403,8 +433,10 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
   const byId = new Map(verbs.map((v) => [v.id, v]));
   const termsOf = (v: Verb) => [v.bab_gt, v.form_gt, v.root_type_gt, v.route_gt, v.maani_gt, v.fail_gt].filter(Boolean) as string[];
   const pic = (root: string) => picture.get(root);
-  const after = (v: Verb) => [chantOf(v), pic(v.root) ? `${[...v.root].join(' ')}: ${pic(v.root)!.text_en}` : null, v.note_en]
-    .filter(Boolean).join('\n');
+  // the root is not a line of the explanation: it travels as the drill's root (its letters, its picture, its AL ref), shown
+  // as a chip that opens the root's page — a line opening in Arabic ran right to left ("ت و ب: Returning …" read ".… :ت و ب")
+  const after = (v: Verb) => [chantOf(v), v.note_en].filter(Boolean).join('\n');
+  const rootOf = (r: string) => (pic(r) ? { ref: `AL:root:${r}`, ar: [...r].join(' '), en: pic(r)!.text_en } : { ref: `AL:root:${r}`, ar: [...r].join(' '), en: null });
   const make = (id: string, kind: string, d: Drill, front: string, back: string) => withCard({
     id: `sarf:${id}`, kind: 'sarf', ask: kind, interaction: 'choose', source, ...d,
   }, { ref: `QR:sarf:${id}`, type: 'passage', kind: 'sarf', front, back, surah: scope.surah, ayah, series: 'sarf' });
@@ -429,7 +461,7 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
       if (!o) return;
       group(0, v.id).push(make(`table:${v.id}:${r}.${c}`, 'sf_table', {
         prompt: `${v.madi} ${v.mudari}`, promptEn: `${cell.label} — ${v.meaning_en}`, script: 'arabic', ...o,
-        table: { rows, hidden: [r, c] }, explanation: after(v), terms: termsOf(v),
+        table: { rows, hidden: [r, c] }, explanation: after(v), root: rootOf(v.root), terms: termsOf(v),
       }, `${v.madi}: ${cell.label}`, cell.value));
     }));
   }
@@ -440,11 +472,11 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
     if (v.bab_gt) {
       const o = choose(gt.get(v.bab_gt) ?? '', BABS.map((b) => gt.get(b) ?? ''));
       if (o) group(1, v.root).push(make(`bab:${v.id}`, 'sf_bab', { prompt: `${v.madi} ${v.mudari} ${mas}`, promptEn: v.meaning_en, script: 'arabic', ...o,
-        explanation: after(v), terms: termsOf(v) }, `${v.madi} ${v.mudari}`, o.answer));
+        explanation: after(v), root: rootOf(v.root), terms: termsOf(v) }, `${v.madi} ${v.mudari}`, o.answer));
     } else if (v.form_gt !== 'GT:form_family:form_i') {
       const o = choose(gt.get(v.form_gt) ?? '', FORMS.map((f) => gt.get(f) ?? ''));
       if (o) group(1, v.root).push(make(`form:${v.id}`, 'sf_form', { prompt: `${v.madi} ${v.mudari} ${mas}`, promptEn: v.meaning_en, script: 'arabic', ...o,
-        explanation: after(v), terms: termsOf(v) }, `${v.madi} ${v.mudari}`, o.answer));
+        explanation: after(v), root: rootOf(v.root), terms: termsOf(v) }, `${v.madi} ${v.mudari}`, o.answer));
     }
   }
 
@@ -456,7 +488,7 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
     const options = shuffle([...mas, ...ws]);
     group(2, v.root).push(make(`masadir:${v.id}`, 'sf_masadir', { interaction: 'choose_all', prompt: `${v.madi} ${v.mudari} …`, promptEn: v.meaning_en,
       script: 'arabic', options, correct: options.flatMap((x, i) => (mas.includes(x) ? [i] : [])),
-      explanation: after(v), terms: [...termsOf(v), 'GT:derivation_type:masdar'] }, `${v.madi} — المصادر`, mas.join(' · ')));
+      explanation: after(v), root: rootOf(v.root), terms: [...termsOf(v), 'GT:derivation_type:masdar'] }, `${v.madi} — المصادر`, mas.join(' · ')));
   }
 
   // واحد → جمع, as the Qurʾān has it
@@ -500,14 +532,23 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
       explanation: (byRoot.get(s.root) ?? []).map((x) => `${x.id === s.id ? '▸' : '·'} ${x.sense_en}${x.sense_ar ? ` — ${x.sense_ar}` : ''}`).join('\n') }, q, s.sense_en));
   }
 
-  // the root's verbs in the Qurʾān: what each one means
+  // the root's verbs in the Qurʾān: what each one means. The verb's line (ماضٍ مضارعٌ مصدر) is heard in a SILMA voice
+  // (km_arabic ar_tts_clip; a line not yet rendered is queued); the prompt quotes the passage's āyah where the word was
+  // met (40:3 «وَقَابِلِ ٱلتَّوۡبِ» for قَبِلَ), and the verb's own Qurʾānic use goes to the explanation.
+  const lineOf = (v: Verb) => `${v.madi} ${v.mudari} ${masadirOf(v)[0] ?? ''}`.trim();
+  const clips = await voiced(env, verbs.map(lineOf), 'qr-sarf');
   for (const v of verbs) {
     const c = parseJson<Cite | null>(v.cite_json, null);
     const q = c ? quote(c, texts) : null;
+    const here = metIn(v, words, texts);
     const o = choose(v.meaning_en, [...verbs.filter((x) => x.root === v.root).map((x) => x.meaning_en), ...verbs.map((x) => x.meaning_en)]);
     if (!o) continue;
-    group(6, v.root).push(make(`family:${v.id}`, 'sf_family', { prompt: [`${v.madi} ${v.mudari} ${masadirOf(v)[0] ?? ''}`, q].filter(Boolean).join('\n'), promptEn: null,
-      script: 'arabic', ...o, explanation: after(v), terms: termsOf(v) }, `${v.madi} ${v.mudari}`, v.meaning_en));
+    const line = lineOf(v), clip = clips[line];
+    group(6, v.root).push(make(`family:${v.id}`, 'sf_family', {
+      prompt: here ?? q ?? line, promptEn: null, script: 'arabic', ...o,
+      words: clip?.words ?? line.split(/\s+/).map((t) => ({ t, s: 0, e: 0 })), audio: clip?.audio ?? null,
+      explanation: [after(v), here && q && q !== here ? `The verb itself: ${q}` : null].filter(Boolean).join('\n'),
+      root: rootOf(v.root), terms: termsOf(v) }, `${v.madi} ${v.mudari}`, v.meaning_en));
   }
 
   // the root's picture
