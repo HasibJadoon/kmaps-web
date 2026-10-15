@@ -363,7 +363,10 @@ const meaningsOf = (v: Verb) => { const m = quranMeanings(v); return m.length ? 
 /** Each meaning with how often the Qurʾān uses the verb so, and where. */
 const usesOf = (v: Verb) => {
   const m = quranMeanings(v);
-  return m.length > 1 ? `In the Qurʾān: ${m.map((x) => `${x.en} (${x.n}×, ${x.ayat.join(', ')})`).join('; ')}` : null;
+  if (m.length < 2) return null;
+  // one meaning a line, each opening in English (a line opening in Arabic is laid out right to left)
+  return [`In the Qurʾān it has ${m.length} meanings:`,
+          ...m.map((x, i) => `${i + 1}. ${x.en} — ${x.n === 1 ? 'once' : `${x.n} times`}, e.g. ${x.ayat.slice(0, 2).join(', ')}`)].join('\n');
 };
 const listOf = (s: string | null) => parseJson<string[]>(s, []);
 
@@ -570,7 +573,8 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
     group(6, v.root).push(make(`family:${v.id}`, 'sf_family', {
       prompt: here ?? q ?? line, promptEn: null, script: 'arabic', ...o,
       words: clip?.words ?? line.split(/\s+/).map((t) => ({ t, s: 0, e: 0 })), audio: clip?.audio ?? null,
-      explanation: [usesOf(v), after(v), here && q && q !== here ? `The verb itself: ${q}` : null].filter(Boolean).join('\n'),
+      // the verb's line, its meanings in the Qurʾān one a line, the note, then the verb's own āyah
+      explanation: [chantOf(v), usesOf(v), v.note_en, here && q && q !== here ? `The verb itself: ${q}` : null].filter(Boolean).join('\n'),
       root: rootOf(v.root), terms: termsOf(v) }, `${v.madi} ${v.mudari}`, meaningsOf(v)));
   }
 
