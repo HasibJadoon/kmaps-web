@@ -169,6 +169,21 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     });
   });
 
+  /** A passage's prompts for the Table (drill-engine plan §2.3c): its study questions kept with no options —
+   *  reflections to talk over, never scored. GET /qr/practice/table?passage=QR:SP:40:1-3 */
+  router.get('/qr/practice/table', async (req, env) => {
+    const id = new URL(req.url).searchParams.get('passage');
+    if (!id) return badRequest('passage is required');
+    const p = await passageOf(env, id);
+    if (!p) return notFound(`passage ${id}`);
+    const rows = await query<{ id: string; question_en: string; question_ar: string | null; question_type: string; ayah_from: number | null; ayah_to: number | null }>(env.DB_QR,
+      `SELECT id, question_en, question_ar, question_type, ayah_from, ayah_to FROM qr_study_question
+        WHERE passage_id = ? AND status = 'live' AND (options_json IS NULL OR options_json = '' OR options_json = '[]')
+        ORDER BY sort_order`, [id]);
+    return ok({ passage: passageCard(p), prompts: rows.map((r) => ({ id: r.id, en: r.question_en, ar: r.question_ar, kind: r.question_type,
+                                                                     from: r.ayah_from ?? p.ayah_from, to: r.ayah_to ?? p.ayah_to })) });
+  });
+
   router.get('/qr/practice/class/surah', async (req, env) => {
     const surah = Number(new URL(req.url).searchParams.get('surah'));
     if (!Number.isInteger(surah) || surah < 1 || surah > 114) return badRequest('surah 1–114');
