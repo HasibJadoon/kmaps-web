@@ -73,7 +73,7 @@ async function findClass(env: CoreEnv, user: string, scope: string) {
 
 /** One class as the device reads it. */
 async function view(env: CoreEnv, c: ClassRow) {
-  const [open, days, perNode] = await Promise.all([
+  const [open, days, perNode, perStyle] = await Promise.all([
     query<{ item_ref: string; node_key: string; misses: number; streak: number; missed_json: string | null }>(env.DB_CORE,
       `SELECT item_ref, node_key, misses, streak, missed_json FROM core_drill_class_item
         WHERE class_id = ? AND state = 'open' ORDER BY updated_at`, [c.id]),
@@ -82,6 +82,10 @@ async function view(env: CoreEnv, c: ClassRow) {
     query<{ node_key: string; n: number; perfected: number }>(env.DB_CORE,
       `SELECT node_key, COUNT(*) AS n, SUM(state = 'perfected') AS perfected
          FROM core_drill_class_item WHERE class_id = ? GROUP BY node_key`, [c.id]),
+    // each sub-node (a node's drill style): drills met, and drills passed — right first time or perfected after a miss
+    query<{ node_key: string; style: string; met: number; done: number }>(env.DB_CORE,
+      `SELECT node_key, style, COUNT(*) AS met, SUM(state IN ('right', 'perfected')) AS done
+         FROM core_drill_class_item WHERE class_id = ? AND style IS NOT NULL GROUP BY node_key, style`, [c.id]),
   ]);
   return {
     scope: c.scope_ref, module: c.module, status: c.status,
@@ -95,6 +99,8 @@ async function view(env: CoreEnv, c: ClassRow) {
       const met = perNode.find((r) => r.node_key === node);
       return { node, ...p, met: met?.n ?? 0, perfected: met?.perfected ?? 0 };
     }),
+    // a node's sub-nodes as met so far: the device sets them against the path's totals (finished = done of total)
+    styles: perStyle.map((r) => ({ node: r.node_key, style: r.style, met: r.met, done: r.done ?? 0 })),
     // each open item with the words missed on it (a listen line), none for the rest
     open: open.map(({ missed_json, ...o }) => ({ ...o, missed: mergeMissed(parseMissed(missed_json), []) })),
     days,
@@ -376,15 +382,16 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
       const raw = it['card'] && typeof it['card'] === 'object' ? it['card'] as Record<string, unknown> : null;
       const card = raw ? JSON.stringify(cardWithMissed(raw, missed)) : null;
       stmts.push(db.prepare(
-        `INSERT INTO core_drill_class_item (class_id, item_ref, node_key, first_right, misses, streak, state, card_json, missed_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO core_drill_class_item (class_id, item_ref, node_key, first_right, misses, streak, state, card_json, missed_json, style)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (class_id, item_ref) DO UPDATE SET
            misses = excluded.misses, streak = excluded.streak, state = excluded.state,
            card_json = COALESCE(excluded.card_json, card_json),
            missed_json = COALESCE(excluded.missed_json, missed_json),
+           style = COALESCE(excluded.style, style),
            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')`)
         .bind(c.id, ref, node, next.first_right, next.misses, next.streak, next.state, card,
-              missed.length ? JSON.stringify(missed) : null));
+              missed.length ? JSON.stringify(missed) : null, str(it['style']) ?? null));
     }
 
     const stars = starsFor(firsts, items.length, bandsOf(body?.['bands']));

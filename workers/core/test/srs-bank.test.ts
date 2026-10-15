@@ -1,5 +1,5 @@
-// The bank: a drill missed the first time is kept ungraded (state 'new') — its lesson deals it again — and review never
-// deals it; a miss on it again leaves it there; answered well, it moves into review.
+// The bank stays empty (owner, 2026-10-16): a drill missed the first time is not filed at all — its lesson deals it again —
+// and the first right answer files it straight into review.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -21,7 +21,7 @@ function d1(db: DatabaseSync) {
            async batch(stmts: Array<{ run(): Promise<unknown> }>) { const o = []; for (const s of stmts) o.push(await s.run()); return o; } };
 }
 
-test('a first miss is banked, stays banked when missed again, and goes to review when answered well', async () => {
+test('a first miss is not filed; missed again, still nothing; the first right answer files it into review', async () => {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
   const env = { DB_CORE: d1(db) } as never;
@@ -31,21 +31,14 @@ test('a first miss is banked, stays banked when missed again, and goes to review
 
   const r1 = await fileCards(env, 'U1', [card(1)], { byModule: true, holdMisses: true });
   assert.equal(r1.held, 1);
-  assert.deepEqual(state(), { card_state: 'new', reps: 0 }, 'kept in the bank, ungraded');
-  const repo = new SrsRepo((env as { DB_CORE: never }).DB_CORE);
-  assert.equal((await repo.due('U1', {})).length, 0, 'review never deals a banked drill');
-  assert.equal((await repo.due('U1', { state: 'bank' })).length, 1, 'its lesson does');
-
+  assert.equal(state(), undefined, 'a miss files nothing: the bank stays empty');
   await fileCards(env, 'U1', [card(2)], { byModule: true, holdMisses: true });
-  assert.equal(state()!.card_state, 'new', 'missed again: still banked');
+  assert.equal(state(), undefined, 'missed again: still nothing');
+  const repo = new SrsRepo((env as { DB_CORE: never }).DB_CORE);
+  assert.equal((await repo.due('U1', { state: 'bank' })).length, 0, 'nothing banked');
 
-  // right answers keep it in its lesson's rotation until the third (GRADUATE_AFTER), which sends it to review
   await fileCards(env, 'U1', [card(3)], { byModule: true, holdMisses: true });
-  assert.equal(state()!.card_state, 'new', 'right once: still in its lesson');
-  await fileCards(env, 'U1', [card(3)], { byModule: true, holdMisses: true });
-  assert.equal(state()!.card_state, 'new', 'right twice: still in its lesson');
-  await fileCards(env, 'U1', [card(3)], { byModule: true, holdMisses: true });
-  assert.notEqual(state()!.card_state, 'new', 'right three times: into review');
+  assert.notEqual(state()!.card_state, 'new', 'right once: into review');
   assert.equal(state()!.reps, 1);
 });
 
@@ -62,9 +55,7 @@ test('a resent answer changes nothing; review deals drills only; a leech goes ba
              ('SM', 50, 'سماع', 'Listening', 'q', 'DECK:AL'), ('SF', 10, 'صرف', 'Morphology', 'q', 'DECK:AL'),
              ('NH', 20, 'نحو', 'Syntax', 'q', 'DECK:AL');
            INSERT INTO cyb_drill_type (domain, scope, code, discipline) VALUES ('QR', 'kind', 'fill', 'SM'), ('QR', 'focus', 'gt_define', 'NH');`);
-  // right three times in its lesson: it graduates into review (op-0a, op-0b the first two)
-  await fileCards(env, 'U1', [entry('QR:fill:40:1', 3, 'op-0a')], { byModule: true, holdMisses: true });
-  await fileCards(env, 'U1', [entry('QR:fill:40:1', 3, 'op-0b')], { byModule: true, holdMisses: true });
+  // right once: it goes straight into review
   await fileCards(env, 'U1', [entry('QR:fill:40:1', 3, 'op-1')], { byModule: true, holdMisses: true });
   const reps = () => (db.prepare(`SELECT reps FROM core_srs_card WHERE resource_ref = 'QR:fill:40:1'`).get() as { reps: number }).reps;
   assert.equal(reps(), 1);

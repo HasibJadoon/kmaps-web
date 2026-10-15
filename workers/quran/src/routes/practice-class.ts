@@ -138,10 +138,31 @@ function sentenceLabel(L: Record<string, Label[]>, step: Label, s: Sentence, n: 
            detail: range };
 }
 
+/** A drill's style within its class step — a sub-node of the step on the path, finished only when every drill of it is
+ *  (owner, 2026-10-16). From the drill's id: the builder and its ask (sarf:table, vocab:vocab_root, ss:tree); a commentary
+ *  drill by its book (tafsir_read:razi); the commentators' language by phrase or term; else the builder (fill, irab, grammar). */
+export function styleOf(d: Drill): string {
+  const p = String(d.id ?? '').split(':');
+  if (['sarf', 'vocab', 'keyterm', 'expression', 'ss', 'structure'].includes(p[0])) return `${p[0]}:${p[1] ?? ''}`;
+  if (p[0] === 'tafsir_read' || p[0] === 'tafsir_hear') return `${p[0]}:${p[1] === 'QRTA' ? p[2] ?? '' : p[1] ?? ''}`;
+  if (p[0] === 'tafsir_lang') return `tafsir_lang:${(p[1] ?? '').startsWith('p_') ? 'phrase' : 'term'}`;
+  return p[0];
+}
+
+/** A step's sub-nodes: each style its drills hold, in the order first met, titled by class_style (qr_149). */
+function stylesOf(L: Record<string, Label[]>, items: Drill[]) {
+  const names = byKey(L.class_style ?? []);
+  const order = new Map((L.class_style ?? []).map((x, i) => [x.key, i]));
+  const count = new Map<string, number>();
+  for (const d of items) { const k = styleOf(d); count.set(k, (count.get(k) ?? 0) + 1); }
+  return [...count].map(([key, total]) => ({ key, total, title: names.get(key)?.label ?? key, titleAr: names.get(key)?.labelAr ?? '' }))
+    .sort((a, b) => (order.get(a.key) ?? 999) - (order.get(b.key) ?? 999));
+}
+
 const stepNodes = (L: Record<string, Label[]>) => (L.class_node ?? []).filter((n) => kindOf(n) === 'step');
 
 /** The node rows as the device draws them. A listen node's sprints are its works, given. */
-const nodeCard = (n: Label, drills: number, works = 0) => {
+const nodeCard = (n: Label, drills: number, works = 0, styles: ReturnType<typeof stylesOf> = []) => {
   const sprint = num(n.extra?.sprint, 12);
   const kind = kindOf(n);
   return {
@@ -150,6 +171,9 @@ const nodeCard = (n: Label, drills: number, works = 0) => {
     drills, sprint,
     sprints: kind === 'step' ? Math.max(1, Math.ceil(drills / sprint)) : kind === 'listen' ? Math.max(1, works) : 1,
     pass: n.extra?.pass ?? n.extra?.heard ?? null,
+    // the module the step belongs to (class_node extra.module: its number and title) — the path shows a heading where one starts
+    module: (n.extra?.module as { n: number; title: string; titleAr: string } | undefined) ?? null,
+    styles,
   };
 };
 
@@ -257,11 +281,12 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     const nodes = (L.class_node ?? [])
       .filter((n) => kindOf(n) === 'step' ? (held.get(n.key) ?? 0) > 0 : kindOf(n) === 'listen' ? (works.get(n.key) ?? 0) > 0 : true)
       .flatMap((n) => {
-        if (kindOf(n) !== 'step' || !perSentence(n) || !sentences.length) return [nodeCard(n, held.get(n.key) ?? 0, works.get(n.key) ?? 0)];
+        const pool = kindOf(n) === 'step' ? pools[steps.indexOf(n)] : [];
+        if (kindOf(n) !== 'step' || !perSentence(n) || !sentences.length) return [nodeCard(n, held.get(n.key) ?? 0, works.get(n.key) ?? 0, stylesOf(L, pool))];
         const placed = placeBySentence(pools[steps.indexOf(n)], sentences);
         return sentences.flatMap((s, i) => {
           const k = placed.get(s.id)?.length ?? 0;
-          return k ? [nodeCard(sentenceLabel(L, n, s, i + 1, p.surah), k)] : [];
+          return k ? [nodeCard(sentenceLabel(L, n, s, i + 1, p.surah), k, 0, stylesOf(L, placed.get(s.id) ?? []))] : [];
         });
       });
     return ok({
@@ -319,7 +344,9 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
         items = interleave(pools.map(shuffle), size);
       }
     }
-    return ok({ passage: passageCard(p), node: nodeCard(node, items.length), items, bands: bandsOf(L), stage: L.stage ?? [] });
+    // each drill names its style, the sub-node it counts toward (the device sends it back with the answer)
+    const styled = items.map((d) => ({ ...d, style: styleOf(d) }));
+    return ok({ passage: passageCard(p), node: nodeCard(node, items.length, 0, stylesOf(L, items)), items: styled, bands: bandsOf(L), stage: L.stage ?? [] });
   });
 
   router.get('/qr/practice/class/listen', async (req, env) => {

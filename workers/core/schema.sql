@@ -458,7 +458,7 @@ CREATE TABLE core_drill_class_item (
   state       TEXT NOT NULL DEFAULT 'right',
   card_json   TEXT,
   filed_card  TEXT,
-  updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')), missed_json TEXT,
+  updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')), missed_json TEXT, style TEXT,
   PRIMARY KEY (class_id, item_ref)
 );
 
@@ -1871,6 +1871,7 @@ CREATE INDEX idx_core_concept_domain ON core_concept (domain);
 CREATE INDEX idx_core_concept_key    ON core_concept (concept_key);
 
 CREATE INDEX idx_core_drill_class_item_open ON core_drill_class_item(class_id, state);
+CREATE INDEX idx_core_drill_class_item_style ON core_drill_class_item(class_id, node_key, style);
 
 CREATE INDEX idx_core_drill_class_user ON core_drill_class(user_ref, module, status);
 

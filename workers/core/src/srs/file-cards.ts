@@ -31,7 +31,7 @@ export const RESOURCE_TYPES = new Set([
   'ayah', 'passage', 'concept', 'other',
 ]);
 
-const RESOURCE_ALIASES: Record<string, string> = { vocab: 'vocabulary' };
+const RESOURCE_ALIASES: Record<string, string> = { vocab: 'vocabulary', translation: 'passage' };
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 
@@ -84,9 +84,8 @@ export async function fileCards(
   const results: Array<Record<string, unknown>> = [];
   let inserted = 0;
   let skipped  = 0;
-  // holdMisses (the open drill rounds): review takes in only what has been mastered. A drill met for the
-  // first time and missed (Again · Hard) goes to the BANK — kept, ungraded (state 'new'), so its lesson deals
-  // it again first (GET /core/srs/bank) until it is answered well; that answer moves it into review, which
+  // holdMisses (the open drill rounds): review takes in only what has been passed. A drill met for the first time and
+  // missed (Again · Hard) is not filed — no card, no bank; answered right, it is filed and graded into review, which
   // adapts to every answer from then on. A card already in review is graded as always, a miss included.
   // Class drills gate their own filing (only what is right or perfected) and leave it off.
   let held = 0;
@@ -136,6 +135,16 @@ export async function fileCards(
     if (known && known.card_state !== 'new' && known.next_review_at && Date.parse(known.next_review_at) > Date.now()) {
       results.push({ graded: false, id: known.id, resource_ref: resourceRef, card_template: str(entry!['card_template']) ?? 'freeform',
                      inserted: false, seen: true });
+      skipped += 1;
+      continue;
+    }
+    // the bank stays empty (owner, 2026-10-16): a drill reaches review only once passed. A fresh drill missed is not filed
+    // at all — it comes back in its lesson or class until answered right, and that answer files it
+    const rating0: unknown = entry!['rating'];
+    if (opts.holdMisses && !known && (rating0 === 1 || rating0 === 2)) {
+      results.push({ graded: false, id: null, resource_ref: resourceRef, card_template: str(entry!['card_template']) ?? 'freeform',
+                     inserted: false, held: true });
+      held += 1;
       skipped += 1;
       continue;
     }

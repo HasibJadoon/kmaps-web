@@ -29,7 +29,8 @@ export async function gradeOrBank(repo: SrsRepo, card: SrsCard, userRef: string,
                                   secs: number | null, opId?: string | null): Promise<Graded> {
   if (await repo.seenOp(opId)) return { card, outcome: 'repeat' };
   // in its lesson, answered right but not yet three times: it stays in the lesson's rotation — logged, not scheduled
-  const learning = card.card_state === 'new' && rating >= 3 && (await repo.lessonRights(card.id)) + 1 < GRADUATE_AFTER;
+  // passed is passed (owner, 2026-10-16): one right answer takes a banked card into review — no three-rights wait
+  const learning = false;
   if (card.card_state === 'new' && (rating === 1 || rating === 2 || learning)) {
     await repo.logReview({ card_id: card.id, user_ref: userRef, rating, state_before: 'new', state_after: 'new',
       stability_after: card.stability ?? 0, difficulty_after: card.difficulty ?? 0, elapsed_days: 0, scheduled_days_after: 0,

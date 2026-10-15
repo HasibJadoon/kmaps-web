@@ -302,3 +302,23 @@ test("a vocabulary drill kept with the old 'vocab' type still reaches review", a
   const c = db.prepare('SELECT resource_type FROM core_srs_card WHERE id = ?').get(row.filed_card) as { resource_type: string };
   assert.equal(c.resource_type, 'vocabulary');
 });
+
+test('each sub-node (a node\'s drill style) counts its drills passed: right first time or perfected', async () => {
+  const { call } = await setup();
+  let r = await call('POST', '/core/drill/class/progress', {
+    scope, module: 'QR', node: 'words', sprint: 0, of: 1, seconds: 60, day: '2026-10-01', bands,
+    items: [
+      { ref: 'sarf:table:SV:نزل:I:0.1', style: 'sarf:table', first: true, misses: 0, streak: 1, card: card('a') },
+      { ref: 'sarf:table:SV:نزل:I:0.2', style: 'sarf:table', first: false, misses: 1, streak: 0, card: card('b') },
+      { ref: 'vocab:vocab_root:40:2:1', style: 'vocab:vocab_root', first: true, misses: 0, streak: 1, card: card('c') },
+    ],
+  });
+  const styles = (x: Record<string, any>) => Object.fromEntries(x.data.class.styles.map((s: Record<string, any>) => [s.style, [s.met, s.done]]));
+  assert.deepEqual(styles(r.body), { 'sarf:table': [2, 1], 'vocab:vocab_root': [1, 1] });
+  // the missed one put right: the sub-node is whole
+  r = await call('POST', '/core/drill/class/progress', {
+    scope, module: 'QR', node: 'words', sprint: 1, of: 1, seconds: 20, day: '2026-10-01', bands,
+    items: [{ ref: 'sarf:table:SV:نزل:I:0.2', style: 'sarf:table', first: true, misses: 0, streak: 2 }],
+  });
+  assert.deepEqual(styles(r.body), { 'sarf:table': [2, 2], 'vocab:vocab_root': [1, 1] });
+});
