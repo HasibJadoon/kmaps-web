@@ -51,6 +51,66 @@ async function stepPool(env: QuranEnv, L: Record<string, Label[]>, node: Label, 
   });
 }
 
+// ── A step run sentence by sentence ────────────────────────────────────────────
+// A sentence is a span of words: it may run over several āyāt, and one āyah may hold several
+// sentences. So a drill is placed by where it stands — its āyah and first marked word (`at`) —
+// in the sentence whose span holds that word. A drill that names only its āyah goes to the
+// first sentence touching that āyah. Each sentence with drills is a node of its own, keyed
+// `<step>@<sentence id>`; a sentence with none is left off the path, as an empty step is.
+
+export type Sentence = { id: string; ayah_from: number; ayah_to: number; ws: number | null; we: number | null };
+
+const SEP = '@';
+export const sentenceKey = (step: string, sentence: string) => `${step}${SEP}${sentence}`;
+export const splitKey = (key: string): { step: string; sentence: string | null } => {
+  const i = key.indexOf(SEP);
+  return i < 0 ? { step: key, sentence: null } : { step: key.slice(0, i), sentence: key.slice(i + 1) };
+};
+const perSentence = (n: Label) => n.extra?.per === 'sentence';
+
+/** Where a drill stands: its `at`, else the āyah its card names (surah:ayah) or its id carries. */
+function standing(d: Drill): { ayah: number | null; word: number | null } {
+  const at = d.at as { ayah?: number | null; word?: number | null } | undefined;
+  if (at?.ayah) return { ayah: Number(at.ayah), word: at.word ? Number(at.word) : null };
+  const work = ((d.srs as { extra?: { group?: { work?: string | null } } } | undefined)?.extra?.group?.work) ?? '';
+  const m = /^\d+:(\d+)$/.exec(work) ?? /:\d{1,3}:(\d{1,3})(?::|$)/.exec(String(d.id ?? ''));
+  return { ayah: m ? Number(m[1]) : null, word: null };
+}
+
+/** Each drill in its sentence, in the sentences' order; a drill no sentence holds is left out. */
+export function placeBySentence(drills: Drill[], sentences: Sentence[]): Map<string, Drill[]> {
+  const pos = (ayah: number, word: number) => ayah * 10_000 + word;
+  const out = new Map<string, Drill[]>(sentences.map((s) => [s.id, []]));
+  for (const d of drills) {
+    const { ayah, word } = standing(d);
+    if (!ayah) continue;
+    const s = (word ? sentences.find((x) => pos(x.ayah_from, x.ws ?? 1) <= pos(ayah, word) && pos(ayah, word) <= pos(x.ayah_to, x.we ?? 9_999)) : undefined)
+      ?? sentences.find((x) => x.ayah_from <= ayah && ayah <= x.ayah_to);
+    if (s) out.get(s.id)!.push(d);
+  }
+  return out;
+}
+
+/** The passage's sentences, in reading order — the sentences of its trees (qr_ss_tree). Where two readings
+ *  cover the same words, the one with a built tree comes first, then the curated over al-Jadwal's; the drills
+ *  go to the first that holds them, and a reading left with none is not on the path. */
+const sentencesOf = (env: QuranEnv, p: Passage) => query<Sentence>(env.DB_QR,
+  `SELECT s.id, s.ayah_from, s.ayah_to, s.word_start_index AS ws, s.word_end_index AS we FROM qr_ss_occ_sentence s
+    WHERE s.surah = ? AND s.ayah_from <= ? AND s.ayah_to >= ? AND COALESCE(s.is_virtual, 0) = 0
+    ORDER BY s.ayah_from, s.word_start_index,
+             NOT EXISTS (SELECT 1 FROM qr_ss_tree t WHERE t.sentence_id = s.id), (s.id LIKE '%:jadwal:%'), s.id`,
+  [p.surah, p.ayah_to, p.ayah_from]);
+
+/** A sentence's node, worded by class_ui `sentence_n`: its number in the passage and its range. */
+function sentenceLabel(L: Record<string, Label[]>, step: Label, s: Sentence, n: number, surah: number): Label {
+  const w = (L.class_ui ?? []).find((l) => l.key === 'sentence_n');
+  const range = s.ayah_to > s.ayah_from ? `${surah}:${s.ayah_from}–${s.ayah_to}` : `${surah}:${s.ayah_from}`;
+  const fill = (t: string | null | undefined) => (t ?? '').replace('{n}', String(n)).replace('{range}', range);
+  return { ...step, key: sentenceKey(step.key, s.id),
+           label: w ? fill(w.label) : `${step.label} ${n}`, labelAr: w ? fill(w.labelAr) : step.labelAr,
+           detail: range };
+}
+
 const stepNodes = (L: Record<string, Label[]>) => (L.class_node ?? []).filter((n) => kindOf(n) === 'step');
 
 /** The node rows as the device draws them. A listen node's sprints are its works, given. */
@@ -148,11 +208,20 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
       : null;
     const held = new Map(steps.map((n, i) => [n.key, pools[i].length]));
     const works = new Map(listens.map((n, i) => [n.key, heard[i].length]));
+    const sentences = steps.some(perSentence) ? await sentencesOf(env, p) : [];
     // a step none of whose skills has a drill for this passage is left off its path; so is a
-    // listen gate none of whose works is recorded over it
+    // listen gate none of whose works is recorded over it. A step run per sentence is its
+    // sentences, each with drills its own node.
     const nodes = (L.class_node ?? [])
       .filter((n) => kindOf(n) === 'step' ? (held.get(n.key) ?? 0) > 0 : kindOf(n) === 'listen' ? (works.get(n.key) ?? 0) > 0 : true)
-      .map((n) => nodeCard(n, held.get(n.key) ?? 0, works.get(n.key) ?? 0));
+      .flatMap((n) => {
+        if (kindOf(n) !== 'step' || !perSentence(n) || !sentences.length) return [nodeCard(n, held.get(n.key) ?? 0, works.get(n.key) ?? 0)];
+        const placed = placeBySentence(pools[steps.indexOf(n)], sentences);
+        return sentences.flatMap((s, i) => {
+          const k = placed.get(s.id)?.length ?? 0;
+          return k ? [nodeCard(sentenceLabel(L, n, s, i + 1, p.surah), k)] : [];
+        });
+      });
     return ok({
       passage: passageCard(p),
       nodes: [...held.values()].some((n) => n > 0) ? nodes : [],
@@ -170,18 +239,26 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     if (!id || !key) return badRequest('passage and node are required');
     const [L, p] = await Promise.all([labels(env), passageOf(env, id)]);
     if (!p) return notFound(`passage ${id}`);
-    const node = byKey(L.class_node).get(key);
-    if (!node) return badRequest(`unknown node ${key}`);
+    const { step: stepKey, sentence } = splitKey(key);
+    const base = byKey(L.class_node).get(stepKey);
+    if (!base || (sentence && (kindOf(base) !== 'step' || !perSentence(base)))) return badRequest(`unknown node ${key}`);
     const scope = scopeOf(p);
-    const kind = kindOf(node);
-    const size = num(node.extra?.sprint, 12);
+    const kind = kindOf(base);
+    const size = num(base.extra?.sprint, 12);
+    let node = base;
 
     let items: Drill[];
-    if (kind === 'step') {
-      items = await stepPool(env, L, node, scope);
+    if (kind === 'step' && sentence) {
+      const [pool, sentences] = await Promise.all([stepPool(env, L, base, scope), sentencesOf(env, p)]);
+      const i = sentences.findIndex((s) => s.id === sentence);
+      if (i < 0) return notFound(`sentence ${sentence}`);
+      items = placeBySentence(pool, sentences).get(sentence) ?? [];
+      node = sentenceLabel(L, base, sentences[i], i + 1, p.surah);
+    } else if (kind === 'step') {
+      items = await stepPool(env, L, base, scope);
     } else {
       const wanted = kind === 'review'
-        ? new Set((u.searchParams.get('steps') ?? '').split(',').filter(Boolean))
+        ? new Set((u.searchParams.get('steps') ?? '').split(',').filter(Boolean).map((k) => splitKey(k).step))
         : null;
       const steps = stepNodes(L).filter((n) => !wanted || wanted.has(n.key));
       const pools = await Promise.all(steps.map((n) => stepPool(env, L, n, scope)));

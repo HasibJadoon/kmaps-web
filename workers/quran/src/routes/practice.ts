@@ -505,7 +505,7 @@ async function irabDrills(env: QuranEnv, n: number, scope: Scope, lv: Record<str
     const t = name.get(it.role_gt);
     const drill: Record<string, unknown> = {
       id: `irab:${a.key}:${it.word_index}`, kind: 'feature', script: 'quran', audio: a.audio, words: a.words, en: a.en,
-      span: idx >= 0 ? [idx] : [], prompt: `What is the iʿrāb of ${it.word_text}?`,
+      span: idx >= 0 ? [idx] : [], at: { ayah: a.ayah, word: it.word_index }, prompt: `What is the iʿrāb of ${it.word_text}?`,
       options: shuffle([answer, ...others]), answer,
       note: t ? { en: cap(t.name_en), ar: t.name_ar } : null,
       explanation: `${it.irab_ar} — ${BOOKS[it.source_slug] ?? it.source_slug}`,
@@ -549,9 +549,10 @@ async function gramDrills(env: QuranEnv, skill: string, discipline: string, n: n
     if (!a) return null;
     const answer = optionOf(e);
     const others = e.siblings.map(optionOf).filter((x) => x !== answer).slice(0, 3);
+    const span = spanOf(a.ws, e.exampleAr);
     const drill: Record<string, unknown> = {
       id: `${skill}:${e.id}`, kind: 'feature', script: 'quran', audio: a.audio, words: a.words, en: a.en,
-      span: spanOf(a.ws, e.exampleAr), prompt: skill === 'balagha' ? 'Which figure of rhetoric is at work in the marked words?' : 'Which grammar term names the marked words?',
+      span, at: { ayah: a.ayah, word: span.length ? a.ws[span[0]]?.word_index ?? null : null }, prompt: skill === 'balagha' ? 'Which figure of rhetoric is at work in the marked words?' : 'Which grammar term names the marked words?',
       options: shuffle([answer, ...others]), answer,
       note: { en: cap(e.nameEn), ar: e.nameAr }, explanation: e.definition,
       source: { workId: `QR:SURAH:${a.surah}`, title: a.title, level: null },

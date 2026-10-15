@@ -154,6 +154,7 @@ export async function heardDrills(env: QuranEnv, items: GramDrill[], skill: stri
       const span = idx >= 0 ? [idx] : spanOf(a.ws, it.exampleAr ?? '');
       const drill: Drill = {
         id: `${skill}:${it.id}`, kind: 'feature', ask: it.ask, script: 'quran', audio: a.audio, words: a.words, en: a.en, span,
+        at: { ayah: a.ayah, word: span.length ? a.ws[span[0]]?.word_index ?? null : null },
         prompt: it.word ?? (span.length ? span.map((i) => a.ws[i].word_text).join(' ') : it.prompt), promptEn: it.promptEn,
         options: shuffle(options), answer, note: it.note ?? null, explanation, terms: it.terms,
         source: { workId: `QR:SURAH:${a.surah}`, title: a.title, level: null },

@@ -160,7 +160,9 @@ export async function ssDrills(env: QuranEnv, n: number, scope: Scope, lv: Recor
     const span = spanOf(a, c.from, c.to);
     const line = a.ws.map((w) => w.word_text).join(' ');
     const marked = span.length ? span.map((i) => a.ws[i]?.word_text).join(' ') : line;
-    const base = { kind: 'feature', ask: c.ask, script: 'quran', audio: a.audio, words: a.words, en: a.en, span,
+    // where it stands: the āyah and its first marked word (a class places each drill in its sentence by this)
+    const at = { ayah: c.ayah, word: span.length ? a.ws[span[0]]?.word_index ?? null : (c.from ?? null) };
+    const base = { kind: 'feature', ask: c.ask, script: 'quran', audio: a.audio, words: a.words, en: a.en, span, at,
                    source: { workId: `QR:SURAH:${c.surah}`, title: a.title, level: null } };
     const card = (d: Drill, key: string, front: string, back: string) =>
       withCard(d, { ref: `QR:ss:${key}`, type: 'grammar', kind: 'ss', band, front, back, surah: c.surah, ayah: c.ayah, series: a.surahName });
@@ -274,7 +276,7 @@ export async function ssDrills(env: QuranEnv, n: number, scope: Scope, lv: Recor
       for (let k = 0; k < 4 && sh.every((v, i) => v === i); k++) sh = shuffle(order);
       const range = p.ayah_to > p.ayah_from ? `${p.surah}:${p.ayah_from}–${p.ayah_to}` : `${p.surah}:${p.ayah_from}`;
       out.push(card({
-        id: `ss:buildup:${p.id}`, kind: 'dialogue', ask: 'ss_buildup', audio,
+        id: `ss:buildup:${p.id}`, kind: 'dialogue', ask: 'ss_buildup', audio, at: { ayah: p.ayah_from, word: null },
         prompt: `${range} — order the translation's steps, from the first to the last`,
         dialogue: st.map((s) => ({ speaker: null, ar: String(s.added_en ?? '').trim(), en: [s.added_en, s.connector_en].filter(Boolean).join(' — '), clip: null })),
         shuffled: sh, en: p.final_fluent_en, source: { workId: `QR:SURAH:${p.surah}`, title: `${a.surahName} ${range}`, level: null },
