@@ -15,6 +15,7 @@ import { listenWorks, lineDrills, parseLineRef, sentenceDrills, parseSentenceRef
 //
 //   GET /qr/practice/class/surah?surah=40           the sūra's passages, in order: its units
 //   GET /qr/practice/class/path?passage=QR:SP:40:1-3 the unit's nodes, how many drills each holds
+//   GET /qr/practice/class/pills?passage=…&node=words   one node's pills, from its kept counts (qr_160)
 //   GET /qr/practice/class/node?passage=…&node=words  a node's drills, whole: the device cuts the
 //       sprints and keeps them. check: drawn from every step; review: &steps=read,words;
 //       practice: &refs=<drill ids> (the class's to-perfect set, from CORE — a tafsīr line
@@ -36,17 +37,49 @@ const kindOf = (n: Label) => String(n.extra?.kind ?? 'step');
 const skillsOf = (n: Label) => (Array.isArray(n.extra?.skills) ? n.extra!.skills as string[] : []);
 const num = (v: unknown, d: number) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
 
+// A drill's card carries a copy of the drill to replay in review (gt-attach.ts) — the drill itself, less its card, its
+// context panel and badges. Kept, that copy doubled every pool; so a pool keeps it as a mark (`drill: true`) and it is
+// made again from the drill when the drill is served. Old pools are rewritten slim the first time they are read.
+function slim(d: Drill): Drill {
+  const srs = d.srs as { extra?: Record<string, unknown> } | undefined;
+  if (!srs?.extra || !srs.extra.drill || srs.extra.drill === true) return d;
+  return { ...d, srs: { ...srs, extra: { ...srs.extra, drill: true } } };
+}
+export function full(d: Drill): Drill {
+  const srs = d.srs as { extra?: Record<string, unknown> } | undefined;
+  if (srs?.extra?.drill !== true) return d;
+  const { srs: _s, context: _c, badges: _b, ...dealt } = d;
+  return { ...d, srs: { ...srs, extra: { ...srs.extra, drill: dealt } } };
+}
+
+type PoolRow = { step_key: string; definition: string; items_json: string };
+const defOfStep = (node: Label) => JSON.stringify(node.extra ?? {});
+/** A kept pool row's drills, or null when it is not this step's current draw. */
+function parseKept(node: Label, kept: PoolRow | null | undefined): Drill[] | null {
+  if (!kept || kept.definition !== defOfStep(node)) return null;
+  try { return JSON.parse(kept.items_json) as Drill[]; } catch { return null; }
+}
+
 /** A step's drills over a passage, kept (qr_140): the first draw is served from then on, so the path's
  *  counts, a node's drills and any later day's draw agree, and an item kept open can always be dealt
- *  back. Drawn again only when the step's definition changes (or the passage's rows are deleted). */
-async function stepPool(env: QuranEnv, L: Record<string, Label[]>, node: Label, p: Passage): Promise<Drill[]> {
-  const definition = JSON.stringify(node.extra ?? {});
-  const kept = await queryOne<{ definition: string; items_json: string }>(env.DB_QR,
-    'SELECT definition, items_json FROM qr_class_pool WHERE passage_id = ? AND step_key = ?', [p.id, node.key]).catch(() => null);
-  if (kept && kept.definition === definition) {
-    try { return JSON.parse(kept.items_json) as Drill[]; } catch { /* drawn again below */ }
+ *  back. Drawn again only when the step's definition changes (or the passage's rows are deleted). Slim
+ *  (no review copy): serve with `full`. `kept` is the row when the caller already read it. */
+async function stepPool(env: QuranEnv, L: Record<string, Label[]>, node: Label, p: Passage, kept?: PoolRow | null): Promise<Drill[]> {
+  const definition = defOfStep(node);
+  const row = kept !== undefined ? kept : await queryOne<PoolRow>(env.DB_QR,
+    'SELECT step_key, definition, items_json FROM qr_class_pool WHERE passage_id = ? AND step_key = ?', [p.id, node.key]).catch(() => null);
+  const have = parseKept(node, row);
+  if (have) {
+    // a pool kept before slimming: rewritten once
+    if (row!.items_json.includes('"drill":{')) {
+      const thin = have.map(slim);
+      await execute(env.DB_QR, 'UPDATE qr_class_pool SET items_json = ? WHERE passage_id = ? AND step_key = ? AND definition = ?',
+        [JSON.stringify(thin), p.id, node.key, definition]).catch(() => null);
+      return thin;
+    }
+    return have;
   }
-  const drawn = await drawPool(env, L, node, scopeOf(p));
+  const drawn = (await drawPool(env, L, node, scopeOf(p))).map(slim);
   if (!drawn.length) return drawn;            // nothing to keep: a step with no drills here stays off the path
   // the first draw wins: two first reads at once keep one draw, and both are served it
   await execute(env.DB_QR,
@@ -55,9 +88,24 @@ async function stepPool(env: QuranEnv, L: Record<string, Label[]>, node: Label, 
        created_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
      WHERE qr_class_pool.definition <> excluded.definition`,
     [p.id, node.key, definition, JSON.stringify(drawn)]).catch(() => null);
+  // the step's kept counts and lessons (qr_160) were made from the old draw: made again on the next read
+  await env.DB_QR.batch([
+    env.DB_QR.prepare('DELETE FROM qr_class_node_stat WHERE passage_id = ? AND node_key = ?').bind(p.id, node.key),
+    env.DB_QR.prepare('DELETE FROM qr_class_lesson WHERE passage_id = ? AND step_key = ?').bind(p.id, node.key),
+  ]).catch(() => null);
   const now = await queryOne<{ items_json: string }>(env.DB_QR,
     'SELECT items_json FROM qr_class_pool WHERE passage_id = ? AND step_key = ?', [p.id, node.key]).catch(() => null);
   try { return now ? JSON.parse(now.items_json) as Drill[] : drawn; } catch { return drawn; }
+}
+
+/** Several steps' pools: their kept rows read in one query, any not kept drawn. */
+async function stepPools(env: QuranEnv, L: Record<string, Label[]>, steps: Label[], p: Passage): Promise<Drill[][]> {
+  if (!steps.length) return [];
+  const rows = await query<PoolRow>(env.DB_QR,
+    `SELECT step_key, definition, items_json FROM qr_class_pool WHERE passage_id = ? AND step_key IN (${steps.map(() => '?').join(',')})`,
+    [p.id, ...steps.map((n) => n.key)]).catch(() => [] as PoolRow[]);
+  const byStep = new Map(rows.map((r) => [r.step_key, r]));
+  return Promise.all(steps.map((n) => stepPool(env, L, n, p, byStep.get(n.key) ?? null)));
 }
 
 /** Every drill a step holds over the passage: each of its skills drawn whole, once each by id. */
@@ -214,12 +262,17 @@ async function readingSession(env: QuranEnv, L: Record<string, Label[]>, p: Pass
     [p.surah, p.ayah_to, p.ayah_from]).catch(() => []);
   if (!rows.length) return [];
   // in batches: one query binds at most 100 values
-  const ids = rows.map((r) => r.id), drills: Drill[] = [];
-  for (let i = 0; i < ids.length; i += 25) drills.push(...await sentenceDrills(env, ids.slice(i, i + 25), scopeOf(p)));
-  const byId = new Map(drills.map((d) => [String(d.id), d]));
+  // the batches and the terms, all at once
+  const ids = rows.map((r) => r.id), batches: string[][] = [];
+  for (let i = 0; i < ids.length; i += 25) batches.push(ids.slice(i, i + 25));
   const termIds = [...new Set(rows.flatMap((r) => parseJson<string[]>(r.terms_json ?? '', [])))];
-  const terms = termIds.length ? await query<{ id: string; name_en: string | null; name_ar: string; discipline: string | null }>(env.DB_QR,
-    `SELECT id, name_en, name_ar, discipline FROM ar_ling_gram_term WHERE id IN (SELECT value FROM json_each(?))`, [JSON.stringify(termIds)]).catch(() => []) : [];
+  const [piles, terms] = await Promise.all([
+    Promise.all(batches.map((b) => sentenceDrills(env, b, scopeOf(p)))),
+    termIds.length ? query<{ id: string; name_en: string | null; name_ar: string; discipline: string | null }>(env.DB_QR,
+      `SELECT id, name_en, name_ar, discipline FROM ar_ling_gram_term WHERE id IN (SELECT value FROM json_each(?))`, [JSON.stringify(termIds)]).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+  const byId = new Map(piles.flat().map((d) => [String(d.id), d]));
   const science: Record<string, string> = { NH: 'Naḥw', nahw: 'Naḥw', SF: 'Ṣarf', sarf: 'Ṣarf', BL: 'Balāgha', balagha: 'Balāgha' };
   const termOf = new Map(terms.map((t) => [t.id, t]));
   const names = byKey(L.class_style ?? []);
@@ -285,15 +338,25 @@ function deckOf(id: string, title: string, titleAr: string, slides: Array<{ id: 
   };
 }
 
-/** A step's sub-nodes: each style its drills hold, in the order first met, titled by class_style (qr_149). */
-function stylesOf(L: Record<string, Label[]>, items: Drill[]) {
-  const names = byKey(L.class_style ?? []);
-  const order = new Map((L.class_style ?? []).map((x, i) => [x.key, i]));
+type StyleCount = { key: string; total: number };
+
+/** How many drills of each style, in the order first met. */
+const countStyles = (items: Drill[]): StyleCount[] => {
   const count = new Map<string, number>();
   for (const d of items) { const k = styleOf(d); count.set(k, (count.get(k) ?? 0) + 1); }
-  return [...count].map(([key, total]) => ({ key, total, title: names.get(key)?.label ?? key, titleAr: names.get(key)?.labelAr ?? '' }))
+  return [...count].map(([key, total]) => ({ key, total }));
+};
+
+/** The pills: each style counted, titled by class_style (qr_149), in its order. */
+function namedStyles(L: Record<string, Label[]>, counts: StyleCount[]) {
+  const names = byKey(L.class_style ?? []);
+  const order = new Map((L.class_style ?? []).map((x, i) => [x.key, i]));
+  return counts.map(({ key, total }) => ({ key, total, title: names.get(key)?.label ?? key, titleAr: names.get(key)?.labelAr ?? '' }))
     .sort((a, b) => (order.get(a.key) ?? 999) - (order.get(b.key) ?? 999));
 }
+
+/** A step's sub-nodes: each style its drills hold, titled by class_style (qr_149). */
+const stylesOf = (L: Record<string, Label[]>, items: Drill[]) => namedStyles(L, countStyles(items));
 
 const stepNodes = (L: Record<string, Label[]>) => (L.class_node ?? []).filter((n) => kindOf(n) === 'step');
 
@@ -325,20 +388,98 @@ const passageCard = (p: Passage) => ({
 });
 
 /** One full round over a unit (qr_127): each style of `unit_round` in its order, `n` of its drills, the styles with
- *  nothing over the passage left out. Not kept: a round is dealt afresh each time (it is not under /class/). */
-async function unitRound(env: QuranEnv, L: Record<string, Label[]>, scope: Scope): Promise<{ items: Drill[]; styles: unknown[] }> {
+ *  nothing over the passage left out. Sampled from the kept step pools (a skill's drills are those whose id starts with
+ *  it), so a round costs one read, not a fresh draw of every skill. Dealt afresh each time (/qr/practice/round). */
+async function unitRound(env: QuranEnv, L: Record<string, Label[]>, p: Passage): Promise<{ items: Drill[]; styles: unknown[] }> {
   const rows = L.unit_round ?? [];          // in their sort order, as labels() reads them
-  const piles = await Promise.all(rows.map((r) => drawSkill(env, L, r.key, 'all', num(r.extra?.n, 2) * 4, scope).catch(() => [] as Drill[])));
+  // only the steps that hold a round skill are read
+  const wanted = new Set(rows.map((r) => r.key));
+  const all = (await stepPools(env, L, stepNodes(L).filter((n) => skillsOf(n).some((k) => wanted.has(k))), p)).flat();
+  const bySkill = new Map<string, Drill[]>();
+  for (const d of all) { const k = String(d.id ?? '').split(':')[0]; (bySkill.get(k) ?? bySkill.set(k, []).get(k)!).push(d); }
   const seen = new Set<string>();
   const items: Drill[] = [], styles: unknown[] = [];
-  rows.forEach((r, i) => {
-    const take = piles[i].filter((d) => { const id = String(d.id ?? ''); if (!id || seen.has(id)) return false; seen.add(id); return true; })
-      .sort(() => Math.random() - 0.5).slice(0, num(r.extra?.n, 2));
-    if (!take.length) return;
-    items.push(...take);
+  for (const r of rows) {
+    const take = shuffle(bySkill.get(r.key) ?? []).filter((d) => { const id = String(d.id ?? ''); if (!id || seen.has(id)) return false; seen.add(id); return true; })
+      .slice(0, num(r.extra?.n, 2));
+    if (!take.length) continue;
+    items.push(...take.map(full));
     styles.push({ id: r.key, title: r.label, titleAr: r.labelAr ?? '', icon: r.icon ?? 'circle', color: r.color ?? '#D8B657', count: take.length });
-  });
+  }
   return { items, styles };
+}
+
+// ── A node's counts, kept (qr_160) ─────────────────────────────────────────────
+// The path needs only how many drills each node holds and its pills — never the drills. Each node's
+// counts are made once (from its kept pool, its recordings, the round's draw) and kept per passage;
+// after that a path is one read of small rows, however big the pools. A row is made again when what
+// it was made from changes (its `definition`): the node's extra, and for a step run per sentence the
+// passage's sentence ids. A node with nothing over the passage is not kept, so new drills show up.
+
+type SentenceStat = { id: string; drills: number; styles: StyleCount[] };
+type NodeStat = { drills: number; styles: StyleCount[]; sentences: SentenceStat[] | null };
+const ROUND = '@round';
+
+type StatRow = { node_key: string; definition: string; drills: number; styles_json: string; sentences_json: string | null; updated_at: string };
+const statRows = (env: QuranEnv, passage: string) => query<StatRow>(env.DB_QR,
+  'SELECT node_key, definition, drills, styles_json, sentences_json, updated_at FROM qr_class_node_stat WHERE passage_id = ?', [passage])
+  .catch(() => [] as StatRow[]);
+const DAY_MS = 86_400_000;
+
+async function nodeStats(env: QuranEnv, L: Record<string, Label[]>, p: Passage, only?: Set<string>, given?: StatRow[])
+  : Promise<{ stats: Map<string, NodeStat>; sentences: Sentence[] }> {
+  const nodes = (L.class_node ?? []).filter((n) => (kindOf(n) === 'step' || kindOf(n) === 'listen') && (!only || only.has(n.key)));
+  const needSentences = nodes.some((n) => kindOf(n) === 'step' && perSentence(n));
+  const [rows, sentences] = await Promise.all([
+    given ? Promise.resolve(given) : statRows(env, p.id),
+    needSentences ? sentencesOf(env, p) : Promise.resolve([] as Sentence[]),
+  ]);
+  const kept = new Map(rows.map((r) => [r.node_key, r]));
+  const sentDef = `|${sentences.map((x) => x.id).join(',')}`;
+  type Want = { key: string; def: string; node: Label | null };
+  const want: Want[] = nodes.map((n) => ({ key: n.key, node: n, def: JSON.stringify(n.extra ?? {}) + (kindOf(n) === 'step' && perSentence(n) ? sentDef : '') }));
+  if (!only || only.has(ROUND)) want.push({ key: ROUND, node: null, def: JSON.stringify((L.unit_round ?? []).map((r) => [r.key, r.extra?.n ?? null])) });
+
+  const stats = new Map<string, NodeStat>();
+  const missing: Want[] = [];
+  for (const w of want) {
+    const r = kept.get(w.key);
+    // a node with nothing here is kept too, and counted again after a day (drills may have been authored since)
+    if (r && r.definition === w.def && (r.drills > 0 || Date.now() - Date.parse(r.updated_at) < DAY_MS)) {
+      try {
+        stats.set(w.key, { drills: r.drills, styles: JSON.parse(r.styles_json), sentences: r.sentences_json ? JSON.parse(r.sentences_json) : null });
+        continue;
+      } catch { /* counted again below */ }
+    }
+    missing.push(w);
+  }
+  const made = await Promise.all(missing.map(async (w): Promise<NodeStat> => {
+    if (!w.node) {
+      const round = await unitRound(env, L, p).catch(() => ({ items: [] as Drill[], styles: [] as unknown[] }));
+      return { drills: round.items.length, sentences: null,
+               styles: (round.styles as Array<{ id: string; count: number }>).map((x) => ({ key: x.id, total: x.count })) };
+    }
+    if (kindOf(w.node) === 'listen') {
+      const works = await listenOf(env, w.node, p).catch(() => []);
+      return { drills: works.length, styles: [], sentences: null };
+    }
+    const pool = await stepPool(env, L, w.node, p);
+    let per: SentenceStat[] | null = null;
+    if (perSentence(w.node) && sentences.length) {
+      const placed = placeBySentence(pool, sentences);
+      per = sentences.flatMap((x) => { const d = placed.get(x.id) ?? []; return d.length ? [{ id: x.id, drills: d.length, styles: countStyles(d) }] : []; });
+    }
+    return { drills: pool.length, styles: countStyles(pool), sentences: per };
+  }));
+  const writes = missing.map((w, i) => { stats.set(w.key, made[i]); return { w, st: made[i] }; });
+  if (writes.length) {
+    await env.DB_QR.batch(writes.map(({ w, st }) => env.DB_QR.prepare(
+      `INSERT INTO qr_class_node_stat (passage_id, node_key, definition, drills, styles_json, sentences_json) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT (passage_id, node_key) DO UPDATE SET definition = excluded.definition, drills = excluded.drills,
+         styles_json = excluded.styles_json, sentences_json = excluded.sentences_json, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')`)
+      .bind(p.id, w.key, w.def, st.drills, JSON.stringify(st.styles), st.sentences ? JSON.stringify(st.sentences) : null))).catch(() => null);
+  }
+  return { stats, sentences };
 }
 
 export function practiceClassRoutes(router: Router<QuranEnv>) {
@@ -347,7 +488,7 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     if (!id) return badRequest('passage is required');
     const [L, p] = await Promise.all([labels(env), passageOf(env, id)]);
     if (!p) return notFound(`passage ${id}`);
-    const { items, styles } = await unitRound(env, L, scopeOf(p));
+    const { items, styles } = await unitRound(env, L, p);
     const head = (L.class_ui ?? []).find((l) => l.key === 'full_round');
     return ok({
       skill: { id: 'unit_round', title: head?.label ?? 'One full round', titleAr: head?.labelAr ?? '', tagline: head?.detail ?? '',
@@ -374,25 +515,26 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
   router.get('/qr/practice/class/surah', async (req, env) => {
     const surah = Number(new URL(req.url).searchParams.get('surah'));
     if (!Number.isInteger(surah) || surah < 1 || surah > 114) return badRequest('surah 1–114');
-    const [L, rows, name] = await Promise.all([
-      labels(env),
-      query<Passage>(env.DB_QR,
-        `SELECT id, surah, passage_no, ayah_from, ayah_to, label, title_en, title_ar
-           FROM qr_surah_study_passage WHERE surah = ? AND status = 'live' ORDER BY passage_no`, [surah]),
-      queryOne<{ name_ar: string; name_en: string; name_transliteration: string }>(env.DB_QR,
-        'SELECT name_ar, name_en, name_transliteration FROM qr_surah WHERE id = ?', [surah]),
-    ]);
     // the next stop on the study path (study_path, qr_151): it opens once every passage here is graded; a sūra whose
-    // passages are not cut yet is named, not opened (ready = false)
+    // passages are not cut yet is named, not opened (ready = false). Labels are kept in memory, so the passages and
+    // both sūras' names and counts are one round trip.
+    const L = await labels(env);
     const path = (L.study_path ?? []).filter((x) => x.extra?.kind === 'surah');
     const at = path.findIndex((x) => Number(x.extra?.surah) === surah);
     const nextSurah = at >= 0 && at + 1 < path.length ? Number(path[at + 1].extra?.surah) : null;
-    const next = nextSurah ? await Promise.all([
-      queryOne<{ name_ar: string; name_en: string; name_transliteration: string }>(env.DB_QR,
-        'SELECT name_ar, name_en, name_transliteration FROM qr_surah WHERE id = ?', [nextSurah]),
-      queryOne<{ n: number }>(env.DB_QR, `SELECT COUNT(*) AS n FROM qr_surah_study_passage WHERE surah = ? AND status = 'live'`, [nextSurah]),
-    ]).then(([nm, c]) => ({ id: nextSurah, nameAr: nm?.name_ar ?? null, name: nm?.name_transliteration ?? nm?.name_en ?? null,
-                             passages: c?.n ?? 0, ready: (c?.n ?? 0) > 0 })) : null;
+    const [rows, names] = await Promise.all([
+      query<Passage>(env.DB_QR,
+        `SELECT id, surah, passage_no, ayah_from, ayah_to, label, title_en, title_ar
+           FROM qr_surah_study_passage WHERE surah = ? AND status = 'live' ORDER BY passage_no`, [surah]),
+      query<{ id: number; name_ar: string; name_en: string; name_transliteration: string; n: number }>(env.DB_QR,
+        `SELECT s.id, s.name_ar, s.name_en, s.name_transliteration,
+                (SELECT COUNT(*) FROM qr_surah_study_passage x WHERE x.surah = s.id AND x.status = 'live') AS n
+           FROM qr_surah s WHERE s.id IN (?, ?)`, [surah, nextSurah ?? surah]),
+    ]);
+    const name = names.find((x) => x.id === surah);
+    const nm = nextSurah ? names.find((x) => x.id === nextSurah) : undefined;
+    const next = nextSurah ? { id: nextSurah, nameAr: nm?.name_ar ?? null, name: nm?.name_transliteration ?? nm?.name_en ?? null,
+                               passages: nm?.n ?? 0, ready: (nm?.n ?? 0) > 0 } : null;
     return ok({
       surah: { id: surah, nameAr: name?.name_ar ?? null, name: name?.name_transliteration ?? name?.name_en ?? null },
       passages: rows.map(passageCard),
@@ -404,47 +546,64 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
   router.get('/qr/practice/class/path', async (req, env) => {
     const id = new URL(req.url).searchParams.get('passage');
     if (!id) return badRequest('passage is required');
-    const [L, p] = await Promise.all([labels(env), passageOf(env, id)]);
+    // the kept counts are read with the passage, in one round trip
+    const [L, p, rows] = await Promise.all([labels(env), passageOf(env, id), statRows(env, id)]);
     if (!p) return notFound(`passage ${id}`);
-    const scope = scopeOf(p);
-    const steps = stepNodes(L);
-    const listens = (L.class_node ?? []).filter((n) => kindOf(n) === 'listen');
-    const [pools, heard, round] = await Promise.all([
-      Promise.all(steps.map((n) => stepPool(env, L, n, p))),
-      Promise.all(listens.map((n) => listenOf(env, n, p).catch(() => []))),
-      unitRound(env, L, scope).catch(() => ({ items: [] as Drill[], styles: [] as unknown[] })),
-    ]);
+    // counts only, from the kept rows (qr_160): no pool, recording or round is opened here
+    const { stats, sentences } = await nodeStats(env, L, p, undefined, rows);
+    const held = (n: Label) => stats.get(n.key)?.drills ?? 0;
     // the full round, shown only when the unit has drills for it — and only the styles it has
     const head = (L.class_ui ?? []).find((l) => l.key === 'full_round');
-    const fullRound = round.items.length
+    const roundRows = byKey(L.unit_round ?? []);
+    const roundStat = stats.get(ROUND);
+    const fullRound = roundStat && roundStat.drills > 0
       ? { title: head?.label ?? 'One full round', titleAr: head?.labelAr ?? '', icon: head?.icon ?? 'circle.hexagongrid',
-          color: head?.color ?? '#D8B657', styles: round.styles }
+          color: head?.color ?? '#D8B657',
+          styles: roundStat.styles.flatMap((x) => { const r = roundRows.get(x.key); return r ? [{ id: r.key, title: r.label, titleAr: r.labelAr ?? '',
+            icon: r.icon ?? 'circle', color: r.color ?? '#D8B657', count: x.total }] : []; }) }
       : null;
-    const held = new Map(steps.map((n, i) => [n.key, pools[i].length]));
-    const works = new Map(listens.map((n, i) => [n.key, heard[i].length]));
-    const sentences = steps.some(perSentence) ? await sentencesOf(env, p) : [];
+    const at = new Map(sentences.map((x, i) => [x.id, i]));
     // a step none of whose skills has a drill for this passage is left off its path; so is a
     // listen gate none of whose works is recorded over it. A step run per sentence is its
     // sentences, each with drills its own node.
     const nodes = (L.class_node ?? [])
-      .filter((n) => kindOf(n) === 'step' ? (held.get(n.key) ?? 0) > 0 : kindOf(n) === 'listen' ? (works.get(n.key) ?? 0) > 0 : true)
+      .filter((n) => kindOf(n) === 'step' || kindOf(n) === 'listen' ? held(n) > 0 : true)
       .flatMap((n) => {
-        const pool = kindOf(n) === 'step' ? pools[steps.indexOf(n)] : [];
-        if (kindOf(n) !== 'step' || !perSentence(n) || !sentences.length) return [nodeCard(n, held.get(n.key) ?? 0, works.get(n.key) ?? 0, stylesOf(L, pool))];
-        const placed = placeBySentence(pools[steps.indexOf(n)], sentences);
-        return sentences.flatMap((s, i) => {
-          const k = placed.get(s.id)?.length ?? 0;
-          return k ? [nodeCard(sentenceLabel(L, n, s, i + 1, p.surah), k, 0, stylesOf(L, placed.get(s.id) ?? []))] : [];
+        const st = stats.get(n.key);
+        if (kindOf(n) === 'listen') return [nodeCard(n, 0, held(n))];
+        if (kindOf(n) !== 'step') return [nodeCard(n, 0)];
+        if (!perSentence(n) || !st?.sentences?.length) return [nodeCard(n, held(n), 0, namedStyles(L, st?.styles ?? []))];
+        return st.sentences.flatMap((x) => {
+          const i = at.get(x.id);
+          return i === undefined ? [] : [nodeCard(sentenceLabel(L, n, sentences[i], i + 1, p.surah), x.drills, 0, namedStyles(L, x.styles))];
         });
       });
+    const anySteps = stepNodes(L).some((n) => held(n) > 0);
     return ok({
       passage: passageCard(p),
-      nodes: [...held.values()].some((n) => n > 0) ? nodes : [],
+      nodes: anySteps ? nodes : [],
       bands: bandsOf(L),
       words: L.class_ui ?? [],
       stage: L.stage ?? [],
       round: fullRound,
     });
+  });
+
+  // A node's pills alone, from its kept counts: GET /qr/practice/class/pills?passage=…&node=words[@<sentence>]
+  // — for a screen that shows one class (its sub-path) without the passage's whole path.
+  router.get('/qr/practice/class/pills', async (req, env) => {
+    const u = new URL(req.url);
+    const id = u.searchParams.get('passage'), key = u.searchParams.get('node');
+    if (!id || !key) return badRequest('passage and node are required');
+    const [L, p] = await Promise.all([labels(env), passageOf(env, id)]);
+    if (!p) return notFound(`passage ${id}`);
+    const { step, sentence } = splitKey(key);
+    const base = byKey(L.class_node).get(step);
+    if (!base || kindOf(base) !== 'step') return badRequest(`unknown step ${key}`);
+    const { stats } = await nodeStats(env, L, p, new Set([step]));
+    const st = stats.get(step);
+    const one = sentence ? st?.sentences?.find((x) => x.id === sentence) : st;
+    return ok({ passage: p.id, node: key, drills: one?.drills ?? 0, styles: namedStyles(L, one?.styles ?? []) });
   });
 
   // A step's lesson, before its drills: GET /qr/practice/class/lesson?passage=…&node=words[&style=sarf:table]
@@ -457,27 +616,49 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     const { step: stepKey, sentence } = splitKey(key);
     const base = byKey(L.class_node).get(stepKey);
     if (!base || kindOf(base) !== 'step') return badRequest(`unknown step ${key}`);
-    // the commentaries' study is a reading session: each sentence of each book read aloud, then broken down
-    if ((base.extra?.module as { study?: string } | undefined)?.study === 'tafsir') {
-      const slides = await readingSession(env, L, p);
-      return ok({ passage: passageCard(p), node: nodeCard(base, 0), slides,
-                  deck: deckOf(`LESSON:${p.id}:${base.key}`, base.label, base.labelAr ?? '', slides),
-                  audio: [null, ...slides.map((x) => x.audio ?? null)] });
-    }
-    let items = await stepPool(env, L, base, p);
-    if (sentence) items = placeBySentence(items, await sentencesOf(env, p)).get(sentence) ?? [];
-    // one slide alone (a drill's own, opened from the drill), or the step's whole lesson
+    const style = u.searchParams.get('style');
     const one = u.searchParams.get('slide');
-    const slides = lessonOf(L, items, u.searchParams.get('style')).filter((x) => !one || x.id === one);
-    return ok({ passage: passageCard(p), node: nodeCard(base, items.length), slides,
+    const tafsir = (base.extra?.module as { study?: string } | undefined)?.study === 'tafsir';
+    // the lesson's slides are made once and kept (qr_160 qr_class_lesson), per node and style; a pool redraw drops
+    // them, and the commentaries' reading session (made from the books, not a pool) is made again after a day
+    const definition = defOfStep(base);
+    const kept = await queryOne<{ definition: string; body_json: string; updated_at: string }>(env.DB_QR,
+      'SELECT definition, body_json, updated_at FROM qr_class_lesson WHERE passage_id = ? AND node_key = ? AND style = ?',
+      [p.id, key, style ?? '']).catch(() => null);
+    let body: { slides: Array<{ id: string; audio?: unknown; example?: { audio?: unknown } | null }>; drills: number } | null = null;
+    if (kept && kept.definition === definition && (!tafsir || Date.now() - Date.parse(kept.updated_at) < DAY_MS)) {
+      try { body = JSON.parse(kept.body_json); } catch { body = null; }
+    }
+    if (!body) {
+      if (tafsir) {
+        body = { slides: await readingSession(env, L, p), drills: 0 };
+      } else {
+        let items = await stepPool(env, L, base, p);
+        if (sentence) items = placeBySentence(items, await sentencesOf(env, p)).get(sentence) ?? [];
+        body = { slides: lessonOf(L, items, style), drills: items.length };
+      }
+      if (body.slides.length) {
+        await execute(env.DB_QR,
+          `INSERT INTO qr_class_lesson (passage_id, step_key, node_key, style, definition, body_json) VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT (passage_id, node_key, style) DO UPDATE SET definition = excluded.definition, body_json = excluded.body_json,
+             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')`,
+          [p.id, base.key, key, style ?? '', definition, JSON.stringify(body)]).catch(() => null);
+      }
+    }
+    // one slide alone (a drill's own, opened from the drill), or the step's whole lesson
+    const slides = body.slides.filter((x) => !one || x.id === one) as Parameters<typeof deckOf>[3];
+    return ok({ passage: passageCard(p), node: nodeCard(base, body.drills), slides,
                 deck: deckOf(`LESSON:${p.id}:${key}`, base.label, base.labelAr ?? '', slides),
-                audio: [null, ...slides.map((x) => x.example?.audio ?? null)] });
+                audio: [null, ...body.slides.filter((x) => !one || x.id === one)
+                  .map((x) => (tafsir ? x.audio : x.example?.audio) ?? null)] });
   });
 
   router.get('/qr/practice/class/node', async (req, env) => {
     const u = new URL(req.url);
     const id = u.searchParams.get('passage');
     const key = u.searchParams.get('node');
+    // &style=<key>: one sub-node's drills only (a step's pool can run to hundreds)
+    const style = u.searchParams.get('style');
     if (!id || !key) return badRequest('passage and node are required');
     const [L, p] = await Promise.all([labels(env), passageOf(env, id)]);
     if (!p) return notFound(`passage ${id}`);
@@ -503,7 +684,7 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
         ? new Set((u.searchParams.get('steps') ?? '').split(',').filter(Boolean).map((k) => splitKey(k).step))
         : null;
       const steps = stepNodes(L).filter((n) => !wanted || wanted.has(n.key));
-      const pools = await Promise.all(steps.map((n) => stepPool(env, L, n, p)));
+      const pools = await stepPools(env, L, steps, p);
       if (kind === 'practice') {
         const refs = new Set((u.searchParams.get('refs') ?? '').split(',').filter(Boolean));
         items = pools.flat().filter((d) => refs.has(String(d.id)));
@@ -519,9 +700,11 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
         items = interleave(pools.map(shuffle), size);
       }
     }
+    if (style) items = items.filter((d) => styleOf(d) === style);
     // each drill names its style, the sub-node it counts toward (the device sends it back with the answer)
-    // and the lesson slide that teaches it (GET /qr/practice/class/lesson), opened from the drill
-    const styled = items.map((d) => ({ ...d, style: styleOf(d), lesson: lessonId(d) }));
+    // and the lesson slide that teaches it (GET /qr/practice/class/lesson), opened from the drill; its card's
+    // review copy is made again here (pools keep it as a mark)
+    const styled = items.map((d) => ({ ...full(d), style: styleOf(d), lesson: lessonId(d) }));
     return ok({ passage: passageCard(p), node: nodeCard(node, items.length, 0, stylesOf(L, items)), items: styled, bands: bandsOf(L), stage: L.stage ?? [] });
   });
 
