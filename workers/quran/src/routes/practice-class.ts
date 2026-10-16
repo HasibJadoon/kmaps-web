@@ -708,15 +708,19 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
           const sw = L.class_ui?.find((x) => x.key === 'sentence_node');
           // the stories' names (qr_keyterm_story) and the words that frame them (class_ui story_of)
           const keys = [...new Set((st?.sentences ?? []).flatMap((x) => (x.stories ?? []).map((y) => y.key)))];
-          const names = keys.length ? await query<{ term_key: string; term_ar: string; term_en: string | null; deck_slug: string | null }>(env.DB_QR,
-            `SELECT term_key, MAX(term_ar) AS term_ar, MAX(term_en) AS term_en, MAX(deck_slug) AS deck_slug FROM qr_keyterm_story
+          const names = keys.length ? await query<{ term_key: string; term_ar: string; term_en: string | null; deck_slug: string | null; essay_slug: string | null }>(env.DB_QR,
+            `SELECT term_key, MAX(term_ar) AS term_ar, MAX(term_en) AS term_en, MAX(deck_slug) AS deck_slug, MAX(essay_slug) AS essay_slug FROM qr_keyterm_story
               WHERE term_key IN (SELECT value FROM json_each(?)) GROUP BY term_key`, [JSON.stringify(keys)]).catch(() => []) : [];
           const so = L.class_ui?.find((x) => x.key === 'story_of');
+          const eo = L.class_ui?.find((x) => x.key === 'essay_of');
           const storyCard = (y: { key: string; drills: number }) => {
             const nm = names.find((r) => r.term_key === y.key);
             const en = nm?.term_en ?? y.key, ar = nm?.term_ar ?? '';
             return { key: y.key, drills: y.drills, title: so ? so.label.replace('{term}', en) : en, titleAr: so?.labelAr ? so.labelAr.replace('{term}', ar) : ar,
-                     deck: nm?.deck_slug ?? null };
+                     deck: nm?.deck_slug ?? null,
+                     // the term's essay (km_content), read before its slides and drills
+                     essay: nm?.essay_slug ? { slug: nm.essay_slug, title: eo ? eo.label.replace('{term}', en) : en,
+                                               titleAr: eo?.labelAr ? eo.labelAr.replace('{term}', ar) : ar, detail: eo?.detail ?? null } : null };
           };
           // numbered among the sentences that hold drills (a lone حم holds none)
           const per = (st?.sentences ?? []).filter((x) => at.has(x.id)).map((x, k) => {
