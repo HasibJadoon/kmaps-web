@@ -4,7 +4,7 @@ import { ok, notFound, badRequest } from '../../../shared/src/response';
 import { query, queryOne } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { parseBand, bandOf, bare, type Band } from '../lib/levels';
-import { labels, byKey, badge, skillCard, instruct, srsCardFor, dropEmpty, dropRetired } from '../lib/labels';
+import { labels, byKey, badge, skillCard, instruct, srsCardFor, dropEmpty, dropRetired, type Label } from '../lib/labels';
 import { commonWords, isCommon } from '../lib/common';
 import { highEndOf } from '../lib/highend';
 
@@ -132,6 +132,75 @@ type Lexeme = { kind: string; phrase?: string; meanings?: Array<{ en: string; re
                 set?: string; used?: string; members?: Array<{ ar: string; gloss: string | null; note: string | null; used: boolean;
                                                            lexica: Array<{ source: string; text: string; page: number | null }> }> };
 
+/// A line whose words are what is heard — not one the captions corrected toward the written form ('الأصل في التفريغ').
+const heardAsWritten = (l: Line) => !((l as Line & { note?: string | null }).note ?? '').includes('الأصل في التفريغ');
+
+type Sarf = { madi?: string; mudari?: string; masdar?: string; senses?: string[]; pl?: string[]; sing?: string; mufrad?: string;
+              jam?: string; verb?: string };
+
+/// Each verb and noun of the scene, worked as a word: what it means in its line, and its forms — a verb's past, present
+/// and action noun (maṣdar); a noun's plural or singular, and for a derived noun (mushtaq) the verb it comes from. Every
+/// drill stands on the word's own line, heard and marked. The forms come from ar_scene_word.sarf_json (CAMeL, Lane's
+/// Lexicon checked against Lisān, Tāj, Ṣiḥāḥ and Miṣbāḥ); the questions from ar_practice_label scope 'ask'.
+function sarfDrills(sw: Array<{ scene_no: number; line: number; word_index: number; surface: string; word_class: string;
+                                lemma_ar: string | null; derivation: string | null; number: string | null; sarf_json: string | null }>,
+                    no: string, scene: Scene, clip: (l: Line) => unknown, L: Record<string, Label[]>, source: unknown,
+                    rand: () => number, skip: (c: string) => boolean): Array<Record<string, unknown>> {
+  const mix = <U,>(xs: U[]) => shuffle(xs, rand);
+  const ask = byKey(L.ask);
+  const sarf = (j: string | null) => { try { return (j ? JSON.parse(j) : {}) as Sarf; } catch { return {} as Sarf; } };
+  // the episode's forms of each kind, the choices for each other's questions
+  const of = new Map<string, Set<string>>();
+  const put = (k: string, v?: string) => { if (v) (of.get(k) ?? of.set(k, new Set()).get(k)!).add(v); };
+  for (const w of sw) {
+    const f = sarf(w.sarf_json);
+    if (w.word_class === 'verb') { put('madi', f.madi); put('mudari', f.mudari); put('masdar', f.masdar); put('vsense', f.senses?.[0]); }
+    else { put('pl', f.pl?.[0]); put('sing', f.sing ?? f.mufrad); put('nsense', f.senses?.[0]); put('verb', f.verb); }
+  }
+  // the sense the line's English uses, else the first
+  const sense = (f: Sarf, en: string | null) => {
+    const xs = f.senses ?? []; const e = ` ${(en ?? '').toLowerCase().replace(/[^a-z ]/g, ' ')} `;
+    return xs.find((s) => s.toLowerCase().replace(/^(be|to) /, '').split(/[ ,]+/).some((t) => t.length > 2 && e.includes(` ${t}`))) ?? xs[0];
+  };
+  const choices = (k: string, answer: string, near: Array<string | undefined>) => {
+    const close = [...new Set(near.filter((x): x is string => !!x && x !== answer))];
+    const rest = mix([...(of.get(k) ?? [])].filter((x) => x !== answer && !close.includes(x)));
+    const opts = [...close, ...rest].slice(0, 3);
+    return opts.length === 3 ? mix([answer, ...opts]) : null;
+  };
+  const out: Array<Record<string, unknown>> = []; const done = new Set<string>();
+  for (const w of sw.filter((x) => String(x.scene_no) === no)) {
+    const a = bare(clean(w.surface)); const l = scene.lines[w.line - 1];
+    if (!l || skip(a) || !heardAsWritten(l) || bare(clean(l.ar.trim().split(/\s+/)[w.word_index] ?? '')) !== a) continue;
+    const key = `${w.word_class}:${w.lemma_ar ?? a}`;
+    if (done.has(key)) continue; done.add(key);
+    const f = sarf(w.sarf_json);
+    const base = { audio: clip(l), words: timedWords(l), target: w.word_index, prompt: clean(w.surface), en: l.en ?? null, source,
+                   bucket: w.word_class === 'verb' ? 'verb' : 'noun' };
+    const add = (k: string, answer: string | undefined, pool: string, near: Array<string | undefined> = []) => {
+      const q = ask.get(k); if (!answer || !q) return;
+      const options = choices(pool, answer, near); if (!options) return;
+      out.push({ ...base, id: `sarf:${k}:${w.lemma_ar ?? a}:${no}:${w.line}:${w.word_index}`, kind: 'vocab',
+                 instruction: q.label, instructionAr: q.labelAr, answer, options,
+                 explanation: [f.madi && f.mudari ? `${f.madi} – ${f.mudari}${f.masdar ? ` – ${f.masdar}` : ''}` : null,
+                               f.pl?.[0] ? `${f.sing ?? f.mufrad ?? ''} – ${f.pl[0]}` : null].filter(Boolean).join(' · ') || null });
+    };
+    if (w.word_class === 'verb') {
+      add('verb_meaning', sense(f, l.en ?? null), 'vsense');
+      add('madi', f.madi, 'madi', [f.mudari, f.masdar]);
+      add('mudari', f.mudari, 'mudari', [f.madi, f.masdar]);
+      add('masdar', f.masdar, 'masdar', [f.madi, f.mudari]);
+    } else {
+      const sing = f.sing ?? f.mufrad;
+      add('noun_meaning', sense(f, l.en ?? null), 'nsense');
+      if (w.number === 'p') add('singular', sing, 'sing', [f.pl?.[1]]);
+      else add('plural', f.pl?.[0], 'pl', [sing, f.pl?.[1]]);
+      if (w.derivation === 'mushtaqq') add('from_verb', f.verb, 'verb');
+    }
+  }
+  return out;
+}
+
 async function lexemeDrills(env: ArabicEnv, unit: string, no: number, scene: Scene, clip: (l: Line) => unknown,
                             L: Record<string, import('../lib/labels').Label[]>, source: unknown, tier: string | null, rand: Rand = Math.random) {
   const mix = <U,>(xs: U[]) => shuffle(xs, rand);
@@ -219,7 +288,6 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     const clip = (l: Line) => ({ url, start: l.start, end: l.end });
     const lines = scene.lines.filter((l) => l.ar && l.end > l.start);
     // a line whose text is what the recording says (one corrected from the captions may sound different from its tiles)
-    const heardAsWritten = (l: Line) => !((l as Line & { note?: string | null }).note ?? '').includes('الأصل في التفريغ');
     // HIGH-END only (lib/highend.ts): a word is drilled when it is hard in the Qurʾān or rare in the classical library;
     // a line is drilled whole (who said it, its meaning, the exchange, dictation) only when it holds such a word
     const hi = await highEndOf(env, sc.s.scenes.flatMap((x) => x.lines.flatMap((l) => (l.ar ?? '').split(/\s+/))));
@@ -275,9 +343,11 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     // a class scene node: every verb and noun of the scene, heard in its line and picked out — the line's English beside
     // it, three of the episode's other words of the same class as the choices (ar_scene_word: line from 1, word from 0)
     if (full) {
-      const sw = await query<{ scene_no: number; line: number; word_index: number; surface: string; word_class: string }>(env.DB_AR,
-        `SELECT scene_no, line, word_index, surface, word_class FROM ar_scene_word WHERE unit_id = ? AND word_class IN ('verb', 'noun')`,
-        [unit]).catch(() => []);
+      type SW = { scene_no: number; line: number; word_index: number; surface: string; word_class: string; lemma_ar: string | null;
+                  derivation: string | null; number: string | null; sarf_json: string | null };
+      const sw = await query<SW>(env.DB_AR,
+        `SELECT scene_no, line, word_index, surface, word_class, lemma_ar, derivation, number, sarf_json FROM ar_scene_word
+          WHERE unit_id = ? AND word_class IN ('verb', 'noun')`, [unit]).catch(() => []);
       const pool = new Map<string, string[]>();
       for (const w of sw) {
         const c = bare(clean(w.surface));
@@ -300,6 +370,7 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
                      blank: w.word_index, answer: a, options: mix([a, ...opts]), en: l.en ?? null, source,
                      bucket: w.word_class === 'verb' ? 'verb' : 'noun' });
       }
+      for (const x of sarfDrills(sw, no, scene, clip, L, source, rand, (c) => c.length < 3 || isName(c) || isCommon(common, c, false))) items.push(x);
     }
 
     // who said it — where the scene has more than one voice
