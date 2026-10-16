@@ -10,6 +10,8 @@ export interface CoreEnv {
   TABLE_SESSION: DurableObjectNamespace;
 
   QURAN: Fetcher;
+  /** The Arabic worker: the class paths of its units (the widgets). */
+  ARABIC?: Fetcher;
   AR_LINGUISTICS: Fetcher;
   CONTENT: Fetcher;
 

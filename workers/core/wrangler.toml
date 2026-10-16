@@ -20,6 +20,10 @@ binding = "AR_LINGUISTICS"
 service = "km-ar-linguistics-worker"
 
 [[services]]
+binding = "ARABIC"
+service = "km-arabic-worker"
+
+[[services]]
 binding = "CONTENT"
 service = "km-content-worker"
 
