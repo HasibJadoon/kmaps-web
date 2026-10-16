@@ -1,6 +1,6 @@
 import type { Router } from '../../../shared/src/router';
 import { notFound, ok } from '../../../shared/src/response';
-import { queryOne } from '../../../shared/src/db';
+import { query, queryOne } from '../../../shared/src/db';
 import type { ContentEnv } from '../env';
 
 // Essays: long-form reading (a key term told in full), authored once and read by everyone — a cm_documents row of
@@ -8,6 +8,23 @@ import type { ContentEnv } from '../env';
 // read before its slides and drills; the app lays the markdown out itself (headings, verse panels, notes).
 
 export function essayRoutes(router: Router<ContentEnv>) {
+  // a passage's essays, each with the word it is written about (meta anchor "surah:ayah:word") — the class path places
+  // each one in the sentence that holds its word, so a new essay reaches the path without anyone linking it
+  router.get('/cm/essays', async (req, env) => {
+    const passage = new URL(req.url).searchParams.get('passage');
+    if (!passage) return ok({ essays: [] });
+    const rows = await query<{ slug: string; title: string; title_ar: string | null; meta_json: string | null }>(env.DB_CM,
+      `SELECT slug, title, title_ar, meta_json FROM cm_documents
+        WHERE doc_type = 'essay' AND publication_state = 'published' AND json_extract(meta_json, '$.passage_id') = ?
+        ORDER BY json_extract(meta_json, '$.anchor'), slug`, [passage]);
+    return ok({ essays: rows.map((r) => {
+      let m: Record<string, unknown> = {};
+      try { m = JSON.parse(r.meta_json ?? '{}'); } catch { /* keep empty */ }
+      return { slug: r.slug, title: r.title, titleAr: r.title_ar, termKey: m.term_key ?? null, termEn: m.term_en ?? null,
+               anchor: m.anchor ?? null };
+    }) });
+  });
+
   router.get('/cm/essays/:slug', async (_req, env, params) => {
     const row = await queryOne<{ doc_id: string; slug: string; title: string; title_ar: string | null; meta_json: string | null; body: string | null }>(
       env.DB_CM,

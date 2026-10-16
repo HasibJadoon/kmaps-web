@@ -1,3 +1,4 @@
+import { callService } from '../../../shared/src/service-client';
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest, notFound } from '../../../shared/src/response';
 import { query, queryOne, execute } from '../../../shared/src/db';
@@ -722,11 +723,30 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
                      essay: nm?.essay_slug ? { slug: nm.essay_slug, title: eo ? eo.label.replace('{term}', en) : en,
                                                titleAr: eo?.labelAr ? eo.labelAr.replace('{term}', ar) : ar, detail: eo?.detail ?? null } : null };
           };
+          // the passage's essays (km_content): each read in the sentence that holds its word; one a story already
+          // carries stays with that story
+          type EssayRow = { slug: string; title: string; titleAr: string | null; termKey: string | null; termEn: string | null; anchor: string | null };
+          const essays = await callService<{ ok: boolean; data: { essays: EssayRow[] } }>(env.CONTENT, `/cm/essays?passage=${encodeURIComponent(p.id)}`)
+            .then((r) => r.data?.essays ?? []).catch(() => [] as EssayRow[]);
+          const byStory = new Set(names.map((r) => r.essay_slug).filter(Boolean));
+          const holds = (s: Sentence, anchor: string | null) => {
+            const [su, ay, wd] = (anchor ?? '').split(':').map(Number);
+            if (!su || su !== p.surah || !ay || !wd) return false;
+            const after = ay > s.ayah_from || (ay === s.ayah_from && wd >= (s.ws ?? 1));
+            const before = ay < s.ayah_to || (ay === s.ayah_to && wd <= (s.we ?? 9999));
+            return after && before;
+          };
+          const essayCard = (e: EssayRow) => {
+            const en = e.termEn ?? e.title, ar = e.titleAr ?? '';
+            return { key: e.termKey ?? e.slug, slug: e.slug, title: eo ? eo.label.replace('{term}', en) : en,
+                     titleAr: eo?.labelAr ? eo.labelAr.replace('{term}', ar) : ar, detail: eo?.detail ?? null };
+          };
           // numbered among the sentences that hold drills (a lone حم holds none)
           const per = (st?.sentences ?? []).filter((x) => at.has(x.id)).map((x, k) => {
             const lbl = sentenceLabel(L, n, sentences[at.get(x.id)!], k + 1, p.surah);
             return { id: x.id, title: sw ? sw.label.replace('{n}', String(k + 1)) : lbl.label, titleAr: sw?.labelAr?.replace('{n}', String(k + 1)) ?? lbl.labelAr ?? '',
-                     detail: lbl.detail ?? '', drills: x.drills, styles: namedStyles(L, x.styles), stories: (x.stories ?? []).map(storyCard) };
+                     detail: lbl.detail ?? '', drills: x.drills, styles: namedStyles(L, x.styles), stories: (x.stories ?? []).map(storyCard),
+                     essays: essays.filter((e) => !byStory.has(e.slug) && holds(sentences[at.get(x.id)!], e.anchor)).map(essayCard) };
           });
           return [{ ...nodeCard(n, held(n), 0, namedStyles(L, st?.styles ?? [])), whole: [...wholeStyles(n)], sentences: per }];
         }
