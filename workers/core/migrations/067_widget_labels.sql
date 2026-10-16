@@ -16,3 +16,6 @@ INSERT OR REPLACE INTO core_app_label (scope, key, parent, label, label_ar, deta
 ('widget', 'studied',     NULL, '{n} studied',     '{n} مدروس',        NULL,                                       NULL,                      NULL,      NULL, 13),
 ('widget', 'empty',       NULL, 'Open K-Maps to begin', 'افتح التطبيق', NULL,                                      NULL,                      NULL,      NULL, 14),
 ('widget', 'signed_out',  NULL, 'Sign in to K-Maps', 'سجّل الدخول',    NULL,                                       NULL,                      NULL,      NULL, 15);
+
+INSERT OR REPLACE INTO core_app_label (scope, key, parent, label, label_ar, detail, icon, color, extra_json, sort) VALUES
+('widget', 'episode', NULL, 'Episode {n}', 'الحلقة {n}', NULL, NULL, NULL, NULL, 16);
