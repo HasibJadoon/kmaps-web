@@ -71,22 +71,32 @@ async function findClass(env: CoreEnv, user: string, scope: string) {
     'SELECT * FROM core_drill_class WHERE user_ref = ? AND scope_ref = ?', [user, scope]);
 }
 
-/** One class as the device reads it. */
-async function view(env: CoreEnv, c: ClassRow) {
-  const [open, days, perNode, perStyle] = await Promise.all([
-    query<{ item_ref: string; node_key: string; misses: number; streak: number; missed_json: string | null }>(env.DB_CORE,
-      `SELECT item_ref, node_key, misses, streak, missed_json FROM core_drill_class_item
-        WHERE class_id = ? AND state = 'open' ORDER BY updated_at`, [c.id]),
-    query<{ day: string; seconds: number; items: number; right: number }>(env.DB_CORE,
-      'SELECT day, seconds, items, right FROM core_drill_class_day WHERE class_id = ? ORDER BY day', [c.id]),
-    query<{ node_key: string; n: number; perfected: number }>(env.DB_CORE,
-      `SELECT node_key, COUNT(*) AS n, SUM(state = 'perfected') AS perfected
-         FROM core_drill_class_item WHERE class_id = ? GROUP BY node_key`, [c.id]),
+type OpenRow = { item_ref: string; node_key: string; misses: number; streak: number; missed_json: string | null };
+type DayRow = { day: string; seconds: number; items: number; right: number };
+type NodeRow = { node_key: string; n: number; perfected: number };
+type StyleRow = { node_key: string; style: string; met: number; done: number };
+
+/** The four reads a class's view is made of, for the class named by `where` (an id, or user and scope). */
+function viewReads(db: D1Database, where: string, binds: unknown[]): D1PreparedStatement[] {
+  return [
+    db.prepare(`SELECT item_ref, node_key, misses, streak, missed_json FROM core_drill_class_item
+                 WHERE class_id = (${where}) AND state = 'open' ORDER BY updated_at`).bind(...binds),
+    db.prepare(`SELECT day, seconds, items, right FROM core_drill_class_day WHERE class_id = (${where}) ORDER BY day`).bind(...binds),
+    db.prepare(`SELECT node_key, COUNT(*) AS n, SUM(state = 'perfected') AS perfected
+                  FROM core_drill_class_item WHERE class_id = (${where}) GROUP BY node_key`).bind(...binds),
     // each sub-node (a node's drill style): drills met, and drills passed — right first time or perfected after a miss
-    query<{ node_key: string; style: string; met: number; done: number }>(env.DB_CORE,
-      `SELECT node_key, style, COUNT(*) AS met, SUM(state IN ('right', 'perfected')) AS done
-         FROM core_drill_class_item WHERE class_id = ? AND style IS NOT NULL GROUP BY node_key, style`, [c.id]),
-  ]);
+    db.prepare(`SELECT node_key, style, COUNT(*) AS met, SUM(state IN ('right', 'perfected')) AS done
+                  FROM core_drill_class_item WHERE class_id = (${where}) AND style IS NOT NULL GROUP BY node_key, style`).bind(...binds),
+  ];
+}
+
+/** One class as the device reads it: its four reads in one batch. */
+async function view(env: CoreEnv, c: ClassRow) {
+  const r = await env.DB_CORE.batch(viewReads(env.DB_CORE, '?', [c.id]));
+  return shape(c, r[0].results as OpenRow[], r[1].results as DayRow[], r[2].results as NodeRow[], r[3].results as StyleRow[]);
+}
+
+function shape(c: ClassRow, open: OpenRow[], days: DayRow[], perNode: NodeRow[], perStyle: StyleRow[]) {
   return {
     scope: c.scope_ref, module: c.module, status: c.status,
     startedAt: c.started_at, lastAt: c.last_at, completedAt: c.completed_at,
@@ -151,8 +161,10 @@ async function fileItems(env: CoreEnv, userId: string, classId: string, refs: st
 
 /** Not filed yet: never claimed, or claimed by a filing that died more than CLAIM_STALE ago (old bare 'pending' too). */
 const CLAIM_STALE = '-10 minutes';
+const FAILED_RETRY = '-1 day';
 const UNFILED = `(filed_card IS NULL OR filed_card = 'pending'
-  OR (filed_card LIKE 'pending:%' AND substr(filed_card, 9) < strftime('%Y-%m-%dT%H:%M:%SZ','now','${CLAIM_STALE}')))`;
+  OR (filed_card LIKE 'pending:%' AND substr(filed_card, 9) < strftime('%Y-%m-%dT%H:%M:%SZ','now','${CLAIM_STALE}'))
+  OR (filed_card LIKE 'failed:%' AND substr(filed_card, 8) < strftime('%Y-%m-%dT%H:%M:%SZ','now','${FAILED_RETRY}')))`;
 
 async function fileClaimed(env: CoreEnv, userId: string, classId: string,
                            toFile: Array<{ item_ref: string; state: ItemState; card_json: string }>): Promise<number> {
@@ -171,9 +183,10 @@ async function fileClaimed(env: CoreEnv, userId: string, classId: string,
       ? db.prepare('UPDATE core_drill_class_item SET filed_card = ? WHERE class_id = ? AND item_ref = ?')
           .bind(String(card['id']), classId, chunk[k].item_ref)
       : null).filter((x): x is D1PreparedStatement => !!x);
-    // an item that did not file is released, to be filed on a later read
+    // an item that did not file is tried again after a day ('failed:<iso>'), not on every read
     const failed = chunk.filter((_, k) => !out.cards[k]?.['id']).map((r) => db.prepare(
-      'UPDATE core_drill_class_item SET filed_card = NULL WHERE class_id = ? AND item_ref = ?').bind(classId, r.item_ref));
+      `UPDATE core_drill_class_item SET filed_card = 'failed:' || strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE class_id = ? AND item_ref = ?`)
+      .bind(classId, r.item_ref));
     if (marks.length || failed.length) await db.batch([...marks, ...failed]);
     filed += marks.length;
   }
@@ -202,7 +215,9 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
     const u = new URL(req.url);
     const module = u.searchParams.get('module');
     const prefix = u.searchParams.get('prefix') ?? '';
-    await fileLearnt(env, ctx.userId).catch(() => 0);
+    // anything learnt and not yet filed reaches review behind the response — the list never waits for it
+    const filing = fileLearnt(env, ctx.userId).catch(() => 0);
+    if (env.ctx) env.ctx.waitUntil(filing); else await filing;
     const rows = await query<ClassRow & { open: number }>(env.DB_CORE,
       `SELECT c.*, (SELECT COUNT(*) FROM core_drill_class_item i WHERE i.class_id = c.id AND i.state = 'open') AS open
          FROM core_drill_class c
@@ -302,18 +317,16 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
     if (raw && raw.length > RESUME_MAX) return badRequest('resume is too large');
     if (raw && !str((r as Record<string, unknown>)['node'])) return badRequest('resume.node is required');
 
-    let c = await findClass(env, ctx.userId, scope);
-    if (!c && raw) {
-      await env.DB_CORE.prepare(`INSERT OR IGNORE INTO core_drill_class (id, user_ref, scope_ref, module) VALUES (?, ?, ?, ?)`)
-        .bind(typedId('DCL'), ctx.userId, scope, module).run();
-      c = await findClass(env, ctx.userId, scope);
-    }
-    if (!c) return ok({ resume: null });
-    await env.DB_CORE.prepare(
-      `UPDATE core_drill_class SET resume_json = ?, resume_at = CASE WHEN ? IS NULL THEN NULL ELSE strftime('%Y-%m-%dT%H:%M:%SZ','now') END
-        WHERE id = ?`).bind(raw, raw, c.id).run();
-    const fresh = (await findClass(env, ctx.userId, scope))!;
-    return ok({ resume: resumeOf(fresh) });
+    // one round trip: the class started when this is the first thing done in it, the checkpoint set, the row returned
+    const db = env.DB_CORE;
+    const out = await db.batch([
+      ...(raw ? [db.prepare(`INSERT OR IGNORE INTO core_drill_class (id, user_ref, scope_ref, module) VALUES (?, ?, ?, ?)`)
+        .bind(typedId('DCL'), ctx.userId, scope, module)] : []),
+      db.prepare(`UPDATE core_drill_class SET resume_json = ?, resume_at = CASE WHEN ? IS NULL THEN NULL ELSE strftime('%Y-%m-%dT%H:%M:%SZ','now') END
+                   WHERE user_ref = ? AND scope_ref = ? RETURNING *`).bind(raw, raw, ctx.userId, scope),
+    ]);
+    const fresh = (out[out.length - 1].results as ClassRow[])[0];
+    return ok({ resume: fresh ? resumeOf(fresh) : null });
   });
 
   router.get('/core/drill/class', async (req, env) => {
@@ -321,8 +334,12 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
     if (ctx instanceof Response) return ctx;
     const scope = new URL(req.url).searchParams.get('scope');
     if (!scope) return badRequest('scope is required');
-    const c = await findClass(env, ctx.userId, scope);
-    return ok({ class: c ? await view(env, c) : null });
+    // the class and its four reads in one round trip, each read naming the class by user and scope
+    const db = env.DB_CORE, where = 'SELECT id FROM core_drill_class WHERE user_ref = ? AND scope_ref = ?', binds = [ctx.userId, scope];
+    const r = await db.batch([db.prepare(`SELECT * FROM core_drill_class WHERE user_ref = ? AND scope_ref = ?`).bind(...binds),
+                              ...viewReads(db, where, binds)]);
+    const c = (r[0].results as ClassRow[])[0];
+    return ok({ class: c ? shape(c, r[1].results as OpenRow[], r[2].results as DayRow[], r[3].results as NodeRow[], r[4].results as StyleRow[]) : null });
   });
 
   /**

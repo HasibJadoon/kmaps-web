@@ -20,15 +20,20 @@ function d1(db: DatabaseSync) {
       },
       async first<T>() { return (stmt.get(...args) as T) ?? null; },
       async run() { const r = stmt.run(...args); return { success: true, meta: { changes: r.changes } }; },
+      // as D1's batch gives it: a read's rows (SELECT, RETURNING), a write's changes
+      async step() {
+        if (/^\s*(SELECT|WITH)|RETURNING/i.test(sql)) return { success: true, results: stmt.all(...args), meta: { changes: 0 } };
+        const r = stmt.run(...args); return { success: true, results: [], meta: { changes: r.changes } };
+      },
     };
   };
   return {
     prepare(sql: string) {
       return { bind: (...p: unknown[]) => bound(sql, p), ...bound(sql, []) };
     },
-    async batch(stmts: Array<{ run(): Promise<unknown> }>) {
+    async batch(stmts: Array<{ step(): Promise<unknown> }>) {
       const out = [];
-      for (const s of stmts) out.push(await s.run());
+      for (const s of stmts) out.push(await s.step());
       return out;
     },
   };

@@ -199,17 +199,19 @@ export class SrsRepo {
     const bank = opts.state === 'bank';
 
     const ahead = Math.min(3650, Math.max(0, Math.floor(opts.ahead ?? 0)));
-    const horizon = ahead > 0 ? `datetime('now', '+${ahead} day')` : `datetime('now')`;
+    // next_review_at is ISO with ms and Z everywhere (migration 064): compared as stored, so the queue index serves it
+    const horizon = ahead > 0 ? `strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+${ahead} day')` : `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`;
 
     // Review deals only what was practised: a drill comes to SRS once it has been met in its lesson. One filed and never
     // practised waits in the bank (state 'new'), and its lesson deals it (GET /core/srs/bank).
     // drills only (a review item replays its drill), and never a leech: its lesson deals it again
-    const drill = `json_valid(extra_json) AND json_extract(extra_json, '$.drill') IS NOT NULL`;
+    // `is_drill` is kept on the card (migration 064); the queue's terms match idx_core_srs_card_queue's
+    const drill = `is_drill = 1`;
     let where = bank
       ? `WHERE user_ref = ? AND suspended = 0 AND (card_state = 'new' OR leech = 1) AND ${drill}`
-      : `WHERE user_ref = ? AND suspended = 0 AND card_state != 'new' AND leech = 0 AND ${drill}
+      : `WHERE user_ref = ? AND suspended = 0 AND leech = 0 AND card_state <> 'new' AND ${drill}
                  AND (next_review_at IS NULL
-                      OR datetime(next_review_at) <= ${horizon})`;
+                      OR next_review_at <= ${horizon})`;
     if (opts.work) { where += ` AND work_ref = ?`; args.push(opts.work); }
     if (opts.module) { where += ` AND module = ?`; args.push(opts.module); }
 
@@ -253,8 +255,7 @@ export class SrsRepo {
     args.push(Math.min(500, Math.max(1, opts.limit ?? 50)));
     return query<SrsCard>(this.db,
       `SELECT ${CARD_COLS} ${where}
-       ORDER BY CASE WHEN next_review_at IS NULL THEN 0 ELSE 1 END,
-                datetime(next_review_at)
+       ORDER BY next_review_at   -- never-scheduled (NULL) first, as SQLite sorts NULLs; the queue index gives this order
        LIMIT ?`, args);
   }
 
@@ -263,7 +264,7 @@ export class SrsRepo {
       `SELECT c.deck_id AS deck_id, r.state_before AS state_before, COUNT(*) AS n
          FROM core_srs_review r
          JOIN core_srs_card c ON c.id = r.card_id
-        WHERE r.user_ref = ? AND date(r.reviewed_at) = date('now')
+        WHERE r.user_ref = ? AND r.reviewed_at >= date('now')
         GROUP BY c.deck_id, r.state_before`, [userRef]);
     const out = new Map<string, { introduced: number; reviewed: number }>();
     for (const r of rows) {
@@ -286,7 +287,7 @@ export class SrsRepo {
       `SELECT r.state_before AS state_before, COUNT(*) AS n
          FROM core_srs_review r
          JOIN core_srs_card c ON c.id = r.card_id
-        WHERE r.user_ref = ? AND date(r.reviewed_at) = date('now')${scope}
+        WHERE r.user_ref = ? AND r.reviewed_at >= date('now')${scope}
         GROUP BY r.state_before`, args);
     let introduced = 0, reviewed = 0;
     for (const r of rows) {
@@ -299,10 +300,9 @@ export class SrsRepo {
   dueCounts(userRef: string): Promise<Array<{ module: string; n: number }>> {
     return query<{ module: string; n: number }>(this.db,
       `SELECT module, COUNT(*) AS n FROM core_srs_card
-       WHERE user_ref = ? AND suspended = 0 AND card_state != 'new' AND leech = 0
-         AND json_valid(extra_json) AND json_extract(extra_json, '$.drill') IS NOT NULL
+       WHERE user_ref = ? AND suspended = 0 AND leech = 0 AND card_state <> 'new' AND is_drill = 1
          AND (next_review_at IS NULL
-              OR datetime(next_review_at) <= datetime('now'))
+              OR next_review_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
        GROUP BY module`, [userRef]);
   }
 

@@ -1001,18 +1001,23 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const to = Number(url.searchParams.get('to') ?? '0');
     const step = url.searchParams.get('step') ?? undefined;
     const kind = url.searchParams.get('kind') ?? undefined;
-    // a learnt class drill not yet filed is filed before the queue is read, so it is in it
-    await fileLearnt(env, ctx.userId).catch(() => 0);
+    // a learnt class drill not yet filed is filed behind the response (a sprint already files its items as it ends;
+    // this catches what a died filing left), so the queue never waits for it
+    const filing = fileLearnt(env, ctx.userId).catch(() => 0);
+    if (env.ctx) env.ctx.waitUntil(filing); else await filing;
     const domain = url.searchParams.get('domain') ?? undefined;
     const deck = url.searchParams.get('deck') ?? undefined;
     const ahead = Number(url.searchParams.get('ahead') ?? '0');
     const repo = new SrsRepo(env.DB_CORE);
-    const params = buildParams(storedOf(await repo.params(ctx.userId)));
-    const decks = await repo.decks(ctx.userId);
-    const defaults = await repo.dailyDefaults(ctx.userId);
+    // everything but the queue at once; the queue needs the decks' caps
+    const [stored, decks, defaults, counts, today] = await Promise.all([
+      repo.params(ctx.userId), repo.decks(ctx.userId), repo.dailyDefaults(ctx.userId),
+      repo.dueCounts(ctx.userId), repo.todayCountsByDeck(ctx.userId),
+    ]);
+    const params = buildParams(storedOf(stored));
     const fallback = { newPerDay: defaults.newPerDay, reviewPerDay: defaults.reviewPerDay };
     const caps = limitsFor(decks, deck);
-    const [cards, counts, today] = await Promise.all([
+    const [cards] = await Promise.all([
       repo.due(ctx.userId, {
         module,
 
@@ -1024,8 +1029,6 @@ export function srsRoutes(router: Router<CoreEnv>) {
         step,
         kind, domain, deck, deckIds: caps.deckIds,
       }),
-      repo.dueCounts(ctx.userId),
-      repo.todayCountsByDeck(ctx.userId),
     ]);
     const deckById = new Map(decks.map((d) => [d.id, d]));
 

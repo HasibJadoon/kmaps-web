@@ -2196,3 +2196,9 @@ CREATE TABLE IF NOT EXISTS cyb_drill_place (
   PRIMARY KEY (gid, work_ref, intro_ayah)
 );
 CREATE INDEX IF NOT EXISTS idx_cyb_drill_place_work ON cyb_drill_place (work_ref, intro_ayah);
+
+-- 064_srs_due_index
+ALTER TABLE core_srs_card ADD COLUMN is_drill INTEGER
+  GENERATED ALWAYS AS (CASE WHEN json_valid(extra_json) AND json_extract(extra_json, '$.drill') IS NOT NULL THEN 1 ELSE 0 END) VIRTUAL;
+CREATE INDEX IF NOT EXISTS idx_core_srs_card_queue ON core_srs_card (user_ref, next_review_at)
+  WHERE suspended = 0 AND leech = 0 AND card_state <> 'new' AND is_drill = 1;
