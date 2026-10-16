@@ -15,10 +15,11 @@ function d1(db: DatabaseSync) {
       async all<T>() { return { results: (/^\s*(SELECT|WITH)|RETURNING/i.test(sql) ? stmt.all(...args) : (stmt.run(...args), [])) as T[] }; },
       async first<T>() { return (stmt.get(...args) as T) ?? null; },
       async run() { const r = stmt.run(...args); return { success: true, meta: { changes: r.changes } }; },
+      async step() { if (/^\s*(SELECT|WITH)|RETURNING/i.test(sql)) return { success: true, results: stmt.all(...args), meta: { changes: 0 } }; const r = stmt.run(...args); return { success: true, results: [], meta: { changes: r.changes } }; },
     };
   };
   return { prepare: (sql: string) => ({ bind: (...p: unknown[]) => bound(sql, p), ...bound(sql, []) }),
-           async batch(stmts: Array<{ run(): Promise<unknown> }>) { const o = []; for (const s of stmts) o.push(await s.run()); return o; } };
+           async batch(stmts: Array<{ step(): Promise<unknown> }>) { const o = []; for (const s of stmts) o.push(await s.step()); return o; } };
 }
 
 test('a first miss is not filed; missed again, still nothing; the first right answer files it into review', async () => {

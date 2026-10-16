@@ -1,7 +1,9 @@
 import { SrsRepo, type SrsCard } from '../repositories/srs.repo';
-import { grade as gradeCard, buildParams, type RatingValue } from './fsrs';
+import { grade as gradeCard, buildParams, type RatingValue, type FSRSParameters as Params } from './fsrs';
 import { storedOf } from './stored-params';
 
+/** An answer, applied: FSRS's next schedule, logged and written in one round trip. `params`: the learner's, when the
+ *  caller has read them already. `leech(lapsesAfter)`: the leech mark to set, or null to leave it. */
 export async function answerCard(
   repo: SrsRepo,
   card: SrsCard,
@@ -9,12 +11,13 @@ export async function answerCard(
   rating: RatingValue,
   durationSecs: number | null,
   opId?: string | null,
+  params?: Params,
+  leech?: (lapsesAfter: number) => boolean | null,
 ): Promise<SrsCard> {
-  const params = buildParams(storedOf(await repo.params(userRef)));
+  const p = params ?? buildParams(storedOf(await repo.params(userRef)));
   const now = new Date();
-  const next = gradeCard(card, rating, now, params);
-
-  await repo.logReview({
+  const next = gradeCard(card, rating, now, p);
+  const updated = await repo.reviewAndSchedule({
     card_id: card.id, user_ref: userRef, rating,
     state_before: next.state_before,
     stability_after: next.columns.stability,
@@ -25,6 +28,6 @@ export async function answerCard(
     review_duration_secs: durationSecs,
     reviewed_at: now.toISOString(),
     op_id: opId ?? null,
-  });
-  return (await repo.applySchedule(card.id, next.columns))!;
+  }, next.columns, leech ? leech(next.columns.lapses ?? 0) : null);
+  return updated!;
 }

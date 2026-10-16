@@ -19,15 +19,17 @@ function d1(db: DatabaseSync) {
       },
       async first<T>() { return (stmt.get(...args) as T) ?? null; },
       async run() { const r = stmt.run(...args); return { success: true, meta: { changes: r.changes } }; },
+      async step() { if (/^\s*(SELECT|WITH)|RETURNING/i.test(sql)) return { success: true, results: stmt.all(...args), meta: { changes: 0 } }; const r = stmt.run(...args); return { success: true, results: [], meta: { changes: r.changes } }; },
     };
   };
   return {
     prepare(sql: string) {
       return { bind: (...p: unknown[]) => bound(sql, p), ...bound(sql, []) };
     },
-    async batch(stmts: Array<{ run(): Promise<unknown> }>) {
+    // as D1's batch gives it: each statement's rows (a write's are none)
+    async batch(stmts: Array<{ step(): Promise<unknown> }>) {
       const out = [];
-      for (const s of stmts) out.push(await s.run());
+      for (const s of stmts) out.push(await s.step());
       return out;
     },
   };

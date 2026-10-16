@@ -44,10 +44,14 @@ export const DECK_TITLES: Record<string, string> = {
   other: 'Other',
 };
 
-export function introOf(extra: unknown): { intro_surah?: number; intro_ayah?: number } {
+export function introOf(extra: unknown, resourceRef?: string | null): { intro_surah?: number; intro_ayah?: number } {
   const g = (extra as { group?: { workId?: unknown; work?: unknown } } | null)?.group;
   const m = /^QR:SURAH:(\d+)$/.exec(String(g?.workId ?? ''));
-  if (!m) return {};
+  if (!m) {
+    // a card whose resource is a place in the Qurʾān ("40" or "40:7") stands there (migration 065)
+    const r = /^(\d{1,3})(?::(\d{1,3}))?$/.exec(String(resourceRef ?? ''));
+    return r ? { intro_surah: Number(r[1]), ...(r[2] ? { intro_ayah: Number(r[2]) } : {}) } : {};
+  }
   const a = /^\d+:(\d+)/.exec(String(g?.work ?? ''));
   return { intro_surah: Number(m[1]), ...(a ? { intro_ayah: Number(a[1]) } : {}) };
 }
@@ -163,7 +167,7 @@ export async function fileCards(
       note_type_id: str(entry!['note_type_id']) ?? null,
       fields_json: entry!['fields'] ? JSON.stringify(entry!['fields']) : null,
       // a drill card says where it stands (extra.group: workId QR:SURAH:n, work "s:a"), so a surah's review finds it
-      ...introOf(entry!['extra']),
+      ...introOf(entry!['extra'], resourceRef),
     });
 
     if (outcome.inserted) inserted += 1; else skipped += 1;

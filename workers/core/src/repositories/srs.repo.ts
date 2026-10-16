@@ -216,20 +216,15 @@ export class SrsRepo {
     if (opts.module) { where += ` AND module = ?`; args.push(opts.module); }
 
     if (opts.surah && opts.surah > 0) {
-      where += ` AND (resource_ref = ? OR resource_ref LIKE ? OR intro_surah = ?
-                      OR id IN (SELECT card_id FROM core_srs_card_surah
-                                 WHERE surah = ?))`;
-      args.push(String(opts.surah), `${opts.surah}:%`, opts.surah, opts.surah);
+      // a card that stands at a place carries its sūra (migration 065); a word or root met in many sūras is in the map
+      where += ` AND (intro_surah = ? OR id IN (SELECT card_id FROM core_srs_card_surah WHERE surah = ?))`;
+      args.push(opts.surah, opts.surah);
     }
 
     if (opts.surah && opts.surah > 0 && opts.from && opts.to) {
 
-      where += ` AND (
-        (resource_ref GLOB ? AND CAST(substr(resource_ref, instr(resource_ref, ':') + 1)
-              AS INTEGER) BETWEEN ? AND ?)
-        OR (intro_surah = ? AND intro_ayah BETWEEN ? AND ?))`;
-      args.push(`${opts.surah}:*`, opts.from, opts.to,
-                opts.surah, opts.from, opts.to);
+      where += ` AND intro_surah = ? AND intro_ayah BETWEEN ? AND ?`;
+      args.push(opts.surah, opts.from, opts.to);
     }
 
     if (opts.step) {
@@ -431,6 +426,40 @@ export class SrsRepo {
     const r = await queryOne<{ n: number }>(this.db,
       `SELECT COUNT(*) AS n FROM core_srs_review WHERE card_id = ? AND state_before = 'new' AND rating >= 3`, [cardId]);
     return r?.n ?? 0;
+  }
+
+  /** An answer applied in one round trip: its review logged, the card rescheduled (and its leech mark set, when
+   *  `leech` is given), and the card read back. */
+  async reviewAndSchedule(log: {
+    card_id: string; user_ref: string; rating: RatingValue; state_before: string;
+    stability_after: number; difficulty_after: number; elapsed_days: number;
+    scheduled_days_after: number; state_after: string;
+    review_duration_secs: number | null; reviewed_at: string; op_id?: string | null;
+  }, next: {
+    card_state: string; stability: number; difficulty: number;
+    elapsed_days: number; scheduled_days: number; learning_step: number;
+    reps: number; lapses: number; next_review_at: string; last_review_at: string;
+  }, leech: boolean | null): Promise<SrsCard | null> {
+    const r = await this.db.batch([
+      this.db.prepare(`INSERT INTO core_srs_review
+         (id, card_id, user_ref, rating, state_before, stability_after, difficulty_after,
+          elapsed_days, scheduled_days_after, state_after, review_duration_secs, reviewed_at, op_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+        typedId('SRSREV'), log.card_id, log.user_ref, log.rating, log.state_before,
+        log.stability_after, log.difficulty_after, log.elapsed_days,
+        log.scheduled_days_after, log.state_after, log.review_duration_secs,
+        log.reviewed_at, log.op_id ?? null),
+      this.db.prepare(`UPDATE core_srs_card SET
+         card_state = ?, stability = ?, difficulty = ?, elapsed_days = ?,
+         scheduled_days = ?, learning_step = ?, reps = ?, lapses = ?,
+         last_review_at = ?, next_review_at = ?, leech = COALESCE(?, leech), updated_at = datetime('now')
+       WHERE id = ?`).bind(
+        next.card_state, next.stability, next.difficulty, next.elapsed_days,
+        next.scheduled_days, next.learning_step, next.reps, next.lapses,
+        next.last_review_at, next.next_review_at, leech === null ? null : leech ? 1 : 0, log.card_id),
+      this.db.prepare(`SELECT ${CARD_COLS} WHERE id = ?`).bind(log.card_id),
+    ]);
+    return ((r[2].results ?? []) as SrsCard[])[0] ?? null;
   }
 
   async seenOp(opId: string | null | undefined): Promise<boolean> {

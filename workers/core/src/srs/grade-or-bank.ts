@@ -1,5 +1,5 @@
 import type { SrsRepo, SrsCard } from '../repositories/srs.repo';
-import type { RatingValue } from './fsrs';
+import type { RatingValue, FSRSParameters as Params } from './fsrs';
 import { answerCard } from './answer';
 
 /** A drill answered right this many times in its lesson graduates into review (owner, 2026-10-15: round robin in the
@@ -26,8 +26,9 @@ export const cleanSecs = (v: unknown): number | null => {
  *   · a leech answered well in its lesson goes back to review; a drill past LEECH_LAPSES becomes a leech.
  */
 export async function gradeOrBank(repo: SrsRepo, card: SrsCard, userRef: string, rating: RatingValue,
-                                  secs: number | null, opId?: string | null): Promise<Graded> {
-  if (await repo.seenOp(opId)) return { card, outcome: 'repeat' };
+                                  secs: number | null, opId?: string | null,
+                                  known?: { params?: Params; seen?: boolean }): Promise<Graded> {
+  if (known?.seen ?? await repo.seenOp(opId)) return { card, outcome: 'repeat' };
   // in its lesson, answered right but not yet three times: it stays in the lesson's rotation — logged, not scheduled
   // passed is passed (owner, 2026-10-16): one right answer takes a banked card into review — no three-rights wait
   const learning = false;
@@ -37,8 +38,8 @@ export async function gradeOrBank(repo: SrsRepo, card: SrsCard, userRef: string,
       review_duration_secs: secs, reviewed_at: new Date().toISOString(), op_id: opId ?? null });
     return { card, outcome: 'banked' };
   }
-  const updated = await answerCard(repo, card, userRef, rating, secs, opId);
-  if (card.leech && rating >= 3) await repo.setLeech(card.id, false);
-  else if ((updated.lapses ?? 0) >= LEECH_LAPSES && !card.leech) await repo.setLeech(card.id, true);
+  // the leech mark is written with the schedule: cleared on a good answer, set past LEECH_LAPSES
+  const updated = await answerCard(repo, card, userRef, rating, secs, opId, known?.params,
+    (lapses) => card.leech && rating >= 3 ? false : lapses >= LEECH_LAPSES && !card.leech ? true : null);
   return { card: updated, outcome: 'graded' };
 }

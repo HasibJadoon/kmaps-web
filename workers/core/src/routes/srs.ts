@@ -936,11 +936,6 @@ export function srsRoutes(router: Router<CoreEnv>) {
     if (ctx instanceof Response) return ctx;
 
     const repo = new SrsRepo(env.DB_CORE);
-    const card = await repo.findCard(id);
-    if (!card) return notFound(`card ${id}`);
-    if (card.user_ref !== ctx.userId) return forbidden('Not your card');
-
-    const c = card;
     const body = await readJsonObject(req);
     const rating: unknown = body?.['rating'];
     if (!isRating(rating)) {
@@ -948,10 +943,14 @@ export function srsRoutes(router: Router<CoreEnv>) {
     }
     const duration = cleanSecs(body?.['duration_secs']);
     const opId = typeof body?.['op_id'] === 'string' ? body['op_id'] as string : null;
+    // the card, the learner's parameters and whether this answer was applied already: one round trip
+    const [card, stored, seen] = await Promise.all([repo.findCard(id), repo.params(ctx.userId), repo.seenOp(opId)]);
+    if (!card) return notFound(`card ${id}`);
+    if (card.user_ref !== ctx.userId) return forbidden('Not your card');
 
-    const params = buildParams(storedOf(await repo.params(ctx.userId)));
+    const params = buildParams(storedOf(stored));
     // the one rule (gradeOrBank): a resend changes nothing; a banked drill missed stays banked; answered well, review
-    const g = await gradeOrBank(repo, c, ctx.userId, rating, duration, opId);
+    const g = await gradeOrBank(repo, card, ctx.userId, rating, duration, opId, { params, seen });
     return ok({ ...cardToApi(g.card, params), banked: g.outcome === 'banked', repeat: g.outcome === 'repeat' });
   });
 

@@ -219,7 +219,7 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
     const filing = fileLearnt(env, ctx.userId).catch(() => 0);
     if (env.ctx) env.ctx.waitUntil(filing); else await filing;
     const rows = await query<ClassRow & { open: number }>(env.DB_CORE,
-      `SELECT c.*, (SELECT COUNT(*) FROM core_drill_class_item i WHERE i.class_id = c.id AND i.state = 'open') AS open
+      `SELECT c.*, c.open_n AS open
          FROM core_drill_class c
         WHERE c.user_ref = ? AND (? IS NULL OR c.module = ?) AND c.scope_ref LIKE ? || '%'
         ORDER BY c.scope_ref`,
@@ -242,7 +242,7 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
     const today = DAY.test(asked) ? asked : new Date().toISOString().slice(0, 10);
     const [rows, days, words] = await Promise.all([
       query<ClassRow & { open: number }>(env.DB_CORE,
-        `SELECT c.*, (SELECT COUNT(*) FROM core_drill_class_item i WHERE i.class_id = c.id AND i.state = 'open') AS open
+        `SELECT c.*, c.open_n AS open
            FROM core_drill_class c WHERE c.user_ref = ? AND (? IS NULL OR c.module = ?) ORDER BY c.scope_ref`,
         [ctx.userId, module, module]),
       query<{ day: string; seconds: number; items: number; right: number }>(env.DB_CORE,
@@ -270,7 +270,7 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
     const module = new URL(req.url).searchParams.get('module');
     const [mine, standings] = await Promise.all([
       query<ClassRow & { open: number }>(env.DB_CORE,
-        `SELECT c.*, (SELECT COUNT(*) FROM core_drill_class_item i WHERE i.class_id = c.id AND i.state = 'open') AS open
+        `SELECT c.*, c.open_n AS open
            FROM core_drill_class c
           WHERE c.user_ref = ? AND (? IS NULL OR c.module = ?)
           ORDER BY c.status = 'studied' DESC, COALESCE(c.completed_at, c.last_at, c.started_at) DESC`,
@@ -427,11 +427,13 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
          active_days = (SELECT COUNT(*) FROM core_drill_class_day WHERE class_id = ?),
          items_total = (SELECT COUNT(*) FROM core_drill_class_item WHERE class_id = ?),
          first_try_right = (SELECT COUNT(*) FROM core_drill_class_item WHERE class_id = ? AND first_right = 1),
+         -- what is still to perfect, kept for the class lists (migration 066)
+         open_n = (SELECT COUNT(*) FROM core_drill_class_item WHERE class_id = ? AND state = 'open'),
          -- the sprint sent is no longer where the learner is: its checkpoint goes
          resume_json = CASE WHEN json_extract(resume_json, '$.node') = ? AND json_extract(resume_json, '$.sprint') = ?
                             THEN NULL ELSE resume_json END
        WHERE id = ?`)
-      .bind(JSON.stringify(nodes), seconds, c.id, c.id, c.id, node, sprint, c.id));
+      .bind(JSON.stringify(nodes), seconds, c.id, c.id, c.id, c.id, node, sprint, c.id));
     await db.batch(stmts);
     // what is learnt goes to review now — this sprint's, and any learnt before this rule and not yet filed. Filing grades
     // each card and can take seconds, so it runs after the answer where it can (the learner is not kept waiting at the end
