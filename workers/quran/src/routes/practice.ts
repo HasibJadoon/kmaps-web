@@ -8,6 +8,7 @@ import { labels, byKey, card, type Label } from '../lib/labels';
 import { features as tFeatures, profiles as tProfiles, sources as tSources, fallbackOf, choiceLabel, cleanText,
          type TFeature, type ProfileRow } from '../lib/translation-choices';
 import { tafsirDrills, tafsirCount } from './practice-tafsir';
+import { readingSentenceDrills } from './practice-reading';
 import { irabBookDrills, irabBookCount } from './practice-irabbooks';
 import { gramTermDrills, gramTermCounts } from './practice-grammar';
 import { lexiconDrills } from './practice-lexicon';
@@ -213,6 +214,7 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
     : ['nearsyn', 'keyterm', 'expression'].includes(src) ? await surahLexDrills(env, src, n, scope, lv, L)
     : src === 'groups' ? await groupDrills(env, n, scope, lv, L, u)
     : src === 'ss' ? [...await ssDrills(env, n, scope, lv, L), ...await sentenceLineDrills(env, scope, (lv.asks as string[] | undefined) ?? [])]
+    : src === 'reading' ? await readingSentenceDrills(env, scope)
     : src === 'structure' ? await structureDrills(env, n, scope, lv, L)
     : src === 'questions' ? await questionDrills(env, n, scope)
     : src === 'tafsirq' ? await tafsirDrillsQ(env, meta.extra?.interaction === 'listen_mark' ? 'listen' : 'meaning', n, scope)
