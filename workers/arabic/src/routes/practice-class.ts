@@ -21,8 +21,9 @@ import { sceneRound, seeded } from './scenes';
 
 type Drill = Record<string, unknown>;
 type Unit = { id: string; level: string; title_ar: string | null; title_en: string | null; series: string | null;
-              episode: number | null; scenes_json: string | null };
-type Scene = { no: number; titleEn: string | null; titleAr: string | null };
+              episode: number | null; scenes_json: string | null; video_url: string | null };
+type Scene = { no: number; titleEn: string | null; titleAr: string | null; start: number | null; end: number | null;
+               lines: Array<{ start: number; end: number; ar: string }> };
 
 const kindOf = (n: Label) => String(n.extra?.kind ?? 'step');
 const num = (v: unknown, d: number) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
@@ -42,7 +43,8 @@ const unitOf = (env: ArabicEnv, id: string) => queryOne<Unit>(env.DB_AR,
           json_extract(t.script_json, '$.title_en') AS title_en,
           COALESCE(json_extract(t.script_json, '$.series_ar'), r.title_ar) AS series,
           json_extract(t.script_json, '$.episode') AS episode,
-          json_extract(t.script_json, '$.scenes') AS scenes_json
+          json_extract(t.script_json, '$.scenes') AS scenes_json,
+          json_extract(t.script_json, '$.video_url') AS video_url
      FROM ar_text_unit t JOIN ar_acquisition_ref r ON r.id = t.acq_ref_id
     WHERE t.id = ? AND t.script_json IS NOT NULL AND json_valid(t.script_json)`, [id]);
 
@@ -51,9 +53,17 @@ const titled = (t?: string | null) => (t ?? '').replace(/^\s*(Scene\s+\d+|الم
 
 export function scenesOf(u: Unit): Scene[] {
   try {
-    const xs = JSON.parse(u.scenes_json ?? '[]') as Array<{ scene_no: number; title_en?: string; title_ar?: string }>;
+    type Raw = { scene_no: number; title_en?: string; title_ar?: string; start?: number; end?: number; lines?: Array<{ start?: number; end?: number; ar?: string; w?: unknown }> };
+    const xs = JSON.parse(u.scenes_json ?? '[]') as Raw[];
+    const sec = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : null);
     return xs.filter((x) => Number.isInteger(x.scene_no))
-      .map((x) => ({ no: x.scene_no, titleEn: titled(x.title_en), titleAr: titled(x.title_ar) }));
+      .map((x) => ({ no: x.scene_no, titleEn: titled(x.title_en), titleAr: titled(x.title_ar),
+                     start: sec(x.start ?? x.lines?.[0]?.start), end: sec(x.end ?? x.lines?.[(x.lines?.length ?? 1) - 1]?.end),
+                     // the Arabic as it is heard, line by line — the watch node's captions (no English while watching)
+                     lines: (x.lines ?? []).filter((l) => l.ar && sec(l.start) != null && sec(l.end) != null)
+                       .map((l) => ({ start: Number(l.start), end: Number(l.end), ar: String(l.ar),
+                                      // each word's [start, end], so the spoken word lights as it is heard
+                                      ...(Array.isArray(l.w) ? { w: l.w } : {}) })) }));
   } catch { return []; }
 }
 
@@ -137,7 +147,17 @@ export function practiceClassRoutes(router: Router<ArabicEnv>) {
         const k = held.get(sceneKey(n.key, s.no))?.length ?? 0;
         if (!k) return [];
         const label = sceneLabel(L, n, s);
-        return [nodeCard(label, k, label.detail)];
+        // the scene's video first (a watch node: that scene alone, its end opens the drills) — the node carries its
+        // clip, so any device draws and plays it from the path alone
+        const yt = (u.video_url ?? '').match(/(?:[?&]v=|youtu\.be\/|embed\/)([\w-]{11})/)?.[1] ?? null;
+        const ww = (L.class_ui ?? []).find((l) => l.key === 'watch_scene');
+        const watch = yt && s.start != null && s.end != null && s.end > s.start
+          ? [{ ...nodeCard({ ...label, key: `${label.key}#watch`, label: ww?.label ?? label.label, labelAr: ww?.labelAr ?? label.labelAr,
+                             icon: ww?.icon ?? 'play.rectangle', extra: { kind: 'listen' } }, 0, label.detail),
+               content: 'video', video: { youtube: yt, start: s.start, end: s.end, title: label.detail ?? label.label, titleAr: s.titleAr,
+                        captions: s.lines } }]
+          : [];
+        return [...watch, nodeCard(label, k, label.detail)];
       });
     });
     const any = [...held.values()].some((p) => p.length > 0);

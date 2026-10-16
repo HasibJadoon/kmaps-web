@@ -206,7 +206,10 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     const mix = <U,>(xs: U[]) => shuffle(xs, rand);
     // a tier asked for keeps the read items of that tier; with none asked (a plain round, a class) the items a reader
     // marked easy are left out — scene drills are high-end only (an easy word was asked as "what does it mean")
-    const inTier = (x: { tier?: string }) => (tier ? !x.tier || x.tier === tier : x.tier !== 'easy');
+    // a class's scene node (a big round) acquires the whole scene: every word read for it, every idiom, every line heard
+    // and built — not the few high-end items a quick round samples
+    const full = size >= 30;
+    const inTier = (x: { tier?: string }) => (full || (tier ? !x.tier || x.tier === tier : x.tier !== 'easy'));
     const [L, common] = await Promise.all([labels(env), commonWords(env)]);
     const sc = await script(env, unit);
     const scene = sc?.s.scenes.find((x) => String(x.scene_no) === no);
@@ -215,6 +218,8 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     if (!url) return badRequest('this episode has no recording to practise with');
     const clip = (l: Line) => ({ url, start: l.start, end: l.end });
     const lines = scene.lines.filter((l) => l.ar && l.end > l.start);
+    // a line whose text is what the recording says (one corrected from the captions may sound different from its tiles)
+    const heardAsWritten = (l: Line) => !((l as Line & { note?: string | null }).note ?? '').includes('الأصل في التفريغ');
     // HIGH-END only (lib/highend.ts): a word is drilled when it is hard in the Qurʾān or rare in the classical library;
     // a line is drilled whole (who said it, its meaning, the exchange, dictation) only when it holds such a word
     const hi = await highEndOf(env, sc.s.scenes.flatMap((x) => x.lines.flatMap((l) => (l.ar ?? '').split(/\s+/))));
@@ -231,7 +236,8 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     const parse = <T,>(j: string | null): T | null => { try { return j ? JSON.parse(j) as T : null; } catch { return null; } };
     const read = reads.find((r) => String(r.scene_no) === no);
     // only the higher-end words: never a function word, never one the Qurʾān uses often
-    const vocab = (parse<Vocab[]>(read?.vocab_json ?? null) ?? []).filter(inTier).filter((v) => hardOnly(v.word));
+    const vocab = (parse<Vocab[]>(read?.vocab_json ?? null) ?? []).filter(inTier)
+      .filter((v) => (full ? !isCommon(common, v.word, false) : hardOnly(v.word)));
     const epVocab = reads.flatMap((r) => parse<Vocab[]>(r.vocab_json) ?? []).map((v) => clean(v.word)).filter(hardOnly);
 
     // names are not vocabulary
@@ -241,7 +247,7 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     // the scene's hard words, heard and filled — the words a reader chose where there are any, else the rarest;
     // options from the episode's other hard words, confusable by ear
     // a word is asked once a round: its meaning here (up to four), or else heard and filled
-    const asked = mix(vocab).slice(0, 4);
+    const asked = full ? vocab : mix(vocab).slice(0, 4);
     const chosen = vocab.filter((v) => !asked.includes(v)).map((v) => {
       const toks = (scene.lines[v.line]?.ar ?? '').trim().split(/\s+/);
       const index = toks.findIndex((t) => bare(clean(t)) === bare(clean(v.word)));
@@ -252,7 +258,7 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     const epHard = [...epVocab, ...sc.s.scenes.flatMap((x) => hardWords(x, sc.s)).map((h) => h.word)].filter((w) => !isName(w) && hardOnly(w));
     const usedLines = new Set<number>();
     for (const h of hard) {
-      if (items.length >= 3) break;
+      if (items.length >= (full ? 8 : 3)) break;
       if (usedLines.has(h.line)) continue;
       usedLines.add(h.line);
       const l = scene.lines[h.line];
@@ -264,6 +270,36 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
         .filter((w, i, arr) => arr.indexOf(w) === i).slice(0, 3);
       items.push({ id: `fill:${unit}:${no}:${h.line}:${h.index}`, kind: 'fill', audio: clip(l), words: timedWords(l), blank: h.index,
                    answer: a, options: mix([a, ...opts]), en: l.en ?? null, source, tier: (h as { tier?: string }).tier ?? null, bucket: 'vocab' });
+    }
+
+    // a class scene node: every verb and noun of the scene, heard in its line and picked out — the line's English beside
+    // it, three of the episode's other words of the same class as the choices (ar_scene_word: line from 1, word from 0)
+    if (full) {
+      const sw = await query<{ scene_no: number; line: number; word_index: number; surface: string; word_class: string }>(env.DB_AR,
+        `SELECT scene_no, line, word_index, surface, word_class FROM ar_scene_word WHERE unit_id = ? AND word_class IN ('verb', 'noun')`,
+        [unit]).catch(() => []);
+      const pool = new Map<string, string[]>();
+      for (const w of sw) {
+        const c = bare(clean(w.surface));
+        if (c.length < 3 || isName(c) || isCommon(common, c, false)) continue;
+        const xs = pool.get(w.word_class) ?? []; if (!xs.includes(c)) xs.push(c); pool.set(w.word_class, xs);
+      }
+      const seen = new Set<string>();
+      for (const w of sw.filter((x) => String(x.scene_no) === no)) {
+        const a = bare(clean(w.surface));
+        const l = scene.lines[w.line - 1];
+        if (!l || a.length < 3 || isName(a) || isCommon(common, a, false) || seen.has(stem(a))) continue;
+        if (!heardAsWritten(l) || bare(clean(l.ar.trim().split(/\s+/)[w.word_index] ?? '')) !== a) continue;
+        seen.add(stem(a));
+        const letters = new Set(stem(a));
+        const opts = mix((pool.get(w.word_class) ?? []).filter((x) => x !== a && stem(x) !== stem(a)))
+          .map((x) => ({ x, s: [...new Set(stem(x))].filter((c) => letters.has(c)).length * 2 - Math.abs(x.length - a.length) + rand() }))
+          .sort((p, q) => q.s - p.s).slice(0, 3).map((o) => o.x);
+        if (opts.length < 3) continue;
+        items.push({ id: `word:${unit}:${no}:${w.line}:${w.word_index}`, kind: 'fill', audio: clip(l), words: timedWords(l),
+                     blank: w.word_index, answer: a, options: mix([a, ...opts]), en: l.en ?? null, source,
+                     bucket: w.word_class === 'verb' ? 'verb' : 'noun' });
+      }
     }
 
     // who said it — where the scene has more than one voice
@@ -328,7 +364,7 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
         const toks = (scene.lines[line]?.ar ?? '').trim().split(/\s+/).slice(span[0], span[1] + 1);
         return toks.some((t) => hardOnly(t));
       };
-      for (const x of mix((parse<Expr[]>(read?.expressions_json ?? null) ?? []).filter(inTier).filter((e) => worth(e.line, e.span))).slice(0, 2)) {
+      for (const x of mix((parse<Expr[]>(read?.expressions_json ?? null) ?? []).filter(inTier).filter((e) => full || worth(e.line, e.span))).slice(0, full ? 99 : 2)) {
         const l = scene.lines[x.line];
         if (!l) continue;
         items.push({ id: `idiom:${unit}:${no}:${x.line}:${x.span[0]}`, kind: 'idiom', audio: clip(l), words: timedWords(l),
@@ -370,10 +406,9 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     // dictation: one line of a speakable length, heard, then written out
     // only a line whose text is what the recording says: one corrected from the captions («الأصل في التفريغ …» in its
     // note) may sound different from its tiles, so it is never dictated
-    const heardAsWritten = (l: Line) => !((l as Line & { note?: string | null }).note ?? '').includes('الأصل في التفريغ');
-    const dict = mix(lines.filter((l) => { const n = l.ar.split(/\s+/).length; return n >= 4 && n <= 10 && rich(l) && heardAsWritten(l); }))[0];
+    const speakable = lines.filter((l) => { const n = l.ar.split(/\s+/).length; return n >= 3 && n <= 12 && heardAsWritten(l) && (full || (n >= 4 && n <= 10 && rich(l))); });
     // no typing: the line heard, then its words tapped back in order from tiles (two decoys from the scene's other lines)
-    if (dict) {
+    for (const dict of full ? speakable : mix(speakable).slice(0, 1)) {
       const toks = dict.ar.split(/\s+/).filter(Boolean);
       const decoys = mix(lines.filter((l) => l !== dict).flatMap((l) => l.ar.split(/\s+/))
         .filter((w) => w.length >= 3 && !toks.includes(w))).filter((w, i, a) => a.indexOf(w) === i).slice(0, 2);
