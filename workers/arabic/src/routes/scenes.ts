@@ -135,7 +135,7 @@ type Lexeme = { kind: string; phrase?: string; meanings?: Array<{ en: string; re
 /// A line whose words are what is heard — not one the captions corrected toward the written form ('الأصل في التفريغ').
 const heardAsWritten = (l: Line) => !((l as Line & { note?: string | null }).note ?? '').includes('الأصل في التفريغ');
 
-type Sarf = { madi?: string; mudari?: string; masdar?: string; senses?: string[]; pl?: string[]; sing?: string; mufrad?: string;
+type Sarf = { madi?: string; mudari?: string; masdar?: string; masdar_pl?: string; senses?: string[]; pl?: string[]; sing?: string; mufrad?: string;
               jam?: string; verb?: string };
 
 /// Each verb and noun of the scene, worked as a word: what it means in its line, and its forms — a verb's past, present
@@ -154,7 +154,7 @@ function sarfDrills(sw: Array<{ scene_no: number; line: number; word_index: numb
   const put = (k: string, v?: string) => { if (v) (of.get(k) ?? of.set(k, new Set()).get(k)!).add(v); };
   for (const w of sw) {
     const f = sarf(w.sarf_json);
-    if (w.word_class === 'verb') { put('madi', f.madi); put('mudari', f.mudari); put('masdar', f.masdar); put('vsense', f.senses?.[0]); }
+    if (w.word_class === 'verb') { put('madi', f.madi); put('mudari', f.mudari); put('masdar', f.masdar); put('vsense', f.senses?.[0]); put('pl', f.masdar_pl); }
     else { put('pl', f.pl?.[0]); put('sing', f.sing ?? f.mufrad); put('nsense', f.senses?.[0]); put('verb', f.verb); }
   }
   // the sense the line's English uses, else the first
@@ -177,10 +177,10 @@ function sarfDrills(sw: Array<{ scene_no: number; line: number; word_index: numb
     const f = sarf(w.sarf_json);
     const base = { audio: clip(l), words: timedWords(l), target: w.word_index, prompt: clean(w.surface), en: l.en ?? null, source,
                    bucket: w.word_class === 'verb' ? 'verb' : 'noun' };
-    const add = (k: string, answer: string | undefined, pool: string, near: Array<string | undefined> = []) => {
+    const add = (k: string, answer: string | undefined, pool: string, near: Array<string | undefined> = [], prompt?: string) => {
       const q = ask.get(k); if (!answer || !q) return;
       const options = choices(pool, answer, near); if (!options) return;
-      out.push({ ...base, id: `sarf:${k}:${w.lemma_ar ?? a}:${no}:${w.line}:${w.word_index}`, kind: 'vocab',
+      out.push({ ...base, ...(prompt ? { prompt } : {}), id: `sarf:${k}:${w.lemma_ar ?? a}:${no}:${w.line}:${w.word_index}`, kind: 'vocab',
                  instruction: q.label, instructionAr: q.labelAr, answer, options,
                  explanation: [f.madi && f.mudari ? `${f.madi} – ${f.mudari}${f.masdar ? ` – ${f.masdar}` : ''}` : null,
                                f.pl?.[0] ? `${f.sing ?? f.mufrad ?? ''} – ${f.pl[0]}` : null].filter(Boolean).join(' · ') || null });
@@ -190,6 +190,8 @@ function sarfDrills(sw: Array<{ scene_no: number; line: number; word_index: numb
       add('madi', f.madi, 'madi', [f.mudari, f.masdar]);
       add('mudari', f.mudari, 'mudari', [f.madi, f.masdar]);
       add('masdar', f.masdar, 'masdar', [f.madi, f.mudari]);
+      // the action noun's plural — only where that plural is in common use (heard in the scenes, kept in masdar_pl)
+      if (f.masdar && f.masdar_pl) add('masdar_plural', f.masdar_pl, 'pl', [f.masdar], f.masdar);
     } else {
       const sing = f.sing ?? f.mufrad;
       add('noun_meaning', sense(f, l.en ?? null), 'nsense');

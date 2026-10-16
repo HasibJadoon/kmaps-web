@@ -16,3 +16,9 @@ UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), u
 -- a scene's round holds every word's forms as well as its lines: room for them
 UPDATE ar_practice_label SET extra_json = json_set(extra_json, '$.max', 140) WHERE scope = 'class_node' AND key = 'scenes';
 UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content';
+
+-- an action noun's plural, where the plural is in common use (أَمْر → أُمُور, عَمَل → أَعْمال)
+INSERT INTO ar_practice_label (scope, key, label, label_ar, sort) VALUES
+  ('ask', 'masdar_plural', 'The plural of this action noun (jamʿ al-maṣdar)', 'مَا جَمْعُ هٰذَا المَصْدَرِ؟', 5)
+ON CONFLICT (scope, key) DO UPDATE SET label = excluded.label, label_ar = excluded.label_ar, sort = excluded.sort;
+UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content';
