@@ -71,7 +71,7 @@ INSERT OR REPLACE INTO qr_scope_topic (id, topic_id, scope_type, surah, ayah_fro
   ('QR:ST:40:6', 'QR:TOP:qiyama', 'passage', 40, 1, 3, 'secondary', '{"words":"إِلَيْهِ الْمَصِيرُ"}');
 
 -- Read & listen drawn again: its sentences now carry their terms'' stories
-UPDATE qr_study_label SET extra_json = json_set(extra_json, '$.rev', 3) WHERE scope = 'class_node' AND key = 'read';
+UPDATE qr_study_label SET extra_json = json_set(extra_json, '$.rev', 4) WHERE scope = 'class_node' AND key = 'read';
 
 -- a story's lemma as the corpus writes it (its marks in the corpus's order)
 UPDATE qr_keyterm_story SET match_json = json_object('lemmas', json_array((SELECT lemma FROM qr_word_occurrence WHERE surah = 40 AND ayah = 2 AND word_index = 4)))

@@ -210,16 +210,17 @@ export async function readingSentenceDrills(env: QuranEnv, scope: Scope): Promis
   const storyOf = new Map<string, Story[]>();
   for (const st of stories) (storyOf.get(st.term_key!) ?? storyOf.set(st.term_key!, []).get(st.term_key!)!).push(st);
   const met = new Map<string, Line>();
+  const metAt = new Map<string, { ayah: number; word: number }>();
   for (const [key, steps] of storyOf) {
     const m = (() => { try { return JSON.parse(steps[0].match_json ?? '{}') as { sinai?: string[]; lemmas?: string[] }; } catch { return {}; } })();
     for (const l of lines) {
       if (met.has(key)) break;
-      const bySinai = (m.sinai ?? []).some((g) => terms.some((t) => t.grp === g && t.word_index != null
-        && l.ws.some((w, i) => l.ays[i] === t.ayah && w.word_index === t.word_index)));
-      // lemmas compared in canonical form: the corpus writes shadda before fatha, a hand-typed lemma may not
-      const byLemma = (m.lemmas ?? []).some((lm) => l.ws.some((w, i) =>
-        (posOf.get(`${l.ays[i]}:${w.word_index}`)?.lemma ?? '').normalize('NFC') === lm.normalize('NFC')));
-      if (bySinai || byLemma) met.set(key, l);
+      // the word it is met on: one of its Sinai entries there, or one of its lemmas (compared in canonical form: the corpus
+      // writes shadda before fatha, a hand-typed lemma may not)
+      const i = l.ws.findIndex((w, k) =>
+        (m.sinai ?? []).some((g) => terms.some((t) => t.grp === g && t.ayah === l.ays[k] && t.word_index === w.word_index))
+        || (m.lemmas ?? []).some((lm) => (posOf.get(`${l.ays[k]}:${w.word_index}`)?.lemma ?? '').normalize('NFC') === lm.normalize('NFC')));
+      if (i >= 0) { met.set(key, l); metAt.set(key, { ayah: l.ays[i], word: l.ws[i].word_index }); }
     }
   }
   if (met.size) {
@@ -230,8 +231,8 @@ export async function readingSentenceDrills(env: QuranEnv, scope: Scope): Promis
       for (const st of storyOf.get(key)!) {
         const d: Drill = {
           id: `keyterm:story:${st.id}`, ask: 'keyterm_story', kind: 'feature',
-          // stands where the term is met in this passage, so the class deals it in that sentence
-          at: { ayah: l.s.ayah_from, word: l.s.ws ?? 1 },
+          // stands on the word the term is met on in this passage: its sentence deals it, the stories in reading order
+          at: metAt.get(key) ?? { ayah: l.s.ayah_from, word: l.s.ws ?? 1 },
           prompt: st.ask_en, options: shuffle([st.answer_en, ...(JSON.parse(st.wrong_json) as string[])]), answer: st.answer_en,
           explanation: st.source_ref ? `${st.explain_en}\n— ${st.source_ref}` : st.explain_en, note: { en: st.title_en, ar: st.term_ar },
           layer: st.layer, topic: st.topic_ref,

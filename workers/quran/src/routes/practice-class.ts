@@ -256,6 +256,58 @@ export function lessonOf(L: Record<string, Label[]>, items: Drill[], only?: stri
   return slides.sort((a, b) => (order.get(a.style) ?? 999) - (order.get(b.style) ?? 999));
 }
 
+/** A key term's story told as slides, before its drills (qr_keyterm_story): a title, then each step — the āyāt recited and
+ *  what they tell, or a step of the word's history with its source — in the order of the story. The same deck wherever
+ *  the term is met. */
+async function storyLesson(env: QuranEnv, key: string) {
+  const steps = await query<{ id: string; seq: number; title_en: string; term_ar: string; term_en: string | null; surah: number; ayah_from: number;
+                              word_from: number; ayah_to: number; word_to: number; explain_en: string; layer: string; source_ref: string | null }>(env.DB_QR,
+    `SELECT id, seq, title_en, term_ar, term_en, surah, ayah_from, word_from, ayah_to, word_to, explain_en, layer, source_ref
+       FROM qr_keyterm_story WHERE term_key = ? AND status = 'live' ORDER BY seq`, [key]);
+  if (!steps.length) return null;
+  const pairs = [...new Set(steps.filter((s) => s.surah > 0).flatMap((s) =>
+    Array.from({ length: s.ayah_to - s.ayah_from + 1 }, (_, i) => `${s.surah}:${s.ayah_from + i}`)))].map((k) => k.split(':').map(Number));
+  const ayat = pairs.length ? await loadAyat(env, pairs) : new Map();
+  const L = await labels(env);
+  const so = (L.class_ui ?? []).find((x) => x.key === 'story_of');
+  const termAr = steps[0].term_ar, termEn = steps[0].term_en ?? key;
+  const title = so ? so.label.replace('{term}', termEn) : termEn;
+  const titleAr = so?.labelAr ? so.labelAr.replace('{term}', termAr) : termAr;
+  const slides: Array<Record<string, unknown>> = [];
+  const deckSlides: Array<Record<string, unknown>> = [{ n: 1, blockId: `BLK:STORY:${key}:title`, layout: 'title', accent: 'gold', kicker: titleAr,
+    source: null, linesAr: [termAr], linesEn: [title], notesEn: [] as string[], verseRefs: [] as unknown[] }];
+  for (const st of steps) {
+    let ar = '', words: unknown[] = [], audio: unknown = null, ref: string | null = null;
+    if (st.surah > 0) {
+      const parts = Array.from({ length: st.ayah_to - st.ayah_from + 1 }, (_, i) => ayat.get(`${st.surah}:${st.ayah_from + i}`)).filter(Boolean) as
+        Array<{ ayah: number; ws: Array<{ word_index: number; word_text: string }>; words: Array<{ t: string; s: number; e: number }>; audio: { url: string; start: number; end: number } | null; title: string }>;
+      const ts: Array<{ t: string; s: number; e: number }> = [];
+      for (const pt of parts) pt.ws.forEach((w, i) => {
+        if (pt.ayah === st.ayah_from && w.word_index < st.word_from) return;
+        if (pt.ayah === st.ayah_to && w.word_index > st.word_to) return;
+        ts.push(pt.words[i]);
+      });
+      ar = ts.map((w) => w.t).join(' ');
+      ref = `${parts[0]?.title.replace(/ \d+:\d+$/, '') ?? ''} ${st.ayah_to > st.ayah_from ? `${st.surah}:${st.ayah_from}–${st.ayah_to}` : `${st.surah}:${st.ayah_from}`}`;
+      if (ts.length && parts[0]?.audio) {
+        words = ts;
+        audio = { url: parts[0].audio.url, start: Math.max(parts[0].audio.start, ts[0].s - 0.05), end: ts[ts.length - 1].e + 0.15 };
+      }
+    }
+    const src = st.layer === 'history' ? st.source_ref : ref;
+    slides.push({ id: st.id, style: `story:${key}`, styleTitle: title, styleTitleAr: titleAr, headingAr: '', heading: st.title_en,
+                  points: [st.explain_en], example: ar ? { ar, en: null, ref, audio, words, script: 'quran' } : null, drills: [] });
+    deckSlides.push({ n: deckSlides.length + 1, blockId: `BLK:${st.id}`, layout: ar ? 'shahid' : 'definition', accent: st.layer === 'history' ? 'warn' : 'gold',
+                      kicker: st.title_en, source: src, linesAr: ar ? [ar] : [], linesEn: [st.explain_en], notesEn: [] as string[],
+                      verseRefs: st.surah > 0 ? [{ ref: `${st.surah}:${st.ayah_from}${st.ayah_to > st.ayah_from ? `-${st.ayah_to}` : ''}`, kind: 'quran',
+                        surah: st.surah, ayahFrom: st.ayah_from, ayahTo: st.ayah_to, relation: null, labelAr: null }] : [] });
+  }
+  const deck = { docId: `STORY:${key}`, slug: `story-${key}`, contractVersion: 1, title, titleAr, language: 'ar', direction: 'rtl', domain: 'quran',
+                 subdomain: 'keyterm', slideCount: deckSlides.length, durationMin: Math.max(1, Math.round(deckSlides.length / 2)), videos: [] as string[],
+                 theme: {}, collection: null, motion: null, slides: deckSlides };
+  return { slides: slides as Array<{ id: string }>, drills: 0, deck };
+}
+
 /** The lesson style of the passage heard whole. */
 const WHOLE = 'whole';
 
@@ -453,7 +505,9 @@ async function unitRound(env: QuranEnv, L: Record<string, Label[]>, p: Passage):
 // it was made from changes (its `definition`): the node's extra, and for a step run per sentence the
 // passage's sentence ids. A node with nothing over the passage is not kept, so new drills show up.
 
-type SentenceStat = { id: string; drills: number; styles: StyleCount[] };
+type SentenceStat = { id: string; drills: number; styles: StyleCount[]; stories?: Array<{ key: string; drills: number }> };
+/** A key term's story step (practice-reading.ts): keyterm:story:KS:<term>:<n>. */
+const storyKeyOf = (d: Drill) => /^keyterm:story:KS:([^:]+):/.exec(String(d.id ?? ''))?.[1] ?? null;
 type NodeStat = { drills: number; styles: StyleCount[]; sentences: SentenceStat[] | null };
 const ROUND = '@round';
 
@@ -474,7 +528,7 @@ async function nodeStats(env: QuranEnv, L: Record<string, Label[]>, p: Passage, 
   const kept = new Map(rows.map((r) => [r.node_key, r]));
   const sentDef = `|${sentences.map((x) => x.id).join(',')}`;
   type Want = { key: string; def: string; node: Label | null };
-  const want: Want[] = nodes.map((n) => ({ key: n.key, node: n, def: `s3|${JSON.stringify(n.extra ?? {})}${kindOf(n) === 'step' && (perSentence(n) || splitSentence(n)) ? sentDef : ''}` }));
+  const want: Want[] = nodes.map((n) => ({ key: n.key, node: n, def: `s5|${JSON.stringify(n.extra ?? {})}${kindOf(n) === 'step' && (perSentence(n) || splitSentence(n)) ? sentDef : ''}` }));
   if (!only || only.has(ROUND)) want.push({ key: ROUND, node: null, def: JSON.stringify((L.unit_round ?? []).map((r) => [r.key, r.extra?.n ?? null])) });
 
   const stats = new Map<string, NodeStat>();
@@ -505,7 +559,18 @@ async function nodeStats(env: QuranEnv, L: Record<string, Label[]>, p: Passage, 
     if ((perSentence(w.node) || splitSentence(w.node)) && sentences.length) {
       const whole = wholeStyles(w.node);
       const placed = placeBySentence(splitSentence(w.node) ? pool.filter((d) => !whole.has(styleOf(d))) : pool, sentences);
-      per = sentences.flatMap((x) => { const d = placed.get(x.id) ?? []; return d.length ? [{ id: x.id, drills: d.length, styles: countStyles(d) }] : []; });
+      const split = splitSentence(w.node);
+      per = sentences.flatMap((x) => {
+        const d = placed.get(x.id) ?? [];
+        if (!d.length) return [];
+        // a split step's sentence: its own drills, and apart from them each key term's story met in it
+        const own = split ? d.filter((y) => !storyKeyOf(y)) : d;
+        // the stories in the order their words are read (each step stands on its term's word)
+        const pos = (y: Drill) => { const a = y.at as { ayah?: number; word?: number } | undefined; return (a?.ayah ?? 0) * 1000 + (a?.word ?? 0); };
+        const st = new Map<string, number>();
+        if (split) for (const y of [...d].sort((a, b) => pos(a) - pos(b))) { const k = storyKeyOf(y); if (k) st.set(k, (st.get(k) ?? 0) + 1); }
+        return [{ id: x.id, drills: own.length, styles: countStyles(own), ...(st.size ? { stories: [...st].map(([key, n]) => ({ key, drills: n })) } : {}) }];
+      });
     }
     return { drills: pool.length, styles: countStyles(pool), sentences: per };
   }));
@@ -604,20 +669,31 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     // a step none of whose skills has a drill for this passage is left off its path; so is a
     // listen gate none of whose works is recorded over it. A step run per sentence is its
     // sentences, each with drills its own node.
-    const nodes = (L.class_node ?? [])
+    const nodes = (await Promise.all((L.class_node ?? [])
       .filter((n) => kindOf(n) === 'step' || kindOf(n) === 'listen' ? held(n) > 0 : true)
-      .flatMap((n) => {
+      .map(async (n) => {
         const st = stats.get(n.key);
         if (kindOf(n) === 'listen') return [nodeCard(n, 0, held(n))];
         if (kindOf(n) !== 'step') return [nodeCard(n, 0)];
         if (splitSentence(n)) {
           // one node; its sub-path holds its whole-passage styles, then a node per sentence with drills
           const sw = L.class_ui?.find((x) => x.key === 'sentence_node');
+          // the stories' names (qr_keyterm_story) and the words that frame them (class_ui story_of)
+          const keys = [...new Set((st?.sentences ?? []).flatMap((x) => (x.stories ?? []).map((y) => y.key)))];
+          const names = keys.length ? await query<{ term_key: string; term_ar: string; term_en: string | null }>(env.DB_QR,
+            `SELECT term_key, MAX(term_ar) AS term_ar, MAX(term_en) AS term_en FROM qr_keyterm_story
+              WHERE term_key IN (SELECT value FROM json_each(?)) GROUP BY term_key`, [JSON.stringify(keys)]).catch(() => []) : [];
+          const so = L.class_ui?.find((x) => x.key === 'story_of');
+          const storyCard = (y: { key: string; drills: number }) => {
+            const nm = names.find((r) => r.term_key === y.key);
+            const en = nm?.term_en ?? y.key, ar = nm?.term_ar ?? '';
+            return { key: y.key, drills: y.drills, title: so ? so.label.replace('{term}', en) : en, titleAr: so?.labelAr ? so.labelAr.replace('{term}', ar) : ar };
+          };
           // numbered among the sentences that hold drills (a lone حم holds none)
           const per = (st?.sentences ?? []).filter((x) => at.has(x.id)).map((x, k) => {
             const lbl = sentenceLabel(L, n, sentences[at.get(x.id)!], k + 1, p.surah);
             return { id: x.id, title: sw ? sw.label.replace('{n}', String(k + 1)) : lbl.label, titleAr: sw?.labelAr?.replace('{n}', String(k + 1)) ?? lbl.labelAr ?? '',
-                     detail: lbl.detail ?? '', drills: x.drills, styles: namedStyles(L, x.styles) };
+                     detail: lbl.detail ?? '', drills: x.drills, styles: namedStyles(L, x.styles), stories: (x.stories ?? []).map(storyCard) };
           });
           return [{ ...nodeCard(n, held(n), 0, namedStyles(L, st?.styles ?? [])), whole: [...wholeStyles(n)], sentences: per }];
         }
@@ -626,7 +702,7 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
           const i = at.get(x.id);
           return i === undefined ? [] : [nodeCard(sentenceLabel(L, n, sentences[i], i + 1, p.surah), x.drills, 0, namedStyles(L, x.styles))];
         });
-      });
+      }))).flat();
     const anySteps = stepNodes(L).some((n) => held(n) > 0);
     return ok({
       passage: passageCard(p),
@@ -676,9 +752,12 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
       'SELECT definition, body_json, updated_at FROM qr_class_lesson WHERE passage_id = ? AND node_key = ? AND style = ?',
       [p.id, key, style ?? '']).catch(() => null);
     type LessonSlide = { id: string; audio?: unknown; example?: { audio?: unknown } | null };
-    let body: { slides: LessonSlide[]; drills: number } | null = null;
+    let body: { slides: LessonSlide[]; drills: number; deck?: unknown } | null = null;
     if (kept && kept.definition === definition && (!tafsir || Date.now() - Date.parse(kept.updated_at) < DAY_MS)) {
       try { body = JSON.parse(kept.body_json); } catch { body = null; }
+    }
+    if (!body && style?.startsWith('story:')) {
+      body = await storyLesson(env, style.slice(6));
     }
     if (!body) {
       if (tafsir) {
@@ -702,7 +781,7 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     // one slide alone (a drill's own, opened from the drill), or the step's whole lesson
     const slides = body.slides.filter((x) => !one || x.id === one) as Parameters<typeof deckOf>[3];
     return ok({ passage: passageCard(p), node: nodeCard(base, body.drills), slides,
-                deck: deckOf(`LESSON:${p.id}:${key}`, base.label, base.labelAr ?? '', slides),
+                deck: body.deck ?? deckOf(`LESSON:${p.id}:${key}`, base.label, base.labelAr ?? '', slides),
                 audio: [null, ...body.slides.filter((x) => !one || x.id === one)
                   .map((x) => (tafsir ? x.audio : x.example?.audio) ?? null)] });
   });
@@ -758,8 +837,13 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
       // one sentence of a split step: its drills, its whole-passage styles left out, in the styles' order
       const whole = wholeStyles(base);
       const order = new Map((L.class_style ?? []).map((x, i) => [x.key, i]));
-      items = (placeBySentence(items.filter((d) => !whole.has(styleOf(d))), await sentencesOf(env, p)).get(style.slice(2)) ?? [])
+      items = (placeBySentence(items.filter((d) => !whole.has(styleOf(d)) && !storyKeyOf(d)), await sentencesOf(env, p)).get(style.slice(2)) ?? [])
         .map((d, i) => ({ d, i })).sort((a, b) => ((order.get(styleOf(a.d)) ?? 999) - (order.get(styleOf(b.d)) ?? 999)) || a.i - b.i).map((x) => x.d);
+    } else if (style?.startsWith('story:')) {
+      // a key term's story, its steps in order (keyterm:story:KS:<term>:<n>)
+      const key = style.slice(6);
+      const seq = (d: Drill) => Number(/:(\d+)$/.exec(String(d.id))?.[1] ?? 0);
+      items = items.filter((d) => storyKeyOf(d) === key).sort((a, b) => seq(a) - seq(b));
     } else if (style) items = items.filter((d) => styleOf(d) === style);
     // each drill names its style, the sub-node it counts toward (the device sends it back with the answer)
     // and the lesson slide that teaches it (GET /qr/practice/class/lesson), opened from the drill; its card's
