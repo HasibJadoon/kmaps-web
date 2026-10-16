@@ -63,6 +63,21 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return ok({ folders });
   });
 
+  // the library's shelves (cm_note_domain), each with how many of the reader's notes it holds
+  router.get('/cm/docspace/domains', async (req, env) => {
+    const owner = ownerOf(req);
+    if (!owner) return unauthorized('Sign in required');
+    const domains = await query<{ domain_key: string; title: string; title_ar: string | null; subtitle: string | null;
+                                   accent: string; icon: string | null; count: number }>(
+      env.DB_CM,
+      `SELECT d.domain_key, d.title, d.title_ar, d.subtitle, d.accent, d.icon,
+              (SELECT COUNT(*) FROM cm_notes n WHERE n.domain = d.domain_key AND n.core_user_ref = ? AND n.deleted_at IS NULL) AS count
+         FROM cm_note_domain d WHERE d.status = 'live' ORDER BY d.sort_order`,
+      [owner],
+    );
+    return ok({ domains });
+  });
+
   router.post('/cm/docspace/folders', async (req, env) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');
