@@ -243,7 +243,9 @@ export function lessonOf(L: Record<string, Label[]>, items: Drill[], only?: stri
       headingAr: ar, heading: ans ?? (/^1\. (.+?) — /.exec(points.find((x) => /^1\. /.test(x)) ?? '')?.[1] ?? names.get(style)?.label ?? ''),
       points: points.filter((x) => x !== ar),
       example: words ? { ar: words, en: (withLine?.en as string | undefined) ?? null, ref: (withLine?.source as { title?: string } | undefined)?.title ?? null,
-                         audio: withLine?.audio ?? null } : null,
+                         audio: withLine?.audio ?? null,
+                         // the line word by word, timed to its recording, so the lesson lights each word as it is read
+                         words: (withLine?.words as unknown[] | undefined) ?? null, script: (withLine?.script as string | undefined) ?? null } : null,
       drills: ds.map((d) => d.id),
     };
   });
@@ -621,7 +623,8 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     const tafsir = (base.extra?.module as { study?: string } | undefined)?.study === 'tafsir';
     // the lesson's slides are made once and kept (qr_160 qr_class_lesson), per node and style; a pool redraw drops
     // them, and the commentaries' reading session (made from the books, not a pool) is made again after a day
-    const definition = defOfStep(base);
+    // the lesson's own shape is part of what it was made from: a slide that gains a field makes the kept ones again
+    const definition = `${defOfStep(base)}|lesson:2`;
     const kept = await queryOne<{ definition: string; body_json: string; updated_at: string }>(env.DB_QR,
       'SELECT definition, body_json, updated_at FROM qr_class_lesson WHERE passage_id = ? AND node_key = ? AND style = ?',
       [p.id, key, style ?? '']).catch(() => null);
