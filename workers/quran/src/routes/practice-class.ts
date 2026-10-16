@@ -3,7 +3,7 @@ import { ok, badRequest, notFound } from '../../../shared/src/response';
 import { query, queryOne, execute } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import { labels, byKey, type Label } from '../lib/labels';
-import { drawSkill, type Scope } from './practice';
+import { drawSkill, loadAyat, type Scope } from './practice';
 import { interleave, parseJson } from './practice-kit';
 import { listenWorks, lineDrills, parseLineRef, sentenceDrills, parseSentenceRef } from './practice-tafsirq';
 
@@ -250,6 +250,31 @@ export function lessonOf(L: Record<string, Label[]>, items: Drill[], only?: stri
     };
   });
   return slides.sort((a, b) => (order.get(a.style) ?? 999) - (order.get(b.style) ?? 999));
+}
+
+/** The lesson style of the passage heard whole. */
+const WHOLE = 'whole';
+
+/** The passage heard whole, from its first āyah to its last (40:1 حم … 40:3): every word timed to the recitation, so the
+ *  lesson lights each as it is read. The Reading class's first node (/lesson?style=whole). Nil when the recitation does not
+ *  number the words as the corpus does (no timing to follow). */
+async function passageSlide(env: QuranEnv, L: Record<string, Label[]>, p: Passage, style: string) {
+  const pairs: number[][] = [];
+  for (let a = p.ayah_from; a <= p.ayah_to; a++) pairs.push([p.surah, a]);
+  const ayat = [...(await loadAyat(env, pairs)).values()];
+  if (!ayat.length || ayat.some((a) => !a.aligned || !a.audio) || new Set(ayat.map((a) => a.audio!.url)).size > 1) return null;
+  const names = byKey(L.class_style ?? []);
+  const head = (L.class_ui ?? []).find((l) => l.key === 'whole_passage');
+  const words = ayat.flatMap((a) => a.words);
+  return {
+    id: `passage|${p.id}`, style, styleTitle: head?.label ?? names.get(style)?.label ?? style, styleTitleAr: head?.labelAr ?? names.get(style)?.labelAr ?? '',
+    headingAr: '', heading: p.title_en ?? '', points: [] as string[],
+    example: { ar: words.map((w) => w.t).join(' '), en: ayat.map((a) => a.en ?? '').filter(Boolean).join(' '),
+               ref: `${ayat[0].title.replace(/ \d+:\d+$/, '')} ${p.surah}:${p.ayah_from}${p.ayah_to > p.ayah_from ? `–${p.ayah_to}` : ''}`,
+               audio: { url: ayat[0].audio!.url, start: ayat[0].audio!.start, end: ayat[ayat.length - 1].audio!.end },
+               words, script: 'quran' },
+    drills: [] as unknown[],
+  };
 }
 
 /** The commentaries read as a session: every prepared sentence of the passage's commentary (qr_tafsir_sentence), book by
@@ -624,11 +649,12 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     // the lesson's slides are made once and kept (qr_160 qr_class_lesson), per node and style; a pool redraw drops
     // them, and the commentaries' reading session (made from the books, not a pool) is made again after a day
     // the lesson's own shape is part of what it was made from: a slide that gains a field makes the kept ones again
-    const definition = `${defOfStep(base)}|lesson:2`;
+    const definition = `${defOfStep(base)}|lesson:4`;
     const kept = await queryOne<{ definition: string; body_json: string; updated_at: string }>(env.DB_QR,
       'SELECT definition, body_json, updated_at FROM qr_class_lesson WHERE passage_id = ? AND node_key = ? AND style = ?',
       [p.id, key, style ?? '']).catch(() => null);
-    let body: { slides: Array<{ id: string; audio?: unknown; example?: { audio?: unknown } | null }>; drills: number } | null = null;
+    type LessonSlide = { id: string; audio?: unknown; example?: { audio?: unknown } | null };
+    let body: { slides: LessonSlide[]; drills: number } | null = null;
     if (kept && kept.definition === definition && (!tafsir || Date.now() - Date.parse(kept.updated_at) < DAY_MS)) {
       try { body = JSON.parse(kept.body_json); } catch { body = null; }
     }
@@ -638,7 +664,10 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
       } else {
         let items = await stepPool(env, L, base, p);
         if (sentence) items = placeBySentence(items, await sentencesOf(env, p)).get(sentence) ?? [];
-        body = { slides: lessonOf(L, items, style), drills: items.length };
+        // style 'whole': the passage heard whole, from its first āyah — the Reading class's first node
+        const whole = style === WHOLE ? await passageSlide(env, L, p, WHOLE).catch(() => null) : null;
+        const slides: LessonSlide[] = style === WHOLE ? (whole ? [whole] : []) : lessonOf(L, items, style);
+        body = { slides, drills: style === WHOLE ? 0 : items.length };
       }
       if (body.slides.length) {
         await execute(env.DB_QR,

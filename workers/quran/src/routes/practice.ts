@@ -266,7 +266,7 @@ export function runOn(text: string | null): string | null {
 
 /// Each āyah with its words, their times in the recitation (where it numbers the words as the
 /// corpus does), its clip, its default English, and where it stands.
-async function loadAyat(env: QuranEnv, pairs: number[][]): Promise<Map<string, Ayah>> {
+export async function loadAyat(env: QuranEnv, pairs: number[][]): Promise<Map<string, Ayah>> {
   if (!pairs.length) return new Map();
   const inAyat = pairs.map(() => '(surah = ? AND ayah = ?)').join(' OR ');
   const flat = pairs.flat();
