@@ -365,20 +365,26 @@ function deckOf(id: string, title: string, titleAr: string, slides: Array<{ id: 
   };
 }
 
-type StyleCount = { key: string; total: number };
+/** A style's count, and whether it has a lesson worth a node: its drills explain something (a listening drill over a
+ *  line has nothing to teach before it — it is the line). */
+type StyleCount = { key: string; total: number; lesson?: boolean };
 
 /** How many drills of each style, in the order first met. */
 const countStyles = (items: Drill[]): StyleCount[] => {
-  const count = new Map<string, number>();
-  for (const d of items) { const k = styleOf(d); count.set(k, (count.get(k) ?? 0) + 1); }
-  return [...count].map(([key, total]) => ({ key, total }));
+  const count = new Map<string, number>(), teaches = new Set<string>();
+  for (const d of items) {
+    const k = styleOf(d);
+    count.set(k, (count.get(k) ?? 0) + 1);
+    if (String(d.explanation ?? '').trim()) teaches.add(k);
+  }
+  return [...count].map(([key, total]) => ({ key, total, lesson: teaches.has(key) }));
 };
 
 /** The pills: each style counted, titled by class_style (qr_149), in its order. */
 function namedStyles(L: Record<string, Label[]>, counts: StyleCount[]) {
   const names = byKey(L.class_style ?? []);
   const order = new Map((L.class_style ?? []).map((x, i) => [x.key, i]));
-  return counts.map(({ key, total }) => ({ key, total, title: names.get(key)?.label ?? key, titleAr: names.get(key)?.labelAr ?? '' }))
+  return counts.map(({ key, total, lesson }) => ({ key, total, lesson: lesson ?? false, title: names.get(key)?.label ?? key, titleAr: names.get(key)?.labelAr ?? '' }))
     .sort((a, b) => (order.get(a.key) ?? 999) - (order.get(b.key) ?? 999));
 }
 
@@ -464,7 +470,7 @@ async function nodeStats(env: QuranEnv, L: Record<string, Label[]>, p: Passage, 
   const kept = new Map(rows.map((r) => [r.node_key, r]));
   const sentDef = `|${sentences.map((x) => x.id).join(',')}`;
   type Want = { key: string; def: string; node: Label | null };
-  const want: Want[] = nodes.map((n) => ({ key: n.key, node: n, def: JSON.stringify(n.extra ?? {}) + (kindOf(n) === 'step' && perSentence(n) ? sentDef : '') }));
+  const want: Want[] = nodes.map((n) => ({ key: n.key, node: n, def: `s2|${JSON.stringify(n.extra ?? {})}${kindOf(n) === 'step' && perSentence(n) ? sentDef : ''}` }));
   if (!only || only.has(ROUND)) want.push({ key: ROUND, node: null, def: JSON.stringify((L.unit_round ?? []).map((r) => [r.key, r.extra?.n ?? null])) });
 
   const stats = new Map<string, NodeStat>();
