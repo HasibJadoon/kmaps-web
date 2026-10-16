@@ -112,14 +112,12 @@ const unitCard = (u: Unit, scenes: Scene[]) => ({
 
 const stepNodes = (L: Record<string, Label[]>) => (L.class_node ?? []).filter((n) => kindOf(n) === 'step');
 
-/** Every step's pools: a per-scene step by scene, keyed by node key. */
+/** Every step's pools: a per-scene step by scene, keyed by node key — every step and scene drawn at once. */
 async function pools(env: ArabicEnv, L: Record<string, Label[]>, u: Unit, scenes: Scene[]) {
   const out = new Map<string, Drill[]>();
-  for (const n of stepNodes(L)) {
-    if (!perScene(n)) continue;
-    const piles = await Promise.all(scenes.map((s) => scenePool(env, n, u.id, s.no)));
-    scenes.forEach((s, i) => out.set(sceneKey(n.key, s.no), piles[i]));
-  }
+  const steps = stepNodes(L).filter(perScene);
+  const piles = await Promise.all(steps.map((n) => Promise.all(scenes.map((s) => scenePool(env, n, u.id, s.no)))));
+  steps.forEach((n, j) => scenes.forEach((s, i) => out.set(sceneKey(n.key, s.no), piles[j][i])));
   return out;
 }
 
