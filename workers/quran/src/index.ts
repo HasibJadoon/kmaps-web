@@ -182,18 +182,24 @@ router.post('/qr/internal/root-spread', async (req, env) => {
 //              month (served while rebuilt behind for two more).
 //   authored — the study layers the builders are writing (steps, passages,
 //              tasks, the surah's worldview, xref, term references): fresh a
-//              minute, gone after an hour, on every table's version.
+//              minute, then served at once while rebuilt behind, for a week —
+//              the versions in the key already bring every triggered write in on
+//              the next read, so a long stale window never serves an edit late;
+//              it only spares the reader a cold build (the sūra grid scans
+//              whole-sūra tables).
 //   mixed    — vocabulary series and the morphology grid, which also read the
 //              linguistics worker: a day, then behind, a month at most.
 // First match wins.
 const BOOKS = { fresh: 30 * 86400, stale: 90 * 86400, family: 'books' };
-const AUTHORED = { fresh: 60, stale: 3600, family: ['books', 'rest'] };
+const AUTHORED = { fresh: 60, stale: 7 * 86400, family: ['books', 'rest'] };
 const MIXED = { fresh: 86400, stale: 30 * 86400, family: ['books', 'rest'] };
 // the class: what a passage's lesson is, the same for every reader. Its pools are drawn whole
 // and kept a day, so a device that opens a node a second time is dealt the same drills.
 const CLASS = { fresh: 86400, stale: 7 * 86400, family: ['books', 'rest'] };
 const KEPT: SwrRoute[] = [
   { re: /^\/qr\/practice\/class\//, ...CLASS },
+  // the practice home's counts (whole-table COUNTs, two linguistics calls): the same for everyone
+  { re: /^\/qr\/practice\/home$/, ...AUTHORED },
   { re: /^\/qr\/atlas\//, ...AUTHORED },
   { re: /^\/qr\/translation\//, ...AUTHORED },
   { re: /^\/qr\/study\/morph\//, ...MIXED },
