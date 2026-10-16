@@ -368,7 +368,10 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
       it.badges = [badge(it.bucket ? buckets.get(it.bucket) : undefined), badge(it.tier ? tiers.get(it.tier) : undefined)].filter(Boolean);
     }
     // dictation: one line of a speakable length, heard, then written out
-    const dict = mix(lines.filter((l) => { const n = l.ar.split(/\s+/).length; return n >= 4 && n <= 10 && rich(l); }))[0];
+    // only a line whose text is what the recording says: one corrected from the captions («الأصل في التفريغ …» in its
+    // note) may sound different from its tiles, so it is never dictated
+    const heardAsWritten = (l: Line) => !((l as Line & { note?: string | null }).note ?? '').includes('الأصل في التفريغ');
+    const dict = mix(lines.filter((l) => { const n = l.ar.split(/\s+/).length; return n >= 4 && n <= 10 && rich(l) && heardAsWritten(l); }))[0];
     // no typing: the line heard, then its words tapped back in order from tiles (two decoys from the scene's other lines)
     if (dict) {
       const toks = dict.ar.split(/\s+/).filter(Boolean);
