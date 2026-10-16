@@ -19,6 +19,10 @@ type Gt = { id: string; name_ar: string };
 type Sent = { id: string; ayah_from: number; ayah_to: number; ws: number | null; we: number | null; cls: string | null };
 type Word = { word_index: number; word_text: string; pos: string | null };
 type Timed = { t: string; s: number; e: number };
+type Story = { id: string; term_grp: string; term_ar: string; seq: number; title_en: string; surah: number; ayah_from: number; word_from: number;
+               ayah_to: number; word_to: number; marks_json: string; ask_en: string; answer_en: string; wrong_json: string; explain_en: string;
+               gc_ref: string | null; step_gc_ref: string | null; topic_ref: string | null; term_key: string | null;
+               match_json: string | null; layer: string; source_ref: string | null };
 
 const shuffle = <T>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const strip = (s: string) => s.replace(/[ً-ْٰۖ-ۭ]/g, '');
@@ -47,10 +51,10 @@ export async function readingSentenceDrills(env: QuranEnv, scope: Scope): Promis
   const ids = sentences.map((s) => s.id);
   const nums: number[] = [];
   for (let a = from; a <= Math.min(to, Math.max(...sentences.map((s) => s.ayah_to))); a++) nums.push(a);
-  const [ayat, posRows, clauses, phrases, units, terms, gts] = await Promise.all([
+  const [ayat, posRows, clauses, phrases, units, terms, stories, gts] = await Promise.all([
     loadAyat(env, nums.map((a) => [surah, a])),
-    query<Word & { ayah: number }>(env.DB_QR,
-      `SELECT ayah, word_index, word_text, pos FROM qr_word_occurrence WHERE surah = ? AND ayah BETWEEN ? AND ?`, [surah, from, to]),
+    query<Word & { ayah: number; lemma: string | null }>(env.DB_QR,
+      `SELECT ayah, word_index, word_text, pos, lemma FROM qr_word_occurrence WHERE surah = ? AND ayah BETWEEN ? AND ?`, [surah, from, to]),
     query<{ id: string; sentence_id: string; ayah_from: number; ayah_to: number; ws: number | null; we: number | null; ref: string | null }>(env.DB_QR,
       `SELECT id, sentence_id, ayah_from, ayah_to, word_start_index AS ws, word_end_index AS we, lx_clause_type_ref AS ref
          FROM qr_ss_occ_clause WHERE sentence_id IN (SELECT value FROM json_each(?)) AND COALESCE(is_virtual, 0) = 0 ORDER BY clause_order`,
@@ -66,6 +70,10 @@ export async function readingSentenceDrills(env: QuranEnv, scope: Scope): Promis
     query<{ source: string; grp: string; ayah: number; word_index: number | null; head_ar: string | null; label_en: string | null }>(env.DB_QR,
       `SELECT source, grp, ayah, word_index, head_ar, label_en FROM qr_drill_anchor
         WHERE family = 'keyterm' AND surah = ? AND source IN ('sinai_key_terms', 'sinai_cite')`, [surah]),
+    query<Story>(env.DB_QR,
+      `SELECT id, term_grp, term_ar, seq, title_en, surah, ayah_from, word_from, ayah_to, word_to, marks_json, ask_en, answer_en, wrong_json,
+              explain_en, gc_ref, step_gc_ref, topic_ref, term_key, match_json, layer, source_ref
+         FROM qr_keyterm_story WHERE status = 'live' AND term_key IS NOT NULL ORDER BY term_key, seq`).catch(() => [] as Story[]),
     query<Gt & { category_key: string }>(env.DB_QR,
       `SELECT id, name_ar, category_key FROM ar_ling_gram_term
         WHERE id IN ('GT:pos:ism', 'GT:pos:fil', 'GT:pos:harf') OR category_key = 'sentence_class'
@@ -79,7 +87,10 @@ export async function readingSentenceDrills(env: QuranEnv, scope: Scope): Promis
   const phraseSet = [...new Set(phrases.map((p) => p.ref).filter((r): r is string => !!r && gt.has(r)))];
   const posOf = new Map(posRows.map((w) => [`${w.ayah}:${w.word_index}`, w]));
   const enOf = new Map(units.map((u) => [u.scope_id, u.fluent_en]));
-  const cite = new Map(terms.filter((t) => t.source === 'sinai_cite' && t.label_en).map((t) => [t.grp, t.label_en!]));
+  // Sinai's citing note for a term, only where it is anchored on the same word (a note on the same entry elsewhere is
+  // about another use of it)
+  const cite = new Map(terms.filter((t) => t.source === 'sinai_cite' && t.label_en && t.word_index != null)
+    .map((t) => [`${t.grp}|${t.ayah}:${t.word_index}`, t.label_en!]));
   const glosses = [...new Set(terms.filter((t) => t.source === 'sinai_key_terms' && usable(t.label_en)).map((t) => t.label_en!.trim()))];
 
   const out: Drill[] = [];
@@ -188,8 +199,69 @@ export async function readingSentenceDrills(env: QuranEnv, scope: Scope): Promis
       out.push(card({ ...base(`keyterm:meaning:${surah}:${t.ayah}:${t.word_index}`, 'keyterm_meaning'), kind: 'feature', span: [i],
                       prompt: t.head_ar ?? l.ws[i].word_text, options: shuffle([answer, ...near]), answer,
                       audio: { url: l.audio.url, start: Math.max(l.audio.start, w.s - 0.04), end: Math.min(l.audio.end, w.e + 0.1) },
-                      line: l.audio, explanation: cite.get(t.grp) ?? null },
+                      line: l.audio, explanation: cite.get(`${t.grp}|${t.ayah}:${t.word_index}`) ?? null },
                     'keyterm', `${l.ws[i].word_text} (${t.head_ar ?? ''})`, answer));
+    }
+  }
+  // 5 · a key term's story, wherever it is met (its match: Sinai's entries on a word of the sentence, or a corpus lemma):
+  // the Qurʾān's own āyāt first, each recited with its answering words marked, then the history of the word, each step
+  // naming its source. The steps carry the story's own ids (KS:…), the same in every passage that meets the term, so
+  // review holds each once.
+  const storyOf = new Map<string, Story[]>();
+  for (const st of stories) (storyOf.get(st.term_key!) ?? storyOf.set(st.term_key!, []).get(st.term_key!)!).push(st);
+  const met = new Map<string, Line>();
+  for (const [key, steps] of storyOf) {
+    const m = (() => { try { return JSON.parse(steps[0].match_json ?? '{}') as { sinai?: string[]; lemmas?: string[] }; } catch { return {}; } })();
+    for (const l of lines) {
+      if (met.has(key)) break;
+      const bySinai = (m.sinai ?? []).some((g) => terms.some((t) => t.grp === g && t.word_index != null
+        && l.ws.some((w, i) => l.ays[i] === t.ayah && w.word_index === t.word_index)));
+      // lemmas compared in canonical form: the corpus writes shadda before fatha, a hand-typed lemma may not
+      const byLemma = (m.lemmas ?? []).some((lm) => l.ws.some((w, i) =>
+        (posOf.get(`${l.ays[i]}:${w.word_index}`)?.lemma ?? '').normalize('NFC') === lm.normalize('NFC')));
+      if (bySinai || byLemma) met.set(key, l);
+    }
+  }
+  if (met.size) {
+    const need = [...new Set([...met.keys()].flatMap((k) => storyOf.get(k)!.filter((st) => st.surah > 0).flatMap((st) =>
+      Array.from({ length: st.ayah_to - st.ayah_from + 1 }, (_, i) => `${st.surah}:${st.ayah_from + i}`))))];
+    const sAyat = need.length ? await loadAyat(env, need.map((k) => k.split(':').map(Number))) : new Map();
+    for (const [key, l] of met) {
+      for (const st of storyOf.get(key)!) {
+        const d: Drill = {
+          id: `keyterm:story:${st.id}`, ask: 'keyterm_story', kind: 'feature',
+          // stands where the term is met in this passage, so the class deals it in that sentence
+          at: { ayah: l.s.ayah_from, word: l.s.ws ?? 1 },
+          prompt: st.ask_en, options: shuffle([st.answer_en, ...(JSON.parse(st.wrong_json) as string[])]), answer: st.answer_en,
+          explanation: st.source_ref ? `${st.explain_en}\n— ${st.source_ref}` : st.explain_en, note: { en: st.title_en, ar: st.term_ar },
+          layer: st.layer, topic: st.topic_ref,
+          concepts: [st.gc_ref, st.step_gc_ref].filter((x, i, a): x is string => !!x && a.indexOf(x) === i),
+          source: { workId: st.surah ? `QR:SURAH:${st.surah}` : null, title: st.source_ref ?? null, level: null },
+        };
+        if (st.surah > 0) {
+          // a Qurʾān step: its āyāt, recited, the answering words marked
+          const parts = Array.from({ length: st.ayah_to - st.ayah_from + 1 }, (_, i) => sAyat.get(`${st.surah}:${st.ayah_from + i}`));
+          if (parts.some((p) => !p || !p.aligned || !p.audio) || new Set(parts.map((p) => p!.audio!.url)).size > 1) continue;
+          const words: Timed[] = [], ws: Word[] = [], ays: number[] = [];
+          for (const p of parts) p!.ws.forEach((w: Word, i: number) => {
+            if (p!.ayah === st.ayah_from && w.word_index < st.word_from) return;
+            if (p!.ayah === st.ayah_to && w.word_index > st.word_to) return;
+            words.push(p!.words[i]); ws.push(w); ays.push(p!.ayah);
+          });
+          if (!words.length) continue;
+          const marks = JSON.parse(st.marks_json) as number[][];
+          const range = st.ayah_to > st.ayah_from ? `${st.surah}:${st.ayah_from}–${st.ayah_to}` : `${st.surah}:${st.ayah_from}`;
+          const first = parts[0]!, last = parts[parts.length - 1]!;
+          Object.assign(d, {
+            script: 'quran', words, span: ws.flatMap((w, i) => marks.some(([a, f, t]) => ays[i] === a && w.word_index >= f && w.word_index <= t) ? [i] : []),
+            audio: { url: first.audio!.url, start: Math.max(first.audio!.start, words[0].s - 0.05), end: Math.min(last.audio!.end, words[words.length - 1].e + 0.15) },
+            source: { workId: `QR:SURAH:${st.surah}`, title: `${first.title.replace(/ \d+:\d+$/, '')} ${range}`, level: null },
+          });
+        }
+        // its card names the story step, not the passage: one review item wherever the term is met
+        out.push(withCard(d, { ref: `QR:keyterm:story:${st.id}`, type: 'concept', kind: 'keyterm', front: `${st.term_ar} — ${st.ask_en}`,
+                              back: `${st.answer_en}\n${st.explain_en}`, surah: st.surah || surah, ayah: st.ayah_from || null, series: st.term_ar }));
+      }
     }
   }
   return out;
