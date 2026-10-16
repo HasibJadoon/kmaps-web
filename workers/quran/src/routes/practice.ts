@@ -23,7 +23,7 @@ import { sarfDrills, sarfSheet, lexiconRoot, lexiconLemma } from './practice-sar
 import { ensureCard } from './practice-kit';
 
 /** Bump when the الصرف sheet's JSON changes shape or wording rules, so the edge cache starts afresh. */
-const SARF_SHEET_V = '2026-10-07h'
+const SARF_SHEET_V = '2026-10-16a'
 const LEX_PAGE_V = '2026-10-08k';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────

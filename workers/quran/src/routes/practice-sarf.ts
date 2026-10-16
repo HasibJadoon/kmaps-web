@@ -772,6 +772,14 @@ async function sarfSheetRaw(env: QuranEnv, scope: Scope, refresh = false) {
   const K = await kitOf(env, D, words.map((w) => w.sigha_gt));
   const { name, cite, oppositeView, nearView, verbView, pic, formNo, byForm, heads, lex } = K;
   const roots = [...new Set(words.map((w) => w.root))];
+  // a key term with a story deck (qr_keyterm_story): its card links to the slides, matched on the lemma
+  const stories = await query<{ term_key: string; term_en: string | null; term_ar: string; deck_slug: string | null; match_json: string | null }>(env.DB_QR,
+    `SELECT term_key, MAX(term_en) term_en, MAX(term_ar) term_ar, MAX(deck_slug) deck_slug, MAX(match_json) match_json
+       FROM qr_keyterm_story WHERE status = 'live' AND term_key IS NOT NULL GROUP BY term_key`).catch(() => []);
+  const storyBy = new Map<string, { key: string; deck: string | null; title: string | null; titleAr: string }>();
+  for (const s of stories) for (const lm of parseJson<{ lemmas?: string[] }>(s.match_json, {}).lemmas ?? [])
+    storyBy.set(lm.normalize('NFC'), { key: s.term_key, deck: s.deck_slug, title: s.term_en, titleAr: s.term_ar });
+  const storyOf = (w: Word) => { const l = lemmaTextOf(occOf(w)?.gid_lemma) ?? occOf(w)?.lemma; return l ? storyBy.get(l.normalize('NFC')) ?? null : null; };
   const lemmas = (r: string) => [...new Set(senses.filter((x) => x.root === r).map((x) => x.lemma_ar))];
   return {
     sections: heads.map((h) => ({ key: h.key, title: h.label, titleAr: h.label_ar, lede: h.detail })),
@@ -808,6 +816,8 @@ async function sarfSheetRaw(env: QuranEnv, scope: Scope, refresh = false) {
       props: tagsOf(w).map((g) => ({ id: g, ar: prop.get(g)!.name_ar, en: prop.get(g)!.name_en })),
       // the lemma (detail screen): its own form facts from AL, the same in every verse
       lemmaProps: lemmaPropsOf(occOf(w)?.gid_lemma),
+      // its story slides, when the word is a key term with one
+      story: storyOf(w),
       // how the root's words are used — this word's own lemma first, then the root's other lemmas
       constructions: (() => {
         const own = occOf(w)?.gid_lemma?.replace(/^AL:/, '');
