@@ -207,14 +207,14 @@ function sceneLabel(L: Record<string, Label[]>, step: Label, s: Scene): Label {
 }
 
 /** The node rows as the device draws them (the Qurʾān's shape: DrillKit ClassNode). */
-const nodeCard = (n: Label, drills: number, detail: string | null = null) => {
+const nodeCard = (n: Label, drills: number, detail: string | null = null, detailAr: string | null = null) => {
   const sprint = num(n.extra?.sprint, 12);
   const kind = kindOf(n);
   return {
     key: n.key, kind, step: n.extra?.step ?? null,
     title: n.label, titleAr: n.labelAr ?? '', tagline: n.detail ?? '', icon: n.icon ?? 'circle', color: n.color ?? '#D8B657',
     drills, sprint, sprints: kind === 'step' ? Math.max(1, Math.ceil(drills / sprint)) : 1,
-    pass: n.extra?.pass ?? null, detail,
+    pass: n.extra?.pass ?? null, detail, detailAr,
   };
 };
 
@@ -274,16 +274,16 @@ export function practiceClassRoutes(router: Router<ArabicEnv>) {
         const ww = (L.class_ui ?? []).find((l) => l.key === 'watch_scene');
         const watch = yt && s.start != null && s.end != null && s.end > s.start
           ? [{ ...nodeCard({ ...label, key: `${label.key}#watch`, label: ww?.label ?? label.label, labelAr: ww?.labelAr ?? label.labelAr,
-                             icon: ww?.icon ?? 'play.rectangle', extra: { kind: 'listen' } }, 0, label.detail),
+                             icon: ww?.icon ?? 'play.rectangle', extra: { kind: 'listen' } }, 0, label.detail, s.titleAr ?? null),
                content: 'video', video: { youtube: yt, start: s.start, end: s.end, title: label.detail ?? label.label, titleAr: s.titleAr,
                         captions: s.lines } }]
           : [];
-        if (!parts.length) return [...watch, nodeCard(label, k, label.detail)];
+        if (!parts.length) return [...watch, nodeCard(label, k, label.detail, s.titleAr ?? null)];
         // then the scene's drills, part by part: each opens the next, the last opens the next scene
         const fill = (t: string | null | undefined) => (t ?? '').replace('{n}', String(s.no));
         return [...watch, ...counts.map(({ p, k: m }) => nodeCard({ ...label, key: partKey(label.key, p.key), label: fill(p.label),
                                                                    labelAr: fill(p.labelAr), icon: p.icon ?? label.icon,
-                                                                   color: p.color ?? label.color }, m, label.detail))];
+                                                                   color: p.color ?? label.color }, m, label.detail, s.titleAr ?? null))];
       });
     });
     const any = [...countsBy.values()].some((m) => [...m.values()].some((c) => Object.values(c).some((x) => x > 0)));
