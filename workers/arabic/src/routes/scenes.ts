@@ -175,6 +175,9 @@ type Lexeme = { kind: string; phrase?: string; meanings?: Array<{ en: string; re
 const heardAsWritten = (l: Line) => !((l as Line & { note?: string | null }).note ?? '').includes('الأصل في التفريغ')
   && !(l.w ?? []).some((w) => w[1] - w[0] < 0.04);
 
+/// The meanings that are words: a gloss with a bracket, a digit or other debris is left out of a range question.
+const cleanSenses = (xs: string[] | undefined) => (xs ?? []).filter((x) => /^[a-z][a-z' -]{1,40}$/i.test(x.trim()));
+
 type Sarf = { madi?: string; mudari?: string; masdar?: string; masdar_pl?: string; senses?: string[]; pl?: string[]; sing?: string; mufrad?: string;
               jam?: string; verb?: string };
 
@@ -185,7 +188,7 @@ type Sarf = { madi?: string; mudari?: string; masdar?: string; masdar_pl?: strin
 function sarfDrills(sw: Array<{ scene_no: number; line: number; word_index: number; surface: string; word_class: string;
                                 lemma_ar: string | null; derivation: string | null; number: string | null; sarf_json: string | null }>,
                     no: string, scene: Scene, clip: (l: Line) => unknown, L: Record<string, Label[]>, source: unknown,
-                    rand: () => number, skip: (c: string) => boolean): Array<Record<string, unknown>> {
+                    rand: () => number, skip: (c: string) => boolean, verbForms: Map<string, Sarf> = new Map()): Array<Record<string, unknown>> {
   const mix = <U,>(xs: U[]) => shuffle(xs, rand);
   const ask = byKey(L.ask);
   const sarf = (j: string | null) => { try { return (j ? JSON.parse(j) : {}) as Sarf; } catch { return {} as Sarf; } };
@@ -208,7 +211,38 @@ function sarfDrills(sw: Array<{ scene_no: number; line: number; word_index: numb
     const opts = [...close, ...rest].slice(0, 3);
     return opts.length === 3 ? mix([answer, ...opts]) : null;
   };
+  // the episode's verbs with all three forms, and every word's senses by class — the near-misses of the sets below
+  const triples: Array<{ madi: string; mudari: string; masdar: string; form: number | null }> = [];
+  const senseBy = new Map<string, Set<string>>();
+  for (const w of sw) {
+    const f = sarf(w.sarf_json);
+    if (w.word_class === 'verb' && f.madi && f.mudari && f.masdar && !triples.some((t) => t.madi === f.madi)) {
+      triples.push({ madi: f.madi, mudari: f.mudari, masdar: f.masdar, form: (f as { form?: number }).form ?? null });
+    }
+    for (const x of cleanSenses(f.senses)) (senseBy.get(w.word_class) ?? senseBy.set(w.word_class, new Set()).get(w.word_class)!).add(x);
+  }
+  // past · present · action noun as one set, the wrong sets each with parts borrowed from other verbs of the episode
+  const triad = (f: Sarf): { right: string; options: string[] } | null => {
+    if (!f.madi || !f.mudari || !f.masdar) return null;
+    const fm = (f as { form?: number }).form ?? null;
+    const others = mix(triples.filter((t) => t.madi !== f.madi)).sort((p, q) => Number(q.form === fm) - Number(p.form === fm));
+    const set = (a: string, b: string, c: string) => `${a} · ${b} · ${c}`;
+    const right = set(f.madi, f.mudari, f.masdar);
+    const wrong = [others[0] && set(f.madi, others[0].mudari, f.masdar), others[1] && set(f.madi, f.mudari, others[1].masdar),
+                   others[2] && others[3] && set(f.madi, others[2].mudari, others[3].masdar)].filter((x): x is string => !!x && x !== right);
+    return new Set(wrong).size === 3 ? { right, options: mix([right, ...wrong]) } : null;
+  };
+  // every sense that belongs, among others that do not
+  const rangeOf = (raw: string[] | undefined, cls: string): { trues: string[]; options: string[] } | null => {
+    const senses = cleanSenses(raw);
+    if (senses.length < 2) return null;
+    const trues = senses.slice(0, 3); const used = new Set(trues.flatMap(tok));
+    const wrong = mix([...(senseBy.get(cls) ?? [])].filter((x) => !trues.includes(x) && !tok(x).some((t) => used.has(t)))).slice(0, 3);
+    return wrong.length === 3 ? { trues, options: mix([...trues, ...wrong]) } : null;
+  };
+  const tok = (x: string) => x.toLowerCase().replace(/^(be|to) /, '').split(/[ ,]+/).filter((t) => t.length > 2);
   const out: Array<Record<string, unknown>> = []; const done = new Set<string>();
+  const sceneVerbs: Array<{ f: Sarf; l: Line }> = []; const sceneNouns: Array<{ f: Sarf; l: Line }> = [];
   for (const w of sw.filter((x) => String(x.scene_no) === no)) {
     const a = bare(clean(w.surface)); const l = scene.lines[w.line - 1];
     if (!l || skip(a) || !heardAsWritten(l) || bare(clean(l.ar.trim().split(/\s+/)[w.word_index] ?? '')) !== a) continue;
@@ -231,6 +265,10 @@ function sarfDrills(sw: Array<{ scene_no: number; line: number; word_index: numb
     const built = hb ? hearBuildWord(l, w.word_index, url, rand) : null;
     if (hb && built) out.push({ ...base, ...built, id: `sarf:build:${w.lemma_ar ?? a}:${no}:${w.line}:${w.word_index}`, kind: 'dictation',
                                 target: null, prompt: null, instruction: hb.label, instructionAr: hb.labelAr });
+    // the word's whole range of meanings: pick every sense that belongs, among others that do not
+    const rq = ask.get("range"); const rg = rq && rangeOf(f.senses, w.word_class);
+    if (rq && rg) out.push({ ...base, id: `sarf:range:${w.lemma_ar ?? a}:${no}:${w.line}:${w.word_index}`, kind: 'vocab', interaction: 'choose_all',
+                             instruction: rq.label, instructionAr: rq.labelAr, answer: rg.trues.join(' / '), correct: rg.options.map((o, i) => (rg.trues.includes(o) ? i : -1)).filter((i) => i >= 0), options: rg.options });
     if (w.word_class === 'verb') {
       add('verb_meaning', sense(f, l.en ?? null), 'vsense');
       add('madi', f.madi, 'madi', [f.mudari, f.masdar]);
@@ -238,14 +276,57 @@ function sarfDrills(sw: Array<{ scene_no: number; line: number; word_index: numb
       add('masdar', f.masdar, 'masdar', [f.madi, f.mudari]);
       // the action noun's plural — only where that plural is in common use (heard in the scenes, kept in masdar_pl)
       if (f.masdar && f.masdar_pl) add('masdar_plural', f.masdar_pl, 'pl', [f.masdar], f.masdar);
+      // the three forms together: past · present · action noun, the wrong sets each with one part borrowed
+      const tr = ask.get('triad'); const t3 = tr && triad(f);
+      if (tr && t3) out.push({ ...base, id: `sarf:triad:${w.lemma_ar ?? a}:${no}:${w.line}:${w.word_index}`, kind: 'vocab',
+                              instruction: tr.label, instructionAr: tr.labelAr, answer: t3.right, options: t3.options });
+      sceneVerbs.push({ f, l });
     } else {
       const sing = f.sing ?? f.mufrad;
       add('noun_meaning', sense(f, l.en ?? null), 'nsense');
       if (w.number === 'p') add('singular', sing, 'sing', [f.pl?.[1]]);
       else add('plural', f.pl?.[0], 'pl', [sing, f.pl?.[1]]);
       if (w.derivation === 'mushtaqq') add('from_verb', f.verb, 'verb');
+      // fixed (jāmid) or derived (mushtaqq): a derived noun is only asked where the verb it comes from is known
+      const dq = ask.get('derivation'), oj = ask.get('opt_jamid'), om = ask.get('opt_mushtaqq');
+      if (dq && oj && om && (w.derivation === 'jamid' || (w.derivation === 'mushtaqq' && f.verb))) {
+        const right = w.derivation === 'jamid' ? oj.label : om.label;
+        out.push({ ...base, id: `sarf:derivation:${w.lemma_ar ?? a}:${no}:${w.line}:${w.word_index}`, kind: 'vocab',
+                   instruction: dq.label, instructionAr: dq.labelAr, answer: right, options: [oj.label, om.label],
+                   explanation: w.derivation === 'mushtaqq' ? `${f.sing ?? f.mufrad ?? ''} ← ${f.verb}` : null });
+      }
+      // a derived noun: the verb it comes from — its three forms together, and its range of meanings
+      const sv = w.derivation === 'mushtaqq' && f.verb ? verbForms.get(f.verb) : undefined;
+      if (sv) {
+        const ts = ask.get('triad_source'); const t3 = ts && triad(sv);
+        if (ts && t3) out.push({ ...base, id: `sarf:triad_source:${w.lemma_ar ?? a}:${no}:${w.line}:${w.word_index}`, kind: 'vocab',
+                                 instruction: ts.label, instructionAr: ts.labelAr, answer: t3.right, options: t3.options });
+        const rs = ask.get('range_source'); const rv = rs && rangeOf(sv.senses, 'verb');
+        if (rs && rv) out.push({ ...base, id: `sarf:range_source:${w.lemma_ar ?? a}:${no}:${w.line}:${w.word_index}`, kind: 'vocab', interaction: 'choose_all',
+                                 instruction: rs.label, instructionAr: rs.labelAr, answer: rv.trues.join(' / '), correct: rv.options.map((o, i) => (rv.trues.includes(o) ? i : -1)).filter((i) => i >= 0), options: rv.options });
+      }
+      sceneNouns.push({ f, l });
     }
   }
+  // matching sets of four: singular ↔ plural, past ↔ present, verb ↔ action noun — every word of the scene in a set
+  const chunks = <T,>(xs: T[]) => {
+    const g: T[][] = []; for (let i = 0; i < xs.length; i += 4) g.push(xs.slice(i, i + 4));
+    if (g.length > 1 && g[g.length - 1].length < 3) g[g.length - 2].push(...g.pop()!);
+    return g.filter((x) => x.length >= 3);
+  };
+  const sets = (k: string, bucket: string, xs: Array<{ f: Sarf; l: Line }>, pair: (f: Sarf) => string[] | null) => {
+    const q = ask.get(k); if (!q) return;
+    const ys = xs.map((x) => ({ x, p: pair(x.f) })).filter((y): y is { x: { f: Sarf; l: Line }; p: string[] } => !!y.p);
+    chunks(mix(ys)).forEach((g, i) => {
+      out.push({ id: `sarf:${k}:${no}:${i}`, kind: 'sarf_pairs', interaction: 'pairs', pairs: g.map((y) => y.p), bucket,
+                 audio: clip(g[0].x.l), words: timedWords(g[0].x.l), en: g[0].x.l.en ?? null, source,
+                 instruction: q.label, instructionAr: q.labelAr });
+    });
+  };
+  const uniq = <T,>(xs: T[], key: (x: T) => string | undefined) => { const seen = new Set<string>(); return xs.filter((x) => { const k = key(x); if (!k || seen.has(k)) return false; seen.add(k); return true; }); };
+  sets('pairs_number', 'noun', uniq(sceneNouns, (x) => x.f.pl?.[0] && (x.f.sing ?? x.f.mufrad)), (f) => (f.pl?.[0] ? [(f.sing ?? f.mufrad) as string, f.pl[0]] : null));
+  sets('pairs_tense', 'verb', uniq(sceneVerbs, (x) => x.f.madi && x.f.mudari), (f) => (f.madi && f.mudari ? [f.madi, f.mudari] : null));
+  sets('pairs_masdar', 'verb', uniq(sceneVerbs, (x) => x.f.madi && x.f.masdar), (f) => (f.madi && f.masdar ? [f.madi, f.masdar] : null));
   return out;
 }
 
@@ -418,7 +499,16 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
                      blank: w.word_index, answer: a, options: mix([a, ...opts]), en: l.en ?? null, source,
                      bucket: w.word_class === 'verb' ? 'verb' : 'noun' });
       }
-      for (const x of sarfDrills(sw, no, scene, clip, L, source, rand, (c) => c.length < 3 || isName(c) || isCommon(common, c, false))) items.push(x);
+      // the verbs the scene's derived nouns come from, with their forms (they may be met in another episode)
+      const srcVerbs = [...new Set(sw.flatMap((w) => { try { const f = JSON.parse(w.sarf_json ?? '{}') as { verb?: string }; return w.derivation === 'mushtaqq' && f.verb ? [f.verb] : []; } catch { return []; } }))];
+      const verbForms = new Map<string, Record<string, unknown>>();
+      for (let i = 0; i < srcVerbs.length; i += 40) {
+        const chunk = srcVerbs.slice(i, i + 40);
+        const rows = await query<{ lemma_ar: string; sarf_json: string }>(env.DB_AR,
+          `SELECT lemma_ar, MAX(sarf_json) AS sarf_json FROM ar_scene_word WHERE word_class = 'verb' AND lemma_ar IN (${chunk.map(() => '?').join(',')}) GROUP BY lemma_ar`, chunk).catch(() => []);
+        for (const r of rows) { try { verbForms.set(r.lemma_ar, JSON.parse(r.sarf_json)); } catch { /* none */ } }
+      }
+      for (const x of sarfDrills(sw, no, scene, clip, L, source, rand, (c) => c.length < 3 || isName(c) || isCommon(common, c, false), verbForms as Map<string, never>)) items.push(x);
     }
 
     // who said it — where the scene has more than one voice
