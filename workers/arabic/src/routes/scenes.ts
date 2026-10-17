@@ -103,7 +103,7 @@ function hearBuildWord(l: Line, i: number, url: string | null, rand: Rand) {
   const toks = l.ar.trim().split(/\s+/);
   if (!url || (l.w ?? []).length !== toks.length || !toks[i]) return null;
   const ls = letters(toks[i]);
-  if (ls.length < 3 || ls.length > 10) return null;
+  if (ls.length < 3 || ls.length > 10 || l.w![i][1] - l.w![i][0] < 0.15) return null;   // too short a clip to be the word
   const pool = [...new Set(ls.flatMap((c) => SOUNDALIKE[c] ?? []))].filter((c) => !ls.includes(c));
   const decoys = shuffle(pool, rand).slice(0, ls.length > 6 ? 2 : 3);
   const order = shuffle([...ls.map((_, k) => k), ...decoys.map((_, k) => -1 - k)], rand);
@@ -171,7 +171,9 @@ type Lexeme = { kind: string; phrase?: string; meanings?: Array<{ en: string; re
                                                            lexica: Array<{ source: string; text: string; page: number | null }> }> };
 
 /// A line whose words are what is heard — not one the captions corrected toward the written form ('الأصل في التفريغ').
-const heardAsWritten = (l: Line) => !((l as Line & { note?: string | null }).note ?? '').includes('الأصل في التفريغ');
+/// Nor one whose word timings collapsed (a word of a hundredth of a second): the text is then not what the clip says.
+const heardAsWritten = (l: Line) => !((l as Line & { note?: string | null }).note ?? '').includes('الأصل في التفريغ')
+  && !(l.w ?? []).some((w) => w[1] - w[0] < 0.04);
 
 type Sarf = { madi?: string; mudari?: string; masdar?: string; masdar_pl?: string; senses?: string[]; pl?: string[]; sing?: string; mufrad?: string;
               jam?: string; verb?: string };
