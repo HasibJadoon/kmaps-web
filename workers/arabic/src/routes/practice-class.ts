@@ -98,12 +98,15 @@ async function keptPools(env: ArabicEnv, node: Label, unit: string, nos: number[
   const built: Drill[][] = [];
   for (let i = 0; i < missing.length; i += 4) built.push(...await Promise.all(missing.slice(i, i + 4).map((n) => buildPool(env, node, unit, n))));
   missing.forEach((n, i) => out.set(n, built[i]));
-  if (missing.length) {
-    await env.DB_AR.batch(missing.map((n, i) => env.DB_AR.prepare(
+  // an empty build is a failed one (a scene with lines always has drills): it is served, never kept, so the next read
+  // tries again instead of the scene dropping off the path for good
+  const keep = missing.map((n, i) => ({ n, xs: built[i] })).filter((x) => x.xs.length > 0);
+  if (keep.length) {
+    await env.DB_AR.batch(keep.map(({ n, xs }) => env.DB_AR.prepare(
       `INSERT INTO ar_class_pool (unit_id, scene_no, def, items_json, counts_json, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now'))
        ON CONFLICT (unit_id, scene_no) DO UPDATE SET def = excluded.def, items_json = excluded.items_json,
          counts_json = excluded.counts_json, updated_at = excluded.updated_at`)
-      .bind(unit, n, def, JSON.stringify(built[i]), JSON.stringify(sorts(built[i]))))).catch(() => null);
+      .bind(unit, n, def, JSON.stringify(xs), JSON.stringify(sorts(xs))))).catch(() => null);
   }
   return out;
 }
