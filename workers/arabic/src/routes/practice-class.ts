@@ -70,7 +70,7 @@ export function scenesOf(u: Unit): Scene[] {
 
 /** What builds a scene's pool: bump POOL_V when the drills a round makes change (new kinds, new data), and every kept
  *  pool is rebuilt on its next read. */
-const POOL_V = '2026-10-17a';
+const POOL_V = '2026-10-17a';   // after a bump, warm every unit's path once (each unit's first read builds its pools)
 const poolDef = (node: Label) => `${POOL_V}:${num(node.extra?.max, 40)}`;
 
 /** One scene's drills for the class, built: the scene's round drawn large, seeded by unit and scene. */
@@ -94,7 +94,9 @@ async function keptPools(env: ArabicEnv, node: Label, unit: string, nos: number[
   const out = new Map<number, Drill[]>();
   for (const r of rows) if (r.def === def && nos.includes(r.scene_no)) { try { out.set(r.scene_no, JSON.parse(r.items_json)); } catch { /* rebuild */ } }
   const missing = nos.filter((n) => !out.has(n));
-  const built = await Promise.all(missing.map((n) => buildPool(env, node, unit, n)));
+  // built four scenes at a time: a long episode (up to 80 scenes) all at once overruns D1 and a request's subrequests
+  const built: Drill[][] = [];
+  for (let i = 0; i < missing.length; i += 4) built.push(...await Promise.all(missing.slice(i, i + 4).map((n) => buildPool(env, node, unit, n))));
   missing.forEach((n, i) => out.set(n, built[i]));
   if (missing.length) {
     await env.DB_AR.batch(missing.map((n, i) => env.DB_AR.prepare(
@@ -164,6 +166,24 @@ function parted(parts: Part[], items: Drill[]): Map<string, Drill[]> {
   return out;
 }
 const partKey = (scene: string, part: string) => `${scene}#${part}`;
+
+/** A drill's card carries a copy of the drill to replay in review (gt-attach) — over half of every node's bytes. A
+ *  device that asks for slim (&slim=1) gets the drill once, its card marked `drill: true`, and makes the copy itself
+ *  when it files the card (DrillKit DrillRaw); an older device gets the copy as before. */
+function slimmed(items: Drill[], slim: boolean): Drill[] {
+  if (!slim) return items;
+  return items.map((d) => {
+    const srs = d.srs as { extra?: Record<string, unknown> } | undefined;
+    if (!srs?.extra) return d;
+    const ex: Record<string, unknown> = { ...srs.extra };
+    if (ex.drill) ex.drill = true;
+    // the clip and its timed words, where they are the drill's own, go too: the device puts them back from the drill
+    const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+    if (ex.words && same(ex.words, d.words)) { delete ex.words; ex.words_from_drill = true; }
+    if (ex.audio && same(ex.audio, d.audio)) { delete ex.audio; ex.audio_from_drill = true; }
+    return { ...d, srs: { ...srs, extra: ex } };
+  });
+}
 
 /** Piles taken from in turn, so a mixed sprint is not all one scene; seeded, so the same each time. */
 export function interleave<T>(piles: T[][], n: number): T[] {
@@ -304,7 +324,7 @@ export function practiceClassRoutes(router: Router<ArabicEnv>) {
       }
     }
     const res = ok({ passage: unitCard(u, scenes), node: nodeCard(node, items.length, kind === 'step' ? node.detail : null),
-                     items: await attachGt(env.DB_AR, items), bands: bandsOf(L), stage: L.stage ?? [] });
+                     items: slimmed(await attachGt(env.DB_AR, items), q.get('slim') === '1'), bands: bandsOf(L), stage: L.stage ?? [] });
     return res;
   });
 }
