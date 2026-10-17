@@ -70,7 +70,7 @@ export function scenesOf(u: Unit): Scene[] {
 
 /** What builds a scene's pool: bump POOL_V when the drills a round makes change (new kinds, new data), and every kept
  *  pool is rebuilt on its next read. */
-const POOL_V = '2026-10-17a';   // after a bump, warm every unit's path once (each unit's first read builds its pools)
+const POOL_V = '2026-10-17b';   // after a bump, warm every unit's path once (each unit's first read builds its pools)
 const poolDef = (node: Label) => `${POOL_V}:${num(node.extra?.max, 40)}`;
 
 /** One scene's drills for the class, built: the scene's round drawn large, seeded by unit and scene. */

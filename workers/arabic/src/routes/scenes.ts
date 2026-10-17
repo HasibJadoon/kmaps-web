@@ -89,6 +89,44 @@ function timedWords(l: Line) {
   return toks.map((t, i) => ({ t, s: timed ? l.w![i][0] : l.start, e: timed ? l.w![i][1] : l.end }));
 }
 
+/// The letters English ears confuse, each with the ones it is heard as: the decoys of a word built from its letters.
+const SOUNDALIKE: Record<string, string[]> = {
+  'ح': ['ه', 'خ'], 'ه': ['ح'], 'خ': ['ح', 'غ'], 'ع': ['ء', 'أ'], 'ء': ['ع'], 'أ': ['ع', 'ا'], 'غ': ['خ', 'ق'],
+  'ق': ['ك', 'غ'], 'ك': ['ق'], 'ص': ['س'], 'س': ['ص', 'ث'], 'ض': ['د', 'ظ'], 'د': ['ض', 'ذ'], 'ط': ['ت'], 'ت': ['ط'],
+  'ظ': ['ذ', 'ز', 'ض'], 'ذ': ['ز', 'ظ', 'د'], 'ز': ['ذ'], 'ث': ['س', 'ت'], 'ة': ['ه', 'ت'], 'ى': ['ي', 'ا'], 'ي': ['ى'],
+};
+const letters = (w: string) => [...w.replace(/[\u064B-\u0652\u0670\u0640]/g, '').replace(/[^\u0621-\u064A]/g, '')];
+
+/// A word heard alone — cut from its line by its timing — then built from its letters, with letters it sounds like
+/// among them. Null when the line has no word timings (the clip would not be the word) or the word is too short/long.
+function hearBuildWord(l: Line, i: number, url: string | null, rand: Rand) {
+  const toks = l.ar.trim().split(/\s+/);
+  if (!url || (l.w ?? []).length !== toks.length || !toks[i]) return null;
+  const ls = letters(toks[i]);
+  if (ls.length < 3 || ls.length > 10) return null;
+  const pool = [...new Set(ls.flatMap((c) => SOUNDALIKE[c] ?? []))].filter((c) => !ls.includes(c));
+  const decoys = shuffle(pool, rand).slice(0, ls.length > 6 ? 2 : 3);
+  const order = shuffle([...ls.map((_, k) => k), ...decoys.map((_, k) => -1 - k)], rand);
+  return { interaction: 'listen_tiles', tileMode: 'arrange', tokens: order.map((k) => (k >= 0 ? ls[k] : decoys[-1 - k])),
+           solution: ls.map((_, k) => order.indexOf(k)), answer: ls.join(''),
+           // the word alone, and its line around it: the line is shown with the word missing, the line's clip beside it
+           audio: { url, start: Math.max(0, l.w![i][0] - 0.06), end: l.w![i][1] + 0.1 }, line: { url, start: l.start, end: l.end },
+           words: toks.map((t, k) => ({ t, s: l.w![k][0], e: l.w![k][1] })), blank: i };
+}
+
+/// A phrase (an idiom's span) heard alone, then built from its words, two of the line's or scene's other words among them.
+function hearBuildPhrase(l: Line, span: [number, number], others: string[], url: string | null, rand: Rand) {
+  const toks = l.ar.trim().split(/\s+/);
+  const ws = toks.slice(span[0], span[1] + 1);
+  if (!url || (l.w ?? []).length !== toks.length || ws.length < 2 || ws.length > 8) return null;
+  const decoys = shuffle(others.filter((w) => w.length >= 2 && !ws.includes(w)).filter((w, k, a) => a.indexOf(w) === k), rand).slice(0, 2);
+  const order = shuffle([...ws.map((_, k) => k), ...decoys.map((_, k) => -1 - k)], rand);
+  return { interaction: 'listen_tiles', tileMode: 'arrange', tokens: order.map((k) => (k >= 0 ? ws[k] : decoys[-1 - k])),
+           solution: ws.map((_, k) => order.indexOf(k)), answer: ws.join(' '),
+           audio: { url, start: Math.max(0, l.w![span[0]][0] - 0.06), end: l.w![span[1]][1] + 0.1 },
+           words: ws.map((t, k) => ({ t, s: l.w![span[0] + k][0], e: l.w![span[0] + k][1] })) };
+}
+
 /// The scene's hard words: long, not among the lightest, and rare in the episode.
 function hardWords(sc: Scene, ep: Script) {
   const freq = new Map<string, number>();
@@ -185,6 +223,12 @@ function sarfDrills(sw: Array<{ scene_no: number; line: number; word_index: numb
                  explanation: [f.madi && f.mudari ? `${f.madi} – ${f.mudari}${f.masdar ? ` – ${f.masdar}` : ''}` : null,
                                f.pl?.[0] ? `${f.sing ?? f.mufrad ?? ''} – ${f.pl[0]}` : null].filter(Boolean).join(' · ') || null });
     };
+    // first the word heard alone and built from its letters — sound to spelling, before meaning and forms
+    const hb = ask.get('hear_build_word');
+    const url = ((clip(l) as { url?: string | null }) ?? {}).url ?? null;
+    const built = hb ? hearBuildWord(l, w.word_index, url, rand) : null;
+    if (hb && built) out.push({ ...base, ...built, id: `sarf:build:${w.lemma_ar ?? a}:${no}:${w.line}:${w.word_index}`, kind: 'dictation',
+                                target: null, prompt: null, instruction: hb.label, instructionAr: hb.labelAr });
     if (w.word_class === 'verb') {
       add('verb_meaning', sense(f, l.en ?? null), 'vsense');
       add('madi', f.madi, 'madi', [f.mudari, f.masdar]);
@@ -444,6 +488,11 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
                      span: range(x.span), prompt: x.phrase, answer: x.meaning, options: mix([x.meaning, ...x.distractors.slice(0, 3)]),
                      explanation: [x.literal ? `Literally: ${x.literal}` : null, x.note].filter(Boolean).join(' — ') || null,
                      en: l.en ?? null, source, tier: x.tier ?? null, bucket: 'idiom' });
+        // and the phrase heard alone, then built from its words
+        const hp = byKey(L.ask).get('hear_build_phrase');
+        const pb = hp ? hearBuildPhrase(l, x.span, lines.flatMap((y) => y.ar.split(/\s+/)), url, rand) : null;
+        if (hp && pb) items.push({ ...pb, id: `idiombuild:${unit}:${no}:${x.line}:${x.span[0]}`, kind: 'dictation', en: l.en ?? null,
+                                   source, tier: x.tier ?? null, bucket: 'idiom', instruction: hp.label, instructionAr: hp.labelAr });
       }
       // what is worth noticing in how a line is built — its grammar or its rhetoric
       type Feat = { line: number; text: string; span: [number, number]; feature: string; term_ar?: string; q: string;
