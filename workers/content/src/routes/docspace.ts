@@ -20,6 +20,11 @@ interface DocNote {
   passage_ref: string | null;
   /** The words it was written about, kept so the backlink reads on its own. */
   quote: string | null;
+  /** Where the idea is in its journey (brainstorm · draft · review · published), and the piece it is a thread of. */
+  stage: string | null;
+  parent_ref: string | null;
+  published_doc_ref: string | null;
+  published_at: string | null;
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
@@ -29,6 +34,7 @@ const SELECT = `
   SELECT note_id AS id, note_type, title, body_text AS body, visibility, domain,
          surah, ayah_from, ayah_to, is_pinned, tags_json, folder_ref, deleted_at,
          passage_ref, json_extract(meta_json,'$.quote') AS quote,
+         stage, parent_ref, published_doc_ref, published_at,
          created_at, updated_at
   FROM cm_notes`;
 
@@ -42,7 +48,69 @@ function intOrNull(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** The first stage of a shelf that has stages (or the one asked for, if it is one of them); null on a shelf without. */
+async function stageForNew(env: ContentEnv, domain: string | null, asked: unknown, _owner: string): Promise<string | null> {
+  if (!domain) return null;
+  const rows = await query<{ stage_key: string }>(env.DB_CM, `SELECT stage_key FROM cm_note_stage WHERE domain_key = ? ORDER BY sort_order`, [domain]);
+  if (!rows.length) return null;
+  return typeof asked === 'string' && rows.some((r) => r.stage_key === asked) ? asked : rows[0].stage_key;
+}
+
+const slugify = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'piece';
+
 export function docSpaceRoutes(router: Router<ContentEnv>) {
+
+  // a shelf's stages, in order (the workflow's names, hints and colours are rows)
+  router.get('/cm/docspace/stages', async (req, env) => {
+    const domain = new URL(req.url).searchParams.get('domain');
+    const rows = await query(env.DB_CM,
+      `SELECT stage_key, title, title_ar, hint, empty_text, accent, icon FROM cm_note_stage ${domain ? 'WHERE domain_key = ?' : ''} ORDER BY sort_order`,
+      domain ? [domain] : []);
+    return ok({ stages: rows });
+  });
+
+  // Publish: the note and its threads, in order, become one read-only essay (the essay reader lays it out). Publishing
+  // again updates it; the note moves to 'published' and keeps working as a note.
+  router.post('/cm/docspace/:id/publish', async (req, env, { id }) => {
+    const owner = ownerOf(req);
+    if (!owner) return unauthorized('Sign in required');
+    const note = await queryOne<{ note_id: string; title: string | null; body_text: string; tags_json: string | null; domain: string | null; published_doc_ref: string | null }>(
+      env.DB_CM, `SELECT note_id, title, body_text, tags_json, domain, published_doc_ref FROM cm_notes WHERE note_id = ? AND core_user_ref = ? AND deleted_at IS NULL`, [id, owner]);
+    if (!note) return notFound(`note ${id}`);
+    const threads = await query<{ title: string | null; body_text: string }>(env.DB_CM,
+      `SELECT title, body_text FROM cm_notes WHERE parent_ref = ? AND core_user_ref = ? AND deleted_at IS NULL ORDER BY created_at`, [id, owner]);
+    const title = (note.title ?? '').trim() || (note.body_text.split('\n').find((l) => l.trim()) ?? 'Untitled').replace(/^#+\s*/, '').slice(0, 120);
+    const md = [note.body_text.trim(), ...threads.map((t) => `## ${(t.title ?? '').trim() || 'Thread'}\n\n${t.body_text.trim()}`)].filter(Boolean).join('\n\n');
+    if (!md.trim()) return badRequest('Nothing to publish yet — write something first.');
+    const docId = note.published_doc_ref ?? typedId('CM');
+    const slug = `${slugify(title)}-${docId.slice(-6).toLowerCase()}`;
+    const words = md.split(/\s+/).length;
+    await executeBatch(env.DB_CM, [
+      { sql: `INSERT INTO cm_documents (doc_id, core_user_ref, doc_type, title, slug, language, word_count, reading_time_min, publication_state, tags_json, meta_json, domain)
+              VALUES (?, ?, 'essay', ?, ?, 'en', ?, ?, 'published', ?, ?, ?)
+              ON CONFLICT (doc_id) DO UPDATE SET title = excluded.title, word_count = excluded.word_count, reading_time_min = excluded.reading_time_min,
+                publication_state = 'published', tags_json = excluded.tags_json, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')`,
+        params: [docId, owner, title, slug, words, Math.max(1, Math.round(words / 220)), note.tags_json ?? '[]', JSON.stringify({ source_note: id, kicker: 'Worldview' }), note.domain] },
+      { sql: `DELETE FROM cm_blocks WHERE doc_id = ? AND block_type = 'markdown'`, params: [docId] },
+      { sql: `INSERT INTO cm_blocks (block_id, doc_id, block_type, seq_order, content_text) VALUES (?, ?, 'markdown', 0, ?)`, params: [typedId('CB'), docId, md] },
+      { sql: `UPDATE cm_notes SET stage = 'published', published_doc_ref = ?, published_at = strftime('%Y-%m-%dT%H:%M:%SZ','now'),
+                updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE note_id = ? AND core_user_ref = ?`, params: [docId, id, owner] },
+    ]);
+    return ok({ docId, slug, title, words });
+  });
+
+  // Unpublish: the essay stops being a finished read; the note goes back to review.
+  router.post('/cm/docspace/:id/unpublish', async (req, env, { id }) => {
+    const owner = ownerOf(req);
+    if (!owner) return unauthorized('Sign in required');
+    const note = await queryOne<{ published_doc_ref: string | null }>(env.DB_CM, `SELECT published_doc_ref FROM cm_notes WHERE note_id = ? AND core_user_ref = ?`, [id, owner]);
+    if (!note) return notFound(`note ${id}`);
+    await executeBatch(env.DB_CM, [
+      ...(note.published_doc_ref ? [{ sql: `UPDATE cm_documents SET publication_state = 'draft', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE doc_id = ? AND core_user_ref = ?`, params: [note.published_doc_ref, owner] }] : []),
+      { sql: `UPDATE cm_notes SET stage = 'review', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE note_id = ? AND core_user_ref = ?`, params: [id, owner] },
+    ]);
+    return ok({ id, stage: 'review' });
+  });
 
   interface FolderRow {
     id: string; parent_ref: string | null; name: string;
@@ -170,6 +238,10 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     }
     if (domain) { where.push(`domain = ?`); params.push(domain); }
     if (surah !== null) { where.push(`surah = ?`); params.push(surah); }
+    const stage = url.searchParams.get('stage');
+    if (stage) { where.push(`stage = ?`); params.push(stage); }
+    const parent = url.searchParams.get('parent');
+    if (parent) { where.push(`parent_ref = ?`); params.push(parent); }
     const tag = url.searchParams.get('tag')?.trim();
 
     if (tag) { where.push(`tags_json LIKE ?`); params.push(`%${JSON.stringify(tag)}%`); }
@@ -226,9 +298,9 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
       env.DB_CM,
       `INSERT INTO cm_notes
          (note_id, core_user_ref, note_type, title, body_text, is_pinned,
-          tags_json, meta_json, visibility, domain, surah, ayah_from, ayah_to,
+          tags_json, meta_json, visibility, domain, surah, ayah_from, ayah_to, stage, parent_ref,
           created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 0, '[]', '{}', ?, ?, ?, ?, ?,
+       VALUES (?, ?, ?, ?, ?, 0, '[]', '{}', ?, ?, ?, ?, ?, ?, ?,
                strftime('%Y-%m-%dT%H:%M:%SZ','now'), strftime('%Y-%m-%dT%H:%M:%SZ','now'))`,
       [
         id, owner,
@@ -238,6 +310,8 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
         visibility,
         (b['domain'] as string | null) ?? null,
         intOrNull(b['surah']), intOrNull(b['ayah_from']), intOrNull(b['ayah_to']),
+        // a new idea on a shelf that has stages starts at the first one
+        await stageForNew(env, (b['domain'] as string | null) ?? null, b['stage'], owner), (b['parent_ref'] as string | null) ?? null,
       ],
     );
     const row = await queryOne<DocNote>(env.DB_CM, `${SELECT} WHERE note_id = ?`, [id]);
@@ -274,6 +348,12 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
       }
       sets.push('folder_ref = ?'); params.push(fref);
     }
+    if (b['stage'] !== undefined) {
+      const ok2 = b['stage'] === null || await queryOne(env.DB_CM, `SELECT 1 FROM cm_note_stage WHERE stage_key = ?`, [String(b['stage'])]);
+      if (!ok2) return badRequest('unknown stage');
+      sets.push('stage = ?'); params.push(b['stage'] === null ? null : String(b['stage']));
+    }
+    if (b['parent_ref'] !== undefined) { sets.push('parent_ref = ?'); params.push((b['parent_ref'] as string | null) ?? null); }
     if (b['domain'] !== undefined) { sets.push('domain = ?'); params.push((b['domain'] as string | null) ?? null); }
     if (b['surah'] !== undefined) { sets.push('surah = ?'); params.push(intOrNull(b['surah'])); }
     if (b['ayah_from'] !== undefined) { sets.push('ayah_from = ?'); params.push(intOrNull(b['ayah_from'])); }
