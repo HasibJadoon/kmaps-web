@@ -287,8 +287,31 @@ export function practiceClassRoutes(router: Router<ArabicEnv>) {
       });
     });
     const any = [...countsBy.values()].some((m) => [...m.values()].some((c) => Object.values(c).some((x) => x > 0)));
-    return ok({ passage: unitCard(u, scenes), nodes: any ? nodes : [], bands: bandsOf(L),
+    return ok({ v: POOL_V, passage: unitCard(u, scenes), nodes: any ? nodes : [], bands: bandsOf(L),
                 words: L.class_ui ?? [], stage: L.stage ?? [], round: null });
+  });
+
+  // A scene whole: every part's drills in one read, so a device fetches a scene once, keeps it, and opens every part of
+  // it from the device. Same payload as the parts' own node reads (slim when asked).
+  router.get('/ar/practice/class/scene', async (req, env) => {
+    const q = new URL(req.url).searchParams;
+    const id = q.get('unit'); const no = Number(q.get('scene'));
+    if (!id || !Number.isInteger(no) || no < 1) return badRequest('unit and scene are required');
+    const [L, u] = await Promise.all([labels(env), unitOf(env, id)]);
+    if (!u) return notFound(`unit ${id}`);
+    const s = scenesOf(u).find((x) => x.no === no);
+    if (!s) return notFound(`scene ${no} of ${id}`);
+    const parts = partsOf(L);
+    const out: Array<{ key: string; items: Drill[] }> = [];
+    for (const n of stepNodes(L).filter(perScene)) {
+      const items = await scenePool(env, n, u.id, no, q.get('refresh') === '1');
+      const label = sceneLabel(L, n, s);
+      if (!parts.length) { out.push({ key: label.key, items: slimmed(await attachGt(env.DB_AR, items), q.get('slim') === '1') }); continue; }
+      for (const [p, xs] of parted(parts, items)) {
+        if (xs.length) out.push({ key: partKey(label.key, p), items: slimmed(await attachGt(env.DB_AR, xs), q.get('slim') === '1') });
+      }
+    }
+    return ok({ scene: no, v: POOL_V, parts: out });
   });
 
   router.get('/ar/practice/class/node', async (req, env) => {
