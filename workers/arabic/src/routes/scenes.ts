@@ -97,8 +97,7 @@ const SOUNDALIKE: Record<string, string[]> = {
 };
 const letters = (w: string) => [...w.replace(/[\u064B-\u0652\u0670\u0640]/g, '').replace(/[^\u0621-\u064A]/g, '')];
 
-/// A word heard alone — cut from its line by its timing — then built from its letters, with letters it sounds like
-/// among them. Null when the line has no word timings (the clip would not be the word) or the word is too short/long.
+/// A word heard in its line, then built from its letters, with letters it sounds like among them. Null when the line has no word timings (the clip would not be the word) or the word is too short/long.
 function hearBuildWord(l: Line, i: number, url: string | null, rand: Rand) {
   const toks = l.ar.trim().split(/\s+/);
   if (!url || (l.w ?? []).length !== toks.length || !toks[i]) return null;
@@ -109,8 +108,9 @@ function hearBuildWord(l: Line, i: number, url: string | null, rand: Rand) {
   const order = shuffle([...ls.map((_, k) => k), ...decoys.map((_, k) => -1 - k)], rand);
   return { interaction: 'listen_tiles', tileMode: 'arrange', tokens: order.map((k) => (k >= 0 ? ls[k] : decoys[-1 - k])),
            solution: ls.map((_, k) => order.indexOf(k)), answer: ls.join(''),
-           // the word alone, and its line around it: the line is shown with the word missing, the line's clip beside it
-           audio: { url, start: Math.max(0, l.w![i][0] - 0.06), end: l.w![i][1] + 0.1 }, line: { url, start: l.start, end: l.end },
+           // one recording: the scene's line, as heard; the line is shown with the word missing, and its words light as
+           // they are said, so the gap is heard in its place
+           audio: { url, start: l.start, end: l.end },
            words: toks.map((t, k) => ({ t, s: l.w![k][0], e: l.w![k][1] })), blank: i };
 }
 
