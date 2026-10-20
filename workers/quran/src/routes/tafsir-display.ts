@@ -127,13 +127,14 @@ export function tafsirDisplayRoutes(router: Router<QuranEnv>) {
         hydrateBlock(r as Record<string, unknown>) as unknown as Record<string, unknown> & { id: string; source_slug: string });
     if (!blocks.length) return notFound('no display blocks');
 
-    const blockIds: string[] = blocks.map((b: { id: string }) => b.id);
-    const idPh = blockIds.map(() => '?').join(',');
+    // the block ids as one JSON list: a sūra's long group (أبو حيان's 78 blocks) is more than D1's 100 bound values
+    const blockIds = JSON.stringify(blocks.map((b: { id: string }) => b.id));
+    const IDS = 'SELECT value FROM json_each(?)';
     const [tagsRes, refsRes, notesRes, linksRes] = await Promise.all([
-      env.DB_QR.prepare(`SELECT * FROM qr_tafsir_book_display_tag WHERE block_id IN (${idPh})`).bind(...blockIds).all(),
-      env.DB_QR.prepare(`SELECT * FROM qr_tafsir_book_display_ref WHERE block_id IN (${idPh})`).bind(...blockIds).all(),
-      env.DB_QR.prepare(`SELECT * FROM qr_tafsir_book_display_note WHERE block_id IN (${idPh}) AND review_status != 'rejected'`).bind(...blockIds).all(),
-      env.DB_QR.prepare(`SELECT * FROM qr_tafsir_book_display_link WHERE from_block_id IN (${idPh}) OR to_block_id IN (${idPh})`).bind(...blockIds, ...blockIds).all(),
+      env.DB_QR.prepare(`SELECT * FROM qr_tafsir_book_display_tag WHERE block_id IN (${IDS})`).bind(blockIds).all(),
+      env.DB_QR.prepare(`SELECT * FROM qr_tafsir_book_display_ref WHERE block_id IN (${IDS})`).bind(blockIds).all(),
+      env.DB_QR.prepare(`SELECT * FROM qr_tafsir_book_display_note WHERE block_id IN (${IDS}) AND review_status != 'rejected'`).bind(blockIds).all(),
+      env.DB_QR.prepare(`SELECT * FROM qr_tafsir_book_display_link WHERE from_block_id IN (${IDS}) OR to_block_id IN (${IDS})`).bind(blockIds, blockIds).all(),
     ]);
 
     const presentSlugs: string[] = Array.from(new Set(blocks.map((b: { source_slug: string }) => b.source_slug)));
