@@ -675,6 +675,22 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     });
   });
 
+  // Get the latest: a passage's kept draws forgotten (qr_class_pool, its counts and lessons), so the next read draws
+  // every step again from the drills as they are now. POST /qr/practice/class/refresh?passage=QR:SP:40:1-3
+  // (a write through this worker: the cache versions are forgotten too, so the path is built again at once)
+  router.post('/qr/practice/class/refresh', async (req, env) => {
+    const id = new URL(req.url).searchParams.get('passage');
+    if (!id) return badRequest('passage is required');
+    await env.DB_QR.batch([
+      env.DB_QR.prepare('DELETE FROM qr_class_pool WHERE passage_id = ?').bind(id),
+      env.DB_QR.prepare('DELETE FROM qr_class_node_stat WHERE passage_id = ?').bind(id),
+      env.DB_QR.prepare('DELETE FROM qr_class_lesson WHERE passage_id = ?').bind(id),
+      env.DB_QR.prepare(`UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now')
+                          WHERE family = 'rest'`),
+    ]);
+    return ok({ passage: id, refreshed: true });
+  });
+
   router.get('/qr/practice/class/path', async (req, env) => {
     const id = new URL(req.url).searchParams.get('passage');
     if (!id) return badRequest('passage is required');
