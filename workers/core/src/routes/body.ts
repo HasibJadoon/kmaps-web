@@ -256,7 +256,28 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     const date = dayOf(new Date(), prof?.tz || 'Australia/Sydney');
     if (b.done === false) await execute(env.DB_CORE, `DELETE FROM core_body_routine_done WHERE owner_ref = ? AND on_date = ? AND item_key = ?`, [ctx.userId, date, key]);
     else await execute(env.DB_CORE, `INSERT OR IGNORE INTO core_body_routine_done (owner_ref, on_date, item_key) VALUES (?, ?, ?)`, [ctx.userId, date, key]);
-    return ok({ date, key, done: b.done !== false });
+
+    // each tick is logged as exercise (owner, 2026-10-21: "that should log on button clicked"): one entry for the day's
+    // routine, its minutes and its calories from the moves done — 1.5 min a move, MET 3.8 (moderate bodyweight work)
+    // at the latest weight: kcal = MET × 3.5 × kg / 200 per minute
+    const [doneRow, total, kgRow] = await Promise.all([
+      queryOne<{ n: number }>(env.DB_CORE, `SELECT COUNT(*) AS n FROM core_body_routine_done WHERE owner_ref = ? AND on_date = ?`, [ctx.userId, date]),
+      queryOne<{ n: number }>(env.DB_CORE, `SELECT COUNT(*) AS n FROM core_body_routine_item WHERE live = 1`),
+      queryOne<{ kg: number }>(env.DB_CORE, `SELECT kg FROM core_body_weight WHERE owner_ref = ? ORDER BY on_date DESC LIMIT 1`, [ctx.userId]),
+    ]);
+    const n = doneRow?.n ?? 0, of = total?.n ?? 10;
+    const minutes = Math.round(n * 1.5);
+    const kcal = Math.round(minutes * 3.8 * 3.5 * (kgRow?.kg ?? 100) / 200);
+    const exId = `RT:${ctx.userId}:${date}`;
+    if (n === 0) {
+      await execute(env.DB_CORE, `DELETE FROM core_body_exercise WHERE id = ?`, [exId]);
+    } else {
+      await execute(env.DB_CORE, `INSERT INTO core_body_exercise (id, owner_ref, on_date, kind, title, minutes, kcal, note)
+          VALUES (?, ?, ?, 'routine', ?, ?, ?, 'logged from the routine ticks')
+        ON CONFLICT (id) DO UPDATE SET title = excluded.title, minutes = excluded.minutes, kcal = excluded.kcal`,
+        [exId, ctx.userId, date, `Daily routine · ${n} of ${of}`, minutes, kcal]);
+    }
+    return ok({ date, key, done: b.done !== false, logged: { moves: n, of, minutes, kcal } });
   });
 
   // the iPhone's own counts for the last days (Core Motion), upserted — the app sends them each time it opens

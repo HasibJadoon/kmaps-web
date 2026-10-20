@@ -55,3 +55,7 @@ INSERT OR REPLACE INTO core_app_label (scope, key, parent, label, label_ar, deta
 ('body_ui', 'routine', NULL, 'Daily routine', 'التمرين اليومي', 'Ten moves, ten each — home or park', 'figure.strengthtraining.functional', '#E07A5F',
  '{"video_url":"https://m.youtube.com/watch?v=ZidP_sFbaqQ","video_label":"Follow the full beginner routine"}', 11),
 ('body_ui', 'steps',   NULL, 'Steps',         'الخطوات',        'From Apple Health',              'shoeprints.fill',                    '#81B29A', NULL, 12);
+
+-- the routine's ticks are logged as one exercise entry a day (routes/body.ts POST /core/body/routine)
+INSERT OR REPLACE INTO core_app_label (scope, key, parent, label, label_ar, detail, icon, color, extra_json, sort) VALUES
+('body_exercise', 'routine', NULL, 'Daily routine', 'التمرين اليومي', NULL, 'figure.strengthtraining.functional', '#E07A5F', NULL, 0);
