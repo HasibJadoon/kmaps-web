@@ -214,7 +214,9 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
     : ['nearsyn', 'keyterm', 'expression'].includes(src) ? await surahLexDrills(env, src, n, scope, lv, L)
     : src === 'groups' ? await groupDrills(env, n, scope, lv, L, u)
     : src === 'ss' ? [...await ssDrills(env, n, scope, lv, L), ...await sentenceLineDrills(env, scope, (lv.asks as string[] | undefined) ?? [])]
-    : src === 'reading' ? await readingSentenceDrills(env, scope)
+    // a class step may take some of a sentence's reading drills (class_node extra.only.reading): by the builder in the id
+    : src === 'reading' ? (await readingSentenceDrills(env, scope))
+        .filter((d) => !only?.length || only.includes(String(d.id ?? '').split(':')[0]))
     : src === 'structure' ? await structureDrills(env, n, scope, lv, L)
     : src === 'questions' ? await questionDrills(env, n, scope)
     : src === 'tafsirq' ? await tafsirDrillsQ(env, meta.extra?.interaction === 'listen_mark' ? 'listen' : 'meaning', n, scope)
