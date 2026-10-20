@@ -42,7 +42,13 @@ interface Given {
   points: number;
   /** The first to answer right: their points carry the bonus for it. */
   first?: boolean;
+  /** Right answers in a row, this one counted; and the bonus when it reaches 3, 5 or 10. */
+  streak?: number;
+  streakBonus?: number;
 }
+
+/** Right answers in a row, and the points on top when a run reaches them. */
+const STREAK_BONUS: Record<number, number> = { 3: 100, 5: 250, 10: 500 };
 
 /** Points on top for being the first to answer right. */
 const FIRST_BONUS = 100;
@@ -54,8 +60,10 @@ interface BoardRow { userId: string; name: string | null; points: number; correc
 const ADVANCE_MS = 9000;
 interface PoolState { id: string; title: string | null; total: number; asked: number; auto: boolean }
 
+/** A live round scores on the Kahoot scale: 1000 for a right answer at once, down to 500 at the buzzer. */
+const ROOM_SCALE = 100;
 const scoreFor = (correct: boolean, ms: number, seconds: number): number =>
-  speedPoints(correct ? 1 : 0, ms, seconds);
+  speedPoints(correct ? 1 : 0, ms, seconds, ROOM_SCALE);
 
 export class QuizSession {
   constructor(private state: DurableObjectState, private env: CoreEnv) {
@@ -100,6 +108,7 @@ export class QuizSession {
       board: await this.board(),
       roster: this.roster(),
       pool: await this.poolState(),
+      streaks: (await this.state.storage.get<Record<string, number>>('streaks')) ?? {},
     });
     this.broadcastPresence();
     return new Response(null, { status: 101, webSocket: client });
@@ -371,6 +380,19 @@ export class QuizSession {
     const given = (await this.getGiven()).sort((a, b) => a.ms - b.ms);
     const first = given.find((g) => g.correct);
     if (first) { first.first = true; first.points += FIRST_BONUS; }
+
+    // runs of right answers: one more for each right, back to nothing for a wrong one or none
+    const streaks = (await this.state.storage.get<Record<string, number>>('streaks')) ?? {};
+    const players = new Set(this.roster().filter((p) => !p.isHost).map((p) => p.userId));
+    for (const id of Object.keys(streaks)) if (!given.some((g) => g.userId === id)) streaks[id] = 0;
+    for (const id of players) if (!given.some((g) => g.userId === id)) streaks[id] = 0;
+    for (const g of given) {
+      g.streak = g.correct ? (streaks[g.userId] ?? 0) + 1 : 0;
+      streaks[g.userId] = g.streak;
+      const bonus = STREAK_BONUS[g.streak] ?? 0;
+      if (bonus) { g.streakBonus = bonus; g.points += bonus; }
+    }
+    await this.state.storage.put('streaks', streaks);
     await this.state.storage.put('given', given);
 
     // the places before this question (kept from the last reveal), so the board can show who climbed; the
@@ -398,6 +420,8 @@ export class QuizSession {
       given,
       tally,
       bonus: FIRST_BONUS,
+      streaks,
+      streakAt: Object.keys(STREAK_BONUS).map(Number),
       prev: Object.fromEntries(before.map((r, i) => [r.userId, i + 1])),
       board,
       pool: await this.poolState(),
