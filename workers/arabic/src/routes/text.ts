@@ -3,6 +3,7 @@ import { ok, notFound, badRequest } from '../../../shared/src/response';
 import { query, queryOne } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { ANCESTRY } from '../lib/ancestry';
+import { labels, byKey, type Label } from '../lib/labels';
 
 /// The reading shelf. This is the half of the acquisition layer a learner
 /// actually spends time in: pages of classical Arabic, in reading order.
@@ -208,6 +209,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
       `SELECT id, title_ar, title_en, author, note_ar AS died, genre_ref, register,
               json_extract(meta_json, '$.shape') AS shape,
               verse_form                         AS verseForm,
+              page_template                      AS pageTemplate,
               (SELECT a.object_key FROM ar_acq_audio a
                 WHERE a.status = 'live'
                   AND (a.acq_ref_id = ar_acquisition_ref.id
@@ -233,6 +235,8 @@ export function textRoutes(router: Router<ArabicEnv>) {
               -- whether the page has a reconstructed script, so the reader
               -- offers one without fetching it to find out
               (t.script_json IS NOT NULL)                    AS hasScript,
+              -- a song set out as stanzas (verse, chorus …), each line with its English
+              json_extract(t.meta_json, '$.stanzas')         AS stanzasJson,
               a.id                                           AS pageAudioId,
               a.object_key                                   AS pageAudioKey,
               json_extract(a.meta_json, '$.video')           AS pageVideoJson,
@@ -320,9 +324,12 @@ export function textRoutes(router: Router<ArabicEnv>) {
     /// An <audio> element cannot carry a bearer token, so this is the same
     /// anonymous path the Listening screen uses — a recording is playable
     /// from inside the reader, not only from the audio list.
+    // the book's page template, resolved: what the reader draws it with
+    const tpl = template(work.pageTemplate as string | null, byKey((await labels(env)).page_template));
     return ok({
       work: {
         ...work,
+        template: tpl,
         playUrl: work.audioKey && !String(work.audioKey).startsWith('youtube:')
           ? `/api/ar/audio/${encodeURI(String(work.audioKey))}` : null,
         video: work.audioKey && String(work.audioKey).startsWith('youtube:')
@@ -337,7 +344,9 @@ export function textRoutes(router: Router<ArabicEnv>) {
         let video: { provider: string; id: string } | null = null;
         if (p.pageVideoJson) { try { video = JSON.parse(String(p.pageVideoJson)); } catch { video = null; } }
         if (!video && key?.startsWith('youtube:')) video = { provider: 'youtube', id: key.slice('youtube:'.length) };
-        const { pageVideoJson: _drop, ...rest } = p as Record<string, unknown> & { pageVideoJson?: unknown };
+        const { pageVideoJson: _drop, stanzasJson, ...rest } = p as Record<string, unknown> & { pageVideoJson?: unknown; stanzasJson?: unknown };
+        let stanzas: unknown = null;
+        if (stanzasJson) { try { stanzas = JSON.parse(String(stanzasJson)); } catch { stanzas = null; } }
         // A recording that reads several pages carries every page's lines; a
         // page gets only its own, and the moment on the timeline where they
         // begin, so play starts at this page and not at the part's first word.
@@ -356,6 +365,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
           pageAudioStart: pageSegments.length ? Math.max(0, pageSegments[0].start - 0.3) : 0,
           pageSegments,
           pageAudioMap,
+          stanzas,
         };
       }),
       bounds,
@@ -517,4 +527,14 @@ export async function shelfRows(env: ArabicEnv, f: { genre?: string | null; seri
                    r.title_ar`,
     params,
   );
+}
+
+/// A page template as the app draws it: the label row's name and description,
+/// and from its extra the reader's engine (layout) and, for verse, its setting.
+export function template(key: string | null, T: Map<string, Label>) {
+  const l = T.get(key ?? '') ?? T.get('adab');
+  if (!l) return null;
+  return { key: l.key, label: l.label, labelAr: l.labelAr, detail: l.detail, icon: l.icon,
+           layout: (l.extra?.layout as string | undefined) ?? 'prose',
+           setting: (l.extra?.setting as string | undefined) ?? null };
 }

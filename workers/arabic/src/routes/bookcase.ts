@@ -1,9 +1,9 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, notFound, unauthorized } from '../../../shared/src/response';
-import { query } from '../../../shared/src/db';
+import { query, queryOne } from '../../../shared/src/db';
 import { actorRef } from '../../../shared/src/auth';
 import type { ArabicEnv } from '../env';
-import { shelfRows, type ShelfRow } from './text';
+import { shelfRows, template, type ShelfRow } from './text';
 import { labels, byKey, type Label } from '../lib/labels';
 import { BANDS, parseBand, inBand, levelSpan, type Band } from '../lib/levels';
 
@@ -89,16 +89,17 @@ function look(L: Map<string, Label>, key: string, fallback?: { icon?: string; co
   };
 }
 
-/// Notion-sourced works are left out: what came from the Notion table was never
-/// complete. A work came from Notion when it sits on a Notion path (trail).
-export const fromNotion = (w: ShelfRow) => !!(w.trail ?? '').trim();
+/// The series' episodes have their own room (Series) and their own path; the
+/// library is everything else. (The incomplete Notion import is archived —
+/// migration 0070 — so what is live is what was worked through.)
+export const inLibrary = (w: ShelfRow) => (w.shape ?? 'prose') !== 'series';
 
-/// The library: the classical works, one shelf per kind (Stories, the Nights,
-/// the Maqāmāt, the Proverbs, the Dīwāns …) in the order a reader climbs them —
-/// the labels' own order — each shelf oldest author first.
+/// The library: one shelf per kind (Stories, the Nights, the Maqāmāt, the
+/// Proverbs, the Dīwāns, Songs …) in the order a reader climbs them — the
+/// labels' own order — each shelf oldest author first.
 function build(rows: ShelfRow[], L: Map<string, Label>): Node[] {
   const shapeLook = (shape: string | null) => look(L, `shape:${shape ?? 'prose'}`, { icon: 'book.closed' });
-  const classical = rows.filter((w) => !fromNotion(w)).sort((a, b) => year(a) - year(b));
+  const classical = rows.filter(inLibrary).sort((a, b) => year(a) - year(b));
   const shapes = [...L.values()].filter((l) => l.key.startsWith('shape:')).map((l) => l.key.slice(6));
   const order = [...new Set([...shapes, ...classical.map((w) => w.shape ?? 'prose')])];
   const out: Node[] = [];
@@ -202,6 +203,46 @@ export function bookcaseRoutes(router: Router<ArabicEnv>) {
     });
   });
 
+  /// A book's profile: what it is before it is opened — the author and their
+  /// era, its kind and the template its pages are set in, its level and length,
+  /// whether it can be heard, how it opens, and its contents.
+  router.get('/ar/text/works/:id/profile', async (_req, env, params) => {
+    const id = decodeURIComponent(params.id);
+    const [rows, all] = await Promise.all([shelfRows(env, { ids: [id] }), labels(env)]);
+    const w = rows[0];
+    if (!w) return notFound(`work ${id}`);
+    const extra = await queryOne<{ page_template: string | null; subtitle_ar: string | null; register: string | null;
+                                   minutes: number | null; recordings: number }>(env.DB_AR,
+      `SELECT r.page_template, r.subtitle_ar, r.register,
+              (SELECT CAST(ROUND(SUM(a.duration_sec) / 60.0) AS INTEGER) FROM ar_acq_audio a
+                WHERE a.acq_ref_id = r.id AND a.status = 'live') AS minutes,
+              (SELECT COUNT(*) FROM ar_acq_audio a WHERE a.acq_ref_id = r.id AND a.status = 'live') AS recordings
+         FROM ar_acquisition_ref r WHERE r.id = ?`, [id]);
+    const kind = look(byKey(all.shelf), `shape:${w.shape ?? 'prose'}`, { icon: 'book.closed' });
+    const [toc, first] = await Promise.all([
+      query<{ seq: number; title_ar: string }>(env.DB_AR,
+        `SELECT seq, title_ar FROM ar_text_unit
+          WHERE acq_ref_id = ? AND status = 'live' AND title_ar IS NOT NULL AND title_ar <> ''
+          ORDER BY seq LIMIT 60`, [id]),
+      queryOne<{ text_ar: string }>(env.DB_AR,
+        `SELECT text_ar FROM ar_text_unit WHERE acq_ref_id = ? AND status = 'live' AND seq >= ?
+          ORDER BY seq LIMIT 1`, [id, w.firstSeq ?? 1]),
+    ]);
+    return ok({
+      work: {
+        id: w.id, titleAr: w.title_ar, titleEn: w.title_en, author: w.author, died: w.died, era: eraOf(w.died),
+        level: w.level, register: extra?.register ?? w.register, subtitle: extra?.subtitle_ar ?? null,
+        shape: w.shape, kind: { titleAr: kind.titleAr, titleEn: kind.titleEn, icon: kind.icon, color: kind.color },
+        pages: w.pages, words: w.words, firstSeq: w.firstSeq, lastSeq: w.lastSeq,
+        audio: extra && extra.recordings > 0 ? { recordings: extra.recordings, minutes: extra.minutes } : null,
+        hasVideo: !!w.videoId, seriesRef: w.seriesRef,
+      },
+      template: template(extra?.page_template ?? null, byKey(all.page_template)),
+      opening: opening(first?.text_ar ?? ''),
+      contents: toc.map((t) => ({ seq: t.seq, titleAr: t.title_ar })),
+    });
+  });
+
   /// The reader's own shelves: where they are, what they kept, loved and
   /// finished — from their reading state (the copy every device syncs to).
   router.get('/ar/reading/shelves', async (req, env) => {
@@ -213,7 +254,7 @@ export function bookcaseRoutes(router: Router<ArabicEnv>) {
          FROM ar_reading_state WHERE user_id = ? ORDER BY updated_at DESC LIMIT 200`, [user]);
     const [rows, all] = await Promise.all([shelfRows(env, { ids: states.map((s) => s.work_id) }), labels(env)]);
     const L = byKey(all.shelf);
-    const byId = new Map(rows.filter((w) => !fromNotion(w)).map((w) => [w.id, w]));
+    const byId = new Map(rows.map((w) => [w.id, w]));
     const marks = (j: string) => { try { return (JSON.parse(j) as unknown[]).length; } catch { return 0; } };
 
     const card = (s: typeof states[number]): Entry | null => {
@@ -248,4 +289,30 @@ export function bookcaseRoutes(router: Router<ArabicEnv>) {
     ].filter((x): x is Shelf => !!x);
     return ok({ shelves });
   });
+}
+
+/// "ت 255" → "3rd century AH"; a negative year is before the Hijra.
+function eraOf(died: string | null): { year: string; century: string } | null {
+  const n = parseInt(String(died ?? '').replace('ت', '').trim(), 10);
+  if (!Number.isFinite(n)) return null;
+  if (n < 0) return { year: `${-n} BH`, century: 'Pre-Islamic' };
+  const c = Math.floor(n / 100) + 1;
+  const th = c % 100 >= 11 && c % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[c % 10] ?? 'th';
+  return { year: `d. ${n} AH`, century: `${c}${th} century AH` };
+}
+
+/// How the book opens: its first lines of text, past the basmala and the
+/// edition's furniture — enough to hear its voice before opening it.
+function opening(text: string): string[] {
+  const lines = text.split(/[\r\n]+/).map((l) => l.replace(/\*+/g, '').trim())
+    .filter((l) => l && l !== '﷽' && !/^[\[(（][^\])）]{0,14}[\])）]$/.test(l)   // [١], [من الكامل]
+                && !l.startsWith('بسم الله') && !l.endsWith(':') && l.length > 12);  // the basmala, «قال فلان:», a meter's name
+  const out: string[] = [];
+  let chars = 0;
+  for (const l of lines) {
+    out.push(l.length > 160 ? l.slice(0, 157) + '…' : l);
+    chars += l.length;
+    if (out.length >= 4 || chars > 260) break;
+  }
+  return out;
 }

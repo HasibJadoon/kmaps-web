@@ -181,7 +181,7 @@ CREATE TABLE ar_acquisition_ref (
   status         TEXT NOT NULL DEFAULT 'live',
   meta_json      TEXT NOT NULL DEFAULT '{}',
   created_at     TEXT NOT NULL DEFAULT (datetime('now'))
-, author TEXT, capture_status TEXT NOT NULL DEFAULT 'not_started', parent_ref TEXT REFERENCES ar_acquisition_ref(id), notion_ref TEXT, category_ref TEXT REFERENCES ar_acq_category(id), platform TEXT, verse_form TEXT);
+, author TEXT, capture_status TEXT NOT NULL DEFAULT 'not_started', parent_ref TEXT REFERENCES ar_acquisition_ref(id), notion_ref TEXT, category_ref TEXT REFERENCES ar_acq_category(id), platform TEXT, verse_form TEXT, page_template TEXT);
 
 CREATE TABLE ar_common_word (
   bare TEXT PRIMARY KEY, kind TEXT NOT NULL, lemma TEXT, quran_freq INTEGER
