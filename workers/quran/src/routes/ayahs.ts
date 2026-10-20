@@ -52,7 +52,7 @@ export function ayahRoutes(router: Router<QuranEnv>) {
     if (!s || !a || !b || b < a || b - a > 40) return badRequest('Invalid range');
     const [ayat, sura] = await Promise.all([
       env.DB_QR.prepare(
-        `SELECT q.ayah, q.text_display AS ar,
+        `SELECT q.ayah, q.text_uthmani AS ar,
                 (SELECT t.translation_text FROM qr_translation t JOIN qr_translation_source ts ON ts.id = t.source_id AND ts.is_default = 1
                   WHERE t.surah = q.surah AND t.ayah = q.ayah LIMIT 1) AS en
            FROM qr_ayah q WHERE q.surah = ? AND q.ayah BETWEEN ? AND ? ORDER BY q.ayah`).bind(s, a, b).all(),
