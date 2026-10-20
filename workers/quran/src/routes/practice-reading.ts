@@ -6,7 +6,10 @@ import { loadAyat, type Scope } from './practice';
 // ── Read & listen, sentence by sentence (qr_163) ───────────────────────────────
 // After the passage is heard whole and every sentence built, each sentence of the passage (qr_ss_occ_sentence) is read
 // on its own node, in four moves, each drill standing at the sentence's first word so the class places it there:
-//   wordclass       each word named اسم · فعل · حرف (its corpus part of speech)
+//   wordclass       each word described as the corpus (QAC) describes it, in GT terms: its kind (اسم علم, حرف جرّ,
+//                   اسم موصول …), then for a noun its derivation, case, definiteness, number and gender, for a verb its
+//                   tense, voice, person, number, gender and mood — each wrong option the same word with one of these
+//                   changed
 //   sentpart        the sentence named (الجملة الاسمية / الفعلية …, its GT sentence class), each clause the sentence
 //                   data names, and each phrase (جار ومجرور, ظرف, نعت …) — marked on the line
 //   transbuild      its Arabic built from its English, two words of the passage that do not belong among the tiles
@@ -18,6 +21,11 @@ type Drill = Record<string, unknown>;
 type Gt = { id: string; name_ar: string };
 type Sent = { id: string; ayah_from: number; ayah_to: number; ws: number | null; we: number | null; cls: string | null };
 type Word = { word_index: number; word_text: string; pos: string | null };
+/** A word's corpus properties, as GT ids (qr_word_occurrence gt_*). */
+type Props = { gt_case: string | null; gt_number: string | null; gt_gender: string | null; gt_person: string | null;
+               gt_voice: string | null; gt_tense: string | null; gt_mood: string | null; gt_definiteness: string | null;
+               gt_derivation_type: string | null; has_pron_suffix: number | null };
+type Term = { id: string; name_ar: string; name_en: string | null; category_key: string; qac_flag: string | null; term_order: number | null };
 type Timed = { t: string; s: number; e: number };
 type Story = { id: string; term_grp: string; term_ar: string; seq: number; title_en: string; surah: number; ayah_from: number; word_from: number;
                ayah_to: number; word_to: number; marks_json: string; ask_en: string; answer_en: string; wrong_json: string; explain_en: string;
@@ -26,16 +34,6 @@ type Story = { id: string; term_grp: string; term_ar: string; seq: number; title
 
 const shuffle = <T>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const strip = (s: string) => s.replace(/[ً-ْٰۖ-ۭ]/g, '');
-
-/** A corpus part of speech as its GT class: verbs fiʿl; nouns, names, adjectives, pronouns, demonstratives, relatives
- *  and adverbs ism; the rest ḥarf. A word whose particle carries a pronoun (إِلَيْهِ) is two words in one: not asked. */
-function classOf(pos: string | null, text: string): string | null {
-  if (!pos) return null;
-  if (pos === 'V') return 'GT:pos:fil';
-  if (['N', 'PN', 'ADJ', 'PRON', 'DEM', 'REL', 'T', 'LOC'].includes(pos)) return 'GT:pos:ism';
-  if (['P', 'ACC'].includes(pos) && strip(text).length > 3) return null;
-  return 'GT:pos:harf';
-}
 
 /** A Sinai gloss usable as an option: whole words, not an entry's fragment (": to be ~", "ask for ~"). */
 const usable = (g: string | null): g is string => !!g && g.trim().length >= 3 && !/[~]/.test(g) && !/^[:(]/.test(g.trim());
@@ -51,10 +49,12 @@ export async function readingSentenceDrills(env: QuranEnv, scope: Scope): Promis
   const ids = sentences.map((s) => s.id);
   const nums: number[] = [];
   for (let a = from; a <= Math.min(to, Math.max(...sentences.map((s) => s.ayah_to))); a++) nums.push(a);
-  const [ayat, posRows, clauses, phrases, units, terms, stories, gts] = await Promise.all([
+  const [ayat, posRows, clauses, phrases, units, terms, stories, gts, props] = await Promise.all([
     loadAyat(env, nums.map((a) => [surah, a])),
-    query<Word & { ayah: number; lemma: string | null }>(env.DB_QR,
-      `SELECT ayah, word_index, word_text, pos, lemma FROM qr_word_occurrence WHERE surah = ? AND ayah BETWEEN ? AND ?`, [surah, from, to]),
+    query<Word & Props & { ayah: number; lemma: string | null }>(env.DB_QR,
+      `SELECT ayah, word_index, word_text, pos, lemma, gt_case, gt_number, gt_gender, gt_person, gt_voice, gt_tense, gt_mood,
+              gt_definiteness, gt_derivation_type, has_pron_suffix
+         FROM qr_word_occurrence WHERE surah = ? AND ayah BETWEEN ? AND ?`, [surah, from, to]),
     query<{ id: string; sentence_id: string; ayah_from: number; ayah_to: number; ws: number | null; we: number | null; ref: string | null }>(env.DB_QR,
       `SELECT id, sentence_id, ayah_from, ayah_to, word_start_index AS ws, word_end_index AS we, lx_clause_type_ref AS ref
          FROM qr_ss_occ_clause WHERE sentence_id IN (SELECT value FROM json_each(?)) AND COALESCE(is_virtual, 0) = 0 ORDER BY clause_order`,
@@ -78,9 +78,14 @@ export async function readingSentenceDrills(env: QuranEnv, scope: Scope): Promis
       `SELECT id, name_ar, category_key FROM ar_ling_gram_term
         WHERE id IN ('GT:pos:ism', 'GT:pos:fil', 'GT:pos:harf') OR category_key = 'sentence_class'
            OR id IN (SELECT DISTINCT lx_phrase_type_ref FROM qr_ss_occ_phrase WHERE lx_phrase_type_ref IS NOT NULL)`),
+    // the corpus's properties as the GT registry names them (case, number … and every kind of word and particle)
+    query<Term>(env.DB_QR,
+      `SELECT id, name_ar, name_en, category_key, qac_flag, term_order FROM ar_ling_gram_term
+        WHERE category_key IN ('pos', 'harf_maani', 'case', 'number', 'gender', 'person', 'voice', 'tense', 'mood',
+                               'definiteness', 'derivation_type')`),
   ]);
+  const profile = wordProfiles(props);
   const gt = new Map(gts.map((g) => [g.id, g.name_ar]));
-  const classes = ['GT:pos:ism', 'GT:pos:fil', 'GT:pos:harf'].filter((id) => gt.has(id));
   // the sentence classes a learner meets first; a sentence's own class is always among its options
   const sentenceSet = ['GT:sentence_class:ismiyya', 'GT:sentence_class:filiyya', 'GT:sentence_class:shartiyya',
                        'GT:sentence_class:istifhamiyya', 'GT:sentence_class:manfiyya'].filter((id) => gt.has(id));
@@ -135,17 +140,16 @@ export async function readingSentenceDrills(env: QuranEnv, scope: Scope): Promis
       withCard(d, { ref: `QR:${String(d.id)}`, type: 'passage', kind, front, back, surah, ayah: s.ayah_from, series: l.title.replace(/ \d+:\d+(–\d+)?$/, '') });
     const idx = (ay: number, w: number) => l.ws.findIndex((x, i) => l.ays[i] === ay && x.word_index === w);
 
-    // 1 · each word: ism, fiʿl or ḥarf
-    if (classes.length === 3) {
-      l.ws.forEach((w, i) => {
-        const c = classOf(posOf.get(`${l.ays[i]}:${w.word_index}`)?.pos ?? w.pos, w.word_text);
-        if (!c || l.ws.length < 2) return;
-        const answer = gt.get(c)!;
-        out.push(card({ ...base(`wordclass:${surah}:${l.ays[i]}:${w.word_index}`, 'wordclass'), kind: 'feature', span: [i],
-                        prompt: w.word_text, options: classes.map((x) => gt.get(x)!), answer, explanation: `${w.word_text}: ${answer}` },
-                      'wordclass', `${text}\n${w.word_text}`, answer));
-      });
-    }
+    // 1 · each word, described as the corpus describes it (its kind, then what that kind carries)
+    l.ws.forEach((w, i) => {
+      if (l.ws.length < 2) return;
+      const row = posOf.get(`${l.ays[i]}:${w.word_index}`);
+      const p = row ? profile(row, w.word_text) : null;
+      if (!p) return;
+      out.push(card({ ...base(`wordclass:${surah}:${l.ays[i]}:${w.word_index}`, 'wordclass'), kind: 'feature', span: [i],
+                      prompt: w.word_text, options: shuffle([p.answer, ...p.wrong]), answer: p.answer, explanation: `${w.word_text}: ${p.explain}` },
+                    'wordclass', `${text}\n${w.word_text}`, p.answer));
+    });
 
     // 2 · its parts: the sentence, each clause the data names, each phrase
     const named: Array<{ key: string; span: number[]; ref: string; set: string[] }> = [];
@@ -266,4 +270,72 @@ export async function readingSentenceDrills(env: QuranEnv, scope: Scope): Promis
     }
   }
   return out;
+}
+
+// ── a word's profile ─────────────────────────────────────────────────────────
+
+/** The corpus tags (qr_word_occurrence.pos, QAC) a noun-like word carries: they take case and the rest. */
+const NOUNISH = new Set(['N', 'PN', 'ADJ', 'PRON', 'DEM', 'REL', 'NUM', 'T', 'LOC']);
+
+/** Builds each word's description from the GT registry: the right one, and wrong ones that change one property. */
+function wordProfiles(terms: Term[]) {
+  const byId = new Map(terms.map((t) => [t.id, t]));
+  // a corpus tag → its GT kind: the parts of speech first, then the particles' meanings (a tag such as ACC is both a case
+  // and a particle, so the kind is looked for among these two categories only)
+  const kindOf = new Map<string, Term>();
+  for (const cat of ['harf_maani', 'pos']) for (const t of terms) if (t.category_key === cat && t.qac_flag) kindOf.set(t.qac_flag, t);
+  const ofCat = (cat: string) => terms.filter((t) => t.category_key === cat).sort((a, b) => (a.term_order ?? 0) - (b.term_order ?? 0));
+  const nounKinds = ['GT:pos:ism', 'GT:pos:alam', 'GT:pos:sifa', 'GT:pos:damir', 'GT:pos:ishara', 'GT:pos:mawsul', 'GT:pos:adad']
+    .map((id) => byId.get(id)).filter((t): t is Term => !!t);
+  const particleKinds = [...terms.filter((t) => t.category_key === 'pos' && t.id.includes('harf') && t.id !== 'GT:pos:harf'),
+                         ...ofCat('harf_maani')];
+
+  return (w: { pos: string | null } & Props, text: string) => {
+    const pos = w.pos;
+    if (!pos) return null;
+    // a particle carrying a pronoun (إِلَيْهِ) is two words in one: not asked
+    if (!NOUNISH.has(pos) && pos !== 'V' && (w.has_pron_suffix || strip(text).length > 3) && ['P', 'ACC'].includes(pos)) return null;
+    const kind = kindOf.get(pos) ?? (pos === 'V' ? byId.get('GT:pos:fil') : NOUNISH.has(pos) ? byId.get('GT:pos:ism') : byId.get('GT:pos:harf'));
+    if (!kind) return null;
+
+    // the slots, in the corpus's order; each with the others it could have been
+    type Slot = { term: Term; alts: Term[] };
+    const slot = (id: string | null, cat: string): Slot | null => {
+      const t = id ? byId.get(id) : undefined;
+      return t ? { term: t, alts: ofCat(cat).filter((x) => x.id !== t.id) } : null;
+    };
+    const slots: Slot[] = [];
+    if (pos === 'V') {
+      slots.push({ term: kind, alts: [] });
+      // the imperfect's mood is marked only when it is not the indicative
+      const mood = w.gt_tense === 'GT:tense:imperfect' ? (w.gt_mood ?? 'GT:mood:indicative') : null;
+      for (const s of [slot(w.gt_tense, 'tense'), slot(w.gt_voice ?? 'GT:voice:active', 'voice'), slot(w.gt_person, 'person'),
+                       slot(w.gt_number, 'number'), slot(w.gt_gender, 'gender'), slot(mood, 'mood')]) if (s) slots.push(s);
+    } else if (NOUNISH.has(pos)) {
+      slots.push({ term: kind, alts: nounKinds.filter((t) => t.id !== kind.id) });
+      const plain = pos === 'N' || pos === 'ADJ';
+      for (const s of [plain ? slot(w.gt_derivation_type, 'derivation_type') : null, slot(w.gt_case, 'case'),
+                       plain ? slot(w.gt_definiteness, 'definiteness') : null,
+                       slot(w.gt_number, 'number'), slot(w.gt_gender, 'gender')]) if (s) slots.push(s);
+    } else {
+      slots.push({ term: kind, alts: particleKinds.filter((t) => t.id !== kind.id && t.name_ar !== kind.name_ar) });
+    }
+
+    const say = (ts: Term[]) => ts.map((t) => t.name_ar).join(' · ');
+    const answer = say(slots.map((s) => s.term));
+    // wrong: the same word with one slot changed — a different slot each time where it can be
+    const wrong: string[] = [];
+    const changeable = slots.map((s, i) => ({ s, i })).filter((x) => x.s.alts.length);
+    for (let round = 0; wrong.length < 3 && round < 4; round++) {
+      for (const { s, i } of shuffle(changeable)) {
+        if (wrong.length >= 3) break;
+        const alt = shuffle(s.alts)[0];
+        const v = say(slots.map((x, j) => (j === i ? alt : x.term)));
+        if (v !== answer && !wrong.includes(v)) wrong.push(v);
+      }
+    }
+    if (wrong.length < 2) return null;
+    const explain = slots.map((s) => (s.term.name_en ? `${s.term.name_ar} (${s.term.name_en})` : s.term.name_ar)).join(' · ');
+    return { answer, wrong: wrong.slice(0, 3), explain };
+  };
 }
