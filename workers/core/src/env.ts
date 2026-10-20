@@ -14,6 +14,8 @@ export interface CoreEnv {
   ARABIC?: Fetcher;
   AR_LINGUISTICS: Fetcher;
   CONTENT: Fetcher;
+  /** R2 km-personal: the owner's private files — meal photos for the dashboard (routes/body.ts). */
+  PERSONAL?: R2Bucket;
 
   JWT_SECRET: string;
   JWT_EXPIRY_SECONDS?: string;

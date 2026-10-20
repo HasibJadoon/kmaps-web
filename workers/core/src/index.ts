@@ -30,6 +30,7 @@ import { tableRoutes } from './routes/table';
 import { dsRoutes } from './routes/ds';
 import { cybRoutes } from './routes/cyb';
 import { studySessionRoutes } from './routes/study-session';
+import { bodyRoutes } from './routes/body';
 
 const router = new Router<CoreEnv>();
 
@@ -70,6 +71,7 @@ tableRoutes(router);
 cybRoutes(router);
 dsRoutes(router);
 studySessionRoutes(router);
+bodyRoutes(router);
 learnerRoutes(router);
 drillBankRoutes(router);
 

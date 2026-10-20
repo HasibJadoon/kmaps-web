@@ -2208,3 +2208,60 @@ CREATE INDEX IF NOT EXISTS idx_core_srs_card_intro ON core_srs_card (user_ref, i
 
 -- 066_drill_class_open_n
 ALTER TABLE core_drill_class ADD COLUMN open_n INTEGER NOT NULL DEFAULT 0;
+
+-- 071_body: the personal dashboard
+CREATE TABLE IF NOT EXISTS core_body_profile (
+  owner_ref        TEXT PRIMARY KEY,
+  start_kg         REAL NOT NULL,
+  start_date       TEXT NOT NULL,                 -- YYYY-MM-DD
+  goal_kg          REAL NOT NULL,
+  target_date      TEXT NOT NULL,                 -- YYYY-MM-DD
+  plan             TEXT NOT NULL DEFAULT 'omad',  -- one meal a day
+  kcal_target      INTEGER,                       -- the one meal's calories (set with the owner)
+  protein_g_target INTEGER,
+  height_cm        REAL,
+  tz               TEXT NOT NULL DEFAULT 'Australia/Sydney',
+  updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+CREATE TABLE IF NOT EXISTS core_body_weight (
+  owner_ref  TEXT NOT NULL,
+  on_date    TEXT NOT NULL,                       -- YYYY-MM-DD, the owner's day
+  kg         REAL NOT NULL,
+  note       TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  PRIMARY KEY (owner_ref, on_date)
+);
+CREATE TABLE IF NOT EXISTS core_body_meal (
+  id         TEXT PRIMARY KEY,
+  owner_ref  TEXT NOT NULL,
+  eaten_at   TEXT NOT NULL,                       -- ISO, UTC
+  on_date    TEXT NOT NULL,                       -- the owner's day
+  title      TEXT NOT NULL,
+  items_json TEXT,                                -- [{name, kcal, grams?}] as estimated from the photo
+  kcal       INTEGER NOT NULL,
+  protein_g  REAL, carbs_g REAL, fat_g REAL, fibre_g REAL,
+  image_key  TEXT,                                -- R2 km-personal key
+  note       TEXT,                                -- Claude's short read of the plate
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_core_body_meal_owner ON core_body_meal (owner_ref, on_date);
+CREATE TABLE IF NOT EXISTS core_body_exercise (
+  id         TEXT PRIMARY KEY,
+  owner_ref  TEXT NOT NULL,
+  on_date    TEXT NOT NULL,
+  kind       TEXT NOT NULL,                       -- walk, gym, swim, cycle, … (core_app_label scope body_exercise)
+  title      TEXT,
+  minutes    INTEGER NOT NULL,
+  kcal       INTEGER,                             -- burned, estimated
+  steps      INTEGER,
+  note       TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_core_body_exercise_owner ON core_body_exercise (owner_ref, on_date);
+CREATE TABLE IF NOT EXISTS core_body_prayer (
+  owner_ref  TEXT NOT NULL,
+  on_date    TEXT NOT NULL,
+  prayer     TEXT NOT NULL CHECK (prayer IN ('fajr', 'dhuhr', 'asr', 'maghrib', 'isha')),
+  prayed_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  PRIMARY KEY (owner_ref, on_date, prayer)
+);
