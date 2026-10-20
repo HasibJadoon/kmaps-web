@@ -69,6 +69,19 @@ export function appsRoutes(router: Router<CoreEnv>) {
           WHERE c.user_ref = ? AND c.status = 'in_progress'
           ORDER BY COALESCE(c.resume_at, c.last_at, c.started_at) DESC LIMIT 30`, [ctx.userId]),
     ]);
+    // each class by its name, from the worker that holds it: an Arabic episode's title (a Qurʾān passage the app
+    // names from its sūra's classes)
+    const names = new Map<string, { title: string; titleAr: string | null }>();
+    await Promise.all(classes.filter((c) => c.scope_ref.startsWith('ARTX:')).slice(0, 10).map(async (c) => {
+      try {
+        if (!env.ARABIC) return;
+        const r = await env.ARABIC.fetch(new Request(`https://arabic/ar/text/units/${encodeURIComponent(c.scope_ref)}/head`));
+        if (!r.ok) return;
+        const b = await r.json() as { data?: { titleAr?: string; titleEn?: string | null; series?: string | null } };
+        const d = b.data;
+        if (d?.titleAr) names.set(c.scope_ref, { title: d.series ? `${d.titleAr} · ${d.series}` : d.titleAr, titleAr: d.titleAr });
+      } catch { /* a class keeps its scope when its worker cannot be asked */ }
+    }));
     const byModule: Record<string, number> = {};
     for (const d of due) byModule[String(d.module).toUpperCase()] = (byModule[String(d.module).toUpperCase()] ?? 0) + (Number(d.n) || 0);
     return ok({
@@ -76,7 +89,8 @@ export function appsRoutes(router: Router<CoreEnv>) {
       today: {
         due: { all: Object.values(byModule).reduce((a, b) => a + b, 0), byModule },
         classes: classes.map((c) => ({ scope: c.scope_ref, module: c.module, lastAt: c.resume_at ?? c.last_at ?? c.started_at,
-                                       activeDays: c.active_days ?? 0, open: c.open ?? 0 })),
+                                       activeDays: c.active_days ?? 0, open: c.open ?? 0,
+                                       title: names.get(c.scope_ref)?.title ?? null, titleAr: names.get(c.scope_ref)?.titleAr ?? null })),
       },
     });
   });

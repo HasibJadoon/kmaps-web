@@ -197,6 +197,23 @@ export function textRoutes(router: Router<ArabicEnv>) {
     });
   });
 
+  /// What a text unit is called — an episode's title and its series, else the
+  /// page's own heading and its book — for wherever a class or a card names it.
+  router.get('/ar/text/units/:id/head', async (_req, env, params) => {
+    const row = await queryOne<{ id: string; title_ar: string | null; work_ar: string | null; work_en: string | null;
+                                 s_title: string | null; s_series: string | null; s_episode: number | null }>(env.DB_AR,
+      `SELECT t.id, t.title_ar, r.title_ar AS work_ar, r.title_en AS work_en,
+              json_extract(t.script_json, '$.title_ar') AS s_title,
+              json_extract(t.script_json, '$.series_ar') AS s_series,
+              json_extract(t.script_json, '$.episode')   AS s_episode
+         FROM ar_text_unit t JOIN ar_acquisition_ref r ON r.id = t.acq_ref_id WHERE t.id = ?`,
+      [decodeURIComponent(params.id)]);
+    if (!row) return notFound(`unit ${params.id}`);
+    const title = row.s_title ?? row.work_ar ?? row.title_ar ?? row.id;
+    const series = row.s_series && row.s_series !== title ? row.s_series : null;
+    return ok({ id: row.id, titleAr: title, titleEn: row.work_en, series, episode: row.s_episode });
+  });
+
   /// A run of pages. `from` is a seq, not an offset, so a link into the middle
   /// of a book keeps meaning after more pages are ingested.
   router.get('/ar/text/works/:id/pages', async (req, env, params) => {
