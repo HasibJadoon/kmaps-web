@@ -746,17 +746,28 @@ async function arcDrills(env: QuranEnv, n: number, lv: Record<string, unknown>, 
       return withCard(drill, { ref: `QR:arc:origin:${arc.id}`, type: 'root', kind: 'arc',
         front: `${rootOf(arc.root)} — first image?`, back: steps.map((s) => s.en).join(' → ') });
     }
-    const order = steps.map((_, i) => i);
-    let sh = shuffle(order);
-    for (let k = 0; k < 4 && sh.every((v, i) => v === i); k++) sh = shuffle(order);
+    // one use, heard — which sense on the arc does it carry? The arc stands in its order, Basic → 2 → 3 …, and is
+    // never shuffled: the order is the lesson (owner, 2026-10-20: a choice on the arc, never "put it in order")
+    if (steps.length < 3) return null;
+    const pickAt = 1 + [...arc.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % (steps.length - 1);
+    const here = steps[pickAt];
+    if (!here.ar) return null;
+    const MAX = 6;
+    const shown = steps.slice(0, MAX - 1).includes(here) ? steps.slice(0, MAX) : [...steps.slice(0, MAX - 1), here];
+    const rungs = shown.map((s, i) => ({ ar: '', en: [s.en, s.gloss].filter(Boolean).join(' — '), label: i === 0 ? 'Basic' : String(i + 1) }));
+    const options = rungs.map((r) => r.en);
+    if (new Set(options).size !== options.length) return null;
+    const answer = rungs[shown.indexOf(here)].en;
     const drill: Record<string, unknown> = {
-      id: `arc:order:${arc.id}`, kind: 'dialogue', ask: 'arc_order',
-      prompt: `${rootOf(arc.root)} — from its first image to its last sense`,
-      dialogue: steps.map((s) => ({ speaker: null, ar: s.ar || s.en, en: [s.en, s.gloss].filter(Boolean).join(' — '), clip: clips[s.ar]?.audio ?? null })),
-      shuffled: sh, source,
+      id: `arc:order:${arc.id}`, kind: 'gist', ask: 'arc_choose', interaction: 'choose_arc',
+      instruction: 'Listen — which sense on its arc is this?', instructionAr: 'اِسْمَعْ — أَيُّ مَعَانِيهِ هَذَا؟',
+      prompt: here.ar, audio: clips[here.ar]?.audio ?? null, options, answer, arc: rungs,
+      en: steps.map((s) => s.en).join(' → '),
+      explanation: `${rootOf(arc.root)}: ${shown.map((s) => s.en.split(' — ')[0]).join(' → ')}\nHere: ${here.en}`,
+      source,
     };
     return withCard(drill, { ref: `QR:arc:order:${arc.id}`, type: 'root', kind: 'arc',
-      front: `${rootOf(arc.root)} — order its senses`, back: steps.map((s) => s.en).join(' → ') });
+      front: `${rootOf(arc.root)} — which sense here?\n${here.ar}`, back: `${here.en}\n${steps.map((s) => s.en).join(' → ')}` });
   }).filter((x): x is Record<string, unknown> => !!x);
 }
 
