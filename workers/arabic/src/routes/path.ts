@@ -44,6 +44,10 @@ async function progressOf(env: ArabicEnv, me: string | null) {
   return new Map(rows.map((r) => [r.unit_id, r]));
 }
 
+/// The pass mark when the label is missing: the same 90 the learning path
+/// falls back to (learn-path.ts), so a unit is never done on one screen and open on another.
+const PASS = 90;
+
 export function pathRoutes(router: Router<ArabicEnv>) {
   // A level's path: its series, their units in order, each open, locked or done; and whether the level is open.
   router.get('/ar/path', async (req, env) => {
@@ -51,7 +55,7 @@ export function pathRoutes(router: Router<ArabicEnv>) {
     const b = band === 'all' ? 'basic' : band;
     const me = actorRef(req);
     const [L, prog] = await Promise.all([labels(env), progressOf(env, me)]);
-    const pass = setting(L, 'unit_pass_score', 80), share = setting(L, 'level_unlock_share', 80);
+    const pass = setting(L, 'unit_pass_score', PASS), share = setting(L, 'level_unlock_share', 80);
     const P = byKey(L.path);
 
     // is this level open? the one before must be done to the share
@@ -143,7 +147,7 @@ export function pathRoutes(router: Router<ArabicEnv>) {
     }
     return ok({
       unit, level: row.level, title: doc.title_ar ?? null, titleEn: doc.title_en ?? null, series: doc.series_ar ?? null, episode: doc.episode ?? null,
-      stage: p?.stage ?? 'preview', score: p?.best_score ?? null, pass: setting(L, 'unit_pass_score', 80),
+      stage: p?.stage ?? 'preview', score: p?.best_score ?? null, pass: setting(L, 'unit_pass_score', PASS),
       steps: ['preview', 'watch', 'drill', 'check'].map((k) => byKey(L.path).get(k)).filter(Boolean).map((x) => skillCard(x!)),
       preview,
       scenes: doc.scenes.map((s) => ({ no: s.scene_no, title: s.title_ar ?? null, titleEn: s.title_en ?? null, icon: s.icon ?? null,
@@ -202,7 +206,7 @@ export function pathRoutes(router: Router<ArabicEnv>) {
     if (!me) return unauthorized('Sign in to keep your level');
     const body = await req.json().catch(() => null) as { band?: string; score?: number } | null;
     if (!body?.band || !BANDS.includes(body.band as never) || typeof body.score !== 'number') return badRequest('band and score are required');
-    const pass = setting(await labels(env), 'unit_pass_score', 80);
+    const pass = setting(await labels(env), 'unit_pass_score', PASS);
     const placed = body.score >= pass;
     if (placed) {
       await execute(env.DB_AR,
@@ -230,7 +234,7 @@ export function pathRoutes(router: Router<ArabicEnv>) {
       `SELECT unit_id, band, stage, scenes_json, watched_json, best_score FROM ar_learner_unit WHERE user_id = ? AND unit_id = ?`, [me, unit]);
     const order = ['preview', 'watch', 'drill', 'check', 'done'];
     const L = await labels(env);
-    const pass = setting(L, 'unit_pass_score', 90);   // one pass mark with the learning path (learn-path.ts)
+    const pass = setting(L, 'unit_pass_score', PASS);
     const scenes = new Set(cur ? JSON.parse(cur.scenes_json) as number[] : []);
     if (typeof body.scene === 'number') scenes.add(body.scene);
     const watched = new Set(cur ? JSON.parse(cur.watched_json ?? '[]') as number[] : []);

@@ -75,6 +75,9 @@ export function textRoutes(router: Router<ArabicEnv>) {
   router.get('/ar/text/shelf', async (req, env) => {
     const url = new URL(req.url);
     const genre = url.searchParams.get('genre');
+    // One series only: the reader steps between a series' episodes and needs
+    // those, not the whole library (over a thousand works) to find them in.
+    const series = url.searchParams.get('series');
 
     // Vocabulary is a word list, not a reading. It belongs to the Words screen,
     // and on a shelf it is a book with no text in it.
@@ -82,6 +85,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
                    `COALESCE(path.trail, '') NOT LIKE 'مفردات%'`];
     const params: unknown[] = [];
     if (genre) { conds.push('r.genre_ref = ?'); params.push(genre); }
+    if (series) { conds.push('p.ar_no = ?'); params.push(series); }
 
     return ok({
       shelf: await query(
@@ -269,7 +273,11 @@ export function textRoutes(router: Router<ArabicEnv>) {
                 WHERE a.status = 'live'
                   AND (a.acq_ref_id = ar_acquisition_ref.id
                        OR a.title_ar = ar_acquisition_ref.title_ar)
-                ORDER BY (a.acq_ref_id = ar_acquisition_ref.id) DESC LIMIT 1) AS audioKey
+                ORDER BY (a.acq_ref_id = ar_acquisition_ref.id) DESC LIMIT 1) AS audioKey,
+              -- The series this work is an episode of (the shelf's seriesRef),
+              -- so the reader asks for its siblings by name, not by the library.
+              (SELECT e.parent_ar_no FROM ar_acq_entry e
+                WHERE e.ar_no = json_extract(ar_acquisition_ref.meta_json, '$.ar_no')) AS seriesRef
          FROM ar_acquisition_ref WHERE id = ?`,
       [params.id],
     );
@@ -283,6 +291,9 @@ export function textRoutes(router: Router<ArabicEnv>) {
       // A recording claims its page either by night (the Nights) or by seq (a
       // reader whose every story was recorded on its own).
       `SELECT t.id, t.seq, t.part_no, t.page_no, t.title_ar, t.text_ar, t.word_count,
+              -- whether the page has a reconstructed script, so the reader
+              -- offers one without fetching it to find out
+              (t.script_json IS NOT NULL)                    AS hasScript,
               a.id                                           AS pageAudioId,
               a.object_key                                   AS pageAudioKey,
               json_extract(a.meta_json, '$.video')           AS pageVideoJson,

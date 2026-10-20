@@ -24,6 +24,9 @@ export function acquisitionRoutes(router: Router<ArabicEnv>) {
     const corpus = url.searchParams.get('corpus');
     const q = url.searchParams.get('q');
     const limit = Math.min(Number(url.searchParams.get('limit') ?? 100), 500);
+    // A page of the library, for a list that loads as it is scrolled: there
+    // are more works than one answer carries. Without it, the first page.
+    const offset = Math.max(0, Number(url.searchParams.get('offset') ?? 0) || 0);
 
     const conds = [`status = 'live'`];
     const params: unknown[] = [];
@@ -31,23 +34,22 @@ export function acquisitionRoutes(router: Router<ArabicEnv>) {
     if (register) { conds.push('register = ?'); params.push(register); }
     if (corpus) { conds.push('content_db = ?'); params.push(corpus); }
     if (q) { conds.push('(title_ar LIKE ? OR author LIKE ?)'); params.push(`%${q}%`, `%${q}%`); }
-    params.push(limit);
+    params.push(limit, offset);
 
-    return ok({
-      works: await query(
-        env.DB_AR,
-        `SELECT id, slug, title_ar, title_en, author, note_ar AS died,
-                genre_ref, medium, register, level, content_db,
-                has_script, audio_state, unit_count
-           FROM ar_acquisition_ref
-          WHERE ${conds.join(' AND ')}
-          ORDER BY CASE WHEN note_ar IS NULL THEN 1 ELSE 0 END,
-                   CAST(replace(COALESCE(note_ar, '9999'), 'ت ', '') AS INTEGER),
-                   title_ar
-          LIMIT ?`,
-        params,
-      ),
-    });
+    const works = await query(
+      env.DB_AR,
+      `SELECT id, slug, title_ar, title_en, author, note_ar AS died,
+              genre_ref, medium, register, level, content_db,
+              has_script, audio_state, unit_count
+         FROM ar_acquisition_ref
+        WHERE ${conds.join(' AND ')}
+        ORDER BY CASE WHEN note_ar IS NULL THEN 1 ELSE 0 END,
+                 CAST(replace(COALESCE(note_ar, '9999'), 'ت ', '') AS INTEGER),
+                 title_ar, id
+        LIMIT ? OFFSET ?`,
+      params,
+    );
+    return ok({ works, next_offset: works.length === limit ? offset + limit : null });
   });
 
   /// The listening library. `playUrl` is the whole point: it is anonymous-GET,
@@ -57,12 +59,13 @@ export function acquisitionRoutes(router: Router<ArabicEnv>) {
     const category = url.searchParams.get('category');
     const register = url.searchParams.get('register');
     const limit = Math.min(Number(url.searchParams.get('limit') ?? 200), 500);
+    const offset = Math.max(0, Number(url.searchParams.get('offset') ?? 0) || 0);
 
     const conds = [`a.status = 'live'`];
     const params: unknown[] = [];
     if (category) { conds.push('a.category_ref = ?'); params.push(category); }
     if (register) { conds.push('a.register = ?'); params.push(register); }
-    params.push(limit);
+    params.push(limit, offset);
 
     const rows = await query<Record<string, unknown>>(
       env.DB_AR,
@@ -84,8 +87,8 @@ export function acquisitionRoutes(router: Router<ArabicEnv>) {
          LEFT JOIN ar_acq_category c ON c.id = a.category_ref
          LEFT JOIN ar_acquisition_ref w ON w.id = a.acq_ref_id
         WHERE ${conds.join(' AND ')}
-        ORDER BY c.sort_order, a.title_ar, a.title_en
-        LIMIT ?`,
+        ORDER BY c.sort_order, a.title_ar, a.title_en, a.id
+        LIMIT ? OFFSET ?`,
       params,
     );
 
@@ -94,6 +97,7 @@ export function acquisitionRoutes(router: Router<ArabicEnv>) {
         ...r,
         playUrl: `/api/ar/audio/${encodeURI(String(r.object_key))}`,
       })),
+      next_offset: rows.length === limit ? offset + limit : null,
     });
   });
 

@@ -100,8 +100,8 @@ const KEPT: SwrRoute[] = [
   { re: /^\/ar\/practice\/home$/, ...CONTENT },
   // the class: what an episode's lesson is, the same for every reader and drawn seeded, so kept as content
   { re: /^\/ar\/practice\/class\//, ...CONTENT },
-  // the scripted scenes (not a scene's practice round, drawn fresh)
-  { re: /^\/ar\/scenes(\/[^/]+(\/\d+)?)?$/, ...CONTENT },
+  // the scripted scenes and a scene's words (not a scene's practice round, drawn fresh)
+  { re: /^\/ar\/scenes(\/[^/]+(\/\d+(\/words)?)?)?$/, ...CONTENT },
   { re: /^\/ar\/daily\/(themes|domains)(\/|$)/, ...CONTENT },
 ];
 
