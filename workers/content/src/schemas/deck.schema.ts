@@ -72,6 +72,8 @@ export interface DeckSlide {
   /** The sources the slide rests on, each a link that opens the original with the cited words marked
    *  (com.kmaps.app://tafsir/…, irab/…, lexicon/…, quran/…). */
   sources: Array<{ label: string; url: string }>;
+  /** The story told over the slide: the narrator's words, and their audio once voiced (gateway-relative). */
+  narration: { text: string; audio: string | null } | null;
 }
 
 export interface DeckGraphic {

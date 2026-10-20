@@ -75,6 +75,7 @@ function toSlide(row: BlockRow, refs: RefRow[]): DeckSlide {
     image: toImage(attrs.image),
     graphic: toGraphic(attrs.graphic),
     sources: toSources(attrs.sources),
+    narration: toNarration(attrs.narration),
     verse_refs: refs
       .filter((r) => r.block_id === row.block_id)
       .sort((a, b) => a.seq_order - b.seq_order)
@@ -91,6 +92,14 @@ function toSources(value: unknown): DeckSlide['sources'] {
     return typeof o.label === 'string' && typeof o.url === 'string' && o.url.startsWith('com.kmaps.app://')
       ? [{ label: o.label, url: o.url }] : [];
   });
+}
+
+/** What is spoken over a slide: the narrator's words and, once voiced, their audio (gateway-relative /api/...). */
+function toNarration(value: unknown): DeckSlide['narration'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  if (typeof v.text !== 'string' || !v.text) return null;
+  return { text: v.text, audio: typeof v.audio === 'string' && v.audio ? v.audio : null };
 }
 
 function toImage(value: unknown): DeckSlide['image'] {
