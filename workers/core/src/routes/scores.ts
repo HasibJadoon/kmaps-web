@@ -198,7 +198,9 @@ export function scoresRoutes(router: Router<CoreEnv>) {
     const weekRow = labels.find((l) => l.scope === 'score_week');
     const wx = weekRow ? extraOf(weekRow) : {};
     const weights = (wx.weights && typeof wx.weights === 'object' ? wx.weights : {}) as Record<string, number>;
-    const race = await weekRace(env, weights).catch(() => [] as WeekRow[]);
+    // on the race: who has points this week; anyone only in last week still sees their own last week
+    const everyone = await weekRace(env, weights).catch(() => [] as WeekRow[]);
+    const race = everyone.filter((r) => r.points > 0);
     const wat = race.findIndex((r) => r.userId === ctx.userId);
     const week = weekRow ? {
       ...word(weekRow), ...weekBounds(),
@@ -206,7 +208,7 @@ export function scoresRoutes(router: Router<CoreEnv>) {
         .map((m) => metricWords.get(m) ?? { key: m, label: m, labelAr: null, detail: null, icon: null, color: null }),
       weights,
       standings: race.slice(0, 50),
-      mine: wat >= 0 ? race[wat] : null,
+      mine: everyone.find((r) => r.userId === ctx.userId) ?? null,
       rank: wat >= 0 ? wat + 1 : null, of: race.length,
       chase: chaseOf(race, wat, (r) => r.points),
     } : null;
