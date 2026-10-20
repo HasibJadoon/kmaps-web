@@ -312,8 +312,10 @@ function wordProfiles(terms: Term[]) {
       for (const s of [slot(w.gt_tense, 'tense'), slot(w.gt_voice ?? 'GT:voice:active', 'voice'), slot(w.gt_person, 'person'),
                        slot(w.gt_number, 'number'), slot(w.gt_gender, 'gender'), slot(mood, 'mood')]) if (s) slots.push(s);
     } else if (NOUNISH.has(pos)) {
-      slots.push({ term: kind, alts: nounKinds.filter((t) => t.id !== kind.id) });
       const plain = pos === 'N' || pos === 'ADJ';
+      // a derived noun is only ever an ism or a ṣifa: a pronoun or a name with a maṣdar would give itself away
+      const derived = plain && !!w.gt_derivation_type && byId.has(w.gt_derivation_type);
+      slots.push({ term: kind, alts: nounKinds.filter((t) => t.id !== kind.id && (!derived || ['GT:pos:ism', 'GT:pos:sifa'].includes(t.id))) });
       for (const s of [plain ? slot(w.gt_derivation_type, 'derivation_type') : null, slot(w.gt_case, 'case'),
                        plain ? slot(w.gt_definiteness, 'definiteness') : null,
                        slot(w.gt_number, 'number'), slot(w.gt_gender, 'gender')]) if (s) slots.push(s);
