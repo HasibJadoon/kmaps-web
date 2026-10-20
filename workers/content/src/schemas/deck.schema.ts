@@ -69,6 +69,9 @@ export interface DeckSlide {
    * not know the kind renders the slide's layout as usual.
    */
   graphic: DeckGraphic | null;
+  /** The sources the slide rests on, each a link that opens the original with the cited words marked
+   *  (com.kmaps.app://tafsir/…, irab/…, lexicon/…, quran/…). */
+  sources: Array<{ label: string; url: string }>;
 }
 
 export interface DeckGraphic {

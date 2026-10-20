@@ -74,11 +74,23 @@ function toSlide(row: BlockRow, refs: RefRow[]): DeckSlide {
     notes_en: strings(attrs.notes_en),
     image: toImage(attrs.image),
     graphic: toGraphic(attrs.graphic),
+    sources: toSources(attrs.sources),
     verse_refs: refs
       .filter((r) => r.block_id === row.block_id)
       .sort((a, b) => a.seq_order - b.seq_order)
       .map(toVerseRef),
   };
+}
+
+/** A slide's source links: a label and one of the app's own links, nothing else. */
+function toSources(value: unknown): DeckSlide['sources'] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((v) => {
+    if (!v || typeof v !== 'object') return [];
+    const o = v as Record<string, unknown>;
+    return typeof o.label === 'string' && typeof o.url === 'string' && o.url.startsWith('com.kmaps.app://')
+      ? [{ label: o.label, url: o.url }] : [];
+  });
 }
 
 function toImage(value: unknown): DeckSlide['image'] {
