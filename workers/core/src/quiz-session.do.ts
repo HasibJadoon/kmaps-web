@@ -3,6 +3,7 @@ import { query, execute } from '../../shared/src/db';
 import { typedId } from '../../shared/src/ulid';
 import { speedPoints } from './bank/score';
 import { quizDrillOf, quizAnswerHolds, type QuizMode } from './quiz/drills';
+import { poolEntries, poolTitle, type PoolEntry } from './quiz/pools';
 
 interface Player {
   userId: string;
@@ -48,6 +49,9 @@ const FIRST_BONUS = 100;
 /** A moment after the clock runs out before the answer is shown, for answers on their way. */
 const GRACE_MS = 800;
 type RevealReason = 'all' | 'time' | 'host';
+/** How long the result stands before a pool deals the next question by itself. */
+const ADVANCE_MS = 9000;
+interface PoolState { id: string; title: string | null; total: number; asked: number; auto: boolean }
 
 const scoreFor = (correct: boolean, ms: number, seconds: number): number =>
   speedPoints(correct ? 1 : 0, ms, seconds);
@@ -94,13 +98,14 @@ export class QuizSession {
       given: await this.givenSummary(),
       board: await this.board(),
       roster: this.roster(),
+      pool: await this.poolState(),
     });
     this.broadcastPresence();
     return new Response(null, { status: 101, webSocket: client });
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    let msg: { t?: string; question?: string; choice?: number; picked?: number[]; drill?: string; scope?: string };
+    let msg: { t?: string; question?: string; choice?: number; picked?: number[]; drill?: string; scope?: string; pool?: string; auto?: boolean };
     try {
       const text = typeof message === 'string' ? message : new TextDecoder().decode(message);
       msg = JSON.parse(text);
@@ -120,6 +125,8 @@ export class QuizSession {
         else if (Array.isArray(msg.picked) && msg.picked.every((x) => Number.isInteger(x))) await this.answer(me, -1, msg.picked);
         return;
       case 'reveal': if (me.isHost) await this.reveal('host'); return;
+      case 'pool':   if (me.isHost && msg.pool) await this.startPool(msg.pool, msg.auto !== false); return;
+      case 'next':   if (me.isHost) await this.next(); return;
       case 'end':    if (me.isHost) await this.end(); return;
       default: return;
     }
@@ -139,8 +146,16 @@ export class QuizSession {
 
   async alarm(): Promise<void> {
     const live = await this.getLive();
+    if (!live) return;
+    const advance = await this.state.storage.get<string>('advanceFor');
+    if (advance && advance === live.questionId) {
+      await this.state.storage.delete('advanceFor');
+      const left = ((await this.state.storage.get<PoolEntry[]>('queue')) ?? []).length;
+      if (left) await this.next(); else await this.end();
+      return;
+    }
     const forQ = await this.state.storage.get<string>('alarmFor');
-    if (!live || forQ !== live.questionId) return;
+    if (forQ !== live.questionId) return;
     await this.reveal('time');
   }
 
@@ -156,7 +171,7 @@ export class QuizSession {
     return [...need].every((id) => given.some((g) => g.userId === id));
   }
 
-  private async push(questionId: string): Promise<void> {
+  private async push(questionId: string): Promise<boolean> {
 
     const rows = await query<{
       id: string; prompt: string; seconds: number | null; module: string;
@@ -172,7 +187,7 @@ export class QuizSession {
       [questionId],
     );
     const q = rows[0];
-    if (!q) return;
+    if (!q) return false;
 
     const optionRows = await query<{ id: string; label: string; is_correct: number }>(
       this.env.DB_CORE,
@@ -183,7 +198,7 @@ export class QuizSession {
       [questionId],
     );
     const options = optionRows.map((o) => String(o.label ?? ''));
-    if (options.length < 2) return;
+    if (options.length < 2) return false;
     await this.state.storage.put('optionIds', optionRows.map((o) => o.id));
     await this.state.storage.put('packRef', q.pack_ref);
 
@@ -203,18 +218,19 @@ export class QuizSession {
     await this.markLive();
     await this.timeUp(live);
 
-    this.broadcast({ t: 'question', live: this.publicLive(live), given: [] });
+    this.broadcast({ t: 'question', live: this.publicLive(live), given: [], pool: await this.poolState() });
+    return true;
   }
 
   /** A drill of a passage the host studied, from the host's own class record. Its answer stays here. */
-  private async pushDrill(scope: string, itemRef: string): Promise<void> {
+  private async pushDrill(scope: string, itemRef: string): Promise<boolean> {
     const host = await this.state.storage.get<string>('hostRef');
-    if (!host) return;
+    if (!host) return false;
     const rows = await query<{ card_json: string | null; module: string }>(this.env.DB_CORE,
       `SELECT i.card_json, c.module FROM core_drill_class_item i JOIN core_drill_class c ON c.id = i.class_id
         WHERE c.user_ref = ? AND c.scope_ref = ? AND i.item_ref = ?`, [host, scope, itemRef]);
     const q = quizDrillOf(rows[0]?.card_json ?? null);
-    if (!q) return;
+    if (!q) return false;
     await this.state.storage.put('drillAnswer', { questionId: itemRef, mode: q.mode, correctIndex: q.correctIndex, correct: q.correct, explanation: q.explanation });
     await this.state.storage.put('optionIds', [] as string[]);
     // a drill's answers are kept under its passage, as a bank question's are under its pack
@@ -228,7 +244,47 @@ export class QuizSession {
     await this.state.storage.put('given', [] as Given[]);
     await this.markLive();
     await this.timeUp(live);
-    this.broadcast({ t: 'question', live: this.publicLive(live), given: [] });
+    this.broadcast({ t: 'question', live: this.publicLive(live), given: [], pool: await this.poolState() });
+    return true;
+  }
+
+  // ── a pool: the round deals its own questions ──
+
+  /** The host's pool, shuffled into a queue; the first question at once. */
+  private async startPool(id: string, auto: boolean): Promise<void> {
+    const host = await this.state.storage.get<string>('hostRef');
+    if (!host) return;
+    const entries = await poolEntries(this.env, host, id);
+    if (!entries.length) { this.broadcast({ t: 'pool', pool: null, error: 'That pool has no questions the room can ask.' }); return; }
+    for (let i = entries.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [entries[i], entries[j]] = [entries[j], entries[i]];
+    }
+    await this.state.storage.put('queue', entries);
+    await this.state.storage.put('pool', { id, title: await poolTitle(this.env, host, id), total: entries.length, asked: 0, auto } satisfies PoolState);
+    await this.next();
+  }
+
+  /** The next question of the pool (one the room cannot ask is passed over). */
+  private async next(): Promise<void> {
+    const pool = await this.state.storage.get<PoolState>('pool');
+    const queue = (await this.state.storage.get<PoolEntry[]>('queue')) ?? [];
+    await this.state.storage.delete('advanceFor');
+    while (queue.length) {
+      const e = queue.shift()!;
+      await this.state.storage.put('queue', queue);
+      if (pool) await this.state.storage.put('pool', { ...pool, asked: pool.asked + 1, total: pool.total });
+      const asked = e.kind === 'drill' ? await this.pushDrill(e.scope, e.ref) : await this.push(e.ref);
+      if (asked) return;
+      if (pool) { pool.total -= 1; await this.state.storage.put('pool', { ...pool }); }
+    }
+  }
+
+  private async poolState(): Promise<(PoolState & { left: number }) | null> {
+    const pool = await this.state.storage.get<PoolState>('pool');
+    if (!pool) return null;
+    const left = ((await this.state.storage.get<PoolEntry[]>('queue')) ?? []).length;
+    return { ...pool, left };
   }
 
   private publicLive(live: Live | null) {
@@ -333,7 +389,18 @@ export class QuizSession {
       bonus: FIRST_BONUS,
       prev: Object.fromEntries(before.map((r, i) => [r.userId, i + 1])),
       board: await this.board(),
+      pool: await this.poolState(),
+      advanceIn: await this.advanceAfter(live.questionId),
     });
+  }
+
+  /** In an automatic pool, the next question (or the end) after the result has stood a while. */
+  private async advanceAfter(questionId: string): Promise<number | null> {
+    const pool = await this.state.storage.get<PoolState>('pool');
+    if (!pool?.auto) return null;
+    await this.state.storage.put('advanceFor', questionId);
+    await this.state.storage.setAlarm(Date.now() + ADVANCE_MS);
+    return ADVANCE_MS;
   }
 
   private async persist(questionId: string, given: Given[]): Promise<void> {
