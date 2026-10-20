@@ -54,4 +54,4 @@ INSERT OR REPLACE INTO core_body_routine_item (key, seq, name, reps, unit, icon,
 INSERT OR REPLACE INTO core_app_label (scope, key, parent, label, label_ar, detail, icon, color, extra_json, sort) VALUES
 ('body_ui', 'routine', NULL, 'Daily routine', 'التمرين اليومي', 'Ten moves, ten each — home or park', 'figure.strengthtraining.functional', '#E07A5F',
  '{"video_url":"https://m.youtube.com/watch?v=ZidP_sFbaqQ","video_label":"Follow the full beginner routine"}', 11),
-('body_ui', 'steps',   NULL, 'Steps',         'الخطوات',        'Counted by your iPhone',              'shoeprints.fill',                    '#81B29A', NULL, 12);
+('body_ui', 'steps',   NULL, 'Steps',         'الخطوات',        'From Apple Health',              'shoeprints.fill',                    '#81B29A', NULL, 12);
