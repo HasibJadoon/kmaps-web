@@ -49,6 +49,7 @@ const FIRST_BONUS = 100;
 /** A moment after the clock runs out before the answer is shown, for answers on their way. */
 const GRACE_MS = 800;
 type RevealReason = 'all' | 'time' | 'host';
+interface BoardRow { userId: string; name: string | null; points: number; correct: number; answered: number }
 /** How long the result stands before a pool deals the next question by itself. */
 const ADVANCE_MS = 9000;
 interface PoolState { id: string; title: string | null; total: number; asked: number; auto: boolean }
@@ -372,9 +373,19 @@ export class QuizSession {
     if (first) { first.first = true; first.points += FIRST_BONUS; }
     await this.state.storage.put('given', given);
 
-    // the places before this question, so the board can show who climbed
-    const before = await this.board() as Array<{ userId: string }>;
-    await this.persist(live.questionId, given);
+    // the places before this question (kept from the last reveal), so the board can show who climbed; the
+    // board after is counted here, so the result goes out at once and the answers are saved behind it
+    const before = (await this.state.storage.get<BoardRow[]>('board')) ?? (await this.board() as unknown as BoardRow[]);
+    const after = new Map(before.map((r) => [r.userId, { ...r }]));
+    for (const g of given) {
+      const r = after.get(g.userId) ?? { userId: g.userId, name: g.name, points: 0, correct: 0, answered: 0 };
+      r.points = (Number(r.points) || 0) + g.points;
+      r.correct = (Number(r.correct) || 0) + (g.correct ? 1 : 0);
+      r.answered = (Number(r.answered) || 0) + 1;
+      after.set(g.userId, r);
+    }
+    const board = [...after.values()].sort((x, y) => y.points - x.points || y.correct - x.correct);
+    await this.state.storage.put('board', board);
 
     // how the room answered: per plate (one: the plate chosen; all: every plate picked)
     const tally = mode === 'order' ? null : live.options.map((_, i) =>
@@ -388,10 +399,11 @@ export class QuizSession {
       tally,
       bonus: FIRST_BONUS,
       prev: Object.fromEntries(before.map((r, i) => [r.userId, i + 1])),
-      board: await this.board(),
+      board,
       pool: await this.poolState(),
       advanceIn: await this.advanceAfter(live.questionId),
     });
+    await this.persist(live.questionId, given);
   }
 
   /** In an automatic pool, the next question (or the end) after the result has stood a while. */
