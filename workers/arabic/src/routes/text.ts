@@ -74,68 +74,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
 
   router.get('/ar/text/shelf', async (req, env) => {
     const url = new URL(req.url);
-    const genre = url.searchParams.get('genre');
-    // One series only: the reader steps between a series' episodes and needs
-    // those, not the whole library (over a thousand works) to find them in.
-    const series = url.searchParams.get('series');
-
-    // Vocabulary is a word list, not a reading. It belongs to the Words screen,
-    // and on a shelf it is a book with no text in it.
-    const conds = [`r.status = 'live'`,
-                   `COALESCE(path.trail, '') NOT LIKE 'مفردات%'`];
-    const params: unknown[] = [];
-    if (genre) { conds.push('r.genre_ref = ?'); params.push(genre); }
-    if (series) { conds.push('p.ar_no = ?'); params.push(series); }
-
-    return ok({
-      shelf: await query(
-        env.DB_AR,
-        `${ANCESTRY}
-         SELECT r.id, r.slug, r.title_ar, r.title_en, r.author, r.note_ar AS died,
-                r.genre_ref, r.register, r.level,
-                json_extract(r.meta_json, '$.shape') AS shape,
-                r.verse_form                         AS verseForm,
-                COUNT(t.id)             AS pages,
-                SUM(t.word_count)       AS words,
-                -- Where the reading starts. A dīwān's first pages are the
-                -- publisher's colophon; opening there is opening on nothing.
-                COALESCE(json_extract(r.meta_json, '$.open_at'), MIN(t.seq)) AS firstSeq,
-                (SELECT a.object_key FROM ar_acq_audio a
-                  WHERE a.status = 'live'
-                    AND (a.acq_ref_id = r.id OR a.title_ar = r.title_ar)
-                  ORDER BY (a.acq_ref_id = r.id) DESC LIMIT 1) AS audioKey,
-                -- The series an episode belongs to, from the Notion tree. An
-                -- episode called "Episode 1" means nothing on its own; its
-                -- parent's name is what makes it a thing you can pick.
-                COALESCE(pc.name_ar, p.name) AS series,
-                p.ar_no                      AS seriesRef,
-                -- The grandparent too: BR sessions sit under a sūra, which sits
-                -- under the reader class. Without it the group reads as a sūra
-                -- floating on its own with no idea what is reading it.
-                COALESCE(gpc.name_ar, gp.name) AS seriesParent,
-                path.trail                     AS trail,
-                path.levels                    AS trailLevels,
-                CAST(substr(e.ar_no, 4) AS INTEGER) AS episodeOrder,
-                -- An episode that can be watched, not only heard: the series
-                -- screen says so before the reader is opened.
-                json_extract(r.meta_json, '$.video.id')  AS videoId,
-                json_extract(r.meta_json, '$.episode')   AS episode
-           FROM ar_acquisition_ref r
-           JOIN ar_text_unit t ON t.acq_ref_id = r.id AND t.status = 'live'
-           LEFT JOIN ar_acq_entry e ON e.ar_no = json_extract(r.meta_json, '$.ar_no')
-           LEFT JOIN ar_acq_entry p ON p.ar_no = e.parent_ar_no
-           LEFT JOIN ar_acq_entry gp ON gp.ar_no = p.parent_ar_no
-           LEFT JOIN ar_acq_category pc  ON pc.id  = p.ar_no
-           LEFT JOIN ar_acq_category gpc ON gpc.id = gp.ar_no
-           LEFT JOIN path ON path.start_ar_no = e.ar_no
-          WHERE ${conds.join(' AND ')}
-          GROUP BY r.id
-          ORDER BY r.genre_ref,
-                   CAST(replace(COALESCE(r.note_ar, '9999'), 'ت ', '') AS INTEGER),
-                   r.title_ar`,
-        params,
-      ),
-    });
+    return ok({ shelf: await shelfRows(env, { genre: url.searchParams.get('genre'), series: url.searchParams.get('series') }) });
   });
 
   /// A book's table of contents: only the pages that open a chapter. Cheap
@@ -502,4 +441,80 @@ export function textRoutes(router: Router<ArabicEnv>) {
       ),
     });
   });
+}
+
+/// Every readable work with its ancestry — the shelf, and what the bookcase is
+/// built from. `series` narrows to one series' episodes, `ids` to given works.
+export interface ShelfRow {
+  id: string; slug: string | null; title_ar: string | null; title_en: string | null; author: string | null;
+  died: string | null; genre_ref: string | null; register: string | null; level: string | null;
+  shape: string | null; verseForm: string | null; pages: number; words: number | null;
+  firstSeq: number | null; lastSeq: number | null; audioKey: string | null;
+  series: string | null; seriesRef: string | null; seriesParent: string | null;
+  trail: string | null; trailLevels: number | null; episodeOrder: number | null;
+  videoId: string | null; episode: number | null;
+}
+
+export async function shelfRows(env: ArabicEnv, f: { genre?: string | null; series?: string | null; ids?: string[] } = {}) {
+  // Vocabulary is a word list, not a reading. It belongs to the Words screen,
+  // and on a shelf it is a book with no text in it.
+  const conds = [`r.status = 'live'`,
+                 `COALESCE(path.trail, '') NOT LIKE 'مفردات%'`];
+  const params: unknown[] = [];
+  if (f.genre) { conds.push('r.genre_ref = ?'); params.push(f.genre); }
+  // One series only: the reader steps between a series' episodes and needs
+  // those, not the whole library (over a thousand works) to find them in.
+  if (f.series) { conds.push('p.ar_no = ?'); params.push(f.series); }
+  if (f.ids) {
+    if (!f.ids.length) return [];
+    conds.push(`r.id IN (${f.ids.map(() => '?').join(',')})`); params.push(...f.ids);
+  }
+  return query<ShelfRow>(
+    env.DB_AR,
+    `${ANCESTRY}
+         SELECT r.id, r.slug, r.title_ar, r.title_en, r.author, r.note_ar AS died,
+                r.genre_ref, r.register, r.level,
+                json_extract(r.meta_json, '$.shape') AS shape,
+                r.verse_form                         AS verseForm,
+                COUNT(t.id)             AS pages,
+                SUM(t.word_count)       AS words,
+                -- Where the reading starts. A dīwān's first pages are the
+                -- publisher's colophon; opening there is opening on nothing.
+                COALESCE(json_extract(r.meta_json, '$.open_at'), MIN(t.seq)) AS firstSeq,
+                MAX(t.seq)              AS lastSeq,
+                (SELECT a.object_key FROM ar_acq_audio a
+                  WHERE a.status = 'live'
+                    AND (a.acq_ref_id = r.id OR a.title_ar = r.title_ar)
+                  ORDER BY (a.acq_ref_id = r.id) DESC LIMIT 1) AS audioKey,
+                -- The series an episode belongs to, from the Notion tree. An
+                -- episode called "Episode 1" means nothing on its own; its
+                -- parent's name is what makes it a thing you can pick.
+                COALESCE(pc.name_ar, p.name) AS series,
+                p.ar_no                      AS seriesRef,
+                -- The grandparent too: BR sessions sit under a sūra, which sits
+                -- under the reader class. Without it the group reads as a sūra
+                -- floating on its own with no idea what is reading it.
+                COALESCE(gpc.name_ar, gp.name) AS seriesParent,
+                path.trail                     AS trail,
+                path.levels                    AS trailLevels,
+                CAST(substr(e.ar_no, 4) AS INTEGER) AS episodeOrder,
+                -- An episode that can be watched, not only heard: the series
+                -- screen says so before the reader is opened.
+                json_extract(r.meta_json, '$.video.id')  AS videoId,
+                json_extract(r.meta_json, '$.episode')   AS episode
+           FROM ar_acquisition_ref r
+           JOIN ar_text_unit t ON t.acq_ref_id = r.id AND t.status = 'live'
+           LEFT JOIN ar_acq_entry e ON e.ar_no = json_extract(r.meta_json, '$.ar_no')
+           LEFT JOIN ar_acq_entry p ON p.ar_no = e.parent_ar_no
+           LEFT JOIN ar_acq_entry gp ON gp.ar_no = p.parent_ar_no
+           LEFT JOIN ar_acq_category pc  ON pc.id  = p.ar_no
+           LEFT JOIN ar_acq_category gpc ON gpc.id = gp.ar_no
+           LEFT JOIN path ON path.start_ar_no = e.ar_no
+          WHERE ${conds.join(' AND ')}
+          GROUP BY r.id
+          ORDER BY r.genre_ref,
+                   CAST(replace(COALESCE(r.note_ar, '9999'), 'ت ', '') AS INTEGER),
+                   r.title_ar`,
+    params,
+  );
 }

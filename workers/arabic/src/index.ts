@@ -8,6 +8,7 @@ import type { ArabicEnv } from './env';
 import { audioRoutes } from './routes/audio';
 import { vendorAudioRoutes } from './routes/vendor-audio';
 import { textRoutes } from './routes/text';
+import { bookcaseRoutes } from './routes/bookcase';
 import { readingRoutes } from './routes/reading';
 import { acquisitionRoutes } from './routes/acquisition';
 import { containerRoutes } from './routes/containers';
@@ -51,6 +52,7 @@ router.get('/ar/health', async (_req, env) =>
 audioRoutes(router);
 vendorAudioRoutes(router);
 acquisitionRoutes(router);
+bookcaseRoutes(router);   // before textRoutes: /ar/text/bookcase is a literal
 textRoutes(router);
 readingRoutes(router);
 
