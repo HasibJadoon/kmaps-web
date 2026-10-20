@@ -2265,3 +2265,34 @@ CREATE TABLE IF NOT EXISTS core_body_prayer (
   prayed_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   PRIMARY KEY (owner_ref, on_date, prayer)
 );
+
+-- 072_body_routine: the daily routine and steps (and core_body_profile.steps_target)
+CREATE TABLE IF NOT EXISTS core_body_routine_item (
+  key        TEXT PRIMARY KEY,
+  seq        INTEGER NOT NULL,
+  name       TEXT NOT NULL,
+  reps       INTEGER NOT NULL DEFAULT 10,
+  unit       TEXT NOT NULL DEFAULT 'reps',     -- reps | each side | breaths
+  icon       TEXT NOT NULL,                    -- an SF Symbol figure, animated in the app
+  tone       TEXT,                             -- plum sand sage teal mauve rust
+  cue        TEXT NOT NULL,                    -- one line of form
+  easier     TEXT,                             -- the easier way, for a heavy day
+  place      TEXT NOT NULL DEFAULT 'home or park',
+  video_url  TEXT,
+  live       INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS core_body_routine_done (
+  owner_ref  TEXT NOT NULL,
+  on_date    TEXT NOT NULL,
+  item_key   TEXT NOT NULL,
+  done_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  PRIMARY KEY (owner_ref, on_date, item_key)
+);
+CREATE TABLE IF NOT EXISTS core_body_steps (
+  owner_ref  TEXT NOT NULL,
+  on_date    TEXT NOT NULL,
+  steps      INTEGER NOT NULL,
+  km         REAL,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  PRIMARY KEY (owner_ref, on_date)
+);
