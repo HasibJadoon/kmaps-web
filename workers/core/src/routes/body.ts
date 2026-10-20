@@ -92,7 +92,7 @@ export function bodyRoutes(router: Router<CoreEnv>) {
       query<Prayer>(env.DB_CORE, `SELECT on_date, prayer, prayed_at FROM core_body_prayer WHERE owner_ref = ? AND on_date >= ?`, [me, since]),
       query<RoutineItem>(env.DB_CORE, `SELECT * FROM core_body_routine_item WHERE live = 1 ORDER BY seq`),
       query<{ on_date: string; item_key: string }>(env.DB_CORE, `SELECT on_date, item_key FROM core_body_routine_done WHERE owner_ref = ? AND on_date >= ?`, [me, since]),
-      query<{ on_date: string; steps: number; km: number | null }>(env.DB_CORE, `SELECT on_date, steps, km FROM core_body_steps WHERE owner_ref = ? AND on_date >= ?`, [me, since]),
+      query<{ on_date: string; steps: number; km: number | null }>(env.DB_CORE, `SELECT on_date, steps, km FROM core_body_steps WHERE owner_ref = ? AND on_date >= ?`, [me, addDays(today, -370)]),
     ]);
 
     // ── weight: where it is, the plan's line, the pace needed and the pace kept ──
@@ -172,6 +172,22 @@ export function bodyRoutes(router: Router<CoreEnv>) {
         date: d, weekday: new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' }),
         steps: stepsBy.get(d)?.steps ?? 0 })),
       streak: streak(today, (d) => (stepsBy.get(d)?.steps ?? 0) >= stepsTarget),
+      // the history, from Apple Health: ninety days day by day, a year month by month (the average day of each)
+      history: Array.from({ length: 90 }, (_, i) => addDays(today, i - 89)).map((d) => ({ date: d, steps: stepsBy.get(d)?.steps ?? 0 })),
+      months: (() => {
+        const out: Array<{ month: string; label: string; avg: number; total: number; days: number }> = [];
+        const [y, m] = today.split('-').map(Number);
+        for (let k = 11; k >= 0; k--) {
+          const dt = new Date(Date.UTC(y, m - 1 - k, 1));
+          const key = dt.toISOString().slice(0, 7);
+          const rows = steps.filter((r) => r.on_date.startsWith(key) && r.steps > 0);
+          const total = rows.reduce((a, r) => a + r.steps, 0);
+          out.push({ month: key, label: dt.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }),
+                     avg: rows.length ? Math.round(total / rows.length) : 0, total, days: rows.length });
+        }
+        return out;
+      })(),
+      best: steps.reduce((b, r) => (r.steps > (b?.steps ?? 0) ? { date: r.on_date, steps: r.steps } : b), null as null | { date: string; steps: number }),
     };
 
     return ok({
@@ -248,15 +264,17 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
     const b = await readJsonObject(req) ?? {};
-    const days = Array.isArray(b.days) ? b.days.slice(0, 8) : [];
-    let n = 0;
-    for (const d of days as Array<Record<string, unknown>>) {
-      if (typeof d.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d.date) || typeof d.steps !== 'number') continue;
-      await execute(env.DB_CORE, `INSERT INTO core_body_steps (owner_ref, on_date, steps, km) VALUES (?, ?, ?, ?)
-        ON CONFLICT (owner_ref, on_date) DO UPDATE SET steps = MAX(steps, excluded.steps), km = COALESCE(excluded.km, km),
-        updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')`, [ctx.userId, d.date, Math.max(0, Math.round(d.steps)), typeof d.km === 'number' ? d.km : null]);
-      n++;
+    // up to a year and a bit at once (Apple Health's history), as one statement over the JSON
+    const days = (Array.isArray(b.days) ? b.days.slice(0, 400) : []).filter((d: Record<string, unknown>) =>
+      typeof d?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.date as string) && typeof d.steps === 'number')
+      .map((d: Record<string, unknown>) => ({ date: d.date, steps: Math.max(0, Math.round(d.steps as number)), km: typeof d.km === 'number' ? d.km : null }));
+    if (days.length) {
+      await execute(env.DB_CORE, `INSERT INTO core_body_steps (owner_ref, on_date, steps, km)
+          SELECT ?, json_extract(value, '$.date'), json_extract(value, '$.steps'), json_extract(value, '$.km') FROM json_each(?)
+        ON CONFLICT (owner_ref, on_date) DO UPDATE SET steps = excluded.steps, km = COALESCE(excluded.km, km),
+          updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')`, [ctx.userId, JSON.stringify(days)]);
     }
+    const n = days.length;
     return ok({ saved: n });
   });
 
