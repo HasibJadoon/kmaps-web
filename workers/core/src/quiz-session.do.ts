@@ -39,7 +39,15 @@ interface Given {
   ms: number;
   correct: boolean;
   points: number;
+  /** The first to answer right: their points carry the bonus for it. */
+  first?: boolean;
 }
+
+/** Points on top for being the first to answer right. */
+const FIRST_BONUS = 100;
+/** A moment after the clock runs out before the answer is shown, for answers on their way. */
+const GRACE_MS = 800;
+type RevealReason = 'all' | 'time' | 'host';
 
 const scoreFor = (correct: boolean, ms: number, seconds: number): number =>
   speedPoints(correct ? 1 : 0, ms, seconds);
@@ -111,7 +119,7 @@ export class QuizSession {
         if (typeof msg.choice === 'number') await this.answer(me, msg.choice, null);
         else if (Array.isArray(msg.picked) && msg.picked.every((x) => Number.isInteger(x))) await this.answer(me, -1, msg.picked);
         return;
-      case 'reveal': if (me.isHost) await this.reveal(); return;
+      case 'reveal': if (me.isHost) await this.reveal('host'); return;
       case 'end':    if (me.isHost) await this.end(); return;
       default: return;
     }
@@ -119,6 +127,33 @@ export class QuizSession {
 
   async webSocketClose(ws: WebSocket): Promise<void> {
     this.broadcastPresence(ws);
+    // the one still to answer left: the others need not wait for them
+    if (await this.allIn(ws)) await this.reveal('all');
+  }
+
+  /** The clock for this question: when its time is up, the answer is shown to all. */
+  private async timeUp(live: Live): Promise<void> {
+    await this.state.storage.put('alarmFor', live.questionId);
+    await this.state.storage.setAlarm(live.askedAt + live.seconds * 1000 + GRACE_MS);
+  }
+
+  async alarm(): Promise<void> {
+    const live = await this.getLive();
+    const forQ = await this.state.storage.get<string>('alarmFor');
+    if (!live || forQ !== live.questionId) return;
+    await this.reveal('time');
+  }
+
+  /** Everyone in the room who plays (the host too, when there is no one else) has answered. */
+  private async allIn(excluding?: WebSocket): Promise<boolean> {
+    const live = await this.getLive();
+    if (!live || live.correctIndex !== null || live.correct) return false;
+    const given = await this.getGiven();
+    if (!given.length) return false;
+    const people = this.roster(this.state.getWebSockets().filter((ws) => ws !== excluding));
+    const players = people.filter((p) => !p.isHost);
+    const need = new Set((players.length ? players : people).map((p) => p.userId));
+    return [...need].every((id) => given.some((g) => g.userId === id));
   }
 
   private async push(questionId: string): Promise<void> {
@@ -166,6 +201,7 @@ export class QuizSession {
     await this.state.storage.put('live', live);
     await this.state.storage.put('given', [] as Given[]);
     await this.markLive();
+    await this.timeUp(live);
 
     this.broadcast({ t: 'question', live: this.publicLive(live), given: [] });
   }
@@ -191,6 +227,7 @@ export class QuizSession {
     await this.state.storage.put('live', live);
     await this.state.storage.put('given', [] as Given[]);
     await this.markLive();
+    await this.timeUp(live);
     this.broadcast({ t: 'question', live: this.publicLive(live), given: [] });
   }
 
@@ -240,6 +277,8 @@ export class QuizSession {
     await this.state.storage.put('given', given);
 
     this.broadcast({ t: 'locked', given: this.lockedSummary(given) });
+    // everyone is in: the answer at once, no waiting for the clock
+    if (await this.allIn()) await this.reveal('all');
   }
 
   private lockedSummary(given: Given[]) {
@@ -255,7 +294,7 @@ export class QuizSession {
       : this.lockedSummary(given);
   }
 
-  private async reveal(): Promise<void> {
+  private async reveal(reason: RevealReason = 'host'): Promise<void> {
     const live = await this.getLive();
     if (!live || live.correctIndex !== null || live.correct) return;
 
@@ -269,14 +308,30 @@ export class QuizSession {
 
     const revealed: Live = { ...live, correctIndex, correct, explanation };
     await this.state.storage.put('live', revealed);
+    await this.state.storage.delete('alarmFor');
 
-    const given = await this.getGiven();
+    // fastest first; the first one right carries the bonus
+    const given = (await this.getGiven()).sort((a, b) => a.ms - b.ms);
+    const first = given.find((g) => g.correct);
+    if (first) { first.first = true; first.points += FIRST_BONUS; }
+    await this.state.storage.put('given', given);
+
+    // the places before this question, so the board can show who climbed
+    const before = await this.board() as Array<{ userId: string }>;
     await this.persist(live.questionId, given);
+
+    // how the room answered: per plate (one: the plate chosen; all: every plate picked)
+    const tally = mode === 'order' ? null : live.options.map((_, i) =>
+      given.filter((g) => (mode === 'one' ? g.choice === i : (g.picked ?? []).includes(i))).length);
 
     this.broadcast({
       t: 'reveal',
+      reason,
       live: this.publicLive(revealed),
       given,
+      tally,
+      bonus: FIRST_BONUS,
+      prev: Object.fromEntries(before.map((r, i) => [r.userId, i + 1])),
       board: await this.board(),
     });
   }
