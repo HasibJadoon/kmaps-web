@@ -45,6 +45,24 @@ export function ayahRoutes(router: Router<QuranEnv>) {
     return ok(ayahs.map(a => ({ ...a, words: wordMap.get(a.ayah) ?? [] })));
   });
 
+  // An āyah, or a run of them, as a reference opens it: the muṣḥaf text, the default English, the sūra's names.
+  //   GET /qr/ayah-range/40/1/3   (an essay's (40:1–3) link, com.kmaps.app://quran/40/1-3)
+  router.get('/qr/ayah-range/:surah/:from/:to', async (_req, env, { surah, from, to }) => {
+    const s = parseIntParam(surah), a = parseIntParam(from), b = parseIntParam(to);
+    if (!s || !a || !b || b < a || b - a > 40) return badRequest('Invalid range');
+    const [ayat, sura] = await Promise.all([
+      env.DB_QR.prepare(
+        `SELECT q.ayah, q.text_display AS ar,
+                (SELECT t.translation_text FROM qr_translation t JOIN qr_translation_source ts ON ts.id = t.source_id AND ts.is_default = 1
+                  WHERE t.surah = q.surah AND t.ayah = q.ayah LIMIT 1) AS en
+           FROM qr_ayah q WHERE q.surah = ? AND q.ayah BETWEEN ? AND ? ORDER BY q.ayah`).bind(s, a, b).all(),
+      env.DB_QR.prepare('SELECT id, name_ar, name_en FROM qr_surah WHERE id = ?').bind(s).first(),
+    ]);
+    if (!ayat.results.length) return notFound(`ayah ${s}:${a}`);
+    return ok({ surah: s, from: a, to: b, surahAr: (sura as { name_ar?: string } | null)?.name_ar ?? null,
+                surahEn: (sura as { name_en?: string } | null)?.name_en ?? null, ayat: ayat.results });
+  });
+
   router.get('/qr/ayahs/:surah/:ayah', async (_req, env, { surah, ayah }) => {
     const s = parseIntParam(surah);
     const a = parseIntParam(ayah);
