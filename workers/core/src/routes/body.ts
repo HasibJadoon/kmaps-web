@@ -156,6 +156,31 @@ export function bodyRoutes(router: Router<CoreEnv>) {
 
     const mealOut = makeMealOut(env, labels);
 
+    // ── the daily limit: a ceiling to stay under (owner, 2026-10-21), and enough protein; words and thresholds from
+    //    core_app_label body_ui kcal_* (migration 077) ──
+    const fill = (t: unknown, v: Record<string, string | number>) =>
+      String(t ?? '').replace(/\{(\w+)\}/g, (_, k) => (k in v ? (typeof v[k] === 'number' ? Number(v[k]).toLocaleString('en-GB') : String(v[k])) : ''));
+    const limitWord = (ui.kcal_limit ?? {}) as Record<string, unknown>;
+    const tooLowPct = Number(limitWord.too_low_pct ?? 55), eveningHour = Number(limitWord.evening_hour ?? 18);
+    const localHour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' }).format(now));
+    const proteinToday = sum(todays, 'protein_g');
+    const proteinTarget = profile.protein_g_target ?? null;
+    const kcalStatus = !target ? null
+      : kcalToday > target ? 'over'
+      : todays.length > 0 && localHour >= eveningHour && kcalToday < target * tooLowPct / 100 ? 'too_low' : 'under';
+    const statusWord = kcalStatus ? (ui[`kcal_${kcalStatus}`] ?? {}) as Record<string, unknown> : null;
+    const vars = { target: target ?? 0, left: Math.max(0, (target ?? 0) - kcalToday), over: Math.max(0, kcalToday - (target ?? 0)),
+                   protein: proteinTarget ?? 0 };
+    const proteinWord = (ui.protein_goal ?? {}) as Record<string, unknown>;
+    const limit = target ? {
+      kcal_left: Math.max(0, target - kcalToday), kcal_over: Math.max(0, kcalToday - target), kcal_status: kcalStatus,
+      status_text: statusWord ? fill(statusWord.label, vars) : null, status_icon: statusWord?.icon ?? null, status_tone: statusWord?.tone ?? null,
+      protein_g: r1(proteinToday), protein_target: proteinTarget, protein_left: proteinTarget ? r1(Math.max(0, proteinTarget - proteinToday)) : null,
+      protein_text: proteinTarget ? fill(proteinWord.label, { target: proteinTarget }) : null,
+      protein_detail: proteinTarget ? fill(proteinWord.detail, { left: r1(Math.max(0, proteinTarget - proteinToday)) }) : null,
+      line: fill(limitWord.label, vars), line_icon: limitWord.icon ?? null,
+    } : null;
+
     // macros of today's meal against a simple split of the target (protein from the profile, the rest by energy)
     const p = sum(todays, 'protein_g'), c = sum(todays, 'carbs_g'), f = sum(todays, 'fat_g');
     const pT = profile.protein_g_target ?? (target ? Math.round(target * 0.3 / 4) : null);
@@ -279,6 +304,7 @@ export function bodyRoutes(router: Router<CoreEnv>) {
         ring: target ? Math.min(1.5, kcalToday / target) : null, macros,
         fasting_hours: fastingHours, last_meal_at: last?.eaten_at ?? null,
         omad_streak: streak(today, (d) => (byDay.get(d)?.length ?? 0) === 1),
+        ...(limit ?? {}),
       },
       exercise: {
         today: exToday.map((e) => ({ ...e, icon: kindWords[e.kind]?.icon ?? kindWords.other?.icon, color: kindWords[e.kind]?.color ?? null,
