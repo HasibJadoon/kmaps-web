@@ -4,10 +4,11 @@ import { requireAuth } from '../../../shared/src/auth';
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { readJsonObject } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
+import { prayersBlock, bodyPrayerRoutes, fardLoggedCount } from './body-prayer';
 
 // ── The personal dashboard (migration 071): weight toward a goal, one meal a day, exercise, the five prayers ─────
 //   GET  /core/body/dashboard        everything the screen draws, shaped here — the app only renders it
-//   POST /core/body/prayer           {prayer, date?, prayed?} tick (or untick) one of the five
+//   POST /core/body/prayer…          the prayers' sessions, times and Friday list — routes/body-prayer.ts (migration 078)
 //   GET  /core/body/img/:id?exp&sig  a meal's photo from R2, by a link the dashboard signed (images cannot send a token)
 //   GET  /core/body/meals?before&limit every meal logged, newest first, a page of days at a time
 //   GET  /core/body/demo/:key/:file  a routine move's demonstration photo (public domain, R2 demo/<key>/<n>.jpg) — public
@@ -25,9 +26,8 @@ type Meal = { id: string; eaten_at: string; on_date: string; title: string; item
               carbs_g: number | null; fat_g: number | null; fibre_g: number | null; image_key: string | null; note: string | null;
               servings: number | null; nutrients_json: string | null };
 type Exercise = { id: string; on_date: string; kind: string; title: string | null; minutes: number; kcal: number | null; steps: number | null; note: string | null };
-type Prayer = { on_date: string; prayer: string; prayed_at: string };
+type Prayer = { on_date: string; prayer: string; prayed_at: string | null };
 
-const PRAYERS = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
 const DAY = 86_400_000;
 
 /** The owner's calendar day (YYYY-MM-DD) for an instant. */
@@ -101,6 +101,7 @@ function makeMealOut(env: CoreEnv, labels: Label[]) {
 }
 
 export function bodyRoutes(router: Router<CoreEnv>) {
+  bodyPrayerRoutes(router);
   router.get('/core/body/dashboard', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -113,7 +114,7 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     const word = (scope: string) => Object.fromEntries(labels.filter((l) => l.scope === scope).map((l) =>
       [l.key, { label: l.label, label_ar: l.label_ar, detail: l.detail, icon: l.icon, color: l.color,
                 ...(l.extra_json ? JSON.parse(l.extra_json) : {}) }]));
-    const ui = word('body_ui'), prayerWords = word('body_prayer'), kindWords = word('body_exercise'), weightWords = word('body_weight');
+    const ui = word('body_ui'), kindWords = word('body_exercise'), weightWords = word('body_weight');
     if (!profile) return ok({ ready: false, ui });
 
     const tz = profile.tz || 'Australia/Sydney';
@@ -191,9 +192,8 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     ];
 
     // ── prayers ──
-    const prayedOn = new Map<string, Set<string>>();
-    for (const r of prayers) prayedOn.set(r.on_date, (prayedOn.get(r.on_date) ?? new Set()).add(r.prayer));
-    const todayPrayed = prayedOn.get(today) ?? new Set<string>();
+    // the week counts the farḍ logged each day (the Friday prayer as Dhuhr); the block itself is body-prayer.ts's
+    const prayedOn = (d: string) => fardLoggedCount(prayers.filter((r) => r.on_date === d));
 
     // ── the week ──
     const week = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6)).map((d) => {
@@ -201,7 +201,7 @@ export function bodyRoutes(router: Router<CoreEnv>) {
       const ex = exercise.filter((e) => e.on_date === d);
       return { date: d, weekday: new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' }),
                kcal: sum(ms, 'kcal'), meals: ms.length, omad: ms.length === 1,
-               exercise_min: ex.reduce((a, e) => a + e.minutes, 0), prayers: (prayedOn.get(d) ?? new Set()).size };
+               exercise_min: ex.reduce((a, e) => a + e.minutes, 0), prayers: prayedOn(d) };
     });
 
     const gallery = await Promise.all(meals.filter((m) => m.image_key).slice(0, 30).map(mealOut));
@@ -312,11 +312,7 @@ export function bodyRoutes(router: Router<CoreEnv>) {
         minutes: exToday.reduce((a, e) => a + e.minutes, 0), kcal: burned, net_kcal: kcalToday - burned,
         active_streak: streak(today, (d) => exercise.some((e) => e.on_date === d)),
       },
-      prayers: {
-        today: PRAYERS.map((k) => ({ key: k, ...prayerWords[k], prayed: todayPrayed.has(k) })),
-        count: todayPrayed.size,
-        streak: streak(today, (d) => (prayedOn.get(d)?.size ?? 0) === 5),
-      },
+      prayers: await prayersBlock(env, me),
       week,
       gallery,
       routine: routineOut,
@@ -371,23 +367,6 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     const ui = Object.fromEntries(labels.filter((l) => l.scope === 'body_ui' && (l.key === 'meal' || l.key === 'gallery'))
       .map((l) => [l.key, { label: l.label, label_ar: l.label_ar, detail: l.detail, icon: l.icon, color: l.color }]));
     return ok({ days, months, ui, next_before: dates.length === limit ? dates[dates.length - 1].on_date : null });
-  });
-
-  router.post('/core/body/prayer', async (req, env) => {
-    const ctx = await requireAuth(req, env.JWT_SECRET);
-    if (ctx instanceof Response) return ctx;
-    const b = await readJsonObject(req) ?? {};
-    const prayer = String(b.prayer ?? '');
-    if (!PRAYERS.includes(prayer)) return err('bad_request', 'prayer must be one of the five');
-    const prof = await queryOne<{ tz: string }>(env.DB_CORE, `SELECT tz FROM core_body_profile WHERE owner_ref = ?`, [ctx.userId]);
-    const date = typeof b.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.date) ? b.date : dayOf(new Date(), prof?.tz || 'Australia/Sydney');
-    if (b.prayed === false) {
-      await execute(env.DB_CORE, `DELETE FROM core_body_prayer WHERE owner_ref = ? AND on_date = ? AND prayer = ?`, [ctx.userId, date, prayer]);
-    } else {
-      await execute(env.DB_CORE, `INSERT OR IGNORE INTO core_body_prayer (owner_ref, on_date, prayer) VALUES (?, ?, ?)`, [ctx.userId, date, prayer]);
-    }
-    const rows = await query<{ prayer: string }>(env.DB_CORE, `SELECT prayer FROM core_body_prayer WHERE owner_ref = ? AND on_date = ?`, [ctx.userId, date]);
-    return ok({ date, prayed: rows.map((r) => r.prayer) });
   });
 
   router.post('/core/body/routine', async (req, env) => {

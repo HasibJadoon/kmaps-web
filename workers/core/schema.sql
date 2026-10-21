@@ -2258,12 +2258,39 @@ CREATE TABLE IF NOT EXISTS core_body_exercise (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_core_body_exercise_owner ON core_body_exercise (owner_ref, on_date);
+-- rebuilt in 078_body_prayer_sessions: Friday, Ishraq, Tahajjud; each row a session, final once prayed_at is set
 CREATE TABLE IF NOT EXISTS core_body_prayer (
   owner_ref  TEXT NOT NULL,
   on_date    TEXT NOT NULL,
-  prayer     TEXT NOT NULL CHECK (prayer IN ('fajr', 'dhuhr', 'asr', 'maghrib', 'isha')),
-  prayed_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  prayer     TEXT NOT NULL CHECK (prayer IN ('fajr', 'dhuhr', 'jumuah', 'asr', 'maghrib', 'isha', 'ishraq', 'tahajjud')),
+  status     TEXT NOT NULL DEFAULT 'on_time' CHECK (status IN ('on_time', 'qada')),
+  started_at TEXT,
+  ended_at   TEXT,
+  minutes    REAL,
+  rakat      INTEGER,
+  rakat_json TEXT,
+  khushu     INTEGER CHECK (khushu IS NULL OR khushu BETWEEN 1 AND 5),
+  tags_json  TEXT,
+  note       TEXT,
+  prayed_at  TEXT,
   PRIMARY KEY (owner_ref, on_date, prayer)
+);
+
+CREATE TABLE IF NOT EXISTS core_body_prayer_times (
+  owner_ref  TEXT NOT NULL,
+  on_date    TEXT NOT NULL,
+  times_json TEXT NOT NULL,
+  place      TEXT,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  PRIMARY KEY (owner_ref, on_date)
+);
+
+CREATE TABLE IF NOT EXISTS core_body_friday_done (
+  owner_ref TEXT NOT NULL,
+  on_date   TEXT NOT NULL,
+  item_key  TEXT NOT NULL,
+  done_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  PRIMARY KEY (owner_ref, on_date, item_key)
 );
 
 -- 072_body_routine: the daily routine and steps (and core_body_profile.steps_target)
