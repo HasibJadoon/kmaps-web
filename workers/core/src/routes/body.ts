@@ -404,7 +404,7 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     const date = dayOf(new Date(), pm.tz);
     if (b.done === false) await execute(env.DB_CORE, `DELETE FROM core_body_routine_done WHERE owner_ref = ? AND on_date = ? AND item_key = ?`, [ctx.userId, date, key]);
     else await execute(env.DB_CORE, `INSERT OR IGNORE INTO core_body_routine_done (owner_ref, on_date, item_key) VALUES (?, ?, ?)`, [ctx.userId, date, key]);
-    if (pm.mode) return ok({ date, key, done: b.done !== false, logged: { ...(await logChildRoutine(env, ctx.userId, date, pm.mode)), kcal: null } });
+    if (pm.mode) return ok({ date, key, done: b.done !== false, logged: await logChildRoutine(env, ctx.userId, date, pm.mode) });
 
     // each tick is logged as exercise (owner, 2026-10-21: "that should log on button clicked"): one entry for the day's
     // routine, its minutes and its calories from the moves done — 1.5 min a move, MET 3.8 (moderate bodyweight work)
