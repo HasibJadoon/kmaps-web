@@ -223,6 +223,12 @@ export function bodyRoutes(router: Router<CoreEnv>) {
         plan_today_kg: r1(planAt(today)), on_track: current <= planAt(today) + 0.5,
         pace_needed_kg_wk: r1(needed), pace_actual_kg_wk: t ? r1(t.perWeek) : null, eta_date: eta,
         bmi: profile.height_cm ? r1(current / (profile.height_cm / 100) ** 2) : null,
+        // the healthy range for this height (BMI 18.5–24.9): its top is the "ideal" past the goal (owner, 2026-10-21)
+        ideal_kg: profile.height_cm ? r1(24.9 * (profile.height_cm / 100) ** 2) : null,
+        healthy_min_kg: profile.height_cm ? r1(18.5 * (profile.height_cm / 100) ** 2) : null,
+        goal_bmi: profile.height_cm ? r1(profile.goal_kg / (profile.height_cm / 100) ** 2) : null,
+        bmi_band: profile.height_cm ? (() => { const b = current / (profile.height_cm! / 100) ** 2;
+          return b < 18.5 ? 'Under' : b < 25 ? 'Healthy' : b < 30 ? 'Overweight' : b < 35 ? 'Obese I' : b < 40 ? 'Obese II' : 'Obese III'; })() : null,
         series: series.map((w) => ({ date: w.on_date, kg: w.kg })),
         plan: [{ date: profile.start_date, kg: profile.start_kg }, { date: profile.target_date, kg: profile.goal_kg }],
       },
