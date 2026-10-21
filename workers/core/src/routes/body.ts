@@ -13,7 +13,7 @@ import type { CoreEnv } from '../env';
 // the owner sends (kmaps-resources scripts/body/log.py), never by the app.
 
 type Label = { scope: string; key: string; label: string; label_ar: string | null; detail: string | null; icon: string | null; color: string | null; sort: number; extra_json: string | null };
-type RoutineItem = { key: string; seq: number; name: string; reps: number; unit: string; icon: string; tone: string | null; cue: string;
+type RoutineItem = { key: string; seq: number; part: string; name: string; reps: number; unit: string; icon: string; tone: string | null; cue: string;
                      easier: string | null; place: string; video_url: string | null };
 type Profile = { start_kg: number; start_date: string; goal_kg: number; target_date: string; plan: string; kcal_target: number | null;
                  protein_g_target: number | null; height_cm: number | null; tz: string; steps_target: number | null };

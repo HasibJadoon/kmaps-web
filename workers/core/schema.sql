@@ -2296,3 +2296,5 @@ CREATE TABLE IF NOT EXISTS core_body_steps (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   PRIMARY KEY (owner_ref, on_date)
 );
+
+-- 073: ALTER TABLE core_body_routine_item ADD COLUMN part TEXT NOT NULL DEFAULT 'Main';
