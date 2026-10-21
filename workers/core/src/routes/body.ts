@@ -9,12 +9,14 @@ import type { CoreEnv } from '../env';
 //   GET  /core/body/dashboard        everything the screen draws, shaped here — the app only renders it
 //   POST /core/body/prayer           {prayer, date?, prayed?} tick (or untick) one of the five
 //   GET  /core/body/img/:id?exp&sig  a meal's photo from R2, by a link the dashboard signed (images cannot send a token)
+//   GET  /core/body/demo/:key/:file  a routine move's demonstration photo (public domain, R2 demo/<key>/<n>.jpg) — public
 // Private: every read is the signed-in reader's own rows. Meals, weights and exercise are written by Claude from what
 // the owner sends (kmaps-resources scripts/body/log.py), never by the app.
 
 type Label = { scope: string; key: string; parent: string | null; label: string; label_ar: string | null; detail: string | null; icon: string | null; color: string | null; sort: number; extra_json: string | null };
 type RoutineItem = { key: string; seq: number; part: string; name: string; reps: number; unit: string; icon: string; tone: string | null; cue: string;
-                     easier: string | null; place: string; video_url: string | null };
+                     easier: string | null; place: string; video_url: string | null;
+                     frames_json: string | null; frame_ms: number | null; pose_json: string | null; video_id: string | null; demo_source: string | null };
 type Profile = { start_kg: number; start_date: string; goal_kg: number; target_date: string; plan: string; kcal_target: number | null;
                  protein_g_target: number | null; height_cm: number | null; tz: string; steps_target: number | null };
 type Weight = { on_date: string; kg: number };
@@ -73,13 +75,13 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     const me = ctx.userId;
     const [labels, profile] = await Promise.all([
       query<Label>(env.DB_CORE, `SELECT scope, key, parent, label, label_ar, detail, icon, color, sort, extra_json FROM core_app_label
-                                  WHERE scope IN ('body_ui', 'body_prayer', 'body_exercise', 'body_nutrient', 'body_macro') ORDER BY scope, sort`),
+                                  WHERE scope IN ('body_ui', 'body_prayer', 'body_exercise', 'body_nutrient', 'body_macro', 'body_weight') ORDER BY scope, sort`),
       queryOne<Profile>(env.DB_CORE, `SELECT * FROM core_body_profile WHERE owner_ref = ?`, [me]),
     ]);
     const word = (scope: string) => Object.fromEntries(labels.filter((l) => l.scope === scope).map((l) =>
       [l.key, { label: l.label, label_ar: l.label_ar, detail: l.detail, icon: l.icon, color: l.color,
                 ...(l.extra_json ? JSON.parse(l.extra_json) : {}) }]));
-    const ui = word('body_ui'), prayerWords = word('body_prayer'), kindWords = word('body_exercise');
+    const ui = word('body_ui'), prayerWords = word('body_prayer'), kindWords = word('body_exercise'), weightWords = word('body_weight');
     if (!profile) return ok({ ready: false, ui });
 
     const tz = profile.tz || 'Australia/Sydney';
@@ -178,11 +180,14 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     for (const r of routineDone) doneOn.set(r.on_date, (doneOn.get(r.on_date) ?? new Set()).add(r.item_key));
     const doneToday = doneOn.get(today) ?? new Set<string>();
     const routineOut = {
-      items: routine.map((r) => ({ ...r, done: doneToday.has(r.key) })),
+      // each move's demonstration: real photos played as a loop (frames, frame_ms), or a drawn figure (pose); its video
+      items: routine.map(({ frames_json, pose_json, ...r }) => ({ ...r, done: doneToday.has(r.key),
+        frames: frames_json ? JSON.parse(frames_json) as string[] : null, pose: pose_json ? JSON.parse(pose_json) : null })),
       done: routine.filter((r) => doneToday.has(r.key)).length, total: routine.length,
       streak: streak(today, (d) => routine.length > 0 && (doneOn.get(d)?.size ?? 0) >= routine.length),
       video_url: (ui.routine as Record<string, unknown> | undefined)?.video_url ?? null,
       video_label: (ui.routine as Record<string, unknown> | undefined)?.video_label ?? null,
+      video_id: (ui.routine as Record<string, unknown> | undefined)?.video_id ?? null,
     };
 
     // ── steps, as the iPhone counted them ──
@@ -212,6 +217,33 @@ export function bodyRoutes(router: Router<CoreEnv>) {
       best: steps.reduce((b, r) => (r.steps > (b?.steps ?? 0) ? { date: r.on_date, steps: r.steps } : b), null as null | { date: string; steps: number }),
     };
 
+    // ── the journey past the goal: the healthy range for the height, the milestones on the way, each with the day the
+    //    plan's line reaches it (the line carried on past the goal at the same pace for the ideal) ──
+    const h2 = profile.height_cm ? (profile.height_cm / 100) ** 2 : null;
+    const bmiOf = (kg: number) => (h2 ? r1(kg / h2) : null);
+    const idealKg = h2 ? r1(24.9 * h2) : null, healthyMinKg = h2 ? r1(18.5 * h2) : null;
+    const planDay = (kg: number) => total > 0
+      ? addDays(profile.start_date, Math.round(span * (profile.start_kg - kg) / total)) : null;
+    const wordOf = (k: string) => (weightWords[k] ?? {}) as Record<string, unknown>;
+    const every = Number(wordOf('milestone').every ?? 10);
+    const stops: Array<{ key: string; kg: number }> = [];
+    for (let kg = Math.floor((profile.start_kg - 0.01) / every) * every; kg > profile.goal_kg; kg -= every) stops.push({ key: 'step', kg });
+    stops.push({ key: 'goal', kg: profile.goal_kg });
+    if (idealKg !== null && idealKg < profile.goal_kg) stops.push({ key: 'ideal', kg: idealKg });
+    const milestones = stops.map((m, i) => ({
+      key: m.key === 'step' ? `step${i}` : m.key, kind: m.key, kg: m.kg, bmi: bmiOf(m.kg),
+      label: m.key === 'step' ? `${m.kg} kg` : String(wordOf(m.key).label ?? m.key),
+      icon: m.key === 'step' ? (wordOf('milestone').icon ?? null) : (wordOf(m.key).icon ?? null),
+      tone: m.key === 'step' ? (wordOf('milestone').tone ?? null) : (wordOf(m.key).tone ?? null),
+      date: planDay(m.kg), reached: current <= m.kg,
+    }));
+    const mark = (k: string, kg: number | null) => kg === null ? null : ({ key: k, kg, bmi: bmiOf(kg), label: wordOf(k).label ?? k,
+      icon: wordOf(k).icon ?? null, tone: wordOf(k).tone ?? null, detail: wordOf(k).detail ?? null });
+    const journey = h2 ? {
+      start: mark('start', profile.start_kg), now: mark('now', current), goal: mark('goal', profile.goal_kg), ideal: mark('ideal', idealKg),
+      healthy: { from_kg: healthyMinKg, to_kg: idealKg, label: wordOf('healthy').label ?? 'Healthy range', detail: wordOf('healthy').detail ?? null },
+    } : null;
+
     return ok({
       ready: true,
       ui,
@@ -229,6 +261,10 @@ export function bodyRoutes(router: Router<CoreEnv>) {
         goal_bmi: profile.height_cm ? r1(profile.goal_kg / (profile.height_cm / 100) ** 2) : null,
         bmi_band: profile.height_cm ? (() => { const b = current / (profile.height_cm! / 100) ** 2;
           return b < 18.5 ? 'Under' : b < 25 ? 'Healthy' : b < 30 ? 'Overweight' : b < 35 ? 'Obese I' : b < 40 ? 'Obese II' : 'Obese III'; })() : null,
+        ideal_bmi: h2 ? 24.9 : null, healthy_min_bmi: h2 ? 18.5 : null, start_bmi: bmiOf(profile.start_kg),
+        weigh_ins: weights.length, last_weighed: weights.length ? weights[weights.length - 1].on_date : null,
+        journey, milestones,
+        words: weightWords,
         series: series.map((w) => ({ date: w.on_date, kg: w.kg })),
         plan: [{ date: profile.start_date, kg: profile.start_kg }, { date: profile.target_date, kg: profile.goal_kg }],
       },
@@ -325,6 +361,16 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     }
     const n = days.length;
     return ok({ saved: n });
+  });
+
+  // a move's demonstration photo: public-domain frames (free-exercise-db), so no signature — the app loads them as images
+  router.get('/core/body/demo/:key/:file', async (_req, env, params) => {
+    if (!/^[a-z0-9]+$/.test(params.key) || !/^\d{1,2}\.jpg$/.test(params.file) || !env.PERSONAL) return err('not_found', 'No frame', 404);
+    const obj = await env.PERSONAL.get(`demo/${params.key}/${params.file}`);
+    if (!obj) return err('not_found', 'No frame', 404);
+    return new Response(obj.body, {
+      headers: { 'Content-Type': obj.httpMetadata?.contentType ?? 'image/jpeg', 'Cache-Control': 'public, max-age=604800, immutable' },
+    });
   });
 
   router.get('/core/body/img/:id', async (req, env, params) => {
