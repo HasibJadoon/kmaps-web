@@ -19,7 +19,8 @@ type Profile = { start_kg: number; start_date: string; goal_kg: number; target_d
                  protein_g_target: number | null; height_cm: number | null; tz: string; steps_target: number | null };
 type Weight = { on_date: string; kg: number };
 type Meal = { id: string; eaten_at: string; on_date: string; title: string; items_json: string | null; kcal: number; protein_g: number | null;
-              carbs_g: number | null; fat_g: number | null; fibre_g: number | null; image_key: string | null; note: string | null };
+              carbs_g: number | null; fat_g: number | null; fibre_g: number | null; image_key: string | null; note: string | null;
+              servings: number | null; nutrients_json: string | null };
 type Exercise = { id: string; on_date: string; kind: string; title: string | null; minutes: number; kcal: number | null; steps: number | null; note: string | null };
 type Prayer = { on_date: string; prayer: string; prayed_at: string };
 
@@ -72,7 +73,7 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     const me = ctx.userId;
     const [labels, profile] = await Promise.all([
       query<Label>(env.DB_CORE, `SELECT scope, key, label, label_ar, detail, icon, color, sort, extra_json FROM core_app_label
-                                  WHERE scope IN ('body_ui', 'body_prayer', 'body_exercise') ORDER BY scope, sort`),
+                                  WHERE scope IN ('body_ui', 'body_prayer', 'body_exercise', 'body_nutrient', 'body_macro') ORDER BY scope, sort`),
       queryOne<Profile>(env.DB_CORE, `SELECT * FROM core_body_profile WHERE owner_ref = ?`, [me]),
     ]);
     const word = (scope: string) => Object.fromEntries(labels.filter((l) => l.scope === scope).map((l) =>
@@ -119,12 +120,33 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     const exToday = exercise.filter((e) => e.on_date === today);
     const burned = exToday.reduce((a, e) => a + (e.kcal ?? 0), 0);
 
-    const mealOut = async (m: Meal) => ({
-      id: m.id, eaten_at: m.eaten_at, on_date: m.on_date, title: m.title, kcal: m.kcal,
-      protein_g: m.protein_g, carbs_g: m.carbs_g, fat_g: m.fat_g, fibre_g: m.fibre_g, note: m.note,
-      items: m.items_json ? JSON.parse(m.items_json) : [],
-      image_url: m.image_key ? await imageLink(env, m.id) : null,
-    });
+    // a meal's full nutrition, shaped for its screen: the donut (share of calories by macro) and the label table
+    const nutrientRows = labels.filter((l) => l.scope === 'body_nutrient');
+    const macroRows = labels.filter((l) => l.scope === 'body_macro');
+    const ex = (l: Label) => (l.extra_json ? JSON.parse(l.extra_json) : {}) as Record<string, number | string>;
+    const mealOut = async (m: Meal) => {
+      const n: Record<string, number> = m.nutrients_json ? JSON.parse(m.nutrients_json) : {};
+      for (const [k, v] of [['fat_g', m.fat_g], ['carbs_g', m.carbs_g], ['protein_g', m.protein_g], ['fibre_g', m.fibre_g]] as const) {
+        if (typeof v === 'number') n[k] = v;
+      }
+      const grams: Record<string, number | null> = { protein: m.protein_g, carbs: m.carbs_g, fat: m.fat_g };
+      const kcalOf = macroRows.map((r) => ({ r, k: (grams[r.key] ?? 0) * Number(ex(r).kcal_per_g ?? 4) }));
+      const sumK = kcalOf.reduce((a, x) => a + x.k, 0);
+      const depth = (key: string): number => { const r = nutrientRows.find((x) => x.key === key); return r?.parent ? 1 + depth(r.parent) : 0; };
+      return {
+        id: m.id, eaten_at: m.eaten_at, on_date: m.on_date, title: m.title, kcal: m.kcal, servings: m.servings ?? 1,
+        protein_g: m.protein_g, carbs_g: m.carbs_g, fat_g: m.fat_g, fibre_g: m.fibre_g, note: m.note,
+        items: m.items_json ? JSON.parse(m.items_json) : [],
+        image_url: m.image_key ? await imageLink(env, m.id) : null,
+        donut: kcalOf.map(({ r, k }) => ({ key: r.key, label: r.label, label_ar: r.label_ar, icon: r.icon, color: r.color,
+          g: r1(grams[r.key] ?? 0), pct: sumK > 0 ? Math.round(k / sumK * 100) : 0 })),
+        nutrients: nutrientRows.filter((r) => typeof n[r.key] === 'number').map((r) => {
+          const e = ex(r), dv = typeof e.dv === 'number' ? e.dv : null;
+          return { key: r.key, label: r.label, label_ar: r.label_ar, color: r.color, unit: String(e.unit ?? 'g'), amount: r1(n[r.key]),
+                   dv_pct: dv ? Math.round(n[r.key] / dv * 100) : null, depth: depth(r.key) };
+        }),
+      };
+    };
 
     // macros of today's meal against a simple split of the target (protein from the profile, the rest by energy)
     const p = sum(todays, 'protein_g'), c = sum(todays, 'carbs_g'), f = sum(todays, 'fat_g');

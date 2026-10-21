@@ -2298,3 +2298,5 @@ CREATE TABLE IF NOT EXISTS core_body_steps (
 );
 
 -- 073: ALTER TABLE core_body_routine_item ADD COLUMN part TEXT NOT NULL DEFAULT 'Main';
+
+-- 074: ALTER TABLE core_body_meal ADD COLUMN servings REAL NOT NULL DEFAULT 1; ADD COLUMN nutrients_json TEXT;
