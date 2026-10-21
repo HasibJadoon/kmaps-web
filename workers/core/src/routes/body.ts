@@ -12,7 +12,7 @@ import type { CoreEnv } from '../env';
 // Private: every read is the signed-in reader's own rows. Meals, weights and exercise are written by Claude from what
 // the owner sends (kmaps-resources scripts/body/log.py), never by the app.
 
-type Label = { scope: string; key: string; label: string; label_ar: string | null; detail: string | null; icon: string | null; color: string | null; sort: number; extra_json: string | null };
+type Label = { scope: string; key: string; parent: string | null; label: string; label_ar: string | null; detail: string | null; icon: string | null; color: string | null; sort: number; extra_json: string | null };
 type RoutineItem = { key: string; seq: number; part: string; name: string; reps: number; unit: string; icon: string; tone: string | null; cue: string;
                      easier: string | null; place: string; video_url: string | null };
 type Profile = { start_kg: number; start_date: string; goal_kg: number; target_date: string; plan: string; kcal_target: number | null;
@@ -72,7 +72,7 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     if (ctx instanceof Response) return ctx;
     const me = ctx.userId;
     const [labels, profile] = await Promise.all([
-      query<Label>(env.DB_CORE, `SELECT scope, key, label, label_ar, detail, icon, color, sort, extra_json FROM core_app_label
+      query<Label>(env.DB_CORE, `SELECT scope, key, parent, label, label_ar, detail, icon, color, sort, extra_json FROM core_app_label
                                   WHERE scope IN ('body_ui', 'body_prayer', 'body_exercise', 'body_nutrient', 'body_macro') ORDER BY scope, sort`),
       queryOne<Profile>(env.DB_CORE, `SELECT * FROM core_body_profile WHERE owner_ref = ?`, [me]),
     ]);
