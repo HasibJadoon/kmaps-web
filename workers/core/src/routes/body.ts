@@ -9,6 +9,7 @@ import type { CoreEnv } from '../env';
 //   GET  /core/body/dashboard        everything the screen draws, shaped here — the app only renders it
 //   POST /core/body/prayer           {prayer, date?, prayed?} tick (or untick) one of the five
 //   GET  /core/body/img/:id?exp&sig  a meal's photo from R2, by a link the dashboard signed (images cannot send a token)
+//   GET  /core/body/meals?before&limit every meal logged, newest first, a page of days at a time
 //   GET  /core/body/demo/:key/:file  a routine move's demonstration photo (public domain, R2 demo/<key>/<n>.jpg) — public
 // Private: every read is the signed-in reader's own rows. Meals, weights and exercise are written by Claude from what
 // the owner sends (kmaps-resources scripts/body/log.py), never by the app.
@@ -68,6 +69,37 @@ function streak(today: string, done: (d: string) => boolean): number {
   return n;
 }
 
+/** A meal's full nutrition, shaped for its screen: the donut (share of calories by macro), the label table, the signed
+ *  photo link. One shape for the dashboard and the meal history. */
+function makeMealOut(env: CoreEnv, labels: Label[]) {
+  const nutrientRows = labels.filter((l) => l.scope === 'body_nutrient' && !(l.extra_json && JSON.parse(l.extra_json).hidden));
+  const macroRows = labels.filter((l) => l.scope === 'body_macro');
+  const ex = (l: Label) => (l.extra_json ? JSON.parse(l.extra_json) : {}) as Record<string, number | string>;
+  return async (m: Meal) => {
+    const n: Record<string, number> = m.nutrients_json ? JSON.parse(m.nutrients_json) : {};
+    for (const [k, v] of [['fat_g', m.fat_g], ['carbs_g', m.carbs_g], ['protein_g', m.protein_g], ['fibre_g', m.fibre_g]] as const) {
+      if (typeof v === 'number') n[k] = v;
+    }
+    const grams: Record<string, number | null> = { protein: m.protein_g, carbs: m.carbs_g, fat: m.fat_g };
+    const kcalOf = macroRows.map((r) => ({ r, k: (grams[r.key] ?? 0) * Number(ex(r).kcal_per_g ?? 4) }));
+    const sumK = kcalOf.reduce((a, x) => a + x.k, 0);
+    const depth = (key: string): number => { const r = nutrientRows.find((x) => x.key === key); return r?.parent ? 1 + depth(r.parent) : 0; };
+    return {
+      id: m.id, eaten_at: m.eaten_at, on_date: m.on_date, title: m.title, kcal: m.kcal, servings: m.servings ?? 1,
+      protein_g: m.protein_g, carbs_g: m.carbs_g, fat_g: m.fat_g, fibre_g: m.fibre_g, note: m.note,
+      items: m.items_json ? JSON.parse(m.items_json) : [],
+      image_url: m.image_key ? await imageLink(env, m.id) : null,
+      donut: kcalOf.map(({ r, k }) => ({ key: r.key, label: r.label, label_ar: r.label_ar, icon: r.icon, color: r.color,
+        g: r1(grams[r.key] ?? 0), pct: sumK > 0 ? Math.round(k / sumK * 100) : 0 })),
+      nutrients: nutrientRows.filter((r) => typeof n[r.key] === 'number').map((r) => {
+        const e = ex(r), dv = typeof e.dv === 'number' ? e.dv : null;
+        return { key: r.key, label: r.label, label_ar: r.label_ar, color: r.color, unit: String(e.unit ?? 'g'), amount: r1(n[r.key]),
+                 dv_pct: dv ? Math.round(n[r.key] / dv * 100) : null, depth: depth(r.key) };
+      }),
+    };
+  };
+}
+
 export function bodyRoutes(router: Router<CoreEnv>) {
   router.get('/core/body/dashboard', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
@@ -122,33 +154,7 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     const exToday = exercise.filter((e) => e.on_date === today);
     const burned = exToday.reduce((a, e) => a + (e.kcal ?? 0), 0);
 
-    // a meal's full nutrition, shaped for its screen: the donut (share of calories by macro) and the label table
-    const nutrientRows = labels.filter((l) => l.scope === 'body_nutrient' && !(l.extra_json && JSON.parse(l.extra_json).hidden));
-    const macroRows = labels.filter((l) => l.scope === 'body_macro');
-    const ex = (l: Label) => (l.extra_json ? JSON.parse(l.extra_json) : {}) as Record<string, number | string>;
-    const mealOut = async (m: Meal) => {
-      const n: Record<string, number> = m.nutrients_json ? JSON.parse(m.nutrients_json) : {};
-      for (const [k, v] of [['fat_g', m.fat_g], ['carbs_g', m.carbs_g], ['protein_g', m.protein_g], ['fibre_g', m.fibre_g]] as const) {
-        if (typeof v === 'number') n[k] = v;
-      }
-      const grams: Record<string, number | null> = { protein: m.protein_g, carbs: m.carbs_g, fat: m.fat_g };
-      const kcalOf = macroRows.map((r) => ({ r, k: (grams[r.key] ?? 0) * Number(ex(r).kcal_per_g ?? 4) }));
-      const sumK = kcalOf.reduce((a, x) => a + x.k, 0);
-      const depth = (key: string): number => { const r = nutrientRows.find((x) => x.key === key); return r?.parent ? 1 + depth(r.parent) : 0; };
-      return {
-        id: m.id, eaten_at: m.eaten_at, on_date: m.on_date, title: m.title, kcal: m.kcal, servings: m.servings ?? 1,
-        protein_g: m.protein_g, carbs_g: m.carbs_g, fat_g: m.fat_g, fibre_g: m.fibre_g, note: m.note,
-        items: m.items_json ? JSON.parse(m.items_json) : [],
-        image_url: m.image_key ? await imageLink(env, m.id) : null,
-        donut: kcalOf.map(({ r, k }) => ({ key: r.key, label: r.label, label_ar: r.label_ar, icon: r.icon, color: r.color,
-          g: r1(grams[r.key] ?? 0), pct: sumK > 0 ? Math.round(k / sumK * 100) : 0 })),
-        nutrients: nutrientRows.filter((r) => typeof n[r.key] === 'number').map((r) => {
-          const e = ex(r), dv = typeof e.dv === 'number' ? e.dv : null;
-          return { key: r.key, label: r.label, label_ar: r.label_ar, color: r.color, unit: String(e.unit ?? 'g'), amount: r1(n[r.key]),
-                   dv_pct: dv ? Math.round(n[r.key] / dv * 100) : null, depth: depth(r.key) };
-        }),
-      };
-    };
+    const mealOut = makeMealOut(env, labels);
 
     // macros of today's meal against a simple split of the target (protein from the profile, the rest by energy)
     const p = sum(todays, 'protein_g'), c = sum(todays, 'carbs_g'), f = sum(todays, 'fat_g');
@@ -290,6 +296,55 @@ export function bodyRoutes(router: Router<CoreEnv>) {
       routine: routineOut,
       steps: stepsOut,
     });
+  });
+
+  // ── every meal logged, newest first, a page of days at a time (owner, 2026-10-21: "also meal history") ──
+  //   GET /core/body/meals?before=YYYY-MM-DD&limit=30   days strictly before `before` (default: all), up to `limit` days
+  router.get('/core/body/meals', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const me = ctx.userId;
+    const url = new URL(req.url);
+    const beforeQ = url.searchParams.get('before');
+    const before = beforeQ && /^\d{4}-\d{2}-\d{2}$/.test(beforeQ) ? beforeQ : '9999-12-31';
+    const limit = Math.max(1, Math.min(60, Number(url.searchParams.get('limit') ?? 30) || 30));
+    const [labels, profile] = await Promise.all([
+      query<Label>(env.DB_CORE, `SELECT scope, key, parent, label, label_ar, detail, icon, color, sort, extra_json FROM core_app_label
+                                  WHERE scope IN ('body_nutrient', 'body_macro', 'body_ui') ORDER BY scope, sort`),
+      queryOne<Profile>(env.DB_CORE, `SELECT * FROM core_body_profile WHERE owner_ref = ?`, [me]),
+    ]);
+    const dates = await query<{ on_date: string }>(env.DB_CORE,
+      `SELECT DISTINCT on_date FROM core_body_meal WHERE owner_ref = ? AND on_date < ? ORDER BY on_date DESC LIMIT ?`, [me, before, limit]);
+    const meals = dates.length ? await query<Meal>(env.DB_CORE,
+      `SELECT * FROM core_body_meal WHERE owner_ref = ? AND on_date <= ? AND on_date >= ? ORDER BY eaten_at DESC`,
+      [me, dates[0].on_date, dates[dates.length - 1].on_date]) : [];
+    const mealOut = makeMealOut(env, labels);
+    const target = profile?.kcal_target ?? null;
+    const shaped = await Promise.all(meals.map(mealOut));
+    const days = dates.map(({ on_date }) => {
+      const ms = shaped.filter((m) => m.on_date === on_date);
+      const t = (k: 'kcal' | 'protein_g' | 'carbs_g' | 'fat_g') => r1(ms.reduce((a, m) => a + (Number(m[k]) || 0), 0));
+      const at = new Date(`${on_date}T12:00:00Z`);
+      return {
+        date: on_date,
+        weekday: at.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' }),
+        day_label: at.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }),
+        month: on_date.slice(0, 7),
+        month_label: at.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' }),
+        meals: ms, kcal: t('kcal'), protein_g: t('protein_g'), carbs_g: t('carbs_g'), fat_g: t('fat_g'),
+        kcal_target: target, ring: target ? Math.min(1.5, t('kcal') / target) : null, omad: ms.length === 1,
+      };
+    });
+    // the months that hold meals, for the strip that jumps between them (first page only)
+    const months = beforeQ ? null : (await query<{ month: string; days: number; meals: number }>(env.DB_CORE,
+      `SELECT substr(on_date, 1, 7) AS month, COUNT(DISTINCT on_date) AS days, COUNT(*) AS meals FROM core_body_meal
+        WHERE owner_ref = ? GROUP BY month ORDER BY month DESC`, [me])).map((m) => ({ ...m,
+          label: new Date(`${m.month}-15T12:00:00Z`).toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' }),
+          // the page that starts at this month: every day before the first of the month after it
+          before: (() => { const [y, mo] = m.month.split('-').map(Number); return new Date(Date.UTC(y, mo, 1)).toISOString().slice(0, 10); })() }));
+    const ui = Object.fromEntries(labels.filter((l) => l.scope === 'body_ui' && (l.key === 'meal' || l.key === 'gallery'))
+      .map((l) => [l.key, { label: l.label, label_ar: l.label_ar, detail: l.detail, icon: l.icon, color: l.color }]));
+    return ok({ days, months, ui, next_before: dates.length === limit ? dates[dates.length - 1].on_date : null });
   });
 
   router.post('/core/body/prayer', async (req, env) => {
