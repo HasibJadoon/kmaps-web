@@ -18,6 +18,11 @@ function seeded(): { streams: StreamRow[]; stages: StageRow[] } {
   db.exec(readFileSync(join(here, '../migrations/0008_st_streams.sql'), 'utf8'));
   // and again: the migration must be safe to re-run by `d1 execute --file`
   db.exec(readFileSync(join(here, '../migrations/0008_st_streams.sql'), 'utf8'));
+  // 0009 rewrites the Arabic stream's words (and files episodes, which the fixture rows already carry)
+  db.exec(`CREATE TABLE st_episodes (id TEXT PRIMARY KEY, core_user_ref TEXT, core_ws_ref TEXT, title TEXT, format TEXT,
+    status TEXT, ecosystem TEXT, series_ref TEXT, session_no INTEGER, output_kind TEXT, created_at TEXT, updated_at TEXT)`);
+  db.exec(`CREATE TABLE IF NOT EXISTS d1_migrations (id INTEGER PRIMARY KEY, name TEXT, applied_at TEXT)`);
+  db.exec(readFileSync(join(here, '../migrations/0009_st_streams_arabic_classical.sql'), 'utf8'));
   return {
     streams: db.prepare('SELECT * FROM st_streams WHERE active = 1 ORDER BY seq').all() as StreamRow[],
     stages: db.prepare('SELECT * FROM st_pipeline_stages ORDER BY seq').all() as StageRow[],
@@ -65,9 +70,14 @@ test('series are the strands one level under each channel root', () => {
   assert.equal(ghafir.total, 20);
   assert.equal(ghafir.title_ar, 'سورة غافر');
 
-  const arabic = home.streams.find((s) => s.key === 'arabic')!;
-  const s44 = arabic.series.find((s) => s.id === 'SER:vocab:s44')!;
+  // the Qurʾānic Vocabulary shelf is Qurʾān's (0009); Arabic is acquiring Classical Arabic — reading, reactions,
+  // drills, grammar, balāgha, ṣarf, in that order
+  const s44 = quran.series.find((s) => s.id === 'SER:vocab:s44')!;
   assert.equal(s44.parent_title_en, 'Qurʾānic Vocabulary');
+  const arabic = home.streams.find((s) => s.key === 'arabic')!;
+  assert.ok(!arabic.series.some((s) => s.id.startsWith('SER:vocab')));
+  const cyb = arabic.series.filter((s) => s.channel === 'WS:CYBERNETICS').map((s) => s.id);
+  for (const k of ['reading', 'reactions', 'drills', 'nahw', 'balagha', 'sarf']) assert.ok(cyb.includes(`SER:cyb:arabic:${k}`), k);
   // archived strands with nothing under them are not listed
   const wv = home.streams.find((s) => s.key === 'worldview')!;
   assert.ok(!wv.series.some((s) => s.id === 'SER:doz:wv:wahy'));
