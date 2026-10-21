@@ -731,13 +731,14 @@ export function arcShortAr(s: ArcStep): string | null {
 }
 
 /// The root's short story as a slide infographic (deck contract §3b, snake_case as decks write it): the `timeline` kind
-/// — the line draws itself down through every step of the arc, in order and never cut, each station's disc popping with
-/// the sense's icon and its story beat sliding in beside it; the step this drill is about lit rust and `focus` (it
-/// glows), the rest in the slides' own tone cycle; the note the one-line takeaway. The timing is data (`motion`).
+/// — the root's letters in a gold medallion (`term_ar`) the line grows out of, down through every step of the arc, in
+/// order and never cut, each station's disc popping with the sense's icon and its story beat sliding in beside it; the
+/// step this drill is about lit rust and `focus` (it breathes once the rest have landed), the rest in the slides' own
+/// tone cycle, so a step's place is its colour; the note the one-line takeaway. The timing is data (`motion`).
 /// Any drill may carry a `graphic`; the app draws it in the answered feedback (DrillKit StageReveal).
 export function arcGraphic(root: string, steps: ArcStep[], lit: number, note: string) {
   return {
-    kind: 'timeline', title: `The story of ${root}`,
+    kind: 'timeline', title: `The story of ${root}`, term_ar: root.split('').join(' '),
     items: steps.map((s, i) => ({
       label: i === 0 ? 'Basic' : String(i + 1), icon: s.icon ?? null, en: s.story ?? s.en, ar: arcShortAr(s),
       ...(i === lit ? { tone: 'rust', focus: true } : {}),
