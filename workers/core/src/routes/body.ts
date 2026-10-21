@@ -121,7 +121,7 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     const burned = exToday.reduce((a, e) => a + (e.kcal ?? 0), 0);
 
     // a meal's full nutrition, shaped for its screen: the donut (share of calories by macro) and the label table
-    const nutrientRows = labels.filter((l) => l.scope === 'body_nutrient');
+    const nutrientRows = labels.filter((l) => l.scope === 'body_nutrient' && !(l.extra_json && JSON.parse(l.extra_json).hidden));
     const macroRows = labels.filter((l) => l.scope === 'body_macro');
     const ex = (l: Label) => (l.extra_json ? JSON.parse(l.extra_json) : {}) as Record<string, number | string>;
     const mealOut = async (m: Meal) => {
