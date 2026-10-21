@@ -4,6 +4,7 @@ import { requireAuth } from '../../../shared/src/auth';
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { readJsonObject } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
+import { type Mode, profileMode } from './body-mode';
 
 // ── The prayers, as a tool to get better at them (migration 078; owner, 2026-10-21) ─────────────────────────────────
 //   POST /core/body/prayer/times  {days:[{date,fajr,sunrise,dhuhr,asr,maghrib,isha}], place?}  the app's sun times
@@ -18,6 +19,9 @@ import type { CoreEnv } from '../env';
 // sun times the app sends and the window spec in core_app_label body_prayer; a farḍ prayer whose window has ended with
 // nothing logged is missed, and stays "to make up" until it is made up (status qada). On Fridays the Friday prayer
 // takes Dhuhr's place (a missed one is made up as Dhuhr). Ishraq and Tahajjud are voluntary: prayed or not, never missed.
+// A plan with a mode (core_app_label body_mode, migration 079 — the child's) narrows this from its row: only its prayers
+// (the five), nothing missed or owed (a farḍ prayer whose time has gone is "passed", gently), no Friday list, no
+// insights, a streak of days with all five prayed; and its own words (body_prayer_ui_<words>, body_khushu_<words>).
 
 type Label = { scope: string; key: string; label: string; label_ar: string | null; detail: string | null; icon: string | null;
                color: string | null; sort: number; extra_json: string | null };
@@ -51,9 +55,11 @@ const fill = (t: unknown, v: Record<string, string | number>) => String(t ?? '')
 const isolate = (t: string) => t.replace(/[\u0600-\u06FF][\u0600-\u06FF\s]*[\u0600-\u06FF]|[\u0600-\u06FF]/g, (m) => `\u2068${m}\u2069`);
 const json = <T>(s: string | null, fb: T): T => { try { return s ? JSON.parse(s) as T : fb; } catch { return fb; } };
 
-async function loadWords(env: CoreEnv) {
+async function loadWords(env: CoreEnv, mode: Mode | null = null) {
+  const sfx = mode?.words ? `_${mode.words}` : '';
+  const scopes = ['body_prayer', 'body_prayer_ui', 'body_prayer_part', 'body_khushu', 'body_friday', ...(sfx ? [`body_prayer_ui${sfx}`, `body_khushu${sfx}`] : [])];
   const labels = await query<Label>(env.DB_CORE, `SELECT scope, key, label, label_ar, detail, icon, color, sort, extra_json FROM core_app_label
-    WHERE scope IN ('body_prayer', 'body_prayer_ui', 'body_prayer_part', 'body_khushu', 'body_friday') ORDER BY scope, sort`);
+    WHERE scope IN (${scopes.map(() => '?').join(', ')}) ORDER BY scope, sort`, scopes);
   const of = (scope: string) => labels.filter((l) => l.scope === scope).map((l) => ({
     key: l.key, label: l.label, label_ar: l.label_ar, detail: l.detail, icon: l.icon, color: l.color, ...json<Record<string, unknown>>(l.extra_json, {}),
   }) as Word);
@@ -62,11 +68,17 @@ async function loadWords(env: CoreEnv) {
   return {
     prayer: Object.fromEntries(prayerRows.map((l) => [l.key, { label: l.label, label_ar: l.label_ar, detail: l.detail, icon: l.icon, color: l.color }])),
     spec: Object.fromEntries(prayerRows.map((l) => [l.key, json<Spec>(l.extra_json, { kind: 'fard' })])) as Record<string, Spec>,
-    ui: map('body_prayer_ui'), part: map('body_prayer_part'),
-    khushu: of('body_khushu'), friday: of('body_friday'),
+    // the mode's words laid over the adult ones key by key; its own focus scale and tags, when it has them
+    // (less the words the mode never shows: its hide_words — "missed", "to make up" … for a child)
+    ui: Object.fromEntries(Object.entries({ ...map('body_prayer_ui'), ...(sfx ? map(`body_prayer_ui${sfx}`) : {}) })
+      .filter(([k]) => !(mode?.hide_words ?? []).includes(k))), part: map('body_prayer_part'),
+    khushu: sfx && of(`body_khushu${sfx}`).length ? of(`body_khushu${sfx}`) : of('body_khushu'), friday: of('body_friday'),
   };
 }
 type Words = Awaited<ReturnType<typeof loadWords>>;
+
+/** The prayers a mode shows (all, with no mode). */
+const shows = (mode: Mode | null, key: string) => !mode?.prayers || mode.prayers.includes(key);
 
 async function profileTz(env: CoreEnv, me: string) {
   return (await queryOne<{ tz: string }>(env.DB_CORE, `SELECT tz FROM core_body_profile WHERE owner_ref = ?`, [me]))?.tz || 'Australia/Sydney';
@@ -106,10 +118,12 @@ function windowOf(spec: Spec, t: Times | undefined, next: Times | undefined): { 
   return { starts_at: new Date(a + (w.from_min ?? 0) * 60_000).toISOString(), ends_at: new Date(b + (w.to_min ?? 0) * 60_000).toISOString() };
 }
 
-type Ctx = { me: string; tz: string; now: Date; words: Words; times: Map<string, Times>; rows: Map<string, Row>; since: string; pday: string };
+type Ctx = { me: string; tz: string; now: Date; words: Words; times: Map<string, Times>; rows: Map<string, Row>; since: string; pday: string;
+             mode: Mode | null };
 
 async function context(env: CoreEnv, me: string): Promise<Ctx> {
-  const [tz, words] = await Promise.all([profileTz(env, me), loadWords(env)]);
+  const { tz, mode } = await profileMode(env, me);
+  const words = await loadWords(env, mode);
   const now = new Date();
   const cal = dayOf(now, tz);
   const from = addDays(cal, -70);
@@ -119,7 +133,7 @@ async function context(env: CoreEnv, me: string): Promise<Ctx> {
                              FROM core_body_prayer WHERE owner_ref = ? AND on_date >= ?`, [me, from]),
   ]);
   const since = String((words.ui.reckoning as Record<string, unknown> | undefined)?.since ?? cal);
-  return { me, tz, now, words, times, rows: new Map(rowList.map((r) => [`${r.on_date}|${r.prayer}`, r])), since, pday: prayerDayOf(now, tz, times) };
+  return { me, tz, now, words, times, rows: new Map(rowList.map((r) => [`${r.on_date}|${r.prayer}`, r])), since, pday: prayerDayOf(now, tz, times), mode };
 }
 
 const hhmm = (iso: string | null | undefined, tz: string) => iso
@@ -144,7 +158,7 @@ function stateOf(c: Ctx, d: string, key: string) {
     : !win ? (d < c.pday && spec.kind === 'nafl' ? 'passed' : 'open')
     : t < Date.parse(win.starts_at) ? 'not_yet'
     : t <= Date.parse(win.ends_at) ? 'open'
-    : spec.kind === 'nafl' ? 'passed'
+    : spec.kind === 'nafl' || c.mode?.missed === false ? 'passed'
     : d >= c.since ? 'missed' : 'open';
   return { spec, win, r, state };
 }
@@ -200,7 +214,7 @@ function entryOf(c: Ctx, d: string, key: string) {
     state_label: sw ? fill(sw.label, { time }).replace(/ · until $| $/, '') : state, state_icon: sw?.icon ?? null, state_tone: (sw?.tone as string) ?? null,
     window: win ? { ...win, label: `${hhmm(win.starts_at, c.tz)} – ${hhmm(win.ends_at, c.tz)}` } : null,
     plan: planOf(c, spec),
-    qada: spec.kind === 'fard' ? { as: qadaSpec === spec ? key : spec.qada_as, note: spec.qada_note ?? null, plan: planOf(c, qadaSpec, true) } : null,
+    qada: spec.kind === 'fard' && c.mode?.owed !== false ? { as: qadaSpec === spec ? key : spec.qada_as, note: spec.qada_note ?? null, plan: planOf(c, qadaSpec, true) } : null,
     session: sessionOf(c, r),
   };
 }
@@ -288,16 +302,19 @@ export async function prayersBlock(env: CoreEnv, me: string, c0?: Ctx) {
   const ui = c.words.ui;
   const d = c.pday;
   const today = fiveOf(d).map((k) => entryOf(c, d, k));
-  const extra = NAFL.map((k) => entryOf(c, d, k));
+  const extra = NAFL.filter((k) => shows(c.mode, k)).map((k) => entryOf(c, d, k));
   const done = today.filter((e) => e.prayed);
   const allOnTime = (day: string) => FARD.every((s) => { const r = rowOf(c, day, s); return logged(r) && r!.status === 'on_time'; });
-  const n = streak(d, allOnTime);
+  // a mode counting all five prayed (the child's): on time or a little late, every day with all five counts
+  const allPrayed = c.mode?.streak === 'all_prayed';
+  const full = allPrayed ? (day: string) => FARD.every((s) => logged(rowOf(c, day, s))) : allOnTime;
+  const n = streak(d, full);
   const complete = done.length === 5;
-  const cw = complete ? (allOnTime(d) ? ui.complete : ui.complete_soft) : null;
+  const cw = complete ? (allPrayed || allOnTime(d) ? ui.complete : ui.complete_soft) : null;
 
   // owed: every farḍ missed since the first judged day, oldest first
   const owed: Array<Record<string, unknown>> = [];
-  for (let day = c.since > addDays(d, -60) ? c.since : addDays(d, -60); day <= d; day = addDays(day, 1)) {
+  for (let day = c.since > addDays(d, -60) ? c.since : addDays(d, -60); c.mode?.owed !== false && day <= d; day = addDays(day, 1)) {
     for (const k of fiveOf(day)) {
       const e = stateOf(c, day, k);
       // missed, or being made up right now (a qaḍāʾ session still running stays in the list, with its start)
@@ -311,7 +328,7 @@ export async function prayersBlock(env: CoreEnv, me: string, c0?: Ctx) {
   }
 
   let friday: Record<string, unknown> | null = null;
-  if (isFriday(d)) {
+  if (isFriday(d) && c.mode?.friday_list !== false) {
     const ticks = new Set((await query<{ item_key: string }>(env.DB_CORE,
       `SELECT item_key FROM core_body_friday_done WHERE owner_ref = ? AND on_date = ?`, [c.me, d])).map((r) => r.item_key));
     const items = c.words.friday.map((w) => ({ key: w.key, label: w.label, label_ar: w.label_ar, icon: w.icon, tone: (w.tone as string) ?? null, done: ticks.has(w.key) }));
@@ -332,7 +349,7 @@ export async function prayersBlock(env: CoreEnv, me: string, c0?: Ctx) {
     owed, owed_count: owed.length, owed_label: owed.length ? fill(ui.owed_count?.label, { n: owed.length }) : null,
     extra_done: extra.filter((e) => e.prayed).map((e) => e.key),
     friday,
-    insights: insightsOf(c),
+    insights: c.mode?.insights === false ? null : insightsOf(c),
     khushu: {
       levels: c.words.khushu.filter((w) => w.kind === 'level').map((w) => ({ level: Number(w.level), label: w.label, detail: w.detail, icon: w.icon, tone: (w.tone as string) ?? null })),
       tags: c.words.khushu.filter((w) => w.kind === 'tag').map((w) => ({ key: w.key, label: w.label, icon: w.icon, tone: (w.tone as string) ?? null,
@@ -382,8 +399,9 @@ export function bodyPrayerRoutes(router: Router<CoreEnv>) {
     const c = await context(env, ctx.userId);
     const date = dateFrom(b, c);
     let prayer = String(b.prayer ?? '');
-    if (!ALL.includes(prayer)) return err('bad_request', 'No such prayer');
+    if (!ALL.includes(prayer) || !shows(c.mode, prayer)) return err('bad_request', 'No such prayer');
     const qadaAsked = b.qada === true;
+    if (qadaAsked && c.mode?.owed === false) return err('bad_request', 'Nothing is made up here');
     if (prayer === 'jumuah' && !isFriday(date)) return err('bad_request', 'The Friday prayer is only on Fridays');
     if (prayer === 'jumuah' && qadaAsked) prayer = 'dhuhr';           // a missed Friday prayer is made up as Dhuhr
     if (prayer === 'dhuhr' && isFriday(date) && !qadaAsked) prayer = 'jumuah';
@@ -456,8 +474,9 @@ export function bodyPrayerRoutes(router: Router<CoreEnv>) {
     const c = await context(env, ctx.userId);
     const date = dateFrom(b, c);
     let prayer = String(b.prayer ?? '');
-    if (!ALL.includes(prayer)) return err('bad_request', 'No such prayer');
+    if (!ALL.includes(prayer) || !shows(c.mode, prayer)) return err('bad_request', 'No such prayer');
     const qadaAsked = b.qada === true;
+    if (qadaAsked && c.mode?.owed === false) return err('bad_request', 'Nothing is made up here');
     if (prayer === 'jumuah' && !isFriday(date)) return err('bad_request', 'The Friday prayer is only on Fridays');
     if (prayer === 'jumuah' && qadaAsked) prayer = 'dhuhr';
     if (prayer === 'dhuhr' && isFriday(date) && !qadaAsked) prayer = 'jumuah';
@@ -488,7 +507,7 @@ export function bodyPrayerRoutes(router: Router<CoreEnv>) {
     if (ctx instanceof Response) return ctx;
     const b = await readJsonObject(req) ?? {};
     const c = await context(env, ctx.userId);
-    if (!isFriday(c.pday)) return err('bad_request', 'The Friday list is for Fridays');
+    if (!isFriday(c.pday) || c.mode?.friday_list === false) return err('bad_request', 'The Friday list is for Fridays');
     const key = String(b.key ?? '');
     if (!c.words.friday.some((w) => w.key === key)) return err('bad_request', 'No such item');
     if (b.done === false) await execute(env.DB_CORE, `DELETE FROM core_body_friday_done WHERE owner_ref = ? AND on_date = ? AND item_key = ?`, [ctx.userId, c.pday, key]);

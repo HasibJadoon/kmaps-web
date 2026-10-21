@@ -2212,10 +2212,10 @@ ALTER TABLE core_drill_class ADD COLUMN open_n INTEGER NOT NULL DEFAULT 0;
 -- 071_body: the personal dashboard
 CREATE TABLE IF NOT EXISTS core_body_profile (
   owner_ref        TEXT PRIMARY KEY,
-  start_kg         REAL NOT NULL,
-  start_date       TEXT NOT NULL,                 -- YYYY-MM-DD
-  goal_kg          REAL NOT NULL,
-  target_date      TEXT NOT NULL,                 -- YYYY-MM-DD
+  start_kg         REAL,                          -- NULL for a child (079)
+  start_date       TEXT,                          -- YYYY-MM-DD
+  goal_kg          REAL,
+  target_date      TEXT,                          -- YYYY-MM-DD
   plan             TEXT NOT NULL DEFAULT 'omad',  -- one meal a day
   kcal_target      INTEGER,                       -- the one meal's calories (set with the owner)
   protein_g_target INTEGER,
@@ -2327,3 +2327,10 @@ CREATE TABLE IF NOT EXISTS core_body_steps (
 -- 073: ALTER TABLE core_body_routine_item ADD COLUMN part TEXT NOT NULL DEFAULT 'Main';
 
 -- 074: ALTER TABLE core_body_meal ADD COLUMN servings REAL NOT NULL DEFAULT 1; ADD COLUMN nutrients_json TEXT;
+
+-- 079_body_child_mode: a child's dashboard (plan 'child'; core_app_label body_mode / body_ui_child / body_plate /
+-- body_prayer_ui_child / body_khushu_child). core_body_profile rebuilt with start_kg, start_date, goal_kg, target_date
+-- nullable (a child has none); core_body_meal.groups_json; core_body_routine_item.set_key ('adult' | 'kids') and minutes.
+-- ALTER TABLE core_body_meal ADD COLUMN groups_json TEXT;
+-- ALTER TABLE core_body_routine_item ADD COLUMN set_key TEXT NOT NULL DEFAULT 'adult';
+-- ALTER TABLE core_body_routine_item ADD COLUMN minutes REAL;

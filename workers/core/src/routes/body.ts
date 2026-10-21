@@ -5,6 +5,8 @@ import { query, queryOne, execute } from '../../../shared/src/db';
 import { readJsonObject } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
 import { prayersBlock, bodyPrayerRoutes, fardLoggedCount } from './body-prayer';
+import { modeFromRow, profileMode } from './body-mode';
+import { childDashboard, childMealsPage, logChildRoutine } from './body-child';
 
 // ── The personal dashboard (migration 071): weight toward a goal, one meal a day, exercise, the five prayers ─────
 //   GET  /core/body/dashboard        everything the screen draws, shaped here — the app only renders it
@@ -12,14 +14,17 @@ import { prayersBlock, bodyPrayerRoutes, fardLoggedCount } from './body-prayer';
 //   GET  /core/body/img/:id?exp&sig  a meal's photo from R2, by a link the dashboard signed (images cannot send a token)
 //   GET  /core/body/meals?before&limit every meal logged, newest first, a page of days at a time
 //   GET  /core/body/demo/:key/:file  a routine move's demonstration: photo (R2 demo/<key>/<n>.jpg) or GIF (demo/<key>/move-<n>.gif) — public
+// A profile whose plan has a core_app_label body_mode row (the 'child' plan, migration 079) is answered by
+// routes/body-child.ts: no weight, no calories, the kids' moves, the five prayers with nothing missed — see there.
 // Private: every read is the signed-in reader's own rows. Meals, weights and exercise are written by Claude from what
 // the owner sends (kmaps-resources scripts/body/log.py), never by the app.
 
 type Label = { scope: string; key: string; parent: string | null; label: string; label_ar: string | null; detail: string | null; icon: string | null; color: string | null; sort: number; extra_json: string | null };
 type RoutineItem = { key: string; seq: number; part: string; name: string; reps: number; unit: string; icon: string; tone: string | null; cue: string;
                      easier: string | null; place: string; video_url: string | null;
-                     frames_json: string | null; frame_ms: number | null; pose_json: string | null; video_id: string | null; demo_source: string | null };
-type Profile = { start_kg: number; start_date: string; goal_kg: number; target_date: string; plan: string; kcal_target: number | null;
+                     frames_json: string | null; frame_ms: number | null; pose_json: string | null; video_id: string | null; demo_source: string | null;
+                     set_key?: string; minutes?: number | null };
+type Profile = { owner_ref: string; start_kg: number; start_date: string; goal_kg: number; target_date: string; plan: string; kcal_target: number | null;
                  protein_g_target: number | null; height_cm: number | null; tz: string; steps_target: number | null };
 type Weight = { on_date: string; kg: number };
 type Meal = { id: string; eaten_at: string; on_date: string; title: string; items_json: string | null; kcal: number; protein_g: number | null;
@@ -111,6 +116,15 @@ export function bodyRoutes(router: Router<CoreEnv>) {
                                   WHERE scope IN ('body_ui', 'body_prayer', 'body_exercise', 'body_nutrient', 'body_macro', 'body_weight') ORDER BY scope, sort`),
       queryOne<Profile>(env.DB_CORE, `SELECT * FROM core_body_profile WHERE owner_ref = ?`, [me]),
     ]);
+    // a plan with its own mode (the child's): its own dashboard, with no weight or calorie block at all
+    const modeRow = profile ? await queryOne<{ extra_json: string | null }>(env.DB_CORE,
+      `SELECT extra_json FROM core_app_label WHERE scope = 'body_mode' AND key = ?`, [profile.plan]) : null;
+    const mode = modeFromRow(modeRow);
+    if (profile && mode) {
+      const childLabels = await query<Label>(env.DB_CORE, `SELECT scope, key, parent, label, label_ar, detail, icon, color, sort, extra_json
+        FROM core_app_label WHERE scope IN (?, 'body_plate') ORDER BY scope, sort`, [`body_ui_${mode.words ?? 'child'}`]);
+      return ok(await childDashboard(env, me, profile, childLabels, mode, (id) => imageLink(env, id)));
+    }
     const word = (scope: string) => Object.fromEntries(labels.filter((l) => l.scope === scope).map((l) =>
       [l.key, { label: l.label, label_ar: l.label_ar, detail: l.detail, icon: l.icon, color: l.color,
                 ...(l.extra_json ? JSON.parse(l.extra_json) : {}) }]));
@@ -126,7 +140,7 @@ export function bodyRoutes(router: Router<CoreEnv>) {
       query<Meal>(env.DB_CORE, `SELECT * FROM core_body_meal WHERE owner_ref = ? AND on_date >= ? ORDER BY eaten_at DESC`, [me, since]),
       query<Exercise>(env.DB_CORE, `SELECT * FROM core_body_exercise WHERE owner_ref = ? AND on_date >= ? ORDER BY created_at DESC`, [me, since]),
       query<Prayer>(env.DB_CORE, `SELECT on_date, prayer, prayed_at FROM core_body_prayer WHERE owner_ref = ? AND on_date >= ?`, [me, since]),
-      query<RoutineItem>(env.DB_CORE, `SELECT * FROM core_body_routine_item WHERE live = 1 ORDER BY seq`),
+      query<RoutineItem>(env.DB_CORE, `SELECT * FROM core_body_routine_item WHERE live = 1 AND set_key = 'adult' ORDER BY seq`),
       query<{ on_date: string; item_key: string }>(env.DB_CORE, `SELECT on_date, item_key FROM core_body_routine_done WHERE owner_ref = ? AND on_date >= ?`, [me, since]),
       query<{ on_date: string; steps: number; km: number | null }>(env.DB_CORE, `SELECT on_date, steps, km FROM core_body_steps WHERE owner_ref = ? AND on_date >= ?`, [me, addDays(today, -370)]),
     ]);
@@ -212,7 +226,8 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     const doneToday = doneOn.get(today) ?? new Set<string>();
     const routineOut = {
       // each move's demonstration: real photos played as a loop (frames, frame_ms), or a drawn figure (pose); its video
-      items: routine.map(({ frames_json, pose_json, ...r }) => ({ ...r, done: doneToday.has(r.key),
+      // (set_key and minutes are the kids' set's — migration 079 — not part of the adult answer)
+      items: routine.map(({ frames_json, pose_json, set_key: _set, minutes: _min, ...r }) => ({ ...r, done: doneToday.has(r.key),
         frames: frames_json ? JSON.parse(frames_json) as string[] : null, pose: pose_json ? JSON.parse(pose_json) : null })),
       done: routine.filter((r) => doneToday.has(r.key)).length, total: routine.length,
       streak: streak(today, (d) => routine.length > 0 && (doneOn.get(d)?.size ?? 0) >= routine.length),
@@ -335,6 +350,12 @@ export function bodyRoutes(router: Router<CoreEnv>) {
                                   WHERE scope IN ('body_nutrient', 'body_macro', 'body_ui') ORDER BY scope, sort`),
       queryOne<Profile>(env.DB_CORE, `SELECT * FROM core_body_profile WHERE owner_ref = ?`, [me]),
     ]);
+    const pm = await profileMode(env, me);
+    if (pm.mode) {
+      const childLabels = await query<Label>(env.DB_CORE, `SELECT scope, key, parent, label, label_ar, detail, icon, color, sort, extra_json
+        FROM core_app_label WHERE scope IN (?, 'body_plate') ORDER BY scope, sort`, [`body_ui_${pm.mode.words ?? 'child'}`]);
+      return ok(await childMealsPage(env, me, childLabels, before, limit, !beforeQ, (id) => imageLink(env, id), pm.mode));
+    }
     const dates = await query<{ on_date: string }>(env.DB_CORE,
       `SELECT DISTINCT on_date FROM core_body_meal WHERE owner_ref = ? AND on_date < ? ORDER BY on_date DESC LIMIT ?`, [me, before, limit]);
     const meals = dates.length ? await query<Meal>(env.DB_CORE,
@@ -374,19 +395,23 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     if (ctx instanceof Response) return ctx;
     const b = await readJsonObject(req) ?? {};
     const key = String(b.key ?? '');
-    const item = await queryOne<{ key: string }>(env.DB_CORE, `SELECT key FROM core_body_routine_item WHERE key = ?`, [key]);
-    if (!item) return err('bad_request', 'no such move');
-    const prof = await queryOne<{ tz: string }>(env.DB_CORE, `SELECT tz FROM core_body_profile WHERE owner_ref = ?`, [ctx.userId]);
-    const date = dayOf(new Date(), prof?.tz || 'Australia/Sydney');
+    const [item, pm] = await Promise.all([
+      queryOne<{ key: string; set_key: string }>(env.DB_CORE, `SELECT key, set_key FROM core_body_routine_item WHERE key = ?`, [key]),
+      profileMode(env, ctx.userId),
+    ]);
+    // a move of the reader's own set only: the adult twenty, or the plan's (the kids' set)
+    if (!item || item.set_key !== (pm.mode?.routine_set ?? 'adult')) return err('bad_request', 'no such move');
+    const date = dayOf(new Date(), pm.tz);
     if (b.done === false) await execute(env.DB_CORE, `DELETE FROM core_body_routine_done WHERE owner_ref = ? AND on_date = ? AND item_key = ?`, [ctx.userId, date, key]);
     else await execute(env.DB_CORE, `INSERT OR IGNORE INTO core_body_routine_done (owner_ref, on_date, item_key) VALUES (?, ?, ?)`, [ctx.userId, date, key]);
+    if (pm.mode) return ok({ date, key, done: b.done !== false, logged: { ...(await logChildRoutine(env, ctx.userId, date, pm.mode)), kcal: null } });
 
     // each tick is logged as exercise (owner, 2026-10-21: "that should log on button clicked"): one entry for the day's
     // routine, its minutes and its calories from the moves done — 1.5 min a move, MET 3.8 (moderate bodyweight work)
     // at the latest weight: kcal = MET × 3.5 × kg / 200 per minute
     const [doneRow, total, kgRow] = await Promise.all([
       queryOne<{ n: number }>(env.DB_CORE, `SELECT COUNT(*) AS n FROM core_body_routine_done WHERE owner_ref = ? AND on_date = ?`, [ctx.userId, date]),
-      queryOne<{ n: number }>(env.DB_CORE, `SELECT COUNT(*) AS n FROM core_body_routine_item WHERE live = 1`),
+      queryOne<{ n: number }>(env.DB_CORE, `SELECT COUNT(*) AS n FROM core_body_routine_item WHERE live = 1 AND set_key = 'adult'`),
       queryOne<{ kg: number }>(env.DB_CORE, `SELECT kg FROM core_body_weight WHERE owner_ref = ? ORDER BY on_date DESC LIMIT 1`, [ctx.userId]),
     ]);
     const n = doneRow?.n ?? 0, of = total?.n ?? 10;
