@@ -349,13 +349,14 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
     const b = await readJsonObject(req) ?? {};
-    // up to a year and a bit at once (Apple Health's history), as one statement over the JSON
+    // up to a year and a bit at once (Apple Health's history), as one statement over the JSON. The `WHERE true` is
+    // needed: in an INSERT … SELECT with an upsert, SQLite reads a bare `ON CONFLICT` as the SELECT's join and fails.
     const days = (Array.isArray(b.days) ? b.days.slice(0, 400) : []).filter((d: Record<string, unknown>) =>
       typeof d?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.date as string) && typeof d.steps === 'number')
       .map((d: Record<string, unknown>) => ({ date: d.date, steps: Math.max(0, Math.round(d.steps as number)), km: typeof d.km === 'number' ? d.km : null }));
     if (days.length) {
       await execute(env.DB_CORE, `INSERT INTO core_body_steps (owner_ref, on_date, steps, km)
-          SELECT ?, json_extract(value, '$.date'), json_extract(value, '$.steps'), json_extract(value, '$.km') FROM json_each(?)
+          SELECT ?, json_extract(value, '$.date'), json_extract(value, '$.steps'), json_extract(value, '$.km') FROM json_each(?) WHERE true
         ON CONFLICT (owner_ref, on_date) DO UPDATE SET steps = excluded.steps, km = COALESCE(excluded.km, km),
           updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')`, [ctx.userId, JSON.stringify(days)]);
     }
