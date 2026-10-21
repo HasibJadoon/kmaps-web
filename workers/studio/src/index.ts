@@ -7,6 +7,7 @@ import { templateRoutes } from './routes/templates';
 import { episodeRoutes } from './routes/episodes';
 import { sessionRoutes } from './routes/sessions';
 import { captureRoutes } from './routes/capture';
+import { homeRoutes } from './routes/home';
 
 const router = new Router<StudioEnv>();
 
@@ -25,6 +26,7 @@ templateRoutes(router);
 episodeRoutes(router);
 sessionRoutes(router);
 captureRoutes(router);
+homeRoutes(router);
 
 export default {
   fetch: (request: Request, env: StudioEnv) => router.handle(request, env),

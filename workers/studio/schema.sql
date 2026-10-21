@@ -102,6 +102,36 @@ CREATE TABLE st_templates (
 
 -- ── Indexes (13) ─────────────────────────────────────────────────
 
+CREATE TABLE st_pipeline_stages (
+  key          TEXT PRIMARY KEY,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  label_en     TEXT NOT NULL,
+  label_ar     TEXT NOT NULL,
+  icon         TEXT,
+  tone         TEXT,
+  statuses     TEXT NOT NULL,             -- JSON array
+  in_can       INTEGER NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE st_streams (
+  key          TEXT PRIMARY KEY,          -- matches st_episodes.ecosystem
+  seq          INTEGER NOT NULL DEFAULT 0,
+  title_en     TEXT NOT NULL,
+  title_ar     TEXT NOT NULL,
+  title_face   TEXT NOT NULL DEFAULT 'amiri',   -- 'uthmanic' | 'amiri'
+  tagline      TEXT,
+  icon         TEXT,                      -- SF Symbol
+  accent       TEXT,                      -- JSON array of hex, light → deep
+  glow         TEXT,                      -- hex
+  tone         TEXT,                      -- DeckPalette tone for its infographics
+  motif        TEXT NOT NULL DEFAULT 'star',    -- 'star' | 'ink' | 'constellation'
+  meta_json    TEXT,                      -- the motif's own data
+  active       INTEGER NOT NULL DEFAULT 1,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX idx_st_capture_markers_session ON st_capture_markers(session_ref, seq);
 
 CREATE INDEX idx_st_capture_sessions_episode ON st_capture_sessions(episode_ref);
