@@ -11,7 +11,7 @@ import { prayersBlock, bodyPrayerRoutes, fardLoggedCount } from './body-prayer';
 //   POST /core/body/prayer…          the prayers' sessions, times and Friday list — routes/body-prayer.ts (migration 078)
 //   GET  /core/body/img/:id?exp&sig  a meal's photo from R2, by a link the dashboard signed (images cannot send a token)
 //   GET  /core/body/meals?before&limit every meal logged, newest first, a page of days at a time
-//   GET  /core/body/demo/:key/:file  a routine move's demonstration photo (public domain, R2 demo/<key>/<n>.jpg) — public
+//   GET  /core/body/demo/:key/:file  a routine move's demonstration: photo (R2 demo/<key>/<n>.jpg) or GIF (demo/<key>/move-<n>.gif) — public
 // Private: every read is the signed-in reader's own rows. Meals, weights and exercise are written by Claude from what
 // the owner sends (kmaps-resources scripts/body/log.py), never by the app.
 
@@ -426,7 +426,7 @@ export function bodyRoutes(router: Router<CoreEnv>) {
 
   // a move's demonstration photo: public-domain frames (free-exercise-db), so no signature — the app loads them as images
   router.get('/core/body/demo/:key/:file', async (_req, env, params) => {
-    if (!/^[a-z0-9]+$/.test(params.key) || !/^\d{1,2}\.jpg$/.test(params.file) || !env.PERSONAL) return err('not_found', 'No frame', 404);
+    if (!/^[a-z0-9]+$/.test(params.key) || !/^(\d{1,2}\.jpg|move-\d{1,2}\.gif)$/.test(params.file) || !env.PERSONAL) return err('not_found', 'No frame', 404);
     const obj = await env.PERSONAL.get(`demo/${params.key}/${params.file}`);
     if (!obj) return err('not_found', 'No frame', 404);
     return new Response(obj.body, {
