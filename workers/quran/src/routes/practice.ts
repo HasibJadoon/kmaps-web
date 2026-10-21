@@ -718,7 +718,36 @@ async function idiomDrills(env: QuranEnv, n: number, scope: Scope, lv: Record<st
 
 // ── sense arcs ─────────────────────────────────────────────────────────────
 
-type Arc = { id: string; root: string; title: string | null; titleAr: string | null; steps: Array<{ n: number; en: string; gloss: string | null; ar: string }> };
+type ArcStep = { n: number; en: string; gloss: string | null; ar: string; icon?: string | null; story?: string | null; labelAr?: string | null };
+type Arc = { id: string; root: string; title: string | null; titleAr: string | null; steps: ArcStep[] };
+
+/// A rung's Arabic as the infographic shows it, small beside its beat — only when short: the sense's own Arabic label,
+/// else the lexicon's quoted word if it is a voweled word or two (an unvoweled quote is a name or a heading, not the word).
+export function arcShortAr(s: ArcStep): string | null {
+  const words = (t: string) => t.trim().split(/\s+/).length;
+  if (s.labelAr && words(s.labelAr) <= 3 && s.labelAr.length <= 24) return s.labelAr.trim();
+  if (s.ar && words(s.ar) <= 2 && s.ar.length <= 22 && /[\u064B-\u0652]/.test(s.ar)) return s.ar.trim();
+  return null;
+}
+
+/// The root's short story as a slide infographic (deck contract §3b, snake_case as decks write it): the `timeline` kind
+/// — the line draws itself down through every step of the arc, in order and never cut, each station's disc popping with
+/// the sense's icon and its story beat sliding in beside it; the step this drill is about lit rust and `focus` (it
+/// glows), the rest in the slides' own tone cycle; the note the one-line takeaway. The timing is data (`motion`).
+/// Any drill may carry a `graphic`; the app draws it in the answered feedback (DrillKit StageReveal).
+export function arcGraphic(root: string, steps: ArcStep[], lit: number, note: string) {
+  return {
+    kind: 'timeline', title: `The story of ${root}`,
+    items: steps.map((s, i) => ({
+      label: i === 0 ? 'Basic' : String(i + 1), icon: s.icon ?? null, en: s.story ?? s.en, ar: arcShortAr(s),
+      ...(i === lit ? { tone: 'rust', focus: true } : {}),
+    })),
+    note, motion: { every: 0.35, delay: 0.2 },
+  };
+}
+
+/// The one-line takeaway: the sense, and its gloss when it adds to it.
+const arcLine = (s: ArcStep) => (s.gloss && s.gloss.toLowerCase() !== s.en.toLowerCase() ? `${s.en} — ${s.gloss}` : s.en);
 
 async function arcDrills(env: QuranEnv, n: number, lv: Record<string, unknown>, L: Record<string, Label[]>) {
   const qs = new URLSearchParams({ n: String(n), minSteps: String(lv.minSteps ?? 2), maxSteps: String(lv.maxSteps ?? 20) });
@@ -740,13 +769,14 @@ async function arcDrills(env: QuranEnv, n: number, lv: Record<string, unknown>, 
       const answer = steps[0].en;
       const wrong = [...new Set([...steps.slice(1).map((s) => s.en), ...shuffle(allSteps)])].filter((x) => x !== answer).slice(0, 3);
       if (wrong.length < 3) return null;
+      const line = `It starts with: ${arcLine(steps[0])}`;
       const drill: Record<string, unknown> = {
         id: `arc:origin:${arc.id}`, kind: 'gist', ask: 'arc_origin',
         prompt: `Where does the meaning of ${rootOf(arc.root)} start?`, options: shuffle([answer, ...wrong]), answer,
-        en: steps.map((s) => s.en).join(' → '), source,
+        en: steps[0].en, graphic: arcGraphic(arc.root, steps, 0, line), source,
       };
       return withCard(drill, { ref: `QR:arc:origin:${arc.id}`, type: 'root', kind: 'arc',
-        front: `${rootOf(arc.root)} — first image?`, back: steps.map((s) => s.en).join(' → ') });
+        front: `${rootOf(arc.root)} — first image?`, back: line });
     }
     // one use, heard — which sense on the arc does it carry? The arc stands in its order, Basic → 2 → 3 …, and is
     // never shuffled: the order is the lesson (owner, 2026-10-20: a choice on the arc, never "put it in order")
@@ -756,20 +786,22 @@ async function arcDrills(env: QuranEnv, n: number, lv: Record<string, unknown>, 
     if (!here.ar) return null;
     const MAX = 6;
     const shown = steps.slice(0, MAX - 1).includes(here) ? steps.slice(0, MAX) : [...steps.slice(0, MAX - 1), here];
-    const rungs = shown.map((s, i) => ({ ar: '', en: [s.en, s.gloss].filter(Boolean).join(' — '), label: i === 0 ? 'Basic' : String(i + 1) }));
+    const rungs = shown.map((s, i) => ({ ar: '', en: [s.en, s.gloss].filter(Boolean).join(' — '), label: i === 0 ? 'Basic' : String(i + 1),
+                                         icon: s.icon ?? null }));
     const options = rungs.map((r) => r.en);
     if (new Set(options).size !== options.length) return null;
     const answer = rungs[shown.indexOf(here)].en;
+    const line = `Here: ${arcLine(here)}`;
     const drill: Record<string, unknown> = {
       id: `arc:order:${arc.id}`, kind: 'gist', ask: 'arc_choose', interaction: 'choose_arc',
       instruction: 'Listen — which sense on its arc is this?', instructionAr: 'اِسْمَعْ — أَيُّ مَعَانِيهِ هَذَا؟',
       prompt: here.ar, audio: clips[here.ar]?.audio ?? null, options, answer, arc: rungs,
-      en: steps.map((s) => s.en).join(' → '),
-      explanation: `${rootOf(arc.root)}: ${shown.map((s) => s.en.split(' — ')[0]).join(' → ')}\nHere: ${here.en}`,
+      // the story is told by the graphic (every step, this one lit); the old essay explanation is gone
+      en: here.en, graphic: arcGraphic(arc.root, steps, pickAt, line),
       source,
     };
     return withCard(drill, { ref: `QR:arc:order:${arc.id}`, type: 'root', kind: 'arc',
-      front: `${rootOf(arc.root)} — which sense here?\n${here.ar}`, back: `${here.en}\n${steps.map((s) => s.en).join(' → ')}` });
+      front: `${rootOf(arc.root)} — which sense here?\n${here.ar}`, back: line });
   }).filter((x): x is Record<string, unknown> => !!x);
 }
 

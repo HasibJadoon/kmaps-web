@@ -2053,6 +2053,7 @@ CREATE TABLE "ar_ling_root_sense" (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   display_json TEXT,
+  icon TEXT,
   UNIQUE (scope_level, scope_key, sense_key),
   FOREIGN KEY (root_id) REFERENCES ar_ling_roots(id)
 );
@@ -2175,6 +2176,7 @@ CREATE TABLE ar_ling_sense_arc_step (
   step_no   INTEGER NOT NULL,
   sense_id  TEXT NOT NULL REFERENCES ar_ling_root_sense(id),
   note_md   TEXT,
+  story_en  TEXT,
   UNIQUE (arc_id, step_no),
   UNIQUE (arc_id, sense_id)
 );

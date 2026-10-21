@@ -198,11 +198,11 @@ export function drillSourceRoutes(router: Router<ArLinguisticsEnv>) {
       .all<{ id: string; root_norm: string; arc_en: string | null; arc_ar: string | null; is_primary: number; steps: number }>()).results ?? [];
     if (!arcs.length) return ok({ items: [] });
     const steps = (await env.DB_AL.prepare(
-      `SELECT s.arc_id, s.step_no, s.note_md, r.sense_key, r.label_ar, r.label_en, r.gloss_ar, r.gloss_en
+      `SELECT s.arc_id, s.step_no, s.note_md, s.story_en, r.sense_key, r.label_ar, r.label_en, r.gloss_ar, r.gloss_en, r.icon
          FROM ar_ling_sense_arc_step s JOIN ar_ling_root_sense r ON r.id = s.sense_id
         WHERE s.arc_id IN (${arcs.map(() => '?').join(',')}) ORDER BY s.arc_id, s.step_no`).bind(...arcs.map((a) => a.id))
       .all<{ arc_id: string; step_no: number; note_md: string | null; sense_key: string; label_ar: string | null; label_en: string | null;
-             gloss_ar: string | null; gloss_en: string | null }>()).results ?? [];
+             gloss_ar: string | null; gloss_en: string | null; story_en: string | null; icon: string | null }>()).results ?? [];
     // a rung's Arabic, as the note quotes it (the lexicon's own words), else the sense's Arabic label
     const arabicOf = (note: string | null, fallback: string | null) => {
       const m = /([؀-ۿ][؀-ۿ\s،:ـًٌٍَُِّْ]{6,})/.exec((note ?? '').replace(/\*\*/g, ''));
@@ -212,6 +212,8 @@ export function drillSourceRoutes(router: Router<ArLinguisticsEnv>) {
       id: a.id, root: a.root_norm, title: a.arc_en, titleAr: a.arc_ar, primary: !!a.is_primary,
       steps: steps.filter((s) => s.arc_id === a.id).map((s) => ({
         n: s.step_no, en: s.label_en ?? s.sense_key, gloss: s.gloss_en, ar: arabicOf(s.note_md, s.label_ar ?? s.gloss_ar),
+        // the infographic's data (migration 0219): the sense's SF Symbol, and this step's beat in the root's short story
+        icon: s.icon, story: s.story_en, labelAr: s.label_ar,
       })),
     }));
     return ok({ items });
