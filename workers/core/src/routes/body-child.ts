@@ -1,6 +1,7 @@
 import { query, queryOne, execute } from '../../../shared/src/db';
 import type { CoreEnv } from '../env';
 import { prayersBlock } from './body-prayer';
+import { routineBlock } from './body-routine';
 import { type Mode, addDays, dayOf, fill, streak, weekday } from './body-mode';
 
 // ── The CHILD dashboard (migration 079; the owner's son, 10) ──────────────────────────────────────────────────────────
@@ -124,13 +125,8 @@ export async function childDashboard(env: CoreEnv, me: string, profile: { tz: st
     week: week7.map((d) => ({ date: d, weekday: weekday(d), minutes: Math.round(minOn.get(d) ?? 0) })),
   };
 
-  // the kids' moves, in the adult routine's shape (the same grid draws them)
-  const routineOut = {
-    items: routine.map(({ frames_json, pose_json, ...r }) => ({ ...r, done: doneToday.has(r.key),
-      frames: frames_json ? JSON.parse(frames_json) as string[] : null, pose: pose_json ? JSON.parse(pose_json) : null })),
-    done: movesDone, total: routine.length, streak: moveStreak,
-    video_url: null, video_label: null, video_id: null,
-  };
+  // the kids' moves, in the adult routine's shape (the same grid draws them; routes/body-routine.ts)
+  const routineOut = await routineBlock(env, me, { today, mode });
 
   // ── steps, as the iPhone counted them ──
   const stepsTarget = profile.steps_target ?? 8000;
@@ -181,27 +177,4 @@ export async function childMealsPage(env: CoreEnv, me: string, labels: Label[], 
   const ui = childWords(labels, mode);
   return { mode: 'child', days, months: first ? [] : null, ui: { plate: ui.plate ?? null, plate_gallery: ui.plate_gallery ?? null },
            next_before: dates.length === limit ? dates[dates.length - 1].on_date : null };
-}
-
-/** A tick of a kids' move: the day's routine logged as one exercise entry of the moves' own minutes — no calories. */
-export async function logChildRoutine(env: CoreEnv, me: string, date: string, mode: Mode) {
-  const set = mode.routine_set ?? 'kids';
-  const [row, total, words] = await Promise.all([
-    queryOne<{ n: number; mins: number | null }>(env.DB_CORE, `SELECT COUNT(*) AS n, SUM(COALESCE(i.minutes, 1.5)) AS mins
-        FROM core_body_routine_done d JOIN core_body_routine_item i ON i.key = d.item_key AND i.set_key = ?
-       WHERE d.owner_ref = ? AND d.on_date = ?`, [set, me, date]),
-    queryOne<{ n: number }>(env.DB_CORE, `SELECT COUNT(*) AS n FROM core_body_routine_item WHERE live = 1 AND set_key = ?`, [set]),
-    queryOne<{ label: string }>(env.DB_CORE, `SELECT label FROM core_app_label WHERE scope = ? AND key = 'moves_line'`, [`body_ui_${mode.words ?? 'child'}`]),
-  ]);
-  const n = row?.n ?? 0, of = total?.n ?? 0, minutes = Math.round(row?.mins ?? 0);
-  const exId = `RT:${me}:${date}`;
-  if (n === 0) {
-    await execute(env.DB_CORE, `DELETE FROM core_body_exercise WHERE id = ?`, [exId]);
-  } else {
-    await execute(env.DB_CORE, `INSERT INTO core_body_exercise (id, owner_ref, on_date, kind, title, minutes, kcal, note)
-        VALUES (?, ?, ?, 'routine', ?, ?, NULL, 'logged from the moves ticked')
-      ON CONFLICT (id) DO UPDATE SET title = excluded.title, minutes = excluded.minutes, kcal = NULL`,
-      [exId, me, date, fill(words?.label ?? '{n} of {of} moves', { n, of }), minutes]);
-  }
-  return { moves: n, of, minutes };
 }

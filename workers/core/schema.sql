@@ -2334,3 +2334,15 @@ CREATE TABLE IF NOT EXISTS core_body_steps (
 -- ALTER TABLE core_body_meal ADD COLUMN groups_json TEXT;
 -- ALTER TABLE core_body_routine_item ADD COLUMN set_key TEXT NOT NULL DEFAULT 'adult';
 -- ALTER TABLE core_body_routine_item ADD COLUMN minutes REAL;
+
+-- 081_body_routine_sessions: each routine move timed (routes/body-routine.ts)
+CREATE TABLE IF NOT EXISTS core_body_routine_session (
+  id         TEXT PRIMARY KEY,
+  owner_ref  TEXT NOT NULL,
+  on_date    TEXT NOT NULL,
+  item_key   TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  ended_at   TEXT,
+  seconds    INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_core_body_routine_session_owner ON core_body_routine_session (owner_ref, on_date);

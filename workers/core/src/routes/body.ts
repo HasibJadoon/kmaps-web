@@ -6,7 +6,8 @@ import { readJsonObject } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
 import { prayersBlock, bodyPrayerRoutes, fardLoggedCount } from './body-prayer';
 import { modeFromRow, profileMode } from './body-mode';
-import { childDashboard, childMealsPage, logChildRoutine } from './body-child';
+import { childDashboard, childMealsPage } from './body-child';
+import { bodyRoutineRoutes, routineBlock } from './body-routine';
 
 // ── The personal dashboard (migration 071): weight toward a goal, one meal a day, exercise, the five prayers ─────
 //   GET  /core/body/dashboard        everything the screen draws, shaped here — the app only renders it
@@ -107,6 +108,7 @@ function makeMealOut(env: CoreEnv, labels: Label[]) {
 
 export function bodyRoutes(router: Router<CoreEnv>) {
   bodyPrayerRoutes(router);
+  bodyRoutineRoutes(router);     // the routine's ticks and timed moves (routes/body-routine.ts, migration 081)
   router.get('/core/body/dashboard', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -135,13 +137,11 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     const now = new Date();
     const today = dayOf(now, tz);
     const since = addDays(today, -60);
-    const [weights, meals, exercise, prayers, routine, routineDone, steps] = await Promise.all([
+    const [weights, meals, exercise, prayers, steps] = await Promise.all([
       query<Weight>(env.DB_CORE, `SELECT on_date, kg FROM core_body_weight WHERE owner_ref = ? ORDER BY on_date`, [me]),
       query<Meal>(env.DB_CORE, `SELECT * FROM core_body_meal WHERE owner_ref = ? AND on_date >= ? ORDER BY eaten_at DESC`, [me, since]),
       query<Exercise>(env.DB_CORE, `SELECT * FROM core_body_exercise WHERE owner_ref = ? AND on_date >= ? ORDER BY created_at DESC`, [me, since]),
       query<Prayer>(env.DB_CORE, `SELECT on_date, prayer, prayed_at FROM core_body_prayer WHERE owner_ref = ? AND on_date >= ?`, [me, since]),
-      query<RoutineItem>(env.DB_CORE, `SELECT * FROM core_body_routine_item WHERE live = 1 AND set_key = 'adult' ORDER BY seq`),
-      query<{ on_date: string; item_key: string }>(env.DB_CORE, `SELECT on_date, item_key FROM core_body_routine_done WHERE owner_ref = ? AND on_date >= ?`, [me, since]),
       query<{ on_date: string; steps: number; km: number | null }>(env.DB_CORE, `SELECT on_date, steps, km FROM core_body_steps WHERE owner_ref = ? AND on_date >= ?`, [me, addDays(today, -370)]),
     ]);
 
@@ -220,21 +220,8 @@ export function bodyRoutes(router: Router<CoreEnv>) {
 
     const gallery = await Promise.all(meals.filter((m) => m.image_key).slice(0, 30).map(mealOut));
 
-    // ── the daily routine: ten moves, ticked one by one ──
-    const doneOn = new Map<string, Set<string>>();
-    for (const r of routineDone) doneOn.set(r.on_date, (doneOn.get(r.on_date) ?? new Set()).add(r.item_key));
-    const doneToday = doneOn.get(today) ?? new Set<string>();
-    const routineOut = {
-      // each move's demonstration: real photos played as a loop (frames, frame_ms), or a drawn figure (pose); its video
-      // (set_key and minutes are the kids' set's — migration 079 — not part of the adult answer)
-      items: routine.map(({ frames_json, pose_json, set_key: _set, minutes: _min, ...r }) => ({ ...r, done: doneToday.has(r.key),
-        frames: frames_json ? JSON.parse(frames_json) as string[] : null, pose: pose_json ? JSON.parse(pose_json) : null })),
-      done: routine.filter((r) => doneToday.has(r.key)).length, total: routine.length,
-      streak: streak(today, (d) => routine.length > 0 && (doneOn.get(d)?.size ?? 0) >= routine.length),
-      video_url: (ui.routine as Record<string, unknown> | undefined)?.video_url ?? null,
-      video_label: (ui.routine as Record<string, unknown> | undefined)?.video_label ?? null,
-      video_id: (ui.routine as Record<string, unknown> | undefined)?.video_id ?? null,
-    };
+    // ── the daily routine: the moves, each ticked or timed (routes/body-routine.ts) ──
+    const routineOut = await routineBlock(env, me, { today, mode: null, video: (ui.routine as Record<string, unknown> | undefined) ?? null });
 
     // ── steps, as the iPhone counted them ──
     const stepsTarget = profile.steps_target ?? 8000;
@@ -388,45 +375,6 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     const ui = Object.fromEntries(labels.filter((l) => l.scope === 'body_ui' && (l.key === 'meal' || l.key === 'gallery'))
       .map((l) => [l.key, { label: l.label, label_ar: l.label_ar, detail: l.detail, icon: l.icon, color: l.color }]));
     return ok({ days, months, ui, next_before: dates.length === limit ? dates[dates.length - 1].on_date : null });
-  });
-
-  router.post('/core/body/routine', async (req, env) => {
-    const ctx = await requireAuth(req, env.JWT_SECRET);
-    if (ctx instanceof Response) return ctx;
-    const b = await readJsonObject(req) ?? {};
-    const key = String(b.key ?? '');
-    const [item, pm] = await Promise.all([
-      queryOne<{ key: string; set_key: string }>(env.DB_CORE, `SELECT key, set_key FROM core_body_routine_item WHERE key = ?`, [key]),
-      profileMode(env, ctx.userId),
-    ]);
-    // a move of the reader's own set only: the adult twenty, or the plan's (the kids' set)
-    if (!item || item.set_key !== (pm.mode?.routine_set ?? 'adult')) return err('bad_request', 'no such move');
-    const date = dayOf(new Date(), pm.tz);
-    if (b.done === false) await execute(env.DB_CORE, `DELETE FROM core_body_routine_done WHERE owner_ref = ? AND on_date = ? AND item_key = ?`, [ctx.userId, date, key]);
-    else await execute(env.DB_CORE, `INSERT OR IGNORE INTO core_body_routine_done (owner_ref, on_date, item_key) VALUES (?, ?, ?)`, [ctx.userId, date, key]);
-    if (pm.mode) return ok({ date, key, done: b.done !== false, logged: await logChildRoutine(env, ctx.userId, date, pm.mode) });
-
-    // each tick is logged as exercise (owner, 2026-10-21: "that should log on button clicked"): one entry for the day's
-    // routine, its minutes and its calories from the moves done — 1.5 min a move, MET 3.8 (moderate bodyweight work)
-    // at the latest weight: kcal = MET × 3.5 × kg / 200 per minute
-    const [doneRow, total, kgRow] = await Promise.all([
-      queryOne<{ n: number }>(env.DB_CORE, `SELECT COUNT(*) AS n FROM core_body_routine_done WHERE owner_ref = ? AND on_date = ?`, [ctx.userId, date]),
-      queryOne<{ n: number }>(env.DB_CORE, `SELECT COUNT(*) AS n FROM core_body_routine_item WHERE live = 1 AND set_key = 'adult'`),
-      queryOne<{ kg: number }>(env.DB_CORE, `SELECT kg FROM core_body_weight WHERE owner_ref = ? ORDER BY on_date DESC LIMIT 1`, [ctx.userId]),
-    ]);
-    const n = doneRow?.n ?? 0, of = total?.n ?? 10;
-    const minutes = Math.round(n * 1.5);
-    const kcal = Math.round(minutes * 3.8 * 3.5 * (kgRow?.kg ?? 100) / 200);
-    const exId = `RT:${ctx.userId}:${date}`;
-    if (n === 0) {
-      await execute(env.DB_CORE, `DELETE FROM core_body_exercise WHERE id = ?`, [exId]);
-    } else {
-      await execute(env.DB_CORE, `INSERT INTO core_body_exercise (id, owner_ref, on_date, kind, title, minutes, kcal, note)
-          VALUES (?, ?, ?, 'routine', ?, ?, ?, 'logged from the routine ticks')
-        ON CONFLICT (id) DO UPDATE SET title = excluded.title, minutes = excluded.minutes, kcal = excluded.kcal`,
-        [exId, ctx.userId, date, `Daily routine · ${n} of ${of}`, minutes, kcal]);
-    }
-    return ok({ date, key, done: b.done !== false, logged: { moves: n, of, minutes, kcal } });
   });
 
   // the iPhone's own counts for the last days (Core Motion), upserted — the app sends them each time it opens
