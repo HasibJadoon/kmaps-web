@@ -150,6 +150,48 @@ export function widenToAyat(d: Drill, parts: AyahPart[], first: { ayah: number; 
   return d;
 }
 
+/// The books a drill's explanation names, as source chips: the citation leaves the text it reads (owner, 2026-10-24:
+/// "all resources citations — smart icons, hidden"). A segment (a line, or a " · " part of one) that opens on a
+/// citation — "Lane, Lexicon, p. 1776: …", "Mir, Verbal Idioms, p. 211: …", "al-Ṭabarī, Jāmiʿ al-Bayān, on 2:126, p. 33"
+/// — goes to `sources`; the words it quotes stay only when nothing else is left to read.
+const KNOWN = String.raw`(?:Lane|Edward Lane|al-R[āa]ghib|R[āa]ghib|الراغب|(?:Mustansir )?Mir|(?:Nicolai )?Sinai|al-[ṬT]abar[īi]|[ṬT]abar[īi]|Ibn Kath[īi]r|Ibn [ʿ']?[ĀA]sh[ūu]r|al-R[āa]z[īi]|al-[ĀA]l[ūu]s[īi]|al-Zamakhshar[īi]|al-Qur[ṭt]ub[īi]|Ibn Man[ẓz][ūu]r|Lis[āa]n|T[āa]j|al-[ṢS]i[ḥh][āa][ḥh]|al-Q[āa]m[ūu]s|Maq[āa]y[īi]s|Ibn F[āa]ris|Wright|Fischer)`;
+const CITED = String.raw`[^:·\n;]*?,\s*(?:on \d{1,3}:\d{1,3}(?:[–-]\d{1,3})?,\s*)?p\.\s*(?<page>[\divxlc]+)`;
+/** A segment that is a citation (and the words it quotes), or a sentence that ends on one ("…; Mir, Verbal Idioms, p. 268"). */
+const WHOLE = new RegExp(String.raw`^(?<book>${KNOWN})${CITED}\s*(?::\s*(?<rest>[\s\S]*))?$`, 'i');
+const TAIL = new RegExp(String.raw`\s*[;,(—–]\s*(?<book>${KNOWN})${CITED}\)?\s*\.?$`, 'i');
+const SHORT: Array<[RegExp, string, string]> = [
+  [/lane/i, 'Lane', 'lane_lexicon'], [/r[āa]ghib|الراغب/i, 'al-Rāghib', 'raghib_mufradat'],
+  [/\bmir\b/i, 'Mir', 'mir_verbal_idioms'], [/sinai/i, 'Sinai', 'sinai_key_terms'],
+];
+export type DrillSource = { book: string; page: number | null; source: string; root: string | null };
+export function foldSources(d: Drill): Drill {
+  const text = typeof d.explanation === 'string' ? d.explanation : '';
+  if (!text) return d;
+  const root = ((d.links as { root?: string } | undefined)?.root) ?? null;
+  const had = ((d.sources as DrillSource[] | undefined) ?? []).length;
+  const found: DrillSource[] = [...((d.sources as DrillSource[] | undefined) ?? [])];
+  const add = (name: string, pg: string) => {
+    const hit = SHORT.find(([rx]) => rx.test(name));
+    const s: DrillSource = { book: hit?.[1] ?? name.trim(), page: /^\d+$/.test(pg) ? Number(pg) : null, source: hit?.[2] ?? name.trim(), root };
+    if (!found.some((x) => x.source === s.source && (x.page === s.page || s.page === null))) found.push(s);
+  };
+  const quotes: string[] = [];
+  const kept = text.split('\n').map((line) => line.split(' · ').flatMap((seg) => {
+    const w = WHOLE.exec(seg.trim());
+    if (w?.groups) { add(w.groups.book, w.groups.page); if (w.groups.rest?.trim()) quotes.push(w.groups.rest.trim()); return []; }
+    const t = TAIL.exec(seg);
+    if (t?.groups) { add(t.groups.book, t.groups.page); return [seg.slice(0, t.index).trimEnd()]; }
+    return [seg];
+  }).filter((x) => x.trim()).join(' · '));
+  if (found.length === had) return d;   // nothing cited
+  const left = kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  d.explanation = left || quotes[0] || null;
+  d.sources = found;
+  const card = (d.srs as { extra?: { drill?: Drill } } | undefined)?.extra?.drill;
+  if (card) { card.explanation = d.explanation; card.sources = d.sources; }
+  return d;
+}
+
 const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩';
 const arNum = (n: number) => String(n).replace(/\d/g, (d) => AR_DIGITS[Number(d)]);
 

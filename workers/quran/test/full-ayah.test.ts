@@ -37,3 +37,27 @@ test('a heard word keeps its clip; the āyāt become its line; a range takes eve
   assert.deepEqual(d.line, { url: 'u.mp3', start: 0, end: 4 });
   assert.equal(d.en, 'āyah 2 āyah 3');
 });
+
+test('citations leave the explanation for source chips; a line with no citation stays', async () => {
+  const { foldSources } = await import('../src/routes/practice-kit');
+  const d: Record<string, unknown> = { links: { root: 'ضرر' }, explanation:
+    'being forced, driven by need · Lane, Lexicon, p. 1776: It, or he, necessitated · Mir, Verbal Idioms, p. 211: اضْطُرَّ — to be compelled\nal-Ṭabarī, Jāmiʿ al-Bayān, on 2:126, p. 33' };
+  foldSources(d);
+  assert.equal(d.explanation, 'being forced, driven by need');
+  assert.deepEqual((d.sources as Array<{ book: string; page: number | null }>).map((s) => `${s.book} ${s.page}`),
+                   ['Lane 1776', 'Mir 211', 'al-Ṭabarī 33']);
+  const only: Record<string, unknown> = { explanation: 'Lane, Lexicon, p. 12: to be firm' };
+  foldSources(only);
+  assert.equal(only.explanation, 'to be firm');
+  const plain: Record<string, unknown> = { explanation: 'Here it means: to see.' };
+  foldSources(plain);
+  assert.equal(plain.sources, undefined);
+});
+
+test('a citation at the end of a sentence is clipped off; the sentence stays', async () => {
+  const { foldSources } = await import('../src/routes/practice-kit');
+  const d: Record<string, unknown> = { explanation: 'to perform a deed — lit. what their hands sent ahead (ق د م); Mir, Verbal Idioms, p. 268' };
+  foldSources(d);
+  assert.equal(d.explanation, 'to perform a deed — lit. what their hands sent ahead (ق د م)');
+  assert.deepEqual(d.sources, [{ book: 'Mir', page: 268, source: 'mir_verbal_idioms', root: null }]);
+});

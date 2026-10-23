@@ -20,7 +20,7 @@ import { ssDrills, ssCount } from './practice-ss';
 import { structureDrills, structureCount } from './practice-structure';
 import { questionDrills, tafsirDrillsQ, questionsCount, tafsirReadDrills, tafsirLangDrills, listenWorks, passageDrills, type PassageStage } from './practice-tafsirq';
 import { sarfDrills, sarfSheet, lexiconRoot, lexiconLemma } from './practice-sarf';
-import { ensureCard, attachRef, widenToAyat } from './practice-kit';
+import { ensureCard, attachRef, widenToAyat, foldSources } from './practice-kit';
 
 /** Bump when the الصرف sheet's JSON changes shape or wording rules, so the edge cache starts afresh. */
 const SARF_SHEET_V = '2026-10-16a'
@@ -241,7 +241,7 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
     const { ask: _a, ...rest } = it;
     // a drill a builder dealt without its card still files one: nothing practised is left out of review
     const d = ensureCard({ ...rest, instruction: k?.label ?? null, instructionAr: k?.labelAr ?? null }, skill);
-    return d ? [d] : [];   // an empty drill is dropped, never dealt
+    return d ? [foldSources(d)] : [];   // an empty drill is dropped, never dealt; its citations become source chips
   });
   // every drill carries the registry terms its own rows name
   // and every drill set in an āyah carries its reference: ﴿الأنعام، ١٤٥- 6:145 ﴾
