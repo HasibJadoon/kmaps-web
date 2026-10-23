@@ -20,7 +20,7 @@ import { ssDrills, ssCount } from './practice-ss';
 import { structureDrills, structureCount } from './practice-structure';
 import { questionDrills, tafsirDrillsQ, questionsCount, tafsirReadDrills, tafsirLangDrills, listenWorks, passageDrills, type PassageStage } from './practice-tafsirq';
 import { sarfDrills, sarfSheet, lexiconRoot, lexiconLemma } from './practice-sarf';
-import { ensureCard } from './practice-kit';
+import { ensureCard, attachRef, widenToAyat } from './practice-kit';
 
 /** Bump when the الصرف sheet's JSON changes shape or wording rules, so the edge cache starts afresh. */
 const SARF_SHEET_V = '2026-10-16a'
@@ -244,7 +244,8 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
     return d ? [d] : [];   // an empty drill is dropped, never dealt
   });
   // every drill carries the registry terms its own rows name
-  return attachGt(env.DB_QR, shaped as Array<Record<string, unknown>>);
+  // and every drill set in an āyah carries its reference: ﴿الأنعام، ١٤٥- 6:145 ﴾
+  return attachGt(env.DB_QR, await attachRef(env.DB_QR, shaped as Array<Record<string, unknown>>));
 }
 
 // ── shared ──────────────────────────────────────────────────────────────────
@@ -544,9 +545,19 @@ export async function sentenceLineDrills(env: QuranEnv, scope: Scope, asks: stri
       audio: { url: first.audio!.url, start: Math.max(first.audio!.start, words[0].s - 0.05), end: Math.min(last.audio!.end, words[words.length - 1].e + 0.15) },
       wordKey: (i) => `${ays[i]}.${ws[i].word_index}`, at: { ayah: s.ayah_from, word: s.ws ?? 1 }, sentence: true,
     };
+    // the full āyāt on top, the sentence lit in them, and the sentence itself in the box beneath (a fill's with its gap);
+    // the build (order) keeps to its tiles, since there the line is the answer, and a heard word is not spelled out first
+    const sentence = ws.map((w) => w.word_text);
     for (const k of skills) {
       const d = lineDrill(k, line, ctx);
-      if (d) out.push({ ...d, ask: k });
+      if (!d) continue;
+      if (k !== 'order') {
+        if (k === 'fill' && typeof d.blank === 'number') d.prompt = sentence.map((t, i) => (i === d.blank ? '＿＿＿' : t)).join(' ');
+        else if (k === 'shadow') d.prompt = sentence.join(' ');
+        d.span = sentence.map((_, i) => i);
+        widenToAyat(d, parts as Ayah[], { ayah: ays[0], word_index: ws[0].word_index });
+      }
+      out.push({ ...d, ask: k });
     }
   }
   return out;

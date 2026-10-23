@@ -1,6 +1,6 @@
 import { query } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
-import { withCard } from './practice-kit';
+import { withCard, widenToAyat } from './practice-kit';
 import { loadAyat, type Scope } from './practice';
 
 // ── Read & listen, sentence by sentence (qr_163) ───────────────────────────────
@@ -101,7 +101,8 @@ export async function readingSentenceDrills(env: QuranEnv, scope: Scope): Promis
   const out: Drill[] = [];
   const seen = new Set<string>();
   const passageWords: string[] = [];
-  type Line = { s: Sent; words: Timed[]; ws: Word[]; ays: number[]; audio: { url: string; start: number; end: number }; title: string; en: string | null };
+  type Line = { s: Sent; words: Timed[]; ws: Word[]; ays: number[]; audio: { url: string; start: number; end: number }; title: string; en: string | null;
+                parts: Parameters<typeof widenToAyat>[1] };
   const lines: Line[] = [];
   for (const s of sentences) {
     const span = `${s.ayah_from}:${s.ws}-${s.ayah_to}:${s.we}`;
@@ -123,7 +124,7 @@ export async function readingSentenceDrills(env: QuranEnv, scope: Scope): Promis
     // the English: the sentence's own (its derived translation), else its āyāt's when the sentence is them whole
     const whole = (s.ws ?? 1) === 1 && last.ws.every((w) => w.word_index <= (s.we ?? 9_999));
     const en = enOf.get(s.id) ?? (whole ? [...new Set(parts.map((p) => p!.en).filter(Boolean))].join(' ') || null : null);
-    lines.push({ s, words, ws, ays, en, title: first.title.replace(/ \d+:\d+$/, ` ${range}`),
+    lines.push({ s, words, ws, ays, en, parts: parts as Line['parts'], title: first.title.replace(/ \d+:\d+$/, ` ${range}`),
                  audio: { url: first.audio!.url, start: Math.max(first.audio!.start, words[0].s - 0.05), end: Math.min(last.audio!.end, words[words.length - 1].e + 0.15) } });
     passageWords.push(...ws.map((w) => w.word_text));
   }
@@ -136,8 +137,11 @@ export async function readingSentenceDrills(env: QuranEnv, scope: Scope): Promis
       source: { workId: `QR:SURAH:${surah}`, title: l.title, level: null },
     });
     const text = l.ws.map((w) => w.word_text).join(' ');
+    // each drill shows the sentence's full āyāt, its asked words lit (span moved to where they stand in them); building the
+    // Arabic from its English keeps to the sentence, which is its answer
     const card = (d: Drill, kind: string, front: string, back: string) =>
-      withCard(d, { ref: `QR:${String(d.id)}`, type: 'passage', kind, front, back, surah, ayah: s.ayah_from, series: l.title.replace(/ \d+:\d+(–\d+)?$/, '') });
+      kind === 'transbuild' ? withCard(d, { ref: `QR:${String(d.id)}`, type: 'passage', kind, front, back, surah, ayah: s.ayah_from, series: l.title.replace(/ \d+:\d+(–\d+)?$/, '') }) : widenToAyat(withCard(d, { ref: `QR:${String(d.id)}`, type: 'passage', kind, front, back, surah, ayah: s.ayah_from, series: l.title.replace(/ \d+:\d+(–\d+)?$/, '') }),
+                  l.parts, { ayah: l.ays[0], word_index: l.ws[0].word_index });
     const idx = (ay: number, w: number) => l.ws.findIndex((x, i) => l.ays[i] === ay && x.word_index === w);
 
     // 1 · each word, described as the corpus describes it (its kind, then what that kind carries)
@@ -262,6 +266,8 @@ export async function readingSentenceDrills(env: QuranEnv, scope: Scope): Promis
             audio: { url: first.audio!.url, start: Math.max(first.audio!.start, words[0].s - 0.05), end: Math.min(last.audio!.end, words[words.length - 1].e + 0.15) },
             source: { workId: `QR:SURAH:${st.surah}`, title: `${first.title.replace(/ \d+:\d+$/, '')} ${range}`, level: null },
           });
+          // shown in its full āyāt, the answering words lit
+          widenToAyat(d, parts as Parameters<typeof widenToAyat>[1], { ayah: ays[0], word_index: ws[0].word_index });
         }
         // its card names the story step, not the passage: one review item wherever the term is met
         out.push(withCard(d, { ref: `QR:keyterm:story:${st.id}`, type: 'concept', kind: 'keyterm', front: `${st.term_ar} — ${st.ask_en}`,

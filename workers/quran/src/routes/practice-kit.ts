@@ -120,3 +120,63 @@ export function interleave<T>(piles: T[][], n: number): T[] {
 }
 
 export const rangeOf = (s: number, a: number, b: number | null | undefined) => (b && b > a ? `${s}:${a}–${b}` : `${s}:${a}`);
+
+type AyahPart = { ayah: number; ws: Array<{ word_index: number }>; words: Array<{ t: string; s: number; e: number }>;
+                  audio: { url: string; start: number; end: number } | null; en: string | null };
+
+/// A drill built on part of its āyāt (a sentence, a story's words) set back in them whole: the full āyāt's words, audio
+/// and English, its own indices (span, blank, target) moved to where its first word stands. A word clip (hear) keeps its
+/// clip and hears the āyāt as its line. The card's copy is kept in step.
+export function widenToAyat(d: Drill, parts: AyahPart[], first: { ayah: number; word_index: number }): Drill {
+  let off = 0;
+  for (const p of parts) {
+    if (p.ayah !== first.ayah) { off += p.ws.length; continue; }
+    const i = p.ws.findIndex((w) => w.word_index === first.word_index);
+    if (i < 0) return d;
+    off += i;
+    break;
+  }
+  const a0 = parts[0]?.audio, a1 = parts[parts.length - 1]?.audio;
+  if (!a0 || !a1) return d;
+  const full = { url: a0.url, start: a0.start, end: a1.end };
+  d.words = parts.flatMap((p) => p.words);
+  if (Array.isArray(d.span)) d.span = (d.span as number[]).map((i) => i + off);
+  if (typeof d.blank === 'number') d.blank += off;
+  if (typeof d.target === 'number') { d.target += off; d.line = full; } else d.audio = full;
+  const en = uniq(parts.map((p) => p.en).filter((x): x is string => !!x)).join(' ');
+  if (en) d.en = en;
+  const { srs, ...plain } = d as { srs?: { extra: { drill: unknown } } };
+  if (srs) srs.extra.drill = { ...plain };
+  return d;
+}
+
+const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩';
+const arNum = (n: number) => String(n).replace(/\d/g, (d) => AR_DIGITS[Number(d)]);
+
+/// The āyah's reference as every Qurʾān drill shows it under its line: ﴿الأنعام، ١٤٥- 6:145 ﴾ (a range: ﴿غافر، ٢–٣- 40:2–3 ﴾).
+export const quranRef = (nameAr: string, s: number, a: number, b?: number | null) =>
+  `﴿${nameAr}، ${arNum(a)}${b && b > a ? `–${arNum(b)}` : ''}- ${rangeOf(s, a, b)} ﴾`;
+
+/// Every drill set in an āyah (it carries the āyah's words) gets its reference, on the drill and on the copy its card
+/// keeps, so the line is never shown without where it stands. The place comes from the drill's source title
+/// ("Al-Anam 6:145", "Ghafir 40:2–3"), else its id.
+export async function attachRef(db: D1Database, drills: Drill[]): Promise<Drill[]> {
+  const placeOf = (d: Drill) => {
+    const t = String((d.source as { title?: string } | undefined)?.title ?? '');
+    const m = /(\d{1,3}):(\d{1,3})(?:\s*[–-]\s*(\d{1,3}))?/.exec(t) ?? /:(\d{1,3}):(\d{1,3})(?::|$)/.exec(String(d.id ?? ''));
+    return m ? { s: Number(m[1]), a: Number(m[2]), b: m[3] ? Number(m[3]) : null } : null;
+  };
+  const placed = drills.map((d) => ({ d, p: Array.isArray(d.words) && (d.words as unknown[]).length && !d.ref ? placeOf(d) : null }));
+  const ids = [...new Set(placed.flatMap((x) => (x.p ? [x.p.s] : [])))];
+  if (!ids.length) return drills;
+  const names = new Map((await query<{ id: number; name_ar: string }>(db,
+    `SELECT id, name_ar FROM qr_surah WHERE id IN (${ids.map(() => '?').join(',')})`, ids)).map((r) => [r.id, r.name_ar]));
+  for (const { d, p } of placed) {
+    const name = p && names.get(p.s);
+    if (!p || !name) continue;
+    d.ref = quranRef(name, p.s, p.a, p.b);
+    const card = (d.srs as { extra?: { drill?: Drill } } | undefined)?.extra?.drill;
+    if (card) card.ref = d.ref;
+  }
+  return drills;
+}
