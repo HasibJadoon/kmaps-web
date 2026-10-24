@@ -263,7 +263,9 @@ export function textRoutes(router: Router<ArabicEnv>) {
          FROM ar_text_unit t
          LEFT JOIN ar_acq_audio a
                 ON a.acq_ref_id = t.acq_ref_id
-               AND a.status = 'live'
+               -- 'generated': a page no recording reads, voiced by SILMA. It plays on its own page only, and every
+               -- list of a book's recordings, parts and minutes (all status = 'live') leaves it out.
+               AND a.status IN ('live', 'generated')
                AND (CAST(json_extract(a.meta_json, '$.night') AS INTEGER) = t.page_no
                     OR CAST(json_extract(a.meta_json, '$.seq') AS INTEGER) = t.seq
                     -- a whole-book recording cut into parts: each part lists the
