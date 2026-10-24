@@ -1,198 +1,85 @@
 name: Deploy Workers
 
-# Free GitHub only (owner, 2026-10-24): Actions does not run on push. Deploys are made by hand —
-# `npm run deploy:workers [worker …]` and `npm run deploy:pages` — and this workflow can still be started by hand.
+# Cheap automatic deploys on free GitHub (owner, 2026-10-24): one job per push, deploying ONLY the workers the push
+# changed — a change under workers/shared, package*.json or the deploy script deploys all — in the safe order
+# (internal workers first, km-backend-worker, the one public API, last; see scripts/deploy-workers.sh). Tests and the
+# changed workers' types run first; a failure deploys nothing. Pushes queue (never cancel), so no deploy is lost.
+# By hand: Actions → Deploy Workers → Run workflow (a list of workers, or empty for all), or `npm run deploy:workers`.
 on:
+  push:
+    branches: [main]
+    paths:
+      - "workers/**"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/deploy-workers.sh"
+      - ".github/workflows/deploy-workers.yml"
   workflow_dispatch:
+    inputs:
+      workers:
+        description: "Workers to deploy, space-separated (core quran …); empty = all"
+        required: false
+        default: ""
 
-# ── Deployment order ────────────────────────────────────────────────────────────
-# Internal workers are deployed first (no public domain, service-binding only).
-# km-backend-worker is ALWAYS deployed last — it is the single public API.
-#
-# Dependency graph:
-#   core, al, studio  →  content  →  worldview  →  quran  →  arabic  →  backend
-#   (km-studio-worker has no service-binding deps — it only owns DB_ST)
-# ────────────────────────────────────────────────────────────────────────────────
-
-# ── Why every deploy job runs `npm ci` ──────────────────────────────────────────
-# wrangler bundles from source at deploy time, so a worker that imports an npm
-# package needs node_modules present in ITS job — the Phase 0 gate installing
-# them does not help, because each job is a fresh runner.
-#
-# Without it `wrangler deploy` fails with `Could not resolve "<pkg>"`. Today only
-# km-core is affected (it imports ts-fsrs); every other worker bundles from
-# source alone and passed anyway, which is what kept this hidden. The gate never
-# catches it either: tsc resolves types happily and only the bundle step fails.
-#
-# It is on all nine rather than just core because the phases are sequential — one
-# Phase 1 failure skips every later phase, so the next worker to take a
-# dependency would silently block the public API deploy.
-# ────────────────────────────────────────────────────────────────────────────────
+concurrency:
+  group: deploy-workers
+  cancel-in-progress: false
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  # ── Phase 0 — GATE ─────────────────────────────────────────────────────────
-  # Every worker below deploys straight to production. Until this job existed
-  # the only thing standing between a commit and the public API was whether
-  # wrangler happened to bundle it — nothing type-checked, so a worker whose
-  # types no longer matched its D1 schema shipped and failed at runtime.
-  #
-  # One job, all nine workers, and every deploy `needs` it.
-  typecheck:
-    name: "0 · typecheck all workers"
+  deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "22" }
-      - run: npm ci
-      - name: unit tests
-        run: npm test
+        with: { fetch-depth: 0 }
 
-      - name: tsc --noEmit
+      - name: Which workers changed
+        id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          ASKED: ${{ inputs.workers }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
         run: |
-          failed=()
-          for w in core ar-linguistics studio content worldview quran arabic backend; do
-            echo "── workers/$w"
-            npx tsc --noEmit -p "workers/$w/tsconfig.json" || failed+=("$w")
-          done
-          if [ ${#failed[@]} -gt 0 ]; then
-            echo "::error::type errors in: ${failed[*]}"
-            exit 1
+          ALL="core ar-linguistics studio content worldview quran arabic backend"
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            w="${ASKED:-$ALL}"
+          elif [ -z "$BEFORE" ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            w="$ALL"
+          else
+            files=$(git diff --name-only "$BEFORE" "$AFTER")
+            if echo "$files" | grep -qE '^(workers/shared/|package(-lock)?\.json$|scripts/deploy-workers\.sh$|\.github/workflows/deploy-workers\.yml$)'; then
+              w="$ALL"
+            else
+              w=$(echo "$files" | sed -nE 's#^workers/([^/]+)/.*#\1#p' | sort -u | grep -xE "$(echo $ALL | tr ' ' '|')" | tr '\n' ' ' || true)
+            fi
           fi
+          w=$(echo $w)
+          echo "workers=$w" >> "$GITHUB_OUTPUT"
+          echo "Deploying: ${w:-nothing}"
 
-  # ── Phase 1 (no deps) ──────────────────────────────────────────────────────
-  deploy-core:
-    name: "1 · km-core-worker"
-    runs-on: ubuntu-latest
-    needs: [typecheck]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "22" }
-      - run: npm ci
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/core
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - if: steps.pick.outputs.workers != ''
+        uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm }
 
-  deploy-al:
-    name: "1 · km-ar-linguistics-worker"
-    runs-on: ubuntu-latest
-    needs: [typecheck]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "22" }
-      - run: npm ci
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/ar-linguistics
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - if: steps.pick.outputs.workers != ''
+        run: npm ci
 
-  deploy-studio:
-    name: "1 · km-studio-worker"
-    runs-on: ubuntu-latest
-    needs: [typecheck]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "22" }
-      - run: npm ci
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/studio
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Tests, and the types of what deploys
+        if: steps.pick.outputs.workers != ''
+        env: { WORKERS: "${{ steps.pick.outputs.workers }}" }
+        run: |
+          npm test
+          for w in $WORKERS; do echo "── tsc workers/$w"; npx tsc --noEmit -p "workers/$w/tsconfig.json"; done
 
-  # ── Phase 2 (needs core) ───────────────────────────────────────────────────
-  deploy-content:
-    name: "2 · km-content-worker"
-    runs-on: ubuntu-latest
-    needs: [typecheck, deploy-core]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "22" }
-      - run: npm ci
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/content
+      - name: Deploy
+        if: steps.pick.outputs.workers != ''
         env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WORKERS: ${{ steps.pick.outputs.workers }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-  # ── Phase 3 (needs content + al + core) ───────────────────────────────────
-  deploy-worldview:
-    name: "3 · km-worldview-worker"
-    runs-on: ubuntu-latest
-    needs: [typecheck, deploy-content, deploy-core]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "22" }
-      - run: npm ci
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/worldview
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-  deploy-quran:
-    name: "3 · km-quran-worker"
-    runs-on: ubuntu-latest
-    needs: [typecheck, deploy-al, deploy-content, deploy-worldview]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "22" }
-      - run: npm ci
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/quran
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-  # ── Phase 4 (needs quran + core) ──────────────────────────────────────────
-  deploy-arabic:
-    name: "4 · km-arabic-worker"
-    runs-on: ubuntu-latest
-    needs: [typecheck, deploy-al, deploy-quran]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "22" }
-      - run: npm ci
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/arabic
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-  # ── Phase 5 — GATEWAY (always last) ───────────────────────────────────────
-  deploy-backend:
-    name: "5 · km-backend-worker  ← PUBLIC API"
-    runs-on: ubuntu-latest
-    needs: [typecheck, deploy-quran, deploy-worldview, deploy-arabic, deploy-content, deploy-al, deploy-studio, deploy-core]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "22" }
-      - run: npm ci
-      - run: npm install -g wrangler
-      - run: wrangler deploy
-        working-directory: workers/backend
-        env:
-          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bash scripts/deploy-workers.sh $WORKERS

@@ -88,3 +88,7 @@ tmp/
 # Local import-output artifacts (large generated SQL, not source)
 out/
 .adima-work/
+
+# local test-user stack (live D1 + a throwaway dev JWT key): never committed
+workers/*/wrangler.devremote.toml
+workers/core/devremote/

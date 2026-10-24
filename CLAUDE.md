@@ -196,10 +196,13 @@ git diff --check
 
 ## Deployment
 
-GitHub Actions:
+GitHub Actions (free plan, public repo — owner, 2026-10-24):
 
-- `.github/workflows/deploy-workers.yml` deploys domain workers and the backend worker.
-- `.github/workflows/cloudflare-pages.yml` deploys `apps/k-maps`.
+- `.github/workflows/deploy-workers.yml` deploys, on each push, ONLY the workers the push changed (all of them when
+  `workers/shared`, the package files or the deploy script change), in order with `km-backend-worker` last.
+- `.github/workflows/cloudflare-pages.yml` deploys `apps/k-maps` only when a push changes the app.
+- Both queue (never cancel). `npm run deploy:workers [worker …]` / `npm run deploy:pages` deploy the same by hand.
+- Never commit `wrangler.devremote.toml` (local test stack, gitignored).
 
 Manual commands:
 

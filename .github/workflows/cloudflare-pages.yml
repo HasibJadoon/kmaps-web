@@ -1,9 +1,21 @@
 name: Deploy to Cloudflare Pages
 
-# Free GitHub only (owner, 2026-10-24): Actions does not run on push. Deploys are made by hand —
-# `npm run deploy:workers [worker …]` and `npm run deploy:pages` — and this workflow can still be started by hand.
+# Cheap automatic deploys on free GitHub (owner, 2026-10-24): the web app is built and deployed only when a push
+# changes it (apps/**, the package files, this workflow) — a worker or data push costs no minutes here. Pushes queue,
+# never cancel. By hand: Actions → Deploy to Cloudflare Pages → Run workflow, or `npm run deploy:pages`.
 on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/cloudflare-pages.yml"
   workflow_dispatch:
+
+concurrency:
+  group: deploy-pages
+  cancel-in-progress: false
 
 jobs:
   deploy:
