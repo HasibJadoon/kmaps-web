@@ -64,7 +64,7 @@ jobs:
 
       - if: steps.pick.outputs.workers != ''
         uses: actions/setup-node@v4
-        with: { node-version: "22", cache: npm }
+        with: { node-version: "24", cache: npm }   # URLPattern (used by the router) is global from Node 24
 
       - if: steps.pick.outputs.workers != ''
         run: npm ci
