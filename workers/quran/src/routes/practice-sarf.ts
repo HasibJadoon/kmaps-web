@@ -361,6 +361,38 @@ const quranMeanings = (v: Verb) => parseJson<Meaning[]>(v.meanings_json ?? null,
 /** The verb's meanings in the Qurʾān, as one answer ("to repent · of God: to accept repentance"), or its one line. */
 /** The meaning the Qurʾān uses most (its first), or the one line. */
 const primaryOf = (v: Verb) => quranMeanings(v)[0]?.en ?? v.meaning_en;
+
+// ── the slides' infographics for ṣarf, shown once a drill is answered (owner, 2026-10-24: "icons and infographics
+// in the Qurʾān's الصرف, which best suit; the verse's recitation stays the same"). Deck contract §3b, snake_case; the
+// slides' tone cycle, the thing asked about rust. The table drill keeps its own table: it already is the picture.
+const TONES = ['plum', 'sand', 'sage', 'teal', 'mauve'];
+const tone = (i: number, lit: boolean) => (lit ? { tone: 'rust', focus: true } : { tone: TONES[i % TONES.length] });
+const MOTION = { every: 0.35, delay: 0.2 };
+/** A verb's form as a numbered disc: Form IV → "4.circle.fill" (a bare verb's bāb: "1.circle.fill"). */
+const formIcon = (v: Verb) => {
+  const n = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'].indexOf((v.form_gt ?? '').replace(/^GT:form_family:form_/, ''));
+  return `${n >= 0 ? n + 1 : 1}.circle.fill`;
+};
+/** What a preposition does, as a direction: عَلَى onto, إِلَى towards, مِنْ out of, عَنْ away from … */
+const PREP_ICON: Record<string, string> = { 'عَلَى': 'arrow.down.to.line', 'إِلَى': 'arrow.right.circle.fill', 'مِنْ': 'arrow.up.forward.circle.fill',
+  'عَنْ': 'arrow.uturn.backward.circle.fill', 'لِ': 'hand.point.right.fill', 'بِ': 'link.circle.fill', 'فِي': 'circle.inset.filled', 'مَعَ': 'person.2.fill' };
+/** The three principal parts on the three sides of a triangle, the verb's form or bāb in the middle. */
+const partsGraphic = (v: Verb, name: string) => ({
+  kind: 'triangle', term: name,
+  items: [{ icon: 'clock.arrow.circlepath', en: `past · ${v.madi}`, ...tone(0, false) },
+          { icon: 'arrow.forward.circle.fill', en: `present · ${v.mudari}`, ...tone(1, false) },
+          { icon: 'drop.fill', en: `verbal noun · ${masadirOf(v)[0] ?? '—'}`, ...tone(2, false) }],
+  note: `${v.madi}: ${v.meaning_en}`, motion: MOTION });
+/** A meaning's head, for a centre disc: "to send down (in stages, again and again)" → "to send down". */
+const headOf = (t: string | null | undefined) => (t ?? '').split(/[(;—]/)[0].trim() || null;
+/** A root's verbs round its letters, each with its form's number, the one asked about lit. */
+const familyGraphic = (root: string, picture: string | null, verbs: Verb[], lit: string | null) => {
+  const vs = verbs.filter((x) => x.root === root).slice(0, 8);
+  return vs.length < 3 ? null : {
+    kind: 'hub', term_ar: [...root].join(' '), term: null,
+    items: vs.map((x, i) => ({ icon: formIcon(x), ar: x.madi, en: primaryOf(x), ...tone(i, x.id === lit) })),
+    motion: MOTION };
+};
 const meaningsOf = (v: Verb) => { const m = quranMeanings(v); return m.length ? m.map((x) => x.en).join(' · ') : v.meaning_en; };
 /** Each meaning with how often the Qurʾān uses the verb so, and where. */
 const usesOf = (v: Verb) => {
@@ -515,11 +547,11 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
     if (v.bab_gt) {
       const o = choose(gt.get(v.bab_gt) ?? '', BABS.map((b) => gt.get(b) ?? ''));
       if (o) group(1, v.root).push(make(`bab:${v.id}`, 'sf_bab', { prompt: `${v.madi} ${v.mudari} ${mas}`, promptEn: v.meaning_en, script: 'arabic', ...o,
-        explanation: after(v), root: rootOf(v.root), terms: termsOf(v) }, `${v.madi} ${v.mudari}`, o.answer));
+        explanation: after(v), root: rootOf(v.root), terms: termsOf(v), graphic: partsGraphic(v, o.answer) }, `${v.madi} ${v.mudari}`, o.answer));
     } else if (v.form_gt !== 'GT:form_family:form_i') {
       const o = choose(gt.get(v.form_gt) ?? '', FORMS.map((f) => gt.get(f) ?? ''));
       if (o) group(1, v.root).push(make(`form:${v.id}`, 'sf_form', { prompt: `${v.madi} ${v.mudari} ${mas}`, promptEn: v.meaning_en, script: 'arabic', ...o,
-        explanation: after(v), root: rootOf(v.root), terms: termsOf(v) }, `${v.madi} ${v.mudari}`, o.answer));
+        explanation: after(v), root: rootOf(v.root), terms: termsOf(v), graphic: partsGraphic(v, o.answer) }, `${v.madi} ${v.mudari}`, o.answer));
     }
   }
 
@@ -531,7 +563,9 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
     const options = shuffle([...mas, ...ws]);
     group(2, v.root).push(make(`masadir:${v.id}`, 'sf_masadir', { interaction: 'choose_all', prompt: `${v.madi} ${v.mudari} …`, promptEn: v.meaning_en,
       script: 'arabic', options, correct: options.flatMap((x, i) => (mas.includes(x) ? [i] : [])),
-      explanation: after(v), root: rootOf(v.root), terms: [...termsOf(v), 'GT:derivation_type:masdar'] }, `${v.madi} — المصادر`, mas.join(' · ')));
+      explanation: after(v), root: rootOf(v.root), terms: [...termsOf(v), 'GT:derivation_type:masdar'],
+      graphic: { kind: 'petals', items: mas.slice(0, 4).map((m, i) => ({ icon: 'drop.fill', ar: m, en: `verbal noun ${i + 1}`, ...tone(i, false) })),
+                 note: `${v.madi} has ${mas.length} verbal nouns (مصادر)`, motion: MOTION } }, `${v.madi} — المصادر`, mas.join(' · ')));
   }
 
   // واحد → جمع, as the Qurʾān has it
@@ -546,7 +580,11 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
       prompt: w.word_ar.replace(/^وَ/, ''), promptEn: occ.get(`${w.surah}:${w.ayah}:${w.word_index}`)?.here_en ?? null, script: 'arabic', ...o,
       explanation: [quote(p.cite, texts), v ? chantOf(v) : null].filter(Boolean).join('\n'),
       // a sound plural (ـون ـين ـات) is not a broken one: غَافِرُون carries no جمع تكسير chip
-      terms: [...(/(ونَ?|ينَ?|اتٍ?|اتٌ?|اتِ?)$/.test(answer.replace(MARKS, '')) ? [] : ['GT:noun_process:jam_taksir']), ...(w.sigha_gt ? [w.sigha_gt] : [])] }, `${w.word_ar}: الجمع`, answer));
+      terms: [...(/(ونَ?|ينَ?|اتٍ?|اتٌ?|اتِ?)$/.test(answer.replace(MARKS, '')) ? [] : ['GT:noun_process:jam_taksir']), ...(w.sigha_gt ? [w.sigha_gt] : [])],
+      graphic: { kind: 'compare', term: '→', icon: 'arrow.left.arrow.right',
+                 left: { label: 'one', labelAr: 'الواحد', items: [{ icon: 'person.fill', ar: w.word_ar.replace(/^وَ/, ''), en: occ.get(`${w.surah}:${w.ayah}:${w.word_index}`)?.here_en ?? '', tone: 'teal' }] },
+                 right: { label: 'many', labelAr: 'الجمع', items: [{ icon: 'person.3.fill', ar: answer, en: 'as the Qurʾān has it', tone: 'rust' }] },
+                 motion: MOTION } }, `${w.word_ar}: الجمع`, answer));
   }
 
   // which preposition gives this meaning — and what it does
@@ -558,7 +596,13 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
     const q = quote(parseJson<Cite>(p.cite_json, { surah: 0, ayah: 0, needle: '' }), texts);
     group(4, v.id).push(make(`prep:${p.id}`, 'sf_prep', { prompt: `${v.madi} … ؟`, promptEn: p.meaning_en, script: 'arabic', ...o,
       explanation: [`${p.usage_ar}: ${p.meaning_en}`, q].filter(Boolean).join('\n'),
-      terms: [...(p.prep_gt ? [p.prep_gt] : []), 'GT:pos:harf_jarr', ...prepTermsOf(v)] }, `${v.madi} + ؟ (${p.meaning_en})`, p.prep_ar));
+      terms: [...(p.prep_gt ? [p.prep_gt] : []), 'GT:pos:harf_jarr', ...prepTermsOf(v)],
+      graphic: ((ps) => ps.length < 2 ? { kind: 'petals', items: [
+          { icon: PREP_ICON[p.prep_ar] ?? 'arrow.right', ar: `${v.madi} ${p.prep_ar}`, en: p.meaning_en, ...tone(0, true) },
+          { icon: formIcon(v), ar: v.madi, en: v.meaning_en, ...tone(1, false) }], note: p.usage_ar, motion: MOTION }
+        : { kind: 'hub', term_ar: v.madi, term: headOf(v.meaning_en),
+            items: ps.slice(0, 8).map((x, i) => ({ icon: PREP_ICON[x.prep_ar] ?? 'arrow.right', ar: `${v.madi} ${x.prep_ar}`, en: x.meaning_en, ...tone(i, x.id === p.id) })),
+            motion: MOTION })(preps.filter((x) => x.verb_id === v.id)) }, `${v.madi} + ؟ (${p.meaning_en})`, p.prep_ar));
   }
 
   // what the word means in this āyah — its range across the Qurʾān
@@ -573,7 +617,11 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
     const o = choose(plain(s), (byRoot.get(s.root) ?? []).map(plain));
     if (!o) continue;
     group(5, s.root).push(make(`range:${s.id}`, 'sf_range', { prompt: `${s.lemma_ar}\n${q}`, promptEn: null, script: 'arabic', ...o,
-      explanation: (byRoot.get(s.root) ?? []).map((x) => `${x.id === s.id ? '▸' : '·'} ${x.sense_en}${x.sense_ar ? ` — ${x.sense_ar}` : ''}`).join('\n') }, q, s.sense_en));
+      explanation: (byRoot.get(s.root) ?? []).map((x) => `${x.id === s.id ? '▸' : '·'} ${x.sense_en}${x.sense_ar ? ` — ${x.sense_ar}` : ''}`).join('\n'),
+      graphic: ((ss) => ss.length < 2 ? null : ss.length <= 4
+        ? { kind: 'petals', items: ss.map((x, i) => ({ icon: 'text.book.closed.fill', ar: x.sense_ar ?? undefined, en: plain(x), ...tone(i, x.id === s.id) })), note: `${s.lemma_ar}: ${plain(s)}`, motion: MOTION }
+        : { kind: 'hub', term_ar: s.lemma_ar, term: null, items: ss.slice(0, 8).map((x, i) => ({ icon: 'text.book.closed.fill', ar: x.sense_ar ?? undefined, en: plain(x), ...tone(i, x.id === s.id) })),
+            note: `${s.lemma_ar}: ${plain(s)}`, motion: MOTION })((byRoot.get(s.root) ?? []).filter((x) => x.lemma_ar === s.lemma_ar)) }, q, s.sense_en));
   }
 
   // the root's verbs in the Qurʾān: what each one means. The verb's line (ماضٍ مضارعٌ مصدر) is heard in a SILMA voice
@@ -596,7 +644,7 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
       words: clip?.words ?? line.split(/\s+/).map((t) => ({ t, s: 0, e: 0 })), audio: clip?.audio ?? null,
       // the verb's line, its meanings in the Qurʾān one a line, the note, then the verb's own āyah
       explanation: [chantOf(v), usesOf(v), v.note_en, here && q && q !== here ? `The verb itself: ${q}` : null].filter(Boolean).join('\n'),
-      root: rootOf(v.root), terms: termsOf(v) }, `${v.madi} ${v.mudari}`, primaryOf(v)));
+      root: rootOf(v.root), terms: termsOf(v), graphic: familyGraphic(v.root, pic(v.root)?.text_en ?? null, verbs, v.id) }, `${v.madi} ${v.mudari}`, primaryOf(v)));
     // every meaning it has in the Qurʾān (choose all): its own, against the near misses of its root's other verbs
     const all = quranMeanings(v).map((m) => m.en);
     if (all.length >= 2) {
@@ -623,7 +671,7 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
     const o = choose(p.text_en, roots.map((x) => pic(x)?.text_en ?? ''));
     if (!o) continue;
     group(7, r).push(make(`root:${r}`, 'sf_root', { prompt: [...r].join(' '), promptEn: null, script: 'arabic', ...o,
-      explanation: p.text_ar }, [...r].join(' '), p.text_en));
+      explanation: p.text_ar, graphic: familyGraphic(r, p.text_en, verbs, null) }, [...r].join(' '), p.text_en));
   }
 
   // near-synonyms: which word carries this shade
@@ -633,7 +681,11 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
       const o = choose(m.ar, ms.map((x) => x.ar));
       if (!o) return;
       group(8, ns.id).push(make(`near:${ns.id}:${k}`, 'sf_near', { prompt: ns.title_ar, promptEn: m.en, script: 'arabic', ...o,
-        explanation: ms.map((x) => `${x.ar} — ${x.en}`).join('\n') + (m.cite && quote(m.cite, texts) ? `\n${quote(m.cite, texts)}` : '') }, m.en, m.ar));
+        explanation: ms.length >= 2 ? (m.cite ? quote(m.cite, texts) : null)
+          : ms.map((x) => `${x.ar} — ${x.en}`).join('\n') + (m.cite && quote(m.cite, texts) ? `\n${quote(m.cite, texts)}` : ''),
+        graphic: ms.length < 2 ? null : { kind: 'badges', title: ns.title_ar,
+          items: ms.slice(0, 4).map((x, i) => ({ icon: 'circle.lefthalf.filled', ar: x.ar, points: x.contrast ? [x.contrast] : [], label: x.en, ...tone(i, i === k) })),
+          motion: MOTION } }, m.en, m.ar));
     });
   }
 
