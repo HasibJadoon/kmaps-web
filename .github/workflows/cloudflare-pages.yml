@@ -1,9 +1,8 @@
 name: Deploy to Cloudflare Pages
 
+# Free GitHub only (owner, 2026-10-24): Actions does not run on push. Deploys are made by hand —
+# `npm run deploy:workers [worker …]` and `npm run deploy:pages` — and this workflow can still be started by hand.
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
