@@ -741,9 +741,20 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
           };
           // the passage's essays (km_content): each read in the sentence that holds its word; one a story already
           // carries stays with that story
-          type EssayRow = { slug: string; title: string; titleAr: string | null; termKey: string | null; termEn: string | null; anchor: string | null };
-          const essays = await callService<{ ok: boolean; data: { essays: EssayRow[] } }>(env.CONTENT, `/cm/essays?passage=${encodeURIComponent(p.id)}`)
-            .then((r) => r.data?.essays ?? []).catch(() => [] as EssayRow[]);
+          type EssayRow = { slug: string; title: string; titleAr: string | null; termKey: string | null; termEn: string | null; anchor: string | null; lemmas?: string[] };
+          // a key term's essay is the term's, shared by every sūra: asked for by the lemmas this passage holds, and
+          // anchored at the first word here that carries one of its lemmas
+          const words = await query<{ ayah: number; word_index: number; stem_lemma_ar: string | null }>(env.DB_QR,
+            `SELECT ayah, word_index, stem_lemma_ar FROM qr_word_occurrence WHERE surah = ? AND ayah BETWEEN ? AND ?
+              ORDER BY ayah, word_index`, [p.surah, p.ayah_from, p.ayah_to]).catch(() => []);
+          const lemmas = [...new Set(words.map((w) => w.stem_lemma_ar).filter((x): x is string => !!x))];
+          const essays = await callService<{ ok: boolean; data: { essays: EssayRow[] } }>(env.CONTENT,
+            `/cm/essays?passage=${encodeURIComponent(p.id)}&lemmas=${encodeURIComponent(lemmas.join(','))}`)
+            .then((r) => r.data?.essays ?? []).catch(() => [] as EssayRow[])
+            .then((es) => es.map((e) => {
+              const w = e.lemmas?.length ? words.find((x) => x.stem_lemma_ar && e.lemmas!.includes(x.stem_lemma_ar)) : undefined;
+              return w ? { ...e, anchor: `${p.surah}:${w.ayah}:${w.word_index}` } : e;
+            }));
           const byStory = new Set(names.map((r) => r.essay_slug).filter(Boolean));
           const holds = (s: Sentence, anchor: string | null) => {
             const [su, ay, wd] = (anchor ?? '').split(':').map(Number);

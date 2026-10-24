@@ -8,20 +8,26 @@ import type { ContentEnv } from '../env';
 // read before its slides and drills; the app lays the markdown out itself (headings, verse panels, notes).
 
 export function essayRoutes(router: Router<ContentEnv>) {
-  // a passage's essays, each with the word it is written about (meta anchor "surah:ayah:word") — the class path places
-  // each one in the sentence that holds its word, so a new essay reaches the path without anyone linking it
+  // a passage's essays, each with the word it is written about. A key term's essay is the term's, shared by every sūra
+  // (owner, 2026-10-24): it is found by its lemmas (meta.lemmas, as qr_word_occurrence spells them) wherever the passage
+  // holds one — the caller sends the passage's lemmas — and the class path places it in the sentence that holds the
+  // word. An older essay tied to one passage (meta.passage_id) still comes with that passage, at its meta anchor.
   router.get('/cm/essays', async (req, env) => {
-    const passage = new URL(req.url).searchParams.get('passage');
-    if (!passage) return ok({ essays: [] });
+    const u = new URL(req.url);
+    const passage = u.searchParams.get('passage');
+    const lemmas = (u.searchParams.get('lemmas') ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+    if (!passage && !lemmas.length) return ok({ essays: [] });
     const rows = await query<{ slug: string; title: string; title_ar: string | null; meta_json: string | null }>(env.DB_CM,
       `SELECT slug, title, title_ar, meta_json FROM cm_documents
-        WHERE doc_type = 'essay' AND publication_state = 'published' AND json_extract(meta_json, '$.passage_id') = ?
-        ORDER BY json_extract(meta_json, '$.anchor'), slug`, [passage]);
+        WHERE doc_type = 'essay' AND publication_state = 'published'
+          AND (json_extract(meta_json, '$.passage_id') = ?
+               OR EXISTS (SELECT 1 FROM json_each(meta_json, '$.lemmas') j WHERE j.value IN (SELECT value FROM json_each(?))))
+        ORDER BY json_extract(meta_json, '$.anchor'), slug`, [passage ?? '', JSON.stringify(lemmas)]);
     return ok({ essays: rows.map((r) => {
       let m: Record<string, unknown> = {};
       try { m = JSON.parse(r.meta_json ?? '{}'); } catch { /* keep empty */ }
       return { slug: r.slug, title: r.title, titleAr: r.title_ar, termKey: m.term_key ?? null, termEn: m.term_en ?? null,
-               anchor: m.anchor ?? null };
+               anchor: m.anchor ?? null, lemmas: Array.isArray(m.lemmas) ? m.lemmas : [] };
     }) });
   });
 
