@@ -2,7 +2,7 @@
 // order — its answer known only to the room; and how each answer is graded.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { quizDrillOf, quizAnswerHolds } from '../src/quiz/drills';
+import { quizDrillOf, quizAnswerHolds, liveMessage } from '../src/quiz/drills';
 
 const card = (drill: unknown) => JSON.stringify({ module: 'QR', extra: { drill } });
 
@@ -43,4 +43,25 @@ test('graded: one plate; exactly the set, in any order; the tiles in their order
   assert.equal(quizAnswerHolds({ mode: 'all', correctIndex: -1, correct: [1, 3] }, { picked: [1] }), false);
   assert.equal(quizAnswerHolds({ mode: 'order', correctIndex: -1, correct: [1, 0, 3] }, { picked: [1, 0, 3] }), true);
   assert.equal(quizAnswerHolds({ mode: 'order', correctIndex: -1, correct: [1, 0, 3] }, { picked: [0, 1, 3] }), false);
+});
+
+test('a drill with audio: the question message carries it unchanged, before and after the reveal', () => {
+  const audio = { url: '/api/ar/audio/quran/alafasy/040.mp3', start: 12.48, end: 19.2 };
+  const q = quizDrillOf(card({ prompt: 'What does تَنزِيلُ mean here?', options: ['sending down', 'reading'], answer: 'sending down', audio }))!;
+  assert.deepEqual(q.audio, audio);
+  const live = { questionId: 'd1', prompt: q.prompt, options: q.options, seconds: 20, module: 'QR', resourceRef: 'P:40:1',
+    askedAt: 1, correctIndex: null, explanation: null, line: q.line, mode: q.mode, correct: null, audio: q.audio };
+  const asked = liveMessage(live)!;
+  assert.deepEqual(asked.audio, audio); assert.equal(asked.revealed, false); assert.equal(asked.correctIndex, null);
+  assert.deepEqual(JSON.parse(JSON.stringify(asked)).audio, audio, 'survives the wire');
+  assert.deepEqual(liveMessage({ ...live, correctIndex: q.correctIndex })!.audio, audio);
+});
+
+test('a drill with no audio (or a broken one) carries none: the message says null', () => {
+  const plain = quizDrillOf(card({ prompt: 'p', options: ['a', 'b'], answer: 'a' }))!;
+  assert.equal(plain.audio, null);
+  assert.equal(quizDrillOf(card({ prompt: 'p', options: ['a', 'b'], answer: 'a', audio: { url: 'x.mp3' } }))!.audio, null, 'no stretch');
+  const msg = liveMessage({ questionId: 'b1', prompt: 'p', options: ['a', 'b'], seconds: 20, module: 'QR', resourceRef: null,
+    askedAt: 1, correctIndex: null, explanation: null })!;
+  assert.equal(msg.audio, null);
 });

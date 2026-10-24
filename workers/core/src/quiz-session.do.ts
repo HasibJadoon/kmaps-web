@@ -2,7 +2,7 @@ import type { CoreEnv } from './env';
 import { query, execute } from '../../shared/src/db';
 import { typedId } from '../../shared/src/ulid';
 import { speedPoints } from './bank/score';
-import { quizDrillOf, quizAnswerHolds, type QuizMode } from './quiz/drills';
+import { quizDrillOf, quizAnswerHolds, liveMessage, type QuizMode, type QuizAudio } from './quiz/drills';
 import { poolEntries, poolTitle, type PoolEntry } from './quiz/pools';
 
 interface Player {
@@ -29,6 +29,8 @@ interface Live {
   mode?: QuizMode;
   /** all / order: the plates that hold, or the tiles' order — sent only once revealed. */
   correct?: number[] | null;
+  /** The drill's audio ({url, start, end}), when it has any — relayed as it came. */
+  audio?: QuizAudio | null;
 }
 
 interface Given {
@@ -248,7 +250,7 @@ export class QuizSession {
     const live: Live = {
       questionId: itemRef, prompt: q.prompt, options: q.options, seconds: 20,
       module: rows[0]?.module ?? 'QR', resourceRef: scope, askedAt: Date.now(),
-      correctIndex: null, explanation: null, line: q.line, mode: q.mode, correct: null,
+      correctIndex: null, explanation: null, line: q.line, mode: q.mode, correct: null, audio: q.audio,
     };
     await this.state.storage.put('live', live);
     await this.state.storage.put('given', [] as Given[]);
@@ -298,22 +300,7 @@ export class QuizSession {
   }
 
   private publicLive(live: Live | null) {
-    if (!live) return null;
-    return {
-      questionId: live.questionId,
-      prompt: live.prompt,
-      options: live.options,
-      seconds: live.seconds,
-      module: live.module,
-      resourceRef: live.resourceRef,
-      askedAt: live.askedAt,
-      revealed: live.correctIndex !== null || !!live.correct,
-      correctIndex: live.correctIndex,
-      explanation: live.explanation,
-      line: live.line ?? null,
-      mode: live.mode ?? 'one',
-      correct: live.correct ?? null,
-    };
+    return liveMessage(live);
   }
 
   private async answer(me: Player, choice: number, picked: number[] | null): Promise<void> {
