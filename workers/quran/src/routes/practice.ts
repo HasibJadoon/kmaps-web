@@ -202,7 +202,9 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
     : src === 'lines' ? await lineDrills(env, skill, n, scope, lv, !!meta.extra?.timed, meta.extra?.interaction as string | undefined)
     : src === 'gram' ? await gramDrills(env, skill, String(meta.extra?.discipline ?? 'NH'), n, scope, lv)
     : src === 'idiom' ? await idiomDrills(env, n, scope, lv, L)
-    : src === 'arc' ? await arcDrills(env, n, lv, L)
+    // no drill is built on the fly (owner, 2026-10-24): a root's arc is drilled from the bank (km_core cyb_drill rg:*,
+    // authored by kmaps-resources scripts/quran/author_range_drills.py), never generated here
+    : src === 'arc' ? []
     : src === 'translation' ? await translationDrills(env, n, scope, band, levels)
     : src === 'tafsir' ? await tafsirDrills(env, n, scope, lv, L)
     : src === 'irabbooks' ? await irabBookDrills(env, n, scope, lv, L)
