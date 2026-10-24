@@ -268,7 +268,9 @@ export function textRoutes(router: Router<ArabicEnv>) {
                     OR CAST(json_extract(a.meta_json, '$.seq') AS INTEGER) = t.seq
                     -- a whole-book recording cut into parts: each part lists the
                     -- units it reads, and a page belongs to the part that reads it
-                    OR EXISTS (SELECT 1 FROM json_each(a.meta_json, '$.units') je WHERE je.value = t.id))
+                    OR EXISTS (SELECT 1 FROM json_each(a.meta_json, '$.units') je WHERE je.value = t.id)
+                    -- a recording of one page filed by that page alone
+                    OR json_extract(a.meta_json, '$.unit') = t.id)
         WHERE t.acq_ref_id = ? AND t.status = 'live' AND t.seq >= ?
         ORDER BY t.seq LIMIT ?`,
       [params.id, from, limit],
