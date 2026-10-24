@@ -278,7 +278,33 @@ export function textRoutes(router: Router<ArabicEnv>) {
     /// printed line, so the reader can light the line being read. Sent with the
     /// page rather than fetched on play — the highlight has to be ready the
     /// instant the audio starts, not a round trip later.
-    const audioIds = pages.map((p) => p.pageAudioId).filter((x): x is string => !!x);
+    // A page no part of the recording reads (a preface, an editor's introduction) still has to know where the voice
+    // is when the book plays: it borrows the map of the part that reads the nearest page after it (owner, 2026-10-24:
+    // the text did not follow the voice until a chapter was picked from the contents).
+    const borrow = new Map<number, { id: string; key: string }>();
+    if (pages.some((p) => !p.pageAudioId)) {
+      const parts = await query<{ id: string; object_key: string; units: string | null }>(env.DB_AR,
+        `SELECT id, object_key, json_extract(meta_json, '$.units') AS units FROM ar_acq_audio
+          WHERE acq_ref_id = ? AND status = 'live' AND json_extract(meta_json, '$.units') IS NOT NULL`, [params.id]);
+      if (parts.length) {
+        const seqOf = new Map((await query<{ id: string; seq: number }>(env.DB_AR,
+          `SELECT id, seq FROM ar_text_unit WHERE acq_ref_id = ? AND status = 'live'`, [params.id])).map((u) => [u.id, u.seq]));
+        const read: { seq: number; id: string; key: string }[] = [];
+        for (const pt of parts) {
+          let ids: string[] = [];
+          try { ids = JSON.parse(pt.units ?? '[]'); } catch { ids = []; }
+          for (const u of ids) { const sq = seqOf.get(u); if (sq != null) read.push({ seq: sq, id: pt.id, key: pt.object_key }); }
+        }
+        read.sort((a, b) => a.seq - b.seq);
+        for (const p of pages) {
+          if (p.pageAudioId || !read.length) continue;
+          const at = read.find((r) => r.seq > (p.seq as number)) ?? read[read.length - 1];
+          borrow.set(p.seq as number, { id: at.id, key: at.key });
+        }
+      }
+    }
+    const audioIds = [...new Set([...pages.map((p) => p.pageAudioId), ...[...borrow.values()].map((b) => b.id)]
+      .filter((x): x is string => !!x))];
     const segments = audioIds.length
       ? await query<{ audio_id: string; seq: number; start_sec: number; end_sec: number; text_ar: string; speaker: string | null; anchored: number; words: string | null; unit: string | null }>(
           env.DB_AR,
@@ -370,7 +396,11 @@ export function textRoutes(router: Router<ArabicEnv>) {
         const all = p.pageAudioId ? (byAudio.get(String(p.pageAudioId)) ?? []) : [];
         const own = all.some((s) => s.unit) ? all.filter((s) => !s.unit || s.unit === p.id) : all;
         const pageSegments = own.map(({ unit: _u, ...seg }) => seg);
-        const pageAudioMap = p.pageAudioId ? (mapByAudio.get(String(p.pageAudioId)) ?? []) : [];
+        const lent = p.pageAudioId ? null : borrow.get(p.seq as number) ?? null;
+        const mapId = p.pageAudioId ? String(p.pageAudioId) : lent?.id;
+        const pageAudioMap = mapId ? (mapByAudio.get(mapId) ?? []) : [];
+        // which recording the map is on, so a reader follows it only while that recording plays
+        const pageAudioMapKey = p.pageAudioId ? (p.pageAudioKey ?? null) : lent?.key ?? null;
         // A recording synced to other pages but with no line on this one (the
         // Nights' dawn refrain, a preface the reader skips) is not this page's
         // recording: offering it would replay the whole episode from the top.
@@ -382,6 +412,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
           pageAudioStart: pageSegments.length ? Math.max(0, pageSegments[0].start - 0.3) : 0,
           pageSegments,
           pageAudioMap,
+          pageAudioMapKey,
           stanzas,
         };
       }),
