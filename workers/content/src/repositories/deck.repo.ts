@@ -53,6 +53,8 @@ interface DeckMeta {
   xref_gateway?: Record<string, unknown>;
   /** The deck's pace (contract §6): { speed }. */
   motion?: { speed?: number };
+  /** Opens playing: narration and page turns start by themselves (key-term story decks). */
+  autoplay?: boolean;
 }
 
 function direction(meta: DeckMeta, language: string): 'rtl' | 'ltr' {
@@ -254,6 +256,7 @@ export class DeckRepo {
       collection: meta.collection ?? null,
       xref_gateway: meta.xref_gateway ?? null,
       motion: typeof meta.motion?.speed === 'number' ? { speed: meta.motion.speed } : null,
+      autoplay: meta.autoplay === true,
     };
   }
 }

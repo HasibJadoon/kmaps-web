@@ -124,6 +124,8 @@ export interface Deck {
   xref_gateway: Record<string, unknown> | null;
   /** The deck's pace from its data; null plays at the contract's §6 timing. */
   motion: { speed: number } | null;
+  /** Opens playing: narration and page turns start by themselves (key-term story decks). */
+  autoplay: boolean;
 }
 
 /** What the list endpoint returns — enough to draw a card, no slide bodies. */
