@@ -211,6 +211,9 @@ export function roomRoutes(router: Router<ArabicEnv>) {
         room: roomOut(room, [], { count: domains.length }),
         entries: domains.map((d) => ({ kind: 'domain', id: d.slug, title: d.title, titleAr: d.title_ar,
                                        subtitle: d.description, count: d.words, themes: d.themes, level: DAILY_LEVEL })),
+        // every room answers with the same shape: the app reads `centuries` on all of them, and its absence here
+        // made Everyday fail to load ("This room could not be fetched", owner 2026-10-25)
+        centuries: [],
       });
     }
     const works = (assign((await loadWorks(env)).filter((w) => inBand(band, w.level)), rooms).get(room.id) ?? []);
