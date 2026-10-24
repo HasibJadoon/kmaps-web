@@ -219,7 +219,7 @@ test('the passage’s الصرف to read: every word, each root with its verbs, 
   assert.deepEqual(range.map((r) => r.lemma), ['تَنزِيل']);
   assert.deepEqual(range[0].senses.map((x) => [x.en, x.here]),
     [['the Revelation sent down from God — the Qurʾān', true], ['sent down part by part, in stages', false], ['the angels sent down, on the Day', false]]);
-  if (existsSync(FIXTURE)) assert.ok(range[0].senses[0].quotes.some((q) => /﴿تَنزِيلُ ٱلۡكِتَٰبِ﴾ 40:2$/.test(String(q))));
+  if (existsSync(FIXTURE)) assert.ok(range[0].senses[0].quotes.some((q) => /(﴿تَنزِيلُ ٱلۡكِتَٰبِ﴾ 40:2|تَنزِيلُ ٱلۡكِتَٰبِ ﴿غافر، ٢- 40:2 ﴾)$/.test(String(q))));
   assert.equal(tawb.picture?.en, 'Returning — coming back.');
   const root = sheet.roots.find((r) => r.root === 'توب')!;
   assert.equal(root.letters, 'ت و ب');

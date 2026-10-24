@@ -1,7 +1,7 @@
 import { query } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import { createAlClient, type AlSarfSheet, type ResolvedLemma } from '../clients/al.client';
-import { withCard, shuffle, parseJson, rangeOf, interleave, type Drill, type Scope } from './practice-kit';
+import { withCard, shuffle, parseJson, rangeOf, interleave, quranRef, type Drill, type Scope } from './practice-kit';
 
 // ── الصرف: the passage's words, their forms, prepositions, family and meanings in the Qurʾān ──────
 //
@@ -99,10 +99,14 @@ export function cutQuote(text: string, needle: string): string | null {
   return null;
 }
 
+/** A cite's words cut from the muṣḥaf, then its reference in the one shape every Qurʾān line takes:
+ *  «فِيهَا كُتُبٞ قَيِّمَةٞ ﴿البينة، ٣- 98:3 ﴾» (the sūra’s name is texts’ `#<sūra>`; without it, «﴿…﴾ s:a»). */
 const quote = (c: Cite, texts: Map<string, string>) => {
   const t = texts.get(`${c.surah}:${c.ayah}`);
   const q = t ? cutQuote(t, c.needle) : null;
-  return q ? `﴿${q}﴾ ${c.surah}:${c.ayah}` : null;
+  if (!q) return null;
+  const name = texts.get(`#${c.surah}`);
+  return name ? `${q} ${quranRef(name, c.surah, c.ayah)}` : `﴿${q}﴾ ${c.surah}:${c.ayah}`;
 };
 
 // ── what a scope holds ──────────────────────────────────────────────────────
@@ -160,6 +164,11 @@ async function load(env: QuranEnv, scope: Scope, refresh = false, highOnly = fal
     `SELECT surah, ayah, COALESCE(text_uthmani, text) AS t FROM qr_ayah
       WHERE (surah, ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`, [JSON.stringify(own)]).catch(() => []))
     texts.set(`${a.surah}:${a.ayah}`, a.t);
+  // the sūras' Arabic names, for each quote's reference
+  const surahs = [...new Set([...texts.keys()].filter((k) => !k.startsWith('#')).map((k) => Number(k.split(':')[0])))];
+  if (surahs.length) for (const r of await query<{ id: number; name_ar: string }>(env.DB_QR,
+    `SELECT id, name_ar FROM qr_surah WHERE id IN (SELECT value FROM json_each(?))`, [JSON.stringify(surahs)]).catch(() => []))
+    texts.set(`#${r.id}`, r.name_ar);
   return {
     ...C, words, texts,
     pluralsOf: (w: Word) => C.pluralsOfGid(gidOf(w)),
