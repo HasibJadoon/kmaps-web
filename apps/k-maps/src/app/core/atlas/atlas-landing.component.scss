@@ -302,7 +302,7 @@
 
 .atlas__quran-title {
   margin: 0;
-  font-family: var(--km-font-arabic, 'UthmanicHafs_V22', serif);
+  font-family: var(--km-font-arabic, 'UthmanicHafs', serif);
   font-size: 12px;
   line-height: 1.3;
   color: rgba(248, 218, 112, 0.94);
@@ -314,7 +314,7 @@
 
 .atlas__quran-title-sub {
   margin: 0;
-  font-family: var(--km-font-arabic, 'UthmanicHafs_V22', serif);
+  font-family: var(--km-font-arabic, 'UthmanicHafs', serif);
   font-size: 10px;
   line-height: 1.2;
   color: rgba(230, 195, 88, 0.72);
@@ -389,7 +389,7 @@
 }
 
 .atlas__sacred-book-label {
-  font-family: var(--km-font-arabic, 'UthmanicHafs_V22', serif);
+  font-family: var(--km-font-arabic, 'UthmanicHafs', serif);
   font-size: 8.5px;
   line-height: 1.1;
   color: rgba(215, 225, 255, 0.68);
