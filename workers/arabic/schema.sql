@@ -1477,5 +1477,6 @@ CREATE TABLE IF NOT EXISTS ar_daily_reading (
   level        TEXT NOT NULL DEFAULT 'A2',
   sort_order   INTEGER NOT NULL DEFAULT 0,
   is_published INTEGER NOT NULL DEFAULT 1,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  body_md      TEXT
 );

@@ -22,3 +22,5 @@ INSERT OR IGNORE INTO ar_curriculum_domain (id, slug, title, title_ar, descripti
 INSERT OR REPLACE INTO ar_daily_reading (id, domain_id, slug, kind, title_en, title_ar, subtitle_en, note_ref, cover_key, lines, sort_order) VALUES
   ('ARDR:honesty-saves', '01ARDOM000000000000032', 'honesty-saves', 'story', 'Honesty Saves', 'الصِّدْقُ يُنْجِي', 'A broken vase, and a brave true word.', 'NOTE:AR:reading:honesty-saves', 'reading/honesty-saves/p1.jpg', 6, 1),
   ('ARDR:friday', '01ARDOM000000000000031', 'friday', 'qa', 'What do you do on Friday?', 'مَاذَا تَفْعَلُ يَوْمَ الْجُمُعَةِ؟', 'A Friday, question by question.', 'NOTE:AR:reading:friday', 'reading/friday/p3.jpg', 5, 1);
+-- the lesson's read-along markdown, served unsigned at /ar/daily/readings/:slug
+ALTER TABLE ar_daily_reading ADD COLUMN body_md TEXT;

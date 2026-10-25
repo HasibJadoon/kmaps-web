@@ -211,6 +211,17 @@ export function dailyRoutes(router: Router<ArabicEnv>) {
     });
   });
 
+  /// A reading lesson, whole, unsigned: the same for everyone (owner, 2026-10-25: "fetched without user"). Shaped as a
+  /// note so the documents' read-along reader opens it as it is.
+  router.get('/ar/daily/readings/:slug', async (_req, env, { slug }) => {
+    const r = await queryOne<{ slug: string; title_en: string; title_ar: string; body_md: string | null; created_at: string }>(env.DB_AR,
+      `SELECT slug, title_en, title_ar, body_md, created_at FROM ar_daily_reading WHERE slug = ? AND is_published = 1`, [slug]);
+    if (!r || !r.body_md) return notFound(`reading ${slug}`);
+    return ok({ note: { id: `ARDR:${r.slug}`, note_type: 'note', title: `${r.title_en} · ${r.title_ar}`, body: r.body_md,
+                        visibility: 'public', domain: 'arabic', is_pinned: 0, tags_json: '["reading"]',
+                        created_at: r.created_at, updated_at: r.created_at } });
+  });
+
   /// The published themes, in drip order. Content only — no reader state, so
   /// this is the list a browsing user sees before signing in.
   ///
