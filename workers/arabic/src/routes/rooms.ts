@@ -149,8 +149,9 @@ function centuriesOf(works: Work[]) {
 /// still on the map, marked as coming.
 async function dailyDomains(env: ArabicEnv) {
   return query<{ slug: string; title: string; title_ar: string | null; description: string | null; themes: number; words: number;
-                 readings: number; map_order: number; cover_key: string | null }>(env.DB_AR,
-    `SELECT d.slug, d.title, d.title_ar, d.description, d.map_order, d.cover_key,
+                 readings: number; map_order: number; cover_key: string | null;
+                 district: string | null; map_x: number | null; map_y: number | null }>(env.DB_AR,
+    `SELECT d.slug, d.title, d.title_ar, d.description, d.map_order, d.cover_key, d.district, d.map_x, d.map_y,
             (SELECT COUNT(*) FROM ar_daily_theme t WHERE t.domain_id = d.id AND t.is_published = 1) AS themes,
             (SELECT COUNT(*) FROM ar_daily_word w JOIN ar_daily_theme t ON t.id = w.theme_id AND t.is_published = 1
               WHERE t.domain_id = d.id) AS words,
@@ -219,7 +220,10 @@ export function roomRoutes(router: Router<ArabicEnv>) {
         entries: domains.map((d) => ({ kind: 'domain', id: d.slug, title: d.title, titleAr: d.title_ar,
                                        subtitle: d.description, count: d.words, themes: d.themes, readings: d.readings,
                                        cover: d.cover_key ? `/api/ar/audio/${d.cover_key}` : null, stop: d.map_order,
-                                       open: d.themes + d.readings > 0, level: DAILY_LEVEL })),
+                                       open: d.themes + d.readings > 0, district: d.district, x: d.map_x, y: d.map_y,
+                                       level: DAILY_LEVEL })),
+        // the town the places stand in: its picture, size and districts (ar_room.rules_json.map)
+        map: (room.rules as Record<string, unknown>).map ?? null,
         // every room answers with the same shape: the app reads `centuries` on all of them, and its absence here
         // made Everyday fail to load ("This room could not be fetched", owner 2026-10-25)
         centuries: [],
