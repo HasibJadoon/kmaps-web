@@ -144,13 +144,18 @@ function centuriesOf(works: Work[]) {
     }));
 }
 
+/// The Everyday categories that hold something: a day's themes, or reading lessons (ar_daily_reading), or both.
 async function dailyDomains(env: ArabicEnv) {
-  return query<{ slug: string; title: string; title_ar: string | null; description: string | null; themes: number; words: number }>(env.DB_AR,
-    `SELECT d.slug, d.title, d.title_ar, d.description, COUNT(DISTINCT t.id) AS themes, COUNT(w.id) AS words
+  return query<{ slug: string; title: string; title_ar: string | null; description: string | null; themes: number; words: number; readings: number }>(env.DB_AR,
+    `SELECT d.slug, d.title, d.title_ar, d.description,
+            (SELECT COUNT(*) FROM ar_daily_theme t WHERE t.domain_id = d.id AND t.is_published = 1) AS themes,
+            (SELECT COUNT(*) FROM ar_daily_word w JOIN ar_daily_theme t ON t.id = w.theme_id AND t.is_published = 1
+              WHERE t.domain_id = d.id) AS words,
+            (SELECT COUNT(*) FROM ar_daily_reading r WHERE r.domain_id = d.id AND r.is_published = 1) AS readings
        FROM ar_curriculum_domain d
-       JOIN ar_daily_theme t ON t.domain_id = d.id AND t.is_published = 1
-       LEFT JOIN ar_daily_word w ON w.theme_id = t.id
-      GROUP BY d.id ORDER BY d.sort_order, d.title`);
+      WHERE EXISTS (SELECT 1 FROM ar_daily_theme t WHERE t.domain_id = d.id AND t.is_published = 1)
+         OR EXISTS (SELECT 1 FROM ar_daily_reading r WHERE r.domain_id = d.id AND r.is_published = 1)
+      ORDER BY d.sort_order, d.title`);
 }
 const DAILY_LEVEL = 'A2';   // every daily theme is written at A2 (ar_daily_theme.level)
 
@@ -210,7 +215,8 @@ export function roomRoutes(router: Router<ArabicEnv>) {
       return ok({
         room: roomOut(room, [], { count: domains.length }),
         entries: domains.map((d) => ({ kind: 'domain', id: d.slug, title: d.title, titleAr: d.title_ar,
-                                       subtitle: d.description, count: d.words, themes: d.themes, level: DAILY_LEVEL })),
+                                       subtitle: d.description, count: d.words, themes: d.themes, readings: d.readings,
+                                       level: DAILY_LEVEL })),
         // every room answers with the same shape: the app reads `centuries` on all of them, and its absence here
         // made Everyday fail to load ("This room could not be fetched", owner 2026-10-25)
         centuries: [],

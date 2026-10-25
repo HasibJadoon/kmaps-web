@@ -940,3 +940,14 @@ CREATE INDEX ix_cm_docs_ayah ON cm_documents(surah, ayah_from, ayah_to);
 CREATE INDEX ix_cm_docs_passage ON cm_documents(passage_ref);
 
 CREATE INDEX ix_cm_notes_passage ON cm_notes(passage_ref);
+CREATE TABLE IF NOT EXISTS cm_note_group (
+  domain_key TEXT NOT NULL,
+  group_key  TEXT NOT NULL,
+  title      TEXT NOT NULL,
+  title_ar   TEXT,
+  icon       TEXT,
+  accent     TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (domain_key, group_key)
+);
+INSERT OR REPLACE INTO cm_note_group (domain_key, group_key, title, title_ar, icon, accent, sort_order) VALUES

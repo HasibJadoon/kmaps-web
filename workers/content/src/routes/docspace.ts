@@ -146,6 +146,33 @@ export function docSpaceRoutes(router: Router<ContentEnv>) {
     return ok({ domains });
   });
 
+  // A shelf's categories, each with the owner's notes in it (a note joins one through meta_json.category), in the
+  // shelf's own order; a category with no notes is left out. The shelf draws these headings and nothing else decides
+  // them (owner, 2026-10-25: the Arabic Reading shelf grouped by category).
+  router.get('/cm/docspace/groups', async (req, env) => {
+    const owner = ownerOf(req);
+    if (!owner) return unauthorized('Sign in required');
+    const domain = new URL(req.url).searchParams.get('domain') ?? '';
+    const rows = await query<{ group_key: string; title: string; title_ar: string | null; icon: string | null;
+                               accent: string | null; note_id: string }>(
+      env.DB_CM,
+      `SELECT g.group_key, g.title, g.title_ar, g.icon, g.accent, n.note_id
+         FROM cm_note_group g
+         JOIN cm_notes n ON n.domain = g.domain_key AND json_extract(n.meta_json, '$.category') = g.group_key
+                        AND n.core_user_ref = ? AND n.deleted_at IS NULL
+        WHERE g.domain_key = ?
+        ORDER BY g.sort_order, n.updated_at DESC`,
+      [owner, domain],
+    );
+    const groups: { key: string; title: string; titleAr: string | null; icon: string | null; accent: string | null; noteIds: string[] }[] = [];
+    for (const r of rows) {
+      let g = groups.find((x) => x.key === r.group_key);
+      if (!g) { g = { key: r.group_key, title: r.title, titleAr: r.title_ar, icon: r.icon, accent: r.accent, noteIds: [] }; groups.push(g); }
+      g.noteIds.push(r.note_id);
+    }
+    return ok({ groups });
+  });
+
   router.post('/cm/docspace/folders', async (req, env) => {
     const owner = ownerOf(req);
     if (!owner) return unauthorized('Sign in required');

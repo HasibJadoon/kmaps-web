@@ -1463,3 +1463,19 @@ CREATE TABLE ar_intake_pipeline (
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS ar_daily_reading (
+  id           TEXT PRIMARY KEY,
+  domain_id    TEXT NOT NULL REFERENCES ar_curriculum_domain(id),
+  slug         TEXT NOT NULL UNIQUE,
+  kind         TEXT NOT NULL CHECK (kind IN ('story', 'qa')),
+  title_en     TEXT NOT NULL,
+  title_ar     TEXT NOT NULL,
+  subtitle_en  TEXT,
+  note_ref     TEXT NOT NULL,
+  cover_key    TEXT,
+  lines        INTEGER NOT NULL DEFAULT 0,
+  level        TEXT NOT NULL DEFAULT 'A2',
+  sort_order   INTEGER NOT NULL DEFAULT 0,
+  is_published INTEGER NOT NULL DEFAULT 1,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);

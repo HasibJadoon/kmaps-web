@@ -149,7 +149,7 @@ export function dailyRoutes(router: Router<ArabicEnv>) {
     if (!dom) return notFound(`domain ${slug}`);
 
     const setJoin = `JOIN ar_daily_theme t ON t.id = x.theme_id AND t.domain_id = ? AND t.is_published = 1`;
-    const [dialogues, turns, words, sentences, passages] = await Promise.all([
+    const [dialogues, turns, words, sentences, passages, readings] = await Promise.all([
       query<{
         id: string; theme_id: string; title_ar: string; title_en: string | null;
         setting_ar: string | null; image_key: string | null;
@@ -175,6 +175,11 @@ export function dailyRoutes(router: Router<ArabicEnv>) {
         `SELECT x.id, x.theme_id, x.title_ar, x.text_ar, x.gloss_en, x.word_count, x.audio_key, x.audio_secs,
                 t.title_ar AS set_title_ar, t.focus_note
            FROM ar_daily_passage x ${setJoin} ORDER BY t.day_index`, [dom.id]),
+      // the category's reading lessons: each opens its read-along note (note_ref) in the reader
+      query<{ slug: string; kind: string; title_en: string; title_ar: string; subtitle_en: string | null;
+              note_ref: string; cover_key: string | null; lines: number; level: string }>(env.DB_AR,
+        `SELECT slug, kind, title_en, title_ar, subtitle_en, note_ref, cover_key, lines, level
+           FROM ar_daily_reading WHERE domain_id = ? AND is_published = 1 ORDER BY sort_order, created_at`, [dom.id]),
     ]);
 
     return ok({
@@ -193,6 +198,10 @@ export function dailyRoutes(router: Router<ArabicEnv>) {
       sentences: sentences.map((s) => ({
         id: s.id, setId: s.theme_id, wordId: s.word_id, textAr: s.text_ar, gloss: s.gloss_en,
         numberUsed: s.number_used, grammarNote: s.grammar_note_en, audio: s.audio_key,
+      })),
+      readings: readings.map((r) => ({
+        slug: r.slug, kind: r.kind, titleEn: r.title_en, titleAr: r.title_ar, subtitle: r.subtitle_en,
+        noteRef: r.note_ref, cover: r.cover_key ? `/api/ar/audio/${r.cover_key}` : null, lines: r.lines, level: r.level,
       })),
       passages: passages.map((p) => ({
         id: p.id, setId: p.theme_id, titleAr: p.title_ar, textAr: p.text_ar, gloss: p.gloss_en,
