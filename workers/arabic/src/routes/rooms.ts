@@ -150,8 +150,9 @@ function centuriesOf(works: Work[]) {
 async function dailyDomains(env: ArabicEnv) {
   return query<{ slug: string; title: string; title_ar: string | null; description: string | null; themes: number; words: number;
                  readings: number; map_order: number; cover_key: string | null;
-                 district: string | null; map_x: number | null; map_y: number | null }>(env.DB_AR,
+                 district: string | null; map_x: number | null; map_y: number | null; map_slug: string | null }>(env.DB_AR,
     `SELECT d.slug, d.title, d.title_ar, d.description, d.map_order, d.cover_key, d.district, d.map_x, d.map_y,
+            (SELECT m.slug FROM ar_map m WHERE m.id = d.map_id) AS map_slug,
             (SELECT COUNT(*) FROM ar_daily_theme t WHERE t.domain_id = d.id AND t.is_published = 1) AS themes,
             (SELECT COUNT(*) FROM ar_daily_word w JOIN ar_daily_theme t ON t.id = w.theme_id AND t.is_published = 1
               WHERE t.domain_id = d.id) AS words,
@@ -220,10 +221,19 @@ export function roomRoutes(router: Router<ArabicEnv>) {
         entries: domains.map((d) => ({ kind: 'domain', id: d.slug, title: d.title, titleAr: d.title_ar,
                                        subtitle: d.description, count: d.words, themes: d.themes, readings: d.readings,
                                        cover: d.cover_key ? `/api/ar/audio/${d.cover_key}` : null, stop: d.map_order,
-                                       open: d.themes + d.readings > 0, district: d.district, x: d.map_x, y: d.map_y,
+                                       open: d.themes + d.readings > 0, district: d.district, x: d.map_x, y: d.map_y, map: d.map_slug,
                                        level: DAILY_LEVEL })),
-        // the town the places stand in: its picture, size and districts (ar_room.rules_json.map)
-        map: (room.rules as Record<string, unknown>).map ?? null,
+        // the atlas: every era's map (ar_map) with its picture, size, districts and parent, in order
+        maps: (await query<{ slug: string; title: string; title_ar: string | null; era: string; blurb: string | null;
+                             image_key: string | null; w: number; h: number; districts_json: string; parent: string | null }>(env.DB_AR,
+          `SELECT m.slug, m.title, m.title_ar, m.era, m.blurb, m.image_key, m.w, m.h, m.districts_json,
+                  (SELECT p.slug FROM ar_map p WHERE p.id = m.parent_id) AS parent
+             FROM ar_map m ORDER BY m.sort_order`)).map((m) => {
+          let districts: unknown[] = [];
+          try { districts = JSON.parse(m.districts_json); } catch { districts = []; }
+          return { slug: m.slug, title: m.title, titleAr: m.title_ar, era: m.era, blurb: m.blurb, parent: m.parent,
+                   image: m.image_key ? `/api/ar/audio/${m.image_key}` : null, w: m.w, h: m.h, districts };
+        }),
         // every room answers with the same shape: the app reads `centuries` on all of them, and its absence here
         // made Everyday fail to load ("This room could not be fetched", owner 2026-10-25)
         centuries: [],
