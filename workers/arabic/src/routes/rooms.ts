@@ -33,8 +33,8 @@ async function loadWorks(env: ArabicEnv): Promise<Work[]> {
      SELECT r.id, r.title_ar AS titleAr, r.title_en AS titleEn, r.author, r.note_ar AS died,
             r.genre_ref AS genreRef, r.register, r.level,
             json_extract(r.meta_json, '$.shape') AS shape, r.verse_form AS verseForm,
-            COUNT(t.id) AS pages, SUM(t.word_count) AS words,
-            COALESCE(json_extract(r.meta_json, '$.open_at'), MIN(t.seq)) AS firstSeq,
+            t.pages, t.words,
+            COALESCE(json_extract(r.meta_json, '$.open_at'), t.first_seq) AS firstSeq,
             (SELECT a.object_key FROM ar_acq_audio a
               WHERE a.status = 'live' AND (a.acq_ref_id = r.id OR a.title_ar = r.title_ar)
               ORDER BY (a.acq_ref_id = r.id) DESC LIMIT 1) AS audioKey,
@@ -44,15 +44,16 @@ async function loadWorks(env: ArabicEnv): Promise<Work[]> {
             json_extract(r.meta_json, '$.video.id') AS videoId,
             json_extract(r.meta_json, '$.episode') AS episode
        FROM ar_acquisition_ref r
-       JOIN ar_text_unit t ON t.acq_ref_id = r.id AND t.status = 'live'
+       -- pages and words counted in one pass, then joined: joining every page and grouping read 11.6M rows (1.5 s)
+       JOIN (SELECT acq_ref_id, COUNT(*) AS pages, SUM(word_count) AS words, MIN(seq) AS first_seq
+               FROM ar_text_unit WHERE status = 'live' GROUP BY acq_ref_id) t ON t.acq_ref_id = r.id
        LEFT JOIN ar_acq_entry e ON e.ar_no = json_extract(r.meta_json, '$.ar_no')
        LEFT JOIN ar_acq_entry p ON p.ar_no = e.parent_ar_no
        LEFT JOIN ar_acq_entry gp ON gp.ar_no = p.parent_ar_no
        LEFT JOIN ar_acq_category pc ON pc.id = p.ar_no
        LEFT JOIN ar_acq_category gpc ON gpc.id = gp.ar_no
        LEFT JOIN path ON path.start_ar_no = e.ar_no
-      WHERE r.status = 'live' AND COALESCE(path.trail, '') NOT LIKE 'مفردات%'
-      GROUP BY r.id`);
+      WHERE r.status = 'live' AND COALESCE(path.trail, '') NOT LIKE 'مفردات%'`);
 }
 
 async function loadRooms(env: ArabicEnv) {
