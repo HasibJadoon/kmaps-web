@@ -56,7 +56,7 @@ APPLE_CLIENT_ID = "com.kmaps.app,com.kmaps.studio"
 # role anyone can acquire. Comma-separated emails.
 # system@test.com is the full-rights test account — approver and admin.
 # Remove it from this list to disable its approval rights.
-CARD_APPROVERS = "houseofwisdom222@gmail.com,system@test.com"
+CARD_APPROVERS = "houseofwisdom222@gmail.com,hasibjadoon@gmail.com,system@test.com"
 
 # Google: two audiences, WEB FIRST then iOS.
 #
