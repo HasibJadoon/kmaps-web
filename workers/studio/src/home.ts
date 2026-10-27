@@ -162,7 +162,7 @@ export interface StudioHome {
 const STRAND_FORMATS = new Set(['series', 'group']);
 export const isStrand = (r: { format: string }) => STRAND_FORMATS.has(r.format);
 
-interface Node {
+export interface Node {
   row: HomeEpisodeRow;
   children: Node[];
 }
@@ -203,7 +203,7 @@ export function buildForest(rows: HomeEpisodeRow[]): Node[] {
 }
 
 /// Every episode under these nodes, in running order.
-function leaves(nodes: Node[]): HomeEpisodeRow[] {
+export function leaves(nodes: Node[]): HomeEpisodeRow[] {
   const out: HomeEpisodeRow[] = [];
   const walk = (n: Node) => {
     if (isStrand(n.row)) n.children.forEach(walk);
@@ -268,7 +268,7 @@ function mostRecent(rows: HomeEpisodeRow[]): HomeEpisodeRow | null {
   return best;
 }
 
-class Pipeline {
+export class Pipeline {
   readonly stages: HomeStage[];
   private stageOf = new Map<string, HomeStage>();
 
@@ -287,6 +287,11 @@ class Pipeline {
         count: 0,
       }));
     for (const s of this.stages) for (const st of s.statuses) this.stageOf.set(st, s);
+  }
+
+  /// The stage a status sits in, if any.
+  stage(status: string): HomeStage | undefined {
+    return this.stageOf.get(status);
   }
 
   /// Shot or published — what the app's `!status.isShootable` calls done.

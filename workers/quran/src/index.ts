@@ -118,6 +118,42 @@ router.post('/qr/internal/study-surahs', async (_req, env) => {
   return ok({ ok: true, surahs: results ?? [] });
 });
 
+// The muṣḥaf as the studio plans it: every surah, the study passages cut so
+// far, and the surah groups with their members. Read-only, lean (no prose),
+// called over the service binding by ST for /st/quran/plan.
+router.post('/qr/internal/study-map', async (_req, env) => {
+  const [surahs, passages, groups, members] = await Promise.all([
+    env.DB_QR
+      .prepare(`SELECT id, name_ar, name_en, name_transliteration AS name_tr, ayah_count, revelation_type
+                  FROM qr_surah ORDER BY id`)
+      .all(),
+    env.DB_QR
+      .prepare(`SELECT surah, passage_no, ayah_from, ayah_to, title_en, title_ar
+                  FROM qr_surah_study_passage ORDER BY surah, passage_no`)
+      .all(),
+    env.DB_QR
+      .prepare(`SELECT id, name_ar, name_en, name_translit AS name_tr, surah_from, surah_to,
+                       member_count, contiguous, group_basis, confidence
+                  FROM qr_nazm_group ORDER BY surah_from, member_count`)
+      .all(),
+    env.DB_QR
+      .prepare(`SELECT group_id, surah FROM qr_nazm_group_member ORDER BY group_id, member_index`)
+      .all<{ group_id: string; surah: number }>(),
+  ]);
+  const of = new Map<string, number[]>();
+  for (const m of members.results ?? []) {
+    const list = of.get(m.group_id) ?? [];
+    list.push(m.surah);
+    of.set(m.group_id, list);
+  }
+  return ok({
+    ok: true,
+    surahs: surahs.results ?? [],
+    passages: passages.results ?? [],
+    groups: (groups.results ?? []).map((g) => ({ ...g, members: of.get(String(g.id)) ?? [] })),
+  });
+});
+
 // What a studio brainstorm needs to know about one passage: its text, the
 // assembled English rendering, and the authored passage sections (structure,
 // concepts, flow). Read-only; called over the service binding by ST.
