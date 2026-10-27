@@ -100,13 +100,11 @@ test('resume is the most recently opened episode', () => {
 });
 
 test('graphics are DeckGraphic payloads the app can draw', () => {
-  const drawn = new Set(['timeline', 'hub', 'chevrons']);
+  // a stream page carries its series map only; the pipeline is the landing's
   for (const s of home.streams) {
     for (const g of s.graphics) {
-      assert.ok(drawn.has(g.kind), g.kind);
-      assert.ok(g.items.length > 0);
-      if (g.kind === 'chevrons') assert.ok(g.items.length <= 5);
-      if (g.kind === 'timeline') assert.ok(g.items.length <= 7);
+      assert.equal(g.kind, 'timeline');
+      assert.ok(g.items.length > 0 && g.items.length <= 7);
     }
   }
   assert.equal(home.graphic.kind, 'chevrons');

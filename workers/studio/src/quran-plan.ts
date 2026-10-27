@@ -304,7 +304,8 @@ export function shapeQuranPlan(
         next_up: next?.id ?? null,
         stages: c.stages,
       };
-    }).sort((a, b) => b.total - a.total || (a.id < b.id ? -1 : 1));
+    // a channel's tracks together, then the larger first
+    }).sort((a, b) => (a.channel ?? '~').localeCompare(b.channel ?? '~') || b.total - a.total || (a.id < b.id ? -1 : 1));
     return out;
   });
 

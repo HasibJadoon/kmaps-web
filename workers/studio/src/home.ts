@@ -419,7 +419,7 @@ export function shapeHome(
       resume: resumeRow ? episode(resumeRow) : null,
       graphics: [],
     };
-    stream.graphics = streamGraphics(stream, pipe, nextRow);
+    stream.graphics = streamGraphics(stream, nextRow);
     return stream;
   });
 
@@ -452,9 +452,11 @@ export function shapeHome(
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-/// The stream's series as a timeline, its series round its name as a hub, and
-/// its own pipeline as chevrons.
-function streamGraphics(s: HomeStream, pipe: Pipeline, nextRow: HomeEpisodeRow | null): Graphic[] {
+/// The stream's series as a timeline. (Its shelves round a hub and its own
+/// pipeline as chevrons were dropped from the stream page, owner 2026-10-27:
+/// the landing's line already shows the pipeline, and the shelves are listed
+/// channel by channel.)
+function streamGraphics(s: HomeStream, nextRow: HomeEpisodeRow | null): Graphic[] {
   const shelf = s.series.filter((x) => x.total > 0);
   const focusId = nextRow
     ? shelf.find((x) => x.next_up === nextRow.id)?.id ?? null
@@ -476,35 +478,8 @@ function streamGraphics(s: HomeStream, pipe: Pipeline, nextRow: HomeEpisodeRow |
         focus: x.id === focusId ? true : undefined,
       })),
     });
-    graphics.push({
-      kind: 'hub',
-      term_ar: s.title_ar,
-      term: s.title_en,
-      items: shelf.slice(0, 8).map((x) => ({
-        id: x.id,
-        icon: s.icon ?? undefined,
-        ar: x.title_ar ?? undefined,
-        en: `${x.title_en || x.parent_title_en || ''} · ${x.done}/${x.total}`.replace(/^ · /, ''),
-        tone: s.tone ?? undefined,
-      })),
-    });
   }
 
-  graphics.push({
-    kind: 'chevrons',
-    title: `${s.title_en} pipeline`,
-    items: pipe.stages.map((st) => {
-      const n = s.counts.stages.find((c) => c.key === st.key)?.count ?? 0;
-      return {
-        id: st.key,
-        en: st.label_en,
-        ar: st.label_ar,
-        icon: st.icon ?? undefined,
-        tone: st.tone ?? undefined,
-        points: [plural(n, 'episode')],
-      };
-    }),
-  });
   return graphics;
 }
 
