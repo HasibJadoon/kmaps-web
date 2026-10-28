@@ -15,6 +15,7 @@ export function deckRoutes(router: Router<ContentEnv>) {
       await repo.list({
         domain: url.searchParams.get('domain') ?? undefined,
         subdomain: url.searchParams.get('subdomain') ?? undefined,
+        q: url.searchParams.get('q') ?? undefined,
       }),
     );
   });

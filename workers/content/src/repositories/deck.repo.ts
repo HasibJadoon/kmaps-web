@@ -1,3 +1,4 @@
+import { matches } from '../lib/deck-search';
 import { query, queryOne } from '../../../shared/src/db';
 import type {
   Deck, DeckCollection, DeckFolder, DeckSlide, DeckSummary, DeckTheme, DeckVerseRef,
@@ -55,6 +56,8 @@ interface DeckMeta {
   motion?: { speed?: number };
   /** Opens playing: narration and page turns start by themselves (key-term story decks). */
   autoplay?: boolean;
+  /** What a search finds the deck by besides its titles: its root, word, meaning, Latin name. */
+  search?: string[];
 }
 
 function direction(meta: DeckMeta, language: string): 'rtl' | 'ltr' {
@@ -134,7 +137,8 @@ function toVerseRef(row: RefRow): DeckVerseRef {
 export class DeckRepo {
   constructor(private readonly db: D1Database) {}
 
-  async list(filters: { domain?: string; subdomain?: string } = {}): Promise<DeckSummary[]> {
+  /** `q` keeps only the decks a search finds — by title, Arabic title, folder, root, word, meaning or Latin name. */
+  async list(filters: { domain?: string; subdomain?: string; q?: string } = {}): Promise<DeckSummary[]> {
     const where = [`doc_type = 'deck'`];
     const params: unknown[] = [];
     if (filters.domain) { where.push('domain = ?'); params.push(filters.domain); }
@@ -146,9 +150,12 @@ export class DeckRepo {
       params,
     );
 
-    return rows.map((row) => {
+    const q = filters.q?.trim();
+    return rows.flatMap((row) => {
       const meta = parseJson<DeckMeta>(row.meta_json, {});
-      return {
+      if (q && !matches([row.title, row.title_ar, row.slug, ...(meta.collection?.path ?? []).flatMap((n) => [n.title, n.title_ar]),
+                         ...(Array.isArray(meta.search) ? meta.search : [])], q)) return [];
+      return [{
         doc_id: row.doc_id,
         slug: row.slug ?? row.doc_id,
         title: row.title,
@@ -162,7 +169,7 @@ export class DeckRepo {
         theme: meta.theme ?? {},
         updated_at: row.updated_at,
         collection: meta.collection ?? null,
-      };
+      }];
     });
   }
 

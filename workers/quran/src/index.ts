@@ -9,6 +9,7 @@ import type { QuranEnv } from './env';
 import { surahRoutes } from './routes/surahs';
 import { ayahRoutes } from './routes/ayahs';
 import { wordRoutes } from './routes/words';
+import { keytermRoutes } from './routes/keyterms';
 import { translationRoutes } from './routes/translations';
 import { studyRoutes } from './routes/study';
 import { pageRoutes } from './routes/pages';
@@ -59,6 +60,7 @@ router.get('/qr/health', async (_req, env) =>
 
 menuRoutes(router);
 surahRoutes(router);
+keytermRoutes(router);
 readerRoutes(router);
 vocabularyRoutes(router);
 vocabSeriesRoutes(router);
