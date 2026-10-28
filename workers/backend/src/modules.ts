@@ -67,6 +67,12 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
   },
   core: { binding: 'CORE',           publicGet: true  },
 
-  st:     { binding: 'STUDIO',       publicGet: false },
+  st:     {
+    binding: 'STUDIO',
+    publicGet: false,
+    // The stage's renderer: the slide-drawing scripts and styles Studio loads.
+    // Code that every class is drawn with; it holds nothing about anyone.
+    publicGetPaths: ['st/overlay'],
+  },
   studio: { binding: 'STUDIO',       publicGet: false },
 };

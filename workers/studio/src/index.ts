@@ -8,6 +8,7 @@ import { episodeRoutes } from './routes/episodes';
 import { sessionRoutes } from './routes/sessions';
 import { captureRoutes } from './routes/capture';
 import { homeRoutes } from './routes/home';
+import { overlayRoutes } from './routes/overlay';
 
 const router = new Router<StudioEnv>();
 
@@ -27,6 +28,7 @@ episodeRoutes(router);
 sessionRoutes(router);
 captureRoutes(router);
 homeRoutes(router);
+overlayRoutes(router);
 
 export default {
   fetch: (request: Request, env: StudioEnv) => router.handle(request, env),

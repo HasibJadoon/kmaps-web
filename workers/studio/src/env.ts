@@ -4,6 +4,9 @@ export interface StudioEnv {
 
   EPISODE_SESSION: DurableObjectNamespace;
 
+  /// R2, the stage's renderer files keyed overlay/<sha256> (st_overlay_release).
+  OVERLAY: R2Bucket;
+
   CORE: Fetcher;
 
   /// QR, for the passage a brainstorm is about.
