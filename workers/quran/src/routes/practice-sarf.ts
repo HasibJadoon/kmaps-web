@@ -398,7 +398,7 @@ const headOf = (t: string | null | undefined) => (t ?? '').split(/[(;—]/)[0].t
 const familyGraphic = (root: string, picture: string | null, verbs: Verb[], lit: string | null) => {
   const vs = verbs.filter((x) => x.root === root).slice(0, 8);
   return vs.length < 3 ? null : {
-    kind: 'hub', term_ar: [...root].join(' '), term: null,
+    kind: 'hub', term_ar: root, term: null,
     items: vs.map((x, i) => ({ icon: formIcon(x), ar: x.madi, en: primaryOf(x), ...tone(i, x.id === lit) })),
     motion: MOTION };
 };
@@ -513,7 +513,7 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
   // as a chip that opens the root's page — a line opening in Arabic ran right to left ("ت و ب: Returning …" read ".… :ت و ب")
   const after = (v: Verb) => [chantOf(v), v.note_en].filter(Boolean).join('\n');
   // the root's lexicon (each dictionary's entry) as the app opens it by URI: com.kmaps.app://lexicon/root/<root>
-  const rootOf = (r: string) => ({ ref: `AL:root:${r}`, ar: [...r].join(' '), en: pic(r)?.text_en ?? null,
+  const rootOf = (r: string) => ({ ref: `AL:root:${r}`, ar: r, en: pic(r)?.text_en ?? null,
                                    uri: `com.kmaps.app://lexicon/root/${encodeURIComponent(r)}` });
   const make = (id: string, kind: string, d: Drill, front: string, back: string) => withCard({
     id: `sarf:${id}`, kind: 'sarf', ask: kind, interaction: 'choose', source, ...d,
@@ -679,8 +679,8 @@ export async function sarfDrills(env: QuranEnv, n: number, scope: Scope): Promis
     if (!p) continue;
     const o = choose(p.text_en, roots.map((x) => pic(x)?.text_en ?? ''));
     if (!o) continue;
-    group(7, r).push(make(`root:${r}`, 'sf_root', { prompt: [...r].join(' '), promptEn: null, script: 'arabic', ...o,
-      explanation: p.text_ar, graphic: familyGraphic(r, p.text_en, verbs, null) }, [...r].join(' '), p.text_en));
+    group(7, r).push(make(`root:${r}`, 'sf_root', { prompt: r, promptEn: null, script: 'arabic', ...o,
+      explanation: p.text_ar, graphic: familyGraphic(r, p.text_en, verbs, null) }, r, p.text_en));
   }
 
   // near-synonyms: which word carries this shade
@@ -796,7 +796,7 @@ async function kitOf(env: QuranEnv, D: CoreData, extraIds: (string | null)[] = [
   const heads = await query<{ key: string; label: string; label_ar: string | null; detail: string | null }>(env.DB_QR,
     `SELECT key, label, label_ar, detail FROM qr_study_label WHERE scope = 'sarf_section' ORDER BY sort`);
   // a root's verbs the Qurʾān uses, as family lines, Form I first — each with the prepositions it takes and what each does
-  const familyOf = (r: string) => ({ root: r, letters: [...r].join(' '), gloss: pic(r)?.en ?? null,
+  const familyOf = (r: string) => ({ root: r, letters: r, gloss: pic(r)?.en ?? null,
     lines: verbs.filter((v) => v.root === r).sort(byForm).map((v) => ({
       id: v.id, form: formNo(v), line: `${v.madi} ${v.mudari} ${masadirOf(v).join(' وَ')}`, meaning: v.meaning_en,
       inQuran: v.quran_n, quote: cite(parseJson<Cite | null>(v.cite_json, null)),
@@ -848,7 +848,7 @@ async function sarfSheetRaw(env: QuranEnv, scope: Scope, refresh = false) {
     // one table per focus verb, in the textbook's order
     tables: verbs.filter((v) => v.full).map(verbView),
     // each root's verbs the Qurʾān uses, as family lines, Form I first
-    families: roots.map((r) => ({ root: r, letters: [...r].join(' '), gloss: pic(r)?.en ?? null,
+    families: roots.map((r) => ({ root: r, letters: r, gloss: pic(r)?.en ?? null,
       lines: verbs.filter((v) => v.root === r).sort(byForm).map((v) => ({
         id: v.id, form: formNo(v), line: `${v.madi} ${v.mudari} ${masadirOf(v).join(' وَ')}`, meaning: v.meaning_en,
         inQuran: v.quran_n, quote: cite(parseJson<Cite | null>(v.cite_json, null)) })) })).filter((f) => f.lines.length),
@@ -870,7 +870,7 @@ async function sarfSheetRaw(env: QuranEnv, scope: Scope, refresh = false) {
       lemmaId: occOf(w)?.gid_lemma ?? null,
       // the arc as its steps, picture first, for the card to draw step → step
       arcSteps: (arcOf(occOf(w)?.gid_lemma, linkOf(w)?.al_arc_id) ?? '').split('→').map((x) => x.trim()).filter(Boolean), here: occOf(w)?.here_en ?? '', root: w.root,
-      letters: [...w.root].join(' '),
+      letters: w.root,
       picture: picture.get(w.root) ? { en: picture.get(w.root)!.text_en, ar: picture.get(w.root)!.text_ar } : null,
       form: formOf(occOf(w)?.gid_lemma)?.form ?? name(w.sigha_gt), pattern: formOf(occOf(w)?.gid_lemma)?.pattern ?? w.pattern_ar, verb: w.verb_id,
       // the word in this verse (card): its iʿrāb and QAC tags
@@ -904,7 +904,7 @@ async function sarfSheetRaw(env: QuranEnv, scope: Scope, refresh = false) {
                      return p ? { prep: p.ar, name: name(p.gt), how: p.how } : null; })(),
     })),
     roots: roots.map((r) => ({
-      root: r, letters: [...r].join(' '), picture: picture.get(r) ? { en: picture.get(r)!.text_en, ar: picture.get(r)!.text_ar } : null,
+      root: r, letters: r, picture: picture.get(r) ? { en: picture.get(r)!.text_en, ar: picture.get(r)!.text_ar } : null,
       verbs: verbs.filter((v) => v.root === r).map(verbView),
       range: senses.filter((s) => s.root === r).map((s) => ({ lemma: s.lemma_ar, en: s.sense_en, ar: s.sense_ar, here: used.has(s.id),
                                                             quotes: parseJson<Cite[]>(s.cites_json, []).map(cite).filter(Boolean) })),
@@ -967,7 +967,7 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
   return {
     asl: deep?.asl ?? null, core: deep?.core ?? null, layers: deep?.layers ?? [], stages: deep?.stages ?? [],
     sections: sectionsOf(K), lex: K.lex,
-    root, letters: [...root].join(' '), picture: K.pic(root), count: rows.reduce((t, r) => t + r.n, 0),
+    root, letters: root, picture: K.pic(root), count: rows.reduce((t, r) => t + r.n, 0),
     // every word of the root: the Qurʾān's lemmas first (most used first), then the root's other words in AL, once each —
     // each with its form (its derivation, or its verb's form family) and how often the Qurʾān uses it
     lemmas: [...quranWords, ...moreWords.map((w) => ({ id: `AL:${w.id}`, lemma: w.lemma_text, count: 0,
@@ -1035,7 +1035,7 @@ async function lexiconLemmaRaw(env: QuranEnv, gid: string, refresh: boolean) {
     || (!o.lemmaId && !!o.forWord && spelling(o.forWord.split(' — ')[0]) === spelling(lemma));
   return {
     sections: sectionsOf(K), lex: K.lex,
-    id, lemma, root, letters: root ? [...root].join(' ') : null, count: rows.reduce((t, r) => t + r.n, 0),
+    id, lemma, root, letters: root ? root : null, count: rows.reduce((t, r) => t + r.n, 0),
     arc, arcSteps: (arc ?? '').split('→').map((x) => x.trim()).filter(Boolean),
     form: D.formOf(id)?.form ?? null, pattern: D.formOf(id)?.pattern ?? null, lemmaProps: D.lemmaPropsOf(id),
     plurals: D.pluralsOfGid(id).map((p) => ({ ar: p.ar, quote: K.cite(p.cite) })),

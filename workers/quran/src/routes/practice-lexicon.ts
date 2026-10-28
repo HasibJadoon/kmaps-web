@@ -39,7 +39,7 @@ const shuffle = <T>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; 
 const fold = (w: string | null | undefined) => (w ?? '').replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '')
   .replace(/[\u0671\u0623\u0625\u0622]/g, '\u0627').replace(/\u0649/g, '\u064A').replace(/\u0629/g, '\u0647').replace(/[^\u0621-\u064A]/g, '');
 const loose = (w: string | null | undefined) => fold(w).replace(/^(وال|فال|بال|كال|لل|ال|و|ف)/, '').replace(/[اوي]/g, '');
-const spaced = (r: string) => [...fold(r)].join(' ');
+const spaced = (r: string) => fold(r).replace(/\s+/g, ''); // a root is shown joined (نزل), never ن ز ل
 
 /// an AL read, asked a second time when the first fails (the linguistic DB queues its long reads under load,
 /// and a round that lost its read came back empty)

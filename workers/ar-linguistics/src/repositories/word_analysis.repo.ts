@@ -290,7 +290,7 @@ export class WordAnalysisRepo {
 
 function shapeRootLetters(v: string | null): string | null {
   if (!v) return null;
-  try { const a = JSON.parse(v); return Array.isArray(a) ? a.join(' ') : v; } catch { return v; }
+  try { const a = JSON.parse(v); return Array.isArray(a) ? a.join('') : v; /* shown joined (نزل), never ن ز ل */ } catch { return v; }
 }
 
 const ROOT_TYPE_AR: Record<string, string> = {

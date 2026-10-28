@@ -286,7 +286,7 @@ async function vocabDrills(env: ArabicEnv, all: L, band: Band, n: number) {
     return {
       id: `vocab:${l.id}:${c.b.i}`, kind: 'vocab', audio: { url: audioUrl(l.object_key), start: l.start_sec, end: l.end_sec },
       words: c.words, target: c.b.i, prompt: clean(c.words[c.b.i].t), answer: c.gloss, options: shuffle([c.gloss, ...opts]), en: l.text_en,
-      explanation: [lem ? `${lem.lemma_ar}${lem.pos ? ` (${lem.pos})` : ''}${lem.root_text ? ` — root ${[...lem.root_text].join(' ')}` : ''}` : null,
+      explanation: [lem ? `${lem.lemma_ar}${lem.pos ? ` (${lem.pos})` : ''}${lem.root_text ? ` — root ${lem.root_text.replace(/\s+/g, '')}` : ''}` : null,
                     core ? `${core} (AL)` : null, l.work_title ? `Heard in ${l.work_title}` : null].filter(Boolean).join('\n') || null,
       source: { workId: l.work_id, title: l.work_title, level: l.level },
       instruction: kinds.get('vocab')?.label ?? null, instructionAr: kinds.get('vocab')?.labelAr ?? null,

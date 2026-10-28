@@ -48,7 +48,7 @@ const PARTICLES: Record<string, string> = { ب: 'بِـ', علي: 'عَلَى', 
 const MARKS = /[ؐ-ًؚ-ٰٟۖ-ۭـ]/g;
 const fold = (w: string | null | undefined) => (w ?? '').replace(/ی/g, 'ي').replace(MARKS, '').replace(/[ٱأإآءؤئ]/g, 'ا')
   .replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[^ء-ي]/g, '');
-const spaced = (r: string | null) => [...fold(r)].join(' ');
+const spaced = (r: string | null) => fold(r).replace(/\s+/g, ''); // a root is shown joined (نزل), never ن ز ل
 const clip = (t: string | null | undefined, n = 220) => { const s = (t ?? '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1).replace(/\s+\S*$/, '') + ' …' : s; };
 const distinct = (xs: string[]) => { const seen = new Set<string>(); return xs.filter((x) => { const k = x.trim().toLowerCase(); if (!x || seen.has(k)) return false; seen.add(k); return true; }); };
 const distinctAr = (xs: string[]) => { const seen = new Set<string>(); return xs.filter((x) => { const k = fold(x); if (!k || seen.has(k)) return false; seen.add(k); return true; }); };

@@ -34,7 +34,7 @@ function setup() {
 test('a root\'s page lists its words across the Qurʾān, most used first, and its total', async () => {
   const p = (await lexiconRoot(setup(), 'كتب'))!;
   assert.equal(p.root, 'كتب');
-  assert.equal(p.letters, 'ك ت ب');
+  assert.equal(p.letters, 'كتب');  // a root is shown joined
   assert.equal(p.count, 4);
   assert.deepEqual(p.lemmas.map((l) => [l.id, l.lemma, l.count]),
     [['AL:aaaaaaaaaaaaaaaaaaaaaa', 'كِتَٰب', 3], ['AL:bbbbbbbbbbbbbbbbbbbbbb', 'كَتَبَ', 1]]);

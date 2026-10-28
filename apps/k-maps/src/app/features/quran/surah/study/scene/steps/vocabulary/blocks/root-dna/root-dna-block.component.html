@@ -1,6 +1,6 @@
     <div class="rootdna">
       <div class="rootdna__letters ar">
-        @for (ltr of d.letters; track $index) { <span>{{ ltr }}</span> }
+        <span>{{ d.letters.join('') }}</span>
       </div>
       <div class="rootdna__meaning">
         @if (d.core_ar) { <div class="rootdna__core ar" dir="rtl">{{ d.core_ar }}</div> }

@@ -176,7 +176,7 @@ export class DsRepo {
   private heroMark(rootRef: string, identity: Row | undefined): DsText {
     const letters = jsonArrayOf(identity?.['root_letters']);
     if (letters.length) return t(letters.join(' '), 'ar');
-    return t(rootRef.replace(/\s+/g, '').split('').join(' '), 'ar');
+    return t(rootRef.replace(/\s+/g, ''), 'ar'); // shown joined (نزل), never ن ز ل
   }
 
   private blocksFor(

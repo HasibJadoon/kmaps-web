@@ -227,7 +227,7 @@ export function lexiconFiveLensRoutes(router: Router<ArLinguisticsEnv>) {
     if (Array.isArray(constData.nodes) && constData.nodes.length) {
       constellation = {
         root: entry.root_text,
-        rootSpaced: [...entry.root_text].join(' '),
+        rootSpaced: entry.root_text.replace(/\s+/g, ''),
         nodes: constData.nodes as unknown[],
       };
     } else {
@@ -244,7 +244,7 @@ export function lexiconFiveLensRoutes(router: Router<ArLinguisticsEnv>) {
         if (nodes.length >= 13) break;
       }
       constellation = nodes.length
-        ? { root: entry.root_text, rootSpaced: [...entry.root_text].join(' '), nodes }
+        ? { root: entry.root_text, rootSpaced: entry.root_text.replace(/\s+/g, ''), nodes }
         : null;
     }
 
@@ -272,7 +272,7 @@ export function lexiconFiveLensRoutes(router: Router<ArLinguisticsEnv>) {
       entry: {
         id: entry.id,
         root: entry.root_text,
-        rootSpaced: [...entry.root_text].join(' '),
+        rootSpaced: entry.root_text.replace(/\s+/g, ''),
         lemmaAr: entry.entry_text_ar,
         translit: entry.entry_text_en,
         sense: (metaData.sense as string) ?? null,

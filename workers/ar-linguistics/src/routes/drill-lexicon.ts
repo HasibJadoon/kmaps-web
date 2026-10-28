@@ -65,7 +65,7 @@ export const bare = (s: string | null | undefined) => (s ?? '').replace(MARKS, '
 export const fold = (s: string | null | undefined) => bare(s).replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
   .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/ء/g, '').replace(/[^ء-ي ]/g, '').trim();
 const shuffle = <T>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-const spaced = (r: string) => [...bare(r)].join(' ');
+const spaced = (r: string) => bare(r).replace(/\s+/g, ''); // a root is shown joined (نزل), never ن ز ل
 const json = (s: string | null) => { try { return s ? JSON.parse(s) : {}; } catch { return {}; } };
 const clip = (s: string | null | undefined, n = 260) => { const t = (s ?? '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
 

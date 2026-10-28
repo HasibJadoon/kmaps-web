@@ -72,7 +72,7 @@ function placedBlocks(fields: Fields, form: CardForm = 'desktop'): Placed[] {
   if (root) {
     out.push(asRoot({
       kind: 'hero',
-      mark: { text: root.split('').join(' '), script: 'ar' },
+      mark: { text: root.replace(/\s+/g, ''), script: 'ar' },
       ar: soundness ? ar(soundness.ar) : undefined,
       en: soundness ? en(soundness.en) : undefined,
       facts: [

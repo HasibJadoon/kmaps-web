@@ -68,7 +68,7 @@ const L3 = new Set(LEVEL_ASKS.advanced.filter((a) => a !== 'vocab_books'));
 
 const fold = (w: string | null | undefined) => (w ?? '').replace(/[ؐ-ًؚ-ٰٟۖ-ۭـ]/g, '')
   .replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[^ء-ي]/g, '');
-const spaced = (r: string) => [...fold(r)].join(' ');
+const spaced = (r: string) => fold(r).replace(/\s+/g, ''); // a root is shown joined (نزل), never ن ز ل
 const shared = (a: string, b: string) => { const x = [...fold(a)]; return [...fold(b)].filter((c, i) => x[i] === c).length; };
 const key = (x: { surah: number; ayah: number; word_index: number }) => `${x.surah}:${x.ayah}:${x.word_index}`;
 const norm = (t: string) => fold(t) || t.toLowerCase().replace(/[^a-z ]/g, '').trim();

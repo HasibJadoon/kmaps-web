@@ -751,7 +751,7 @@ export function arcShortAr(s: ArcStep): string | null {
 /// Any drill may carry a `graphic`; the app draws it in the answered feedback (DrillKit StageReveal).
 export function arcGraphic(root: string, steps: ArcStep[], lit: number, note: string) {
   return {
-    kind: 'timeline', title: `The story of ${root}`, term_ar: root.split('').join(' '),
+    kind: 'timeline', title: `The story of ${root}`, term_ar: root,
     items: steps.map((s, i) => ({
       label: i === 0 ? 'Basic' : String(i + 1), icon: s.icon ?? null, en: s.story ?? s.en, ar: arcShortAr(s),
       ...(i === lit ? { tone: 'rust', focus: true } : {}),
@@ -767,7 +767,7 @@ async function arcDrills(env: QuranEnv, n: number, lv: Record<string, unknown>, 
   const qs = new URLSearchParams({ n: String(n), minSteps: String(lv.minSteps ?? 2), maxSteps: String(lv.maxSteps ?? 20) });
   const res = await al<{ items: Arc[] }>(env, `/al/drill/arcs?${qs}`).catch(() => ({ items: [] as Arc[] }));
   const ask = String(lv.ask ?? 'order');
-  const rootOf = (r: string) => r.split('').join(' ');
+  const rootOf = (r: string) => r; // a root is shown joined (نزل), never ن ز ل
   const allSteps = res.items.flatMap((a) => a.steps.map((s) => s.en));
   // each rung heard: its Arabic voiced by SILMA (km_arabic ar_tts_clip); what is not yet rendered is queued
   type Clip = { audio: { url: string; start: number; end: number } };

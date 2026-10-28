@@ -148,4 +148,6 @@ export interface DeckSummary {
    * deck says rather than by inferring a folder from `domain`.
    */
   collection: DeckCollection | null;
+  /** The AL roots (ar_ling_roots.id) the deck is about — the link to each root. */
+  root_uids: string[];
 }

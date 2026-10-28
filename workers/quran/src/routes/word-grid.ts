@@ -35,7 +35,7 @@ const clean = (s: string | null | undefined): string | null => {
 };
 
 const spaceRoot = (root: string | null): string | null =>
-  root ? Array.from(root.trim()).filter((c) => c.trim()).join(' ') : null;
+  root ? Array.from(root.trim()).filter((c) => c.trim()).join('') : null; // a root is shown joined (نزل), never ن ز ل
 
 export function wordGridRoutes(router: Router<QuranEnv>) {
 

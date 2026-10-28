@@ -95,7 +95,7 @@ function deriveType(pos: string, flags: string[]): { en: string; ar: string } | 
 
 function spaceRoot(root: string | null): string | null {
   if (!root) return null;
-  return Array.from(root.trim()).filter((c) => c.trim()).join(' ');
+  return Array.from(root.trim()).filter((c) => c.trim()).join(''); // shown joined (نزل), never ن ز ل
 }
 
 function parseMeanings(json: string | null): QuranMeaning[] | null {

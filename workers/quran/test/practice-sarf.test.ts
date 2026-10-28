@@ -222,7 +222,7 @@ test('the passage’s الصرف to read: every word, each root with its verbs, 
   if (existsSync(FIXTURE)) assert.ok(range[0].senses[0].quotes.some((q) => /(﴿تَنزِيلُ ٱلۡكِتَٰبِ﴾ 40:2|تَنزِيلُ ٱلۡكِتَٰبِ ﴿غافر، ٢- 40:2 ﴾)$/.test(String(q))));
   assert.equal(tawb.picture?.en, 'Returning — coming back.');
   const root = sheet.roots.find((r) => r.root === 'توب')!;
-  assert.equal(root.letters, 'ت و ب');
+  assert.equal(root.letters, 'توب');  // a root is shown joined
   const v = root.verbs[0];
   assert.ok(v.table && v.table.length === 3);
   assert.deepEqual(v.preps.map((p) => p.prep), ['إِلَى', 'عَلَى']);

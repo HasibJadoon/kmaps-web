@@ -45,11 +45,6 @@
           <div class="hero__glyphcol">
             <div class="hero__kicker">ROOT&nbsp;·&nbsp;الجذر</div>
             <div class="hero__root">{{ h.root }}</div>
-            <div class="hero__letters">
-              @for (ltr of h.letters; track $index) {
-                <span class="hero__letter">{{ ltr }}</span>
-              }
-            </div>
           </div>
           <div class="hero__data">
             @if (h.meaning) { <div class="hero__meaning">{{ h.meaning }}</div> }

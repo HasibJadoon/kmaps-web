@@ -92,7 +92,7 @@ export class CoreDsRepo {
       chapters: chapters.filter((c) => sections.some((s) => s.chapter === c.key)),
       subject: layers?.subject ?? {
         kind: 'root', ref: root,
-        display: { text: root.split('').join(' '), script: 'ar' },
+        display: { text: root.replace(/\s+/g, ''), script: 'ar' },
       },
       scope: 'root',
       form,
