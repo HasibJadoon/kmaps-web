@@ -1,4 +1,5 @@
 import { query, queryOne, execute } from '../../../shared/src/db';
+import { chapters, sceneFacts, type Chapter, type SceneFacts } from '../running-order';
 import { typedId } from '../../../shared/src/ulid';
 
 export const EPISODE_FORMATS = [
@@ -149,7 +150,9 @@ export interface EpisodePlan {
 
 export interface EpisodeAggregate extends EpisodeRow {
   participants: ParticipantRow[];
-  sections: Array<SectionRow & { points: PointRow[] }>;
+  sections: Array<SectionRow & SceneFacts & { points: PointRow[] }>;
+  /// The scenes gathered into the video's chapters — see running-order.ts.
+  chapters: Chapter[];
   captures: CaptureRow[];
   plan: EpisodePlan;
   phases: PhaseRow[];
@@ -634,17 +637,21 @@ export class EpisodeRepo {
       pointsBySection.set(point.section_ref, bucket);
     }
 
+    const session = sessionConfig(template?.structure_json ?? null);
+    const discussion = session?.mode === 'discussion';
+    const withPoints = sections.map((section) => ({
+      ...section,
+      points: pointsBySection.get(section.id) ?? [],
+    }));
     return {
       ...episode,
       participants,
-      sections: sections.map((section) => ({
-        ...section,
-        points: pointsBySection.get(section.id) ?? [],
-      })),
+      sections: withPoints.map((section) => ({ ...section, ...sceneFacts(section, discussion) })),
+      chapters: chapters(withPoints),
       captures,
       phases,
       plan: episodePlan(episode.meta_json),
-      session: sessionConfig(template?.structure_json ?? null),
+      session,
     };
   }
 
