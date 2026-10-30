@@ -19,6 +19,8 @@ interface StudyMeta {
   passage?: Record<string, unknown>;
   path?: Array<{ title: string; title_ar?: string }>;
   episode?: { id: string; title?: string };
+  /** Every Studio episode made from this study (the Zāwiya and the Burhan of one passage). */
+  episodes?: Array<{ id: string }>;
   labels?: Record<string, string>;
   /** Glyphs for the study's cards, by use (study, monitor, active). */
   icons?: Record<string, string>;
@@ -46,6 +48,8 @@ export interface Study {
   path: Array<{ title: string; title_ar: string | null }>;
   /** The Studio episode the study feeds, if any. */
   episode: { id: string; title: string | null } | null;
+  /** The ids of every episode it feeds; they share its Library and log. */
+  episodes: string[];
   labels: Record<string, string>;
   icons: Record<string, string>;
   plan: { start: string | null; record: string | null };
@@ -118,6 +122,7 @@ export class StudyRepo {
       passage: meta.passage ?? null,
       path: (meta.path ?? []).map((p) => ({ title: p.title, title_ar: p.title_ar ?? null })),
       episode: meta.episode?.id ? { id: meta.episode.id, title: meta.episode.title ?? null } : null,
+      episodes: (meta.episodes ?? (meta.episode?.id ? [meta.episode] : [])).map((e) => e.id).filter(Boolean),
       labels: meta.labels ?? {},
       icons: meta.icons ?? {},
       plan: { start: meta.plan?.start ?? null, record: meta.plan?.record ?? null },

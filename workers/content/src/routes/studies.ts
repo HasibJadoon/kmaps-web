@@ -63,8 +63,7 @@ export function studyRoutes(router: Router<ContentEnv>) {
     if (!study || !row) return notFound(`study ${params.id}`);
     let raw: Record<string, unknown> = {};
     try { raw = JSON.parse(row.meta_json ?? '{}'); } catch { /* an empty page */ }
-    const refs = ((raw['episodes'] as Array<{ id: string }> | undefined) ?? (study.episode ? [study.episode] : []))
-      .map((e) => e.id);
+    const refs = study.episodes;
     const episodes: EpisodeDigest[] = [];
     for (const ep of refs) {
       if (!env.STUDIO) break;

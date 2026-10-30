@@ -420,9 +420,11 @@ export async function buildLog(
   }
   const talk = spec.find((s) => s.sources.some((x) => x.kind === 'takes'))?.key ?? null;
   const takes = episodes.reduce((n, e) => n + e.captures.filter(isTake).length, 0);
-  if (!next && takes === 0 && episodes[0]) {
-    next = { title: say('next_record'), subtitle: episodes[0].title, stage: talk, icon: 'record.circle',
-      open: { type: 'episode', ref: episodes[0].id } };
+  // The next episode to record: the first the study feeds with no real take.
+  const unrecorded = episodes.find((e) => !e.captures.some(isTake));
+  if (!next && unrecorded) {
+    next = { title: say('next_record'), subtitle: unrecorded.title, stage: talk, icon: 'record.circle',
+      open: { type: 'episode', ref: unrecorded.id } };
   }
   const learn = spec.find((s) => s.sources.some((x) => x.kind === 'notes' && x.relation === 'feedback'))?.key ?? null;
   if (!next && takes > 0 && !notes.some((n) => n.relation_type === 'feedback')) {
