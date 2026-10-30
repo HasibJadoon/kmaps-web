@@ -12,6 +12,11 @@ interface Cursor {
 
 const LOBBY: Cursor = { section: -1, point: -1 };
 
+/// Start → flash: each iPad starts recording its own screen the moment the
+/// take is called, then both flash and sound the tone this long after, at the
+/// same instant on the room's clock — so the sync point is in every recording.
+const FLASH_DELAY_MS = 3000;
+
 /// A take at the Zāwiya Class. `mark` starts it: both iPads flash and beep at
 /// that instant, which is the sync point every recording is lined up on in
 /// Resolve. From then on every step (card and turn) is logged on the room's
@@ -196,7 +201,7 @@ export class EpisodeSession {
     const user = await this.state.storage.get<string>('hostUser');
     if (!episodeId || !user) return;
     const capture = await new CaptureRepo(this.env.DB_ST).create(episodeId, user, 'talking_head');
-    const markAt = Date.now();
+    const markAt = Date.now() + FLASH_DELAY_MS;
     await new CaptureRepo(this.env.DB_ST).patch(capture.id, { sync_marker_tc: new Date(markAt).toISOString() });
     const take: Take = { captureId: capture.id, markAt, log: [] };
     const cursor = await this.getCursor();
