@@ -34,6 +34,21 @@ export function classBeats(overlayJson: string | null): ClassBeat[] {
     .filter((s): s is Json => !!s && typeof s === 'object' && text((s as Json)['text']));
   const whoOf = (s: Json | undefined) => (s && text(s['who']) ? String(s['who']) : '');
 
+  // The bookends (bookend.js) step in their own order: (the question, ticked,
+  // on the close) → symbol and title → line → recap → each host line → (the
+  // frame cleared for the YouTube end screen).
+  if (o['kind'] === 'bookend') {
+    const first = whoOf(subs[0]);
+    const out: ClassBeat[] = [];
+    if (o['side'] === 'outro' && text(o['question'])) out.push({ who: first, kind: 'visual' });
+    out.push({ who: first, kind: 'visual' });
+    if (text(o['line'])) out.push({ who: first, kind: 'line' });
+    if (Array.isArray(o['recap']) && o['recap'].length) out.push({ who: first, kind: 'visual' });
+    for (const s of subs) out.push({ who: whoOf(s), kind: 'turn' });
+    if (o['end_screen'] === true) out.push({ who: '', kind: 'visual' });
+    return out;
+  }
+
   const beats: ClassBeat[] = [];
   if (text(o['line'])) beats.push({ who: whoOf(subs[0]), kind: 'line' });
   for (const s of subs) beats.push({ who: whoOf(s), kind: 'turn' });

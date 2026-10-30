@@ -45,3 +45,13 @@ test('a drawing on its own names its speaker; a strip steps a turn per beat', ()
     .map((b) => b.who), ['Hasib', 'Ali']);
   assert.deepEqual(classBeats(JSON.stringify({ kind: 'transition', no: 1 })), []);
 });
+
+test('a bookend steps question, title, line, recap, its lines, then the end screen', () => {
+  const beats = classBeats(JSON.stringify({
+    kind: 'bookend', side: 'outro', question: 'Why?', title: 'Because', line: 'One line.',
+    recap: [{ ar: 'حمٓ' }], subs: [{ who: 'Ali', text: 'a' }, { who: 'Hasib', text: 'b' }], end_screen: true,
+  }));
+  assert.deepEqual(beats.map((b) => `${b.kind}:${b.who}`),
+    ['visual:Ali', 'visual:Ali', 'line:Ali', 'visual:Ali', 'turn:Ali', 'turn:Hasib', 'visual:']);
+  assert.equal(classBeats(JSON.stringify({ kind: 'bookend', side: 'intro', title: 'Q', subs: [{ who: 'Hasib', text: 'x' }] })).length, 2);
+});
