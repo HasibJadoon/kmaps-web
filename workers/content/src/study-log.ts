@@ -19,7 +19,7 @@ import type { Study } from './repositories/study.repo';
 /// app: titles, icons, colours and words are all here or in the study row.
 
 export interface LogSource {
-  kind: 'passage' | 'step' | 'notes' | 'episodes' | 'takes';
+  kind: 'passage' | 'step' | 'notes' | 'episodes' | 'takes' | 'links' | 'terms' | 'docs';
   key?: string;
   relation?: string;
 }
@@ -31,6 +31,8 @@ export interface LogStageSpec {
   icon?: string;
   accent?: string;
   hint?: string;
+  /** A folder (the Library): kept folded until opened, never the stage the page opens on. */
+  fold?: boolean;
   sources: LogSource[];
 }
 
@@ -45,8 +47,11 @@ export interface LogItem {
   date: string | null;
   /** done · open · todo — for a person's step, a take, a seed used or not. */
   state: string | null;
-  /** What a tap opens: passage · deck (ref = slug) · note (ref = note id) · episode (ref = id). */
+  /** What a tap opens: passage · deck (ref = slug) · note (ref = note id) · episode (ref = id) ·
+   *  essay (ref = slug) · path / atlas / practice (ref = the passage unit, QR:SP:40:1-3). */
   open: { type: string; ref: string | null } | null;
+  /** More ways in, as small buttons on the row (a key term: Read · Study · Story). */
+  links?: Array<{ label: string; open: { type: string; ref: string } }>;
 }
 
 export interface LogStage {
@@ -56,6 +61,7 @@ export interface LogStage {
   icon: string | null;
   accent: string | null;
   hint: string | null;
+  fold: boolean;
   state: 'done' | 'open' | 'empty';
   items: LogItem[];
 }
@@ -143,6 +149,25 @@ export async function buildLog(
     [unit],
   ) : [];
 
+  // The Library's documents, looked up once: every key term's essay and decks, and the passage's other decks.
+  const library = (raw['library'] as { terms?: Array<{ key: string; ar?: string; en?: string }>;
+    docs?: string[]; links?: Array<{ label: string; subtitle?: string; icon?: string; open: { type: string; ref: string } }> } | undefined) ?? {};
+  const wanted = new Set<string>(library.docs ?? []);
+  for (const t of library.terms ?? []) {
+    for (const k of ['essay', 'study', 'story']) wanted.add(`CM:DOC:qr:keyterm-${k}:${t.key}`);
+  }
+  const docs = new Map<string, { doc_id: string; doc_type: string; slug: string | null; title: string }>();
+  const ids = [...wanted];
+  for (let i = 0; i < ids.length; i += 80) {
+    const part = ids.slice(i, i + 80);
+    for (const d of await query<{ doc_id: string; doc_type: string; slug: string | null; title: string }>(db,
+      `SELECT doc_id, doc_type, slug, title FROM cm_documents WHERE doc_id IN (${part.map(() => '?').join(',')})`, part)) {
+      docs.set(d.doc_id, d);
+    }
+  }
+  const opener = (d: { doc_type: string; slug: string | null }) =>
+    d.slug && (d.doc_type === 'deck' || d.doc_type === 'essay') ? { type: d.doc_type, ref: d.slug } : null;
+
   const events: LogEvent[] = [];
   const stages: LogStage[] = spec.map((st) => {
     const items: LogItem[] = [];
@@ -200,6 +225,38 @@ export async function buildLog(
           });
         }
       }
+      if (src.kind === 'links') {
+        for (const l of library.links ?? []) {
+          items.push({ kind: 'link', title: l.label, title_ar: null, subtitle: l.subtitle ?? null, icon: l.icon ?? 'arrow.up.right.square',
+            who: null, color: null, date: null, state: null, open: l.open });
+        }
+      }
+      if (src.kind === 'terms') {
+        for (const t of library.terms ?? []) {
+          const essay = docs.get(`CM:DOC:qr:keyterm-essay:${t.key}`);
+          const study = docs.get(`CM:DOC:qr:keyterm-study:${t.key}`);
+          const story = docs.get(`CM:DOC:qr:keyterm-story:${t.key}`);
+          const links: NonNullable<LogItem['links']> = [];
+          for (const [label, d] of [['Read', essay], ['Study', study], ['Story', story]] as const) {
+            const o = d ? opener(d) : null;
+            if (o) links.push({ label, open: o });
+          }
+          if (!links.length) continue;
+          items.push({ kind: 'term', title: t.en ?? essay?.title ?? t.key, title_ar: t.ar ?? null,
+            subtitle: essay?.title ?? null, icon: 'character.book.closed', who: null, color: null, date: null,
+            state: null, open: links[0].open, links });
+        }
+      }
+      if (src.kind === 'docs') {
+        for (const id of library.docs ?? []) {
+          const d = docs.get(id);
+          const o = d ? opener(d) : null;
+          if (!d || !o) continue;
+          items.push({ kind: d.doc_type, title: d.title, title_ar: null, subtitle: d.doc_type === 'deck' ? 'Slides' : 'Essay',
+            icon: d.doc_type === 'deck' ? 'rectangle.stack' : 'doc.richtext', who: null, color: null, date: null,
+            state: null, open: o });
+        }
+      }
       if (src.kind === 'takes') {
         for (const ep of episodes) {
           for (const c of ep.captures) {
@@ -215,11 +272,11 @@ export async function buildLog(
       }
     }
     const steps_done = items.filter((i) => i.state != null);
-    const state: LogStage['state'] = items.length === 0 ? 'empty'
+    const state: LogStage['state'] = items.length === 0 ? 'empty' : st.fold ? 'done'
       : steps_done.length && steps_done.every((i) => i.state === 'done') ? 'done' : 'open';
     return {
       key: st.key, title: st.title, title_ar: st.title_ar ?? null, icon: st.icon ?? null,
-      accent: st.accent ?? null, hint: st.hint ?? null, state, items,
+      accent: st.accent ?? null, hint: st.hint ?? null, fold: st.fold === true, state, items,
     };
   });
 
@@ -253,6 +310,7 @@ export async function buildLog(
   const mine = user ? names[user]?.name ?? null : null;
   let next: NextStep | null = null;
   for (const st of stages) {
+    if (st.fold) continue;
     const item = st.items.find((i) => i.kind === 'deck' && i.state !== 'done' && (i.who == null || i.who === mine));
     if (item) {
       next = { title: item.state === 'open' ? `Carry on: ${item.title}` : item.title, subtitle: st.title,
