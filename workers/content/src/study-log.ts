@@ -38,6 +38,9 @@ export interface LogStageSpec {
   hint?: string;
   /** A folder (the Library): kept folded until opened, never the stage the page opens on. */
   fold?: boolean;
+  /** Its place in the sprint picture: input (the passage), backlog (the resources), loop (the steps that go round),
+   *  output (what comes out — the published episodes). */
+  role?: 'input' | 'backlog' | 'loop' | 'output';
   sources: LogSource[];
 }
 
@@ -69,6 +72,7 @@ export interface LogStage {
   accent: string | null;
   hint: string | null;
   fold: boolean;
+  role: string | null;
   state: 'done' | 'open' | 'empty';
   items: LogItem[];
 }
@@ -364,7 +368,7 @@ export async function buildLog(
       : steps_done.length && steps_done.every((i) => i.state === 'done') ? 'done' : 'open';
     return {
       key: st.key, title: st.title, title_ar: st.title_ar ?? null, icon: st.icon ?? null,
-      accent: st.accent ?? null, hint: st.hint ?? null, fold: st.fold === true, state, items,
+      accent: st.accent ?? null, hint: st.hint ?? null, fold: st.fold === true, role: st.role ?? null, state, items,
     };
   });
 
