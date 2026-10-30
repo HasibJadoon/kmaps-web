@@ -77,7 +77,7 @@ export function studyRoutes(router: Router<ContentEnv>) {
         }
       } catch { /* the page shows the study without that episode */ }
     }
-    return ok(await buildLog(env.DB_CM, study, raw, episodes));
+    return ok(await buildLog(env.DB_CM, study, raw, episodes, user));
   });
 
   // A note of the passage, for any of the study's people — the notes are

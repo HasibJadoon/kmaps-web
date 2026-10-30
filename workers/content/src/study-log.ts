@@ -69,8 +69,18 @@ export interface LogEvent {
   stage: string | null;
 }
 
+/// The one thing to do next — the page opens on it, so starting is one tap.
+export interface NextStep {
+  title: string;
+  subtitle: string | null;
+  stage: string | null;
+  icon: string | null;
+  open: LogItem['open'];
+}
+
 export interface StudyLog {
   study: Study;
+  next: NextStep | null;
   stages: LogStage[];
   log: LogEvent[];
 }
@@ -106,6 +116,7 @@ export async function buildLog(
   study: Study,
   raw: Record<string, unknown>,
   episodes: EpisodeDigest[],
+  user: string | null = null,
 ): Promise<StudyLog> {
   const spec = ((raw['log'] as { stages?: LogStageSpec[] } | undefined)?.stages) ?? [];
   const people = (raw['people'] as string[] | undefined) ?? [];
@@ -228,13 +239,38 @@ export async function buildLog(
     const who = names[by] ? person(by) : { who: null, color: null };
     events.push({ at: n.created_at, ...who, icon: 'square.and.pencil', text: `Wrote “${n.title ?? ''}”`, stage: stageOfNote(n.relation_type) });
   }
+  const stageOfTakes = spec.find((s) => s.sources.some((x) => x.kind === 'takes'))?.key ?? null;
   for (const ep of episodes) {
     for (const c of ep.captures) {
       if (c.started_at) events.push({ at: c.started_at, who: null, color: null, icon: 'record.circle',
-        text: `Recorded ${ep.title} — ${c.marker_count} turns`, stage: 'recording' });
+        text: `Recorded ${ep.title} — ${c.marker_count} turns`, stage: stageOfTakes });
     }
   }
   events.sort((a, b) => b.at.localeCompare(a.at));
 
-  return { study, stages, log: events };
+  // Next: your first unfinished deck, in the page's order; then, once the
+  // study is read and thought through, the recording; then what you learnt.
+  const mine = user ? names[user]?.name ?? null : null;
+  let next: NextStep | null = null;
+  for (const st of stages) {
+    const item = st.items.find((i) => i.kind === 'deck' && i.state !== 'done' && (i.who == null || i.who === mine));
+    if (item) {
+      next = { title: item.state === 'open' ? `Carry on: ${item.title}` : item.title, subtitle: st.title,
+        stage: st.key, icon: item.icon, open: item.open };
+      break;
+    }
+  }
+  const talk = spec.find((s) => s.sources.some((x) => x.kind === 'takes'))?.key ?? null;
+  const takes = episodes.reduce((n, e) => n + e.captures.length, 0);
+  if (!next && takes === 0 && episodes[0]) {
+    next = { title: 'Record the episode', subtitle: episodes[0].title, stage: talk, icon: 'record.circle',
+      open: { type: 'episode', ref: episodes[0].id } };
+  }
+  const learn = spec.find((s) => s.sources.some((x) => x.kind === 'notes' && x.relation === 'feedback'))?.key ?? null;
+  if (!next && takes > 0 && !notes.some((n) => n.relation_type === 'feedback')) {
+    next = { title: 'Say what worked — and what to change', subtitle: 'Tell Claude after the take; it goes in Learn',
+      stage: learn, icon: 'checklist', open: null };
+  }
+
+  return { study, next, stages, log: events };
 }
