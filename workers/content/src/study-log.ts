@@ -14,14 +14,19 @@ import type { Study } from './repositories/study.repo';
 ///             the passage's unit id) whose relation is the stage's kind:
 ///             tafsir, keyterm, question, discussion, seed, feedback …
 ///   episodes  the Studio episodes the study feeds, with their scenes
-///   takes     what was recorded for those episodes
-/// The log is every dated thing above, newest first. Nothing is shaped in the
+///   takes     what was recorded for those episodes (tries shorter than
+///             log.take_min_seconds are counted in the log, not listed)
+///   steps     every step once, each person's deck a button on its row
+/// A source's `group` heads its rows in a folder (the Library's sections).
+/// The log is every dated thing above, merged by day and person, newest first. Nothing is shaped in the
 /// app: titles, icons, colours and words are all here or in the study row.
 
 export interface LogSource {
-  kind: 'passage' | 'step' | 'notes' | 'episodes' | 'takes' | 'links' | 'terms' | 'docs';
+  kind: 'passage' | 'step' | 'steps' | 'notes' | 'episodes' | 'takes' | 'links' | 'terms' | 'docs';
   key?: string;
   relation?: string;
+  /** The section these rows sit under, in a folder. */
+  group?: string;
 }
 
 export interface LogStageSpec {
@@ -52,6 +57,8 @@ export interface LogItem {
   open: { type: string; ref: string | null } | null;
   /** More ways in, as small buttons on the row (a key term: Read · Study · Story). */
   links?: Array<{ label: string; open: { type: string; ref: string } }>;
+  /** The section the row sits under, in a folder. */
+  group?: string | null;
 }
 
 export interface LogStage {
@@ -72,7 +79,15 @@ export interface LogEvent {
   color: string | null;
   icon: string | null;
   text: string;
+  /** A second line: how long it took, or what was written. */
+  detail?: string | null;
   stage: string | null;
+}
+
+/// The log, one day at a time, newest first.
+export interface LogDay {
+  day: string;
+  events: LogEvent[];
 }
 
 /// The one thing to do next — the page opens on it, so starting is one tap.
@@ -89,6 +104,7 @@ export interface StudyLog {
   next: NextStep | null;
   stages: LogStage[];
   log: LogEvent[];
+  days: LogDay[];
 }
 
 interface NoteRow {
@@ -124,7 +140,13 @@ export async function buildLog(
   episodes: EpisodeDigest[],
   user: string | null = null,
 ): Promise<StudyLog> {
-  const spec = ((raw['log'] as { stages?: LogStageSpec[] } | undefined)?.stages) ?? [];
+  const logSpec = (raw['log'] as { stages?: LogStageSpec[]; take_min_seconds?: number } | undefined) ?? {};
+  const spec = logSpec.stages ?? [];
+  // A take shorter than this is a try (a tap to test the button): counted in the log, not listed.
+  const minTake = Number(logSpec.take_min_seconds) || 0;
+  const seconds = (a: string | null, b: string | null) =>
+    a && b ? Math.max(0, (Date.parse(b) - Date.parse(a)) / 1000) : null;
+  const isTake = (c: EpisodeDigest['captures'][number]) => (seconds(c.started_at, c.ended_at) ?? 0) >= minTake;
   const people = (raw['people'] as string[] | undefined) ?? [];
   const names = (raw['names'] as People | undefined) ?? {};
   const steps = (raw['steps'] as Array<{ n: number; key: string; scope?: string; title: string;
@@ -135,6 +157,9 @@ export async function buildLog(
   // filled; a missing label is simply left out.
   const say = (key: string, values: Record<string, string | number> = {}) =>
     Object.entries(values).reduce((out, [k, v]) => out.split(`{${k}}`).join(String(v)), labels[key] ?? '');
+  // How long something took: minutes, then hours, then days (the words are the study's).
+  const duration = (mins: number) => mins < 60 ? say('minutes', { n: mins })
+    : mins < 60 * 24 ? say('hours', { n: Math.round(mins / 60) }) : say('days', { n: Math.round(mins / 60 / 24) });
   const person = (ref: string) => ({ who: names[ref]?.name ?? ref, color: names[ref]?.color ?? null });
 
   const progress = await query<{ core_user_ref: string; step_n: number; started_at: string | null;
@@ -154,11 +179,14 @@ export async function buildLog(
   ) : [];
 
   // The Library's documents, looked up once: every key term's essay and decks, and the passage's other decks.
-  const library = (raw['library'] as { terms?: Array<{ key: string; ar?: string; en?: string }>;
+  type Term = { key: string; ar?: string; en?: string };
+  const library = (raw['library'] as { terms?: Array<Term & { phrase?: Term }>;
     docs?: string[]; links?: Array<{ label: string; subtitle?: string; icon?: string; open: { type: string; ref: string } }> } | undefined) ?? {};
   const wanted = new Set<string>(library.docs ?? []);
   for (const t of library.terms ?? []) {
-    for (const k of ['essay', 'study', 'story']) wanted.add(`CM:DOC:qr:keyterm-${k}:${t.key}`);
+    for (const key of [t.key, t.phrase?.key].filter(Boolean) as string[]) {
+      for (const k of ['essay', 'study', 'story']) wanted.add(`CM:DOC:qr:keyterm-${k}:${key}`);
+    }
   }
   const docs = new Map<string, { doc_id: string; doc_type: string; slug: string | null; title: string }>();
   const ids = [...wanted];
@@ -176,6 +204,7 @@ export async function buildLog(
   const stages: LogStage[] = spec.map((st) => {
     const items: LogItem[] = [];
     for (const src of st.sources ?? []) {
+      const from = items.length;
       if (src.kind === 'passage') {
         const p = (study.passage ?? {}) as Record<string, unknown>;
         items.push({
@@ -202,6 +231,18 @@ export async function buildLog(
             date: rows.map((p) => p.completed_at ?? p.started_at).filter(Boolean).sort().pop() ?? null,
             state: done ? 'done' : begun ? 'open' : 'todo', open: slug ? { type: 'deck', ref: slug } : null,
           });
+        }
+      }
+      if (src.kind === 'steps') {
+        // Every step once; the shared deck, or each person's own, as buttons on the row.
+        for (const step of steps) {
+          const refs = step.scope === 'person' ? people.filter((r) => step.decks?.[r]) : [];
+          const links: NonNullable<LogItem['links']> = refs.map((r) => ({ label: person(r).who, open: { type: 'deck', ref: step.decks![r] } }));
+          if (!refs.length && step.deck) links.push({ label: say('open'), open: { type: 'deck', ref: step.deck } });
+          if (!links.length) continue;
+          items.push({ kind: 'deck', title: step.title, title_ar: step.title_ar ?? null,
+            subtitle: say('step', { n: step.n }) || null, icon: 'rectangle.stack', who: null, color: null, date: null,
+            state: null, open: links[0].open, links });
         }
       }
       if (src.kind === 'notes') {
@@ -237,17 +278,22 @@ export async function buildLog(
       }
       if (src.kind === 'terms') {
         for (const t of library.terms ?? []) {
-          const essay = docs.get(`CM:DOC:qr:keyterm-essay:${t.key}`);
-          const study = docs.get(`CM:DOC:qr:keyterm-study:${t.key}`);
-          const story = docs.get(`CM:DOC:qr:keyterm-story:${t.key}`);
-          const links: NonNullable<LogItem['links']> = [];
-          for (const [label, d] of [[say('read'), essay], [say('study_slides'), study], [say('story_slides'), story]] as const) {
-            const o = d ? opener(d) : null;
-            if (o) links.push({ label, open: o });
-          }
+          // The word, then the phrase it stands in (غَافِرِ, then غَافِرِ ٱلذَّنۢبِ) on the same row.
+          const linksOf = (key: string, prefix: string) => {
+            const out: NonNullable<LogItem['links']> = [];
+            for (const [k, label] of [['essay', say('read')], ['study', say('study_slides')], ['story', say('story_slides')]] as const) {
+              const d = docs.get(`CM:DOC:qr:keyterm-${k}:${key}`);
+              const o = d ? opener(d) : null;
+              if (o) out.push({ label: prefix ? `${prefix} · ${label}` : label, open: o });
+            }
+            return out;
+          };
+          const links = [...linksOf(t.key, ''), ...(t.phrase ? linksOf(t.phrase.key, t.phrase.ar ?? t.phrase.key) : [])];
           if (!links.length) continue;
+          const essay = docs.get(`CM:DOC:qr:keyterm-essay:${t.key}`);
           items.push({ kind: 'term', title: t.en ?? essay?.title ?? t.key, title_ar: t.ar ?? null,
-            subtitle: essay?.title ?? null, icon: 'character.book.closed', who: null, color: null, date: null,
+            subtitle: [essay?.title, t.phrase ? [t.phrase.ar, t.phrase.en].filter(Boolean).join(' — ') : null].filter(Boolean).join(' · ') || null,
+            icon: 'character.book.closed', who: null, color: null, date: null,
             state: null, open: links[0].open, links });
         }
       }
@@ -263,7 +309,7 @@ export async function buildLog(
       }
       if (src.kind === 'takes') {
         for (const ep of episodes) {
-          for (const c of ep.captures) {
+          for (const c of ep.captures.filter(isTake)) {
             const mins = minutes(c.started_at, c.ended_at);
             items.push({
               kind: 'take', title: ep.title, title_ar: null,
@@ -274,6 +320,19 @@ export async function buildLog(
           }
         }
       }
+      if (src.group) for (let i = from; i < items.length; i++) items[i].group = src.group;
+    }
+    // A folder holds each thing once: a row that opens what an earlier row opens is dropped.
+    if (st.fold) {
+      const seen = new Set<string>();
+      const once = items.filter((i) => {
+        const k = i.open ? `${i.open.type}|${i.open.ref}` : null;
+        if (!k) return true;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+      items.splice(0, items.length, ...once);
     }
     const steps_done = items.filter((i) => i.state != null);
     const state: LogStage['state'] = items.length === 0 ? 'empty' : st.fold ? 'done'
@@ -284,30 +343,67 @@ export async function buildLog(
     };
   });
 
-  // The log: every dated step, note and take, newest first.
-  const stageOfStep = (key: string) => spec.find((s) => s.sources.some((x) => x.kind === 'step' && x.key === key))?.key ?? null;
+  // The log: one line per thing done, newest first, then gathered by day.
+  //   a step     once — finished (with how long it took) or, until then, started
+  //   notes      one line per person, kind and day ("Wrote 9 notes in Read"), their titles below
+  //   takes      each take on its own line; the tries of a day folded into one
+  const stageOf = (match: (x: LogSource) => boolean) => spec.find((s) => s.sources.some(match)) ?? null;
   for (const p of progress) {
     const step = steps.find((s) => s.n === p.step_n);
-    if (!step) continue;
+    if (!step || !p.started_at) continue;
     const who = person(p.core_user_ref);
-    if (p.started_at) events.push({ at: p.started_at, ...who, icon: 'play.circle', text: say('log_started', { step: step.title }), stage: stageOfStep(step.key) });
-    if (p.completed_at) events.push({ at: p.completed_at, ...who, icon: 'checkmark.circle', text: say('log_finished', { step: step.title }), stage: stageOfStep(step.key) });
+    const stage = stageOf((x) => x.kind === 'step' && x.key === step.key)?.key ?? null;
+    if (p.completed_at) {
+      const mins = minutes(p.started_at, p.completed_at);
+      events.push({ at: p.completed_at, ...who, icon: 'checkmark.circle', text: say('log_finished', { step: step.title }),
+        detail: mins != null ? say('log_took', { time: duration(mins) }) || null : null, stage });
+    } else {
+      events.push({ at: p.started_at, ...who, icon: 'play.circle', text: say('log_started', { step: step.title }), detail: null, stage });
+    }
   }
-  const stageOfNote = (rel: string) => spec.find((s) => s.sources.some((x) => x.kind === 'notes' && x.relation === rel))?.key ?? null;
+  const written = new Map<string, NoteRow[]>();
   for (const n of notes) {
-    const m = meta(n.meta_json);
-    const by = (m['by'] as string | undefined) ?? n.core_user_ref;
-    const who = names[by] ? person(by) : { who: null, color: null };
-    events.push({ at: n.created_at, ...who, icon: 'square.and.pencil', text: say('log_wrote', { title: n.title ?? '' }), stage: stageOfNote(n.relation_type) });
+    const by = (meta(n.meta_json)['by'] as string | undefined) ?? n.core_user_ref;
+    const key = [n.created_at.slice(0, 10), by, n.relation_type].join('|');
+    written.set(key, [...(written.get(key) ?? []), n]);
   }
-  const stageOfTakes = spec.find((s) => s.sources.some((x) => x.kind === 'takes'))?.key ?? null;
+  for (const [key, group] of written) {
+    const [, by, rel] = key.split('|');
+    const who = names[by] ? person(by) : { who: null, color: null };
+    const stage = stageOf((x) => x.kind === 'notes' && x.relation === rel && !x.group) ?? stageOf((x) => x.kind === 'notes' && x.relation === rel);
+    const at = group.map((n) => n.created_at).sort().pop()!;
+    events.push(group.length === 1
+      ? { at, ...who, icon: 'square.and.pencil', text: say('log_wrote', { title: group[0].title ?? '' }), detail: null, stage: stage?.key ?? null }
+      : { at, ...who, icon: 'square.and.pencil', text: say('log_wrote_many', { n: group.length, stage: stage?.title ?? '' }),
+          detail: group.map((n) => n.title).filter(Boolean).join(' · ') || null, stage: stage?.key ?? null });
+  }
+  const stageOfTakes = stageOf((x) => x.kind === 'takes')?.key ?? null;
   for (const ep of episodes) {
+    const tries = new Map<string, string[]>();
     for (const c of ep.captures) {
-      if (c.started_at) events.push({ at: c.started_at, who: null, color: null, icon: 'record.circle',
-        text: say('log_recorded', { episode: ep.title, n: c.marker_count }), stage: stageOfTakes });
+      if (!c.started_at) continue;
+      if (isTake(c)) {
+        const mins = minutes(c.started_at, c.ended_at);
+        events.push({ at: c.started_at, who: null, color: null, icon: 'record.circle',
+          text: say('log_recorded', { episode: ep.title, n: c.marker_count }),
+          detail: mins != null ? say('log_took', { time: duration(mins) }) || null : null, stage: stageOfTakes });
+      } else {
+        const day = c.started_at.slice(0, 10);
+        tries.set(day, [...(tries.get(day) ?? []), c.started_at]);
+      }
+    }
+    for (const ats of tries.values()) {
+      events.push({ at: [...ats].sort()[ats.length - 1], who: null, color: null, icon: 'record.circle.fill',
+        text: say(ats.length === 1 ? 'log_try' : 'log_tries', { n: ats.length, episode: ep.title }), detail: null, stage: stageOfTakes });
     }
   }
   events.sort((a, b) => b.at.localeCompare(a.at));
+  const days: LogDay[] = [];
+  for (const e of events) {
+    const day = e.at.slice(0, 10);
+    if (days[days.length - 1]?.day !== day) days.push({ day, events: [] });
+    days[days.length - 1].events.push(e);
+  }
 
   // Next: your first unfinished deck, in the page's order; then, once the
   // study is read and thought through, the recording; then what you learnt.
@@ -323,7 +419,7 @@ export async function buildLog(
     }
   }
   const talk = spec.find((s) => s.sources.some((x) => x.kind === 'takes'))?.key ?? null;
-  const takes = episodes.reduce((n, e) => n + e.captures.length, 0);
+  const takes = episodes.reduce((n, e) => n + e.captures.filter(isTake).length, 0);
   if (!next && takes === 0 && episodes[0]) {
     next = { title: say('next_record'), subtitle: episodes[0].title, stage: talk, icon: 'record.circle',
       open: { type: 'episode', ref: episodes[0].id } };
@@ -334,5 +430,5 @@ export async function buildLog(
       stage: learn, icon: 'checklist', open: null };
   }
 
-  return { study, next, stages, log: events };
+  return { study, next, stages, log: events, days };
 }
