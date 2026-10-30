@@ -10,6 +10,8 @@ import {
   type MarkerInput, type MarkerPatch,
 } from '../repositories/capture.repo';
 import { actorRef } from '../auth';
+import { query } from '../../../shared/src/db';
+import { chapters, markersEdl, type ExportScene } from '../class-export';
 
 function trimmedString(v: unknown): string | undefined {
   return typeof v === 'string' ? v.trim() : undefined;
@@ -80,6 +82,25 @@ export function captureRoutes(router: Router<StudioEnv>) {
     if (session.core_user_ref !== user) return forbidden('Not your capture');
 
     return ok(session);
+  });
+
+  /// A take written out for the edit: `?f=chapters` (YouTube) or `?f=markers`
+  /// (a Resolve marker EDL, `&fps=` default 30). See class-export.
+  router.get('/st/captures/:id/export', async (req, env, { id }) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const session = await new CaptureRepo(env.DB_ST).findById(id);
+    if (!session) return notFound(`capture ${id}`);
+    if (session.core_user_ref !== user) return forbidden('Not your capture');
+    const url = new URL(req.url);
+    const f = url.searchParams.get('f') ?? 'chapters';
+    const fps = Math.max(1, Math.min(120, Number(url.searchParams.get('fps')) || 30));
+    const scenes = await query<ExportScene>(env.DB_ST,
+      `SELECT id, heading FROM st_sections WHERE episode_ref = ?`, [session.episode_ref]);
+    const body = f === 'markers'
+      ? markersEdl(session.episode_ref, session.markers, scenes, fps)
+      : chapters(session.markers, scenes);
+    return new Response(body, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   });
 
   router.patch('/st/captures/:id', async (req, env, { id }) => {

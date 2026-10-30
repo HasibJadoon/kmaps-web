@@ -1,4 +1,5 @@
 import type { EpisodeAggregate } from './repositories/episode.repo';
+import { classBeats } from './class-beats';
 
 /// What a live room plays from an episode.
 ///
@@ -13,6 +14,14 @@ import type { EpisodeAggregate } from './repositories/episode.repo';
 export function liveView<T extends EpisodeAggregate | null>(episode: T): T {
   if (!episode) return episode;
   const talk = episode.sections.filter((s) => s.type === 'discussion');
-  if (talk.length === 0) return episode;
-  return { ...episode, sections: talk } as T;
+  const sections = talk.length === 0 ? episode.sections : talk;
+  // Every point carries its beats (who speaks each one), so the iPads at a
+  // Zāwiya Class and the take log count the same steps — see class-beats.
+  return {
+    ...episode,
+    sections: sections.map((s) => ({
+      ...s,
+      points: s.points.map((p) => ({ ...p, beats: classBeats(p.overlay_json) })),
+    })),
+  } as T;
 }

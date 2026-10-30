@@ -2,6 +2,8 @@ import type { StudioEnv } from './env';
 import { EpisodeRepo, type EpisodeAggregate } from './repositories/episode.repo';
 import { SessionRepo } from './repositories/session.repo';
 import { liveView } from './live-view';
+import { CaptureRepo, type MarkerInput } from './repositories/capture.repo';
+import { classBeats, clock } from './class-beats';
 
 interface Cursor {
   section: number;
@@ -9,6 +11,16 @@ interface Cursor {
 }
 
 const LOBBY: Cursor = { section: -1, point: -1 };
+
+/// A take at the Zāwiya Class. `mark` starts it: both iPads flash and beep at
+/// that instant, which is the sync point every recording is lined up on in
+/// Resolve. From then on every step (card and turn) is logged on the room's
+/// one clock; `cut` writes the log as the capture's markers.
+interface Take {
+  captureId: string;
+  markAt: number;
+  log: Array<{ at: number; section: number; point: number; turn: number }>;
+}
 
 interface Identity {
   role: 'host' | 'viewer';
@@ -43,6 +55,7 @@ export class EpisodeSession {
     const userId = request.headers.get('X-KM-User-Id') ?? '';
 
     await this.ensureInit(episodeId, sessionId);
+    if (role === 'host' && userId) await this.state.storage.put('hostUser', userId);
 
     const { 0: client, 1: server } = new WebSocketPair();
     this.state.acceptWebSocket(server, [role]);
@@ -108,6 +121,21 @@ export class EpisodeSession {
       return;
     }
 
+    // Back one step: the turn before, or the last beat of the card before.
+    if (msg.t === 'back') {
+      const who = ws.deserializeAttachment() as Identity | null;
+      if (isHost || who?.participantId) await this.back();
+      return;
+    }
+
+    // The take: started and stopped from either iPad at the table.
+    if (msg.t === 'mark' || msg.t === 'cut') {
+      const who = ws.deserializeAttachment() as Identity | null;
+      if (!isHost && !who?.participantId) return;
+      if (msg.t === 'mark') await this.mark(); else await this.cut();
+      return;
+    }
+
     // Next card: the host, or either person at the table — a card's last
     // turn is often the other person's, and they close it.
     if (msg.t === 'next') {
@@ -147,6 +175,74 @@ export class EpisodeSession {
     if (idx < 0) idx = delta > 0 ? -1 : 0;
     idx = Math.max(0, Math.min(stops.length - 1, idx + delta));
     await this.setCursor(stops[idx]);
+  }
+
+  private async back(): Promise<void> {
+    const turn = await this.getTurn();
+    if (turn > 0) { await this.setTurn(turn - 1); return; }
+    const before = await this.getCursor();
+    await this.move(-1);
+    const cursor = await this.getCursor();
+    if (cursor.section === before.section && cursor.point === before.point) return;
+    const episode = await this.getSnapshot();
+    const point = episode?.sections[cursor.section]?.points[cursor.point];
+    const beats = point ? classBeats(point.overlay_json).length : 0;
+    if (beats > 1) await this.setTurn(beats - 1);
+  }
+
+  private async mark(): Promise<void> {
+    if (await this.state.storage.get<Take>('take')) return;
+    const episodeId = await this.state.storage.get<string>('episodeId');
+    const user = await this.state.storage.get<string>('hostUser');
+    if (!episodeId || !user) return;
+    const capture = await new CaptureRepo(this.env.DB_ST).create(episodeId, user, 'talking_head');
+    const markAt = Date.now();
+    await new CaptureRepo(this.env.DB_ST).patch(capture.id, { sync_marker_tc: new Date(markAt).toISOString() });
+    const take: Take = { captureId: capture.id, markAt, log: [] };
+    const cursor = await this.getCursor();
+    if (cursor.section >= 0) take.log.push({ at: markAt, ...cursor, turn: await this.getTurn() });
+    await this.state.storage.put('take', take);
+    this.broadcast({ t: 'mark', at: new Date(markAt).toISOString(), captureId: capture.id });
+  }
+
+  private async cut(): Promise<void> {
+    const take = await this.state.storage.get<Take>('take');
+    if (!take) return;
+    await this.state.storage.delete('take');
+    const end = Date.now();
+    const episode = await this.getSnapshot();
+    const markers: MarkerInput[] = [];
+    take.log.forEach((step, i) => {
+      const section = episode?.sections[step.section];
+      const point = section?.points[step.point];
+      if (!point) return;
+      const next = take.log[i + 1]?.at ?? end;
+      const beat = classBeats(point.overlay_json)[step.turn];
+      markers.push({
+        point_ref: point.id,
+        section_ref: section.id,
+        start_tc: clock((step.at - take.markAt) / 1000),
+        end_tc: clock((next - take.markAt) / 1000),
+        note: JSON.stringify({ turn: step.turn, who: beat?.who ?? '', kind: beat?.kind ?? '' }),
+        seq: markers.length,
+      });
+    });
+    const repo = new CaptureRepo(this.env.DB_ST);
+    try {
+      await repo.replaceMarkers(take.captureId, markers);
+      await repo.patch(take.captureId, { ended_at: new Date(end).toISOString() });
+    } catch { /* the log is lost only if D1 is down; the recordings are not */ }
+    this.broadcast({ t: 'cut', captureId: take.captureId, markers: markers.length });
+  }
+
+  /// One step of the running take, on the room's clock.
+  private async logStep(cursor: Cursor, turn: number): Promise<void> {
+    const take = await this.state.storage.get<Take>('take');
+    if (!take || cursor.section < 0) return;
+    const last = take.log[take.log.length - 1];
+    if (last && last.section === cursor.section && last.point === cursor.point && last.turn === turn) return;
+    take.log.push({ at: Date.now(), section: cursor.section, point: cursor.point, turn });
+    await this.state.storage.put('take', take);
   }
 
   private async goto(section: number, point: number): Promise<void> {
@@ -261,6 +357,7 @@ export class EpisodeSession {
     await this.state.storage.put('cursor', cursor);
     // A new card starts on its first turn.
     await this.state.storage.put('turn', 0);
+    await this.logStep(cursor, 0);
 
     this.broadcast({
       t: 'cursor',
@@ -275,6 +372,7 @@ export class EpisodeSession {
   private async setTurn(turn: number): Promise<void> {
     const t = Math.max(0, Math.floor(turn));
     await this.state.storage.put('turn', t);
+    await this.logStep(await this.getCursor(), t);
     this.broadcast({ t: 'turn', turn: t, cursor: await this.getCursor() });
   }
 
@@ -288,6 +386,7 @@ export class EpisodeSession {
   }
 
   private async endSession(): Promise<void> {
+    await this.cut();
     const sessionId = await this.state.storage.get<string>('sessionId');
     const episodeId = await this.state.storage.get<string>('episodeId');
     if (sessionId) {
