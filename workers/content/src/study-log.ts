@@ -131,6 +131,10 @@ export async function buildLog(
     title_ar?: string; deck?: string; decks?: Record<string, string> }> | undefined) ?? [];
   const unit = String((study.passage as Record<string, unknown> | null)?.['unit_id'] ?? '');
   const labels = study.labels;
+  // Every word the page shows is the study's own (meta_json.labels), placeholders
+  // filled; a missing label is simply left out.
+  const say = (key: string, values: Record<string, string | number> = {}) =>
+    Object.entries(values).reduce((out, [k, v]) => out.split(`{${k}}`).join(String(v)), labels[key] ?? '');
   const person = (ref: string) => ({ who: names[ref]?.name ?? ref, color: names[ref]?.color ?? null });
 
   const progress = await query<{ core_user_ref: string; step_n: number; started_at: string | null;
@@ -220,7 +224,7 @@ export async function buildLog(
           }, 0);
           items.push({
             kind: 'episode', title: ep.title, title_ar: null,
-            subtitle: [`${scenes.length} scenes`, turns ? `${turns} turns` : null, ep.status].filter(Boolean).join(' · '),
+            subtitle: [say('scenes', { n: scenes.length }), turns ? say('turns', { n: turns }) : '', ep.status].filter(Boolean).join(' · '),
             icon: 'film', who: null, color: null, date: null, state: ep.status, open: { type: 'episode', ref: ep.id },
           });
         }
@@ -237,7 +241,7 @@ export async function buildLog(
           const study = docs.get(`CM:DOC:qr:keyterm-study:${t.key}`);
           const story = docs.get(`CM:DOC:qr:keyterm-story:${t.key}`);
           const links: NonNullable<LogItem['links']> = [];
-          for (const [label, d] of [['Read', essay], ['Study', study], ['Story', story]] as const) {
+          for (const [label, d] of [[say('read'), essay], [say('study_slides'), study], [say('story_slides'), story]] as const) {
             const o = d ? opener(d) : null;
             if (o) links.push({ label, open: o });
           }
@@ -252,7 +256,7 @@ export async function buildLog(
           const d = docs.get(id);
           const o = d ? opener(d) : null;
           if (!d || !o) continue;
-          items.push({ kind: d.doc_type, title: d.title, title_ar: null, subtitle: d.doc_type === 'deck' ? 'Slides' : 'Essay',
+          items.push({ kind: d.doc_type, title: d.title, title_ar: null, subtitle: say(d.doc_type === 'deck' ? 'slides_word' : 'essay_word') || null,
             icon: d.doc_type === 'deck' ? 'rectangle.stack' : 'doc.richtext', who: null, color: null, date: null,
             state: null, open: o });
         }
@@ -263,7 +267,7 @@ export async function buildLog(
             const mins = minutes(c.started_at, c.ended_at);
             items.push({
               kind: 'take', title: ep.title, title_ar: null,
-              subtitle: [mins != null ? `${mins} min` : null, `${c.marker_count} turns logged`].filter(Boolean).join(' · '),
+              subtitle: [mins != null ? say('minutes', { n: mins }) : '', say('turns_logged', { n: c.marker_count })].filter(Boolean).join(' · '),
               icon: 'record.circle', who: null, color: null, date: c.started_at,
               state: c.ended_at ? 'done' : 'open', open: { type: 'episode', ref: ep.id },
             });
@@ -286,21 +290,21 @@ export async function buildLog(
     const step = steps.find((s) => s.n === p.step_n);
     if (!step) continue;
     const who = person(p.core_user_ref);
-    if (p.started_at) events.push({ at: p.started_at, ...who, icon: 'play.circle', text: `Started ${step.title}`, stage: stageOfStep(step.key) });
-    if (p.completed_at) events.push({ at: p.completed_at, ...who, icon: 'checkmark.circle', text: `Finished ${step.title}`, stage: stageOfStep(step.key) });
+    if (p.started_at) events.push({ at: p.started_at, ...who, icon: 'play.circle', text: say('log_started', { step: step.title }), stage: stageOfStep(step.key) });
+    if (p.completed_at) events.push({ at: p.completed_at, ...who, icon: 'checkmark.circle', text: say('log_finished', { step: step.title }), stage: stageOfStep(step.key) });
   }
   const stageOfNote = (rel: string) => spec.find((s) => s.sources.some((x) => x.kind === 'notes' && x.relation === rel))?.key ?? null;
   for (const n of notes) {
     const m = meta(n.meta_json);
     const by = (m['by'] as string | undefined) ?? n.core_user_ref;
     const who = names[by] ? person(by) : { who: null, color: null };
-    events.push({ at: n.created_at, ...who, icon: 'square.and.pencil', text: `Wrote “${n.title ?? ''}”`, stage: stageOfNote(n.relation_type) });
+    events.push({ at: n.created_at, ...who, icon: 'square.and.pencil', text: say('log_wrote', { title: n.title ?? '' }), stage: stageOfNote(n.relation_type) });
   }
   const stageOfTakes = spec.find((s) => s.sources.some((x) => x.kind === 'takes'))?.key ?? null;
   for (const ep of episodes) {
     for (const c of ep.captures) {
       if (c.started_at) events.push({ at: c.started_at, who: null, color: null, icon: 'record.circle',
-        text: `Recorded ${ep.title} — ${c.marker_count} turns`, stage: stageOfTakes });
+        text: say('log_recorded', { episode: ep.title, n: c.marker_count }), stage: stageOfTakes });
     }
   }
   events.sort((a, b) => b.at.localeCompare(a.at));
@@ -313,7 +317,7 @@ export async function buildLog(
     if (st.fold) continue;
     const item = st.items.find((i) => i.kind === 'deck' && i.state !== 'done' && (i.who == null || i.who === mine));
     if (item) {
-      next = { title: item.state === 'open' ? `Carry on: ${item.title}` : item.title, subtitle: st.title,
+      next = { title: item.state === 'open' ? say('next_carry_on', { title: item.title }) : item.title, subtitle: st.title,
         stage: st.key, icon: item.icon, open: item.open };
       break;
     }
@@ -321,12 +325,12 @@ export async function buildLog(
   const talk = spec.find((s) => s.sources.some((x) => x.kind === 'takes'))?.key ?? null;
   const takes = episodes.reduce((n, e) => n + e.captures.length, 0);
   if (!next && takes === 0 && episodes[0]) {
-    next = { title: 'Record the episode', subtitle: episodes[0].title, stage: talk, icon: 'record.circle',
+    next = { title: say('next_record'), subtitle: episodes[0].title, stage: talk, icon: 'record.circle',
       open: { type: 'episode', ref: episodes[0].id } };
   }
   const learn = spec.find((s) => s.sources.some((x) => x.kind === 'notes' && x.relation === 'feedback'))?.key ?? null;
   if (!next && takes > 0 && !notes.some((n) => n.relation_type === 'feedback')) {
-    next = { title: 'Say what worked — and what to change', subtitle: 'Tell Claude after the take; it goes in Learn',
+    next = { title: say('next_feedback'), subtitle: say('next_feedback_hint') || null,
       stage: learn, icon: 'checklist', open: null };
   }
 

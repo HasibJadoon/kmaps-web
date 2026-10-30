@@ -15,6 +15,7 @@ const LOBBY: Cursor = { section: -1, point: -1 };
 /// Start → flash: each iPad starts recording its own screen the moment the
 /// take is called, then both flash and sound the tone this long after, at the
 /// same instant on the room's clock — so the sync point is in every recording.
+/// The episode sets it (meta_json.class.flash_delay_ms); this is the fallback.
 const FLASH_DELAY_MS = 3000;
 
 /// A take at the Zāwiya Class. `mark` starts it: both iPads flash and beep at
@@ -201,7 +202,12 @@ export class EpisodeSession {
     const user = await this.state.storage.get<string>('hostUser');
     if (!episodeId || !user) return;
     const capture = await new CaptureRepo(this.env.DB_ST).create(episodeId, user, 'talking_head');
-    const markAt = Date.now() + FLASH_DELAY_MS;
+    let delay = FLASH_DELAY_MS;
+    try {
+      const set = JSON.parse((await this.getSnapshot())?.meta_json ?? '{}')?.class?.flash_delay_ms;
+      if (typeof set === 'number' && set >= 0 && set <= 15000) delay = set;
+    } catch { /* the fallback */ }
+    const markAt = Date.now() + delay;
     await new CaptureRepo(this.env.DB_ST).patch(capture.id, { sync_marker_tc: new Date(markAt).toISOString() });
     const take: Take = { captureId: capture.id, markAt, log: [] };
     const cursor = await this.getCursor();
