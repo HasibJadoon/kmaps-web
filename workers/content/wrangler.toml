@@ -20,3 +20,17 @@ bucket_name = "kmaps-assets"
 [[services]]
 binding = "CORE"
 service = "km-core-worker"
+
+# The Studio episodes a study feeds (its scenes and takes), for the passage log.
+[[services]]
+binding = "STUDIO"
+service = "km-studio-worker"
+
+# One live room per study — the passage page shared by its people (study-room.ts).
+[[durable_objects.bindings]]
+name = "STUDY_ROOM"
+class_name = "StudyRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["StudyRoom"]

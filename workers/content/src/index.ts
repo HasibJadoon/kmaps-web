@@ -60,3 +60,5 @@ router.post('/cm/internal/sense', async (req, env) => {
 export default {
   fetch: (request: Request, env: ContentEnv) => router.handle(request, env),
 } satisfies ExportedHandler<ContentEnv>;
+
+export { StudyRoom } from './study-room';
