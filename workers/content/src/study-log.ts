@@ -22,7 +22,7 @@ import type { Study } from './repositories/study.repo';
 /// app: titles, icons, colours and words are all here or in the study row.
 
 export interface LogSource {
-  kind: 'passage' | 'step' | 'steps' | 'notes' | 'episodes' | 'takes' | 'links' | 'terms' | 'docs';
+  kind: 'passage' | 'step' | 'steps' | 'notes' | 'episodes' | 'takes' | 'links' | 'terms' | 'docs' | 'record' | 'publish';
   key?: string;
   relation?: string;
   /** The section these rows sit under, in a folder. */
@@ -267,6 +267,31 @@ export async function buildLog(
             kind: 'episode', title: ep.title, title_ar: null,
             subtitle: [say('scenes', { n: scenes.length }), turns ? say('turns', { n: turns }) : '', ep.status].filter(Boolean).join(' · '),
             icon: 'film', who: null, color: null, date: null, state: ep.status, open: { type: 'episode', ref: ep.id },
+          });
+        }
+      }
+      // Each episode, recorded or not: done once it has a real take (record_done · record_todo).
+      if (src.kind === 'record') {
+        for (const ep of episodes) {
+          const takes = ep.captures.filter(isTake);
+          const last = takes.map((c) => c.started_at ?? '').sort().pop() || null;
+          items.push({
+            kind: 'episode', title: ep.title, title_ar: null,
+            subtitle: takes.length ? say('record_done', { n: takes.length }) : say('record_todo'),
+            icon: 'record.circle', who: null, color: null, date: last, state: takes.length ? 'done' : 'todo',
+            open: { type: 'episode', ref: ep.id },
+          });
+        }
+      }
+      // Each episode on its way out: published, shot and waiting, or not yet (publish_<status>).
+      if (src.kind === 'publish') {
+        for (const ep of episodes) {
+          items.push({
+            kind: 'episode', title: ep.title, title_ar: null,
+            subtitle: say(`publish_${ep.status}`) || ep.status, icon: 'paperplane',
+            who: null, color: null, date: null,
+            state: ep.status === 'published' ? 'done' : ep.status === 'shot' ? 'open' : 'todo',
+            open: { type: 'episode', ref: ep.id },
           });
         }
       }
