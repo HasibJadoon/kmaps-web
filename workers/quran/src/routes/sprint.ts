@@ -11,6 +11,23 @@ import { parseIntParam } from '../../../shared/src/validate';
 const RECITER = 7;   // Mishary Rashid al-ʿAfāsī (qr_recitation), as the atlas
 
 export function sprintRoutes(router: Router<QuranEnv>) {
+  // The Qurʾān stream's queue: the sūras cut into study passages, each holding its passages.
+  router.get('/qr/sprint/backlog/surahs', async (_req, env) => {
+    const rows = await query<{ id: number; name_en: string; name_ar: string; name_transliteration: string | null; n: number }>(env.DB_QR,
+      `SELECT s.id, s.name_en, s.name_ar, s.name_transliteration, COUNT(p.id) AS n FROM qr_surah s
+         JOIN qr_surah_study_passage p ON p.surah = s.id AND p.status != 'deleted'
+        GROUP BY s.id ORDER BY s.id`);
+    const body: SprintBacklog = {
+      title: 'Sūra backlog', subtitle: `${rows.length} sūras cut into passages`,
+      items: rows.map((r) => ({
+        unit: `QR:S:${r.id}`, label: String(r.id), title: r.name_transliteration ?? r.name_en, title_ar: r.name_ar,
+        short: r.name_transliteration ?? r.name_en, ref: `${r.n} passages`, page: null,
+        down: { module: 'qr', path: `sprint/backlog/${r.id}` },
+      })),
+    };
+    return ok(body);
+  });
+
   router.get('/qr/sprint/backlog/:surahId', async (_req, env, { surahId }) => {
     const s = parseIntParam(surahId);
     if (!s) return badRequest('Invalid surah');
@@ -33,6 +50,7 @@ export function sprintRoutes(router: Router<QuranEnv>) {
         ref: `${s}:${r.ayah_from}–${r.ayah_to}`,
         page: { module: 'qr', path: `sprint/page/${s}/${r.passage_no}` },
       })),
+      up: [{ label: 'Sūras', source: { module: 'qr', path: 'sprint/backlog/surahs' } }],
     };
     return ok(body);
   });

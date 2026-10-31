@@ -29,8 +29,8 @@ export interface SprintItem {
   short: string | null;
   /** Where it is (40:1–3). */
   ref: string | null;
-  /** Its page. */
-  page: SprintSource;
+  /** Its page (none for a tile that is only a level — Arabic's "Classes"). */
+  page: SprintSource | null;
   /** Its own backlog, when it is a level of its own (an ism's books, a book's chapters). */
   down?: SprintSource | null;
 }

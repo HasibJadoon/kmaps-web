@@ -15,6 +15,52 @@ import type { ArabicEnv } from '../env';
 const two = (n: number) => String(n).padStart(2, '0');
 
 export function sprintRoutes(router: Router<ArabicEnv>) {
+  // ── the Arabic stream's queue: its four kinds, each a level of its own
+  router.get('/ar/sprint/backlog/kinds', async () => ok({
+    title: 'Arabic backlog', subtitle: 'Series · Books · Daily · Classes',
+    items: [
+      { key: 'series', label: 'SER', title: 'Series', title_ar: 'المسلسلات' },
+      { key: 'books', label: 'BK', title: 'Books', title_ar: 'الكتب' },
+      { key: 'daily', label: 'DLY', title: 'Daily Arabic', title_ar: 'العربية اليومية' },
+      { key: 'classes', label: 'CLS', title: 'Classes', title_ar: 'الدروس' },
+    ].map((k) => ({ unit: `AR:kind:${k.key}`, label: k.label, title: k.title, title_ar: k.title_ar, short: k.title, ref: null,
+      page: null, down: { module: 'ar', path: k.key === 'daily' ? 'sprint/backlog/daily' : `sprint/backlog/${k.key}` } })),
+  } satisfies SprintBacklog));
+
+  const UP_KINDS = [{ label: 'Arabic', source: { module: 'ar', path: 'sprint/backlog/kinds' } }];
+
+  router.get('/ar/sprint/backlog/series', async (_req, env) => {
+    const rows = await query<{ id: string; title_ar: string | null; title_en: string | null; n: number }>(env.DB_AR,
+      `SELECT p.id, p.title_ar, p.title_en, (SELECT COUNT(*) FROM ar_acquisition_ref c WHERE c.parent_ref = p.id) AS n
+         FROM ar_acquisition_ref p WHERE p.medium = 'series' ORDER BY p.sort_order, p.title_en`);
+    return ok({ title: 'Series backlog', subtitle: `${rows.length} series`, up: UP_KINDS,
+      items: rows.map((r, i) => ({ unit: `AR:${r.id}`, label: `SR${two(i + 1)}`, title: r.title_en ?? r.title_ar, title_ar: r.title_ar,
+        short: null, ref: `${r.n} episodes`, page: null, down: { module: 'ar', path: `sprint/backlog/series/${r.id}` } })),
+    } satisfies SprintBacklog);
+  });
+
+  router.get('/ar/sprint/backlog/books', async (_req, env) => {
+    const rows = await query<{ id: string; title_ar: string | null; title_en: string | null; n: number }>(env.DB_AR,
+      `SELECT r.id, r.title_ar, r.title_en, COUNT(u.id) AS n FROM ar_acquisition_ref r JOIN ar_text_unit u ON u.acq_ref_id = r.id
+        WHERE r.medium = 'text' GROUP BY r.id HAVING n > 1 ORDER BY r.sort_order, r.title_en, r.title_ar LIMIT 300`);
+    return ok({ title: 'Book backlog', subtitle: `${rows.length} books`, up: UP_KINDS,
+      items: rows.map((r, i) => ({ unit: `AR:${r.id}`, label: `BK${two(i + 1)}`, title: r.title_en ?? r.title_ar, title_ar: r.title_ar,
+        short: null, ref: `${r.n} pages`, page: { module: 'ar', path: `sprint/page/work/${r.id}` }, down: { module: 'ar', path: `sprint/backlog/work/${r.id}` } })),
+    } satisfies SprintBacklog);
+  });
+
+  router.get('/ar/sprint/backlog/classes', async (_req, env) => {
+    const rows = await query<{ spine: string; discipline: string | null; n: number; title_ar: string | null }>(env.DB_AR,
+      `SELECT spine, MIN(discipline) AS discipline, COUNT(*) AS n,
+              (SELECT l2.title_ar FROM ar_lesson l2 WHERE l2.spine = l.spine AND l2.parent_id IS NULL ORDER BY l2.sort_order LIMIT 1) AS title_ar
+         FROM ar_lesson l GROUP BY spine ORDER BY n DESC`);
+    return ok({ title: 'Class backlog', subtitle: `${rows.length} class books`, up: UP_KINDS,
+      items: rows.map((r, i) => ({ unit: `AR:spine:${r.spine}`, label: `CL${two(i + 1)}`, title: r.spine.replace(/_/g, ' '), title_ar: null,
+        short: null, ref: `${r.n} lessons · ${r.discipline ?? ''}`.trim(), page: null,
+        down: { module: 'ar', path: `sprint/backlog/class/x?spine=${encodeURIComponent(r.spine)}` } })),
+    } satisfies SprintBacklog);
+  });
+
   // ── series → episodes
   router.get('/ar/sprint/backlog/series/:id', async (_req, env, { id }) => {
     const s = await queryOne<{ title_ar: string | null; title_en: string | null }>(env.DB_AR,
@@ -24,6 +70,7 @@ export function sprintRoutes(router: Router<ArabicEnv>) {
       `SELECT id, title_ar, title_en FROM ar_acquisition_ref WHERE parent_ref = ? ORDER BY sort_order, created_at, id`, [id]);
     return ok({
       title: 'Episode backlog', subtitle: s.title_en ?? s.title_ar,
+      up: [...UP_KINDS, { label: 'Series', source: { module: 'ar', path: 'sprint/backlog/series' } }],
       items: rows.map((r, i) => ({ unit: `AR:${r.id}`, label: `E${two(i + 1)}`, title: r.title_en ?? r.title_ar, title_ar: r.title_ar,
         short: null, ref: null, page: { module: 'ar', path: `sprint/page/work/${r.id}` } })),
     } satisfies SprintBacklog);
@@ -73,7 +120,7 @@ export function sprintRoutes(router: Router<ArabicEnv>) {
       `SELECT slug, title_en, title_ar, level, lines FROM ar_daily_reading
         WHERE is_published = 1 ${domain ? 'AND domain_id = ?' : ''} ORDER BY sort_order, id`, domain ? [domain] : []);
     return ok({
-      title: 'Daily backlog', subtitle: 'Daily Arabic',
+      title: 'Daily backlog', subtitle: 'Daily Arabic', up: UP_KINDS,
       items: rows.map((r, i) => ({ unit: `AR:daily:${r.slug}`, label: `D${two(i + 1)}`, title: r.title_en, title_ar: r.title_ar,
         short: r.title_en, ref: [r.level, r.lines ? `${r.lines} lines` : null].filter(Boolean).join(' · ') || null,
         page: { module: 'ar', path: `sprint/page/daily/${r.slug}` } })),
@@ -90,7 +137,8 @@ export function sprintRoutes(router: Router<ArabicEnv>) {
             : `SELECT id, title_ar, title_en, page_start FROM ar_lesson WHERE parent_id = ? ORDER BY sort_order, id`, [spine ?? id]);
     if (!rows.length) return notFound(`class ${id}`);
     return ok({
-      title: 'Class backlog', subtitle: root?.title_en ?? root?.title_ar ?? spine,
+      title: 'Lesson backlog', subtitle: root?.title_en ?? root?.title_ar ?? spine?.replace(/_/g, ' ') ?? null,
+      up: [...UP_KINDS, { label: 'Classes', source: { module: 'ar', path: 'sprint/backlog/classes' } }],
       items: rows.map((r, i) => ({ unit: `AR:${r.id}`, label: `C${two(i + 1)}`, title: r.title_en ?? r.title_ar, title_ar: r.title_ar,
         short: null, ref: r.page_start != null ? `p. ${r.page_start}` : null,
         page: { module: 'ar', path: `sprint/page/lesson/${r.id}` } })),
