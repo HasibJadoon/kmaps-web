@@ -72,6 +72,25 @@ const JOINS = `JOIN ar_practice_label st ON st.scope = 'intake_strand' AND st.ke
 const COUNTS = `(SELECT COUNT(1) FROM ar_intake_item c WHERE c.parent_id = i.id) AS child_count,
                 0 AS live_count`;
 
+// A source that is already in the app, parked or turned down is not "next" on the learning path.
+const OFF_PATH = `('in_app', 'parked', 'rejected')`;
+const NEXT_WHERE = `i.parent_id IS NULL AND i.path_rank IS NOT NULL AND i.status NOT IN ${OFF_PATH}`;
+const FIRST_CHILD = `(SELECT c.external_id FROM ar_intake_item c WHERE c.parent_id = i.id AND c.platform = 'youtube'
+                       AND c.external_id IS NOT NULL ORDER BY c.seq, c.created_at LIMIT 1) AS first_child_ext`;
+
+/** A cover for a source: one it carries (meta_json.thumbnail), else the YouTube still of the video, or of a
+ * playlist's first episode. Null when it has none — the renderer then shows its strand's icon. */
+export function thumbnailOf(r: Pick<Row, 'kind' | 'platform' | 'external_id' | 'meta_json'> & { first_child_ext?: string | null }): string | null {
+  try {
+    const m = JSON.parse(r.meta_json || '{}') as Record<string, unknown>;
+    const own = m.thumbnail ?? m.cover;
+    if (typeof own === 'string' && /^https:\/\//.test(own)) return own;
+  } catch { /* fall through */ }
+  if (r.platform !== 'youtube') return null;
+  const vid = r.kind === 'video' || r.kind === 'short' ? r.external_id : r.first_child_ext;
+  return vid && /^[\w-]{6,}$/.test(vid) ? `https://i.ytimg.com/vi/${vid}/hqdefault.jpg` : null;
+}
+
 /** What a pasted link is: its platform, kind and the id it is known by there. */
 export function readLink(raw: string): { url: string; platform: string; kind: string; externalId: string | null } | null {
   let u: URL;
@@ -113,6 +132,51 @@ const err503 = (d: string) => new Response(JSON.stringify({ ok: false, error: { 
   { status: 503, headers: { 'content-type': 'application/json' } });
 
 export function intakeRoutes(router: Router<ArabicEnv>) {
+  // The Workspace card: the intake at a glance, shaped for a renderer — a title, the status tiles, each
+  // pipeline's stage mix and the next sources on the learning path. Light: counts and three rows.
+  router.get('/ar/intake/summary', async (req, env) => {
+    if (!actorRef(req)) return unauthorized();
+    const L = await labels(env);
+    const W = byKey(L.intake), S = byKey(L.intake_status);
+    const [counts, next, board] = await Promise.all([
+      query<{ status: string; n: number }>(env.DB_AR, `SELECT status, COUNT(1) AS n FROM ar_intake_item WHERE parent_id IS NULL GROUP BY 1`),
+      query<Row & { first_child_ext: string | null }>(env.DB_AR,
+        `SELECT i.*, ${COUNTS}, ${FIRST_CHILD} FROM ar_intake_item i ${JOINS} WHERE ${NEXT_WHERE} ORDER BY i.path_rank LIMIT 3`),
+      boards(env, L),
+    ]);
+    const n = new Map(counts.map((c) => [c.status, c.n]));
+    const tile = (key: string) => ({ ...badge(S.get(key), key), count: n.get(key) ?? 0 });
+    const word = (key: string) => { const w = W.get(key); return w ? { label: w.label, labelAr: w.labelAr, detail: w.detail, icon: w.icon } : null; };
+    return ok({
+      title: word('summary'),
+      open: word('summary_open'),
+      empty: word('summary_empty'),
+      nextTitle: word('next_up'),
+      tiles: ['in_app', 'queued', 'logged', 'parked'].map(tile).filter((t) => t.key !== 'parked' || t.count > 0),
+      pipelines: (L.intake_domain ?? []).filter((l) => (DOMAINS as readonly string[]).includes(l.key)).map((l) => {
+        const stages = board[l.key as Domain];
+        return { domain: option(l), total: stages.reduce((a, s) => a + (s.count ?? 0), 0),
+                 stages: stages.map((s) => ({ key: s.key, label: s.label, labelAr: s.labelAr, icon: s.icon, color: s.color, count: s.count ?? 0 })) };
+      }),
+      next: next.map((r) => {
+        const eps = r.child_count ?? r.item_count ?? 0;
+        return {
+          id: r.id, titleAr: r.title_ar, titleEn: r.title_en, channel: r.channel,
+          strand: badge(byKey(L.intake_strand).get(r.strand), r.strand),
+          level: badge(byKey(L.intake_level).get(r.level), r.level),
+          status: badge(S.get(r.status), r.status),
+          episodes: eps,
+          episodesLabel: eps ? fill(W.get('episodes')?.label, { n: eps }) : null,
+          episodesLabelAr: eps ? fill(W.get('episodes')?.labelAr, { n: eps }) : null,
+          pathRank: r.path_rank,
+          pathStep: r.path_rank ? fill(W.get('path_rank')?.label, { n: r.path_rank }) : null,
+          pathStepAr: r.path_rank ? fill(W.get('path_rank')?.labelAr, { n: r.path_rank }) : null,
+          thumbnail: thumbnailOf(r),
+        };
+      }),
+    });
+  });
+
   // The intake: its words, the strands with their counts, what is next, and the items asked for.
   router.get('/ar/intake', async (req, env) => {
     if (!actorRef(req)) return unauthorized();
@@ -131,7 +195,7 @@ export function intakeRoutes(router: Router<ArabicEnv>) {
       query<Row>(env.DB_AR, `SELECT i.*, ${COUNTS} FROM ar_intake_item i ${JOINS} WHERE ${where.join(' AND ')} ORDER BY (i.path_rank IS NULL), i.path_rank, st.min_value, ${ORDER} LIMIT 500`, args),
       // what is next on the learning path (path_rank, migration 0043): the lowest steps still to do
       query<Row>(env.DB_AR, `SELECT i.*, ${COUNTS} FROM ar_intake_item i ${JOINS}
-                              WHERE i.parent_id IS NULL AND i.path_rank IS NOT NULL
+                              WHERE ${NEXT_WHERE}
                               ORDER BY i.path_rank LIMIT ?`, [nextSize]),
       query<{ strand: string; status: string; n: number }>(env.DB_AR,
         `SELECT strand, status, COUNT(1) AS n FROM ar_intake_item GROUP BY 1, 2`),
