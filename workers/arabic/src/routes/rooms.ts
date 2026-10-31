@@ -36,9 +36,9 @@ async function loadWorks(env: ArabicEnv): Promise<Work[]> {
             json_extract(r.meta_json, '$.shape') AS shape, r.verse_form AS verseForm,
             t.pages, t.words,
             COALESCE(json_extract(r.meta_json, '$.open_at'), t.first_seq) AS firstSeq,
-            (SELECT a.object_key FROM ar_acq_audio a
-              WHERE a.status = 'live' AND (a.acq_ref_id = r.id OR a.title_ar = r.title_ar)
-              ORDER BY (a.acq_ref_id = r.id) DESC LIMIT 1) AS audioKey,
+            -- the work's own recording first, else one filed under its title (as the shelf: portable across SQLite versions)
+            COALESCE((SELECT a.object_key FROM ar_acq_audio a WHERE a.status = 'live' AND a.acq_ref_id = r.id LIMIT 1),
+                     (SELECT a.object_key FROM ar_acq_audio a WHERE a.status = 'live' AND a.title_ar = r.title_ar LIMIT 1)) AS audioKey,
             COALESCE(pc.name_ar, p.name) AS series, p.ar_no AS seriesRef,
             COALESCE(gpc.name_ar, gp.name) AS seriesParent,
             CAST(substr(e.ar_no, 4) AS INTEGER) AS episodeOrder,

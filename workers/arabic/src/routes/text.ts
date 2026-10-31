@@ -547,10 +547,10 @@ export async function shelfRows(env: ArabicEnv, f: { genre?: string | null; seri
                 -- publisher's colophon; opening there is opening on nothing.
                 COALESCE(json_extract(r.meta_json, '$.open_at'), MIN(t.seq)) AS firstSeq,
                 MAX(t.seq)              AS lastSeq,
-                (SELECT a.object_key FROM ar_acq_audio a
-                  WHERE a.status = 'live'
-                    AND (a.acq_ref_id = r.id OR a.title_ar = r.title_ar)
-                  ORDER BY (a.acq_ref_id = r.id) DESC LIMIT 1) AS audioKey,
+                -- the work's own recording first, else one filed under its title (two lookups: SQLite before 3.51 cannot
+                -- see the outer row from a scalar subquery's ORDER BY inside this aggregate)
+                COALESCE((SELECT a.object_key FROM ar_acq_audio a WHERE a.status = 'live' AND a.acq_ref_id = r.id LIMIT 1),
+                         (SELECT a.object_key FROM ar_acq_audio a WHERE a.status = 'live' AND a.title_ar = r.title_ar LIMIT 1)) AS audioKey,
                 -- The series an episode belongs to, from the Notion tree. An
                 -- episode called "Episode 1" means nothing on its own; its
                 -- parent's name is what makes it a thing you can pick.
