@@ -11,7 +11,8 @@
 CREATE TABLE IF NOT EXISTS ar_cast (
   id             TEXT PRIMARY KEY,                -- mommy, dad, ali, shopkeeper, storyteller, lion …
   name_en        TEXT NOT NULL,
-  name_ar        TEXT NOT NULL,                   -- vowelled
+  name_ar        TEXT NOT NULL,                   -- vowelled, for the voice
+  name_ar_display TEXT NOT NULL,                  -- plain, no case endings (خالد): what the speaker chip shows — Arabic only
   role           TEXT NOT NULL,                   -- mother, shopkeeper, the sly jackal …
   group_key      TEXT NOT NULL,                   -- family | everyday | friends | narration | story
   age_band       TEXT,                            -- 'adult 40', 'child 10', 'elder 70'
