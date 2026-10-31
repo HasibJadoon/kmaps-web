@@ -7,6 +7,7 @@ import { shelfRows, template, type ShelfRow } from './text';
 import { labels, byKey, type Label } from '../lib/labels';
 import { BANDS, parseBand, inBand, levelSpan, type Band } from '../lib/levels';
 import { storybookEntry } from './storybook';
+import { mediaUrl } from '../lib/media';
 
 /// The bookcase: the reading shelf, set out ready to draw.
 ///
@@ -34,6 +35,8 @@ interface Entry {
   shape: string | null;
   icon: string;
   color: string;
+  /// the book's cover picture (a URL), or null: the app then draws the shelf-coloured placeholder
+  cover: string | null;
   pages: number;
   /// works under a group (1 for a work)
   count: number;
@@ -126,6 +129,7 @@ function entry(n: Node): Entry {
     author: w?.author ?? null, died: w?.died ?? null,
     level: w ? (w.level ?? null) : levelSpan(ws.map((x) => x.level)),
     shape: w?.shape ?? null, icon: n.icon, color: n.color,
+    cover: mediaUrl(w?.coverKey),
     pages: pagesOf(n), count: countOf(n),
     hasAudio: ws.some((x) => !!x.audioKey), hasVideo: ws.some((x) => !!x.videoId),
     firstSeq: w?.firstSeq ?? null,
@@ -235,7 +239,7 @@ export function bookcaseRoutes(router: Router<ArabicEnv>) {
       work: {
         id: w.id, titleAr: w.title_ar, titleEn: w.title_en, author: w.author, died: w.died, era: eraOf(w.died),
         level: w.level, register: extra?.register ?? w.register, subtitle: extra?.subtitle_ar ?? null,
-        shape: w.shape, kind: { titleAr: kind.titleAr, titleEn: kind.titleEn, icon: kind.icon, color: kind.color },
+        shape: w.shape, cover: mediaUrl(w.coverKey), kind: { titleAr: kind.titleAr, titleEn: kind.titleEn, icon: kind.icon, color: kind.color },
         pages: w.pages, words: w.words, firstSeq: w.firstSeq, lastSeq: w.lastSeq,
         audio: extra && extra.recordings > 0 ? { recordings: extra.recordings, minutes: extra.minutes } : null,
         hasVideo: !!w.videoId, seriesRef: w.seriesRef,
@@ -271,7 +275,7 @@ export function bookcaseRoutes(router: Router<ArabicEnv>) {
         : at && last > first ? Math.max(0, Math.min(1, (at - first) / (last - first))) : null;
       return {
         id: w.id, kind: 'work', titleAr: w.title_ar, titleEn: w.title_en, author: w.author, died: w.died,
-        level: w.level, shape: w.shape, icon: look_.icon, color: look_.color, pages: w.pages, count: 1,
+        level: w.level, shape: w.shape, icon: look_.icon, color: look_.color, cover: mediaUrl(w.coverKey), pages: w.pages, count: 1,
         hasAudio: !!w.audioKey, hasVideo: !!w.videoId, firstSeq: w.firstSeq, preview: [],
         progress, atSeq: at, marks: marks(s.bookmarks_json),
       };

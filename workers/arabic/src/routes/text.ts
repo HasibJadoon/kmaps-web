@@ -516,6 +516,8 @@ export interface ShelfRow {
   series: string | null; seriesRef: string | null; seriesParent: string | null;
   trail: string | null; trailLevels: number | null; episodeOrder: number | null;
   videoId: string | null; episode: number | null;
+  /// The book's cover picture: a key in the km-arabic-audio bucket (meta_json.cover_key, set by publish_covers.py)
+  coverKey: string | null;
 }
 
 export async function shelfRows(env: ArabicEnv, f: { genre?: string | null; series?: string | null; ids?: string[] } = {}) {
@@ -564,7 +566,9 @@ export async function shelfRows(env: ArabicEnv, f: { genre?: string | null; seri
                 -- An episode that can be watched, not only heard: the series
                 -- screen says so before the reader is opened.
                 json_extract(r.meta_json, '$.video.id')  AS videoId,
-                json_extract(r.meta_json, '$.episode')   AS episode
+                json_extract(r.meta_json, '$.episode')   AS episode,
+                -- its picture, when it has one; the shelf draws the gold placeholder otherwise
+                json_extract(r.meta_json, '$.cover_key') AS coverKey
            FROM ar_acquisition_ref r
            JOIN ar_text_unit t ON t.acq_ref_id = r.id AND t.status = 'live'
            LEFT JOIN ar_acq_entry e ON e.ar_no = json_extract(r.meta_json, '$.ar_no')
