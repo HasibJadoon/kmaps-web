@@ -7,9 +7,8 @@ export class SurahRepo {
   listAll(): Promise<Surah[]> {
     return query<Surah>(
       this.db,
-      `SELECT id, name_ar, name_en, name_transliteration,
-              name_ar_vowelled, name_translit, name_meaning_en,
-              revelation_type, ayah_count, juz_start, page_start
+      // every column: the display names (qr_182) appear as soon as the migration has run
+      `SELECT *
        FROM qr_surah
        ORDER BY id`,
     );
@@ -18,9 +17,8 @@ export class SurahRepo {
   findById(id: number): Promise<Surah | null> {
     return queryOne<Surah>(
       this.db,
-      `SELECT id, name_ar, name_en, name_transliteration,
-              name_ar_vowelled, name_translit, name_meaning_en,
-              revelation_type, ayah_count, juz_start, page_start
+      // every column: the display names (qr_182) appear as soon as the migration has run
+      `SELECT *
        FROM qr_surah
        WHERE id = ?`,
       [id],
