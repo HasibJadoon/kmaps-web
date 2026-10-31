@@ -5,7 +5,7 @@ import { actorRef } from '../../../shared/src/auth';
 import type { ArabicEnv } from '../env';
 import { ANCESTRY } from '../lib/ancestry';
 import { BANDS, bandOf, inBand, levelSpan, parseBand, bare, type Band } from '../lib/levels';
-import { atlasWorld, mapWorld, worldOut, WORLD_WORDS, type WorldDistrict } from '../lib/everyday-world';
+import { atlasWorld, mapWorld, pictureWorld, worldOut, WORLD_WORDS, type WorldDistrict } from '../lib/everyday-world';
 
 // ── The Arabic home, as rooms ────────────────────────────────────────────────
 // Like the Worldview Atlas: a home of rooms, a room of collections (a series,
@@ -165,24 +165,52 @@ async function dailyDomains(env: ArabicEnv) {
 }
 const DAILY_LEVEL = 'A2';   // every daily theme is written at A2 (ar_daily_theme.level)
 
-function roomOut(r: Room, works: Work[], extra: { count?: number; preview?: string[] } = {}) {
+function roomOut(r: Room, works: Work[], extra: { count?: number; preview?: string[]; cover?: string | null } = {}) {
   const entries = r.layout === 'daily' ? [] : entriesOf(works);
   return {
     id: r.id, title: r.title, titleAr: r.titleAr, tagline: r.tagline, color: r.color, icon: r.icon, layout: r.layout,
     count: extra.count ?? works.length,
     collections: entries.filter((e) => e.kind === 'collection').length,
     level: levelSpan(works.map((w) => w.level)),
-    preview: extra.preview ?? entries.slice(0, 3).map((e) => e.title),
+    preview: extra.preview ?? entries.slice(0, 3).map((e) => e.title), cover: extra.cover ?? null,
   };
+}
+
+
+/// The illustrated story books (owner, 2026-10-31: an "Illustrated stories" tile beside Everyday): every work that has
+/// story-book rows (ar_storybook, migration 0079), with its title, how many stories it holds, how many are fully
+/// authored, and its first finished picture. The list grows when a new book gets rows.
+const BOOK_WORDS = {
+  id: 'storybooks', title: 'Illustrated stories', titleAr: 'قِصَصٌ مُصَوَّرَةٌ', tagline: 'Stories told page by page, with pictures, in Arabic you can follow',
+  color: '#D9A441', icon: 'books.vertical.fill', layout: 'storybooks',
+  stories: (n: number) => `${n} stor${n === 1 ? 'y' : 'ies'}`, authored: (n: number) => `${n} fully illustrated`, books: (n: number) => `${n} book${n === 1 ? '' : 's'}`,
+};
+async function storyBooks(env: ArabicEnv) {
+  const rows = await query<{ work: string; stories: number; authored: number; cover: string | null; title_ar: string | null; title_en: string | null }>(env.DB_AR,
+    `SELECT s.acq_ref_id AS work,
+            SUM(CASE WHEN s.kind <> 'bab' THEN 1 ELSE 0 END) AS stories,
+            SUM(CASE WHEN s.kind <> 'bab' AND s.authored = 1 THEN 1 ELSE 0 END) AS authored,
+            COALESCE((SELECT p.picture_key FROM ar_storybook_page p JOIN ar_storybook st ON st.id = p.story_id
+                       WHERE st.acq_ref_id = s.acq_ref_id AND p.picture_key IS NOT NULL AND p.placeholder = 0 ORDER BY st.seq, p.no LIMIT 1),
+                     (SELECT c.cover_key FROM ar_storybook c WHERE c.acq_ref_id = s.acq_ref_id AND c.cover_key IS NOT NULL ORDER BY c.seq LIMIT 1)) AS cover,
+            (SELECT r.title_ar FROM ar_acquisition_ref r WHERE r.id = s.acq_ref_id) AS title_ar,
+            (SELECT r.title_en FROM ar_acquisition_ref r WHERE r.id = s.acq_ref_id) AS title_en
+       FROM ar_storybook s GROUP BY s.acq_ref_id ORDER BY MIN(s.seq)`).catch(() => []);
+  return rows.filter((r) => r.stories > 0).map((r) => ({
+    kind: 'storybook', id: r.work, title: r.title_en ?? r.title_ar ?? r.work, titleAr: r.title_ar, subtitle: null, count: r.stories,
+    cover: r.cover ? `/api/ar/audio/${r.cover}` : null, caption: [BOOK_WORDS.stories(r.stories), r.authored ? BOOK_WORDS.authored(r.authored) : null].filter(Boolean).join(' · '),
+  }));
 }
 
 export function roomRoutes(router: Router<ArabicEnv>) {
   // The home: the levels (with how much each holds), and the rooms at this level.
   router.get('/ar/atlas/home', async (req, env) => {
     const band = parseBand(new URL(req.url).searchParams.get('level'));
-    const [works, rooms, domains, pool] = await Promise.all([
+    const [works, rooms, domains, pool, books, covers] = await Promise.all([
       loadWorks(env), loadRooms(env), dailyDomains(env),
-      query<{ band: string; n: number }>(env.DB_AR, `SELECT band, COUNT(*) AS n FROM ar_practice_pool GROUP BY band`)]);
+      query<{ band: string; n: number }>(env.DB_AR, `SELECT band, COUNT(*) AS n FROM ar_practice_pool GROUP BY band`),
+      storyBooks(env),
+      query<{ image_key: string | null }>(env.DB_AR, `SELECT image_key FROM ar_map WHERE image_key IS NOT NULL ORDER BY sort_order LIMIT 1`)]);
     const shown = works.filter((w) => inBand(band, w.level));
     const byRoom = assign(shown, rooms);
     const dailyOn = inBand(band, DAILY_LEVEL);
@@ -195,9 +223,13 @@ export function roomRoutes(router: Router<ArabicEnv>) {
       rooms: rooms
         .map((r) => r.layout === 'daily'
           ? roomOut(r, [], { count: dailyOn ? domains.filter((d) => d.themes + d.readings > 0).length : 0,
-                             preview: dailyOn ? domains.filter((d) => d.themes + d.readings > 0).slice(0, 3).map((d) => d.title) : [] })
+                             preview: dailyOn ? domains.filter((d) => d.themes + d.readings > 0).slice(0, 3).map((d) => d.title) : [],
+                             cover: covers[0]?.image_key ? `/api/ar/audio/${covers[0].image_key}` : null })
           : roomOut(r, byRoom.get(r.id) ?? []))
-        .filter((r) => r.count > 0),
+        .filter((r) => r.count > 0)
+        .concat(books.length ? [{ id: BOOK_WORDS.id, title: BOOK_WORDS.title, titleAr: BOOK_WORDS.titleAr, tagline: BOOK_WORDS.tagline, color: BOOK_WORDS.color,
+                                  icon: BOOK_WORDS.icon, layout: BOOK_WORDS.layout, count: books.length, collections: 0, level: null,
+                                  preview: books.slice(0, 3).map((b) => b.titleAr ?? b.title), cover: books[0]!.cover }] : []),
       stats: {
         works: shown.length,
         pages: shown.reduce((n, w) => n + (w.pages ?? 0), 0),
@@ -213,6 +245,14 @@ export function roomRoutes(router: Router<ArabicEnv>) {
     const url = new URL(req.url);
     const band = parseBand(url.searchParams.get('level'));
     const id = url.searchParams.get('id') ?? '';
+    if (id === BOOK_WORDS.id) {
+      const books = await storyBooks(env);
+      if (!books.length) return notFound(`room ${id}`);
+      return ok({ room: { id: BOOK_WORDS.id, title: BOOK_WORDS.title, titleAr: BOOK_WORDS.titleAr, tagline: BOOK_WORDS.tagline, color: BOOK_WORDS.color,
+                          icon: BOOK_WORDS.icon, layout: BOOK_WORDS.layout, count: books.length, collections: 0, level: null,
+                          preview: books.slice(0, 3).map((b) => b.titleAr ?? b.title), cover: books[0]!.cover },
+                  entries: books, centuries: [] });
+    }
     const rooms = await loadRooms(env);
     const room = rooms.find((r) => r.id === id);
     if (!room) return notFound(`room ${id}`);
@@ -223,16 +263,23 @@ export function roomRoutes(router: Router<ArabicEnv>) {
         `SELECT m.slug, m.title, m.title_ar, m.era, m.blurb, m.image_key, m.districts_json,
                 (SELECT p.slug FROM ar_map p WHERE p.id = m.parent_id) AS parent
            FROM ar_map m ORDER BY m.sort_order`);
-      // every map is a world (lib/everyday-world): its places laid down a winding trail from their district and
-      // stop, its sub-maps waiting at the trail's end; the room itself is a world of the top-level maps
+      // every map is a world (lib/everyday-world): its own painted picture with each place standing where it belongs on
+      // it (the owner's board positions, markers kept apart), its sub-maps along the bottom edge; the room itself is a
+      // world of the top-level maps
       const placesOf = (slug: string) => domains.filter((d) => d.map_slug === slug);
       const worlds = new Map(rows.map((m) => {
         let districts: WorldDistrict[] = [];
         try { districts = JSON.parse(m.districts_json); } catch { districts = []; }
         const subs = rows.filter((r) => r.parent === m.slug).map((r) => r.slug);
-        return [m.slug, mapWorld(m.slug, m.era, !!m.image_key, districts,
-                                 placesOf(m.slug).map((d) => ({ id: d.slug, district: d.district, stop: d.map_order })), subs)];
+        const own = placesOf(m.slug).map((d) => ({ id: d.slug, district: d.district, stop: d.map_order, x: d.map_x, y: d.map_y }));
+        // a map with a painted picture is that picture, its places standing where they belong on it; one without is a trail
+        return [m.slug, m.image_key ? pictureWorld(m.slug, m.era, districts, own, subs) : mapWorld(m.slug, m.era, false, districts, own, subs)];
       }));
+      // the atlas's own rows (ar_map_node, one recursive tree): which worlds and places open as that tree's canvas
+      const nodeRows = await query<{ id: string; kind: string | null; domain: string | null }>(env.DB_AR,
+        `SELECT id, kind, domain FROM ar_map_node WHERE type = 'stop' AND (parent_id IS NULL OR kind = 'place')`).catch(() => []);
+      const worldNode = new Set(nodeRows.filter((n) => n.kind === 'world').map((n) => n.id));
+      const placeNode = new Map(nodeRows.filter((n) => n.kind === 'place' && n.domain).map((n) => [n.domain!, n.id]));
       const atlas = atlasWorld(rows.filter((m) => !m.parent).map((m) => m.slug));
       const isOpen = (d: { themes: number; readings: number }) => d.themes + d.readings > 0;
       const progress = (open: number, all: number) => ({ open, all, label: `${WORLD_WORDS.explored} ${open} / ${all}` });
@@ -246,7 +293,8 @@ export function roomRoutes(router: Router<ArabicEnv>) {
                    open: isOpen(d), state: isOpen(d) ? 'open' : 'locked',
                    caption: isOpen(d) ? [d.readings > 0 ? WORLD_WORDS.reading(d.readings) : null, d.words > 0 ? WORLD_WORDS.words(d.words) : null]
                                           .filter(Boolean).join(' · ') : WORLD_WORDS.soon,
-                   district: d.district, x: spot?.x ?? d.map_x, y: spot?.y ?? d.map_y, map: d.map_slug, level: DAILY_LEVEL };
+                   district: d.district, x: spot?.x ?? d.map_x, y: spot?.y ?? d.map_y, map: d.map_slug, level: DAILY_LEVEL,
+                   node: placeNode.get(d.slug) ?? `domain:${d.slug}` };
         }),
         // the atlas: every era's map (ar_map), each a world, standing on its parent's world (or the room's) at x, y
         maps: rows.map((m) => {
@@ -255,7 +303,7 @@ export function roomRoutes(router: Router<ArabicEnv>) {
           const at = m.parent ? worlds.get(m.parent)?.spots.get(m.slug) : atlas.spots.get(m.slug);
           return { slug: m.slug, title: m.title, titleAr: m.title_ar, era: m.era, eraLabel: WORLD_WORDS.eras[m.era] ?? m.era,
                    blurb: m.blurb, parent: m.parent, image: m.image_key ? `/api/ar/audio/${m.image_key}` : null,
-                   ...worldOut(world), x: at?.x ?? null, y: at?.y ?? null,
+                   ...worldOut(world), x: at?.x ?? null, y: at?.y ?? null, atlasNode: worldNode.has(`MAP:${m.slug}`) ? `MAP:${m.slug}` : null,
                    districts: world.bands, progress: progress(open, own.length),
                    caption: WORLD_WORDS.placesOpen(open, own.length), state: own.length === 0 ? 'locked' : 'open' };
         }),

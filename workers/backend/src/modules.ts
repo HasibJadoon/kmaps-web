@@ -73,7 +73,7 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     // Drills are the reader's own: practice rounds, a scene's drill, a unit's check, placement.
     privateGetPaths: [/^ar\/practice(\/|\?|$)/, /^ar\/drill(\/|\?|$)/, /^ar\/scenes\/[^/?]+\/[^/?]+\/practice(\/|\?|$)/,
                       /^ar\/path\/(placement|unit\/[^/?]+\/check)(\/|\?|$)/],
-    publicGetPaths: ['ar/corpus-version', 'ar/atlas/home', 'ar/atlas/room', 'ar/atlas/collection', 'ar/atlas/search', 'ar/scenes', 'ar/path', 'ar/grammar', 'ar/acq', 'ar/text', 'ar/audio', 'ar/vendor-stream', 'ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons', 'ar/daily/themes', 'ar/daily/domains', 'ar/daily/readings'],
+    publicGetPaths: ['ar/corpus-version', 'ar/atlas/home', 'ar/atlas/room', 'ar/map', 'ar/vocab', 'ar/atlas/collection', 'ar/atlas/search', 'ar/scenes', 'ar/path', 'ar/grammar', 'ar/acq', 'ar/text', 'ar/audio', 'ar/vendor-stream', 'ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons', 'ar/daily/themes', 'ar/daily/domains', 'ar/daily/readings'],
   },
   al:   { binding: 'AR_LINGUISTICS', publicGet: true, adminWrites: true },
   cm:   {
