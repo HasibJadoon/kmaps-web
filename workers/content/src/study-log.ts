@@ -8,6 +8,7 @@ import type { Study } from './repositories/study.repo';
 /// The page is the study's `meta_json.log.stages`, in order. Each stage names
 /// its sources and this file fills them from the rows that already exist:
 ///   passage   the text itself (the app opens its passage study)
+///   brainstorm the study's brainstorm board (meta_json.brainstorm), one row that opens it
 ///   step      a study step — the shared deck, or each person's own, with
 ///             how far each has got
 ///   notes     cm_notes tied to the passage (cm_note_targets.target_ref =
@@ -22,7 +23,7 @@ import type { Study } from './repositories/study.repo';
 /// app: titles, icons, colours and words are all here or in the study row.
 
 export interface LogSource {
-  kind: 'passage' | 'step' | 'steps' | 'notes' | 'episodes' | 'takes' | 'links' | 'terms' | 'docs' | 'record' | 'publish';
+  kind: 'passage' | 'step' | 'steps' | 'notes' | 'episodes' | 'takes' | 'links' | 'terms' | 'docs' | 'record' | 'publish' | 'brainstorm';
   key?: string;
   relation?: string;
   /** The section these rows sit under, in a folder. */
@@ -56,7 +57,7 @@ export interface LogItem {
   /** done · open · todo — for a person's step, a take, a seed used or not. */
   state: string | null;
   /** What a tap opens: passage · deck (ref = slug) · note (ref = note id) · episode (ref = id) ·
-   *  essay (ref = slug) · path / atlas / practice (ref = the passage unit, QR:SP:40:1-3). */
+   *  essay (ref = slug) · path / atlas / practice (ref = the passage unit, QR:SP:40:1-3) · brainstorm (ref = the study). */
   open: { type: string; ref: string | null } | null;
   /** More ways in, as small buttons on the row (a key term: Read · Study · Story). */
   links?: Array<{ label: string; open: { type: string; ref: string } }>;
@@ -336,6 +337,12 @@ export async function buildLog(
             icon: d.doc_type === 'deck' ? 'rectangle.stack' : 'doc.richtext', who: null, color: null, date: null,
             state: null, open: o });
         }
+      }
+      if (src.kind === 'brainstorm') {
+        const b = raw['brainstorm'] as { title?: string; title_ar?: string; hint?: string; icon?: string } | undefined;
+        if (b) items.push({ kind: 'brainstorm', title: b.title ?? 'Brainstorm', title_ar: b.title_ar ?? null, subtitle: b.hint ?? null,
+          icon: b.icon ?? 'note.text', who: null, color: null, date: null, state: null,
+          open: { type: 'brainstorm', ref: study.doc_id } });
       }
       if (src.kind === 'takes') {
         for (const ep of episodes) {

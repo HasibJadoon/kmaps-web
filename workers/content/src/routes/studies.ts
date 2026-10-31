@@ -3,7 +3,8 @@ import { badRequest, notFound, ok, unauthorized } from '../../../shared/src/resp
 import { actorRef } from '../../../shared/src/auth';
 import type { ContentEnv } from '../env';
 import { StudyRepo } from '../repositories/study.repo';
-import { queryOne } from '../../../shared/src/db';
+import { execute, queryOne } from '../../../shared/src/db';
+import { buildBoard, CLAUDE } from '../brainstorm';
 import { buildLog, type EpisodeDigest } from '../study-log';
 
 // Studies: a passage worked through in steps, each step a deck. `?status=active`
@@ -101,6 +102,74 @@ export function studyRoutes(router: Router<ContentEnv>) {
     return note ? ok(note) : notFound(`note ${params.note}`);
   });
 
+  // The brainstorm board: the talking points as frames, everyone's questions and ideas as stickies on them.
+  router.get('/cm/studies/:id/brainstorm', async (req, env, params) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const repo = new StudyRepo(env.DB_CM);
+    const id = await repo.resolve(params.id);
+    if (!id || !(await repo.isMember(id, user))) return notFound(`study ${params.id}`);
+    const row = await queryOne<{ meta_json: string | null }>(env.DB_CM, `SELECT meta_json FROM cm_documents WHERE doc_id = ?`, [id]);
+    let raw: Record<string, unknown> = {};
+    try { raw = JSON.parse(row?.meta_json ?? '{}'); } catch { /* no board */ }
+    const board = await buildBoard(env.DB_CM, id, raw, user);
+    return board ? ok(board) : notFound(`brainstorm ${params.id}`);
+  });
+
+  // A sticky added to a frame — a question or an idea, signed by whoever adds it.
+  router.post('/cm/studies/:id/brainstorm/stickies', async (req, env, params) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const b = await req.json().catch(() => null) as Record<string, unknown> | null;
+    const text = String(b?.text ?? '').trim();
+    const point = String(b?.point ?? '');
+    const kind = b?.kind === 'idea' ? 'idea' : 'question';
+    if (!text || !point || text.length > 600) return badRequest('point and text (up to 600 characters) required');
+    const repo = new StudyRepo(env.DB_CM);
+    const id = await repo.resolve(params.id);
+    if (!id || !(await repo.isMember(id, user))) return notFound(`study ${params.id}`);
+    const sticky = `STK:${crypto.randomUUID()}`;
+    await execute(env.DB_CM,
+      `INSERT INTO cm_study_sticky (sticky_id, study_id, point_key, author_ref, kind, text, seq)
+       VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM cm_study_sticky WHERE study_id = ? AND point_key = ?))`,
+      [sticky, id, point, user, kind, text, id, point]);
+    await announce(env, id);
+    return ok({ id: sticky });
+  });
+
+  // Your own sticky taken off the board (Claude's and the decks' stay).
+  router.delete('/cm/studies/:id/brainstorm/stickies/:sticky', async (req, env, params) => {
+    const user = actorRef(req);
+    if (!user || user === CLAUDE) return unauthorized('Authenticated user required');
+    const repo = new StudyRepo(env.DB_CM);
+    const id = await repo.resolve(params.id);
+    if (!id || !(await repo.isMember(id, user))) return notFound(`study ${params.id}`);
+    await execute(env.DB_CM,
+      `UPDATE cm_study_sticky SET deleted_at = datetime('now'), updated_at = datetime('now')
+        WHERE sticky_id = ? AND study_id = ? AND author_ref = ?`, [params.sticky, id, user]);
+    await announce(env, id);
+    return ok({ ok: true });
+  });
+
+  // A dot on a sticky, or taken back.
+  router.post('/cm/studies/:id/brainstorm/votes', async (req, env, params) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const b = await req.json().catch(() => null) as Record<string, unknown> | null;
+    const sticky = String(b?.sticky ?? '');
+    if (!sticky) return badRequest('sticky required');
+    const repo = new StudyRepo(env.DB_CM);
+    const id = await repo.resolve(params.id);
+    if (!id || !(await repo.isMember(id, user))) return notFound(`study ${params.id}`);
+    const gone = await execute(env.DB_CM,
+      `DELETE FROM cm_study_sticky_vote WHERE study_id = ? AND sticky_ref = ? AND user_ref = ?`, [id, sticky, user]);
+    if (!gone.meta.changes) {
+      await execute(env.DB_CM, `INSERT INTO cm_study_sticky_vote (study_id, sticky_ref, user_ref) VALUES (?, ?, ?)`, [id, sticky, user]);
+    }
+    await announce(env, id);
+    return ok({ voted: !gone.meta.changes });
+  });
+
   // The study's live room: both of you on the passage page together.
   router.get('/cm/studies/:id/live', async (req, env, params) => {
     if (req.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return badRequest('WebSocket upgrade required');
@@ -119,4 +188,12 @@ export function studyRoutes(router: Router<ContentEnv>) {
     headers.set('X-KM-Color', me.color ?? '');
     return env.STUDY_ROOM.get(env.STUDY_ROOM.idFromName(id)).fetch(new Request(req.url, { headers }));
   });
+}
+
+/// Every open page of the study loads again at once (the room's own check catches anything missed).
+async function announce(env: ContentEnv, id: string): Promise<void> {
+  if (!env.STUDY_ROOM) return;
+  try {
+    await env.STUDY_ROOM.get(env.STUDY_ROOM.idFromName(id)).fetch(new Request('https://study-room/changed', { method: 'POST' }));
+  } catch { /* the room's own check catches it */ }
 }
