@@ -37,7 +37,8 @@ export interface SprintBacklog {
 export interface SprintLine {
   /** Its mark beside the Arabic (﴿١﴾ for an āyah), when it has one. */
   mark: string | null;
-  ar: string;
+  /** Its Arabic, when it has any (a Worldview position is often English alone). */
+  ar: string | null;
   en: string | null;
   audio: { url: string; start: number; end: number } | null;
 }

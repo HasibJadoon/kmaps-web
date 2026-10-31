@@ -1,3 +1,4 @@
+import { sprintRoutes } from './routes/sprint';
 import { withCache } from './cache';
 import { Router } from '../../shared/src/router';
 import { dbHealth } from '../../shared/src/http';
@@ -50,6 +51,7 @@ router.get('/wv/health', async (_req, env) =>
 );
 
 countsRoutes(router);
+sprintRoutes(router);
 audioRoutes(router);
 
 traditionRoutes(router);
