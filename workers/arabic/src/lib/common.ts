@@ -1,5 +1,6 @@
 import { query } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // Words the drills never ask about (ar_common_word, migration 0014): function
 // words, and every form of a noun or verb the Qurʾān uses often. Only the
@@ -16,7 +17,7 @@ let memo: { at: number; map: Common } | null = null;
 
 export async function commonWords(env: ArabicEnv): Promise<Common> {
   if (memo && Date.now() - memo.at < 3_600_000) return memo.map;
-  const rows = await query<{ bare: string; kind: string }>(env.DB_AR, `SELECT bare, kind FROM ar_common_word`).catch(() => []);
+  const rows = await query<{ bare: string; kind: string }>(env.DB_AR, `SELECT bare, kind FROM ar_common_word`).catch(softFail([]));
   memo = { at: Date.now(), map: new Map(rows.map((r) => [r.bare, r.kind])) };
   return memo.map;
 }

@@ -6,6 +6,7 @@ import type { CoreEnv } from '../env';
 import { importPack } from '../bank/import';
 import type { PackDoc } from '../bank/types';
 import { pathWords } from './apps';
+import { shuffle } from '../../../shared/src/collections';
 
 async function isOwner(env: CoreEnv, ctx: { userId: string; isAdmin: boolean }): Promise<boolean> {
   if (ctx.isAdmin) return true;
@@ -41,14 +42,6 @@ export function bankRoutes(router: Router<CoreEnv>): void {
     return { ...rest, response_public: publicResponse(raw, row['interaction']) };
   };
 
-  const shuffle = <T,>(rows: T[]): T[] => {
-    const out = [...rows];
-    for (let i = out.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [out[i], out[j]] = [out[j], out[i]];
-    }
-    return out;
-  };
 
   router.get('/core/bank/packs', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);

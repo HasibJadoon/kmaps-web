@@ -29,6 +29,7 @@ import { audioRoutes }       from './routes/audio';
 import { arcRoutes }         from './routes/arcs';
 import { practiceRoutes }    from './routes/practice';
 import { atlasRoutes }       from './routes/atlas';
+import { landingAtlasRoutes } from './routes/landing-atlas';
 import { intakeRoutes }      from './routes/intake';
 import { debateRoutes }      from './routes/debates';
 import { intakePipelineRoutes } from '../../shared/src/intake-pipeline';
@@ -70,6 +71,7 @@ sourceRoutes(router);
 arcRoutes(router);
 practiceRoutes(router);
 atlasRoutes(router);
+landingAtlasRoutes(router);
 intakeRoutes(router);
 debateRoutes(router);
 

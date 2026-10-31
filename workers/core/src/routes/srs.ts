@@ -10,7 +10,7 @@ import { readJsonObject } from '../../../shared/src/validate';
 import type { CoreEnv } from '../env';
 import {
   SrsRepo, DEFAULT_NEW_PER_DAY, DEFAULT_REVIEW_PER_DAY,
-  type SrsCard, type SrsDeck,
+  type SrsCard, type SrsDeck, type CardInsert,
 } from '../repositories/srs.repo';
 import {
   grade as gradeCard, previewDays, retrievabilityOf, evaluate, optimize,
@@ -21,6 +21,7 @@ import type { FSRSParameters } from 'ts-fsrs';
 import { storedOf } from '../srs/stored-params';
 import { fileLearnt } from './drill-class';
 import { answerCard } from '../srs/answer';
+import { parseJson as parseJsonOr } from '../../../shared/src/collections';
 import {
   MODULES, RESOURCE_TYPES, CONCEPT_DOMAINS, domainOfModule, introOf, deckForModule, fileCards,
 } from '../srs/file-cards';
@@ -31,10 +32,7 @@ const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : und
  *  The routes that made flip cards (the library's take / enroll / submit, the Anki and TSV imports) answer this. */
 const flipRetired = () => err('flip_retired', 'Flip cards are retired: review holds drills only, filed from the lessons they were practised in.', 410);
 
-function parseJson(raw: string | null): unknown {
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
+const parseJson = (raw: string | null): unknown => parseJsonOr<unknown>(raw, null);
 
 async function rootSpread(
   env: CoreEnv, root: string,
@@ -300,22 +298,25 @@ export function srsRoutes(router: Router<CoreEnv>) {
       'SELECT card_template FROM core_srs_card WHERE user_ref = ?', [ctx.userId]);
     const taken = new Set(held.map((h) => h.card_template));
 
-    let added = 0;
+    // only drills are copied (review holds nothing else); one deck lookup per module, then the
+    // inserts go in batches instead of ~4 sequential D1 calls per card
+    const decks = new Map<string, string>();
+    const rows: CardInsert[] = [];
     for (const c of cards) {
-      // only drills are copied: review holds nothing else
       if (!c.extra_json || !c.extra_json.includes('"drill"')) continue;
       const origin = c.card_template && c.card_template !== 'freeform' ? c.card_template : c.id;
       if (taken.has(origin)) continue;
-      const { inserted } = await repo.insertCard({
-        deck_id: await deckForModule(env, ctx.userId, c.module),
+      if (!decks.has(c.module)) decks.set(c.module, await deckForModule(env, ctx.userId, c.module));
+      rows.push({
+        deck_id: decks.get(c.module)!,
         user_ref: ctx.userId,
         module: c.module, resource_type: c.resource_type, resource_ref: c.resource_ref,
         card_template: origin, front_text: c.front_text, back_text: c.back_text,
         extra_json: c.extra_json, tags: c.tags,
       });
       taken.add(origin);
-      if (inserted) added += 1;
     }
+    const added = rows.length ? await repo.insertCards(rows) : 0;
     return created({ added, skipped: cards.length - added });
   });
 

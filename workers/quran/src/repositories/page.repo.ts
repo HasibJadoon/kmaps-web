@@ -8,6 +8,7 @@ import {
   type QrPageSurah,
   type QrPageWord,
 } from '../schemas/page.schema';
+import { softFail } from '../../../shared/src/soft-fail';
 
 const BISMILLAH_ARABIC = 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ';
 const BISMILLAH_CLEAN  = 'بسم الله الرحمن الرحيم';
@@ -88,7 +89,7 @@ export class PageRepo {
          WHERE a.page_number = ?
          ORDER BY w.surah, w.ayah, w.word_position`,
         [pageNo],
-      ).catch(() => []),
+      ).catch(softFail([])),
       query<PageSurah>(
         this.db,
         `SELECT id, name_ar, name_en, name_transliteration,
@@ -97,7 +98,7 @@ export class PageRepo {
          WHERE id IN (${surahPh})
          ORDER BY id`,
         surahIds,
-      ).catch(() => []),
+      ).catch(softFail([])),
       query<LayoutLineRow>(
         this.db,
 
@@ -119,11 +120,11 @@ export class PageRepo {
          WHERE page_number = ? AND layout_key = ?
          ORDER BY line_number`,
         [pageNo, QPC_LAYOUT_KEY],
-      ).catch(() => []),
+      ).catch(softFail([])),
       queryOne<{ id: string }>(
         this.db,
         `SELECT id FROM qr_translation_source WHERE is_default = 1 LIMIT 1`,
-      ).catch(() => null),
+      ).catch(softFail(null)),
     ]);
 
     const translations = defaultSrc
@@ -135,7 +136,7 @@ export class PageRepo {
            WHERE a.page_number = ? AND t.source_id = ?
            ORDER BY t.surah, t.ayah`,
           [pageNo, defaultSrc.id],
-        ).catch(() => [])
+        ).catch(softFail([]))
       : [];
 
     const wordsByVerse = new Map<string, PageWord[]>();

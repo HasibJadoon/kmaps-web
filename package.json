@@ -10,7 +10,9 @@
     "typecheck:workers": "for w in core ar-linguistics studio content worldview quran arabic backend; do npx tsc --noEmit -p workers/$w/tsconfig.json || exit 1; done",
     "deploy:pages": "npm run build -w apps/k-maps && npx wrangler pages deploy apps/k-maps/dist/k-maps/browser --project-name k-maps --branch main",
     "deploy:all": "bash scripts/deploy-workers.sh && npm run deploy:pages",
-    "deploy:workers": "bash scripts/deploy-workers.sh"
+    "deploy:workers": "bash scripts/deploy-workers.sh",
+    "test:app": "npm run test -w apps/k-maps",
+    "check:fonts": "node scripts/check-fonts.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",

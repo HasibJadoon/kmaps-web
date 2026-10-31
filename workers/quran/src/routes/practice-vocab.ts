@@ -1,7 +1,8 @@
 import { query } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import type { Label } from '../lib/labels';
-import { loadAyat, withCard, levelOf, shuffle, uniq, parseJson, type Ayah, type Drill, type Scope } from './practice-kit';
+import { loadAyat, withCard, levelOf, shuffle, uniq, parseJson, type Ayah, type Drill, type Scope, fold } from './practice-kit';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // ── Surah vocabulary (QR skill 'vocab') ──────────────────────────────────────
 // A surah's words, lemma by lemma, each drilled in its āyah (the word marked, al-ʿAfāsī's recitation)
@@ -66,8 +67,6 @@ const LEVEL_ASKS: Record<string, string[]> = { basic: ['vocab_root', 'vocab_lemm
   middle: ['vocab_family', 'vocab_kin', 'vocab_form', 'vocab_who'], advanced: ['vocab_range', 'vocab_same', 'vocab_rung', 'vocab_books'] };
 const L3 = new Set(LEVEL_ASKS.advanced.filter((a) => a !== 'vocab_books'));
 
-const fold = (w: string | null | undefined) => (w ?? '').replace(/[ؐ-ًؚ-ٰٟۖ-ۭـ]/g, '')
-  .replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[^ء-ي]/g, '');
 const spaced = (r: string) => fold(r).replace(/\s+/g, ''); // a root is shown joined (نزل), never ن ز ل
 const shared = (a: string, b: string) => { const x = [...fold(a)]; return [...fold(b)].filter((c, i) => x[i] === c).length; };
 const key = (x: { surah: number; ayah: number; word_index: number }) => `${x.surah}:${x.ayah}:${x.word_index}`;
@@ -163,7 +162,7 @@ export async function vocabDrills(env: QuranEnv, n: number, scope: Scope, lv: Re
         WHERE g.role = 'primary' AND ${g.sql} ${scope.surah === null ? 'AND (g.surah * 7 + g.ayah) % 23 = ?' : ''} LIMIT 3000`,
       scope.surah === null ? [...g.args, Math.floor(Math.random() * 23)] : g.args),
     query<Core>(env.DB_QR, `SELECT root, source_slug, text_ar, text_en, citation FROM qr_vocab_root_core WHERE root IN (SELECT value FROM json_each(?))`,
-      [JSON.stringify(roots)]).catch(() => [] as Core[]),
+      [JSON.stringify(roots)]).catch(softFail([] as Core[])),
   ]);
   const glossOf = new Map<string, Gloss[]>();
   for (const x of glossRows) glossOf.set(key(x), [...(glossOf.get(key(x)) ?? []), x]);

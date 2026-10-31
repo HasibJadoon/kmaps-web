@@ -2,6 +2,7 @@ import type { Router } from '../../../shared/src/router';
 import { ok, badRequest, notFound } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
 import type { QuranEnv } from '../env';
+import { withIraabBlockLabels } from '../lib/display-labels';
 
 type BlockRow = {
   id: string;
@@ -72,7 +73,7 @@ function hydrateBlock(r: BlockRow) {
     quran_refs_json, backlinks_json, related_links_json,
     external_resource_json, meta_json, ...rest
   } = r;
-  return {
+  return withIraabBlockLabels({
     ...rest,
     ayah_keys: parseArr<string>(ayah_keys_json),
     tags: parseArr<string>(tags_json),
@@ -84,7 +85,7 @@ function hydrateBlock(r: BlockRow) {
     related_links: parseArr(related_links_json),
     external_resource: parseOrNull(external_resource_json),
     meta: parseObj(meta_json),
-  };
+  });
 }
 
 export function iraabDisplayRoutes(router: Router<QuranEnv>) {

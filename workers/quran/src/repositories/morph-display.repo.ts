@@ -1,6 +1,17 @@
 import { query, queryOne } from '../../../shared/src/db';
 import { buildFeats, cardFeats, gtIdsOf, readingSourceSlugs, readingsOf, registryFeats, rangeOf, shapeReadings, waznOf, type GtRow, type SourceLabel, type TermLabel } from '../lib/morph-card';
 import type { AlClient, ResolvedLemma } from '../clients/al.client';
+import { softFail } from '../../../shared/src/soft-fail';
+
+/** Register filter chips on the word page: the label each register shows, in reading order. */
+const REGISTER_LABEL: Record<string, string> = {
+  quran: 'Qurʾān', classical: 'Classical', msa: 'MSA',
+  linguistic: 'Linguistic', modern: 'Modern', tafsir: 'Tafsīr',
+};
+const REGISTER_ORDER = Object.keys(REGISTER_LABEL);
+const registerOptions = (regs: string[]) => [...regs]
+  .sort((a, b) => (REGISTER_ORDER.indexOf(a) + 1 || 99) - (REGISTER_ORDER.indexOf(b) + 1 || 99))
+  .map((key) => ({ key, label: REGISTER_LABEL[key] ?? key }));
 
 function hydrate(v: unknown): unknown {
   if (v == null) return null;
@@ -92,7 +103,7 @@ export class MorphDisplayRepo {
         WHERE status = 'live' AND root_ar = ?
         ORDER BY display_order`,
       [w.root_ar ?? ''],
-    ).catch(() => [] as BlockRow[]);
+    ).catch(softFail([] as BlockRow[]));
 
     const slugs = [...new Set(blocks.map(b => b.source_slug).filter(Boolean))] as string[];
     let sources: SourceRow[] = [];
@@ -104,7 +115,7 @@ export class MorphDisplayRepo {
                 death_year_hijri, register, badge_color, badge_glyph, display_order
            FROM qr_morph_display_source WHERE source_slug IN (${sph}) AND is_visible = 1`,
         slugs,
-      ).catch(() => []);
+      ).catch(softFail([]));
     }
 
     const sibs = await query<{ ayah_no: number; word_index: number; surface_ar: string }>(
@@ -113,7 +124,7 @@ export class MorphDisplayRepo {
         WHERE surah_no = ? AND is_promoted = 1 AND status = 'live'
         ORDER BY ayah_no, word_index`,
       [surah],
-    ).catch(() => []);
+    ).catch(softFail([]));
     const idx = sibs.findIndex(s => s.ayah_no === ayah && s.word_index === wordIndex);
     const mkNav = (s: { ayah_no: number; word_index: number; surface_ar: string } | undefined) =>
       s ? { surah, ayah: s.ayah_no, word_index: s.word_index, surface_ar: s.surface_ar } : null;
@@ -185,6 +196,7 @@ export class MorphDisplayRepo {
         importance: w.importance, difficulty: w.difficulty, frequency_quran: w.frequency_quran,
       },
       registers_available: regsAvail,
+      register_options: registerOptions(regsAvail),
       blocks: coreBlocks,
       contexts,
       sources: Object.fromEntries(sources.map(s => [s.source_slug, {
@@ -243,7 +255,7 @@ export class MorphDisplayRepo {
         WHERE d.surah_no = ? AND d.is_promoted = 1 AND d.status = 'live'${range}
         ORDER BY d.ayah_no, d.word_index`,
       args,
-    ).catch(() => [] as GridRow[]);
+    ).catch(softFail([] as GridRow[]));
 
     const [lemmas, terms, sources] = await Promise.all([
       this.resolveLemmaTier(rows.map(r => r.lemma_uid)),
@@ -320,7 +332,7 @@ export class MorphDisplayRepo {
          FROM qr_morph_display_source
         WHERE source_slug IN (${uniq.map(() => '?').join(',')})`,
       uniq,
-    ).catch(() => []);
+    ).catch(softFail([]));
     return Object.fromEntries(rows.map(r => [r.source_slug, r]));
   }
 

@@ -7,6 +7,8 @@ import { parseBand, bandOf, bare, type Band } from '../lib/levels';
 import { labels, byKey, badge, skillCard, instruct, srsCardFor, dropEmpty, dropRetired, type Label } from '../lib/labels';
 import { commonWords, isCommon } from '../lib/common';
 import { highEndOf } from '../lib/highend';
+import { softFail } from '../../../shared/src/soft-fail';
+import { shuffle } from '../../../shared/src/collections';
 
 // ── Scenes: watch, then practise in context ──────────────────────────────────
 // The scripted episodes (ar_text_unit.script_json: scenes of lines, each with
@@ -66,7 +68,6 @@ const range = ([a, b]: [number, number]) => Array.from({ length: b - a + 1 }, (_
 const audioUrl = (key: string | null) => (key ? `/api/ar/audio/${encodeURI(key)}` : null);
 /// A draw's chance: Math.random for a fresh round; a seeded one (seeded) for a class, so the same scene deals the same drills.
 export type Rand = () => number;
-const shuffle = <T,>(xs: T[], rand: Rand = Math.random) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 /// A generator seeded by a text (FNV-1a into mulberry32): the same text, the same sequence.
 export function seeded(text: string): Rand {
   let h = 2166136261;
@@ -335,7 +336,7 @@ async function lexemeDrills(env: ArabicEnv, unit: string, no: number, scene: Sce
   const mix = <U,>(xs: U[]) => shuffle(xs, rand);
   if (tier === 'easy') return [];                                     // idioms and key terms are the stretch, not the warm-up
   const hits = await query<LexHit>(env.DB_AR,
-    `SELECT line, span_from, span_to, ref, kind FROM ar_scene_lexeme WHERE unit_id = ? AND scene_no = ?`, [unit, no]).catch(() => []);
+    `SELECT line, span_from, span_to, ref, kind FROM ar_scene_lexeme WHERE unit_id = ? AND scene_no = ?`, [unit, no]).catch(softFail([]));
   if (!hits.length || !env.AR_LINGUISTICS) return [];
   const chosen = [...mix(hits.filter((h) => h.kind === 'verbal_idiom')).slice(0, 2), ...mix(hits.filter((h) => h.kind === 'keyterm')).slice(0, 1),
                   ...mix(hits.filter((h) => h.kind === 'near_synonym')).slice(0, 2)];
@@ -346,7 +347,7 @@ async function lexemeDrills(env: ArabicEnv, unit: string, no: number, scene: Sce
   const passages = await query<{ ref: string; kind: string; work_id: string | null; unit_id: string | null; title: string | null; level: string | null;
                                   text_ar: string; hit_from: number | null; hit_to: number | null; object_key: string | null; start_sec: number | null; end_sec: number | null }>(env.DB_AR,
     `SELECT ref, kind, work_id, unit_id, title, level, text_ar, hit_from, hit_to, object_key, start_sec, end_sec
-       FROM ar_lexeme_passage WHERE ref IN (${chosen.map(() => '?').join(',')}) ORDER BY ref, rank`, chosen.map((h) => h.ref)).catch(() => []);
+       FROM ar_lexeme_passage WHERE ref IN (${chosen.map(() => '?').join(',')}) ORDER BY ref, rank`, chosen.map((h) => h.ref)).catch(softFail([]));
   const ayah = async (ref: string | null) => {
     if (!ref || !env.QURAN) return null;
     const [s, a] = ref.split(':');
@@ -429,7 +430,7 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
     type Vocab = { line: number; word: string; gloss: string; distractors: string[]; note?: string; lemma?: string; tier?: string };
     const reads = await query<{ scene_no: number; vocab_json: string | null; gist_json: string | null;
                                 expressions_json: string | null; features_json: string | null }>(env.DB_AR,
-      `SELECT scene_no, vocab_json, gist_json, expressions_json, features_json FROM ar_scene_vocab WHERE unit_id = ?`, [unit]).catch(() => []);
+      `SELECT scene_no, vocab_json, gist_json, expressions_json, features_json FROM ar_scene_vocab WHERE unit_id = ?`, [unit]).catch(softFail([]));
     const parse = <T,>(j: string | null): T | null => { try { return j ? JSON.parse(j) as T : null; } catch { return null; } };
     const read = reads.find((r) => String(r.scene_no) === no);
     // only the higher-end words: never a function word, never one the Qurʾān uses often
@@ -476,7 +477,7 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
                   derivation: string | null; number: string | null; sarf_json: string | null };
       const sw = await query<SW>(env.DB_AR,
         `SELECT scene_no, line, word_index, surface, word_class, lemma_ar, derivation, number, sarf_json FROM ar_scene_word
-          WHERE unit_id = ? AND word_class IN ('verb', 'noun')`, [unit]).catch(() => []);
+          WHERE unit_id = ? AND word_class IN ('verb', 'noun')`, [unit]).catch(softFail([]));
       const pool = new Map<string, string[]>();
       for (const w of sw) {
         const c = bare(clean(w.surface));
@@ -505,7 +506,7 @@ export async function sceneRound(env: ArabicEnv, unit: string, no: string, tier:
       for (let i = 0; i < srcVerbs.length; i += 40) {
         const chunk = srcVerbs.slice(i, i + 40);
         const rows = await query<{ lemma_ar: string; sarf_json: string }>(env.DB_AR,
-          `SELECT lemma_ar, MAX(sarf_json) AS sarf_json FROM ar_scene_word WHERE word_class = 'verb' AND lemma_ar IN (${chunk.map(() => '?').join(',')}) GROUP BY lemma_ar`, chunk).catch(() => []);
+          `SELECT lemma_ar, MAX(sarf_json) AS sarf_json FROM ar_scene_word WHERE word_class = 'verb' AND lemma_ar IN (${chunk.map(() => '?').join(',')}) GROUP BY lemma_ar`, chunk).catch(softFail([]));
         for (const r of rows) { try { verbForms.set(r.lemma_ar, JSON.parse(r.sarf_json)); } catch { /* none */ } }
       }
       for (const x of sarfDrills(sw, no, scene, clip, L, source, rand, (c) => c.length < 3 || isName(c) || isCommon(common, c, false), verbForms as Map<string, never>)) items.push(x);

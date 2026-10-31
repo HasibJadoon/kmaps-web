@@ -7,6 +7,7 @@ import { StudyRepo } from '../repositories/study.repo';
 import { labels, byKey, card, type Label } from '../lib/labels';
 import { atlasUnits, mixedPassage, curatedRows, coversSurah, bookNames } from './atlas-layers';
 import { roomDestination } from './atlas-intro';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // ── The Qurʾān as an atlas ────────────────────────────────────────────────────
 // Laid out as the Arabic side is: rooms → surahs, grouped as series → passages as
@@ -208,7 +209,7 @@ async function passageSlice(env: QuranEnv, s: number, from: number, to: number,
   const unit = meta && !meta.derived ? grid?.units.find((x) => x.passage_no === (meta.curatedNo ?? meta.no)) : null;
   const has: Record<string, number> = unit ? builtOf(unit) : {};
   has.sarf = (await queryOne<{ n: number }>(env.DB_QR,
-    `SELECT COUNT(*) AS n FROM qr_sarf_word WHERE surah = ? AND ayah BETWEEN ? AND ?`, [s, from, to]).catch(() => null))?.n ?? 0;
+    `SELECT COUNT(*) AS n FROM qr_sarf_word WHERE surah = ? AND ayah BETWEEN ? AND ?`, [s, from, to]).catch(softFail(null)))?.n ?? 0;
   return {
     surah: s, from, to, passage: meta,
     ayat: ayat.map((a) => {

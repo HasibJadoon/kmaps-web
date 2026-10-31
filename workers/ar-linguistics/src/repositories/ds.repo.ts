@@ -10,6 +10,7 @@ import type {
 import type { DsSource } from '../../../shared/src/contracts/ds';
 import { RegistryRepo, type CarrierRows } from './registry.repo';
 import { SOURCES } from '../routes/arcs';
+import { softFail } from '../../../shared/src/soft-fail';
 
 type Row = Record<string, unknown>;
 type BookLink = { slug: string; blocks: Map<string, number | null>; quote: string | null; cites: number; refs: string[] };
@@ -475,7 +476,7 @@ export class DsRepo {
 
   private async bookNames(): Promise<Map<string, string>> {
     const rows = await query<{ slug: string; title_en: string | null }>(this.db,
-      `SELECT slug, title_en FROM ar_ling_source WHERE slug IS NOT NULL`).catch(() => []);
+      `SELECT slug, title_en FROM ar_ling_source WHERE slug IS NOT NULL`).catch(softFail([]));
     // "Jamharat al-lugha (Ibn Durayd)" → "Ibn Durayd"
     return new Map(rows.map((r) => [r.slug, r.title_en?.match(/\(([^)]+)\)\s*$/)?.[1] ?? r.title_en ?? r.slug]));
   }
@@ -486,10 +487,10 @@ export class DsRepo {
       query<{ source_slug: string; to_ref: string; page_no: number | null; quote_ar: string | null }>(this.db,
         `SELECT source_slug, to_ref, page_no, quote_ar FROM ar_ling_source_citation
           WHERE root_norm = ? AND to_kind = 'lexicon_block' AND status = 'live' AND source_slug IS NOT NULL
-          ORDER BY source_slug, page_no`, [root]).catch(() => []),
+          ORDER BY source_slug, page_no`, [root]).catch(softFail([])),
       query<{ source_slug: string; block_id: string | null; s: number; a: number }>(this.db,
         `SELECT source_slug, block_id, COALESCE(hafs_surah, surah) AS s, COALESCE(hafs_ayah, ayah) AS a
-           FROM ar_ling_lexicon_quran_ref WHERE root_norm = ? ORDER BY s, a`, [root]).catch(() => []),
+           FROM ar_ling_lexicon_quran_ref WHERE root_norm = ? ORDER BY s, a`, [root]).catch(softFail([])),
     ]);
     const by = new Map<string, BookLink>();
     const of = (slug: string) => by.get(slug) ?? (by.set(slug, { slug, blocks: new Map(), quote: null, cites: 0, refs: [] }), by.get(slug)!);

@@ -5,6 +5,7 @@ import { query, queryOne } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { labels, byKey, type Label } from '../lib/labels';
 import { sceneRound, seeded } from './scenes';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // ── The Class: an episode studied as one lesson (drill-engine plan 4.3) ───────
 // The same class as the Qurʾān's (quran/src/routes/practice-class.ts), over the Arabic path's units:
@@ -90,7 +91,7 @@ async function buildPool(env: ArabicEnv, node: Label, unit: string, no: number):
 async function keptPools(env: ArabicEnv, node: Label, unit: string, nos: number[], fresh = false): Promise<Map<number, Drill[]>> {
   const def = poolDef(node);
   const rows = fresh ? [] : await query<{ scene_no: number; def: string; items_json: string }>(env.DB_AR,
-    `SELECT scene_no, def, items_json FROM ar_class_pool WHERE unit_id = ?`, [unit]).catch(() => []);
+    `SELECT scene_no, def, items_json FROM ar_class_pool WHERE unit_id = ?`, [unit]).catch(softFail([]));
   const out = new Map<number, Drill[]>();
   for (const r of rows) if (r.def === def && nos.includes(r.scene_no)) { try { out.set(r.scene_no, JSON.parse(r.items_json)); } catch { /* rebuild */ } }
   const missing = nos.filter((n) => !out.has(n));
@@ -120,7 +121,7 @@ const sorts = (xs: Drill[]) => xs.reduce<Record<string, number>>((a, d) => { con
 async function keptCounts(env: ArabicEnv, node: Label, unit: string, nos: number[], fresh = false): Promise<Map<number, Record<string, number>>> {
   const def = poolDef(node);
   const rows = fresh ? [] : await query<{ scene_no: number; def: string; counts_json: string }>(env.DB_AR,
-    `SELECT scene_no, def, counts_json FROM ar_class_pool WHERE unit_id = ?`, [unit]).catch(() => []);
+    `SELECT scene_no, def, counts_json FROM ar_class_pool WHERE unit_id = ?`, [unit]).catch(softFail([]));
   const out = new Map<number, Record<string, number>>();
   for (const r of rows) {
     if (r.def !== def || !nos.includes(r.scene_no)) continue;

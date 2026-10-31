@@ -184,7 +184,8 @@ export class ReviewSession {
         .bind(userId)
         .first<{ display_name: string | null }>();
       return row?.display_name ?? null;
-    } catch {
+    } catch (e) {
+      console.warn('[review displayName]', e instanceof Error ? e.message : e);
       return null;
     }
   }

@@ -29,12 +29,14 @@ import type { WorldviewEnv } from './env';
 // Only answers that are the same for every reader are kept whole. A reader's
 // own marks ("mine") are laid on after, per request.
 
-export type Family = 'atlas' | 'corpus' | 'store';
+export type Family = 'atlas' | 'landing' | 'corpus' | 'store';
 
 const VERSION_SQL: Record<Family, string> = {
   atlas: `SELECT (SELECT count(*) || ':' || ifnull(max(updated_at), '') FROM wv_atlas) || '|' ||
                  (SELECT ifnull(max(updated_at), '') FROM wv_sources) || '|' ||
                  (SELECT count(*) FROM wv_term) AS v`,
+  // its own family, so the Atlas's version never depends on this table (migration 013)
+  landing: `SELECT count(*) || ':' || ifnull(max(updated_at), '') AS v FROM wv_landing_atlas_item`,
   corpus: `SELECT (SELECT ifnull(max(rowid), 0) FROM wv_corpus_block) || '|' ||
                   (SELECT count(*) || ':' || ifnull(max(rowid), 0) FROM wv_term_links) || '|' ||
                   (SELECT count(*) || ':' || ifnull(max(rowid), 0) FROM wv_insight_suggestions) || '|' ||
@@ -104,7 +106,7 @@ function edgePut(env: WorldviewEnv, k: string, e: Entry): void {
 
 // When a family was last written through this worker, in this data centre.
 async function epoch(family: Family): Promise<number> {
-  if (family === 'atlas') return 0;     // the Atlas is written by script, straight to D1
+  if (family === 'atlas' || family === 'landing') return 0;     // written by script/migration, straight to D1
   const c = edge(); if (!c) return 0;
   try {
     const r = await c.match(edgeUrl(`epoch:${family}`));
@@ -190,6 +192,7 @@ export async function memo<T>(env: WorldviewEnv, family: Family, key: string, bu
 // Which GET paths are the same for every reader, and the family each reads.
 const CACHEABLE: Array<[RegExp, Family]> = [
   [/^\/atlas(\/home|\/room|\/shelf|\/detail|\/search|\/centuries|\/century|\/fields)?$/, 'atlas'],
+  [/^\/landing-atlas$/, 'landing'],
   [/^\/arcs$/, 'corpus'],
   [/^\/arcs\/[^/]+$/, 'corpus'],
   [/^\/arcs\/[^/]+\/phases\/[^/]+$/, 'corpus'],

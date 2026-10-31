@@ -4,6 +4,7 @@ import { requireAuth } from '../../../shared/src/auth';
 import { query } from '../../../shared/src/db';
 import type { CoreEnv } from '../env';
 import { SrsRepo } from '../repositories/srs.repo';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // ── Scores as an Atlas ──────────────────────────────────────────────────────
 //
@@ -189,7 +190,7 @@ export function scoresRoutes(router: Router<CoreEnv>) {
     const metricWords = new Map(labels.filter((l) => l.scope === 'score').map((l) => [l.key, word(l)]));
 
     const measured = await Promise.all(boards.map((b) =>
-      extraOf(b).source === 'device' || !MEASURES[b.key] ? Promise.resolve(null) : MEASURES[b.key](env).catch(() => [] as Row[])));
+      extraOf(b).source === 'device' || !MEASURES[b.key] ? Promise.resolve(null) : MEASURES[b.key](env).catch(softFail([] as Row[], `score ${b.key}`))));
     // the reader's own figures no one else is shown: what is due in their review
     const due = (await new SrsRepo(env.DB_CORE).dueCounts(ctx.userId).catch(() => []))
       .reduce((n, d) => n + (Number(d.n) || 0), 0);

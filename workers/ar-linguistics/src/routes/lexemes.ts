@@ -2,6 +2,7 @@ import type { Router } from '../../../shared/src/router';
 import { ok } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
 import type { ArLinguisticsEnv } from '../env';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // Lexemes the Arabic worker drills in context (its scenes, its passages), served by
 // typed reference so no domain copies another's data:
@@ -122,7 +123,7 @@ export function lexemeRoutes(router: Router<ArLinguisticsEnv>) {
 async function lane(env: ArLinguisticsEnv, root: string, particle: string | null) {
   const r = await env.DB_AL.prepare(
     `SELECT raw_text, page_start FROM ar_ling_root_lexicon_entry_v WHERE root_norm = ? AND source_slug = 'lane_lexicon' ORDER BY key_rank LIMIT 1`,
-  ).bind(root).first<{ raw_text: string; page_start: number | null }>().catch(() => null);
+  ).bind(root).first<{ raw_text: string; page_start: number | null }>().catch(softFail(null));
   if (!r?.raw_text) return null;
   const senses = (text: string) => [...text.matchAll(/\[([^\[\]]{12,170})\]/g)].map((m) => m[1].trim())
     // a sense as Lane renders it: opens with a capital, reads as English, not an editor's aside
@@ -175,7 +176,7 @@ function findWord(raw: string, word: string, root: string) {
 async function define(env: ArLinguisticsEnv, root: string, src: { slug: string; name: string }, word: string) {
   const r = await env.DB_AL.prepare(
     `SELECT raw_text, page_start FROM ar_ling_root_lexicon_entry_v WHERE root_norm = ? AND source_slug = ? ORDER BY key_rank LIMIT 1`,
-  ).bind(root, src.slug).first<{ raw_text: string; page_start: number | null }>().catch(() => null);
+  ).bind(root, src.slug).first<{ raw_text: string; page_start: number | null }>().catch(softFail(null));
   if (!r?.raw_text) return null;
   const raw = r.raw_text.replace(/\s+/g, ' ');
   const hits = findWord(raw, word, root);

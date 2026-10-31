@@ -1,6 +1,7 @@
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { typedId } from '../../../shared/src/ulid';
 import type { CardStateName, RatingValue } from '../srs/fsrs';
+import { softFail } from '../../../shared/src/soft-fail';
 
 export interface SrsDeck {
   id: string;
@@ -115,6 +116,15 @@ const CARD_COLS = `
   elapsed_days, scheduled_days, last_review_at, next_review_at,
   created_at, updated_at
 FROM core_srs_card`;
+
+export type CardInsert = {
+  deck_id: string; user_ref: string; module: string; resource_type: string;
+  resource_ref: string; card_template?: string; front_text?: string;
+  back_text?: string; extra_json?: string | null; tags?: string | null;
+  card_kind?: string | null; concept_domain?: string | null;
+  note_type_id?: string | null; fields_json?: string | null;
+  root_norm?: string | null; intro_surah?: number | null; intro_ayah?: number | null;
+};
 
 export class SrsRepo {
   constructor(private db: D1Database) {}
@@ -313,44 +323,64 @@ export class SrsRepo {
          (SELECT discipline FROM cyb_drill_type WHERE domain = ?2 AND scope = 'kind' AND code = ?3),
          (SELECT discipline FROM cyb_drill_type WHERE domain = ?2 AND scope = 'focus' AND code = ?4),
          (SELECT discipline FROM cyb_drill_type WHERE domain = ?2 AND scope = 'focus' AND code = ?5)) AS disc`,
-      [d.discipline, module, d.kind, cardKind, d.skill]).catch(() => null);
+      [d.discipline, module, d.kind, cardKind, d.skill]).catch(softFail(null));
     return `DRL:${module}:${row?.disc ?? 'XX'}:${d.id}`;
   }
 
-  async insertCard(input: {
-    deck_id: string; user_ref: string; module: string; resource_type: string;
-    resource_ref: string; card_template?: string; front_text?: string;
-    back_text?: string; extra_json?: string | null; tags?: string | null;
-    card_kind?: string | null; concept_domain?: string | null;
-
-    note_type_id?: string | null; fields_json?: string | null;
-    root_norm?: string | null; intro_surah?: number | null; intro_ayah?: number | null;
-  }): Promise<{ card: SrsCard; inserted: boolean }> {
+  async insertCard(input: CardInsert): Promise<{ card: SrsCard; inserted: boolean }> {
     const id = typedId('SRSCARD');
-    await execute(this.db,
+    const gid = await this.gidFor(input);
+    await this.insertStmt(input, id, gid).run();
+    const row = await queryOne<SrsCard>(this.db,
+      `SELECT ${CARD_COLS} WHERE deck_id = ? AND resource_ref = ? AND card_template = ?`,
+      [input.deck_id, input.resource_ref, input.card_template ?? 'freeform']);
+
+    return { card: row!, inserted: row?.id === id };
+  }
+
+  /**
+   * Many cards in a few round trips: the same row insertCard writes, sent with db.batch() in
+   * chunks (each statement keeps its own 21 binds, under D1's 100 cap). Drill ids are looked up
+   * once per distinct classification. Returns how many rows were new (ON CONFLICT skips the rest).
+   */
+  async insertCards(inputs: CardInsert[], chunk = 50): Promise<number> {
+    const gidMemo = new Map<string, Promise<string | null>>();
+    const gids = await Promise.all(inputs.map((input) => {
+      const k = `${input.module}|${input.card_kind ?? ''}|${input.resource_ref}|${input.extra_json ?? ''}`;
+      if (!gidMemo.has(k)) gidMemo.set(k, this.gidFor(input));
+      return gidMemo.get(k)!;
+    }));
+    let inserted = 0;
+    for (let i = 0; i < inputs.length; i += chunk) {
+      const stmts = inputs.slice(i, i + chunk).map((input, j) => this.insertStmt(input, typedId('SRSCARD'), gids[i + j]));
+      const results = await this.db.batch(stmts);
+      for (const r of results) inserted += (r.meta?.changes ?? 0) > 0 ? 1 : 0;
+    }
+    return inserted;
+  }
+
+  /// an authored drill (core cyb_drill) is filed under its own global id; any other drill gets one from the registries
+  private gidFor(input: CardInsert): Promise<string | null> {
+    return /^DRL:[A-Z]+:[A-Z]{2}:/.test(input.resource_ref) ? Promise.resolve(input.resource_ref)
+      : this.drillGid(input.module, input.card_kind ?? null, input.extra_json);
+  }
+
+  private insertStmt(input: CardInsert, id: string, gid: string | null): D1PreparedStatement {
+    return this.db.prepare(
       `INSERT INTO core_srs_card
          (id, deck_id, user_ref, module, resource_type, resource_ref, card_template,
           front_text, back_text, extra_json, tags, card_kind, concept_domain,
           note_type_id, fields_json, root_norm, intro_surah, intro_ayah, next_review_at, work_ref, drill_gid)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (deck_id, resource_ref, card_template) DO NOTHING`,
-      [id, input.deck_id, input.user_ref, input.module, input.resource_type,
+    ).bind(id, input.deck_id, input.user_ref, input.module, input.resource_type,
        input.resource_ref, input.card_template ?? 'freeform',
        input.front_text ?? '', input.back_text ?? '',
        input.extra_json ?? null, input.tags ?? null,
        input.card_kind ?? null, input.concept_domain ?? null,
        input.note_type_id ?? null, input.fields_json ?? null,
        input.root_norm ?? null, input.intro_surah ?? null, input.intro_ayah ?? null,
-
-       new Date().toISOString(), workOf(input.extra_json),
-       // an authored drill (core cyb_drill) is filed under its own global id; any other drill gets one from the registries
-       /^DRL:[A-Z]+:[A-Z]{2}:/.test(input.resource_ref) ? input.resource_ref
-         : await this.drillGid(input.module, input.card_kind ?? null, input.extra_json)]);
-    const row = await queryOne<SrsCard>(this.db,
-      `SELECT ${CARD_COLS} WHERE deck_id = ? AND resource_ref = ? AND card_template = ?`,
-      [input.deck_id, input.resource_ref, input.card_template ?? 'freeform']);
-
-    return { card: row!, inserted: row?.id === id };
+       new Date().toISOString(), workOf(input.extra_json), gid);
   }
 
   async createCard(input: Parameters<SrsRepo['insertCard']>[0]): Promise<SrsCard> {

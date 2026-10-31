@@ -1,7 +1,7 @@
 import { query } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import type { Label } from '../lib/labels';
-import { loadAyat, withCard, levelOf, shuffle, uniq, interleave, type Ayah, type Drill, type Scope } from './practice-kit';
+import { loadAyat, withCard, levelOf, shuffle, uniq, interleave, type Ayah, type Drill, type Scope, fold } from './practice-kit';
 
 // ── Meaning arcs (QR skill 'meaning_arc', source 'arc2') ─────────────────────────
 // The DERIVED arcs of every Qurʾānic root (AL 0114, kmaps-resources meaning_arcs.py): each source's
@@ -34,8 +34,6 @@ const COLOR: Record<string, string> = { maqayis_lugha: '#B388EB', lane_lexicon: 
   ibn_manzur_lisan_arab: '#81B29A', jawhari_sihah: '#F2CC8F', qamus_muhit: '#F28482', fayyumi_misbah_munir: '#9C89B8', khalil_kitab_ayn: '#D8B657',
   ubab_zakhir: '#A5A58D', mir_verbal_idioms: '#F4A261', combined: '#B388EB' };
 
-const fold = (w: string | null | undefined) => (w ?? '').replace(/[ؐ-ًؚ-ٰٟۖ-ۭـ]/g, '')
-  .replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[^ء-ي]/g, '');
 // a root as one word (غلل), the way the user reads it — not letter by letter
 const spaced = (r: string) => fold(r);
 // a source's sigils (Lane's ‡ tropical, † post-classical, * marks) are its typography, not the reader's text

@@ -1,4 +1,5 @@
 import { query, queryOne } from '../../../shared/src/db';
+import { softFail } from '../../../shared/src/soft-fail';
 
 export interface PositionRow {
   id: string;
@@ -42,7 +43,7 @@ export class PositionRepo {
           AND (p.ayah_from IS NULL OR (p.ayah_from <= ? AND p.ayah_to >= ?))
         ORDER BY c.label_en, t.title`,
       [surah, to, from],
-    ).catch(() => []);
+    ).catch(softFail([]));
   }
 
   async forConcept(conceptRef: string): Promise<PositionRow[]> {
@@ -50,7 +51,7 @@ export class PositionRepo {
       this.db,
       `${SELECT} AND p.concept_ref = ? ORDER BY t.tradition_type, t.title`,
       [conceptRef],
-    ).catch(() => []);
+    ).catch(softFail([]));
   }
 
   async conceptsForPassage(surah: number, from: number, to: number) {
@@ -76,7 +77,7 @@ export class PositionRepo {
            OR c.origin = 'axis'
         ORDER BY held_by DESC, (c.origin = 'axis'), c.label_en`,
       [surah, to, from, surah, to, from],
-    ).catch(() => []);
+    ).catch(softFail([]));
   }
 
   async sources(positionId: string) {
@@ -85,7 +86,7 @@ export class PositionRepo {
       `SELECT id, source_kind, source_id, source_unit_id, locator, qr_scope_ref, excerpt
          FROM wv_value_position_source WHERE position_id = ? ORDER BY created_at`,
       [positionId],
-    ).catch(() => []);
+    ).catch(softFail([]));
   }
 
   async create(input: {

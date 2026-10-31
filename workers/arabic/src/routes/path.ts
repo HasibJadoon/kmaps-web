@@ -7,6 +7,7 @@ import type { ArabicEnv } from '../env';
 import { parseBand, BANDS as LEVEL_BANDS, type Band } from '../lib/levels';
 import { labels, byKey, skillCard, type Label } from '../lib/labels';
 import { sceneRound } from './scenes';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // ── The path: units, one after another, level after level ───────────────────
 // A unit is one scripted episode. Its steps: preview its key words, watch it scene by
@@ -128,7 +129,7 @@ export function pathRoutes(router: Router<ArabicEnv>) {
     // the preview: the key items the unit was read for, hardest first, each heard in its line
     const size = setting(L, 'unit_preview_size', 8);
     const reads = await query<{ scene_no: number; vocab_json: string | null }>(env.DB_AR,
-      `SELECT scene_no, vocab_json FROM ar_scene_vocab WHERE unit_id = ?`, [unit]).catch(() => []);
+      `SELECT scene_no, vocab_json FROM ar_scene_vocab WHERE unit_id = ?`, [unit]).catch(softFail([]));
     const rank: Record<string, number> = { hard: 0, good: 1, easy: 2 };
     const cand = reads.flatMap((r) => {
       try { return (JSON.parse(r.vocab_json ?? '[]') as Array<{ line: number; word: string; gloss: string; lemma?: string; tier?: string; note?: string }>)

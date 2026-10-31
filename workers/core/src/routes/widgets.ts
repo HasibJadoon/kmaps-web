@@ -4,6 +4,7 @@ import { requireAuth } from '../../../shared/src/auth';
 import { query } from '../../../shared/src/db';
 import type { CoreEnv } from '../env';
 import { SrsRepo } from '../repositories/srs.repo';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // ── The home-screen widgets: everything they show, in one call ─────────────────
 //   GET /core/widgets
@@ -46,7 +47,7 @@ async function classCard(env: CoreEnv, f: Fetcher | undefined, base: string, par
   if (!path) return null;
   const passed = row ? await query<{ node_key: string; n: number }>(env.DB_CORE,
     `SELECT node_key, COUNT(*) AS n FROM core_drill_class_item WHERE class_id = ? AND state IN ('right', 'perfected') GROUP BY node_key`,
-    [row.id]).catch(() => []) : [];
+    [row.id]).catch(softFail([])) : [];
   // a node's drills passed: its own, and its sub-nodes' ("<node>#<style>")
   const passedOf = (key: string) => passed.filter((p) => p.node_key === key || p.node_key.startsWith(`${key}#`)).reduce((a, p) => a + p.n, 0);
   const steps = path.nodes.filter((n) => n.kind === 'step' && n.drills > 0);
@@ -108,7 +109,7 @@ export function widgetRoutes(router: Router<CoreEnv>) {
           ORDER BY studied DESC, stars DESC, score DESC
           LIMIT 12`),
       query<{ key: string; label: string; label_ar: string | null; detail: string | null; icon: string | null; color: string | null }>(env.DB_CORE,
-        `SELECT key, label, label_ar, detail, icon, color FROM core_app_label WHERE scope = 'widget' ORDER BY sort`).catch(() => []),
+        `SELECT key, label, label_ar, detail, icon, color FROM core_app_label WHERE scope = 'widget' ORDER BY sort`).catch(softFail([])),
     ]);
     const arRow = activeOf(rows, 'AR');
     const [quran, arabic] = await Promise.all([
@@ -119,7 +120,7 @@ export function widgetRoutes(router: Router<CoreEnv>) {
     const active = await query<{ user_ref: string; module: string; scope_ref: string }>(env.DB_CORE,
       `SELECT user_ref, module, scope_ref FROM core_drill_class c
         WHERE status = 'in_progress' AND user_ref IN (SELECT value FROM json_each(?))
-        ORDER BY COALESCE(last_at, started_at) DESC`, [JSON.stringify(standings.map((s) => s.user_id))]).catch(() => []);
+        ORDER BY COALESCE(last_at, started_at) DESC`, [JSON.stringify(standings.map((s) => s.user_id))]).catch(softFail([]));
     return ok({
       at: new Date().toISOString(),
       quran, arabic,

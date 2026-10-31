@@ -3,7 +3,7 @@
 -- Internal D1 bookkeeping tables and FTS5 shadow tables are omitted.
 -- Regenerate with scripts/regen_schemas.py — do not hand-edit.
 
--- ── Tables (172) ─────────────────────────────────────────────────
+-- ── Tables (173) ─────────────────────────────────────────────────
 
 CREATE TABLE core_concept (
   id          TEXT PRIMARY KEY,
@@ -1141,6 +1141,16 @@ CREATE TABLE wv_institutions (
   updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (tradition_id) REFERENCES wv_traditions(id),
   FOREIGN KEY (location_id)  REFERENCES wv_locations(id)
+);
+
+CREATE TABLE wv_landing_atlas_item (
+  atlas_id    TEXT NOT NULL DEFAULT 'landing',
+  section     TEXT NOT NULL,                  -- graph | cluster | node | edge | view | layer | era | scene | scene_ring | scene_node | scene_link
+  item_id     TEXT NOT NULL,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  data_json   TEXT NOT NULL,                  -- the item, in the shape the app draws (migration 013)
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (atlas_id, section, item_id)
 );
 
 CREATE TABLE wv_law_morality_links (
@@ -2576,7 +2586,7 @@ CREATE VIEW wv_unit_documents AS SELECT * FROM wv_unit_attachments WHERE attachm
 CREATE VIEW wv_unit_episodes AS SELECT * FROM wv_unit_attachments WHERE attachment_type = 'episode' AND status = 'active' ORDER BY source_unit_id, order_index;
 
 
--- ── Indexes (191) ────────────────────────────────────────────────
+-- ── Indexes (192) ────────────────────────────────────────────────
 
 CREATE INDEX idx_core_concept_domain ON core_concept (domain);
 
@@ -2731,6 +2741,8 @@ CREATE INDEX idx_wv_is_batch  ON wv_insight_suggestions(batch_id);
 CREATE INDEX idx_wv_is_status ON wv_insight_suggestions(status);
 
 CREATE INDEX idx_wv_is_type   ON wv_insight_suggestions(suggestion_type);
+
+CREATE INDEX idx_wv_landing_atlas_item_order ON wv_landing_atlas_item(atlas_id, section, sort_order);
 
 CREATE INDEX idx_wv_loc_region ON wv_locations(region_id);
 

@@ -2,10 +2,13 @@ import { query } from '../../../shared/src/db';
 import { validOptions } from '../../../shared/src/drill-check';
 import type { QuranEnv } from '../env';
 import type { Label } from '../lib/labels';
+import { shuffle, uniq, parseJson } from '../../../shared/src/collections';
 
-// What the book-built drills (practice-tafsir.ts, practice-irabbooks.ts) share with practice.ts:
+// What every QR drill builder shares (practice.ts, practice-lexicon.ts and the book-built ones):
 // the āyah as it is heard (words, timings, clip, English) and the review card each drill files.
-// Copied from practice.ts, which keeps its own; keep the two in step.
+// This is the one copy — practice.ts re-exports loadAyat/runOn from here.
+
+export { shuffle, uniq, parseJson };
 
 const RECITER = 7;
 
@@ -13,38 +16,52 @@ export type Scope = { surah: number | null; from: number | null; to: number | nu
 export type Band = 'basic' | 'middle' | 'advanced' | 'all';
 export type Drill = Record<string, unknown>;
 
-export const shuffle = <T>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+/// letters only, for matching words across spellings (marks, tatweel and alif/yā'/tā' marbūṭa shapes folded)
+export const fold = (w: string | null | undefined) => (w ?? '').replace(/[ؐ-ًؚ-ٰٟۖ-ۭـ]/g, '')
+  .replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[^ء-ي]/g, '');
+/// fold, then the long vowels dropped too: the consonant skeleton
+export const loose = (w: string | null | undefined) => fold(w).replace(/[اوي]/g, '');
 export const cap = (s: string | null | undefined) => (s ?? '').replace(/^\w/, (c) => c.toUpperCase());
-export const uniq = <T>(xs: T[]) => xs.filter((x, i) => xs.indexOf(x) === i);
-export const parseJson = <T>(s: string | null | undefined, d: T): T => { try { return s ? JSON.parse(s) as T : d; } catch { return d; } };
 
 type Word = { word_index: number; word_text: string; pos: string | null; lemma: string | null; is_content_word: number | null };
 export type Ayah = { key: string; surah: number; ayah: number; ws: Word[]; words: { t: string; s: number; e: number }[]; aligned: boolean;
                      audio: { url: string; start: number; end: number } | null; en: string | null; title: string; surahName: string };
 
+/** An āyah's English that runs on into the next āyah (the translation carries one sentence over several, ending
+ *  this one on a dash, comma or bare word — a quarter of the default's āyāt) ends on an ellipsis, so a drill showing
+ *  the one āyah does not read as cut off: "…can only go wrong-" → "…can only go wrong …". */
+export function runOn(text: string | null): string | null {
+  if (!text) return text;
+  const t = text.trim();
+  if (/[.!?…’”"')\]]$/.test(t)) return t;
+  return `${t.replace(/[\s\-–—,;:]+$/, '')} …`;
+}
+
 /// Each āyah with its words, their times in the recitation (where it numbers the words as the
-/// corpus does), its clip, its default English, and where it stands.
+/// corpus does), its clip, its default English (run-on lines closed with an ellipsis), and where
+/// it stands. Every list goes in as ONE JSON bind (json_each), so any number of āyāt stays under
+/// D1's 100-parameter cap.
 export async function loadAyat(env: QuranEnv, pairs: number[][]): Promise<Map<string, Ayah>> {
   pairs = uniq(pairs.map((p) => `${p[0]}:${p[1]}`)).map((k) => k.split(':').map(Number));
   if (!pairs.length) return new Map();
-  const inAyat = pairs.map(() => '(surah = ? AND ayah = ?)').join(' OR ');
-  const flat = pairs.flat();
+  const pairsJson = JSON.stringify(pairs);
   const surahIds = [...new Set(pairs.map((p) => p[0]))];
+  const IN_PAIRS = `IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`;
   const [words, rec, tr, surahs] = await Promise.all([
     query<Word & { surah: number; ayah: number }>(env.DB_QR,
-      `SELECT surah, ayah, word_index, word_text, pos, lemma, is_content_word FROM qr_word_occurrence WHERE (surah, ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?)) ORDER BY surah, ayah, word_index`, [JSON.stringify(pairs)]),
+      `SELECT surah, ayah, word_index, word_text, pos, lemma, is_content_word FROM qr_word_occurrence WHERE (surah, ayah) ${IN_PAIRS} ORDER BY surah, ayah, word_index`, [pairsJson]),
     query<{ surah: number; ayah: number; start_ms: number; end_ms: number; segments_json: string | null; audio_url: string }>(env.DB_QR,
       `SELECT a.surah, a.ayah, a.start_ms, a.end_ms, a.segments_json, r.audio_url FROM qr_recitation_ayah a
          JOIN qr_recitation r ON r.reciter_id = a.reciter_id AND r.surah = a.surah
-        WHERE a.reciter_id = ${RECITER} AND (a.surah, a.ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`, [JSON.stringify(pairs)]),
+        WHERE a.reciter_id = ${RECITER} AND (a.surah, a.ayah) ${IN_PAIRS}`, [pairsJson]),
     query<{ surah: number; ayah: number; text: string }>(env.DB_QR,
       `SELECT t.surah, t.ayah, t.translation_text AS text FROM qr_translation t
-         JOIN qr_translation_source s ON s.id = t.source_id AND s.is_default = 1 WHERE (t.surah, t.ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`, [JSON.stringify(pairs)]),
-    query<{ id: number; name_en: string }>(env.DB_QR, `SELECT id, name_en FROM qr_surah WHERE id IN (${surahIds.map(() => '?').join(',')})`, surahIds),
+         JOIN qr_translation_source s ON s.id = t.source_id AND s.is_default = 1 WHERE (t.surah, t.ayah) ${IN_PAIRS}`, [pairsJson]),
+    query<{ id: number; name_en: string }>(env.DB_QR, `SELECT id, name_en FROM qr_surah WHERE id IN (SELECT value FROM json_each(?))`, [JSON.stringify(surahIds)]),
   ]);
   const names = new Map(surahs.map((s) => [s.id, s.name_en]));
   const recOf = new Map(rec.map((r) => [`${r.surah}:${r.ayah}`, r]));
-  const enOf = new Map(tr.map((r) => [`${r.surah}:${r.ayah}`, r.text]));
+  const enOf = new Map(tr.map((r) => [`${r.surah}:${r.ayah}`, runOn(r.text)]));
   const wsOf = new Map<string, Word[]>();
   for (const w of words) wsOf.set(`${w.surah}:${w.ayah}`, [...(wsOf.get(`${w.surah}:${w.ayah}`) ?? []), w]);
   const out = new Map<string, Ayah>();

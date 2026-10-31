@@ -3,6 +3,7 @@ import { ok, notFound } from '../../../shared/src/response';
 import { query, queryOne } from '../../../shared/src/db';
 import { labels, byKey, type Label } from '../lib/labels';
 import type { ArabicEnv } from '../env';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // A scene's HIGH-END language — never every verb and noun. Four sections, each from data:
 //   idiom    a verb with the particle that changes its meaning, and verbal idioms (ar_scene_lexeme kind verbal_idiom:
@@ -49,14 +50,14 @@ export function sceneWordRoutes(router: Router<ArabicEnv>) {
     const [L, hits, words, feats] = await Promise.all([
       labels(env),
       query<Hit>(env.DB_AR, `SELECT line, span_from, span_to, ref, kind FROM ar_scene_lexeme
-                              WHERE unit_id = ? AND scene_no = ? AND kind IN ('verbal_idiom', 'keyterm') ORDER BY line, span_from`, [unit, n]).catch(() => []),
+                              WHERE unit_id = ? AND scene_no = ? AND kind IN ('verbal_idiom', 'keyterm') ORDER BY line, span_from`, [unit, n]).catch(softFail([])),
       query<W>(env.DB_AR, `SELECT * FROM ar_scene_word WHERE unit_id = ? AND scene_no = ? AND qr_grade IN ('hard', 'super')
-                            AND word_class IN ('verb', 'noun') ORDER BY line, word_index`, [unit, n]).catch(() => []),
+                            AND word_class IN ('verb', 'noun') ORDER BY line, word_index`, [unit, n]).catch(softFail([])),
       query<{ feature_idx: number; term_id: string; name_ar: string; name_en: string | null; badge_color: string | null; features_json: string | null }>(env.DB_AR,
         `SELECT f.feature_idx, f.term_id, g.name_ar, g.name_en, g.badge_color, v.features_json
            FROM ar_scene_feature_term f JOIN ar_ling_gram_term g ON g.id = f.term_id
            JOIN ar_scene_vocab v ON v.unit_id = f.unit_id AND v.scene_no = f.scene_no
-          WHERE f.unit_id = ? AND f.scene_no = ? AND g.tier = 'expert'`, [unit, n]).catch(() => []),
+          WHERE f.unit_id = ? AND f.scene_no = ? AND g.tier = 'expert'`, [unit, n]).catch(softFail([])),
     ]);
 
     // the meanings of the idioms and key terms, from AL

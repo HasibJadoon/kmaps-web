@@ -4,6 +4,7 @@ import { attachGt } from '../../../shared/src/gt-attach';
 import { spelled } from '../lib/tafsir-text';
 import { withCard, shuffle, parseJson, rangeOf, type Drill, type Scope } from './practice-kit';
 import { cutQuote, bidiEn } from './practice-sarf';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // ── The class's steps 6 and 7: the passage's questions, and its tafsīr heard then drilled ─────────
 //
@@ -514,11 +515,11 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
       `SELECT c.source_slug, c.text_ar, c.text_en FROM qr_surah_tafsir_chunk c JOIN qr_surah_tafsir_reading r ON r.id = c.reading_id
         WHERE r.surah = ? AND r.ayah_from <= ? AND r.ayah_to >= ? AND c.text_en IS NOT NULL AND c.text_en <> ''
           AND c.source_slug IN (${slugs.map(() => '?').join(',')})
-        ORDER BY c.source_slug, r.ayah_from, c.chunk_index`, [p.surah, p.to, p.from, ...slugs]).catch(() => [] as Chunk[]),
+        ORDER BY c.source_slug, r.ayah_from, c.chunk_index`, [p.surah, p.to, p.from, ...slugs]).catch(softFail([] as Chunk[])),
     query<SentenceRow>(env.DB_QR,
       `SELECT id, audio_id, seq_from, seq_to, gist_en, concept_en, concept_ar, meaning_en, word_from FROM qr_tafsir_sentence
         WHERE status = 'live' AND surah = ? AND source_slug IN (${slugs.map(() => '?').join(',')}) ORDER BY audio_id, seq_from`,
-      [p.surah, ...slugs]).catch(() => [] as SentenceRow[]),
+      [p.surah, ...slugs]).catch(softFail([] as SentenceRow[])),
   ]);
   const rec = new Map(recs.map((r) => [r.id, r]));
   const book = new Map(books.map((b) => [b.source_slug, b]));
@@ -528,7 +529,7 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
   for (let i = 0; i < refs.length; i += 90) {
     const ids90 = refs.slice(i, i + 90);
     const rows = await query<{ id: string; name_ar: string; badge_color: string | null }>(env.DB_QR,
-      `SELECT id, name_ar, badge_color FROM ar_ling_gram_term WHERE id IN (${ids90.map(() => '?').join(',')})`, ids90).catch(() => []);
+      `SELECT id, name_ar, badge_color FROM ar_ling_gram_term WHERE id IN (${ids90.map(() => '?').join(',')})`, ids90).catch(softFail([]));
     for (const r of rows) if (r.name_ar) named.set(r.id, r);
   }
   const lineTerms = (l: Seg): ListenTerm[] => termsOf(l).flatMap((t) => {
@@ -584,13 +585,13 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
   const audios = [...new Set(works.flatMap((w) => w.parts.map((x) => x.audio)))];
   const heads = audios.length ? await query<PassageCut & { audio_id: string }>(env.DB_QR,
     `SELECT audio_id, seq_from, seq_to, heading_en, word_from, en_from FROM qr_tafsir_passage_heading
-      WHERE status = 'live' AND audio_id IN (${audios.map(() => '?').join(',')})`, audios).catch(() => []) : [];
+      WHERE status = 'live' AND audio_id IN (${audios.map(() => '?').join(',')})`, audios).catch(softFail([])) : [];
   const cutsOf = new Map<string, PassageCut[]>();
   for (const h of heads) cutsOf.set(h.audio_id, [...(cutsOf.get(h.audio_id) ?? []), h]);
   // each cut's English read aloud: a span of the work's English recording for the passage
   const clips = audios.length ? await query<{ audio_id: string; seq_from: number; object_key: string; start_sec: number; end_sec: number }>(env.DB_QR,
     `SELECT audio_id, seq_from, object_key, start_sec, end_sec FROM qr_tafsir_passage_audio_en
-      WHERE status = 'live' AND audio_id IN (${audios.map(() => '?').join(',')})`, audios).catch(() => []) : [];
+      WHERE status = 'live' AND audio_id IN (${audios.map(() => '?').join(',')})`, audios).catch(softFail([])) : [];
   const clipOf = new Map(clips.map((c) => [`${c.audio_id}|${c.seq_from}`, { url: AUDIO(c.object_key), start: c.start_sec, end: c.end_sec }]));
   for (const w of works) for (const x of w.parts) {
     const cuts = cutsOf.get(x.audio);

@@ -2,6 +2,8 @@ import { query, queryOne } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { byKey, srsCardFor, type Label } from './labels';
 import { ttsClips, ttsHash, ttsKey } from './tts';
+import { softFail } from '../../../shared/src/soft-fail';
+import { shuffle } from '../../../shared/src/collections';
 
 // ── Grammar drills in sentences: shared by the grammar path and the practice home ─────────────
 // A grammar drill is always met in a sentence: an āyah heard in the recitation, a scene line with
@@ -32,7 +34,7 @@ type Word = { t: string; s: number; e: number };
 type Staged = { words: Word[]; audio: { url: string; start: number; end: number } | null; script?: string; span: number[]; en: string | null;
                 voice?: string; title: string | null; wordIndex?: number[] };
 
-export const shuffle = <T>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+export { shuffle };
 export const cap = (s: string | null | undefined) => (s ?? '').replace(/^\w/, (c) => c.toUpperCase());
 export const loose = (w: string) => (w ?? '').replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '')
   .replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[^ء-ي]/g, '').replace(/[اوي]/g, '');
@@ -250,7 +252,7 @@ export async function sentenceDrills(env: ArabicEnv, all: L, rows: Sentence[], w
 export async function asDrills(env: ArabicEnv, all: L, items: GramDrill[], group: Group, levels: number[] = [1, 2, 3]) {
   // high end only: a drill whose terms hold no EXPERT-tier term is not dealt
   const expert = new Set((await query<{ id: string }>(env.DB_AR, `SELECT id FROM ar_ling_gram_term WHERE tier = 'expert'`)
-    .catch(() => [] as Array<{ id: string }>)).map((r) => r.id));
+    .catch(softFail([] as Array<{ id: string }>))).map((r) => r.id));
   items = items.filter((it) => [it.termId, ...(it.terms ?? [])].some((t) => t && expert.has(t)));
   const kinds = byKey(all.kind);
   const named = (scope: string | undefined, x: string) => {
@@ -364,7 +366,7 @@ export async function sceneDrills(env: ArabicEnv, all: L, terms: string[], k: nu
       `SELECT v.features_json, t.script_json, r.id AS work, r.level,
               (SELECT a.object_key FROM ar_acq_audio a WHERE a.acq_ref_id = r.id AND a.status = 'live' AND a.object_key NOT LIKE 'youtube:%' LIMIT 1) AS audio
          FROM ar_scene_vocab v JOIN ar_text_unit t ON t.id = v.unit_id JOIN ar_acquisition_ref r ON r.id = t.acq_ref_id
-        WHERE v.unit_id = ? AND v.scene_no = ?`, [p.unit_id, p.scene_no]).catch(() => null)));
+        WHERE v.unit_id = ? AND v.scene_no = ?`, [p.unit_id, p.scene_no]).catch(softFail(null))));
   for (const [n, p] of picks.entries()) {
     if (out.length >= k) break;
     const row = rows[n];

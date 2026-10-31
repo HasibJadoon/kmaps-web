@@ -3,6 +3,7 @@ import { ok } from '../../../shared/src/response';
 import { requireAuth } from '../../../shared/src/auth';
 import { query } from '../../../shared/src/db';
 import type { CoreEnv } from '../env';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // ── The authored drill bank (core 052) ──────────────────────────────────────────────────────────────────────────
 //
@@ -22,7 +23,7 @@ export async function auditDrills(db: D1Database): Promise<Array<{ id: string; r
   return Promise.all(rules.map(async (r) => {
     let found: number | null = null;
     if (r.check_sql) {
-      const row = await db.prepare(r.check_sql).first<Record<string, number>>().catch(() => null);
+      const row = await db.prepare(r.check_sql).first<Record<string, number>>().catch(softFail(null));
       found = row ? Number(Object.values(row)[0]) : null;
     }
     return { id: r.id, rule: r.rule_md, severity: r.severity, found, ok: found === (r.expected ?? 0) };

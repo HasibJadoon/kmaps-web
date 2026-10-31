@@ -2,17 +2,11 @@ import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import type { ArLinguisticsEnv } from '../env';
 import { normArabic } from '../lib/root_query';
+import { parseJson as parseJsonOr } from '../../../shared/src/collections';
 
 const SOURCE_SLUG = 'kmaps_five_lens';
 
-function parseJson(value: string | null): Record<string, unknown> {
-  if (!value) return {};
-  try {
-    return JSON.parse(value) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
+const parseJson = (value: string | null): Record<string, unknown> => parseJsonOr<Record<string, unknown>>(value, {});
 
 interface EntryRow {
   id: string;

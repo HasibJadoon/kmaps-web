@@ -2,6 +2,7 @@ import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
 import type { ArLinguisticsEnv } from '../env';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // ── الصرف of a set of roots and lemmas, for a reader of the Qurʾān (the passage screen) ───────────
 //
@@ -32,7 +33,7 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
       `SELECT id, root_id, lemma_text, lemma_text_bare, part_of_speech, verb_form, is_quran_word, frequency_quran FROM ar_ling_root_lemma
         WHERE root_id IN ${inList} AND record_status = 'live' AND merged_into IS NULL
           AND part_of_speech IN ('noun', 'verb') AND instr(trim(lemma_text), ' ') = 0
-        ORDER BY is_quran_word DESC, frequency_quran DESC, lemma_text`, [R]).catch(() => []) : [];
+        ORDER BY is_quran_word DESC, frequency_quran DESC, lemma_text`, [R]).catch(softFail([])) : [];
     const [dna, paradigms, preps, didd, jam, members, contrasts, arcs, memberSrc] = await Promise.all([
       query<{ root_id: string; root_norm: string; picture_en: string | null; picture_ar: string | null }>(db,
         `SELECT root_id, root_norm, picture_en, picture_ar FROM ar_ling_root_dna WHERE root_id IN ${inList}`, [R]),
@@ -129,7 +130,7 @@ export function sarfRoutes(router: Router<ArLinguisticsEnv>) {
     const asl = unpictured.length ? await query<{ root_id: string; root_norm: string; statement_en: string | null; statement_ar: string }>(db,
       `SELECT r.id AS root_id, a.root_norm, a.statement_en, a.statement_ar FROM ar_ling_roots r
          JOIN ar_ling_root_asl a ON a.root_norm = r.root_normalized AND a.is_primary = 1 AND a.status = 'active'
-        WHERE r.id IN ${inList}`, [JSON.stringify(unpictured)]).catch(() => []) : [];
+        WHERE r.id IN ${inList}`, [JSON.stringify(unpictured)]).catch(softFail([])) : [];
     return ok({
       roots: Object.fromEntries(roots.map((r) => {
         const d = dna.find((x) => x.root_id === r);

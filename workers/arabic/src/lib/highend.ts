@@ -1,5 +1,6 @@
 import { query } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // How common a word form is, and whether it is HIGH-END — the one test every AR drill uses to decide what is worth
 // drilling (the learner reads at an intermediate level and wants the high end only).
@@ -28,9 +29,9 @@ async function hardForms(env: ArabicEnv): Promise<Set<string>> {
   if (hardMemo && Date.now() - hardMemo.at < 600_000) return hardMemo.set;
   const [rows, chosen] = await Promise.all([
     query<{ surface: string }>(env.DB_AR, `SELECT DISTINCT surface FROM ar_scene_word WHERE qr_grade IN ('hard', 'super')`)
-      .catch(() => [] as Array<{ surface: string }>),
+      .catch(softFail([] as Array<{ surface: string }>)),
     query<{ word: string }>(env.DB_AR, `SELECT DISTINCT json_extract(v.value, '$.word') AS word FROM ar_scene_vocab s, json_each(s.vocab_json) v
-                                         WHERE s.vocab_json IS NOT NULL AND json_valid(s.vocab_json)`).catch(() => [] as Array<{ word: string }>),
+                                         WHERE s.vocab_json IS NOT NULL AND json_valid(s.vocab_json)`).catch(softFail([] as Array<{ word: string }>)),
   ]);
   hardMemo = { at: Date.now(), set: new Set([...rows.map((r) => r.surface), ...chosen.map((r) => r.word ?? '')]
     .map(freqKey).filter((k) => k.length >= 2)) };

@@ -34,6 +34,7 @@ import { registryRoutes } from './routes/registry';
 import { dsRoutes } from './routes/ds';
 import { arcRoutes } from './routes/arcs';
 import { sarfRoutes } from './routes/sarf';
+import { softFail } from '../../shared/src/soft-fail';
 
 const router = new Router<ArLinguisticsEnv>();
 
@@ -100,7 +101,7 @@ router.post('/al/internal/sense', async (req, env) => {
     const row = await env.DB_AL
       .prepare(`SELECT id FROM ${table} WHERE ${col} = ? LIMIT 1`)
       .bind(body.bind_value).first<{ id: string }>()
-      .catch(() => null);
+      .catch(softFail(null));
     if (!row?.id) return ok({ ok: false, error: `no ${body.scope_kind ?? 'root'} id for ${body.bind_value}` });
     body.bind_value = row.id;
   }

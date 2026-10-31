@@ -1,4 +1,5 @@
 import { query, placeholders, chunked } from '../../../shared/src/db';
+import { softFail } from '../../../shared/src/soft-fail';
 
 export interface ResolvedSense {
   id: string; sense_key: string; gloss_ar: string | null; gloss_en: string | null;
@@ -185,7 +186,7 @@ export class LemmaResolveRepo {
          LEFT JOIN ar_ling_roots r ON r.id = l.root_id
         WHERE l.id IN (${ph})`,
       uniq,
-    ).catch(() => []);
+    ).catch(softFail([]));
     if (!lemmas.length) return out;
 
     const govNorms = [...new Set(
@@ -201,7 +202,7 @@ export class LemmaResolveRepo {
           WHERE scope_level = 'lemma' AND scope_key IN (${ph})
           ORDER BY ${STATUS_RANK}, is_core DESC, sort_order, sense_key`,
         uniq,
-      ).catch(() => []),
+      ).catch(softFail([])),
 
       query<{
         scope_key: string; id: string; arc_key: string; arc_ar: string | null;
@@ -215,7 +216,7 @@ export class LemmaResolveRepo {
           WHERE scope_level = 'lemma' AND scope_key IN (${ph})
           ORDER BY ${STATUS_RANK}, is_primary DESC, arc_key`,
         uniq,
-      ).catch(() => []),
+      ).catch(softFail([])),
 
       query<{ arc_id: string } & ResolvedArcStep>(
         this.db,
@@ -226,7 +227,7 @@ export class LemmaResolveRepo {
           WHERE a.scope_level = 'lemma' AND a.scope_key IN (${ph})
           ORDER BY st.arc_id, st.step_no`,
         uniq,
-      ).catch(() => []),
+      ).catch(softFail([])),
 
       query<{ lemma_id: string } & ResolvedFuruq>(
         this.db,
@@ -239,7 +240,7 @@ export class LemmaResolveRepo {
           WHERE m.lemma_id IN (${ph})
           ORDER BY m.sort_order, s.set_name`,
         uniq,
-      ).catch(() => []),
+      ).catch(softFail([])),
 
       query<{ primary_lemma_id: string } & ResolvedTabir>(
         this.db,
@@ -249,7 +250,7 @@ export class LemmaResolveRepo {
           WHERE primary_lemma_id IN (${ph})
           ORDER BY ${STATUS_RANK}, surah, ayah`,
         uniq,
-      ).catch(() => []),
+      ).catch(softFail([])),
 
       query<{
         roman: string | null; verb_form_key: string | null; derivation_type: string | null;
@@ -262,7 +263,7 @@ export class LemmaResolveRepo {
            FROM ar_ling_root_form_family
           WHERE status = 'live'
           ORDER BY family_order`,
-      ).catch(() => []),
+      ).catch(softFail([])),
 
       govNorms.length
         ? query<GovernanceRow>(
@@ -274,7 +275,7 @@ export class LemmaResolveRepo {
               WHERE root_norm IN (${placeholders(govNorms.length)})
               ORDER BY ${STATUS_RANK}, sort_order`,
             govNorms,
-          ).catch(() => [])
+          ).catch(softFail([]))
         : Promise.resolve([]),
 
       query<{ lemma_id: string } & ResolvedWazn>(
@@ -293,7 +294,7 @@ export class LemmaResolveRepo {
           WHERE w.status = 'live' AND w.lemma_id IN (${ph})
           ORDER BY w.is_disputed, CASE w.basis WHEN 'attested' THEN 0 WHEN 'source_attested' THEN 1 ELSE 2 END, w.id`,
         uniq,
-      ).catch(() => []),
+      ).catch(softFail([])),
     ]);
 
     const senseBy = groupBy(senses, s => s.scope_key);

@@ -505,7 +505,8 @@ export class QuizSession {
           ORDER BY points DESC, correct DESC`,
         [await this.state.storage.get<string>('code') ?? ''],
       );
-    } catch {
+    } catch (e) {
+      console.warn('[quiz leaderboard]', e instanceof Error ? e.message : e);
       return [];
     }
   }
@@ -522,7 +523,9 @@ export class QuizSession {
             WHERE id = ?`,
           [sessionId],
         );
-      } catch {  }
+      } catch (e) {
+        console.warn('[quiz end]', e instanceof Error ? e.message : e);
+      }
     }
     this.broadcast({ t: 'ended', board: await this.board() });
     for (const ws of this.state.getWebSockets()) {
@@ -542,7 +545,9 @@ export class QuizSession {
           WHERE id = ?`,
         [sessionId],
       );
-    } catch {  }
+    } catch (e) {
+      console.warn('[quiz start]', e instanceof Error ? e.message : e);
+    }
   }
 
   private async correctIndexOf(questionId: string): Promise<number | null> {
@@ -579,7 +584,8 @@ export class QuizSession {
         this.env.DB_CORE,
         'SELECT display_name FROM core_users WHERE id = ?', [userId]);
       return rows[0]?.display_name ?? null;
-    } catch {
+    } catch (e) {
+      console.warn('[quiz displayName]', e instanceof Error ? e.message : e);
       return null;
     }
   }

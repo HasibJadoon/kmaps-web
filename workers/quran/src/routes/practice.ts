@@ -20,7 +20,15 @@ import { ssDrills, ssCount } from './practice-ss';
 import { structureDrills, structureCount } from './practice-structure';
 import { questionDrills, tafsirDrillsQ, questionsCount, tafsirReadDrills, tafsirLangDrills, listenWorks, passageDrills, type PassageStage } from './practice-tafsirq';
 import { sarfDrills, sarfSheet, lexiconRoot, lexiconLemma } from './practice-sarf';
-import { ensureCard, attachRef, widenToAyat, foldSources } from './practice-kit';
+import { ensureCard, attachRef, widenToAyat, foldSources, loadAyat, runOn, withCard, shuffle, type Ayah as KitAyah, fold, loose } from './practice-kit';
+
+// The āyah loader lives in practice-kit (one copy); re-exported for the callers that import it from here.
+export { loadAyat, runOn };
+
+type Word = KitAyah['ws'][number];
+/// a line drilled here: an āyah as the kit loads it, or a sentence assembled across āyāt (no surah name of its own)
+type Ayah = Omit<KitAyah, 'surahName'> & { surahName?: string };
+import { softFail } from '../../../shared/src/soft-fail';
 
 /** Bump when the الصرف sheet's JSON changes shape or wording rules, so the edge cache starts afresh. */
 const SARF_SHEET_V = '2026-10-16a'
@@ -37,18 +45,12 @@ const LEX_PAGE_V = '2026-10-08k';
 //   GET /qr/practice/session?skill=&level=basic|middle|advanced|all&surah=&from=&to=&n=8
 //       scope: an āyah range of a surah, a whole surah, or (no surah) the whole Qurʾān
 
-const RECITER = 7;
 const BOOKS: Record<string, string> = { qul_irab_quran_daas: 'al-Daʿʿās, Iʿrāb al-Qurʾān' };
 export type Band = 'basic' | 'middle' | 'advanced' | 'all';
 type Levels = Record<string, Record<string, unknown>>;
 export type Scope = { surah: number | null; from: number | null; to: number | null };
 
-const shuffle = <T>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const cap = (s: string | null | undefined) => (s ?? '').replace(/^\w/, (c) => c.toUpperCase());
-/// letters only, for matching words across spellings
-const fold = (w: string) => (w ?? '').replace(/[ؐ-ًؚ-ٰٟۖ-ۭـ]/g, '')
-  .replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[^ء-ي]/g, '');
-const loose = (w: string) => fold(w).replace(/[اوي]/g, '');
 
 export function practiceRoutes(router: Router<QuranEnv>) {
   // the passage's commentary, to read and follow (the passage study's commentary section): the four
@@ -128,15 +130,15 @@ export function practiceRoutes(router: Router<QuranEnv>) {
       query<{ n: number }>(env.DB_QR, `SELECT COUNT(*) AS n FROM qr_irab_drill_item`),
       query<{ n: number }>(env.DB_QR, `SELECT COUNT(*) AS n FROM qr_ayah`),
       // translation choices: every place a feature stands (the registry keeps the counts)
-      query<{ n: number }>(env.DB_QR, `SELECT COALESCE(SUM(n_ayat), 0) AS n FROM qr_translation_feature`).catch(() => [{ n: 0 }]),
+      query<{ n: number }>(env.DB_QR, `SELECT COALESCE(SUM(n_ayat), 0) AS n FROM qr_translation_feature`).catch(softFail([{ n: 0 }])),
       al<{ grammar: number; balagha: number; idiom: number; arc: number }>(env, '/al/drill/counts').catch(() => null),
     ]);
-    const [tafsir, irabbooks, gram, vocab, ss] = await Promise.all([tafsirCount(env).catch(() => 0), irabBookCount(env).catch(() => 0),
-                                                         gramTermCounts(env, L.skill ?? []).catch(() => ({} as Record<string, number>)),
-                                                         vocabCount(env).catch(() => 0), ssCount(env).catch(() => 0)]);
-    const structure = await structureCount(env).catch(() => 0);
-    const asked = await questionsCount(env).catch(() => ({ questions: 0, tafsirq: 0 }));
-    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, tafsir, irabbooks, vocab, pairs: Math.floor(vocab / 5), ss, structure, ...asked, ...(counts ?? {}), ...gram, ...(await surahLexCounts(env).catch(() => ({}))), groups: await groupsCount(env, L).catch(() => 0) };
+    const [tafsir, irabbooks, gram, vocab, ss] = await Promise.all([tafsirCount(env).catch(softFail(0)), irabBookCount(env).catch(softFail(0)),
+                                                         gramTermCounts(env, L.skill ?? []).catch(softFail({} as Record<string, number>)),
+                                                         vocabCount(env).catch(softFail(0)), ssCount(env).catch(softFail(0))]);
+    const structure = await structureCount(env).catch(softFail(0));
+    const asked = await questionsCount(env).catch(softFail({ questions: 0, tafsirq: 0 }));
+    const n: Record<string, number> = { irab: irab[0]?.n ?? 0, lines: ayat[0]?.n ?? 0, translation: tr[0]?.n ?? 0, tafsir, irabbooks, vocab, pairs: Math.floor(vocab / 5), ss, structure, ...asked, ...(counts ?? {}), ...gram, ...(await surahLexCounts(env).catch(softFail({}))), groups: await groupsCount(env, L).catch(() => 0) };
     return ok({
       skills: (L.skill ?? []).map((s) => {
         const src = String(s.extra?.source ?? s.key);
@@ -232,7 +234,7 @@ export async function drawSkill(env: QuranEnv, L: Record<string, Label[]>, skill
   let pool = items;
   if (src === 'gram' || src === 'gramterm') {
     const expert = new Set((await query<{ id: string }>(env.DB_QR, `SELECT id FROM ar_ling_gram_term WHERE tier = 'expert'`)
-      .catch(() => [] as Array<{ id: string }>)).map((r) => r.id));
+      .catch(softFail([] as Array<{ id: string }>))).map((r) => r.id));
     pool = items.filter((it) => ((it.terms as string[] | undefined) ?? [it.termId as string | undefined].filter(Boolean) as string[])
       .some((t) => expert.has(t)));
   }
@@ -257,75 +259,6 @@ function al<T>(env: QuranEnv, path: string): Promise<T> {
   return env.AR_LINGUISTICS.fetch(`https://al${path}`).then((r) => r.json() as Promise<{ data: T }>).then((j) => j.data);
 }
 
-type Word = { word_index: number; word_text: string; pos: string | null; lemma: string | null; is_content_word: number | null };
-type Ayah = { key: string; surah: number; ayah: number; ws: Word[]; words: { t: string; s: number; e: number }[]; aligned: boolean;
-              audio: { url: string; start: number; end: number } | null; en: string | null; title: string };
-
-/** An āyah's English that runs on into the next āyah (the translation carries one sentence over several, ending
- *  this one on a dash, comma or bare word — a quarter of the default's āyāt) ends on an ellipsis, so a drill showing
- *  the one āyah does not read as cut off: "…can only go wrong-" → "…can only go wrong …". */
-export function runOn(text: string | null): string | null {
-  if (!text) return text;
-  const t = text.trim();
-  if (/[.!?…’”"')\]]$/.test(t)) return t;
-  return `${t.replace(/[\s\-–—,;:]+$/, '')} …`;
-}
-
-/// Each āyah with its words, their times in the recitation (where it numbers the words as the
-/// corpus does), its clip, its default English, and where it stands.
-export async function loadAyat(env: QuranEnv, pairs: number[][]): Promise<Map<string, Ayah>> {
-  if (!pairs.length) return new Map();
-  const inAyat = pairs.map(() => '(surah = ? AND ayah = ?)').join(' OR ');
-  const flat = pairs.flat();
-  const surahIds = [...new Set(pairs.map((p) => p[0]))];
-  const [words, rec, tr, surahs] = await Promise.all([
-    query<Word & { surah: number; ayah: number }>(env.DB_QR,
-      `SELECT surah, ayah, word_index, word_text, pos, lemma, is_content_word FROM qr_word_occurrence WHERE (surah, ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?)) ORDER BY surah, ayah, word_index`, [JSON.stringify(pairs)]),
-    query<{ surah: number; ayah: number; start_ms: number; end_ms: number; segments_json: string | null; audio_url: string }>(env.DB_QR,
-      `SELECT a.surah, a.ayah, a.start_ms, a.end_ms, a.segments_json, r.audio_url FROM qr_recitation_ayah a
-         JOIN qr_recitation r ON r.reciter_id = a.reciter_id AND r.surah = a.surah
-        WHERE a.reciter_id = ${RECITER} AND (a.surah, a.ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`, [JSON.stringify(pairs)]),
-    query<{ surah: number; ayah: number; text: string }>(env.DB_QR,
-      `SELECT t.surah, t.ayah, t.translation_text AS text FROM qr_translation t
-         JOIN qr_translation_source s ON s.id = t.source_id AND s.is_default = 1 WHERE (t.surah, t.ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`, [JSON.stringify(pairs)]),
-    query<{ id: number; name_en: string }>(env.DB_QR, `SELECT id, name_en FROM qr_surah WHERE id IN (${surahIds.map(() => '?').join(',')})`, surahIds),
-  ]);
-  const names = new Map(surahs.map((s) => [s.id, s.name_en]));
-  const recOf = new Map(rec.map((r) => [`${r.surah}:${r.ayah}`, r]));
-  const enOf = new Map(tr.map((r) => [`${r.surah}:${r.ayah}`, runOn(r.text)]));
-  const wsOf = new Map<string, Word[]>();
-  for (const w of words) wsOf.set(`${w.surah}:${w.ayah}`, [...(wsOf.get(`${w.surah}:${w.ayah}`) ?? []), w]);
-  const out = new Map<string, Ayah>();
-  for (const [s, a] of pairs) {
-    const key = `${s}:${a}`;
-    const ws = wsOf.get(key) ?? [];
-    const r = recOf.get(key);
-    const segs: number[][] = r?.segments_json ? JSON.parse(r.segments_json) : [];
-    const at = new Map<number, number[]>();
-    for (const x of segs) if (!at.has(x[0])) at.set(x[0], x);
-    const aligned = ws.length > 0 && at.size === ws.length && ws.every((w) => at.has(w.word_index));
-    out.set(key, {
-      key, surah: s, ayah: a, ws, aligned, en: enOf.get(key) ?? null,
-      title: `${names.get(s) ?? 'Surah ' + s} ${s}:${a}`,
-      words: ws.map((w) => { const t = aligned ? at.get(w.word_index) : undefined; return { t: w.word_text, s: t ? t[1] / 1000 : 0, e: t ? t[2] / 1000 : 0 }; }),
-      audio: r ? { url: r.audio_url, start: r.start_ms / 1000, end: r.end_ms / 1000 } : null,
-    });
-  }
-  return out;
-}
-
-/// The review card every drill files: the whole drill kept so review replays it, and where it sits.
-function withCard(drill: Record<string, unknown>, a: { ref: string; type: string; kind: string; front: string; back: string;
-                  surah?: number | null; ayah?: number | null; series?: string | null; band?: Band }) {
-  drill.srs = {
-    module: 'QR', resource_type: a.type, card_kind: a.kind, card_template: String(drill.kind),
-    resource_ref: a.ref, front_text: a.front, back_text: a.back,
-    extra: { drill: { ...drill }, group: { skill: a.kind, band: a.band && a.band !== 'all' ? a.band : null, series: a.series ?? null,
-                                           workId: a.surah ? `QR:SURAH:${a.surah}` : null, work: a.surah ? `${a.surah}:${a.ayah ?? ''}` : null,
-                                           episode: null, scene: null } },
-  };
-  return drill;
-}
 
 const scopeWhere = (s: Scope, col = '') => s.surah === null ? { sql: '1=1', args: [] as number[] }
   : s.from && s.to ? { sql: `${col}surah = ? AND ${col}ayah BETWEEN ? AND ?`, args: [s.surah, s.from, s.to] }
@@ -445,12 +378,12 @@ async function lineContext(env: QuranEnv, pairs: number[][], gaps: boolean): Pro
       WHERE (i.surah, i.ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))
         AND ((g.grade IN ('medium', 'hard', 'super') AND g.focus = 1)
              OR EXISTS (SELECT 1 FROM qr_vocab_flag f WHERE f.surah = i.surah AND f.ayah = i.ayah AND f.word_index = i.word_index))`,
-    [JSON.stringify(pairs)]).catch(() => [] as Array<{ k: string }>) : []).map((r) => r.k));
+    [JSON.stringify(pairs)]).catch(softFail([] as Array<{ k: string }>)) : []).map((r) => r.k));
   // the words of the same roots across the whole Qurʾān: a gap's nearest misses
   const roots = [...new Set(facts.filter((f) => f.root && high.has(`${f.surah}:${f.ayah}:${f.word_index}`)).map((f) => f.root as string))];
   const kin = gaps && roots.length ? await query<PoolWord>(env.DB_QR,
     `SELECT DISTINCT ${POOL_COLS} FROM qr_word_occurrence WHERE root IN (${roots.map(() => '?').join(',')}) AND is_content_word = 1 LIMIT 4000`,
-    roots).catch(() => [] as PoolWord[]) : [];
+    roots).catch(softFail([] as PoolWord[])) : [];
   return { pool, factOf, high, kin };
 }
 

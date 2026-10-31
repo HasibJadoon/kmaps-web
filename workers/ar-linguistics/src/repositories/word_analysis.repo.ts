@@ -1,4 +1,5 @@
 import { query, placeholders, chunked } from '../../../shared/src/db';
+import { softFail } from '../../../shared/src/soft-fail';
 
 export interface LensEntry { source: string; heading: string | null; text: string; page: number | null; dirty?: boolean; }
 export interface FiveLens { sarf: string | null; irab: string | null; dalala: string | null; balagha: string | null; tarjama: string | null; }
@@ -128,22 +129,34 @@ export class WordAnalysisRepo {
 
     const [rootsRows, vocab, depth, antonyms, illus, diagrams, lensRows, fiveSections] = await Promise.all([
       query<{ root_text: string; root_normalized: string | null; root_letters: string | null; root_type: string | null; weak_pattern: string | null; frequency_quran: number | null; meaning_core_ar: string | null; meaning_core_en: string | null }>(
-        this.db, `SELECT root_text, root_normalized, root_letters, root_type, weak_pattern, frequency_quran, meaning_core_ar, meaning_core_en FROM ar_ling_roots WHERE root_text IN (${ph}) OR root_normalized IN (${ph})`, [...uniq, ...uniq]).catch(() => []),
+        this.db, `SELECT root_text, root_normalized, root_letters, root_type, weak_pattern, frequency_quran, meaning_core_ar, meaning_core_en FROM ar_ling_roots WHERE root_text IN (${ph}) OR root_normalized IN (${ph})`, [...uniq, ...uniq]).catch(softFail([])),
       query<{ root_norm: string; membean_hook: string | null; unique_senses_json: string | null; examples_json: string | null }>(
-        this.db, `SELECT root_norm, membean_hook, unique_senses_json, examples_json FROM ar_ling_learn_vocab WHERE root_norm IN (${ph})`, uniq).catch(() => []),
+        this.db, `SELECT root_norm, membean_hook, unique_senses_json, examples_json FROM ar_ling_learn_vocab WHERE root_norm IN (${ph})`, uniq).catch(softFail([])),
       query<{ root_norm: string; nuance_gems_json: string | null; near_synonyms_json: string | null }>(
-        this.db, `SELECT root_norm, nuance_gems_json, near_synonyms_json FROM ar_ling_vocab_depth WHERE root_norm IN (${ph})`, uniq).catch(() => []),
+        this.db, `SELECT root_norm, nuance_gems_json, near_synonyms_json FROM ar_ling_vocab_depth WHERE root_norm IN (${ph})`, uniq).catch(softFail([])),
       query<{ root_norm: string; antonym_ar: string; antonym_en: string | null; antonym_root: string | null }>(
-        this.db, `SELECT root_norm, antonym_ar, antonym_en, antonym_root FROM ar_ling_root_didd WHERE root_norm IN (${ph}) ORDER BY sort_order`, uniq).catch(() => []),
+        this.db, `SELECT root_norm, antonym_ar, antonym_en, antonym_root FROM ar_ling_root_didd WHERE root_norm IN (${ph}) ORDER BY sort_order`, uniq).catch(softFail([])),
       query<{ root_norm: string; title: string | null; caption_md: string | null; palette: string | null; svg_inline: string | null }>(
-        this.db, `SELECT root_norm, title, caption_md, palette, svg_inline FROM ar_ling_vocab_illustrations WHERE root_norm IN (${ph})`, uniq).catch(() => []),
+        this.db, `SELECT root_norm, title, caption_md, palette, svg_inline FROM ar_ling_vocab_illustrations WHERE root_norm IN (${ph})`, uniq).catch(softFail([])),
       query<{ root_norm: string; diagram_kind: string | null; spec_json: string | null; renderer_key: string | null }>(
-        this.db, `SELECT root_norm, diagram_kind, spec_json, renderer_key FROM ar_ling_vocab_diagrams WHERE root_norm IN (${ph})`, uniq).catch(() => []),
+        this.db, `SELECT root_norm, diagram_kind, spec_json, renderer_key FROM ar_ling_vocab_diagrams WHERE root_norm IN (${ph})`, uniq).catch(softFail([])),
       query<{ root_norm: string; source_slug: string; raw_text: string | null; entry_text_ar: string | null; entry_text_en: string | null; page_start: number | null }>(
-        this.db, `SELECT root_norm, source_slug, raw_text, entry_text_ar, entry_text_en, page_start FROM ar_ling_lexicon_entry WHERE root_norm IN (${ph})`,
-        uniq).catch(() => []),
+        // Through the key view (kmaps-web/CLAUDE.md), lowest key_rank per source, so a
+        // source filing the root under another key (Lane/al-Rāghib on ربب) is not dropped;
+        // a root the key table does not know reads the table directly, as before.
+        this.db, `SELECT root_norm, source_slug, raw_text, entry_text_ar, entry_text_en, page_start FROM (
+                    SELECT root_norm, source_slug, raw_text, entry_text_ar, entry_text_en, page_start,
+                           ROW_NUMBER() OVER (PARTITION BY root_norm, source_slug ORDER BY key_rank, entry_id) AS rn
+                      FROM ar_ling_root_lexicon_entry_v WHERE root_norm IN (${ph})
+                  ) WHERE rn = 1
+                  UNION ALL
+                  SELECT e.root_norm, e.source_slug, e.raw_text, e.entry_text_ar, e.entry_text_en, e.page_start
+                    FROM ar_ling_lexicon_entry e
+                   WHERE e.root_norm IN (${ph})
+                     AND NOT EXISTS (SELECT 1 FROM ar_ling_root_lexicon_key k WHERE k.root_norm = e.root_norm)`,
+        [...uniq, ...uniq]).catch(softFail([])),
       query<{ root_norm: string; heading_norm: string | null; text_ar: string | null }>(
-        this.db, `SELECT root_norm, heading_norm, text_ar FROM ar_ling_lexicon_entry_section WHERE root_norm IN (${ph}) AND source_slug = ?`, [...uniq, FIVE_LENS_SLUG]).catch(() => []),
+        this.db, `SELECT root_norm, heading_norm, text_ar FROM ar_ling_lexicon_entry_section WHERE root_norm IN (${ph}) AND source_slug = ?`, [...uniq, FIVE_LENS_SLUG]).catch(softFail([])),
     ]);
 
     const [senseNodes, arcNodes, arcSteps] = await Promise.all([
@@ -154,7 +167,7 @@ export class WordAnalysisRepo {
            FROM ar_ling_root_sense
           WHERE scope_level = 'root' AND root_norm IN (${ph})
           ORDER BY ${STATUS_RANK}, is_core DESC, sort_order, sense_key`,
-        uniq).catch(() => []),
+        uniq).catch(softFail([])),
       query<{ root_norm: string; id: string; arc_key: string; arc_ar: string | null;
               arc_en: string | null; arc_ur: string | null; is_primary: number;
               is_synthesis: number; confidence: number | null; status: string }>(
@@ -164,7 +177,7 @@ export class WordAnalysisRepo {
            FROM ar_ling_sense_arc
           WHERE scope_level = 'root' AND root_norm IN (${ph})
           ORDER BY ${STATUS_RANK}, is_primary DESC, arc_key`,
-        uniq).catch(() => []),
+        uniq).catch(softFail([])),
       query<{ arc_id: string } & RootSenseArcStep>(
         this.db,
         `SELECT st.arc_id, st.step_no, st.sense_id, st.note_md, s.gloss_ar, s.gloss_en
@@ -173,7 +186,7 @@ export class WordAnalysisRepo {
            LEFT JOIN ar_ling_root_sense s ON s.id = st.sense_id
           WHERE a.scope_level = 'root' AND a.root_norm IN (${ph})
           ORDER BY st.arc_id, st.step_no`,
-        uniq).catch(() => []),
+        uniq).catch(softFail([])),
     ]);
     const senseByRoot = groupBy(senseNodes, s => s.root_norm);
     const arcByRoot = groupBy(arcNodes, a => a.root_norm);
@@ -188,7 +201,7 @@ export class WordAnalysisRepo {
           AND l.is_quran_word = 1
           AND l.part_of_speech != 'root_entry'
         ORDER BY l.part_of_speech, l.lemma_text`,
-      [...uniq, ...uniq]).catch(() => []);
+      [...uniq, ...uniq]).catch(softFail([]));
 
     const famByRoot = new Map<string, FamilyLemma[]>();
     for (const f of familyRows) {

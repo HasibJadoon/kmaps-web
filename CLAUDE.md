@@ -5,10 +5,10 @@
 
 **This repo is the web platform only** (Angular apps + Cloudflare Workers). It was split out
 of the old `knowledge-map` monorepo. Sibling repos hold what used to live alongside:
-- **kmaps-database** — D1 migrations, schema, seeds, DB scripts, ingestion tooling
+- **kmaps-database** — frozen for schema; its `scripts/` (seeds, ingestion) are still used by kmaps-resources
 - **kmaps-resources** — fonts, icons, brand, design assets
-Don't recreate `database/`, `scripts/`, or `resources/` here; make those changes in the
-sibling repo. See `~/LLM/CLAUDE.md` for the workspace map.
+Don't recreate `database/` or `resources/` here (`scripts/` holds only this repo's own deploy and
+projection tools). See `~/LLM/CLAUDE.md` for the workspace map.
 
 ## Current Shape
 
@@ -17,7 +17,7 @@ K-MAPS is an Islamic knowledge platform with Angular apps, Cloudflare Workers, a
 Active top-level areas:
 
 - `apps/k-maps/` - Angular web app.
-- `workers/` - all backend runtime code (gateway + 8 domain workers + `shared/`).
+- `workers/` - all backend runtime code (8 workers: the `backend` gateway + 7 domain workers, and `shared/`).
 - `docs/` - architecture and workflow notes.
 
 ## Apps
@@ -55,6 +55,7 @@ Domain workers:
 - `workers/worldview/` - `km-worldview-worker`, binding `DB_WV`, database `km_worldview`
 - `workers/content/` - `km-content-worker`, binding `DB_CM`, database `km_content`
 - `workers/core/` - `km-core-worker`, binding `DB_CORE`, database `km_core`
+- `workers/studio/` - `km-studio-worker`, binding `DB_ST`, database `km_studio`
 
 Worker rules:
 
@@ -146,13 +147,12 @@ incomplete in the first place. Do not read it.
 Going through the views takes Qurʾānic-root lexicon coverage from 99.8% to
 100%, and Lane from 88.4% to 98.5%.
 
-## Database & Ingestion (moved)
+## Database & Migrations
 
-Migrations, seeds, ingestion inputs, and DB scripts now live in the **kmaps-database** repo
-(`~/LLM/_Repositories/kmaps-database`). Do that work there. In *this* repo the only
-database-adjacent files are per-worker `workers/*/schema.sql` (schema snapshots) and
-`workers/*/migrations/` (each worker's own deploy migrations) — keep those in sync with
-kmaps-database when schema changes.
+Migrations are authored **here**, in each worker's own `workers/*/migrations/` folder, and
+`workers/*/schema.sql` is that worker's snapshot. **kmaps-database is frozen for schema** — don't
+add migrations there; its `scripts/` are still used by kmaps-resources. Optional D1 reads use
+`.catch(softFail(fallback))` (`workers/shared/src/soft-fail.ts`), never a bare `.catch(() => [])`.
 
 ## D1 Notes
 

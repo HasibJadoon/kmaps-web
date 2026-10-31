@@ -10,6 +10,7 @@ import {
 } from '../../../shared/src/drill-class';
 import type { CoreEnv } from '../env';
 import { MODULES, fileCards } from '../srs/file-cards';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // The Class record (§2.3 of the drill-engine plan): what a learner did in a passage or an
 // Arabic unit studied as one lesson. The domain worker says what the class is — its steps,
@@ -250,7 +251,7 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
            JOIN core_drill_class c ON c.id = d.class_id
           WHERE c.user_ref = ? AND (? IS NULL OR c.module = ?)`, [ctx.userId, module, module]),
       query<{ key: string; label: string; label_ar: string | null; icon: string | null; color: string | null }>(env.DB_CORE,
-        `SELECT key, label, label_ar, icon, color FROM core_app_label WHERE scope = 'roadmap' ORDER BY sort`).catch(() => []),
+        `SELECT key, label, label_ar, icon, color FROM core_app_label WHERE scope = 'roadmap' ORDER BY sort`).catch(softFail([])),
     ]);
     const map = roadmapOf(rows.map((c) => ({ scope: c.scope_ref, status: c.status, rating: c.rating, daysTaken: c.days_taken,
                                              activeDays: c.active_days ?? 0, open: c.open ?? 0 })), days, today);

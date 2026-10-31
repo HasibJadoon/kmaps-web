@@ -2,6 +2,7 @@ import { query } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import type { Label } from '../lib/labels';
 import { loadAyat, withCard, levelOf, interleave, shuffle, uniq, cap, parseJson, type Ayah, type Drill, type Scope } from './practice-kit';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // ── sentence structure (ss) ───────────────────────────────────────────────────
 // The clauses of every āyah as al-Jadwal fī iʿrāb al-Qurʾān states them (qr_ss_clause_reading, built by
@@ -180,7 +181,7 @@ export async function ssDrills(env: QuranEnv, n: number, scope: Scope, lv: Recor
       return ds.map((d) => ({ ask: 'ss_why', surah: d.surah, ayah: d.ayah, from: d.s_ayah === d.ayah ? d.ws : null, to: d.s_ayah === d.ayah ? d.we : null, key: d.id, row: d }));
     },
   };
-  const piles = await Promise.all(asks.filter((a) => draw[a]).map((a) => draw[a]().catch(() => [] as Pick[])));
+  const piles = await Promise.all(asks.filter((a) => draw[a]).map((a) => draw[a]().catch(softFail([] as Pick[], `ss draw ${a}`))));
   // one drill of each ask per āyah, the asks taken in turn — so a short passage still meets its
   // translation build-up beside its grammar
   const seen = new Set<string>();

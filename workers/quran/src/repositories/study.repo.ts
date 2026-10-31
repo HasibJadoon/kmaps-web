@@ -7,6 +7,7 @@ import { labels, byKey } from '../lib/labels';
 import type { QuranEnv } from '../env';
 import { atlasUnits, coversSurah } from '../routes/atlas-layers';
 import { derivedStructureSections, derivedScholarship } from './study-derived';
+import { softFail } from '../../../shared/src/soft-fail';
 
 /// How a passage is asked for: a curated passage_no (or, where no curated passage has
 /// that number, the unit at that place in the atlas's list), or its key "from-to".
@@ -248,7 +249,7 @@ export class StudyRepo {
   async corpusVersion(): Promise<{ version: string; built_at: string | null }> {
     const row = await queryOne<{ version: string; built_at: string | null }>(
       this.db, `SELECT version, built_at FROM qr_corpus_version WHERE id = 1`,
-    ).catch(() => null);
+    ).catch(softFail(null));
     if (row?.version) return row;
     // An authored layer is corrected far more often than it is created, and a
     // correction only moves `updated_at`. Deriving the version from creation
@@ -266,7 +267,7 @@ export class StudyRepo {
          SELECT MAX(MAX(COALESCE(created_at, '')), MAX(COALESCE(updated_at, ''))) AS v
            FROM qr_ss_scope_reading
        )`,
-    ).catch(() => null);
+    ).catch(softFail(null));
     return { version: `qr-derived-${fallback?.v ?? 'unknown'}`, built_at: fallback?.v ?? null };
   }
 
@@ -462,7 +463,7 @@ export class StudyRepo {
        WHERE surah = ? AND passage_id = ? AND status != 'deleted'
        ORDER BY sort_order, ayah_from, id`,
       [passage.surah_id, passage.id],
-    ).catch(() => []);
+    ).catch(softFail([]));
 
     return {
       step:       'comprehension',
@@ -493,7 +494,7 @@ export class StudyRepo {
          WHERE w.surah = ? AND w.ayah BETWEEN ? AND ?
          ORDER BY w.ayah, w.word_index`,
         [surah, from, to],
-      ).catch(() => []),
+      ).catch(softFail([])),
 
       query<{ wid: string; source_slug: string; source_title: string | null;
               role: string | null; text: string | null }>(
@@ -505,7 +506,7 @@ export class StudyRepo {
          WHERE w.surah = ? AND w.ayah BETWEEN ? AND ? AND e.word_link_status = 'linked'
            AND (e.grammar_role_ar IS NOT NULL OR e.irab_text_ar IS NOT NULL)`,
         [surah, from, to],
-      ).catch(() => []),
+      ).catch(softFail([])),
 
       query<{ wid: string; reading_type: string | null; scholar_ref: string | null;
               text_ar: string | null; is_contested: number | null; is_minority: number | null }>(
@@ -517,7 +518,7 @@ export class StudyRepo {
          WHERE r.scope_type = 'word' AND r.reading_type <> 'synthesis'
            AND w.surah = ? AND w.ayah BETWEEN ? AND ?`,
         [surah, from, to],
-      ).catch(() => []),
+      ).catch(softFail([])),
 
       query<{ ayah_from: number; ayah_to: number; scholar_id: string | null;
               work: string | null; text: string | null }>(
@@ -530,7 +531,7 @@ export class StudyRepo {
            AND t.content_ar IS NOT NULL AND TRIM(t.content_ar) <> ''
          ORDER BY t.ayah_from`,
         [surah, to, from],
-      ).catch(() => []),
+      ).catch(softFail([])),
 
       query<{ wid: string; text: string | null; text_ar: string | null; contested: number | null }>(
         this.db,
@@ -540,7 +541,7 @@ export class StudyRepo {
          WHERE r.scope_type = 'word' AND r.reading_type = 'synthesis'
            AND w.surah = ? AND w.ayah BETWEEN ? AND ?`,
         [surah, from, to],
-      ).catch(() => []),
+      ).catch(softFail([])),
 
       query<{ wid: string; etype: string | null; provenance: string | null;
               locator: string | null; text_ar: string | null; disputed: number | null }>(
@@ -554,7 +555,7 @@ export class StudyRepo {
          WHERE r.scope_type = 'word' AND r.reading_type = 'synthesis'
            AND w.surah = ? AND w.ayah BETWEEN ? AND ?`,
         [surah, from, to],
-      ).catch(() => []),
+      ).catch(softFail([])),
     ]);
 
     const irabByWord = new Map<string, { source: string; book: string | null; role: string | null; text: string | null }[]>();
@@ -673,7 +674,7 @@ export class StudyRepo {
           -- final rendering as the rendering of its opening line.
           ORDER BY (ayah_to - ayah_from) DESC, ayah_from LIMIT 1`,
         [surahId, p.ayah_from, p.ayah_to],
-      ).catch(() => null),
+      ).catch(softFail(null)),
       query<Record<string, unknown>>(
         this.db,
         `SELECT id, scope_id AS scopeId, seq, ayah_from AS ayah, ayah_to AS ayahTo,
@@ -684,7 +685,7 @@ export class StudyRepo {
           WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ? AND status = 'live'
           ORDER BY ayah_from, seq`,
         [surahId, p.ayah_from, p.ayah_to],
-      ).catch(() => []),
+      ).catch(softFail([])),
       query<Record<string, unknown>>(
         this.db,
         `SELECT b.id, b.step_seq AS seq, b.unit_id AS unitId, b.relation_type AS relation,
@@ -696,7 +697,7 @@ export class StudyRepo {
           WHERE tp.surah = ? AND tp.ayah_from >= ? AND tp.ayah_to <= ?
           ORDER BY b.step_seq, b.id`,
         [surahId, p.ayah_from, p.ayah_to],
-      ).catch(() => []),
+      ).catch(softFail([])),
       query<Record<string, unknown>>(
         this.db,
         `SELECT n.id, n.translation_unit_id AS unitId, n.driver_ar AS driverAr,
@@ -708,7 +709,7 @@ export class StudyRepo {
           WHERE u.surah = ? AND u.ayah_from >= ? AND u.ayah_to <= ?
           ORDER BY u.ayah_from, n.id`,
         [surahId, p.ayah_from, p.ayah_to],
-      ).catch(() => []),
+      ).catch(softFail([])),
       query<Record<string, unknown>>(
         this.db,
         // unit_id and buildup_id travel with the row: without them a decision
@@ -722,7 +723,7 @@ export class StudyRepo {
           WHERE surah = ? AND ayah BETWEEN ? AND ? AND status = 'live'
           ORDER BY ayah, step_seq`,
         [surahId, p.ayah_from, p.ayah_to],
-      ).catch(() => []),
+      ).catch(softFail([])),
     ]);
 
     // The passage's rendering, kept in its ayah pieces as well as whole. A
@@ -736,7 +737,7 @@ export class StudyRepo {
         WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ? AND ayah_from = ayah_to
         ORDER BY ayah_from`,
       [surahId, p.ayah_from, p.ayah_to],
-    ).catch(() => []);
+    ).catch(softFail([]));
 
     // How the English came to read the way it does, sentence by sentence: the
     // literal rendering the structure gives, the parts it is built from with
@@ -754,7 +755,7 @@ export class StudyRepo {
         WHERE s.surah = ? AND s.ayah_from >= ? AND s.ayah_to <= ?
         ORDER BY s.ayah_from, s.word_start_index`,
       [surahId, p.ayah_from, p.ayah_to],
-    ).catch(() => []);
+    ).catch(softFail([]));
 
     const ladderNodes = ladderSentences.length
       ? await query<LadderNodeRow>(
@@ -768,7 +769,7 @@ export class StudyRepo {
             WHERE t.sentence_id IN (SELECT value FROM json_each(?))
             ORDER BY n.depth, n.node_order`,
           [JSON.stringify(ladderSentences.map((r) => r.id))],
-        ).catch(() => [])
+        ).catch(softFail([]))
       : [];
 
     const termRefs = [...new Set(
@@ -781,7 +782,7 @@ export class StudyRepo {
         `SELECT id, name_ar FROM ar_ling_gram_term
           WHERE id IN (SELECT value FROM json_each(?))`,
         [JSON.stringify(termRefs)],
-      ).catch(() => []);
+      ).catch(softFail([]));
       for (const t of rows) if (t.name_ar) termNameAr.set(t.id, t.name_ar);
     }
 
@@ -892,7 +893,7 @@ export class StudyRepo {
         WHERE passage_id = ? AND status = 'active'
         ORDER BY sort_order, id`,
       [p.id],
-    ).catch(() => []);
+    ).catch(softFail([]));
     const sections = sectionRows.map((r) => ({
       id:       r.id,
       key:      r.section_key ?? r.renderer,
@@ -921,7 +922,7 @@ export class StudyRepo {
          JOIN ar_ling_gram_term t ON t.id = g.lx_grammar_ref
         WHERE g.id LIKE ?`,
       [`QR:BL:${surahId}:%`, `QR:GR:${surahId}:%`],
-    ).catch(() => []);
+    ).catch(softFail([]));
     const conceptOf = new Map(drivers.map((d) => [d.link_id, d]));
 
     // The passage's comprehension questions. They have no tab of their own, and
@@ -939,7 +940,7 @@ export class StudyRepo {
         WHERE passage_id = ? AND status != 'deleted'
         ORDER BY sort_order, id`,
       [p.id],
-    ).catch(() => []);
+    ).catch(softFail([]));
 
     // A passage with no ladder of its own — a derived passage, or a curated one whose
     // build-up is not written yet — gets the lenses the sources give it: how the four
@@ -1049,7 +1050,7 @@ export class StudyRepo {
         WHERE passage_ref = ? AND status != 'deleted'
         ORDER BY death_year_hijri, source_slug`,
       [p.id],
-    ).catch(() => []);
+    ).catch(softFail([]));
     // No reading written for this passage (a derived passage, or a curated one not reached
     // yet): each tafsīr's own discussion of the range, opening verbatim (study-derived.ts).
     if (!readings.length) return (await derivedScholarship(this.db, p)) ?? undefined;
@@ -1067,7 +1068,7 @@ export class StudyRepo {
         WHERE tafsir_id IN (SELECT value FROM json_each(?))
         ORDER BY tafsir_id, section_ord`,
       [JSON.stringify(readings.map((r) => r.id))],
-    ).catch(() => []);
+    ).catch(softFail([]));
 
     return {
       step:       'scholarship',
@@ -1264,7 +1265,7 @@ export class StudyRepo {
       `SELECT id FROM qr_ss_occ_sentence
         WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ? LIMIT 1`,
       [surah, from, to],
-    ).catch(() => []);
+    ).catch(softFail([]));
     if (!sentProbe.length) {
       return {
         step: 'sentence_structure', surah, passage: passage.passage_no,
@@ -1294,7 +1295,7 @@ export class StudyRepo {
            WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?
            ORDER BY ayah_from, COALESCE(word_start_index, 0)`,
           [surah, from, to],
-        ).catch(() => []),
+        ).catch(softFail([])),
         query<{ id: string; sentence_id: string; parent_clause_id: string | null;
                 clause_order: number; ayah_from: number; ayah_to: number;
                 word_start_index: number | null; word_end_index: number | null;
@@ -1308,7 +1309,7 @@ export class StudyRepo {
            WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?
            ORDER BY ayah_from, clause_order`,
           [surah, from, to],
-        ).catch(() => []),
+        ).catch(softFail([])),
         // A phrase is the smallest scope the SS layer classifies, and it is
         // where a naḥw or balāgha point about مِن or an iḍāfa actually belongs.
         // The board draws tree nodes, not phrases, so the two are matched on
@@ -1323,7 +1324,7 @@ export class StudyRepo {
            WHERE surah = ? AND ayah BETWEEN ? AND ?
            ORDER BY ayah, phrase_order`,
           [surah, from, to],
-        ).catch(() => []),
+        ).catch(softFail([])),
         query<{ id: string; ayah: number; word_index: number; word_text: string;
                 word_text_bare: string | null; root: string | null;
                 lemma: string | null; pos: string | null }>(
@@ -1333,7 +1334,7 @@ export class StudyRepo {
            WHERE surah = ? AND ayah BETWEEN ? AND ?
            ORDER BY ayah, word_index`,
           [surah, from, to],
-        ).catch(() => []),
+        ).catch(softFail([])),
         query<{ wid: string; ayah: number; source_slug: string; source_title: string | null;
                 role: string | null; text: string | null }>(
           this.db,
@@ -1344,7 +1345,7 @@ export class StudyRepo {
            WHERE w.surah = ? AND w.ayah BETWEEN ? AND ? AND e.word_link_status = 'linked'
              AND (e.grammar_role_ar IS NOT NULL OR e.irab_text_ar IS NOT NULL)`,
           [surah, from, to],
-        ).catch(() => []),
+        ).catch(softFail([])),
         query<{ scope_type: string; scope_id: string; ref: string | null;
                 category: string | null; effect: string | null; note: string | null;
                 gloss: string | null }>(
@@ -1368,7 +1369,7 @@ export class StudyRepo {
            WHERE scope_id IN (SELECT id FROM qr_ss_occ_phrase WHERE surah = ? AND ayah BETWEEN ? AND ?)`,
 
           [surah, from, to, surah, from, to, surah, from, to],
-        ).catch(() => []),
+        ).catch(softFail([])),
         query<{ sentence_id: string; scope_type: string | null; scope_id: string | null;
                 ellipsis_type: string; elided_element: string; effect: string | null; note: string | null }>(
           this.db,
@@ -1377,7 +1378,7 @@ export class StudyRepo {
            FROM qr_ss_ellipsis_event
            WHERE sentence_id IN (SELECT id FROM qr_ss_occ_sentence WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?)`,
           [surah, from, to],
-        ).catch(() => []),
+        ).catch(softFail([])),
         query<{ ayah_from: number; ayah_to: number; scholar_id: string | null;
                 work: string | null; text: string | null }>(
           this.db,
@@ -1389,7 +1390,7 @@ export class StudyRepo {
              AND t.content_ar IS NOT NULL AND TRIM(t.content_ar) <> ''
            ORDER BY t.ayah_from`,
           [surah, to, from],
-        ).catch(() => []),
+        ).catch(softFail([])),
 
         query<{ id: string; sentence_id: string; grounding: string | null; note_md: string | null }>(
           this.db,
@@ -1397,7 +1398,7 @@ export class StudyRepo {
            FROM qr_ss_tree t
            WHERE t.sentence_id IN (SELECT id FROM qr_ss_occ_sentence WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?)`,
           [surah, from, to],
-        ).catch(() => []),
+        ).catch(softFail([])),
         query<{ id: string; tree_id: string; parent_node_id: string | null; node_label: string;
                 term_key: string | null; label_ar: string | null; note_md: string | null;
                 word_occurrence_id: string | null; depth: number; node_order: number }>(
@@ -1416,7 +1417,7 @@ export class StudyRepo {
              WHERE t.sentence_id IN (SELECT id FROM qr_ss_occ_sentence WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?))
            ORDER BY n.depth, n.node_order`,
           [surah, from, to],
-        ).catch(() => []),
+        ).catch(softFail([])),
 
         query<{ id: string; term_key: string; category_key: string;
                 parent_term_id: string | null;
@@ -1430,7 +1431,7 @@ export class StudyRepo {
                      FROM ar_ling_gram_term_source s WHERE s.term_id = g.id) AS sources
              FROM ar_ling_gram_term g WHERE g.status = 'live'`,
           [],
-        ).catch(() => []),
+        ).catch(softFail([])),
 
         query<{ ayah: number; source_slug: string; source_title: string | null;
                 entry_order: number | null; phrase: string | null; role: string | null;
@@ -1444,7 +1445,7 @@ export class StudyRepo {
              AND irab_text_ar IS NOT NULL AND TRIM(irab_text_ar) <> ''
            ORDER BY ayah_from, source_slug, entry_order`,
           [surah, from, to],
-        ).catch(() => []),
+        ).catch(softFail([])),
 
         query<{ scope_type: string; scope_id: string; ref: string;
                 note: string | null; gloss: string | null }>(
@@ -1469,7 +1470,7 @@ export class StudyRepo {
              FROM qr_ss_scope_grammar_link
             WHERE scope_id IN (SELECT id FROM qr_ss_occ_phrase WHERE surah = ? AND ayah BETWEEN ? AND ?)`,
           [surah, from, to, surah, from, to, surah, from, to, surah, from, to],
-        ).catch(() => []),
+        ).catch(softFail([])),
 
         query<{ id: string; scope_type: string; scope_id: string; type: string | null;
                 ref: string | null; paradigm: string | null; en: string | null;
@@ -1488,7 +1489,7 @@ export class StudyRepo {
             WHERE r.scope_id IN (SELECT id FROM qr_ss_occ_sentence WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ?)
                OR r.scope_id IN (SELECT id FROM qr_word_occurrence   WHERE surah = ? AND ayah BETWEEN ? AND ?)`,
           [surah, from, to, surah, from, to],
-        ).catch(() => []),
+        ).catch(softFail([])),
 
         query<{ id: string; scope_id: string; seq: number; ayah_from: number; ayah_to: number;
                 structural: string | null; fluent_en: string | null; fluent_ar: string | null;
@@ -1503,7 +1504,7 @@ export class StudyRepo {
             WHERE surah = ? AND ayah_from >= ? AND ayah_to <= ? AND status = 'live'
             ORDER BY ayah_from, seq`,
           [surah, from, to],
-        ).catch(() => []),
+        ).catch(softFail([])),
         query<{ ayah: number; seq: number | null; span: string;
                 rendered: string | null; driver_kind: string; driver_ref: string }>(
           this.db,
@@ -1515,7 +1516,7 @@ export class StudyRepo {
             WHERE surah = ? AND ayah BETWEEN ? AND ? AND status = 'live'
             ORDER BY ayah, step_seq`,
           [surah, from, to],
-        ).catch(() => []),
+        ).catch(softFail([])),
         query<{ scope_type: string; scope_id: string; ref: string;
                 fn: string | null; position: string | null; sign: string | null;
                 disputed: number; dispute: string | null; note: string | null }>(
@@ -1527,7 +1528,7 @@ export class StudyRepo {
              FROM qr_ss_scope_morph_link m
             WHERE m.scope_id IN (SELECT id FROM qr_word_occurrence WHERE surah = ? AND ayah BETWEEN ? AND ?)`,
           [surah, from, to],
-        ).catch(() => []),
+        ).catch(softFail([])),
       ]);
 
     // Curated sentences win. The Jadwal-derived layer (isDerivedSs) fills the āyāt no one has
@@ -1568,13 +1569,13 @@ export class StudyRepo {
       clauseRows.length
         ? query<JsonRecord>(this.db,
             `SELECT * FROM qr_ss_clause_reading WHERE clause_id IN (SELECT value FROM json_each(?))`,
-            [clauseIds]).catch(() => [] as JsonRecord[])
+            [clauseIds]).catch(softFail([] as JsonRecord[]))
         : Promise.resolve([] as JsonRecord[]),
       query<JsonRecord>(this.db,
         `SELECT * FROM qr_ss_book_note
           WHERE scope_id IN (SELECT value FROM json_each(?))
              OR scope_id IN (SELECT id FROM qr_word_occurrence WHERE surah = ? AND ayah BETWEEN ? AND ?)`,
-        [clauseIds, surah, from, to]).catch(() => [] as JsonRecord[]),
+        [clauseIds, surah, from, to]).catch(softFail([] as JsonRecord[])),
     ]);
 
     const irabByWord = new Map<string, { book: string; role: string | null; text: string | null }[]>();
@@ -1801,7 +1802,7 @@ export class StudyRepo {
     const slots: GtSlots = Object.fromEntries((ssLabels.ss_slot ?? []).map((l) =>
       [l.key, Array.isArray(l.extra?.['categories']) ? (l.extra!['categories'] as string[]) : []]));
     const aliasRows = await query<GtAliasRow>(this.db,
-      `SELECT alias_bare, term_id, category_key FROM ar_ling_gram_term_alias`, []).catch(() => [] as GtAliasRow[]);
+      `SELECT alias_bare, term_id, category_key FROM ar_ling_gram_term_alias`, []).catch(softFail([] as GtAliasRow[]));
     const gt = makeGtResolver(aliasRows, slots);
     for (const m of sarfRows) {
       layersFor(m.scope_id).irab.push({
@@ -1966,7 +1967,7 @@ export class StudyRepo {
            FROM qr_tafsir_book_display_source
           WHERE source_slug IN (SELECT value FROM json_each(?1)) OR id IN (SELECT value FROM json_each(?1))`,
         [cited],
-      ).catch(() => [] as BookRow[]);
+      ).catch(softFail([] as BookRow[]));
       for (const b of rows) {
         const badge: BookBadge = {
           titleAr: b.book_title_ar,
@@ -2178,7 +2179,7 @@ export class StudyRepo {
       `SELECT id, surah, ayah, word_index, word_text, word_text_bare, root, lemma, pos, morphology_tag_json
        FROM qr_word_occurrence WHERE id = ?`,
       [wordId],
-    ).catch(() => []);
+    ).catch(softFail([]));
     if (!rows.length) return null;
     const cards = await this._buildWordCards(rows[0].surah, rows[0].ayah, rows[0].ayah, wordId);
     return cards.find(c => c.word_id === wordId) ?? cards[0] ?? null;
@@ -2190,14 +2191,14 @@ export class StudyRepo {
       `SELECT COALESCE(text_uthmani_clean, text_uthmani, text_bare, text) AS text
        FROM qr_ayah WHERE surah = ? AND ayah = ? LIMIT 1`,
       [surah, ayah],
-    ).catch(() => [] as { text: string | null }[]);
+    ).catch(softFail([] as { text: string | null }[]));
     const [t] = await query<{ text: string | null }>(
       this.db,
       `SELECT tr.translation_text AS text
        FROM qr_translation tr JOIN qr_translation_source ts ON ts.id = tr.source_id
        WHERE ts.is_default = 1 AND tr.surah = ? AND tr.ayah = ? LIMIT 1`,
       [surah, ayah],
-    ).catch(() => [] as { text: string | null }[]);
+    ).catch(softFail([] as { text: string | null }[]));
     return { ayah, text: a?.text ?? null, translation: t?.text ?? null };
   }
 
@@ -2209,7 +2210,7 @@ export class StudyRepo {
        WHERE surah = ? AND ayah_from <= ? AND ayah_to >= ?
        ORDER BY scholar_id`,
       [surah, ayah, ayah],
-    ).catch(() => []);
+    ).catch(softFail([]));
     return rows
       .filter(r => !!r.content_ar)
       .map(r => ({ scholar_id: r.scholar_id, snippet: (r.content_ar ?? '').trim() }));
@@ -2229,7 +2230,7 @@ export class StudyRepo {
          WHERE surah = ? AND ayah BETWEEN ? AND ?
          ORDER BY ayah, word_index`,
         [surahId, ayahFrom, ayahTo],
-      ).catch(() => [] as WordOccRow[]),
+      ).catch(softFail([] as WordOccRow[])),
 
       query<{ term_key: string; label_ar: string | null; color: string | null }>(
         this.db,
@@ -2238,14 +2239,14 @@ export class StudyRepo {
           UNION ALL
          SELECT term_key, name_ar, badge_color
            FROM ar_ling_gram_term WHERE status = 'live'`,
-      ).catch(() => []),
+      ).catch(softFail([])),
       query<SmlRow>(
         this.db,
         `SELECT id, scope_id, lx_morph_ref, irab_position, irab_sign, syntactic_function,
                 is_disputed, dispute_note, note_md
          FROM qr_ss_scope_morph_link WHERE id LIKE ?`,
         [`QR:SML:${surahId}:%`],
-      ).catch(() => []),
+      ).catch(softFail([])),
       query<SegRow>(
         this.db,
         `SELECT word_occurrence_id, segment_index, segment_text, segment_type
@@ -2253,14 +2254,14 @@ export class StudyRepo {
          WHERE surah = ? AND ayah BETWEEN ? AND ?
          ORDER BY word_occurrence_id, segment_index`,
         [surahId, ayahFrom, ayahTo],
-      ).catch(() => []),
+      ).catch(softFail([])),
       query<{ word_occurrence_id: string; total_occurrences: number; lx_lemma_ref: string | null }>(
         this.db,
         `SELECT lo.word_occurrence_id, l.total_occurrences, l.lx_lemma_ref
          FROM qr_lemma_occurrence lo JOIN qr_lemma l ON l.id = lo.lemma_id
          WHERE lo.surah = ? AND lo.ayah BETWEEN ? AND ?`,
         [surahId, ayahFrom, ayahTo],
-      ).catch(() => []),
+      ).catch(softFail([])),
     ]);
 
     const termMap = new Map<string, TermRef>(
@@ -2329,7 +2330,7 @@ export class StudyRepo {
   private _surahHead(surahId: number) {
     return this._once(`head:${surahId}`, () => queryOne<{ ayahs: number; name_ar: string | null; name_en: string | null }>(
       this.db, `SELECT ayah_count AS ayahs, name_ar, name_en FROM qr_surah WHERE id = ?`, [surahId],
-    ).catch(() => null));
+    ).catch(softFail(null)));
   }
 
   /// A passage no one has curated, as a row the steps read like any other: keyed by its range,
@@ -2443,7 +2444,7 @@ export class StudyRepo {
        WHERE t.passage_id = ?
        ORDER BY t.parent_task_id NULLS FIRST, COALESCE(t.step_no, 99999), t.id`,
       [passageId],
-    ).catch(() => []);
+    ).catch(softFail([]));
 
     const chunks = await query<{ task_id: string; chunk_index: number; chunk_text: string }>(
       this.db,
@@ -2452,7 +2453,7 @@ export class StudyRepo {
        WHERE passage_id = ?
        ORDER BY task_id, chunk_index`,
       [passageId],
-    ).catch(() => []);
+    ).catch(softFail([]));
 
     if (chunks.length) {
       const byTask = new Map<string, string[]>();
@@ -2518,7 +2519,7 @@ export class StudyRepo {
            JOIN qr_recitation r ON r.reciter_id = a.reciter_id AND r.surah = a.surah
           WHERE a.reciter_id = ? AND a.surah = ? AND a.ayah BETWEEN ? AND ?`,
         [READING_RECITER, passage.surah_id, passage.ayah_from, passage.ayah_to],
-      ).catch(() => []),
+      ).catch(softFail([])),
     ]);
 
     const transByAyah = new Map(translations.map(t => [t.ayah, t.text]));
@@ -2710,7 +2711,7 @@ export class StudyRepo {
        WHERE p.surah = ?
        GROUP BY t.passage_id, t.task_type`,
       [surahId],
-    ).catch(() => []);
+    ).catch(softFail([]));
 
     const out = new Map<string, Set<string>>();
     for (const r of rows) {
@@ -2733,19 +2734,19 @@ export class StudyRepo {
         this.db,
         `SELECT DISTINCT ayah_from, ayah_to FROM qr_ss_occ_sentence WHERE surah = ?`,
         [surahId],
-      ).catch(() => []).then(rows => ['sentence_structure', rows] as const),
+      ).catch(softFail([])).then(rows => ['sentence_structure', rows] as const),
       query<{ ayah_from: number; ayah_to: number }>(
         this.db,
         `SELECT DISTINCT ayah_from, ayah_to FROM qr_tafsir_entry WHERE surah = ?`,
         [surahId],
-      ).catch(() => []).then(rows => ['tafsir', rows] as const),
+      ).catch(softFail([])).then(rows => ['tafsir', rows] as const),
 
       query<{ ayah_from: number; ayah_to: number }>(
         this.db,
         `SELECT DISTINCT ayah AS ayah_from, ayah AS ayah_to
            FROM qr_word_occurrence WHERE surah = ?`,
         [surahId],
-      ).catch(() => []).then(rows => ['reading', rows] as const),
+      ).catch(softFail([])).then(rows => ['reading', rows] as const),
       // Passage-structure cards are authored per study passage in
       // qr_passage_section; project the passage's own span so the same
       // overlap test below lights the flag.
@@ -2756,14 +2757,14 @@ export class StudyRepo {
            JOIN qr_surah_study_passage p ON p.id = s.passage_id
           WHERE p.surah = ? AND s.status = 'active'`,
         [surahId],
-      ).catch(() => []).then(rows => ['passage_structure', rows] as const),
+      ).catch(softFail([])).then(rows => ['passage_structure', rows] as const),
       query<{ ayah_from: number; ayah_to: number }>(
         this.db,
         `SELECT DISTINCT ayah_from, ayah_to
            FROM qr_scholar_passage_reading
           WHERE surah = ? AND status != 'deleted'`,
         [surahId],
-      ).catch(() => []).then(rows => ['scholarship', rows] as const),
+      ).catch(softFail([])).then(rows => ['scholarship', rows] as const),
     ]);
 
     for (const p of passages) {
@@ -2788,15 +2789,15 @@ export class StudyRepo {
       query<{ passage_id: string }>(this.db,
         `SELECT DISTINCT s.passage_id FROM qr_passage_section s
            JOIN qr_surah_study_passage p ON p.id = s.passage_id
-          WHERE p.surah = ? AND s.status = 'active'`, [surahId]).catch(() => []),
+          WHERE p.surah = ? AND s.status = 'active'`, [surahId]).catch(softFail([])),
       query<{ ayah_from: number; ayah_to: number }>(this.db,
-        `SELECT DISTINCT ayah_from, ayah_to FROM qr_ss_translation_passage WHERE surah = ?`, [surahId]).catch(() => []),
+        `SELECT DISTINCT ayah_from, ayah_to FROM qr_ss_translation_passage WHERE surah = ?`, [surahId]).catch(softFail([])),
       query<{ passage_ref: string }>(this.db,
         `SELECT DISTINCT passage_ref FROM qr_scholar_passage_reading WHERE surah = ? AND status != 'deleted'`,
-        [surahId]).catch(() => []),
+        [surahId]).catch(softFail([])),
       query<{ id: string; ayah_from: number; ayah_to: number; basis: string | null }>(this.db,
         `SELECT id, ayah_from, ayah_to, source_basis AS basis FROM qr_ss_occ_sentence WHERE surah = ?`,
-        [surahId]).catch(() => []),
+        [surahId]).catch(softFail([])),
     ]);
     const sec = new Set(sections.map((r) => r.passage_id));
     const rd = new Set(readings.map((r) => r.passage_ref));
@@ -2849,7 +2850,7 @@ export class StudyRepo {
        )
        GROUP BY ayah`,
       [surahId],
-    ).catch(() => []);
+    ).catch(softFail([]));
 
     for (const p of passages) {
       const counts = { total: 0, nouns: 0, verbs: 0 };

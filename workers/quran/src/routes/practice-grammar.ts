@@ -3,6 +3,8 @@ import { ok, badRequest } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import { byKey, type Label } from '../lib/labels';
+import { shuffle } from '../../../shared/src/collections';
+import { withCard as kitWithCard, fold, loose } from './practice-kit';
 
 // ── Grammar-term drills (skill source 'gramterm') ────────────────────────────
 // The grammar-term registry drilled from AL's drill sources (/al/drill/grammar/*): where a term
@@ -30,11 +32,7 @@ type GramDrill = { id: string; source: string; ask: string; termId: string | nul
                    optionScope?: string; qrRef?: string; exampleAr?: string; wordIndex?: number | null; word?: string | null;
                    cite?: { source: string; title: string | null; bab?: string | null; volume?: number | null; page?: number | null } | null };
 
-const shuffle = <T>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const cap = (s: string | null | undefined) => (s ?? '').replace(/^\w/, (c) => c.toUpperCase());
-const fold = (w: string) => (w ?? '').replace(/[ؐ-ًؚ-ٰٟۖ-ۭـ]/g, '')
-  .replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[^ء-ي]/g, '');
-const loose = (w: string) => fold(w).replace(/[اوي]/g, '');
 
 function al<T>(env: QuranEnv, path: string): Promise<T> {
   if (!env.AR_LINGUISTICS) return Promise.reject(new Error('no AL binding'));
@@ -109,14 +107,8 @@ export function spanOf(ws: Word[], phrase: string): number[] {
 
 /// the review card every drill files: the whole drill kept, so review replays it, and where it sits
 function withCard(drill: Drill, a: { ref: string; skill: string; front: string; back: string; band: Band; surah?: number; ayah?: number; series?: string | null }) {
-  drill.srs = {
-    module: 'QR', resource_type: 'grammar', card_kind: a.skill, card_template: String(drill.kind),
-    resource_ref: a.ref, front_text: a.front, back_text: a.back,
-    extra: { drill: { ...drill }, group: { skill: a.skill, band: a.band !== 'all' ? a.band : null, series: a.series ?? null,
-                                           workId: a.surah ? `QR:SURAH:${a.surah}` : null, work: a.surah ? `${a.surah}:${a.ayah ?? ''}` : null,
-                                           episode: null, scene: null } },
-  };
-  return drill;
+  const { skill, ...rest } = a;
+  return kitWithCard(drill, { ...rest, type: 'grammar', kind: skill });
 }
 
 /// the asks a level draws: one (`ask`) or a mix (`asks`), each with its share of the round

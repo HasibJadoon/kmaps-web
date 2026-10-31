@@ -3,6 +3,7 @@ import { ok, badRequest } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
 import { cached } from '../../../shared/src/cache';
 import type { ArLinguisticsEnv } from '../env';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // ── Meaning arcs: root → lemma → word ─────────────────────────────────────────
 // The hand-built layer first (ar_ling_sense_arc + steps, ar_ling_root_dna, ar_ling_root_tatawwur,
@@ -78,11 +79,11 @@ async function handBuilt(env: ArLinguisticsEnv, root: string) {
       `SELECT id, scope_level, scope_key, arc_en, arc_ar, is_primary, status FROM ar_ling_sense_arc WHERE root_norm = ? AND status <> 'rejected'
         ORDER BY is_primary DESC, id`, [root]),
     query<{ core_ar: string | null; core_en: string | null; headline_en: string | null; headline_ar: string | null; poles_json: string; status: string }>(env.DB_AL,
-      `SELECT core_ar, core_en, headline_en, headline_ar, poles_json, status FROM ar_ling_root_dna WHERE root_norm = ?`, [root]).catch(() => []),
+      `SELECT core_ar, core_en, headline_en, headline_ar, poles_json, status FROM ar_ling_root_dna WHERE root_norm = ?`, [root]).catch(softFail([])),
     query<{ stage_no: number; stage_ar: string; stage_en: string | null; note_en: string | null; source_ref: string | null }>(env.DB_AL,
-      `SELECT stage_no, stage_ar, stage_en, note_en, source_ref FROM ar_ling_root_tatawwur WHERE root_norm = ? AND status <> 'rejected' ORDER BY stage_no`, [root]).catch(() => []),
+      `SELECT stage_no, stage_ar, stage_en, note_en, source_ref FROM ar_ling_root_tatawwur WHERE root_norm = ? AND status <> 'rejected' ORDER BY stage_no`, [root]).catch(softFail([])),
     query<{ id: string; construction_ar: string; arc_ar: string; arc_en: string; attest_count: number }>(env.DB_AL,
-      `SELECT id, construction_ar, arc_ar, arc_en, attest_count FROM ar_ling_lemma_arc WHERE root_norm = ? AND status = 'live'`, [root]).catch(() => []),
+      `SELECT id, construction_ar, arc_ar, arc_en, attest_count FROM ar_ling_lemma_arc WHERE root_norm = ? AND status = 'live'`, [root]).catch(softFail([])),
   ]);
   const steps = arcs.length ? await query<{ arc_id: string; step_no: number; note_md: string | null; label_ar: string | null; label_en: string | null;
       gloss_ar: string | null; gloss_en: string | null }>(env.DB_AL,

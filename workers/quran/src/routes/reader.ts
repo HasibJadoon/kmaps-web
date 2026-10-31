@@ -2,6 +2,7 @@ import type { Router } from '../../../shared/src/router';
 import { ok, notFound, badRequest, internalError } from '../../../shared/src/response';
 import { parseIntParam } from '../../../shared/src/validate';
 import type { QuranEnv } from '../env';
+import { softFail } from '../../../shared/src/soft-fail';
 
 interface SurahRow {
   id: number;
@@ -54,6 +55,34 @@ function toInt(raw: string | null, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/** One word of an āyah as the reader shows it. `word_index` is the qr_word_occurrence
+ *  index (1-based) when the āyah's words line up with its occurrence rows, else null. */
+export interface ReaderWord {
+  text: string;
+  word_index: number | null;
+}
+
+interface OccurrenceRow { ayah: number; word_index: number }
+
+const ARABIC_LETTER = /[ء-يٱ-ۓ]/;
+
+/**
+ * Split an āyah's display text into the words the reader renders. A token with no
+ * Arabic letter (a pause mark such as ۖ standing alone) stays with the word before it.
+ * Occurrence indexes are attached only when the counts agree, so a click never opens
+ * the wrong word.
+ */
+export function readerWords(text: string, occurrenceIndexes: number[]): ReaderWord[] {
+  const words: string[] = [];
+  for (const tok of text.trim().split(/\s+/)) {
+    if (!tok) continue;
+    if (!ARABIC_LETTER.test(tok) && words.length) words[words.length - 1] += ` ${tok}`;
+    else words.push(tok);
+  }
+  const aligned = occurrenceIndexes.length === words.length;
+  return words.map((t, i) => ({ text: t, word_index: aligned ? occurrenceIndexes[i] : null }));
+}
+
 export function readerRoutes(router: Router<QuranEnv>) {
 
   router.get('/qr/surahs/:id/reader', async (req, env, { id }) => {
@@ -69,6 +98,8 @@ export function readerRoutes(router: Router<QuranEnv>) {
     const rangeMode   = fromParam !== null || toParam !== null;
     const page        = Math.max(1, toInt(url.searchParams.get('page'), 1));
     const limit       = clamp(toInt(url.searchParams.get('limit'), 300), 1, 500);
+    // ?words=1 — each āyah also carries its words (split here, not in the app).
+    const withWords   = url.searchParams.get('words') === '1';
 
     try {
 
@@ -119,7 +150,7 @@ export function readerRoutes(router: Router<QuranEnv>) {
           .prepare(`SELECT COUNT(*) AS total FROM qr_ayah WHERE surah = ?`)
           .bind(surahId)
           .first<CountRow>(),
-        sourceSQL.catch(() => null),
+        sourceSQL.catch(softFail(null)),
       ]);
 
       if (!surahRow) return notFound(`surah ${surahId}`);
@@ -153,7 +184,7 @@ export function readerRoutes(router: Router<QuranEnv>) {
         WHERE surah = ? AND ayah BETWEEN ? AND ?
         ORDER BY ayah`;
 
-      const [ayahResult, trResult] = await Promise.all([
+      const [ayahResult, trResult, occResult] = await Promise.all([
         env.DB_QR
           .prepare(ayahSQL)
           .bind(surahId, ayahFrom, ayahTo)
@@ -170,7 +201,25 @@ export function readerRoutes(router: Router<QuranEnv>) {
               .all<TranslationRow>()
               .catch(() => ({ results: [] as TranslationRow[] }))
           : Promise.resolve({ results: [] as TranslationRow[] }),
+        withWords
+          ? env.DB_QR
+              .prepare(
+                `SELECT ayah, word_index FROM qr_word_occurrence
+                 WHERE surah = ? AND ayah BETWEEN ? AND ?
+                 ORDER BY ayah, word_index`,
+              )
+              .bind(surahId, ayahFrom, ayahTo)
+              .all<OccurrenceRow>()
+              .catch(softFail({ results: [] as OccurrenceRow[] }))
+          : Promise.resolve({ results: [] as OccurrenceRow[] }),
       ]);
+
+      const occByAyah = new Map<number, number[]>();
+      for (const o of occResult.results ?? []) {
+        const list = occByAyah.get(o.ayah) ?? [];
+        list.push(o.word_index);
+        occByAyah.set(o.ayah, list);
+      }
 
       const ayahRows = ayahResult.results ?? [];
       const trRows   = trResult.results   ?? [];
@@ -221,6 +270,7 @@ export function readerRoutes(router: Router<QuranEnv>) {
           ruku:               null,
 
           translation: trMap.get(row.ayah) ?? row.translation ?? null,
+          ...(withWords ? { words: readerWords(row.text_display ?? '', occByAyah.get(row.ayah) ?? []) } : {}),
         })),
       });
 

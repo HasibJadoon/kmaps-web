@@ -5,8 +5,9 @@ import { query, queryOne, execute } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import { labels, byKey, type Label } from '../lib/labels';
 import { drawSkill, loadAyat, type Scope } from './practice';
-import { interleave, parseJson } from './practice-kit';
+import { interleave, parseJson, shuffle } from './practice-kit';
 import { listenWorks, lineDrills, parseLineRef, sentenceDrills, parseSentenceRef } from './practice-tafsirq';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // ── The Class: a passage studied as one lesson ─────────────────────────────────
 // What the class is: its path of graded sprints, in the order the class_node label rows give
@@ -68,7 +69,7 @@ function parseKept(node: Label, kept: PoolRow | null | undefined): Drill[] | nul
 async function stepPool(env: QuranEnv, L: Record<string, Label[]>, node: Label, p: Passage, kept?: PoolRow | null): Promise<Drill[]> {
   const definition = defOfStep(node);
   const row = kept !== undefined ? kept : await queryOne<PoolRow>(env.DB_QR,
-    'SELECT step_key, definition, items_json FROM qr_class_pool WHERE passage_id = ? AND step_key = ?', [p.id, node.key]).catch(() => null);
+    'SELECT step_key, definition, items_json FROM qr_class_pool WHERE passage_id = ? AND step_key = ?', [p.id, node.key]).catch(softFail(null));
   const have = parseKept(node, row);
   if (have) {
     // a pool kept before slimming: rewritten once
@@ -95,7 +96,7 @@ async function stepPool(env: QuranEnv, L: Record<string, Label[]>, node: Label, 
     env.DB_QR.prepare('DELETE FROM qr_class_lesson WHERE passage_id = ? AND step_key = ?').bind(p.id, node.key),
   ]).catch(() => null);
   const now = await queryOne<{ items_json: string }>(env.DB_QR,
-    'SELECT items_json FROM qr_class_pool WHERE passage_id = ? AND step_key = ?', [p.id, node.key]).catch(() => null);
+    'SELECT items_json FROM qr_class_pool WHERE passage_id = ? AND step_key = ?', [p.id, node.key]).catch(softFail(null));
   try { return now ? JSON.parse(now.items_json) as Drill[] : drawn; } catch { return drawn; }
 }
 
@@ -104,7 +105,7 @@ async function stepPools(env: QuranEnv, L: Record<string, Label[]>, steps: Label
   if (!steps.length) return [];
   const rows = await query<PoolRow>(env.DB_QR,
     `SELECT step_key, definition, items_json FROM qr_class_pool WHERE passage_id = ? AND step_key IN (${steps.map(() => '?').join(',')})`,
-    [p.id, ...steps.map((n) => n.key)]).catch(() => [] as PoolRow[]);
+    [p.id, ...steps.map((n) => n.key)]).catch(softFail([] as PoolRow[]));
   const byStep = new Map(rows.map((r) => [r.step_key, r]));
   return Promise.all(steps.map((n) => stepPool(env, L, n, p, byStep.get(n.key) ?? null)));
 }
@@ -371,7 +372,7 @@ async function readingSession(env: QuranEnv, L: Record<string, Label[]>, p: Pass
                              concept_ar: string | null; gist_en: string; meaning_en: string | null; terms_json: string | null }>(env.DB_QR,
     `SELECT id, source_slug, audio_id, seq_from, seq_to, concept_en, concept_ar, gist_en, meaning_en, terms_json FROM qr_tafsir_sentence
       WHERE surah = ? AND status = 'live' AND ayah_from <= ? AND ayah_to >= ? ORDER BY source_slug, audio_id, seq_from`,
-    [p.surah, p.ayah_to, p.ayah_from]).catch(() => []);
+    [p.surah, p.ayah_to, p.ayah_from]).catch(softFail([]));
   if (!rows.length) return [];
   // in batches: one query binds at most 100 values
   // the batches and the terms, all at once
@@ -381,7 +382,7 @@ async function readingSession(env: QuranEnv, L: Record<string, Label[]>, p: Pass
   const [piles, terms] = await Promise.all([
     Promise.all(batches.map((b) => sentenceDrills(env, b, scopeOf(p)))),
     termIds.length ? query<{ id: string; name_en: string | null; name_ar: string; discipline: string | null }>(env.DB_QR,
-      `SELECT id, name_en, name_ar, discipline FROM ar_ling_gram_term WHERE id IN (SELECT value FROM json_each(?))`, [JSON.stringify(termIds)]).catch(() => [])
+      `SELECT id, name_en, name_ar, discipline FROM ar_ling_gram_term WHERE id IN (SELECT value FROM json_each(?))`, [JSON.stringify(termIds)]).catch(softFail([]))
       : Promise.resolve([]),
   ]);
   const byId = new Map(piles.flat().map((d) => [String(d.id), d]));
@@ -410,7 +411,7 @@ async function readingSession(env: QuranEnv, L: Record<string, Label[]>, p: Pass
   const contrast = await query<{ id: string; kind: string; ayah: string | null; topic_en: string; topic_ar: string | null; point_en: string;
                                  positions_json: string | null }>(env.DB_QR,
     `SELECT id, kind, ayah, topic_en, topic_ar, point_en, positions_json FROM qr_tafsir_contrast
-      WHERE passage_id = ? AND status = 'live' ORDER BY ord`, [p.id]).catch(() => []);
+      WHERE passage_id = ? AND status = 'live' ORDER BY ord`, [p.id]).catch(softFail([]));
   const kinds = byKey(L.class_style ?? []);
   const book = (slug: string) => names.get(`tafsir_read:${slug}`)?.label ?? slug;
   return [...reading, ...contrast.map((c) => ({
@@ -543,7 +544,7 @@ const ROUND = '@round';
 type StatRow = { node_key: string; definition: string; drills: number; styles_json: string; sentences_json: string | null; updated_at: string };
 const statRows = (env: QuranEnv, passage: string) => query<StatRow>(env.DB_QR,
   'SELECT node_key, definition, drills, styles_json, sentences_json, updated_at FROM qr_class_node_stat WHERE passage_id = ?', [passage])
-  .catch(() => [] as StatRow[]);
+  .catch(softFail([] as StatRow[]));
 const DAY_MS = 86_400_000;
 
 async function nodeStats(env: QuranEnv, L: Record<string, Label[]>, p: Passage, only?: Set<string>, given?: StatRow[])
@@ -727,7 +728,7 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
           const keys = [...new Set((st?.sentences ?? []).flatMap((x) => (x.stories ?? []).map((y) => y.key)))];
           const names = keys.length ? await query<{ term_key: string; term_ar: string; term_en: string | null; deck_slug: string | null; essay_slug: string | null }>(env.DB_QR,
             `SELECT term_key, MAX(term_ar) AS term_ar, MAX(term_en) AS term_en, MAX(deck_slug) AS deck_slug, MAX(essay_slug) AS essay_slug FROM qr_keyterm_story
-              WHERE term_key IN (SELECT value FROM json_each(?)) GROUP BY term_key`, [JSON.stringify(keys)]).catch(() => []) : [];
+              WHERE term_key IN (SELECT value FROM json_each(?)) GROUP BY term_key`, [JSON.stringify(keys)]).catch(softFail([])) : [];
           const so = L.class_ui?.find((x) => x.key === 'story_of');
           const eo = L.class_ui?.find((x) => x.key === 'essay_of');
           const storyCard = (y: { key: string; drills: number }) => {
@@ -746,7 +747,7 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
           // anchored at the first word here that carries one of its lemmas
           const words = await query<{ ayah: number; word_index: number; stem_lemma_ar: string | null }>(env.DB_QR,
             `SELECT ayah, word_index, stem_lemma_ar FROM qr_word_occurrence WHERE surah = ? AND ayah BETWEEN ? AND ?
-              ORDER BY ayah, word_index`, [p.surah, p.ayah_from, p.ayah_to]).catch(() => []);
+              ORDER BY ayah, word_index`, [p.surah, p.ayah_from, p.ayah_to]).catch(softFail([]));
           const lemmas = [...new Set(words.map((w) => w.stem_lemma_ar).filter((x): x is string => !!x))];
           const essays = await callService<{ ok: boolean; data: { essays: EssayRow[] } }>(env.CONTENT,
             `/cm/essays?passage=${encodeURIComponent(p.id)}&lemmas=${encodeURIComponent(lemmas.join(','))}`)
@@ -830,7 +831,7 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     const definition = `${defOfStep(base)}|lesson:5`;
     const kept = await queryOne<{ definition: string; body_json: string; updated_at: string }>(env.DB_QR,
       'SELECT definition, body_json, updated_at FROM qr_class_lesson WHERE passage_id = ? AND node_key = ? AND style = ?',
-      [p.id, key, style ?? '']).catch(() => null);
+      [p.id, key, style ?? '']).catch(softFail(null));
     type LessonSlide = { id: string; audio?: unknown; example?: { audio?: unknown } | null };
     let body: { slides: LessonSlide[]; drills: number; deck?: unknown } | null = null;
     if (kept && kept.definition === definition && (!tafsir || Date.now() - Date.parse(kept.updated_at) < DAY_MS)) {
@@ -910,7 +911,7 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
         if (sents.length) items = [...await sentenceDrills(env, sents, scope), ...items];
       } else {
         // check and review: drawn across the steps in turn, a sprint's worth
-        items = interleave(pools.map(shuffle), size);
+        items = interleave(pools.map((p) => shuffle(p)), size);
       }
     }
     if (style?.startsWith('s:') && splitSentence(base)) {
@@ -945,10 +946,4 @@ export function practiceClassRoutes(router: Router<QuranEnv>) {
     return ok({ passage: passageCard(p), node: nodeCard(node, 0, works.length), works,
                 heard: num(node.extra?.heard, 90), words: L.class_ui ?? [] });
   });
-}
-
-function shuffle<T>(xs: T[]): T[] {
-  const a = [...xs];
-  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
-  return a;
 }

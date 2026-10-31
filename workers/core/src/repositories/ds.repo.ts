@@ -6,6 +6,7 @@ import type {
 } from '../../../shared/src/contracts/ds';
 import type { CoreEnv } from '../env';
 import { cardSections, type CardForm } from './card-ds.repo';
+import { softFail } from '../../../shared/src/soft-fail';
 
 const AL_DS = '/al/ds/root';
 
@@ -131,7 +132,7 @@ export class CoreDsRepo {
         ORDER BY CASE WHEN json_extract(meta_json, '$.root_ar') = ? THEN 0 ELSE 1 END
         LIMIT 1`,
       [root, root, root],
-    ).catch(() => null);
+    ).catch(softFail(null));
 
     if (!node) return { node_id: null, readings: [] };
 
@@ -143,7 +144,7 @@ export class CoreDsRepo {
       `SELECT axis, pct, measured, stale, sensors, read_sensors
          FROM v_cyb_node_reading WHERE node_id = ? ORDER BY axis`,
       [node.id],
-    ).catch(() => []);
+    ).catch(softFail([]));
 
     const readings: DsReading[] = rows.map((r) => ({
       axis: r.axis,
@@ -167,7 +168,7 @@ export class CoreDsRepo {
         ORDER BY CASE resource_type WHEN 'root' THEN 0 WHEN 'lemma' THEN 1 ELSE 2 END,
                  datetime(next_review_at) IS NULL, datetime(next_review_at)`,
       [root, root],
-    ).catch(() => [] as CardRow[]);
+    ).catch(softFail([] as CardRow[]));
 
     if (!rows.length) {
       return [this.noteSection('remember', '90-CARD', 'LEARN', 'Cards', 'البطاقات',

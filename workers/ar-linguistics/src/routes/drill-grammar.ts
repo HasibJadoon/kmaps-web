@@ -1,6 +1,7 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import type { ArLinguisticsEnv } from '../env';
+import { shuffle } from '../../../shared/src/collections';
 
 // ── Grammar drills, from the grammar-term registry and the books ─────────────────
 // Every drill here is made from the linguistic record, whole: the prompt, the options, the
@@ -46,7 +47,6 @@ export interface GramDrill {
 const MARKS = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g;
 const bare = (s: string | null | undefined) => (s ?? '').replace(MARKS, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').trim();
 const cap = (s: string | null | undefined) => (s ?? '').replace(/^\w/, (c) => c.toUpperCase());
-const shuffle = <T>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const uniq = (xs: string[]) => [...new Set(xs.filter((x) => !!x && x.trim()))];
 const label = (t: { name_ar: string; name_en: string | null }) => (t.name_en ? `${cap(t.name_en)} · ${t.name_ar}` : t.name_ar);
 const catLabel = (c: Cat | undefined) => (c ? (c.name_en ? `${cap(c.name_en)} · ${c.name_ar}` : c.name_ar) : '');

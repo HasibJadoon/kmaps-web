@@ -349,32 +349,57 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     const requested = (params.root_norm ?? '').trim();
     if (!requested) return badRequest('root_norm required');
 
+    // Through the key view (see kmaps-web/CLAUDE.md): one entry per source, the lowest
+    // key_rank that hits, so Lane / al-Rāghib filed under the biliteral are not dropped.
+    // `root_norm` on each entry is the key that source files it under (found_under).
+    // A key the view does not know (a few non-Qurʾānic headwords) falls back to the table.
     let root_norm = requested;
     let entries: any[] = [];
-    for (const candidate of rootQueryCandidates(requested)) {
+    const candidates = rootQueryCandidates(requested);
+    for (const candidate of candidates) {
       entries = (await env.DB_AL.prepare(
         `SELECT id, source_slug, root_text, root_norm, root_id,
-                page_start, page_end, volume_no
-         FROM ar_ling_lexicon_entry
-         WHERE root_norm = ?
+                page_start, page_end, volume_no, key_rank
+         FROM (
+           SELECT entry_id AS id, source_slug, root_text, found_under AS root_norm, root_id,
+                  page_start, page_end, volume_no, key_rank,
+                  ROW_NUMBER() OVER (PARTITION BY source_slug ORDER BY key_rank, entry_id) AS rn
+           FROM ar_ling_root_lexicon_entry_v
+           WHERE root_norm = ?
+         ) WHERE rn = 1
          ORDER BY source_slug`
       ).bind(candidate).all()).results ?? [];
       if (entries.length) { root_norm = candidate; break; }
     }
+    if (!entries.length) {
+      for (const candidate of candidates) {
+        entries = (await env.DB_AL.prepare(
+          `SELECT id, source_slug, root_text, root_norm, root_id,
+                  page_start, page_end, volume_no, 0 AS key_rank
+           FROM ar_ling_lexicon_entry
+           WHERE root_norm = ?
+           ORDER BY source_slug`
+        ).bind(candidate).all()).results ?? [];
+        if (entries.length) { root_norm = candidate; break; }
+      }
+    }
 
     if (!entries.length) return notFound('root not found');
+    // (source_slug, key) pairs: each source's sections/blocks/refs sit under its own key.
+    const pairs = JSON.stringify(entries.map((e: any) => ({ s: e.source_slug, k: e.root_norm })));
 
     const counts = (await env.DB_AL.prepare(
-      `SELECT source_slug,
+      `WITH p AS (SELECT json_extract(value, '$.s') AS source_slug, json_extract(value, '$.k') AS k
+                    FROM json_each(?))
+       SELECT p.source_slug,
               (SELECT COUNT(*) FROM ar_ling_lexicon_entry_section s
-                 WHERE s.root_norm = ? AND s.source_slug = e.source_slug) AS sections,
+                 WHERE s.root_norm = p.k AND s.source_slug = p.source_slug) AS sections,
               (SELECT COUNT(*) FROM ar_ling_lexicon_block b
-                 WHERE b.root_norm = ? AND b.source_slug = e.source_slug) AS blocks,
+                 WHERE b.root_norm = p.k AND b.source_slug = p.source_slug) AS blocks,
               (SELECT COUNT(*) FROM ar_ling_lexicon_quran_ref q
-                 WHERE q.root_norm = ? AND q.source_slug = e.source_slug) AS quran_refs
-       FROM ar_ling_lexicon_entry e
-       WHERE root_norm = ?`
-    ).bind(root_norm, root_norm, root_norm, root_norm).all()).results ?? [];
+                 WHERE q.root_norm = p.k AND q.source_slug = p.source_slug) AS quran_refs
+       FROM p`
+    ).bind(pairs).all()).results ?? [];
 
     const canonical = (await env.DB_AL.prepare(
       `SELECT id, root_text, root_letters, root_type, weak_pattern,
@@ -390,14 +415,16 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
                   ORDER BY CASE block_type WHEN 'definition' THEN 0 ELSE 1 END,
                            block_seq
                 ) AS rn
-         FROM ar_ling_lexicon_block
-         WHERE root_norm = ?
+         FROM ar_ling_lexicon_block b
+         WHERE EXISTS (SELECT 1 FROM json_each(?) j
+                        WHERE json_extract(j.value, '$.s') = b.source_slug
+                          AND json_extract(j.value, '$.k') = b.root_norm)
            AND origin <> 'derived'
            AND text_plain IS NOT NULL
            AND length(trim(text_plain)) > 25
            AND block_type NOT IN ('root_header', 'chapter_header', 'header')
        ) WHERE rn = 1`
-    ).bind(root_norm).all()).results ?? [];
+    ).bind(pairs).all()).results ?? [];
     const snippetBySlug = new Map(
       snippetRows.map((r: any) => [
         r.source_slug as string,

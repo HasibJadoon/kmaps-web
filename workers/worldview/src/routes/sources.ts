@@ -4,31 +4,31 @@ import { parsePagination } from '../../../shared/src/validate';
 import { query } from '../../../shared/src/db';
 import type { WorldviewEnv } from '../env';
 import { SourceRepo } from '../repositories/source.repo';
+import { softFail } from '../../../shared/src/soft-fail';
+import { withSourceTypeLabel, withUnitTypeLabel, withNoteKindLabel, withEraShortLabel } from '../lib/value-labels';
 
 export function sourceRoutes(router: Router<WorldviewEnv>) {
 
   router.get('/worldview/sources', async (req, env) => {
     const url = new URL(req.url);
-    return paginated(
-      await new SourceRepo(env.DB_WV).list({
-        domain:      url.searchParams.get('domain'),
-        source_type: url.searchParams.get('source_type'),
-        ...parsePagination(url),
-      }),
-    );
+    const page = await new SourceRepo(env.DB_WV).list({
+      domain:      url.searchParams.get('domain'),
+      source_type: url.searchParams.get('source_type'),
+      ...parsePagination(url),
+    });
+    return paginated({ ...page, rows: page.rows.map(withSourceTypeLabel) });
   });
 
   router.get('/wv/sources', async (req, env) => {
     const url = new URL(req.url);
-    return paginated(
-      await new SourceRepo(env.DB_WV).list({
-        domain:      url.searchParams.get('domain'),
-        // The alias dropped this filter while /worldview/sources honoured it,
-        // so ?source_type=arc returned the whole shelf.
-        source_type: url.searchParams.get('source_type'),
-        ...parsePagination(url),
-      }),
-    );
+    const page = await new SourceRepo(env.DB_WV).list({
+      domain:      url.searchParams.get('domain'),
+      // The alias dropped this filter while /worldview/sources honoured it,
+      // so ?source_type=arc returned the whole shelf.
+      source_type: url.searchParams.get('source_type'),
+      ...parsePagination(url),
+    });
+    return paginated({ ...page, rows: page.rows.map(withSourceTypeLabel) });
   });
 
   router.get('/worldview/sources/:id', async (_req, env, { id }) => {
@@ -36,14 +36,14 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     const source = await repo.findById(id);
     if (!source) return notFound(`source ${id}`);
 
-    return ok({ ...source, units: await repo.allUnits(id) });
+    return ok({ ...withSourceTypeLabel(source), units: (await repo.allUnits(id)).map(withUnitTypeLabel) });
   });
 
   router.get('/wv/sources/:id', async (_req, env, { id }) => {
     const repo   = new SourceRepo(env.DB_WV);
     const source = await repo.findById(id);
     if (!source) return notFound(`source ${id}`);
-    return ok({ ...source, units: await repo.allUnits(id) });
+    return ok({ ...withSourceTypeLabel(source), units: (await repo.allUnits(id)).map(withUnitTypeLabel) });
   });
 
   router.post('/worldview/source', async (req, env) => {
@@ -100,7 +100,7 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
         WHERE source_unit_id = ?
         ORDER BY order_index`,
       [id],
-    ).catch(() => []);
+    ).catch(softFail([]));
 
     const parseJson = (v: unknown): unknown => {
       if (typeof v !== 'string') return undefined;
@@ -136,7 +136,7 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
         WHERE source_unit_id = ? AND status = 'active'
         ORDER BY attachment_type, order_index, created_at`,
       [id],
-    ).catch(() => []);
+    ).catch(softFail([]));
 
     const byType = (type: string) => attachments.filter((a) => a['attachment_type'] === type);
 
@@ -188,7 +188,7 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
     }
 
     return ok({
-      ...unit,
+      ...withUnitTypeLabel(unit),
       readingBlocks: assembledBlocks.length
         ? assembledBlocks
         : (meta?.['readingBlocks'] ?? (poemBlocks.length ? poemBlocks : null)),
@@ -235,7 +235,7 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
   router.get('/wv/sources/:id/units', async (req, env, { id }) => {
     const url  = new URL(req.url);
     const page = await new SourceRepo(env.DB_WV).units(id, parsePagination(url));
-    return paginated(page);
+    return paginated({ ...page, rows: page.rows.map(withUnitTypeLabel) });
   });
 
   router.get('/worldview/units/:id/annotations', async (_req, env, { id }) => {
@@ -325,12 +325,13 @@ export function sourceRoutes(router: Router<WorldviewEnv>) {
       `, [id, id]),
     ]);
 
+    const labelledHighlights = highlights.map(withNoteKindLabel);
     return ok({
       unit_id: id,
-      annotations: highlights,
-      highlights,
-      notes,
-      wv,
+      annotations: labelledHighlights,
+      highlights: labelledHighlights,
+      notes: notes.map(withNoteKindLabel),
+      wv: wv.map(withEraShortLabel),
       wv_node_edges,
       wv_evidence_links,
     });

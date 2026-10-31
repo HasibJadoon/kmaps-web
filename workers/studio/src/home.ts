@@ -1,3 +1,4 @@
+import { parseJson } from '../../shared/src/collections';
 /// The studio home: the caller's episodes grouped into the three streams.
 ///
 /// Pure shaping over rows — no D1 here — so the whole home can be checked
@@ -233,14 +234,6 @@ export function titleParts(title: string): { ar: string | null; en: string } {
 
 // MARK: - Shaping
 
-function parseJson<T>(raw: string | null | undefined, fallback: T): T {
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
 
 function episode(r: HomeEpisodeRow): HomeEpisode {
   const t = titleParts(r.title);

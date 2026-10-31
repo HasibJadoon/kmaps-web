@@ -1,6 +1,7 @@
 # K-MAPS Domain Workers
 
-Seven independent Cloudflare Workers — one per domain, one D1 database each.
+Eight Cloudflare Workers: the public gateway `km-backend-worker` (`backend/`, no D1 of its own) and
+seven domain workers, each owning exactly one D1 database. There is no planner (PL) domain.
 
 ## Architecture
 
@@ -18,6 +19,7 @@ UI (Angular) / public backend Worker
 │  km-worldview-worker →  DB_WV  (km_worldview)       wv_*       │
 │  km-content-worker   →  DB_CM  (km_content)         cm_*       │
 │  km-core-worker      →  DB_CORE (km_core)           core_*     │
+│  km-studio-worker    →  DB_ST  (km_studio)          st_*       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -26,9 +28,16 @@ UI (Angular) / public backend Worker
 1. **One D1 binding per Worker** — each Worker binds ONLY its own database.
 2. **Cross-domain = service bindings** — use Fetcher, never bind another DB.
 3. **AL is the Arabic backbone** — QR and AR never duplicate roots/lemmas/sarf/nahw/balagha; they reference AL via `AL:ULID` typed refs.
+   *The one sanctioned copy:* the grammar-term registry `ar_ling_gram_term` (AL is the term of record) is
+   mirrored into DB_QR (with `ar_ling_gram_category` + `ar_ling_gram_term_alias`) and DB_AR, so their SQL can
+   join a term's names. Only `scripts/project-gram-terms.mjs` writes the mirrors; never edit them by hand.
+   `node scripts/check-gram-term-drift.mjs [quran|arabic]` is read-only (remote SELECTs) and reports rows
+   missing, mirror-only or differing (exit 1 on drift) — run it before trusting a mirror.
 4. **No LX database** — `LX:...` typed refs resolve to `DB_AL` (legacy compat).
 5. **CORE owns ACL** — CM and other workers call CORE for resource grants; they never build their own access control tables.
-6. **PL stores typed refs, not content** — pl_tasks.resource_ref points to `QR:`, `AR:`, etc. Planner never duplicates canonical content.
+6. **Store typed refs, not content** — a worker that points at another domain's row keeps `QR:`, `AR:`, … refs, never a copy.
+7. **Optional reads fail narrowly** — `query(...).catch(softFail([]))` (`shared/src/soft-fail.ts`) returns the
+   fallback only for a missing table/column and logs + rethrows anything else. Don't write `.catch(() => [])` on a D1 read.
 
 ## Acceptance Checks (before marking a domain migration complete)
 
@@ -80,8 +89,9 @@ workers/<domain>/
 | `auth.ts` | `verifyJwt()`, `extractBearerToken()`, `authenticate()`, `requireAuth()`, `requireAdmin()` |
 | `ulid.ts` | `ulid()`, `typedId(module)`, `isUlid()`, `isTypedRef()` |
 | `validate.ts` | `parseBody()`, `parsePagination()`, `parseIntParam()`, `requireParam()` |
-| `refs.ts` | `parseTypedRef()`, `normalizeDomain()` |
 | `service-client.ts` | `callService()` — typed Fetcher wrapper |
+| `soft-fail.ts` | `softFail(fallback)`, `rethrowUnlessMissing(e)`, `isMissingSchema(e)` — optional-table reads |
+| `collections.ts` | `shuffle()`, `uniq()`, `parseJson(s, fallback)` |
 
 ## Response Envelope
 
@@ -106,7 +116,6 @@ AL:01HY2XXXXXXXXXXXXXXXXXXX   ← Arabic Linguistic entity (also: LX: for legacy
 AR:01HZ1XXXXXXXXXXXXXXXXXXX   ← Arabic learning entity
 WV:01JA3XXXXXXXXXXXXXXXXXXX   ← Worldview entity
 CM:01JB4XXXXXXXXXXXXXXXXXXX   ← Content entity
-PL:01JC5XXXXXXXXXXXXXXXXXXX   ← Planner entity
 CORE:01JD6XXXXXXXXXXXXXXXXXXX ← Core entity (user, workspace, role, grant)
 
 # Quran scope shorthand
@@ -125,6 +134,7 @@ wrangler d1 create km_quran
 wrangler d1 create km_arabic
 wrangler d1 create km_worldview
 wrangler d1 create km_content
+wrangler d1 create km_studio
 
 # Apply schemas (from co-located migrations/ dirs)
 wrangler d1 migrations apply km_arabic_linguistic --remote
@@ -133,7 +143,11 @@ wrangler d1 migrations apply km_quran            --remote
 wrangler d1 migrations apply km_arabic           --remote
 wrangler d1 migrations apply km_worldview        --remote
 wrangler d1 migrations apply km_content          --remote
+wrangler d1 migrations apply km_studio           --remote
 ```
+
+Migrations are authored in each worker's own `migrations/` folder — that is the source of truth.
+`kmaps-database` is frozen for schema (its `scripts/` are still used by kmaps-resources).
 
 ## Public API Flow
 

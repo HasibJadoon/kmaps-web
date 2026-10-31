@@ -4,6 +4,7 @@ import { query, queryOne } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { ANCESTRY } from '../lib/ancestry';
 import { labels, byKey, type Label } from '../lib/labels';
+import { SHELF_SHAPES } from '../lib/value-labels';
 
 /// The reading shelf. This is the half of the acquisition layer a learner
 /// actually spends time in: pages of classical Arabic, in reading order.
@@ -75,7 +76,7 @@ export function textRoutes(router: Router<ArabicEnv>) {
 
   router.get('/ar/text/shelf', async (req, env) => {
     const url = new URL(req.url);
-    return ok({ shelf: await shelfRows(env, { genre: url.searchParams.get('genre'), series: url.searchParams.get('series') }) });
+    return ok({ shelf: await shelfRows(env, { genre: url.searchParams.get('genre'), series: url.searchParams.get('series') }), shapes: SHELF_SHAPES });
   });
 
   /// A book's table of contents: only the pages that open a chapter. Cheap

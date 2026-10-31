@@ -2,6 +2,8 @@ import { query } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import { withCard, widenToAyat } from './practice-kit';
 import { loadAyat, type Scope } from './practice';
+import { softFail } from '../../../shared/src/soft-fail';
+import { shuffle } from '../../../shared/src/collections';
 
 // ── Read & listen, sentence by sentence (qr_163) ───────────────────────────────
 // After the passage is heard whole and every sentence built, each sentence of the passage (qr_ss_occ_sentence) is read
@@ -32,7 +34,6 @@ type Story = { id: string; term_grp: string; term_ar: string; seq: number; title
                gc_ref: string | null; step_gc_ref: string | null; topic_ref: string | null; term_key: string | null;
                match_json: string | null; layer: string; source_ref: string | null };
 
-const shuffle = <T>(xs: T[]) => { const a = [...xs]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const strip = (s: string) => s.replace(/[ً-ْٰۖ-ۭ]/g, '');
 
 /** A Sinai gloss usable as an option: whole words, not an entry's fragment (": to be ~", "ask for ~"). */
@@ -73,7 +74,7 @@ export async function readingSentenceDrills(env: QuranEnv, scope: Scope): Promis
     query<Story>(env.DB_QR,
       `SELECT id, term_grp, term_ar, seq, title_en, surah, ayah_from, word_from, ayah_to, word_to, marks_json, ask_en, answer_en, wrong_json,
               explain_en, gc_ref, step_gc_ref, topic_ref, term_key, match_json, layer, source_ref
-         FROM qr_keyterm_story WHERE status = 'live' AND term_key IS NOT NULL ORDER BY term_key, seq`).catch(() => [] as Story[]),
+         FROM qr_keyterm_story WHERE status = 'live' AND term_key IS NOT NULL ORDER BY term_key, seq`).catch(softFail([] as Story[])),
     query<Gt & { category_key: string }>(env.DB_QR,
       `SELECT id, name_ar, category_key FROM ar_ling_gram_term
         WHERE id IN ('GT:pos:ism', 'GT:pos:fil', 'GT:pos:harf') OR category_key = 'sentence_class'

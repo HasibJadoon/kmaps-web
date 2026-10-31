@@ -2,6 +2,7 @@ import type { Router } from '../../../shared/src/router';
 import { ok, badRequest, notFound } from '../../../shared/src/response';
 import { cached } from '../../../shared/src/cache';
 import type { QuranEnv } from '../env';
+import { withTafsirBlockLabels } from '../lib/display-labels';
 
 type BlockRow = Record<string, unknown> & { id: string };
 
@@ -25,7 +26,7 @@ function hydrateBlock(r: Record<string, unknown>) {
     external_resource_json, meta_json,
     ...rest
   } = r as Record<string, string | null> & { [k: string]: unknown };
-  return {
+  return withTafsirBlockLabels({
     ...rest,
     ayah_keys: parseArr<string>(ayah_keys_json as string | null),
     tags: parseArr<string>(tags_json as string | null),
@@ -38,7 +39,7 @@ function hydrateBlock(r: Record<string, unknown>) {
     related_links: parseArr(related_links_json as string | null),
     external_resource: parseOrNull(external_resource_json as string | null),
     meta: parseObj(meta_json as string | null),
-  };
+  });
 }
 
 type GroupResolverRow = {

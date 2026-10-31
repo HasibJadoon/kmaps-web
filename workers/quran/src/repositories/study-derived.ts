@@ -1,6 +1,7 @@
 import { query, queryOne } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import { labels, byKey, type Label } from '../lib/labels';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // ── Study steps built from the sources, for a passage no one has authored ─────
 // A passage the atlas cut from the books (qr_surah_passage_proposal), or a curated
@@ -72,7 +73,7 @@ async function books(db: D1Database, slugs: string[]): Promise<Map<string, BookN
      UNION ALL
      SELECT source_slug, book_title_en, book_title_ar, author_name_en, author_name_ar, NULL
        FROM qr_irab_book_display_source WHERE source_slug IN (SELECT value FROM json_each(?))`,
-    [JSON.stringify(slugs), JSON.stringify(slugs)]).catch(() => []);
+    [JSON.stringify(slugs), JSON.stringify(slugs)]).catch(softFail([]));
   for (const r of rows) {
     if (!out.has(r.slug)) {
       out.set(r.slug, { slug: r.slug, title: r.title, titleAr: r.title_ar, author: r.author, authorAr: r.author_ar, died: r.died });
@@ -109,7 +110,7 @@ async function openingBasis(db: D1Database, p: StudyPassage): Promise<Rec | null
   if (own && own['opening']) return own['opening'] as Rec;
   const row = await queryOne<Proposal>(db,
     `SELECT ayah_from, ayah_to, basis_json FROM qr_surah_passage_proposal WHERE surah = ? AND ayah_from = ? LIMIT 1`,
-    [p.surah_id, p.ayah_from]).catch(() => null);
+    [p.surah_id, p.ayah_from]).catch(softFail(null));
   if (!row?.basis_json) return null;
   try { return (JSON.parse(row.basis_json) as Rec)['opening'] as Rec ?? null; } catch { return null; }
 }
@@ -121,14 +122,14 @@ export async function derivedStructureSections(db: D1Database, p: StudyPassage) 
     labels(env),
     query<{ layer: string; payload_json: string }>(db,
       `SELECT layer, payload_json FROM qr_surah_layer WHERE surah = ? AND layer IN ('structure', 'themes')`,
-      [p.surah_id]).catch(() => []),
+      [p.surah_id]).catch(softFail([])),
     openingBasis(db, p),
     query<{ ayah: number; code: string; name: string; text: string }>(db,
       `SELECT t.ayah, ts.source_code AS code, ts.translator_name AS name, t.translation_text AS text
          FROM qr_translation t JOIN qr_translation_source ts ON ts.id = t.source_id
         WHERE t.surah = ? AND t.ayah BETWEEN ? AND ?
           AND ts.source_code IN (SELECT key FROM qr_study_label WHERE scope = 'passage_translation')`,
-      [p.surah_id, p.ayah_from, p.ayah_to]).catch(() => []),
+      [p.surah_id, p.ayah_from, p.ayah_to]).catch(softFail([])),
   ]);
   const lens = byKey(L.passage_lens);
   const tiers = byKey(L.passage_book_tier);
@@ -292,14 +293,14 @@ export async function derivedScholarship(db: D1Database, p: StudyPassage) {
         WHERE t.surah = ? AND t.ayah_from <= ? AND t.ayah_to >= ?
           AND t.content_ar IS NOT NULL AND TRIM(t.content_ar) <> ''
         ORDER BY t.ayah_from, t.ayah_to`,
-      [p.surah_id, p.ayah_to, p.ayah_from]).catch(() => []),
+      [p.surah_id, p.ayah_to, p.ayah_from]).catch(softFail([])),
     query<{ code: string; name: string; ayah_from: number; ayah_to: number; text: string; len: number }>(db,
       `SELECT source_code AS code, source_name AS name, ayah_from, ayah_to,
               substr(text_plain, 1, 1400) AS text, length(text_plain) AS len
          FROM qr_tafsir_en
         WHERE surah = ? AND ayah_from <= ? AND ayah_to >= ?
         ORDER BY ayah_from`,
-      [p.surah_id, p.ayah_to, p.ayah_from]).catch(() => []),
+      [p.surah_id, p.ayah_to, p.ayah_from]).catch(softFail([])),
   ]);
   if (!entries.length && !english.length) return null;
 

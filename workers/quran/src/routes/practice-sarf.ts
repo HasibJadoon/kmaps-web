@@ -2,6 +2,7 @@ import { query } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
 import { createAlClient, type AlSarfSheet, type ResolvedLemma } from '../clients/al.client';
 import { withCard, shuffle, parseJson, rangeOf, interleave, quranRef, type Drill, type Scope } from './practice-kit';
+import { softFail } from '../../../shared/src/soft-fail';
 
 // ── الصرف: the passage's words, their forms, prepositions, family and meanings in the Qurʾān ──────
 //
@@ -122,7 +123,7 @@ async function load(env: QuranEnv, scope: Scope, refresh = false, highOnly = fal
       `SELECT o.surah || ':' || o.ayah || ':' || o.word_index AS k FROM qr_word_occurrence o
          JOIN qr_vocab_grade g ON g.root = o.root AND g.lemma = o.lemma AND g.grade IN ('medium', 'hard', 'super')
         WHERE (o.surah, o.ayah, o.word_index) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]'), json_extract(value, '$[2]') FROM json_each(?))`,
-      [JSON.stringify(words.map((w) => [w.surah, w.ayah, w.word_index]))]).catch(() => null);
+      [JSON.stringify(words.map((w) => [w.surah, w.ayah, w.word_index]))]).catch(softFail(null));
     // no grades to read (a database without qr_120) leaves the words as they are; otherwise only the high end stays
     if (rows) { const graded = new Set(rows.map((r) => r.k)); words = words.filter((w) => w.prep_json || graded.has(`${w.surah}:${w.ayah}:${w.word_index}`)); }
   }
@@ -140,13 +141,13 @@ async function load(env: QuranEnv, scope: Scope, refresh = false, highOnly = fal
       `SELECT o.surah, o.ayah, o.word_index, m.lx_morph_ref AS term_ref
          FROM qr_word_occurrence o JOIN qr_ss_scope_morph_link m ON m.scope_type = 'word' AND m.scope_id = o.id
         WHERE (o.surah, o.ayah, o.word_index) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]'), json_extract(value, '$[2]') FROM json_each(?))`,
-      [at]).catch(() => []),
+      [at]).catch(softFail([])),
     // which AL sense (and arc) each word uses here — the QR binding (qr_word_sense_link)
     query<{ s: number; a: number; w: number; al_sense_id: string; al_arc_id: string | null }>(env.DB_QR,
       `SELECT surah_no AS s, ayah_no AS a, word_index AS w, al_sense_id, al_arc_id FROM qr_word_sense_link
         WHERE status = 'live' AND is_contextual = 1
           AND (surah_no, ayah_no, word_index) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]'), json_extract(value, '$[2]') FROM json_each(?))`,
-      [at]).catch(() => []),
+      [at]).catch(softFail([])),
   ]);
   // the language is AL's, by global id — the same core a root's or a lemma's page reads (lexiconRoot, lexiconLemma)
   const gids = [...new Set(occs.map((o) => o.gid_lemma).filter((g): g is string => !!g))];
@@ -162,12 +163,12 @@ async function load(env: QuranEnv, scope: Scope, refresh = false, highOnly = fal
   const texts = new Map(C.texts);
   if (own.length) for (const a of await query<{ surah: number; ayah: number; t: string }>(env.DB_QR,
     `SELECT surah, ayah, COALESCE(text_uthmani, text) AS t FROM qr_ayah
-      WHERE (surah, ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`, [JSON.stringify(own)]).catch(() => []))
+      WHERE (surah, ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`, [JSON.stringify(own)]).catch(softFail([])))
     texts.set(`${a.surah}:${a.ayah}`, a.t);
   // the sūras' Arabic names, for each quote's reference
   const surahs = [...new Set([...texts.keys()].filter((k) => !k.startsWith('#')).map((k) => Number(k.split(':')[0])))];
   if (surahs.length) for (const r of await query<{ id: number; name_ar: string }>(env.DB_QR,
-    `SELECT id, name_ar FROM qr_surah WHERE id IN (SELECT value FROM json_each(?))`, [JSON.stringify(surahs)]).catch(() => []))
+    `SELECT id, name_ar FROM qr_surah WHERE id IN (SELECT value FROM json_each(?))`, [JSON.stringify(surahs)]).catch(softFail([])))
     texts.set(`#${r.id}`, r.name_ar);
   return {
     ...C, words, texts,
@@ -203,7 +204,7 @@ async function core(env: QuranEnv, seed: Seed, refresh = false) {
   const memberIds = [...new Set(nearsAll.flatMap((n) => parseJson<NearMember[]>(n.members_json, []).map((m) => m.lemmaId).filter((x): x is string => !!x)))];
   const quranic = new Set(memberIds.length ? (await query<{ g: string }>(env.DB_QR,
     `SELECT DISTINCT gid_lemma AS g FROM qr_word_occurrence WHERE gid_lemma IN (SELECT value FROM json_each(?))`, [JSON.stringify(memberIds)])
-    .catch(() => [])).map((r) => r.g) : []);
+    .catch(softFail([]))).map((r) => r.g) : []);
   const nears = nearsAll.map((n) => ({ ...n, members_json: JSON.stringify(parseJson<NearMember[]>(n.members_json, [])
     .map((m) => ({ ...m, lemmaId: m.lemmaId && quranic.has(m.lemmaId) ? m.lemmaId : null }))) }));
   const pictures = sheet ? Object.values(sheet.roots).filter((r) => r.picture && rootText.has(r.root_id))
@@ -213,7 +214,7 @@ async function core(env: QuranEnv, seed: Seed, refresh = false) {
     .filter((x): x is string => !!x))] : [];
   const antonymRoot = new Map((antonymIds.length ? await query<{ root_uid: string; root: string }>(env.DB_QR,
     `SELECT root_uid, MIN(root) AS root FROM qr_word_occurrence WHERE root_uid IN (SELECT value FROM json_each(?)) GROUP BY root_uid`,
-    [JSON.stringify(antonymIds)]).catch(() => []) : []).map((x) => [x.root_uid, x.root] as const));
+    [JSON.stringify(antonymIds)]).catch(softFail([])) : []).map((x) => [x.root_uid, x.root] as const));
   const opposites = new Map<string, Opposite[]>(sheet ? Object.values(sheet.roots).filter((r) => rootText.has(r.root_id))
     .map((r) => [rootText.get(r.root_id)!, r.opposites.map((o) => ({ ar: o.antonym_ar, en: o.antonym_en, kind: o.relation_kind,
       root: o.antonym_root_id ? antonymRoot.get(o.antonym_root_id) ?? null : null,
@@ -241,12 +242,12 @@ async function core(env: QuranEnv, seed: Seed, refresh = false) {
   const cited = alSenseIds.length ? await query<{ al_sense_id: string; s: number; a: number; w: number }>(env.DB_QR,
     `SELECT al_sense_id, surah_no AS s, ayah_no AS a, word_index AS w FROM qr_word_sense_link
       WHERE status = 'live' AND al_sense_id IN (SELECT value FROM json_each(?)) ORDER BY display_order, surah_no, ayah_no, word_index`,
-    [JSON.stringify(alSenseIds)]).catch(() => []) : [];
+    [JSON.stringify(alSenseIds)]).catch(softFail([])) : [];
   // the words around each cited word, to cut its quotation from the muṣḥaf
   const around = cited.length ? await query<{ surah: number; ayah: number; word_index: number; word_text_bare: string | null }>(env.DB_QR,
     `SELECT surah, ayah, word_index, word_text_bare FROM qr_word_occurrence
       WHERE (surah, ayah) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`,
-    [JSON.stringify([...new Set(cited.map((c) => `${c.s}:${c.a}`))].map((k) => k.split(':').map(Number)))]).catch(() => []) : [];
+    [JSON.stringify([...new Set(cited.map((c) => `${c.s}:${c.a}`))].map((k) => k.split(':').map(Number)))]).catch(softFail([])) : [];
   const needle = (c: { s: number; a: number; w: number }) => around
     .filter((x) => x.surah === c.s && x.ayah === c.a && x.word_index >= c.w - 1 && x.word_index <= c.w + 1)
     .sort((x, y) => x.word_index - y.word_index).map((x) => x.word_text_bare ?? '').join(' ');
@@ -836,7 +837,7 @@ async function sarfSheetRaw(env: QuranEnv, scope: Scope, refresh = false) {
   // a key term with a story deck (qr_keyterm_story): its card links to the slides, matched on the lemma
   const stories = await query<{ term_key: string; term_en: string | null; term_ar: string; deck_slug: string | null; match_json: string | null }>(env.DB_QR,
     `SELECT term_key, MAX(term_en) term_en, MAX(term_ar) term_ar, MAX(deck_slug) deck_slug, MAX(match_json) match_json
-       FROM qr_keyterm_story WHERE status = 'live' AND term_key IS NOT NULL GROUP BY term_key`).catch(() => []);
+       FROM qr_keyterm_story WHERE status = 'live' AND term_key IS NOT NULL GROUP BY term_key`).catch(softFail([]));
   const storyBy = new Map<string, { key: string; deck: string | null; title: string | null; titleAr: string }>();
   for (const s of stories) for (const lm of parseJson<{ lemmas?: string[] }>(s.match_json, {}).lemmas ?? [])
     storyBy.set(lm.normalize('NFC'), { key: s.term_key, deck: s.deck_slug, title: s.term_en, titleAr: s.term_ar });
@@ -1026,7 +1027,7 @@ async function lexiconLemmaRaw(env: QuranEnv, gid: string, refresh: boolean) {
   // what QAC says the lemma's words are (a participle, a verbal noun …), for a lemma AL gives no form facts for
   const qac = await query<{ d: string | null }>(env.DB_QR,
     `SELECT gt_derivation_type AS d FROM qr_word_occurrence WHERE gid_lemma = ? AND gt_derivation_type IS NOT NULL
-      GROUP BY gt_derivation_type ORDER BY COUNT(*) DESC LIMIT 1`, [id]).catch(() => []);
+      GROUP BY gt_derivation_type ORDER BY COUNT(*) DESC LIMIT 1`, [id]).catch(softFail([]));
   const base = own.length ? null : baseVerbOf(D.lemmaOf(id)?.wazn?.[0] ?? null, qac[0]?.d ?? null, D.verbs, lemma);
   const verbsHere = own.length ? own : base ? [base] : [];
   // lemma-scoped only: the opposites tied to this lemma — by its id, or by its spelling for one the books tie to the word

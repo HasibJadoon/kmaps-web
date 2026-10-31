@@ -111,7 +111,10 @@ export class TableSession {
             AND NOT EXISTS (SELECT 1 FROM core_bank_response r WHERE r.item_ref = i.id)`,
         [userId]);
       return Number(row?.n ?? 0);
-    } catch { return 0; }
+    } catch (e) {
+      console.warn('[table waitingFor]', e instanceof Error ? e.message : e);
+      return 0;
+    }
   }
 
   private async advance(): Promise<void> {

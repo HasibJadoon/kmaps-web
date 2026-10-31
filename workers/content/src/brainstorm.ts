@@ -1,4 +1,5 @@
 import { query } from '../../shared/src/db';
+import { softFail } from '../../shared/src/soft-fail';
 
 /// A study's brainstorm board: its talking points as frames, and on each the stickies — questions and ideas by
 /// the study's people and by Claude. Shared live through the study's room: every change pings it, and both
@@ -144,7 +145,7 @@ export async function buildBoard(
   // points added on the board, after the decks' own
   const added = await query<{ point_key: string; title: string; title_ar: string | null; note: string | null; author_ref: string }>(db,
     `SELECT point_key, title, title_ar, note, author_ref FROM cm_study_point WHERE study_id = ? AND deleted_at IS NULL ORDER BY created_at`, [studyId])
-    .catch(() => []);   // before the table is made, the board is the decks' points alone
+    .catch(softFail([]));   // before the table is made, the board is the decks' points alone
   for (const a of added) {
     frames.push({ key: a.point_key, ring: null, title: a.title, title_ar: a.title_ar, ref: null, owner: person(a.author_ref),
       lines: a.note ? [a.note] : [], stickies: [], mine: a.author_ref === user });

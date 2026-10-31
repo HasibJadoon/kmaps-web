@@ -1,3 +1,4 @@
+import { softFail } from './soft-fail';
 export interface SenseRequest {
   reader: 'row_exists' | 'row_ratio' | 'col_fraction' | 'sql_scalar' | 'ref_resolves';
   table?: string;
@@ -143,7 +144,7 @@ async function orderingFor(db: D1Database, table: string): Promise<string> {
   if (cached !== undefined) return cached;
 
   const cols = await db.prepare('SELECT name FROM pragma_table_info(?)')
-    .bind(table).all<{ name: string }>().catch(() => null);
+    .bind(table).all<{ name: string }>().catch(softFail(null));
   const have = new Set((cols?.results ?? []).map(c => c.name));
 
   const keys = ROW_ORDER_KEYS.filter(k => have.has(k)).slice(0, 2);

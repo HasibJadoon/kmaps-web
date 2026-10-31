@@ -1,6 +1,7 @@
 import { query, queryOne } from '../../../shared/src/db';
 
 import { IDENT, parseVia, bindWhere } from '../../../shared/src/carrier-bind';
+import { softFail } from '../../../shared/src/soft-fail';
 
 export interface SubLayer {
   sub_code: string;
@@ -236,7 +237,7 @@ export class RegistryRepo {
       this.db,
       `SELECT count(*) AS n FROM pragma_table_info('ar_ling_reg_table_map')
         WHERE name = 'root_bind_via_json'`,
-    ).catch(() => null);
+    ).catch(softFail(null));
     this.viaColumn = (row?.n ?? 0) > 0;
     return this.viaColumn;
   }
@@ -336,7 +337,7 @@ export class RegistryRepo {
           AND m.table_name IS NOT NULL AND m.root_bind_col IS NOT NULL
           ${conds.length ? `AND ${conds.join(' AND ')}` : ''}`,
       args,
-    ).catch(() => []);
+    ).catch(softFail([]));
 
     const usable = plans.filter(p => IDENT.test(p.table_name) && (
       p.root_bind === 'via'
@@ -346,7 +347,7 @@ export class RegistryRepo {
 
     const idRow = await queryOne<{ id: string }>(
       this.db, 'SELECT id FROM ar_ling_roots WHERE root_text = ? LIMIT 1', [root],
-    ).catch(() => null);
+    ).catch(softFail(null));
     const rootId = idRow?.id ?? null;
 
     const ID_COLS = new Set(['root_id', 'used_root_id']);
@@ -381,7 +382,7 @@ export class RegistryRepo {
 
       const rows = await query<RootFillCell>(
         this.db, sql, parts.flatMap(x => x.w!.params),
-      ).catch(() => null);
+      ).catch(softFail(null));
       if (rows) {
         cells.push(...rows);
         continue;
@@ -392,7 +393,7 @@ export class RegistryRepo {
           `SELECT '${p.sub_code}' AS sub_code, '${p.table_name}' AS carrier_table, ` +
             `COUNT(*) AS rows FROM ${p.table_name} WHERE ${w!.sql}`,
           w!.params,
-        ).catch(() => [] as RootFillCell[]);
+        ).catch(softFail([] as RootFillCell[]));
         cells.push(...one);
       }
     }
@@ -431,7 +432,7 @@ export class RegistryRepo {
         WHERE m.role IN ${CONTENT_ROLES} AND m.root_bind IN ('direct'${viaBind}) AND m.sub_code = ?
           AND m.table_name IS NOT NULL AND m.root_bind_col IS NOT NULL`,
       [subCode],
-    ).catch(() => []);
+    ).catch(softFail([]));
 
     const usable = plans.filter(p => IDENT.test(p.table_name) && (
       p.root_bind === 'via'
@@ -441,7 +442,7 @@ export class RegistryRepo {
 
     const idRow = await queryOne<{ id: string }>(
       this.db, 'SELECT id FROM ar_ling_roots WHERE root_text = ? LIMIT 1', [root],
-    ).catch(() => null);
+    ).catch(softFail(null));
     const rootId = idRow?.id ?? null;
 
     const ID_COLS = new Set(['root_id', 'used_root_id']);
@@ -465,12 +466,12 @@ export class RegistryRepo {
           this.db,
           `SELECT * FROM ${p.table_name} WHERE ${w.sql}${order} LIMIT ${ROW_LIMIT}`,
           w.params,
-        ).catch(() => [] as Record<string, unknown>[]),
+        ).catch(softFail([] as Record<string, unknown>[])),
         queryOne<{ n: number }>(
           this.db,
           `SELECT count(*) AS n FROM ${p.table_name} WHERE ${w.sql}`,
           w.params,
-        ).catch(() => null),
+        ).catch(softFail(null)),
       ]);
       if (!rows.length) return null;
       return {
@@ -505,7 +506,7 @@ export class RegistryRepo {
           AND m.table_name IS NOT NULL AND m.root_bind_col IS NOT NULL
         ORDER BY s.display_order, m.sub_code`,
       [scope],
-    ).catch(() => []);
+    ).catch(softFail([]));
 
     const usable = plans.filter(p => IDENT.test(p.table_name) && (
       p.root_bind === 'via'
@@ -517,7 +518,7 @@ export class RegistryRepo {
 
     const idRow = await queryOne<{ id: string }>(
       this.db, 'SELECT id FROM ar_ling_roots WHERE root_text = ? LIMIT 1', [root],
-    ).catch(() => null);
+    ).catch(softFail(null));
     const rootId = idRow?.id ?? null;
 
     const ID_COLS = new Set(['root_id', 'used_root_id']);
@@ -541,12 +542,12 @@ export class RegistryRepo {
           this.db,
           `SELECT * FROM ${p.table_name} WHERE ${w.sql}${order} LIMIT ${limit}`,
           w.params,
-        ).catch(() => [] as Record<string, unknown>[]),
+        ).catch(softFail([] as Record<string, unknown>[])),
         queryOne<{ n: number }>(
           this.db,
           `SELECT count(*) AS n FROM ${p.table_name} WHERE ${w.sql}`,
           w.params,
-        ).catch(() => null),
+        ).catch(softFail(null)),
       ]);
       if (!rows.length) return null;
       return {
@@ -576,7 +577,7 @@ export class RegistryRepo {
         GROUP BY s.id
         ORDER BY COALESCE(s.source_order, 99), s.author_death_ah`,
       [root],
-    ).catch(() => []);
+    ).catch(softFail([]));
   }
 
   private async orderingFor(table: string): Promise<string> {
@@ -586,7 +587,7 @@ export class RegistryRepo {
 
     const cols = await query<{ name: string }>(
       this.db, 'SELECT name FROM pragma_table_info(?)', [table],
-    ).catch(() => [] as { name: string }[]);
+    ).catch(softFail([] as { name: string }[]));
     const have = new Set(cols.map(c => c.name));
 
     const keys = ORDER_KEYS.filter(k => have.has(k)).slice(0, 2);

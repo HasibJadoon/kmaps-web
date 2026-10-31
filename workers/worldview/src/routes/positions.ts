@@ -59,6 +59,36 @@ export function positionRoutes(router: Router<WorldviewEnv>) {
     return row ? created(row) : notFound('position after insert');
   });
 
+  // The passages that have a contrast built (a Qurʾānic claim with a rebuttal), for the
+  // Lens screen's passage list. Read from the claim node ids: wv_node_qs{surah}_{from}_{to}_….
+  router.get('/wv/positions/contrast', (req, env) =>
+    cached(req, async () => {
+      const rows = await query<{ id: string }>(
+        env.DB_WV,
+        `SELECT DISTINCT e.to_node_id AS id
+           FROM wv_node_edges e
+          WHERE e.relation_type = 'rebuts' AND e.to_node_id LIKE 'wv_node_qs%'`,
+        [],
+      );
+      const seen = new Map<string, { surah: number; from: number; to: number }>();
+      for (const r of rows) {
+        const m = /^wv_node_qs(\d+)_(\d+)_(\d+)_/.exec(r.id);
+        if (!m) continue;
+        const p = { surah: Number(m[1]), from: Number(m[2]), to: Number(m[3]) };
+        seen.set(`${p.surah}:${p.from}-${p.to}`, p);
+      }
+      const list = [...seen.values()].sort((a, b) => a.surah - b.surah || a.from - b.from);
+      const names = await surahNames(env, [...new Set(list.map((p) => p.surah))]);
+      return ok({
+        passages: list.map((p) => {
+          const ref = `${p.surah}:${p.from}${p.to !== p.from ? `–${p.to}` : ''}`;
+          const name = names.get(p.surah);
+          return { ...p, scope_ref: `${p.surah}:${p.from}-${p.to}`, label: name ? `${name} ${ref}` : ref };
+        }),
+      });
+    }, CORPUS_TTL),
+  );
+
   router.get('/wv/positions/contrast/:surah/:range', async (_req, env, { surah, range }) => {
     const [fromStr, toStr] = String(range).split('-');
     const ayahFrom = Number(fromStr);
@@ -90,4 +120,22 @@ export function positionRoutes(router: Router<WorldviewEnv>) {
     });
   });
 
+}
+
+/** Sūra transliterations from the QR worker (service binding); empty when unreachable. */
+async function surahNames(env: WorldviewEnv, ids: number[]): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
+  if (!env.QURAN || !ids.length) return out;
+  await Promise.all(ids.map(async (id) => {
+    try {
+      const res = await env.QURAN!.fetch(`https://km-quran-worker/qr/surahs/${id}`);
+      if (!res.ok) return;
+      const body = await res.json() as { data?: { name_transliteration?: string | null; name_en?: string | null } };
+      const name = body.data?.name_transliteration ?? body.data?.name_en ?? null;
+      if (name) out.set(id, name);
+    } catch {
+      // the list still renders with bare references
+    }
+  }));
+  return out;
 }

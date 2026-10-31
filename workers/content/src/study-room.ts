@@ -91,7 +91,9 @@ export class StudyRoom {
            || '/' || (SELECT COALESCE(MAX(updated_at), '') FROM cm_study_sticky_place WHERE study_id = ?1)
            || '/' || (SELECT COUNT(*) || ':' || COALESCE(MAX(COALESCE(deleted_at, created_at)), '') FROM cm_study_point WHERE study_id = ?1) AS s`,
     ).bind(studyId).first<{ p: string | null; n: string | null; d: string | null; s: string | null }>()
-      .catch(() => null);   // a table not made yet: no watch this round, the app's own pings still go
+      // Best-effort: a missing table or a D1 blip skips this round; throwing here would
+      // skip setAlarm below and end the watch loop. Logged so it is still seen.
+      .catch((e: unknown) => { console.warn('[study-room] version watch:', e instanceof Error ? e.message : e); return null; });
     return `${row?.p ?? ''}|${row?.n ?? ''}|${row?.d ?? ''}|${row?.s ?? ''}`;
   }
 

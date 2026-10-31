@@ -4,6 +4,7 @@ import { cached } from '../../../shared/src/cache';
 import type { ArLinguisticsEnv } from '../env';
 import { normalizeSurahName } from '../data/surah_names';
 import { SourcesRepo } from '../repositories/sources.repo';
+import { softFail } from '../../../shared/src/soft-fail';
 
 const SOURCE_SLUG = 'raghib_mufradat';
 
@@ -161,7 +162,7 @@ export function lexiconMufradatRoutes(router: Router<ArLinguisticsEnv>) {
          WHERE source_slug = ? AND root_norm = ?
          ORDER BY section_seq`
       ).bind(SOURCE_SLUG, root_norm).all<any>().then(r => r.results ?? [])
-        .catch(() => null));
+        .catch(softFail(null)));
       if (sectionsRaw === null) {
         sectionsRaw = (await env.DB_AL.prepare(
           `SELECT id, section_seq, heading_ar, heading_norm, section_type,
