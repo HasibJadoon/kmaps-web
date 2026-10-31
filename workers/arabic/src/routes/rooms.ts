@@ -5,6 +5,7 @@ import { actorRef } from '../../../shared/src/auth';
 import type { ArabicEnv } from '../env';
 import { ANCESTRY } from '../lib/ancestry';
 import { BANDS, bandOf, inBand, levelSpan, parseBand, bare, type Band } from '../lib/levels';
+import { atlasWorld, mapWorld, worldOut, WORLD_WORDS, type WorldDistrict } from '../lib/everyday-world';
 
 // ── The Arabic home, as rooms ────────────────────────────────────────────────
 // Like the Worldview Atlas: a home of rooms, a room of collections (a series,
@@ -217,24 +218,49 @@ export function roomRoutes(router: Router<ArabicEnv>) {
     if (!room) return notFound(`room ${id}`);
     if (room.layout === 'daily') {
       const domains = inBand(band, DAILY_LEVEL) ? await dailyDomains(env) : [];
+      const rows = await query<{ slug: string; title: string; title_ar: string | null; era: string; blurb: string | null;
+                                 image_key: string | null; districts_json: string; parent: string | null }>(env.DB_AR,
+        `SELECT m.slug, m.title, m.title_ar, m.era, m.blurb, m.image_key, m.districts_json,
+                (SELECT p.slug FROM ar_map p WHERE p.id = m.parent_id) AS parent
+           FROM ar_map m ORDER BY m.sort_order`);
+      // every map is a world (lib/everyday-world): its places laid down a winding trail from their district and
+      // stop, its sub-maps waiting at the trail's end; the room itself is a world of the top-level maps
+      const placesOf = (slug: string) => domains.filter((d) => d.map_slug === slug);
+      const worlds = new Map(rows.map((m) => {
+        let districts: WorldDistrict[] = [];
+        try { districts = JSON.parse(m.districts_json); } catch { districts = []; }
+        const subs = rows.filter((r) => r.parent === m.slug).map((r) => r.slug);
+        return [m.slug, mapWorld(m.slug, m.era, !!m.image_key, districts,
+                                 placesOf(m.slug).map((d) => ({ id: d.slug, district: d.district, stop: d.map_order })), subs)];
+      }));
+      const atlas = atlasWorld(rows.filter((m) => !m.parent).map((m) => m.slug));
+      const isOpen = (d: { themes: number; readings: number }) => d.themes + d.readings > 0;
+      const progress = (open: number, all: number) => ({ open, all, label: `${WORLD_WORDS.explored} ${open} / ${all}` });
       return ok({
         room: roomOut(room, [], { count: domains.length }),
-        entries: domains.map((d) => ({ kind: 'domain', id: d.slug, title: d.title, titleAr: d.title_ar,
-                                       subtitle: d.description, count: d.words, themes: d.themes, readings: d.readings,
-                                       cover: d.cover_key ? `/api/ar/audio/${d.cover_key}` : null, stop: d.map_order,
-                                       open: d.themes + d.readings > 0, district: d.district, x: d.map_x, y: d.map_y, map: d.map_slug,
-                                       level: DAILY_LEVEL })),
-        // the atlas: every era's map (ar_map) with its picture, size, districts and parent, in order
-        maps: (await query<{ slug: string; title: string; title_ar: string | null; era: string; blurb: string | null;
-                             image_key: string | null; w: number; h: number; districts_json: string; parent: string | null }>(env.DB_AR,
-          `SELECT m.slug, m.title, m.title_ar, m.era, m.blurb, m.image_key, m.w, m.h, m.districts_json,
-                  (SELECT p.slug FROM ar_map p WHERE p.id = m.parent_id) AS parent
-             FROM ar_map m ORDER BY m.sort_order`)).map((m) => {
-          let districts: unknown[] = [];
-          try { districts = JSON.parse(m.districts_json); } catch { districts = []; }
-          return { slug: m.slug, title: m.title, titleAr: m.title_ar, era: m.era, blurb: m.blurb, parent: m.parent,
-                   image: m.image_key ? `/api/ar/audio/${m.image_key}` : null, w: m.w, h: m.h, districts };
+        entries: domains.map((d) => {
+          const spot = d.map_slug ? worlds.get(d.map_slug)?.spots.get(d.slug) : undefined;
+          return { kind: 'domain', id: d.slug, title: d.title, titleAr: d.title_ar,
+                   subtitle: d.description, count: d.words, themes: d.themes, readings: d.readings,
+                   cover: d.cover_key ? `/api/ar/audio/${d.cover_key}` : null, stop: d.map_order,
+                   open: isOpen(d), state: isOpen(d) ? 'open' : 'locked',
+                   caption: isOpen(d) ? [d.readings > 0 ? WORLD_WORDS.reading(d.readings) : null, d.words > 0 ? WORLD_WORDS.words(d.words) : null]
+                                          .filter(Boolean).join(' · ') : WORLD_WORDS.soon,
+                   district: d.district, x: spot?.x ?? d.map_x, y: spot?.y ?? d.map_y, map: d.map_slug, level: DAILY_LEVEL };
         }),
+        // the atlas: every era's map (ar_map), each a world, standing on its parent's world (or the room's) at x, y
+        maps: rows.map((m) => {
+          const world = worlds.get(m.slug)!;
+          const own = placesOf(m.slug), open = own.filter(isOpen).length;
+          const at = m.parent ? worlds.get(m.parent)?.spots.get(m.slug) : atlas.spots.get(m.slug);
+          return { slug: m.slug, title: m.title, titleAr: m.title_ar, era: m.era, eraLabel: WORLD_WORDS.eras[m.era] ?? m.era,
+                   blurb: m.blurb, parent: m.parent, image: m.image_key ? `/api/ar/audio/${m.image_key}` : null,
+                   ...worldOut(world), x: at?.x ?? null, y: at?.y ?? null,
+                   districts: world.bands, progress: progress(open, own.length),
+                   caption: WORLD_WORDS.placesOpen(open, own.length), state: own.length === 0 ? 'locked' : 'open' };
+        }),
+        atlas: { ...worldOut(atlas), title: room.title, titleAr: room.titleAr,
+                 progress: progress(domains.filter(isOpen).length, domains.length) },
         // every room answers with the same shape: the app reads `centuries` on all of them, and its absence here
         // made Everyday fail to load ("This room could not be fetched", owner 2026-10-25)
         centuries: [],
