@@ -208,8 +208,14 @@ export function mapRoutes(router: Router<ArabicEnv>) {
 
     // an item a reading covers is shown as that reading (a lesson's dialogue → its dialogue book)
     const covers = coversOf(live);
-    rows = rows.map((r) => r.type === 'artifact' && r.kind !== 'reading' && covers.has(r.ref ?? '') && domainOf(r) === placeSlug
-      ? { ...r, kind: 'reading', ref: covers.get(r.ref!)! } : r);
+    const asBook = new Set<string>();
+    rows = rows.map((r) => {
+      if (!(r.type === 'artifact' && r.kind !== 'reading' && covers.has(r.ref ?? '') && domainOf(r) === placeSlug)) return r;
+      asBook.add(r.id);
+      return { ...r, kind: 'reading', ref: covers.get(r.ref!)! };
+    });
+    // …once: an item turned into a book the place already shows elsewhere is dropped
+    rows = rows.filter((r) => !asBook.has(r.id) || !rows.some((o) => o.id !== r.id && o.kind === 'reading' && o.ref === r.ref && (!asBook.has(o.id) || o.id < r.id)));
     for (const r of rows) byId.set(r.id, r);
 
     // content that is live but not yet hung on the tree goes into the place's default room (or, with no rooms, onto the place)

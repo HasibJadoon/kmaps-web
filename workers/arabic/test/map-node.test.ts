@@ -163,6 +163,18 @@ test('a book that covers map items stands for them: the hung dialogue opens as i
   assert.ok(!d.nodes.some((n: any) => ['dialogue', 'sentences', 'passage'].includes(n.kind)));
 });
 
+test('a covered item hung in another room is not a second copy of a book the place already shows', async () => {
+  const w = world();
+  const fence = (t: string, o: unknown) => '```' + t + '\n' + JSON.stringify(o) + '\n```';
+  w.AR.exec(`UPDATE ar_daily_reading SET body_md = '${fence('covers', ['P1']).replace(/'/g, "''")}' || body_md WHERE slug = 'daily-home'`);
+  w.AR.prepare(`INSERT INTO ar_map_node (id, parent_id, type, kind, ref, sort_order, settings, map_id) VALUES (?,?,?,?,?,?,?,?)`)
+    .run('t:centre:home:garden~passage~P1', 't:centre:home:garden', 'artifact', 'passage', 'P1', 1, '{}', 'MAP:t');
+  const d = (await w.get('/ar/map/t:centre:home')).body.data;
+  const books = d.nodes.flatMap((n: any) => n.items ?? [n]).filter((n: any) => n.ref === 'ARDR:daily-home');
+  assert.equal(books.length, 1);
+  assert.equal(books[0].id, 't:centre:home:bedroom~reading~daily-home');
+});
+
 test('any level answers the same way: a room opens as a canvas of its own; a place with no rows yet is laid out from its content', async () => {
   const w = world();
   const room = (await w.get('/ar/map/t:centre:home:bedroom')).body.data;
