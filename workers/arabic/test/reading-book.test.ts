@@ -40,8 +40,10 @@ function world() {
   const AR = new DatabaseSync(':memory:');
   AR.exec(`CREATE TABLE ar_practice_label (scope TEXT, key TEXT, label TEXT, label_ar TEXT, detail TEXT, icon TEXT, color TEXT,
              min_value INTEGER, extra_json TEXT, sort INTEGER, PRIMARY KEY (scope, key));
-           CREATE TABLE ar_daily_reading (slug TEXT, kind TEXT, title_en TEXT, title_ar TEXT, subtitle_en TEXT, body_md TEXT, is_published INTEGER);`);
-  const ins = AR.prepare(`INSERT INTO ar_daily_reading VALUES (?,?,?,?,?,?,1)`);
+           CREATE TABLE ar_curriculum_domain (id TEXT, slug TEXT);
+           CREATE TABLE ar_daily_reading (slug TEXT, kind TEXT, title_en TEXT, title_ar TEXT, subtitle_en TEXT, body_md TEXT, is_published INTEGER, domain_id TEXT);
+           INSERT INTO ar_curriculum_domain VALUES ('D1', 'market_shopping');`);
+  const ins = AR.prepare(`INSERT INTO ar_daily_reading VALUES (?,?,?,?,?,?,1,'D1')`);
   ins.run('daily-market', 'story', 'At the Market', 'فِي السُّوقِ', 'A morning trip.', story);
   ins.run('friends', 'qa', 'Two Friends', 'حِوَارٌ', '', dialogue);
   ins.run('empty', 'story', 'Empty', 'فارغ', '', '# nothing');
@@ -51,7 +53,7 @@ function world() {
   return { AR, get };
 }
 
-test('a story reading: a page per block, picture carried on, words timed, key words flagged, one clip each, vocab last', async () => {
+test('a story reading: a page per block, picture carried on, words timed, key words flagged, one clip each, no words page but a link to the hub', async () => {
   const { status, body } = await world().get('/ar/daily/readings/daily-market/book');
   assert.equal(status, 200);
   const b = body.data;
@@ -61,12 +63,12 @@ test('a story reading: a page per block, picture carried on, words timed, key wo
   assert.equal(b.words.english.text, 'English');
   assert.equal(b.pages.length, 2);
   const p = b.pages[0];
-  assert.equal(p.picture, '/api/ar/audio/r/p1.jpg'); assert.equal(p.textEn, 'I went to the market.'); assert.equal(p.of, 4);
+  assert.equal(p.picture, '/api/ar/audio/r/p1.jpg'); assert.equal(p.textEn, 'I went to the market.'); assert.equal(p.of, 3);
   assert.deepEqual(p.words.map((w: any) => [w.t, w.s, w.e, w.k]), [['خَرَجْتُ', 0, 0.4, false], ['إِلَى', 0.4, 0.8, false], ['السُّوقِ.', 0.8, 1.5, true]]);
   assert.deepEqual(p.clips, [{ url: '/api/ar/audio/r/l1.m4a', gap: 0.45, from: 0, to: 2, speaker: null, name: null, color: null }]);
   assert.equal(b.pages[1].picture, '/api/ar/audio/r/p1.jpg');                         // no picture of its own: the one before stays
-  assert.equal(b.remember.title, 'Words to learn'); assert.equal(b.remember.titleAr, 'كَلِمَاتٌ جَدِيدَةٌ');
-  assert.deepEqual(b.remember.vocab, [{ w: 'السُّوقِ', en: 'the market', base: 'سُوقٌ — أَسْوَاقٌ', image: '/api/ar/audio/r/w/a.jpg', audio: '/api/ar/audio/r/w/a.m4a' }]);
+  assert.equal(b.remember, null);                                                      // the words are the hub's, not a page of the book
+  assert.deepEqual(b.hub, { domain: 'market_shopping', focus: 'reading:daily-market', title: 'Words of this place', titleAr: 'كَلِمَاتُ الْمَكَانِ', icon: null });
 });
 
 test('a dialogue: the question and the answer are two clips on one page, each with its speaker, colour, words and pause', async () => {
@@ -74,7 +76,6 @@ test('a dialogue: the question and the answer are two clips on one page, each wi
   const b = body.data;
   assert.equal(b.words.kicker.text, 'ARABIC DIALOGUE');
   assert.equal(b.pages.length, 1);                                                     // the title line is the cover's, not a page
-  assert.equal(b.remember, null);                                                      // no words to learn, no last page
   const p = b.pages[0];
   assert.deepEqual(p.words.map((w: any) => w.t), ['إِلَى', 'أَيْنَ', 'تَذْهَبُ؟', 'أَذْهَبُ', 'إِلَى', 'السُّوقِ.']);
   assert.deepEqual(p.clips, [

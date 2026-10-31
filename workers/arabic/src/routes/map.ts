@@ -4,7 +4,7 @@ import { query, queryOne } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { paletteOf, WORLD_WORDS } from '../lib/everyday-world';
 import { canvasOf, settingsOf, treeOf, type MapRow } from '../lib/map-canvas';
-import { buildVocabulary, keysOf, VOCAB_WORDS, type VocabInput } from '../lib/stop-vocab';
+import { buildVocabulary, keysOf, vocabOfReading, VOCAB_WORDS, type VocabInput, type VocabQuery } from '../lib/stop-vocab';
 import { bare } from '../lib/levels';
 
 // ── The Everyday atlas, one route for any level (owner, 2026-10-31) ─────────────────────────────────────────────────
@@ -59,8 +59,8 @@ async function loadLive(env: ArabicEnv, slug: string): Promise<Live | null> {
     query<{ id: string; title_ar: string; word_count: number }>(env.DB_AR,
       `SELECT x.id, x.title_ar, x.word_count FROM ar_daily_passage x ${set} ORDER BY t.day_index`, [dom.id]),
     query<{ id: string; word_id: string | null }>(env.DB_AR, `SELECT x.id, x.word_id FROM ar_daily_sentence x ${set} ORDER BY t.day_index, x.sort_order`, [dom.id]),
-    query<{ id: string; singular_ar: string; plural_ar: string; gloss_en: string; image_key: string | null; audio_key_sg: string | null; audio_key_pl: string | null }>(env.DB_AR,
-      `SELECT x.id, x.singular_ar, x.plural_ar, x.gloss_en, x.image_key, x.audio_key_sg, x.audio_key_pl FROM ar_daily_word x ${set} ORDER BY t.day_index, x.sort_order`, [dom.id]),
+    query<{ id: string; singular_ar: string; plural_ar: string; gloss_en: string; image_key: string | null; audio_key_sg: string | null; audio_key_pl: string | null; al_root_ref: string | null }>(env.DB_AR,
+      `SELECT x.id, x.singular_ar, x.plural_ar, x.gloss_en, x.image_key, x.audio_key_sg, x.audio_key_pl, x.al_root_ref FROM ar_daily_word x ${set} ORDER BY t.day_index, x.sort_order`, [dom.id]),
   ]);
   return {
     domain: { id: dom.id, slug: dom.slug, title: dom.title, title_ar: dom.title_ar, cover: dom.cover_key, map_id: dom.map_id, map_order: dom.map_order },
@@ -70,7 +70,7 @@ async function loadLive(env: ArabicEnv, slug: string): Promise<Live | null> {
                                       wordIds: turns.filter((t) => t.dialogue_id === d.id && t.word_id).map((t) => t.word_id!) })),
     passages,
     sentenceIds: sentences.map((s) => s.word_id ?? '').filter(Boolean),
-    words: words.map((w) => ({ id: w.id, singular: w.singular_ar, plural: w.plural_ar, gloss: w.gloss_en, image: w.image_key, audioSg: w.audio_key_sg, audioPl: w.audio_key_pl })),
+    words: words.map((w) => ({ id: w.id, singular: w.singular_ar, plural: w.plural_ar, gloss: w.gloss_en, image: w.image_key, audioSg: w.audio_key_sg, audioPl: w.audio_key_pl, root: w.al_root_ref })),
     // (sentence count kept apart: sentenceIds only holds those naming a word)
     ...({ sentenceCount: sentences.length } as object),
   } as Live;
@@ -78,7 +78,7 @@ async function loadLive(env: ArabicEnv, slug: string): Promise<Live | null> {
 const sentenceCount = (l: Live) => (l as unknown as { sentenceCount: number }).sentenceCount ?? 0;
 
 /** The vocabulary of a place (lib/stop-vocab), with the rooms its nodes stand in as sections. */
-async function vocabOf(env: ArabicEnv, live: Live, rows: MapRow[]) {
+async function vocabOf(env: ArabicEnv, live: Live, rows: MapRow[], ask: VocabQuery = {}) {
   // words taught earlier on the same map are not repeated here
   const before = live.domain.map_id && live.domain.map_order != null
     ? await tryQuery(query<{ w: string }>(env.DB_AR,
@@ -102,13 +102,13 @@ async function vocabOf(env: ArabicEnv, live: Live, rows: MapRow[]) {
   }
   const input: VocabInput = {
     words: live.words,
-    readings: live.readings.map((r) => ({ slug: r.slug, titleEn: r.title_en, titleAr: r.title_ar, keys: keysOf(r.body) })),
+    readings: live.readings.map((r) => ({ slug: r.slug, titleEn: r.title_en, titleAr: r.title_ar, keys: keysOf(r.body), vocab: vocabOfReading(r.body) })),
     dialogues: live.dialogues.map((d) => ({ id: d.id, titleAr: d.title_ar, titleEn: d.title_en, wordIds: d.wordIds })),
     sentenceWordIds: live.sentenceIds,
     taughtBefore: new Set(before.map((b) => bare(b.w))),
     roomOf, rooms,
   };
-  return buildVocabulary(input);
+  return buildVocabulary(input, ask);
 }
 
 /** The id a reader refers to an artifact by: 'reading:<slug>', 'dialogue:<id>', 'passage:<id>', 'sentences', 'vocab_hub'. */
@@ -146,12 +146,15 @@ function resolveArtifact(a: MapRow, live: Live | null, vocabCount: number): Reso
 }
 
 export function mapRoutes(router: Router<ArabicEnv>) {
-  router.get('/ar/vocab/:domain', async (_req, env, { domain }) => {
+  // ?q= searches (Arabic with or without marks, English, root), ?room= and ?kind= narrow, ?focus=reading:<slug> flags that reading's words
+  router.get('/ar/vocab/:domain', async (req, env, { domain }) => {
+    const sp = new URL(req.url).searchParams;
+    const ask: VocabQuery = { q: (sp.get('q') ?? '').slice(0, 80), room: sp.get('room') ?? undefined, kind: sp.get('kind') ?? undefined, focus: sp.get('focus') ?? undefined };
     const live = await loadLive(env, domain);
     if (!live) return notFound(`place ${domain}`);
     const rows = await tryQuery(query<MapRow>(env.DB_AR, `SELECT * FROM ar_map_node WHERE map_id = ?`, [live.domain.map_id ?? '']));
     return ok({ place: { slug: domain, title: live.domain.title, titleAr: live.domain.title_ar },
-                words: { title: VOCAB_WORDS.title, titleAr: VOCAB_WORDS.titleAr }, ...(await vocabOf(env, live, rows)) });
+                words: { title: VOCAB_WORDS.title, titleAr: VOCAB_WORDS.titleAr }, ...(await vocabOf(env, live, rows, ask)) });
   });
 
   router.get('/ar/map/:id', async (_req, env, { id }) => {

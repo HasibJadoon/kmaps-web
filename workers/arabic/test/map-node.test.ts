@@ -38,7 +38,7 @@ function world() {
     CREATE TABLE ar_daily_dialogue (id TEXT PRIMARY KEY, theme_id TEXT, title_ar TEXT, title_en TEXT, image_key TEXT, sort_order INTEGER);
     CREATE TABLE ar_daily_dialogue_turn (id TEXT PRIMARY KEY, dialogue_id TEXT, word_id TEXT);
     CREATE TABLE ar_daily_word (id TEXT PRIMARY KEY, theme_id TEXT, singular_ar TEXT, plural_ar TEXT, gloss_en TEXT, image_key TEXT,
-                                audio_key_sg TEXT, audio_key_pl TEXT, sort_order INTEGER);
+                                audio_key_sg TEXT, audio_key_pl TEXT, sort_order INTEGER, al_root_ref TEXT);
     CREATE TABLE ar_daily_sentence (id TEXT PRIMARY KEY, theme_id TEXT, word_id TEXT, sort_order INTEGER);
     CREATE TABLE ar_daily_passage (id TEXT PRIMARY KEY, theme_id TEXT, title_ar TEXT, word_count INTEGER);`);
   AR.exec(readFileSync(root + 'migrations/ar_map_node.sql', 'utf8'));
@@ -52,8 +52,8 @@ function world() {
                                         ('R2', 'D1', 'friday', 'qa', 'Friday', 'الْجُمُعَةُ', 5, NULL, 2, 1, NULL, '');
     INSERT INTO ar_daily_dialogue VALUES ('DL1', 'T1', 'أَيْنَ الْمَفَاتِيحُ؟', 'Where are the keys?', 'd/k.jpg', 1);
     INSERT INTO ar_daily_dialogue_turn VALUES ('DL1:1', 'DL1', 'W1'), ('DL1:2', 'DL1', NULL);
-    INSERT INTO ar_daily_word VALUES ('W1', 'T1', 'سَرِيرٌ', 'أَسِرَّةٌ', 'a bed', 'w/bed.jpg', 'a/sg.mp3', 'a/pl.mp3', 1), ('W2', 'T1', 'بَابٌ', 'أَبْوَابٌ', 'a door', NULL, NULL, NULL, 2),
-                                      ('W3', 'T2', 'طَاوِلَةٌ', 'طَاوِلَاتٌ', 'a table', NULL, NULL, NULL, 1);
+    INSERT INTO ar_daily_word VALUES ('W1', 'T1', 'سَرِيرٌ', 'أَسِرَّةٌ', 'a bed', 'w/bed.jpg', 'a/sg.mp3', 'a/pl.mp3', 1, 'AL:سرر'), ('W2', 'T1', 'بَابٌ', 'أَبْوَابٌ', 'a door', NULL, NULL, NULL, 2, 'AL:بوب'),
+                                      ('W3', 'T2', 'طَاوِلَةٌ', 'طَاوِلَاتٌ', 'a table', NULL, NULL, NULL, 1, NULL);
     INSERT INTO ar_daily_sentence VALUES ('S1', 'T1', 'W2', 1);
     INSERT INTO ar_daily_passage VALUES ('P1', 'T1', 'الْبَيْتُ', 31);`);
   const n = (id: string, parent: string | null, type: string, kind: string | null, o: Record<string, unknown> = {}) =>
@@ -177,4 +177,51 @@ test('key parsing, and a word taught earlier on the map is not repeated', () => 
   const v = buildVocabulary({ words: [{ id: 'a', singular: 'بَابٌ', plural: 'أَبْوَابٌ', gloss: 'door', image: null, audioSg: null, audioPl: null }],
     readings: [], dialogues: [], sentenceWordIds: [], taughtBefore: new Set(['باب']), roomOf: new Map(), rooms: [] });
   assert.equal(v.count, 0);
+});
+
+
+test('the hub is searched in the worker: Arabic with or without marks, English, root; narrowed by room and kind; a reading\'s words flagged', async () => {
+  const w = world();
+  const ar = async (qs: string) => (await w.get('/ar/vocab/home' + qs)).body.data;
+  const arabics = (d: any) => d.sections.flatMap((s: any) => s.groups.flatMap((g: any) => g.words.map((x: any) => x.ar)));
+  // without marks, with the article, with another alif or tāʾ marbūṭa, in a different mark order
+  assert.deepEqual(arabics(await ar('?q=' + encodeURIComponent('سرير'))), ['سَرِيرٌ']);
+  assert.deepEqual(arabics(await ar('?q=' + encodeURIComponent('أسِرَّة'))), ['سَرِيرٌ'], 'the plural is searched too, alif forms folded');
+  assert.deepEqual(arabics(await ar('?q=' + encodeURIComponent('طاولة'))), []);          // another stop's word (kitchen_only) is not this stop's
+  assert.deepEqual(arabics(await ar('?q=' + encodeURIComponent('بوب'))), ['بَابٌ'], 'a root finds its words');
+  assert.deepEqual(arabics(await ar('?q=' + encodeURIComponent('ب و ب'))), ['بَابٌ'], 'a root typed with spaces');
+  assert.deepEqual(arabics(await ar('?q=DOOR')), ['بَابٌ'], 'English glosses, any case');
+  const none = await ar('?q=zzz');
+  assert.equal(none.shown, 0); assert.equal(none.caption, 'No word matches'); assert.deepEqual(none.sections, []);
+  const some = await ar('?q=' + encodeURIComponent('سرير'));
+  assert.equal(some.caption, '1 of ' + some.count + ' words'); assert.equal(some.query, 'سرير');
+  assert.ok(some.filters.kinds.length >= 2 && some.filters.rooms.length >= 1, 'the filters stay whole while a search narrows');
+  assert.ok(some.ui.search);
+  // kind and room
+  const verbs = await ar('?kind=verb');
+  assert.ok(arabics(verbs).includes('فَتَحَ') && !arabics(verbs).includes('سَرِيرٌ'));
+  const bedroom = await ar('?room=' + encodeURIComponent('t:centre:home:bedroom'));
+  assert.ok(arabics(bedroom).includes('سَرِيرٌ'));
+  // the reading's words, flagged
+  const f = await ar('?focus=reading:daily-home');
+  const flagged = f.sections.flatMap((s: any) => s.groups.flatMap((g: any) => g.words)).filter((x: any) => x.focus).map((x: any) => x.ar);
+  assert.ok(flagged.includes('سَرِيرٌ') && !flagged.includes('بَابٌ'));
+  assert.equal((await ar('')).sections.flatMap((s: any) => s.groups.flatMap((g: any) => g.words)).some((x: any) => 'focus' in x), false);
+});
+
+test('a reading\'s words to learn carry their picture and voice into the hub, once', () => {
+  const v = buildVocabulary({ words: [{ id: 'a', singular: 'سُوقٌ', plural: 'أَسْوَاقٌ', gloss: 'market', image: null, audioSg: null, audioPl: null }],
+    readings: [{ slug: 'r', titleEn: 'R', titleAr: 'ر', keys: [{ w: 'السُّوقِ', en: 'the market (سُوقٌ — أَسْوَاقٌ)' }],
+                 vocab: [{ w: 'السُّوقِ', en: 'the market', base: 'سُوقٌ — أَسْوَاقٌ', img: '/api/ar/audio/p/s.jpg', audio: 'p/s.m4a' }, { w: 'كِيسٌ', en: 'a bag', base: 'كِيسٌ — أَكْيَاسٌ', img: 'p/k.jpg' }] }],
+    dialogues: [], sentenceWordIds: [], taughtBefore: new Set(), roomOf: new Map(), rooms: [] }, { q: 'كيس' });
+  const all = buildVocabulary({ words: [{ id: 'a', singular: 'سُوقٌ', plural: 'أَسْوَاقٌ', gloss: 'market', image: null, audioSg: null, audioPl: null }],
+    readings: [{ slug: 'r', titleEn: 'R', titleAr: 'ر', keys: [{ w: 'السُّوقِ', en: 'the market (سُوقٌ — أَسْوَاقٌ)' }],
+                 vocab: [{ w: 'السُّوقِ', en: 'the market', base: 'سُوقٌ — أَسْوَاقٌ', img: '/api/ar/audio/p/s.jpg', audio: 'p/s.m4a' }, { w: 'كِيسٌ', en: 'a bag', base: 'كِيسٌ — أَكْيَاسٌ', img: 'p/k.jpg' }] }],
+    dialogues: [], sentenceWordIds: [], taughtBefore: new Set(), roomOf: new Map(), rooms: [] });
+  const words = all.sections.flatMap((s) => s.groups.flatMap((g) => g.words));
+  assert.equal(words.length, 2, 'the market is the day-set word and the reading\'s, listed once');
+  assert.equal(words.find((x) => x.ar === 'سُوقٌ')!.picture, '/api/ar/audio/p/s.jpg');
+  assert.equal(words.find((x) => x.ar === 'سُوقٌ')!.audio, '/api/ar/audio/p/s.m4a');
+  assert.deepEqual(words.find((x) => x.ar === 'كِيسٌ')!.seenIn.map((s) => s.id), ['reading:r']);
+  assert.equal(v.shown, 1); assert.equal(v.count, 2);
 });

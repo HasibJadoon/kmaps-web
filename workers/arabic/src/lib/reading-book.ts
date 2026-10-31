@@ -4,7 +4,8 @@ import type { Label } from './labels';
 /// «كليلة ودمنة» (GET /ar/text/storybooks/:id), so one reader serves both.
 ///
 /// The markdown carries ```read blocks (one per line of the reading), an optional ```cast block (a dialogue's speakers) and
-/// an optional ```vocab block (the words to learn). Each read block becomes one page: its picture, its Arabic words with
+/// an optional ```vocab block (the words to learn: they belong to the place's vocabulary hub, GET /ar/vocab/:domain, not to a page of
+/// the book — the last page ends with a quiet link to the hub instead). Each read block becomes one page: its picture, its Arabic words with
 /// their times, its English line. A dialogue's block is a question and an answer by two speakers, each voiced from its own
 /// recording: the page then has TWO clips — the question's and the answer's — and its words are the question's followed by
 /// the answer's, each clip naming the words (from…to) it voices, the speaker's Arabic name and colour, and the pause before
@@ -16,10 +17,9 @@ interface ReadBlock {
   role?: string; q?: string; q_audio?: string; q_words?: number[][]; q_speaker?: string; speaker?: string;
   gap_q?: number; gap_a?: number;
 }
-interface Vocab { w: string; en: string; base?: string | null; img?: string | null; audio?: string | null }
 type Cast = Record<string, { ar?: string; en?: string; color?: string }>;
 
-export interface ReadingRow { slug: string; kind: string; title_en: string; title_ar: string; subtitle_en: string | null; body_md: string }
+export interface ReadingRow { slug: string; kind: string; title_en: string; title_ar: string; subtitle_en: string | null; body_md: string; domain?: string | null }
 
 const parse = <T>(j: string): T | null => { try { return JSON.parse(j) as T; } catch { return null; } };
 
@@ -47,17 +47,15 @@ const L = (labels: Map<string, Label>, key: string, fallback: string, fallbackAr
   return { text: l?.label ?? fallback, ar: l?.labelAr ?? fallbackAr, icon: l?.icon ?? null, detail: l?.detail ?? null, color: l?.color ?? null };
 };
 
-/// `base` is the story-book words object (the same one a Kalīla story sends); only the reading's own cover kicker and its
-/// final page's title are added here.
+/// `base` is the story-book words object (the same one a Kalīla story sends); only the reading's own cover kicker is added here.
 export function readingBook(r: ReadingRow, labels: Map<string, Label>, base: Record<string, unknown>) {
   const blocks = blocksOf(r.body_md);
   const cast = (blocks.find(([t]) => t === 'cast') && parse<Cast>(blocks.find(([t]) => t === 'cast')![1])) || {};
-  const vocab = blocks.filter(([t]) => t === 'vocab').flatMap(([, b]) => parse<Vocab[]>(b) ?? []);
   // the heading read aloud (role "title") is the cover's job; a page needs a picture to sit on, but one without keeps the cover's
   const reads = blocks.filter(([t]) => t === 'read').map(([, b]) => parse<ReadBlock>(b)).filter((b): b is ReadBlock => !!b && b.role !== 'title' && !!b.ar);
   const first = reads.find((b) => b.img)?.img ?? null;
   let carry = first;
-  const total = reads.length + 1 + (vocab.length ? 1 : 0);
+  const total = reads.length + 1;
 
   const speaker = (id: string | undefined) => {
     const c = id ? cast[id] : undefined;
@@ -82,7 +80,7 @@ export function readingBook(r: ReadingRow, labels: Map<string, Label>, base: Rec
     };
   });
 
-  const wordsPage = L(labels, 'words_to_learn', 'Words to learn', 'كَلِمَاتٌ جَدِيدَةٌ');
+  const place = L(labels, 'words_of_place', 'Words of this place', 'كَلِمَاتُ الْمَكَانِ');
   const kicker = L(labels, r.kind === 'qa' ? 'reading_kicker_qa' : 'reading_kicker', r.kind === 'qa' ? 'ARABIC DIALOGUE' : 'ARABIC READING',
                    r.kind === 'qa' ? 'حِوَارٌ' : 'قِرَاءَةٌ');
 
@@ -91,12 +89,10 @@ export function readingBook(r: ReadingRow, labels: Map<string, Label>, base: Rec
     chapter: null, inside: null, look: { accent: '#C9A84C', gradient: ['#141414', '#0B0B0B'], motif: null }, themes: [],
     words: { ...base, kicker },
     audio: null, pages,
-    // the last page is the words to learn, when the reading has them; none otherwise (the story ends on its last picture)
-    remember: vocab.length ? {
-      no: total, of: total, title: wordsPage.text, titleAr: wordsPage.ar, icon: wordsPage.icon, speaker: null, moralAr: null, moralEn: null,
-      lesson: null, words: [], start: null, end: null, sound: null, checks: [],
-      vocab: vocab.map((v) => ({ w: v.w, en: v.en, base: v.base ?? null, image: v.img ?? null, audio: v.audio ?? null })),
-    } : null,
+    // no last page of its own: the book ends on its last picture, and that page carries a quiet link to the place's vocabulary hub
+    // (GET /ar/vocab/:domain), opened on this reading's words (focus)
+    remember: null,
+    hub: r.domain ? { domain: r.domain, focus: `reading:${r.slug}`, title: place.text, titleAr: place.ar, icon: place.icon } : null,
     next: null,
   };
 }

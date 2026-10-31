@@ -227,10 +227,12 @@ export function dailyRoutes(router: Router<ArabicEnv>) {
 
   /// The same reading as story-book pages, for the picture-book reader that «كليلة ودمنة» uses: a cover, one page per read
   /// block (picture, Arabic with word times, English, its recording — a dialogue's question and answer as two clips on one
-  /// page), then the words to learn. Unsigned, like the note. Labels (cover kicker, final page) come from ar_practice_label.
+  /// page), then a link to the place's vocabulary hub (GET /ar/vocab/:domain) where its words live. Unsigned, like the note. Labels (cover kicker, hub link) come from ar_practice_label.
   router.get('/ar/daily/readings/:slug/book', async (_req, env, { slug }) => {
-    const r = await queryOne<{ slug: string; kind: string; title_en: string; title_ar: string; subtitle_en: string | null; body_md: string | null }>(env.DB_AR,
-      `SELECT slug, kind, title_en, title_ar, subtitle_en, body_md FROM ar_daily_reading WHERE slug = ? AND is_published = 1`, [slug]);
+    const r = await queryOne<{ slug: string; kind: string; title_en: string; title_ar: string; subtitle_en: string | null; body_md: string | null; domain: string | null }>(env.DB_AR,
+      `SELECT r.slug, r.kind, r.title_en, r.title_ar, r.subtitle_en, r.body_md,
+              (SELECT d.slug FROM ar_curriculum_domain d WHERE d.id = r.domain_id) AS domain
+         FROM ar_daily_reading r WHERE r.slug = ? AND r.is_published = 1`, [slug]);
     if (!r || !r.body_md) return notFound(`reading ${slug}`);
     const L = byKey((await labels(env)).storybook);
     const book = readingBook({ ...r, body_md: r.body_md }, L, storybookWords(L));
