@@ -69,7 +69,34 @@ function parse(raw: string | null): Source | null {
   try { const v = raw ? JSON.parse(raw) : null; return v?.module && v?.path ? v : null; } catch { return null; }
 }
 
-export async function buildWeek(db: D1Database, day: string, studies: Study[]): Promise<Week> {
+/// A study's place in a week's sprint without being pulled: from the week it started until it is done, it is in
+/// every sprint (unfinished work carries over), never in a week still to come. Its state is the study's own.
+export function carried(studies: Study[], week: string, today: string): Array<{ study: Study; state: string }> {
+  if (week > mondayOf(today)) return [];
+  const out: Array<{ study: Study; state: string }> = [];
+  for (const st of studies) {
+    if (!st.sprint?.unit || !st.plan?.start || st.status === 'draft') continue;
+    const from = mondayOf(st.plan.start);
+    if (week < from) continue;
+    const done = st.status === 'done';
+    // a finished study stays in the sprints it ran through, up to the week of its recording (or its start)
+    if (done && week > mondayOf(st.plan.record ?? st.plan.start)) continue;
+    out.push({ study: st, state: done ? 'done' : 'doing' });
+  }
+  return out;
+}
+
+/// The stream a study belongs to: the one whose queue is in the same domain as its sprint.
+function streamOf(st: Study, streams: Array<{ stream_key: string; queue_module: string }>): string | null {
+  return streams.find((s) => s.queue_module === st.sprint?.backlog.module)?.stream_key ?? null;
+}
+
+/// The label a study's tile carries: its sprint's own, else its last crumb.
+function labelOf(st: Study): string {
+  return (st.sprint as { label?: string } | null)?.label ?? st.path.at(-1)?.title ?? st.title;
+}
+
+export async function buildWeek(db: D1Database, day: string, studies: Study[], today = new Date().toISOString().slice(0, 10)): Promise<Week> {
   const start = mondayOf(day);
   const [streams, picks] = await Promise.all([
     query<{ stream_key: string; title: string; title_ar: string | null; icon: string | null; accent: string | null;
@@ -87,10 +114,19 @@ export async function buildWeek(db: D1Database, day: string, studies: Study[]): 
     start, prev: shift(start, -7), next: shift(start, 7),
     label: `Week of ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`, number: isoWeek(start),
     streams: streams.map((s) => {
-      const mine = picks.filter((p) => p.stream_key === s.stream_key).map((p) => ({
+      const mine: Pick[] = picks.filter((p) => p.stream_key === s.stream_key).map((p) => ({
         id: p.pick_id, unit: p.unit, label: p.label, title: p.title, title_ar: p.title_ar, ref: p.ref,
         page: parse(p.page_json), down: parse(p.down_json), state: p.state, study: roomOf.get(p.unit) ?? null,
       }));
+      // the stream's studies running this week, unless one was pulled by hand
+      const have = new Set(mine.map((p) => p.unit));
+      for (const c of carried(studies, start, today)) {
+        if (streamOf(c.study, streams) !== s.stream_key || have.has(c.study.sprint!.unit)) continue;
+        const passage = c.study.passage as { title_ar?: string; ref?: string } | null;
+        mine.push({ id: `study:${c.study.doc_id}`, unit: c.study.sprint!.unit, label: labelOf(c.study),
+          title: c.study.title, title_ar: c.study.title_ar ?? passage?.title_ar ?? null, ref: passage?.ref ?? null,
+          page: null, down: null, state: c.state, study: c.study.doc_id });
+      }
       return { key: s.stream_key, title: s.title, title_ar: s.title_ar, icon: s.icon, accent: s.accent,
         queue: { module: s.queue_module, path: s.queue_path }, picks: mine, done: mine.filter((p) => p.state === 'done').length };
     }),
@@ -115,7 +151,8 @@ export interface Month {
 
 const LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-export async function buildMonth(db: D1Database, month: string, names: Record<string, string> = {}): Promise<Month> {
+export async function buildMonth(db: D1Database, month: string, names: Record<string, string> = {}, studies: Study[] = [],
+                                 today = new Date().toISOString().slice(0, 10)): Promise<Month> {
   const [y, m] = month.split('-').map(Number);
   const first = new Date(Date.UTC(y, m - 1, 1));
   // the Mondays of the month: each week belongs to the month its Monday is in
@@ -129,8 +166,8 @@ export async function buildMonth(db: D1Database, month: string, names: Record<st
   }
   const starts = weeks.map((w) => w.start);
   const [streams, picks, retro] = await Promise.all([
-    query<{ stream_key: string; title: string; title_ar: string | null; icon: string | null; accent: string | null }>(db,
-      `SELECT stream_key, title, title_ar, icon, accent FROM cm_stream ORDER BY sort_order, stream_key`),
+    query<{ stream_key: string; title: string; title_ar: string | null; icon: string | null; accent: string | null; queue_module: string }>(db,
+      `SELECT stream_key, title, title_ar, icon, accent, queue_module FROM cm_stream ORDER BY sort_order, stream_key`),
     starts.length ? query<{ stream_key: string; week_start: string; label: string; title: string | null; state: string }>(db,
       `SELECT stream_key, week_start, label, title, state FROM cm_sprint_pick
         WHERE week_start IN (${starts.map(() => '?').join(',')}) ORDER BY seq, created_at`, starts) : Promise.resolve([]),
@@ -144,7 +181,13 @@ export async function buildMonth(db: D1Database, month: string, names: Record<st
     weeks,
     streams: streams.map((s) => {
       const ws = starts.map((start) => {
-        const ps = picks.filter((p) => p.stream_key === s.stream_key && p.week_start === start);
+        const ps: Array<{ label: string; title: string | null; state: string }> =
+          picks.filter((p) => p.stream_key === s.stream_key && p.week_start === start);
+        const have = new Set(picks.filter((p) => p.stream_key === s.stream_key && p.week_start === start).map((p) => p.title));
+        for (const c of carried(studies, start, today)) {
+          if (streamOf(c.study, streams) !== s.stream_key || have.has(c.study.title)) continue;
+          ps.push({ label: labelOf(c.study), title: c.study.title, state: c.state });
+        }
         return { start, done: ps.filter((p) => p.state === 'done').length, total: ps.length,
           picks: ps.map((p) => ({ label: p.label, title: p.title, state: p.state })) };
       });

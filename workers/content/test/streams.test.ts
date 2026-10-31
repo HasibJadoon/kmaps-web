@@ -1,7 +1,7 @@
 // The Week: Mondays, and picks matched to their studies.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMonth, buildWeek, mondayOf } from '../src/streams';
+import { buildMonth, buildWeek, carried, mondayOf } from '../src/streams';
 import type { Study } from '../src/repositories/study.repo';
 
 test('a day falls in the week of its Monday', () => {
@@ -42,4 +42,16 @@ test("a month is the sprints whose Monday falls in it, each stream's done counte
   assert.deepEqual(m.streams[0].weeks.map((w) => [w.done, w.total]), [[0, 0], [1, 2], [0, 0], [0, 0], [0, 0]]);
   assert.deepEqual([m.prev, m.next], ['2026-10', '2026-12']);
   assert.equal(m.retro[0].author, 'Hasib');
+});
+
+test('a running study is in every sprint from its start until done, never in a week to come', () => {
+  const st = { doc_id: 'S', title: 'P1', status: 'active', plan: { start: '2026-09-26', record: '2026-10-02' },
+    sprint: { backlog: { module: 'qr', path: 'x' }, unit: 'QR:SP:40:1-3' }, path: [] } as unknown as Study;
+  const done = { ...st, doc_id: 'D', status: 'done' } as unknown as Study;
+  const today = '2026-10-31';
+  assert.deepEqual(carried([st], '2026-10-26', today).map((c) => c.state), ['doing']);
+  assert.equal(carried([st], '2026-09-14', today).length, 0);
+  assert.equal(carried([st], '2026-11-02', today).length, 0);
+  assert.equal(carried([done], '2026-09-28', today)[0].state, 'done');
+  assert.equal(carried([done], '2026-10-05', today).length, 0);
 });

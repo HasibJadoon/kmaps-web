@@ -105,3 +105,8 @@ test('a dragged sticky sits in the frame and place it was left in; the rest foll
   assert.deepEqual(b.frames[0].stickies.map((s) => s.text), ['Idea', 'Q1']);
   assert.deepEqual(b.frames[1].stickies.map((s) => s.text), ['Q2']);
 });
+
+test('the points can be dragged into a new order', async () => {
+  const b = (await buildBoard(fakeDb({ slides: [], stickies: [], places: [{ sticky_ref: 'point:across', point_key: '__points__', seq: 0 }] }), 'CM:STUDY:x', raw, A))!;
+  assert.deepEqual(b.frames.map((f) => f.key), ['across', 'hm']);
+});

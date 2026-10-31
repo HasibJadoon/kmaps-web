@@ -152,6 +152,12 @@ export async function buildBoard(
   // Stickies dragged on the board: each to its frame, in the order it was left in; the rest keep their own order after.
   const placed = await query<{ sticky_ref: string; point_key: string; seq: number }>(db,
     `SELECT sticky_ref, point_key, seq FROM cm_study_sticky_place WHERE study_id = ?`, [studyId]);
+  // The points themselves, dragged into a new order (point:<key>, kept under the board's own key).
+  const pointSeq = new Map(placed.filter((p) => p.sticky_ref.startsWith('point:')).map((p) => [p.sticky_ref.slice(6), p.seq]));
+  if (pointSeq.size) {
+    const idx = new Map(frames.map((f, i) => [f.key, i]));
+    frames.sort((a, b) => (pointSeq.get(a.key) ?? 1e6 + idx.get(a.key)!) - (pointSeq.get(b.key) ?? 1e6 + idx.get(b.key)!));
+  }
   if (placed.length) {
     const at = new Map(placed.map((p) => [p.sticky_ref, p]));
     const all = frames.flatMap((f) => f.stickies.map((st, i) => ({ st, from: f.key, i })));

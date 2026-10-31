@@ -19,7 +19,7 @@ interface StudyMeta {
   passage?: Record<string, unknown>;
   /** The sprint this study is one unit of, in any domain (shared/src/contracts/sprint.ts): where its backlog is,
    *  and its own unit's typed ref in it. */
-  sprint?: { backlog: { module: string; path: string }; unit: string };
+  sprint?: { backlog: { module: string; path: string }; unit: string; label?: string };
   path?: Array<{ title: string; title_ar?: string }>;
   episode?: { id: string; title?: string };
   /** Every Studio episode made from this study (the Zāwiya and the Burhan of one passage). */
@@ -47,7 +47,7 @@ export interface Study {
   doc_id: string; slug: string; title: string; title_ar: string | null;
   workspace_ref: string | null; status: string;
   passage: Record<string, unknown> | null;
-  sprint: { backlog: { module: string; path: string }; unit: string } | null;
+  sprint: { backlog: { module: string; path: string }; unit: string; label?: string } | null;
   /** Qurʾān → Sūra → Passage, as the library files it. */
   path: Array<{ title: string; title_ar: string | null }>;
   /** The Studio episode the study feeds, if any. */
