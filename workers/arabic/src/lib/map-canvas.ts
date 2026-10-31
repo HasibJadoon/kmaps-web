@@ -30,8 +30,8 @@ export interface CanvasMarker { row: MapRow; x: number; y: number; zone: string 
 export interface Canvas { w: number; h: number; marker: Marker; zones: CanvasZone[]; markers: CanvasMarker[] }
 
 /** At most this share of an area is covered by markers' rooms; a crowded area makes the whole canvas larger. */
-const FILL = 0.5;
-const GROW_MAX = 3.6;
+const FILL = 0.4;
+const GROW_MAX = 4;
 
 export function canvasOf(root: MapRow, kids: Map<string | null, MapRow[]>, hasPicture: boolean): Canvas {
   type Rect = { x: number; y: number; w: number; h: number };

@@ -239,17 +239,17 @@ export function worldOut(w: World) {
 /** One marker's room (the badge and its name plate below), the world's shape, and the margins that stay clear. */
 export const PICTURE = {
   /** the pictures are 1024×1152 */ aspect: 1.125,
-  marker: { badge: 88, w: 132, h: 165 } as Marker,
+  marker: { badge: 70, w: 180, h: 190 } as Marker,
   /** a stop's markers also carry a caption line under the name */
-  stopMarker: { badge: 88, w: 140, h: 178 } as Marker,
+  stopMarker: { badge: 70, w: 190, h: 215 } as Marker,
   /** the part of the picture the places are fitted onto (fractions): the town's own ground, not the empty edges */
   area: { x0: 0.13, y0: 0.1, x1: 0.87, y1: 0.9 },
   /** margins (world units) kept free of markers: sides, under the top HUD, above the bottom bar */
   pad: { x: 70, top: 130, bottom: 150 },
 };
 
-/** At most this share of a picture's ground is covered by markers' rooms. */
-const FILL = 0.5;
+/** At most this share of a picture's ground is covered by markers' rooms (badge and name plate), so none feels packed. */
+const FILL = 0.4;
 
 /** A place's wish: its own spot on the picture (0–1 across and down, from the atlas data) or else its board position. */
 export interface PicturePlace {

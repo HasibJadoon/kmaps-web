@@ -26,6 +26,9 @@ export const MAP_WORDS = {
   portal: (t: string) => `Travel to ${t}`,
   inside: (n: number) => `${n} place${n === 1 ? '' : 's'} to explore`,
 };
+/** Progressive reveal: at the opening zoom only the places with something in them show; the "coming soon" ones appear as you
+ *  zoom in (a node's own settings.reveal wins). */
+const REVEAL = { soon: 1.0 };
 const ICONS: Record<string, string> = { reading: 'book.fill', dialogue: 'bubble.left.and.bubble.right.fill', sentences: 'text.quote',
                                         passage: 'doc.text.fill', vocab_hub: 'archivebox.fill' };
 const asset = (k: string | null) => (k ? `/api/ar/audio/${k}` : null);
@@ -229,7 +232,7 @@ export function mapRoutes(router: Router<ArabicEnv>) {
 
     const nodes = [];
     for (const m of canvas.markers) {
-      const r = m.row, base = { id: r.id, type: r.type, kind: r.kind, x: m.x, y: m.y, zone: m.zone, domain: domainOf(r) };
+      const r = m.row, base = { id: r.id, type: r.type, kind: r.kind, x: m.x, y: m.y, zone: m.zone, domain: domainOf(r), reveal: 0 };
       if (r.type === 'artifact') {
         const d = base.domain;
         const res = resolveArtifact(r, await liveFor(d), d === placeSlug ? vocabCount : (d ? (await vocabOf(env, (await liveFor(d))!, all)).count : 0));
@@ -251,6 +254,10 @@ export function mapRoutes(router: Router<ArabicEnv>) {
         nodes.push({ ...base, ref: null, title: r.title_en ?? '', titleAr: r.title_ar, picture: asset(r.picture_key), icon: r.icon ?? 'map.fill',
                      state: liveBelow > 0 || places > 0 ? 'open' : 'locked', caption: liveBelow > 0 ? MAP_WORDS.toExplore(liveBelow) : places > 0 ? MAP_WORDS.inside(places) : MAP_WORDS.soon });
       }
+    }
+    for (const n of nodes) {
+      const own = settingsOf(canvas.markers.find((m) => m.row.id === n.id)!.row).reveal;
+      n.reveal = own ?? (n.kind === 'place' && n.state === 'locked' ? REVEAL.soon : 0);
     }
     const zones = canvas.zones.map((z) => ({ id: z.row.id, title: z.row.title_en ?? '', titleAr: z.row.title_ar, x: z.x, y: z.y, w: z.w, h: z.h,
                                               tint: z.row.color, icon: z.row.icon, count: z.markers, reveal: z.reveal,

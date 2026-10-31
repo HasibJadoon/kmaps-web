@@ -102,6 +102,9 @@ test('a world: its districts are labelled areas, its places stand inside them, a
   assert.equal(by['t:centre:home'].caption, '2 readings · 2 words');
   assert.equal(by['t:centre:plain'].state, 'locked');
   assert.equal(by['t:centre:plain'].caption, 'Coming soon');
+  // the opening view is calm: places with something in them show, the coming-soon ones appear as you zoom in
+  assert.equal(by['t:centre:home'].reveal, 0);
+  assert.equal(by['t:centre:plain'].reveal, 1);
   assert.equal(by['t:portal'].type, 'portal');
   assert.equal(by['t:portal'].ref, 'MAP:u');
   assert.equal(by['t:portal'].title, 'Other');
