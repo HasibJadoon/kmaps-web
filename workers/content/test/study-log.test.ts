@@ -52,11 +52,11 @@ const episode: EpisodeDigest = {
     { id: 't3', started_at: '2026-10-30T18:33:25Z', ended_at: '2026-10-30T18:34:17Z', marker_count: 54 },
   ],
 };
-const page = () => buildLog(fakeDb({
+const page = (r: Record<string, unknown> = raw) => buildLog(fakeDb({
   docs,
   progress: [{ core_user_ref: A, step_n: 2, started_at: '2026-10-30T12:05:58Z', completed_at: '2026-10-30T12:09:22Z', slides_seen: 8, slide_count: 8 }],
   notes: [note('n1', 'غافر', '2026-10-16T10:00:00Z'), note('n2', 'ذنب', '2026-10-16T10:05:00Z'), note('n3', 'توب', '2026-10-16T10:09:00Z')],
-}), study, raw, [episode], H);
+}), study, r, [episode], H);
 
 test('a word and its phrase are one row, under their section', async () => {
   const lib = (await page()).stages[0];
@@ -95,4 +95,12 @@ test('the log: one line per step, notes of a day together, tries folded', async 
 test('the Library lists each thing once', async () => {
   const takes = (await page()).stages[0].items.filter((i) => i.group === 'Takes');
   assert.equal(takes.length, 1);
+});
+
+test('a steps source can file one step under its own section', async () => {
+  const log = raw.log as { stages: Array<Record<string, unknown>> };
+  const library = { key: 'library', title: 'Library', fold: true, sources: [
+    { kind: 'steps', key: 'questions', group: 'Question bank' }, { kind: 'steps', key: 'points', group: 'Brainstorming' }] };
+  const items = (await page({ ...raw, log: { ...log, stages: [library, ...log.stages.slice(1)] } })).stages[0].items;
+  assert.deepEqual(items.map((i) => [i.title, i.group]), [['Questions', 'Question bank']]);
 });

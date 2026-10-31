@@ -238,8 +238,9 @@ export async function buildLog(
         }
       }
       if (src.kind === 'steps') {
-        // Every step once; the shared deck, or each person's own, as buttons on the row.
-        for (const step of steps) {
+        // Every step once (or only the step `key` names, so a folder can file each step's decks under its own
+        // section); the shared deck, or each person's own, as buttons on the row.
+        for (const step of steps.filter((x) => !src.key || x.key === src.key)) {
           const refs = step.scope === 'person' ? people.filter((r) => step.decks?.[r]) : [];
           const links: NonNullable<LogItem['links']> = refs.map((r) => ({ label: person(r).who, open: { type: 'deck', ref: step.decks![r] } }));
           if (!refs.length && step.deck) links.push({ label: say('open'), open: { type: 'deck', ref: step.deck } });
