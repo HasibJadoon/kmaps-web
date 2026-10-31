@@ -43,6 +43,8 @@ const lookOf = (r: Row | undefined): Look => {
 const word = (l: Label | undefined, fallback: string) => ({ text: l?.label ?? fallback, ar: l?.labelAr ?? null, icon: l?.icon ?? null,
                                                          detail: l?.detail ?? null, color: l?.color ?? null });
 
+const withAr = (w: ReturnType<typeof word>, l: Label | undefined, fallbackAr: string) => ({ ...w, ar: l?.labelAr ?? fallbackAr });
+
 /// The words of the book's screens, one object, from its label rows.
 function words(L: Map<string, Label>) {
   const k = (key: string, fb: string) => word(L.get(key), fb);
@@ -53,6 +55,11 @@ function words(L: Map<string, Label>) {
     inside: k('inside', 'A story told here'), open: k('open', 'Open the story'), pages: k('pages', 'pages'),
     notYet: k('not_yet', 'Arabic not yet vowelled'), sound: k('sound', 'Sound'),
     readMode: k('read_mode', 'Read'), storyMode: k('story_mode', 'Story'),
+    // the cover: the series line over the title, and its two ways in (listen, or read it yourself)
+    kicker: withAr(k('kicker', 'KALĪLA WA DIMNA · IBN AL-MUQAFFAʿ'), L.get('kicker'), 'مِنْ كَلِيلَةَ وَدِمْنَةَ'),
+    readAloud: withAr(k('read_aloud', 'Read aloud'), L.get('read_aloud'), 'اِسْتَمِعْ'),
+    readMyself: k('read_myself', 'Read myself'),
+    complete: k('complete', 'Complete'),   // a finished story's ribbon on the shelf
   };
 }
 
