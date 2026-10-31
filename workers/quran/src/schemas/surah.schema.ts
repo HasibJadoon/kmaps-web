@@ -3,6 +3,12 @@ export interface Surah {
   name_ar: string;
   name_en: string;
   name_transliteration: string;
+  /** الفَاتِحَةِ — the name as the muṣḥaf heads it */
+  name_ar_vowelled: string | null;
+  /** Al-Fātihah — with long vowels and ʿayn */
+  name_translit: string | null;
+  /** The Opening */
+  name_meaning_en: string | null;
   revelation_type: 'meccan' | 'medinan';
   ayah_count: number;
   juz_start: number;

@@ -1960,7 +1960,10 @@ CREATE TABLE "qr_surah" (
   page_start        INTEGER,
   order_revelation  INTEGER,
   created_at        TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  name_ar_vowelled  TEXT,
+  name_translit     TEXT,
+  name_meaning_en   TEXT
 );
 
 CREATE TABLE "qr_surah_analysis" (
