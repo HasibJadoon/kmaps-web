@@ -6,6 +6,7 @@ import type { ArabicEnv } from '../env';
 import { shelfRows, template, type ShelfRow } from './text';
 import { labels, byKey, type Label } from '../lib/labels';
 import { BANDS, parseBand, inBand, levelSpan, type Band } from '../lib/levels';
+import { storybookEntry } from './storybook';
 
 /// The bookcase: the reading shelf, set out ready to draw.
 ///
@@ -219,7 +220,7 @@ export function bookcaseRoutes(router: Router<ArabicEnv>) {
               (SELECT COUNT(*) FROM ar_acq_audio a WHERE a.acq_ref_id = r.id AND a.status = 'live') AS recordings
          FROM ar_acquisition_ref r WHERE r.id = ?`, [id]);
     const kind = look(byKey(all.shelf), `shape:${w.shape ?? 'prose'}`, { icon: 'book.closed' });
-    const [toc, first] = await Promise.all([
+    const [toc, first, storybook] = await Promise.all([
       query<{ seq: number; title_ar: string }>(env.DB_AR,
         `SELECT seq, title_ar FROM ar_text_unit
           WHERE acq_ref_id = ? AND status = 'live' AND title_ar IS NOT NULL AND title_ar <> ''
@@ -227,6 +228,8 @@ export function bookcaseRoutes(router: Router<ArabicEnv>) {
       queryOne<{ text_ar: string }>(env.DB_AR,
         `SELECT text_ar FROM ar_text_unit WHERE acq_ref_id = ? AND status = 'live' AND seq >= ?
           ORDER BY seq LIMIT 1`, [id, w.firstSeq ?? 1]),
+      // its tales as a story book, when it has one (migration 0079)
+      storybookEntry(env, id),
     ]);
     return ok({
       work: {
@@ -240,6 +243,7 @@ export function bookcaseRoutes(router: Router<ArabicEnv>) {
       template: template(extra?.page_template ?? null, byKey(all.page_template)),
       opening: opening(first?.text_ar ?? ''),
       contents: toc.map((t) => ({ seq: t.seq, titleAr: t.title_ar })),
+      storybook,
     });
   });
 

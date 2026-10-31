@@ -10,6 +10,7 @@ import { sprintRoutes } from './routes/sprint';
 import { vendorAudioRoutes } from './routes/vendor-audio';
 import { textRoutes } from './routes/text';
 import { bookcaseRoutes } from './routes/bookcase';
+import { storybookRoutes } from './routes/storybook';
 import { readingRoutes } from './routes/reading';
 import { acquisitionRoutes } from './routes/acquisition';
 import { containerRoutes } from './routes/containers';
@@ -55,6 +56,7 @@ audioRoutes(router);
 vendorAudioRoutes(router);
 acquisitionRoutes(router);
 bookcaseRoutes(router);   // before textRoutes: /ar/text/bookcase is a literal
+storybookRoutes(router);  // before textRoutes: /ar/text/storybooks is a literal
 textRoutes(router);
 readingRoutes(router);
 
