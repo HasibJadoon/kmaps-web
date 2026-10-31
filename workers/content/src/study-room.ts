@@ -88,7 +88,8 @@ export class StudyRoom {
          (SELECT updated_at FROM cm_documents WHERE doc_id = ?1) AS d,
          (SELECT MAX(updated_at) || ':' || COUNT(*) FROM cm_study_sticky WHERE study_id = ?1)
            || '/' || (SELECT COUNT(*) || ':' || COALESCE(MAX(created_at), '') FROM cm_study_sticky_link WHERE study_id = ?1)
-           || '/' || (SELECT COALESCE(MAX(updated_at), '') FROM cm_study_sticky_place WHERE study_id = ?1) AS s`,
+           || '/' || (SELECT COALESCE(MAX(updated_at), '') FROM cm_study_sticky_place WHERE study_id = ?1)
+           || '/' || (SELECT COUNT(*) || ':' || COALESCE(MAX(COALESCE(deleted_at, created_at)), '') FROM cm_study_point WHERE study_id = ?1) AS s`,
     ).bind(studyId).first<{ p: string | null; n: string | null; d: string | null; s: string | null }>();
     return `${row?.p ?? ''}|${row?.n ?? ''}|${row?.d ?? ''}|${row?.s ?? ''}`;
   }

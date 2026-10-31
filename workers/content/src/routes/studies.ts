@@ -195,6 +195,37 @@ export function studyRoutes(router: Router<ContentEnv>) {
     return ok({ linked: !gone.meta.changes });
   });
 
+  // A new talking point, a frame of its own on the board.
+  router.post('/cm/studies/:id/brainstorm/points', async (req, env, params) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const b = await req.json().catch(() => null) as Record<string, unknown> | null;
+    const title = String(b?.title ?? '').trim();
+    if (!title || title.length > 200) return badRequest('title (up to 200 characters) required');
+    const repo = new StudyRepo(env.DB_CM);
+    const id = await repo.resolve(params.id);
+    if (!id || !(await repo.isMember(id, user))) return notFound(`study ${params.id}`);
+    const key = `PT:${crypto.randomUUID()}`;
+    const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 600) : null);
+    await execute(env.DB_CM, `INSERT INTO cm_study_point (point_key, study_id, title, title_ar, note, author_ref) VALUES (?, ?, ?, ?, ?, ?)`,
+      [key, id, title, str(b?.title_ar), str(b?.note), user]);
+    await announce(env, id);
+    return ok({ key });
+  });
+
+  // Your own point taken off the board (its stickies go with it).
+  router.delete('/cm/studies/:id/brainstorm/points/:point', async (req, env, params) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const repo = new StudyRepo(env.DB_CM);
+    const id = await repo.resolve(params.id);
+    if (!id || !(await repo.isMember(id, user))) return notFound(`study ${params.id}`);
+    await execute(env.DB_CM, `UPDATE cm_study_point SET deleted_at = datetime('now') WHERE point_key = ? AND study_id = ? AND author_ref = ?`,
+      [params.point, id, user]);
+    await announce(env, id);
+    return ok({ ok: true });
+  });
+
   // A frame's stickies in their new order, after a drag (within the frame, or one brought in from another).
   router.post('/cm/studies/:id/brainstorm/move', async (req, env, params) => {
     const user = actorRef(req);

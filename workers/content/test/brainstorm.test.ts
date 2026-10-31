@@ -7,7 +7,7 @@ const H = 'CORE:H', A = 'CORE:A';
 const slide = (slug: string, seq: number, graphic: unknown) => ({ slug, seq_order: seq, attrs_json: JSON.stringify({ graphic }) });
 
 function fakeDb(rows: Record<string, unknown[]>): D1Database {
-  const pick = (sql: string) => sql.includes('cm_study_sticky_place') ? rows.places : sql.includes('cm_study_sticky_link') ? rows.links : sql.includes('cm_study_sticky_vote') ? rows.votes
+  const pick = (sql: string) => sql.includes('cm_study_point') ? rows.points : sql.includes('cm_study_sticky_place') ? rows.places : sql.includes('cm_study_sticky_link') ? rows.links : sql.includes('cm_study_sticky_vote') ? rows.votes
     : sql.includes('cm_study_sticky') ? rows.stickies : sql.includes('cm_blocks') ? rows.slides : [];
   return { prepare: (sql: string) => ({ bind: () => ({ all: async () => ({ results: pick(sql) ?? [] }) }) }) } as unknown as D1Database;
 }
@@ -109,4 +109,11 @@ test('a dragged sticky sits in the frame and place it was left in; the rest foll
 test('the points can be dragged into a new order', async () => {
   const b = (await buildBoard(fakeDb({ slides: [], stickies: [], places: [{ sticky_ref: 'point:across', point_key: '__points__', seq: 0 }] }), 'CM:STUDY:x', raw, A))!;
   assert.deepEqual(b.frames.map((f) => f.key), ['across', 'hm']);
+});
+
+test('a point added on the board is a frame after the decks\' own, signed, yours to take off', async () => {
+  const b = (await buildBoard(fakeDb({ slides: [], stickies: [{ sticky_id: 'S9', point_key: 'PT:1', author_ref: A, kind: 'idea', text: 'x', note: null, source: null }],
+    points: [{ point_key: 'PT:1', title: 'The ending', title_ar: null, note: null, author_ref: A }] }), 'CM:STUDY:x', raw, A))!;
+  assert.deepEqual(b.frames.map((f) => f.key), ['hm', 'across', 'PT:1']);
+  assert.deepEqual([b.frames[2].owner?.who, b.frames[2].mine, b.frames[2].stickies.length], ['Ali', true, 1]);
 });
