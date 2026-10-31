@@ -7,7 +7,7 @@ import type { ArabicEnv } from '../env';
 /// Arabic's side of the sprint contract (shared/src/contracts/sprint.ts). Four kinds of backlog, as the study's
 /// data names one (owner, 2026-10-31: "series, or books/sources, or daily Arabic, or classes"):
 ///   /ar/sprint/backlog/series/:id    a series' episodes (ar_acquisition_ref children of a series)
-///   /ar/sprint/backlog/work/:id      a book or source's parts (its ar_text_unit rows)
+///   /ar/sprint/backlog/work/:id      a book or source by chapters (part_no) or pages (?by=pages); ?part=N a chapter's pages
 ///   /ar/sprint/backlog/daily         the daily readings, ?domain= narrows them
 ///   /ar/sprint/backlog/class/:id     a class book's lessons (ar_lesson children; ?spine= for a book's top)
 /// and the page of each unit: its Arabic, its English where there is one, and its audio where there is one.
@@ -29,16 +29,38 @@ export function sprintRoutes(router: Router<ArabicEnv>) {
     } satisfies SprintBacklog);
   });
 
-  // ── a book or source → its parts
-  router.get('/ar/sprint/backlog/work/:id', async (_req, env, { id }) => {
+  // ── a book or source → its chapters (its part numbers) or its pages; a chapter → its pages
+  router.get('/ar/sprint/backlog/work/:id', async (req, env, { id }) => {
     const w = await queryOne<{ title_ar: string | null; title_en: string | null }>(env.DB_AR,
       `SELECT title_ar, title_en FROM ar_acquisition_ref WHERE id = ?`, [id]);
     if (!w) return notFound(`work ${id}`);
-    const rows = await query<{ id: string; seq: number; part_no: number | null; page_no: number | null; title_ar: string | null }>(env.DB_AR,
-      `SELECT id, seq, part_no, page_no, title_ar FROM ar_text_unit WHERE acq_ref_id = ? ORDER BY seq LIMIT 400`, [id]);
+    const q = new URL(req.url).searchParams;
+    const part = q.get('part');
+    const chapters = await query<{ part_no: number; n: number; title_ar: string | null; page_from: number | null }>(env.DB_AR,
+      `SELECT part_no, COUNT(*) AS n, MIN(title_ar) AS title_ar, MIN(page_no) AS page_from FROM ar_text_unit
+        WHERE acq_ref_id = ? AND part_no IS NOT NULL GROUP BY part_no ORDER BY part_no`, [id]);
+    const name = w.title_en ?? w.title_ar;
+    const self = (by: string) => ({ module: 'ar', path: `sprint/backlog/work/${id}?by=${by}` });
+    const views = chapters.length > 1
+      ? [{ label: 'Chapters', source: self('chapters'), on: !part && q.get('by') !== 'pages' },
+         { label: 'Pages', source: self('pages'), on: !part && q.get('by') === 'pages' }]
+      : undefined;
+    if (!part && chapters.length > 1 && q.get('by') !== 'pages') {
+      return ok({
+        title: 'Chapter backlog', subtitle: name, views,
+        items: chapters.map((c, i) => ({ unit: `AR:${id}:part:${c.part_no}`, label: `CH${two(i + 1)}`, title: c.title_ar ?? `Part ${c.part_no}`,
+          title_ar: c.title_ar, short: null, ref: `${c.n} page${c.n === 1 ? '' : 's'}`,
+          page: { module: 'ar', path: `sprint/page/work/${id}?part=${c.part_no}` },
+          down: { module: 'ar', path: `sprint/backlog/work/${id}?part=${c.part_no}` } })),
+      } satisfies SprintBacklog);
+    }
+    const rows = await query<{ id: string; seq: number; page_no: number | null; title_ar: string | null }>(env.DB_AR,
+      `SELECT id, seq, page_no, title_ar FROM ar_text_unit WHERE acq_ref_id = ? ${part ? 'AND part_no = ?' : ''} ORDER BY seq LIMIT 400`,
+      part ? [id, Number(part)] : [id]);
     return ok({
-      title: 'Part backlog', subtitle: w.title_en ?? w.title_ar,
-      items: rows.map((r, i) => ({ unit: `AR:${r.id}`, label: `${two(i + 1)}`, title: r.title_ar ?? `Part ${i + 1}`, title_ar: r.title_ar,
+      title: 'Page backlog', subtitle: part ? `${name} · part ${part}` : name, views: part ? undefined : views,
+      up: part ? [{ label: name ?? id, source: self('chapters') }] : undefined,
+      items: rows.map((r, i) => ({ unit: `AR:${r.id}`, label: two(i + 1), title: r.title_ar ?? `Page ${r.page_no ?? i + 1}`, title_ar: r.title_ar,
         short: null, ref: r.page_no != null ? `p. ${r.page_no}` : null,
         page: { module: 'ar', path: `sprint/page/part/${r.id}` } })),
     } satisfies SprintBacklog);
@@ -76,13 +98,15 @@ export function sprintRoutes(router: Router<ArabicEnv>) {
   });
 
   // ── pages
-  router.get('/ar/sprint/page/work/:id', async (_req, env, { id }) => {
+  router.get('/ar/sprint/page/work/:id', async (req, env, { id }) => {
     const w = await queryOne<{ title_ar: string | null; title_en: string | null; note_ar: string | null }>(env.DB_AR,
       `SELECT title_ar, title_en, note_ar FROM ar_acquisition_ref WHERE id = ?`, [id]);
     if (!w) return notFound(`work ${id}`);
+    const part = new URL(req.url).searchParams.get('part');
     const parts = await query<{ text_ar: string | null; script_json: string | null }>(env.DB_AR,
-      `SELECT text_ar, script_json FROM ar_text_unit WHERE acq_ref_id = ? ORDER BY seq LIMIT 60`, [id]);
-    return ok(page('EPISODE', w.title_en ?? w.title_ar, w.title_ar, w.note_ar, parts.flatMap((p) => linesOf(p.text_ar, p.script_json))));
+      `SELECT text_ar, script_json FROM ar_text_unit WHERE acq_ref_id = ? ${part ? 'AND part_no = ?' : ''} ORDER BY seq LIMIT 60`,
+      part ? [id, Number(part)] : [id]);
+    return ok(page(part ? `PART ${part}` : 'EPISODE', w.title_en ?? w.title_ar, w.title_ar, w.note_ar, parts.flatMap((p) => linesOf(p.text_ar, p.script_json))));
   });
 
   router.get('/ar/sprint/page/part/:id', async (_req, env, { id }) => {
