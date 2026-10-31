@@ -85,6 +85,8 @@ interface PassageRow {
   ayah_from: number;
   ayah_to: number;
   title: string | null;
+  /// Its shortest name, for a tile (qr_181).
+  title_short?: string | null;
   theme: string | null;
   status: string;
   name_ar: string | null;
@@ -2408,7 +2410,7 @@ export class StudyRepo {
     const rows = await query<PassageRow>(
       this.db,
       `SELECT p.id, p.surah AS surah_id, p.passage_no, p.ayah_from, p.ayah_to,
-              COALESCE(p.title_en, p.label) AS title,
+              COALESCE(p.title_en, p.label) AS title, p.title_short,
               p.theme, p.status,
               s.name_ar, s.name_en
        FROM qr_surah_study_passage p
