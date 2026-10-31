@@ -85,6 +85,28 @@ test('a dialogue: the question and the answer are two clips on one page, each wi
   assert.equal(p.words[3].s, 0);                                                       // the answer's times are its own recording's
 });
 
+const scenes = `# Where are the keys? · أَيْنَ\n\n` + [
+  fence('cast', { mommy: { ar: 'سَلْمَى', color: '#E58FA5' }, dad: { ar: 'كَرِيم', color: '#6FA8DC' } }),
+  fence('sound', { ambience: { id: 'amb_home_room' } }),
+  fence('read', { ar: 'لَا أَجِدُهَا.', audio: '/api/ar/audio/k/t1.m4a', words: [[0, 0.5], [0.5, 1]], speaker: 'mommy' }),
+  fence('read', { ar: 'وَجَدْتُهَا!', audio: '/api/ar/audio/k/t5.m4a', words: [[0, 0.8]], speaker: 'mommy',
+                  sound: { ambience: { id: 'amb_home_room', gain_db: -24 }, spots: [{ id: 'keys_jingle', word: 0 }, { id: 'not_in_library', word: 0 }] } }),
+].join('\n\n');
+
+test('a reading sounds like its scene: the default bed under every page, a page\'s own cue over it, only sounds ar_sfx has', async () => {
+  const w = world();
+  w.AR.exec(`CREATE TABLE ar_sfx (id TEXT PRIMARY KEY, object_key TEXT, scene_in_key TEXT, loopable INTEGER);
+             INSERT INTO ar_sfx VALUES ('amb_home_room', 'sfx/amb_home_room-1.m4a', NULL, 1), ('keys_jingle', 'sfx/keys_jingle-2.m4a', NULL, 0);`);
+  w.AR.prepare(`INSERT INTO ar_daily_reading VALUES (?,?,?,?,?,?,1,'D1')`).run('everyday-home', 'qa', 'Where are the keys?', 'أَيْنَ', '', scenes);
+  const p = (await w.get('/ar/daily/readings/everyday-home/book')).body.data.pages;
+  assert.deepEqual(p[0].sound, { ambience: { id: 'amb_home_room', url: '/api/ar/audio/sfx/amb_home_room-1.m4a', sceneIn: null, gainDb: -22 }, spots: [] });
+  assert.equal(p[1].sound.ambience.gainDb, -24);
+  assert.deepEqual(p[1].sound.spots, [{ id: 'keys_jingle', url: '/api/ar/audio/sfx/keys_jingle-2.m4a', word: 0, at: null, gainDb: -12 }]);
+  assert.deepEqual(p[0].clips[0], { url: '/api/ar/audio/k/t1.m4a', gap: 0.45, from: 0, to: 1, speaker: 'mommy', name: 'سَلْمَى', color: '#E58FA5' });
+  // a reading with no sounds stays silent under the voice (and needs no ar_sfx table)
+  assert.equal((await world().get('/ar/daily/readings/daily-market/book')).body.data.pages[0].sound, null);
+});
+
 test('the labels come from ar_practice_label when the rows exist', async () => {
   const w = world();
   w.AR.exec(`INSERT INTO ar_practice_label VALUES ('storybook','reading_kicker','EVERYDAY READING','قِرَاءَةٌ يَوْمِيَّةٌ',NULL,NULL,NULL,NULL,NULL,1)`);

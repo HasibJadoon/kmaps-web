@@ -9,13 +9,20 @@ import type { Label } from './labels';
 /// their times, its English line. A dialogue's block is a question and an answer by two speakers, each voiced from its own
 /// recording: the page then has TWO clips — the question's and the answer's — and its words are the question's followed by
 /// the answer's, each clip naming the words (from…to) it voices, the speaker's Arabic name and colour, and the pause before
-/// it (gap_q / gap_a). Every word shown comes from the data or from ar_practice_label (scope 'storybook'); nothing is
-/// written in the app.
+/// it (gap_q / gap_a). A turn voiced alone (one speaker, one clip) still names its speaker. Every word shown comes from the
+/// data or from ar_practice_label (scope 'storybook'); nothing is written in the app.
+///
+/// A page sounds like its scene, as a Kalīla page does: an optional ```sound block is the reading's default and a read
+/// block's own `sound` overrides it — {ambience: {id, gain_db?, scene_in?}, spots: [{id, word, gain_db?}]}, ids from ar_sfx
+/// (resolved to URLs by the route).
+
+export interface Cue { ambience?: { id: string; gain_db?: number; scene_in?: boolean }; spots?: Array<{ id: string; word?: number; at?: number; gain_db?: number }> }
+export interface SfxRef { url: string; sceneIn: string | null }
 
 interface ReadBlock {
   ar?: string; en?: string; audio?: string; words?: number[][]; keys?: Array<{ w: string; en: string }>; img?: string;
   role?: string; q?: string; q_audio?: string; q_words?: number[][]; q_speaker?: string; speaker?: string;
-  gap_q?: number; gap_a?: number;
+  gap_q?: number; gap_a?: number; sound?: Cue;
 }
 type Cast = Record<string, { ar?: string; en?: string; color?: string }>;
 
@@ -47,10 +54,29 @@ const L = (labels: Map<string, Label>, key: string, fallback: string, fallbackAr
   return { text: l?.label ?? fallback, ar: l?.labelAr ?? fallbackAr, icon: l?.icon ?? null, detail: l?.detail ?? null, color: l?.color ?? null };
 };
 
+/// The ar_sfx ids a reading's sounds name (its ```sound default and every read block's own), for the route to look up.
+export function soundIds(md: string): string[] {
+  const cues = blocksOf(md).filter(([t]) => t === 'sound' || t === 'read')
+    .map(([t, b]) => (t === 'sound' ? parse<Cue>(b) : parse<ReadBlock>(b)?.sound) ?? {});
+  return [...new Set(cues.flatMap((c) => [c.ambience?.id, ...(c.spots ?? []).map((s) => s.id)]).filter((x): x is string => !!x))];
+}
+
+/// A cue as the reader plays it (the shape a Kalīla page sends): only the sounds ar_sfx has; null when none.
+function soundOf(c: Cue | null | undefined, sfx: Map<string, SfxRef>) {
+  if (!c) return null;
+  const a = c.ambience && sfx.get(c.ambience.id);
+  const spots = (c.spots ?? []).filter((s) => sfx.has(s.id))
+    .map((s) => ({ id: s.id, url: sfx.get(s.id)!.url, word: s.word ?? null, at: s.at ?? null, gainDb: s.gain_db ?? -12 }));
+  if (!a && !spots.length) return null;
+  return { ambience: a ? { id: c.ambience!.id, url: a.url, sceneIn: c.ambience!.scene_in ? a.sceneIn : null, gainDb: c.ambience!.gain_db ?? -22 } : null, spots };
+}
+
 /// `base` is the story-book words object (the same one a Kalīla story sends); only the reading's own cover kicker is added here.
-export function readingBook(r: ReadingRow, labels: Map<string, Label>, base: Record<string, unknown>) {
+/// `sfx` holds the reading's sounds (soundIds → ar_sfx) as URLs; without it the pages are silent under the voice.
+export function readingBook(r: ReadingRow, labels: Map<string, Label>, base: Record<string, unknown>, sfx: Map<string, SfxRef> = new Map()) {
   const blocks = blocksOf(r.body_md);
   const cast = (blocks.find(([t]) => t === 'cast') && parse<Cast>(blocks.find(([t]) => t === 'cast')![1])) || {};
+  const scene = (blocks.find(([t]) => t === 'sound') && parse<Cue>(blocks.find(([t]) => t === 'sound')![1])) || null;
   // the heading read aloud (role "title") is the cover's job; a page needs a picture to sit on, but one without keeps the cover's
   const reads = blocks.filter(([t]) => t === 'read').map(([, b]) => parse<ReadBlock>(b)).filter((b): b is ReadBlock => !!b && b.role !== 'title' && !!b.ar);
   const first = reads.find((b) => b.img)?.img ?? null;
@@ -68,14 +94,14 @@ export function readingBook(r: ReadingRow, labels: Map<string, Label>, base: Rec
     const q = b.q && b.q_audio ? timed(b.q, b.q_words, keys) : [];
     const clips = [
       ...(q.length ? [{ url: b.q_audio!, gap: b.gap_q ?? 0.5, from: 0, to: q.length - 1, ...speaker(b.q_speaker) }] : []),
-      ...(b.audio ? [{ url: b.audio, gap: b.gap_a ?? 0.45, from: q.length, to: q.length + ans.length - 1, ...speaker(q.length ? b.speaker : undefined) }] : []),
+      ...(b.audio ? [{ url: b.audio, gap: b.gap_a ?? 0.45, from: q.length, to: q.length + ans.length - 1, ...speaker(b.speaker) }] : []),
     ];
     if (b.img) carry = b.img;
     return {
       no: i + 1, of: total, kind: 'story', picture: b.img ?? carry, placeholder: false,
       textAr: [b.q && b.q_audio ? b.q : null, b.ar].filter(Boolean).join(' '), textEn: b.en ?? null,
       words: [...q, ...ans].map(({ t, s, e, k }) => ({ t, s, e, k })),
-      start: null, end: null, recording: null, link: null, lines: null, sound: null,
+      start: null, end: null, recording: null, link: null, lines: null, sound: soundOf(b.sound ?? scene, sfx),
       clips,
     };
   });

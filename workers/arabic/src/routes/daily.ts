@@ -4,7 +4,9 @@ import { query, queryOne, execute } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { actorRef } from '../../../shared/src/auth';
 import { labels, byKey } from '../lib/labels';
-import { readingBook } from '../lib/reading-book';
+import { readingBook, soundIds } from '../lib/reading-book';
+import { mediaUrl } from '../lib/media';
+import { softFail } from '../../../shared/src/soft-fail';
 import { words as storybookWords } from './storybook';
 
 /// Daily Fuṣḥā — one themed dose a day: ten singular/plural pairs, a sentence
@@ -235,7 +237,15 @@ export function dailyRoutes(router: Router<ArabicEnv>) {
          FROM ar_daily_reading r WHERE r.slug = ? AND r.is_published = 1`, [slug]);
     if (!r || !r.body_md) return notFound(`reading ${slug}`);
     const L = byKey((await labels(env)).storybook);
-    const book = readingBook({ ...r, body_md: r.body_md }, L, storybookWords(L));
+    // the scene sounds the pages name (ar_sfx), as URLs — the same library the Kalīla pages play
+    const ids = soundIds(r.body_md);
+    const rows = ids.length
+      ? await query<{ id: string; object_key: string; scene_in_key: string | null }>(env.DB_AR,
+          `SELECT id, object_key, scene_in_key FROM ar_sfx WHERE id IN (${ids.map(() => '?').join(',')})`, ids)
+          .catch(softFail([] as { id: string; object_key: string; scene_in_key: string | null }[], 'ar_sfx'))
+      : [];
+    const sfx = new Map(rows.map((x) => [x.id, { url: mediaUrl(x.object_key)!, sceneIn: mediaUrl(x.scene_in_key) }]));
+    const book = readingBook({ ...r, body_md: r.body_md }, L, storybookWords(L), sfx);
     if (!book.pages.length) return notFound(`reading ${slug}`);
     return ok(book);
   });
