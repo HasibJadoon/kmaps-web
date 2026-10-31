@@ -17,6 +17,9 @@ interface StudyMeta {
   /** Simple dates: when the study starts and when the episode is recorded. */
   plan?: { start?: string; record?: string };
   passage?: Record<string, unknown>;
+  /** The sprint this study is one unit of, in any domain (shared/src/contracts/sprint.ts): where its backlog is,
+   *  and its own unit's typed ref in it. */
+  sprint?: { backlog: { module: string; path: string }; unit: string };
   path?: Array<{ title: string; title_ar?: string }>;
   episode?: { id: string; title?: string };
   /** Every Studio episode made from this study (the Zāwiya and the Burhan of one passage). */
@@ -44,6 +47,7 @@ export interface Study {
   doc_id: string; slug: string; title: string; title_ar: string | null;
   workspace_ref: string | null; status: string;
   passage: Record<string, unknown> | null;
+  sprint: { backlog: { module: string; path: string }; unit: string } | null;
   /** Qurʾān → Sūra → Passage, as the library files it. */
   path: Array<{ title: string; title_ar: string | null }>;
   /** The Studio episode the study feeds, if any. */
@@ -120,6 +124,7 @@ export class StudyRepo {
       workspace_ref: r.workspace_ref,
       status: meta.status ?? 'draft',
       passage: meta.passage ?? null,
+      sprint: meta.sprint?.backlog && meta.sprint.unit ? meta.sprint : null,
       path: (meta.path ?? []).map((p) => ({ title: p.title, title_ar: p.title_ar ?? null })),
       episode: meta.episode?.id ? { id: meta.episode.id, title: meta.episode.title ?? null } : null,
       episodes: (meta.episodes ?? (meta.episode?.id ? [meta.episode] : [])).map((e) => e.id).filter(Boolean),
