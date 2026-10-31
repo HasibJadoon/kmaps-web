@@ -106,6 +106,18 @@ router.post('/core/internal/memberships', async (req, env) => {
   return ok({ workspaces: rows.results ?? [] });
 });
 
+/// Internal — an account by email, for a worker that names a person by email (ST's participants).
+/// The public /core/users/by-email is an admin's question; this one answers only over a binding.
+router.post('/core/internal/user-by-email', async (req, env) => {
+  const body = await req.json<{ email?: string }>().catch(() => null);
+  const email = body?.email?.trim().toLowerCase();
+  if (!email) return ok(null);
+  const row = await env.DB_CORE.prepare(
+    `SELECT id, email, display_name FROM core_users WHERE lower(email) = ? AND account_status = 'active'`,
+  ).bind(email).first<{ id: string; email: string; display_name: string }>();
+  return ok(row ?? null);
+});
+
 export default {
   // the request's context travels with env, so a route can finish work after it has answered (env.ctx.waitUntil)
   fetch: (request: Request, env: CoreEnv, ctx: ExecutionContext) => router.handle(request, { ...env, ctx }),

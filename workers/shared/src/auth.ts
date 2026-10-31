@@ -41,7 +41,8 @@ export async function verifyJwt(
     if (!valid) return null;
 
     const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/'))) as JwtPayload;
-    if (payload.exp < Math.floor(Date.now() / 1000)) return null;
+    // a token with no expiry would never die: refuse it
+    if (typeof payload.exp !== 'number' || payload.exp < Math.floor(Date.now() / 1000)) return null;
 
     return payload;
   } catch {

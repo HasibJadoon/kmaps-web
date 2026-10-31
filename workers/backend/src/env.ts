@@ -9,7 +9,6 @@ export interface BackendEnv {
   CORE:           Fetcher;
 
   JWT_SECRET:      string;
-  INTERNAL_SECRET: string;
 
   ALLOWED_ORIGINS: string;
 }

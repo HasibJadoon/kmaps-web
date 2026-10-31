@@ -24,6 +24,8 @@ export type DocumentInclude = 'blocks' | 'links' | 'versions';
 
 export interface DocumentListFilters {
   core_user_ref?: string;
+  /** Restrict to the caller's own documents plus shared ones. */
+  visible_to?: string;
   doc_type?: string;
   publication_state?: string;
   workspace_ref?: string;
@@ -80,6 +82,11 @@ function buildWhere(filters: DocumentListFilters = {}): { where: string; params:
   const params: unknown[] = [];
 
   addFilter(clauses, params, 'core_user_ref = ?', filters.core_user_ref);
+  // a non-admin reader sees their own documents and everyone's shared ones
+  if (filters.visible_to) {
+    clauses.push(`(core_user_ref = ? OR publication_state IN ('published', 'active'))`);
+    params.push(filters.visible_to);
+  }
   addFilter(clauses, params, 'doc_type = ?', filters.doc_type);
   addFilter(clauses, params, 'workspace_ref = ?', filters.workspace_ref);
   addFilter(clauses, params, 'policy_ref = ?', filters.policy_ref);

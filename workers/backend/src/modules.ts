@@ -16,11 +16,27 @@ export interface ModuleConfig {
   /// review, so the routes that deal them answer only to a signed-in reader. Patterns, matched
   /// against the path after /api/ (no leading slash).
   privateGetPaths?: RegExp[];
+  /// Canonical content — the Qurʾān text, the lexicons, the worldview registry — is written by a
+  /// reviewer (an admin) only. A signed-in learner reads it; they never edit it.
+  adminWrites?: boolean;
+  /// The learner's own writes inside an admin-written module: a practice round, a reading session.
+  /// Patterns against the path after /api/, like privateGetPaths.
+  learnerWritePaths?: RegExp[];
 }
 
 /** Whether a module path is closed to a reader without a session. */
 export function isPrivatePath(mod: ModuleConfig, remainder: string): boolean {
   return (mod.privateGetPaths ?? []).some((re) => re.test(remainder));
+}
+
+export function isAdminRole(role: string | undefined | null): boolean {
+  return role === 'admin' || role === 'superadmin';
+}
+
+/** Whether a write to this module path needs a reviewer (an admin). */
+export function needsAdminWrite(mod: ModuleConfig, method: string, remainder: string): boolean {
+  if (!mod.adminWrites || ['GET', 'HEAD', 'OPTIONS'].includes(method)) return false;
+  return !(mod.learnerWritePaths ?? []).some((re) => re.test(remainder));
 }
 
 export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
@@ -29,10 +45,15 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     publicGet: true,
     // practice skills, rounds, the class path and its sprints, the listen gate, the stage's words
     privateGetPaths: [/^qr\/practice(\/|\?|$)/, /^qr\/drill(\/|\?|$)/, /^qr\/intake-pipeline(\/|\?|$)/],
+    adminWrites: true,
+    learnerWritePaths: [/^qr\/practice(\/|\?|$)/],
   },
   // the intake's worldview pipeline is a work queue, not reading: signed in only
-  wv:   { binding: 'WORLDVIEW',      publicGet: true, privateGetPaths: [/^wv\/intake-pipeline(\/|\?|$)/] },
-  worldview: { binding: 'WORLDVIEW', publicGet: true, privateGetPaths: [/^worldview\/intake-pipeline(\/|\?|$)/] },
+  wv:   { binding: 'WORLDVIEW',      publicGet: true, privateGetPaths: [/^wv\/intake-pipeline(\/|\?|$)/],
+          adminWrites: true },
+  // a reading session is the reader's own record of what they read
+  worldview: { binding: 'WORLDVIEW', publicGet: true, privateGetPaths: [/^worldview\/intake-pipeline(\/|\?|$)/],
+               adminWrites: true, learnerWritePaths: [/^worldview\/reading-session(\/|\?|$)/] },
   ar:   {
     binding: 'ARABIC',
     publicGet: false,
@@ -54,7 +75,7 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
                       /^ar\/path\/(placement|unit\/[^/?]+\/check)(\/|\?|$)/],
     publicGetPaths: ['ar/corpus-version', 'ar/atlas/home', 'ar/atlas/room', 'ar/atlas/collection', 'ar/atlas/search', 'ar/scenes', 'ar/path', 'ar/grammar', 'ar/acq', 'ar/text', 'ar/audio', 'ar/vendor-stream', 'ar/sources', 'ar/disciplines', 'ar/curriculum', 'ar/nodes', 'ar/tracks', 'ar/terms', 'ar/lessons', 'ar/daily/themes', 'ar/daily/domains', 'ar/daily/readings'],
   },
-  al:   { binding: 'AR_LINGUISTICS', publicGet: true  },
+  al:   { binding: 'AR_LINGUISTICS', publicGet: true, adminWrites: true },
   cm:   {
     binding: 'CONTENT',
     publicGet: false,
@@ -65,7 +86,9 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     // authors; it names books and fields and holds nothing about anyone.
     publicGetPaths: ['cm/assets', 'cm/templates'],
   },
-  core: { binding: 'CORE',           publicGet: true  },
+  // who is signed up, and who is in which workspace, is never a public read
+  core: { binding: 'CORE',           publicGet: true,
+          privateGetPaths: [/^core\/users(\/|\?|$)/, /^core\/workspaces(\/|\?|$)/] },
 
   st:     {
     binding: 'STUDIO',

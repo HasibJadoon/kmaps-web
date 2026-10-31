@@ -1,7 +1,7 @@
 import type { Router } from '../../../shared/src/router';
-import { ok, notFound, created, badRequest, paginated } from '../../../shared/src/response';
+import { ok, notFound, created, badRequest, forbidden, paginated } from '../../../shared/src/response';
 import { parsePagination } from '../../../shared/src/validate';
-import { requireAdmin } from '../../../shared/src/auth';
+import { requireAdmin, requireAuth } from '../../../shared/src/auth';
 import type { CoreEnv } from '../env';
 import { UserRepo } from '../repositories/user.repo';
 import { AuthRepo } from '../repositories/auth.repo';
@@ -16,14 +16,21 @@ export function userRoutes(router: Router<CoreEnv>) {
     return paginated(await new UserRepo(env.DB_CORE).list(parsePagination(new URL(req.url))));
   });
 
+  // looking a person up by email says whether they have an account: an admin's question only
   router.get('/core/users/by-email', async (req, env) => {
+    const ctx = await requireAdmin(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
     const email = new URL(req.url).searchParams.get('email');
     if (!email) return badRequest('email param required');
     const user = await new UserRepo(env.DB_CORE).findByEmail(email);
     return user ? ok(user) : notFound(`user ${email}`);
   });
 
-  router.get('/core/users/:id', async (_req, env, { id }) => {
+  // a person's own record, or any record for an admin
+  router.get('/core/users/:id', async (req, env, { id }) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    if (!ctx.isAdmin && ctx.userId !== id) return forbidden('Only your own account');
     const user = await new UserRepo(env.DB_CORE).findById(id);
     return user ? ok(user) : notFound(`user ${id}`);
   });

@@ -70,6 +70,22 @@ const BLANK_STRUCTURE: TemplateStructure = {
 /// A row that carries a workspace is governed by membership of it: any member
 /// may read, owners and admins may write, and the row's own author may write
 /// their own. A row with no workspace predates them and stays owner-only.
+/// Editing a participant, section or point is editing its episode: the same write check as the
+/// episode's own routes. `find` loads the child; a missing child answers 404.
+async function denyChild(
+  env: StudioEnv,
+  req: Request,
+  child: { episode_ref: string } | null,
+  what: string,
+): Promise<Response | null> {
+  const user = actorRef(req);
+  if (!user) return unauthorized('Authenticated user required');
+  if (!child) return notFound(what);
+  const episode = await new EpisodeRepo(env.DB_ST).findEpisode(child.episode_ref);
+  if (!episode) return notFound(`episode ${child.episode_ref}`);
+  return deny(env, req, user, episode, 'write');
+}
+
 async function deny(
   env: StudioEnv,
   req: Request,
@@ -417,6 +433,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   });
 
   router.patch('/st/participants/:id', async (req, env, { id }) => {
+    const gate = await denyChild(env, req, await new EpisodeRepo(env.DB_ST).findParticipant(id), `participant ${id}`);
+    if (gate) return gate;
     const body = await readJsonBody(req);
     if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
@@ -459,7 +477,9 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     return row ? ok(row) : notFound(`participant ${id}`);
   });
 
-  router.delete('/st/participants/:id', async (_req, env, { id }) => {
+  router.delete('/st/participants/:id', async (req, env, { id }) => {
+    const gate = await denyChild(env, req, await new EpisodeRepo(env.DB_ST).findParticipant(id), `participant ${id}`);
+    if (gate) return gate;
     const deleted = await new EpisodeRepo(env.DB_ST).deleteParticipant(id);
     return deleted ? noContent() : notFound(`participant ${id}`);
   });
@@ -491,6 +511,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   });
 
   router.patch('/st/sections/:id', async (req, env, { id }) => {
+    const gate = await denyChild(env, req, await new EpisodeRepo(env.DB_ST).findSection(id), `section ${id}`);
+    if (gate) return gate;
     const body = await readJsonBody(req);
     if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
@@ -513,12 +535,16 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     return row ? ok(row) : notFound(`section ${id}`);
   });
 
-  router.delete('/st/sections/:id', async (_req, env, { id }) => {
+  router.delete('/st/sections/:id', async (req, env, { id }) => {
+    const gate = await denyChild(env, req, await new EpisodeRepo(env.DB_ST).findSection(id), `section ${id}`);
+    if (gate) return gate;
     const deleted = await new EpisodeRepo(env.DB_ST).deleteSection(id);
     return deleted ? noContent() : notFound(`section ${id}`);
   });
 
   router.post('/st/sections/:id/points', async (req, env, { id }) => {
+    const gate = await denyChild(env, req, await new EpisodeRepo(env.DB_ST).findSection(id), `section ${id}`);
+    if (gate) return gate;
     const body = await readJsonBody(req);
     if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
@@ -542,6 +568,8 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   });
 
   router.patch('/st/points/:id', async (req, env, { id }) => {
+    const gate = await denyChild(env, req, await new EpisodeRepo(env.DB_ST).findPoint(id), `point ${id}`);
+    if (gate) return gate;
     const body = await readJsonBody(req);
     if (!isSchemaRecord(body)) return badRequest('Request body must be a JSON object');
 
@@ -577,7 +605,9 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     return row ? ok(row) : notFound(`talking point ${id}`);
   });
 
-  router.delete('/st/points/:id', async (_req, env, { id }) => {
+  router.delete('/st/points/:id', async (req, env, { id }) => {
+    const gate = await denyChild(env, req, await new EpisodeRepo(env.DB_ST).findPoint(id), `point ${id}`);
+    if (gate) return gate;
     const deleted = await new EpisodeRepo(env.DB_ST).deletePoint(id);
     return deleted ? noContent() : notFound(`talking point ${id}`);
   });

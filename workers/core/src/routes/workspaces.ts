@@ -53,18 +53,33 @@ export function workspaceRoutes(router: Router<CoreEnv>) {
     );
   });
 
-  router.get('/core/workspaces/:id', async (_req, env, { id }) => {
-    const ws = await new WorkspaceRepo(env.DB_CORE).findById(id);
-    return ws ? ok(ws) : notFound(`workspace ${id}`);
+  // a workspace, and who is in it, is seen by its members and by an admin
+  router.get('/core/workspaces/:id', async (req, env, { id }) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const repo = new WorkspaceRepo(env.DB_CORE);
+    const ws = await repo.findById(id);
+    if (!ws) return notFound(`workspace ${id}`);
+    return (await canSee(repo, ctx, ws)) ? ok(ws) : forbidden('Workspace members only');
   });
 
-  router.get('/core/workspaces/slug/:slug', async (_req, env, { slug }) => {
-    const ws = await new WorkspaceRepo(env.DB_CORE).findBySlug(slug);
-    return ws ? ok(ws) : notFound(`workspace ${slug}`);
+  router.get('/core/workspaces/slug/:slug', async (req, env, { slug }) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const repo = new WorkspaceRepo(env.DB_CORE);
+    const ws = await repo.findBySlug(slug);
+    if (!ws) return notFound(`workspace ${slug}`);
+    return (await canSee(repo, ctx, ws)) ? ok(ws) : forbidden('Workspace members only');
   });
 
-  router.get('/core/workspaces/:id/members', async (_req, env, { id }) => {
-    return ok(await new WorkspaceRepo(env.DB_CORE).members(id));
+  router.get('/core/workspaces/:id/members', async (req, env, { id }) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const repo = new WorkspaceRepo(env.DB_CORE);
+    const ws = await repo.findById(id);
+    if (!ws) return notFound(`workspace ${id}`);
+    if (!(await canSee(repo, ctx, ws))) return forbidden('Workspace members only');
+    return ok(await repo.members(id));
   });
 
   router.post('/core/workspaces', async (req, env) => {
@@ -181,6 +196,12 @@ export function workspaceRoutes(router: Router<CoreEnv>) {
     await logEvent(env, id, ctx.userId, 'member.removed', { member_id: memberId });
     return noContent();
   });
+}
+
+async function canSee(repo: WorkspaceRepo, ctx: AuthContext, ws: { id: string; owner_id: string }): Promise<boolean> {
+  if (canManage(ctx, ws.owner_id)) return true;
+  const m = await repo.findMemberByUser(ws.id, ctx.userId);
+  return !!m && m.status !== 'suspended';
 }
 
 function canManage(ctx: AuthContext, ownerId: string): boolean {

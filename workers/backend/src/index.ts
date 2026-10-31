@@ -1,8 +1,8 @@
 import type { BackendEnv } from './env';
-import { MODULE_MAP, isPrivatePath, type ModuleKey } from './modules';
+import { MODULE_MAP, isPrivatePath, isAdminRole, needsAdminWrite, type ModuleKey } from './modules';
 import { preflight, withCors } from './cors';
 import { authenticate, verifyJwt } from '../../shared/src/auth';
-import { unauthorized, err } from '../../shared/src/response';
+import { unauthorized, forbidden, err } from '../../shared/src/response';
 import { json } from '../../shared/src/http';
 
 export default {
@@ -33,10 +33,7 @@ export default {
       const ayah  = sourcesMatch[2];
       const kinds = url.searchParams.get('kinds') ?? '';
 
-      const internalHeaders = new Headers({
-        'X-KM-Internal':        '1',
-        'X-KM-Internal-Secret': env.INTERNAL_SECRET ?? '',
-      });
+      const internalHeaders = new Headers({ 'X-KM-Internal': '1' });
 
       const alReq = new Request(
         `http://internal.k-maps.local/al/source-rag/bundle?surah=${surah}&ayah=${ayah}${kinds ? `&kinds=${encodeURIComponent(kinds)}` : ''}`,
@@ -102,10 +99,7 @@ export default {
     if (passageMatch) {
       const surah = parseInt(passageMatch[1]);
       const no = parseInt(passageMatch[2]);
-      const internalHeaders = new Headers({
-        'X-KM-Internal': '1',
-        'X-KM-Internal-Secret': env.INTERNAL_SECRET ?? '',
-      });
+      const internalHeaders = new Headers({ 'X-KM-Internal': '1' });
       const get = (fetcher: Fetcher, path: string) =>
         fetcher.fetch(new Request(`http://internal.k-maps.local${path}`,
                                   { headers: internalHeaders }));
@@ -195,6 +189,12 @@ export default {
       return withCors(unauthorized('Valid Bearer token required'), origin, co);
     }
 
+    // canonical content is a reviewer's to write; a learner's own writes are listed per module
+    if (needsAdminWrite(mod, request.method, remainder)) {
+      if (!authCtx) return withCors(unauthorized('Valid Bearer token required'), origin, co);
+      if (!isAdminRole(authCtx.role)) return withCors(forbidden('Admin role required'), origin, co);
+    }
+
     const fwdUrl      = new URL(request.url);
     fwdUrl.hostname   = 'internal.k-maps.local';
     fwdUrl.pathname   = '/' + remainder;
@@ -205,8 +205,7 @@ export default {
     // otherwise send X-KM-User-Id / X-KM-Role on a public read and be taken for someone else
     for (const k of [...fwdHeaders.keys()]) if (k.toLowerCase().startsWith('x-km-')) fwdHeaders.delete(k);
 
-    fwdHeaders.set('X-KM-Internal',        '1');
-    fwdHeaders.set('X-KM-Internal-Secret', env.INTERNAL_SECRET ?? '');
+    fwdHeaders.set('X-KM-Internal', '1');
 
     if (authCtx) {
       fwdHeaders.set('X-KM-User-Id', authCtx.userId);

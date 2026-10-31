@@ -38,10 +38,10 @@ const COLS = `note_id AS id, title, body_text AS content_md, passage_ref AS reso
 export class NoteRepo {
   constructor(private db: D1Database) {}
 
-  list(ref: string | null, opts: PaginateOptions = {}, domain: string | null = null,
+  list(owner: string, ref: string | null, opts: PaginateOptions = {}, domain: string | null = null,
        refPrefix: string | null = null) {
-    const conds: string[] = ['deleted_at IS NULL'];
-    const params: unknown[] = [];
+    const conds: string[] = ['deleted_at IS NULL', `(core_user_ref = ? OR visibility = 'public')`];
+    const params: unknown[] = [owner];
     if (ref)    { conds.push('passage_ref = ?'); params.push(ref); }
     // every note written on one poem, in a single ask: the ref carries the
     // line it was written on, so the reader wants the whole prefix
@@ -59,6 +59,16 @@ export class NoteRepo {
   findById(id: string): Promise<Note | null> {
     return queryOne<Note>(
       this.db, `SELECT ${COLS} FROM cm_notes WHERE note_id = ?`, [id],
+    );
+  }
+
+  /** A note its owner, or anyone if public, may read. */
+  findVisible(id: string, owner: string): Promise<Note | null> {
+    return queryOne<Note>(
+      this.db,
+      `SELECT ${COLS} FROM cm_notes WHERE note_id = ? AND deleted_at IS NULL
+         AND (core_user_ref = ? OR visibility = 'public')`,
+      [id, owner],
     );
   }
 
@@ -82,13 +92,14 @@ export class NoteRepo {
     return (await this.findById(id))!;
   }
 
-  async update(id: string, content_md: string, title?: string | null): Promise<Note | null> {
+  async update(id: string, owner: string, content_md: string, title?: string | null): Promise<Note | null> {
     const now  = new Date().toISOString();
     const sets = ['body_text = ?', 'updated_at = ?'];
     const vals: unknown[] = [content_md, now];
     if (title !== undefined) { sets.push('title = ?'); vals.push(title); }
-    vals.push(id);
-    await execute(this.db, `UPDATE cm_notes SET ${sets.join(', ')} WHERE note_id = ?`, vals);
-    return this.findById(id);
+    vals.push(id, owner);
+    const res = await execute(this.db, `UPDATE cm_notes SET ${sets.join(', ')} WHERE note_id = ? AND core_user_ref = ?`, vals);
+    // nothing changed: the note isn't there, or it isn't this owner's
+    return res.meta.changes ? this.findVisible(id, owner) : null;
   }
 }

@@ -72,7 +72,6 @@ GOOGLE_CLIENT_ID = "246205307788-iig05bvkiclr3oggcfnkk96s1frds8h8.apps.googleuse
 
 # Secrets (set via wrangler secret put):
 #   JWT_SECRET      — shared with km-backend-worker
-#   INTERNAL_SECRET — shared with km-backend-worker
 
 # ─── Reviewing together ───────────────────────────────────────────────────────
 # One shared question on every screen; each person's own card is scheduled from

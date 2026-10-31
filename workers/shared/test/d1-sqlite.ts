@@ -5,7 +5,7 @@ export interface FakeD1 {
     bind(...params: unknown[]): {
       all<T>(): Promise<{ results: T[] }>;
       first<T>(): Promise<T | null>;
-      run(): Promise<{ success: boolean }>;
+      run(): Promise<{ success: boolean; meta: { changes: number } }>;
     };
   };
 }
@@ -21,7 +21,7 @@ export function fakeD1(setup: (db: Database.Database) => void): FakeD1 {
           return {
             async all<T>() { return { results: stmt.all(...params) as T[] }; },
             async first<T>() { return (stmt.get(...params) as T) ?? null; },
-            async run() { stmt.run(...params); return { success: true }; },
+            async run() { const r = stmt.run(...params); return { success: true, meta: { changes: r.changes } }; },
           };
         },
       };

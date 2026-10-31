@@ -7,10 +7,14 @@ import { NoteRepo } from '../repositories/note.repo';
 
 export function noteRoutes(router: Router<ContentEnv>) {
 
+  // a reader sees their own notes and the ones made public — never someone else's private ones
   router.get('/cm/notes', async (req, env) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
     const url = new URL(req.url);
     return paginated(
       await new NoteRepo(env.DB_CM).list(
+        user,
         url.searchParams.get('ref'),
         parsePagination(url),
         url.searchParams.get('domain'),
@@ -19,8 +23,10 @@ export function noteRoutes(router: Router<ContentEnv>) {
     );
   });
 
-  router.get('/cm/notes/:id', async (_req, env, { id }) => {
-    const row = await new NoteRepo(env.DB_CM).findById(id);
+  router.get('/cm/notes/:id', async (req, env, { id }) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const row = await new NoteRepo(env.DB_CM).findVisible(id, user);
     return row ? ok(row) : notFound(`note ${id}`);
   });
 
@@ -46,11 +52,15 @@ export function noteRoutes(router: Router<ContentEnv>) {
     }));
   });
 
+  // only the note's author edits it; anyone else is told it isn't there
   router.patch('/cm/notes/:id', async (req, env, { id }) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
     const b = await req.json() as Record<string, unknown>;
     if (!b.content_md) return badRequest('content_md required');
     const row = await new NoteRepo(env.DB_CM).update(
       id,
+      user,
       String(b.content_md),
       b.title !== undefined ? (b.title as string | null) : undefined,
     );

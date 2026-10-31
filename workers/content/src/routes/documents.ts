@@ -1,5 +1,6 @@
 import type { Router } from '../../../shared/src/router';
-import { badRequest, created, noContent, notFound, ok, paginated } from '../../../shared/src/response';
+import { badRequest, created, forbidden, noContent, notFound, ok, paginated, unauthorized } from '../../../shared/src/response';
+import { actorRef, forwardedReviewer } from '../../../shared/src/auth';
 import { parsePagination } from '../../../shared/src/validate';
 import type { ContentEnv } from '../env';
 import { DocumentRepo, type DocumentInclude, type DocumentListFilters } from '../repositories/document.repo';
@@ -72,19 +73,39 @@ function filtersFromUrl(url: URL): DocumentListFilters {
   };
 }
 
-async function ensureDocument(repo: DocumentRepo, docId: string): Promise<Response | null> {
-  return (await repo.exists(docId)) ? null : notFound(`document ${docId}`);
+/** States a document is readable in by someone who is not its author. */
+export const SHARED_STATES = ['published', 'active'];
+
+/**
+ * Who may touch a document: its author writes it (an admin may too); anyone signed in reads it
+ * once it is shared (published or active), and only its author before then. A document someone
+ * may not read answers 404, so its existence is not given away.
+ */
+async function ensureDocument(
+  repo: DocumentRepo, docId: string, req: Request, mode: 'read' | 'write',
+): Promise<Response | null> {
+  const user = actorRef(req);
+  if (!user) return unauthorized('Authenticated user required');
+  const doc = await repo.findById(docId);
+  if (!doc) return notFound(`document ${docId}`);
+  if (doc.core_user_ref === user || forwardedReviewer(req)) return null;
+  if (!SHARED_STATES.includes(doc.publication_state)) return notFound(`document ${docId}`);
+  return mode === 'read' ? null : forbidden('Only the author may change this document');
+}
+
+/** A list or search sees the caller's own documents and everyone's shared ones (all, for an admin). */
+function scoped(req: Request, filters: DocumentListFilters): DocumentListFilters | Response {
+  const user = actorRef(req);
+  if (!user) return unauthorized('Authenticated user required');
+  return forwardedReviewer(req) ? filters : { ...filters, visible_to: user };
 }
 
 export function documentRoutes(router: Router<ContentEnv>) {
   router.get('/cm/documents', async (req, env) => {
     const url = new URL(req.url);
-    return paginated(
-      await new DocumentRepo(env.DB_CM).list(
-        filtersFromUrl(url),
-        parsePagination(url),
-      ),
-    );
+    const filters = scoped(req, filtersFromUrl(url));
+    if (filters instanceof Response) return filters;
+    return paginated(await new DocumentRepo(env.DB_CM).list(filters, parsePagination(url)));
   });
 
   router.get('/cm/documents/search', async (req, env) => {
@@ -92,16 +113,15 @@ export function documentRoutes(router: Router<ContentEnv>) {
     const q = url.searchParams.get('q')?.trim();
     if (!q) return badRequest('q is required');
 
-    return paginated(
-      await new DocumentRepo(env.DB_CM).search(
-        { ...filtersFromUrl(url), q },
-        parsePagination(url),
-      ),
-    );
+    const filters = scoped(req, { ...filtersFromUrl(url), q });
+    if (filters instanceof Response) return filters;
+    return paginated(await new DocumentRepo(env.DB_CM).search(filters, parsePagination(url)));
   });
 
   router.get('/cm/documents/:id', async (req, env, { id }) => {
     const url = new URL(req.url);
+    const denied = await ensureDocument(new DocumentRepo(env.DB_CM), id, req, 'read');
+    if (denied) return denied;
     const row = await new DocumentRepo(env.DB_CM).findAggregate(
       id,
       parseIncludes(url, ['blocks']),
@@ -134,6 +154,8 @@ export function documentRoutes(router: Router<ContentEnv>) {
     if ('response' in parsed) return parsed.response;
 
     const repo = new DocumentRepo(env.DB_CM);
+    const denied = await ensureDocument(repo, id, req, 'write');
+    if (denied) return denied;
     const row = await repo.patch(id, parsed.data);
     if (!row) return notFound(`document ${id}`);
     return ok(await repo.findAggregate(id, ['blocks']));
@@ -144,6 +166,8 @@ export function documentRoutes(router: Router<ContentEnv>) {
     if ('response' in parsed) return parsed.response;
 
     const repo = new DocumentRepo(env.DB_CM);
+    const denied = await ensureDocument(repo, id, req, 'write');
+    if (denied) return denied;
     const row = await repo.patch(id, parsed.data);
     if (!row) return notFound(`document ${id}`);
     return ok(await repo.findAggregate(id, parsed.data.blocks !== undefined ? ['blocks'] : []));
@@ -152,15 +176,17 @@ export function documentRoutes(router: Router<ContentEnv>) {
   router.delete('/cm/documents/:id', async (req, env, { id }) => {
     const url = new URL(req.url);
     const repo = new DocumentRepo(env.DB_CM);
+    const denied = await ensureDocument(repo, id, req, 'write');
+    if (denied) return denied;
     const deleted = url.searchParams.get('hard') === 'true'
       ? await repo.hardDelete(id)
       : await repo.archive(id);
     return deleted ? noContent() : notFound(`document ${id}`);
   });
 
-  router.get('/cm/documents/:id/blocks', async (_req, env, { id }) => {
+  router.get('/cm/documents/:id/blocks', async (req, env, { id }) => {
     const repo = new DocumentRepo(env.DB_CM);
-    const missing = await ensureDocument(repo, id);
+    const missing = await ensureDocument(repo, id, req, 'read');
     if (missing) return missing;
     return ok(await repo.blocksWithChildren(id));
   });
@@ -170,7 +196,7 @@ export function documentRoutes(router: Router<ContentEnv>) {
     if ('response' in parsed) return parsed.response;
 
     const repo = new DocumentRepo(env.DB_CM);
-    const missing = await ensureDocument(repo, id);
+    const missing = await ensureDocument(repo, id, req, 'write');
     if (missing) return missing;
     return created(await repo.createBlock(id, parsed.data));
   });
@@ -179,18 +205,24 @@ export function documentRoutes(router: Router<ContentEnv>) {
     const parsed = await readValidatedJson(req, validateCmDocumentBlockPatch);
     if ('response' in parsed) return parsed.response;
 
-    const row = await new DocumentRepo(env.DB_CM).patchBlock(id, blockId, parsed.data);
+    const repo = new DocumentRepo(env.DB_CM);
+    const denied = await ensureDocument(repo, id, req, 'write');
+    if (denied) return denied;
+    const row = await repo.patchBlock(id, blockId, parsed.data);
     return row ? ok(row) : notFound(`block ${blockId}`);
   });
 
-  router.delete('/cm/documents/:id/blocks/:blockId', async (_req, env, { id, blockId }) => {
-    const deleted = await new DocumentRepo(env.DB_CM).deleteBlock(id, blockId);
+  router.delete('/cm/documents/:id/blocks/:blockId', async (req, env, { id, blockId }) => {
+    const repo = new DocumentRepo(env.DB_CM);
+    const denied = await ensureDocument(repo, id, req, 'write');
+    if (denied) return denied;
+    const deleted = await repo.deleteBlock(id, blockId);
     return deleted ? noContent() : notFound(`block ${blockId}`);
   });
 
-  router.get('/cm/documents/:id/links', async (_req, env, { id }) => {
+  router.get('/cm/documents/:id/links', async (req, env, { id }) => {
     const repo = new DocumentRepo(env.DB_CM);
-    const missing = await ensureDocument(repo, id);
+    const missing = await ensureDocument(repo, id, req, 'read');
     if (missing) return missing;
     return ok(await repo.links(id));
   });
@@ -200,22 +232,22 @@ export function documentRoutes(router: Router<ContentEnv>) {
     if ('response' in parsed) return parsed.response;
 
     const repo = new DocumentRepo(env.DB_CM);
-    const missing = await ensureDocument(repo, id);
+    const missing = await ensureDocument(repo, id, req, 'write');
     if (missing) return missing;
     return created(await repo.createLink(id, parsed.data));
   });
 
-  router.delete('/cm/documents/:id/links/:linkId', async (_req, env, { id, linkId }) => {
+  router.delete('/cm/documents/:id/links/:linkId', async (req, env, { id, linkId }) => {
     const repo = new DocumentRepo(env.DB_CM);
-    const missing = await ensureDocument(repo, id);
+    const missing = await ensureDocument(repo, id, req, 'write');
     if (missing) return missing;
     const deleted = await repo.deleteLink(id, linkId);
     return deleted ? noContent() : notFound(`link ${linkId}`);
   });
 
-  router.get('/cm/documents/:id/versions', async (_req, env, { id }) => {
+  router.get('/cm/documents/:id/versions', async (req, env, { id }) => {
     const repo = new DocumentRepo(env.DB_CM);
-    const missing = await ensureDocument(repo, id);
+    const missing = await ensureDocument(repo, id, req, 'read');
     if (missing) return missing;
     return ok(await repo.versions(id));
   });
@@ -224,7 +256,10 @@ export function documentRoutes(router: Router<ContentEnv>) {
     const parsed = await readValidatedJson(req, validateCmDocumentVersionCreate);
     if ('response' in parsed) return parsed.response;
 
-    const version = await new DocumentRepo(env.DB_CM).createVersion(id, parsed.data);
+    const repo = new DocumentRepo(env.DB_CM);
+    const denied = await ensureDocument(repo, id, req, 'write');
+    if (denied) return denied;
+    const version = await repo.createVersion(id, parsed.data);
     return version ? created(version) : notFound(`document ${id}`);
   });
 }

@@ -10,12 +10,13 @@ export async function resolveUserByEmail(
   env: StudioEnv,
   email: string,
 ): Promise<CoreUser | null> {
-  const url =
-    `https://km-core/core/users/by-email?email=${encodeURIComponent(email)}`;
-
   let res: Response;
   try {
-    res = await env.CORE.fetch(url);
+    res = await env.CORE.fetch(new Request('https://km-core/core/internal/user-by-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    }));
   } catch {
     return null;
   }
