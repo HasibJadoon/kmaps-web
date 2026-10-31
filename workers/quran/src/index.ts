@@ -41,6 +41,7 @@ import { practiceClassRoutes } from './routes/practice-class';
 import { drillSourceRoutes } from './routes/drill-source';
 import { practiceGrammarRoutes } from './routes/practice-grammar';
 import { translationChoiceRoutes } from './routes/translation-choices';
+import { mushafFontRoutes } from './routes/mushaf-fonts';
 import { intakePipelineRoutes } from '../../shared/src/intake-pipeline';
 
 const router = new Router<QuranEnv>();
@@ -61,6 +62,7 @@ router.get('/qr/health', async (_req, env) =>
 
 menuRoutes(router);
 surahRoutes(router);
+mushafFontRoutes(router);
 keytermRoutes(router);
 readerRoutes(router);
 vocabularyRoutes(router);
