@@ -20,7 +20,8 @@ export const VOCAB_WORDS = {
   count: (n: number) => `${n} word${n === 1 ? '' : 's'}`,
   shown: (n: number, of: number) => `${n} of ${of} words`,
   none: 'No word matches',
-  ui: { search: 'Search words', searchAr: 'ابْحَثْ', all: 'All', allAr: 'الْكُلُّ', seenIn: 'Seen in', hear: 'Hear', english: 'English', roomsTitle: 'Rooms', kindsTitle: 'Kinds' },
+  ui: { search: 'Search words', searchAr: 'ابْحَثْ', all: 'All', allAr: 'الْكُلُّ', seenIn: 'Seen in', hear: 'Hear', english: 'English', roomsTitle: 'Rooms', kindsTitle: 'Kinds',
+        playAll: 'Play all', playAllAr: 'اِسْتَمِعْ لِلْكُلِّ', stop: 'Stop', stopAr: 'تَوَقَّفْ' },
   empty: 'Words gather here as this place gets its stories',
   general: { title: 'Around the place', titleAr: 'فِي الْمَكَانِ' },
   kinds: {
