@@ -6,6 +6,7 @@ import { paletteOf, WORLD_WORDS } from '../lib/everyday-world';
 import { canvasOf, settingsOf, treeOf, type MapRow } from '../lib/map-canvas';
 import { buildVocabulary, keysOf, vocabOfReading, VOCAB_WORDS, type VocabInput, type VocabQuery } from '../lib/stop-vocab';
 import { bare } from '../lib/levels';
+import { blocksOf } from '../lib/reading-book';
 
 // ── The Everyday atlas, one route for any level (owner, 2026-10-31) ─────────────────────────────────────────────────
 // GET /ar/map/:id — a stop of ar_map_node (a world 'MAP:modern-city', a district, a place, a side, a room), or
@@ -25,7 +26,24 @@ export const MAP_WORDS = {
   toExplore: (n: number) => `${n} to explore`,
   portal: (t: string) => `Travel to ${t}`,
   inside: (n: number) => `${n} place${n === 1 ? '' : 's'} to explore`,
+  books: (n: number) => `${n} book${n === 1 ? '' : 's'}`,
+  shelfIcon: 'books.vertical.fill',
 };
+/** What a node opens as a book: these sit together on a room's shelf (owner, 2026-11-01: "it should be one; a grid of its
+ *  stories, each its own book with its own cover and title"). The vocabulary hub stays a node of its own. */
+const BOOK_KINDS = new Set(['reading', 'dialogue', 'sentences', 'passage']);
+
+/** The map items each published reading stands for (its ```covers block: a dialogue id, 'sentences', a passage id), as
+ *  ref → 'ARDR:<slug>': the item is shown as that book, once. */
+function coversOf(live: Live | null): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const r of live?.readings ?? []) {
+    const b = blocksOf(r.body ?? '').find(([t]) => t === 'covers');
+    if (!b) continue;
+    try { for (const ref of JSON.parse(b[1]) as string[]) out.set(ref, `ARDR:${r.slug}`); } catch { /* a malformed block covers nothing */ }
+  }
+  return out;
+}
 /** Progressive reveal: at the opening zoom only the places with something in them show; the "coming soon" ones appear as you
  *  zoom in (a node's own settings.reveal wins). */
 const REVEAL = { soon: 1.0 };
@@ -188,6 +206,12 @@ export function mapRoutes(router: Router<ArabicEnv>) {
     const placeSlug = domainOf(node);
     const live = placeSlug ? await loadLive(env, placeSlug) : null;
 
+    // an item a reading covers is shown as that reading (a lesson's dialogue → its dialogue book)
+    const covers = coversOf(live);
+    rows = rows.map((r) => r.type === 'artifact' && r.kind !== 'reading' && covers.has(r.ref ?? '') && domainOf(r) === placeSlug
+      ? { ...r, kind: 'reading', ref: covers.get(r.ref!)! } : r);
+    for (const r of rows) byId.set(r.id, r);
+
     // content that is live but not yet hung on the tree goes into the place's default room (or, with no rooms, onto the place)
     const virtual: MapRow[] = [];
     if (live && (node.kind === 'place' || node.id.startsWith('domain:') || domainOf(node) === placeSlug)) {
@@ -205,6 +229,7 @@ export function mapRoutes(router: Router<ArabicEnv>) {
       let n = 0;
       for (const w of want) {
         if (has(w.kind, w.ref) || (w.kind === 'vocab_hub' && mine.some((a) => a.kind === 'vocab_hub'))) continue;
+        if (w.kind !== 'reading' && covers.has(w.ref)) continue;              // shown as the book that covers it
         const pos = hasRooms ? {} : { x: [0.2, 0.5, 0.8][n % 3]!, y: 0.2 + Math.floor(n / 3) * 0.2 };
         virtual.push({ id: `${home.id}~${w.kind}~${w.ref.replace(/[^A-Za-z0-9]+/g, '-')}`, parent_id: home.id, type: 'artifact', kind: w.kind, ref: w.ref,
                        title_ar: null, title_en: null, icon: null, color: null, picture_key: null, picture_brief: null, x: (pos as { x?: number }).x ?? null,
@@ -214,7 +239,26 @@ export function mapRoutes(router: Router<ArabicEnv>) {
       }
     }
     const all = [...rows, ...virtual];
-    const kids = treeOf(all);
+    // one node per room for its books: a shelf whose items are the books (a room with one book keeps it as it is)
+    const shelfItems = new Map<string, MapRow[]>();
+    const shown: MapRow[] = [];
+    const groups = new Map<string, MapRow[]>();
+    for (const r of all) {
+      if (r.type === 'artifact' && BOOK_KINDS.has(r.kind ?? '') && r.parent_id && domainOf(r) === placeSlug) groups.set(r.parent_id, [...(groups.get(r.parent_id) ?? []), r]);
+    }
+    const seen = new Set<string>();
+    for (const r of all) {
+      const g = r.parent_id ? groups.get(r.parent_id) : undefined;
+      if (!g || g.length < 2 || !g.includes(r)) { shown.push(r); continue; }
+      const id = `${r.parent_id}~shelf`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const items = [...g].sort((a, b) => a.sort_order - b.sort_order)
+        .filter((a, i, xs) => xs.findIndex((b) => nodeKey(b) === nodeKey(a)) === i);
+      shelfItems.set(id, items);
+      shown.push({ ...items[0]!, id, kind: 'shelf', ref: null, title_ar: null, title_en: null, icon: null, x: items[0]!.x, y: items[0]!.y });
+    }
+    const kids = treeOf(shown);
     const hasPicture = !!node.picture_key || !!(node.kind === 'world' && world?.image_key);
     const canvas = canvasOf(node, kids, hasPicture);
 
@@ -231,11 +275,26 @@ export function mapRoutes(router: Router<ArabicEnv>) {
     const ps = new Map(placeStates.map((p) => [p.slug, p]));
     const liveCache = new Map<string, Live | null>(placeSlug ? [[placeSlug, live]] : []);
     const liveFor = async (d: string | null) => { if (!d) return null; if (!liveCache.has(d)) liveCache.set(d, await loadLive(env, d)); return liveCache.get(d)!; };
-    const artifactsBelow = (r: MapRow): MapRow[] => (kids.get(r.id) ?? []).flatMap((c) => c.type === 'artifact' ? [c] : c.type === 'stop' ? artifactsBelow(c) : []);
+    const artifactsBelow = (r: MapRow): MapRow[] => (kids.get(r.id) ?? []).flatMap((c) =>
+      c.kind === 'shelf' ? shelfItems.get(c.id) ?? [] : c.type === 'artifact' ? [c] : c.type === 'stop' ? artifactsBelow(c) : []);
 
     const nodes = [];
     for (const m of canvas.markers) {
       const r = m.row, base = { id: r.id, type: r.type, kind: r.kind, x: m.x, y: m.y, zone: m.zone, domain: domainOf(r), reveal: 0 };
+      if (r.kind === 'shelf') {
+        const l = await liveFor(base.domain);
+        const items = (shelfItems.get(r.id) ?? []).map((a) => {
+          const res = resolveArtifact(a, l, 0);
+          return { id: a.id, type: a.type, kind: a.kind, ref: a.ref, x: 0, y: 0, zone: base.zone, domain: base.domain, reveal: 0,
+                   ...res, state: res.open ? 'open' : 'locked', open: undefined };
+        });
+        const room = r.parent_id ? byId.get(r.parent_id) : undefined;
+        const opened = items.filter((i) => i.state === 'open');
+        nodes.push({ ...base, ref: null, title: room?.title_en ?? live?.domain.title ?? '', titleAr: room?.title_ar ?? live?.domain.title_ar ?? null,
+                     caption: MAP_WORDS.books(opened.length), picture: (opened.find((i) => i.picture) ?? items.find((i) => i.picture))?.picture ?? null,
+                     icon: MAP_WORDS.shelfIcon, state: opened.length ? 'open' : 'locked', items });
+        continue;
+      }
       if (r.type === 'artifact') {
         const d = base.domain;
         const res = resolveArtifact(r, await liveFor(d), d === placeSlug ? vocabCount : (d ? (await vocabOf(env, (await liveFor(d))!, all)).count : 0));

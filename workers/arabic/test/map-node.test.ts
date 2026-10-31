@@ -79,7 +79,7 @@ function world() {
     const res = await r.handle(new Request('https://ar' + path), { DB_AR: d1(AR) } as any);
     return { status: res.status, body: await res.json() as any };
   };
-  return { get };
+  return { AR, get };
 }
 
 const noOverlap = (d: any) => {
@@ -113,32 +113,54 @@ test('a world: its districts are labelled areas, its places stand inside them, a
   for (const id of ['t:centre:home', 't:centre:plain']) assert.ok(by[id].x >= z.x - 0.2 && by[id].x <= z.x + z.w + 0.2);
 });
 
-test('a place: its rooms are areas, artifacts stand in their rooms, live content not on the tree goes to the default room', async () => {
+test('a place: its rooms are areas; the books of a room stand on one shelf, a lone book stays itself; live content not on the tree goes to the default room', async () => {
   const d = (await world().get('/ar/map/t:centre:home')).body.data;
   assert.deepEqual(d.node.breadcrumbs.map((b: any) => b.id), ['MAP:t', 't:centre']);
   assert.equal(d.node.domain, 'home');
   assert.deepEqual(d.zones.map((z: any) => z.id), ['t:centre:home:entrance', 't:centre:home:bedroom', 't:centre:home:garden']);
   const by = Object.fromEntries(d.nodes.map((n: any) => [n.id, n]));
-  const dlg = by['t:centre:home:entrance~dialogue~DL1'];
+  // the entrance holds the hung dialogue and everything live but not hung (the Friday Q&A, the sentences, the passage): one shelf
+  const shelf = by['t:centre:home:entrance~shelf'];
+  assert.equal(shelf.kind, 'shelf');
+  assert.equal(shelf.titleAr, 'الْمَدْخَلُ');
+  assert.equal(shelf.state, 'open');
+  assert.equal(shelf.caption, '4 books');
+  assert.equal(shelf.picture, '/api/ar/audio/d/k.jpg');                       // the first book with a picture
+  assert.deepEqual(shelf.items.map((i: any) => i.kind), ['dialogue', 'reading', 'sentences', 'passage']);
+  const dlg = shelf.items[0];
   assert.equal(dlg.titleAr, 'أَيْنَ الْمَفَاتِيحُ؟');
   assert.equal(dlg.caption, '2 lines · listen in');
   assert.equal(dlg.state, 'open');
-  assert.equal(dlg.zone, 't:centre:home:entrance');
+  // a room with one book keeps it as a node of its own
   const rd = by['t:centre:home:bedroom~reading~daily-home'];
   assert.equal(rd.caption, '4 lines · read-along');
   assert.equal(rd.zone, 't:centre:home:bedroom');
   const soon = by['t:centre:home:garden~reading~nothing'];
   assert.equal(soon.state, 'locked');
   assert.equal(soon.caption, 'Coming soon');
-  // live but not hung: the Friday Q&A, the sentences, the passage and the hub, all in the default room (the entrance)
-  const extra = d.nodes.filter((n: any) => n.id.includes('~') && !['dialogue~DL1', 'reading~daily-home', 'reading~nothing'].some((k) => n.id.endsWith(k)));
-  assert.deepEqual(extra.map((n: any) => n.kind).sort(), ['passage', 'reading', 'sentences', 'vocab_hub']);
-  assert.ok(extra.every((n: any) => n.zone === 't:centre:home:entrance'));
-  const hub = extra.find((n: any) => n.kind === 'vocab_hub');
+  // the hub stays a node of its own, in the default room
+  const hub = d.nodes.find((n: any) => n.kind === 'vocab_hub');
   assert.equal(hub.titleAr, 'المُفْرَدَات');
+  assert.equal(hub.zone, 't:centre:home:entrance');
   assert.equal(hub.state, 'open');
   assert.ok(/words/.test(hub.caption));
   noOverlap(d);
+});
+
+test('a book that covers map items stands for them: the hung dialogue opens as its book, the sentences and passage are not shown twice', async () => {
+  const w = world();
+  const fence = (t: string, o: unknown) => '```' + t + '\n' + JSON.stringify(o) + '\n```';
+  w.AR.prepare(`INSERT INTO ar_daily_reading VALUES (?,?,?,?,?,?,?,?,?,?,?,'')`).run('R3', 'D1', 'home-dialogue', 'qa', 'Where are the keys?', 'أَيْنَ الْمَفَاتِيحُ؟', 6,
+    'd/k.jpg', 3, 1, fence('covers', ['DL1']));
+  w.AR.prepare(`INSERT INTO ar_daily_reading VALUES (?,?,?,?,?,?,?,?,?,?,?,'')`).run('R4', 'D1', 'home-sentences', 'story', 'Say it', 'قُلْهَا', 1,
+    'w/bed.jpg', 4, 1, fence('covers', ['sentences', 'P1']));
+  const d = (await w.get('/ar/map/t:centre:home')).body.data;
+  const shelf = d.nodes.find((n: any) => n.id === 't:centre:home:entrance~shelf');
+  assert.deepEqual(shelf.items.map((i: any) => `${i.kind}:${i.ref}`),
+    ['reading:ARDR:home-dialogue', 'reading:ARDR:friday', 'reading:ARDR:home-sentences']);
+  assert.equal(shelf.items[0].id, 't:centre:home:entrance~dialogue~DL1');      // the hung node keeps its place, now as the book
+  assert.equal(shelf.items[0].titleAr, 'أَيْنَ الْمَفَاتِيحُ؟');
+  assert.ok(!d.nodes.some((n: any) => ['dialogue', 'sentences', 'passage'].includes(n.kind)));
 });
 
 test('any level answers the same way: a room opens as a canvas of its own; a place with no rows yet is laid out from its content', async () => {
