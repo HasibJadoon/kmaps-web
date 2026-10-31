@@ -67,7 +67,7 @@
             </thead>
             <tbody>
               @for (row of rows(); track row['id']) {
-                <tr class="ht__row" (click)="openEdit(row)">
+                <tr kmPressable class="ht__row" (click)="openEdit(row)">
                   @for (col of columns(); track col) {
                     <td>{{ formatCell(row[col]) }}</td>
                   }

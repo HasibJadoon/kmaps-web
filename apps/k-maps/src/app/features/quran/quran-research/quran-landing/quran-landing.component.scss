@@ -56,7 +56,7 @@
   margin: 5rem 0 3rem;
 
   &__ornament {
-    font-family: var(--km-font-arabic);
+    font-family: var(--km-font-quran);
     font-size: 1.4rem;
     color: var(--km-gold);
     opacity: 0.6;
@@ -143,7 +143,7 @@
 }
 
 .km-module-card--surahs .km-module-card__glyph {
-  font-family: var(--km-font-arabic);
+  font-family: var(--km-font-quran);
   font-size: 3.2rem;
 }
 

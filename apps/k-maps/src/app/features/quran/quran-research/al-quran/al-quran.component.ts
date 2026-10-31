@@ -112,7 +112,7 @@ export class AlQuranComponent implements OnInit {
   }
 
   mushafFont(page: number): string {
-    return `'QPCV2Page${page}', var(--km-font-arabic), 'UthmanicHafs', 'AmiriQuran', serif`;
+    return `'QPCV2Page${page}', var(--km-font-quran)`;
   }
 
   onScroll(event: Event): void {
@@ -465,8 +465,8 @@ export class AlQuranComponent implements OnInit {
   }
 
   private clampSurah(value: number): number {
-    if (!Number.isFinite(value)) return FIRST_PAGE;
-    return Math.max(1, Math.min(114, Math.trunc(value)));
+    if (!Number.isFinite(value)) return 1;
+    return this.quranState.clampSurah(value);
   }
 
   private errorMessage(err: unknown, fallback: string): string {

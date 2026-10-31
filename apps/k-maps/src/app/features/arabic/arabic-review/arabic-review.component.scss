@@ -63,7 +63,7 @@
   width: 100%; min-height: 340px; resize: vertical;
   background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.1); border-radius: 6px;
   color: var(--km-text); padding: 1rem 1.1rem;
-  font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.25rem; line-height: 2.05;
+  font-family: var(--km-font-arabic-ui); font-size: 1.25rem; line-height: 2.05;
   &:focus { outline: none; border-color: rgba(201,168,76,.45); }
 }
 .ar__dirty { font-size: .72rem; color: var(--km-gold); }

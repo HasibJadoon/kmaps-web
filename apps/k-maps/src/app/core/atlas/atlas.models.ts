@@ -308,6 +308,19 @@ export interface AtlasConstellationRay {
   opacity?: number;
 }
 
+/** Where a constellation sits in the sky and how it weighs — served with the layer. */
+export interface AtlasConstellationSky {
+  quran_centrality: number;
+  sacred_weight: number;
+  worldview_weight: number;
+  history_weight: number;
+  visual_tier: VisualTier;
+  glow: number;
+  sky_x: number;
+  sky_y: number;
+  linked_cluster_id?: string;
+}
+
 export interface AtlasConstellationLayer {
   id: string;
   label: string;
@@ -317,6 +330,15 @@ export interface AtlasConstellationLayer {
   opacity?: number;
   bodies: AtlasConstellationBody[];
   rays?: AtlasConstellationRay[];
+  sky: AtlasConstellationSky;
+}
+
+/** GET /wv/landing-atlas — everything the landing draws, from wv_landing_atlas_item. */
+export interface LandingAtlas {
+  graph: AtlasGraphData;
+  layers: AtlasConstellationLayer[];
+  eras: HistoricalEra[];
+  scene: SacredAtlasScene | null;
 }
 
 export interface AtlasFocusCard {

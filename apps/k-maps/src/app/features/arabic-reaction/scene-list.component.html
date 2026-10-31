@@ -7,14 +7,14 @@
 
   <ul class="scene-list__items">
     @for (scene of scenes; track scene.id; let i = $index) {
-      <li
+      <li kmPressable
         class="scene-item"
         [class.scene-item--active]="scene.id === activeSceneId"
         (click)="sceneSelect.emit(scene)"
       >
         <span class="scene-item__index">{{ i + 1 }}</span>
         <div class="scene-item__body">
-          <span class="scene-item__title" dir="rtl">{{ scene.title }}</span>
+          <span lang="ar" class="scene-item__title" dir="rtl">{{ scene.title }}</span>
           <span class="scene-item__time">
             {{ formatTime(scene.start) }} — {{ formatTime(scene.end) }}
           </span>

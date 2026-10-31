@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { environment } from '../../../../environments/environment';
+import { WorldviewApiService } from '../../../shared/services/worldview/worldview-api.service';
 
 type LabelDir = 'up' | 'down' | 'right' | 'left';
 
@@ -50,6 +50,7 @@ const VB_W = 1000, VB_H = 560, LON_MIN = -92, LON_MAX = 52, LAT_MIN = 6, LAT_MAX
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorldviewMapComponent implements OnInit {
+  private readonly wv = inject(WorldviewApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -135,12 +136,7 @@ export class WorldviewMapComponent implements OnInit {
   private async loadLayer(): Promise<void> {
     this.loading.set(true);
     try {
-      const res = await fetch(`${environment.apiBase}/wv/maps/${LAYER_ID}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = await res.json() as {
-        ok: boolean;
-        data: { features: MapFeature[]; periods: string[] };
-      };
+      const body = { data: await this.wv.mapLayer<{ features: MapFeature[]; periods: string[] }>(LAYER_ID) };
       this.features.set(body.data?.features ?? []);
 
       this.periods.set(body.data?.periods ?? []);

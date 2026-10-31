@@ -14,6 +14,7 @@ import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import gsap from 'gsap';
 import { QuranAyah, AyahsSurah, TranslationPassage } from '../../../../shared/models/quran/quran.models';
+import type { QrReaderWord } from '../../../../shared/models/quran/qr.models';
 import { mapQrPassagesToResponse, mapQrReaderToAyahsResponse } from '../../../../shared/services/quran/quran-api.mapper';
 import { QuranApiService } from '../../../../shared/services/quran/quran-api.service';
 import { DocContextService } from '../../../docs/services/doc-context.service';
@@ -107,7 +108,11 @@ export class SurahReaderComponent implements OnInit, AfterViewInit {
       .map(([page, ayahs]) => ({ page, ayahs }));
   }
 
-  onWordClick(_word: string, _ayah: QuranAyah): void {}
+  /** A word opens its morphology page (the index comes from the QR worker). */
+  openWord(ayah: QuranAyah, word: QrReaderWord): void {
+    if (!word.word_index) return;
+    void this.router.navigate(['/quran/surahs', this.surahId(), 'morphology', 'word', ayah.ayah, word.word_index]);
+  }
 
   newDoc(): void {
     this.docCtx.openNewDocWithContext(`quran/${this.surahId()}`);
@@ -121,21 +126,11 @@ export class SurahReaderComponent implements OnInit, AfterViewInit {
     return ayah.verse_mark ?? '';
   }
 
-  getWords(ayah: QuranAyah): string[] {
-
-    const src = ayah.text_uthmani_clean ?? ayah.text_uthmani ?? ayah.text ?? '';
-    return src.split(/\s+/).filter(w => w.length > 0);
-  }
-
-  toArabicIndic(n: number): string {
-    return n.toString().replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[+d]);
-  }
-
   private loadAyahs(surah: number): void {
     this.loading.set(true);
     this.error.set(null);
     forkJoin({
-      reader: this.qrApi.getSurahReader(surah),
+      reader: this.qrApi.getSurahReader(surah, 400, { words: true }),
       passages: this.qrApi.getSurahPassages(surah).pipe(
         catchError(() => of({ ok: true, data: [] } as any))
       ),

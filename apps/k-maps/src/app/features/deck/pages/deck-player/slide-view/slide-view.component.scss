@@ -4,8 +4,8 @@
 // Every colour resolves through a --deck-* property set from the deck's
 // theme (contract §4), with the app tokens as fallback.
 
-$amiri: var(--km-font-arabic-amiri), serif;
-$naskh: var(--km-font-arabic-ui), 'Scheherazade New', var(--km-font-arabic-amiri), serif;
+$amiri: var(--km-font-arabic-ui);
+$naskh: var(--km-font-arabic-ui);
 $body: var(--km-font-body), system-ui, sans-serif;
 
 @function gold($pct) { @return color-mix(in srgb, var(--deck-gold, #f2b233) $pct, transparent); }

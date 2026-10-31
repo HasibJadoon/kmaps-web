@@ -22,7 +22,7 @@
     }
     .dom-nav__sep { color: var(--km-text-3); font-size: 0.9rem; }
     .dom-nav__domain {
-      font-family: var(--km-font-arabic); font-size: 1rem; color: var(--km-text-2);
+      font-family: var(--km-font-quran); font-size: 1rem; color: var(--km-text-2);
       direction: rtl;
     }
 
@@ -30,7 +30,7 @@
       text-align: center; margin-bottom: 2.5rem;
     }
     .dom-header__ar {
-      display: block; font-family: var(--km-font-arabic); font-size: 2.5rem;
+      display: block; font-family: var(--km-font-quran); font-size: 2.5rem;
       color: var(--km-gold); opacity: 0.7; direction: rtl; margin-bottom: 0.25rem;
     }
     .dom-header__title {
@@ -64,7 +64,7 @@
       font-size: 2rem; line-height: 1; margin-bottom: 0.25rem;
     }
     .domain-card__ar {
-      font-family: var(--km-font-arabic); font-size: 1.2rem; color: var(--km-gold);
+      font-family: var(--km-font-quran); font-size: 1.2rem; color: var(--km-gold);
       direction: rtl;
     }
     .domain-card__en {
@@ -88,7 +88,7 @@
       display: flex; flex-direction: column; gap: 0.15rem;
     }
     .phrase-view__ar {
-      font-family: var(--km-font-arabic); font-size: 1.8rem; color: var(--km-gold);
+      font-family: var(--km-font-quran); font-size: 1.8rem; color: var(--km-gold);
       direction: rtl; line-height: 1.2;
     }
     .phrase-view__en {
@@ -110,7 +110,7 @@
     }
     .phrase-card:hover { border-color: var(--km-border-gold); }
     .phrase-card__arabic {
-      font-family: var(--km-font-arabic); font-size: 1.6rem; color: var(--km-text);
+      font-family: var(--km-font-quran); font-size: 1.6rem; color: var(--km-text);
       direction: rtl; text-align: right; line-height: 1.4;
     }
     .phrase-card__translit {
@@ -140,7 +140,7 @@
       justify-content: center; padding: 4rem 2rem; text-align: center; gap: 0.75rem;
     }
     .empty-state__icon {
-      font-family: var(--km-font-arabic); font-size: 4rem; color: var(--km-gold);
+      font-family: var(--km-font-quran); font-size: 4rem; color: var(--km-gold);
       opacity: 0.2; direction: rtl;
     }
     .empty-state__title {

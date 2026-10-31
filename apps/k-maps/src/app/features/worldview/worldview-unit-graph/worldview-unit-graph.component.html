@@ -32,9 +32,9 @@
 
         <div class="graph-page__chips">
           <span class="badge" [attr.data-color]="sourceTypeColor(source()?.source_type)">
-            {{ sourceTypeLabel(source()?.source_type) }}
+            {{ sourceTypeLabel(source()) }}
           </span>
-          <span class="badge">{{ unitTypeLabel(selectedUnit()?.unit_type) }}</span>
+          <span class="badge">{{ unitTypeLabel(selectedUnit()) }}</span>
           @if (source()?.publication_year) {
             <span class="badge">{{ source()!.publication_year }}</span>
           }

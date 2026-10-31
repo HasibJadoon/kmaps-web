@@ -8,11 +8,12 @@ import {
 import { CommonModule } from '@angular/common';
 import { Scene } from './reaction.models';
 
+import { PressableDirective } from '../../shared/directives/pressable.directive';
 @Component({
   selector: 'km-scene-list',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule],
+  imports: [PressableDirective, CommonModule],
   templateUrl: './scene-list.component.html',
 })
 export class SceneListComponent {

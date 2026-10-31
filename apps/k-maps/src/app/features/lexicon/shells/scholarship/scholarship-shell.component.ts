@@ -12,6 +12,7 @@ import {
 } from '../../../../shared/services/al-dictionary-api.service';
 import { BookStripComponent } from '../../components/book-strip/book-strip.component';
 import { SarfPanelComponent } from '../../components/sarf-panel/sarf-panel.component';
+import { QuranStateService } from '../../../../shared/services/quran/quran-state.service';
 
 @Component({
   selector: 'km-scholarship-shell',
@@ -31,6 +32,7 @@ import { SarfPanelComponent } from '../../components/sarf-panel/sarf-panel.compo
   },
 })
 export class ScholarshipShellComponent {
+  private readonly quranState = inject(QuranStateService);
   @ViewChild('content')   contentRef?:   ElementRef<HTMLElement>;
   @ViewChild('indexRail') indexRailRef?: ElementRef<HTMLElement>;
   @ViewChild('metaRail')  metaRailRef?:  ElementRef<HTMLElement>;
@@ -66,6 +68,7 @@ export class ScholarshipShellComponent {
   readonly copyState     = signal<'idle' | 'copied' | 'failed'>('idle');
 
   constructor() {
+    this.quranState.load();
     combineLatest([this.route.paramMap, this.route.queryParamMap])
       .pipe(takeUntilDestroyed())
       .subscribe(([params, query]) => {
@@ -155,7 +158,7 @@ export class ScholarshipShellComponent {
     while ((m = RX.exec(text)) != null) {
       const surah = parseInt(m[1], 10);
       const ayah  = parseInt(m[2], 10);
-      if (!Number.isFinite(surah) || surah < 1 || surah > 114) continue;
+      if (!this.quranState.isSurahNo(surah)) continue;
       if (!Number.isFinite(ayah)  || ayah  < 1)                 continue;
       if (m.index > cur) out.push({ kind: 'text', value: text.slice(cur, m.index) });
       out.push({ kind: 'qref', value: m[0], surah, ayah });

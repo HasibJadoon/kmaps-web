@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { DestroyRef, ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { BackButtonComponent } from '../../../shared/components/back-button/back-button.component';
 import { LinguisticsApiService, GramSearchHit, Discipline } from '../../../shared/services/linguistics-api.service';
+import { LatestRequest } from '../../../shared/utils/latest-request';
 
 interface Seg { t: string; hit: boolean; }
 
@@ -37,10 +38,10 @@ interface Seg { t: string; hit: boolean; }
             <a class="hit" [attr.data-disc]="r.discipline" [routerLink]="['/linguistics/book', r.source_slug]">
               <div class="hit__meta">
                 <span class="hit__disc">{{ r.discipline_label.ar }}</span>
-                <span class="hit__book" dir="rtl">{{ r.title_ar }}</span>
+                <span lang="ar" class="hit__book" dir="rtl">{{ r.title_ar }}</span>
                 <span class="hit__page">{{ r.volume_no ? 'ج'+r.volume_no+' · ' : '' }}ص {{ r.page_no }}</span>
               </div>
-              <div class="hit__snip" dir="rtl">
+              <div lang="ar" class="hit__snip" dir="rtl">
                 @for (s of parse(r.snippet); track $index) {
                   @if (s.hit) { <mark>{{ s.t }}</mark> } @else { <span>{{ s.t }}</span> }
                 }
@@ -68,7 +69,7 @@ interface Seg { t: string; hit: boolean; }
     .sr__box input::placeholder{ color:var(--ink-soft); }
     .sr__filters{ display:flex; gap:8px; margin:18px 0 6px; flex-wrap:wrap; }
     .sr__filters button{ background:var(--paper); border:1px solid var(--rule); color:var(--ink-soft); border-radius:999px;
-      padding:6px 16px; cursor:pointer; font-family:'Amiri',serif; font-size:15px; }
+      padding:6px 16px; cursor:pointer; font-family:var(--km-font-arabic-ui); font-size:15px; }
     .sr__filters button.on{ color:#16150f; background:var(--gold); border-color:var(--gold); }
     .sr__filters .sf.on{ background:var(--sf); border-color:var(--sf); } .sr__filters .nh.on{ background:var(--nh); border-color:var(--nh); } .sr__filters .bl.on{ background:var(--bl); border-color:var(--bl); }
     .sr__state,.sr__hint{ padding:44px 0; text-align:center; color:var(--ink-soft); }
@@ -79,14 +80,15 @@ interface Seg { t: string; hit: boolean; }
     .hit[data-disc=SF]{ --accent:var(--sf); } .hit[data-disc=NH]{ --accent:var(--nh); } .hit[data-disc=BL]{ --accent:var(--bl); }
     .hit:hover{ transform:translateY(-1px); border-color:var(--accent); }
     .hit__meta{ display:flex; gap:10px; align-items:baseline; font-size:12px; color:var(--ink-soft); margin-bottom:6px; }
-    .hit__disc{ font-family:'Amiri',serif; font-size:15px; color:var(--accent); }
-    .hit__book{ font-family:'Amiri',serif; font-size:15px; color:var(--ink); unicode-bidi:plaintext; }
+    .hit__disc{ font-family:var(--km-font-arabic-ui); font-size:15px; color:var(--accent); }
+    .hit__book{ font-family:var(--km-font-arabic-ui); font-size:15px; color:var(--ink); unicode-bidi:plaintext; }
     .hit__page{ margin-inline-start:auto; font-family:'Cinzel',serif; }
-    .hit__snip{ font-family:'Amiri','Scheherazade New',serif; font-size:19px; line-height:1.9; color:var(--ink-soft); unicode-bidi:plaintext; }
+    .hit__snip{ font-family:var(--km-font-arabic-ui); font-size:19px; line-height:1.9; color:var(--ink-soft); unicode-bidi:plaintext; }
     .hit__snip mark{ background:color-mix(in srgb, var(--accent) 30%, transparent); color:var(--ink); border-radius:3px; padding:0 2px; }
   `],
 })
 export class LinguisticsSearchComponent {
+  private readonly latest = new LatestRequest(inject(DestroyRef));
   private readonly api = inject(LinguisticsApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -115,7 +117,7 @@ export class LinguisticsSearchComponent {
 
   private run(): void {
     this.loading.set(true);
-    this.api.search(this.query(), { discipline: this.disc() ?? undefined, limit: 40 }).subscribe({
+    this.latest.run('search', this.api.search(this.query(), { discipline: this.disc() ?? undefined, limit: 40 }), {
       next: (r) => { this.results.set(r.results); this.loading.set(false); },
       error: () => { this.results.set([]); this.loading.set(false); },
     });

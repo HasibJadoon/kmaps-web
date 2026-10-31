@@ -17,10 +17,11 @@ import { HomePlaneButtonComponent } from '../../../../shared/components/home-pla
 import { SurahActionsComponent } from '../card/surah-actions/surah-actions.component';
 import { SurahCardComponent } from '../card/surah-card/surah-card.component';
 
+import { PressableDirective } from '../../../../shared/directives/pressable.directive';
 @Component({
   selector: 'km-quran-surahs',
   standalone: true,
-  imports: [FormsModule, TitleCasePipe, SurahActionsComponent, HomePlaneButtonComponent, SurahCardComponent],
+  imports: [PressableDirective, FormsModule, TitleCasePipe, SurahActionsComponent, HomePlaneButtonComponent, SurahCardComponent],
   templateUrl: './surah-index.component.html',
   styleUrl: './surah-index.component.scss',
 })

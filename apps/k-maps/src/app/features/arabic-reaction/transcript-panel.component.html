@@ -6,7 +6,7 @@
 
   <div class="transcript__scroll">
     @for (line of lines; track line.id) {
-      <div
+      <div kmPressable
         #lineEl
         class="transcript__line"
         [class.transcript__line--active]="line.id === activeLineId"
@@ -14,7 +14,7 @@
         (click)="seekToLine(line)"
       >
         <span class="transcript__ts">{{ formatTime(line.start) }}</span>
-        <span class="transcript__text" dir="rtl">{{ line.text }}</span>
+        <span lang="ar" class="transcript__text" dir="rtl">{{ line.text }}</span>
       </div>
     }
   </div>

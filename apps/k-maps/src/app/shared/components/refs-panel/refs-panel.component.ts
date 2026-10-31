@@ -8,6 +8,7 @@ import type {
   QrTafsirDisplayBlock,
 } from '../../models/quran/qr.models';
 
+import { PressableDirective } from '../../directives/pressable.directive';
 interface QuranRefItem { ayah_key: string; count: number; }
 interface HadithRefItem { book: string; volume_page?: string; count: number; }
 interface ScholarRefItem { scholar_id: string; label: string; count: number; }
@@ -19,7 +20,7 @@ interface RelatedSourceItem { source_slug: string; label: string; ayah_key: stri
 @Component({
   selector: 'km-refs-panel',
   standalone: true,
-  imports: [CommonModule],
+  imports: [PressableDirective, CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './refs-panel.component.html',
   styleUrl: './refs-panel.component.scss',

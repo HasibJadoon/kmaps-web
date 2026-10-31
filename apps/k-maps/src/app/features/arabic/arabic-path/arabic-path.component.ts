@@ -1,8 +1,8 @@
 import { Component, OnInit, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { environment } from '../../../../environments/environment';
+import { HttpErrorResponse } from '@angular/common/http';
+import { ArabicApiService } from '../../../shared/services/arabic-api.service';
 
 /// Everything on this screen — words, lane and state names, colours, counts — comes from
 /// GET /ar/learn/path (workers/arabic/src/routes/learn-path.ts). The component only renders
@@ -36,8 +36,8 @@ interface Envelope<T> { ok: boolean; data?: T; error?: { code: string; message: 
 })
 export class ArabicPathComponent implements OnInit {
   private readonly router = inject(Router);
-  private readonly http = inject(HttpClient);
-  private readonly base = `${environment.apiBase}/ar/learn/path`;
+  private readonly ar = inject(ArabicApiService);
+  private readonly base = 'ar/learn/path';
 
   readonly loading = signal(true);
   readonly data = signal<Path | null>(null);
@@ -57,7 +57,7 @@ export class ArabicPathComponent implements OnInit {
   ngOnInit(): void { this.load(); }
 
   load(): void {
-    this.http.get<Envelope<Path>>(this.base).subscribe({
+    this.ar.get<Envelope<Path>>(this.base).subscribe({
       next: (res) => { this.data.set(res?.data ?? null); this.error.set(null); this.loading.set(false); },
       error: (e: HttpErrorResponse) => { this.error.set(this.message(e)); this.loading.set(false); },
     });
@@ -76,7 +76,7 @@ export class ArabicPathComponent implements OnInit {
     if (this.busy()) return;
     this.busy.set(s.id);
     this.stepError.set(null);
-    this.http.post<Envelope<Step>>(`${this.base}/${encodeURIComponent(s.id)}`, { state }).subscribe({
+    this.ar.post<Envelope<Step>>(`${this.base}/${encodeURIComponent(s.id)}`, { state }).subscribe({
       next: () => { this.busy.set(null); this.load(); },
       error: (e: HttpErrorResponse) => { this.busy.set(null); this.stepError.set({ id: s.id, message: this.message(e) }); },
     });

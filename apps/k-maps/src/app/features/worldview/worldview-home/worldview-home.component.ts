@@ -5,11 +5,12 @@ import {
   ElementRef,
   OnInit,
   ViewChild,
+  inject,
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import gsap from 'gsap';
-import { environment } from '../../../../environments/environment';
+import { WorldviewApiService } from '../../../shared/services/worldview/worldview-api.service';
 import { BackButtonComponent } from '../../../shared/components/back-button/back-button.component';
 
 interface StatCounter {
@@ -37,6 +38,7 @@ interface FeatureCard {
   styleUrl: './worldview-home.component.scss',
 })
 export class WorldviewHomeComponent implements OnInit, AfterViewInit {
+  private readonly wv = inject(WorldviewApiService);
   @ViewChild('header') headerRef!: ElementRef<HTMLElement>;
   @ViewChild('statsRow') statsRowRef!: ElementRef<HTMLElement>;
   @ViewChild('page') pageRef!: ElementRef<HTMLElement>;
@@ -98,13 +100,8 @@ export class WorldviewHomeComponent implements OnInit, AfterViewInit {
 
   private async loadCounts(): Promise<void> {
     try {
-
-      const res = await fetch(`${environment.apiBase}/worldview/counts`);
-      if (!res.ok) return;
-      const body = await res.json() as { ok: boolean; data: Record<string, number> };
-      if (!body.ok || !body.data) return;
-
-      const c = body.data;
+      const c = await this.wv.counts();
+      if (!c) return;
       const current = this.stats();
       const updated = current.map(s => ({
         ...s,

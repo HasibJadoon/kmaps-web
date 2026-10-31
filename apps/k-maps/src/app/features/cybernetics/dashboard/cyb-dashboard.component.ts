@@ -190,7 +190,7 @@ interface ModuleCard {
     .hmid { flex:1; min-width:0; }
     .httl { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
     .hname { font-family:ui-monospace,Menlo,monospace; font-size:19px; font-weight:600; letter-spacing:2px; color:var(--text); }
-    .har { font-family:var(--ar); font-size:16px; color:var(--t2); }
+    .har { font-family:var(--km-font-arabic-ui); font-size:16px; color:var(--t2); }
     .hsub { font-size:12px; color:var(--t2); margin-top:2px; }
     .hright { display:flex; flex-direction:column; gap:6px; align-items:flex-end; text-align:right; }
     .badge { font-family:ui-monospace,monospace; font-size:9px; letter-spacing:1px; font-weight:600;
@@ -239,11 +239,11 @@ interface ModuleCard {
     .mod:hover { border-color:var(--mc); }
     .modh { display:flex; gap:12px; align-items:center; }
     .modi { width:46px; height:46px; border-radius:13px; flex:0 0 auto; display:flex; align-items:center; justify-content:center;
-      font-family:var(--ar); font-size:22px; color:#0a0a0b; background:var(--mc); }
+      font-family:var(--km-font-arabic-ui); font-size:22px; color:#0a0a0b; background:var(--mc); }
     .modt { flex:1; min-width:0; }
     .modn { display:flex; gap:7px; align-items:baseline; flex-wrap:wrap; }
     .men { font-size:15px; font-weight:600; color:var(--text); }
-    .mar { font-family:var(--ar); font-size:13px; color:var(--t2); }
+    .mar { font-family:var(--km-font-arabic-ui); font-size:13px; color:var(--t2); }
     .modd { font-size:11px; color:var(--t2); margin-top:1px; }
     .modb { font-family:ui-monospace,monospace; font-size:8px; letter-spacing:.8px; color:var(--mc);
       border:1px solid var(--mc); padding:3px 7px; border-radius:20px; white-space:nowrap; flex:0 0 auto; }

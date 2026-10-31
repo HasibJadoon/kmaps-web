@@ -11,8 +11,8 @@
 .in__sub, .in__hint { font-size: .8rem; color: var(--km-text-3); }
 .in__hint { margin: -.3rem 0 .7rem; opacity: .8; }
 
-.in__ar { font-family: var(--km-font-arabic-amiri); color: var(--km-gold); font-size: 1.1rem; font-weight: 400; }
-.in__ar-s { font-family: var(--km-font-arabic-amiri); font-size: .95em; opacity: .85; }
+.in__ar { font-family: var(--km-font-arabic-ui); color: var(--km-gold); font-size: 1.1rem; font-weight: 400; }
+.in__ar-s { font-family: var(--km-font-arabic-ui); font-size: .95em; opacity: .85; }
 
 .in__body { flex: 1; overflow-y: auto; padding: 1.25rem 2rem 2rem; }
 .in__section { margin-bottom: 1.6rem; }
@@ -61,7 +61,7 @@
   &:hover { background: rgba(255,255,255,.06); }
 }
 .in__tile-title { font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  &:dir(rtl) { font-family: var(--km-font-arabic-amiri); font-size: 1.02rem; } }
+  &:dir(rtl) { font-family: var(--km-font-arabic-ui); font-size: 1.02rem; } }
 .in__tile-ch { font-size: .74rem; color: var(--km-text-3); }
 
 .in__chips { display: flex; flex-wrap: wrap; gap: .4rem; }
@@ -88,7 +88,7 @@
 .in__row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
 .in__row-title {
   color: var(--km-text); font-size: .92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  &:dir(rtl) { font-family: var(--km-font-arabic-amiri); font-size: 1.05rem; }
+  &:dir(rtl) { font-family: var(--km-font-arabic-ui); font-size: 1.05rem; }
 }
 .in__row-meta { font-size: .74rem; color: var(--km-text-3); display: flex; gap: .4rem; flex-wrap: wrap; align-items: baseline; }
 .in__row-note { font-size: .74rem; color: var(--km-text-2); font-style: italic; }
@@ -114,7 +114,7 @@
 }
 .in__child-seq { width: 2rem; color: var(--km-text-3); font-variant-numeric: tabular-nums; flex: none; }
 .in__child-title { flex: 1; min-width: 0; color: var(--km-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  &:dir(rtl) { font-family: var(--km-font-arabic-amiri); font-size: .98rem; } }
+  &:dir(rtl) { font-family: var(--km-font-arabic-ui); font-size: .98rem; } }
 .in__child-dur { font-size: .74rem; color: var(--km-text-3); font-variant-numeric: tabular-nums; width: 3.2rem; text-align: right; flex: none; }
 
 @media (max-width: 640px) {

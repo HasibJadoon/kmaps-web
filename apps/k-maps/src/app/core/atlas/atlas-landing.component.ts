@@ -19,11 +19,11 @@ import { AtlasStarfieldRenderer } from './atlas-starfield-renderer.service';
 import { AtlasGraphRenderer } from './atlas-graph-renderer.service';
 import { AtlasMotionService } from './atlas-motion.service';
 import { AtlasDataAdapter } from './atlas-data-adapter.service';
-import { SACRED_ATLAS_SCENE } from './atlas.data';
 import {
   AtlasFocusCard,
   AtlasGraphData,
   ConstellationLayer,
+  LandingAtlas,
   SceneState,
   SimulationNode,
   SacredAtlasScene,
@@ -66,7 +66,8 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
   private readonly router      = inject(Router);
 
   readonly moduleShortcuts = MODULE_SHORTCUTS;
-  readonly sacredScene: SacredAtlasScene = SACRED_ATLAS_SCENE;
+  /** The Revelation scene, served with the atlas; null until it loads. */
+  sacredScene: SacredAtlasScene | null = null;
 
   readonly currentLayer   = computed(() => this.scene.layer());
   readonly breadcrumb     = computed(() => this.scene.getBreadcrumb());
@@ -84,6 +85,7 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
   private cancelAutoTour?: () => void;
   private focusCardRevealTimerId: number | null = null;
   private initialised = false;
+  private destroyed = false;
 
   constructor() {
 
@@ -100,7 +102,18 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
       this.starfield.setSceneLayer('sky');
     });
 
-    this.graphData = await this.facade.loadGraphData();
+    // The atlas is served by the worldview worker; until it arrives (or if it
+    // cannot be had) the sky is shown on its own, with nothing drawn on it.
+    let atlas: LandingAtlas;
+    try {
+      atlas = await this.facade.loadAtlas();
+    } catch {
+      return;
+    }
+    if (this.destroyed) return;
+    this.graphData = atlas.graph;
+    this.sacredScene = atlas.scene;
+    this.adapter.register(atlas.layers, atlas.eras);
 
     this.scene.registerGraphData(this.graphData);
     this.scene.registerConstellations(this.adapter.getSkyConstellations());
@@ -143,6 +156,7 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.initialised = false;
     if (this.focusCardRevealTimerId !== null) {
       window.clearTimeout(this.focusCardRevealTimerId);
@@ -292,7 +306,7 @@ export class AtlasLandingComponent implements AfterViewInit, OnDestroy {
     const node = this.graphData?.nodes.find((n) => n.id === nodeId);
     if (!node) return;
 
-    const sacred = this.sacredScene.nodes.find((sn) => sn.linked_cluster_id === node.cluster_id);
+    const sacred = this.sacredScene?.nodes.find((sn) => sn.linked_cluster_id === node.cluster_id);
     this.focusCard.set({
       id: nodeId,
       title: node.label,

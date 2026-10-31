@@ -1,19 +1,7 @@
-import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import * as d3 from 'd3';
 import { firstValueFrom } from 'rxjs';
-import {
-  DEEP_SKY_CLUSTERS,
-  DEEP_SKY_EDGES,
-  DEEP_SKY_NODES,
-  DEEP_SKY_VIEWS,
-  RESEARCH_THEME_EDGES,
-  RESEARCH_THEME_NODES,
-  SUPPLEMENTAL_CLUSTERS,
-  SUPPLEMENTAL_EDGES,
-  SUPPLEMENTAL_NODES,
-  SUPPLEMENTAL_VIEWS,
-} from './atlas.data';
+import { AtlasApiService } from './atlas-api.service';
 import {
   AtlasCluster,
   AtlasEdge,
@@ -21,26 +9,30 @@ import {
   AtlasGraphLookups,
   AtlasNode,
   FocusState,
+  LandingAtlas,
   SimulationLink,
   SimulationNode,
 } from './atlas.models';
 
 @Injectable({ providedIn: 'root' })
 export class AtlasLandingFacade {
-  private readonly http = inject(HttpClient);
+  private readonly api = inject(AtlasApiService);
+  private atlas: Promise<LandingAtlas> | null = null;
+
+  /** The whole landing atlas (GET /wv/landing-atlas), fetched once and shared;
+   *  a failed fetch is forgotten so the next call tries again. */
+  loadAtlas(): Promise<LandingAtlas> {
+    if (!this.atlas) {
+      this.atlas = firstValueFrom(this.api.landingAtlas()).catch((err: unknown) => {
+        this.atlas = null;
+        throw err;
+      });
+    }
+    return this.atlas;
+  }
 
   async loadGraphData(): Promise<AtlasGraphData> {
-    const rawData = await firstValueFrom(
-      this.http.get<AtlasGraphData>('assets/data/worldview-graph.json'),
-    );
-
-    return {
-      ...rawData,
-      clusters: [...rawData.clusters, ...SUPPLEMENTAL_CLUSTERS, ...DEEP_SKY_CLUSTERS],
-      nodes: [...rawData.nodes, ...SUPPLEMENTAL_NODES, ...DEEP_SKY_NODES, ...RESEARCH_THEME_NODES],
-      edges: [...rawData.edges, ...SUPPLEMENTAL_EDGES, ...DEEP_SKY_EDGES, ...RESEARCH_THEME_EDGES],
-      zoom_views: [...rawData.zoom_views, ...SUPPLEMENTAL_VIEWS, ...DEEP_SKY_VIEWS],
-    };
+    return (await this.loadAtlas()).graph;
   }
 
   createLookups(data: AtlasGraphData): AtlasGraphLookups {

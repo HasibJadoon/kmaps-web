@@ -10,11 +10,6 @@ interface MxEra { slug: string; short: string; title: string; order: number; }
 interface MxCell { value: number; eraSlug: string; }
 interface MxRow { id: string; title: string; cells: MxCell[]; total: number; }
 
-const ERA_SHORT: Record<string, string> = {
-  medieval: 'Medieval', renaissance: 'Renaiss.', americas: 'Americas',
-  orientalist: 'Orient.', sept11: '9/11 +',
-};
-
 @Component({
   selector: 'km-worldview-matrix',
   standalone: true,
@@ -75,7 +70,7 @@ export class WorldviewMatrixComponent implements OnInit {
         const slug = String(data?.['era'] ?? '');
         if (!slug) continue;
 
-        eras.push({ slug, short: String(data?.['short'] ?? ERA_SHORT[slug] ?? String(node['title'] ?? slug).split(/[\s/(]/)[0]), title: String(node['title'] ?? slug), order: num(data?.['order_index']) ?? 999 });
+        eras.push({ slug, short: String(node['short_label'] ?? node['title'] ?? slug), title: String(node['title'] ?? slug), order: num(data?.['order_index']) ?? 999 });
       } else if (type === 'trope') {
         const intensityRaw = parseObj(data?.['era_intensity']);
         const intensity: Record<string, number> = {};

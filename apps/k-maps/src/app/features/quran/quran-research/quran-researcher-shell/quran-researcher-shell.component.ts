@@ -8,6 +8,7 @@ import {
 import { filter, map } from 'rxjs/operators';
 import gsap from 'gsap';
 import { QuranStateService } from '../../../../shared/services/quran/quran-state.service';
+import { fromArabicDigits } from '../../../../shared/utils/arabic-digits';
 
 interface ResearchTab {
   id: string;
@@ -61,7 +62,7 @@ export class QuranResearcherShellComponent implements OnInit {
   ngOnInit(): void { this.quranState.load(); }
 
   goToSurah(raw: string): void {
-    const surah = this.clamp(Number(raw), 1, 114);
+    const surah = this.quranState.clampSurah(Number(raw));
 
     void this.router.navigate([], {
       relativeTo: this.route,
@@ -89,13 +90,13 @@ export class QuranResearcherShellComponent implements OnInit {
   }
 
   onSearchSubmit(raw: string): void {
-    const text = raw.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+    const text = fromArabicDigits(raw)
                     .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0))
                     .trim();
     const ref = /^(\d{1,3})\s*(?:[:.\-\s]\s*(\d{1,3}))?$/.exec(text);
     if (!ref) return;
 
-    const surah = this.clamp(Number(ref[1]), 1, 114);
+    const surah = this.quranState.clampSurah(Number(ref[1]));
     const verse = ref[2] ? Number(ref[2]) : 1;
     void this.router.navigate(['/quran/al-quran'], {
       queryParams: { surah, startingVerse: verse, page: null },

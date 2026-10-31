@@ -182,7 +182,7 @@ import type { CybMonitor, LayerModel, LayerModelBand } from '../data/cyb.models'
     .sb:hover { border-color:var(--bd-hi); }
     .sb.on { border-color:var(--gold-b); background:linear-gradient(180deg,#1a1710,#0f0f0f); }
     .sbc { font-family:ui-monospace,monospace; font-size:8.5px; letter-spacing:1px; color:var(--t3); }
-    .sbar { font-family:var(--ar); font-size:16px; color:var(--gold-b); }
+    .sbar { font-family:var(--km-font-arabic-ui); font-size:16px; color:var(--gold-b); }
     .sbn { font-family:var(--serif); font-size:12.5px; color:var(--text); }
     .sbm { font-family:ui-monospace,monospace; font-size:9px; color:var(--t3); }
     .band { border:1px solid var(--bd); border-radius:12px; margin-bottom:11px; overflow:hidden; }
@@ -191,7 +191,7 @@ import type { CybMonitor, LayerModel, LayerModelBand } from '../data/cyb.models'
     .bandn { font-family:ui-monospace,monospace; font-size:9px; color:#2a2205; background:var(--gold-b);
       border-radius:5px; padding:2px 6px; font-weight:700; }
     .bandk { font-family:ui-monospace,monospace; font-size:10px; letter-spacing:1px; color:var(--gold-b); }
-    .bandar { font-family:var(--ar); font-size:15px; color:var(--t2); }
+    .bandar { font-family:var(--km-font-arabic-ui); font-size:15px; color:var(--t2); }
     .bandt { font-family:var(--serif); font-size:13px; color:var(--text); }
     .bandc { font-family:ui-monospace,monospace; font-size:9px; color:var(--t3); margin-left:auto; }
     .subs { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:1px; background:rgba(255,255,255,.05); }
@@ -201,7 +201,7 @@ import type { CybMonitor, LayerModel, LayerModelBand } from '../data/cyb.models'
     .sl[data-fill="missing"] { border-top-color:var(--err); }
     .slh { display:flex; justify-content:space-between; gap:6px; font-family:ui-monospace,monospace; font-size:8.5px; color:var(--t3); }
     .sln { font-size:12px; color:var(--text); margin-top:4px; }
-    .slar { font-family:var(--ar); font-size:14px; color:var(--gold-b); }
+    .slar { font-family:var(--km-font-arabic-ui); font-size:14px; color:var(--gold-b); }
     .slt { font-family:ui-monospace,monospace; font-size:9px; color:var(--t2); margin-top:5px; overflow-wrap:anywhere; }
     .sls { font-family:ui-monospace,monospace; font-size:8.5px; color:var(--t3); margin-top:3px; }
     .note code { font-family:ui-monospace,monospace; color:var(--gold-b); }
@@ -209,7 +209,7 @@ import type { CybMonitor, LayerModel, LayerModelBand } from '../data/cyb.models'
     table { border-collapse:separate; border-spacing:0; font-size:12px; min-width:900px; }
     th,td { border:1px solid rgba(255,255,255,.06); text-align:center; }
     th.code { font-family:ui-monospace,monospace; font-size:8.5px; color:var(--t2); padding:5px 3px; background:#101010; writing-mode:vertical-rl; transform:rotate(180deg); height:60px; }
-    th.rl,td.rl { background:linear-gradient(90deg,var(--s1),#0d0d0d); padding:6px 9px; text-align:right; position:sticky; left:0; } td.rl .rar { font-family:var(--ar); font-size:17px; color:var(--gold-b); }
+    th.rl,td.rl { background:linear-gradient(90deg,var(--s1),#0d0d0d); padding:6px 9px; text-align:right; position:sticky; left:0; } td.rl .rar { font-family:var(--km-font-arabic-ui); font-size:17px; color:var(--gold-b); }
     td.cell { width:34px; height:28px; font-family:ui-monospace,monospace; font-size:11px; color:#0c0c0c; font-weight:700; } td.cell.z { color:#333; background:#0b0b0b; font-weight:400; }
     td.tot { background:#111; font-family:var(--serif); font-size:13px; color:var(--gold-b); }
     .note { font-size:11.5px; color:var(--t3); margin-top:10px; }

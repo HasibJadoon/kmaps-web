@@ -93,9 +93,9 @@ export class RootComponent implements OnInit {
 
   langFont(): string {
     switch (this.lang()) {
-      case 'ar': return "'AmiriQuran','UthmanicHafs',serif";
-      case 'ur': return "'NotoNastaliqUrdu',serif";
-      default:   return "'Poppins',system-ui,sans-serif";
+      case 'ar': return 'var(--km-font-arabic-ui)';
+      case 'ur': return 'var(--km-font-urdu)';
+      default:   return 'var(--km-font-body)';
     }
   }
   get isRtl(): boolean { return this.lang() !== 'en'; }

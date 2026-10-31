@@ -2,12 +2,12 @@
 
   <!-- ── header ─────────────────────────────────────────── -->
   <header class="mw-head">
-    <button class="mw-back" (click)="back()">← <span class="ar">الكلمات</span></button>
+    <button class="mw-back" (click)="back()">← <span lang="ar" class="ar">الكلمات</span></button>
 
     <div class="mw-title">
       @if (word(); as w) {
-        <span class="mw-title__word ar">{{ w.surface_ar }}</span>
-        <span class="mw-title__root ar" (click)="openRoot()" title="Open root page">{{ w.root_display }}</span>
+        <span lang="ar" class="mw-title__word ar">{{ w.surface_ar }}</span>
+        <button type="button" class="mw-title__root ar" lang="ar" dir="rtl" (click)="openRoot()" title="Open root page">{{ w.root_display }}</button>
         <span class="mw-title__locus">Q {{ w.surah }} : {{ w.ayah }}</span>
       }
     </div>
@@ -74,7 +74,7 @@
             <div class="mw-band mw-band--core">
               <span class="mw-band__dot"></span>
               <span class="mw-band__t">Core — the root itself</span>
-              <span class="mw-band__ar ar">الطبقات الثابتة</span>
+              <span lang="ar" class="mw-band__ar ar">الطبقات الثابتة</span>
               <span class="mw-band__rule"></span>
               <span class="mw-band__note">root + lexicon · shared by every context</span>
             </div>
@@ -100,7 +100,7 @@
             <div class="mw-band mw-band--temp">
               <span class="mw-band__dot"></span>
               <span class="mw-band__t">This context</span>
-              <span class="mw-band__ar ar">{{ activeContext()?.kind_ar }} {{ lemmaBare() }}</span>
+              <span lang="ar" class="mw-band__ar ar">{{ activeContext()?.kind_ar }} {{ lemmaBare() }}</span>
               <span class="mw-band__key">Qurʾān · {{ activeContext()?.ayah_key }}</span>
               <span class="mw-band__rule mw-band__rule--sky"></span>
               <span class="mw-band__note">re-scopes per context</span>
@@ -109,7 +109,7 @@
             <!-- the active verse -->
             @if (contextVerse(); as cv) {
               <div class="mw-ctx">
-                <p class="mw-ctx__text ar" dir="rtl">{{ cv.text_ar }}</p>
+                <p lang="ar" class="mw-ctx__text ar" dir="rtl">{{ cv.text_ar }}</p>
                 @if (cv.note) { <p class="mw-ctx__say">{{ cv.note }}</p> }
               </div>
             }

@@ -17,6 +17,7 @@ import {
   WvSourceRow,
 } from '../../../shared/services/worldview/worldview-library-api.service';
 
+import { PressableDirective } from '../../../shared/directives/pressable.directive';
 interface WvSourceMeta {
   tradition?: string;
   worldview?: string;
@@ -26,6 +27,7 @@ interface WvSourceMeta {
 interface WvSource {
   id: string;
   source_type?: string | null;
+  source_type_label?: string | null;
   title: string;
   subtitle?: string | null;
   creator?: string | null;
@@ -44,7 +46,7 @@ interface WvSource {
   selector: 'km-worldview-library',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, StatusPillComponent],
+  imports: [PressableDirective, CommonModule, StatusPillComponent],
   templateUrl: './worldview-library.component.html',
   styleUrl: './worldview-library.component.scss',
 })
@@ -171,22 +173,19 @@ export class WorldviewLibraryComponent implements OnInit, AfterViewInit {
     return map[key] ?? '◎';
   }
 
+  /** The WV worker labels each source's type; the chips reuse the label a row carries. */
+  private readonly typeLabels = computed(() => {
+    const labels = new Map<string, string>();
+    for (const source of this.sources()) {
+      const key = this.normalizeType(source.source_type);
+      if (source.source_type_label && !labels.has(key)) labels.set(key, source.source_type_label);
+    }
+    return labels;
+  });
+
   typeLabel(type?: string | null): string {
     const key = this.normalizeType(type);
-    const map: Record<string, string> = {
-      book: 'Book',
-      article: 'Article',
-      essay: 'Essay',
-      paper: 'Paper',
-      lecture: 'Lecture',
-      podcast: 'Podcast',
-      video: 'Video',
-      website: 'Website',
-      scripture: 'Scripture',
-      report: 'Report',
-      other: 'Source',
-    };
-    return map[key] ?? this.startCase(key);
+    return this.typeLabels().get(key) ?? key;
   }
 
   typeColor(type?: string | null): string {
@@ -224,11 +223,5 @@ export class WorldviewLibraryComponent implements OnInit, AfterViewInit {
       return `${source.people_count} ${source.people_count === 1 ? 'person' : 'people'}`;
     }
     return '';
-  }
-
-  private startCase(value: string): string {
-    return value
-      .replace(/[_-]+/g, ' ')
-      .replace(/\b\w/g, (char) => char.toUpperCase());
   }
 }

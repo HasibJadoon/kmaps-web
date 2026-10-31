@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { ArabicApiService } from '../../../shared/services/arabic-api.service';
 import { environment } from '../../../../environments/environment';
 
 /// A recording in the acquisition library. `playUrl` is anonymous-GET on
@@ -41,7 +41,7 @@ interface Envelope<T> { ok: boolean; data?: T; }
 })
 export class ArabicListeningComponent implements OnInit {
   private router = inject(Router);
-  private http = inject(HttpClient);
+  private readonly ar = inject(ArabicApiService);
   private readonly base = environment.apiBase;
 
   readonly loading = signal(true);
@@ -82,8 +82,8 @@ export class ArabicListeningComponent implements OnInit {
   );
 
   ngOnInit(): void {
-    this.http
-      .get<Envelope<{ audio: Track[] }>>(`${this.base}/ar/acq/audio?limit=500`)
+    this.ar
+      .get<Envelope<{ audio: Track[] }>>(`ar/acq/audio?limit=500`)
       .subscribe({
         next: (res) => { this.tracks.set(res?.data?.audio ?? []); this.loading.set(false); },
         error: () => this.loading.set(false),

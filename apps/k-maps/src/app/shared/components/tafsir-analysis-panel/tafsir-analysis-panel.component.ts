@@ -15,34 +15,21 @@ interface CountedTag { label: string; count: number; meta?: string; }
 export class TafsirAnalysisPanelComponent {
   readonly payload = input<QrTafsirGroupDisplayPayload | null>(null);
 
-  private readonly TYPE_LABELS: Record<string, string> = {
-    tafsir_card:        'بطاقات التفسير',
-    paragraph_section:  'فقرات مطوّلة',
-    isnad:              'سلاسل الإسناد',
-    voice_marker:       'علامات الكلام',
-    poetry_quote:       'الشواهد الشعرية',
-    verse_anchor:       'مراسي الآيات',
-    quran_ref_chip:     'إحالات قرآنية',
-    hadith_source_chip: 'مصادر الحديث',
-    paradigm_chip:      'مدارس كلامية',
-    scholar_response:   'ردود علمائية',
-  };
-
-  private readonly TYPE_ORDER = [
-    'tafsir_card','paragraph_section','isnad','voice_marker','poetry_quote',
-    'verse_anchor','paradigm_chip','scholar_response','hadith_source_chip','quran_ref_chip',
-  ];
+  /** Block types in the worker's order (block_type_order), labelled by the worker. */
   readonly blockTypes = computed<CountedTag[]>(() => {
     const p = this.payload();
     if (!p) return [];
-    const counts = new Map<string, number>();
+    const counts = new Map<string, CountedTag & { order: number }>();
     for (const b of p.blocks) {
-      const t = b.block_type;
-      counts.set(t, (counts.get(t) ?? 0) + 1);
+      const cur = counts.get(b.block_type);
+      if (cur) { cur.count++; continue; }
+      if (b.block_type_order == null) continue;
+      counts.set(b.block_type, {
+        label: b.block_type_label_ar ?? b.block_type, count: 1, meta: b.block_type, order: b.block_type_order,
+      });
     }
-    return this.TYPE_ORDER
-      .filter(t => counts.has(t))
-      .map(t => ({ label: this.TYPE_LABELS[t] ?? t, count: counts.get(t)!, meta: t }));
+    return [...counts.values()].sort((a, b) => a.order - b.order)
+      .map(({ label, count, meta }) => ({ label, count, meta }));
   });
 
   readonly scholarsPresent = computed<CountedTag[]>(() => {
@@ -62,35 +49,30 @@ export class TafsirAnalysisPanelComponent {
       .sort((a, b) => b.count - a.count);
   });
 
-  private readonly MADHAB_LABELS: Record<string, string> = {
-    sunni: 'سني', maliki: 'مالكي', shafii: 'شافعي', hanbali: 'حنبلي',
-    hanafi: 'حنفي', mutazili: 'معتزلي', ashari: 'أشعري', athari: 'أثري',
-  };
   readonly madhabs = computed<CountedTag[]>(() => {
     const p = this.payload();
     if (!p) return [];
-    const counts = new Map<string, number>();
+    const counts = new Map<string, CountedTag>();
     for (const b of p.blocks as QrTafsirDisplayBlock[]) {
       if (!b.madhab) continue;
-      counts.set(b.madhab, (counts.get(b.madhab) ?? 0) + 1);
+      const cur = counts.get(b.madhab);
+      if (cur) cur.count++;
+      else counts.set(b.madhab, { label: b.madhab_label_ar ?? b.madhab, count: 1, meta: b.madhab });
     }
-    return [...counts.entries()]
-      .map(([key, count]) => ({ label: this.MADHAB_LABELS[key] ?? key, count, meta: key }))
-      .sort((a, b) => b.count - a.count);
+    return [...counts.values()].sort((a, b) => b.count - a.count);
   });
 
   readonly eras = computed<CountedTag[]>(() => {
     const p = this.payload();
     if (!p) return [];
-    const counts = new Map<string, number>();
+    const counts = new Map<string, CountedTag>();
     for (const b of p.blocks as QrTafsirDisplayBlock[]) {
       if (!b.era) continue;
-      counts.set(b.era, (counts.get(b.era) ?? 0) + 1);
+      const cur = counts.get(b.era);
+      if (cur) cur.count++;
+      else counts.set(b.era, { label: b.era_label_ar ?? b.era, count: 1 });
     }
-    const labels: Record<string, string> = { classical: 'كلاسيكي', modern: 'حديث' };
-    return [...counts.entries()]
-      .map(([key, count]) => ({ label: labels[key] ?? key, count }))
-      .sort((a, b) => b.count - a.count);
+    return [...counts.values()].sort((a, b) => b.count - a.count);
   });
 
   readonly longFormCoverage = computed<{ count: number; paragraphs: number; scholars: string[] } | null>(() => {

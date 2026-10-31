@@ -7,8 +7,7 @@ import {
   ChangeDetectorRef,
 } from '@angular/core';
 import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../../environments/environment';
+import { ArabicApiService } from '../../../shared/services/arabic-api.service';
 
 type Tab = 'grammar' | 'balagha' | 'analysis';
 type BalaghaB = 'bayan' | 'maani' | 'badi' | string;
@@ -43,9 +42,8 @@ interface BalaghaTerm {
 })
 export class ArabicLinguisticsComponent implements OnInit {
   private router = inject(Router);
-  private http = inject(HttpClient);
+  private readonly ar = inject(ArabicApiService);
   private cdr = inject(ChangeDetectorRef);
-  private readonly base = environment.apiBase;
 
   activeTab = signal<Tab>('grammar');
   grammarConcepts = signal<GrammarConcept[]>([]);
@@ -66,7 +64,7 @@ export class ArabicLinguisticsComponent implements OnInit {
   }
 
   private loadGrammar(): void {
-    this.http.get<any>(`${this.base}/ar/grammar?limit=50`).subscribe({
+    this.ar.get<any>(`ar/grammar?limit=50`).subscribe({
       next: (res) => {
         if (res?.ok && Array.isArray(res.concepts)) {
           this.grammarConcepts.set(res.concepts);
@@ -82,7 +80,7 @@ export class ArabicLinguisticsComponent implements OnInit {
   }
 
   private loadBalagha(): void {
-    this.http.get<any>(`${this.base}/ar/balagha?limit=50`).subscribe({
+    this.ar.get<any>(`ar/balagha?limit=50`).subscribe({
       next: (res) => {
         if (res?.ok && Array.isArray(res.terms)) {
           this.balaghaTerms.set(res.terms);

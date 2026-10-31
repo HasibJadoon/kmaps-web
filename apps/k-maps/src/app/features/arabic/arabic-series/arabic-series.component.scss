@@ -11,11 +11,11 @@
   &:hover { color: var(--km-gold); }
 }
 .sr__h1 { font-family: var(--km-font-heading); font-size: 1.5rem; color: var(--km-text); }
-.sr__h1[dir='rtl'] { font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.7rem; }
+.sr__h1[dir='rtl'] { font-family: var(--km-font-arabic-ui); font-size: 1.7rem; }
 .sr__sub { font-size: .82rem; color: var(--km-text-3); margin-top: .15rem; }
 .sr__n { color: var(--km-gold); margin-inline-start: .6rem; font-variant-numeric: tabular-nums; }
 .sr__ar {
-  font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1rem; color: var(--km-gold);
+  font-family: var(--km-font-arabic-ui); font-size: 1rem; color: var(--km-gold);
   margin-inline-start: .6rem; opacity: .85;
 }
 
@@ -40,7 +40,7 @@
 }
 .sr__resume-text { display: flex; flex-direction: column; gap: .15rem; min-width: 0;
   small { font-size: .72rem; color: var(--km-text-3); letter-spacing: .04em; }
-  b { font-family: 'Amiri', 'Geeza Pro', serif; font-weight: 400; font-size: 1.15rem;
+  b { font-family: var(--km-font-arabic-ui); font-weight: 400; font-size: 1.15rem;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 .sr__resume-n { font-size: .8rem; color: var(--km-gold); font-variant-numeric: tabular-nums; }
@@ -67,8 +67,8 @@
 }
 .sr__card-glyph { font-size: .7rem; color: rgba(96,150,210,.9); }
 .sr__card-title { font-family: var(--km-font-heading); font-size: 1rem; line-height: 1.4; }
-.sr__card-title[dir='rtl'] { font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.2rem; }
-.sr__card-under { font-family: 'Amiri', 'Geeza Pro', serif; font-size: .85rem; color: var(--km-text-3); }
+.sr__card-title[dir='rtl'] { font-family: var(--km-font-arabic-ui); font-size: 1.2rem; }
+.sr__card-under { font-family: var(--km-font-arabic-ui); font-size: .85rem; color: var(--km-text-3); }
 .sr__bar {
   margin-top: auto; display: block; height: 3px; border-radius: 2px; background: rgba(255,255,255,.08);
   overflow: hidden;
@@ -90,8 +90,8 @@
 }
 .sr__ep--next { border-inline-start: 2px solid var(--km-gold); }
 .sr__ep--seen { color: var(--km-text-3); .sr__ep-no { color: var(--km-text-3); } }
-.sr__ep-no { font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.05rem; color: var(--km-gold); text-align: center; }
-.sr__ep-title { font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.12rem; line-height: 1.45; }
+.sr__ep-no { font-family: var(--km-font-arabic-ui); font-size: 1.05rem; color: var(--km-gold); text-align: center; }
+.sr__ep-title { font-family: var(--km-font-arabic-ui); font-size: 1.12rem; line-height: 1.45; }
 .sr__ep-foot {
   display: flex; gap: .7rem; align-items: center; direction: ltr; font-size: .68rem;
   color: var(--km-text-3); font-variant-numeric: tabular-nums;

@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { environment } from '../../../../environments/environment';
+import { WorldviewApiService } from '../../../shared/services/worldview/worldview-api.service';
 
 interface ContrastPair {
   claim_id: string;
@@ -27,9 +27,13 @@ interface Contrast {
   sides: { claim: string; counter: string };
 }
 
-const PASSAGES = [
-  { label: 'al-Rūm 30:2–6', surah: 30, from: 2, to: 6 },
-];
+/** A passage with a contrast built, as the WV worker lists it (GET /wv/positions/contrast). */
+export interface LensPassage {
+  surah: number;
+  from: number;
+  to: number;
+  label: string;
+}
 
 @Component({
   selector: 'km-worldview-lens',
@@ -40,11 +44,13 @@ const PASSAGES = [
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorldviewLensComponent implements OnInit {
+  private readonly wv = inject(WorldviewApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
-  readonly passages = PASSAGES;
-  readonly active = signal(PASSAGES[0]);
+  readonly passages = signal<LensPassage[]>([]);
+  readonly active = signal<LensPassage | null>(null);
+  private loadSeq = 0;
   readonly contrast = signal<Contrast | null>(null);
   readonly loading = signal(true);
   readonly failure = signal<string | null>(null);
@@ -55,12 +61,14 @@ export class WorldviewLensComponent implements OnInit {
     if (surah && range) {
       const [from, to] = range.split('-').map(Number);
       this.active.set({ label: `${surah}:${range}`, surah, from, to: to || from });
+      void this.load();
     }
-    void this.load();
+    void this.loadPassages();
   }
 
-  select(p: typeof PASSAGES[number]): void {
-    if (p.surah === this.active().surah && p.from === this.active().from) return;
+  select(p: LensPassage): void {
+    const cur = this.active();
+    if (cur && p.surah === cur.surah && p.from === cur.from) return;
     this.active.set(p);
     void this.load();
   }
@@ -71,20 +79,42 @@ export class WorldviewLensComponent implements OnInit {
     return meaningfulNote(text, summary);
   }
 
+  isActive(p: LensPassage): boolean {
+    const cur = this.active();
+    return !!cur && p.surah === cur.surah && p.from === cur.from;
+  }
+
+  private async loadPassages(): Promise<void> {
+    try {
+      const list = await this.wv.contrastPassages<LensPassage>();
+      this.passages.set(list);
+      if (!this.active() && list.length) {
+        this.active.set(list[0]);
+        void this.load();
+      } else if (!this.active()) {
+        this.loading.set(false);
+      }
+    } catch {
+      if (!this.active()) {
+        this.failure.set('The passages could not be loaded.');
+        this.loading.set(false);
+      }
+    }
+  }
+
   private async load(): Promise<void> {
     const p = this.active();
+    if (!p) return;
+    const seq = ++this.loadSeq;
     this.loading.set(true);
     this.failure.set(null);
     try {
-      const res = await fetch(
-        `${environment.apiBase}/wv/positions/contrast/${p.surah}/${p.from}-${p.to}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = await res.json() as { ok: boolean; data: Contrast };
-      this.contrast.set(body.data ?? null);
+      const c = await this.wv.contrast<Contrast>(p.surah, p.from, p.to);
+      if (seq === this.loadSeq) this.contrast.set(c);
     } catch {
-      this.failure.set('The contrast could not be loaded.');
+      if (seq === this.loadSeq) this.failure.set('The contrast could not be loaded.');
     } finally {
-      this.loading.set(false);
+      if (seq === this.loadSeq) this.loading.set(false);
     }
   }
 }

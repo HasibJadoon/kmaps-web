@@ -78,7 +78,7 @@
   padding-bottom: 0.35rem;
 
   &__arabic {
-    font-family: var(--km-font-arabic, 'Scheherazade New', serif);
+    font-family: var(--km-font-quran);
     font-size: clamp(2.8rem, 6vw, 4.5rem);
     color: var(--km-text);
     margin: 0;
@@ -126,7 +126,7 @@
 
 .bismillah-text {
   position: relative;
-  font-family: var(--km-font-arabic, 'Scheherazade New', serif);
+  font-family: var(--km-font-quran);
   font-size: clamp(1.6rem, 3vw, 2.4rem);
   direction: rtl;
   text-align: center;
@@ -252,7 +252,7 @@
     opacity: 0.7;
 
     &.arabic-icon {
-      font-family: var(--km-font-arabic, 'Scheherazade New', serif);
+      font-family: var(--km-font-quran);
       font-size: 1rem;
       color: var(--km-gold);
       opacity: 1;
@@ -340,7 +340,7 @@
 // auto-renders the digit in the correct Quranic numeral style.
 .ayah-badge {
   display: inline;
-  font-family: var(--km-font-arabic);
+  font-family: var(--km-font-quran);
   font-size: 0.85em;
   color: var(--km-gold);
   vertical-align: middle;
@@ -351,19 +351,32 @@
 }
 
 // ── Shared Arabic word hover (verse-by-verse view) ───────
+// Words come split from the QR worker; the template puts a breakable space after
+// each one, so lines wrap between words. Clickable words are real buttons, reset
+// to read as running muṣḥaf text.
 .ar-word {
   display: inline;
-  cursor: pointer;
   transition: color 0.18s ease;
+}
 
-  // Adds a normal breakable space after each word so lines wrap correctly
-  // and individual words are hoverable
-  &::after {
-    content: '\0020';
+button.ar-word {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  line-height: inherit;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--km-gold);
   }
 
-  &:hover {
-    color: var(--km-gold);
+  &:focus-visible {
+    outline: 1px dashed var(--km-gold);
+    outline-offset: 2px;
   }
 }
 
@@ -371,7 +384,7 @@
 // Arabic-Indic digit only in UthmanicHafs — no circle, no U+06DD.
 .verse-marker {
   display: inline;
-  font-family: var(--km-font-arabic);
+  font-family: var(--km-font-quran);
   font-size: 1em;
   color: var(--km-gold);
   vertical-align: middle;
@@ -396,7 +409,7 @@
   &:last-child { border-bottom: none; }
 
   &__arabic {
-    font-family: var(--km-font-arabic, 'Scheherazade New', serif);
+    font-family: var(--km-font-quran);
     font-size: clamp(1.6rem, 3.5vw, 2.4rem);
     line-height: 2.6;
     direction: rtl;
@@ -442,7 +455,7 @@
 
 // ── Arabic Mushaf continuous flow ─────────────────────────
 .mushaf-flow {
-  font-family: var(--km-font-arabic, 'Scheherazade New'), serif;
+  font-family: var(--km-font-quran);
   font-size: clamp(1.8rem, 3.2vw, 2.8rem);
   line-height: 2.8;
   direction: rtl;

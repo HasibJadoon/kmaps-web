@@ -1,4 +1,4 @@
-<article class="mfp" dir="rtl">
+<article lang="ar" class="mfp" dir="rtl">
   @for (sec of view().sections; track sec.id; let sIdx = $index) {
     <section class="mfp__section">
       @if (view().sections.length > 1 && sec.heading_ar) {
@@ -20,7 +20,7 @@
           }
 
           @case ('quran') {
-            <div class="mfp-ayah"
+            <div kmPressable class="mfp-ayah"
                  [class.mfp-ayah--unresolved]="!p.surah"
                  (click)="p.surah && p.ayah && openAyahEvent.emit({ surah: p.surah, ayah: p.ayah })">
               <span class="mfp-ayah__text">{{ p.verse_text }}</span>
@@ -79,7 +79,7 @@
       }
 
       @case ('authority') {
-        <span class="mfp-auth" [title]="t.name" (click)="onAuthorityClick(t)">{{ t.label }}</span>
+        <button type="button" class="mfp-auth" [title]="t.name" (click)="onAuthorityClick(t)">{{ t.label }}</button>
       }
     }
   }

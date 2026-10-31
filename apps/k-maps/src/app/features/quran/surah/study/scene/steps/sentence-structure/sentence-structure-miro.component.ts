@@ -9,6 +9,7 @@ import type {
   SsScopeLayersVm, SsReadingVm, SsFoldStepVm, SsTermVm,
 } from '../../../../../../../shared/services/quran/quran-surah.service';
 
+import { PressableDirective } from '../../../../../../../shared/directives/pressable.directive';
 type LayoutKind = 'sentence' | 'clause' | 'word';
 
 interface LayoutNode {
@@ -36,7 +37,7 @@ const NEUTRAL = '#6b7280';
 @Component({
   selector:        'km-sentence-structure-miro',
   standalone:      true,
-  imports:         [CommonModule],
+  imports:         [PressableDirective, CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation:   ViewEncapsulation.None,
   templateUrl:     './sentence-structure-miro.component.html',

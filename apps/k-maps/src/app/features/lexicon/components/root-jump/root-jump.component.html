@@ -11,7 +11,7 @@
   <!-- The root itself is the search field: reading it and changing it are the
        same control, so there is no separate box to find. -->
   @if (open()) {
-    <input #field
+    <input lang="ar" #field
            class="jump__field"
            type="search"
            [value]="query()"
@@ -46,7 +46,7 @@
                   [class.is-current]="m.root_norm === root()"
                   role="option" [attr.aria-selected]="i === cursor()"
                   (click)="choose(m.root_norm)">
-            <span class="jump__hit-ar" dir="rtl">{{ m.root_text || m.root_norm }}</span>
+            <span lang="ar" class="jump__hit-ar" dir="rtl">{{ m.root_text || m.root_norm }}</span>
             @if (m.page_start) { <span class="jump__hit-page">ص {{ m.page_start }}</span> }
           </button>
         </li>

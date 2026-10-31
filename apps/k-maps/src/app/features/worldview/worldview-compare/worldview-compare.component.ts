@@ -5,13 +5,14 @@ import {
   ElementRef,
   OnInit,
   ViewChild,
+  inject,
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import gsap from 'gsap';
-import { environment } from '../../../../environments/environment';
+import { WorldviewApiService } from '../../../shared/services/worldview/worldview-api.service';
+import { KmDatePipe } from '../../../shared/pipes/km-date.pipe';
 
-const WV_API = `${environment.apiBase}/wv`;
 
 interface WvComparison {
   id: string;
@@ -58,12 +59,13 @@ interface ComparisonDetail {
 @Component({
   selector: 'km-worldview-compare',
   standalone: true,
-  imports: [RouterLink],
+  imports: [KmDatePipe, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './worldview-compare.component.html',
   styleUrl: './worldview-compare.component.scss',
 })
 export class WorldviewCompareComponent implements OnInit, AfterViewInit {
+  private readonly wv = inject(WorldviewApiService);
   @ViewChild('page') pageRef!: ElementRef<HTMLElement>;
 
   readonly loading = signal(true);
@@ -122,22 +124,12 @@ export class WorldviewCompareComponent implements OnInit, AfterViewInit {
     return cell?.cell_text ?? '';
   }
 
-  formatDate(iso: string): string {
-    try {
-      return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    } catch {
-      return iso;
-    }
-  }
 
   private async loadComparisons(): Promise<void> {
     this.loading.set(true);
     this.failure.set(null);
     try {
-      const res = await fetch(`${WV_API}/comparisons?limit=20`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = await res.json() as { ok: boolean; data: WvComparison[] };
-      this.comparisons.set(Array.isArray(body.data) ? body.data : []);
+      this.comparisons.set(await this.wv.comparisons<WvComparison>(20));
     } catch {
 
       this.failure.set('The comparisons could not be loaded.');
@@ -149,12 +141,7 @@ export class WorldviewCompareComponent implements OnInit, AfterViewInit {
   private async loadDetail(id: number | string): Promise<void> {
     this.detailLoading.set(true);
     try {
-      const res = await fetch(`${WV_API}/comparisons/${id}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = await res.json() as {
-        ok: boolean;
-        data: WvComparison & { axes: WvTab[]; rows: WvRow[]; cells: WvCell[] };
-      };
+      const body = { data: await this.wv.comparison<WvComparison & { axes: WvTab[]; rows: WvRow[]; cells: WvCell[] }>(id) };
       {
         const d: ComparisonDetail = {
           comparison: body.data,

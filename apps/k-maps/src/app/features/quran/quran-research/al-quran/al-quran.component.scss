@@ -133,7 +133,7 @@
 }
 
 .mushaf-line {
-  font-family: var(--mushaf-font, var(--km-font-arabic), 'UthmanicHafs', 'AmiriQuran', serif);
+  font-family: var(--km-font-quran);
   color: var(--km-text);
   letter-spacing: 0;
   text-align: justify;
@@ -160,7 +160,7 @@
 }
 
 .mushaf-line--surah {
-  font-family: var(--km-font-arabic-amiri, 'AmiriQuran', var(--km-font-arabic), serif);
+  font-family: var(--km-font-arabic-ui);
   color: var(--km-gold);
   font-size: clamp(2.35rem, 4.45vw, 4.25rem);
   font-weight: 700;
@@ -174,7 +174,7 @@
 }
 
 .mushaf-line--basmallah {
-  font-family: var(--mushaf-font, var(--km-font-arabic), 'UthmanicHafs', serif);
+  font-family: var(--km-font-quran);
   color: var(--km-text);
   font-size: clamp(1.25rem, 2.2vw, 2.1rem);
   line-height: 1.48;
@@ -221,7 +221,7 @@
 
 .verse-marker {
   display: inline;
-  font-family: var(--mushaf-font, var(--km-font-arabic), serif);
+  font-family: var(--km-font-quran);
   font-size: 0.92em;
   color: var(--km-gold);
   vertical-align: middle;

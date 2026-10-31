@@ -27,7 +27,7 @@
       font-size: 1.8rem; line-height: 1;
       background: linear-gradient(180deg, #c9a84c 0%, #6b5520 100%);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-      font-family: var(--km-font-arabic, inherit);
+      font-family: var(--km-font-quran);
     }
 
     .ht__eyebrow {
@@ -106,7 +106,7 @@
       font-size: 3.5rem; opacity: .25;
       background: linear-gradient(180deg, #c9a84c 0%, #6b5520 100%);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-      font-family: var(--km-font-arabic, inherit);
+      font-family: var(--km-font-quran);
     }
     .ht__empty p { font-size: .9rem; }
 

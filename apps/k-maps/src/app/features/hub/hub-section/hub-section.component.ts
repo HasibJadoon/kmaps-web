@@ -42,6 +42,8 @@ export class HubSectionComponent implements OnInit, AfterViewInit {
   readonly panel = inject(HubPanelService);
 
   readonly section = signal<string>('');
+  // No worker serves per-card hub counts yet (the old fetch('/hub/counts') hit the page
+  // origin and never returned data), so cards render without a count.
   readonly counts = signal<Record<string, number>>({});
 
   readonly cards = computed(() => CARD_MAP[this.section()] ?? []);
@@ -50,7 +52,6 @@ export class HubSectionComponent implements OnInit, AfterViewInit {
   ngOnInit(): void {
     const s = this.route.snapshot.data['section'] as string;
     this.section.set(s);
-    this.loadCounts();
   }
 
   ngAfterViewInit(): void {
@@ -63,13 +64,6 @@ export class HubSectionComponent implements OnInit, AfterViewInit {
     );
   }
 
-  private async loadCounts(): Promise<void> {
-    try {
-      const res = await fetch('/hub/counts');
-      const data = await res.json() as { ok: boolean; counts: Record<string, number> };
-      if (data.ok) this.counts.set(data.counts);
-    } catch {  }
-  }
 
   openCard(card: HubCard): void {
     this.router.navigate([card.route], { relativeTo: this.route });

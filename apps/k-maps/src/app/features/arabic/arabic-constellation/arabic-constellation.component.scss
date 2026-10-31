@@ -32,7 +32,7 @@
   background: rgba(18,18,18,.96); border: 1px solid rgba(201,168,76,.3);
   border-radius: 8px; padding: .95rem 1.05rem; box-shadow: 0 10px 30px rgba(0,0,0,.55);
 }
-.cn__root { font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.9rem; color: var(--km-gold); line-height: 1.1; }
+.cn__root { font-family: var(--km-font-arabic-ui); font-size: 1.9rem; color: var(--km-gold); line-height: 1.1; }
 .cn__gloss { font-size: .8rem; color: var(--km-text); }
 .cn__count {
   font-size: .68rem; color: var(--km-text-3); letter-spacing: .05em;
@@ -42,7 +42,7 @@
   display: flex; flex-wrap: wrap; gap: .3rem; padding-top: .5rem;
   border-top: 1px solid rgba(255,255,255,.08);
   span {
-    font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.05rem; color: var(--km-text);
+    font-family: var(--km-font-arabic-ui); font-size: 1.05rem; color: var(--km-text);
     background: rgba(255,255,255,.04); border-radius: 3px; padding: .05rem .35rem;
   }
 }

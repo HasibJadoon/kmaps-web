@@ -1,3 +1,6 @@
+// Button reset (zero specificity) so the element's own class rules below still apply.
+:where(button.chip) { appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: inherit; cursor: pointer; }
+
     :host { display: block; }
 
     .mw-hero {
@@ -6,7 +9,7 @@
       border-bottom: 1px solid var(--edge2);
 
       &__word {
-        margin: 0; font-family: var(--ar); font-weight: 700;
+        margin: 0; font-family: var(--km-font-arabic-ui); font-weight: 700;
         font-size: calc(clamp(52px,8.5vw,96px) * var(--fscale,1)); line-height: 1.15; color: var(--gold2);
         text-shadow: 0 2px 0 rgba(0,0,0,.55), 0 8px 46px rgba(201,168,76,.32);
       }
@@ -21,18 +24,18 @@
         max-width: 720px; margin: 18px auto 0; font-style: italic;
         font-size: calc(17px * var(--fscale,1)); line-height: 1.6; color: var(--ink2);
         // Urdu/Arabic glosses: real script faces, and never fake-italic Nastaliq.
-        &.ar { font-family: var(--ar); font-style: normal; }
+        &.ar { font-family: var(--km-font-arabic-ui); font-style: normal; }
         &.ur { font-style: normal; line-height: 2.2; }
       }
       &__reading {
         margin-top: 16px; font: 500 11px/1 var(--mono); letter-spacing: .04em; color: var(--faint);
-        .ar { font-family: var(--ar); font-size: 14px; color: var(--sky); }
+        .ar { font-family: var(--km-font-arabic-ui); font-size: 14px; color: var(--sky); }
       }
     }
 
     .chip {
       font-size: 12px; padding: 6px 13px; border-radius: 5px; color: var(--muted); border: 1px solid var(--edge);
-      &.ar { font-family: var(--ar); font-size: 15px; }
+      &.ar { font-family: var(--km-font-arabic-ui); font-size: 15px; }
       &--sky { color: #cfe4f5; border-color: rgba(147,184,214,.4); background: linear-gradient(180deg, rgba(147,184,214,.16), rgba(147,184,214,.05)); }
       &--gold { color: var(--gold2); background: linear-gradient(180deg, var(--panel3), var(--panel)); }
       &--root { color: var(--gold2); border-color: var(--golddim); background: linear-gradient(180deg, var(--panel3), var(--panel)); letter-spacing: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 9px;

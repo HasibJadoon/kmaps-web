@@ -87,7 +87,7 @@ interface Chip {
       border-bottom:1px solid rgba(255,255,255,.05); padding:8px 12px; cursor:pointer; color:var(--text); }
     .res:hover { background:rgba(201,168,76,.08); }
     .rnum { font-family:ui-monospace,monospace; font-size:9.5px; color:var(--t3); width:22px; }
-    .rar { font-family:var(--ar); font-size:16px; color:var(--gold-b); }
+    .rar { font-family:var(--km-font-arabic-ui); font-size:16px; color:var(--gold-b); }
     .ren { font-family:var(--serif); font-size:12.5px; }
     .rmeta { font-size:9.5px; color:var(--t3); margin-left:auto; }
     .rpct { font-size:9.5px; color:var(--content); font-family:ui-monospace,monospace; }
@@ -109,7 +109,7 @@ interface Chip {
     .chip[data-tier="par"]   { padding:2.5px 9px; font-size:10.5px; border-color:rgba(77,217,168,.18); color:var(--t3); }
     .ck { font-family:ui-monospace,monospace; font-size:8px; text-transform:uppercase; color:var(--t3); }
     .chip[data-tier="head"] .ck { font-size:8.5px; }
-    .car { font-family:var(--ar); color:var(--gold-b); font-size:1.15em; }
+    .car { font-family:var(--km-font-arabic-ui); color:var(--gold-b); font-size:1.15em; }
     .cl { color:var(--text); }
     .chip[data-tier="par"] .cl { color:var(--t2); }
     .cp { font-family:ui-monospace,monospace; font-size:.8em; color:var(--content); }

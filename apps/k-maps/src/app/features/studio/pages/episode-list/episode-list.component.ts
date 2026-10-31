@@ -3,10 +3,12 @@ import { Router, RouterLink } from '@angular/router';
 import { StudioApiService } from '../../studio-api.service';
 import { EpisodeSummary, formatLabel } from '../../studio.models';
 
+import { PressableDirective } from '../../../../shared/directives/pressable.directive';
+import { KmDatePipe } from '../../../../shared/pipes/km-date.pipe';
 @Component({
   selector: 'km-studio-episode-list',
   standalone: true,
-  imports: [RouterLink],
+  imports: [KmDatePipe, PressableDirective, RouterLink],
   template: `
     <div class="st-page">
       <div class="st-wrap">
@@ -38,10 +40,10 @@ import { EpisodeSummary, formatLabel } from '../../studio.models';
         } @else {
           <ul class="st-list">
             @for (ep of episodes(); track ep.id) {
-              <li class="st-card" (click)="openEpisode(ep.id)">
+              <li kmPressable class="st-card" (click)="openEpisode(ep.id)">
                 <div class="st-card-main">
                   <h3>{{ ep.title || 'Untitled Episode' }}</h3>
-                  <p>{{ fmt(ep.format) }} · {{ formatDate(ep.updated_at) }}</p>
+                  <p>{{ fmt(ep.format) }} · {{ (ep.updated_at | kmDate:'short') }}</p>
                 </div>
                 <span class="st-status st-status--{{ ep.status }}">{{ ep.status }}</span>
               </li>
@@ -146,12 +148,4 @@ export class EpisodeListComponent implements OnInit {
     if (clean) this.router.navigate(['/studio/session', clean]);
   }
 
-  formatDate(iso: string | null): string {
-    if (!iso) return '';
-    try {
-      return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-    } catch {
-      return '';
-    }
-  }
 }

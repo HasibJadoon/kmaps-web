@@ -44,8 +44,8 @@ import { LinguisticsApiService, GramGroup } from '../../../shared/services/lingu
                 <a class="bk" [routerLink]="['/linguistics/book', b.slug]">
                   <div class="bk__spine"></div>
                   <div class="bk__body">
-                    <div class="bk__title" dir="rtl">{{ b.title_ar }}</div>
-                    <div class="bk__author" dir="rtl">{{ b.author }}@if (b.death_ah) {<span class="bk__death"> · ت {{ b.death_ah }}هـ</span>}</div>
+                    <div lang="ar" class="bk__title" dir="rtl">{{ b.title_ar }}</div>
+                    <div lang="ar" class="bk__author" dir="rtl">{{ b.author }}@if (b.death_ah) {<span class="bk__death"> · ت {{ b.death_ah }}هـ</span>}</div>
                     <div class="bk__stats">
                       <span>{{ b.bab_count | number }} أبواب</span>
                       <span>{{ b.page_count | number }} ص</span>
@@ -76,7 +76,7 @@ import { LinguisticsApiService, GramGroup } from '../../../shared/services/lingu
     .lh__search input{ flex:1; background:none; border:0; color:var(--lh-ink); font-size:14px; outline:none; }
     .lh__search input::placeholder{ color:var(--lh-ink-soft); }
     .lh__hero{ padding:34px 0 26px; border-bottom:1px solid var(--lh-rule); margin-bottom:26px; }
-    .lh__eyebrow{ font-family:'Amiri','Scheherazade New',serif; color:var(--gold); letter-spacing:.04em; font-size:15px; }
+    .lh__eyebrow{ font-family:var(--km-font-arabic-ui); color:var(--gold); letter-spacing:.04em; font-size:15px; }
     .lh__title{ font-family:'Cinzel',serif; font-size:clamp(30px,5vw,46px); margin:6px 0 8px; color:var(--gold-hi);
       font-weight:600; letter-spacing:.02em; }
     .lh__sub{ color:var(--lh-ink-soft); max-width:640px; line-height:1.6; margin:0; }
@@ -86,7 +86,7 @@ import { LinguisticsApiService, GramGroup } from '../../../shared/services/lingu
     .lh__disc{ margin:34px 0; }
     .lh__disc-head{ display:flex; align-items:baseline; gap:12px; padding-bottom:10px; margin-bottom:16px;
       border-bottom:1px solid var(--lh-rule); }
-    .lh__disc-ar{ font-family:'Amiri','Scheherazade New',serif; font-size:26px;
+    .lh__disc-ar{ font-family:var(--km-font-arabic-ui); font-size:26px;
       color:var(--accent); }
     .lh__disc[data-disc=SF]{ --accent:var(--sf); } .lh__disc[data-disc=NH]{ --accent:var(--nh); } .lh__disc[data-disc=BL]{ --accent:var(--bl); }
     .lh__disc-en{ font-family:'Cinzel',serif; text-transform:uppercase; letter-spacing:.14em; font-size:12px; color:var(--lh-ink-soft); }
@@ -97,11 +97,11 @@ import { LinguisticsApiService, GramGroup } from '../../../shared/services/lingu
     .bk:hover{ transform:translateY(-2px); border-color:var(--accent); box-shadow:0 8px 26px rgba(0,0,0,.35); }
     .bk__spine{ width:6px; background:linear-gradient(var(--accent), color-mix(in srgb, var(--accent) 55%, #000)); flex:0 0 6px; }
     .bk__body{ padding:14px 16px; flex:1; min-width:0; }
-    .bk__title{ font-family:'Amiri','Scheherazade New',serif; font-size:21px; line-height:1.35; color:var(--lh-ink);
+    .bk__title{ font-family:var(--km-font-arabic-ui); font-size:21px; line-height:1.35; color:var(--lh-ink);
       unicode-bidi:plaintext; }
-    .bk__author{ font-family:'Amiri','Scheherazade New',serif; font-size:15px; color:var(--lh-ink-soft); margin-top:3px; unicode-bidi:plaintext; }
+    .bk__author{ font-family:var(--km-font-arabic-ui); font-size:15px; color:var(--lh-ink-soft); margin-top:3px; unicode-bidi:plaintext; }
     .bk__death{ opacity:.85; }
-    .bk__stats{ display:flex; gap:12px; margin-top:10px; font-family:'Amiri',serif; font-size:13px; color:var(--accent); }
+    .bk__stats{ display:flex; gap:12px; margin-top:10px; font-family:var(--km-font-arabic-ui); font-size:13px; color:var(--accent); }
     .bk__go{ align-self:center; padding-inline:12px; color:var(--lh-ink-soft); font-size:22px; transition:color .16s ease; }
     .bk:hover .bk__go{ color:var(--accent); }
   `],

@@ -13,11 +13,12 @@ import {
 import { CommonModule } from '@angular/common';
 import { TranscriptLine } from './reaction.models';
 
+import { PressableDirective } from '../../shared/directives/pressable.directive';
 @Component({
   selector: 'km-transcript-panel',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule],
+  imports: [PressableDirective, CommonModule],
   templateUrl: './transcript-panel.component.html',
   styleUrl: './transcript-panel.component.css',
 })

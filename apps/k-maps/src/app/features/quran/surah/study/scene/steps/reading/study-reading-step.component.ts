@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { StudyLessonResponse, AyahVm, AyahWordToken } from '../../../../../../../shared/services/quran/quran-surah.service';
+import { ArabicDigitsPipe } from '../../../../../../../shared/pipes/arabic-digits.pipe';
 
 const DIACRITICS_RE = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED]/g;
 
@@ -13,6 +14,7 @@ const ARABIC_INDIC_ONLY_RE = /^[\u0660-\u0669]+$/;
 @Component({
   selector: 'km-study-reading-step',
   standalone: true,
+  imports: [ArabicDigitsPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './study-reading-step.component.html',
   styleUrl: './study-reading-step.component.scss',
@@ -60,13 +62,5 @@ export class StudyReadingStepComponent implements OnChanges {
       .split(/\s+/)
       .filter(w => w.length > 0)
       .filter(w => !ARABIC_INDIC_ONLY_RE.test(w));
-  }
-
-  toArabicIndic(n: number): string {
-    return n.toString().replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[+d]);
-  }
-
-  verseMark(ayahNo: number): string {
-    return this.toArabicIndic(ayahNo);
   }
 }

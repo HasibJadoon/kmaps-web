@@ -30,7 +30,7 @@
   --shadow:      0 1px 2px rgba(0,0,0,.04), 0 8px 24px -8px rgba(60,40,10,.16);
   --shadow-hover:0 4px 8px rgba(0,0,0,.05), 0 14px 30px -8px rgba(60,40,10,.22);
 
-  font-family: 'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', Georgia, serif;
+  font-family: var(--km-font-arabic-ui);
   color: var(--ink);
   background: var(--bg);
 }
@@ -1576,7 +1576,7 @@ $panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
     strong { font-size: 0.92rem; color: var(--ink); font-weight: 600; }
     .auth-list__name-ar {
       font-size: 0.82rem; color: var(--ink-soft);
-      font-family: 'Amiri', serif;
+      font-family: var(--km-font-arabic-ui);
     }
   }
   &__count {
@@ -1595,7 +1595,7 @@ $panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
   transition: color .15s;
   &:hover { color: var(--accent); }
   &__target {
-    font-family: 'Amiri', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: 1.1rem; color: var(--accent); font-weight: 700;
   }
   &__count { font-size: 0.78rem; color: var(--ink-soft); }
@@ -1603,7 +1603,7 @@ $panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
 // ── Right-rail Qur'an citation cards — bracket font + focus ─────────────
 .rail__panel--quran .qref__ref {
-  font-family: 'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', serif;
+  font-family: var(--km-font-arabic-ui);
 }
 .rail__panel--quran .qref--focused,
 .qref--focused {

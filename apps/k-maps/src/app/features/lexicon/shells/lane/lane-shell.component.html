@@ -70,7 +70,7 @@
         <km-book-strip [root]="currentRoot()" [currentBook]="'lane_lexicon'" />
 
         <div class="entry-head">
-          <h2 class="entry-head__title" dir="rtl">{{ v.entry.root_text }}</h2>
+          <h2 lang="ar" class="entry-head__title" dir="rtl">{{ v.entry.root_text }}</h2>
           <div class="entry-head__meta">
             @if (v.entry.page_start) {
               <span>Vol. {{ v.entry.volume_no }} · pp. {{ v.entry.page_start }}–{{ v.entry.page_end }}</span>
@@ -120,7 +120,7 @@
           @for (entry of rootsByLetter(); track entry[0]) {
             <details class="rail__letter" [open]="entry[0] === currentRoot()[0]">
               <summary>
-                <span class="rail__letter-ar" dir="rtl">{{ entry[0] }}</span>
+                <span lang="ar" class="rail__letter-ar" dir="rtl">{{ entry[0] }}</span>
                 <span class="rail__letter-n">{{ entry[1].length }}</span>
               </summary>
               <ul class="rail__roots">
@@ -129,7 +129,7 @@
                     <button class="rail__root"
                             [class.active]="r.root_norm === currentRoot()"
                             (click)="goToRoot(r.root_norm)">
-                      <span class="rail__root-ar" dir="rtl">{{ r.root_text || r.root_norm }}</span>
+                      <span lang="ar" class="rail__root-ar" dir="rtl">{{ r.root_text || r.root_norm }}</span>
                       @if (r.page_start) {
                         <span class="rail__root-page">p. {{ r.page_start }}</span>
                       }
@@ -166,7 +166,7 @@
                     <span class="auth-list__code">{{ a.code }}</span>
                     <span class="auth-list__name">
                       <strong>{{ a.name_en }}</strong>
-                      <span class="auth-list__name-ar" dir="rtl">{{ a.name_ar }}</span>
+                      <span lang="ar" class="auth-list__name-ar" dir="rtl">{{ a.name_ar }}</span>
                     </span>
                     <span class="auth-list__count">× {{ a.count }}</span>
                   </li>
@@ -217,7 +217,7 @@
                 @for (x of v.cross_refs; track x.target) {
                   <li class="xref-list__item">
                     <button class="xref" (click)="openCrossRef(x.target)">
-                      <span class="xref__target" dir="rtl">{{ x.target }}</span>
+                      <span lang="ar" class="xref__target" dir="rtl">{{ x.target }}</span>
                       <span class="xref__count">× {{ x.count }}</span>
                     </button>
                   </li>

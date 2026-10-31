@@ -28,7 +28,7 @@
       text-align: center; margin-bottom: 2.5rem;
     }
     .ling-header__ar {
-      display: block; font-family: var(--km-font-arabic); font-size: 2.5rem;
+      display: block; font-family: var(--km-font-quran); font-size: 2.5rem;
       color: var(--km-gold); opacity: 0.7; direction: rtl; margin-bottom: 0.25rem;
     }
     .ling-header__title {
@@ -92,7 +92,7 @@
       color: var(--km-text-3);
     }
     .gram-card__ex-text {
-      font-family: var(--km-font-arabic); font-size: 1.1rem; color: var(--km-text);
+      font-family: var(--km-font-quran); font-size: 1.1rem; color: var(--km-text);
       direction: rtl; text-align: right;
     }
 
@@ -103,7 +103,7 @@
       padding-bottom: 0.6rem; border-bottom: 1px solid var(--km-border);
     }
     .branch-header__ar {
-      font-family: var(--km-font-arabic); font-size: 1.4rem; color: var(--km-gold);
+      font-family: var(--km-font-quran); font-size: 1.4rem; color: var(--km-gold);
       direction: rtl;
     }
     .branch-header__en {
@@ -122,7 +122,7 @@
     }
     .balagha-card:hover { border-color: var(--km-border-gold); }
     .balagha-card__ar-term {
-      font-family: var(--km-font-arabic); font-size: 1.6rem; color: var(--km-gold);
+      font-family: var(--km-font-quran); font-size: 1.6rem; color: var(--km-gold);
       direction: rtl; text-align: right; line-height: 1.3;
     }
     .balagha-card__en-term {
@@ -133,7 +133,7 @@
       font-size: 0.8rem; color: var(--km-text-2); line-height: 1.6; margin: 0.25rem 0;
     }
     .balagha-card__example {
-      font-family: var(--km-font-arabic); font-size: 1rem; color: var(--km-text-3);
+      font-family: var(--km-font-quran); font-size: 1rem; color: var(--km-text-3);
       direction: rtl; text-align: right; background: rgba(255,255,255,0.04);
       border-radius: 6px; padding: 0.5rem 0.75rem;
     }
@@ -162,7 +162,7 @@
       justify-content: center; padding: 4rem 2rem; text-align: center; gap: 0.75rem;
     }
     .empty-state__icon {
-      font-family: var(--km-font-arabic); font-size: 4rem; color: var(--km-gold);
+      font-family: var(--km-font-quran); font-size: 4rem; color: var(--km-gold);
       opacity: 0.2; direction: rtl;
     }
     .empty-state__title {

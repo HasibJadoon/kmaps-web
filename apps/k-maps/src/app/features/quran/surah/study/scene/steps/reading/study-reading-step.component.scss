@@ -64,7 +64,7 @@
 }
 
 .rt-tashkeel__icon {
-  font-family: var(--km-font-arabic, 'UthmanicHafs', 'AmiriQuran', 'Amiri', serif);
+  font-family: var(--km-font-quran);
   font-size: 1rem;
   color: var(--km-gold-300);
   direction: rtl;
@@ -87,7 +87,7 @@
 
 .rt-passage {
   width: 100%;
-  font-family: var(--km-font-arabic, 'UthmanicHafs', 'AmiriQuran', 'Amiri', serif);
+  font-family: var(--km-font-quran);
   font-size: clamp(2.25rem, 3.9vw, 3.65rem);
   line-height: 2.72;
   direction: rtl;
@@ -118,7 +118,7 @@
 .verse-marker {
   display: inline;
   color: var(--km-gold-300);
-  font-family: var(--km-font-arabic, 'UthmanicHafs', 'AmiriQuran', 'Amiri', serif);
+  font-family: var(--km-font-quran);
   font-size: 1em;
   line-height: 1;
   vertical-align: middle;

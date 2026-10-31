@@ -20,10 +20,11 @@ export class QuranApiService {
     return this.api.getResponse<QrMenuPayload>('qr', ['menu']);
   }
 
-  getSurahReader(surah: number, pageSize = 400): Observable<QrApiResponse<QrReaderPayload>> {
-    const params = new HttpParams()
+  getSurahReader(surah: number, pageSize = 400, opts: { words?: boolean } = {}): Observable<QrApiResponse<QrReaderPayload>> {
+    let params = new HttpParams()
       .set('page', '1')
       .set('limit', String(pageSize));
+    if (opts.words) params = params.set('words', '1');
     return this.api.getResponse<QrReaderPayload>('qr', ['surahs', surah, 'reader'], { params });
   }
 

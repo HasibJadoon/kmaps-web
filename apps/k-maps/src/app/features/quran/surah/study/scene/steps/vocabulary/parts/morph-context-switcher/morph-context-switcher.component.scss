@@ -12,7 +12,7 @@
     .mw-cx {
       display: flex; flex-direction: column; gap: 4px; text-align: start; padding: 10px 14px; border-radius: 10px;
       cursor: pointer; border: 1px solid var(--edge); background: var(--well);
-      &__ar { font-family: var(--ar); font-size: 16px; color: var(--ink2); }
+      &__ar { font-family: var(--km-font-arabic-ui); font-size: 16px; color: var(--ink2); }
       &__en { font: 500 9.5px/1 var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
       &__key { font: 600 9px/1 var(--mono); color: var(--faint); letter-spacing: .03em; }
       &:hover { border-color: var(--golddim); }

@@ -37,7 +37,7 @@
   .rd__band-n { grid-row: 1; font-size: .72rem; color: var(--km-text-3); font-variant-numeric: tabular-nums; }
 }
 .rd__ar {
-  font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1rem; color: var(--km-gold);
+  font-family: var(--km-font-arabic-ui); font-size: 1rem; color: var(--km-gold);
   margin-inline-start: .6rem; opacity: .85;
 }
 
@@ -51,10 +51,10 @@
   &:hover { border-color: rgba(201,168,76,.4); background: rgba(201,168,76,.05); }
 }
 .rd__card-title {
-  font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.18rem; line-height: 1.5;
+  font-family: var(--km-font-arabic-ui); font-size: 1.18rem; line-height: 1.5;
   color: var(--km-text);
 }
-.rd__card-author { font-family: 'Amiri', 'Geeza Pro', serif; font-size: .92rem; color: var(--km-text-3); }
+.rd__card-author { font-family: var(--km-font-arabic-ui); font-size: .92rem; color: var(--km-text-3); }
 .rd__card-foot {
   margin-top: auto; display: flex; gap: .7rem; justify-content: flex-end; direction: ltr;
   font-size: .68rem; color: var(--km-text-3); letter-spacing: .04em;
@@ -83,7 +83,7 @@
 /* What is reading this: the class above the sūra, so a group of sessions says
    whose reading they are rather than floating under a bare sūra name. */
 .rd__series-under {
-  font-family: 'Amiri', 'Geeza Pro', serif; font-style: normal; font-size: .82rem;
+  font-family: var(--km-font-arabic-ui); font-style: normal; font-size: .82rem;
   color: var(--km-text-3); margin-inline-end: .45rem; opacity: .8;
 }
-.rd__series-name b { font-family: 'Amiri', 'Geeza Pro', serif; font-weight: 400; font-size: 1.05rem; }
+.rd__series-name b { font-family: var(--km-font-arabic-ui); font-weight: 400; font-size: 1.05rem; }

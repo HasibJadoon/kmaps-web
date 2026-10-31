@@ -11,10 +11,6 @@ import type {
 export type AnyDisplayBlock = QrTafsirDisplayBlock | QrIraabDisplayBlock;
 
 interface MadhabChip { label: string; color: string; }
-const MADHAB_LABELS: Record<QrDisplayMadhab, string> = {
-  sunni: 'سني', maliki: 'مالكي', shafii: 'شافعي', hanbali: 'حنبلي', hanafi: 'حنفي',
-  mutazili: 'معتزلي', ashari: 'أشعري', athari: 'أثري',
-};
 const MADHAB_COLORS: Record<QrDisplayMadhab, string> = {
   sunni: '#4A6E8A', maliki: '#2F7A5C', shafii: '#8E6E1E', hanbali: '#6E4A3A',
   hanafi: '#7A4A8E', mutazili: '#6E588E', ashari: '#B0533A', athari: '#3F6E5A',
@@ -40,7 +36,7 @@ export class DisplayBlockComponent {
   readonly madhabChip = computed<MadhabChip | null>(() => {
     const b = this.block() as QrTafsirDisplayBlock;
     if (!b.madhab) return null;
-    return { label: MADHAB_LABELS[b.madhab] ?? b.madhab, color: MADHAB_COLORS[b.madhab] ?? '#6E665A' };
+    return { label: b.madhab_label_ar ?? b.madhab, color: MADHAB_COLORS[b.madhab] ?? '#6E665A' };
   });
 
   readonly previewText = computed(() => {
@@ -50,13 +46,10 @@ export class DisplayBlockComponent {
     return text.slice(0, 600).trimEnd() + '…';
   });
 
+  /** Review-status chip text, labelled by the QR worker. */
   readonly statusChipLabel = computed(() => {
-    const s = this.block().review_status;
-    if (s === 'approved') return 'موثّق';
-    if (s === 'needs_review') return 'بانتظار المراجعة';
-    if (s === 'ai_candidate') return 'مقترح آلي';
-    if (s === 'rejected') return 'مرفوض';
-    return 'مؤرشف';
+    const b = this.block();
+    return b.review_status_label_ar ?? b.review_status;
   });
 
   toggleExpand(): void { this.expanded.update(v => !v); }

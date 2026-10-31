@@ -14,7 +14,7 @@
         <a [routerLink]="['/deck', deck.slug]" class="deck-card"
            [style.--card-accent]="accent(deck)" [style.--card-surface]="surface(deck)">
           @if (deck.title_ar) {
-            <span class="deck-card-ar" dir="rtl">{{ deck.title_ar }}</span>
+            <span lang="ar" class="deck-card-ar" dir="rtl">{{ deck.title_ar }}</span>
           }
           <span class="deck-card-title">{{ deck.title }}</span>
           <span class="deck-card-meta">

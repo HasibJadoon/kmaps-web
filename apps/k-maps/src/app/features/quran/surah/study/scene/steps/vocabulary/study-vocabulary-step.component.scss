@@ -5,25 +5,25 @@
   --edge:var(--km-border,rgba(255,255,255,.07)); --edge2:rgba(255,255,255,.045); --well:#0a0a0a;
   --panel:var(--km-surface-2,#141414); --panel2:var(--km-surface-3,#1a1a1a); --panel3:#202020;
   --head:var(--km-font-heading,'Cinzel',Georgia,serif);
-  --ar:'AmiriQuran','Amiri',"SF Arabic","Geeza Pro","Noto Naskh Arabic",serif;
-  --quran:'UthmanicHafs','AmiriQuran','Amiri',"SF Arabic",serif;
+  --ar: var(--km-font-arabic-ui);
+  --quran: var(--km-font-quran);
   --en:var(--km-font-body,'Poppins',system-ui,sans-serif); --mono:ui-monospace,"SF Mono",Menlo,monospace;
   display: block;
 }
-.ar { font-family: var(--ar); }
+.ar { font-family: var(--km-font-arabic-ui); }
 .vocab-tab { padding: 6px 2px 24px; }
 
 /* toolbar */
 .v-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
 .v-fbtn {
-  font-family: var(--ar); font-size: 14px; cursor: pointer; padding: 7px 14px; border-radius: 999px;
+  font-family: var(--km-font-arabic-ui); font-size: 14px; cursor: pointer; padding: 7px 14px; border-radius: 999px;
   border: 1px solid var(--edge); background: var(--panel); color: var(--muted); transition: .14s;
   .badge { font-family: var(--mono); font-size: 11px; margin-inline-start: 6px; color: var(--faint); }
   &.on { color: var(--gold2); border-color: var(--golddim); background: linear-gradient(180deg,rgba(212,180,90,.12),rgba(212,180,90,.04)); .badge { color: var(--gold2); } }
   &:hover:not(.on) { color: var(--ink2); }
 }
-.v-hint { margin-inline-start: auto; font-family: var(--ar); font-size: 12px; color: var(--faint); }
-.v-status { text-align: center; color: var(--faint); padding: 50px 0; font-family: var(--ar); &--err { color: #e0645f; } }
+.v-hint { margin-inline-start: auto; font-family: var(--km-font-arabic-ui); font-size: 12px; color: var(--faint); }
+.v-status { text-align: center; color: var(--faint); padding: 50px 0; font-family: var(--km-font-arabic-ui); &--err { color: #e0645f; } }
 
 /* ayah group */
 .v-ayah { margin-bottom: 22px; }

@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ElementRef, ViewChild,
+import { DestroyRef, Component, OnInit, OnDestroy, ElementRef, ViewChild,
          inject, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -8,6 +8,7 @@ import { DocSaveService } from '../services/doc-save.service';
 import { DocsApiService } from '../services/docs-api.service';
 import { DocRightPanelComponent } from '../doc-right-panel/doc-right-panel.component';
 import gsap from 'gsap';
+import { LatestRequest } from '../../../shared/utils/latest-request';
 
 @Component({
   selector: 'km-doc-editor',
@@ -18,6 +19,7 @@ import gsap from 'gsap';
   styleUrl: './doc-editor.component.scss'
 })
 export class DocEditorComponent implements OnInit, OnDestroy {
+  private readonly latest = new LatestRequest(inject(DestroyRef));
   @ViewChild('editorEl', { static: true }) editorEl!: ElementRef<HTMLDivElement>;
 
   readonly editorSvc = inject(DocEditorService);
@@ -45,7 +47,7 @@ export class DocEditorComponent implements OnInit, OnDestroy {
 
       if (docId) {
         this.editorSvc.docId.set(docId);
-        this.docsApi.getDoc(docId).subscribe(doc => {
+        this.latest.run('doc', this.docsApi.getDoc(docId), { next: doc => {
           this.editorSvc.title.set(doc.title || 'Untitled');
           this.titleModel = doc.title || 'Untitled';
           this.editorSvc.initEditor(this.editorEl.nativeElement);
@@ -57,8 +59,9 @@ export class DocEditorComponent implements OnInit, OnDestroy {
             this.animateContentIn();
             this.watchForNewBlocks();
           });
-        });
+        } });
       } else {
+        this.latest.cancel('doc');
         this.editorSvc.initEditor(this.editorEl.nativeElement);
         requestAnimationFrame(() => {
           this.animateContentIn();

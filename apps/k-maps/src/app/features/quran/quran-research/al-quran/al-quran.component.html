@@ -31,7 +31,7 @@
             [attr.id]="'quran-page-' + page.page.number"
             [style.--mushaf-font]="mushafFont(page.page.number)"
           >
-            <div class="mushaf-page__lines" dir="rtl">
+            <div lang="ar" class="mushaf-page__lines" dir="rtl">
               @for (line of page.layout_lines; track trackLine($index, line)) {
                 @switch (line.line_type) {
                   @case ('surah_name') {

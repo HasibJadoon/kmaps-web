@@ -5,13 +5,14 @@ import {
   ElementRef,
   OnInit,
   ViewChild,
+  inject,
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import gsap from 'gsap';
-import { environment } from '../../../../environments/environment';
+import { WorldviewApiService } from '../../../shared/services/worldview/worldview-api.service';
+import { KmDatePipe } from '../../../shared/pipes/km-date.pipe';
 
-const WV_API = `${environment.apiBase}/wv`;
 
 interface BrainstormSession {
   id: number | string;
@@ -26,12 +27,13 @@ interface BrainstormSession {
 @Component({
   selector: 'km-worldview-brainstorm',
   standalone: true,
-  imports: [RouterLink],
+  imports: [KmDatePipe, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './worldview-brainstorm.component.html',
   styleUrl: './worldview-brainstorm.component.scss',
 })
 export class WorldviewBrainstormComponent implements OnInit, AfterViewInit {
+  private readonly wv = inject(WorldviewApiService);
   @ViewChild('page') pageRef!: ElementRef<HTMLElement>;
 
   readonly loading = signal(true);
@@ -71,16 +73,10 @@ export class WorldviewBrainstormComponent implements OnInit, AfterViewInit {
     if (!title.trim()) return;
     this.creating.set(true);
     try {
-      const res = await fetch(`${WV_API}/brainstorm`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim(), topic: topic.trim() || undefined, worldview: worldview.trim() || undefined, content: content.trim() || undefined }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = await res.json() as { ok: boolean; data: BrainstormSession };
-      if (body.data) {
-        this.sessions.update(list => [body.data, ...list]);
-        this.selectedSession.set(body.data);
+      const created = await this.wv.createBrainstorm<BrainstormSession>({ title: title.trim(), topic: topic.trim() || undefined, worldview: worldview.trim() || undefined, content: content.trim() || undefined });
+      if (created) {
+        this.sessions.update(list => [created, ...list]);
+        this.selectedSession.set(created);
         this.showCreateForm.set(false);
       }
     } catch {
@@ -90,21 +86,11 @@ export class WorldviewBrainstormComponent implements OnInit, AfterViewInit {
     }
   }
 
-  formatDate(iso: string): string {
-    try {
-      return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    } catch {
-      return iso;
-    }
-  }
 
   private async loadSessions(): Promise<void> {
     this.loading.set(true);
     try {
-      const res = await fetch(`${WV_API}/brainstorm?limit=30`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = await res.json() as { ok: boolean; data: BrainstormSession[] };
-      this.sessions.set(Array.isArray(body.data) ? body.data : []);
+      this.sessions.set(await this.wv.brainstormSessions<BrainstormSession>(30));
     } catch {
       this.failure.set('The sessions could not be loaded.');
     } finally {

@@ -82,7 +82,7 @@
   &__title {
     margin: 0;
     color: var(--gold);
-    font-family: 'Amiri', 'Scheherazade New', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: 1.35rem;
     font-weight: 700;
   }
@@ -133,7 +133,7 @@
   font: inherit;
   font-size: 1.05rem;
   color: var(--ink);
-  font-family: 'Amiri', 'Scheherazade New', serif;
+  font-family: var(--km-font-arabic-ui);
   &::placeholder { color: var(--ink-faint); }
 }
 .lx-spinner {
@@ -171,7 +171,7 @@
   font-size: 0.92rem;
   color: var(--ink);
   cursor: pointer;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   transition: background 0.14s, border-color 0.14s, color 0.14s;
   &:hover { background: var(--gold-tint); border-color: var(--gold-line); color: var(--gold); }
 }
@@ -188,7 +188,7 @@
 }
 .lx-results-root {
   color: var(--gold);
-  font-family: 'Amiri', 'Scheherazade New', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 1.6rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -258,7 +258,7 @@
   &__title {
     margin: 0;
     color: var(--gold);
-    font-family: 'Amiri', 'Scheherazade New', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: 1.15rem;
     font-weight: 700;
     line-height: 1.3;
@@ -297,7 +297,7 @@
     border-radius: 6px;
     background: rgba(0, 0, 0, 0.25);
     color: var(--ink);
-    font-family: 'Amiri', 'Scheherazade New', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: 0.95rem;
     line-height: 1.4;
   }
@@ -337,7 +337,7 @@
   &__title {
     margin: 0;
     color: #d68a4a;
-    font-family: 'Amiri', 'Scheherazade New', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: 1.15rem;
     font-weight: 700;
   }
@@ -404,7 +404,7 @@
   text-align: center;
   color: var(--ink-faint);
   font-size: 0.92rem;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   border: 1px dashed var(--rule);
   border-radius: 12px;
 }

@@ -51,7 +51,7 @@
                     }
                   </div>
                   @if (session.created_at) {
-                    <div class="wvb__session-date">{{ formatDate(session.created_at) }}</div>
+                    <div class="wvb__session-date">{{ (session.created_at | kmDate) }}</div>
                   }
                 </li>
               }
@@ -133,7 +133,7 @@
                     <span class="wvb__tag wvb__tag--worldview">{{ selectedSession()!.worldview }}</span>
                   }
                   @if (selectedSession()!.created_at) {
-                    <span class="wvb__sd-date">{{ formatDate(selectedSession()!.created_at!) }}</span>
+                    <span class="wvb__sd-date">{{ (selectedSession()!.created_at! | kmDate) }}</span>
                   }
                 </div>
               </div>

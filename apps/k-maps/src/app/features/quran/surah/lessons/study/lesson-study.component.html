@@ -39,7 +39,7 @@
         <div class="lesson-header__meta">{{ lessonSubtitle }}</div>
         <h1 class="lesson-header__title">{{ lessonTitle }}</h1>
         @if (lesson()?.title_ar) {
-          <p class="lesson-header__arabic" dir="rtl">{{ lesson()!.title_ar }}</p>
+          <p lang="ar" class="lesson-header__arabic" dir="rtl">{{ lesson()!.title_ar }}</p>
         }
       </header>
 
@@ -117,10 +117,10 @@
             }
             @for (group of readingAyahGroups; track group.ayah) {
               <div class="reading-ayah">
-                <div class="reading-ayah__num">{{ toArabicIndic(group.ayah) }}</div>
-                <div class="reading-ayah__words" dir="rtl">
+                <div class="reading-ayah__num">{{ (group.ayah | arDigits) }}</div>
+                <div lang="ar" class="reading-ayah__words" dir="rtl">
                   @for (token of group.words; track token.location) {
-                    <span
+                    <span kmPressable
                       class="r-word"
                       [ngClass]="{ 'r-word--selected': isWordSelected(token.location) }"
                       (click)="selectWord(token)"
@@ -150,9 +150,9 @@
                 <div class="morph-grid">
                   @for (item of nounItems; track item.location) {
                     <button class="morph-card" (click)="selectMorphItem(item)">
-                      <div class="morph-card__word" dir="rtl">{{ item.word }}</div>
+                      <div lang="ar" class="morph-card__word" dir="rtl">{{ item.word }}</div>
                       @if (item.root) {
-                        <div class="morph-card__root" dir="rtl">{{ item.root }}</div>
+                        <div lang="ar" class="morph-card__root" dir="rtl">{{ item.root }}</div>
                       }
                       <div class="morph-card__meaning">{{ item.meaning }}</div>
                       <div class="morph-card__ref">{{ item.location }}</div>
@@ -172,9 +172,9 @@
                 <div class="morph-grid">
                   @for (item of verbItems; track item.location) {
                     <button class="morph-card" (click)="selectMorphItem(item)">
-                      <div class="morph-card__word" dir="rtl">{{ item.word }}</div>
+                      <div lang="ar" class="morph-card__word" dir="rtl">{{ item.word }}</div>
                       @if (item.root) {
-                        <div class="morph-card__root" dir="rtl">{{ item.root }}</div>
+                        <div lang="ar" class="morph-card__root" dir="rtl">{{ item.root }}</div>
                       }
                       <div class="morph-card__meaning">{{ item.meaning }}</div>
                       <div class="morph-card__ref">{{ item.location }}</div>
@@ -189,9 +189,9 @@
               <div class="morph-dialog-backdrop" (click)="closeMorphDialog()">
                 <div class="morph-dialog" (click)="$event.stopPropagation()">
                   <button class="morph-dialog__close" (click)="closeMorphDialog()">&#10005;</button>
-                  <div class="morph-dialog__word" dir="rtl">{{ morphDialogItem()!.word }}</div>
+                  <div lang="ar" class="morph-dialog__word" dir="rtl">{{ morphDialogItem()!.word }}</div>
                   @if (morphDialogItem()!.root) {
-                    <div class="morph-dialog__root" dir="rtl">{{ morphDialogItem()!.root }}</div>
+                    <div lang="ar" class="morph-dialog__root" dir="rtl">{{ morphDialogItem()!.root }}</div>
                   }
                   <div class="morph-dialog__meaning">{{ morphDialogItem()!.meaning }}</div>
                   <div class="morph-dialog__ref">{{ morphDialogItem()!.location }}</div>
@@ -200,7 +200,7 @@
                       @for (ctx of morphDialogContextAyahs; track ctx.ayah) {
                         <div class="morph-ctx-row" [ngClass]="{ 'morph-ctx-row--focus': ctx.isFocus }">
                           <span class="morph-ctx-row__num">{{ ctx.ayah }}</span>
-                          <div class="morph-ctx-row__text" dir="rtl">
+                          <div lang="ar" class="morph-ctx-row__text" dir="rtl">
                             @for (w of ctx.words; track $index) {
                               <span>{{ w }} </span>
                             }
@@ -229,7 +229,7 @@
               <div class="sentence-block">
                 <div class="sentence-block__ref">{{ sentenceRef(sentence, si) }}</div>
                 @if (sentence.structure_summary.full_text) {
-                  <p class="sentence-block__full" dir="rtl">{{ sentence.structure_summary.full_text }}</p>
+                  <p lang="ar" class="sentence-block__full" dir="rtl">{{ sentence.structure_summary.full_text }}</p>
                 }
 
                 @if (sentence.structure_summary.main_components.length > 0) {
@@ -300,7 +300,7 @@
             @for (card of expressionCards; track card.id) {
               <div class="expr-card" [attr.data-accent]="card.accent">
                 <div class="expr-card__top">
-                  <div class="expr-card__arabic" dir="rtl">{{ card.textAr }}</div>
+                  <div lang="ar" class="expr-card__arabic" dir="rtl">{{ card.textAr }}</div>
                   <div class="expr-card__badges">
                     @if (card.category) {
                       <span class="expr-badge">{{ card.category }}</span>
@@ -391,7 +391,7 @@
                 [id]="sectionDomId(section.id)"
                 [attr.data-accent]="section.accent"
               >
-                <div class="ps-section__header" (click)="toggleSection(section.id)">
+                <div kmPressable class="ps-section__header" (click)="toggleSection(section.id)">
                   <div class="ps-section__title-row">
                     <span class="ps-badge" [attr.data-accent]="section.accent">{{ section.badge }}</span>
                     <h3 class="ps-section__title">{{ section.title }}</h3>

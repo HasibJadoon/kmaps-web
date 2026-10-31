@@ -19,7 +19,7 @@ export function richMarkup(str: string | null | undefined, lang: 'en' | 'ar' | '
     while ((m = tok.exec(text))) {
       if (m.index > last) out += wrap(text.slice(last, m.index));
       if (m[1]) {
-        out += (arP && mode === 'plain') ? esc(m[1]) : `<span dir="rtl" class="ra ${mode}">${esc(m[1])}</span>`;
+        out += (arP && mode === 'plain') ? esc(m[1]) : `<span lang="ar" dir="rtl" class="ra ${mode}">${esc(m[1])}</span>`;
       } else if (m[2]) {
         out += `<span class="rarrow ${mode}">${m[2]}</span>`;
       }

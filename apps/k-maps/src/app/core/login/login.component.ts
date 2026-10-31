@@ -2,17 +2,10 @@ import {
   AfterViewInit, ChangeDetectionStrategy, Component, ElementRef,
   inject, signal, viewChild,
 } from '@angular/core';
-import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../environments/environment';
+import { ActivatedRoute, Router } from '@angular/router';
+import { AuthService } from '../auth/auth.service';
+import { safeReturnUrl } from '../auth/auth.guard';
 
-interface ProvidersResponse {
-  data?: {
-    google?: { enabled?: boolean; client_id?: string };
-    apple?: { enabled?: boolean; client_id?: string; redirect_uri?: string; scope?: string };
-  };
-}
-interface TokenResponse { data?: { token?: string }; error?: { message?: string } }
 
 interface GoogleCredential { credential?: string }
 interface AppleAuthResponse { authorization?: { id_token?: string }; user?: { name?: { firstName?: string; lastName?: string } } }
@@ -47,7 +40,8 @@ function loadScript(src: string): Promise<void> {
 })
 export class LoginComponent implements AfterViewInit {
   private readonly router = inject(Router);
-  private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
+  private readonly route = inject(ActivatedRoute);
 
   private readonly googleBtn = viewChild<ElementRef<HTMLElement>>('googleBtn');
 
@@ -60,9 +54,9 @@ export class LoginComponent implements AfterViewInit {
   );
 
   ngAfterViewInit(): void {
-    this.http.get<ProvidersResponse>(`${environment.apiBase}/core/auth/providers`).subscribe({
+    this.auth.providers().subscribe({
       next: (res) => {
-        const g = res?.data?.google, a = res?.data?.apple;
+        const g = res.google, a = res.apple;
         this.google.set({ enabled: !!g?.enabled, clientId: g?.client_id ?? '' });
         this.apple.set({
           enabled: !!a?.enabled, clientId: a?.client_id ?? '',
@@ -146,16 +140,13 @@ export class LoginComponent implements AfterViewInit {
     if (!idToken) { this.error.set('No credential returned by the provider.'); return; }
     this.busy.set(true);
     this.error.set(null);
-    this.http
-      .post<TokenResponse>(`${environment.apiBase}/core/auth/oauth/${provider}`,
-        name ? { id_token: idToken, name } : { id_token: idToken })
+    this.auth
+      .signIn(provider, idToken, name)
       .subscribe({
-        next: (res) => {
-          const token = res?.data?.token;
+        next: (token) => {
           this.busy.set(false);
           if (!token) { this.error.set('Sign-in failed.'); return; }
-          localStorage.setItem('km_token', token);
-          void this.router.navigate(['/hub']);
+          void this.router.navigateByUrl(safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl')));
         },
         error: (e: { error?: { error?: { message?: string } } }) => {
           this.busy.set(false);

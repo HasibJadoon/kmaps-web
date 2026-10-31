@@ -22,7 +22,7 @@ import type { DsBlock, DsText } from '@kmaps/contracts/ds';
       @case ('hero') {
         <div class="hero">
           <div class="mark" [class.ar]="b.mark.script === 'ar'">{{ b.mark.text }}</div>
-          @if (b.ar) { <p class="ar rtl">{{ b.ar.text }}</p> }
+          @if (b.ar) { <p lang="ar" class="ar rtl">{{ b.ar.text }}</p> }
           @if (b.en) { <p class="en">{{ b.en.text }}</p> }
           @if (b.ur) { <p class="ar rtl ur">{{ b.ur.text }}</p> }
           @if (b.facts?.length) {
@@ -52,7 +52,7 @@ import type { DsBlock, DsText } from '@kmaps/contracts/ds';
       }
 
       @case ('chain') {
-        @if (b.summary) { <p class="ar rtl summary">{{ b.summary.text }}</p> }
+        @if (b.summary) { <p lang="ar" class="ar rtl summary">{{ b.summary.text }}</p> }
         <ol class="chain">
           @for (n of b.nodes; track n.id; let i = $index) {
             <li [class.terminal]="n.terminal" [class.unresolved]="n.unresolved">
@@ -174,7 +174,7 @@ import type { DsBlock, DsText } from '@kmaps/contracts/ds';
             }
           </div>
         }
-        @if (r.ar) { <p class="ar rtl">{{ r.ar.text }}</p> }
+        @if (r.ar) { <p lang="ar" class="ar rtl">{{ r.ar.text }}</p> }
         @if (r.en) { <p class="en">{{ r.en.text }}</p> }
         @if (r.ur) { <p class="ar rtl ur">{{ r.ur.text }}</p> }
         @if (r.facts?.length) {

@@ -88,7 +88,7 @@
               <button class="sr__card" (click)="show(s)">
                 <span class="sr__card-glyph">♪</span>
                 <span class="sr__card-title" [attr.dir]="dir(s.name)">{{ s.name }}</span>
-                @if (s.under) { <span class="sr__card-under" dir="rtl">{{ s.under }}</span> }
+                @if (s.under) { <span lang="ar" class="sr__card-under" dir="rtl">{{ s.under }}</span> }
                 <span class="sr__bar"><i [style.width.%]="pct(s)"></i></span>
                 <span class="sr__card-foot">
                   <span>{{ s.episodes.length }} {{ s.episodes.length === 1 ? 'episode' : 'episodes' }}</span>

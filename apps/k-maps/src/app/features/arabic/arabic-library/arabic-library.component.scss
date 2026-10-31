@@ -40,7 +40,7 @@
   border-bottom: 1px solid var(--km-border);
 }
 .lib-hero__ar {
-  font-family: var(--km-font-arabic);
+  font-family: var(--km-font-quran);
   font-size: 2.2rem;
   color: var(--km-gold);
   opacity: 0.7;
@@ -153,7 +153,7 @@
   flex: 1; display: flex; flex-direction: column; gap: 0.15rem;
 }
 .c-card__title-ar {
-  font-family: var(--km-font-arabic);
+  font-family: var(--km-font-quran);
   font-size: 1rem; color: var(--km-text);
   line-height: 1.4;
 }
@@ -231,6 +231,6 @@
   display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
 }
 .empty-state__ar {
-  font-family: var(--km-font-arabic); font-size: 1.6rem;
+  font-family: var(--km-font-quran); font-size: 1.6rem;
   color: var(--km-gold); opacity: 0.18; direction: rtl;
 }

@@ -25,7 +25,7 @@ interface ChapterView {
       <nav class="rail">
         <div class="rl">Reading</div>
         <div class="rsubj">
-          <span class="ar">{{ s.subject.display.text }}</span>
+          <span lang="ar" class="ar">{{ s.subject.display.text }}</span>
           <em>{{ s.subject.kind }}</em>
         </div>
 
@@ -39,7 +39,7 @@ interface ChapterView {
         @for (ch of chapters(); track ch.key) {
           <a class="rch" [href]="'#ch-' + ch.key">
             <span class="rct">{{ ch.title }}</span>
-            @if (ch.title_ar) { <span class="ar rca">{{ ch.title_ar }}</span> }
+            @if (ch.title_ar) { <span lang="ar" class="ar rca">{{ ch.title_ar }}</span> }
             <span class="rcodes">
               @for (sec of ch.sections; track sec.code) {
                 <em [attr.data-state]="sec.state">{{ sec.code }}</em>
@@ -60,7 +60,7 @@ interface ChapterView {
       <!-- ── the reading column ──────────────────────────────────────────── -->
       <main class="col">
         <header class="hero">
-          <span class="ar mark">{{ s.subject.display.text }}</span>
+          <span lang="ar" class="ar mark">{{ s.subject.display.text }}</span>
           <div class="hmeta">
             <div class="href">{{ s.subject.ref }} <em>· {{ s.subject.kind }}</em></div>
             @if (s.plane?.readings?.length) {
@@ -82,7 +82,7 @@ interface ChapterView {
           <section class="chapter" [id]="'ch-' + ch.key">
             <div class="chd">
               <h2>{{ ch.title }}</h2>
-              @if (ch.title_ar) { <span class="ar cha">{{ ch.title_ar }}</span> }
+              @if (ch.title_ar) { <span lang="ar" class="ar cha">{{ ch.title_ar }}</span> }
               <p class="q">{{ ch.question }}</p>
             </div>
 
@@ -93,7 +93,7 @@ interface ChapterView {
                 <div class="sh">
                   @if (sec.icon) { <span class="icon">{{ sec.icon }}</span> }
                   <span class="title">{{ sec.title }}</span>
-                  @if (sec.title_ar) { <span class="ar tar">{{ sec.title_ar }}</span> }
+                  @if (sec.title_ar) { <span lang="ar" class="ar tar">{{ sec.title_ar }}</span> }
                   <span class="code">{{ sec.code }}</span>
                   <span class="state" [attr.data-state]="sec.state">{{ stateLabel(sec) }}</span>
                 </div>

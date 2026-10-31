@@ -78,7 +78,7 @@
 
         &:focus { border-color: rgba(201,168,76,.5); }
         &::placeholder { color: var(--km-text-3); opacity: .5; }
-        &.rtl { font-family: var(--km-font-arabic, inherit); font-size: 1rem; text-align: right; }
+        &.rtl { font-family: var(--km-font-quran); font-size: 1rem; text-align: right; }
       }
 
       textarea { resize: vertical; }

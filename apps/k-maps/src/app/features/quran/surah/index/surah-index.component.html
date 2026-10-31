@@ -94,7 +94,7 @@
       @if (viewMode() === 'list') {
         <div class="surahs-list" #cardsContainer>
           @for (surah of filteredSurahs(); track surah.surahNumber) {
-            <div class="surah-row" (click)="navigateToSurah(surah.surahNumber)">
+            <div kmPressable class="surah-row" (click)="navigateToSurah(surah.surahNumber)">
               <div class="surah-number surah-number--sm">{{ surah.surahNumber }}</div>
               <div class="surah-row__arabic">{{ surah.arabicName }}</div>
               <div class="surah-row__name">{{ surah.transliteratedName }}</div>

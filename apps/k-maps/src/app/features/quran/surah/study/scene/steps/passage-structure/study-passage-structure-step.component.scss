@@ -120,7 +120,7 @@ $border-l:  #4a3e28;
   flex-direction: column;
   gap: 14px;
   overflow: hidden;
-  font-family: 'EB Garamond', 'Amiri', serif;
+  font-family: 'EB Garamond', var(--km-font-arabic-ui);
 }
 
 // Header stays pinned; renderer content scrolls
@@ -262,7 +262,7 @@ $border-l:  #4a3e28;
   p  { font-size: 0.75em;  color: $text-d; font-style: italic; margin-top: 2px; }
 }
 .disc-hinge {
-  font-family: 'AmiriQuran', 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 1.375em;
   direction: rtl;
   text-align: center;
@@ -277,7 +277,7 @@ $border-l:  #4a3e28;
   opacity: 0; // GSAP
 }
 .disc-dir-label  { font-family: 'Cinzel', serif; font-size: 0.5em; letter-spacing: 0.3em; color: #3a3020; text-transform: uppercase; margin-bottom: 4px; }
-.disc-dir-arabic { font-family: 'AmiriQuran', 'Amiri', serif; font-size: 1.06em; direction: rtl; color: $text-p; }
+.disc-dir-arabic { font-family: var(--km-font-arabic-ui); font-size: 1.06em; direction: rtl; color: $text-p; }
 .disc-dir-eng    { font-size: 0.75em; font-style: italic; color: $text-d; margin-top: 3px; }
 
 /* ── CHIASM ─────────────────────────────────────────────── */
@@ -362,7 +362,7 @@ $border-l:  #4a3e28;
 .cf-interp .cf-label { color: $sky; }
 .cf-primary { font-size: 0.94em; color: $text-p; font-weight: 500; margin-bottom: 2px; }
 .cf-sub     { font-size: 0.75em; color: $text-d; font-style: italic; }
-.cf-arabic  { font-family: 'AmiriQuran', 'Amiri', serif; font-size: 0.875em; direction: rtl; color: $ember; margin-top: 3px; }
+.cf-arabic  { font-family: var(--km-font-arabic-ui); font-size: 0.875em; direction: rtl; color: $ember; margin-top: 3px; }
 
 /* ── LEXICON ─────────────────────────────────────────────── */
 .renderer-lexicon { display: flex; flex-direction: column; gap: 2px; }
@@ -372,7 +372,7 @@ $border-l:  #4a3e28;
 .lx-head        { display: flex; align-items: baseline; gap: 6px; margin-bottom: 6px; }
 .lx-chips       { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
 .lx-chip {
-  font-family: 'AmiriQuran', 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 0.875em;
   direction: rtl;
   padding: 3px 10px;
@@ -507,7 +507,7 @@ $border-l:  #4a3e28;
   &.color-purple { color: $purple; }
 }
 .cluster-items { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.cluster-item  { font-size: 1.3em; color: $text-p; background: rgba(255,255,255,.06); padding: 0.25rem 0.65rem; border-radius: 5px; direction: rtl; font-family: 'AmiriQuran', serif; line-height: 2; }
+.cluster-item  { font-size: 1.3em; color: $text-p; background: rgba(255,255,255,.06); padding: 0.25rem 0.65rem; border-radius: 5px; direction: rtl; font-family: var(--km-font-arabic-ui); line-height: 2; }
 
 /* symbol maps */
 .renderer-symbol-maps {

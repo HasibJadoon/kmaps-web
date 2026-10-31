@@ -239,7 +239,7 @@
         <li class="deck-note">
           @for (seg of note.segments; track $index) {
             @if (seg.arabic) {
-              <span class="deck-note-ar" [class.is-strong]="seg.strong" [class.is-em]="seg.em" dir="rtl">{{ seg.text }}</span>
+              <span lang="ar" class="deck-note-ar" [class.is-strong]="seg.strong" [class.is-em]="seg.em" dir="rtl">{{ seg.text }}</span>
             } @else if (seg.strong) { <strong>{{ seg.text }}</strong> }
             @else if (seg.em) { <em>{{ seg.text }}</em> }
             @else { <span>{{ seg.text }}</span> }

@@ -5,6 +5,7 @@
 // the two only stay honest if the rules live somewhere testable.
 
 import type { DeckSlide } from './deck.models';
+import { toArabicDigits } from '../../../shared/utils/arabic-digits';
 
 /** A line plus the gloss that sits under it. */
 export interface GlossedLine {
@@ -141,7 +142,7 @@ export function noteSegments(note: string): NoteSegment[] {
 
 /** ٠١٢٣٤٥٦٧٨٩ — the numerals a right-to-left slide counts in. */
 export function arabicDigits(n: number): string {
-  return String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]);
+  return toArabicDigits(n);
 }
 
 /**

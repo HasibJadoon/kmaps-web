@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { authGuard } from '../../core/auth/auth.guard';
 
 export const QURAN_ROUTES: Routes = [
   {
@@ -42,6 +43,7 @@ export const QURAN_ROUTES: Routes = [
   },
   {
     path: 'surahs/:surahId/notes',
+    canActivate: [authGuard],
     loadComponent: () =>
       import('./surah/notes/surah-notes.component').then((m) => m.SurahNotesComponent),
     title: 'Notes — K-MAPS',
@@ -68,6 +70,7 @@ export const QURAN_ROUTES: Routes = [
   },
   {
     path: 'surahs/:surahId/review',
+    canActivate: [authGuard],
     loadComponent: () =>
       import('./surah/review/surah-review.component').then((m) => m.SurahReviewComponent),
     title: 'Review — K-MAPS',
@@ -80,6 +83,7 @@ export const QURAN_ROUTES: Routes = [
   },
   {
     path: 'surahs/:surahId/srs',
+    canActivate: [authGuard],
     loadComponent: () =>
       import('./surah/review/srs/surah-srs.component').then((m) => m.SurahSrsComponent),
     title: 'SRS — K-MAPS',
@@ -184,6 +188,7 @@ export const QURAN_ROUTES: Routes = [
       },
       {
         path: 'notes',
+        canActivate: [authGuard],
         loadComponent: () =>
           import('./quran-research/researcher/notes/notes-page.component').then((m) => m.NotesPageComponent),
         title: 'Notes — K-MAPS',

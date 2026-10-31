@@ -30,6 +30,23 @@ export class DocsApiService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiBase}/cm/documents`;
 
+  /** A linked page's title, for page-link nodes. */
+  getTitle(id: string): Observable<string | null> {
+    return this.http
+      .get<ApiEnvelope<{ title?: string }>>(`${this.base}/${encodeURIComponent(id)}`)
+      .pipe(map((res) => res.data?.title ?? null));
+  }
+
+  /** One āyah's display text and translation from the QR worker, for the ayah embed. */
+  getAyahText(surah: number, ayah: number): Observable<{ text: string; translation: string } | null> {
+    return this.http
+      .get<ApiEnvelope<{ text_display?: string | null; translation?: string | null } | null>>(
+        `${environment.apiBase}/qr/ayahs/${surah}/${ayah}`)
+      .pipe(map((res) => res.data
+        ? { text: res.data.text_display ?? '', translation: res.data.translation ?? '' }
+        : null));
+  }
+
   getDoc(id: string): Observable<DocDetail> {
     return this.http
       .get<ApiEnvelope<CmDocumentRow>>(`${this.base}/${id}?include=blocks`)

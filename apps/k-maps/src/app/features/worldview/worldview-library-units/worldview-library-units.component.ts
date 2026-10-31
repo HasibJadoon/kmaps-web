@@ -1,4 +1,4 @@
-import {
+import { DestroyRef,
   AfterViewInit,
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -27,9 +27,14 @@ import {
 import { WvGraphShellComponent } from '../wv-graph/wv-graph-shell/wv-graph-shell.component';
 import { WvIllustrationsComponent } from '../../../shared/components/wv-illustrations/wv-illustrations.component';
 
+import { PressableDirective } from '../../../shared/directives/pressable.directive';
+import { LatestRequest } from '../../../shared/utils/latest-request';
+import { KmDatePipe } from '../../../shared/pipes/km-date.pipe';
+import { toArabicDigits } from '../../../shared/utils/arabic-digits';
 interface WvSource {
   id: string;
   source_type?: string | null;
+  source_type_label?: string | null;
   title: string;
   subtitle?: string | null;
   creator?: string | null;
@@ -54,6 +59,7 @@ interface WvUnit {
   source_id: string;
   parent_unit_id?: string | null;
   unit_type?: string | null;
+  unit_type_label?: string | null;
   title?: string | null;
   order_index?: number | null;
   start_ref?: string | null;
@@ -155,6 +161,7 @@ interface WvDocumentBlock {
 interface WvNote {
   id: string;
   note_kind: string;
+  note_kind_label?: string | null;
   title?: string | null;
   body_md: string;
   excerpt_text?: string | null;
@@ -165,6 +172,7 @@ interface WvNote {
 interface ReaderHighlightEntry {
   id: string;
   note_kind: string;
+  note_kind_label?: string | null;
   title?: string | null;
   excerpt_text?: string | null;
   body_md: string;
@@ -270,11 +278,12 @@ const KIND_ICON: Record<string, string> = {
   selector: 'km-worldview-library-units',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, StatusPillComponent, WvGraphShellComponent, WvIllustrationsComponent],
+  imports: [KmDatePipe, PressableDirective, CommonModule, StatusPillComponent, WvGraphShellComponent, WvIllustrationsComponent],
   templateUrl: './worldview-library-units.component.html',
   styleUrl: './worldview-library-units.component.scss',
 })
 export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, OnDestroy {
+  private readonly latest = new LatestRequest(inject(DestroyRef));
   @ViewChild('splitContainer') splitContainerRef?: ElementRef<HTMLElement>;
   @ViewChild('readerBody') readerBodyRef?: ElementRef<HTMLElement>;
   @ViewChild('readArea') readAreaRef?: ElementRef<HTMLElement>;
@@ -765,23 +774,8 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
     }
   }
 
-  sourceTypeLabel(type?: string | null): string {
-    const key = this.normalizeType(type);
-    const map: Record<string, string> = {
-      book: 'Book',
-      article: 'Article',
-      essay: 'Essay',
-      paper: 'Paper',
-      lecture: 'Lecture',
-      podcast: 'Podcast',
-      video: 'Video',
-      website: 'Website',
-      document: 'Document',
-      scripture: 'Scripture',
-      report: 'Report',
-      other: 'Source',
-    };
-    return map[key] ?? this.startCase(key);
+  sourceTypeLabel(source?: WvSource | null): string {
+    return source?.source_type_label || this.normalizeType(source?.source_type);
   }
 
   sourceTypeColor(type?: string | null): string {
@@ -803,19 +797,8 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
     return map[key] ?? '';
   }
 
-  unitTypeLabel(type?: string | null): string {
-    const key = this.normalizeUnitType(type);
-    const map: Record<string, string> = {
-      chapter: 'Chapter',
-      passage: 'Passage',
-      section: 'Section',
-      part: 'Part',
-      unit: 'Unit',
-      excerpt: 'Excerpt',
-      page: 'Page',
-      paragraph: 'Paragraph',
-    };
-    return map[key] ?? this.startCase(key);
+  unitTypeLabel(unit?: WvUnit | null): string {
+    return unit?.unit_type_label || this.normalizeUnitType(unit?.unit_type);
   }
 
   unitTypeColor(type?: string | null): string {
@@ -834,7 +817,7 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
   }
 
   unitLabel(unit: WvUnit, fallbackIndex?: number): string {
-    return unit.title?.trim() || `${this.unitTypeLabel(unit.unit_type)} ${fallbackIndex ?? ''}`.trim();
+    return unit.title?.trim() || `${this.unitTypeLabel(unit)} ${fallbackIndex ?? ''}`.trim();
   }
 
   refLine(unit: WvUnit): string {
@@ -861,12 +844,12 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
   tocOrdinalLabel(item: TocItem): string {
     if (item.depth === 0) {
       const chapterRef = this.chapterNumber(item.unit);
-      const rootLabel = this.unitTypeLabel(item.unit.unit_type);
+      const rootLabel = this.unitTypeLabel(item.unit);
       return `${rootLabel} ${chapterRef ?? item.siblingIndex}`;
     }
 
     const ordinal = item.numbering.split('.').pop() ?? String(item.siblingIndex);
-    return `${this.unitTypeLabel(item.unit.unit_type)} ${ordinal}`;
+    return `${this.unitTypeLabel(item.unit)} ${ordinal}`;
   }
 
   tabCount(tab: ReaderTab): number {
@@ -884,28 +867,10 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
     return KIND_ICON[kind] ?? '◆';
   }
 
-  kindLabelText(kind: string): string {
-    const labels: Record<string, string> = {
-      quote: 'Highlight',
-      highlight: 'Highlight',
-      reflection: 'Reflection',
-      question: 'Question',
-      insight: 'Insight',
-      claim_seed: 'Claim',
-      summary: 'Summary',
-      observation: 'Observation',
-    };
-    return labels[kind] ?? this.startCase(kind);
+  kindLabelText(entry: { note_kind: string; note_kind_label?: string | null }): string {
+    return entry.note_kind_label || entry.note_kind;
   }
 
-  formatDate(dt?: string | null): string {
-    if (!dt) return '';
-    try {
-      return new Date(dt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    } catch {
-      return dt;
-    }
-  }
 
   arabicWords(text: string): string[] {
     return text
@@ -944,7 +909,7 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
     this.tocWidth.set(310);
     this.workspaceHidden.set(false);
 
-    this.libraryApi.getSource(id).subscribe({
+    this.latest.run('source', this.libraryApi.getSource(id), {
       next: (detail) => {
         if (detail?.id) {
           const { units: unitRows, ...sourceRow } = detail;
@@ -1092,6 +1057,7 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
       source_id: sourceId,
       parent_unit_id: parentUnitId || null,
       unit_type: unit.unit_type ?? null,
+      unit_type_label: unit.unit_type_label ?? null,
       title: unit.title ?? null,
       order_index: unit.order_index ?? unit.unit_index ?? null,
       start_ref: startRef,
@@ -1733,6 +1699,7 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
       .map((note) => ({
         id: typeof note['id'] === 'string' ? note['id'] : '',
         note_kind: typeof note['note_kind'] === 'string' ? note['note_kind'] : 'reflection',
+        note_kind_label: typeof note['note_kind_label'] === 'string' ? note['note_kind_label'] : null,
         title: typeof note['title'] === 'string' ? note['title'] : null,
         body_md: typeof note['body_md'] === 'string' ? note['body_md'] : '',
         excerpt_text: typeof note['excerpt_text'] === 'string' ? note['excerpt_text'] : null,
@@ -1752,6 +1719,7 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
       .map((highlight) => ({
         id: typeof highlight['id'] === 'string' ? highlight['id'] : '',
         note_kind: typeof highlight['note_kind'] === 'string' ? highlight['note_kind'] : 'highlight',
+        note_kind_label: typeof highlight['note_kind_label'] === 'string' ? highlight['note_kind_label'] : null,
         title: typeof highlight['title'] === 'string' ? highlight['title'] : null,
         excerpt_text: typeof highlight['excerpt_text'] === 'string' ? highlight['excerpt_text'] : null,
         body_md: typeof highlight['body_md'] === 'string' ? highlight['body_md'] : '',
@@ -2278,13 +2246,8 @@ export class WorldviewLibraryUnitsComponent implements OnInit, AfterViewInit, On
     return (type ?? '').trim() || 'unit';
   }
 
-  private startCase(value: string): string {
-    return value
-      .replace(/[_-]+/g, ' ')
-      .replace(/\b\w/g, (char) => char.toUpperCase());
-  }
 
   private toArabicIndicDigits(value: string): string {
-    return value.replace(/\d/g, (digit) => String.fromCharCode(0x0660 + Number(digit)));
+    return toArabicDigits(value);
   }
 }

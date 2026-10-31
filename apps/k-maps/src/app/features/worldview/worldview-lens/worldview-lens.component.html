@@ -1,11 +1,11 @@
 <div class="lens">
   <header class="lens__nav">
     <button type="button" class="lens__back" (click)="goBack()">← Worldview</button>
-    @if (passages.length > 1) {
+    @if (passages().length > 1) {
       <nav class="lens__passages">
-        @for (p of passages; track p.label) {
+        @for (p of passages(); track p.label) {
           <button type="button" class="lens__passage"
-                  [class.is-active]="p.surah === active().surah && p.from === active().from"
+                  [class.is-active]="isActive(p)"
                   (click)="select(p)">{{ p.label }}</button>
         }
       </nav>

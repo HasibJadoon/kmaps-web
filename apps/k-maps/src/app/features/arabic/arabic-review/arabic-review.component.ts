@@ -9,8 +9,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../../environments/environment';
+import { ArabicApiService } from '../../../shared/services/arabic-api.service';
 
 /// A capture is a photograph that was read by machine and by nobody else. The
 /// Arabic in it is tesseract's guess, and until a person says otherwise it must
@@ -41,8 +40,7 @@ interface Envelope<T> { ok: boolean; data?: T; error?: unknown; }
 })
 export class ArabicReviewComponent implements OnInit {
   private router = inject(Router);
-  private http = inject(HttpClient);
-  private readonly base = environment.apiBase;
+  private readonly ar = inject(ArabicApiService);
 
   readonly loading = signal(true);
   readonly saving = signal(false);
@@ -62,8 +60,8 @@ export class ArabicReviewComponent implements OnInit {
 
   private load(): void {
     this.loading.set(true);
-    this.http
-      .get<Envelope<{ captures: Capture[] }>>(`${this.base}/ar/acq/review?limit=50`)
+    this.ar
+      .get<Envelope<{ captures: Capture[] }>>(`ar/acq/review?limit=50`)
       .subscribe({
         next: (res) => {
           const rows = res?.data?.captures ?? [];
@@ -91,7 +89,7 @@ export class ArabicReviewComponent implements OnInit {
     const body: Record<string, unknown> = { status };
     if (this.dirty()) body['rawText'] = this.draft();
 
-    this.http.patch<Envelope<unknown>>(`${this.base}/ar/acq/captures/${c.id}`, body).subscribe({
+    this.ar.patch<Envelope<unknown>>(`ar/acq/captures/${c.id}`, body).subscribe({
       next: () => { this.done.update((n) => n + 1); this.advance(); },
       // A failed save must not look like a success: stay on the capture.
       error: () => this.saving.set(false),

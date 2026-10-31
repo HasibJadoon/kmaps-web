@@ -98,7 +98,7 @@
                     @if (workspace()!.created_at) {
                       <div class="wd__info-row">
                         <span class="wd__info-label">Created</span>
-                        <span class="wd__info-value">{{ formatDate(workspace()!.created_at!) }}</span>
+                        <span class="wd__info-value">{{ (workspace()!.created_at! | kmDate) }}</span>
                       </div>
                     }
                   </div>
@@ -145,7 +145,7 @@
                       <span class="wd__member-role">{{ m.role }}</span>
                     }
                     @if (m.joined_at) {
-                      <span class="wd__member-date">{{ formatDate(m.joined_at) }}</span>
+                      <span class="wd__member-date">{{ (m.joined_at | kmDate) }}</span>
                     }
                   </div>
                 }
@@ -196,7 +196,7 @@
                         <p class="wd__activity-details">{{ a.details }}</p>
                       }
                       @if (a.created_at) {
-                        <span class="wd__activity-date">{{ formatDate(a.created_at) }}</span>
+                        <span class="wd__activity-date">{{ (a.created_at | kmDate) }}</span>
                       }
                     </div>
                   </div>

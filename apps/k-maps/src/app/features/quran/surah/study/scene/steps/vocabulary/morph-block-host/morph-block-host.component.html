@@ -1,9 +1,9 @@
     <article class="mb" [attr.data-type]="block.type" [attr.data-tier]="block.tier">
-      <header class="mb__head" (click)="toggle()">
+      <header kmPressable class="mb__head" (click)="toggle()">
         <span class="mb__icon"><lucide-icon [name]="headIcon()" [size]="20"></lucide-icon></span>
         <span class="mb__ord">{{ ord() }}</span>
         <span class="mb__title">{{ titleEn() }}</span>
-        @if (block.title.ar) { <span class="mb__title-ar ar">{{ block.title.ar }}</span> }
+        @if (block.title.ar) { <span lang="ar" class="mb__title-ar ar">{{ block.title.ar }}</span> }
         <span class="mb__chips">
           @for (rc of regChips(); track rc.label) { <span class="mb__reg" [class]="rc.cls">{{ rc.label }}</span> }
           @if (block.is_synthesis) { <span class="mb__reg reg-kmaps">K-MAPS</span> }

@@ -83,7 +83,7 @@
                     </span>
                   }
                   @if (ws.created_at) {
-                    <span class="wh__card-meta">{{ formatDate(ws.created_at) }}</span>
+                    <span class="wh__card-meta">{{ (ws.created_at | kmDate) }}</span>
                   }
                 </div>
                 <div class="wh__card-glow"></div>

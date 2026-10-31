@@ -1,4 +1,4 @@
-<div class="rpx" dir="rtl">
+<div lang="ar" class="rpx" dir="rtl">
 
   <!-- ── Hadith sources ─────────────────────────────────────────────────── -->
   <article class="rpx-card" [class.rpx-card--collapsed]="isCollapsed('hadith')" [class.rpx-card--empty]="!hadithRefs().length">
@@ -54,7 +54,7 @@
     @if (!isCollapsed('quran') && quranRefs().length) {
       <div class="rpx-card__body">
         @for (q of quranRefs(); track q.ayah_key; let i = $index) {
-          <div class="rpx-row rpx-row--clickable" (click)="goToAyah(q.ayah_key)">
+          <div kmPressable class="rpx-row rpx-row--clickable" (click)="goToAyah(q.ayah_key)">
             <span class="rpx-row__num">[{{ i + 1 }}]</span>
             <span class="rpx-row__label rpx-row__label--quran">{{ q.ayah_key }}</span>
             @if (q.count > 1) { <span class="rpx-row__mult">×{{ q.count }}</span> }

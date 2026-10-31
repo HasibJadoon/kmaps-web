@@ -6,11 +6,12 @@ import type {
   DocumentListItem, DocumentEditorScope, QuranDocType,
 } from '../../../../shared/models/document-editor.models';
 import { QURAN_DOC_TYPES } from '../../../../shared/models/document-editor.models';
+import { KmDatePipe } from '../../../../shared/pipes/km-date.pipe';
 
 @Component({
   selector: 'km-document-list',
   standalone: true,
-  imports: [FormsModule],
+  imports: [KmDatePipe, FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="km-doc-list">
@@ -75,7 +76,7 @@ import { QURAN_DOC_TYPES } from '../../../../shared/models/document-editor.model
               <span class="km-doc-list__item-meta">
                 <span class="km-doc-list__item-type">{{ docTypeLabel(doc.doc_type) }}</span>
                 @if (doc.updated_at) {
-                  <span class="km-doc-list__item-date">{{ formatDate(doc.updated_at) }}</span>
+                  <span class="km-doc-list__item-date">{{ (doc.updated_at | kmDate:'short') }}</span>
                 }
               </span>
             </button>
@@ -215,9 +216,4 @@ export class KmDocumentListComponent implements OnChanges {
     return QURAN_DOC_TYPES.find(d => d.value === docType)?.label ?? docType;
   }
 
-  formatDate(iso: string): string {
-    try {
-      return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-    } catch { return ''; }
-  }
 }

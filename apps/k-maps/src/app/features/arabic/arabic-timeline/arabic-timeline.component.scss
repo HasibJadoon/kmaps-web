@@ -21,7 +21,7 @@
   h2 { font-family: var(--km-font-heading); font-size: 1rem; color: var(--km-text);
        display: flex; align-items: baseline; gap: .7rem; }
   span[dir='rtl'] {
-    font-family: 'Amiri', 'Geeza Pro', serif; font-size: .95rem;
+    font-family: var(--km-font-arabic-ui); font-size: .95rem;
     color: var(--km-gold); margin-inline-start: .6rem; opacity: .85;
   }
 }
@@ -53,7 +53,7 @@
   background: rgba(18,18,18,.98); border: 1px solid rgba(201,168,76,.32);
   border-radius: 6px; padding: .55rem .75rem; z-index: 3;
   box-shadow: 0 8px 24px rgba(0,0,0,.5);
-  b { font-family: 'Amiri', 'Geeza Pro', serif; font-size: 1.05rem; color: var(--km-text); font-weight: 400; }
-  i { font-family: 'Amiri', 'Geeza Pro', serif; font-size: .88rem; color: var(--km-text-3); font-style: normal; }
+  b { font-family: var(--km-font-arabic-ui); font-size: 1.05rem; color: var(--km-text); font-weight: 400; }
+  i { font-family: var(--km-font-arabic-ui); font-size: .88rem; color: var(--km-text-3); font-style: normal; }
   em { font-size: .66rem; color: var(--km-gold); font-style: normal; letter-spacing: .05em; }
 }

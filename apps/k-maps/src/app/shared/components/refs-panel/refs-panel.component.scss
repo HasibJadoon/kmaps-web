@@ -86,7 +86,7 @@
 .rpx-card__title {
   grid-column: 4;
   text-align: right;
-  font-family: "Amiri", serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 0.92rem;
   color: var(--rpx-text);
   font-weight: 600;
@@ -132,7 +132,7 @@
   padding: 8px 12px 10px;
   color: var(--rpx-muted);
   font-size: 0.78rem;
-  font-family: "Amiri", serif;
+  font-family: var(--km-font-arabic-ui);
   border-top: 1px solid rgba(255,255,255,.03);
   background: rgba(255,255,255,.008);
 }
@@ -168,7 +168,7 @@
   padding: 1px 8px;
   background: rgba(255,255,255,.03);
   border-radius: 4px;
-  font-family: "Amiri", serif;
+  font-family: var(--km-font-arabic-ui);
   color: var(--rpx-text);
   font-size: 0.88rem;
   font-weight: 600;
@@ -184,7 +184,7 @@
   flex: 1;
   min-width: 0;
   color: var(--rpx-text-soft);
-  font-family: "Amiri", serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 0.85rem;
   line-height: 1.6;
   &--note {

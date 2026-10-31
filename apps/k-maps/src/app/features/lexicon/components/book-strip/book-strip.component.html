@@ -1,5 +1,5 @@
 @if (hasBooks()) {
-  <nav class="strip" dir="rtl" aria-label="الكتب التي تتناول هذا الجذر">
+  <nav lang="ar" class="strip" dir="rtl" aria-label="الكتب التي تتناول هذا الجذر">
     <span class="strip__eyebrow">المصادر · {{ books().length }}</span>
     <ul class="strip__list">
       @for (b of books(); track b.slug) {

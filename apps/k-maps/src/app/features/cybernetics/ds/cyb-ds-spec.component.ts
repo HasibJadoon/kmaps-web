@@ -49,7 +49,7 @@ import type { DisplaySpec, DsReading, DsSection } from '@kmaps/contracts/ds';
       <div class="chapter">
         <div class="ch">
           <h2>{{ ch.title }}</h2>
-          @if (ch.title_ar) { <span class="ar char">{{ ch.title_ar }}</span> }
+          @if (ch.title_ar) { <span lang="ar" class="ar char">{{ ch.title_ar }}</span> }
           <!-- The question this chapter answers, in the reader's words. -->
           <p class="q">{{ ch.question }}</p>
         </div>
@@ -62,7 +62,7 @@ import type { DisplaySpec, DsReading, DsSection } from '@kmaps/contracts/ds';
             @if (sec.icon) { <span class="icon">{{ sec.icon }}</span> }
             <span class="code">{{ sec.code }}</span>
             <span class="title">{{ sec.title }}</span>
-            @if (sec.title_ar) { <span class="ar tar">{{ sec.title_ar }}</span> }
+            @if (sec.title_ar) { <span lang="ar" class="ar tar">{{ sec.title_ar }}</span> }
             <span class="state" [attr.data-state]="sec.state">{{ sec.state }}</span>
             @if (sec.total_rows) { <span class="rows">{{ sec.total_rows }}</span> }
           </div>

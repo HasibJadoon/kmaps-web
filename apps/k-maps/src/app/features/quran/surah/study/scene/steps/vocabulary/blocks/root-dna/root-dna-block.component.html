@@ -1,11 +1,11 @@
     <div class="rootdna">
-      <div class="rootdna__letters ar">
+      <div lang="ar" class="rootdna__letters ar">
         <span>{{ d.letters.join('') }}</span>
       </div>
       <div class="rootdna__meaning">
-        @if (d.core_ar) { <div class="rootdna__core ar" dir="rtl">{{ d.core_ar }}</div> }
-        @if (showTextAr()) { <p class="say ar" dir="rtl" [innerHTML]="richTextAr()"></p> }
+        @if (d.core_ar) { <div lang="ar" class="rootdna__core ar" dir="rtl">{{ d.core_ar }}</div> }
+        @if (showTextAr()) { <p lang="ar" class="say ar" dir="rtl" [innerHTML]="richTextAr()"></p> }
     @if (showTextEn()) { <p class="say" dir="ltr" [innerHTML]="richTextEn()"></p> }
-    @if (showTextUr()) { <p class="say ur" dir="rtl" [innerHTML]="richTextUr()"></p> }
+    @if (showTextUr()) { <p lang="ur" class="say ur" dir="rtl" [innerHTML]="richTextUr()"></p> }
       </div>
     </div>

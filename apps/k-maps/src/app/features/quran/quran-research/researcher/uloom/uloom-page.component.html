@@ -1,8 +1,8 @@
-<div class="rp-page" dir="rtl">
+<div lang="ar" class="rp-page" dir="rtl">
 
   <!-- ── Source Detail Panel (uses new display layer) ─────────────────────── -->
   @if (selectedSource(); as src) {
-    <section
+    <section lang="ar"
       class="reader rp-detail"
       #reader
       [class.dark]="darkMode()"
@@ -71,7 +71,7 @@
         </div>
 
         <!-- Modern selector toolbar: surah dropdown + ayah stepper + quick jump -->
-        <div class="picker-toolbar" dir="rtl">
+        <div lang="ar" class="picker-toolbar" dir="rtl">
 
           <!-- Surah selector — button trigger + dropdown -->
           <div class="picker picker--surah">
@@ -110,7 +110,7 @@
                     <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
                     <path d="M20 20l-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                   </svg>
-                  <input
+                  <input lang="ar"
                     type="search"
                     class="picker__search-input"
                     placeholder="ابحث برقم السورة أو اسمها…"
@@ -322,7 +322,7 @@
     <div class="rp-filter">
       <label class="rp-filter__search" aria-label="ابحث في كتب الإعراب">
         <span class="rp-filter__search-icon" aria-hidden="true">⌕</span>
-        <input
+        <input lang="ar"
           class="rp-filter__search-input"
           type="search"
           placeholder="ابحث في كتب الإعراب…"

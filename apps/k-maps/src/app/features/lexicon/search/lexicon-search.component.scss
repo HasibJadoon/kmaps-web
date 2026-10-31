@@ -57,7 +57,7 @@
 }
 .lxs__title h1 {
   margin: 0;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 2rem;
   font-weight: 700;
   color: var(--ink);
@@ -80,7 +80,7 @@
   border: none;
   background: transparent;
   color: var(--ink-soft);
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 1.02rem;
   padding: 7px 20px;
   border-radius: 9px;
@@ -109,7 +109,7 @@
   border: none;
   background: transparent;
   color: var(--ink);
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 1.2rem;
   outline: none;
   padding: 8px 4px;
@@ -160,7 +160,7 @@
   margin-bottom: 2px;
 }
 .hero__root {
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-weight: 700;
   font-size: 6.2rem;
   line-height: 0.92;
@@ -179,14 +179,14 @@
   place-items: center;
   border: 1px solid rgba(201, 168, 76, .3);
   border-radius: 9px;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 1.2rem;
   color: var(--accent-bright);
   background: rgba(201, 168, 76, .05);
 }
 .hero__data { flex: 1; min-width: 280px; }
 .hero__meaning {
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 1.18rem;
   color: var(--ink);
   line-height: 1.85;
@@ -207,10 +207,10 @@
     font-weight: 600;
     color: var(--accent-bright);
     font-variant-numeric: tabular-nums;
-    &--ar { font-family: 'Amiri', serif; font-size: 1.3rem; font-weight: 700; }
+    &--ar { font-family: var(--km-font-arabic-ui); font-size: 1.3rem; font-weight: 700; }
   }
   &__l {
-    font-family: 'Amiri', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: 0.84rem;
     color: var(--ink-faint);
     margin-top: 3px;
@@ -223,7 +223,7 @@
   color: var(--ink-soft);
   margin: 22px 4px 16px;
   &-n { color: var(--accent-bright); font-weight: 700; font-variant-numeric: tabular-nums; }
-  &-q { font-family: 'Amiri', serif; color: var(--ink); }
+  &-q { font-family: var(--km-font-arabic-ui); color: var(--ink); }
   &-mode { color: var(--ink-faint); }
 }
 
@@ -234,7 +234,7 @@
   border: 1px dashed var(--rule);
   border-radius: 14px;
   background: var(--paper);
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 1.05rem;
 }
 
@@ -286,7 +286,7 @@
     position: absolute;
     bottom: -32px;
     left: 6px;
-    font-family: 'Amiri', serif;
+    font-family: var(--km-font-arabic-ui);
     font-weight: 700;
     font-size: 130px;
     line-height: 1;
@@ -305,7 +305,7 @@
   &__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
   &__titles { min-width: 0; display: flex; flex-direction: column; }
   &__title {
-    font-family: 'Amiri', serif;
+    font-family: var(--km-font-arabic-ui);
     font-weight: 700;
     font-size: 1.42rem;
     color: var(--ink);
@@ -323,7 +323,7 @@
     font-variant-numeric: tabular-nums;
   }
   &__snippet {
-    font-family: 'Amiri', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: 0.96rem;
     color: var(--ink-soft);
     line-height: 1.7;
@@ -403,13 +403,13 @@
     padding: 4px 11px;
   }
   &__title {
-    font-family: 'Amiri', serif;
+    font-family: var(--km-font-arabic-ui);
     font-weight: 700;
     font-size: 1.7rem;
     color: #eafaf1;
   }
   &__sub {
-    font-family: 'Amiri', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: 1rem;
     color: var(--ink-soft);
     line-height: 1.75;
@@ -471,7 +471,7 @@
   &:hover { border-color: var(--accent); background: var(--paper-2); transform: translateX(-2px); }
 
   &__root {
-    font-family: 'Amiri', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: 1.7rem;
     font-weight: 700;
     color: var(--accent-bright);
@@ -481,11 +481,11 @@
   }
   &__main { min-width: 0; }
   &__source { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
-  &__source-ar { font-family: 'Amiri', serif; font-size: 1.15rem; font-weight: 700; color: var(--ink); }
+  &__source-ar { font-family: var(--km-font-arabic-ui); font-size: 1.15rem; font-weight: 700; color: var(--ink); }
   &__source-author { font-size: 0.68rem; color: var(--ink-faint); }
-  &__heading { font-family: 'Amiri', serif; font-size: 0.95rem; color: var(--ink-soft); margin-top: 3px; }
+  &__heading { font-family: var(--km-font-arabic-ui); font-size: 0.95rem; color: var(--ink-soft); margin-top: 3px; }
   &__snippet {
-    font-family: 'Amiri', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: 0.92rem;
     color: var(--ink-faint);
     margin-top: 4px;

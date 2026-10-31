@@ -9,12 +9,12 @@ import {
   ChangeDetectorRef,
 } from '@angular/core';
 import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { ArabicApiService } from '../../../shared/services/arabic-api.service';
 import { CommonModule } from '@angular/common';
-import { environment } from '../../../../environments/environment';
 import gsap from 'gsap';
 import { StatusPillComponent } from '../../../shared/components/status-pill/status-pill.component';
 
+import { PressableDirective } from '../../../shared/directives/pressable.directive';
 interface ContainerMeta {
   title_ar?: string;
   level?: string;
@@ -25,6 +25,8 @@ interface ContainerMeta {
 interface ArContainer {
   id: string;
   container_type: string;
+  /** English label for container_type, served by the AR worker. */
+  container_type_label?: string | null;
   container_key: string;
   title: string;
   meta?: ContainerMeta | null;
@@ -34,15 +36,14 @@ interface ArContainer {
   selector: 'km-arabic-library',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, StatusPillComponent],
+  imports: [PressableDirective, CommonModule, StatusPillComponent],
   templateUrl: './arabic-library.component.html',
   styleUrl: './arabic-library.component.scss',
 })
 export class ArabicLibraryComponent implements OnInit, AfterViewInit {
   private router = inject(Router);
-  private http = inject(HttpClient);
+  private readonly ar = inject(ArabicApiService);
   private cdr = inject(ChangeDetectorRef);
-  private readonly base = environment.apiBase;
 
   containers = signal<ArContainer[]>([]);
   loading = signal(true);
@@ -79,9 +80,9 @@ export class ArabicLibraryComponent implements OnInit, AfterViewInit {
   readonly objectKeys = Object.keys;
 
   ngOnInit(): void {
-    this.http.get<any>(`${this.base}/ar/containers?limit=100`).subscribe({
+    this.ar.get<any>(`ar/containers?limit=100`).subscribe({
       next: (res) => {
-        if (res?.ok) this.containers.set(res.results ?? []);
+        if (res?.ok) this.containers.set(res.data ?? res.results ?? []);
         this.loading.set(false);
         this.cdr.markForCheck();
         setTimeout(() => {
@@ -115,13 +116,17 @@ export class ArabicLibraryComponent implements OnInit, AfterViewInit {
     return m[t] ?? '📁';
   }
 
+  /** The AR worker labels each container's type; chips and group heads reuse a row's label. */
+  private readonly typeLabels = computed(() => {
+    const labels = new Map<string, string>();
+    for (const c of this.containers()) {
+      if (c.container_type_label && !labels.has(c.container_type)) labels.set(c.container_type, c.container_type_label);
+    }
+    return labels;
+  });
+
   typeLabel(t: string): string {
-    const m: Record<string, string> = {
-      book: 'Book', literature: 'Literature', story: 'Story', poetry: 'Poetry',
-      classical: 'Classical', podcast: 'Podcast', podcast_episode: 'Podcast',
-      video: 'Video', video_series: 'Series',
-    };
-    return m[t] ?? t;
+    return this.typeLabels().get(t) ?? t;
   }
 
   typeColor(t: string): string {

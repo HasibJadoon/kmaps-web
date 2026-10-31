@@ -1,10 +1,12 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 
+import { PressableDirective } from '../../../../../../../../../shared/directives/pressable.directive';
 export interface TocItem { ord: string; title: string; titleAr: string; domId: string; hot: boolean; isUr?: boolean; }
 
 export interface RegOption { key: string; label: string; }
 
 @Component({
+  imports: [PressableDirective],
   selector: 'km-morph-toc-rail',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,

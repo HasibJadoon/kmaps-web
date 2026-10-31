@@ -21,7 +21,7 @@
 
 // Arabic is a face, not a style. The UI face and the muṣḥaf face are different
 // fonts; the spec says which script a run is in and this picks accordingly.
-.ar { font-family: var(--ar); }
+.ar { font-family: var(--km-font-arabic-ui); }
 .rtl { direction: rtl; text-align: right; }
 .ur { font-size: .95em; color: var(--t3); }
 .en { font-size: 12.5px; line-height: 1.55; color: var(--t2); }

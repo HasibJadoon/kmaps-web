@@ -29,7 +29,7 @@ import { BackButtonComponent } from '../../../shared/components/back-button/back
         radial-gradient(120% 80% at 82% -8%, rgba(200,160,74,.07), transparent 60%),
         #1c1b18;
       color: #e9e0c8;
-      font-family: 'Amiri', 'Scheherazade New', Georgia, serif;
+      font-family: var(--km-font-arabic-ui);
     }
     .lwp { max-width: 1000px; margin: 0 auto; padding: 34px 24px 90px; }
     .lwp__home {

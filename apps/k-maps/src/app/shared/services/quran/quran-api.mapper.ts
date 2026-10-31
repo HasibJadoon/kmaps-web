@@ -54,6 +54,7 @@ export function mapQrReaderToAyahsResponse(
       translation: ayah.translation,
       page_number: ayah.page_number,
       juz_number: ayah.juz,
+      reader_words: ayah.words,
     })),
   };
 }

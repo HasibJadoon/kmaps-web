@@ -7,6 +7,7 @@ import { Router, RouterModule, NavigationEnd } from '@angular/router';
 import { filter, Subscription } from 'rxjs';
 import { DocsApiService } from '../services/docs-api.service';
 
+import { PressableDirective } from '../../../shared/directives/pressable.directive';
 interface DocSummary {
   id: string;
   title: string;
@@ -51,7 +52,7 @@ const DOMAINS = [
   selector: 'km-docs-shell',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, RouterModule],
+  imports: [PressableDirective, CommonModule, RouterModule],
   template: `
     <div class="km-docs-layout">
 
@@ -70,7 +71,7 @@ const DOMAINS = [
           @for (row of flatRows(); track trackRow(row)) {
 
             @if (row.type === 'domain') {
-              <div class="km-docs-domain" (click)="toggleDomain(row.key)">
+              <div kmPressable class="km-docs-domain" (click)="toggleDomain(row.key)">
                 <span class="km-docs-domain-icon">{{ row.icon }}</span>
                 <span class="km-docs-domain-label">{{ row.label }}</span>
                 @if (row.count > 0) {
@@ -87,7 +88,7 @@ const DOMAINS = [
                  [routerLink]="['/docs', row.id]"
                  (click)="onDocClick(row.id)">
                 @if (row.children.length > 0) {
-                  <span class="km-docs-item-toggle"
+                  <span kmPressable class="km-docs-item-toggle"
                         [class.open]="isNodeOpen(row.id)"
                         (click)="toggleNode(row.id, $event)">›</span>
                 } @else {

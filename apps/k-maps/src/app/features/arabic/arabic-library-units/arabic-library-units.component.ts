@@ -3,12 +3,12 @@ import {
   ChangeDetectionStrategy, ChangeDetectorRef, ElementRef, HostListener, NgZone,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { ArabicApiService } from '../../../shared/services/arabic-api.service';
 import { CommonModule } from '@angular/common';
-import { environment } from '../../../../environments/environment';
 import gsap from 'gsap';
 import { StatusPillComponent } from '../../../shared/components/status-pill/status-pill.component';
 
+import { PressableDirective } from '../../../shared/directives/pressable.directive';
 interface ArContainer {
   id: string; container_type: string; title: string;
   meta?: { title_ar?: string; level?: string; author?: string } | null;
@@ -31,18 +31,17 @@ type Mode = 'read' | 'listen' | 'watch' | 'capture';
   selector: 'km-arabic-library-units',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, StatusPillComponent],
+  imports: [PressableDirective, CommonModule, StatusPillComponent],
   templateUrl: './arabic-library-units.component.html',
   styleUrl: './arabic-library-units.component.scss',
 })
 export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
-  private http = inject(HttpClient);
+  private readonly ar = inject(ArabicApiService);
   private cdr = inject(ChangeDetectorRef);
   private el = inject(ElementRef);
   private zone = inject(NgZone);
-  private readonly base = environment.apiBase;
 
   container = signal<ArContainer | null>(null);
   units = signal<ArUnit[]>([]);
@@ -99,13 +98,14 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) { this.router.navigate(['/arabic/library']); return; }
 
-    this.http.get<any>(`${this.base}/ar/units?container_id=${id}&limit=100`).subscribe({
+    this.ar.get<any>(`ar/units?container_id=${id}&limit=100`).subscribe({
       next: (res) => {
         if (res?.ok) {
-          this.units.set(res.results ?? []);
+          const rows = res.data ?? res.results ?? [];
+          this.units.set(rows);
 
-          if (res.results?.length) {
-            const u = res.results[0];
+          if (rows.length) {
+            const u = rows[0];
             this.container.set({
               id: u.container_id,
               container_type: 'literature',
@@ -126,9 +126,9 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
       error: () => { this.unitsLoading.set(false); this.cdr.markForCheck(); },
     });
 
-    this.http.get<any>(`${this.base}/ar/containers?limit=100`).subscribe({
+    this.ar.get<any>(`ar/containers?limit=100`).subscribe({
       next: (res) => {
-        const found = (res.results ?? []).find((c: any) => c.id === id);
+        const found = (res.data ?? res.results ?? []).find((c: any) => c.id === id);
         if (found) { this.container.set(found); this.cdr.markForCheck(); }
       },
     });
@@ -153,7 +153,7 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
     this.captureBar.set(null);
 
     this.unitTextLoading.set(true);
-    this.http.get<any>(`${this.base}/ar/units/${u.id}`).subscribe({
+    this.ar.get<any>(`ar/units/${u.id}`).subscribe({
       next: (res) => {
         if (res?.ok && res.result) {
           this.selectedUnit.update(prev => prev
@@ -174,7 +174,7 @@ export class ArabicLibraryUnitsComponent implements OnInit, OnDestroy {
     });
 
     this.tasksLoading.set(true);
-    this.http.get<any>(`${this.base}/ar/tasks?unit_id=${u.id}&limit=100`).subscribe({
+    this.ar.get<any>(`ar/tasks?unit_id=${u.id}&limit=100`).subscribe({
       next: (res) => {
         if (res?.ok) this.tasks.set(res.results ?? []);
         this.tasksLoading.set(false);

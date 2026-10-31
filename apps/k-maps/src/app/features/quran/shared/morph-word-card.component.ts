@@ -40,7 +40,7 @@ export interface MorphCardVm {
         <!-- header: POS badge · wazn · ayah ref -->
         <div class="wcard__head" data-depth="0.35">
           <span class="wcard__pos" [class.wcard__pos--ar]="posIsAr()">{{ card().posLabel }}</span>
-          @if (card().waznAr) { <span class="wcard__wazn" dir="rtl">{{ card().waznAr }}</span> }
+          @if (card().waznAr) { <span lang="ar" class="wcard__wazn" dir="rtl">{{ card().waznAr }}</span> }
           @if (card().context) { <span class="wcard__ref">{{ card().context!.ref }}</span> }
           @if (card().isAnchor) { <span class="wcard__anchor" title="Root anchor">✦</span> }
         </div>
@@ -49,13 +49,13 @@ export interface MorphCardVm {
         @if (card().context?.feats?.length) {
           <div class="wcard__feats" data-depth="0.6">
             @for (f of card().context!.feats; track f.cat) {
-              <span class="feat feat--{{ f.cat }}" dir="rtl">{{ f.ar }}</span>
+              <span lang="ar" class="feat feat--{{ f.cat }}" dir="rtl">{{ f.ar }}</span>
             }
           </div>
         }
 
         <!-- the word: surface (in context) or the lemma (in the lexicon) -->
-        <div class="wcard__word" dir="rtl" data-depth="1">{{ card().context?.surfaceAr || card().lemmaAr }}</div>
+        <div lang="ar" class="wcard__word" dir="rtl" data-depth="1">{{ card().context?.surfaceAr || card().lemmaAr }}</div>
 
         <!-- compact 360° synopsis: semantic arc + range of meanings -->
         @if (card().arc) {
@@ -75,7 +75,7 @@ export interface MorphCardVm {
         <!-- footer: root -->
         <div class="wcard__foot" data-depth="0.3">
           @if (card().rootDisplay) {
-            <span
+            <span lang="ar"
               class="wcard__root"
               dir="rtl"
               role="link"
@@ -93,7 +93,7 @@ export interface MorphCardVm {
     </button>
   `,
   styles: `
-    :host { display: block; perspective: 1000px; --ar: 'AmiriQuran', 'UthmanicHafs', serif; }
+    :host { display: block; perspective: 1000px; --ar: var(--km-font-arabic-ui); }
 
     .wcard {
       position: relative; overflow: hidden; cursor: pointer; width: 100%; direction: ltr;
@@ -116,14 +116,14 @@ export interface MorphCardVm {
       &__head { display: flex; align-items: center; gap: 8px; }
       &__pos { font: 600 8.5px/1.4 var(--en); letter-spacing: .07em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; white-space: nowrap;
         color: var(--noun, #5fc99a); border: 1px solid rgba(127,181,143,.35); background: rgba(127,181,143,.14);
-        &--ar { font-family: var(--ar, 'Amiri', serif); font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; } }
+        &--ar { font-family: var(--km-font-arabic-ui); font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; } }
       &[data-group='verb'] &__pos { color: var(--verb, #a78bfa); border-color: rgba(136,120,226,.35); background: rgba(136,120,226,.14); }
       &__ref { margin-left: auto; font: 400 9.5px/1 var(--mono, ui-monospace, monospace); letter-spacing: .06em; color: var(--faint, rgba(255,255,255,.32)); }
       &__anchor { color: var(--indigo2, #b3a6f6); font-size: 12px; }
 
       &__feats { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
 
-      &__word { font-family: var(--ar, 'AmiriQuran', 'Amiri', serif); font-size: 31px; line-height: 1.5; color: var(--ink, rgba(255,255,255,.92)); direction: rtl; text-align: right; margin-top: 2px; }
+      &__word { font-family: var(--km-font-arabic-ui); font-size: 31px; line-height: 1.5; color: var(--ink, rgba(255,255,255,.92)); direction: rtl; text-align: right; margin-top: 2px; }
 
       &__synth { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding-top: 9px; border-top: 1px solid var(--edge2, rgba(255,255,255,.05)); }
       &__360 { display: inline-flex; align-items: center; gap: 4px; font: 700 8px/1 var(--mono); letter-spacing: .1em; color: var(--gold2, #e8c96a); border: 1px solid var(--golddim, #7a6432); border-radius: 999px; padding: 3px 7px; }
@@ -134,15 +134,15 @@ export interface MorphCardVm {
         &--solo { padding-top: 9px; border-top: 1px solid var(--edge2, rgba(255,255,255,.05)); font-size: 12px; } }
 
       &__foot { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 9px; border-top: 1px solid var(--edge2, rgba(255,255,255,.05)); }
-      &__wazn { font-family: var(--ar); font-size: 13px; color: var(--gold, #c9a84c); direction: rtl; opacity: .9; }
-      &__root { margin-left: auto; font-family: var(--ar); font-size: 15px; letter-spacing: .18em; color: var(--gold2, #e8c96a); cursor: pointer; direction: rtl;
+      &__wazn { font-family: var(--km-font-arabic-ui); font-size: 13px; color: var(--gold, #c9a84c); direction: rtl; opacity: .9; }
+      &__root { margin-left: auto; font-family: var(--km-font-arabic-ui); font-size: 15px; letter-spacing: .18em; color: var(--gold2, #e8c96a); cursor: pointer; direction: rtl;
         border-bottom: 1px dashed var(--golddim, #7a6432); padding-bottom: 1px; transition: color .15s, border-color .15s;
         &:hover { color: #fff; border-bottom-color: var(--gold2, #e8c96a); }
         &:focus-visible { outline: 2px solid var(--golddim); outline-offset: 2px; } }
     }
 
     .feat {
-      font-family: var(--ar, 'Amiri', serif); font-size: 12.5px; line-height: 1.55;
+      font-family: var(--km-font-arabic-ui); font-size: 12.5px; line-height: 1.55;
       display: inline-flex; align-items: center; justify-content: center;
       padding: 3px 8px; border-radius: 8px; white-space: nowrap;
       border: 1px solid var(--edge2, rgba(255,255,255,.05)); color: var(--ink2, rgba(255,255,255,.74)); background: rgba(255,255,255,.03);

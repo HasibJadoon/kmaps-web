@@ -51,11 +51,11 @@
               }
             </div>
             @if (set.canonical_ur) {
-              <div class="syn-card__ur" dir="rtl">{{ set.canonical_ur }}</div>
+              <div lang="ur" class="syn-card__ur" dir="rtl">{{ set.canonical_ur }}</div>
             }
 
             <!-- All Arabic synonyms as a chain in collapsed state -->
-            <div class="syn-card__chain" dir="rtl">
+            <div lang="ar" class="syn-card__chain" dir="rtl">
               @for (m of set.members; track m.id; let last = $last) {
                 <span class="syn-chain__word">{{ m.arabic_display ?? set.canonical_ar }}</span>
                 @if (!last) { <span class="syn-chain__sep">·</span> }
@@ -77,7 +77,7 @@
           <div>
             <h2>{{ set.canonical_en ?? set.set_name }}</h2>
             @if (set.canonical_ur) {
-              <p dir="rtl">{{ set.canonical_ur }}</p>
+              <p lang="ur" dir="rtl">{{ set.canonical_ur }}</p>
             }
           </div>
           <div class="syn-detail-actions">
@@ -104,11 +104,11 @@
             </label>
             <label>
               <span>Urdu</span>
-              <input dir="rtl" [value]="draft.canonical_ur" (input)="updateDraftField('canonical_ur', $any($event.target).value)" />
+              <input lang="ur" dir="rtl" [value]="draft.canonical_ur" (input)="updateDraftField('canonical_ur', $any($event.target).value)" />
             </label>
             <label>
               <span>Arabic Root Label</span>
-              <input dir="rtl" [value]="draft.canonical_ar" (input)="updateDraftField('canonical_ar', $any($event.target).value)" />
+              <input lang="ar" dir="rtl" [value]="draft.canonical_ar" (input)="updateDraftField('canonical_ar', $any($event.target).value)" />
             </label>
             <label>
               <span>Description</span>
@@ -120,7 +120,7 @@
                 <div class="syn-edit-member">
                   <label>
                     <span>Arabic</span>
-                    <input dir="rtl" [value]="m.arabic_display" (input)="updateMemberDraftField(i, 'arabic_display', $any($event.target).value)" />
+                    <input lang="ar" dir="rtl" [value]="m.arabic_display" (input)="updateMemberDraftField(i, 'arabic_display', $any($event.target).value)" />
                   </label>
                   <label>
                     <span>English meaning</span>
@@ -128,18 +128,18 @@
                   </label>
                   <label>
                     <span>Urdu meaning</span>
-                    <input dir="rtl" [value]="m.basic_gloss_ur" (input)="updateMemberDraftField(i, 'basic_gloss_ur', $any($event.target).value)" />
+                    <input lang="ur" dir="rtl" [value]="m.basic_gloss_ur" (input)="updateMemberDraftField(i, 'basic_gloss_ur', $any($event.target).value)" />
                   </label>
                   <label>
                     <span>Urdu nuance</span>
-                    <textarea dir="rtl" [value]="m.nuance_note_ur" (input)="updateMemberDraftField(i, 'nuance_note_ur', $any($event.target).value)"></textarea>
+                    <textarea lang="ur" dir="rtl" [value]="m.nuance_note_ur" (input)="updateMemberDraftField(i, 'nuance_note_ur', $any($event.target).value)"></textarea>
                   </label>
                 </div>
               }
             </div>
           </div>
         } @else {
-          <div class="syn-detail-chain" dir="rtl">
+          <div lang="ar" class="syn-detail-chain" dir="rtl">
             @for (m of set.members; track m.id; let last = $last) {
               <span>{{ m.arabic_display ?? set.canonical_ar }}</span>
               @if (!last) { <span class="syn-chain__sep">·</span> }
@@ -155,7 +155,7 @@
             @for (m of set.members; track m.id) {
               @if (hasMemberDetails(set, m)) {
               <div class="syn-member">
-                <div class="syn-member__arabic" dir="rtl">
+                <div lang="ar" class="syn-member__arabic" dir="rtl">
                   {{ m.arabic_display ?? set.canonical_ar }}
                 </div>
                 <div class="syn-member__detail">
@@ -163,19 +163,19 @@
                     <span class="syn-member__gloss">{{ m.basic_gloss }}</span>
                   }
                   @if (showMemberDetail(set, m, 'basic_gloss_ur')) {
-                    <span class="syn-member__gloss syn-member__gloss--ur" dir="rtl">{{ m.basic_gloss_ur }}</span>
+                    <span lang="ur" class="syn-member__gloss syn-member__gloss--ur" dir="rtl">{{ m.basic_gloss_ur }}</span>
                   }
                   @if (showMemberDetail(set, m, 'nuance_note')) {
                     <span class="syn-member__nuance">{{ m.nuance_note }}</span>
                   }
                   @if (showMemberDetail(set, m, 'nuance_note_ur')) {
-                    <span class="syn-member__nuance syn-member__nuance--ur" dir="rtl">{{ m.nuance_note_ur }}</span>
+                    <span lang="ur" class="syn-member__nuance syn-member__nuance--ur" dir="rtl">{{ m.nuance_note_ur }}</span>
                   }
                   @if (showMemberDetail(set, m, 'contrast_note')) {
                     <span class="syn-member__contrast">{{ m.contrast_note }}</span>
                   }
                   @if (showMemberDetail(set, m, 'contrast_note_ur')) {
-                    <span class="syn-member__contrast syn-member__contrast--ur" dir="rtl">{{ m.contrast_note_ur }}</span>
+                    <span lang="ur" class="syn-member__contrast syn-member__contrast--ur" dir="rtl">{{ m.contrast_note_ur }}</span>
                   }
                 </div>
               </div>

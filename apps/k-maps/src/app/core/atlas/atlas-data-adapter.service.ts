@@ -11,126 +11,23 @@ import {
   SceneState,
   FocusState,
   FocusKind,
-  VisualTier,
 } from './atlas.models';
-import { ATLAS_CONSTELLATION_LAYERS } from './atlas.data';
-
-interface ConstellationMeta {
-  quran_centrality: number;
-  sacred_weight: number;
-  worldview_weight: number;
-  history_weight: number;
-  visual_tier: VisualTier;
-  glow: number;
-  sky_x: number;
-  sky_y: number;
-  linked_cluster_id?: string;
-}
-
-const CONSTELLATION_META: Record<string, ConstellationMeta> = {
-
-  'scriptures': {
-    quran_centrality:  1,
-    sacred_weight:     1.0,
-    worldview_weight:  0.3,
-    history_weight:    0.9,
-    visual_tier:       1,
-    glow:              1.0,
-    sky_x:             0.50,
-    sky_y:             0.30,
-    linked_cluster_id: 'cl_revelation',
-  },
-
-  'prophets': {
-    quran_centrality:  2,
-    sacred_weight:     0.92,
-    worldview_weight:  0.22,
-    history_weight:    0.95,
-    visual_tier:       2,
-    glow:              0.78,
-    sky_x:             0.36,
-    sky_y:             0.26,
-    linked_cluster_id: 'cl_biblical',
-  },
-  'quranic_events': {
-    quran_centrality:  3,
-    sacred_weight:     0.88,
-    worldview_weight:  0.20,
-    history_weight:    0.98,
-    visual_tier:       2,
-    glow:              0.72,
-    sky_x:             0.64,
-    sky_y:             0.24,
-    linked_cluster_id: 'cl_revelation',
-  },
-  'prophetic_attributes': {
-    quran_centrality:  4,
-    sacred_weight:     0.84,
-    worldview_weight:  0.18,
-    history_weight:    0.60,
-    visual_tier:       2,
-    glow:              0.65,
-    sky_x:             0.50,
-    sky_y:             0.46,
-    linked_cluster_id: 'cl_revelation',
-  },
-  'hadith_companions': {
-    quran_centrality:  5,
-    sacred_weight:     0.80,
-    worldview_weight:  0.25,
-    history_weight:    0.88,
-    visual_tier:       2,
-    glow:              0.60,
-    sky_x:             0.28,
-    sky_y:             0.44,
-    linked_cluster_id: 'cl_law',
-  },
-
-  'biblical_events': {
-    quran_centrality:  6,
-    sacred_weight:     0.55,
-    worldview_weight:  0.80,
-    history_weight:    0.90,
-    visual_tier:       3,
-    glow:              0.44,
-    sky_x:             0.72,
-    sky_y:             0.44,
-    linked_cluster_id: 'cl_jewish',
-  },
-  'scholars_books': {
-    quran_centrality:  7,
-    sacred_weight:     0.48,
-    worldview_weight:  0.85,
-    history_weight:    0.80,
-    visual_tier:       3,
-    glow:              0.40,
-    sky_x:             0.22,
-    sky_y:             0.60,
-    linked_cluster_id: 'cl_law',
-  },
-  'enlightenment': {
-    quran_centrality:  8,
-    sacred_weight:     0.22,
-    worldview_weight:  0.95,
-    history_weight:    0.75,
-    visual_tier:       3,
-    glow:              0.34,
-    sky_x:             0.74,
-    sky_y:             0.62,
-    linked_cluster_id: 'cl_enlightenment',
-  },
-};
-
-const DEFAULT_META: ConstellationMeta = {
-  quran_centrality: 10, sacred_weight: 0.3, worldview_weight: 0.6, history_weight: 0.4,
-  visual_tier: 3, glow: 0.35, sky_x: 0.5, sky_y: 0.5,
-};
 
 @Injectable({ providedIn: 'root' })
 export class AtlasDataAdapter {
 
+  // The served layers and eras (GET /wv/landing-atlas), set once the atlas loads.
+  private layers: AtlasConstellationLayer[] = [];
+  private eras: HistoricalEra[] = [];
+
+  register(layers: AtlasConstellationLayer[], eras: HistoricalEra[]): void {
+    this.layers = layers;
+    this.eras = [...eras].sort((a, b) => a.era_order - b.era_order);
+    this._mappedLayers = null;
+  }
+
   private bridge(legacy: AtlasConstellationLayer): ConstellationLayer {
-    const meta = CONSTELLATION_META[legacy.id] ?? DEFAULT_META;
+    const meta = legacy.sky;
 
     const stars: ConstellationStar[] = (legacy.bodies ?? []).map((b) => ({
       id: b.id,
@@ -161,7 +58,7 @@ export class AtlasDataAdapter {
   private _mappedLayers: ConstellationLayer[] | null = null;
   private getMappedLayers(): ConstellationLayer[] {
     if (!this._mappedLayers) {
-      this._mappedLayers = ATLAS_CONSTELLATION_LAYERS.map((l) => this.bridge(l));
+      this._mappedLayers = this.layers.map((l) => this.bridge(l));
     }
     return this._mappedLayers;
   }
@@ -171,7 +68,7 @@ export class AtlasDataAdapter {
   }
 
   getConstellationVisualTier(id: string): number {
-    return (CONSTELLATION_META[id] ?? DEFAULT_META).visual_tier;
+    return this.layers.find((l) => l.id === id)?.sky.visual_tier ?? 3;
   }
 
   getConstellation(id: string): ConstellationLayer | undefined {
@@ -233,7 +130,7 @@ export class AtlasDataAdapter {
 
   getHistoricalEras(waypoints: HistoricalWaypoint[]): HistoricalEra[] {
     const eraIds = new Set(waypoints.map((w) => w.era_id));
-    return PRESET_ERAS.filter((e) => eraIds.has(e.era_id));
+    return this.eras.filter((e) => eraIds.has(e.era_id));
   }
 
   nodeHasHistory(nodeId: string, graphData: AtlasGraphData): boolean {
@@ -282,61 +179,9 @@ export class AtlasDataAdapter {
   }
 
   private resolveEra(year: number): HistoricalEra {
-    for (const era of PRESET_ERAS) {
+    for (const era of this.eras) {
       if (year >= era.time_start && year <= era.time_end) return era;
     }
-
-    return PRESET_ERAS[0];
+    return this.eras[0] ?? { era_id: 'unknown', era_label: '', era_order: 0, time_start: year, time_end: year };
   }
 }
-
-const PRESET_ERAS: HistoricalEra[] = [
-  {
-    era_id: 'pre_revelation',
-    era_label: 'Pre-Revelation',
-    era_order: 1,
-    time_start: -3000,
-    time_end: 609,
-    color: '#7a8fa8',
-  },
-  {
-    era_id: 'prophetic',
-    era_label: 'Prophetic Era',
-    era_order: 2,
-    time_start: 610,
-    time_end: 632,
-    color: '#c9a84c',
-  },
-  {
-    era_id: 'early_caliphate',
-    era_label: 'Early Caliphate',
-    era_order: 3,
-    time_start: 632,
-    time_end: 750,
-    color: '#9ab87a',
-  },
-  {
-    era_id: 'classical',
-    era_label: 'Classical Period',
-    era_order: 4,
-    time_start: 750,
-    time_end: 1258,
-    color: '#7aadcc',
-  },
-  {
-    era_id: 'post_mongol',
-    era_label: 'Post-Mongol',
-    era_order: 5,
-    time_start: 1258,
-    time_end: 1800,
-    color: '#b09060',
-  },
-  {
-    era_id: 'modern',
-    era_label: 'Modern',
-    era_order: 6,
-    time_start: 1800,
-    time_end: 2100,
-    color: '#8888cc',
-  },
-];

@@ -64,14 +64,14 @@
       <div class="rv-tier">
         <div class="rv-tier__head">
           <lucide-icon [name]="safeIcon(t.icon, 'layers')" [size]="15"></lucide-icon>
-          <span class="rv-tier__name" dir="rtl" style="font-family:'AmiriQuran','UthmanicHafs',serif">{{ tierName(t) }}</span>
+          <span lang="ar" class="rv-tier__name" dir="rtl" style="font-family:var(--km-font-arabic-ui)">{{ tierName(t) }}</span>
           @if (tierGloss(t); as tg) { <span class="rv-tier__gloss">{{ tg }}</span> }
         </div>
         @for (g of t.groups; track g.key) {
           <div class="rv-famgroup">
             <div class="rv-famgroup__head">
               <lucide-icon [name]="safeIcon(g.icon, 'git-fork')" [size]="14"></lucide-icon>
-              <span class="rv-famgroup__name" dir="rtl" style="font-family:'AmiriQuran','UthmanicHafs',serif">{{ familyName(g) }}</span>
+              <span lang="ar" class="rv-famgroup__name" dir="rtl" style="font-family:var(--km-font-arabic-ui)">{{ familyName(g) }}</span>
               @if (familyGloss(g); as gloss) { <span class="rv-famgroup__gloss">{{ gloss }}</span> }
               <span class="rv-famgroup__count">{{ g.lemmas.length }}</span>
             </div>
@@ -87,7 +87,7 @@
 
     @if (d.senses?.length) {
       <h2 class="rv-section"><lucide-icon [name]="sectionIcon('senses')" [size]="15"></lucide-icon>Senses</h2>
-      <ul class="rv-senses" dir="rtl">
+      <ul lang="ar" class="rv-senses" dir="rtl">
         @for (s of d.senses; track s) { <li>{{ s }}</li> }
       </ul>
     }

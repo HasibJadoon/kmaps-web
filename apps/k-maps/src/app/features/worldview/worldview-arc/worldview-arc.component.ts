@@ -6,7 +6,7 @@ import {
 import { Router } from '@angular/router';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { environment } from '../../../../environments/environment';
+import { WorldviewApiService } from '../../../shared/services/worldview/worldview-api.service';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -46,6 +46,7 @@ const CENTURY_HUES = [
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorldviewArcComponent implements OnInit, AfterViewInit, OnDestroy {
+  private readonly wv = inject(WorldviewApiService);
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -110,17 +111,12 @@ export class WorldviewArcComponent implements OnInit, AfterViewInit, OnDestroy {
   private async load(): Promise<void> {
     this.loading.set(true);
     try {
-      const res = await fetch(`${environment.apiBase}/wv/timeline`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = await res.json() as {
-        ok: boolean;
-        data: {
-          events: ArcEvent[];
-          span: { from: number; to: number } | null;
-          facets: { eventTypes: { key: string; count: number }[] };
-          undated: number;
-        };
-      };
+      const body = { data: await this.wv.timeline<{
+        events: ArcEvent[];
+        span: { from: number; to: number } | null;
+        facets: { eventTypes: { key: string; count: number }[] };
+        undated: number;
+      }>() };
 
       const centuries: number[] = [];
       for (const e of body.data.events) {

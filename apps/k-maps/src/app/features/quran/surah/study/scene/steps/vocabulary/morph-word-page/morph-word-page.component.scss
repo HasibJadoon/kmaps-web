@@ -1,3 +1,6 @@
+// Button reset (zero specificity) so the element's own class rules below still apply.
+:where(button.mw-title__root) { appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: inherit; cursor: pointer; }
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Morph Display Layer — the full-page word study.
 // Header + TOC rail (register filter · Core/Temporal) + main reader
@@ -21,23 +24,23 @@
   --indigo2: #b3a6f6;
   --sky:   #93b8d6;
   --red:   #e0645f;
-  --serif: 'Cormorant Garamond', 'Amiri', Georgia, serif;
+  --serif: 'Cormorant Garamond', var(--km-font-arabic-ui);
   --edge:  var(--km-border, rgba(255,255,255,.08));
   --edge2: rgba(255,255,255,.05);
   --head:  var(--km-font-heading, 'Cinzel', Georgia, serif);
   // AmiriQuran + UthmanicHafs are the only bundled Arabic faces; both carry the
   // ornate Qurʾān parentheses ﴿ ﴾ (U+FD3E/FD3F). Do NOT fall back to unbundled
   // 'Scheherazade New'/'Amiri' — that drops to system serif and breaks the brackets.
-  --ar:    'AmiriQuran', 'UthmanicHafs', serif;
-  --quran: 'UthmanicHafs', 'AmiriQuran', serif;
+  --ar:    var(--km-font-arabic-ui);
+  --quran: var(--km-font-quran);
   // Urdu needs its own face: the Qurʾān fonts have no Urdu glyphs (ے ٹ ڈ ڑ ں…).
-  --ur:    'NotoNastaliqUrdu', 'AmiriQuran', serif;
+  --ur:    var(--km-font-urdu);
   --en:    var(--km-font-body, 'Poppins', system-ui, sans-serif);
   --mono:  ui-monospace, 'SF Mono', Menlo, monospace;
   display: block;
 }
-.ar { font-family: var(--ar); }
-.ur { font-family: var(--ur); line-height: 2.15; }
+.ar { font-family: var(--km-font-arabic-ui); }
+.ur { font-family: var(--km-font-urdu); line-height: 2.15; }
 
 .mw {
   display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
@@ -62,7 +65,7 @@
   flex: 1; display: flex; align-items: baseline; gap: 14px; justify-content: center; min-width: 0;
   &__word { font-family: var(--quran); font-size: 30px; font-weight: 700; color: var(--gold2); line-height: 1; }
   &__root {
-    font-family: var(--ar); font-size: 15px; letter-spacing: 6px; color: var(--muted);
+    font-family: var(--km-font-arabic-ui); font-size: 15px; letter-spacing: 6px; color: var(--muted);
     cursor: pointer; padding: 4px 9px; border-radius: 6px; border: 1px solid transparent;
     &:hover { border-color: var(--golddim); color: var(--gold2); }
   }

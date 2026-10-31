@@ -9,6 +9,7 @@ import {
 } from '../../../shared/services/al-dictionary-api.service';
 import { eraLabelAr } from '../data/lexicon-sources.service';
 
+import { PressableDirective } from '../../../shared/directives/pressable.directive';
 interface Book3D {
   kind:       'lexicon' | 'scholarship';
   slug:       string;
@@ -46,7 +47,7 @@ const NAV_DELAY = 1650;
 @Component({
   selector: 'km-lexicon-books',
   standalone: true,
-  imports: [RouterLink],
+  imports: [PressableDirective, RouterLink],
   templateUrl: './lexicon-books.component.html',
   styleUrl: './lexicon-books.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -1,8 +1,7 @@
 import { Component, ChangeDetectionStrategy, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../../environments/environment';
+import { ArabicApiService } from '../../../shared/services/arabic-api.service';
 
 interface ArabicFeature {
   icon: string;
@@ -34,8 +33,7 @@ interface AcqStats {
   styleUrl: './arabic-menu-card.component.scss',
 })
 export class ArabicMenuCardComponent implements OnInit {
-  private readonly http = inject(HttpClient);
-  private readonly apiBase = environment.apiBase;
+  private readonly ar = inject(ArabicApiService);
 
   /// `gated` marks a door that needs a session. Saying so on the tile is kinder
   /// than letting someone open an empty screen and conclude there is no data.
@@ -65,7 +63,7 @@ export class ArabicMenuCardComponent implements OnInit {
   readonly acq = signal<AcqStats | null>(null);
 
   ngOnInit(): void {
-    this.http.get<{ ok: boolean; data?: { stats: AcqStats } }>(`${this.apiBase}/ar/acq/stats`)
+    this.ar.get<{ ok: boolean; data?: { stats: AcqStats } }>(`ar/acq/stats`)
       .subscribe({
         next: (res) => this.acq.set(res?.data?.stats ?? null),
         error: () => this.acq.set(null),

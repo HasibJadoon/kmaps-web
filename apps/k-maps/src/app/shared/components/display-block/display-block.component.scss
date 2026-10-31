@@ -26,8 +26,8 @@
   --db-radius:           14px;
   --db-radius-sm:        8px;
   --db-pad:              18px;
-  --db-arabic-font:      "Amiri","Scheherazade New","Adobe Arabic","Lateef",serif;
-  --db-mushaf-font:      "KFGQPC Uthman Taha Naskh","Amiri Quran",serif;
+  --db-arabic-font:      var(--km-font-arabic-ui);
+  --db-mushaf-font:      var(--km-font-quran);
 }
 
 @media (prefers-color-scheme: dark) {

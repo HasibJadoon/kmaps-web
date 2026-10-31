@@ -1,4 +1,4 @@
-<div class="surah-card" (click)="open.emit(surah.surahNumber)">
+<div kmPressable class="surah-card" (click)="open.emit(surah.surahNumber)">
   <div class="surah-card__header">
     <div class="surah-number">{{ surah.surahNumber }}</div>
     <span class="type-badge" [class.type-badge--madani]="surah.revelationType === 'madani'">

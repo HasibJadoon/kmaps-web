@@ -19,7 +19,7 @@
   &__title {
     margin: 0.2rem 0 0.4rem;
     font-size: 2.6rem; line-height: 1.2; color: #f4e9cf;
-    font-family: 'UthmanicHafs', 'AmiriQuran', serif;
+    font-family: var(--km-font-quran);
   }
   &__core { margin: 0; font-size: 1.05rem; color: rgba(244, 233, 207, 0.8); max-width: 60ch; }
 }
@@ -144,7 +144,7 @@
   padding: 0.8rem 0.9rem; border-radius: 0.7rem;
   border: 1px solid rgba(232, 192, 96, 0.18); background: rgba(255,255,255,0.02);
   &--quran { border-color: rgba(232, 192, 96, 0.45); }
-  &__word { font-size: 1.55rem; color: #f4e9cf; font-family: 'UthmanicHafs', 'AmiriQuran', serif; }
+  &__word { font-size: 1.55rem; color: #f4e9cf; font-family: var(--km-font-quran); }
   &__pos { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: rgba(192, 132, 245, 0.8); justify-content: flex-end; }
 }
 
@@ -165,7 +165,7 @@
   }
   &__text {
     margin: 0; font-size: 1rem; line-height: 1.85; color: rgba(244, 233, 207, 0.82);
-    font-family: 'AmiriQuran', 'UthmanicHafs', serif;
+    font-family: var(--km-font-arabic-ui);
     // Lane and Sinai read left-to-right — the direction arrives in the data.
     &[dir='ltr'] {
       font-family: 'Poppins', system-ui, sans-serif;

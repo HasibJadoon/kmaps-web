@@ -58,7 +58,16 @@ export interface QrReaderPayload {
     hizb: number | null;
     ruku: number | null;
     translation: string | null;
+    /** Present when requested with ?words=1 — split by the QR worker. */
+    words?: QrReaderWord[];
   }>;
+}
+
+/** One word of an āyah as the reader shows it (QR worker, /qr/surahs/:id/reader?words=1). */
+export interface QrReaderWord {
+  text: string;
+  /** qr_word_occurrence index (1-based); null when the words don't line up with the rows. */
+  word_index: number | null;
 }
 
 export type QrPageLineKind = 'ayah' | 'surah_name' | 'basmallah';
@@ -428,17 +437,34 @@ export interface QrTafsirDisplayBlock {
   review_status: QrDisplayReviewStatus;
   extraction_method: string | null;
   meta: Record<string, unknown>;
+  /** Labels shaped by the QR worker (lib/display-labels.ts). */
+  block_type_label?: string | null;
+  block_type_label_ar?: string | null;
+  block_type_order?: number | null;
+  madhab_label?: string | null;
+  madhab_label_ar?: string | null;
+  era_label?: string | null;
+  era_label_ar?: string | null;
+  review_status_label?: string | null;
+  review_status_label_ar?: string | null;
 }
 
 export interface QrIraabDisplayBlock extends Omit<QrTafsirDisplayBlock,
   'block_type' | 'scholar_id' | 'work_id' | 'scholar_name_ar' | 'scholar_name_en' |
   'madhab' | 'era' | 'kalam_school' | 'death_year_hijri' | 'source_tafsir_entry_id' |
-  'theology_tags' | 'narration_tags' | 'scholar_refs'> {
+  'theology_tags' | 'narration_tags' | 'scholar_refs' |
+  'block_type_label' | 'block_type_label_ar' | 'block_type_order' |
+  'madhab_label' | 'madhab_label_ar' | 'era_label' | 'era_label_ar'> {
   block_type: QrIraabBlockType;
   source_chunk_id: string | null;
   source_entry_id: string | null;
   sarf_tags: string[];
   balagha_tags: string[];
+  /** The iʿrāb section a block belongs to, labelled by the QR worker. */
+  section_key?: string | null;
+  section_label?: string | null;
+  section_label_ar?: string | null;
+  section_order?: number | null;
 }
 
 export interface QrTafsirGroupDisplayPayload {

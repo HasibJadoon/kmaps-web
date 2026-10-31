@@ -1,6 +1,8 @@
 import {
-  ChangeDetectionStrategy, Component, ElementRef, OnInit, ViewChild, computed, inject, signal,
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, OnInit, ViewChild, computed, inject, signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { LatestRequest } from '../../../../../../../../shared/utils/latest-request';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   QuranSurahService, MorphWordView, MorphBlockVm, MorphContextVm,
@@ -12,11 +14,6 @@ import { MorphTocRailComponent, TocItem, RegOption } from '../parts/morph-toc-ra
 import { MorphContextSwitcherComponent } from '../parts/morph-context-switcher/morph-context-switcher.component';
 import { provideMorphIcons } from '../morph-icons';
 
-const REG_LABELS: Record<string, string> = {
-  quran: 'Qurʾān', classical: 'Classical', msa: 'MSA',
-  linguistic: 'Linguistic', modern: 'Modern', tafsir: 'Tafsīr',
-};
-const REG_ORDER = ['quran', 'classical', 'msa', 'linguistic', 'modern', 'tafsir'];
 
 @Component({
   selector: 'km-morph-word-page',
@@ -31,6 +28,8 @@ export class MorphWordPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly svc = inject(QuranSurahService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly latest = new LatestRequest(this.destroyRef);
 
   @ViewChild('mwMain') private mwMain?: ElementRef<HTMLElement>;
   readonly view = signal<MorphWordView | null>(null);
@@ -61,14 +60,11 @@ export class MorphWordPageComponent implements OnInit {
     return (b.registers && b.registers.length) ? b.registers : (b.register ? [b.register] : []);
   }
 
+  /** Register chips come labelled and ordered from the QR worker (register_options). */
   readonly regOptions = computed<RegOption[]>(() => {
     const v = this.view();
-    const present = new Set<string>(v?.registers_available ?? []);
-    if (!present.size) {
-      for (const b of v?.blocks ?? []) for (const r of this.regsOf(b)) present.add(r);
-    }
-    const sorted = [...present].sort((a, b) => REG_ORDER.indexOf(a) - REG_ORDER.indexOf(b));
-    return [{ key: 'all', label: 'All' }, ...sorted.map(r => ({ key: r, label: REG_LABELS[r] ?? r }))];
+    const opts = v?.register_options ?? (v?.registers_available ?? []).map(key => ({ key, label: key }));
+    return [{ key: 'all', label: 'All' }, ...opts];
   });
 
   private regOk(b: MorphBlockVm): boolean {
@@ -120,7 +116,7 @@ export class MorphWordPageComponent implements OnInit {
     this.surahId = Number(this.route.snapshot.paramMap.get('surahId')) || 0;
     this.fromGrid = !this.route.snapshot.paramMap.has('passageNo');
     this.passageNo = Number(this.route.snapshot.paramMap.get('passageNo')) || 1;
-    this.route.paramMap.subscribe(pm => {
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(pm => {
       const a = Number(pm.get('ayah')) || 0, w = Number(pm.get('wordIndex')) || 0;
       if (a && w) this.load(a, w);
     });
@@ -128,7 +124,7 @@ export class MorphWordPageComponent implements OnInit {
 
   private load(ayah: number, wordIndex: number): void {
     this.loading.set(true); this.error.set(false); this.reg.set('all'); this.ctxKey.set('');
-    this.svc.getMorphWord(this.surahId, ayah, wordIndex).subscribe({
+    this.latest.run('word', this.svc.getMorphWord(this.surahId, ayah, wordIndex), {
       next: v => { this.view.set(v); this.loading.set(false); this.scrollTop(); },
       error: () => { this.error.set(true); this.loading.set(false); },
     });

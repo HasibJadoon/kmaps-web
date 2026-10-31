@@ -1,8 +1,7 @@
 import { Component, OnInit, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../../environments/environment';
+import { ArabicApiService } from '../../../shared/services/arabic-api.service';
 import type { Work } from '../arabic-read/arabic-read.component';
 
 interface Envelope<T> { ok: boolean; data?: T; }
@@ -20,8 +19,7 @@ interface Envelope<T> { ok: boolean; data?: T; }
 })
 export class ArabicTimelineComponent implements OnInit {
   private router = inject(Router);
-  private http = inject(HttpClient);
-  private base = environment.apiBase;
+  private readonly ar = inject(ArabicApiService);
 
   readonly loading = signal(true);
   readonly works = signal<Work[]>([]);
@@ -58,7 +56,7 @@ export class ArabicTimelineComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.http.get<Envelope<{ shelf: Work[] }>>(`${this.base}/ar/text/shelf`).subscribe({
+    this.ar.get<Envelope<{ shelf: Work[] }>>(`ar/text/shelf`).subscribe({
       next: (r) => { this.works.set(r?.data?.shelf ?? []); this.loading.set(false); },
       error: () => this.loading.set(false),
     });

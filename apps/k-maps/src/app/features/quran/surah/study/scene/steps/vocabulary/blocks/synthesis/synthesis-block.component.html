@@ -14,7 +14,7 @@
             <b class="synweave__concept" [class.ur]="o.isUr" [innerHTML]="rich(o.concept)"></b>
           </div>
         }
-        <div class="synweave__center"><span class="ar">{{ sw.center }}</span></div>
+        <div class="synweave__center"><span lang="ar" class="ar">{{ sw.center }}</span></div>
         @if (sw.output) {
           <div class="synweave__produces">
             <span class="synweave__plabel">produces</span>
@@ -28,15 +28,15 @@
         <div class="synstrand" [style.--c]="s.accent">
           <div class="synstrand__head">
             <span class="synstrand__icon" [style.color]="s.accent"><lucide-icon [name]="icon(s.icon, 'waypoints')" [size]="16"></lucide-icon></span>
-            <span class="synstrand__badge ar">{{ s.badge }}</span>
-            <span class="synstrand__src ar" dir="rtl">{{ s.source }}</span>
+            <span lang="ar" class="synstrand__badge ar">{{ s.badge }}</span>
+            <span lang="ar" class="synstrand__src ar" dir="rtl">{{ s.source }}</span>
           </div>
-          @if (showAr(s.ar, s.en, s.ur)) { <div class="synstrand__ar ar" dir="rtl">{{ s.ar }}</div> }
+          @if (showAr(s.ar, s.en, s.ur)) { <div lang="ar" class="synstrand__ar ar" dir="rtl">{{ s.ar }}</div> }
           @if (showEn(s.ar, s.en, s.ur)) { <p class="synstrand__en" dir="ltr">{{ s.en }}</p> }
-          @if (showUr(s.ar, s.en, s.ur)) { <p class="synstrand__en ur" dir="rtl">{{ s.ur }}</p> }
+          @if (showUr(s.ar, s.en, s.ur)) { <p lang="ur" class="synstrand__en ur" dir="rtl">{{ s.ur }}</p> }
         </div>
       }
     </div>
-    @if (showTextAr()) { <p class="say synout ar" dir="rtl" [innerHTML]="richTextAr()"></p> }
+    @if (showTextAr()) { <p lang="ar" class="say synout ar" dir="rtl" [innerHTML]="richTextAr()"></p> }
     @if (showTextEn()) { <p class="say synout" dir="ltr" [innerHTML]="richTextEn()"></p> }
-    @if (showTextUr()) { <p class="say synout ur" dir="rtl" [innerHTML]="richTextUr()"></p> }
+    @if (showTextUr()) { <p lang="ur" class="say synout ur" dir="rtl" [innerHTML]="richTextUr()"></p> }

@@ -28,7 +28,7 @@
             <span class="ar-word">{{ word }}</span>
           }
         }
-        <span class="verse-marker" [attr.aria-label]="'Verse ' + ayah.ayah">{{ verseMark(ayah.ayah) }}</span>
+        <span class="verse-marker" [attr.aria-label]="'Verse ' + ayah.ayah">{{ ayah.ayah | arDigits }}</span>
       }
     </div>
   } @else {

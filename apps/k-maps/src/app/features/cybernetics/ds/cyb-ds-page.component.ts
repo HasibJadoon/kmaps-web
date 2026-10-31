@@ -1,4 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs';
+import { LatestRequest } from '../../../shared/utils/latest-request';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { BackendApiService } from '../../../shared/services/backend-api.service';
 import { CybDsSpecComponent } from './cyb-ds-spec.component';
@@ -64,10 +67,14 @@ export class CybDsPageComponent {
   readonly form = signal<DsForm>('desktop');
   readonly spec = signal<DisplaySpec | null>(null);
   readonly error = signal<string | null>(null);
-  readonly root = computed(() => this.route.snapshot.paramMap.get('root') ?? '');
+  private readonly latest = new LatestRequest(inject(DestroyRef));
+  private readonly rootParam = toSignal(this.route.paramMap.pipe(map((pm) => pm.get('root') ?? '')), {
+    initialValue: this.route.snapshot.paramMap.get('root') ?? '',
+  });
+  readonly root = computed(() => this.rootParam());
 
   constructor() {
-    this.route.paramMap.subscribe(() => this.load());
+    this.route.paramMap.pipe(takeUntilDestroyed()).subscribe(() => this.load());
   }
 
   setForm(f: DsForm) {
@@ -81,9 +88,8 @@ export class CybDsPageComponent {
     if (!root) return;
     this.spec.set(null);
     this.error.set(null);
-    this.api
-      .getData<DisplaySpec>('core', ['ds', 'root', root], { params: { form: this.form() } })
-      .subscribe({
+    this.latest.run('spec', this.api
+      .getData<DisplaySpec>('core', ['ds', 'root', root], { params: { form: this.form() } }), {
 
         next: (s) => this.spec.set(normaliseSpec(s)),
 

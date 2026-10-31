@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { authGuard } from '../../core/auth/auth.guard';
 
 export const ARABIC_ROUTES: Routes = [
   {
@@ -14,6 +15,7 @@ export const ARABIC_ROUTES: Routes = [
       },
       {
         path: 'library',
+        canActivate: [authGuard],
         loadComponent: () =>
           import('./arabic-library/arabic-library.component').then(
             (m) => m.ArabicLibraryComponent,
@@ -22,6 +24,7 @@ export const ARABIC_ROUTES: Routes = [
       },
       {
         path: 'library/:id',
+        canActivate: [authGuard],
         loadComponent: () =>
           import('./arabic-library-units/arabic-library-units.component').then(
             (m) => m.ArabicLibraryUnitsComponent,
@@ -38,6 +41,7 @@ export const ARABIC_ROUTES: Routes = [
       },
       {
         path: 'domains',
+        canActivate: [authGuard],
         loadComponent: () =>
           import('./arabic-domains/arabic-domains.component').then(
             (m) => m.ArabicDomainsComponent,
@@ -89,6 +93,7 @@ export const ARABIC_ROUTES: Routes = [
       },
       {
         path: 'intake',
+        canActivate: [authGuard],
         loadComponent: () =>
           import('./arabic-intake/arabic-intake.component').then((m) => m.ArabicIntakeComponent),
         title: 'Intake — Arabic',
@@ -101,6 +106,7 @@ export const ARABIC_ROUTES: Routes = [
       },
       {
         path: 'review',
+        canActivate: [authGuard],
         loadComponent: () =>
           import('./arabic-review/arabic-review.component').then(
             (m) => m.ArabicReviewComponent,
@@ -110,6 +116,8 @@ export const ARABIC_ROUTES: Routes = [
 
       {
         path: 'books/:containerId/chapter/:unitId',
+
+        canActivate: [authGuard],
         loadComponent: () =>
           import('./unit-study/arabic-unit-study.component').then((m) => m.ArabicUnitStudyComponent),
         title: 'Chapter — Arabic',
@@ -117,6 +125,8 @@ export const ARABIC_ROUTES: Routes = [
 
       {
         path: 'media/:containerId/episode/:unitId',
+
+        canActivate: [authGuard],
         loadComponent: () =>
           import('./unit-study/arabic-unit-study.component').then((m) => m.ArabicUnitStudyComponent),
         title: 'Episode — Arabic',
@@ -124,6 +134,8 @@ export const ARABIC_ROUTES: Routes = [
 
       {
         path: 'literature/:containerId/section/:unitId',
+
+        canActivate: [authGuard],
         loadComponent: () =>
           import('./unit-study/arabic-unit-study.component').then((m) => m.ArabicUnitStudyComponent),
         title: 'Section — Arabic',
@@ -131,6 +143,8 @@ export const ARABIC_ROUTES: Routes = [
 
       {
         path: 'reaction/:unitId',
+
+        canActivate: [authGuard],
         loadComponent: () =>
           import('../arabic-reaction/reaction-screen.component').then(
             (m) => m.ReactionScreenComponent,

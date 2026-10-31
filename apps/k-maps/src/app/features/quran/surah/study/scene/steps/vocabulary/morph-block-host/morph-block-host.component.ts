@@ -7,6 +7,7 @@ import { MorphBlockBody } from '../morph-block.types';
 import { MORPH_BLOCK_REGISTRY } from '../morph-block.registry';
 import { safeMorphIcon } from '../morph-icons';
 
+import { PressableDirective } from '../../../../../../../../shared/directives/pressable.directive';
 interface RegChip { label: string; cls: string; }
 const REG_CHIP: Record<string, RegChip> = {
   linguistic: { label: 'Linguistic', cls: 'reg-ling' },
@@ -20,7 +21,7 @@ const REG_CHIP: Record<string, RegChip> = {
 @Component({
   selector: 'km-morph-block-host',
   standalone: true,
-  imports: [NgComponentOutlet, LucideAngularModule],
+  imports: [PressableDirective, NgComponentOutlet, LucideAngularModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './morph-block-host.component.html',
   styleUrl: './morph-block-host.component.scss',

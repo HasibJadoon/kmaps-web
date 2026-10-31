@@ -37,7 +37,7 @@
     @if (shape() === 'diwan') {
       <div class="rr__poembar">
         <span class="rr__poembar-n">
-          {{ arabicNum(baytCount(pages()[0]!)) }} bayt on this page
+          {{ (baytCount(pages()[0]!) | arDigits) }} bayt on this page
         </span>
         <button class="rr__chip" [class.rr__chip--on]="showSharh()" (click)="toggleSharh()">
           شرح · commentary
@@ -67,7 +67,7 @@
                 @for (l of p.lines; track l.seg.seq) {
                   <span class="rr__line" [attr.data-state]="lineState(l.i)" (dblclick)="seekTo(l.seg.start + 0.02)">
                     @for (w of words(l.seg.text); track $index; let wi = $index) {
-                      <span class="rr__w rr__sw" [attr.data-w]="wordState(l.i, wi)"
+                      <span kmPressable class="rr__w rr__sw" [attr.data-w]="wordState(l.i, wi)"
                             [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                     }<button class="rr__pen" [class.rr__pen--has]="noteOn(l.i)" title="note" (click)="openNote(l.i)">✎</button>
                   </span>
@@ -77,7 +77,7 @@
           </div>
           @if (notes().length) {
             <aside class="rr__notes" dir="rtl" lang="ar">
-              <h4>ملاحظاتي · {{ arabicNum(notes().length) }}</h4>
+              <h4>ملاحظاتي · {{ (notes().length | arDigits) }}</h4>
               @for (n of notes(); track n.text) {
                 <button class="rr__note" (click)="n.t !== undefined ? seekTo(n.t) : null">
                   <span class="rr__note-line">{{ n.text }}</span>
@@ -101,7 +101,7 @@
                   @for (half of hemistichs(line); track $index) {
                     <span class="rr__half">
                       @for (w of words(half); track $index) {
-                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
+                        <span kmPressable class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                       }
                     </span>
                   }
@@ -109,7 +109,7 @@
               } @else if (showSharh()) {
                 <p class="rr__sharh">
                   @for (w of words(line); track $index) {
-                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
+                    <span kmPressable class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                   }
                 </p>
               }
@@ -123,11 +123,11 @@
             @for (line of lines(p); track $index) {
               @if (kind(line) === 'verse') {
                 <div class="rr__bayt">
-                  @if (baytNo(line)) { <span class="rr__bayt-no">{{ arabicNum(baytNo(line)) }}</span> }
+                  @if (baytNo(line)) { <span class="rr__bayt-no">{{ (baytNo(line) | arDigits) }}</span> }
                   @for (half of hemistichs(line); track $index) {
                     <span class="rr__half">
                       @for (w of words(half); track $index) {
-                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
+                        <span kmPressable class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                       }
                     </span>
                   }
@@ -135,7 +135,7 @@
               } @else {
                 <p class="rr__mathal">
                   @for (w of words(line); track $index) {
-                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
+                    <span kmPressable class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                   }
                 </p>
               }
@@ -149,11 +149,11 @@
             @for (b of blocks(p); track $index) {
               @if (b.kind === 'verse') {
                 <div class="rr__bayt">
-                  @if (baytNo(b.text)) { <span class="rr__bayt-no">{{ arabicNum(baytNo(b.text)) }}</span> }
+                  @if (baytNo(b.text)) { <span class="rr__bayt-no">{{ (baytNo(b.text) | arDigits) }}</span> }
                   @for (half of hemistichs(b.text); track $index) {
                     <span class="rr__half">
                       @for (w of words(half); track $index) {
-                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
+                        <span kmPressable class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                       }
                     </span>
                   }
@@ -161,7 +161,7 @@
               } @else {
                 <p>
                   @for (w of words(b.text); track $index) {
-                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
+                    <span kmPressable class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                   }
                 </p>
               }
@@ -179,7 +179,7 @@
                   @for (half of hemistichs(b.text); track $index) {
                     <span class="rr__half">
                       @for (w of words(half); track $index) {
-                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
+                        <span kmPressable class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                       }
                     </span>
                   }
@@ -189,14 +189,14 @@
                   <span class="rr__who">{{ who }}</span>
                   <p class="rr__said">
                     @for (w of words(said(b.text)); track $index) {
-                      <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
+                      <span kmPressable class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                     }
                   </p>
                 </div>
               } @else {
                 <p class="rr__said">
                   @for (w of words(b.text); track $index) {
-                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
+                    <span kmPressable class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                   }
                 </p>
               }
@@ -209,11 +209,11 @@
             @for (b of blocks(p); track $index) {
               @if (b.kind === 'verse') {
                 <div class="rr__bayt">
-                  @if (baytNo(b.text)) { <span class="rr__bayt-no">{{ arabicNum(baytNo(b.text)) }}</span> }
+                  @if (baytNo(b.text)) { <span class="rr__bayt-no">{{ (baytNo(b.text) | arDigits) }}</span> }
                   @for (half of hemistichs(b.text); track $index) {
                     <span class="rr__half">
                       @for (w of words(half); track $index) {
-                        <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
+                        <span kmPressable class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                       }
                     </span>
                   }
@@ -221,7 +221,7 @@
               } @else {
                 <p>
                   @for (w of words(b.text); track $index) {
-                    <span class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
+                    <span kmPressable class="rr__w" [class.rr__w--on]="picked() === w" (click)="tap(w)">{{ w }}&#32;</span>
                   }
                 </p>
               }
@@ -233,7 +233,7 @@
 
         <footer class="rr__folio" [attr.dir]="shape() === 'nights' ? 'rtl' : null">
           @if (shape() === 'nights') {
-            {{ p.page_no ? 'الليلة ' + arabicNum(p.page_no) : 'المقدمة' }}
+            {{ p.page_no ? 'الليلة ' + (p.page_no | arDigits) : 'المقدمة' }}
           } @else {
             {{ p.part_no ? 'ج' + p.part_no + ' · ' : '' }}{{ p.page_no ? 'ص' + p.page_no : 'seq ' + p.seq }}
           }
@@ -264,7 +264,7 @@
         <select class="rr__rate" [value]="rate()" (change)="onRate($event)">
           @for (r of rates; track r) { <option [value]="r">{{ r }}×</option> }
         </select>
-        @if (line() >= 0) { <span class="rr__lineno">{{ arabicNum(line() + 1) }} / {{ arabicNum(segments().length) }}</span> }
+        @if (line() >= 0) { <span class="rr__lineno">{{ (line() + 1 | arDigits) }} / {{ (segments().length | arDigits) }}</span> }
       </div>
     </div>
   }
@@ -273,7 +273,7 @@
   @if (noteFor() !== null) {
     <div class="rr__notedlg" dir="rtl" lang="ar">
       <p class="rr__note-line">{{ segments()[noteFor()!]?.text }}</p>
-      <small class="rr__note-t">{{ clock(segments()[noteFor()!]?.start ?? 0) }} · ص {{ arabicNum(seq()) }}</small>
+      <small class="rr__note-t">{{ clock(segments()[noteFor()!]?.start ?? 0) }} · ص {{ (seq() | arDigits) }}</small>
       <textarea [value]="noteText()" (input)="onNoteInput($event)" rows="4" placeholder="ملاحظة…"></textarea>
       <div class="rr__notebtns">
         <button (click)="noteFor.set(null)">إلغاء</button>
@@ -291,7 +291,7 @@
       @if (looking()) { <p class="rr__gloss-note">looking…</p> }
       @else if (lookup(); as l) {
         @if (l.found) {
-          <p class="rr__gloss-note">matched as <b dir="rtl">{{ l.matchedAs }}</b></p>
+          <p class="rr__gloss-note">matched as <b lang="ar" dir="rtl">{{ l.matchedAs }}</b></p>
           @for (lm of l.lemmas.slice(0, 4); track lm.id) {
             <div class="rr__lemma">
               <span class="rr__lemma-ar" dir="rtl" lang="ar">{{ lm.lemma_ar }}</span>
@@ -303,7 +303,7 @@
           }
         } @else {
           <p class="rr__gloss-note">
-            No root behind this one yet. Tried <b dir="rtl">{{ l.tried?.join('، ') }}</b>.
+            No root behind this one yet. Tried <b lang="ar" dir="rtl">{{ l.tried?.join('، ') }}</b>.
           </p>
         }
       }

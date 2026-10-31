@@ -21,7 +21,7 @@
         <svg viewBox="0 0 24 24" width="18" height="18"><path d="M14 6 8 12 14 18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
       </button>
       <span class="reader__current">
-        @if (currentRoot()) { <span class="ar-display" dir="rtl">{{ currentRoot() }}</span> }
+        @if (currentRoot()) { <span lang="ar" class="ar-display" dir="rtl">{{ currentRoot() }}</span> }
       </span>
       <button class="ctrl" (click)="nextRoot()" title="Next root">
         <svg viewBox="0 0 24 24" width="18" height="18"><path d="M10 6 16 12 10 18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
@@ -71,7 +71,7 @@
         <km-book-strip [root]="currentRoot()" [currentBook]="slug()" />
 
         <header class="entry-head">
-          <h2 class="entry-head__title" dir="rtl">{{ v.notes[0]?.root_text || v.root_norm }}</h2>
+          <h2 lang="ar" class="entry-head__title" dir="rtl">{{ v.notes[0]?.root_text || v.root_norm }}</h2>
           @if (v.source) {
             <div class="entry-head__meta">
               <span>{{ v.source.author }}</span>
@@ -110,7 +110,7 @@
 
               @if (n.title_ar || n.title_en) {
                 <h3 class="note__title">
-                  @if (n.title_ar) { <span dir="rtl">{{ n.title_ar }}</span> }
+                  @if (n.title_ar) { <span lang="ar" dir="rtl">{{ n.title_ar }}</span> }
                   @if (n.title_en) { <span dir="ltr" class="note__title-en">{{ n.title_en }}</span> }
                 </h3>
               }
@@ -161,7 +161,7 @@
               <li>
                 <button class="rail__root" [class.active]="r.root_norm === currentRoot()"
                         (click)="goToRoot(r.root_norm)">
-                  <span class="rail__root-ar" dir="rtl">{{ r.root_text || r.root_norm }}</span>
+                  <span lang="ar" class="rail__root-ar" dir="rtl">{{ r.root_text || r.root_norm }}</span>
                   @if (r.page_no) {
                     <span class="rail__root-page">p. {{ r.page_no }}</span>
                   }
@@ -187,7 +187,7 @@
             <dl class="meta-list">
               <div class="meta-list__row">
                 <dt>العنوان</dt>
-                <dd><span dir="rtl">{{ s.title_ar }}</span></dd>
+                <dd><span lang="ar" dir="rtl">{{ s.title_ar }}</span></dd>
               </div>
               <div class="meta-list__row">
                 <dt>Title</dt>

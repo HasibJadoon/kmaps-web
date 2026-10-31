@@ -38,14 +38,14 @@
       @for (item of content.vocab; track item.id) {
         <div class="vp__vocab-card">
           <div class="vp__vocab-top">
-            <span class="vp__vocab-word" dir="rtl">{{ item.word }}</span>
+            <span lang="ar" class="vp__vocab-word" dir="rtl">{{ item.word }}</span>
             @if (item.root) {
-              <span class="vp__vocab-root" dir="rtl">{{ item.root }}</span>
+              <span lang="ar" class="vp__vocab-root" dir="rtl">{{ item.root }}</span>
             }
           </div>
           <div class="vp__vocab-meaning">{{ item.meaning }}</div>
           @if (item.example) {
-            <div class="vp__vocab-example" dir="rtl">{{ item.example }}</div>
+            <div lang="ar" class="vp__vocab-example" dir="rtl">{{ item.example }}</div>
           }
         </div>
       }
@@ -58,7 +58,7 @@
       }
       @for (item of content.idioms; track item.id) {
         <div class="vp__idiom-card">
-          <div class="vp__idiom-phrase" dir="rtl">{{ item.phrase }}</div>
+          <div lang="ar" class="vp__idiom-phrase" dir="rtl">{{ item.phrase }}</div>
           <div class="vp__idiom-meaning">{{ item.meaning }}</div>
           @if (item.context) {
             <span class="vp__idiom-ctx">{{ item.context }}</span>
@@ -74,7 +74,7 @@
       }
       @for (item of content.sentences; track item.id) {
         <div class="vp__sentence-card">
-          <div class="vp__sentence-ar" dir="rtl">{{ item.text }}</div>
+          <div lang="ar" class="vp__sentence-ar" dir="rtl">{{ item.text }}</div>
           <div class="vp__sentence-en">{{ item.translation }}</div>
           @if (item.note) {
             <div class="vp__sentence-note">📌 {{ item.note }}</div>

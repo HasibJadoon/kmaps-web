@@ -1,4 +1,4 @@
-<section class="lib" dir="rtl">
+<section lang="ar" class="lib" dir="rtl">
 
   <a class="lib__back" [routerLink]="['/lexicon']">
     <span class="lib__back-chevron">‹</span><span>الرجوع</span>
@@ -22,7 +22,7 @@
     <div class="lib__grid">
       @for (b of books(); track b.slug) {
         <div class="perspab">
-          <div class="book"
+          <div kmPressable class="book"
                [style.--thick]="b.thick + 'px'"
                [style.--accent]="b.accent"
                [style.--accent-deep]="b.accentDeep"
@@ -73,7 +73,7 @@
 
 <!-- Opened-book overlay: cover swings on the spine hinge, then routes in ── -->
 @if (sel(); as s) {
-  <div class="modal" dir="rtl" (click)="closeBook()"
+  <div lang="ar" class="modal" dir="rtl" (click)="closeBook()"
        [style.background]="'rgba(5,5,5,' + backdrop() + ')'">
 
     <button class="modal__close" (click)="closeBook()">

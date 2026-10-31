@@ -12,7 +12,7 @@
         role="tab" [attr.aria-selected]="i === activeIdx()"
         (click)="selectSentence(i)">
         <span class="ssm-reel__ayah">{{ s.ayah }}{{ s.ayahTo !== s.ayah ? '–' + s.ayahTo : '' }}</span>
-        <span class="ssm-reel__kind" dir="rtl">{{ kindLabel(s.kind) }}</span>
+        <span lang="ar" class="ssm-reel__kind" dir="rtl">{{ kindLabel(s.kind) }}</span>
       </button>
     }
   </div>
@@ -44,18 +44,18 @@
         </svg>
 
         @for (p of placedNodes(); track p.node.id) {
-          <div class="ssm-node" [class]="'ssm-node--' + p.node.kind"
+          <div kmPressable class="ssm-node" [class]="'ssm-node--' + p.node.kind"
                [class.is-selected]="selected()?.id === p.node.id"
                [style.left.px]="p.x" [style.top.px]="p.y"
                [style.borderColor]="p.node.color"
                (click)="pick(p.node)">
             <span class="ssm-node__accent" [style.background]="p.node.color"></span>
-            <span class="ssm-node__title" dir="rtl">{{ p.node.title }}</span>
+            <span lang="ar" class="ssm-node__title" dir="rtl">{{ p.node.title }}</span>
             @if (p.node.subtitle) {
-              <span class="ssm-node__sub" dir="rtl" [style.color]="p.node.color">{{ p.node.subtitle }}</span>
+              <span lang="ar" class="ssm-node__sub" dir="rtl" [style.color]="p.node.color">{{ p.node.subtitle }}</span>
             }
             @if (p.node.chip) {
-              <span class="ssm-node__chip" dir="rtl">{{ p.node.chip }}</span>
+              <span lang="ar" class="ssm-node__chip" dir="rtl">{{ p.node.chip }}</span>
             }
           </div>
         }
@@ -74,38 +74,38 @@
           </header>
 
           @if (sel.kind === 'word' && sel.word; as w) {
-            <h4 class="ssm-word" dir="rtl">{{ w.text }}</h4>
+            <h4 lang="ar" class="ssm-word" dir="rtl">{{ w.text }}</h4>
             <div class="ssm-word__meta">
-              @if (w.role) { <span class="ssm-pill" [style.borderColor]="termColor(w.role)" dir="rtl">{{ w.role }}</span> }
+              @if (w.role) { <span lang="ar" class="ssm-pill" [style.borderColor]="termColor(w.role)" dir="rtl">{{ w.role }}</span> }
               @if (w.pos)  { <span class="ssm-pill ssm-pill--ghost">{{ w.pos }}</span> }
-              @if (w.lemma) { <span class="ssm-pill ssm-pill--ghost" dir="rtl">{{ w.lemma }}</span> }
+              @if (w.lemma) { <span lang="ar" class="ssm-pill ssm-pill--ghost" dir="rtl">{{ w.lemma }}</span> }
             </div>
             @if (w.root) {
               <button class="ssm-lex" (click)="emitLexicon(w)">
-                Open lexicon · <span dir="rtl">{{ w.root }}</span>
+                Open lexicon · <span lang="ar" dir="rtl">{{ w.root }}</span>
               </button>
             }
             <p class="ssm-label">Grammarian iʿrāb · {{ w.irab.length }} book{{ w.irab.length === 1 ? '' : 's' }}</p>
             @for (ib of w.irab; track $index) {
               <div class="ssm-irab">
                 <div class="ssm-irab__head">
-                  <span class="ssm-irab__book" dir="rtl">{{ ib.book }}</span>
-                  @if (ib.role) { <span class="ssm-irab__role" dir="rtl">{{ ib.role }}</span> }
+                  <span lang="ar" class="ssm-irab__book" dir="rtl">{{ ib.book }}</span>
+                  @if (ib.role) { <span lang="ar" class="ssm-irab__role" dir="rtl">{{ ib.role }}</span> }
                 </div>
-                @if (ib.text) { <p class="ssm-irab__text" dir="rtl">{{ ib.text }}</p> }
+                @if (ib.text) { <p lang="ar" class="ssm-irab__text" dir="rtl">{{ ib.text }}</p> }
               </div>
             }
             @if (w.irab.length === 0) { <p class="ssm-muted">No book iʿrāb linked to this word.</p> }
           }
 
           @if (sel.kind === 'clause' && sel.clause; as c) {
-            <h4 class="ssm-word" dir="rtl">{{ c.particle || c.function || c.type }}</h4>
+            <h4 lang="ar" class="ssm-word" dir="rtl">{{ c.particle || c.function || c.type }}</h4>
             <div class="ssm-word__meta">
               @if (c.type)     { <span class="ssm-pill ssm-pill--ghost">{{ c.type }}</span> }
               @if (c.function) { <span class="ssm-pill ssm-pill--ghost">{{ c.function }}</span> }
-              @if (c.particle) { <span class="ssm-pill" dir="rtl">{{ c.particle }}</span> }
+              @if (c.particle) { <span lang="ar" class="ssm-pill" dir="rtl">{{ c.particle }}</span> }
             </div>
-            @if (c.note) { <p class="ssm-irab__text" dir="rtl">{{ c.note }}</p> }
+            @if (c.note) { <p lang="ar" class="ssm-irab__text" dir="rtl">{{ c.note }}</p> }
           }
 
           @if (sel.kind === 'sentence') {
@@ -119,11 +119,11 @@
         <section class="ssm-card">
           <p class="ssm-eyebrow">Synthesis · ayah {{ s.ayah }}{{ s.ayahTo !== s.ayah ? '–' + s.ayahTo : '' }}</p>
           <div class="ssm-word__meta">
-            <span class="ssm-pill" [style.borderColor]="'#c9a84c'" dir="rtl">{{ kindLabel(s.kind) }}</span>
+            <span lang="ar" class="ssm-pill" [style.borderColor]="'#c9a84c'" dir="rtl">{{ kindLabel(s.kind) }}</span>
             @if (s.mode) { <span class="ssm-pill ssm-pill--ghost">{{ s.mode }}</span> }
             @if (s.grounding) { <span class="ssm-pill ssm-pill--ghost">grounded · {{ s.grounding }}</span> }
           </div>
-          @if (s.note) { <p class="ssm-irab__text" dir="rtl">{{ s.note }}</p> }
+          @if (s.note) { <p lang="ar" class="ssm-irab__text" dir="rtl">{{ s.note }}</p> }
         </section>
 
         <!-- ── The layers, under the scope they are about ──────────────────
@@ -132,16 +132,16 @@
              and every entry in them belonged to one word, clause or phrase. -->
         @if (layersFor(s.id); as L) {
           <section class="ssm-card ssm-doc">
-            <p class="ssm-label" dir="rtl">ما قيل في الجملة</p>
+            <p lang="ar" class="ssm-label" dir="rtl">ما قيل في الجملة</p>
             @if (L.nahw?.length) {
               <div class="ssm-lay ssm-lay--nahw">
                 <span class="ssm-lay__tag">تفسير</span>
                 <div class="ssm-lay__body">
                   @for (n of L.nahw; track $index) {
                     <div class="ssm-lay__row">
-                      @if (n.gloss?.ar) { <p class="ssm-lay__ar" dir="rtl">{{ n.gloss?.ar }}</p> }
+                      @if (n.gloss?.ar) { <p lang="ar" class="ssm-lay__ar" dir="rtl">{{ n.gloss?.ar }}</p> }
                       @if (n.gloss?.en || n.note) { <p class="ssm-lay__en">{{ n.gloss?.en || n.note }}</p> }
-                      @if (termLabel(n.ref); as t) { <span class="ssm-chip ssm-chip--nahw" dir="rtl">{{ t }}</span> }
+                      @if (termLabel(n.ref); as t) { <span lang="ar" class="ssm-chip ssm-chip--nahw" dir="rtl">{{ t }}</span> }
                     </div>
                   }
                 </div>
@@ -153,9 +153,9 @@
                 <div class="ssm-lay__body">
                   @for (b of L.balagha; track $index) {
                     <div class="ssm-lay__row">
-                      @if (b.note) { <p class="ssm-lay__ar" dir="rtl">{{ b.note }}</p> }
-                      @if (b.category) { <span class="ssm-chip ssm-chip--bal" dir="rtl">{{ b.category }}</span> }
-                      @if (b.effect) { <span class="ssm-chip ssm-chip--bal" dir="rtl">{{ b.effect }}</span> }
+                      @if (b.note) { <p lang="ar" class="ssm-lay__ar" dir="rtl">{{ b.note }}</p> }
+                      @if (b.category) { <span lang="ar" class="ssm-chip ssm-chip--bal" dir="rtl">{{ b.category }}</span> }
+                      @if (b.effect) { <span lang="ar" class="ssm-chip ssm-chip--bal" dir="rtl">{{ b.effect }}</span> }
                     </div>
                   }
                 </div>
@@ -167,10 +167,10 @@
                 <div class="ssm-lay__body">
                   @for (i of L.irab; track $index) {
                     <div class="ssm-lay__row">
-                      @if (i.fn) { <span class="ssm-chip ssm-chip--sarf" dir="rtl">{{ i.fn }}</span> }
-                      @if (i.position) { <span class="ssm-chip ssm-chip--ghost" dir="rtl">{{ i.position }}</span> }
-                      @if (i.disputed) { <span class="ssm-chip ssm-chip--bal" dir="rtl">مختلف فيه</span> }
-                      @if (i.dispute) { <p class="ssm-lay__ar" dir="rtl">{{ i.dispute }}</p> }
+                      @if (i.fn) { <span lang="ar" class="ssm-chip ssm-chip--sarf" dir="rtl">{{ i.fn }}</span> }
+                      @if (i.position) { <span lang="ar" class="ssm-chip ssm-chip--ghost" dir="rtl">{{ i.position }}</span> }
+                      @if (i.disputed) { <span lang="ar" class="ssm-chip ssm-chip--bal" dir="rtl">مختلف فيه</span> }
+                      @if (i.dispute) { <p lang="ar" class="ssm-lay__ar" dir="rtl">{{ i.dispute }}</p> }
                     </div>
                   }
                 </div>
@@ -182,17 +182,17 @@
         <!-- ── Readings, grouped by the question each answers ───────────────── -->
         @if (readingGroups().length) {
           <section class="ssm-card ssm-doc">
-            <p class="ssm-label" dir="rtl">أوجه الإعراب</p>
+            <p lang="ar" class="ssm-label" dir="rtl">أوجه الإعراب</p>
             @for (g of readingGroups(); track g.question) {
-              <p class="ssm-q" dir="rtl">{{ questionAr(g.question) }}</p>
+              <p lang="ar" class="ssm-q" dir="rtl">{{ questionAr(g.question) }}</p>
               @for (r of g.rows; track r.id) {
-                <div class="ssm-read" (click)="toggleReading(r.id)">
+                <div kmPressable class="ssm-read" (click)="toggleReading(r.id)">
                   <div class="ssm-read__head">
                     <span class="ssm-read__en">{{ r.en || r.ar }}</span>
                     <span class="ssm-read__w" [class.is-min]="r.isMinority">{{ weight(r) }}</span>
                   </div>
                   @if (openReadings().has(r.id)) {
-                    @if (r.ar) { <p class="ssm-lay__ar" dir="rtl">{{ r.ar }}</p> }
+                    @if (r.ar) { <p lang="ar" class="ssm-lay__ar" dir="rtl">{{ r.ar }}</p> }
                     @for (src of r.sources; track $index) {
                       <span class="ssm-chip ssm-chip--nahw">{{ src }}</span>
                     }
@@ -206,20 +206,20 @@
         <!-- ── The fold ─────────────────────────────────────────────────────── -->
         @if (foldSteps().length) {
           <section class="ssm-card ssm-doc">
-            <p class="ssm-label" dir="rtl">الطَّيّ</p>
+            <p lang="ar" class="ssm-label" dir="rtl">الطَّيّ</p>
             @for (f of foldSteps(); track f.id) {
               <div class="ssm-step" [class.is-diverge]="diverges(f)">
                 <span class="ssm-step__n">{{ f.seq }} · {{ f.ayah }}</span>
                 @if (f.structural) {
-                  <div class="ssm-track"><span class="ssm-track__lab" dir="rtl">حرفيّة</span>
+                  <div class="ssm-track"><span lang="ar" class="ssm-track__lab" dir="rtl">حرفيّة</span>
                     <span class="ssm-track__txt is-muted">{{ f.structural }}</span></div>
                 }
                 @if (f.fluentEn) {
-                  <div class="ssm-track"><span class="ssm-track__lab" dir="rtl">فصيحة</span>
+                  <div class="ssm-track"><span lang="ar" class="ssm-track__lab" dir="rtl">فصيحة</span>
                     <span class="ssm-track__txt">{{ f.fluentEn }}</span></div>
                 }
-                @if (f.fluentAr) { <p class="ssm-lay__ar" dir="rtl">{{ f.fluentAr }}</p> }
-                @if (f.noteAr) { <p class="ssm-step__note" dir="rtl">{{ f.noteAr }}</p> }
+                @if (f.fluentAr) { <p lang="ar" class="ssm-lay__ar" dir="rtl">{{ f.fluentAr }}</p> }
+                @if (f.noteAr) { <p lang="ar" class="ssm-step__note" dir="rtl">{{ f.noteAr }}</p> }
               </div>
             }
           </section>
@@ -227,7 +227,7 @@
 
         @if (finding(); as fnd) {
           <section class="ssm-finding">
-            <p class="ssm-finding__eyebrow" dir="rtl">وجه الاختيار في الترجمة</p>
+            <p lang="ar" class="ssm-finding__eyebrow" dir="rtl">وجه الاختيار في الترجمة</p>
             <p>{{ fnd }}</p>
           </section>
         }
@@ -242,7 +242,7 @@
               @if (t.color) {
                 <span class="ssm-legend__item">
                   <span class="ssm-legend__dot" [style.background]="t.color"></span>
-                  <span dir="rtl">{{ t.labelAr || t.key }}</span>
+                  <span lang="ar" dir="rtl">{{ t.labelAr || t.key }}</span>
                 </span>
               }
             }

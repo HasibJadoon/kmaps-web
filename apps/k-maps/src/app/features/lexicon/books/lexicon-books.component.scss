@@ -52,7 +52,7 @@
 }
 .lib__title {
   margin: 0;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 3rem;
   font-weight: 700;
   line-height: 1;
@@ -64,7 +64,7 @@
 .lib__lede {
   margin: 14px 0 0;
   color: #a89f87;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 1.12rem;
   max-width: 46ch;
   line-height: 1.7;
@@ -78,11 +78,11 @@
   padding: 9px 18px;
   background: rgba(201, 168, 76, .04);
   white-space: nowrap;
-  &-n { font-family: 'Amiri', serif; font-size: 1.5rem; font-weight: 700; color: #e8c96a; }
-  &-l { font-family: 'Amiri', serif; font-size: .95rem; color: #8a7e63; }
+  &-n { font-family: var(--km-font-arabic-ui); font-size: 1.5rem; font-weight: 700; color: #e8c96a; }
+  &-l { font-family: var(--km-font-arabic-ui); font-size: .95rem; color: #8a7e63; }
 }
 
-.lib__muted { color: #a89f87; font-family: 'Amiri', serif; }
+.lib__muted { color: #a89f87; font-family: var(--km-font-arabic-ui); }
 
 // ── Grid ────────────────────────────────────────────────────────────────────
 .lib__grid {
@@ -174,7 +174,7 @@
 }
 .book__spine-title {
   writing-mode: vertical-rl;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-weight: 700;
   font-size: .82rem;
   color: #cbb984;
@@ -270,7 +270,7 @@
 .book__title {
   margin: 5px 0 0;
   width: 100%;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-weight: 700;
   font-size: 1.42rem;
   line-height: 1.22;
@@ -288,7 +288,7 @@
   color: #8a7e63;
 }
 .book__author {
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: .98rem;
   color: #b7ac90;
   line-height: 1.4;
@@ -301,9 +301,9 @@
   padding-top: 12px;
   border-top: 1px solid var(--accent-deep);
 }
-.book__era { font-family: 'Amiri', serif; font-size: .72rem; color: #8a7e63; }
+.book__era { font-family: var(--km-font-arabic-ui); font-size: .72rem; color: #8a7e63; }
 .book__count {
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: .92rem;
   font-weight: 700;
   color: var(--accent);
@@ -343,7 +343,7 @@
   background: rgba(201, 168, 76, .08);
   border: 1px solid rgba(201, 168, 76, .3);
   color: #e8c96a;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 1rem;
   padding: 9px 17px;
   border-radius: 11px;
@@ -411,7 +411,7 @@
 }
 .modal__title {
   margin: 28px 0 0;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-weight: 700;
   font-size: 2.5rem;
   line-height: 1.22;
@@ -426,10 +426,10 @@
   text-transform: uppercase;
   color: #8a7040;
 }
-.modal__author { margin-top: 18px; font-family: 'Amiri', serif; font-size: 1.22rem; color: #5b4a2a; }
+.modal__author { margin-top: 18px; font-family: var(--km-font-arabic-ui); font-size: 1.22rem; color: #5b4a2a; }
 .modal__era {
   margin: 16px auto 0;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: .82rem;
   color: #7a6640;
   border: 1px solid rgba(120, 90, 30, .36);
@@ -439,20 +439,20 @@
 .modal__spacer { flex: 1; }
 .modal__countrow { display: flex; align-items: baseline; justify-content: center; gap: 9px; }
 .modal__count {
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-weight: 700;
   font-size: 2.5rem;
   color: var(--cd);
   font-variant-numeric: tabular-nums;
 }
-.modal__unit { font-family: 'Amiri', serif; font-size: 1.15rem; color: #7a6640; }
-.modal__sub { margin-top: 6px; font-family: 'Amiri', serif; font-size: .95rem; color: #7a6640; }
+.modal__unit { font-family: var(--km-font-arabic-ui); font-size: 1.15rem; color: #7a6640; }
+.modal__sub { margin-top: 6px; font-family: var(--km-font-arabic-ui); font-size: .95rem; color: #7a6640; }
 .modal__loading {
   margin: 30px auto 0;
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 1.02rem;
   color: var(--cd);
   transition: opacity .5s .55s ease;
@@ -502,7 +502,7 @@
 }
 .modal__cover-title {
   margin: 8px 0 0;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-weight: 700;
   font-size: 2.4rem;
   line-height: 1.2;
@@ -519,7 +519,7 @@
   text-transform: uppercase;
   color: #8a7e63;
 }
-.modal__cover-author { font-family: 'Amiri', serif; font-size: 1.1rem; color: #b7ac90; }
+.modal__cover-author { font-family: var(--km-font-arabic-ui); font-size: 1.1rem; color: #b7ac90; }
 
 // ── Reduced motion — keep the layout, drop the motion ───────────────────────
 @media (prefers-reduced-motion: reduce) {

@@ -33,7 +33,6 @@
   --km-text-arabic: #f8eeda;
   --km-font-heading: 'Cinzel', serif;
   --km-font-body: 'EB Garamond', serif;
-  --km-font-arabic: 'UthmanicHafs', 'AmiriQuran', 'Amiri', serif;
   position: relative;
   min-height: 100dvh;
   background:
@@ -277,7 +276,7 @@
 .scene-chamber__arabic {
   margin: 0;
   color: var(--km-gold-500);
-  font-family: var(--km-font-arabic);
+  font-family: var(--km-font-quran);
   font-size: clamp(2rem, 4vw, 3.7rem);
   line-height: 1.22;
   direction: rtl;
@@ -300,7 +299,7 @@
 .scene-chamber__quote {
   margin: 0.35rem 0 0;
   color: rgba(212, 177, 96, 0.92);
-  font-family: var(--km-font-arabic);
+  font-family: var(--km-font-quran);
   font-size: clamp(1.45rem, 2.3vw, 2rem);
   line-height: 1.75;
   direction: rtl;
@@ -661,7 +660,7 @@
 .study-panel__arabic {
   margin: 0;
   color: var(--km-gold-500);
-  font-family: var(--km-font-arabic);
+  font-family: var(--km-font-quran);
   font-size: clamp(1.85rem, 3.2vw, 2.9rem);
   line-height: 1.25;
   direction: rtl;

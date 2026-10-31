@@ -1,4 +1,4 @@
-<div class="vocab-tab" dir="rtl">
+<div lang="ar" class="vocab-tab" dir="rtl">
 
   @if (loading()) {
     <div class="v-status">…جارٍ تحميل كلمات المقطع</div>
@@ -18,7 +18,7 @@
     @for (g of groups(); track g.ayah) {
       <div class="v-ayah">
         <span class="v-aref">{{ lesson.surahId }}:{{ g.ayah }}</span>
-        <div class="v-grid" dir="rtl">
+        <div lang="ar" class="v-grid" dir="rtl">
           @for (w of g.words; track w.id) {
             <km-morph-word-card
               [card]="toVm(w)"

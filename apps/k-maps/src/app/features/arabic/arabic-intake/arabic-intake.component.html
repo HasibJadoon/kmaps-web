@@ -4,7 +4,7 @@
     @if (w('title'); as t) {
       <h1 class="in__title">
         {{ t.label }}
-        @if (t.labelAr) { <span class="in__ar" dir="rtl">{{ t.labelAr }}</span> }
+        @if (t.labelAr) { <span lang="ar" class="in__ar" dir="rtl">{{ t.labelAr }}</span> }
       </h1>
       @if (t.detail) { <p class="in__sub">{{ t.detail }}</p> }
     }
@@ -17,61 +17,61 @@
       <!-- Log something new -->
       <section class="in__card">
         @if (w('log_new'); as t) {
-          <h2 class="in__h">{{ t.label }} @if (t.labelAr) { <span class="in__ar" dir="rtl">{{ t.labelAr }}</span> }</h2>
+          <h2 class="in__h">{{ t.label }} @if (t.labelAr) { <span lang="ar" class="in__ar" dir="rtl">{{ t.labelAr }}</span> }</h2>
           @if (t.detail) { <p class="in__hint">{{ t.detail }}</p> }
         }
         <form class="in__form" (ngSubmit)="save()">
           <label class="in__field in__field--wide">
-            <span>{{ w('url')?.label }} <span class="in__ar-s" dir="rtl">{{ w('url')?.labelAr }}</span></span>
+            <span>{{ w('url')?.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ w('url')?.labelAr }}</span></span>
             <input type="url" name="url" required [ngModel]="form().url" (ngModelChange)="patchForm('url', $event)" />
           </label>
           <label class="in__field in__field--wide">
-            <span>{{ w('note')?.label }} <span class="in__ar-s" dir="rtl">{{ w('note')?.labelAr }}</span></span>
+            <span>{{ w('note')?.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ w('note')?.labelAr }}</span></span>
             <input type="text" name="note" [ngModel]="form().note" (ngModelChange)="patchForm('note', $event)" />
           </label>
           <label class="in__field">
-            <span>{{ w('strand')?.label }} <span class="in__ar-s" dir="rtl">{{ w('strand')?.labelAr }}</span></span>
+            <span>{{ w('strand')?.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ w('strand')?.labelAr }}</span></span>
             <select name="strand" [ngModel]="form().strand" (ngModelChange)="patchForm('strand', $event)">
               <option value="">—</option>
               @for (o of d.strands; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
             </select>
           </label>
           <label class="in__field">
-            <span>{{ w('level')?.label }} <span class="in__ar-s" dir="rtl">{{ w('level')?.labelAr }}</span></span>
+            <span>{{ w('level')?.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ w('level')?.labelAr }}</span></span>
             <select name="level" [ngModel]="form().level" (ngModelChange)="patchForm('level', $event)">
               <option value="">—</option>
               @for (o of d.levels; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
             </select>
           </label>
           <label class="in__field">
-            <span>{{ w('register')?.label }} <span class="in__ar-s" dir="rtl">{{ w('register')?.labelAr }}</span></span>
+            <span>{{ w('register')?.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ w('register')?.labelAr }}</span></span>
             <select name="register" [ngModel]="form().register" (ngModelChange)="patchForm('register', $event)">
               <option value="">—</option>
               @for (o of d.registers; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
             </select>
           </label>
           <label class="in__field">
-            <span>{{ w('form')?.label }} <span class="in__ar-s" dir="rtl">{{ w('form')?.labelAr }}</span></span>
+            <span>{{ w('form')?.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ w('form')?.labelAr }}</span></span>
             <select name="form" [ngModel]="form().form" (ngModelChange)="patchForm('form', $event)">
               <option value="">—</option>
               @for (o of d.forms; track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
             </select>
           </label>
           <div class="in__field">
-            <span>{{ w('domains')?.label }} <span class="in__ar-s" dir="rtl">{{ w('domains')?.labelAr }}</span></span>
+            <span>{{ w('domains')?.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ w('domains')?.labelAr }}</span></span>
             <span class="in__doms" [title]="w('domains')?.detail ?? ''">
               @for (o of d.domains; track o.key) {
                 <label class="in__dom-pick" [class.in__dom-pick--on]="formDomains().includes(o.key)"
                        [style.border-color]="formDomains().includes(o.key) ? o.color : null"
                        [style.color]="formDomains().includes(o.key) ? o.color : null">
                   <input type="checkbox" [checked]="formDomains().includes(o.key)" (change)="toggleFormDomain(o.key)" />
-                  {{ o.label }} <span class="in__ar-s" dir="rtl">{{ o.labelAr }}</span>
+                  {{ o.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ o.labelAr }}</span>
                 </label>
               }
             </span>
           </div>
           <label class="in__field in__field--narrow">
-            <span>{{ w('priority')?.label }} <span class="in__ar-s" dir="rtl">{{ w('priority')?.labelAr }}</span></span>
+            <span>{{ w('priority')?.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ w('priority')?.labelAr }}</span></span>
             <select name="priority" [ngModel]="form().priority" (ngModelChange)="patchForm('priority', $event)"
                     [title]="w('priority')?.detail ?? ''">
               <option value="">—</option>
@@ -79,7 +79,7 @@
             </select>
           </label>
           <button class="in__save" type="submit" [disabled]="saving() || !form().url.trim()">
-            {{ w('save')?.label }} <span class="in__ar-s" dir="rtl">{{ w('save')?.labelAr }}</span>
+            {{ w('save')?.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ w('save')?.labelAr }}</span>
           </button>
         </form>
         @if (formError()) { <p class="in__error">{{ formError() }}</p> }
@@ -89,7 +89,7 @@
       @if (d.pipelines.length) {
         <section class="in__section">
           @if (w('pipelines'); as t) {
-            <h2 class="in__h">{{ t.label }} @if (t.labelAr) { <span class="in__ar" dir="rtl">{{ t.labelAr }}</span> }</h2>
+            <h2 class="in__h">{{ t.label }} @if (t.labelAr) { <span lang="ar" class="in__ar" dir="rtl">{{ t.labelAr }}</span> }</h2>
             @if (t.detail) { <p class="in__hint">{{ t.detail }}</p> }
           }
           <div class="in__board">
@@ -97,13 +97,13 @@
               <div class="in__lane" [class.in__lane--on]="domainF() === p.domain.key" [style.border-top-color]="p.domain.color">
                 <button type="button" class="in__lane-head" [style.color]="p.domain.color" [title]="p.domain.detail ?? ''"
                         (click)="setDomain(p.domain.key)">
-                  {{ p.domain.label }} @if (p.domain.labelAr) { <span class="in__ar-s" dir="rtl">{{ p.domain.labelAr }}</span> }
+                  {{ p.domain.label }} @if (p.domain.labelAr) { <span lang="ar" class="in__ar-s" dir="rtl">{{ p.domain.labelAr }}</span> }
                 </button>
                 <ol class="in__stages">
                   @for (s of p.stages; track s.key) {
                     <li class="in__stage" [class.in__stage--empty]="!s.count" [title]="s.detail ?? ''">
                       <span class="in__stage-dot" [style.background]="s.color"></span>
-                      <span class="in__stage-name">{{ s.label }} @if (s.labelAr) { <span class="in__ar-s" dir="rtl">{{ s.labelAr }}</span> }</span>
+                      <span class="in__stage-name">{{ s.label }} @if (s.labelAr) { <span lang="ar" class="in__ar-s" dir="rtl">{{ s.labelAr }}</span> }</span>
                       <span class="in__count">{{ s.count ?? 0 }}</span>
                     </li>
                   }
@@ -118,7 +118,7 @@
       @if (d.next.length) {
         <section class="in__section">
           @if (w('next_up'); as t) {
-            <h2 class="in__h">{{ t.label }} @if (t.labelAr) { <span class="in__ar" dir="rtl">{{ t.labelAr }}</span> }</h2>
+            <h2 class="in__h">{{ t.label }} @if (t.labelAr) { <span lang="ar" class="in__ar" dir="rtl">{{ t.labelAr }}</span> }</h2>
             @if (t.detail) { <p class="in__hint">{{ t.detail }}</p> }
           }
           <div class="in__next">
@@ -140,13 +140,13 @@
       <section class="in__section">
         <div class="in__chips">
           <button class="in__chip" [class.in__chip--on]="!strand()" (click)="strand.set(''); load()">
-            {{ w('all')?.label }} <span class="in__ar-s" dir="rtl">{{ w('all')?.labelAr }}</span>
+            {{ w('all')?.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ w('all')?.labelAr }}</span>
           </button>
           @for (s of d.strands; track s.key) {
             <button class="in__chip" [class.in__chip--on]="strand() === s.key" [title]="s.detail ?? ''"
                     [style.border-color]="strand() === s.key ? s.color : null"
                     [style.color]="strand() === s.key ? s.color : null" (click)="setStrand(s.key)">
-              {{ s.label }} <span class="in__ar-s" dir="rtl">{{ s.labelAr }}</span>
+              {{ s.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ s.labelAr }}</span>
               <span class="in__count" [title]="s.countLineAr ?? ''">{{ s.countLine ?? s.counts.total }}</span>
             </button>
           }
@@ -181,7 +181,7 @@
             </select>
           </label>
           <form class="in__field in__field--wide" (ngSubmit)="search()">
-            <span>{{ w('search')?.label }} <span class="in__ar-s" dir="rtl">{{ w('search')?.labelAr }}</span></span>
+            <span>{{ w('search')?.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ w('search')?.labelAr }}</span></span>
             <input type="search" name="q" [ngModel]="q()" (ngModelChange)="q.set($event)" />
           </form>
         </div>
@@ -191,7 +191,7 @@
       <section class="in__section">
         @if (loading()) { <div class="in__spinner"></div> }
         @else if (!d.items.length) {
-          <p class="in__empty">{{ w('empty')?.label }} <span class="in__ar" dir="rtl">{{ w('empty')?.labelAr }}</span></p>
+          <p class="in__empty">{{ w('empty')?.label }} <span lang="ar" class="in__ar" dir="rtl">{{ w('empty')?.labelAr }}</span></p>
         } @else {
           <ol class="in__list">
             @for (it of d.items; track it.id) {
@@ -202,14 +202,14 @@
                     <span class="in__row-meta">
                       @if (it.channel) { <span dir="auto">{{ it.channel }}</span> }
                       @if (it.subtitle) { <span>· {{ it.subtitle }}</span> }
-                      @if (it.subtitleAr) { <span class="in__ar-s" dir="rtl">{{ it.subtitleAr }}</span> }
+                      @if (it.subtitleAr) { <span lang="ar" class="in__ar-s" dir="rtl">{{ it.subtitleAr }}</span> }
                     </span>
                     @if (it.note) { <span class="in__row-note">{{ it.note }}</span> }
                   </div>
                   <span class="in__badges">
                     @for (b of [it.strand, it.level, it.form, it.status]; track $index) {
                       <span class="in__badge" [style.color]="b.color" [style.border-color]="b.color">
-                        {{ b.label }} <span class="in__ar-s" dir="rtl">{{ b.labelAr }}</span>
+                        {{ b.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ b.labelAr }}</span>
                       </span>
                     }
                     @for (x of it.domains; track x.domain.key) {
@@ -265,13 +265,13 @@
 
                       <div class="in__filters">
                         <div class="in__field">
-                          <span>{{ w('domains')?.label }} <span class="in__ar-s" dir="rtl">{{ w('domains')?.labelAr }}</span></span>
+                          <span>{{ w('domains')?.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ w('domains')?.labelAr }}</span></span>
                           <span class="in__doms">
                             @for (x of dt.item.domains; track x.domain.key) {
                               <label class="in__dom-pick" [class.in__dom-pick--on]="x.on"
                                      [style.border-color]="x.on ? x.domain.color : null" [style.color]="x.on ? x.domain.color : null">
                                 <input type="checkbox" [checked]="x.on" (change)="toggleDomain(dt.item, x.domain.key)" />
-                                {{ x.domain.label }} <span class="in__ar-s" dir="rtl">{{ x.domain.labelAr }}</span>
+                                {{ x.domain.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ x.domain.labelAr }}</span>
                               </label>
                             }
                           </span>
@@ -280,7 +280,7 @@
                           @if (x.on && x.stage) {
                             <label class="in__field">
                               <span [style.color]="x.domain.color">{{ x.domain.label }} · {{ w('stage')?.label }}
-                                <span class="in__ar-s" dir="rtl">{{ w('stage')?.labelAr }}</span></span>
+                                <span lang="ar" class="in__ar-s" dir="rtl">{{ w('stage')?.labelAr }}</span></span>
                               <select [ngModel]="x.stage.key" (ngModelChange)="setStage(dt.item, x.domain.key, $event)">
                                 @for (o of stagesFor(dt, x.domain.key); track o.key) { <option [value]="o.key">{{ o.label }} · {{ o.labelAr }}</option> }
                               </select>
@@ -290,15 +290,15 @@
                       </div>
 
                       @if (dt.item.wvSourceRef) {
-                        <p class="in__wv">{{ w('wv_source')?.label }} <span class="in__ar-s" dir="rtl">{{ w('wv_source')?.labelAr }}</span> · {{ dt.item.wvSourceRef }}</p>
+                        <p class="in__wv">{{ w('wv_source')?.label }} <span lang="ar" class="in__ar-s" dir="rtl">{{ w('wv_source')?.labelAr }}</span> · {{ dt.item.wvSourceRef }}</p>
                       }
                       <div class="in__detail-bar">
                         <button type="button" class="in__close" (click)="open(it)">{{ w('close')?.label }}
-                          <span class="in__ar-s" dir="rtl">{{ w('close')?.labelAr }}</span></button>
+                          <span lang="ar" class="in__ar-s" dir="rtl">{{ w('close')?.labelAr }}</span></button>
                       </div>
                       @if (dt.children.length) {
                         <h4 class="in__children-head">{{ w('children')?.label }}
-                          <span class="in__ar-s" dir="rtl">{{ w('children')?.labelAr }}</span></h4>
+                          <span lang="ar" class="in__ar-s" dir="rtl">{{ w('children')?.labelAr }}</span></h4>
                         <ol class="in__children">
                           @for (c of dt.children; track c.id) {
                             <li class="in__child">

@@ -77,7 +77,7 @@
 .tapx-card__title {
   grid-column: 4;
   text-align: right;
-  font-family: "Amiri", serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 0.92rem;
   color: var(--tapx-text);
   font-weight: 600;
@@ -118,14 +118,14 @@
   padding: 8px 12px 10px;
   color: var(--tapx-muted);
   font-size: 0.78rem;
-  font-family: "Amiri", serif;
+  font-family: var(--km-font-arabic-ui);
   border-top: 1px solid rgba(255,255,255,.03);
   background: rgba(255,255,255,.008);
 }
 
 .tapx-sub {
   color: var(--tapx-text-soft);
-  font-family: "Amiri", serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 0.78rem;
   margin-bottom: 6px;
   padding-bottom: 6px;
@@ -145,7 +145,7 @@
   background: rgba(201,162,39,.08);
   border: 1px solid rgba(201,162,39,.18);
   color: var(--tapx-accent);
-  font-family: "Amiri", serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 0.85rem;
   font-weight: 600;
 }
@@ -171,7 +171,7 @@
   padding: 1px 8px;
   background: rgba(255,255,255,.03);
   border-radius: 4px;
-  font-family: "Amiri", serif;
+  font-family: var(--km-font-arabic-ui);
   color: var(--tapx-text);
   font-size: 0.88rem;
   font-weight: 600;

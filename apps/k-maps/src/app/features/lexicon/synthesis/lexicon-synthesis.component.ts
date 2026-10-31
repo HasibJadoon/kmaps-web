@@ -7,7 +7,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
   standalone: true,
   imports: [RouterLink],
   template: `
-    <section class="syn" dir="rtl">
+    <section lang="ar" class="syn" dir="rtl">
       <a class="syn__back" [routerLink]="['/lexicon/search']"
          [queryParams]="{ q: root(), mode: 'root' }">
         <span class="syn__chev">‹</span><span>نتائج «{{ root() }}»</span>
@@ -46,18 +46,18 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
       border-radius: 7px; padding: 4px 11px;
     }
     .syn__root {
-      margin: 14px 0 2px; font-family: 'Amiri', serif; font-weight: 700;
+      margin: 14px 0 2px; font-family: var(--km-font-arabic-ui); font-weight: 700;
       font-size: 4.4rem; line-height: 1;
       background: linear-gradient(160deg, #d6ffe9, #37d99a 55%, #0c7c5a);
       -webkit-background-clip: text; background-clip: text;
       -webkit-text-fill-color: transparent;
     }
-    .syn__title { font-family: 'Amiri', serif; font-size: 1.3rem; color: #b7ac90; margin: 0 0 26px; }
+    .syn__title { font-family: var(--km-font-arabic-ui); font-size: 1.3rem; color: #b7ac90; margin: 0 0 26px; }
     .syn__placeholder {
       text-align: center; padding: 60px 24px;
       border: 1px dashed rgba(55, 217, 154, .28); border-radius: 18px;
       background: linear-gradient(150deg, #0d1a15, #0a0f0c);
-      font-family: 'Amiri', serif; color: #cbe9db;
+      font-family: var(--km-font-arabic-ui); color: #cbe9db;
     }
     .syn__mark { display: block; font-size: 2.4rem; color: rgba(55, 217, 154, .5); margin-bottom: 12px; }
     .syn__placeholder p { margin: 6px 0; font-size: 1.1rem; }

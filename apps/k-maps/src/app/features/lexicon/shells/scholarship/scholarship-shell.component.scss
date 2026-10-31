@@ -20,7 +20,7 @@
   --fs-base:   1.04rem;
   --fs-lead:   1.7;
 
-  font-family: 'Source Serif Pro', 'Amiri', 'Scheherazade New', Georgia, serif;
+  font-family: 'Source Serif Pro', var(--km-font-arabic-ui);
 
   &.dark {
     --bg:        #15140f;
@@ -102,7 +102,7 @@
 .reader__current {
   min-width: 56px;
   text-align: center;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   color: var(--accent);
   font-weight: 700;
   font-size: 1.1rem;
@@ -203,7 +203,7 @@
 }
 .rail__root-ar {
   flex: 1;
-  font-family: 'Amiri', 'Scheherazade New', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 1rem;
 }
 .rail__root-page {
@@ -244,7 +244,7 @@
   margin-bottom: 24px;
   &__title {
     margin: 0 0 8px;
-    font-family: 'Amiri', 'Scheherazade New', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: 2.6rem;
     font-weight: 700;
     color: var(--accent);
@@ -265,7 +265,7 @@
   color: var(--accent);
   font-size: 0.74rem;
   font-weight: 600;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
 
   &[data-genre='epigraphic']           { color: #b6c98a; background: rgba(182,201,138, 0.10); }
   &[data-genre='archaeological']       { color: #d68a4a; background: rgba(214,138,74, 0.10); }
@@ -299,18 +299,18 @@
     color: var(--accent);
     font-size: 0.78rem;
     font-weight: 600;
-    font-family: 'Amiri', serif;
+    font-family: var(--km-font-arabic-ui);
     &[data-kind='qur_anic_hermeneutic'] { color: #a9d28a; background: rgba(169,210,138, 0.10); }
     &[data-kind='epigraphic']           { color: #b6c98a; background: rgba(182,201,138, 0.10); }
     &[data-kind='archaeological']       { color: #d68a4a; background: rgba(214,138,74, 0.10); }
     &[data-kind='comparative_semitic']  { color: #92bee1; background: rgba(146,190,225, 0.10); }
   }
-  &__page    { color: var(--ink-faint); font-size: 0.78rem; font-family: 'Amiri', serif; }
+  &__page    { color: var(--ink-faint); font-size: 0.78rem; font-family: var(--km-font-arabic-ui); }
   &__section { color: var(--ink-faint); font-size: 0.78rem; }
   &__title {
     margin: 0 0 8px;
     color: var(--ink);
-    font-family: 'Amiri', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: 1.1rem;
     font-weight: 700;
     display: flex; gap: 8px; flex-wrap: wrap;

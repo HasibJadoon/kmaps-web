@@ -6,10 +6,11 @@ import type {
   LisanReadView, LisanParagraph, LisanProseToken,
 } from '../../../shared/services/al-dictionary-api.service';
 
+import { PressableDirective } from '../../../shared/directives/pressable.directive';
 @Component({
   selector: 'km-lexicon-reader',
   standalone: true,
-  imports: [CommonModule],
+  imports: [PressableDirective, CommonModule],
   templateUrl: './lexicon-reader.component.html',
   styleUrl: './lexicon-reader.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

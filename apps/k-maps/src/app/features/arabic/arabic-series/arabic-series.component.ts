@@ -1,8 +1,7 @@
 import { Component, OnInit, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../../environments/environment';
+import { ArabicApiService } from '../../../shared/services/arabic-api.service';
 import type { Work } from '../arabic-read/arabic-read.component';
 
 interface Envelope<T> { ok: boolean; data?: T; }
@@ -36,8 +35,7 @@ export interface Series {
 })
 export class ArabicSeriesComponent implements OnInit {
   private router = inject(Router);
-  private http = inject(HttpClient);
-  private base = environment.apiBase;
+  private readonly ar = inject(ArabicApiService);
 
   readonly loading = signal(true);
   readonly works = signal<Work[]>([]);
@@ -72,12 +70,12 @@ export class ArabicSeriesComponent implements OnInit {
   readonly resume = computed(() => this.series().find((s) => s.seen > 0 && s.next) ?? null);
 
   ngOnInit(): void {
-    this.http.get<Envelope<{ shelf: Work[] }>>(`${this.base}/ar/text/shelf`).subscribe({
+    this.ar.get<Envelope<{ shelf: Work[] }>>(`ar/text/shelf`).subscribe({
       next: (r) => { this.works.set(r?.data?.shelf ?? []); this.loading.set(false); },
       error: () => this.loading.set(false),
     });
     // Signed out answers 401; the shelf then shows nothing as seen, which is true.
-    this.http.get<Envelope<{ states: ReadingState[] }>>(`${this.base}/ar/reading/state`).subscribe({
+    this.ar.get<Envelope<{ states: ReadingState[] }>>(`ar/reading/state`).subscribe({
       next: (r) => this.states.set(new Map((r?.data?.states ?? []).map((s) => [s.workId, s]))),
       error: () => {},
     });

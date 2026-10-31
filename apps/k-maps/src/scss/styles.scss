@@ -52,7 +52,7 @@ body.km-ui-obs-overlay km-root {
   blockquote[dir="rtl"],
   h1[dir="rtl"], h2[dir="rtl"], h3[dir="rtl"],
   h4[dir="rtl"], h5[dir="rtl"], h6[dir="rtl"] {
-    font-family: var(--km-font-arabic-amiri, 'AmiriQuran', serif) !important;
+    font-family: var(--km-font-arabic-ui) !important;
     font-size: 1.4rem;
     line-height: 2.15;
     letter-spacing: 0;
@@ -157,7 +157,7 @@ body.km-ui-obs-overlay km-root {
     .km-ayah-content { direction: rtl; }
 
     .ayah-text {
-      font-family: var(--km-font-arabic, 'UthmanicHafs', serif); font-size: 1.8rem; line-height: 2.6; color: var(--km-text);
+      font-family: var(--km-font-quran); font-size: 1.8rem; line-height: 2.6; color: var(--km-text);
       user-select: text !important; -webkit-user-select: text !important; cursor: text;
     }
     .ayah-translation {
@@ -210,7 +210,7 @@ body.km-ui-obs-overlay km-root {
   &--vocab {
     background: var(--km-surface);
     border-left: 3px solid #81c784;
-    .kb-vocab-word { font-family: var(--km-font-arabic-amiri); font-size: 1.6rem; color: var(--km-text); }
+    .kb-vocab-word { font-family: var(--km-font-arabic-ui); font-size: 1.6rem; color: var(--km-text); }
     .kb-vocab-root { font-size: 0.78rem; color: var(--km-text-3); margin-top: 4px; }
     .kb-vocab-meanings { font-size: 0.85rem; color: var(--km-text-2); margin-top: 6px; }
   }
@@ -218,7 +218,7 @@ body.km-ui-obs-overlay km-root {
   &--morphology {
     background: var(--km-surface);
     border-left: 3px solid #4fc3f7;
-    .kb-morph-word { font-family: var(--km-font-arabic-amiri); font-size: 1.4rem; margin-bottom: 10px; }
+    .kb-morph-word { font-family: var(--km-font-arabic-ui); font-size: 1.4rem; margin-bottom: 10px; }
     .kb-morph-grid { display: flex; flex-wrap: wrap; gap: 8px; }
     .kb-morph-cell {
       background: var(--km-surface-2); border-radius: 6px; padding: 5px 10px; font-size: 0.78rem;
@@ -237,10 +237,10 @@ body.km-ui-obs-overlay km-root {
   &--root-analysis {
     background: var(--km-surface);
     border-left: 3px solid #ffb74d;
-    .kb-root-title { font-family: var(--km-font-arabic-amiri); font-size: 1.3rem; margin-bottom: 10px; }
+    .kb-root-title { font-family: var(--km-font-arabic-ui); font-size: 1.3rem; margin-bottom: 10px; }
     .kb-root-grid { display: flex; flex-wrap: wrap; gap: 8px; }
     .kb-root-item { background: var(--km-surface-2); border-radius: 6px; padding: 6px 10px; display: flex; align-items: center; gap: 8px; }
-    .kb-root-word { font-family: var(--km-font-arabic-amiri); font-size: 1.1rem; }
+    .kb-root-word { font-family: var(--km-font-arabic-ui); font-size: 1.1rem; }
     .kb-root-meaning { font-size: 0.78rem; color: var(--km-text-2); }
     .kb-root-occ { font-size: 0.68rem; color: var(--km-gold); font-weight: 700; }
   }

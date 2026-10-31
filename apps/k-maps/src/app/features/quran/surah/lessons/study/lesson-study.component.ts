@@ -25,7 +25,8 @@ import { QuranAyah } from '../../../../../shared/models/quran/quran.models';
 import { mapQrPassagesToResponse, mapQrReaderToAyahsResponse } from '../../../../../shared/services/quran/quran-api.mapper';
 import { QuranApiService } from '../../../../../shared/services/quran/quran-api.service';
 
-const ARABIC_INDIC = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'] as const;
+import { PressableDirective } from '../../../../../shared/directives/pressable.directive';
+import { ArabicDigitsPipe } from '../../../../../shared/pipes/arabic-digits.pipe';
 const ARABIC_SCRIPT_RE = /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/;
 const ARABIC_DIACRITICS_RE = /[\u064B-\u065F\u0670\u06D6-\u06ED]/g;
 
@@ -127,7 +128,7 @@ export interface PassageSection {
 @Component({
   selector: 'km-lesson-study',
   standalone: true,
-  imports: [NgClass],
+  imports: [ArabicDigitsPipe, PressableDirective, NgClass],
   templateUrl: './lesson-study.component.html',
   styleUrl: './lesson-study.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -532,12 +533,6 @@ export class LessonStudyComponent implements OnInit, AfterViewInit, OnDestroy {
     gsap.fromTo(el, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power2.out', clearProps: 'transform' });
   }
 
-  toArabicIndic(n: number): string {
-    return String(Math.max(0, Math.trunc(n))).split('').map((c) => {
-      const d = c.charCodeAt(0) - 48;
-      return d >= 0 && d <= 9 ? ARABIC_INDIC[d] : c;
-    }).join('');
-  }
 
   private ayahText(ayah: QuranAyah): string {
     return (ayah.text_uthmani ?? ayah.text ?? '')

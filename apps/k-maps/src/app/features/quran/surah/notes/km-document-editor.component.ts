@@ -109,7 +109,7 @@ import type { TiptapDoc } from '../../../../shared/models/document-editor.models
     :host ::ng-deep .ProseMirror [lang="ar"] {
       direction: rtl;
       text-align: right;
-      font-family: var(--km-font-arabic, 'UthmanicHafs', 'Amiri', serif);
+      font-family: var(--km-font-quran);
       font-size: 1.32rem;
       line-height: 2.1;
     }

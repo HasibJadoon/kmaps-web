@@ -1,4 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { LatestRequest } from '../../../shared/utils/latest-request';
 import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
@@ -15,6 +17,7 @@ import { CybDsReaderComponent } from '../ds/cyb-ds-reader.component';
 import { normaliseSpec } from '@kmaps/contracts/ds';
 import type { DisplaySpec } from '@kmaps/contracts/ds';
 
+import { PressableDirective } from '../../../shared/directives/pressable.directive';
 const MEMBEAN_PANELS: { key: string; en: string; ar: string; col: 'l' | 'r' }[] = [
   { key: 'context',        en: 'Context',            ar: 'السياق',       col: 'l' },
   { key: 'root_image',     en: 'Memory Hook',        ar: 'صورة الجذر',   col: 'l' },
@@ -44,7 +47,7 @@ interface StreamRow {
   selector: 'km-cyb-map',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, CybTopbarComponent, CybDsReaderComponent],
+  imports: [PressableDirective, RouterLink, CybTopbarComponent, CybDsReaderComponent],
   template: `
     @if (error()) { <div class="msg err">{{ error() }}</div> }
     @else {
@@ -160,7 +163,7 @@ interface StreamRow {
           <div class="pgrid">
             @for (r of rows; track r.layer) {
               @let lab = streamLabelKey(r.layer);
-              <div class="glass lc sc" [style.--lc]="streamColor(r.layer)"
+              <div kmPressable class="glass lc sc" [style.--lc]="streamColor(r.layer)"
                    [class.act]="openable(r)" [class.dim]="!openable(r)"
                    (click)="openable(r) ? drillLayer(r.layer) : null">
                 <div class="lct">
@@ -522,13 +525,13 @@ interface StreamRow {
           <div class="fam">
             <div class="sub2">Memlet layers <span class="famn">{{ memFilled() }}/{{ rootDetail()?.memlet_kinds?.length || 0 }}</span> · Membean · tap to open the memlet</div>
             <div class="heat">
-              <div class="hc all mem" [class.sel]="rootTab()==='memlets' && !selMemletKind()"
+              <div kmPressable class="hc all mem" [class.sel]="rootTab()==='memlets' && !selMemletKind()"
                    title="All memlet layers" (click)="showAllMemlets()">
                 <div class="hn">{{ memletsN() }}</div><div class="hk">ALL</div>
               </div>
               @for (k of rootDetail()?.memlet_kinds || []; track k.memlet_key) {
                 @let n = memletCountFor(k.memlet_key);
-                <div class="hc mem" [class.z]="!n" [class.sel]="selMemletKind() === k.memlet_key"
+                <div kmPressable class="hc mem" [class.z]="!n" [class.sel]="selMemletKind() === k.memlet_key"
                      [style.background]="n ? shadeM(n) : '#0d0d0d'"
                      [title]="k.name_en + ' · ' + k.modality + ' · ' + k.scope_level"
                      (click)="n ? selectMemletKind(k.memlet_key) : null">
@@ -541,13 +544,13 @@ interface StreamRow {
           <div class="fam">
             <div class="sub2">Question layers <span class="famn">{{ qFilled() }}/{{ rootDetail()?.question_kinds?.length || 0 }}</span> · tap to open the items</div>
             <div class="heat">
-              <div class="hc all qk2" [class.sel]="rootTab()==='questions' && !selQuestionKind()"
+              <div kmPressable class="hc all qk2" [class.sel]="rootTab()==='questions' && !selQuestionKind()"
                    title="All question layers" (click)="showAllQuestions()">
                 <div class="hn">{{ questionsN() }}</div><div class="hk">ALL</div>
               </div>
               @for (k of rootDetail()?.question_kinds || []; track k.question_key) {
                 @let n = questionCountFor(k.question_key);
-                <div class="hc qk2" [class.z]="!n" [class.sel]="selQuestionKind() === k.question_key"
+                <div kmPressable class="hc qk2" [class.z]="!n" [class.sel]="selQuestionKind() === k.question_key"
                      [style.background]="n ? shadeQ(n) : '#0d0d0d'"
                      [title]="k.name_en + ' · ' + k.response_kind + ' · ' + k.cognitive_level"
                      (click)="n ? selectQuestionKind(k.question_key) : null">
@@ -690,7 +693,7 @@ interface StreamRow {
     .msg { color:var(--t2); padding:26px; text-align:center; } .msg.err { color:var(--err); }
     .crumbs { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:16px 0 14px; }
     .crumb { color:var(--gold-b); font-family:var(--serif); border:1px solid var(--bd); border-radius:16px; padding:4px 12px; background:#0f0f0f; cursor:pointer; font-size:12px; }
-    .crumb .aa { font-family:var(--ar); margin-left:3px; }
+    .crumb .aa { font-family:var(--km-font-arabic-ui); margin-left:3px; }
     .crumb:hover { border-color:var(--bd-hi); } .crumb.cur { color:#2a2205; background:linear-gradient(180deg,var(--gold-b),var(--gold)); border-color:var(--gold-b); font-weight:700; }
     .csep { color:var(--gold-d); font-weight:700; }
     .vh { font-family:var(--serif); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold-d); margin:0 0 12px; display:flex; justify-content:space-between; align-items:baseline; }
@@ -725,7 +728,7 @@ interface StreamRow {
     .top { display:flex; justify-content:space-between; align-items:center; }
     .num { font-family:ui-monospace,monospace; font-size:8.5px; color:var(--t3); text-transform:uppercase; }
     .rt { width:7px; height:7px; border-radius:50%; } .rt.makki { background:#e8b45c; } .rt.madani { background:#6bbaff; }
-    .nar { font-family:var(--ar); font-size:18px; color:var(--gold-b); line-height:1.15; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .nar { font-family:var(--km-font-arabic-ui); font-size:18px; color:var(--gold-b); line-height:1.15; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .rootar { text-align:center; font-size:22px; }
     .nen { font-size:9px; color:var(--t2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .ay { font-size:7.5px; color:var(--t3); }
@@ -748,7 +751,7 @@ interface StreamRow {
     .rpct { position:absolute; top:11px; right:14px; font-family:ui-monospace,monospace; font-weight:700; font-size:10px; color:#6b5f4c; }
     .rpct.mid { color:var(--gold-b); } .rpct.hi { color:var(--content); }
     .rpct.unm { color:var(--t3); font-style:italic; }
-    .rglyph { font-family:var(--ar); font-weight:700; font-size:64px; line-height:1; color:#e4d6b8;
+    .rglyph { font-family:var(--km-font-arabic-ui); font-weight:700; font-size:64px; line-height:1; color:#e4d6b8;
       text-shadow:0 6px 34px rgba(201,168,76,.18); transition:color .3s; }
     .rtile:hover .rglyph { color:var(--gold-b); }
     .rgloss { font-family:var(--serif); font-size:16px; color:var(--t2); margin-top:20px; text-align:center;
@@ -774,7 +777,7 @@ interface StreamRow {
     .lc.sc { border:1px solid rgba(232,201,106,.18); border-left:3px solid var(--lc,var(--gold-d)); display:flex; flex-direction:column; min-height:130px; padding:14px 16px; }
     .lc.sc .o4big { margin-top:auto; padding-top:14px; }
     .lc.dim { opacity:.6; } .lc:not(.dim) { cursor:pointer; } .lc:not(.dim):hover { border-color:var(--bd-hi); }
-    .lct { display:flex; align-items:baseline; gap:8px; } .lct .aa { font-family:var(--ar); font-size:19px; } .lct .en { font-family:var(--serif); font-size:14px; color:var(--text); } .lct .no { margin-left:auto; font-size:9px; color:var(--t3); font-family:ui-monospace,monospace; }
+    .lct { display:flex; align-items:baseline; gap:8px; } .lct .aa { font-family:var(--km-font-arabic-ui); font-size:19px; } .lct .en { font-family:var(--serif); font-size:14px; color:var(--text); } .lct .no { margin-left:auto; font-size:9px; color:var(--t3); font-family:ui-monospace,monospace; }
     .lcd { font-size:10.5px; color:var(--t3); margin-top:3px; }
     .steps { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
     .step { font-size:8.5px; font-family:ui-monospace,monospace; border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:3px 7px; color:var(--t3); display:inline-flex; align-items:center; gap:5px; }
@@ -807,7 +810,7 @@ interface StreamRow {
       border:1px solid rgba(201,168,76,.14); box-shadow:inset 0 2px 6px rgba(0,0,0,.5); }
     .segi { flex:1; text-align:center; padding:8px 4px; border:0; border-radius:6px; cursor:pointer;
       font-weight:600; font-size:11px; color:var(--gold-d); background:transparent; }
-    .segi .aa { font-family:var(--ar); font-size:13px; display:block; color:var(--t3); }
+    .segi .aa { font-family:var(--km-font-arabic-ui); font-size:13px; display:block; color:var(--t3); }
     .segi.on { color:#2a2205; background:linear-gradient(180deg,var(--gold-b),var(--gold));
       box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 2px 6px rgba(0,0,0,.4); }
     .segi.on .aa { color:#3a2f08; }
@@ -819,7 +822,7 @@ interface StreamRow {
     .bandt .bc { font-family:ui-monospace,monospace; font-weight:700; font-size:8px; color:#2a2205;
       background:linear-gradient(180deg,#f0d987,var(--gold)); border-radius:3px; padding:2px 6px; }
     .bandt .bn { font-weight:600; font-size:11.5px; color:var(--gold-b); }
-    .bandt .baa { font-family:var(--ar); font-size:13px; color:var(--gold-d); margin-left:auto; }
+    .bandt .baa { font-family:var(--km-font-arabic-ui); font-size:13px; color:var(--gold-d); margin-left:auto; }
     .leaf { display:flex; width:100%; align-items:center; gap:9px; text-align:left; cursor:pointer;
       padding:8px 10px 8px 14px; margin-top:3px; border:0; border-radius:6px;
       border-left:2px solid #33322c; background:transparent; transition:.15s; }
@@ -859,10 +862,10 @@ interface StreamRow {
     .badge.core { color:#2a2205; background:linear-gradient(180deg,#f0d987,var(--gold)); border-color:transparent; }
     .badge.ok { color:var(--content); border-color:rgba(77,217,168,.4); }
     .rowb { padding:14px 16px 16px; }
-    .gar { font-family:var(--ar); font-size:20px; color:var(--arab); direction:rtl; text-align:right; line-height:1.7; }
+    .gar { font-family:var(--km-font-arabic-ui); font-size:20px; color:var(--arab); direction:rtl; text-align:right; line-height:1.7; }
     .gen { font-size:13px; line-height:1.5; color:#e8dcc4; margin-top:5px; }
     .gen.dim { color:var(--t3); font-style:italic; }
-    .gur { font-family:var(--ar); font-size:15px; color:var(--t3); direction:rtl; text-align:right; margin-top:4px; }
+    .gur { font-family:var(--km-font-arabic-ui); font-size:15px; color:var(--t3); direction:rtl; text-align:right; margin-top:4px; }
     .fields { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; padding-top:12px; border-top:1px solid rgba(201,168,76,.1); }
     .fld { font-family:ui-monospace,monospace; font-size:9.5px; color:var(--t3); border:1px solid rgba(255,255,255,.08);
       border-radius:5px; padding:4px 9px; background:rgba(0,0,0,.3); }
@@ -879,7 +882,7 @@ interface StreamRow {
     .kv .k { font-family:ui-monospace,monospace; font-size:10px; color:#6b5f4c; }
     .kv .v { font-family:ui-monospace,monospace; font-weight:500; font-size:10.5px; color:var(--t2); text-align:right; }
     .kv .v.g { color:var(--gold-b); } .kv .v.grn { color:var(--content); }
-    .kv .v.aa { font-family:var(--ar); font-size:14px; }
+    .kv .v.aa { font-family:var(--km-font-arabic-ui); font-size:14px; }
     .tchip { display:block; font-family:ui-monospace,monospace; font-size:10px; color:var(--gold);
       border:1px solid rgba(201,168,76,.18); border-radius:5px; padding:7px 10px; margin-top:6px;
       background:rgba(0,0,0,.35); overflow-wrap:anywhere; }
@@ -900,7 +903,7 @@ interface StreamRow {
     /* root dashboard */
     .rd { border:1px solid var(--bd-hi); border-radius:13px; background:linear-gradient(180deg,#161512,#0c0c0c); padding:15px 17px; }
     .rdh { display:flex; align-items:center; gap:14px; border-bottom:1px solid var(--bd); padding-bottom:12px; margin-bottom:12px; }
-    .rdar { font-family:var(--ar); font-size:38px; color:var(--gold-b); }
+    .rdar { font-family:var(--km-font-arabic-ui); font-size:38px; color:var(--gold-b); }
     .rn { font-family:var(--serif); font-size:18px; color:var(--text); } .rn .rk { color:var(--t3); font-size:12px; }
     .rdd { font-size:11px; color:var(--t3); margin-top:2px; }
     .sub2 { font-family:var(--serif); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold-d); margin:14px 0 8px; }
@@ -921,9 +924,9 @@ interface StreamRow {
     .lyrh { font-family:var(--serif); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--gold-d); margin-bottom:6px; display:flex; align-items:baseline; gap:8px; }
     .lyrh .lyrc { font-family:ui-monospace,monospace; font-size:9.5px; color:var(--t3); } .lyrh .lyrn { margin-left:auto; font-family:ui-monospace,monospace; font-size:9px; color:var(--t3); }
     .claim { border:1px solid rgba(255,255,255,.07); border-left:2px solid var(--gold-d); border-radius:8px; background:#0f0f0f; padding:9px 12px; margin-bottom:6px; }
-    .claim .qar { font-family:var(--ar); font-size:17px; color:var(--arab); line-height:1.7; direction:rtl; text-align:right; }
+    .claim .qar { font-family:var(--km-font-arabic-ui); font-size:17px; color:var(--arab); line-height:1.7; direction:rtl; text-align:right; }
     .claim .gen { font-size:12px; color:var(--t2); margin-top:5px; line-height:1.5; }
-    .claim .gur { font-family:var(--ar); font-size:13px; color:var(--t2); margin-top:3px; direction:rtl; text-align:right; }
+    .claim .gur { font-family:var(--km-font-arabic-ui); font-size:13px; color:var(--t2); margin-top:3px; direction:rtl; text-align:right; }
     .claim .cmeta { font-size:9.5px; color:var(--t3); margin-top:6px; font-family:ui-monospace,monospace; } .claim .src { color:var(--gold-d); }
     .claim .cst.promoted { color:var(--content); }
     .langs { margin-left:8px; display:inline-flex; gap:3px; }
@@ -939,14 +942,14 @@ interface StreamRow {
     .mbpanel { border:1px solid rgba(255,255,255,.09); border-radius:10px; overflow:hidden; background:#0f0f0f; }
     .mbhead { display:flex; align-items:baseline; gap:8px; background:linear-gradient(180deg,#2a2a2a,#1c1c1c); border-bottom:1px solid rgba(255,255,255,.08);
       padding:8px 12px; font-family:var(--serif); font-size:12px; letter-spacing:.04em; color:var(--gold-b); }
-    .mbhead .mbar { font-family:var(--ar); font-size:13px; color:var(--t2); }
+    .mbhead .mbar { font-family:var(--km-font-arabic-ui); font-size:13px; color:var(--t2); }
     .mbhead .mbn { margin-left:auto; font-family:ui-monospace,monospace; font-size:9px; color:var(--t3); }
     .mbbody { padding:10px 12px; display:flex; flex-direction:column; gap:10px; }
     .mbitem + .mbitem { border-top:1px solid rgba(255,255,255,.06); padding-top:10px; }
-    .mbt { font-weight:640; font-size:13px; color:var(--text); } .mbta { font-family:var(--ar); color:var(--gold-b); font-size:14px; margin-right:6px; }
+    .mbt { font-weight:640; font-size:13px; color:var(--text); } .mbta { font-family:var(--km-font-arabic-ui); color:var(--gold-b); font-size:14px; margin-right:6px; }
     .mbb { font-size:11.5px; color:var(--t2); line-height:1.6; margin-top:4px; }
-    .mbba { font-family:var(--ar); font-size:14px; color:var(--arab); line-height:1.8; margin-top:5px; direction:rtl; text-align:right; }
-    .mbbu { font-family:var(--ar); font-size:12.5px; color:var(--t3); line-height:1.8; margin-top:3px; direction:rtl; text-align:right; }
+    .mbba { font-family:var(--km-font-arabic-ui); font-size:14px; color:var(--arab); line-height:1.8; margin-top:5px; direction:rtl; text-align:right; }
+    .mbbu { font-family:var(--km-font-arabic-ui); font-size:12.5px; color:var(--t3); line-height:1.8; margin-top:3px; direction:rtl; text-align:right; }
     .fam { margin-bottom:12px; }
     .hc.all { background:#141414 !important; color:var(--gold-b); border:1px dashed var(--bd); }
     .hc.all.mem { color:var(--study); } .hc.all.qk2 { color:var(--content); }
@@ -959,14 +962,14 @@ interface StreamRow {
     .medb { font-family:ui-monospace,monospace; font-size:8.5px; color:var(--t3); border:1px solid rgba(255,255,255,.14); border-radius:7px; padding:2px 7px; }
     .medb.ready { color:var(--content); border-color:rgba(77,217,168,.4); }
     .qkn { font-family:var(--serif); font-size:10px; color:var(--t3); margin-left:8px; text-transform:none; letter-spacing:0; }
-    .qpa { font-family:var(--ar); font-size:15px; color:var(--arab); margin-top:4px; direction:rtl; text-align:right; }
+    .qpa { font-family:var(--km-font-arabic-ui); font-size:15px; color:var(--arab); margin-top:4px; direction:rtl; text-align:right; }
     .qopts { display:flex; flex-direction:column; gap:5px; margin-top:9px; }
     .qopt { display:flex; align-items:flex-start; gap:8px; border:1px solid rgba(255,255,255,.09); border-radius:8px; background:#141414; padding:7px 10px; }
     .qopt.correct { border-color:rgba(77,217,168,.5); background:rgba(77,217,168,.07); }
     .ql { font-family:var(--serif); font-size:11px; color:var(--t3); width:14px; flex:0 0 auto; }
     .qotext { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
     .qoen { font-size:12.5px; color:var(--text); }
-    .qoar { font-family:var(--ar); font-size:14px; color:var(--arab); direction:rtl; text-align:right; }
+    .qoar { font-family:var(--km-font-arabic-ui); font-size:14px; color:var(--arab); direction:rtl; text-align:right; }
     .qwhy { font-size:10px; color:var(--t3); line-height:1.45; } .qwhy b { color:var(--err); font-family:ui-monospace,monospace; font-size:9px; }
     .qtick { color:var(--content); font-weight:800; flex:0 0 auto; }
     .qnoopt { font-family:ui-monospace,monospace; font-size:11px; color:var(--content); margin-top:6px; }
@@ -988,7 +991,7 @@ interface StreamRow {
       background:#0f0f0f; border:1px solid var(--bd); border-radius:11px; padding:8px 13px; color:var(--t2); }
     .st:hover { border-color:var(--bd-hi); }
     .st.on { border-color:var(--gold-b); background:linear-gradient(180deg,#1a1710,#0f0f0f); }
-    .star { font-family:var(--ar); font-size:15px; color:var(--gold-b); }
+    .star { font-family:var(--km-font-arabic-ui); font-size:15px; color:var(--gold-b); }
     .sten { font-family:var(--serif); font-size:12px; color:var(--text); }
     .stn { font-family:ui-monospace,monospace; font-size:8.5px; color:var(--t3); }
 
@@ -999,7 +1002,7 @@ interface StreamRow {
     .bndn { font-family:ui-monospace,monospace; font-size:9px; color:#2a2205; background:var(--gold-b);
       border-radius:5px; padding:2px 6px; font-weight:700; }
     .bndk { font-family:ui-monospace,monospace; font-size:10px; letter-spacing:1px; color:var(--gold-b); }
-    .bndar { font-family:var(--ar); font-size:15px; color:var(--t2); }
+    .bndar { font-family:var(--km-font-arabic-ui); font-size:15px; color:var(--t2); }
     .bndt { font-family:var(--serif); font-size:12.5px; color:var(--text); }
     .bndc { font-family:ui-monospace,monospace; font-size:9.5px; color:var(--t3); margin-left:auto; }
     .bsubs { display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:1px; background:rgba(255,255,255,.05); }
@@ -1042,12 +1045,13 @@ interface StreamRow {
        recognise the row; the whole value is on the cell's title. */
     .cbtbl .cv { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
       overflow:hidden; line-height:1.45; }
-    .cbtbl td.ar { font-family:var(--ar); font-size:15px; color:var(--arab); direction:rtl; text-align:right; }
+    .cbtbl td.ar { font-family:var(--km-font-arabic-ui); font-size:15px; color:var(--arab); direction:rtl; text-align:right; }
     .cbtbl tr:hover td { background:rgba(201,168,76,.05); }
   `],
 })
 export class CybMapComponent {
   private readonly svc = inject(CybService);
+  private readonly latest = new LatestRequest(inject(DestroyRef));
   private readonly api = inject(BackendApiService);
   private readonly router = inject(Router);
 
@@ -1172,7 +1176,7 @@ export class CybMapComponent {
 
   constructor() {
 
-    this.route.paramMap.subscribe((pm) => {
+    this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((pm) => {
       const prevSurah = this.surahId(); const prevRoot = this.rootParam();
       this.pm.set(pm);
       const sid = this.surahId();
@@ -1241,7 +1245,7 @@ export class CybMapComponent {
     const node = this.passageNodeCur();
     if (!u || !st || !node) { this.carrierBands.set([]); return; }
     this.carrierBands.set(null);
-    this.svc.nodeRows(node.id, st).subscribe({
+    this.latest.run('carrierBands', this.svc.nodeRows(node.id, st), {
       next: (r) => this.carrierBands.set(r.carriers),
       error: () => this.carrierBands.set([]),
     });
@@ -1410,7 +1414,7 @@ export class CybMapComponent {
 
   private loadStudyGrid(surahId: number) {
     this.units.set([]); this.loadingPassages.set(true);
-    this.svc.studyGrid(surahId).subscribe({
+    this.latest.run('studyGrid', this.svc.studyGrid(surahId), {
       next: (g) => { this.units.set(g.units ?? []); this.loadingPassages.set(false); },
       error: () => { this.units.set([]); this.loadingPassages.set(false); },
     });
@@ -1426,7 +1430,7 @@ export class CybMapComponent {
     const sid = this.surahId(); const pno = this.passageNo();
     if (!sid || !pno) { this.verseRoots.set([]); return; }
     this.verseRoots.set([]); this.rootGlosses.set(null);
-    this.svc.passageRoots(sid, pno).subscribe({
+    this.latest.run('passageRoots', this.svc.passageRoots(sid, pno), {
       next: (r) => { this.verseRoots.set(r); this.loadRootGlosses(r.map((x) => x.root)); },
       error: () => { this.verseRoots.set([]); this.rootGlosses.set(new Map()); },
     });
@@ -1434,7 +1438,7 @@ export class CybMapComponent {
 
   private loadRootGlosses(roots: string[]) {
     if (!roots.length) { this.rootGlosses.set(new Map()); return; }
-    this.svc.rootGlosses(roots).subscribe({
+    this.latest.run('rootGlosses', this.svc.rootGlosses(roots), {
       next: (g) => {
         const m = new Map<string, RootGloss>();
 
@@ -1590,9 +1594,9 @@ export class CybMapComponent {
   private loadAudit(rn: string | null) {
     if (!rn || this.auditLoadedFor === rn) return;
     this.auditLoadedFor = rn;
-    this.svc.rootDetail(rn).subscribe({ next: (d) => this.rootDetail.set(d), error: () => {} });
+    this.latest.run('rootDetail', this.svc.rootDetail(rn), { next: (d) => this.rootDetail.set(d), error: () => {} });
 
-    this.svc.rootSenses(rn).subscribe({
+    this.latest.run('rootSenses', this.svc.rootSenses(rn), {
       next: (b) => this.senseBundle.set(b),
       error: () => this.senseBundle.set({ root: rn, senses: [], arcs: [], steps: [], attestations: [] }),
     });
@@ -1606,9 +1610,8 @@ export class CybMapComponent {
     this.dsLoadedFor = root;
     this.dsSpec.set(null);
     this.dsError.set(null);
-    this.api
-      .getData<DisplaySpec>('core', ['ds', 'root', root], { params: { form: 'desktop' } })
-      .subscribe({
+    this.latest.run('dsSpec', this.api
+      .getData<DisplaySpec>('core', ['ds', 'root', root], { params: { form: 'desktop' } }), {
 
         next: (spec) => this.dsSpec.set(normaliseSpec(spec)),
         error: (e) =>

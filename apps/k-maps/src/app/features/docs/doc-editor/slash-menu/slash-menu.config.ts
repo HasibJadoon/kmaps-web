@@ -1,4 +1,5 @@
 import { Editor, Range } from '@tiptap/core';
+import { docDataSource } from '../tiptap-extensions/data-source.extension';
 
 export interface SlashCommand {
   title: string;
@@ -89,15 +90,13 @@ export const SLASH_COMMANDS: SlashCommand[] = [
       const [s, a] = ref.split(':').map(Number);
       if (!s || !a) return;
 
-      fetch(`/api/ar/quran/ayahs?surah=${s}&limit=1&offset=${a - 1}`)
-        .then(r => r.json())
-        .then((data: { verses?: Array<{ text_uthmani_clean?: string; text_uthmani?: string; text?: string; translation?: string }> }) => {
-          const verse = data.verses?.[0];
+      void (docDataSource(editor)?.loadAyah(s, a) ?? Promise.resolve(null))
+        .then((verse) => {
           editor.commands.insertContent({
             type: 'ayah_embed',
             attrs: {
               id: crypto.randomUUID(), surah: s, ayah: a,
-              text_uthmani: verse?.text_uthmani_clean ?? verse?.text_uthmani ?? verse?.text ?? '',
+              text_uthmani: verse?.text ?? '',
               translation: verse?.translation ?? '',
               show_translation: true, dir: 'rtl', lang: 'ar'
             }

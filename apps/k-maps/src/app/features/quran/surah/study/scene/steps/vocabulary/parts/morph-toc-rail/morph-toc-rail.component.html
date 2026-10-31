@@ -1,7 +1,7 @@
     <aside class="mw-toc">
       <div class="mw-toc__head">
         <span class="mw-toc__title">The Word's Story</span>
-        <span class="mw-toc__title-ar ar">قصة الكلمة</span>
+        <span lang="ar" class="mw-toc__title-ar ar">قصة الكلمة</span>
       </div>
 
       @if (regOptions.length > 1) {
@@ -13,7 +13,7 @@
       }
 
       <nav class="mw-toc__nav">
-        <div class="mw-toc__sec mw-toc__sec--core" (click)="toggleCore.emit()">
+        <div kmPressable class="mw-toc__sec mw-toc__sec--core" (click)="toggleCore.emit()">
           <span class="dot"></span><span class="lbl">Core · static</span>
           <span class="chev" [class.closed]="!coreOpen">▾</span>
         </div>
@@ -21,13 +21,13 @@
           @for (t of tocCore; track t.domId) {
             <button class="mw-toc__item" [class.hot]="t.hot" (click)="scrollTo.emit(t.domId)">
               <span class="n">{{ t.ord }}</span>
-              <span class="tx"><span class="en" [class.ur]="t.isUr">{{ t.title }}</span><span class="ar">{{ t.titleAr }}</span></span>
+              <span class="tx"><span class="en" [class.ur]="t.isUr">{{ t.title }}</span><span lang="ar" class="ar">{{ t.titleAr }}</span></span>
             </button>
           }
         }
 
         @if (tocTemporal.length) {
-          <div class="mw-toc__sec mw-toc__sec--temp" (click)="toggleCtx.emit()">
+          <div kmPressable class="mw-toc__sec mw-toc__sec--temp" (click)="toggleCtx.emit()">
             <span class="dot"></span><span class="lbl">Temporal · context</span>
             <span class="chev" [class.closed]="!ctxOpen">▾</span>
           </div>
@@ -35,7 +35,7 @@
             @for (t of tocTemporal; track t.domId) {
               <button class="mw-toc__item" [class.hot]="t.hot" (click)="scrollTo.emit(t.domId)">
                 <span class="n">{{ t.ord }}</span>
-                <span class="tx"><span class="en" [class.ur]="t.isUr">{{ t.title }}</span><span class="ar">{{ t.titleAr }}</span></span>
+                <span class="tx"><span class="en" [class.ur]="t.isUr">{{ t.title }}</span><span lang="ar" class="ar">{{ t.titleAr }}</span></span>
               </button>
             }
           }

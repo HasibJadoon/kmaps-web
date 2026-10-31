@@ -11,6 +11,8 @@ export interface WvSourceRow {
   title: string;
   title_ar: string | null;
   source_type: string | null;
+  /** English label for source_type, served by the WV worker. */
+  source_type_label?: string | null;
   source_domain: string | null;
   tradition_id: string | null;
   language: string | null;
@@ -28,6 +30,8 @@ export interface WvUnitRow {
   source_id: string;
   parent_id: string | null;
   unit_type: string | null;
+  /** English label for unit_type, served by the WV worker. */
+  unit_type_label?: string | null;
   title: string | null;
   unit_index: number | null;
   page_start: number | null;

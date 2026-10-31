@@ -1,9 +1,12 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, ChangeDetectionStrategy, ElementRef, ViewChild } from '@angular/core';
+import { DestroyRef, Component, OnInit, OnDestroy, inject, signal, computed, ChangeDetectionStrategy, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { ArabicApiService } from '../../../shared/services/arabic-api.service';
 import { environment } from '../../../../environments/environment';
 
+import { PressableDirective } from '../../../shared/directives/pressable.directive';
+import { LatestRequest } from '../../../shared/utils/latest-request';
+import { ArabicDigitsPipe } from '../../../shared/pipes/arabic-digits.pipe';
 /// One line of the recording's timeline: its seconds, and one [start, end]
 /// per word where the recogniser timed them.
 interface Segment { seq: number; start: number; end: number; text: string; speaker: string | null; anchored: boolean; words: number[][] | null }
@@ -38,15 +41,16 @@ interface Envelope<T> { ok: boolean; data?: T; }
 @Component({
   selector: 'km-arabic-reader',
   standalone: true,
-  imports: [CommonModule],
+  imports: [ArabicDigitsPipe, PressableDirective, CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './arabic-reader.component.html',
   styleUrl: './arabic-reader.component.scss',
 })
 export class ArabicReaderComponent implements OnInit, OnDestroy {
+  private readonly latest = new LatestRequest(inject(DestroyRef));
   private route = inject(ActivatedRoute);
   private router = inject(Router);
-  private http = inject(HttpClient);
+  private readonly ar = inject(ArabicApiService);
   private base = environment.apiBase;
 
   readonly loading = signal(true);
@@ -314,17 +318,17 @@ export class ArabicReaderComponent implements OnInit, OnDestroy {
     const highlights = note ? [...others, { seq: this.seq(), text: seg.text, note, t, at: new Date().toISOString() }] : others;
     this.state.update((s) => s ? { ...s, highlights } : { workId: w.id, status: 'reading', progressSeq: this.seq(), favourite: false, bookmarks: [], highlights });
     this.noteFor.set(null);
-    this.http.put<Envelope<{ state: ReadingState }>>(`${this.base}/ar/reading/state/${encodeURIComponent(w.id)}`, { highlights })
+    this.ar.put<Envelope<{ state: ReadingState }>>(`ar/reading/state/${encodeURIComponent(w.id)}`, { highlights })
       .subscribe({ next: (r) => { if (r?.data?.state) this.state.set(r.data.state); }, error: () => { /* signed out: the note stays on this page until you sign in */ } });
   }
   private loadState(workId: string): void {
-    this.http.get<Envelope<{ states: ReadingState[] }>>(`${this.base}/ar/reading/state`).subscribe({
+    this.ar.get<Envelope<{ states: ReadingState[] }>>(`ar/reading/state`).subscribe({
       next: (r) => this.state.set(r?.data?.states?.find((s) => s.workId === workId) ?? null),
       error: () => this.state.set(null),
     });
   }
   private saveProgress(workId: string, seq: number): void {
-    this.http.put(`${this.base}/ar/reading/state/${encodeURIComponent(workId)}`, { progressSeq: seq }).subscribe({ error: () => {} });
+    this.ar.put(`ar/reading/state/${encodeURIComponent(workId)}`, { progressSeq: seq }).subscribe({ error: () => {} });
   }
 
   ngOnDestroy(): void { this.stopFollowing(); try { this.yt?.destroy?.(); } catch { /* fine */ } this.yt = null; }
@@ -354,10 +358,6 @@ export class ArabicReaderComponent implements OnInit, OnDestroy {
 
   toggleSharh(): void { this.showSharh.update((v) => !v); }
 
-  /// Arabic-Indic numerals, because that is how the editions number their lines.
-  arabicNum(n: string | number): string {
-    return String(n).replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]);
-  }
 
   /// A transcript line that opens with a speaker — "مقدم:" — is dialogue, and
   /// reads as an exchange rather than as prose.
@@ -490,11 +490,10 @@ export class ArabicReaderComponent implements OnInit, OnDestroy {
 
   private load(workId: string, from: number): void {
     this.loading.set(true);
-    this.http
+    this.latest.run('pages', this.ar
       .get<Envelope<{ work: Work; pages: Page[]; bounds: Bounds }>>(
-        `${this.base}/ar/text/works/${workId}/pages?from=${from}&limit=${this.span()}`,
-      )
-      .subscribe({
+        `ar/text/works/${workId}/pages?from=${from}&limit=${this.span()}`,
+      ), {
         next: (r) => {
           this.work.set(r?.data?.work ?? null);
           this.pages.set(r?.data?.pages ?? []);
@@ -532,9 +531,9 @@ export class ArabicReaderComponent implements OnInit, OnDestroy {
     if (this.picked() === word) { this.picked.set(null); this.lookup.set(null); return; }
     this.picked.set(word);
     this.looking.set(true);
-    this.http
+    this.ar
       .get<Envelope<{ found: boolean; matchedAs: string | null; tried: string[]; lemmas: Lemma[] }>>(
-        `${this.base}/al/lookup?w=${encodeURIComponent(clean)}`,
+        `al/lookup?w=${encodeURIComponent(clean)}`,
       )
       .subscribe({
         next: (r) => { this.lookup.set(r?.data ?? null); this.looking.set(false); },

@@ -4,6 +4,8 @@ import {
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { HubPanelService } from '../hub-panel.service';
+import { HubApiService } from '../hub-api.service';
+import { firstValueFrom } from 'rxjs';
 
 @Component({
   selector: 'km-hub-panel',
@@ -15,6 +17,7 @@ import { HubPanelService } from '../hub-panel.service';
 })
 export class HubPanelComponent {
   readonly panel = inject(HubPanelService);
+  private readonly api = inject(HubApiService);
   private fb = inject(FormBuilder);
 
   readonly saveStatus = signal<'idle' | 'saving' | 'ok' | 'err'>('idle');
@@ -133,7 +136,7 @@ export class HubPanelComponent {
       'wv-podcast': '/wv/podcasts',
       'wv-plan': '/wv/plans',
       'ar-container': '/ar/containers',
-      'workspace': '/workspaces'
+      'workspace': '/core/workspaces'
     };
 
     const form = formMap[mode];
@@ -141,12 +144,7 @@ export class HubPanelComponent {
     if (!form || !endpoint) { this.saveStatus.set('err'); return; }
 
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form.value)
-      });
-      const data = await res.json() as { ok: boolean };
+      const data = await firstValueFrom(this.api.create(endpoint, form.value));
       if (data.ok) {
         this.saveStatus.set('ok');
         form.reset();

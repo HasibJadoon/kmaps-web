@@ -15,6 +15,7 @@ import type {
 import { DisplayBlockComponent } from '../../../../../shared/components/display-block/display-block.component';
 import { RefsPanelComponent } from '../../../../../shared/components/refs-panel/refs-panel.component';
 import { TafsirAnalysisPanelComponent } from '../../../../../shared/components/tafsir-analysis-panel/tafsir-analysis-panel.component';
+import { QuranStateService } from '../../../../../shared/services/quran/quran-state.service';
 
 interface ScholarColumn {
   source: QrTafsirDisplaySource;
@@ -29,6 +30,7 @@ interface ScholarColumn {
   styleUrl: './tafseer-page.component.scss',
 })
 export class TafseerPageComponent implements OnInit, AfterViewInit {
+  private readonly quranState = inject(QuranStateService);
   @ViewChild('grid')   grid?: ElementRef<HTMLElement>;
   @ViewChild('reader') reader?: ElementRef<HTMLElement>;
 
@@ -104,7 +106,7 @@ export class TafseerPageComponent implements OnInit, AfterViewInit {
     if (!m) return;
     const s = parseInt(m[1], 10);
     const a = parseInt(m[2], 10);
-    if (s < 1 || s > 114) return;
+    if (!this.quranState.isSurahNo(s)) return;
     this.setSurah(s);
     queueMicrotask(() => this.setAyah(a));
     this.goToInput.set('');

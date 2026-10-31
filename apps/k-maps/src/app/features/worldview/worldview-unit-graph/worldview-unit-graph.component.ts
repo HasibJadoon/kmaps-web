@@ -18,6 +18,7 @@ import { WvGraphShellComponent } from '../wv-graph/wv-graph-shell/wv-graph-shell
 interface WvSource {
   id: string;
   source_type?: string | null;
+  source_type_label?: string | null;
   title: string;
   subtitle?: string | null;
   creator?: string | null;
@@ -28,6 +29,7 @@ interface WvUnit {
   id: string;
   source_id: string;
   parent_unit_id?: string | null;
+  unit_type_label?: string | null;
   unit_type?: string | null;
   title?: string | null;
   order_index?: number | null;
@@ -234,37 +236,12 @@ export class WorldviewUnitGraphComponent implements OnInit, OnDestroy {
     return unit.start_ref || unit.end_ref || '';
   }
 
-  unitTypeLabel(type?: string | null): string {
-    const key = (type ?? '').trim().toLowerCase();
-    const map: Record<string, string> = {
-      chapter: 'Chapter',
-      section: 'Section',
-      part: 'Part',
-      passage: 'Passage',
-      unit: 'Unit',
-      excerpt: 'Excerpt',
-      page: 'Page',
-      paragraph: 'Paragraph',
-    };
-    return map[key] ?? 'Unit';
+  unitTypeLabel(unit?: WvUnit | null): string {
+    return unit?.unit_type_label || unit?.unit_type || '';
   }
 
-  sourceTypeLabel(type?: string | null): string {
-    const key = (type ?? '').trim().toLowerCase();
-    const map: Record<string, string> = {
-      book: 'Book',
-      article: 'Article',
-      essay: 'Essay',
-      paper: 'Paper',
-      lecture: 'Lecture',
-      podcast: 'Podcast',
-      video: 'Video',
-      website: 'Website',
-      document: 'Document',
-      scripture: 'Scripture',
-      report: 'Report',
-    };
-    return map[key] ?? 'Source';
+  sourceTypeLabel(source?: WvSource | null): string {
+    return source?.source_type_label || source?.source_type || '';
   }
 
   sourceTypeColor(type?: string | null): string {
@@ -296,6 +273,7 @@ export class WorldviewUnitGraphComponent implements OnInit, OnDestroy {
       source_id: String(unit['source_id'] ?? ''),
       parent_unit_id: typeof parentRaw === 'string' ? parentRaw : null,
       unit_type: typeof unit['unit_type'] === 'string' ? unit['unit_type'] : null,
+      unit_type_label: typeof unit['unit_type_label'] === 'string' ? unit['unit_type_label'] : null,
       title: typeof unit['title'] === 'string' ? unit['title'] : null,
       order_index: typeof orderRaw === 'number' ? orderRaw : null,
       start_ref: typeof startRaw === 'string' ? startRaw : null,

@@ -15,6 +15,7 @@ import type {
 import { DisplayBlockComponent } from '../../../../../shared/components/display-block/display-block.component';
 import { RefsPanelComponent } from '../../../../../shared/components/refs-panel/refs-panel.component';
 import { IraabAnalysisPanelComponent } from '../../../../../shared/components/iraab-analysis-panel/iraab-analysis-panel.component';
+import { QuranStateService } from '../../../../../shared/services/quran/quran-state.service';
 
 interface SourceSection {
   source: QrIraabDisplaySource;
@@ -31,35 +32,18 @@ export interface SectionGroup {
   order: number;
 }
 
-const SECTION_LABELS: Record<string, { ar: string; en: string; order: number }> = {
-  irab:      { ar: 'الإعراب',  en: 'Iʿrāb',                 order: 0 },
-  sarf:      { ar: 'الصرف',    en: 'Ṣarf',                  order: 1 },
-  balagha:   { ar: 'البلاغة',  en: 'Balāgha',               order: 2 },
-  fawaid:    { ar: 'الفوائد',  en: 'Fawāʾid (Insights)',    order: 3 },
-  language:  { ar: 'اللغة',     en: 'Language & Etymology', order: 4 },
-  dep_graph: { ar: 'الشجرة الإعرابية', en: 'Dependency Tree', order: 9 },
-};
-
+/** The QR worker keys, labels and orders each block's section (section_key …). */
 function sectionOf(b: QrIraabDisplayBlock): string {
-  if (b.block_type === 'irab_card') return 'irab';
-  if (b.block_type === 'dependency_graph') return 'dep_graph';
-  if (b.block_type === 'heading' && b.block_subtype) return b.block_subtype;
-  if (b.block_type === 'sarf_note')      return 'sarf';
-  if (b.block_type === 'balagha_note')   return 'balagha';
-  if (b.block_type === 'key_insight')    return 'fawaid';
-  if (b.block_type === 'language_note')  return 'language';
-  if (b.block_subtype) return b.block_subtype;
-  return 'irab';
+  return b.section_key ?? b.block_subtype ?? b.block_type;
 }
 
 function groupBlocksBySection(blocks: QrIraabDisplayBlock[]): SectionGroup[] {
   const byKey = new Map<string, SectionGroup>();
 
-  const ensure = (key: string): SectionGroup => {
+  const ensure = (key: string, b: QrIraabDisplayBlock): SectionGroup => {
     if (byKey.has(key)) return byKey.get(key)!;
-    const meta = SECTION_LABELS[key] ?? { ar: key, en: key, order: 99 };
     const g: SectionGroup = {
-      key, label_ar: meta.ar, label_en: meta.en, order: meta.order,
+      key, label_ar: b.section_label_ar ?? key, label_en: b.section_label ?? key, order: b.section_order ?? 99,
       heading_block: null, children: [],
     };
     byKey.set(key, g);
@@ -68,7 +52,7 @@ function groupBlocksBySection(blocks: QrIraabDisplayBlock[]): SectionGroup[] {
 
   for (const b of blocks) {
     const key = sectionOf(b);
-    const g = ensure(key);
+    const g = ensure(key, b);
     if (b.block_type === 'heading') g.heading_block = b;
     else g.children.push(b);
   }
@@ -88,6 +72,7 @@ function groupBlocksBySection(blocks: QrIraabDisplayBlock[]): SectionGroup[] {
   styleUrl: './uloom-page.component.scss',
 })
 export class UloomPageComponent implements OnInit, AfterViewInit {
+  private readonly quranState = inject(QuranStateService);
   @ViewChild('grid')    grid?: ElementRef<HTMLElement>;
   @ViewChild('reader')  reader?: ElementRef<HTMLElement>;
 
@@ -169,7 +154,7 @@ export class UloomPageComponent implements OnInit, AfterViewInit {
     if (!m) return;
     const s = parseInt(m[1], 10);
     const a = parseInt(m[2], 10);
-    if (s < 1 || s > 114) return;
+    if (!this.quranState.isSurahNo(s)) return;
     this.setSurah(s);
 
     queueMicrotask(() => this.setAyah(a));

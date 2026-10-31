@@ -3,17 +3,17 @@ import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
-
-const TOKEN_KEY = 'km_token';
+import { AuthService } from './auth.service';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
+  const auth = inject(AuthService);
   const isApi = req.url.startsWith(environment.apiBase) || req.url.startsWith('/api');
   const isAuthEndpoint = req.url.includes('/core/auth/') || req.url.includes('/seed-admin');
 
   let request = req;
   if (isApi && !isAuthEndpoint) {
-    const token = localStorage.getItem(TOKEN_KEY);
+    const token = auth.token();
     if (token) {
       request = req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
     }
@@ -27,9 +27,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         isApi &&
         !isAuthEndpoint
       ) {
-        localStorage.removeItem(TOKEN_KEY);
+        auth.clear();
         if (!router.url.startsWith('/login')) {
-          void router.navigateByUrl('/login', { replaceUrl: true });
+          void router.navigate(['/login'], { replaceUrl: true, queryParams: { returnUrl: router.url } });
         }
       }
       return throwError(() => error);

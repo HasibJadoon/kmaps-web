@@ -12,7 +12,7 @@
           <span class="story__mast-mid">
             <span class="story__star"><lucide-icon [name]="icon(block.icon, 'sparkles')" [size]="16"></lucide-icon></span>
             <span class="story__mast-en">The Complete Story</span>
-            <span class="story__mast-ar ar">القصة الجامعة</span>
+            <span lang="ar" class="story__mast-ar ar">القصة الجامعة</span>
           </span>
           <span class="story__rule story__rule--r"></span>
         </div>
@@ -21,8 +21,8 @@
           <div class="story__medallion">
             <div class="story__med-ring"></div>
             <div class="story__med-text">
-              <div class="story__med-word ar">{{ bare(d.medallion_ar || d.dropcap) }}</div>
-              @if (d.medallion_root) { <div class="story__med-root ar">{{ d.medallion_root }}</div> }
+              <div lang="ar" class="story__med-word ar">{{ bare(d.medallion_ar || d.dropcap) }}</div>
+              @if (d.medallion_root) { <div lang="ar" class="story__med-root ar">{{ d.medallion_root }}</div> }
             </div>
           </div>
         }
@@ -36,21 +36,21 @@
                   @if (!last) { <span class="mv__line"></span> }
                 </div>
                 <div class="mv__body">
-                  <div class="mv__head"><span class="mv__en">{{ m.en }}</span><span class="mv__ar ar">{{ m.ar }}</span></div>
-                  @if (showAr(priAr(m.text), priEn(m.text, m.text_en), m.text_ur)) { <p class="mv__text ar" dir="rtl" [innerHTML]="rich(priAr(m.text))"></p> }
+                  <div class="mv__head"><span class="mv__en">{{ m.en }}</span><span lang="ar" class="mv__ar ar">{{ m.ar }}</span></div>
+                  @if (showAr(priAr(m.text), priEn(m.text, m.text_en), m.text_ur)) { <p lang="ar" class="mv__text ar" dir="rtl" [innerHTML]="rich(priAr(m.text))"></p> }
                   @if (showEn(priAr(m.text), priEn(m.text, m.text_en), m.text_ur)) { <p class="mv__text-en" [class.mv__text]="!priAr(m.text)" dir="ltr" [innerHTML]="rich(priEn(m.text, m.text_en))"></p> }
-                  @if (showUr(priAr(m.text), priEn(m.text, m.text_en), m.text_ur)) { <p class="mv__text-en ur" dir="rtl" [innerHTML]="rich(m.text_ur)"></p> }
+                  @if (showUr(priAr(m.text), priEn(m.text, m.text_en), m.text_ur)) { <p lang="ur" class="mv__text-en ur" dir="rtl" [innerHTML]="rich(m.text_ur)"></p> }
                   @if (m.chips?.length) {
-                    <div class="mv__chips">@for (c of m.chips; track c.ar) { <span class="mv__chip"><b class="ar">{{ c.ar }}</b><small [class.ur]="isUr(c.ur)" [dir]="isUr(c.ur) ? 'rtl' : 'ltr'">{{ pick(c.en, c.ur) }}</small></span> }</div>
+                    <div class="mv__chips">@for (c of m.chips; track c.ar) { <span class="mv__chip"><b lang="ar" class="ar">{{ c.ar }}</b><small [class.ur]="isUr(c.ur)" [dir]="isUr(c.ur) ? 'rtl' : 'ltr'">{{ pick(c.en, c.ur) }}</small></span> }</div>
                   }
                 </div>
               </div>
             }
           </div>
         } @else {
-          @if (showTextAr()) { <p class="story__prose ar" dir="rtl" [innerHTML]="richTextAr()"></p> }
+          @if (showTextAr()) { <p lang="ar" class="story__prose ar" dir="rtl" [innerHTML]="richTextAr()"></p> }
           @if (showTextEn()) { <p class="story__prose" dir="ltr" [innerHTML]="richTextEn()"></p> }
-          @if (showTextUr()) { <p class="story__prose ur" dir="rtl" [innerHTML]="richTextUr()"></p> }
+          @if (showTextUr()) { <p lang="ur" class="story__prose ur" dir="rtl" [innerHTML]="richTextUr()"></p> }
         }
 
         @if (d.threads?.length) {

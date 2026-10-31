@@ -7,8 +7,7 @@ import {
   ChangeDetectorRef,
 } from '@angular/core';
 import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../../environments/environment';
+import { ArabicApiService } from '../../../shared/services/arabic-api.service';
 
 interface ArDomain {
   id: number | string;
@@ -40,9 +39,8 @@ interface ArPhrase {
 })
 export class ArabicDomainsComponent implements OnInit {
   private router = inject(Router);
-  private http = inject(HttpClient);
+  private readonly ar = inject(ArabicApiService);
   private cdr = inject(ChangeDetectorRef);
-  private readonly base = environment.apiBase;
 
   domains = signal<ArDomain[]>([]);
   activeDomain = signal<ArDomain | null>(null);
@@ -62,7 +60,7 @@ export class ArabicDomainsComponent implements OnInit {
   }
 
   private loadDomains(): void {
-    this.http.get<any>(`${this.base}/ar/domains?limit=20`).subscribe({
+    this.ar.get<any>(`ar/domains?limit=20`).subscribe({
       next: (res) => {
         if (res?.ok && Array.isArray(res.domains)) {
           this.domains.set(res.domains);
@@ -89,7 +87,7 @@ export class ArabicDomainsComponent implements OnInit {
     this.activeDomain.set(d);
     this.phrases.set([]);
     this.phrasesLoading.set(true);
-    this.http.get<any>(`${this.base}/ar/domains/${d.id}/phrases`).subscribe({
+    this.ar.get<any>(`ar/domains/${d.id}/phrases`).subscribe({
       next: (res) => {
         if (res?.ok && Array.isArray(res.phrases)) {
           this.phrases.set(res.phrases);

@@ -60,7 +60,7 @@
               [attr.aria-expanded]="hasChildren(item.unit) ? !isCollapsed(item.unit.id) : null"
               (click)="onTocRowClick(item.unit)"
             >
-              <div
+              <div kmPressable
                 class="toc-row__rail"
                 [class.toc-row__rail--toggle]="hasChildren(item.unit)"
                 (click)="hasChildren(item.unit) ? onTocToggle($event, item.unit) : $event.stopPropagation()"
@@ -133,10 +133,10 @@
 
         <div class="read-controls">
           <span class="badge" [attr.data-color]="sourceTypeColor(source()?.source_type)">
-            {{ sourceTypeLabel(source()?.source_type) }}
+            {{ sourceTypeLabel(source()) }}
           </span>
           <span class="badge" [attr.data-color]="unitTypeColor(selectedUnit()?.unit_type)">
-            {{ unitTypeLabel(selectedUnit()?.unit_type) }}
+            {{ unitTypeLabel(selectedUnit()) }}
           </span>
           @if (source()?.publication_year) {
             <span class="badge">{{ source()!.publication_year }}</span>
@@ -198,7 +198,7 @@
               }
 
               @if (hasArabicPassage()) {
-                <div class="story-passage story-passage--arabic scroll-reveal" dir="rtl">
+                <div lang="ar" class="story-passage story-passage--arabic scroll-reveal" dir="rtl">
                   <div class="story-passage__flow">
                     @for (block of passageBlocks(); track block.id) {
                       @for (word of arabicWords(block.text); track $index) {
@@ -213,7 +213,7 @@
               } @else {
                 @if (isPoem()) {
                   <div class="poem-bar" dir="ltr">
-                    @if (poem()?.meter) { <div class="poem-bar__meter" dir="rtl">{{ poem()?.meter }}</div> }
+                    @if (poem()?.meter) { <div lang="ar" class="poem-bar__meter" dir="rtl">{{ poem()?.meter }}</div> }
                     <div class="poem-bar__row">
                       @for (layer of poemLayers(); track layer.lang) {
                         <button class="poem-chip" [class.poem-chip--on]="isLayerOn(layer.lang)"
@@ -427,7 +427,7 @@
                   @if (selectedChapter(); as chapter) {
                     @if (chapter.id !== selectedUnit()?.id) {
                       <span class="document-end__chip">
-                        {{ unitTypeLabel(chapter.unit_type) }} · {{ unitLabel(chapter) }}
+                        {{ unitTypeLabel(chapter) }} · {{ unitLabel(chapter) }}
                       </span>
                     }
                   }
@@ -452,7 +452,7 @@
             } @else {
               <div class="empty-hint empty-hint--inline">
                 No passage body or verse reconstruction is available for this
-                {{ unitTypeLabel(selectedUnit()?.unit_type).toLowerCase() }} yet.
+                {{ unitTypeLabel(selectedUnit()).toLowerCase() }} yet.
               </div>
             }
           </section>
@@ -505,7 +505,7 @@
                             @for (entry of highlightEntries(); track entry.id) {
                               <article class="reader-card reader-card--highlight">
                                 <div class="reader-card__top">
-                                  <span class="reader-card__kind">{{ kindIcon(entry.note_kind) }} {{ kindLabelText(entry.note_kind) }}</span>
+                                  <span class="reader-card__kind">{{ kindIcon(entry.note_kind) }} {{ kindLabelText(entry) }}</span>
                                   @if (entry.locator) {
                                     <span class="reader-card__locator">{{ entry.locator }}</span>
                                   }
@@ -525,8 +525,8 @@
                                   [attr.dir]="textDirection(entry.body_md)"
                                 >{{ entry.body_md }}</div>
 
-                                @if (formatDate(entry.created_at)) {
-                                  <div class="reader-card__footer">{{ formatDate(entry.created_at) }}</div>
+                                @if ((entry.created_at | kmDate)) {
+                                  <div class="reader-card__footer">{{ (entry.created_at | kmDate) }}</div>
                                 }
                               </article>
                             }
@@ -546,7 +546,7 @@
                             @for (note of regularNotes(); track note.id) {
                               <article class="reader-card">
                                 <div class="reader-card__top">
-                                  <span class="reader-card__kind">{{ kindIcon(note.note_kind) }} {{ kindLabelText(note.note_kind) }}</span>
+                                  <span class="reader-card__kind">{{ kindIcon(note.note_kind) }} {{ kindLabelText(note) }}</span>
                                   @if (note.title) {
                                     <span class="reader-card__title">{{ note.title }}</span>
                                   }
@@ -566,8 +566,8 @@
                                   [attr.dir]="textDirection(note.body_md)"
                                 >{{ note.body_md }}</div>
 
-                                @if (formatDate(note.created_at)) {
-                                  <div class="reader-card__footer">{{ formatDate(note.created_at) }}</div>
+                                @if ((note.created_at | kmDate)) {
+                                  <div class="reader-card__footer">{{ (note.created_at | kmDate) }}</div>
                                 }
                               </article>
                             }

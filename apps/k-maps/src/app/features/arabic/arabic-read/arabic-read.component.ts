@@ -1,8 +1,7 @@
 import { Component, OnInit, inject, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../../environments/environment';
+import { ArabicApiService } from '../../../shared/services/arabic-api.service';
 
 export interface Work {
   id: string; slug: string | null;
@@ -25,6 +24,9 @@ export interface Work {
 
 interface Envelope<T> { ok: boolean; data?: T; }
 
+/// One band of the shelf, as the AR worker serves it (lib/value-labels.ts SHELF_SHAPES).
+export interface ShelfShape { shape: string; en: string; ar: string; note: string; }
+
 /// The shelf. Grouped by shape, because shape is what decides how a book is
 /// read — and the reader you land in differs accordingly.
 @Component({
@@ -37,29 +39,13 @@ interface Envelope<T> { ok: boolean; data?: T; }
 })
 export class ArabicReadComponent implements OnInit {
   private router = inject(Router);
-  private http = inject(HttpClient);
-  private base = environment.apiBase;
+  private readonly ar = inject(ArabicApiService);
 
   readonly loading = signal(true);
   readonly works = signal<Work[]>([]);
 
-  /// Order is deliberate: stories carry a beginner furthest, poetry is the
-  /// highest register, proverbs are the shortest complete thing on the shelf.
-  private static readonly ORDER: Work['shape'][] =
-    ['prose', 'nights', 'series', 'dialogue', 'maqama', 'amthal', 'diwan'];
-
-  static readonly META: Record<string, { en: string; ar: string; note: string }> = {
-    prose:  { en: 'Stories',  ar: 'الحكايات',  note: 'Narrative adab — read for the story, not the lesson' },
-    maqama: { en: 'Maqāmāt',  ar: 'المقامات',  note: 'Rhymed prose. Episodes, each a performance' },
-    amthal: { en: 'Proverbs', ar: 'الأمثال',   note: 'One line, complete. The shortest whole utterance' },
-    diwan:  { en: 'Dīwāns',   ar: 'الدواوين',  note: 'Poetry — two hemistichs to a line, highest register' },
-    nights: { en: 'The Nights', ar: 'ألف ليلة وليلة',
-              note: 'One night, one page. The Būlāq text, all 1,001' },
-    series: { en: 'Series & podcasts', ar: 'المسلسلات',
-              note: 'Transcripts, read against the recording they came from' },
-    dialogue: { en: 'Conversation', ar: 'الحوار',
-                note: 'Spoken exchange — the register you would actually be answered in' },
-  };
+  /// The shelf's bands (shape, labels, note) in reading order — served by the AR worker.
+  readonly shapes = signal<ShelfShape[]>([]);
 
   readonly groups = computed(() => {
     const by = new Map<string, Work[]>();
@@ -67,13 +53,12 @@ export class ArabicReadComponent implements OnInit {
       const k = w.shape ?? 'prose';
       (by.get(k) ?? by.set(k, []).get(k)!).push(w);
     }
-    return ArabicReadComponent.ORDER
-      .filter((s) => by.has(s!))
+    return this.shapes()
+      .filter((s) => by.has(s.shape))
       .map((s) => ({
-        shape: s!,
-        ...ArabicReadComponent.META[s!],
-        items: by.get(s!)!,
-        pages: by.get(s!)!.reduce((n, w) => n + w.pages, 0),
+        ...s,
+        items: by.get(s.shape)!,
+        pages: by.get(s.shape)!.reduce((n, w) => n + w.pages, 0),
       }));
   });
 
@@ -109,8 +94,12 @@ export class ArabicReadComponent implements OnInit {
   readonly totalWords = computed(() => this.works().reduce((n, w) => n + (w.words ?? 0), 0));
 
   ngOnInit(): void {
-    this.http.get<Envelope<{ shelf: Work[] }>>(`${this.base}/ar/text/shelf`).subscribe({
-      next: (r) => { this.works.set(r?.data?.shelf ?? []); this.loading.set(false); },
+    this.ar.get<Envelope<{ shelf: Work[]; shapes?: ShelfShape[] }>>(`ar/text/shelf`).subscribe({
+      next: (r) => {
+        this.shapes.set(r?.data?.shapes ?? []);
+        this.works.set(r?.data?.shelf ?? []);
+        this.loading.set(false);
+      },
       error: () => this.loading.set(false),
     });
   }

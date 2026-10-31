@@ -18,7 +18,7 @@
 
 .strip__eyebrow {
   flex: 0 0 auto;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -55,7 +55,7 @@
   border: 1px solid var(--rule);
   background: var(--paper-2);
   color: var(--ink-soft);
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 0.82rem;
   line-height: 1.4;
   white-space: nowrap;

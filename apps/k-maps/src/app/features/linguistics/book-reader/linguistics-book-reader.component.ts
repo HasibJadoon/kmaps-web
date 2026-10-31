@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { EMPTY, Subscription, catchError, distinctUntilChanged, map, switchMap, tap } from 'rxjs';
 import { BackButtonComponent } from '../../../shared/components/back-button/back-button.component';
 import {
   LinguisticsApiService, GramBab, GramBookMeta, GramPage, GramSearchHit,
@@ -23,7 +25,7 @@ interface FlatBab {
     <div class="rd" [class.fs-sm]="fs()==='sm'" [class.fs-lg]="fs()==='lg'" [attr.data-disc]="book()?.genre">
       <header class="rd__top">
         <km-back-button route="/linguistics" label="Linguistics" />
-        <div class="rd__id" dir="rtl">
+        <div lang="ar" class="rd__id" dir="rtl">
           <div class="rd__title">{{ book()?.title_ar }}</div>
           <div class="rd__author">{{ book()?.author_name }}@if (book()?.author_death_ah) { · ت {{ book()?.author_death_ah }}هـ}</div>
         </div>
@@ -39,7 +41,7 @@ interface FlatBab {
           <div class="rd__rail-head">الأبواب <span>{{ lazySpine() ? levelCount() : flat().length }}</span></div>
 
           <div class="rd__find">
-            <input #qbox dir="rtl" [value]="q()" placeholder="ابحث في الكتاب…"
+            <input lang="ar" #qbox dir="rtl" [value]="q()" placeholder="ابحث في الكتاب…"
                    (input)="q.set(qbox.value)" (keydown.enter)="runSearch()"
                    aria-label="Search this book" />
             @if (q()) { <button class="rd__find-x" (click)="clearSearch(); qbox.value=''" title="Clear">×</button> }
@@ -51,7 +53,7 @@ interface FlatBab {
             <div class="rd__find-note">{{ hits().length }} نتيجة</div>
             <nav class="rd__hits">
               @for (h of hits(); track h.id) {
-                <button class="hit" (click)="openHit(h)" dir="rtl">
+                <button lang="ar" class="hit" (click)="openHit(h)" dir="rtl">
                   <span class="hit__s">@for (seg of segs(h.snippet); track $index) {@if (seg.hit) {<mark>{{ seg.t }}</mark>} @else {{{ seg.t }}}}</span>
                   <span class="hit__p">{{ h.volume_no ? 'ج'+h.volume_no+'/' : '' }}{{ h.page_no }}</span>
                 </button>
@@ -63,7 +65,7 @@ interface FlatBab {
           <nav class="rd__tree">
             <button class="tw all" [class.active]="!activeBab()" (click)="showAll()">كل الكتاب · Full text</button>
             @for (n of flat(); track n.id) {
-              <button class="tw" [class.active]="activeBab()===n.id" [style.--d]="n.depth"
+              <button lang="ar" class="tw" [class.active]="activeBab()===n.id" [style.--d]="n.depth"
                       [class.lead]="n.depth===0" (click)="openBab(n)" dir="rtl">
                 @if (n.kids) { <span class="tw__k">{{ n.open ? '−' : '+' }}</span> }
                 <span class="tw__t">{{ n.title_ar }}</span>
@@ -71,7 +73,7 @@ interface FlatBab {
               </button>
             }
             @if (lazySpine() && flat().length < levelCount()) {
-              <button class="tw more" (click)="moreSpine()" [disabled]="loadingSpine()" dir="rtl">
+              <button lang="ar" class="tw more" (click)="moreSpine()" [disabled]="loadingSpine()" dir="rtl">
                 {{ loadingSpine() ? '…' : 'المزيد — ' + (levelCount() - flat().length) }}
               </button>
             }
@@ -82,16 +84,16 @@ interface FlatBab {
         <button class="rd__rail-toggle" (click)="railOpen.set(!railOpen())">☰ الأبواب</button>
 
         <main class="rd__main">
-          @if (activeTitle()) { <div class="rd__crumb" dir="rtl">{{ activeTitle() }}</div> }
+          @if (activeTitle()) { <div lang="ar" class="rd__crumb" dir="rtl">{{ activeTitle() }}</div> }
           @if (loading()) { <div class="rd__state">Loading…</div> }
           @for (p of pages(); track p.id) {
             <article class="pg">
               <div class="pg__marker">{{ p.volume_no ? 'ج'+p.volume_no+' · ' : '' }}ص {{ p.page_no }}</div>
-              <div class="pg__text" dir="rtl">
+              <div lang="ar" class="pg__text" dir="rtl">
                 @for (ln of lines(p.text_ar); track $index) { <p>{{ ln }}</p> }
               </div>
               @if (p.footnotes_ar) {
-                <div class="pg__fn" dir="rtl">
+                <div lang="ar" class="pg__fn" dir="rtl">
                   @for (ln of lines(p.footnotes_ar); track $index) { <p>{{ ln }}</p> }
                 </div>
               }
@@ -122,8 +124,8 @@ interface FlatBab {
       background:rgba(22,21,15,.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--rule); }
     .rd__id{ min-width:0; flex:1; }
     .rd__title, .rd__author{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .rd__title{ font-family:'Amiri','Scheherazade New',serif; font-size:22px; color:var(--ink); line-height:1.2; unicode-bidi:plaintext; }
-    .rd__author{ font-family:'Amiri',serif; font-size:14px; color:var(--ink-soft); unicode-bidi:plaintext; }
+    .rd__title{ font-family:var(--km-font-arabic-ui); font-size:22px; color:var(--ink); line-height:1.2; unicode-bidi:plaintext; }
+    .rd__author{ font-family:var(--km-font-arabic-ui); font-size:14px; color:var(--ink-soft); unicode-bidi:plaintext; }
     .rd__tools{ margin-inline-start:auto; display:flex; gap:4px; }
     .rd__tools button{ background:var(--paper); border:1px solid var(--rule); color:var(--ink-soft); border-radius:8px;
       width:34px; height:32px; cursor:pointer; font-family:'Cinzel',serif; }
@@ -139,7 +141,7 @@ interface FlatBab {
     .rd__tree{ display:flex; flex-direction:column; gap:1px; }
     .tw{ text-align:start; background:none; border:0; color:var(--ink-soft); cursor:pointer;
       padding:6px 8px 6px calc(8px + var(--d,0) * 14px); border-radius:7px; display:flex; gap:8px; align-items:baseline;
-      font-family:'Amiri','Scheherazade New',serif; font-size:16px; line-height:1.4; }
+      font-family:var(--km-font-arabic-ui); font-size:16px; line-height:1.4; }
     .tw:hover{ background:rgba(201,168,76,.08); color:var(--ink); }
     .tw.active{ background:color-mix(in srgb, var(--accent) 16%, transparent); color:var(--ink); }
     .tw.lead{ color:var(--ink); font-weight:600; }
@@ -148,30 +150,30 @@ interface FlatBab {
     .rd__rail-toggle{ display:none; }
     .rd__find{ display:flex; gap:6px; padding:0 8px 10px; }
     .rd__find input{ flex:1; min-width:0; background:var(--paper); border:1px solid var(--rule); border-radius:8px;
-      color:var(--ink); padding:7px 10px; font-family:'Amiri',serif; font-size:15px; }
+      color:var(--ink); padding:7px 10px; font-family:var(--km-font-arabic-ui); font-size:15px; }
     .rd__find input:focus{ outline:none; border-color:var(--accent); }
     .rd__find-go{ background:var(--paper); border:1px solid var(--rule); border-radius:8px; color:var(--ink-soft);
-      padding:0 10px; cursor:pointer; font-family:'Amiri',serif; font-size:14px; }
+      padding:0 10px; cursor:pointer; font-family:var(--km-font-arabic-ui); font-size:14px; }
     .rd__find-go:disabled{ opacity:.45; cursor:default; }
     .rd__find-go:not(:disabled):hover{ border-color:var(--accent); color:var(--accent); }
     .rd__find-x{ background:none; border:0; color:var(--ink-soft); cursor:pointer; font-size:18px; line-height:1; padding:0 2px; }
     .rd__find-note{ padding:2px 10px 8px; font-size:11px; color:var(--ink-soft); font-family:'Cinzel',serif; letter-spacing:.06em; }
     .rd__hits{ display:flex; flex-direction:column; gap:2px; }
     .hit{ text-align:start; background:none; border:0; border-radius:7px; cursor:pointer; padding:7px 8px;
-      display:flex; flex-direction:column; gap:3px; color:var(--ink-soft); font-family:'Amiri',serif; font-size:15px; line-height:1.5; }
+      display:flex; flex-direction:column; gap:3px; color:var(--ink-soft); font-family:var(--km-font-arabic-ui); font-size:15px; line-height:1.5; }
     .hit:hover{ background:rgba(201,168,76,.08); color:var(--ink); }
     .hit__s mark{ background:color-mix(in srgb, var(--accent) 30%, transparent); color:var(--ink); border-radius:3px; }
     .hit__p{ font-size:11px; color:var(--ink-soft); font-family:'Poppins',sans-serif; }
     /* Centred, but wide enough that the page is not mostly gutter: 820px inside a
        1360px track idled ~270px a side. */
     .rd__main{ padding:26px clamp(16px,3vw,44px) 100px; max-width:1100px; margin-inline:auto; width:100%; }
-    .rd__crumb{ font-family:'Amiri',serif; font-size:20px; color:var(--accent); padding-bottom:14px; margin-bottom:18px; border-bottom:1px solid var(--rule); }
+    .rd__crumb{ font-family:var(--km-font-arabic-ui); font-size:20px; color:var(--accent); padding-bottom:14px; margin-bottom:18px; border-bottom:1px solid var(--rule); }
     .rd__state{ padding:40px 0; color:var(--ink-soft); text-align:center; }
     .pg{ margin-bottom:30px; }
     .pg__marker{ font-family:'Cinzel',serif; font-size:11px; letter-spacing:.08em; color:var(--accent); opacity:.85; margin-bottom:8px; }
-    .pg__text{ font-family:'Amiri','Scheherazade New',serif; font-size:var(--fs,22px); line-height:2.05; color:var(--ink); unicode-bidi:plaintext; }
+    .pg__text{ font-family:var(--km-font-arabic-ui); font-size:var(--fs,22px); line-height:2.05; color:var(--ink); unicode-bidi:plaintext; }
     .pg__text p{ margin:0 0 6px; text-align:justify; }
-    .pg__fn{ margin-top:14px; padding-top:12px; border-top:1px dashed var(--rule); font-family:'Amiri',serif;
+    .pg__fn{ margin-top:14px; padding-top:12px; border-top:1px dashed var(--rule); font-family:var(--km-font-arabic-ui);
       font-size:calc(var(--fs,22px) * .74); line-height:1.85; color:var(--ink-soft); unicode-bidi:plaintext; }
     .pg__fn p{ margin:0 0 3px; }
     .fs-sm{ --fs:19px; } .fs-lg{ --fs:26px; }
@@ -217,25 +219,25 @@ export class LinguisticsBookReaderComponent {
   readonly activeTitle = computed(() => this.flat().find(f => f.id === this.activeBab())?.title_ar ?? '');
 
   private slug = '';
+  private pagesSub?: Subscription;
 
   constructor() {
-    this.route.paramMap.subscribe(p => {
-      this.slug = p.get('slug') ?? '';
-      this.loadBook();
-    });
-  }
-
-  private loadBook(): void {
-    this.loading.set(true);
-    this.api.getBook(this.slug).subscribe({
-      next: (r) => {
-        this.book.set(r.book);
-        this.lazySpine.set(!!r.lazy);
-        this.levelCount.set(r.level_count ?? r.bab_count);
-        this.flat.set(r.lazy ? this.level(r.spine) : this.flatten(r.spine));
-        this.showAll();
-      },
-      error: () => this.loading.set(false),
+    // switchMap: a newer book cancels the older request, so a slow response for the
+    // previous slug can never overwrite the book now open.
+    this.route.paramMap.pipe(
+      map(p => p.get('slug') ?? ''),
+      distinctUntilChanged(),
+      tap(slug => { this.slug = slug; this.pagesSub?.unsubscribe(); this.loading.set(true); }),
+      switchMap(slug => this.api.getBook(slug).pipe(
+        catchError(() => { this.loading.set(false); return EMPTY; }),
+      )),
+      takeUntilDestroyed(),
+    ).subscribe(r => {
+      this.book.set(r.book);
+      this.lazySpine.set(!!r.lazy);
+      this.levelCount.set(r.level_count ?? r.bab_count);
+      this.flat.set(r.lazy ? this.level(r.spine) : this.flatten(r.spine));
+      this.showAll();
     });
   }
 
@@ -298,8 +300,8 @@ export class LinguisticsBookReaderComponent {
   }
 
   private fetchPages(reset: boolean): void {
-    if (reset) { this.pageNum.set(1); this.pages.set([]); this.loading.set(true); }
-    this.api.getPages(this.slug, { bab: this.activeBab() ?? undefined, page: this.pageNum(), limit: 20 }).subscribe({
+    if (reset) { this.pageNum.set(1); this.pages.set([]); this.loading.set(true); this.pagesSub?.unsubscribe(); }
+    this.pagesSub = this.api.getPages(this.slug, { bab: this.activeBab() ?? undefined, page: this.pageNum(), limit: 20 }).subscribe({
       next: (r) => {
         this.pages.update(cur => reset ? r.pages : [...cur, ...r.pages]);
         this.total.set(r.total);

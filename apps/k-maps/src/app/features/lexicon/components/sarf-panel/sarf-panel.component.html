@@ -1,5 +1,5 @@
 @if (family(); as fam) {
-  <section class="sarf" dir="rtl">
+  <section lang="ar" class="sarf" dir="rtl">
 
     <!-- Header bar: the label, the root's shape, and the prose-script toggle. -->
     <header class="sarf__bar">
@@ -90,9 +90,9 @@
                     @if (meaning(form); as mn) {
                       @if (showsAllScripts()) {
                         <span class="gloss gloss--stack">
-                          @if (mn.ar) { <span class="gloss__ar" dir="rtl">{{ mn.ar }}</span> }
+                          @if (mn.ar) { <span lang="ar" class="gloss__ar" dir="rtl">{{ mn.ar }}</span> }
                           @if (mn.en) { <span class="gloss__en" dir="ltr">{{ mn.en }}</span> }
-                          @if (mn.ur) { <span class="gloss__ur" dir="rtl">{{ mn.ur }}</span> }
+                          @if (mn.ur) { <span lang="ur" class="gloss__ur" dir="rtl">{{ mn.ur }}</span> }
                         </span>
                       } @else if (tri(mn); as one) {
                         <span class="gloss gloss--one">{{ one }}</span>
@@ -118,11 +118,11 @@
                            the three scripts share a baseline instead of stacking. -->
                       @if (meaning(form); as mn) {
                         <div class="strip">
-                          @if (mn.ar) { <span class="strip__cell strip__cell--ar" dir="rtl">{{ mn.ar }}</span> }
+                          @if (mn.ar) { <span lang="ar" class="strip__cell strip__cell--ar" dir="rtl">{{ mn.ar }}</span> }
                           @if (mn.ar && mn.en) { <span class="strip__div"></span> }
                           @if (mn.en) { <span class="strip__cell strip__cell--en" dir="ltr">{{ mn.en }}</span> }
                           @if ((mn.ar || mn.en) && mn.ur) { <span class="strip__div"></span> }
-                          @if (mn.ur) { <span class="strip__cell strip__cell--ur" dir="rtl">{{ mn.ur }}</span> }
+                          @if (mn.ur) { <span lang="ur" class="strip__cell strip__cell--ur" dir="rtl">{{ mn.ur }}</span> }
                         </div>
                       }
 

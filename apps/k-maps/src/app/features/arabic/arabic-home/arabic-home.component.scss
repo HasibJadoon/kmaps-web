@@ -71,7 +71,7 @@
   }
 
   &__arabic-title {
-    font-family: var(--km-font-arabic);
+    font-family: var(--km-font-quran);
     font-size: clamp(3rem, 6vw, 5.5rem);
     color: var(--km-gold);
     opacity: 0.85;
@@ -188,7 +188,7 @@
     top: 50%;
     right: -0.25rem;
     transform: translateY(-50%);
-    font-family: var(--km-font-arabic);
+    font-family: var(--km-font-quran);
     font-size: 6rem;
     color: var(--km-gold);
     opacity: 0.03;
@@ -200,7 +200,7 @@
   }
 
   &__glyph {
-    font-family: var(--km-font-arabic);
+    font-family: var(--km-font-quran);
     font-size: 2rem;
     color: var(--km-gold);
     line-height: 1;
@@ -240,7 +240,7 @@
   }
 
   &__arabic {
-    font-family: var(--km-font-arabic);
+    font-family: var(--km-font-quran);
     font-size: 1rem;
     color: var(--km-text-3);
     direction: rtl;

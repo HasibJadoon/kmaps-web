@@ -1,5 +1,5 @@
 import { Node, mergeAttributes } from '@tiptap/core';
-import { environment } from '../../../../../environments/environment';
+import { docDataSource } from './data-source.extension';
 
 interface PageLinkOptions {
   onOpen: (docId: string) => void;
@@ -155,13 +155,9 @@ export const PageLink = Node.create<PageLinkOptions>({
 
       const docId = node.attrs['doc_id'];
       if (docId) {
-        const token = localStorage.getItem('km_token');
-        fetch(`${environment.apiBase}/cm/documents/${docId}`,
-          token ? { headers: { Authorization: `Bearer ${token}` } } : {})
-          .then(r => r.json() as Promise<{ data?: { title?: string } }>)
-          .then(res => {
+        void (docDataSource(editor)?.loadDocTitle(docId) ?? Promise.resolve(null))
+          .then(fetchedTitle => {
             if (editor.isDestroyed) return;
-            const fetchedTitle = res.data?.title;
             if (fetchedTitle && fetchedTitle !== title.textContent) {
               title.textContent = fetchedTitle;
 

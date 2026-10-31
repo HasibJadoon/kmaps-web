@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { authGuard } from './core/auth/auth.guard';
 
 export const routes: Routes = [
   {
@@ -23,6 +24,7 @@ export const routes: Routes = [
   },
   {
     path: 'hub',
+    canActivate: [authGuard],
     loadChildren: () =>
       import('./features/hub/hub.routes').then((m) => m.HUB_ROUTES),
   },
@@ -53,21 +55,25 @@ export const routes: Routes = [
   },
   {
     path: 'content',
+    canActivate: [authGuard],
     loadChildren: () =>
       import('./features/content/content.routes').then((m) => m.CONTENT_ROUTES),
   },
   {
     path: 'workspace',
+    canActivate: [authGuard],
     loadChildren: () =>
       import('./features/workspace/workspace.routes').then((m) => m.WORKSPACE_ROUTES),
   },
   {
     path: 'srs',
+    canActivate: [authGuard],
     loadChildren: () =>
       import('./features/srs/srs.routes').then((m) => m.SRS_ROUTES),
   },
   {
     path: 'docs',
+    canActivate: [authGuard],
     loadChildren: () =>
       import('./features/docs/docs.routes').then((m) => m.DOCS_ROUTES),
   },
@@ -78,6 +84,7 @@ export const routes: Routes = [
   },
   {
     path: 'studio',
+    canActivate: [authGuard],
     loadChildren: () =>
       import('./features/studio/studio.routes').then((m) => m.STUDIO_ROUTES),
   },

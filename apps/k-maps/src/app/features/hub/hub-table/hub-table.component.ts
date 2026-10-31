@@ -6,12 +6,15 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { HubPanelComponent } from '../hub-panel/hub-panel.component';
 import { HubPanelService } from '../hub-panel.service';
+import { HubApiService } from '../hub-api.service';
+import { firstValueFrom } from 'rxjs';
 import { HubCard } from '../models/hub.models';
 
+import { PressableDirective } from '../../../shared/directives/pressable.directive';
 @Component({
   selector: 'km-hub-table',
   standalone: true,
-  imports: [CommonModule, HubPanelComponent],
+  imports: [PressableDirective, CommonModule, HubPanelComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './hub-table.component.html',
   styleUrl: './hub-table.component.scss'
@@ -20,6 +23,7 @@ export class HubTableComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   readonly panelSvc = inject(HubPanelService);
+  private readonly api = inject(HubApiService);
 
   readonly card = signal<HubCard | null>(null);
   readonly rows = signal<Record<string, unknown>[]>([]);
@@ -53,10 +57,9 @@ export class HubTableComponent implements OnInit {
 
     const endpoint = this.buildEndpoint(card);
     try {
-      const res = await fetch(endpoint);
-      const data = await res.json() as { ok: boolean; results?: unknown[]; items?: unknown[]; total?: number };
+      const data = await firstValueFrom(this.api.list(endpoint));
       if (data.ok) {
-        const items = (data.results ?? data.items ?? []) as Record<string, unknown>[];
+        const items = (data.results ?? data.items ?? data.data ?? []) as Record<string, unknown>[];
         this.rows.set(reset ? items : [...this.rows(), ...items]);
         this.totalCount.set(data.total ?? items.length);
         this.hasMore.set(items.length === 50);
@@ -79,7 +82,7 @@ export class HubTableComponent implements OnInit {
     if (mode === 'core-srs-qr')  return `/core/srs/all?module=QR&${p}`;
     if (mode === 'ar-vocab')     return `/ar/roots?${p}`;
     if (mode.startsWith('ar-')) return `/ar/${mode.substring(3)}s?${p}`;
-    if (mode === 'workspace') return `/workspaces?limit=50`;
+    if (mode === 'workspace') return `/core/workspaces?limit=50`;
     return `/${base}?${p}`;
   }
 

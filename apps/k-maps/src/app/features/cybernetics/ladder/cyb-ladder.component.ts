@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { DestroyRef, ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { CybService } from '../data/cyb.service';
 import { CybTopbarComponent } from '../shared/cyb-topbar.component';
 import type { CybNode, CybNodeTree, CybLayerRow, Surah, StudyUnit, PassageRoot } from '../data/cyb.models';
+import { LatestRequest } from '../../../shared/utils/latest-request';
 
 interface Rung {
   depth: number;
@@ -47,7 +48,7 @@ interface PieceCell {
       <div class="principle">
         <span class="p"><span class="dot"></span><b>{{ sensorsN() }} sensors</b>, one set per layer</span>
         <span class="p"><span class="upt">↑ feedback</span> child → parent rollup</span>
-        <span class="p"><b>{{ builtSurahs() }} of 114</b> surahs instantiated</span>
+        <span class="p"><b>{{ builtSurahs() }} of {{ surahs().length }}</b> surahs instantiated</span>
       </div>
 
       <div class="controls">
@@ -215,7 +216,7 @@ interface PieceCell {
     .cell.live { border-left-color:var(--content); }
     .cell.sel { border-color:var(--bd-hi); background:rgba(201,168,76,.09); }
     .cm { font-family:ui-monospace,monospace; font-size:8.5px; color:var(--t3); text-align:left; }
-    .car { font-family:var(--ar); font-size:24px; color:var(--gold-b); line-height:1.5; }
+    .car { font-family:var(--km-font-arabic-ui); font-size:24px; color:var(--gold-b); line-height:1.5; }
     .cen { font-family:var(--serif); font-size:10px; color:var(--t2); }
     .cen.big { font-size:12.5px; color:var(--text); padding:8px 0; }
     .csub { font-size:9px; color:var(--t3); margin-top:2px; }
@@ -243,7 +244,7 @@ interface PieceCell {
     .lchip { display:inline-flex; align-items:baseline; gap:6px; background:#0e0e0e; border-radius:16px;
       border:1px solid rgba(255,255,255,.1); padding:3px 11px; color:var(--t2); font-family:inherit; cursor:pointer; }
     .lchip:disabled { cursor:default; } .lchip.live { border-color:rgba(77,217,168,.4); }
-    .lar { font-family:var(--ar); font-size:15px; color:var(--gold-b); }
+    .lar { font-family:var(--km-font-arabic-ui); font-size:15px; color:var(--gold-b); }
     .lk { font-size:9px; font-family:ui-monospace,monospace; color:var(--t3); text-transform:uppercase; }
     .lp { font-family:ui-monospace,monospace; font-size:9px; color:var(--content); }
     .tw { flex:0 0 auto; width:14px; text-align:center; color:var(--gold-d); font-size:11px; }
@@ -255,7 +256,7 @@ interface PieceCell {
     .nm { flex:1; min-width:0; }
     .n1 { font-family:var(--serif); font-size:14px; color:var(--text); display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
     .n1 .num { font-family:ui-monospace,monospace; font-size:9px; color:var(--t3); }
-    .n1 .aa { font-family:var(--ar); font-size:18px; color:var(--kc); }
+    .n1 .aa { font-family:var(--km-font-arabic-ui); font-size:18px; color:var(--kc); }
     .n1 .kindb { font-size:8px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; padding:1px 6px;
       border-radius:8px; border:1px solid var(--kc); color:var(--kc); }
     .sc { font-size:10px; color:var(--t3); margin-top:2px; }
@@ -272,6 +273,7 @@ interface PieceCell {
   `],
 })
 export class CybLadderComponent {
+  private readonly latest = new LatestRequest(inject(DestroyRef));
   private readonly svc = inject(CybService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -327,13 +329,13 @@ export class CybLadderComponent {
 
   private loadUnits(surahId: number) {
     this.units.set([]);
-    this.svc.studyGrid(surahId).subscribe({ next: (g) => this.units.set(g.units ?? []), error: () => this.units.set([]) });
+    this.latest.run('units', this.svc.studyGrid(surahId), { next: (g) => this.units.set(g.units ?? []), error: () => this.units.set([]) });
   }
   private loadRoots() {
     const sid = this.surahId(); const p = this.passageNo();
     if (!sid || !p) return;
     this.verseRoots.set([]);
-    this.svc.passageRoots(sid, p).subscribe({ next: (r) => this.verseRoots.set(r), error: () => this.verseRoots.set([]) });
+    this.latest.run('roots', this.svc.passageRoots(sid, p), { next: (r) => this.verseRoots.set(r), error: () => this.verseRoots.set([]) });
   }
 
   private surahNode(id: number) { return this.flat().find((n) => n.scale === 'surah' && Number(n.target_ref) === id); }
@@ -447,7 +449,7 @@ export class CybLadderComponent {
 
     out.push({
       depth: 0, kind: 'quran', ar: 'القرآن', en: 'Entire Qurʾān', num: '',
-      scope: `114 surahs · ${this.builtSurahs()} instantiated`, reportsTo: '—',
+      scope: `${this.surahs().length} surahs · ${this.builtSurahs()} instantiated`, reportsTo: '—',
       b: this.avg(perSurah.map((n) => n?.build_pct ?? 0)),
       s: this.avg(perSurah.map((n) => n?.study_pct ?? 0)),
       c: this.avg(perSurah.map((n) => n?.content_pct ?? 0)),
@@ -459,7 +461,7 @@ export class CybLadderComponent {
 
     if (!sid) {
       out.push(this.gridRung(1, 'surahs', [{
-        layout: 'grid', title: `114 surahs · ${this.builtSurahs()} instantiated`,
+        layout: 'grid', title: `${this.surahs().length} surahs · ${this.builtSurahs()} instantiated`,
         cells: this.surahs().map((su) => {
           const n = this.surahNode(su.id);
           return {

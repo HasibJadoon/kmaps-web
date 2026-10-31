@@ -1,6 +1,6 @@
-    @if (showTextAr()) { <p class="say muted ar" dir="rtl" [innerHTML]="richTextAr()"></p> }
+    @if (showTextAr()) { <p lang="ar" class="say muted ar" dir="rtl" [innerHTML]="richTextAr()"></p> }
     @if (showTextEn()) { <p class="say muted" dir="ltr" [innerHTML]="richTextEn()"></p> }
-    @if (showTextUr()) { <p class="say muted ur" dir="rtl" [innerHTML]="richTextUr()"></p> }
+    @if (showTextUr()) { <p lang="ur" class="say muted ur" dir="rtl" [innerHTML]="richTextUr()"></p> }
     <div class="occ">
       @for (it of items; track it.ayah_key) {
         <article class="occc" [class.focus]="it.focus">
@@ -10,11 +10,11 @@
             <span class="occc__en" [class.ur]="isUr(it.ur)">{{ pick(it.en, it.ur) }}</span>
           </div>
           <div class="occc__body">
-            <div class="occc__top"><span class="occc__kind ar">{{ it.kind_ar }}</span>@if (it.focus) { <span class="occc__badge">study locus</span> }</div>
-            <p class="occc__ar ar" dir="rtl">{{ it.text_ar }}</p>
-            @if (showAr(priAr(it.note), priEn(it.note, it.note_en), it.note_ur)) { <p class="occc__note ar" dir="rtl">{{ priAr(it.note) }}</p> }
+            <div class="occc__top"><span lang="ar" class="occc__kind ar">{{ it.kind_ar }}</span>@if (it.focus) { <span class="occc__badge">study locus</span> }</div>
+            <p lang="ar" class="occc__ar ar" dir="rtl">{{ it.text_ar }}</p>
+            @if (showAr(priAr(it.note), priEn(it.note, it.note_en), it.note_ur)) { <p lang="ar" class="occc__note ar" dir="rtl">{{ priAr(it.note) }}</p> }
             @if (showEn(priAr(it.note), priEn(it.note, it.note_en), it.note_ur)) { <p class="occc__note-en" dir="ltr">{{ priEn(it.note, it.note_en) }}</p> }
-            @if (showUr(priAr(it.note), priEn(it.note, it.note_en), it.note_ur)) { <p class="occc__note-en ur" dir="rtl">{{ it.note_ur }}</p> }
+            @if (showUr(priAr(it.note), priEn(it.note, it.note_en), it.note_ur)) { <p lang="ur" class="occc__note-en ur" dir="rtl">{{ it.note_ur }}</p> }
           </div>
         </article>
       }

@@ -5,6 +5,7 @@ import { RouterModule } from '@angular/router';
 import { DocEditorService } from '../services/doc-editor.service';
 import { DocsApiService } from '../services/docs-api.service';
 
+import { PressableDirective } from '../../../shared/directives/pressable.directive';
 interface HeadingNode { text: string; level: number; }
 interface BlockLink { id: number; block_id: string; entity_type?: string; entity_id?: number; surah?: number; ayah_from?: number; ayah_to?: number; }
 interface PageLinkItem { doc_id: string; title: string; }
@@ -14,7 +15,7 @@ interface AyahItem { surah: number; ayah: number; text: string; }
   selector: 'km-doc-right-panel',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [PressableDirective, CommonModule, FormsModule, RouterModule],
   template: `
     <aside class="km-doc-rp">
       <div class="km-doc-rp-tabs">
@@ -32,7 +33,7 @@ interface AyahItem { surah: number; ayah: number; text: string; }
               <p class="km-rp-empty">No headings yet</p>
             }
             @for (h of headings(); track h.text) {
-              <div class="km-rp-heading" [style.padding-left]="(h.level - 1) * 12 + 'px'"
+              <div kmPressable class="km-rp-heading" [style.padding-left]="(h.level - 1) * 12 + 'px'"
                    (click)="scrollToHeading(h.text)">
                 {{ h.text }}
               </div>
@@ -190,7 +191,7 @@ interface AyahItem { surah: number; ayah: number; text: string; }
       font-weight: 600;
     }
     .km-rp-ayah-text {
-      font-family: var(--km-font-arabic-amiri);
+      font-family: var(--km-font-quran);
       font-size: 1rem;
       line-height: 1.8;
       color: var(--km-text-2);

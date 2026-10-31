@@ -60,7 +60,7 @@
                     </div>
                   }
                   @if (comp.updated_at) {
-                    <div class="wvc__card-date">{{ formatDate(comp.updated_at) }}</div>
+                    <div class="wvc__card-date">{{ (comp.updated_at | kmDate) }}</div>
                   }
                   <div class="wvc__card-arrow">→</div>
                 </div>

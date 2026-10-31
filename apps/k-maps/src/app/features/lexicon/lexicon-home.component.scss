@@ -15,7 +15,7 @@
   --lex-shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px -8px rgba(0,0,0,.5);
   background: var(--lex-bg);
   min-height: 100vh;
-  font-family: 'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', Georgia, serif;
+  font-family: var(--km-font-arabic-ui);
 }
 
 .lex-home {

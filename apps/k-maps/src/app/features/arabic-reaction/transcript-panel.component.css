@@ -86,7 +86,7 @@
   font-size: 14px;
   line-height: 1.6;
   color: var(--rs-text-2);
-  font-family: var(--km-font-arabic, 'Amiri', serif);
+  font-family: var(--km-font-quran);
   text-align: right;
   flex: 1;
 }

@@ -8,6 +8,7 @@ import DragHandle from '@tiptap/extension-drag-handle';
 import { createBlockHandleElement, type EditorRef } from '../doc-editor/block-handle/block-handle';
 import { createBubbleMenuElement } from '../doc-editor/bubble-menu/bubble-menu';
 import { PageLink } from '../doc-editor/tiptap-extensions/page-link.extension';
+import { DocDataSource } from '../doc-editor/tiptap-extensions/data-source.extension';
 import UniqueId from '@tiptap/extension-unique-id';
 import Placeholder from '@tiptap/extension-placeholder';
 import CharacterCount from '@tiptap/extension-character-count';
@@ -204,6 +205,12 @@ export class DocEditorService {
           onOpen: (docId: string) => {
             void this.router.navigate(['/docs', docId]);
           },
+        }),
+        DocDataSource.configure({
+          loadAyah: (surah: number, ayah: number) =>
+            firstValueFrom(this.docsApi.getAyahText(surah, ayah)).catch(() => null),
+          loadDocTitle: (docId: string) =>
+            firstValueFrom(this.docsApi.getTitle(docId)).catch(() => null),
         }),
         Callout,
         SlashCommandExtension,

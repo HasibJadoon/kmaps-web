@@ -8,12 +8,12 @@
         background: radial-gradient(circle at 50% 35%, rgba(201,168,76,.22), rgba(0,0,0,.4));
         box-shadow: 0 0 0 1px var(--golddim), inset 0 0 30px rgba(201,168,76,.14), 0 18px 40px -20px rgba(201,168,76,.5); }
       &__center-word { font-family: var(--quran); font-size: 30px; line-height: 1; color: var(--gold2); text-shadow: 0 3px 18px rgba(201,168,76,.5); }
-      &__center-root { display: block; font-family: var(--ar); font-size: 11px; letter-spacing: 4px; color: var(--gold); margin-top: 6px; }
+      &__center-root { display: block; font-family: var(--km-font-arabic-ui); font-size: 11px; letter-spacing: 4px; color: var(--gold); margin-top: 6px; }
       &__node { position: absolute; display: flex; align-items: center; gap: 7px; z-index: 2; white-space: nowrap; transform: translate(0,-50%);
         &.l { transform: translate(-100%,-50%); flex-direction: row-reverse; text-align: right; }
         .cst__dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--c); box-shadow: 0 0 9px var(--c); }
         .cst__lab { display: flex; flex-direction: column; line-height: 1.2; text-shadow: 0 1px 4px #000;
-          b { font-family: var(--ar); font-size: 16px; font-weight: 500; color: var(--c); }
+          b { font-family: var(--km-font-arabic-ui); font-size: 16px; font-weight: 500; color: var(--c); }
           small { font: 400 9.5px/1.2 var(--en); color: var(--faint); margin-top: 1px; } }
         &.l .cst__lab { align-items: flex-end; } } }
     .cst__legend { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; justify-content: center; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--edge2);

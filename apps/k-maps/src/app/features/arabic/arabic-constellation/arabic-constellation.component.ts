@@ -4,9 +4,8 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { ArabicApiService } from '../../../shared/services/arabic-api.service';
 import * as THREE from 'three';
-import { environment } from '../../../../environments/environment';
 
 interface Item {
   id: string; text_ar: string; lemma_ar: string | null; root_ar: string | null;
@@ -35,9 +34,8 @@ export class ArabicConstellationComponent implements OnInit, OnDestroy {
   @ViewChild('canvas', { static: true }) canvasRef!: ElementRef<HTMLCanvasElement>;
 
   private router = inject(Router);
-  private http = inject(HttpClient);
+  private readonly ar = inject(ArabicApiService);
   private zone = inject(NgZone);
-  private base = environment.apiBase;
 
   readonly loading = signal(true);
   readonly nodes = signal<Node[]>([]);
@@ -52,7 +50,7 @@ export class ArabicConstellationComponent implements OnInit, OnDestroy {
   private ro?: ResizeObserver;
 
   ngOnInit(): void {
-    this.http.get<Envelope<{ items: Item[] }>>(`${this.base}/ar/acq/items?resolved=1&limit=500`)
+    this.ar.get<Envelope<{ items: Item[] }>>(`ar/acq/items?resolved=1&limit=500`)
       .subscribe({
         next: (r) => {
           this.nodes.set(this.fold(r?.data?.items ?? []));

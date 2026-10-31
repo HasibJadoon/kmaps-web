@@ -13,7 +13,7 @@
 // Footnote pivot (the lemma an editor's marginal note annotates).
 .fn-list__pivot {
   display: block;
-  font-family: 'Amiri', serif;
+  font-family: var(--km-font-arabic-ui);
   font-weight: 700;
   color: var(--kw);
   margin-bottom: 2px;
@@ -45,7 +45,7 @@
   }
   &__text {
     margin: 0;
-    font-family: 'Amiri', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: 1rem;
     line-height: 1.85;
     color: var(--ink);
@@ -86,7 +86,7 @@
     margin-bottom: 7px;
   }
   &__verse {
-    font-family: 'Amiri', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: 1.02rem;
     line-height: 2;
     color: var(--verse);
@@ -127,7 +127,7 @@
     }
   }
   &__name {
-    font-family: 'Amiri', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: 1rem;
     color: var(--ink);
   }

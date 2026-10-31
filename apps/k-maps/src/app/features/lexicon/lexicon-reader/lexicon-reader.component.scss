@@ -4,6 +4,9 @@
 // an inline authority (ʿalam) chip and a block-level ayah quote.
 @use 'reader-prose';
 
+// Button reset (zero specificity) so the element's own class rules below still apply.
+:where(button.mfp-auth) { appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: inherit; cursor: pointer; }
+
 // Inline authority mention (scholar / reader / grammarian named in the text).
 .mfp-auth {
   color: #b79ae0;
@@ -34,7 +37,7 @@
   &--unresolved { cursor: default; &:hover { border-color: color-mix(in srgb, var(--verse) 26%, transparent); background: color-mix(in srgb, var(--verse) 7%, transparent); } }
 
   &__text {
-    font-family: 'Amiri', serif;
+    font-family: var(--km-font-arabic-ui);
     font-size: calc(var(--fs-base) * 1.08);
     line-height: 2;
     color: var(--verse);

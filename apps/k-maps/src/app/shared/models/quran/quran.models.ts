@@ -1,3 +1,4 @@
+import type { QrReaderWord } from './qr.models';
 export interface QuranSurahListItemDto {
   id: string;
   surahNumber: number;
@@ -39,6 +40,8 @@ export interface QuranAyah {
   page_number?: number | null;
   juz_number?: number | null;
   words?: QuranAyahWord[];
+  /** The reader's words, split by the QR worker. */
+  reader_words?: QrReaderWord[];
 }
 
 export interface AyahsSurah {

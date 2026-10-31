@@ -9,10 +9,11 @@ import {
   WV_NODE_COLORS, WV_NODE_LABELS, WvEdgeRelation,
 } from '../wv-graph.model';
 
+import { PressableDirective } from '../../../../shared/directives/pressable.directive';
 @Component({
   selector: 'app-wv-graph-bottomsheet',
   standalone: true,
-  imports: [CommonModule],
+  imports: [PressableDirective, CommonModule],
   templateUrl: './wv-graph-bottomsheet.component.html',
   styleUrl: './wv-graph-bottomsheet.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -614,6 +614,8 @@ export interface MorphWordView {
   nav: { prev: MorphNavRef | null; next: MorphNavRef | null; index: number; total: number };
   word: MorphWordVm;
   registers_available?: string[];
+  /** Register chips (key + English label) in reading order, shaped by the QR worker. */
+  register_options?: { key: string; label: string }[];
   blocks: MorphBlockVm[];
   contexts?: MorphContextVm[];
   sources: Record<string, MorphSourceVm>;

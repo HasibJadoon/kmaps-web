@@ -3,7 +3,7 @@
   <!-- ── TOP BAR ──────────────────────── -->
   <header class="reader-nav">
     <button class="back-btn" (click)="back()">← Library</button>
-    <div class="reader-nav__title" dir="rtl">
+    <div lang="ar" class="reader-nav__title" dir="rtl">
       {{ containerTitle() }}
     </div>
     <div class="reader-nav__right">
@@ -30,14 +30,14 @@
       } @else {
         <div class="unit-scroll">
           @for (u of units(); track u.id; let idx = $index) {
-            <div class="u-row"
+            <div kmPressable class="u-row"
                  [class.u-row--active]="selectedUnit()?.id === u.id"
                  (click)="selectUnit(u)">
               <div class="u-row__num" [class.u-row__num--active]="selectedUnit()?.id === u.id">
                 {{ idx + 1 }}
               </div>
               <div class="u-row__body">
-                <span class="u-row__title-ar" dir="rtl">{{ u.meta?.title_ar || unitLabel(u) }}</span>
+                <span lang="ar" class="u-row__title-ar" dir="rtl">{{ u.meta?.title_ar || unitLabel(u) }}</span>
                 @if (u.meta?.title_ar && u.meta?.title) {
                   <span class="u-row__title-en">{{ u.meta!.title }}</span>
                 }
@@ -90,7 +90,7 @@
             <!-- Read area -->
             <div class="read-area" [style.height.%]="readAreaHeightPct()" (mouseup)="onReadAreaMouseUp()">
               <div class="story-header">
-                <div class="story-title" dir="rtl">{{ selectedUnit()!.meta?.title_ar || unitLabel(selectedUnit()!) }}</div>
+                <div lang="ar" class="story-title" dir="rtl">{{ selectedUnit()!.meta?.title_ar || unitLabel(selectedUnit()!) }}</div>
                 @if (selectedUnit()!.meta?.title) {
                   <div class="story-meta">{{ selectedUnit()!.meta!.title }}</div>
                 }
@@ -103,11 +103,11 @@
                   <div class="skel-text skel-text--short"></div>
                 </div>
               } @else if (readWords().length > 0) {
-                <p class="story-para" dir="rtl"
+                <p lang="ar" class="story-para" dir="rtl"
                    [class.no-diac]="!diacriticsOn()"
                    [style.font-size.rem]="fontSize()">
                   @for (word of readWords(); track $index) {
-                    <span class="w-span" (click)="onWordClick($event, word)">{{ word }}</span>{{ ' ' }}
+                    <span kmPressable class="w-span" (click)="onWordClick($event, word)">{{ word }}</span>{{ ' ' }}
                   }
                 </p>
               } @else {
@@ -193,7 +193,7 @@
   <div class="word-popup"
        [style.left.px]="wordPopup()!.x"
        [style.top.px]="wordPopup()!.y - 118">
-    <div class="wp-word" dir="rtl">{{ wordPopup()!.word }}</div>
+    <div lang="ar" class="wp-word" dir="rtl">{{ wordPopup()!.word }}</div>
     <div class="wp-root">Tap to save to SRS pipeline</div>
     <div class="wp-actions">
       <button class="wp-btn" (click)="saveWord()">+ Save to SRS</button>

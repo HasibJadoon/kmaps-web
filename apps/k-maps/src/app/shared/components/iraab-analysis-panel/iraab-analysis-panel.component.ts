@@ -43,22 +43,18 @@ export class IraabAnalysisPanelComponent {
     return { total: all.length, unique: set.size, words: [...set].slice(0, 24) };
   });
 
+  /** Sections (iʿrāb, ṣarf, balāgha …) as the QR worker keys, labels and orders them. */
   readonly sectionCoverage = computed<CountedTag[]>(() => {
     const p = this.payload();
     if (!p) return [];
-    const counts = new Map<string, number>();
+    const counts = new Map<string, CountedTag & { order: number }>();
     for (const b of p.blocks as QrIraabDisplayBlock[]) {
-      const key = this.sectionKey(b);
-      if (!key) continue;
-      counts.set(key, (counts.get(key) ?? 0) + 1);
+      if (!b.section_key || !b.section_label_ar) continue;
+      const cur = counts.get(b.section_key);
+      if (cur) cur.count++;
+      else counts.set(b.section_key, { label: b.section_label_ar, count: 1, order: b.section_order ?? 99 });
     }
-    const labels: Record<string, string> = {
-      irab: 'الإعراب', sarf: 'الصرف', balagha: 'البلاغة', fawaid: 'الفوائد',
-      language: 'اللغة', dep_graph: 'الشجرة الإعرابية',
-    };
-    return ['irab','sarf','balagha','fawaid','language','dep_graph']
-      .filter(k => counts.has(k))
-      .map(k => ({ label: labels[k], count: counts.get(k)! }));
+    return [...counts.values()].sort((a, b) => a.order - b.order).map(({ label, count }) => ({ label, count }));
   });
 
   readonly collapsed = signal<Set<string>>(new Set());
@@ -92,14 +88,4 @@ export class IraabAnalysisPanelComponent {
       .sort((a, b) => b.count - a.count);
   }
 
-  private sectionKey(b: QrIraabDisplayBlock): string | null {
-    if (b.block_type === 'irab_card') return 'irab';
-    if (b.block_type === 'dependency_graph') return 'dep_graph';
-    if (b.block_type === 'sarf_note') return 'sarf';
-    if (b.block_type === 'balagha_note') return 'balagha';
-    if (b.block_type === 'key_insight') return 'fawaid';
-    if (b.block_type === 'language_note') return 'language';
-    if (b.block_type === 'heading' && b.block_subtype) return b.block_subtype;
-    return null;
-  }
 }

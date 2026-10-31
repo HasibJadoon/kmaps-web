@@ -52,15 +52,18 @@
   --km-font-display:  'Cinzel Decorative', 'Cinzel', Georgia, serif;
   --km-font-heading:  'Cinzel', Georgia, serif;
   --km-font-body:     'Poppins', system-ui, sans-serif;
-  // Quran-only fonts (Uthmanic PUA encoding — do NOT use for UI/lemma text)
+  // ─── Arabic: exactly two tokens. The ONLY place Arabic font names may appear
+  // (besides the @font-face rules in _fonts.scss); `npm run check:fonts` enforces it.
+  // Qurʾān / muṣḥaf text — KFGQPC v13 UthmanicHafs, self-hosted.
   --km-font-quran:        'UthmanicHafs', serif;
-  --km-font-arabic:       'UthmanicHafs', serif;   /* kept for backward-compat — Quran text only */
-  --km-font-arabic-amiri: 'AmiriQuran', serif;
+  // All other Arabic (lemmas, roots, lexicon prose, titles) — AmiriQuran, self-hosted
+  // (canonical copy: kmaps-resources/fonts).
+  --km-font-arabic-ui:    'AmiriQuran', serif;
+  // Urdu prose (AmiriQuran lacks Urdu letters) — self-hosted Noto Nastaliq Urdu.
+  --km-font-urdu:         'NotoNastaliqUrdu', var(--km-font-arabic-ui);
+  // Sūra-name / header glyph fonts (ligature icons, not running text).
   --km-font-arabic-surah-name: 'SurahName', serif;
   --km-font-surah-header: 'QCFSurahHeader', serif;
-  // General Arabic UI — Naskh style (near synonyms, vocabulary, morphology, lemmas)
-  --km-font-arabic-ui:    'Scheherazade New', serif;
-  --km-font-urdu:         'Noto Nastaliq Urdu', 'Scheherazade New', serif;
 
   // ─── Transitions ──────────────────────────────────────
   --km-ease:          cubic-bezier(0.22, 0.61, 0.36, 1);

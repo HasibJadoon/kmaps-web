@@ -1,9 +1,12 @@
+// Button reset (zero specificity) so the element's own class rules below still apply.
+:where(button.lane-sig) { appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: inherit; cursor: pointer; }
+
 // ── Mufradat reader — typography is reader-first, callouts are restrained ──
 // Inherits CSS variables (--ink, --quran, etc.) from the parent reader host.
 
 :host {
   display: block;
-  font-family: 'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', Georgia, serif;
+  font-family: var(--km-font-arabic-ui);
 }
 
 .mfp {
@@ -306,7 +309,7 @@
   font-size: var(--fs-base, 1.1rem);
   line-height: 1.75;
   color: var(--ink);
-  font-family: 'Source Serif Pro', 'Amiri', 'Scheherazade New', Georgia, serif;
+  font-family: 'Source Serif Pro', var(--km-font-arabic-ui);
 }
 
 .lane__form {
@@ -341,7 +344,7 @@
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--accent);
-  font-family: 'Amiri', 'Scheherazade New', serif;
+  font-family: var(--km-font-arabic-ui);
 }
 .lane__form-page {
   margin-inline-start: auto;
@@ -430,7 +433,7 @@
   color: var(--accent);
   padding: 0;
   border-radius: 0;
-  font-family: 'Amiri', 'Scheherazade New', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 1.08em;
   font-weight: 600;
   margin: 0 2px;
@@ -439,7 +442,7 @@
 .lane-headword {
   display: inline;
   color: var(--accent);
-  font-family: 'Amiri', 'Scheherazade New', serif;
+  font-family: var(--km-font-arabic-ui);
   font-size: 1.18em;
   font-weight: 800;
   padding: 0;

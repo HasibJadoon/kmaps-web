@@ -13,6 +13,7 @@ import { firstValueFrom } from 'rxjs';
 import gsap from 'gsap';
 
 import { WorkspaceApiService } from '../workspace-api.service';
+import { KmDatePipe } from '../../../shared/pipes/km-date.pipe';
 
 interface Workspace {
   id: string;
@@ -27,7 +28,7 @@ interface Workspace {
 @Component({
   selector: 'km-workspace-home',
   standalone: true,
-  imports: [],
+  imports: [KmDatePipe, ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './workspace-home.component.html',
   styleUrl: './workspace-home.component.scss',
@@ -102,11 +103,4 @@ export class WorkspaceHomeComponent implements OnInit, AfterViewInit {
     void this.router.navigate(['/workspace', id]);
   }
 
-  formatDate(dateStr: string): string {
-    try {
-      return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    } catch {
-      return dateStr;
-    }
-  }
 }

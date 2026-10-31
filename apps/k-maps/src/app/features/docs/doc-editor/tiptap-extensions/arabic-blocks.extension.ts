@@ -28,7 +28,7 @@ export const VocabBlock = Node.create({
         let parsedMeanings: string[] = [];
         try { parsedMeanings = JSON.parse(meanings); } catch {  }
         dom.innerHTML = `
-          <div class="kb-vocab-word" dir="rtl">${word}</div>
+          <div lang="ar" class="kb-vocab-word" dir="rtl">${word}</div>
           <div class="kb-vocab-root">Root: ${root}</div>
           <div class="kb-vocab-meanings">${parsedMeanings.join(' · ')}</div>
         `;
@@ -67,7 +67,7 @@ export const MorphologyBlock = Node.create({
       const update = () => {
         const { word, root, pattern, pos, tense, case_ending } = node.attrs;
         dom.innerHTML = `
-          <div class="kb-morph-word" dir="rtl">${word}</div>
+          <div lang="ar" class="kb-morph-word" dir="rtl">${word}</div>
           <div class="kb-morph-grid">
             <span class="kb-morph-cell"><label>Root</label>${root}</span>
             <span class="kb-morph-cell"><label>Pattern</label>${pattern}</span>
@@ -109,9 +109,9 @@ export const NahwBlock = Node.create({
         let parsed: Array<{ word: string; term_ar: string; term_en: string }> = [];
         try { parsed = JSON.parse(analysis); } catch {  }
         const words = parsed.length
-          ? parsed.map(w => `<span class="kb-nahw-word"><span class="kb-nahw-term">${w.term_ar}</span><span dir="rtl">${w.word}</span></span>`).join('')
-          : `<span dir="rtl">${sentence}</span>`;
-        dom.innerHTML = `<div class="kb-nahw-sentence" dir="rtl">${words}</div>`;
+          ? parsed.map(w => `<span class="kb-nahw-word"><span class="kb-nahw-term">${w.term_ar}</span><span lang="ar" dir="rtl">${w.word}</span></span>`).join('')
+          : `<span lang="ar" dir="rtl">${sentence}</span>`;
+        dom.innerHTML = `<div lang="ar" class="kb-nahw-sentence" dir="rtl">${words}</div>`;
       };
       update();
       return { dom };
@@ -145,11 +145,11 @@ export const RootAnalysisBlock = Node.create({
         let parsed: Array<{ word: string; meaning: string; occurrences?: number }> = [];
         try { parsed = JSON.parse(derivatives); } catch {  }
         dom.innerHTML = `
-          <div class="kb-root-title" dir="rtl">ج: ${root}</div>
+          <div lang="ar" class="kb-root-title" dir="rtl">ج: ${root}</div>
           <div class="kb-root-grid">
             ${parsed.map(d => `
               <div class="kb-root-item">
-                <span class="kb-root-word" dir="rtl">${d.word}</span>
+                <span lang="ar" class="kb-root-word" dir="rtl">${d.word}</span>
                 <span class="kb-root-meaning">${d.meaning}</span>
                 ${d.occurrences ? `<span class="kb-root-occ">${d.occurrences}×</span>` : ''}
               </div>

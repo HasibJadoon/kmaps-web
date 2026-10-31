@@ -112,9 +112,13 @@
           @for (ayah of group.ayahs; track ayah.ayah) {
             @if (!(surahId() === 1 && ayah.ayah === 1)) {
               <div class="vrow">
-                <div class="vrow__arabic" dir="rtl">
-                  @for (word of getWords(ayah); track $index) {
-                    <span class="ar-word q-word" (click)="onWordClick(word, ayah)">{{ word }}</span>
+                <div class="vrow__arabic" dir="rtl" lang="ar">
+                  @if (ayah.reader_words?.length) {
+                    @for (w of ayah.reader_words; track $index) {
+                      @if (w.word_index) {<button type="button" class="ar-word q-word" (click)="openWord(ayah, w)">{{ w.text }}</button>} @else {<span class="ar-word">{{ w.text }}</span>}&ngsp;
+                    }
+                  } @else {
+                    <span class="ar-ayah-text">{{ getAyahBody(ayah) }}</span>&ngsp;
                   }
                   <span class="ayah-badge" [attr.aria-label]="'Verse ' + ayah.ayah">{{ getVerseMark(ayah) }}</span>
                 </div>
@@ -139,10 +143,10 @@
     @if (!loading() && !error() && viewMode() === 'arabic') {
       <div class="mushaf-wrap">
         @for (group of ayahsByPage; track group.page; let last = $last) {
-          <div class="mushaf-flow">
+          <div class="mushaf-flow" dir="rtl" lang="ar">
             @for (ayah of group.ayahs; track ayah.ayah) {
               @if (!(surahId() === 1 && ayah.ayah === 1)) {
-                @for (word of getWords(ayah); track $index) {<span class="ar-word q-word" (click)="onWordClick(word, ayah)">{{ word }}</span>}<span class="verse-marker" [attr.aria-label]="'Verse ' + ayah.ayah">{{ getVerseMark(ayah) }}</span>
+                @if (ayah.reader_words?.length) {@for (w of ayah.reader_words; track $index) {@if (w.word_index) {<button type="button" class="ar-word q-word" (click)="openWord(ayah, w)">{{ w.text }}</button>} @else {<span class="ar-word">{{ w.text }}</span>}&ngsp;}} @else {<span class="ar-ayah-text">{{ getAyahBody(ayah) }}</span>&ngsp;}<span class="verse-marker" [attr.aria-label]="'Verse ' + ayah.ayah">{{ getVerseMark(ayah) }}</span>
               }
             }
           </div>

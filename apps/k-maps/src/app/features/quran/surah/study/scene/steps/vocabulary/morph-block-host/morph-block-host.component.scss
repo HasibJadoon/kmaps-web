@@ -4,7 +4,7 @@
       &__icon { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; color: var(--gold2); background: rgba(201,168,76,.08); border: 1px solid var(--golddim); flex: none; }
       &__ord { font: 600 11px/1 var(--head); letter-spacing: .12em; color: var(--gold); border: 1px solid var(--golddim); border-radius: 6px; padding: 6px 8px; }
       &__title { font: 600 15px/1 var(--head); letter-spacing: .11em; text-transform: uppercase; color: var(--ink); }
-      &__title-ar { font-family: var(--ar); font-size: 15px; color: var(--muted); }
+      &__title-ar { font-family: var(--km-font-arabic-ui); font-size: 15px; color: var(--muted); }
       &__chips { margin-inline-start: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
       &__reg { font: 600 9px/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; padding: 5px 8px; border-radius: 999px; color: var(--gold2); border: 1px solid var(--golddim); background: rgba(201,168,76,.08);
         &.reg-classical { color: var(--indigo2); border-color: #8878e2; background: rgba(136,120,226,.08); }

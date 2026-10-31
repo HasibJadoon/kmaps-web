@@ -2,8 +2,8 @@ import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@ang
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
-import { environment } from '../../../../environments/environment';
+import { HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { ArabicApiService } from '../../../shared/services/arabic-api.service';
 
 /// Everything on this screen — words, strand/level/status names, colours, counts —
 /// comes from GET /ar/intake (workers/arabic/src/routes/intake.ts). The component
@@ -40,8 +40,8 @@ interface Envelope<T> { ok: boolean; data?: T; error?: { code: string; message: 
 })
 export class ArabicIntakeComponent implements OnInit {
   private readonly router = inject(Router);
-  private readonly http = inject(HttpClient);
-  private readonly base = `${environment.apiBase}/ar/intake`;
+  private readonly ar = inject(ArabicApiService);
+  private readonly base = 'ar/intake';
 
   readonly loading = signal(true);
   readonly data = signal<Intake | null>(null);
@@ -77,7 +77,7 @@ export class ArabicIntakeComponent implements OnInit {
     for (const [k, v] of [['strand', this.strand()], ['level', this.level()], ['status', this.status()], ['form', this.formF()], ['domain', this.domainF()], ['q', this.q().trim()]])
       if (v) params = params.set(k, v);
     this.loading.set(true);
-    this.http.get<Envelope<Intake>>(this.base, { params }).subscribe({
+    this.ar.get<Envelope<Intake>>(this.base, { params }).subscribe({
       next: (res) => { this.data.set(res?.data ?? null); this.error.set(null); this.loading.set(false); },
       error: (e: HttpErrorResponse) => { this.error.set(this.message(e)); this.loading.set(false); },
     });
@@ -111,7 +111,7 @@ export class ArabicIntakeComponent implements OnInit {
     if (f.priority) body['priority'] = Number(f.priority);
     this.saving.set(true);
     this.formError.set(null);
-    this.http.post<Envelope<Item>>(this.base, body).subscribe({
+    this.ar.post<Envelope<Item>>(this.base, body).subscribe({
       next: () => {
         this.saving.set(false);
         this.form.update((x) => ({ ...x, url: '', note: '' }));
@@ -133,7 +133,7 @@ export class ArabicIntakeComponent implements OnInit {
   private fetchDetail(id: string): void {
     this.detail.set(null);
     this.detailLoading.set(true);
-    this.http.get<Envelope<Detail>>(`${this.base}/${encodeURIComponent(id)}`).subscribe({
+    this.ar.get<Envelope<Detail>>(`${this.base}/${encodeURIComponent(id)}`).subscribe({
       next: (res) => { if (this.openId() === id) this.detail.set(res?.data ?? null); this.detailLoading.set(false); },
       error: (e: HttpErrorResponse) => { this.patchError.set(this.message(e)); this.detailLoading.set(false); },
     });
@@ -161,7 +161,7 @@ export class ArabicIntakeComponent implements OnInit {
 
   private patch(it: Item, body: Record<string, unknown>): void {
     this.patchError.set(null);
-    this.http.patch<Envelope<Item>>(`${this.base}/${encodeURIComponent(it.id)}`, body).subscribe({
+    this.ar.patch<Envelope<Item>>(`${this.base}/${encodeURIComponent(it.id)}`, body).subscribe({
       next: (res) => {
         const fresh = res?.data;
         if (fresh) this.detail.update((d) => (d && d.item.id === fresh.id ? { ...d, item: fresh } : d));

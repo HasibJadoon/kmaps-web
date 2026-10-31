@@ -10,8 +10,8 @@
   display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap; font-weight: 400; }
 .pa__sub, .pa__hint { font-size: .8rem; color: var(--km-text-3); margin: .2rem 0; }
 .pa__hint { opacity: .85; }
-.pa__ar { font-family: var(--km-font-arabic-amiri); color: var(--km-gold); font-size: 1.1rem; font-weight: 400; }
-.pa__ar-s { font-family: var(--km-font-arabic-amiri); font-size: .95em; opacity: .85; }
+.pa__ar { font-family: var(--km-font-arabic-ui); color: var(--km-gold); font-size: 1.1rem; font-weight: 400; }
+.pa__ar-s { font-family: var(--km-font-arabic-ui); font-size: .95em; opacity: .85; }
 
 .pa__progress { display: flex; align-items: center; gap: .9rem; margin: .7rem 0 .3rem; flex-wrap: wrap; }
 .pa__bar { flex: 1 1 14rem; max-width: 28rem; height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
@@ -42,7 +42,7 @@
 .pa__card--on { background: rgba(255,255,255,.07); border-color: rgba(201,168,76,.35); }
 .pa__card-lane { font-size: .7rem; letter-spacing: .05em; text-transform: uppercase; }
 .pa__card-title { font-size: .92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  &:dir(rtl) { font-family: var(--km-font-arabic-amiri); font-size: 1.05rem; } }
+  &:dir(rtl) { font-family: var(--km-font-arabic-ui); font-size: 1.05rem; } }
 .pa__card-meta { display: flex; gap: .35rem; align-items: center; flex-wrap: wrap; }
 .pa__card-line { font-size: .74rem; color: var(--km-text-3); }
 .pa__card-detail {
@@ -98,7 +98,7 @@
 .pa__row-n { width: 2rem; color: var(--km-text-3); font-size: .78rem; font-variant-numeric: tabular-nums; flex: none; }
 .pa__row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
 .pa__row-title { color: var(--km-text); font-size: .92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  &:dir(rtl) { font-family: var(--km-font-arabic-amiri); font-size: 1.05rem; } }
+  &:dir(rtl) { font-family: var(--km-font-arabic-ui); font-size: 1.05rem; } }
 .pa__row-meta { font-size: .74rem; color: var(--km-text-3); display: flex; gap: .3rem; flex-wrap: wrap; align-items: baseline; }
 .pa__detail { padding: .3rem .9rem .9rem 3.6rem; }
 

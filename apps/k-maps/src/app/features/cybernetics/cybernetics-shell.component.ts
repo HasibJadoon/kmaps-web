@@ -55,7 +55,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
          a dashboard is not a different product from the book it measures. */
       --build:var(--accent-bright); --study:var(--clarity); --content:var(--verse); --retn:#a98fc9;
       --ready:var(--verse); --blocked:var(--ink-faint); --done:var(--clarity); --err:var(--kw);
-      --serif:'Cinzel',Georgia,serif; --ar:'Amiri','Noto Naskh Arabic','Geeza Pro',serif;
+      --serif:'Cinzel',Georgia,serif; --ar:var(--km-font-arabic-ui);
       display:block; min-height:100%;
       color:var(--ink);
       background:radial-gradient(1100px 560px at 50% -200px,#171308,var(--bg) 62%) no-repeat var(--bg);
@@ -73,7 +73,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
     .home:hover { background:var(--paper-2); color:var(--ink); }
     .home .chev { color:var(--accent); font-size:1.05rem; line-height:1; }
     .ttl { display:flex; align-items:center; gap:14px; }
-    .ttl .qar { font-family:var(--ar); font-size:40px; color:var(--gold-b); line-height:1; }
+    .ttl .qar { font-family:var(--km-font-arabic-ui); font-size:40px; color:var(--gold-b); line-height:1; }
     .ttl h1 { font-family:var(--serif); font-size:clamp(20px,3.4vw,27px); color:var(--gold-b); margin:0; }
     .ttl p { color:var(--t2); font-size:13px; margin:3px 0 0; } .ttl p b { color:var(--text); }
     .tabs { display:flex; gap:8px; margin-top:16px; flex-wrap:wrap; }
