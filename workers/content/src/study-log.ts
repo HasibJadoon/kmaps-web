@@ -178,7 +178,7 @@ export async function buildLog(
     `SELECT n.note_id, n.title, t.relation_type, t.seq_order, n.core_user_ref,
             n.created_at, n.updated_at, n.meta_json
        FROM cm_note_targets t JOIN cm_notes n ON n.note_id = t.note_id
-      WHERE t.target_ref = ? ORDER BY t.seq_order, n.created_at`,
+      WHERE t.target_ref = ? AND n.deleted_at IS NULL ORDER BY t.seq_order, n.created_at`,
     [unit],
   ) : [];
 
