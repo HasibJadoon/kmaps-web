@@ -24,7 +24,7 @@ export function sprintRoutes(router: Router<ArabicEnv>) {
       { key: 'daily', label: 'DLY', title: 'Daily Arabic', title_ar: 'العربية اليومية' },
       { key: 'classes', label: 'CLS', title: 'Classes', title_ar: 'الدروس' },
     ].map((k) => ({ unit: `AR:kind:${k.key}`, label: k.label, title: k.title, title_ar: k.title_ar, short: k.title, ref: null,
-      page: null, down: { module: 'ar', path: k.key === 'daily' ? 'sprint/backlog/daily' : `sprint/backlog/${k.key}` } })),
+      page: null, down: { module: 'ar', path: k.key === 'daily' ? 'sprint/backlog/daily' : `sprint/backlog/${k.key}` }, pullable: false })),
   } satisfies SprintBacklog));
 
   const UP_KINDS = [{ label: 'Arabic', source: { module: 'ar', path: 'sprint/backlog/kinds' } }];

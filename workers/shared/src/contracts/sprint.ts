@@ -33,6 +33,8 @@ export interface SprintItem {
   page: SprintSource | null;
   /** Its own backlog, when it is a level of its own (an ism's books, a book's chapters). */
   down?: SprintSource | null;
+  /** False for a tile that is only a way in (Arabic's "Series"), not a unit a week can take. Default true. */
+  pullable?: boolean;
 }
 
 export interface SprintBacklog {
