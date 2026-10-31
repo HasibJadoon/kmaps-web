@@ -3,6 +3,9 @@ import { ok, notFound, unauthorized } from '../../../shared/src/response';
 import { query, queryOne, execute } from '../../../shared/src/db';
 import type { ArabicEnv } from '../env';
 import { actorRef } from '../../../shared/src/auth';
+import { labels, byKey } from '../lib/labels';
+import { readingBook } from '../lib/reading-book';
+import { words as storybookWords } from './storybook';
 
 /// Daily Fuṣḥā — one themed dose a day: ten singular/plural pairs, a sentence
 /// for each, and a short passage that puts them back together.
@@ -220,6 +223,19 @@ export function dailyRoutes(router: Router<ArabicEnv>) {
     return ok({ note: { id: `ARDR:${r.slug}`, note_type: 'note', title: `${r.title_en} · ${r.title_ar}`, body: r.body_md,
                         visibility: 'public', domain: 'arabic', is_pinned: 0, tags_json: '["reading"]',
                         created_at: r.created_at, updated_at: r.created_at } });
+  });
+
+  /// The same reading as story-book pages, for the picture-book reader that «كليلة ودمنة» uses: a cover, one page per read
+  /// block (picture, Arabic with word times, English, its recording — a dialogue's question and answer as two clips on one
+  /// page), then the words to learn. Unsigned, like the note. Labels (cover kicker, final page) come from ar_practice_label.
+  router.get('/ar/daily/readings/:slug/book', async (_req, env, { slug }) => {
+    const r = await queryOne<{ slug: string; kind: string; title_en: string; title_ar: string; subtitle_en: string | null; body_md: string | null }>(env.DB_AR,
+      `SELECT slug, kind, title_en, title_ar, subtitle_en, body_md FROM ar_daily_reading WHERE slug = ? AND is_published = 1`, [slug]);
+    if (!r || !r.body_md) return notFound(`reading ${slug}`);
+    const L = byKey((await labels(env)).storybook);
+    const book = readingBook({ ...r, body_md: r.body_md }, L, storybookWords(L));
+    if (!book.pages.length) return notFound(`reading ${slug}`);
+    return ok(book);
   });
 
   /// The published themes, in drip order. Content only — no reader state, so

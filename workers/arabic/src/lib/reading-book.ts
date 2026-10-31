@@ -1,0 +1,102 @@
+import type { Label } from './labels';
+
+/// A daily reading (ar_daily_reading.body_md) as story-book pages — the same shape the story-book reader draws for
+/// «كليلة ودمنة» (GET /ar/text/storybooks/:id), so one reader serves both.
+///
+/// The markdown carries ```read blocks (one per line of the reading), an optional ```cast block (a dialogue's speakers) and
+/// an optional ```vocab block (the words to learn). Each read block becomes one page: its picture, its Arabic words with
+/// their times, its English line. A dialogue's block is a question and an answer by two speakers, each voiced from its own
+/// recording: the page then has TWO clips — the question's and the answer's — and its words are the question's followed by
+/// the answer's, each clip naming the words (from…to) it voices, the speaker's Arabic name and colour, and the pause before
+/// it (gap_q / gap_a). Every word shown comes from the data or from ar_practice_label (scope 'storybook'); nothing is
+/// written in the app.
+
+interface ReadBlock {
+  ar?: string; en?: string; audio?: string; words?: number[][]; keys?: Array<{ w: string; en: string }>; img?: string;
+  role?: string; q?: string; q_audio?: string; q_words?: number[][]; q_speaker?: string; speaker?: string;
+  gap_q?: number; gap_a?: number;
+}
+interface Vocab { w: string; en: string; base?: string | null; img?: string | null; audio?: string | null }
+type Cast = Record<string, { ar?: string; en?: string; color?: string }>;
+
+export interface ReadingRow { slug: string; kind: string; title_en: string; title_ar: string; subtitle_en: string | null; body_md: string }
+
+const parse = <T>(j: string): T | null => { try { return JSON.parse(j) as T; } catch { return null; } };
+
+/// The fenced blocks of the markdown, in order: [type, body].
+export function blocksOf(md: string): Array<[string, string]> {
+  const out: Array<[string, string]> = [];
+  for (const m of md.matchAll(/```(\w+)[^\n]*\n([\s\S]*?)\n?```/g)) out.push([m[1], m[2].trim()]);
+  return out;
+}
+
+/// The words of a line with their times: the text split on spaces, each paired with its [start, end] — a word the data has
+/// no time for keeps the end of the one before it, so the voice never lights a word it has no time for.
+function timed(text: string, times: number[][] | undefined, keys: Set<string>) {
+  let last = 0;
+  return text.split(/\s+/).filter(Boolean).map((t, i) => {
+    const w = times?.[i];
+    const s = w && w.length === 2 ? w[0] : last, e = w && w.length === 2 ? w[1] : last;
+    last = e;
+    return { t, s, e, k: keys.has(t) };
+  });
+}
+
+const L = (labels: Map<string, Label>, key: string, fallback: string, fallbackAr: string | null = null) => {
+  const l = labels.get(key);
+  return { text: l?.label ?? fallback, ar: l?.labelAr ?? fallbackAr, icon: l?.icon ?? null, detail: l?.detail ?? null, color: l?.color ?? null };
+};
+
+/// `base` is the story-book words object (the same one a Kalīla story sends); only the reading's own cover kicker and its
+/// final page's title are added here.
+export function readingBook(r: ReadingRow, labels: Map<string, Label>, base: Record<string, unknown>) {
+  const blocks = blocksOf(r.body_md);
+  const cast = (blocks.find(([t]) => t === 'cast') && parse<Cast>(blocks.find(([t]) => t === 'cast')![1])) || {};
+  const vocab = blocks.filter(([t]) => t === 'vocab').flatMap(([, b]) => parse<Vocab[]>(b) ?? []);
+  // the heading read aloud (role "title") is the cover's job; a page needs a picture to sit on, but one without keeps the cover's
+  const reads = blocks.filter(([t]) => t === 'read').map(([, b]) => parse<ReadBlock>(b)).filter((b): b is ReadBlock => !!b && b.role !== 'title' && !!b.ar);
+  const first = reads.find((b) => b.img)?.img ?? null;
+  let carry = first;
+  const total = reads.length + 1 + (vocab.length ? 1 : 0);
+
+  const speaker = (id: string | undefined) => {
+    const c = id ? cast[id] : undefined;
+    return { speaker: id ?? null, name: c?.ar ?? null, color: c?.color ?? null };
+  };
+
+  const pages = reads.map((b, i) => {
+    const keys = new Set((b.keys ?? []).map((k) => k.w));
+    const ans = timed(b.ar!, b.words, keys);
+    const q = b.q && b.q_audio ? timed(b.q, b.q_words, keys) : [];
+    const clips = [
+      ...(q.length ? [{ url: b.q_audio!, gap: b.gap_q ?? 0.5, from: 0, to: q.length - 1, ...speaker(b.q_speaker) }] : []),
+      ...(b.audio ? [{ url: b.audio, gap: b.gap_a ?? 0.45, from: q.length, to: q.length + ans.length - 1, ...speaker(q.length ? b.speaker : undefined) }] : []),
+    ];
+    if (b.img) carry = b.img;
+    return {
+      no: i + 1, of: total, kind: 'story', picture: b.img ?? carry, placeholder: false,
+      textAr: [b.q && b.q_audio ? b.q : null, b.ar].filter(Boolean).join(' '), textEn: b.en ?? null,
+      words: [...q, ...ans].map(({ t, s, e, k }) => ({ t, s, e, k })),
+      start: null, end: null, recording: null, link: null, lines: null, sound: null,
+      clips,
+    };
+  });
+
+  const wordsPage = L(labels, 'words_to_learn', 'Words to learn', 'كَلِمَاتٌ جَدِيدَةٌ');
+  const kicker = L(labels, r.kind === 'qa' ? 'reading_kicker_qa' : 'reading_kicker', r.kind === 'qa' ? 'ARABIC DIALOGUE' : 'ARABIC READING',
+                   r.kind === 'qa' ? 'حِوَارٌ' : 'قِرَاءَةٌ');
+
+  return {
+    id: `ARDR:${r.slug}`, titleAr: r.title_ar, titleEn: r.title_en, summary: r.subtitle_en || null, authored: true,
+    chapter: null, inside: null, look: { accent: '#C9A84C', gradient: ['#141414', '#0B0B0B'], motif: null }, themes: [],
+    words: { ...base, kicker },
+    audio: null, pages,
+    // the last page is the words to learn, when the reading has them; none otherwise (the story ends on its last picture)
+    remember: vocab.length ? {
+      no: total, of: total, title: wordsPage.text, titleAr: wordsPage.ar, icon: wordsPage.icon, speaker: null, moralAr: null, moralEn: null,
+      lesson: null, words: [], start: null, end: null, sound: null, checks: [],
+      vocab: vocab.map((v) => ({ w: v.w, en: v.en, base: v.base ?? null, image: v.img ?? null, audio: v.audio ?? null })),
+    } : null,
+    next: null,
+  };
+}

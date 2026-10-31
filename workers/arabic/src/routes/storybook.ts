@@ -46,7 +46,7 @@ const word = (l: Label | undefined, fallback: string) => ({ text: l?.label ?? fa
 const withAr = (w: ReturnType<typeof word>, l: Label | undefined, fallbackAr: string) => ({ ...w, ar: l?.labelAr ?? fallbackAr });
 
 /// The words of the book's screens, one object, from its label rows.
-function words(L: Map<string, Label>) {
+export function words(L: Map<string, Label>) {
   const k = (key: string, fb: string) => word(L.get(key), fb);
   return {
     entry: k('entry', 'Read as a story book'), byChapter: k('by_chapter', 'By chapter'), byTheme: k('by_theme', 'By theme'),
