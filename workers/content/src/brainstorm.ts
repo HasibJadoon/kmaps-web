@@ -20,6 +20,8 @@ export interface BoardSpec {
   points?: Array<{ key: string; ring?: string; deck?: string; slide?: number; title?: string; title_ar?: string }>;
   questions?: Array<{ point: string; deck: string; slide: number }>;
   labels?: Record<string, string>;
+  /** Boards ready to add in one tap (Summary · الخلاصة, Hook, Ending, Takeaways). */
+  presets?: Array<{ title: string; title_ar?: string; note?: string }>;
 }
 
 export interface BoardPerson { ref: string; who: string; color: string | null; count: number }
@@ -63,6 +65,7 @@ export interface Board {
   frames: Frame[];
   shelf: ShelfGroup[];
   labels: Record<string, string>;
+  presets: Array<{ title: string; title_ar: string | null; note: string | null }>;
 }
 
 interface Graphic { term?: string; term_ar?: string; ref?: string; items?: Array<{ en?: string }> }
@@ -187,6 +190,7 @@ export async function buildBoard(
   return {
     title: spec.title ?? 'Brainstorm', title_ar: spec.title_ar ?? null, hint: spec.hint ?? null,
     people, frames, shelf, labels: spec.labels ?? {},
+    presets: (spec.presets ?? []).map((p) => ({ title: p.title, title_ar: p.title_ar ?? null, note: p.note ?? null })),
   };
 }
 
