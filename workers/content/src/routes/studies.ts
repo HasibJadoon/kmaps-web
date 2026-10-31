@@ -4,7 +4,7 @@ import { actorRef } from '../../../shared/src/auth';
 import type { ContentEnv } from '../env';
 import { StudyRepo } from '../repositories/study.repo';
 import { execute, queryOne } from '../../../shared/src/db';
-import { buildBoard, CLAUDE } from '../brainstorm';
+import { buildBoard, CLAUDE, outlineOf, shelfOf } from '../brainstorm';
 import { buildLog, type EpisodeDigest } from '../study-log';
 
 // Studies: a passage worked through in steps, each step a deck. `?status=active`
@@ -112,7 +112,10 @@ export function studyRoutes(router: Router<ContentEnv>) {
     const row = await queryOne<{ meta_json: string | null }>(env.DB_CM, `SELECT meta_json FROM cm_documents WHERE doc_id = ?`, [id]);
     let raw: Record<string, unknown> = {};
     try { raw = JSON.parse(row?.meta_json ?? '{}'); } catch { /* no board */ }
-    const board = await buildBoard(env.DB_CM, id, raw, user);
+    // the Library's docs and slides, for linking to a sticky
+    const study = (await repo.list(user)).find((x) => x.doc_id === id);
+    const library = study ? (await buildLog(env.DB_CM, study, raw, [], user)).stages.find((x) => x.fold) : undefined;
+    const board = await buildBoard(env.DB_CM, id, raw, user, shelfOf(library?.items ?? []));
     return board ? ok(board) : notFound(`brainstorm ${params.id}`);
   });
 
@@ -149,6 +152,47 @@ export function studyRoutes(router: Router<ContentEnv>) {
         WHERE sticky_id = ? AND study_id = ? AND author_ref = ?`, [params.sticky, id, user]);
     await announce(env, id);
     return ok({ ok: true });
+  });
+
+  // A doc's parts, to link a sticky to one: an essay's sections or a deck's slides.
+  router.get('/cm/studies/:id/brainstorm/outline', async (req, env, params) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const q = new URL(req.url).searchParams;
+    const type = q.get('type') ?? '', ref = q.get('ref') ?? '';
+    if (!ref || !['essay', 'deck'].includes(type)) return badRequest('type (essay|deck) and ref required');
+    const repo = new StudyRepo(env.DB_CM);
+    const id = await repo.resolve(params.id);
+    if (!id || !(await repo.isMember(id, user))) return notFound(`study ${params.id}`);
+    return ok(await outlineOf(env.DB_CM, type, ref));
+  });
+
+  // A doc or deck linked to a sticky — any sticky, a deck question too — or taken off it.
+  router.post('/cm/studies/:id/brainstorm/links', async (req, env, params) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const b = await req.json().catch(() => null) as Record<string, unknown> | null;
+    const sticky = String(b?.sticky ?? '');
+    const open = b?.open as { type?: string; ref?: string; at?: number } | undefined;
+    const at = Number.isInteger(open?.at) ? open!.at! : null;
+    const label = String(b?.label ?? '').slice(0, 200);
+    if (!sticky || !open?.type || !open?.ref || !['essay', 'deck', 'note'].includes(open.type)) {
+      return badRequest('sticky and open {type: essay|deck|note, ref} required');
+    }
+    const repo = new StudyRepo(env.DB_CM);
+    const id = await repo.resolve(params.id);
+    if (!id || !(await repo.isMember(id, user))) return notFound(`study ${params.id}`);
+    const gone = await execute(env.DB_CM,
+      `DELETE FROM cm_study_sticky_link WHERE study_id = ? AND sticky_ref = ? AND open_type = ? AND open_ref = ?`,
+      [id, sticky, open.type, open.ref]);
+    if (!gone.meta.changes) {
+      if (!label) return badRequest('label required');
+      await execute(env.DB_CM,
+        `INSERT INTO cm_study_sticky_link (study_id, sticky_ref, open_type, open_ref, open_at, label, user_ref) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [id, sticky, open.type, open.ref, at, label, user]);
+    }
+    await announce(env, id);
+    return ok({ linked: !gone.meta.changes });
   });
 
   // A dot on a sticky, or taken back.

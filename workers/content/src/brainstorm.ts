@@ -35,7 +35,12 @@ export interface Sticky {
   voted: boolean;
   /** Yours, so you can take it off the board. */
   mine: boolean;
+  /** Docs and slides linked to it. */
+  links: Array<{ label: string; open: { type: string; ref: string; at?: number } }>;
 }
+
+/// What can be linked to a sticky: the Library's docs and slides, in its sections.
+export interface ShelfGroup { group: string; items: Array<{ label: string; title_ar: string | null; open: { type: string; ref: string } }> }
 
 export interface Frame {
   key: string;
@@ -54,6 +59,7 @@ export interface Board {
   hint: string | null;
   people: BoardPerson[];
   frames: Frame[];
+  shelf: ShelfGroup[];
   labels: Record<string, string>;
 }
 
@@ -66,6 +72,7 @@ export async function buildBoard(
   studyId: string,
   raw: Record<string, unknown>,
   user: string | null,
+  shelf: ShelfGroup[] = [],
 ): Promise<Board | null> {
   const spec = raw['brainstorm'] as BoardSpec | undefined;
   if (!spec) return null;
@@ -98,6 +105,15 @@ export async function buildBoard(
       WHERE study_id = ? AND deleted_at IS NULL ORDER BY seq, created_at`, [studyId]);
   const votes = await query<{ sticky_ref: string; user_ref: string }>(db,
     `SELECT sticky_ref, user_ref FROM cm_study_sticky_vote WHERE study_id = ?`, [studyId]);
+  const linked = await query<{ sticky_ref: string; open_type: string; open_ref: string; open_at: number | null; label: string }>(db,
+    `SELECT sticky_ref, open_type, open_ref, open_at, label FROM cm_study_sticky_link WHERE study_id = ? ORDER BY created_at`, [studyId]);
+  const linksOf = new Map<string, Sticky['links']>();
+  for (const l of linked) {
+    const list = linksOf.get(l.sticky_ref) ?? [];
+    list.push({ label: l.label, open: l.open_at == null ? { type: l.open_type, ref: l.open_ref }
+      : { type: l.open_type, ref: l.open_ref, at: l.open_at } });
+    linksOf.set(l.sticky_ref, list);
+  }
   const tally = new Map<string, { n: number; mine: boolean }>();
   for (const v of votes) {
     const t = tally.get(v.sticky_ref) ?? { n: 0, mine: false };
@@ -107,7 +123,7 @@ export async function buildBoard(
   }
   const sticky = (id: string, ref: string, kind: string, text: string, note: string | null, source: string | null): Sticky =>
     ({ id, by: person(ref), kind, text, note, source, votes: tally.get(id)?.n ?? 0, voted: tally.get(id)?.mine ?? false,
-       mine: ref === user && !id.startsWith('deck:') });
+       mine: ref === user && !id.startsWith('deck:'), links: linksOf.get(id) ?? [] });
 
   const frames: Frame[] = (spec.points ?? []).map((p) => {
     const g = p.deck != null && p.slide != null ? slides.get(`${p.deck}:${p.slide}`) : undefined;
@@ -128,7 +144,7 @@ export async function buildBoard(
     const owner = ownerOf.get(q.deck);
     if (!f || !g || !owner) continue;
     (g.items ?? []).forEach((it, n) => {
-      if (it.en) f.stickies.push(sticky(`deck:${q.deck}:${q.slide}:${n}`, owner, 'question', it.en, null, g.term_ar ?? null));
+      if (it.en) f.stickies.push(sticky(`deck:${q.deck}:${q.slide}:${n}`, owner, 'question', it.en, null, null));
     });
   }
   for (const r of rows) frameOf.get(r.point_key)?.stickies.push(sticky(r.sticky_id, r.author_ref, r.kind, r.text, r.note, r.source));
@@ -141,6 +157,58 @@ export async function buildBoard(
 
   return {
     title: spec.title ?? 'Brainstorm', title_ar: spec.title_ar ?? null, hint: spec.hint ?? null,
-    people, frames, labels: spec.labels ?? {},
+    people, frames, shelf, labels: spec.labels ?? {},
   };
+}
+
+/// The shelf from the study page's Library: each doc and deck once, a key term's Read · Study · Story each a line.
+export function shelfOf(items: Array<{ title: string; title_ar: string | null; group?: string | null;
+  open: { type: string; ref: string | null } | null; links?: Array<{ label: string; open: { type: string; ref: string } }> }>): ShelfGroup[] {
+  const groups = new Map<string, ShelfGroup>();
+  const seen = new Set<string>();
+  const put = (group: string, label: string, title_ar: string | null, open: { type: string; ref: string | null } | null) => {
+    if (!open?.ref || !['essay', 'deck', 'note'].includes(open.type)) return;
+    const k = `${open.type}|${open.ref}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    const g = groups.get(group) ?? { group, items: [] };
+    g.items.push({ label, title_ar, open: { type: open.type, ref: open.ref } });
+    groups.set(group, g);
+  };
+  for (const it of items) {
+    const group = it.group ?? '';
+    if (it.links?.length) for (const l of it.links) put(group, `${it.title} · ${l.label}`, it.title_ar, l.open);
+    else put(group, it.title, it.title_ar, it.open);
+  }
+  return [...groups.values()];
+}
+
+/// A doc's parts, to link a sticky to one of them: an essay's sections (its ## headings, numbered from 1, as the
+/// reader counts them) or a deck's slides (numbered from 0, in order).
+export async function outlineOf(db: D1Database, type: string, slug: string): Promise<Array<{ label: string; at: number }>> {
+  if (type === 'essay') {
+    const row = (await query<{ body: string | null }>(db,
+      `SELECT (SELECT b.content_text FROM cm_blocks b WHERE b.doc_id = d.doc_id AND b.block_type = 'markdown'
+                ORDER BY b.seq_order LIMIT 1) AS body FROM cm_documents d WHERE d.slug = ? LIMIT 1`, [slug]))[0];
+    const out: Array<{ label: string; at: number }> = [];
+    let fenced = false;
+    for (const line of (row?.body ?? '').split('\n')) {
+      if (line.trimStart().startsWith('```')) { fenced = !fenced; continue; }
+      if (fenced || !line.startsWith('## ')) continue;
+      out.push({ label: line.slice(3).replace(/:[a-z0-9.]+:\s*/gi, '').trim(), at: out.length + 1 });
+    }
+    return out;
+  }
+  if (type === 'deck') {
+    const rows = await query<{ attrs_json: string | null }>(db,
+      `SELECT b.attrs_json FROM cm_documents d JOIN cm_blocks b ON b.doc_id = d.doc_id
+        WHERE d.slug = ? AND b.block_type = 'slide' ORDER BY b.seq_order`, [slug]);
+    return rows.map((r, i) => {
+      let a: { lines_en?: string[]; kicker?: string; graphic?: { term?: string } } = {};
+      try { a = JSON.parse(r.attrs_json ?? '{}'); } catch { /* untitled */ }
+      const label = a.lines_en?.find(Boolean) ?? a.graphic?.term ?? a.kicker ?? '';
+      return { label: `${i + 1} · ${label}`.trim(), at: i };
+    });
+  }
+  return [];
 }

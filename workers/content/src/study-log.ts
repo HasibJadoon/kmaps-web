@@ -42,6 +42,8 @@ export interface LogStageSpec {
   /** Its place in the sprint picture: input (the passage), backlog (the resources), loop (the steps that go round),
    *  output (what comes out — the published episodes). */
   role?: 'input' | 'backlog' | 'loop' | 'output';
+  /** A tap on the stage opens its first thing straight away (the brainstorm board), not the stage's own screen. */
+  direct?: boolean;
   sources: LogSource[];
 }
 
@@ -75,6 +77,8 @@ export interface LogStage {
   fold: boolean;
   role: string | null;
   state: 'done' | 'open' | 'empty';
+  /** Set when a tap on the stage goes straight to one thing (a `direct` stage). */
+  open: LogItem['open'];
   items: LogItem[];
 }
 
@@ -376,7 +380,8 @@ export async function buildLog(
       : steps_done.length && steps_done.every((i) => i.state === 'done') ? 'done' : 'open';
     return {
       key: st.key, title: st.title, title_ar: st.title_ar ?? null, icon: st.icon ?? null,
-      accent: st.accent ?? null, hint: st.hint ?? null, fold: st.fold === true, role: st.role ?? null, state, items,
+      accent: st.accent ?? null, hint: st.hint ?? null, fold: st.fold === true, role: st.role ?? null, state,
+      open: st.direct ? items[0]?.open ?? null : null, items,
     };
   });
 

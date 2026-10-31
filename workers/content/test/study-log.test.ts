@@ -104,3 +104,11 @@ test('a steps source can file one step under its own section', async () => {
   const items = (await page({ ...raw, log: { ...log, stages: [library, ...log.stages.slice(1)] } })).stages[0].items;
   assert.deepEqual(items.map((i) => [i.title, i.group]), [['Questions', 'Question bank']]);
 });
+
+test('a direct stage carries its one thing to open', async () => {
+  const log = raw.log as { stages: Array<Record<string, unknown>> };
+  const board = { key: 'brainstorm', title: 'Brainstorm', role: 'loop', direct: true, sources: [{ kind: 'brainstorm' }] };
+  const p = await page({ ...raw, brainstorm: { title: 'Brainstorm' }, log: { ...log, stages: [...log.stages, board] } });
+  assert.deepEqual(p.stages.at(-1)?.open, { type: 'brainstorm', ref: 'CM:STUDY:x' });
+  assert.equal(p.stages[0].open, null);
+});

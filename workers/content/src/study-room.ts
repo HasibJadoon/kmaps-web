@@ -86,7 +86,8 @@ export class StudyRoom {
          (SELECT MAX(n.updated_at) || ':' || COUNT(*) FROM cm_note_targets t JOIN cm_notes n ON n.note_id = t.note_id
            WHERE t.target_ref = json_extract((SELECT meta_json FROM cm_documents WHERE doc_id = ?1), '$.passage.unit_id')) AS n,
          (SELECT updated_at FROM cm_documents WHERE doc_id = ?1) AS d,
-         (SELECT MAX(updated_at) || ':' || COUNT(*) FROM cm_study_sticky WHERE study_id = ?1) AS s`,
+         (SELECT MAX(updated_at) || ':' || COUNT(*) FROM cm_study_sticky WHERE study_id = ?1)
+           || '/' || (SELECT COUNT(*) || ':' || COALESCE(MAX(created_at), '') FROM cm_study_sticky_link WHERE study_id = ?1) AS s`,
     ).bind(studyId).first<{ p: string | null; n: string | null; d: string | null; s: string | null }>();
     return `${row?.p ?? ''}|${row?.n ?? ''}|${row?.d ?? ''}|${row?.s ?? ''}`;
   }
