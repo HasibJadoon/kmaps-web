@@ -61,6 +61,8 @@ export interface LogItem {
   /** What a tap opens: passage · deck (ref = slug) · note (ref = note id) · episode (ref = id) ·
    *  essay (ref = slug) · path / atlas / practice (ref = the passage unit, QR:SP:40:1-3) · brainstorm (ref = the study). */
   open: { type: string; ref: string | null } | null;
+  /** Other words it is found by in a search, beyond its titles: a term's key and phrase, its docs' titles. */
+  keys?: string[];
   /** More ways in, as small buttons on the row (a key term: Read · Study · Story). */
   links?: Array<{ label: string; open: { type: string; ref: string } }>;
   /** The section the row sits under, in a folder. */
@@ -250,7 +252,7 @@ export async function buildLog(
           const links: NonNullable<LogItem['links']> = refs.map((r) => ({ label: person(r).who, open: { type: 'deck', ref: step.decks![r] } }));
           if (!refs.length && step.deck) links.push({ label: say('open'), open: { type: 'deck', ref: step.deck } });
           if (!links.length) continue;
-          items.push({ kind: 'deck', title: step.title, title_ar: step.title_ar ?? null,
+          items.push({ kind: 'deck', keys: [step.key], title: step.title, title_ar: step.title_ar ?? null,
             subtitle: say('step', { n: step.n }) || null, icon: 'rectangle.stack', who: null, color: null, date: null,
             state: null, open: links[0].open, links });
         }
@@ -260,7 +262,7 @@ export async function buildLog(
           const m = meta(n.meta_json);
           const by = (m['by'] as string | undefined) ?? n.core_user_ref;
           items.push({
-            kind: 'note', title: n.title ?? '', title_ar: (m['title_ar'] as string) ?? null,
+            kind: 'note', keys: [n.relation_type], title: n.title ?? '', title_ar: (m['title_ar'] as string) ?? null,
             subtitle: (m['subtitle'] as string) ?? null, icon: (m['icon'] as string) ?? 'doc.text',
             ...(names[by] ? person(by) : { who: (m['who'] as string) ?? null, color: null }),
             date: n.updated_at, state: (m['state'] as string) ?? null, open: { type: 'note', ref: n.note_id },
@@ -326,7 +328,10 @@ export async function buildLog(
           const links = [...linksOf(t.key, ''), ...(t.phrase ? linksOf(t.phrase.key, t.phrase.ar ?? t.phrase.key) : [])];
           if (!links.length) continue;
           const essay = docs.get(`CM:DOC:qr:keyterm-essay:${t.key}`);
-          items.push({ kind: 'term', title: t.en ?? essay?.title ?? t.key, title_ar: t.ar ?? null,
+          const keyWords = [t.key, t.phrase?.key, t.phrase?.ar, t.phrase?.en, essay?.title,
+            ...['study', 'story'].map((k) => docs.get(`CM:DOC:qr:keyterm-${k}:${t.key}`)?.title)]
+            .filter((x): x is string => !!x).map((x) => x.replace(/-word$/, '').replace(/-/g, ' '));
+          items.push({ kind: 'term', keys: keyWords, title: t.en ?? essay?.title ?? t.key, title_ar: t.ar ?? null,
             subtitle: [essay?.title, t.phrase ? [t.phrase.ar, t.phrase.en].filter(Boolean).join(' — ') : null].filter(Boolean).join(' · ') || null,
             icon: 'character.book.closed', who: null, color: null, date: null,
             state: null, open: links[0].open, links });

@@ -112,3 +112,8 @@ test('a direct stage carries its one thing to open', async () => {
   assert.deepEqual(p.stages.at(-1)?.open, { type: 'brainstorm', ref: 'CM:STUDY:x' });
   assert.equal(p.stages[0].open, null);
 });
+
+test("a term row is found by its key and its phrase, not only its titles", async () => {
+  const term = (await page()).stages[0].items.find((i) => i.kind === 'term')!;
+  assert.deepEqual(term.keys?.slice(0, 4), ['ghafir', 'ghafir', 'غَافِرِ ٱلذَّنۢبِ', 'Forgiver of the sin']);
+});
