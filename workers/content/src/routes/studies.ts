@@ -195,6 +195,43 @@ export function studyRoutes(router: Router<ContentEnv>) {
     return ok({ linked: !gone.meta.changes });
   });
 
+  // A frame's stickies in their new order, after a drag (within the frame, or one brought in from another).
+  router.post('/cm/studies/:id/brainstorm/move', async (req, env, params) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const b = await req.json().catch(() => null) as Record<string, unknown> | null;
+    const point = String(b?.point ?? '');
+    const order = Array.isArray(b?.order) ? (b!.order as unknown[]).map(String).filter(Boolean).slice(0, 200) : [];
+    if (!point || !order.length) return badRequest('point and order required');
+    const repo = new StudyRepo(env.DB_CM);
+    const id = await repo.resolve(params.id);
+    if (!id || !(await repo.isMember(id, user))) return notFound(`study ${params.id}`);
+    await env.DB_CM.batch(order.map((ref, i) => env.DB_CM.prepare(
+      `INSERT INTO cm_study_sticky_place (study_id, sticky_ref, point_key, seq, moved_by) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (study_id, sticky_ref) DO UPDATE SET point_key = excluded.point_key, seq = excluded.seq,
+         moved_by = excluded.moved_by, updated_at = datetime('now')`).bind(id, ref, point, i, user)));
+    await announce(env, id);
+    return ok({ ok: true });
+  });
+
+  // Your own sticky, reworded (or turned from a question to an idea).
+  router.patch('/cm/studies/:id/brainstorm/stickies/:sticky', async (req, env, params) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const b = await req.json().catch(() => null) as Record<string, unknown> | null;
+    const text = String(b?.text ?? '').trim();
+    const kind = b?.kind === 'idea' ? 'idea' : 'question';
+    if (!text || text.length > 600) return badRequest('text (up to 600 characters) required');
+    const repo = new StudyRepo(env.DB_CM);
+    const id = await repo.resolve(params.id);
+    if (!id || !(await repo.isMember(id, user))) return notFound(`study ${params.id}`);
+    await execute(env.DB_CM,
+      `UPDATE cm_study_sticky SET text = ?, kind = ?, updated_at = datetime('now')
+        WHERE sticky_id = ? AND study_id = ? AND author_ref = ? AND deleted_at IS NULL`, [text, kind, params.sticky, id, user]);
+    await announce(env, id);
+    return ok({ ok: true });
+  });
+
   // A dot on a sticky, or taken back.
   router.post('/cm/studies/:id/brainstorm/votes', async (req, env, params) => {
     const user = actorRef(req);

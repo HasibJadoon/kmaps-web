@@ -7,7 +7,7 @@ const H = 'CORE:H', A = 'CORE:A';
 const slide = (slug: string, seq: number, graphic: unknown) => ({ slug, seq_order: seq, attrs_json: JSON.stringify({ graphic }) });
 
 function fakeDb(rows: Record<string, unknown[]>): D1Database {
-  const pick = (sql: string) => sql.includes('cm_study_sticky_link') ? rows.links : sql.includes('cm_study_sticky_vote') ? rows.votes
+  const pick = (sql: string) => sql.includes('cm_study_sticky_place') ? rows.places : sql.includes('cm_study_sticky_link') ? rows.links : sql.includes('cm_study_sticky_vote') ? rows.votes
     : sql.includes('cm_study_sticky') ? rows.stickies : sql.includes('cm_blocks') ? rows.slides : [];
   return { prepare: (sql: string) => ({ bind: () => ({ all: async () => ({ results: pick(sql) ?? [] }) }) }) } as unknown as D1Database;
 }
@@ -94,4 +94,14 @@ test('a deck\'s outline: its slides, counted from 0', async () => {
   const rows = [{ attrs_json: JSON.stringify({ lines_en: ['Sent down'] }) }, { attrs_json: JSON.stringify({ graphic: { term: 'Tanzīl' } }) }];
   const db = { prepare: () => ({ bind: () => ({ all: async () => ({ results: rows }) }) }) } as unknown as D1Database;
   assert.deepEqual(await outlineOf(db, 'deck', 'd'), [{ label: '1 · Sent down', at: 0 }, { label: '2 · Tanzīl', at: 1 }]);
+});
+
+test('a dragged sticky sits in the frame and place it was left in; the rest follow in their own order', async () => {
+  const b = (await buildBoard(fakeDb({
+    slides: [slide('p-h', 2, { term: 'Two letters', items: [] }), slide('q-h', 2, { items: [{ en: 'Q1' }, { en: 'Q2' }] })],
+    stickies: [{ sticky_id: 'STK:2', point_key: 'hm', author_ref: A, kind: 'idea', text: 'Idea', note: null, source: null }],
+    places: [{ sticky_ref: 'STK:2', point_key: 'hm', seq: 0 }, { sticky_ref: 'deck:q-h:2:1', point_key: 'across', seq: 0 }],
+  }), 'CM:STUDY:x', raw, A))!;
+  assert.deepEqual(b.frames[0].stickies.map((s) => s.text), ['Idea', 'Q1']);
+  assert.deepEqual(b.frames[1].stickies.map((s) => s.text), ['Q2']);
 });

@@ -149,6 +149,19 @@ export async function buildBoard(
   }
   for (const r of rows) frameOf.get(r.point_key)?.stickies.push(sticky(r.sticky_id, r.author_ref, r.kind, r.text, r.note, r.source));
 
+  // Stickies dragged on the board: each to its frame, in the order it was left in; the rest keep their own order after.
+  const placed = await query<{ sticky_ref: string; point_key: string; seq: number }>(db,
+    `SELECT sticky_ref, point_key, seq FROM cm_study_sticky_place WHERE study_id = ?`, [studyId]);
+  if (placed.length) {
+    const at = new Map(placed.map((p) => [p.sticky_ref, p]));
+    const all = frames.flatMap((f) => f.stickies.map((st, i) => ({ st, from: f.key, i })));
+    for (const f of frames) f.stickies = [];
+    const order = (x: { st: Sticky; from: string; i: number }) => at.get(x.st.id)?.seq ?? 1e6 + x.i;
+    for (const x of all.sort((a, b) => order(a) - order(b))) {
+      (frameOf.get(at.get(x.st.id)?.point_key ?? x.from) ?? frameOf.get(x.from))?.stickies.push(x.st);
+    }
+  }
+
   // Who is on the board, with how many stickies each: the study's people, then Claude.
   const count = new Map<string, number>();
   for (const f of frames) for (const s of f.stickies) count.set(s.by.ref, (count.get(s.by.ref) ?? 0) + 1);
