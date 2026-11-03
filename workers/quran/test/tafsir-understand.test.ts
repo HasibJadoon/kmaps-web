@@ -25,13 +25,14 @@ function setup() {
     CREATE TABLE qr_tafsir_audio_segment (id TEXT, audio_id TEXT, page_id TEXT, seq INT, start_sec REAL, end_sec REAL, text_ar TEXT, meta_json TEXT);
     CREATE TABLE qr_tafsir_segment_en (segment_id TEXT, audio_id TEXT, seq INT, text_en TEXT, terms_json TEXT, status TEXT);
     CREATE TABLE qr_tafsir_page_cut (page_id TEXT, audio_id TEXT, ayah INT, seq INT, note TEXT);
-    CREATE TABLE qr_tafsir_book_display_source (source_slug TEXT, book_title_en TEXT, book_title_ar TEXT, author_name_ar TEXT);
+    CREATE TABLE qr_tafsir_book_display_source (source_slug TEXT, book_title_en TEXT, book_title_ar TEXT, author_name_ar TEXT, author_name_en TEXT,
+                                                death_year_hijri INT, era TEXT, madhab TEXT, kalam_school TEXT, specialization TEXT, badge_color TEXT, badge_glyph TEXT);
     CREATE TABLE ar_ling_gram_term (id TEXT, name_ar TEXT, badge_color TEXT);
     CREATE TABLE qr_surah_tafsir_reading (id TEXT, surah INT, ayah_from INT, ayah_to INT, source_slug TEXT);
     CREATE TABLE qr_surah_tafsir_chunk (id TEXT, reading_id TEXT, source_slug TEXT, chunk_index INT, text_ar TEXT, text_en TEXT);
     CREATE TABLE qr_tafsir_sentence (id TEXT, audio_id TEXT, source_slug TEXT, seq_from INT, seq_to INT, surah INT, ayah_from INT, ayah_to INT,
       gist_en TEXT, wrong_json TEXT, concept_en TEXT, concept_ar TEXT, terms_json TEXT, meaning_en TEXT, status TEXT);
-    INSERT INTO qr_tafsir_book_display_source VALUES ('zam', 'Kashshaf', 'الكشاف', 'الزمخشري');
+    INSERT INTO qr_tafsir_book_display_source (source_slug, book_title_en, book_title_ar, author_name_ar) VALUES ('zam', 'Kashshaf', 'الكشاف', 'الزمخشري');
     INSERT INTO qr_tafsir_audio VALUES ('A:zam', 'zam', 1, 'tafsir/zam/40-01.m4a', 'live');
     INSERT INTO qr_tafsir_read_page VALUES ('P:zam', 'zam', 20, 'ayah', 40, '40:1-3', 'live');
     INSERT INTO ar_ling_gram_term VALUES ('GT:x:waqf', 'الوقف', '#123456');`);
