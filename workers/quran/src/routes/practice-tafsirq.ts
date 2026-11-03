@@ -660,7 +660,33 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
     const kept = x.lines.filter((l) => !dropped.has(l.seq));
     if (kept.length && kept[0].seq !== x.lines[0]?.seq) x.start = kept[0].start;
   }
+  // a passage voiced anew (qr_tafsir_passage_audio_ar): its own recording, its lines' times in it
+  const voiced = audios.length ? await query<{ audio_id: string; seq_from: number; seq_to: number; object_key: string; times_json: string }>(env.DB_QR,
+    `SELECT audio_id, seq_from, seq_to, object_key, times_json FROM qr_tafsir_passage_audio_ar
+      WHERE status = 'live' AND audio_id IN (${audios.map(() => '?').join(',')})`, audios).catch(softFail([])) : [];
+  for (const w of works) for (const x of w.parts) revoice(x, voiced.filter((v) => v.audio_id === x.audio));
   return works;
+}
+
+/** A part read in a new recording that holds all its lines: the part plays that file, each line and word at its time
+ *  there. A line the new reading leaves out (an omitted one) gets no time, so it is not heard. */
+export function revoice(x: ListenPart, rows: { seq_from: number; seq_to: number; object_key: string; times_json: string }[]): void {
+  if (!x.lines.length) return;
+  const v = rows.find((r) => r.seq_from <= x.lines[0].seq && r.seq_to >= x.lines[x.lines.length - 1].seq);
+  if (!v) return;
+  const times = parseJson<Record<string, number[][]>>(v.times_json, {});
+  x.url = AUDIO(v.object_key);
+  for (const l of x.lines) {
+    const t = times[String(l.seq)] ?? [];
+    const said = t.filter((p) => p[1] > p[0]);
+    l.words.forEach((wd, i) => { const p = t.length === l.words.length ? t[i] : null; wd.s = p ? p[0] : 0; wd.e = p ? p[1] : 0; });
+    l.start = said.length ? said[0][0] : 0;
+    l.end = said.length ? said[said.length - 1][1] : 0;
+  }
+  const heard = x.lines.filter((l) => l.end > l.start);
+  if (!heard.length) return;
+  x.start = Math.max(0, heard[0].start - 0.3);
+  x.end = heard[heard.length - 1].end + 0.3;
 }
 
 /** An editor's heading as the reader sets it: `:icon: Section|القسم · Title` → the section it belongs to (the author's own

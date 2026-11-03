@@ -234,3 +234,19 @@ test("an editor's heading carries its section, the section's Arabic name and its
   assert.deepEqual(splitHeading('Question 1 · How Ḥā Mīm Is Read'), { heading: 'How Ḥā Mīm Is Read', section: 'Question 1' });
   assert.deepEqual(splitHeading('Meccan, and how many verses'), { heading: 'Meccan, and how many verses' });
 });
+
+import { revoice } from '../src/routes/practice-tafsirq';
+test('revoice: a passage read anew plays its own file, lines and words at their new times', () => {
+  const line = (seq: number, n: number) => ({ id: `x|${seq}`, seq, start: 100 + seq, end: 101 + seq, text: '', en: null, terms: [],
+    words: Array.from({ length: n }, (_, i) => ({ t: `w${i}`, s: 100 + seq, e: 101 + seq })) });
+  const x = { audio: 'QRTA:a:1', url: '/api/ar/audio/old.m4a', start: 0, end: 0, lines: [line(1, 2), line(2, 2)], paragraphs: [], sentences: [] };
+  revoice(x as never, [{ seq_from: 1, seq_to: 9, object_key: 'tafsir-moods/a/40p1.m4a', times_json: JSON.stringify({ 2: [[3, 4], [4, 5.5]] }) }]);
+  assert.equal(x.url, '/api/ar/audio/tafsir-moods/a/40p1.m4a');
+  assert.deepEqual([x.lines[0].start, x.lines[0].end, x.lines[0].words[0].e], [0, 0, 0]);   // left out: not heard
+  assert.deepEqual([x.lines[1].start, x.lines[1].end, x.lines[1].words[1].s], [3, 5.5, 4]);
+  assert.deepEqual([x.start, x.end], [2.7, 5.8]);
+  // a recording that does not hold all the part's lines leaves the part as it was
+  const y = { ...x, url: 'old', lines: [line(1, 1), line(12, 1)] };
+  revoice(y as never, [{ seq_from: 1, seq_to: 9, object_key: 'n', times_json: '{}' }]);
+  assert.equal(y.url, 'old');
+});
