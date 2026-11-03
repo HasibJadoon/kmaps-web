@@ -4,7 +4,8 @@ export interface StudioEnv {
 
   EPISODE_SESSION: DurableObjectNamespace;
 
-  /// R2, the stage's renderer files keyed overlay/<sha256> (st_overlay_release).
+  /// R2, the stage's renderer files keyed overlay/<sha256> (st_overlay_release) and story films' pictures and clips
+  /// keyed story/<sha256> (st_story_shot).
   OVERLAY: R2Bucket;
 
   CORE: Fetcher;
