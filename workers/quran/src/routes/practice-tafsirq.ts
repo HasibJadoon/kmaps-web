@@ -108,9 +108,20 @@ const ORDINAL = /^(ال)?(أول|اول|أولى|اولى|ثاني|ثانية|ث
 /** Lays the words out as a printed edition does (ListenLine words' `r` and `b`): a part heading (noun + ordinal + colon)
  *  bold on a new paragraph; a bare ordinal with a colon (al-awwal:, al-thānī:) bold in its line; a bracketed verse
  *  reference small; the European quotation marks turned to Arabic ones (”X“ → «X»). In place, timings untouched. */
+const BASMALA = ['بسم', 'الله', 'الرحمن', 'الرحيم'];
 export function shapeWords(words: ShapedWord[]): ShapedWord[] {
   let inRef = false;
   for (let i = 0; i < words.length; i++) {
+    // the basmala, wherever an author writes it: Qurʾān (in its marks), on a line of its own
+    if (BASMALA.every((b, k) => words[i + k] && bareWord(words[i + k].t).replace(/[﴿﴾]/g, '') === b)) {
+      const first = words[i], last = words[i + 3];
+      if (!first.t.includes('﴿')) first.t = `﴿${first.t}`;
+      if (!last.t.includes('﴾')) last.t = last.t.replace(/([،,.؛:]*)$/, '﴾$1');
+      first.b = true;
+      if (words[i + 4]) words[i + 4].b = true;
+      i += 3;
+      continue;
+    }
     const w = words[i];
     w.t = w.t.replace(/^”/, '«').replace(/“(?=[،,.؛:]*$)/, '»').replace(/^“$/, '»').replace(/^”$/, '«');
     if (w.t.startsWith('[')) inRef = true;

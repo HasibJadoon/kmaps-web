@@ -250,3 +250,13 @@ test('revoice: a passage read anew plays its own file, lines and words at their 
   revoice(y as never, [{ seq_from: 1, seq_to: 9, object_key: 'n', times_json: '{}' }]);
   assert.equal(y.url, 'old');
 });
+
+test('the basmala in a commentary is Qurʾān, on its own line, whether or not the author marked it', () => {
+  const ws = ['الزُّمَرِ]', 'بِسْمِ', 'اللَّهِ', 'الرَّحْمَنِ', 'الرَّحِيمِ', 'قُرِئَ'].map((t) => ({ t, s: 0, e: 0 }));
+  shapeWords(ws as never);
+  assert.deepEqual(ws.map((w) => w.t).slice(1, 5), ['﴿بِسْمِ', 'اللَّهِ', 'الرَّحْمَنِ', 'الرَّحِيمِ﴾']);
+  assert.deepEqual(ws.map((w) => (w as { b?: boolean }).b ?? false), [false, true, false, false, false, true]);
+  const marked = ['﴿بِسْمِ', 'اللَّهِ', 'الرَّحْمَنِ', 'الرَّحِيمِ﴾:'].map((t) => ({ t, s: 0, e: 0 }));
+  shapeWords(marked as never);
+  assert.deepEqual(marked.map((w) => w.t), ['﴿بِسْمِ', 'اللَّهِ', 'الرَّحْمَنِ', 'الرَّحِيمِ﴾:']);
+});
