@@ -215,3 +215,13 @@ test("an 'omit' cut leaves its lines out: no passage holds them, and the reader'
                                    { seq_from: 3, seq_to: 4, heading_en: 'The opening verses' }]);
   assert.deepEqual(ps.map((p) => [p.from, p.to, p.heading, p.en]), [[3, 4, 'The opening verses', 'The verses again. First question.']]);
 });
+
+import { shapeWords } from '../src/routes/practice-tafsirq';
+test('a commentary is laid out as an edition: part headings on a new paragraph, ordinals bold, references small, «»', () => {
+  const ws = (t: string) => t.split(' ').map((x) => ({ t: x, s: 0, e: 0 }));
+  const out = shapeWords(ws('مَسائِلَ: المَسْألَةُ الأُولى: قَرَأ ”حم“ بِكَسْرِ وُجُوهٍ: الأوَّلُ: أنَّ ﴿فَعّالٌ﴾ [البُرُوجِ: ١٤- ١٦] .'));
+  assert.deepEqual(out.map((w) => [w.t, w.r ?? '', w.b ?? false]), [
+    ['مَسائِلَ:', '', false], ['المَسْألَةُ', 'h', true], ['الأُولى:', 'h', false], ['قَرَأ', '', false], ['«حم»', '', false],
+    ['بِكَسْرِ', '', false], ['وُجُوهٍ:', '', false], ['الأوَّلُ:', 'h', false], ['أنَّ', '', false], ['﴿فَعّالٌ﴾', '', false],
+    ['[البُرُوجِ:', 'ref', false], ['١٤-', 'ref', false], ['١٦]', 'ref', false], ['.', '', false]]);
+});

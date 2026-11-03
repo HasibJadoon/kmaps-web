@@ -99,6 +99,33 @@ export function timedWords(raw: string, w: string | null): { t: string; s: numbe
   });
 }
 
+const HARAKAT = /[\u064B-\u0652\u0670\u0640]/g;
+const bareWord = (t: string) => t.replace(HARAKAT, '').replace(/[«»“”"'()\[\]،,.؛;:؟?!*]/g, '');
+/** the nouns an author heads a part of his text with, followed by its ordinal: al-Masʾala al-ūlā:, al-Ṣifa al-thāniya: */
+const PART_NOUN = new Set(['المسألة', 'المسالة', 'الصفة', 'البحث', 'الوجه', 'الفصل', 'السؤال', 'النوع', 'القسم', 'الفائدة', 'النكتة', 'الطريق']);
+const ORDINAL = /^(ال)?(أول|اول|أولى|اولى|ثاني|ثانية|ثالث|ثالثة|رابع|رابعة|خامس|خامسة|سادس|سادسة|سابع|سابعة|ثامن|ثامنة|تاسع|تاسعة|عاشر|عاشرة)$/;
+
+/** Lays the words out as a printed edition does (ListenLine words' `r` and `b`): a part heading (noun + ordinal + colon)
+ *  bold on a new paragraph; a bare ordinal with a colon (al-awwal:, al-thānī:) bold in its line; a bracketed verse
+ *  reference small; the European quotation marks turned to Arabic ones (”X“ → «X»). In place, timings untouched. */
+export function shapeWords(words: ShapedWord[]): ShapedWord[] {
+  let inRef = false;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    w.t = w.t.replace(/^”/, '«').replace(/“(?=[،,.؛:]*$)/, '»').replace(/^“$/, '»').replace(/^”$/, '«');
+    if (w.t.startsWith('[')) inRef = true;
+    if (inRef) { w.r = 'ref'; if (w.t.includes(']')) inRef = false; continue; }
+    const bare = bareWord(w.t);
+    const next = words[i + 1];
+    if (PART_NOUN.has(bare) && next && ORDINAL.test(bareWord(next.t)) && /:/.test(next.t)) {
+      w.r = 'h'; w.b = true; next.r = 'h'; i++;
+      continue;
+    }
+    if (ORDINAL.test(bare) && /:$/.test(w.t)) w.r = 'h';
+  }
+  return words;
+}
+
 /// A run of lines, as one id: tafsir_line:<audio>:<from>-<to> (or :<seq> for one line).
 export const lineRef = (audio: string, from: number, to: number) => `tafsir_line:${audio}:${from === to ? from : `${from}-${to}`}`;
 export function parseLineRef(ref: string): { audio: string; from: number; to: number } | null {
@@ -392,7 +419,11 @@ export function groupRange(key: string | null): { surah: number; from: number; t
 }
 
 export type ListenTerm = { ar: string; ref: string; nameAr: string; color: string | null };
-export type ListenLine = { id: string; seq: number; start: number; end: number; text: string; words: { t: string; s: number; e: number }[];
+/** A word as the reader lays it out: `r` its role on the page — 'h' a heading the author sets in the text (al-Masʾala
+ *  al-ūlā:, al-Ṣifa al-thāniya:, al-awwal:), 'ref' a verse reference ([al-Burūj: 14–16]) — and `b` a new paragraph
+ *  opening at it, as a printed edition breaks the text. The app only draws them (shapeWords decides). */
+export type ShapedWord = { t: string; s: number; e: number; r?: 'h' | 'ref'; b?: true };
+export type ListenLine = { id: string; seq: number; start: number; end: number; text: string; words: ShapedWord[];
                            en: string | null; terms: ListenTerm[] };
 /** A paragraph of the work's own English for the passage (qr_surah_tafsir_chunk), pinned to the recorded lines its
  *  Arabic spans — the "passage" view shows the Arabic run on, the English under it, the paragraph lit as it is read. */
@@ -560,6 +591,7 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
     }
     for (const x of parts) {
       x.lines.sort((a, b) => a.seq - b.seq);
+      shapeWords(x.lines.flatMap((l) => l.words));
       x.start = Math.max(0, x.lines[0].start - 0.3);
       x.end = x.lines[x.lines.length - 1].end + 0.3;
       // English that opens on (or holds) Arabic still reads left to right: the Arabic runs are isolated
