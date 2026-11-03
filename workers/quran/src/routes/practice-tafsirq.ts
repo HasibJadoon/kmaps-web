@@ -447,7 +447,9 @@ export type ListenParagraph = { from: number; to: number; en: string; heading?: 
                                  *  line is shared with the passage beside it (an editor's cut at the word) */
                                 fromWord?: number; toWord?: number | null };
 /** A span of a recording: the English of a passage read aloud (qr_tafsir_passage_audio_en). */
-export type ListenClip = { url: string; start: number; end: number };
+export type ListenClip = { url: string; start: number; end: number;
+                           /** the English's words, each [start, end] in the recording (its text split on spaces), and when its heading is said */
+                           words?: number[][]; heading?: number[] };
 /** A sentence of the recording with what it says and means (qr_tafsir_sentence): the "Understanding" view. */
 export type ListenSentence = { id: string; from: number; to: number; gist: string; concept: string; conceptAr: string | null; meaning: string;
                                /** cut at the word, as passages are: its first word in its first line, and the word of its last
@@ -656,10 +658,14 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
   const cutsOf = new Map<string, PassageCut[]>();
   for (const h of heads) cutsOf.set(h.audio_id, [...(cutsOf.get(h.audio_id) ?? []), h]);
   // each cut's English read aloud: a span of the work's English recording for the passage
-  const clips = audios.length ? await query<{ audio_id: string; seq_from: number; object_key: string; start_sec: number; end_sec: number }>(env.DB_QR,
-    `SELECT audio_id, seq_from, object_key, start_sec, end_sec FROM qr_tafsir_passage_audio_en
+  const clips = audios.length ? await query<{ audio_id: string; seq_from: number; object_key: string; start_sec: number; end_sec: number; words_json: string | null }>(env.DB_QR,
+    `SELECT audio_id, seq_from, object_key, start_sec, end_sec, words_json FROM qr_tafsir_passage_audio_en
       WHERE status = 'live' AND audio_id IN (${audios.map(() => '?').join(',')})`, audios).catch(softFail([])) : [];
-  const clipOf = new Map(clips.map((c) => [`${c.audio_id}|${c.seq_from}`, { url: AUDIO(c.object_key), start: c.start_sec, end: c.end_sec }]));
+  const clipOf = new Map(clips.map((c) => {
+    const t = parseJson<{ w?: number[][]; h?: number[] }>(c.words_json, {});
+    return [`${c.audio_id}|${c.seq_from}`, { url: AUDIO(c.object_key), start: c.start_sec, end: c.end_sec,
+                                             ...(t.w ? { words: t.w } : {}), ...(t.h ? { heading: t.h } : {}) }];
+  }));
   for (const w of works) for (const x of w.parts) {
     const cuts = cutsOf.get(x.audio);
     if (!cuts?.length) continue;
