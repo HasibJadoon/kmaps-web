@@ -225,3 +225,11 @@ test('a commentary is laid out as an edition: part headings on a new paragraph, 
     ['بِكَسْرِ', '', false], ['وُجُوهٍ:', '', false], ['الأوَّلُ:', 'h', false], ['أنَّ', '', false], ['﴿فَعّالٌ﴾', '', false],
     ['[البُرُوجِ:', 'ref', false], ['١٤-', 'ref', false], ['١٦]', 'ref', false], ['.', '', false]]);
 });
+
+import { splitHeading } from '../src/routes/practice-tafsirq';
+test("an editor's heading carries its section, the section's Arabic name and its icon", () => {
+  assert.deepEqual(splitHeading(':flame: Attribute 3|شَدِيدِ العِقابِ · A Question of Grammar'),
+    { heading: 'A Question of Grammar', section: 'Attribute 3', sectionAr: 'شَدِيدِ العِقابِ', icon: 'flame' });
+  assert.deepEqual(splitHeading('Question 1 · How Ḥā Mīm Is Read'), { heading: 'How Ḥā Mīm Is Read', section: 'Question 1' });
+  assert.deepEqual(splitHeading('Meccan, and how many verses'), { heading: 'Meccan, and how many verses' });
+});

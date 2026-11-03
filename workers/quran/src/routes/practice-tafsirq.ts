@@ -428,6 +428,8 @@ export type ListenLine = { id: string; seq: number; start: number; end: number; 
 /** A paragraph of the work's own English for the passage (qr_surah_tafsir_chunk), pinned to the recorded lines its
  *  Arabic spans — the "passage" view shows the Arabic run on, the English under it, the paragraph lit as it is read. */
 export type ListenParagraph = { from: number; to: number; en: string; heading?: string | null; enAudio?: ListenClip | null;
+                                /** the author's part it sits in (splitHeading), its Arabic name, and its band's icon */
+                                section?: string; sectionAr?: string; icon?: string;
                                 /** where in its first line it starts, and before which word of its last line it stops, when a
                                  *  line is shared with the passage beside it (an editor's cut at the word) */
                                 fromWord?: number; toWord?: number | null };
@@ -440,7 +442,9 @@ export type ListenSentence = { id: string; from: number; to: number; gist: strin
                                fromWord?: number; toWord?: number | null };
 export type ListenPart = { audio: string; url: string; start: number; end: number; lines: ListenLine[];
                            paragraphs: ListenParagraph[]; sentences: ListenSentence[] };
-export type ListenWork = { slug: string; title: string | null; titleAr: string | null; author: string | null; seconds: number; parts: ListenPart[] };
+export type ListenWork = { slug: string; title: string | null; titleAr: string | null; author: string | null; seconds: number; parts: ListenPart[];
+                           /** the editor's overview of what the work does over this passage */
+                           overview?: string };
 
 type Chunk = { source_slug: string; text_ar: string; text_en: string };
 type SentenceRow = { id: string; audio_id: string; seq_from: number; seq_to: number; gist_en: string; concept_en: string;
@@ -617,7 +621,7 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
   const audios = [...new Set(works.flatMap((w) => w.parts.map((x) => x.audio)))];
   const heads = audios.length ? await query<PassageCut & { audio_id: string }>(env.DB_QR,
     `SELECT audio_id, seq_from, seq_to, heading_en, word_from, en_from, status FROM qr_tafsir_passage_heading
-      WHERE status IN ('live', 'omit') AND audio_id IN (${audios.map(() => '?').join(',')})`, audios).catch(softFail([])) : [];
+      WHERE status IN ('live', 'omit', 'overview') AND audio_id IN (${audios.map(() => '?').join(',')})`, audios).catch(softFail([])) : [];
   const cutsOf = new Map<string, PassageCut[]>();
   for (const h of heads) cutsOf.set(h.audio_id, [...(cutsOf.get(h.audio_id) ?? []), h]);
   // each cut's English read aloud: a span of the work's English recording for the passage
@@ -628,7 +632,10 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
   for (const w of works) for (const x of w.parts) {
     const cuts = cutsOf.get(x.audio);
     if (!cuts?.length) continue;
-    x.paragraphs = passagesByCut(x.lines, cuts)
+    // the editor's overview of the work over this passage: shown above its contents
+    const ov = cuts.find((c) => c.status === 'overview');
+    if (ov) w.overview = ov.heading_en;
+    x.paragraphs = passagesByCut(x.lines, cuts.filter((c) => c.status !== 'overview'))
       .map((g) => ({ ...g, enAudio: clipOf.get(`${x.audio}|${g.from}`) ?? null }));
     // lines the editor left out (a page read twice, a heading card) are not heard either: the part starts after them
     const dropped = omitted(cuts);
@@ -636,6 +643,20 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
     if (kept.length && kept[0].seq !== x.lines[0]?.seq) x.start = kept[0].start;
   }
   return works;
+}
+
+/** An editor's heading as the reader sets it: `:icon: Section|القسم · Title` → the section it belongs to (the author's own
+ *  part, with its Arabic name), the SF Symbol its band opens with, and the passage's own title. Any part may be absent:
+ *  a plain heading is just the title. */
+export function splitHeading(raw: string): { heading: string; section?: string; sectionAr?: string; icon?: string } {
+  let rest = raw.trim();
+  let icon: string | undefined;
+  const m = rest.match(/^:([a-z0-9.]+):\s*/);
+  if (m) { icon = m[1]; rest = rest.slice(m[0].length); }
+  const at = rest.indexOf(' · ');
+  if (at < 0) return { heading: rest, ...(icon ? { icon } : {}) };
+  const [en, ar] = rest.slice(0, at).split('|').map((x) => x.trim());
+  return { heading: rest.slice(at + 3).trim(), section: en, ...(ar ? { sectionAr: ar } : {}), ...(icon ? { icon } : {}) };
 }
 
 type PassageCut = { seq_from: number; seq_to: number; heading_en: string; word_from?: number | null; en_from?: number | null;
@@ -671,7 +692,7 @@ export function passagesByCut(lines: ListenLine[], cuts: PassageCut[]): ListenPa
       const b = shared && l.seq === last ? (next.en_from ?? t.length) : t.length;
       return t.slice(a, b).trim();
     }).filter(Boolean).join(' ');
-    out.push({ from: first, to: last, heading: c.heading_en, en: bidiEn(en),
+    out.push({ from: first, to: last, ...splitHeading(c.heading_en), en: bidiEn(en),
                fromWord, toWord: shared ? next.word_from ?? null : null });
   });
   const rest = lines.filter((l) => !held.has(l.seq));
