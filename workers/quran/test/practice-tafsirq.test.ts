@@ -245,6 +245,10 @@ test('revoice: a passage read anew plays its own file, lines and words at their 
   assert.deepEqual([x.lines[0].start, x.lines[0].end, x.lines[0].words[0].e], [0, 0, 0]);   // left out: not heard
   assert.deepEqual([x.lines[1].start, x.lines[1].end, x.lines[1].words[1].s], [3, 5.5, 4]);
   assert.deepEqual([x.start, x.end], [2.7, 5.8]);
+  // the passage's topic, said as the narration turns to it
+  const z = { ...x, url: 'u', lines: [line(2, 2)], paragraphs: [{ from: 2, to: 2, en: '' }] };
+  revoice(z as never, [{ seq_from: 1, seq_to: 9, object_key: 'k', times_json: JSON.stringify({ 2: [[3, 4], [4, 5]], h2: [1.2, 2.6] }) }]);
+  assert.deepEqual((z.paragraphs[0] as { cue?: unknown }).cue, { url: '/api/ar/audio/k', start: 1.2, end: 2.6 });
   // a recording that does not hold all the part's lines leaves the part as it was
   const y = { ...x, url: 'old', lines: [line(1, 1), line(12, 1)] };
   revoice(y as never, [{ seq_from: 1, seq_to: 9, object_key: 'n', times_json: '{}' }]);

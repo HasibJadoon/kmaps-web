@@ -441,6 +441,8 @@ export type ListenLine = { id: string; seq: number; start: number; end: number; 
 export type ListenParagraph = { from: number; to: number; en: string; heading?: string | null; enAudio?: ListenClip | null;
                                 /** the author's part it sits in (splitHeading), its Arabic name, and its band's icon */
                                 section?: string; sectionAr?: string; icon?: string;
+                                /** its topic said in Arabic, and when the narration says it as it turns to the passage */
+                                headingAr?: string; cue?: ListenClip | null;
                                 /** where in its first line it starts, and before which word of its last line it stops, when a
                                  *  line is shared with the passage beside it (an editor's cut at the word) */
                                 fromWord?: number; toWord?: number | null };
@@ -649,7 +651,7 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
   // recording has its cut, the cut is the passage, and its English is its own lines' — the Arabic and English one to one
   const audios = [...new Set(works.flatMap((w) => w.parts.map((x) => x.audio)))];
   const heads = audios.length ? await query<PassageCut & { audio_id: string }>(env.DB_QR,
-    `SELECT audio_id, seq_from, seq_to, heading_en, word_from, en_from, status FROM qr_tafsir_passage_heading
+    `SELECT audio_id, seq_from, seq_to, heading_en, heading_ar, word_from, en_from, status FROM qr_tafsir_passage_heading
       WHERE status IN ('live', 'omit', 'overview') AND audio_id IN (${audios.map(() => '?').join(',')})`, audios).catch(softFail([])) : [];
   const cutsOf = new Map<string, PassageCut[]>();
   for (const h of heads) cutsOf.set(h.audio_id, [...(cutsOf.get(h.audio_id) ?? []), h]);
@@ -680,7 +682,8 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
 }
 
 /** A part read in a new recording that holds all its lines: the part plays that file, each line and word at its time
- *  there. A line the new reading leaves out (an omitted one) gets no time, so it is not heard. */
+ *  there, and each passage's spoken topic at its cue. A line the new reading leaves out (an omitted one) gets no time,
+ *  so it is not heard. */
 export function revoice(x: ListenPart, rows: { seq_from: number; seq_to: number; object_key: string; times_json: string }[]): void {
   if (!x.lines.length) return;
   const v = rows.find((r) => r.seq_from <= x.lines[0].seq && r.seq_to >= x.lines[x.lines.length - 1].seq);
@@ -693,6 +696,11 @@ export function revoice(x: ListenPart, rows: { seq_from: number; seq_to: number;
     l.words.forEach((wd, i) => { const p = t.length === l.words.length ? t[i] : null; wd.s = p ? p[0] : 0; wd.e = p ? p[1] : 0; });
     l.start = said.length ? said[0][0] : 0;
     l.end = said.length ? said[said.length - 1][1] : 0;
+  }
+  // the topic said as the narration turns to each passage: "h<first line>": [start, end]
+  for (const p of x.paragraphs) {
+    const c = (times as Record<string, unknown>)[`h${p.from}`];
+    if (Array.isArray(c) && c.length === 2 && Number(c[1]) > Number(c[0])) p.cue = { url: x.url, start: Number(c[0]), end: Number(c[1]) };
   }
   const heard = x.lines.filter((l) => l.end > l.start);
   if (!heard.length) return;
@@ -714,7 +722,7 @@ export function splitHeading(raw: string): { heading: string; section?: string; 
   return { heading: rest.slice(at + 3).trim(), section: en, ...(ar ? { sectionAr: ar } : {}), ...(icon ? { icon } : {}) };
 }
 
-type PassageCut = { seq_from: number; seq_to: number; heading_en: string; word_from?: number | null; en_from?: number | null;
+type PassageCut = { seq_from: number; seq_to: number; heading_en: string; heading_ar?: string | null; word_from?: number | null; en_from?: number | null;
                     status?: string };
 
 /** The lines an editor left out of a recording (cuts with status 'omit'): read in the recording but not part of the
@@ -747,7 +755,7 @@ export function passagesByCut(lines: ListenLine[], cuts: PassageCut[]): ListenPa
       const b = shared && l.seq === last ? (next.en_from ?? t.length) : t.length;
       return t.slice(a, b).trim();
     }).filter(Boolean).join(' ');
-    out.push({ from: first, to: last, ...splitHeading(c.heading_en), en: bidiEn(en),
+    out.push({ from: first, to: last, ...splitHeading(c.heading_en), ...(c.heading_ar ? { headingAr: c.heading_ar } : {}), en: bidiEn(en),
                fromWord, toWord: shared ? next.word_from ?? null : null });
   });
   const rest = lines.filter((l) => !held.has(l.seq));
