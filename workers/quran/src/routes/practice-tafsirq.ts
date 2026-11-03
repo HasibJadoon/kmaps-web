@@ -584,8 +584,8 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
   // recording has its cut, the cut is the passage, and its English is its own lines' — the Arabic and English one to one
   const audios = [...new Set(works.flatMap((w) => w.parts.map((x) => x.audio)))];
   const heads = audios.length ? await query<PassageCut & { audio_id: string }>(env.DB_QR,
-    `SELECT audio_id, seq_from, seq_to, heading_en, word_from, en_from FROM qr_tafsir_passage_heading
-      WHERE status = 'live' AND audio_id IN (${audios.map(() => '?').join(',')})`, audios).catch(softFail([])) : [];
+    `SELECT audio_id, seq_from, seq_to, heading_en, word_from, en_from, status FROM qr_tafsir_passage_heading
+      WHERE status IN ('live', 'omit') AND audio_id IN (${audios.map(() => '?').join(',')})`, audios).catch(softFail([])) : [];
   const cutsOf = new Map<string, PassageCut[]>();
   for (const h of heads) cutsOf.set(h.audio_id, [...(cutsOf.get(h.audio_id) ?? []), h]);
   // each cut's English read aloud: a span of the work's English recording for the passage
@@ -595,22 +595,36 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
   const clipOf = new Map(clips.map((c) => [`${c.audio_id}|${c.seq_from}`, { url: AUDIO(c.object_key), start: c.start_sec, end: c.end_sec }]));
   for (const w of works) for (const x of w.parts) {
     const cuts = cutsOf.get(x.audio);
-    if (cuts?.length) x.paragraphs = passagesByCut(x.lines, cuts)
+    if (!cuts?.length) continue;
+    x.paragraphs = passagesByCut(x.lines, cuts)
       .map((g) => ({ ...g, enAudio: clipOf.get(`${x.audio}|${g.from}`) ?? null }));
+    // lines the editor left out (a page read twice, a heading card) are not heard either: the part starts after them
+    const dropped = omitted(cuts);
+    const kept = x.lines.filter((l) => !dropped.has(l.seq));
+    if (kept.length && kept[0].seq !== x.lines[0]?.seq) x.start = kept[0].start;
   }
   return works;
 }
 
-type PassageCut = { seq_from: number; seq_to: number; heading_en: string; word_from?: number | null; en_from?: number | null };
+type PassageCut = { seq_from: number; seq_to: number; heading_en: string; word_from?: number | null; en_from?: number | null;
+                    status?: string };
+
+/** The lines an editor left out of a recording (cuts with status 'omit'): read in the recording but not part of the
+ *  commentary — a heading card read before the same text, a page read twice. */
+function omitted(cuts: PassageCut[]): Set<number> {
+  const out = new Set<number>();
+  for (const c of cuts) if (c.status === 'omit') for (let s = c.seq_from; s <= c.seq_to; s++) out.add(s);
+  return out;
+}
 
 /** A part's passages from its editor's cut: each cut that holds recorded lines is one passage, under its heading, its
  *  English its lines' English run on. A cut may start at a word inside its first line (word_from, and en_from in that
- *  line's English): the line is then shared, its words and English before that point the passage before's. Lines no
- *  cut holds keep the reader's own passages (passagesOf). */
+ *  line's English): the line is then shared, its words and English before that point the passage before's. Lines an
+ *  'omit' cut holds are left out; lines no cut holds keep the reader's own passages (passagesOf). */
 export function passagesByCut(lines: ListenLine[], cuts: PassageCut[]): ListenParagraph[] {
   const out: ListenParagraph[] = [];
-  const held = new Set<number>();
-  const sorted = [...cuts].sort((a, b) => a.seq_from - b.seq_from);
+  const held = omitted(cuts);                           // omitted lines are held by no passage and shown in none
+  const sorted = [...cuts].filter((c) => c.status !== 'omit').sort((a, b) => a.seq_from - b.seq_from);
   sorted.forEach((c, i) => {
     const next = sorted[i + 1];
     const own = lines.filter((l) => l.seq >= c.seq_from && l.seq <= c.seq_to);

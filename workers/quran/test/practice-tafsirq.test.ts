@@ -207,3 +207,11 @@ test('a cut at the word shares its line: the words and English before it are the
     [2, 3, 2, null, 'It has been read with imāla. More.'],
   ]);
 });
+
+test("an 'omit' cut leaves its lines out: no passage holds them, and the reader's cut does not pick them up", () => {
+  const line = (seq: number, en: string) => ({ id: `l${seq}`, seq, start: seq, end: seq + 1, text: 'نص.', words: [], en, terms: [] });
+  const lines = [line(1, 'Heading card.'), line(2, 'The verses.'), line(3, 'The verses again.'), line(4, 'First question.')];
+  const ps = passagesByCut(lines, [{ seq_from: 1, seq_to: 2, heading_en: 'read twice', status: 'omit' },
+                                   { seq_from: 3, seq_to: 4, heading_en: 'The opening verses' }]);
+  assert.deepEqual(ps.map((p) => [p.from, p.to, p.heading, p.en]), [[3, 4, 'The opening verses', 'The verses again. First question.']]);
+});
