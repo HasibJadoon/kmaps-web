@@ -442,7 +442,23 @@ export type ListenSentence = { id: string; from: number; to: number; gist: strin
                                fromWord?: number; toWord?: number | null };
 export type ListenPart = { audio: string; url: string; start: number; end: number; lines: ListenLine[];
                            paragraphs: ListenParagraph[]; sentences: ListenSentence[] };
+/** Who wrote a work, for its card: the author in English, when they died, their school, what the work is known for,
+ *  and the work's own colour and letter (qr_tafsir_book_display_source). */
+export type WorkAbout = { authorEn: string | null; died: string | null; school: string | null; known: string | null;
+                          color: string | null; glyph: string | null };
+type AboutRow = { author_name_en: string | null; death_year_hijri: number | null; era: string | null; madhab: string | null;
+                  kalam_school: string | null; specialization: string | null; badge_color: string | null; badge_glyph: string | null };
+const SCHOOL: Record<string, string> = { ashari: 'Ashʿarī', mutazili: 'Muʿtazilī', maturidi: 'Māturīdī', athari: 'Atharī',
+  maliki: 'Mālikī', hanafi: 'Ḥanafī', shafii: 'Shāfiʿī', hanbali: 'Ḥanbalī', sunni: 'Sunnī', shii: 'Shīʿī' };
+export function aboutOf(b: AboutRow): WorkAbout {
+  // the creed school says most about how a commentator reads; the law school when there is no creed school
+  const key = b.kalam_school ?? b.madhab;
+  const known = b.specialization ? b.specialization.replace(/\s*exegesis$/, '').replace(/^\w/, (c) => c.toUpperCase()) : null;
+  return { authorEn: b.author_name_en, died: b.death_year_hijri ? `d. ${b.death_year_hijri} AH` : null,
+           school: key ? SCHOOL[key] ?? key : null, known, color: b.badge_color, glyph: b.badge_glyph };
+}
 export type ListenWork = { slug: string; title: string | null; titleAr: string | null; author: string | null; seconds: number; parts: ListenPart[];
+                           about?: WorkAbout;
                            /** the editor's overview of what the work does over this passage */
                            overview?: string };
 
@@ -530,8 +546,9 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
       `SELECT id, source_slug, seq, ayah_group_key FROM qr_tafsir_read_page
         WHERE surah_no = ? AND kind = 'ayah' AND status = 'live' AND source_slug IN (${slugs.map(() => '?').join(',')})
         ORDER BY source_slug, seq`, [p.surah, ...slugs]),
-    query<{ source_slug: string; title_en: string | null; title_ar: string | null; author: string | null }>(env.DB_QR,
-      `SELECT source_slug, book_title_en AS title_en, book_title_ar AS title_ar, author_name_ar AS author
+    query<{ source_slug: string; title_en: string | null; title_ar: string | null; author: string | null } & AboutRow>(env.DB_QR,
+      `SELECT source_slug, book_title_en AS title_en, book_title_ar AS title_ar, author_name_ar AS author,
+              author_name_en, death_year_hijri, era, madhab, kalam_school, specialization, badge_color, badge_glyph
          FROM qr_tafsir_book_display_source WHERE source_slug IN (${slugs.map(() => '?').join(',')})`, slugs),
   ]);
   const near = pages.filter((x) => { const g = groupRange(x.ayah_group_key); return !!g && g.to >= p.from && g.from <= p.to; });
@@ -614,7 +631,8 @@ export async function listenWorks(env: QuranEnv, slugs: string[], p: { surah: nu
     if (!parts.length) return [];
     const b = book.get(slug);
     const seconds = Math.round(parts.reduce((t, x) => t + (x.end - x.start), 0));
-    return [{ slug, title: b?.title_en ?? null, titleAr: b?.title_ar ?? null, author: b?.author ?? null, seconds, parts }];
+    return [{ slug, title: b?.title_en ?? null, titleAr: b?.title_ar ?? null, author: b?.author ?? null, seconds, parts,
+              ...(b ? { about: aboutOf(b) } : {}) }];
   });
   // the passages as an editor cuts them (qr_tafsir_passage_heading: the lines each spans, and its heading). Where a
   // recording has its cut, the cut is the passage, and its English is its own lines' — the Arabic and English one to one
