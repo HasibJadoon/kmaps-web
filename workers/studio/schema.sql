@@ -171,6 +171,7 @@ CREATE TABLE IF NOT EXISTS st_story (
   synopsis    TEXT,
   style       TEXT,                            -- the picture style line every prompt starts with
   notes_json  TEXT NOT NULL DEFAULT '{}',      -- {"script": [...], "voice": [...], "animation": [...]} review notes
+  steps_json  TEXT NOT NULL DEFAULT '[]',      -- the production's steps and how far each is (0016)
   reviewed_at TEXT,
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
