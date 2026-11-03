@@ -9,7 +9,7 @@ import { actorRef } from '../auth';
 /// kmaps-resources scripts/series/publish_story_project.py; the app reviews it here and flags what is wrong.
 
 interface StoryRow {
-  id: string; title_en: string; title_ar: string | null; synopsis: string | null; style: string | null;
+  id: string; code: string | null; title_en: string; title_ar: string | null; synopsis: string | null; style: string | null;
   notes_json: string; reviewed_at: string | null; updated_at: string;
 }
 interface ShotRow {
@@ -38,14 +38,14 @@ export function storyRoutes(router: Router<StudioEnv>) {
   router.get('/st/stories', async (req, env) => {
     if (!actorRef(req)) return unauthorized('Authenticated user required');
     const rows = await query<StoryRow & { shots: number; ok_n: number; redrawing_n: number; fix_n: number; cover_sha: string | null }>(env.DB_ST,
-      `SELECT s.id, s.title_en, s.title_ar, s.synopsis, s.reviewed_at, s.updated_at,
+      `SELECT s.id, s.code, s.title_en, s.title_ar, s.synopsis, s.reviewed_at, s.updated_at,
               COUNT(h.stem) AS shots,
               SUM(h.status = 'ok') AS ok_n, SUM(h.status = 'redrawing') AS redrawing_n, SUM(h.status = 'fix') AS fix_n,
               (SELECT image_sha FROM st_story_shot WHERE story_id = s.id ORDER BY page_no, line_no LIMIT 1) AS cover_sha
          FROM st_story s LEFT JOIN st_story_shot h ON h.story_id = s.id
         GROUP BY s.id ORDER BY s.updated_at DESC`);
     return ok(rows.map(r => ({
-      id: r.id, title_en: r.title_en, title_ar: r.title_ar, synopsis: r.synopsis, reviewed_at: r.reviewed_at,
+      id: r.id, code: r.code, title_en: r.title_en, title_ar: r.title_ar, synopsis: r.synopsis, reviewed_at: r.reviewed_at,
       updated_at: r.updated_at, cover_sha: r.cover_sha,
       counts: { shots: r.shots, ok: r.ok_n ?? 0, redrawing: r.redrawing_n ?? 0, fix: r.fix_n ?? 0 },
     })));
@@ -59,7 +59,7 @@ export function storyRoutes(router: Router<StudioEnv>) {
     const shots = await query<ShotRow>(env.DB_ST,
       `SELECT * FROM st_story_shot WHERE story_id = ? ORDER BY page_no, line_no`, [id]);
     return ok({
-      id: story.id, title_en: story.title_en, title_ar: story.title_ar, synopsis: story.synopsis, style: story.style,
+      id: story.id, code: story.code, title_en: story.title_en, title_ar: story.title_ar, synopsis: story.synopsis, style: story.style,
       notes: parse<Record<string, string[]>>(story.notes_json, {}), reviewed_at: story.reviewed_at,
       shots: shots.map(shapeShot),
     });

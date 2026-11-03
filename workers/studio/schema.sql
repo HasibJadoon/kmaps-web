@@ -165,6 +165,7 @@ CREATE INDEX idx_st_templates_owner ON st_templates(core_user_ref);
 -- kmaps-resources scripts/series/publish_story_project.py; the app reads it and adds flags.
 CREATE TABLE IF NOT EXISTS st_story (
   id          TEXT PRIMARY KEY,                -- the story id in kmaps-resources data (park-by-the-lake)
+  code        TEXT,                            -- the project code its files are named by (PARK → PARK_SC01_SH03)
   title_en    TEXT NOT NULL,
   title_ar    TEXT,
   synopsis    TEXT,
