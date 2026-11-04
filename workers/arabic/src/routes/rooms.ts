@@ -5,6 +5,7 @@ import { actorRef } from '../../../shared/src/auth';
 import type { ArabicEnv } from '../env';
 import { ANCESTRY } from '../lib/ancestry';
 import { BANDS, bandOf, inBand, levelSpan, parseBand, bare, type Band } from '../lib/levels';
+import { shelfRows } from './text';
 import { atlasWorld, mapWorld, pictureWorld, worldOut, WORLD_WORDS, type WorldDistrict } from '../lib/everyday-world';
 
 // ── The Arabic home, as rooms ────────────────────────────────────────────────
@@ -309,6 +310,9 @@ export function roomRoutes(router: Router<ArabicEnv>) {
         }),
         atlas: { ...worldOut(atlas), title: room.title, titleAr: room.titleAr,
                  progress: progress(domains.filter(isOpen).length, domains.length) },
+        // the films to watch on the shelf (owner, 2026-11-04: "put this on the Daily Fuṣḥā shelf"): works marked
+        // meta.everyday_shelf, each opened in the series reader (video + its timed script), newest series first
+        watch: await watchRows(env),
         // every room answers with the same shape: the app reads `centuries` on all of them, and its absence here
         // made Everyday fail to load ("This room could not be fetched", owner 2026-10-25)
         centuries: [],
@@ -384,4 +388,21 @@ export function roomRoutes(router: Router<ArabicEnv>) {
       }),
     });
   });
+}
+
+/// The Everyday shelf's films: works filed with meta.everyday_shelf (a YouTube episode with its timed script), as the
+/// series reader opens them, with the video's own picture as the card.
+async function watchRows(env: ArabicEnv) {
+  const ids = (await query<{ id: string }>(env.DB_AR,
+    `SELECT id FROM ar_acquisition_ref WHERE status = 'live' AND json_extract(meta_json, '$.everyday_shelf') = 1`).catch(() => []))
+    .map((r) => r.id);
+  if (!ids.length) return [];
+  const rows = await shelfRows(env, { ids });
+  return rows
+    .filter((r) => r.videoId)
+    .sort((a, b) => (Number(a.episode ?? 0) - Number(b.episode ?? 0)))
+    .map((r) => ({ id: r.id, titleAr: r.title_ar, titleEn: r.title_en, series: r.series, seriesRef: r.seriesRef,
+                   episode: r.episode, videoId: r.videoId, shape: r.shape ?? 'series', firstSeq: r.firstSeq, level: r.level,
+                   cover: `https://i.ytimg.com/vi/${r.videoId}/hqdefault.jpg`,
+                   caption: [r.series, r.episode ? `${r.episode}` : null].filter(Boolean).join(' · ') }));
 }
