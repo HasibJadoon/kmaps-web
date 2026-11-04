@@ -23,7 +23,7 @@ function d1(db: DatabaseSync): D1Database {
 const fence = (t: string, o: unknown) => '```' + t + '\n' + JSON.stringify(o) + '\n```';
 const story = `# At the Market · فِي السُّوقِ\n\nA morning trip.\n\n::readall[Play all]\n\n` + [
   fence('read', { ar: 'خَرَجْتُ إِلَى السُّوقِ.', en: 'I went to the market.', audio: '/api/ar/audio/r/l1.m4a', words: [[0, 0.4], [0.4, 0.8], [0.8, 1.5]],
-                  keys: [{ w: 'السُّوقِ.', en: 'the market' }], img: '/api/ar/audio/r/p1.jpg', side: 'left' }),
+                  keys: [{ w: 'السُّوقِ.', en: 'the market' }], img: '/api/ar/audio/r/p1.jpg', clip: '/api/ar/audio/r/p1.mp4', side: 'left' }),
   fence('read', { ar: 'رَجَعْتُ.', en: 'I came back.', audio: '/api/ar/audio/r/l2.m4a', words: [[0, 0.5]] }),
   '## Words to learn',
   fence('vocab', [{ w: 'السُّوقِ', en: 'the market', base: 'سُوقٌ — أَسْوَاقٌ', img: '/api/ar/audio/r/w/a.jpg', audio: '/api/ar/audio/r/w/a.m4a' }]),
@@ -66,6 +66,8 @@ test('a story reading: a page per block, picture carried on, words timed, key wo
   assert.equal(p.picture, '/api/ar/audio/r/p1.jpg'); assert.equal(p.textEn, 'I went to the market.'); assert.equal(p.of, 3);
   assert.deepEqual(p.words.map((w: any) => [w.t, w.s, w.e, w.k]), [['خَرَجْتُ', 0, 0.4, false], ['إِلَى', 0.4, 0.8, false], ['السُّوقِ.', 0.8, 1.5, true]]);
   assert.deepEqual(p.clips, [{ url: '/api/ar/audio/r/l1.m4a', gap: 0.45, from: 0, to: 2, speaker: null, name: null, color: null }]);
+  assert.equal(p.motion, '/api/ar/audio/r/p1.mp4');                                   // its picture brought to life
+  assert.equal(b.pages[1].motion, null);                                             // a still: the clip is not carried on
   assert.equal(b.pages[1].picture, '/api/ar/audio/r/p1.jpg');                         // no picture of its own: the one before stays
   assert.equal(b.remember, null);                                                      // the words are the hub's, not a page of the book
   assert.deepEqual(b.hub, { domain: 'market_shopping', focus: 'reading:daily-market', title: 'Words of this place', titleAr: 'كَلِمَاتُ الْمَكَانِ', icon: null });

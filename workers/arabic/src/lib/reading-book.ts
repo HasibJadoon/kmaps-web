@@ -12,6 +12,9 @@ import type { Label } from './labels';
 /// it (gap_q / gap_a). A turn voiced alone (one speaker, one clip) still names its speaker. Every word shown comes from the
 /// data or from ar_practice_label (scope 'storybook'); nothing is written in the app.
 ///
+/// A read block's `clip` is its picture brought to life — a short silent loop made from it (a story's animated shots); the page
+/// sends it as `motion`, played over the picture.
+///
 /// A page sounds like its scene, as a Kalīla page does: an optional ```sound block is the reading's default and a read
 /// block's own `sound` overrides it — {ambience: {id, gain_db?, scene_in?}, spots: [{id, word, gain_db?}]}, ids from ar_sfx
 /// (resolved to URLs by the route).
@@ -20,7 +23,7 @@ export interface Cue { ambience?: { id: string; gain_db?: number; scene_in?: boo
 export interface SfxRef { url: string; sceneIn: string | null }
 
 interface ReadBlock {
-  ar?: string; en?: string; audio?: string; words?: number[][]; keys?: Array<{ w: string; en: string }>; img?: string;
+  ar?: string; en?: string; audio?: string; words?: number[][]; keys?: Array<{ w: string; en: string }>; img?: string; clip?: string;
   role?: string; q?: string; q_audio?: string; q_words?: number[][]; q_speaker?: string; speaker?: string;
   gap_q?: number; gap_a?: number; sound?: Cue;
 }
@@ -98,7 +101,7 @@ export function readingBook(r: ReadingRow, labels: Map<string, Label>, base: Rec
     ];
     if (b.img) carry = b.img;
     return {
-      no: i + 1, of: total, kind: 'story', picture: b.img ?? carry, placeholder: false,
+      no: i + 1, of: total, kind: 'story', picture: b.img ?? carry, motion: b.clip ?? null, placeholder: false,
       textAr: [b.q && b.q_audio ? b.q : null, b.ar].filter(Boolean).join(' '), textEn: b.en ?? null,
       words: [...q, ...ans].map(({ t, s, e, k }) => ({ t, s, e, k })),
       start: null, end: null, recording: null, link: null, lines: null, sound: soundOf(b.sound ?? scene, sfx),
