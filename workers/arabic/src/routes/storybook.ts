@@ -165,12 +165,14 @@ export function storybookRoutes(router: Router<ArabicEnv>) {
     const work = new URL(req.url).searchParams.get('work');
     if (!work) return badRequest('work is required');
     const [rows, counts, all, told] = await Promise.all([rowsOf(env, work), pageCounts(env, work), labels(env),
-      query<{ story_id: string; lang: string }>(env.DB_AR,
-        `SELECT t.story_id, t.lang FROM ar_storybook_telling t JOIN ar_storybook s ON s.id = t.story_id
+      query<{ story_id: string; lang: string; pages: number | null }>(env.DB_AR,
+        `SELECT t.story_id, t.lang, json_array_length(t.film_json, '$.pages') AS pages FROM ar_storybook_telling t JOIN ar_storybook s ON s.id = t.story_id
           WHERE s.acq_ref_id = ? AND s.status = 'live' AND t.status = 'live'`, [work])
-        .catch(softFail([] as { story_id: string; lang: string }[], 'ar_storybook_telling'))]);
+        .catch(softFail([] as { story_id: string; lang: string; pages: number | null }[], 'ar_storybook_telling'))]);
     const toldIn = new Map<string, string[]>();
     for (const t of told) toldIn.set(t.story_id, [...(toldIn.get(t.story_id) ?? []), t.lang]);
+    // the animated card counts the film's pages (its written pages may be gone)
+    const filmPages = new Map(told.filter((t) => t.lang === 'ar' && t.pages).map((t) => [t.story_id, t.pages!]));
     if (!rows.length) return notFound(`story book of ${work}`);
     const n = new Map(counts.map((c) => [c.story_id, c.n]));
     const byId = new Map(rows.map((r) => [r.id, r]));
@@ -197,6 +199,7 @@ export function storybookRoutes(router: Router<ArabicEnv>) {
       if (!langs.length) return [];
       const x = node(r);
       return [{ ...x, id: r.id + ANIMATED, kind: 'animated', tellings: langs, children: [],
+                pages: filmPages.get(r.id) ?? x.pages,
                 themes: [animChip, ...(x.themes as unknown[])] }];
     };
     // once a story is animated, the animated card takes the written one's place (owner, 2026-11-06: "once animated
