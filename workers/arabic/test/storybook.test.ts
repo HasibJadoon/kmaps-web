@@ -90,12 +90,12 @@ test('the shelf: chapters with their look and nested stories, themes with their 
   assert.equal(ch.accent, '#D99A4E');
   assert.deepEqual(ch.gradient, ['#24170C', '#120B06']);
   assert.equal(ch.stories[0].id, 'KD:05:01');
-  assert.deepEqual(ch.stories[0].children.map((c: any) => c.id), ['KD:05:03', 'KD:05:03~animated', 'KD:05:04'], 'nested in book order, the animated version beside its book');
+  assert.deepEqual(ch.stories[0].children.map((c: any) => c.id), ['KD:05:03~animated', 'KD:05:04'], 'nested in book order, a filmed story by its animated card only');
   assert.equal(ch.stories[0].children[0].cover, '/api/ar/audio/books/kalila/storybook/KD_05_03/p01-cc.jpg');
-  assert.equal(ch.stories[0].children[0].themes[0].text, 'Knowing your place');
+  assert.deepEqual(ch.stories[0].children[0].themes.map((x: any) => x.key), ['animated', 'place'], 'the Animated chip, then its themes');
   assert.equal(ch.stories[0].pages, 2);
   const place = d.themes.find((t: any) => t.key === 'place');
-  assert.deepEqual(place.stories.map((s: any) => s.id), ['KD:05:03', 'KD:05:03~animated']);
+  assert.deepEqual(place.stories.map((s: any) => s.id), ['KD:05:03~animated']);
   assert.equal(place.stories[0].children, undefined, 'a theme lists stories flat');
   assert.ok(!d.themes.some((t: any) => t.key === 'greed'), 'a theme with no story is left out');
 });
@@ -151,15 +151,14 @@ test('a chapter is not a story; an unknown story is 404; without the migration t
 test('a filmed story stands twice: the written book and its animated version (?lang= picks a telling, Arabic first, the grid on Arabic)', async () => {
   const w = world();
   const shelf = (await w.get('/ar/text/storybooks?work=ACQ:SHM:6321')).body.data;
-  const [book, monkey, fox0] = shelf.chapters[0].stories[0].children;
-  assert.equal(book.id, 'KD:05:03');
-  assert.deepEqual(book.tellings, [], 'the written book is read as pages');
+  const [monkey, fox0] = shelf.chapters[0].stories[0].children;
   assert.equal(monkey.id, 'KD:05:03~animated');
   assert.equal(monkey.kind, 'animated');
   assert.equal(monkey.themes[0].key, 'animated', 'the animated chip first');
   assert.deepEqual(monkey.tellings.map((l: any) => [l.key, l.dir]), [['ar', 'rtl'], ['en', 'ltr']], 'in the labels order, only those told');
   assert.equal(fox0.id, 'KD:05:04');
-  assert.equal(shelf.chapters[0].stories[0].children.length, 3, 'a story with no telling has no animated card');
+  assert.equal(shelf.chapters[0].stories[0].children.length, 2, 'the written card gives way to the animated one; an unfilmed story stays written');
+  assert.deepEqual(fox0.tellings, []);
   assert.equal(shelf.words.language.text, 'Language');
   assert.equal(shelf.words.search.icon, 'magnifyingglass', 'the shelf search field is a label row');
   assert.equal(shelf.words.noMatch.text, 'No story matches');

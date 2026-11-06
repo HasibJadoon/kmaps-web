@@ -39,8 +39,8 @@ interface TellingRow {
 type Json = Record<string, any>;
 
 const GOLD = '#C9A84C';
-/// A filmed story stands on the shelf twice: the written book (its id, read as pages) and the animated version (its id
-/// + this suffix, played as its film; owner, 2026-11-06: "books stay as books … type animated so we have both").
+/// A filmed story's card on the shelf: its id + this suffix, played as its film. The plain id still opens the written
+/// book (read as pages), but the shelf lists only the animated card once there is one.
 export const ANIMATED = '~animated';
 const media = (key: string | null) => (key ? `/api/ar/audio/${encodeURI(key)}` : null);
 const parse = <T>(j: string | null | undefined, d: T): T => { try { return j ? (JSON.parse(j) as T) : d; } catch { return d; } };
@@ -199,7 +199,9 @@ export function storybookRoutes(router: Router<ArabicEnv>) {
       return [{ ...x, id: r.id + ANIMATED, kind: 'animated', tellings: langs, children: [],
                 themes: [animChip, ...(x.themes as unknown[])] }];
     };
-    const both = (r: Row) => [node(r), ...animated(r)];
+    // once a story is animated, the animated card takes the written one's place (owner, 2026-11-06: "once animated
+    // this other should go"); a story not yet filmed stays a written book
+    const both = (r: Row) => { const a = animated(r); return a.length ? a : [node(r)]; };
     const chapters = rows.filter((r) => r.kind === 'bab').map((c) => {
       const look = lookOf(c);
       return { id: c.id, titleAr: c.title_ar, titleEn: c.title_en, ...look,
