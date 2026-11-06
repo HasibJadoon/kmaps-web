@@ -20,7 +20,7 @@ interface Work {
   id: string; titleAr: string | null; titleEn: string | null; author: string | null; died: string | null;
   genreRef: string | null; register: string | null; level: string | null; shape: string | null;
   verseForm: string | null; pages: number; words: number | null; firstSeq: number | null;
-  audioKey: string | null; series: string | null; seriesRef: string | null; seriesParent: string | null;
+  audioKey: string | null; series: string | null; seriesEn: string | null; seriesRef: string | null; seriesParent: string | null;
   episodeOrder: number | null; videoId: string | null; episode: number | null;
 }
 interface RoomRow {
@@ -40,7 +40,7 @@ async function loadWorks(env: ArabicEnv): Promise<Work[]> {
             -- the work's own recording first, else one filed under its title (as the shelf: portable across SQLite versions)
             COALESCE((SELECT a.object_key FROM ar_acq_audio a WHERE a.status = 'live' AND a.acq_ref_id = r.id LIMIT 1),
                      (SELECT a.object_key FROM ar_acq_audio a WHERE a.status = 'live' AND a.title_ar = r.title_ar LIMIT 1)) AS audioKey,
-            COALESCE(pc.name_ar, p.name) AS series, p.ar_no AS seriesRef,
+            COALESCE(pc.name_ar, p.name) AS series, COALESCE(pc.name_en, p.name) AS seriesEn, p.ar_no AS seriesRef,
             COALESCE(gpc.name_ar, gp.name) AS seriesParent,
             CAST(substr(e.ar_no, 4) AS INTEGER) AS episodeOrder,
             json_extract(r.meta_json, '$.video.id') AS videoId,
@@ -350,23 +350,25 @@ export function roomRoutes(router: Router<ArabicEnv>) {
   router.get('/ar/atlas/search', async (req, env) => {
     const url = new URL(req.url);
     const band = parseBand(url.searchParams.get('level'));
-    const q = bare((url.searchParams.get('q') ?? '').toLowerCase());
+    // Latin marks folded too, so "Kalila" finds «Kalīla» (an English name typed without its macrons)
+    const fold = (t: string) => bare(t.normalize('NFD').replace(/[\u0300-\u036f\u02bf\u02be]/g, '').toLowerCase());
+    const q = fold(url.searchParams.get('q') ?? '');
     if (q.length < 2) return ok({ collections: [], works: [] });
     const [works, rooms] = await Promise.all([loadWorks(env), loadRooms(env)]);
     const shown = works.filter((w) => inBand(band, w.level));
-    const hit = (...xs: Array<string | null>) => xs.some((x) => x && bare(x.toLowerCase()).includes(q));
+    const hit = (...xs: Array<string | null>) => xs.some((x) => x && fold(x).includes(q));
     const byRoom = assign(shown, rooms);
     const roomOfWork = new Map<string, Room>();
     for (const r of rooms) for (const w of byRoom.get(r.id) ?? []) roomOfWork.set(w.id, r);
     const where = (w: Work) => { const r = roomOfWork.get(w.id); return r ? { id: r.id, title: r.title, color: r.color } : null; };
     const seen = new Set<string>();
-    const collections = shown.filter((w) => collectionKey(w) && hit(w.series, w.seriesParent))
+    const collections = shown.filter((w) => collectionKey(w) && hit(w.series, w.seriesEn, w.seriesParent))
       .filter((w) => { const k = collectionKey(w)!; if (seen.has(k)) return false; seen.add(k); return true; })
       .map((w) => ({ id: collectionKey(w), title: w.series, subtitle: w.seriesParent,
                      count: shown.filter((x) => collectionKey(x) === collectionKey(w)).length, room: where(w) }));
     return ok({
       collections: collections.slice(0, 20),
-      works: shown.filter((w) => hit(w.titleAr, w.titleEn, w.author)).slice(0, 60)
+      works: shown.filter((w) => hit(w.titleAr, w.titleEn, w.author, w.seriesEn)).slice(0, 60)
         .map((w) => ({ ...workCard(w), room: where(w) })),
     });
   });

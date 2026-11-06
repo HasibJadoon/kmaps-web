@@ -32,8 +32,16 @@ interface PageRow {
 interface Sfx { id: string; object_key: string; scene_in_key: string | null; loopable: number }
 interface Cue { ambience?: { id: string; gain_db?: number; scene_in?: boolean }; spots?: Array<{ id: string; word?: number; at?: number; gain_db?: number }> }
 interface Look { accent: string; gradient: [string, string]; motif: string | null }
+interface TellingRow {
+  story_id?: string; lang: string; audio_key: string; audio_seconds: number | null; intro_sec: number; story_sec: number | null;
+  film_json: string; grid_json: string | null;
+}
+type Json = Record<string, any>;
 
 const GOLD = '#C9A84C';
+/// A filmed story stands on the shelf twice: the written book (its id, read as pages) and the animated version (its id
+/// + this suffix, played as its film; owner, 2026-11-06: "books stay as books … type animated so we have both").
+export const ANIMATED = '~animated';
 const media = (key: string | null) => (key ? `/api/ar/audio/${encodeURI(key)}` : null);
 const parse = <T>(j: string | null | undefined, d: T): T => { try { return j ? (JSON.parse(j) as T) : d; } catch { return d; } };
 const lookOf = (r: Row | undefined): Look => {
@@ -44,6 +52,63 @@ const word = (l: Label | undefined, fallback: string) => ({ text: l?.label ?? fa
                                                          detail: l?.detail ?? null, color: l?.color ?? null });
 
 const withAr = (w: ReturnType<typeof word>, l: Label | undefined, fallbackAr: string) => ({ ...w, ar: l?.labelAr ?? fallbackAr });
+
+/// The languages a story is told in, in the labels' order (scope 'storybook_lang'): the toggle's words and how the
+/// text runs. Only the languages the story has.
+export const languagesOf = (langs: Iterable<string>, LANG: Label[] | undefined) => {
+  const have = new Set(langs);
+  return (LANG ?? []).filter((l) => have.has(l.key))
+    .map((l) => {
+      const x = (l.extra ?? {}) as Json;
+      // font + lineSize: how this language's line is set when it runs as the translation under another telling
+      return { key: l.key, text: l.label, ar: l.labelAr, dir: (x.dir as string | undefined) ?? 'ltr',
+        font: (x.font as string | undefined) ?? null, lineSize: (x.lineSize as number | undefined) ?? 16 };
+    });
+};
+
+/// One telling as the app plays it (migration 0082): the film's soundtrack, its shots, the bottom phrases, the
+/// title and end cards, and (Arabic) the word grid. Every key becomes a URL here; the face and the way the text
+/// runs come from the language's label row.
+export function tellingOf(t: TellingRow, LANG: Label[] | undefined, G: Map<string, Label>, W: Map<string, Label>) {
+  const film = parse<Json>(t.film_json, {});
+  const grid = parse<Json | null>(t.grid_json, null);
+  const l = (LANG ?? []).find((x) => x.key === t.lang);
+  const x = (l?.extra ?? {}) as Json;
+  const pic = (k: string | null | undefined) => media(k ?? null);
+  const gw = W.get('words_grid');
+  return {
+    lang: t.lang, label: l?.label ?? t.lang, dir: x.dir ?? (t.lang === 'en' ? 'ltr' : 'rtl'),
+    font: x.font ?? null, titleFont: x.titleFont ?? x.font ?? null, size: x.size ?? 28, weight: x.weight ?? null, lineHeight: x.lineHeight ?? 1.4,
+    audio: { url: media(t.audio_key), seconds: t.audio_seconds },
+    intro: t.intro_sec, storyEnd: t.story_sec ?? t.audio_seconds,
+    style: { ink: '#FFF8E6', key: '#FAC75C', ...(film.style ?? {}) },
+    opening: film.opening ?? null,
+    ending: film.ending ? { ...film.ending, picture: pic(film.ending.picture) } : null,
+    pages: film.pages ?? [],
+    shots: (film.shots ?? []).map((s: Json) => ({ ...s, picture: pic(s.picture), clip: pic(s.clip) })),
+    phrases: film.phrases ?? [],
+    // each run's line in every language: the translation line under the words (behind the app's English switch)
+    runs: film.runs ?? [],
+    // the languages that line can run in (every language but the telling's own), each with its face and size
+    lines: languagesOf((LANG ?? []).map((x) => x.key), LANG).filter((x) => x.key !== t.lang),
+    grid: grid ? {
+      title: gw?.labelAr ?? gw?.label ?? 'Words from the story', titleEn: gw?.label ?? null,
+      audio: { url: media(grid.audio), seconds: grid.seconds ?? null }, picture: pic(grid.picture),
+      headingAt: grid.headingAt ?? 0.6,
+      sections: (grid.sections ?? []).map((s: Json) => {
+        const g = G.get(s.kind);
+        return { ...s, title: g?.labelAr ?? s.kind, sub: g?.label ?? null, color: g?.color ?? '#F5D675' };
+      }),
+      pages: (grid.pages ?? []).map((p: Json) => ({ ...p, cards: (p.cards ?? []).map((c: Json) => ({ ...c, picture: pic(c.picture) })) })),
+      idioms: grid.idioms ?? null,
+    } : null,
+  };
+}
+
+const tellingsOf = (env: ArabicEnv, id: string) =>
+  query<TellingRow>(env.DB_AR,
+    `SELECT lang, audio_key, audio_seconds, intro_sec, story_sec, film_json, grid_json FROM ar_storybook_telling
+      WHERE story_id = ? AND status = 'live'`, [id]).catch(softFail([] as TellingRow[], 'ar_storybook_telling'));
 
 /// The words of the book's screens, one object, from its label rows.
 export function words(L: Map<string, Label>) {
@@ -60,6 +125,10 @@ export function words(L: Map<string, Label>) {
     readAloud: withAr(k('read_aloud', 'Read aloud'), L.get('read_aloud'), 'اِسْتَمِعْ'),
     readMyself: k('read_myself', 'Read myself'),
     complete: k('complete', 'Complete'),   // a finished story's ribbon on the shelf
+    language: k('language', 'Language'),   // the telling's language toggle
+    translation: k('translation', 'Translation'),
+    search: k('search', 'Search stories in this book'),   // the shelf's search field
+    noMatch: k('no_match', 'No story matches'),                 // the shelf when a search finds nothing
   };
 }
 
@@ -95,42 +164,68 @@ export function storybookRoutes(router: Router<ArabicEnv>) {
   router.get('/ar/text/storybooks', async (req, env) => {
     const work = new URL(req.url).searchParams.get('work');
     if (!work) return badRequest('work is required');
-    const [rows, counts, all] = await Promise.all([rowsOf(env, work), pageCounts(env, work), labels(env)]);
+    const [rows, counts, all, told] = await Promise.all([rowsOf(env, work), pageCounts(env, work), labels(env),
+      query<{ story_id: string; lang: string }>(env.DB_AR,
+        `SELECT t.story_id, t.lang FROM ar_storybook_telling t JOIN ar_storybook s ON s.id = t.story_id
+          WHERE s.acq_ref_id = ? AND s.status = 'live' AND t.status = 'live'`, [work])
+        .catch(softFail([] as { story_id: string; lang: string }[], 'ar_storybook_telling'))]);
+    const toldIn = new Map<string, string[]>();
+    for (const t of told) toldIn.set(t.story_id, [...(toldIn.get(t.story_id) ?? []), t.lang]);
     if (!rows.length) return notFound(`story book of ${work}`);
     const n = new Map(counts.map((c) => [c.story_id, c.n]));
     const byId = new Map(rows.map((r) => [r.id, r]));
     const chip = themeChip(byKey(all.storybook_theme));
+    const W = words(byKey(all.storybook));
+    const anim = byKey(all.storybook).get('animated');
+    const animChip = { key: 'animated', text: anim?.label ?? 'Animated', ar: anim?.labelAr ?? null,
+                       icon: anim?.icon ?? 'play.rectangle.fill', color: anim?.color ?? GOLD };
     const node = (r: Row): Record<string, unknown> => {
       const look = lookOf(byId.get(r.chapter_id ?? ''));
       return {
         id: r.id, titleAr: r.title_ar, titleEn: r.title_en, summary: r.summary_en, kind: r.kind, depth: r.depth,
-        pages: n.get(r.id) ?? 0, cover: media(r.cover_key), accent: look.accent, authored: !!r.authored,
+        pages: n.get(r.id) ?? 0, accent: look.accent, authored: !!r.authored,
+        cover: media(r.cover_key),
+        // the written book: read as pages
+        tellings: [],
         themes: parse<string[]>(r.themes_json, []).map(chip).filter(Boolean),
-        children: rows.filter((c) => c.parent_id === r.id).map(node),
+        children: rows.filter((c) => c.parent_id === r.id).flatMap(both),
       };
     };
+    // the animated version beside it, when the story is filmed: the languages it is told in, its chip first
+    const animated = (r: Row) => {
+      const langs = languagesOf(toldIn.get(r.id) ?? [], all.storybook_lang);
+      if (!langs.length) return [];
+      const x = node(r);
+      return [{ ...x, id: r.id + ANIMATED, kind: 'animated', tellings: langs, children: [],
+                themes: [animChip, ...(x.themes as unknown[])] }];
+    };
+    const both = (r: Row) => [node(r), ...animated(r)];
     const chapters = rows.filter((r) => r.kind === 'bab').map((c) => {
       const look = lookOf(c);
       return { id: c.id, titleAr: c.title_ar, titleEn: c.title_en, ...look,
-               stories: rows.filter((r) => r.parent_id === c.id).map(node) };
+               stories: rows.filter((r) => r.parent_id === c.id).flatMap(both) };
     });
     // a theme lists every story that names it, flat, in book order
-    const flat = (r: Row) => { const x = node(r); delete x.children; return x; };
+    const flat = (r: Row) => both(r).map((x) => { delete x.children; return x; });
     const themes = (all.storybook_theme ?? []).map((t) => ({
       ...chip(t.key)!,
-      stories: rows.filter((r) => r.kind !== 'bab' && parse<string[]>(r.themes_json, []).includes(t.key)).map(flat),
+      stories: rows.filter((r) => r.kind !== 'bab' && parse<string[]>(r.themes_json, []).includes(t.key)).flatMap(flat),
     })).filter((t) => t.stories.length);
-    return ok({ work, words: words(byKey(all.storybook)), chapters, themes });
+    return ok({ work, words: W, chapters, themes });
   });
 
-  router.get('/ar/text/storybooks/:id', async (_req, env, params) => {
-    const id = decodeURIComponent(params.id);
+  router.get('/ar/text/storybooks/:id', async (req, env, params) => {
+    const asked = decodeURIComponent(params.id);
+    // the animated version plays the film; the plain id is the written book, read as pages
+    const isAnimated = asked.endsWith(ANIMATED);
+    const id = isAnimated ? asked.slice(0, -ANIMATED.length) : asked;
+    const want = new URL(req.url).searchParams.get('lang');
     const story = await queryOne<Row>(env.DB_AR,
       `SELECT id, acq_ref_id, parent_id, chapter_id, kind, depth, seq, title_ar, title_en, summary_en, themes_json, look_json,
               audio_key, audio_seconds, cover_key, remember_json, authored
          FROM ar_storybook WHERE id = ? AND status = 'live'`, [id]).catch(softFail(null as Row | null, 'ar_storybook'));
-    if (!story || story.kind === 'bab') return notFound(`story ${id}`);
-    const [pages, chapter, parent, all, siblings] = await Promise.all([
+    if (!story || story.kind === 'bab') return notFound(`story ${asked}`);
+    const [pages, chapter, parent, all, siblings, tellings] = await Promise.all([
       query<PageRow>(env.DB_AR,
         `SELECT no, kind, link_id, text_ar, text_en, words_json, start_sec, end_sec, rec_key, rec_start, rec_end, picture_key, placeholder,
                 lines_json, sound_json
@@ -141,7 +236,13 @@ export function storybookRoutes(router: Router<ArabicEnv>) {
       query<{ id: string; title_ar: string; title_en: string | null }>(env.DB_AR,
         `SELECT id, title_ar, title_en FROM ar_storybook WHERE acq_ref_id = ? AND status = 'live' AND kind <> 'bab' AND seq > ?
           ORDER BY seq LIMIT 1`, [story.acq_ref_id, story.seq]),
+      isAnimated ? tellingsOf(env, id) : Promise.resolve([] as TellingRow[]),
     ]);
+    // the telling asked for; without ?lang=, the first the story has in the labels' order (Arabic first)
+    const langs = languagesOf(tellings.map((t) => t.lang), all.storybook_lang);
+    if (want && !tellings.some((t) => t.lang === want)) return notFound(`telling ${id} in ${want}`);
+    if (isAnimated && !tellings.length) return notFound(`animated ${id}`);
+    const told = tellings.find((t) => t.lang === (want ?? langs[0]?.key));
     const links = pages.filter((p) => p.link_id).map((p) => p.link_id!);
     const linked = links.length
       ? await query<{ id: string; title_ar: string; title_en: string | null; cover_key: string | null }>(env.DB_AR,
@@ -174,7 +275,7 @@ export function storybookRoutes(router: Router<ArabicEnv>) {
     const rem = parse<Record<string, any>>(story.remember_json, {});
     const total = pages.length + 1;
     return ok({
-      id: story.id, titleAr: story.title_ar, titleEn: story.title_en, summary: story.summary_en, authored: !!story.authored,
+      id: asked, titleAr: story.title_ar, titleEn: story.title_en, summary: story.summary_en, authored: !!story.authored,
       chapter: chapter ? { id: chapter.id, titleAr: chapter.title_ar, titleEn: chapter.title_en } : null,
       inside: parent && parent.kind !== 'bab' ? { id: parent.id, titleAr: parent.title_ar, titleEn: parent.title_en } : null,
       look, themes: parse<string[]>(story.themes_json, []).map(chip).filter(Boolean),
@@ -205,6 +306,8 @@ export function storybookRoutes(router: Router<ArabicEnv>) {
         })),
       },
       next: siblings[0] ? { id: siblings[0].id, titleAr: siblings[0].title_ar, titleEn: siblings[0].title_en } : null,
+      tellings: langs,
+      telling: told ? tellingOf(told, all.storybook_lang, byKey(all.storybook_grid), L) : null,
     });
   });
 }

@@ -32,6 +32,8 @@ function world(migrate = true) {
   if (migrate) {
     const m = readFileSync(root + 'arabic/migrations/0079_storybook.sql', 'utf8');
     AR.exec(m); AR.exec(m);                                         // idempotent
+    const t = readFileSync(root + 'arabic/migrations/0082_storybook_telling.sql', 'utf8');
+    AR.exec(t); AR.exec(t);
     AR.exec(`
       INSERT INTO ar_storybook (id, acq_ref_id, chapter_id, kind, depth, seq, title_ar, title_en, look_json)
         VALUES ('KD:05', 'ACQ:SHM:6321', 'KD:05', 'bab', 0, 5, 'الأسد والثور', 'The Lion and the Ox',
@@ -56,7 +58,16 @@ function world(migrate = true) {
         sound_json = '{"ambience":{"id":"carpenter_yard","gain_db":-22,"scene_in":true},"spots":[{"id":"wedge_pop","word":1,"gain_db":-12},{"id":"not_made","word":0}]}'
         WHERE story_id = 'KD:05:03' AND no = 1;
       INSERT INTO ar_sfx (id, object_key, scene_in_key, loopable) VALUES
-        ('carpenter_yard', 'sfx/carpenter_yard-11.m4a', 'sfx/carpenter_yard_in-22.m4a', 1), ('wedge_pop', 'sfx/wedge_pop-33.m4a', NULL, 0);`);
+        ('carpenter_yard', 'sfx/carpenter_yard-11.m4a', 'sfx/carpenter_yard_in-22.m4a', 1), ('wedge_pop', 'sfx/wedge_pop-33.m4a', NULL, 0);
+      INSERT INTO ar_storybook_telling (story_id, lang, audio_key, audio_seconds, intro_sec, story_sec, film_json, grid_json) VALUES
+        ('KD:05:03', 'en', 'books/kalila/telling/KD_05_03/en-ee.m4a', 74.1, 7.2, 62.6,
+         '{"opening":{"title":"The Monkey and the Carpenter"},"ending":{"title":"The Monkey and the Carpenter","end":"The End","seconds":11.5,"picture":"books/kalila/telling/KD_05_03/s14-ff.jpg"},
+           "pages":[{"no":1,"start":7.2}],"shots":[{"start":0,"end":12,"xf":0.9,"picture":"books/kalila/telling/KD_05_03/s01-aa.jpg","clip":null,"from":[0.5,0.5,1],"to":[0.45,0.46,1.2]}],
+           "phrases":[{"start":6.95,"end":9,"fade":0.35,"words":[{"t":"They","s":7.2,"e":7.5,"k":false},{"t":"monkey","s":9.06,"e":9.4,"k":true}]}],
+           "runs":[{"start":6.95,"end":9,"ar":"زَعَمُوا","en":"They say…","ur":"کہتے ہیں…"}]}', NULL),
+        ('KD:05:03', 'ar', 'books/kalila/telling/KD_05_03/ar-dd.m4a', 94.6, 7.4, 83.1, '{"shots":[],"phrases":[],"pages":[]}',
+         '{"audio":"books/kalila/telling/KD_05_03/grid-gg.m4a","seconds":106.9,"headingAt":0.6,"sections":[{"kind":"verb","at":2.8}],
+           "pages":[{"start":5.6,"end":30,"cards":[{"at":5.6,"end":9,"forms":[{"t":"رَأَى","s":6.7,"e":7.1}],"en":"to see","picture":"books/kalila/telling/KD_05_03/w01-hh.jpg"}]}]}');`);
   }
   const env = { DB_AR: d1(AR) } as any;
   const r = new Router<any>(); storybookRoutes(r);
@@ -79,12 +90,12 @@ test('the shelf: chapters with their look and nested stories, themes with their 
   assert.equal(ch.accent, '#D99A4E');
   assert.deepEqual(ch.gradient, ['#24170C', '#120B06']);
   assert.equal(ch.stories[0].id, 'KD:05:01');
-  assert.deepEqual(ch.stories[0].children.map((c: any) => c.id), ['KD:05:03', 'KD:05:04'], 'nested in book order');
+  assert.deepEqual(ch.stories[0].children.map((c: any) => c.id), ['KD:05:03', 'KD:05:03~animated', 'KD:05:04'], 'nested in book order, the animated version beside its book');
   assert.equal(ch.stories[0].children[0].cover, '/api/ar/audio/books/kalila/storybook/KD_05_03/p01-cc.jpg');
   assert.equal(ch.stories[0].children[0].themes[0].text, 'Knowing your place');
   assert.equal(ch.stories[0].pages, 2);
   const place = d.themes.find((t: any) => t.key === 'place');
-  assert.deepEqual(place.stories.map((s: any) => s.id), ['KD:05:03']);
+  assert.deepEqual(place.stories.map((s: any) => s.id), ['KD:05:03', 'KD:05:03~animated']);
   assert.equal(place.stories[0].children, undefined, 'a theme lists stories flat');
   assert.ok(!d.themes.some((t: any) => t.key === 'greed'), 'a theme with no story is left out');
 });
@@ -135,4 +146,59 @@ test('a chapter is not a story; an unknown story is 404; without the migration t
   const bare = world(false);
   assert.equal(await storybookEntry(bare.env, 'ACQ:SHM:6321'), null);
   assert.equal((await bare.get('/ar/text/storybooks?work=ACQ:SHM:6321')).status, 404);
+});
+
+test('a filmed story stands twice: the written book and its animated version (?lang= picks a telling, Arabic first, the grid on Arabic)', async () => {
+  const w = world();
+  const shelf = (await w.get('/ar/text/storybooks?work=ACQ:SHM:6321')).body.data;
+  const [book, monkey, fox0] = shelf.chapters[0].stories[0].children;
+  assert.equal(book.id, 'KD:05:03');
+  assert.deepEqual(book.tellings, [], 'the written book is read as pages');
+  assert.equal(monkey.id, 'KD:05:03~animated');
+  assert.equal(monkey.kind, 'animated');
+  assert.equal(monkey.themes[0].key, 'animated', 'the animated chip first');
+  assert.deepEqual(monkey.tellings.map((l: any) => [l.key, l.dir]), [['ar', 'rtl'], ['en', 'ltr']], 'in the labels order, only those told');
+  assert.equal(fox0.id, 'KD:05:04');
+  assert.equal(shelf.chapters[0].stories[0].children.length, 3, 'a story with no telling has no animated card');
+  assert.equal(shelf.words.language.text, 'Language');
+  assert.equal(shelf.words.search.icon, 'magnifyingglass', 'the shelf search field is a label row');
+  assert.equal(shelf.words.noMatch.text, 'No story matches');
+
+  const written = (await w.get('/ar/text/storybooks/KD:05:03')).body.data;
+  assert.equal(written.telling, null, 'the book itself reads as pages');
+  assert.deepEqual(written.tellings, []);
+  const ar = (await w.get('/ar/text/storybooks/KD:05:03~animated')).body.data;
+  assert.equal(ar.id, 'KD:05:03~animated', 'the language toggle asks for the animated id');
+  assert.equal(ar.telling.lang, 'ar', 'Arabic when no language is asked for');
+  assert.equal(ar.telling.font, 'AmiriQuran-Regular');
+  assert.equal(ar.telling.grid.title, 'كَلِمَاتُ الْقِصَّةِ');
+  assert.equal(ar.telling.grid.audio.url, '/api/ar/audio/books/kalila/telling/KD_05_03/grid-gg.m4a');
+  assert.equal(ar.telling.grid.sections[0].title, 'الأَفْعالُ');
+  assert.equal(ar.telling.grid.pages[0].cards[0].picture, '/api/ar/audio/books/kalila/telling/KD_05_03/w01-hh.jpg');
+  assert.equal(ar.pages.length, 1, 'the pages are still there for reading');
+
+  const { status, body } = await w.get('/ar/text/storybooks/KD:05:03~animated?lang=en');
+  assert.equal(status, 200);
+  const en = body.data.telling;
+  assert.equal(en.dir, 'ltr');
+  assert.equal(en.font, 'Baloo2-Regular');
+  assert.equal(en.audio.url, '/api/ar/audio/books/kalila/telling/KD_05_03/en-ee.m4a');
+  assert.equal(en.intro, 7.2);
+  assert.equal(en.storyEnd, 62.6);
+  assert.equal(en.shots[0].picture, '/api/ar/audio/books/kalila/telling/KD_05_03/s01-aa.jpg');
+  assert.equal(en.shots[0].clip, null);
+  assert.equal(en.ending.picture, '/api/ar/audio/books/kalila/telling/KD_05_03/s14-ff.jpg');
+  assert.equal(en.phrases[0].words[1].k, true);
+  assert.equal(en.style.key, '#FAC75C');
+  assert.equal(en.grid, null, 'the word grid ends the Arabic telling only');
+  assert.equal(en.runs[0].ar, 'زَعَمُوا', 'each run carries its line in the other languages');
+  assert.deepEqual(en.lines.map((l: any) => [l.key, l.font, l.lineSize]),
+    [['ar', 'AmiriQuran-Regular', 18], ['ur', 'NotoNastaliqUrdu-Regular', 15]], 'the translation line: every other language, its face and size');
+  assert.deepEqual(ar.telling.lines.map((l: any) => l.key), ['en', 'ur']);
+
+  assert.equal((await w.get('/ar/text/storybooks/KD:05:03~animated?lang=ur')).status, 404, 'a language it is not told in');
+  const fox = (await w.get('/ar/text/storybooks/KD:05:04')).body.data;
+  assert.equal(fox.telling, null);
+  assert.deepEqual(fox.tellings, []);
+  assert.equal((await w.get('/ar/text/storybooks/KD:05:04~animated')).status, 404, 'no animated version of an unfilmed story');
 });
