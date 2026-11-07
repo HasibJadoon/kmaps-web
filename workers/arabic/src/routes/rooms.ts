@@ -207,11 +207,12 @@ export function roomRoutes(router: Router<ArabicEnv>) {
   // The home: the levels (with how much each holds), and the rooms at this level.
   router.get('/ar/atlas/home', async (req, env) => {
     const band = parseBand(new URL(req.url).searchParams.get('level'));
-    const [works, rooms, domains, pool, books, covers] = await Promise.all([
+    const [works, rooms, domains, pool, books, covers, path] = await Promise.all([
       loadWorks(env), loadRooms(env), dailyDomains(env),
       query<{ band: string; n: number }>(env.DB_AR, `SELECT band, COUNT(*) AS n FROM ar_practice_pool GROUP BY band`),
       storyBooks(env),
-      query<{ image_key: string | null }>(env.DB_AR, `SELECT image_key FROM ar_map WHERE image_key IS NOT NULL ORDER BY sort_order LIMIT 1`)]);
+      query<{ image_key: string | null }>(env.DB_AR, `SELECT image_key FROM ar_map WHERE image_key IS NOT NULL ORDER BY sort_order LIMIT 1`),
+      quranPathOut(env)]);
     const shown = works.filter((w) => inBand(band, w.level));
     const byRoom = assign(shown, rooms);
     const dailyOn = inBand(band, DAILY_LEVEL);
@@ -230,7 +231,9 @@ export function roomRoutes(router: Router<ArabicEnv>) {
         .filter((r) => r.count > 0)
         .concat(books.length ? [{ id: BOOK_WORDS.id, title: BOOK_WORDS.title, titleAr: BOOK_WORDS.titleAr, tagline: BOOK_WORDS.tagline, color: BOOK_WORDS.color,
                                   icon: BOOK_WORDS.icon, layout: BOOK_WORDS.layout, count: books.length, collections: 0, level: null,
-                                  preview: books.slice(0, 3).map((b) => b.titleAr ?? b.title), cover: books[0]!.cover }] : []),
+                                  preview: books.slice(0, 3).map((b) => b.titleAr ?? b.title), cover: books[0]!.cover }] : [])
+        // the Qurʾān day by day, its own tile beside Everyday (owner, 2026-11-07: "Qurʾān not in Daily Fuṣḥā — outside, a separate card")
+        .concat(path ? [pathRoom(path)] : []),
       stats: {
         works: shown.length,
         pages: shown.reduce((n, w) => n + (w.pages ?? 0), 0),
@@ -253,6 +256,11 @@ export function roomRoutes(router: Router<ArabicEnv>) {
                           icon: BOOK_WORDS.icon, layout: BOOK_WORDS.layout, count: books.length, collections: 0, level: null,
                           preview: books.slice(0, 3).map((b) => b.titleAr ?? b.title), cover: books[0]!.cover },
                   entries: books, centuries: [] });
+    }
+    if (id === PATH_WORDS.id) {
+      const path = await quranPathOut(env);
+      if (!path) return notFound(`room ${id}`);
+      return ok({ room: pathRoom(path), entries: [], centuries: [], quranPath: path });
     }
     const rooms = await loadRooms(env);
     const room = rooms.find((r) => r.id === id);
@@ -313,9 +321,6 @@ export function roomRoutes(router: Router<ArabicEnv>) {
         // the films to watch on the shelf (owner, 2026-11-04: "put this on the Daily Fuṣḥā shelf"): works marked
         // meta.everyday_shelf, each opened in the series reader (video + its timed script), newest series first
         watch: await watchRows(env),
-        // the Qurʾān day by day (owner, 2026-11-07: "the Qurʾānic sūra daily content on its own card"): the readings of
-        // the 'quran' domain filed by day (meta.day), each day its passage, its core and its four pieces
-        quranPath: await quranPathOut(env),
         // every room answers with the same shape: the app reads `centuries` on all of them, and its absence here
         // made Everyday fail to load ("This room could not be fetched", owner 2026-10-25)
         centuries: [],
@@ -419,10 +424,20 @@ const PATH_PIECES: Record<string, { en: string; ar: string; icon: string; order:
   hiwar: { en: 'Dialogue', ar: 'حِوَارٌ', icon: 'bubble.left.and.bubble.right.fill', order: 2 },
   shiir: { en: 'Poem', ar: 'شِعْرٌ', icon: 'music.quarternote.3', order: 3 },
 };
-const PATH_WORDS = { title: 'Qurʾān day by day', titleAr: 'الْقُرْآنُ يَوْمًا بِيَوْمٍ',
+const PATH_WORDS = { id: 'quranpath', layout: 'quranpath', color: '#3FAE9A', icon: 'book.closed.fill',
+                     title: 'Qurʾān day by day', titleAr: 'الْقُرْآنُ يَوْمًا بِيَوْمٍ',
                      tagline: 'A passage a day, told four ways — a story, the meaning, a talk, a poem', day: 'Day' };
 
-/// The Qurʾān path on the Everyday shelf: the published readings of the 'quran' domain that carry a day (meta.day, or
+/// The Qurʾān path's tile on the home (and its room's head): how many days, the latest days' passages as the preview.
+function pathRoom(path: NonNullable<Awaited<ReturnType<typeof quranPathOut>>>) {
+  const pieces = path.days.reduce((n, d) => n + d.readings.length, 0);
+  return { id: PATH_WORDS.id, title: PATH_WORDS.title, titleAr: PATH_WORDS.titleAr, tagline: PATH_WORDS.tagline, color: PATH_WORDS.color,
+           icon: PATH_WORDS.icon, layout: PATH_WORDS.layout, count: path.days.length, collections: 0, level: 'A2',
+           preview: path.days.slice(-3).map((d) => `${d.label} · ${d.passage ?? ''}`.trim()), cover: (path.days.at(-1)?.readings.find((r) => r.cover)?.cover as string | undefined) ?? null,
+           pieces };
+}
+
+/// The Qurʾān path (its own room, /ar/atlas/room?id=quranpath): the published readings of the 'quran' domain that carry a day (meta.day, or
 /// the slug's path-dNNN), grouped by day with the passage and its core (from the day's meta), each piece as a book the
 /// story-book reader opens (/ar/daily/readings/:slug/book). Null when there is no day yet.
 async function quranPathOut(env: ArabicEnv) {
