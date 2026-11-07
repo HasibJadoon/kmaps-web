@@ -461,7 +461,7 @@ async function quranPathOut(env: ArabicEnv) {
     d.coreEn ??= meta.core?.core_en ?? null;
     d.coreAr ??= meta.core?.core_ar ?? null;
     d.readings.push({ id: `ARDR:${r.slug}`, slug: r.slug, kind: r.kind, title: r.title_en, titleAr: r.title_ar,
-                      subtitle: r.subtitle_en, cover: r.cover_key ? `/api/ar/audio/${r.cover_key}` : null, lines: r.lines, level: r.level,
+                      subtitle: r.subtitle_en, cover: r.cover_key ? `/api/ar/audio/${r.cover_key}` : (/"img":\s*"([^"]+)"/.exec(r.body_md ?? '')?.[1] ?? null), lines: r.lines, level: r.level,
                       piece: piece ? { en: piece.en, ar: piece.ar } : null, icon: piece?.icon ?? 'book.fill',
                       order: piece?.order ?? 10 + (r.sort_order ?? 0) });
     days.set(day, d);
