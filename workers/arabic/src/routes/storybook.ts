@@ -166,11 +166,14 @@ export function storybookRoutes(router: Router<ArabicEnv>) {
   router.get('/ar/text/storybooks', async (req, env) => {
     const work = new URL(req.url).searchParams.get('work');
     if (!work) return badRequest('work is required');
-    const [rows, counts, all, told] = await Promise.all([rowsOf(env, work), pageCounts(env, work), labels(env),
+    const [rows, counts, all, told, head] = await Promise.all([rowsOf(env, work), pageCounts(env, work), labels(env),
       query<{ story_id: string; lang: string; pages: number | null }>(env.DB_AR,
         `SELECT t.story_id, t.lang, json_array_length(t.film_json, '$.pages') AS pages FROM ar_storybook_telling t JOIN ar_storybook s ON s.id = t.story_id
           WHERE s.acq_ref_id = ? AND s.status = 'live' AND t.status = 'live'`, [work])
-        .catch(softFail([] as { story_id: string; lang: string; pages: number | null }[], 'ar_storybook_telling'))]);
+        .catch(softFail([] as { story_id: string; lang: string; pages: number | null }[], 'ar_storybook_telling')),
+      // the book's own name, for the shelf's title bar (owner, 2026-11-07: the top shows the book, not "Read as a story book")
+      query<{ title_en: string | null; title_ar: string | null }>(env.DB_AR, `SELECT title_en, title_ar FROM ar_acquisition_ref WHERE id = ?`, [work])
+        .catch(softFail([] as { title_en: string | null; title_ar: string | null }[], 'ar_acquisition_ref'))]);
     const toldIn = new Map<string, string[]>();
     for (const t of told) toldIn.set(t.story_id, [...(toldIn.get(t.story_id) ?? []), t.lang]);
     // the animated card counts the film's pages (its written pages may be gone)
@@ -218,7 +221,8 @@ export function storybookRoutes(router: Router<ArabicEnv>) {
       ...chip(t.key)!,
       stories: rows.filter((r) => r.kind !== 'bab' && parse<string[]>(r.themes_json, []).includes(t.key)).flatMap(flat),
     })).filter((t) => t.stories.length);
-    return ok({ work, words: W, chapters, themes });
+    const book = head[0] ? { title: head[0].title_en ?? head[0].title_ar ?? work, titleAr: head[0].title_ar } : null;
+    return ok({ work, book, words: W, chapters, themes });
   });
 
   router.get('/ar/text/storybooks/:id', async (req, env, params) => {
