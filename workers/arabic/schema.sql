@@ -1480,3 +1480,14 @@ CREATE TABLE IF NOT EXISTS ar_daily_reading (
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
   body_md      TEXT
 );
+CREATE TRIGGER trg_kcv_ar_map_node_i AFTER INSERT ON ar_map_node BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_map_node_u AFTER UPDATE ON ar_map_node BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_map_node_d AFTER DELETE ON ar_map_node BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_reading_i AFTER INSERT ON ar_daily_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_reading_u AFTER UPDATE ON ar_daily_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;
+
+CREATE TRIGGER trg_kcv_ar_daily_reading_d AFTER DELETE ON ar_daily_reading BEGIN UPDATE kmaps_cache_version SET version = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = datetime('now') WHERE family = 'content'; END;

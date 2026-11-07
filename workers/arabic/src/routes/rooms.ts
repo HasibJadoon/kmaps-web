@@ -313,6 +313,9 @@ export function roomRoutes(router: Router<ArabicEnv>) {
         // the films to watch on the shelf (owner, 2026-11-04: "put this on the Daily Fuṣḥā shelf"): works marked
         // meta.everyday_shelf, each opened in the series reader (video + its timed script), newest series first
         watch: await watchRows(env),
+        // the Qurʾān day by day (owner, 2026-11-07: "the Qurʾānic sūra daily content on its own card"): the readings of
+        // the 'quran' domain filed by day (meta.day), each day its passage, its core and its four pieces
+        quranPath: await quranPathOut(env),
         // every room answers with the same shape: the app reads `centuries` on all of them, and its absence here
         // made Everyday fail to load ("This room could not be fetched", owner 2026-10-25)
         centuries: [],
@@ -407,4 +410,52 @@ async function watchRows(env: ArabicEnv) {
                    episode: r.episode, videoId: r.videoId, shape: r.shape ?? 'series', firstSeq: r.firstSeq, level: r.level,
                    cover: `https://i.ytimg.com/vi/${r.videoId}/hqdefault.jpg`,
                    caption: [r.series, r.episode ? `${r.episode}` : null].filter(Boolean).join(' · ') }));
+}
+
+/// The pieces a day of the Qurʾān path is told in, by the slug's last part (path-d001-qissa …), in reading order.
+const PATH_PIECES: Record<string, { en: string; ar: string; icon: string; order: number }> = {
+  qissa: { en: 'Story', ar: 'قِصَّةٌ', icon: 'book.fill', order: 0 },
+  maqala: { en: 'Explained', ar: 'مَقَالَةٌ', icon: 'text.book.closed.fill', order: 1 },
+  hiwar: { en: 'Dialogue', ar: 'حِوَارٌ', icon: 'bubble.left.and.bubble.right.fill', order: 2 },
+  shiir: { en: 'Poem', ar: 'شِعْرٌ', icon: 'music.quarternote.3', order: 3 },
+};
+const PATH_WORDS = { title: 'Qurʾān day by day', titleAr: 'الْقُرْآنُ يَوْمًا بِيَوْمٍ',
+                     tagline: 'A passage a day, told four ways — a story, the meaning, a talk, a poem', day: 'Day' };
+
+/// The Qurʾān path on the Everyday shelf: the published readings of the 'quran' domain that carry a day (meta.day, or
+/// the slug's path-dNNN), grouped by day with the passage and its core (from the day's meta), each piece as a book the
+/// story-book reader opens (/ar/daily/readings/:slug/book). Null when there is no day yet.
+async function quranPathOut(env: ArabicEnv) {
+  const rows = await query<{ slug: string; kind: string; title_en: string; title_ar: string; subtitle_en: string | null;
+                             cover_key: string | null; lines: number | null; level: string | null; sort_order: number | null; body_md: string | null }>(env.DB_AR,
+    `SELECT r.slug, r.kind, r.title_en, r.title_ar, r.subtitle_en, r.cover_key, r.lines, r.level, r.sort_order, r.body_md
+       FROM ar_daily_reading r JOIN ar_curriculum_domain d ON d.id = r.domain_id
+      WHERE d.slug = 'quran' AND r.is_published = 1`).catch(() => []);
+  type Meta = { day?: number; passage?: string; core?: { core_en?: string; core_ar?: string } };
+  const days = new Map<number, { day: number; passage: string | null; coreEn: string | null; coreAr: string | null; readings: Array<Record<string, unknown> & { order: number }> }>();
+  for (const r of rows) {
+    const m = /```meta\n([\s\S]*?)\n```/.exec(r.body_md ?? '');
+    let meta: Meta = {};
+    try { meta = m ? (JSON.parse(m[1]!) as Meta) : {}; } catch { meta = {}; }
+    const day = meta.day ?? Number(/^path-d(\d+)/.exec(r.slug)?.[1] ?? NaN);
+    if (!Number.isFinite(day)) continue;
+    const piece = PATH_PIECES[r.slug.split('-').pop() ?? ''];
+    const d = days.get(day) ?? { day, passage: null, coreEn: null, coreAr: null, readings: [] };
+    d.passage ??= meta.passage ?? null;
+    d.coreEn ??= meta.core?.core_en ?? null;
+    d.coreAr ??= meta.core?.core_ar ?? null;
+    d.readings.push({ id: `ARDR:${r.slug}`, slug: r.slug, kind: r.kind, title: r.title_en, titleAr: r.title_ar,
+                      subtitle: r.subtitle_en, cover: r.cover_key ? `/api/ar/audio/${r.cover_key}` : null, lines: r.lines, level: r.level,
+                      piece: piece ? { en: piece.en, ar: piece.ar } : null, icon: piece?.icon ?? 'book.fill',
+                      order: piece?.order ?? 10 + (r.sort_order ?? 0) });
+    days.set(day, d);
+  }
+  if (!days.size) return null;
+  return {
+    ...PATH_WORDS,
+    days: [...days.values()].sort((a, b) => a.day - b.day).map((d) => ({
+      ...d, label: `${PATH_WORDS.day} ${d.day}`,
+      readings: d.readings.sort((a, b) => a.order - b.order).map(({ order: _o, ...x }) => x),
+    })),
+  };
 }

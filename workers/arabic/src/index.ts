@@ -111,6 +111,12 @@ const KEPT: SwrRoute[] = [
   // the scripted scenes and a scene's words (not a scene's practice round, drawn fresh)
   { re: /^\/ar\/scenes(\/[^/]+(\/\d+(\/words)?)?)?$/, ...CONTENT },
   { re: /^\/ar\/daily\/(themes|domains)(\/|$)/, ...CONTENT },
+  // an Everyday place's shelf (its stories, words and sayings), its vocabulary hub, and a reading as story-book pages:
+  // the same for every reader, ~1.5 s to build, so kept as content (migration 0087 moves the version on any write to
+  // ar_map_node / ar_daily_reading; the publish scripts move it too)
+  { re: /^\/ar\/map\/[^/]+$/, ...CONTENT },
+  { re: /^\/ar\/vocab\/[^/]+$/, ...CONTENT },
+  { re: /^\/ar\/daily\/readings\/[^/]+(\/book)?$/, ...CONTENT },
 ];
 
 export default {
