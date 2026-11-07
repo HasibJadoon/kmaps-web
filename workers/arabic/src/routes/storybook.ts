@@ -107,6 +107,12 @@ export function tellingOf(t: TellingRow, LANG: Label[] | undefined, G: Map<strin
   };
 }
 
+/// A daily reading's film tellings (ar_reading_telling, migration 0089), the same row shape as a story's.
+export const readingTellingsOf = (env: ArabicEnv, id: string) =>
+  query<TellingRow>(env.DB_AR,
+    `SELECT lang, audio_key, audio_seconds, intro_sec, story_sec, film_json, grid_json FROM ar_reading_telling
+      WHERE reading_id = ? AND status = 'live'`, [id]).catch(softFail([] as TellingRow[], 'ar_reading_telling'));
+
 export const tellingsOf = (env: ArabicEnv, id: string) =>
   query<TellingRow>(env.DB_AR,
     `SELECT lang, audio_key, audio_seconds, intro_sec, story_sec, film_json, grid_json FROM ar_storybook_telling

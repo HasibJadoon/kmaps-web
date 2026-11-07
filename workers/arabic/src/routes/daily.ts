@@ -7,7 +7,7 @@ import { labels, byKey } from '../lib/labels';
 import { readingBook, soundIds } from '../lib/reading-book';
 import { mediaUrl } from '../lib/media';
 import { softFail } from '../../../shared/src/soft-fail';
-import { words as storybookWords, tellingsOf, tellingOf, languagesOf } from './storybook';
+import { words as storybookWords, readingTellingsOf, tellingOf, languagesOf } from './storybook';
 
 /// Daily Fuṣḥā — one themed dose a day: ten singular/plural pairs, a sentence
 /// for each, and a short passage that puts them back together.
@@ -249,9 +249,9 @@ export function dailyRoutes(router: Router<ArabicEnv>) {
     const sfx = new Map(rows.map((x) => [x.id, { url: mediaUrl(x.object_key)!, sceneIn: mediaUrl(x.scene_in_key) }]));
     const book = readingBook({ ...r, body_md: r.body_md }, L, storybookWords(L), sfx);
     if (!book.pages.length) return notFound(`reading ${slug}`);
-    // a reading made into a film (ar_storybook_telling, story_id 'ARDR:<slug>') plays in the Kalīla film reader, in each
+    // a reading made into a film (ar_reading_telling, reading_id 'ARDR:<slug>') plays in the Kalīla film reader, in each
     // language it is told in (owner, 2026-11-07: daily readings read the way Kalīla wa Dimna does); without one, pages
-    const tellings = await tellingsOf(env, `ARDR:${slug}`);
+    const tellings = await readingTellingsOf(env, `ARDR:${slug}`);
     if (want && !tellings.some((t) => t.lang === want)) return notFound(`telling ARDR:${slug} in ${want}`);
     const langs = languagesOf(tellings.map((t) => t.lang), all.storybook_lang);
     const told = tellings.find((t) => t.lang === (want ?? langs[0]?.key));
