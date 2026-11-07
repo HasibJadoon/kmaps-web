@@ -32,7 +32,7 @@ interface PageRow {
 interface Sfx { id: string; object_key: string; scene_in_key: string | null; loopable: number }
 interface Cue { ambience?: { id: string; gain_db?: number; scene_in?: boolean }; spots?: Array<{ id: string; word?: number; at?: number; gain_db?: number }> }
 interface Look { accent: string; gradient: [string, string]; motif: string | null }
-interface TellingRow {
+export interface TellingRow {
   story_id?: string; lang: string; audio_key: string; audio_seconds: number | null; intro_sec: number; story_sec: number | null;
   film_json: string; grid_json: string | null;
 }
@@ -107,7 +107,7 @@ export function tellingOf(t: TellingRow, LANG: Label[] | undefined, G: Map<strin
   };
 }
 
-const tellingsOf = (env: ArabicEnv, id: string) =>
+export const tellingsOf = (env: ArabicEnv, id: string) =>
   query<TellingRow>(env.DB_AR,
     `SELECT lang, audio_key, audio_seconds, intro_sec, story_sec, film_json, grid_json FROM ar_storybook_telling
       WHERE story_id = ? AND status = 'live'`, [id]).catch(softFail([] as TellingRow[], 'ar_storybook_telling'));

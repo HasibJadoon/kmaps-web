@@ -7,7 +7,7 @@ import { labels, byKey } from '../lib/labels';
 import { readingBook, soundIds } from '../lib/reading-book';
 import { mediaUrl } from '../lib/media';
 import { softFail } from '../../../shared/src/soft-fail';
-import { words as storybookWords } from './storybook';
+import { words as storybookWords, tellingsOf, tellingOf, languagesOf } from './storybook';
 
 /// Daily Fuṣḥā — one themed dose a day: ten singular/plural pairs, a sentence
 /// for each, and a short passage that puts them back together.
@@ -230,13 +230,15 @@ export function dailyRoutes(router: Router<ArabicEnv>) {
   /// The same reading as story-book pages, for the picture-book reader that «كليلة ودمنة» uses: a cover, one page per read
   /// block (picture, Arabic with word times, English, its recording — a dialogue's question and answer as two clips on one
   /// page), then a link to the place's vocabulary hub (GET /ar/vocab/:domain) where its words live. Unsigned, like the note. Labels (cover kicker, hub link) come from ar_practice_label.
-  router.get('/ar/daily/readings/:slug/book', async (_req, env, { slug }) => {
+  router.get('/ar/daily/readings/:slug/book', async (req, env, { slug }) => {
+    const want = new URL(req.url).searchParams.get('lang');
     const r = await queryOne<{ slug: string; kind: string; title_en: string; title_ar: string; subtitle_en: string | null; body_md: string | null; domain: string | null }>(env.DB_AR,
       `SELECT r.slug, r.kind, r.title_en, r.title_ar, r.subtitle_en, r.body_md,
               (SELECT d.slug FROM ar_curriculum_domain d WHERE d.id = r.domain_id) AS domain
          FROM ar_daily_reading r WHERE r.slug = ? AND r.is_published = 1`, [slug]);
     if (!r || !r.body_md) return notFound(`reading ${slug}`);
-    const L = byKey((await labels(env)).storybook);
+    const all = await labels(env);
+    const L = byKey(all.storybook);
     // the scene sounds the pages name (ar_sfx), as URLs — the same library the Kalīla pages play
     const ids = soundIds(r.body_md);
     const rows = ids.length
@@ -247,7 +249,13 @@ export function dailyRoutes(router: Router<ArabicEnv>) {
     const sfx = new Map(rows.map((x) => [x.id, { url: mediaUrl(x.object_key)!, sceneIn: mediaUrl(x.scene_in_key) }]));
     const book = readingBook({ ...r, body_md: r.body_md }, L, storybookWords(L), sfx);
     if (!book.pages.length) return notFound(`reading ${slug}`);
-    return ok(book);
+    // a reading made into a film (ar_storybook_telling, story_id 'ARDR:<slug>') plays in the Kalīla film reader, in each
+    // language it is told in (owner, 2026-11-07: daily readings read the way Kalīla wa Dimna does); without one, pages
+    const tellings = await tellingsOf(env, `ARDR:${slug}`);
+    if (want && !tellings.some((t) => t.lang === want)) return notFound(`telling ARDR:${slug} in ${want}`);
+    const langs = languagesOf(tellings.map((t) => t.lang), all.storybook_lang);
+    const told = tellings.find((t) => t.lang === (want ?? langs[0]?.key));
+    return ok({ ...book, tellings: langs, telling: told ? tellingOf(told, all.storybook_lang, byKey(all.storybook_grid), L) : null });
   });
 
   /// The published themes, in drip order. Content only — no reader state, so
