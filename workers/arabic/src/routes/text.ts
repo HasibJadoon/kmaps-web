@@ -533,6 +533,10 @@ export async function shelfRows(env: ArabicEnv, f: { genre?: string | null; seri
   if (f.ids) {
     if (!f.ids.length) return [];
     conds.push(`r.id IN (${f.ids.map(() => '?').join(',')})`); params.push(...f.ids);
+  } else {
+    // a work kept off the shelves (meta.library = false: our own illustrated stories live on their story-book shelf,
+    // owner 2026-11-07) still opens by id
+    conds.push(`COALESCE(json_extract(r.meta_json, '$.library'), 1) <> 0`);
   }
   return query<ShelfRow>(
     env.DB_AR,

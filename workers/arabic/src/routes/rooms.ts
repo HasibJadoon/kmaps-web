@@ -55,7 +55,8 @@ async function loadWorks(env: ArabicEnv): Promise<Work[]> {
        LEFT JOIN ar_acq_category pc ON pc.id = p.ar_no
        LEFT JOIN ar_acq_category gpc ON gpc.id = gp.ar_no
        LEFT JOIN path ON path.start_ar_no = e.ar_no
-      WHERE r.status = 'live' AND COALESCE(path.trail, '') NOT LIKE 'مفردات%'`);
+      WHERE r.status = 'live' AND COALESCE(path.trail, '') NOT LIKE 'مفردات%'
+        AND COALESCE(json_extract(r.meta_json, '$.library'), 1) <> 0`);
 }
 
 async function loadRooms(env: ArabicEnv) {
