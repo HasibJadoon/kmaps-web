@@ -79,6 +79,8 @@ export function tellingOf(t: TellingRow, LANG: Label[] | undefined, G: Map<strin
   return {
     lang: t.lang, label: l?.label ?? t.lang, dir: x.dir ?? (t.lang === 'en' ? 'ltr' : 'rtl'),
     font: x.font ?? null, titleFont: x.titleFont ?? x.font ?? null, size: x.size ?? 28, weight: x.weight ?? null, lineHeight: x.lineHeight ?? 1.4,
+    // caption spacing (× size): letters (Latin; negative = tighter) and the gap between words
+    tracking: x.tracking ?? 0, wordGap: x.wordGap ?? 0.26,
     audio: { url: media(t.audio_key), seconds: t.audio_seconds },
     intro: t.intro_sec, storyEnd: t.story_sec ?? t.audio_seconds,
     style: { ink: '#FFF8E6', key: '#FAC75C', ...(film.style ?? {}) },
