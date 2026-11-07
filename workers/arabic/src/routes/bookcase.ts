@@ -5,7 +5,7 @@ import { actorRef } from '../../../shared/src/auth';
 import type { ArabicEnv } from '../env';
 import { shelfRows, template, type ShelfRow } from './text';
 import { labels, byKey, type Label } from '../lib/labels';
-import { BANDS, parseBand, inBand, levelSpan, type Band } from '../lib/levels';
+import { BANDS, parseBand, inBand, levelLabel, bandSpan, bandRank, type Band } from '../lib/levels';
 import { storybookEntry } from './storybook';
 import { mediaUrl } from '../lib/media';
 
@@ -103,7 +103,8 @@ export const inLibrary = (w: ShelfRow) => (w.shape ?? 'prose') !== 'series';
 /// labels' own order — each shelf oldest author first.
 function build(rows: ShelfRow[], L: Map<string, Label>): Node[] {
   const shapeLook = (shape: string | null) => look(L, `shape:${shape ?? 'prose'}`, { icon: 'book.closed' });
-  const classical = rows.filter(inLibrary).sort((a, b) => year(a) - year(b));
+  // easiest first (Level 1, 2, 3), then oldest author first within a level
+  const classical = rows.filter(inLibrary).sort((a, b) => bandRank(a.level) - bandRank(b.level) || year(a) - year(b));
   const shapes = [...L.values()].filter((l) => l.key.startsWith('shape:')).map((l) => l.key.slice(6));
   const order = [...new Set([...shapes, ...classical.map((w) => w.shape ?? 'prose')])];
   const out: Node[] = [];
@@ -127,7 +128,7 @@ function entry(n: Node): Entry {
     id: n.id, kind: w ? 'work' : 'group',
     titleAr: w ? (w.title_ar ?? null) : n.name, titleEn: w ? w.title_en : n.nameEn,
     author: w?.author ?? null, died: w?.died ?? null,
-    level: w ? (w.level ?? null) : levelSpan(ws.map((x) => x.level)),
+    level: w ? levelLabel(w.level) : bandSpan(ws.map((x) => x.level)),
     shape: w?.shape ?? null, icon: n.icon, color: n.color,
     cover: mediaUrl(w?.coverKey),
     pages: pagesOf(n), count: countOf(n),
@@ -141,7 +142,7 @@ function shelf(n: Node, all = false): Shelf {
   const items = n.children.length ? n.children : (n.work ? [n] : []);
   return {
     id: n.id, titleAr: n.name, titleEn: n.nameEn, icon: n.icon, color: n.color,
-    count: countOf(n), pages: pagesOf(n), levelSpan: levelSpan(worksOf(n).map((w) => w.level)),
+    count: countOf(n), pages: pagesOf(n), levelSpan: bandSpan(worksOf(n).map((w) => w.level)),
     items: (all ? items : items.slice(0, FIRST)).map(entry),
     more: !all && items.length > FIRST,
   };
@@ -238,7 +239,7 @@ export function bookcaseRoutes(router: Router<ArabicEnv>) {
     return ok({
       work: {
         id: w.id, titleAr: w.title_ar, titleEn: w.title_en, author: w.author, died: w.died, era: eraOf(w.died),
-        level: w.level, register: extra?.register ?? w.register, subtitle: extra?.subtitle_ar ?? null,
+        level: levelLabel(w.level), register: extra?.register ?? w.register, subtitle: extra?.subtitle_ar ?? null,
         shape: w.shape, cover: mediaUrl(w.coverKey), kind: { titleAr: kind.titleAr, titleEn: kind.titleEn, icon: kind.icon, color: kind.color },
         pages: w.pages, words: w.words, firstSeq: w.firstSeq, lastSeq: w.lastSeq,
         audio: extra && extra.recordings > 0 ? { recordings: extra.recordings, minutes: extra.minutes } : null,
@@ -275,7 +276,7 @@ export function bookcaseRoutes(router: Router<ArabicEnv>) {
         : at && last > first ? Math.max(0, Math.min(1, (at - first) / (last - first))) : null;
       return {
         id: w.id, kind: 'work', titleAr: w.title_ar, titleEn: w.title_en, author: w.author, died: w.died,
-        level: w.level, shape: w.shape, icon: look_.icon, color: look_.color, cover: mediaUrl(w.coverKey), pages: w.pages, count: 1,
+        level: levelLabel(w.level), shape: w.shape, icon: look_.icon, color: look_.color, cover: mediaUrl(w.coverKey), pages: w.pages, count: 1,
         hasAudio: !!w.audioKey, hasVideo: !!w.videoId, firstSeq: w.firstSeq, preview: [],
         progress, atSeq: at, marks: marks(s.bookmarks_json),
       };
@@ -286,7 +287,7 @@ export function bookcaseRoutes(router: Router<ArabicEnv>) {
       const l = look(L, key, { icon });
       return { id: key, titleAr: l.titleAr ?? ar, titleEn: l.titleEn ?? en, icon: l.icon, color: l.color,
                count: items.length, pages: items.reduce((s, e) => s + e.pages, 0),
-               levelSpan: levelSpan(items.map((e) => e.level)), items, more: false };
+               levelSpan: bandSpan(states.filter(pick).map((st) => byId.get(st.work_id)?.level)), items, more: false };
     };
     const shelves = [
       mine('mine:continue', 'قيد القراءة', 'Continue reading', 'book',

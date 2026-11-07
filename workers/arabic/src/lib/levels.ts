@@ -36,6 +36,26 @@ export function levelSpan(levels: Array<string | null | undefined>): string | nu
   return got.length === 1 ? got[0] : `${got[0]}–${got[got.length - 1]}`;
 }
 
+/// A work's level as the reader is shown it: its band's name ("Level 1/2/3"), not the CEFR code (owner, 2026-11-07).
+export function levelLabel(level: string | null | undefined): string | null {
+  const b = bandOf(level);
+  return b ? BANDS.find((x) => x.key === b)!.label : null;
+}
+
+/// The bands a set of works spans: "Level 2" / "Level 2–3".
+export function bandSpan(levels: Array<string | null | undefined>): string | null {
+  const ranks = [...new Set(levels.map(bandRank).filter((r) => r < 9))].sort();
+  if (!ranks.length) return null;
+  const n = (r: number) => BANDS[r]!.label.replace('Level ', '');
+  return ranks.length === 1 ? BANDS[ranks[0]!]!.label : `Level ${n(ranks[0]!)}–${n(ranks[ranks.length - 1]!)}`;
+}
+
+/// 0 for Level 1, 1 for Level 2, 2 for Level 3, 9 for an unlevelled work — for sorting easiest first.
+export function bandRank(level: string | null | undefined): number {
+  const b = bandOf(level);
+  return b ? BANDS.findIndex((x) => x.key === b) : 9;
+}
+
 /// Arabic with its vowel marks, tatweel and punctuation taken off, for comparing
 /// and searching; what is shown keeps them.
 export const bare = (t: string) => t
