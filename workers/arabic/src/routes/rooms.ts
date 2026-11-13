@@ -419,15 +419,24 @@ async function watchRows(env: ArabicEnv) {
 }
 
 /// The pieces a day of the Qurʾān path is told in, by the slug's last part (path-d001-qissa …), in reading order.
-const PATH_PIECES: Record<string, { en: string; ar: string; icon: string; order: number }> = {
+export const PATH_PIECES: Record<string, { en: string; ar: string; icon: string; order: number }> = {
+  // Owner 2026-11-12: "3 artifacts only" — Story, Series (the musalsal, slug -play), Poem. Essay/dialogue retired.
   qissa: { en: 'Story', ar: 'قِصَّةٌ', icon: 'book.fill', order: 0 },
-  maqala: { en: 'Explained', ar: 'مَقَالَةٌ', icon: 'text.book.closed.fill', order: 1 },
-  hiwar: { en: 'Dialogue', ar: 'حِوَارٌ', icon: 'bubble.left.and.bubble.right.fill', order: 2 },
-  shiir: { en: 'Poem', ar: 'شِعْرٌ', icon: 'music.quarternote.3', order: 3 },
+  play: { en: 'Series', ar: 'مُسَلْسَلٌ', icon: 'theatermasks.fill', order: 1 },
+  shiir: { en: 'Poem', ar: 'شِعْرٌ', icon: 'music.quarternote.3', order: 2 },
 };
-const PATH_WORDS = { id: 'quranpath', layout: 'quranpath', color: '#3FAE9A', icon: 'book.closed.fill',
+/// A day's piece from its slug: path-dNNN-<piece> or, for a day with several Series episodes (owner 2026-11-12: "more
+/// episodes instead of long episodes"), path-dNNN-play-<episode no.>. Episodes sort after one another inside the Series slot.
+export function pathPiece(slug: string) {
+  const m = /-([a-z]+)(?:-(\d+))?$/.exec(slug);
+  const piece = m ? PATH_PIECES[m[1]] : undefined;
+  if (!piece) return undefined;
+  const ep = m && m[2] ? Number(m[2]) : 0;
+  return { ...piece, order: piece.order + ep / 1000, episode: ep || null };
+}
+export const PATH_WORDS = { id: 'quranpath', layout: 'quranpath', color: '#3FAE9A', icon: 'book.closed.fill',
                      title: 'Qurʾān day by day', titleAr: 'الْقُرْآنُ يَوْمًا بِيَوْمٍ',
-                     tagline: 'A passage a day, told four ways — a story, the meaning, a talk, a poem', day: 'Day' };
+                     tagline: 'A passage a day, told three ways — a story, a series episode, a poem', day: 'Day' };
 
 /// The Qurʾān path's tile on the home (and its room's head): how many days, the latest days' passages as the preview.
 function pathRoom(path: NonNullable<Awaited<ReturnType<typeof quranPathOut>>>) {
@@ -455,7 +464,7 @@ async function quranPathOut(env: ArabicEnv) {
     try { meta = m ? (JSON.parse(m[1]!) as Meta) : {}; } catch { meta = {}; }
     const day = meta.day ?? Number(/^path-d(\d+)/.exec(r.slug)?.[1] ?? NaN);
     if (!Number.isFinite(day)) continue;
-    const piece = PATH_PIECES[r.slug.split('-').pop() ?? ''];
+    const piece = pathPiece(r.slug);
     const d = days.get(day) ?? { day, passage: null, coreEn: null, coreAr: null, readings: [] };
     d.passage ??= meta.passage ?? null;
     d.coreEn ??= meta.core?.core_en ?? null;

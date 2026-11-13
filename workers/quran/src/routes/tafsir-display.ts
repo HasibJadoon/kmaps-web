@@ -52,6 +52,17 @@ type GroupResolverRow = {
 
 export function tafsirDisplayRoutes(router: Router<QuranEnv>) {
 
+  /// One tafsīr block by id — the back-link target of a stored reference (owner 2026-11-12: "all references must store as
+  /// references … can be back-linked to sources"): a PATH line cites TAFSIR_BLK_…; the app opens this, then the āyah's
+  /// full display at /qr/tafsir/display?surah=&ayah= scrolled to the block.
+  router.get('/qr/tafsir/display/block/:id', (req, env, params) => cached(req, async () => {
+    const id = params.id ?? '';
+    if (!/^TAFSIR_BLK_[0-9a-f]+$/.test(id)) return badRequest('block id');
+    const row = await env.DB_QR.prepare('SELECT * FROM qr_tafsir_book_display_block WHERE id = ?').bind(id).first<BlockRow>();
+    if (!row) return notFound('block');
+    return ok({ block: hydrateBlock(row), display: `/qr/tafsir/display?surah=${row.surah_no}&ayah=${row.ayah_no}#${id}` });
+  }));
+
   router.get('/qr/tafsir/display/sources', (req, env) => cached(req, async () => {
     const { results } = await env.DB_QR
       .prepare(`
