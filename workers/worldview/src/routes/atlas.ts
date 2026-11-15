@@ -299,6 +299,116 @@ function shelfCard(s: Shelf, withItems: boolean) {
   };
 }
 
+type StrandRow = {
+  id: string; title: string; source_type: string | null; published_year: number | null; url: string | null;
+  person_ref: string | null; person: string | null; creator: string | null; series: string | null;
+  duration_min: number | null; date: string | null; mentions: number; unit_id: string | null; via: string;
+  phase: string | null; themes_json: string | null; literature: string | null; stance: string | null; person_type: string | null;
+};
+type StrandGroup = { key: string; title: string; section: string | null; line: string | null; count: number; person_ref: string | null; ids: string[] };
+
+const PERSON_SECTION: Record<string, string> = { scholar: 'Scholars', thinker: 'Thinkers', philosopher: 'Philosophers', theologian: 'Theologians', historian: 'Historians', writer: 'Writers', poet: 'Poets' };
+const SECTION_ORDER = ['Scholars', 'Thinkers', 'Philosophers', 'Theologians', 'Historians', 'Writers', 'Poets', 'Others'];
+const themeTitle = (t: string) => t.split('/').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' / ');
+
+/** The sources on one strand, and five ways to read them: by author, topic (the strand's arc phases), theme,
+ *  primary or secondary literature, and stance. Groups name their sources by id; the sources come once. */
+async function strandSources(env: WorldviewEnv, id: string, key: string) {
+  const [rows, phases] = await Promise.all([
+    query<StrandRow>(env.DB_WV,
+    `WITH named AS (
+       SELECT b.corpus_id AS cid, COUNT(*) AS n
+         FROM wv_term_links l JOIN wv_corpus_block b ON b.id = l.entity_id
+        WHERE l.entity_type = 'corpus_block'
+          AND l.al_concept_ref IN (SELECT t.id FROM wv_term t WHERE t.term_key = ?1)
+        GROUP BY b.corpus_id),
+     hit AS (
+       SELECT s.*, json_extract(s.meta_json, '$.corpus_id') AS cid,
+              CASE WHEN EXISTS (SELECT 1 FROM json_each(s.meta_json, '$.themes') j WHERE j.value = ?1 OR j.value LIKE ?1 || '/%' OR j.value LIKE '%/' || ?1) THEN 'theme'
+                   WHEN s.tradition_id = 'wv-tradition-' || ?1 THEN 'tradition'
+                   WHEN json_extract(s.meta_json, '$."' || ?1 || '"') IN ('yes', 'maybe') THEN 'tagged'
+                   ELSE 'named' END AS via
+         FROM wv_sources s
+        WHERE s.source_type <> 'arc'
+          AND (EXISTS (SELECT 1 FROM json_each(s.meta_json, '$.themes') j WHERE j.value = ?1 OR j.value LIKE ?1 || '/%' OR j.value LIKE '%/' || ?1)
+               OR s.tradition_id = 'wv-tradition-' || ?1
+               OR json_extract(s.meta_json, '$."' || ?1 || '"') IN ('yes', 'maybe')
+               OR json_extract(s.meta_json, '$.corpus_id') IN (SELECT cid FROM named)))
+     SELECT h.id, h.title, h.source_type, h.published_year, h.url, h.person_ref,
+            p.name_en AS person, json_extract(h.meta_json, '$.creator') AS creator,
+            json_extract(h.meta_json, '$.series') AS series, json_extract(h.meta_json, '$.duration_min') AS duration_min,
+            json_extract(h.meta_json, '$.date') AS date, ifnull(n.n, 0) AS mentions, h.via,
+            json_extract(h.meta_json, '$.phase') AS phase, json_extract(h.meta_json, '$.themes') AS themes_json,
+            json_extract(h.meta_json, '$.literature') AS literature, json_extract(h.meta_json, '$.stance') AS stance,
+            p.person_type,
+            (SELECT u.id FROM wv_corpus_units u WHERE u.corpus_id = h.cid ORDER BY u.unit_index, u.id LIMIT 1) AS unit_id
+       FROM hit h
+       LEFT JOIN named n ON n.cid = h.cid
+       LEFT JOIN core_person p ON p.id = h.person_ref
+      ORDER BY ifnull(json_extract(h.meta_json, '$.date'), h.published_year) DESC, h.title`, [key]),
+    query<{ id: string; title: string }>(env.DB_WV,
+      `SELECT u.id, u.title FROM wv_source_units u
+        WHERE u.unit_type = 'phase' AND u.source_id = (SELECT a.arc_id FROM wv_atlas a WHERE a.id = ?)
+        ORDER BY u.unit_index`, [id]),
+  ]);
+  const sources = rows.map(({ themes_json, ...r }) => {
+    let themes: string[] = [];
+    try { themes = themes_json ? (JSON.parse(themes_json) as string[]) : []; } catch { themes = []; }
+    return { ...r, themes };
+  });
+  const group = (key: string, title: string, ids: string[], o: Partial<StrandGroup> = {}): StrandGroup =>
+    ({ key, title, section: null, line: null, person_ref: null, ...o, count: ids.length, ids });
+  const kind = (ids: string[]) => ids.every((i) => sources.find((s) => s.id === i)?.source_type === 'video') ? 'talks' : 'works';
+
+  // by author: each person, under their kind (scholars first)
+  const byPerson = new Map<string, { name: string; ref: string | null; section: string; ids: string[]; mentions: number }>();
+  for (const s of sources) {
+    const name = s.person ?? s.creator ?? 'Other sources';
+    const k = s.person_ref ?? `name:${name}`;
+    const g = byPerson.get(k) ?? { name, ref: s.person_ref, section: PERSON_SECTION[s.person_type ?? ''] ?? 'Others', ids: [], mentions: 0 };
+    g.ids.push(s.id); g.mentions += s.mentions; byPerson.set(k, g);
+  }
+  const author = [...byPerson.entries()]
+    .sort(([, a], [, b]) => SECTION_ORDER.indexOf(a.section) - SECTION_ORDER.indexOf(b.section) || b.ids.length - a.ids.length)
+    .map(([k, g]) => group(k, g.name, g.ids, { section: g.section, person_ref: g.ref,
+      line: `${g.ids.length} ${kind(g.ids)}${g.mentions ? ` · names it ${g.mentions}×` : ''}` }));
+
+  // by topic: the strand's arc phases, in order (empty ones kept, so the arc's shape shows)
+  const placed = new Set(phases.map((ph) => ph.id));
+  const topic = phases.length ? [
+    ...phases.map((ph, i) => group(ph.id, ph.title, sources.filter((s) => s.phase === ph.id).map((s) => s.id), { line: `Phase ${i + 1}` })),
+    ...(sources.some((s) => !s.phase || !placed.has(s.phase)) ? [group('none', 'Not placed in a phase', sources.filter((s) => !s.phase || !placed.has(s.phase)).map((s) => s.id))] : []),
+  ] : [];
+
+  // by theme: each theme the sources carry, most first
+  const byTheme = new Map<string, string[]>();
+  for (const s of sources) for (const t of s.themes.length ? s.themes : ['']) byTheme.set(t, [...(byTheme.get(t) ?? []), s.id]);
+  const theme = [...byTheme.entries()].sort(([a, x], [b, y]) => (a === '' ? 1 : 0) - (b === '' ? 1 : 0) || y.length - x.length)
+    .map(([t, ids]) => group(t || 'none', t ? themeTitle(t) : 'No theme marked', ids));
+
+  // primary / secondary literature, and stance — fixed groups, kept when empty
+  const pick = (f: (s: (typeof sources)[number]) => boolean) => sources.filter(f).map((s) => s.id);
+  const literature = [
+    group('primary', 'Primary', pick((s) => s.literature === 'primary'), { line: 'Its own texts — by those who hold it' }),
+    group('secondary', 'Secondary', pick((s) => s.literature === 'secondary'), { line: 'Written about it' }),
+    ...(sources.some((s) => !s.literature) ? [group('unmarked', 'Not yet marked', pick((s) => !s.literature))] : []),
+  ];
+  const stance = [
+    group('advocate', 'In favour', pick((s) => s.stance === 'advocate'), { line: 'Those who argue for it' }),
+    group('critique', 'Critique', pick((s) => s.stance === 'critique'), { line: 'Those who argue against it' }),
+    ...(sources.some((s) => !s.stance) ? [group('unmarked', 'Not yet marked', pick((s) => !s.stance))] : []),
+  ];
+
+  const lenses = [
+    { key: 'author', title: 'By author', groups: author },
+    { key: 'topic', title: 'By topic', groups: topic },
+    { key: 'theme', title: 'By theme', groups: theme },
+    { key: 'literature', title: 'Primary · secondary', groups: literature },
+    { key: 'stance', title: 'For · against', groups: stance },
+  ].filter((l) => l.groups.length > 0);
+  return { id, total: sources.length, sources, lenses };
+}
+
 const fold = (t: unknown) => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f\u02bf\u02be'’]/g, '').toLowerCase();
 
 export function atlasRoutes(router: Router<WorldviewEnv>) {
@@ -310,7 +420,14 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
   // not the whole built tree. A slice is only rebuilt when the atlas has moved, so it is built from the tree as it
   // is now — never from the kept whole tree, which may still be the old one (served stale while it is checked),
   // and would then be kept under the new version until the hour turned.
-  const tree = async (env: WorldviewEnv) => ((await buildAtlas(env)) as { rooms: Room[] }).rooms;
+  // Slices rebuilt together (the atlas moved, every open screen asks again) share one build of the tree.
+  let shared: { at: number; p: Promise<Built> } | null = null;
+  const tree = async (env: WorldviewEnv) => {
+    if (!shared || Date.now() - shared.at > 20_000) shared = { at: Date.now(), p: buildAtlas(env) };
+    const p = shared.p;
+    p.catch(() => { if (shared?.p === p) shared = null; });
+    return ((await p) as { rooms: Room[] }).rooms;
+  };
 
   dual(router, 'get', '/atlas/home', async (_req, env) => ok(await cached(env, 'home:v4', async () => ({
     rooms: (await tree(env)).map((r) => ({ ...r, shelf_count: r.shelves.length, shelves: [] })),
@@ -376,6 +493,17 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
     let detail: unknown = null;
     try { detail = rows[0]?.meta_json ? JSON.parse(rows[0].meta_json) : null; } catch { detail = null; }
     return ok({ id, detail });
+  });
+
+  // Everything the library holds on one strand (an ism), by person. A source is on it when its own metadata says so
+  // (a theme — 'gender/feminism' is on feminism —, the strand's tradition, or its own tag: meta.liberalism = yes|maybe),
+  // or when its text names the strand's term (term links, counted as
+  // mentions). Each source carries the first unit of its text, so the app opens the reader and fetches the rest then.
+  dual(router, 'get', '/atlas/sources', async (req, env) => {
+    const id = new URL(req.url).searchParams.get('id') ?? '';
+    const key = id.split('.').pop() ?? '';
+    if (!key) return notFound('Atlas strand');
+    return ok(await memo(env, 'corpus', `atlas-sources:v3:${id}`, () => strandSources(env, id, key)));
   });
 
   // Century by century: every dated item in the Atlas, placed in the century it
