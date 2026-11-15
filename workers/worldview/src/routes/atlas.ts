@@ -318,9 +318,9 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
   // room laid out as tiles, whose screen shows them directly.
   dual(router, 'get', '/atlas/room', async (req, env) => {
     const id = new URL(req.url).searchParams.get('id') ?? '';
-    const slice = await cached(env, `room:${id}`, async () => {
+    const slice = await cached(env, `room:v3:${id}`, async () => {
       const room = (await tree(env)).find((r) => r.id === id);
-      return room ? { room: { ...room, shelves: room.shelves.map((s) => shelfCard(s, room.layout === 'tiles')) } } : {};
+      return room ? { room: { ...room, shelves: room.shelves.map((s) => shelfCard(s, room.layout === 'tiles' || (s as { layout?: string | null }).layout === 'cards')) } } : {};
     });
     return slice.room ? ok(slice) : notFound('Atlas room');
   });
