@@ -219,7 +219,7 @@ async function buildAtlas(env: WorldviewEnv): Promise<Built> {
     const rooms = rows.filter((r) => r.kind === 'room').map((room) => {
       const shelves = kids(room.id).map((s) => {
         const its = meta(s).view ? ageView(s) : items(s.id);
-        return { id: s.id, title: s.title, title_ar: s.title_ar, tagline: s.tagline, ...shelfSpan(s, its), items: its };
+        return { id: s.id, title: s.title, title_ar: s.title_ar, tagline: s.tagline, layout: s.layout ?? null, ...shelfSpan(s, its), items: its };
       });
       const all = flat(shelves.flatMap((s) => s.items));
       return {
@@ -303,14 +303,14 @@ const fold = (t: unknown) => String(t ?? '').normalize('NFD').replace(/[\u0300-\
 
 export function atlasRoutes(router: Router<WorldviewEnv>) {
   // The whole tree — for older app builds and the Global Terms fields.
-  dual(router, 'get', '/atlas', async (_req, env) => ok(await cached(env, 'atlas:v2', () => buildAtlas(env))));
+  dual(router, 'get', '/atlas', async (_req, env) => ok(await cached(env, 'atlas:v3', () => buildAtlas(env))));
 
   // The home: the rooms, with their counts; no shelves.
   // Each slice is kept on its own too, so a fresh isolate reads a few KB,
   // not the whole built tree.
-  const tree = async (env: WorldviewEnv) => ((await cached(env, 'atlas:v2', () => buildAtlas(env))) as { rooms: Room[] }).rooms;
+  const tree = async (env: WorldviewEnv) => ((await cached(env, 'atlas:v3', () => buildAtlas(env))) as { rooms: Room[] }).rooms;
 
-  dual(router, 'get', '/atlas/home', async (_req, env) => ok(await cached(env, 'home:v2', async () => ({
+  dual(router, 'get', '/atlas/home', async (_req, env) => ok(await cached(env, 'home:v3', async () => ({
     rooms: (await tree(env)).map((r) => ({ ...r, shelf_count: r.shelves.length, shelves: [] })),
   }))));
 
@@ -343,7 +343,7 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
   dual(router, 'get', '/atlas/search', async (req, env) => {
     const q = fold(new URL(req.url).searchParams.get('q')).trim();
     if (!q) return ok({ rooms: [], shelves: [], items: [] });
-    const { rooms } = (await cached(env, 'atlas:v2', () => buildAtlas(env))) as { rooms: Room[] };
+    const { rooms } = (await cached(env, 'atlas:v3', () => buildAtlas(env))) as { rooms: Room[] };
     const hit = (...xs: unknown[]) => xs.some((x) => fold(x).includes(q));
     const where = (r: Room) => ({ id: r.id, title: r.title, color: r.color });
     const seen = new Set<string>();
@@ -384,7 +384,7 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
   // Without it, every entry of every century (older app builds).
   type Century = { century: number; entries: unknown[]; [k: string]: unknown };
   const centuries = async (env: WorldviewEnv) =>
-    ((await cached(env, 'centuries:v2', () => buildCenturies(env))) as { centuries: Century[] }).centuries;
+    ((await cached(env, 'centuries:v3', () => buildCenturies(env))) as { centuries: Century[] }).centuries;
   dual(router, 'get', '/atlas/centuries', async (req, env) => {
     if (new URL(req.url).searchParams.get('lean') !== '1') return ok({ centuries: await centuries(env) });
     return ok({ centuries: (await centuries(env)).map(({ entries, ...c }) => ({
