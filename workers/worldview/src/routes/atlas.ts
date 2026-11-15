@@ -307,10 +307,12 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
 
   // The home: the rooms, with their counts; no shelves.
   // Each slice is kept on its own too, so a fresh isolate reads a few KB,
-  // not the whole built tree.
-  const tree = async (env: WorldviewEnv) => ((await cached(env, 'atlas:v3', () => buildAtlas(env))) as { rooms: Room[] }).rooms;
+  // not the whole built tree. A slice is only rebuilt when the atlas has moved, so it is built from the tree as it
+  // is now — never from the kept whole tree, which may still be the old one (served stale while it is checked),
+  // and would then be kept under the new version until the hour turned.
+  const tree = async (env: WorldviewEnv) => ((await buildAtlas(env)) as { rooms: Room[] }).rooms;
 
-  dual(router, 'get', '/atlas/home', async (_req, env) => ok(await cached(env, 'home:v3', async () => ({
+  dual(router, 'get', '/atlas/home', async (_req, env) => ok(await cached(env, 'home:v4', async () => ({
     rooms: (await tree(env)).map((r) => ({ ...r, shelf_count: r.shelves.length, shelves: [] })),
   }))));
 
@@ -318,7 +320,7 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
   // room laid out as tiles, whose screen shows them directly.
   dual(router, 'get', '/atlas/room', async (req, env) => {
     const id = new URL(req.url).searchParams.get('id') ?? '';
-    const slice = await cached(env, `room:v3:${id}`, async () => {
+    const slice = await cached(env, `room:v4:${id}`, async () => {
       const room = (await tree(env)).find((r) => r.id === id);
       return room ? { room: { ...room, shelves: room.shelves.map((s) => shelfCard(s, room.layout === 'tiles' || (s as { layout?: string | null }).layout === 'cards')) } } : {};
     });
@@ -328,7 +330,7 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
   // A shelf (or an age): everything on it.
   dual(router, 'get', '/atlas/shelf', async (req, env) => {
     const id = new URL(req.url).searchParams.get('id') ?? '';
-    const slice = await cached(env, `shelf:v3:${id}`, async () => {
+    const slice = await cached(env, `shelf:v4:${id}`, async () => {
       for (const room of await tree(env)) {
         const shelf = room.shelves.find((s) => s.id === id);
         if (shelf) return { shelf, room: { id: room.id, title: room.title, color: room.color } };
