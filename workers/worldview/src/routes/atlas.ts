@@ -95,7 +95,13 @@ async function loadAtlas(env: WorldviewEnv) {
           if (d?.summary) overview = { figures: d.figures?.length ?? 0, works: d.works?.length ?? 0 };
         } catch { overview = null; }
       }
-      return { ...base, title: r.title, title_ar: r.title_ar, tagline: r.tagline, span: r.span, way: r.way, overview };
+      // a planned strand whose arc is being read keeps its overview page and carries the arc's card to open from it
+      let arc_ref: unknown = null;
+      if (r.kind === 'planned' && r.arc_id && card.has(r.arc_id)) {
+        const { shelf: _s, order: _o, ...c } = card.get(r.arc_id) as ArcCardOut;
+        arc_ref = c;
+      }
+      return { ...base, title: r.title, title_ar: r.title_ar, tagline: r.tagline, span: r.span, way: r.way, overview, arc_ref };
     };
     // An age holds nothing of its own. It is a view: its years, and the shelves it
     // gathers from. Each source becomes a group holding only what overlaps the
