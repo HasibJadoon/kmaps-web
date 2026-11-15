@@ -329,7 +329,7 @@ async function buildUnit(db: D1Database, unit: string, lean: boolean): Promise<U
         ORDER BY COALESCE(json_extract(c.meta_json, '$.order'), 999), c.id`, [phase]);
     const i = all.findIndex((c) => c.id === u.corpus_id);
     const ref = (c?: { title: string; unit: string | null }) => (c?.unit ? { id: c.unit, title: c.title } : null);
-    if (i >= 0) talks = { n: i + 1, of: all.length, prev: ref(all[i - 1]), next: ref(all[i + 1]) };
+    if (i >= 0 && all.length > 1) talks = { n: i + 1, of: all.length, prev: ref(all[i - 1]), next: ref(all[i + 1]) };
   }
   return {
     id: u.id, work: u.work, title: u.title, phase,
@@ -494,7 +494,7 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
   dual(router, 'get', '/corpus/units/:unit', async (req, env, { unit }) => {
     const lean = new URL(req.url).searchParams.get('lean') === '1';
     type Kept = UnitCore & { links: Record<string, LinkRow[]>; proposals: Record<string, unknown[]> };
-    const kept = await memo<Kept | null>(env, 'corpus', `unit:${unit}:${lean ? 'lean' : 'full'}:v4`, async () => {
+    const kept = await memo<Kept | null>(env, 'corpus', `unit:${unit}:${lean ? 'lean' : 'full'}:v5`, async () => {
       const core = await buildUnit(env.DB_WV, unit, lean);
       if (!core) return null;
       const ids = core.passages.map((p) => p.id as string);
