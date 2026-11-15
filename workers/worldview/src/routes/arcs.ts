@@ -234,7 +234,8 @@ export async function arcCards(db: D1Database): Promise<ArcCardOut[]> {
 }
 
 type BlockMeta = {
-  lines?: Array<{ n: string; t: string; s?: string }>; en_alt?: string; footnotes?: string[];
+  // w: a talk's word timings — [start, end] per space-separated word of t, on the video's clock (talk_word_times.py)
+  lines?: Array<{ n: string; t: string; s?: string; w?: number[][] }>; en_alt?: string; footnotes?: string[];
   section?: number | string; time?: { label: string; url: string | null; start?: number };
   // global WV terms said in the passage: the line, and the UTF-16 offset and length of the words
   terms?: Array<{ id: string; line: number; at: number; len: number }>;
@@ -498,7 +499,7 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
   dual(router, 'get', '/corpus/units/:unit', async (req, env, { unit }) => {
     const lean = new URL(req.url).searchParams.get('lean') === '1';
     type Kept = UnitCore & { links: Record<string, LinkRow[]>; proposals: Record<string, unknown[]> };
-    const kept = await memo<Kept | null>(env, 'corpus', `unit:${unit}:${lean ? 'lean' : 'full'}:v6`, async () => {
+    const kept = await memo<Kept | null>(env, 'corpus', `unit:${unit}:${lean ? 'lean' : 'full'}:v7`, async () => {
       const core = await buildUnit(env.DB_WV, unit, lean);
       if (!core) return null;
       const ids = core.passages.map((p) => p.id as string);
