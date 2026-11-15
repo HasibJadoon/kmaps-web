@@ -328,7 +328,7 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
   // A shelf (or an age): everything on it.
   dual(router, 'get', '/atlas/shelf', async (req, env) => {
     const id = new URL(req.url).searchParams.get('id') ?? '';
-    const slice = await cached(env, `shelf:${id}`, async () => {
+    const slice = await cached(env, `shelf:v3:${id}`, async () => {
       for (const room of await tree(env)) {
         const shelf = room.shelves.find((s) => s.id === id);
         if (shelf) return { shelf, room: { id: room.id, title: room.title, color: room.color } };
