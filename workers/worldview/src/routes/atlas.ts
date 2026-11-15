@@ -89,19 +89,25 @@ async function loadAtlas(env: WorldviewEnv) {
       // a planned strand carries only a note of its researched detail here — whether it has one, and
       // how many figures and works; the detail itself comes from GET /atlas/detail when it is opened
       let overview: { figures: number; works: number } | null = null;
+      let phaseId: string | null = null;
       if (r.kind === 'planned' && r.meta_json) {
         try {
           const d = JSON.parse(r.meta_json);
           if (d?.summary) overview = { figures: d.figures?.length ?? 0, works: d.works?.length ?? 0 };
+          phaseId = typeof d?.phase_ref === 'string' ? d.phase_ref : null;
         } catch { overview = null; }
       }
       // a planned strand whose arc is being read keeps its overview page and carries the arc's card to open from it
+      // — or, with a phase named, that one phase of it (the Reformation is the Liberalism arc's Roots)
       let arc_ref: unknown = null;
+      let phase_ref: unknown = null;
       if (r.kind === 'planned' && r.arc_id && card.has(r.arc_id)) {
         const { shelf: _s, order: _o, ...c } = card.get(r.arc_id) as ArcCardOut;
         arc_ref = c;
+        const ph = phaseId ? (c as { phases?: { id: string; title: string; color: string }[] }).phases?.find((x) => x.id === phaseId) : null;
+        if (ph) phase_ref = ph;
       }
-      return { ...base, title: r.title, title_ar: r.title_ar, tagline: r.tagline, span: r.span, way: r.way, overview, arc_ref };
+      return { ...base, title: r.title, title_ar: r.title_ar, tagline: r.tagline, span: r.span, way: r.way, overview, arc_ref, phase_ref };
     };
     // An age holds nothing of its own. It is a view: its years, and the shelves it
     // gathers from. Each source becomes a group holding only what overlaps the
@@ -314,6 +320,10 @@ const themeTitle = (t: string) => t.split('/').map((w) => w.charAt(0).toUpperCas
 /** The sources on one strand, and five ways to read them: by author, topic (the strand's arc phases), theme,
  *  primary or secondary literature, and stance. Groups name their sources by id; the sources come once. */
 async function strandSources(env: WorldviewEnv, id: string, key: string) {
+  // a strand that is one phase of an arc (the Reformation → Liberalism's Roots) also holds that phase's sources
+  const own = await query<{ phase: string | null }>(env.DB_WV,
+    `SELECT json_extract(meta_json, '$.phase_ref') AS phase FROM wv_atlas WHERE id = ?`, [id]);
+  const phase = own[0]?.phase ?? null;
   const [rows, phases] = await Promise.all([
     query<StrandRow>(env.DB_WV,
     `WITH named AS (
@@ -324,13 +334,15 @@ async function strandSources(env: WorldviewEnv, id: string, key: string) {
         GROUP BY b.corpus_id),
      hit AS (
        SELECT s.*, json_extract(s.meta_json, '$.corpus_id') AS cid,
-              CASE WHEN EXISTS (SELECT 1 FROM json_each(s.meta_json, '$.themes') j WHERE j.value = ?1 OR j.value LIKE ?1 || '/%' OR j.value LIKE '%/' || ?1) THEN 'theme'
+              CASE WHEN json_extract(s.meta_json, '$.phase') = ?2 THEN 'phase'
+                   WHEN EXISTS (SELECT 1 FROM json_each(s.meta_json, '$.themes') j WHERE j.value = ?1 OR j.value LIKE ?1 || '/%' OR j.value LIKE '%/' || ?1) THEN 'theme'
                    WHEN s.tradition_id = 'wv-tradition-' || ?1 THEN 'tradition'
                    WHEN json_extract(s.meta_json, '$."' || ?1 || '"') IN ('yes', 'maybe') THEN 'tagged'
                    ELSE 'named' END AS via
          FROM wv_sources s
         WHERE s.source_type <> 'arc'
-          AND (EXISTS (SELECT 1 FROM json_each(s.meta_json, '$.themes') j WHERE j.value = ?1 OR j.value LIKE ?1 || '/%' OR j.value LIKE '%/' || ?1)
+          AND (json_extract(s.meta_json, '$.phase') = ?2
+               OR EXISTS (SELECT 1 FROM json_each(s.meta_json, '$.themes') j WHERE j.value = ?1 OR j.value LIKE ?1 || '/%' OR j.value LIKE '%/' || ?1)
                OR s.tradition_id = 'wv-tradition-' || ?1
                OR json_extract(s.meta_json, '$."' || ?1 || '"') IN ('yes', 'maybe')
                OR json_extract(s.meta_json, '$.corpus_id') IN (SELECT cid FROM named)))
@@ -345,7 +357,7 @@ async function strandSources(env: WorldviewEnv, id: string, key: string) {
        FROM hit h
        LEFT JOIN named n ON n.cid = h.cid
        LEFT JOIN core_person p ON p.id = h.person_ref
-      ORDER BY ifnull(json_extract(h.meta_json, '$.date'), h.published_year) DESC, h.title`, [key]),
+      ORDER BY ifnull(json_extract(h.meta_json, '$.date'), h.published_year) DESC, h.title`, [key, phase ?? '']),
     query<{ id: string; title: string }>(env.DB_WV,
       `SELECT u.id, u.title FROM wv_source_units u
         WHERE u.unit_type = 'phase' AND u.source_id = (SELECT a.arc_id FROM wv_atlas a WHERE a.id = ?)
@@ -363,7 +375,9 @@ async function strandSources(env: WorldviewEnv, id: string, key: string) {
   // by author: each person, under their kind (scholars first)
   const byPerson = new Map<string, { name: string; ref: string | null; section: string; ids: string[]; mentions: number }>();
   for (const s of sources) {
-    const name = s.person ?? s.creator ?? 'Other sources';
+    // a person not yet in the people table is still named, from their id (PN:noam-chomsky → Noam Chomsky)
+    const fromRef = s.person_ref?.replace(/^PN:/, '').split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    const name = s.person ?? s.creator ?? fromRef ?? 'Other sources';
     const k = s.person_ref ?? `name:${name}`;
     const g = byPerson.get(k) ?? { name, ref: s.person_ref, section: PERSON_SECTION[s.person_type ?? ''] ?? 'Others', ids: [], mentions: 0 };
     g.ids.push(s.id); g.mentions += s.mentions; byPerson.set(k, g);
@@ -413,7 +427,7 @@ const fold = (t: unknown) => String(t ?? '').normalize('NFD').replace(/[\u0300-\
 
 export function atlasRoutes(router: Router<WorldviewEnv>) {
   // The whole tree — for older app builds and the Global Terms fields.
-  dual(router, 'get', '/atlas', async (_req, env) => ok(await cached(env, 'atlas:v3', () => buildAtlas(env))));
+  dual(router, 'get', '/atlas', async (_req, env) => ok(await cached(env, 'atlas:v4', () => buildAtlas(env))));
 
   // The home: the rooms, with their counts; no shelves.
   // Each slice is kept on its own too, so a fresh isolate reads a few KB,
@@ -429,7 +443,7 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
     return ((await p) as { rooms: Room[] }).rooms;
   };
 
-  dual(router, 'get', '/atlas/home', async (_req, env) => ok(await cached(env, 'home:v4', async () => ({
+  dual(router, 'get', '/atlas/home', async (_req, env) => ok(await cached(env, 'home:v5', async () => ({
     rooms: (await tree(env)).map((r) => ({ ...r, shelf_count: r.shelves.length, shelves: [] })),
   }))));
 
@@ -437,7 +451,7 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
   // room laid out as tiles, whose screen shows them directly.
   dual(router, 'get', '/atlas/room', async (req, env) => {
     const id = new URL(req.url).searchParams.get('id') ?? '';
-    const slice = await cached(env, `room:v4:${id}`, async () => {
+    const slice = await cached(env, `room:v5:${id}`, async () => {
       const room = (await tree(env)).find((r) => r.id === id);
       return room ? { room: { ...room, shelves: room.shelves.map((s) => shelfCard(s, room.layout === 'tiles' || (s as { layout?: string | null }).layout === 'cards')) } } : {};
     });
@@ -447,7 +461,7 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
   // A shelf (or an age): everything on it.
   dual(router, 'get', '/atlas/shelf', async (req, env) => {
     const id = new URL(req.url).searchParams.get('id') ?? '';
-    const slice = await cached(env, `shelf:v4:${id}`, async () => {
+    const slice = await cached(env, `shelf:v5:${id}`, async () => {
       for (const room of await tree(env)) {
         const shelf = room.shelves.find((s) => s.id === id);
         if (shelf) return { shelf, room: { id: room.id, title: room.title, color: room.color } };
@@ -462,7 +476,7 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
   dual(router, 'get', '/atlas/search', async (req, env) => {
     const q = fold(new URL(req.url).searchParams.get('q')).trim();
     if (!q) return ok({ rooms: [], shelves: [], items: [] });
-    const { rooms } = (await cached(env, 'atlas:v3', () => buildAtlas(env))) as { rooms: Room[] };
+    const { rooms } = (await cached(env, 'atlas:v4', () => buildAtlas(env))) as { rooms: Room[] };
     const hit = (...xs: unknown[]) => xs.some((x) => fold(x).includes(q));
     const where = (r: Room) => ({ id: r.id, title: r.title, color: r.color });
     const seen = new Set<string>();
@@ -503,7 +517,7 @@ export function atlasRoutes(router: Router<WorldviewEnv>) {
     const id = new URL(req.url).searchParams.get('id') ?? '';
     const key = id.split('.').pop() ?? '';
     if (!key) return notFound('Atlas strand');
-    return ok(await memo(env, 'corpus', `atlas-sources:v3:${id}`, () => strandSources(env, id, key)));
+    return ok(await memo(env, 'corpus', `atlas-sources:v4:${id}`, () => strandSources(env, id, key)));
   });
 
   // Century by century: every dated item in the Atlas, placed in the century it
