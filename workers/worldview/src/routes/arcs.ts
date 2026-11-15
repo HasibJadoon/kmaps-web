@@ -266,7 +266,7 @@ function voicesOf(bm: BlockMeta, lines: Array<{ t: string }>, timings: boolean) 
 }
 
 type UnitCore = { id: string; work: string; title: string; phase: string | null; labels: unknown;
-                  about: unknown; video: unknown; key_terms: unknown; talks: unknown;
+                  about: unknown; video: unknown; audio: unknown; key_terms: unknown; talks: unknown;
                   prev: unknown; next: unknown; passages: Array<Record<string, unknown>> };
 
 /** A section of a transcript, as the unit's meta_json lists it. */
@@ -295,7 +295,8 @@ async function buildUnit(db: D1Database, unit: string, lean: boolean): Promise<U
   const um = parse<{ phase?: string; sections?: SectionMeta[] }>(u.meta_json, {});
   const phase = um.phase ?? null;
   // a talk's header: who, where, when, how long, its thesis, and where to watch it
-  const wm = parse<{ about?: unknown; video?: { provider: string; id: string } | null; arc?: string; order?: number }>(u.work_meta, {});
+  const wm = parse<{ about?: unknown; video?: { provider: string; id: string } | null; audio?: { key: string; duration: number } | null;
+                     arc?: string; order?: number }>(u.work_meta, {});
   const about = wm.about ?? null;
   const arc = phase ? await queryOne<{ meta_json: string | null }>(db,
     `SELECT s.meta_json FROM wv_sources s JOIN wv_source_units su ON su.source_id = s.id WHERE su.id = ?`, [phase]) : null;
@@ -333,7 +334,10 @@ async function buildUnit(db: D1Database, unit: string, lean: boolean): Promise<U
   }
   return {
     id: u.id, work: u.work, title: u.title, phase,
-    labels: meta.labels ?? {}, about, video: wm.video ?? null, key_terms, talks,
+    labels: meta.labels ?? {}, about, video: wm.video ?? null,
+    // the talk as audio (R2, served by /wv/audio/:key+), on the video's clock: path is relative to /api/wv
+    audio: wm.audio?.key ? { path: `audio/${wm.audio.key}`, duration: wm.audio.duration } : null,
+    key_terms, talks,
     prev: siblings.find((s) => s.id !== u.id && s.id < u.id) ?? null,
     next: siblings.find((s) => s.id !== u.id && s.id > u.id) ?? null,
     passages: blocks.map((b, bi) => {
@@ -494,7 +498,7 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
   dual(router, 'get', '/corpus/units/:unit', async (req, env, { unit }) => {
     const lean = new URL(req.url).searchParams.get('lean') === '1';
     type Kept = UnitCore & { links: Record<string, LinkRow[]>; proposals: Record<string, unknown[]> };
-    const kept = await memo<Kept | null>(env, 'corpus', `unit:${unit}:${lean ? 'lean' : 'full'}:v5`, async () => {
+    const kept = await memo<Kept | null>(env, 'corpus', `unit:${unit}:${lean ? 'lean' : 'full'}:v6`, async () => {
       const core = await buildUnit(env.DB_WV, unit, lean);
       if (!core) return null;
       const ids = core.passages.map((p) => p.id as string);
