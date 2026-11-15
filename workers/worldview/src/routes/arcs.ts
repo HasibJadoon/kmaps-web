@@ -156,7 +156,7 @@ async function linksFor(db: D1Database, ids: string[]) {
     `SELECT l.id, l.entity_id, l.al_concept_ref, l.link_type, l.note, l.quote, l.core_user_ref,
             c.label_en, c.label_ar, c.domain
        FROM wv_term_links l LEFT JOIN core_concept c ON c.id = l.al_concept_ref
-      WHERE l.entity_type = 'corpus_block' AND l.entity_id IN (${ids.map(() => '?').join(',')})
+      WHERE l.entity_type = 'corpus_block' AND l.link_type <> 'term_auto' AND l.entity_id IN (${ids.map(() => '?').join(',')})
       ORDER BY l.created_at`, ids);
   const m = new Map<string, LinkRow[]>();
   for (const r of rows) m.set(r.entity_id, [...(m.get(r.entity_id) ?? []), r]);
@@ -235,6 +235,9 @@ export async function arcCards(db: D1Database): Promise<ArcCardOut[]> {
 
 type BlockMeta = {
   lines?: Array<{ n: string; t: string; s?: string }>; en_alt?: string; footnotes?: string[];
+  section?: number | string; time?: { label: string; url: string | null; start?: number };
+  // global WV terms said in the passage: the line, and the UTF-16 offset and length of the words
+  terms?: Array<{ id: string; line: number; at: number; len: number }>;
   audio_en?: { key: string; voice: string; duration: number; sentences: Array<{ t: string; s: number; e: number }>; words?: number[][] };
   // the Arabic read aloud: a clip of a public recording, cut to this page, with
   // each line's and each word's time inside the clip
@@ -263,15 +266,37 @@ function voicesOf(bm: BlockMeta, lines: Array<{ t: string }>, timings: boolean) 
 }
 
 type UnitCore = { id: string; work: string; title: string; phase: string | null; labels: unknown;
+                  about: unknown; video: unknown; key_terms: unknown; talks: unknown;
                   prev: unknown; next: unknown; passages: Array<Record<string, unknown>> };
+
+/** A section of a transcript, as the unit's meta_json lists it. */
+type SectionMeta = { n: number | string; title: string; summary?: string | null; talking_points?: string[];
+                     refs?: Array<{ label: string; detail?: string | null }> };
+
+/** A heading block's section: its number, title, one-line summary, talking
+ *  points and the āyāt and thinkers it names — from the unit's section list,
+ *  or, where a unit has none, the heading block's own lines ("3. Title", summary). */
+function headingOf(bm: { section?: number | string }, lines: Array<{ t: string }>, sections: SectionMeta[]) {
+  const s = sections.find((x) => String(x.n) === String(bm.section ?? ''));
+  const n = String(s?.n ?? bm.section ?? '');
+  return {
+    n, title: s?.title ?? (lines[0]?.t ?? '').replace(/^\s*\d+\.\s*/, ''),
+    summary: s?.summary ?? lines[1]?.t ?? null,
+    points: s?.talking_points ?? [], refs: s?.refs ?? [],
+  };
+}
 
 /** A book's passages, the same for every reader (no links, no proposals). */
 async function buildUnit(db: D1Database, unit: string, lean: boolean): Promise<UnitCore | null> {
-  const u = await queryOne<{ id: string; corpus_id: string; title: string; unit_index: number; meta_json: string | null; work: string }>(db,
-    `SELECT u.id, u.corpus_id, u.title, u.unit_index, u.meta_json, c.title AS work
+  const u = await queryOne<{ id: string; corpus_id: string; title: string; unit_index: number; meta_json: string | null; work: string; work_meta: string | null }>(db,
+    `SELECT u.id, u.corpus_id, u.title, u.unit_index, u.meta_json, c.title AS work, c.meta_json AS work_meta
        FROM wv_corpus_units u JOIN wv_scriptural_corpora c ON c.id = u.corpus_id WHERE u.id = ?`, [unit]);
   if (!u) return null;
-  const phase = parse<{ phase?: string }>(u.meta_json, {}).phase ?? null;
+  const um = parse<{ phase?: string; sections?: SectionMeta[] }>(u.meta_json, {});
+  const phase = um.phase ?? null;
+  // a talk's header: who, where, when, how long, its thesis, and where to watch it
+  const wm = parse<{ about?: unknown; video?: { provider: string; id: string } | null; arc?: string; order?: number }>(u.work_meta, {});
+  const about = wm.about ?? null;
   const arc = phase ? await queryOne<{ meta_json: string | null }>(db,
     `SELECT s.meta_json FROM wv_sources s JOIN wv_source_units su ON su.source_id = s.id WHERE su.id = ?`, [phase]) : null;
   const meta = parse<ArcMeta>(arc?.meta_json, {});
@@ -284,17 +309,45 @@ async function buildUnit(db: D1Database, unit: string, lean: boolean): Promise<U
       `SELECT id, title FROM wv_corpus_units WHERE corpus_id = ? AND unit_index IN (?, ?) ORDER BY unit_index`,
       [u.corpus_id, u.unit_index - 1, u.unit_index + 1]),
   ]);
+  // a passage plays until the next one starts
+  const starts = blocks.map((b) => parse<BlockMeta>(b.meta_json, {}).time?.start ?? null);
+  const endOf = (i: number) => { for (let j = i + 1; j < starts.length; j++) if (starts[j] != null) return starts[j]; return null; };
+  // the global terms the talk says, most said first — the page's key terms
+  const said = new Map<string, number>();
+  for (const b of blocks) for (const t of parse<BlockMeta>(b.meta_json, {}).terms ?? []) said.set(t.id, (said.get(t.id) ?? 0) + 1);
+  const termRows = said.size ? await query<{ id: string; name_en: string; name_ar: string | null; short_en: string | null; domain_slug: string | null }>(db,
+    `SELECT id, name_en, name_ar, short_en, domain_slug FROM wv_term WHERE id IN (${[...said.keys()].map(() => '?').join(',')})`, [...said.keys()]) : [];
+  const termName = new Map(termRows.map((t) => [t.id, t.name_en]));
+  const key_terms = termRows.map((t) => ({ id: t.id, name: t.name_en, name_ar: t.name_ar, short: t.short_en, domain: t.domain_slug, count: said.get(t.id) ?? 0 }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  // a talk on an arc: the talk before and after it in its phase, by the arc's order
+  let talks: unknown = null;
+  if (wm.arc && phase) {
+    const all = await query<{ id: string; title: string; unit: string | null }>(db,
+      `SELECT c.id, c.title, (SELECT x.id FROM wv_corpus_units x WHERE x.corpus_id = c.id ORDER BY x.unit_index LIMIT 1) AS unit
+         FROM wv_scriptural_corpora c WHERE json_extract(c.meta_json, '$.phase') = ?
+        ORDER BY COALESCE(json_extract(c.meta_json, '$.order'), 999), c.id`, [phase]);
+    const i = all.findIndex((c) => c.id === u.corpus_id);
+    const ref = (c?: { title: string; unit: string | null }) => (c?.unit ? { id: c.unit, title: c.title } : null);
+    if (i >= 0) talks = { n: i + 1, of: all.length, prev: ref(all[i - 1]), next: ref(all[i + 1]) };
+  }
   return {
     id: u.id, work: u.work, title: u.title, phase,
-    labels: meta.labels ?? {},
+    labels: meta.labels ?? {}, about, video: wm.video ?? null, key_terms, talks,
     prev: siblings.find((s) => s.id !== u.id && s.id < u.id) ?? null,
     next: siblings.find((s) => s.id !== u.id && s.id > u.id) ?? null,
-    passages: blocks.map((b) => {
+    passages: blocks.map((b, bi) => {
       const bm = parse<BlockMeta>(b.meta_json, {});
       const lines = linesOf(bm, b.text_orig);
       const voices = voicesOf(bm, lines, !lean);
+      const kind = b.block_type === 'heading' ? 'heading' : b.block_type === 'note' ? 'note' : 'passage';
       return {
-        id: b.id, cite: citeLabel(b.cite_raw, b.cite_end_raw),
+        id: b.id, cite: citeLabel(b.cite_raw, b.cite_end_raw), kind,
+        // a section opens with its heading; a transcript passage carries its
+        // start time and the link that plays the source from there
+        ...(kind === 'heading' ? { heading: headingOf(bm, lines, um.sections ?? []) } : {}),
+        ...(bm.time ? { time: { ...bm.time, end: endOf(bi) } } : {}),
+        ...(bm.terms?.length ? { terms: bm.terms.map((t) => ({ ...t, name: termName.get(t.id) ?? t.id })) } : {}),
         // prose numbers every section; verse every fifth line
         prose: b.block_type === 'prose', rtl: b.direction === 'rtl', lang: b.lang,
         lines, en: b.text_en, en_alt: bm.en_alt ?? null, url: b.source_url,
@@ -441,7 +494,7 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
   dual(router, 'get', '/corpus/units/:unit', async (req, env, { unit }) => {
     const lean = new URL(req.url).searchParams.get('lean') === '1';
     type Kept = UnitCore & { links: Record<string, LinkRow[]>; proposals: Record<string, unknown[]> };
-    const kept = await memo<Kept | null>(env, 'corpus', `unit:${unit}:${lean ? 'lean' : 'full'}:v2`, async () => {
+    const kept = await memo<Kept | null>(env, 'corpus', `unit:${unit}:${lean ? 'lean' : 'full'}:v4`, async () => {
       const core = await buildUnit(env.DB_WV, unit, lean);
       if (!core) return null;
       const ids = core.passages.map((p) => p.id as string);

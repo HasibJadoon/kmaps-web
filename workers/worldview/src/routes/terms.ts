@@ -3,6 +3,7 @@ import { ok, notFound, created, badRequest } from '../../../shared/src/response'
 import { query, queryOne, execute } from '../../../shared/src/db';
 import type { WorldviewEnv } from '../env';
 import { dual } from './prefix';
+import { softFail } from '../../../shared/src/soft-fail';
 
 const COLS = `id, domain_slug, category_key, term_key, name_en, name_ar, name_ur,
               short_en, definition_en, parent_term_id, tradition_id, concept_ref,
@@ -106,7 +107,15 @@ export function termRoutes(router: Router<WorldviewEnv>) {
         env.DB_WV, `SELECT COUNT(*) AS n FROM wv_node_edges WHERE relation_type = ?`, [term.term_key]))?.n ?? 0;
     }
 
-    return ok({ term, ancestry, children, usedBy });
+    // where the term is said: transcript passages linked to it (wv_term_links), newest work first
+    const said = await query<{ block: string; unit: string; cite: string; work: string; quote: string | null }>(env.DB_WV,
+      `SELECT b.id AS block, b.corpus_unit_id AS unit, b.cite_raw AS cite, c.title AS work, l.quote
+         FROM wv_term_links l JOIN wv_corpus_block b ON b.id = l.entity_id JOIN wv_scriptural_corpora c ON c.id = b.corpus_id
+        WHERE l.al_concept_ref = ? AND l.entity_type = 'corpus_block'
+        ORDER BY c.date_range DESC, b.cite_sort LIMIT 60`, [id]).catch(softFail<Array<{ block: string; unit: string; cite: string; work: string; quote: string | null }>>([]));
+    if (term.category_key !== 'node_type' && term.category_key !== 'relation_type') usedBy = said.length;
+
+    return ok({ term, ancestry, children, usedBy, said });
   });
 
   dual(router, 'post', '/terms', async (req, env) => {
