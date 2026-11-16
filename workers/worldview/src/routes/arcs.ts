@@ -3,6 +3,7 @@ import { ok, notFound, created, badRequest, unauthorized, noContent } from '../.
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { actorRef } from '../../../shared/src/auth';
 import { ulid } from '../../../shared/src/ulid';
+import { softFail } from '../../../shared/src/soft-fail';
 import type { WorldviewEnv } from '../env';
 import { memo } from '../cache';
 import { dual } from './prefix';
@@ -454,8 +455,8 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
       [phase, arc.id]);
     if (!u) return notFound(`phase ${phase}`);
     const counts = await keptPhaseCounts(env);
-    const works = await query<{ id: string; title: string; date_range: string | null; meta_json: string | null }>(env.DB_WV,
-      `SELECT id, title, date_range, meta_json FROM wv_scriptural_corpora
+    const works = await query<{ id: string; title: string; date_range: string | null; description_md: string | null; meta_json: string | null }>(env.DB_WV,
+      `SELECT id, title, date_range, description_md, meta_json FROM wv_scriptural_corpora
         WHERE json_extract(meta_json, '$.phase') = ?
         ORDER BY COALESCE(json_extract(meta_json, '$.order'), 999), id`, [phase]);
     const books = await query<{ id: string; corpus_id: string; title: string; unit_index: number; start_ref: string; end_ref: string; text_excerpt: string | null; passages: number }>(env.DB_WV,
@@ -464,14 +465,43 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
          FROM wv_corpus_units u
         WHERE u.corpus_id IN (SELECT id FROM wv_scriptural_corpora WHERE json_extract(meta_json, '$.phase') = ?)
         ORDER BY u.corpus_id, u.unit_index`, [phase]);
+    // the concepts each chapter says most (from the passages' concept links) — a book's themes are its chapters' themes
+    const said = await query<{ corpus_id: string; unit: string; id: string; label: string | null; n: number }>(env.DB_WV,
+      `SELECT b.corpus_id, b.corpus_unit_id AS unit, l.al_concept_ref AS id, COALESCE(k.label_en, t.name_en) AS label, count(*) AS n
+         FROM wv_term_links l
+         JOIN wv_corpus_block b ON b.id = l.entity_id
+         LEFT JOIN core_concept k ON k.id = l.al_concept_ref
+         LEFT JOIN wv_term t ON t.id = l.al_concept_ref
+        WHERE l.entity_type = 'corpus_block'
+          AND b.corpus_id IN (SELECT id FROM wv_scriptural_corpora WHERE json_extract(meta_json, '$.phase') = ?)
+        GROUP BY b.corpus_id, b.corpus_unit_id, l.al_concept_ref`, [phase]).catch(softFail([] as { corpus_id: string; unit: string; id: string; label: string | null; n: number }[]));
+    const top = (rows: typeof said, k: number) => {
+      const m = new Map<string, { id: string; label: string; n: number }>();
+      for (const r of rows) {
+        if (!r.label) continue;
+        const e = m.get(r.id) ?? { id: r.id, label: r.label, n: 0 };
+        e.n += r.n;
+        m.set(r.id, e);
+      }
+      return [...m.values()].sort((a, b) => b.n - a.n || a.label.localeCompare(b.label)).slice(0, k);
+    };
     const L = meta.labels ?? {};
     return ok({
       ...shapePhase(u, meta, counts.get(u.id)),
       labels: L, lenses: meta.lenses ?? [],
       works: works.map((w) => {
         const wm = parse<Record<string, string>>(w.meta_json, {});
+        const about = (wm as unknown as { about?: { facts?: string[] } }).about;
+        const mine = books.filter((b) => b.corpus_id === w.id);
+        const passages = mine.reduce((n, b) => n + (b.passages ?? 0), 0);
+        // the book's own card: who wrote it, what it is, and how much there is to read
+        const chapters = mine.length === 1 ? '1 part' : `${mine.length} parts`;
         return {
           id: w.id, title: w.title, date: w.date_range,
+          author: wm.author ?? about?.facts?.[0] ?? null,
+          summary: w.description_md,
+          stat: `${chapters} · ${count(L, 'passages', passages)}`,
+          concepts: top(said.filter((s) => s.corpus_id === w.id), 6),
           facts: [
             wm.edition && { label: L.edition ?? 'Edition', value: wm.edition },
             wm.translation && { label: L.translation ?? 'Translation', value: wm.translation },
@@ -482,6 +512,7 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
             range: b.end_ref && b.end_ref !== b.start_ref ? `${b.start_ref}–${b.end_ref}` : (b.start_ref ?? ''),
             opening: b.text_excerpt,
             stat: count(L, 'passages', b.passages),
+            concepts: top(said.filter((s) => s.unit === b.id), 3),
           })),
         };
       }),
@@ -592,9 +623,14 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
   dual(router, 'get', '/concepts/:id/backlinks', async (req, env, { id }) => {
     type Row = LinkRow & { cite_raw: string; cite_end_raw: string | null; unit: string; work_id: string; work: string; phase: string | null; en: string | null; lines: string | null };
     type C = { id: string; label_en: string; label_ar: string | null; domain: string; note_md: string | null };
-    const kept = await memo<{ c: C; rows: Row[]; positions: number } | null>(env, 'corpus', `backlinks:${id}`, async () => {
+    type P = { id: string; title: string; text: string; tradition: string | null; meta_json: string | null;
+               sources: string | null };
+    const kept = await memo<{ c: C; rows: Row[]; positions: number; layered: P[] } | null>(env, 'corpus', `backlinks:v2:${id}`, async () => {
+      // a registry concept, or a Global Term (the auto-linker's vocabulary)
       const c = await queryOne<C>(env.DB_WV,
-        `SELECT id, label_en, label_ar, domain, note_md FROM core_concept WHERE id = ?`, [id]);
+        `SELECT id, label_en, label_ar, domain, note_md FROM core_concept WHERE id = ?`, [id])
+        ?? await queryOne<C>(env.DB_WV,
+          `SELECT id, name_en AS label_en, name_ar AS label_ar, domain_slug AS domain, short_en AS note_md FROM wv_term WHERE id = ?`, [id]);
       if (!c) return null;
       const rows = await query<Row>(env.DB_WV,
         `SELECT l.id, l.entity_id, l.al_concept_ref, l.link_type, l.note, l.quote, l.core_user_ref,
@@ -609,10 +645,41 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
           ORDER BY c.id, b.cite_sort`, [id]);
       const positions = await queryOne<{ n: number }>(env.DB_WV,
         `SELECT count(*) AS n FROM wv_value_positions WHERE concept_ref = ?`, [id]);
-      return { c, rows, positions: positions?.n ?? 0 };
+      // the concept read in layers (scripts/worldview/concept_layers.py): each position with the passages it rests on
+      const layered = await query<P>(env.DB_WV,
+        `SELECT p.id, p.position_title AS title, p.position_text AS text, t.title AS tradition, p.meta_json,
+                (SELECT json_group_array(json_object('work', s2.title, 'passage', s.locator, 'unit', b.corpus_unit_id,
+                        'cite', b.cite_raw, 'excerpt', s.excerpt))
+                   FROM wv_value_position_source s
+                   LEFT JOIN wv_sources s2 ON s2.id = s.source_id
+                   LEFT JOIN wv_corpus_block b ON b.id = s.locator
+                  WHERE s.position_id = p.id) AS sources
+           FROM wv_value_positions p LEFT JOIN wv_traditions t ON t.id = p.tradition_id
+          WHERE p.concept_ref = ? AND p.position_type = 'concept-layer' AND p.status = 'live'`, [id]).catch(softFail([] as P[]));
+      return { c, rows, positions: positions?.n ?? 0, layered };
     });
     if (!kept) return notFound(`concept ${id}`);
-    const { c, rows, positions } = kept;
+    const { c, rows, positions, layered } = kept;
+    // the layers, in reading order: what came before, the core idea, who builds on it, who answers it, what stands beside it
+    const LAYERS: Array<[string, string, string]> = [
+      ['before', 'Before it', 'The ground it grew from — and the view it overturned'],
+      ['core', 'The core', 'The idea in its classic form'],
+      ['extends', 'Building on it', 'Those who take it further'],
+      ['critique', 'Answering it', 'Those who push back — why, what they share, where they part'],
+      ['beside', 'Beside it', 'Another tradition’s way with the same question'],
+    ];
+    const shaped = layered.map((p) => {
+      const m = parse<Record<string, unknown>>(p.meta_json, {});
+      return {
+        id: p.id, layer: String(m.layer ?? 'core'), order: Number(m.order ?? 0), title: p.title, text: p.text, tradition: p.tradition,
+        stance: (m.stance as string) ?? null, work: (m.work as string) ?? null, year: (m.year as number) ?? null,
+        why: (m.why as string) ?? null, agrees: (m.agrees as string) ?? null, differs: (m.differs as string) ?? null,
+        sources: parse<Array<Record<string, unknown>>>(p.sources, []).filter((s) => s.passage),
+      };
+    });
+    const layers = LAYERS.map(([key, title, line]) => ({
+      key, title, line, positions: shaped.filter((p) => p.layer === key).sort((a, b) => a.order - b.order),
+    })).filter((l) => l.positions.length > 0);
     const me = actorRef(req);
     const works = new Map<string, { id: string; title: string; phase: string | null; passages: unknown[] }>();
     for (const r of rows) {
@@ -625,21 +692,30 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
     }
     return ok({
       id: c.id, label: c.label_en, label_ar: c.label_ar, domain: c.domain, note: c.note_md,
-      total: rows.length, positions, works: [...works.values()],
+      total: rows.length, positions, layers,
+      favour: shaped.filter((p) => p.stance === 'advocate').length, against: shaped.filter((p) => p.stance === 'critique').length,
+      works: [...works.values()],
     });
   });
 
   // The concepts a phase's reading has touched, most linked first.
   dual(router, 'get', '/arcs/:id/phases/:phase/concepts', async (_req, env, { phase }) => {
-    const rows = await query<{ id: string; label_en: string; label_ar: string | null; domain: string; n: number; works: number }>(env.DB_WV,
-      `SELECT k.id, k.label_en, k.label_ar, k.domain, count(*) AS n, count(DISTINCT b.corpus_id) AS works
+    // A link names a registry concept (core_concept) or a Global Term (wv_term, what the auto-linker uses) — both count.
+    // Each concept carries the works that share it, most-linked first, so a card can show where the idea recurs.
+    const rows = await query<{ id: string; label_en: string; label_ar: string | null; domain: string | null; n: number; works: number; titles: string | null }>(env.DB_WV,
+      `SELECT l.al_concept_ref AS id, COALESCE(k.label_en, t.name_en) AS label_en, COALESCE(k.label_ar, t.name_ar) AS label_ar,
+              COALESCE(k.domain, t.domain_slug) AS domain, count(*) AS n, count(DISTINCT b.corpus_id) AS works,
+              group_concat(DISTINCT replace(c.title, ',', '‚')) AS titles
          FROM wv_term_links l
          JOIN wv_corpus_block b ON b.id = l.entity_id
          JOIN wv_scriptural_corpora c ON c.id = b.corpus_id
-         JOIN core_concept k ON k.id = l.al_concept_ref
+         LEFT JOIN core_concept k ON k.id = l.al_concept_ref
+         LEFT JOIN wv_term t ON t.id = l.al_concept_ref
         WHERE l.entity_type = 'corpus_block' AND json_extract(c.meta_json, '$.phase') = ?
-        GROUP BY k.id ORDER BY n DESC, k.label_en`, [phase]);
-    return ok(rows.map((r) => ({ id: r.id, label: r.label_en, label_ar: r.label_ar, domain: r.domain, links: r.n, works: r.works })));
+          AND (k.id IS NOT NULL OR t.id IS NOT NULL)
+        GROUP BY l.al_concept_ref ORDER BY works DESC, n DESC, label_en`, [phase]);
+    return ok(rows.map((r) => ({ id: r.id, label: r.label_en, label_ar: r.label_ar, domain: r.domain, links: r.n, works: r.works,
+      shared_by: (r.titles ?? '').split(',').filter(Boolean).slice(0, 6).map((t) => t.replace(/‚/g, ',')) })));
   });
 
   // Review: each link turned into a recall card — the concept asks, the
