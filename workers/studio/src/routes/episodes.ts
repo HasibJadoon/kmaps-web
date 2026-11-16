@@ -193,7 +193,30 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     const rows = series
       ? await repo.listSeriesEpisodes(user, series, wsIds)
       : await repo.listEpisodes(user, wsIds);
-    return ok(rows);
+    const plans = await repo.checklistFor(rows);
+    return ok(rows.map((r) => (plans.has(r.id) ? { ...r, checklist: plans.get(r.id) } : r)));
+  });
+
+  /// Tick or untick one step of the series' checklist (Reading · Questions ·
+  /// Video, or whatever the series row names). No dates: the checklist is
+  /// done in its own time.
+  router.patch('/st/episodes/:id/steps/:key', async (req, env, { id, key }) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const body = await readJsonBody(req);
+    if (!isSchemaRecord(body) || typeof body['done'] !== 'boolean') {
+      return badRequest('Body must be {"done": true|false}');
+    }
+
+    const repo = new EpisodeRepo(env.DB_ST);
+    const episode = await repo.findEpisode(id);
+    if (!episode) return notFound(`episode ${id}`);
+    const gate = await deny(env, req, user, episode, 'write');
+    if (gate) return gate;
+
+    const res = await repo.setStep(id, key, body['done']);
+    if (res === 'no_step') return badRequest(`step ${key} is not on this series' checklist`);
+    return ok(await repo.findAggregate(id));
   });
 
   router.post('/st/episodes', async (req, env) => {

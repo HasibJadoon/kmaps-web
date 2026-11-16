@@ -1,3 +1,4 @@
+import { checklists, seriesPlan, type Checklist, type PlanEpisode } from '../checklist';
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { chapters, sceneFacts, type Chapter, type SceneFacts } from '../running-order';
 import { typedId } from '../../../shared/src/ulid';
@@ -158,7 +159,11 @@ export interface EpisodeAggregate extends EpisodeRow {
   phases: PhaseRow[];
   /// How the format is run at the table, from its template — see sessionConfig.
   session: SessionConfig | null;
+  /// The series' own planner for this episode (steps, target date) — see
+  /// checklist.ts. Absent when the series defines none.
+  checklist?: Checklist;
 }
+
 
 /// How a format is run live, authored in its template's `structure_json.session`
 /// so the apps draw it from data rather than deciding it themselves:
@@ -349,6 +354,15 @@ const SE_COLS = `id, episode_ref, type, heading, seq, overlay_kind,
                  group_key, group_label, created_at, updated_at`;
 const PT_COLS = `id, section_ref, episode_ref, text, speaker_ref, bridge, est_seconds,
                  overlay_json, subs_json, seq, created_at, updated_at`;
+
+function metaObject(json: string | null): Record<string, unknown> {
+  if (!json) return {};
+  try {
+    const parsed: unknown = JSON.parse(json);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown> : {};
+  } catch { return {}; }
+}
 
 export class EpisodeRepo {
   constructor(private db: D1Database) {}
@@ -586,6 +600,52 @@ export class EpisodeRepo {
     return (res.meta.changes ?? 0) > 0;
   }
 
+  /// Each row's planner, for the rows whose series defines one. A target date
+  /// depends on the whole series (it rolls from the last finished episode), so
+  /// every episode of those series is read — one query for the series rows,
+  /// one for their episodes.
+  async checklistFor(rows: EpisodeRow[], now = new Date()): Promise<Map<string, Checklist>> {
+    const out = new Map<string, Checklist>();
+    const refs = [...new Set(rows.map((r) => r.series_ref).filter((r): r is string => !!r))];
+    if (!refs.length) return out;
+    const holes = refs.map(() => '?').join(', ');
+    const series = await query<{ id: string; meta_json: string | null }>(
+      this.db, `SELECT id, meta_json FROM st_episodes WHERE id IN (${holes})`, refs);
+    const plans = new Map(series.map((r) => [r.id, seriesPlan(r.meta_json)] as const)
+      .filter(([, p]) => p.steps.length > 0));
+    if (!plans.size) return out;
+    const keys = [...plans.keys()];
+    const eps = await query<PlanEpisode & { series_ref: string }>(
+      this.db,
+      `SELECT id, series_ref, session_no, meta_json FROM st_episodes
+        WHERE series_ref IN (${keys.map(() => '?').join(', ')})`,
+      keys);
+    const wanted = new Set(rows.map((r) => r.id));
+    for (const [ref, plan] of plans) {
+      for (const [id, c] of checklists(plan, eps.filter((e) => e.series_ref === ref), now)) {
+        if (wanted.has(id)) out.set(id, c);
+      }
+    }
+    return out;
+  }
+
+  /// Tick or untick one step. Returns null when the episode or the step is
+  /// unknown, so the route can say which.
+  async setStep(id: string, key: string, done: boolean): Promise<EpisodeRow | null | 'no_step'> {
+    const row = await this.findEpisode(id);
+    if (!row) return null;
+    const steps = (await this.checklistFor([row])).get(id)?.steps ?? [];
+    if (!steps.some((s) => s.key === key)) return 'no_step';
+    const meta = metaObject(row.meta_json);
+    const prev = meta['steps_done'];
+    const map: Record<string, unknown> =
+      prev && typeof prev === 'object' && !Array.isArray(prev) ? { ...(prev as Record<string, unknown>) } : {};
+    if (done) map[key] = new Date().toISOString();
+    else delete map[key];
+    meta['steps_done'] = map;
+    return this.patchEpisode(id, { meta_json: JSON.stringify(meta) });
+  }
+
   async findAggregate(id: string): Promise<EpisodeAggregate | null> {
     const episode = await this.findEpisode(id);
     if (!episode) return null;
@@ -643,6 +703,7 @@ export class EpisodeRepo {
       ...section,
       points: pointsBySection.get(section.id) ?? [],
     }));
+    const checklist = (await this.checklistFor([episode])).get(id);
     return {
       ...episode,
       participants,
@@ -652,6 +713,7 @@ export class EpisodeRepo {
       phases,
       plan: episodePlan(episode.meta_json),
       session,
+      ...(checklist ? { checklist } : {}),
     };
   }
 
