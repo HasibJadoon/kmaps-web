@@ -502,6 +502,8 @@ export function arcRoutes(router: Router<WorldviewEnv>) {
           summary: w.description_md,
           stat: `${chapters} · ${count(L, 'passages', passages)}`,
           concepts: top(said.filter((s) => s.corpus_id === w.id), 6),
+          // free human readings streamed from LibriVox (scripts/worldview/librivox_audio.py): recordings and their tracks
+          audiobooks: (wm as unknown as { audiobooks?: unknown[] }).audiobooks ?? null,
           facts: [
             wm.edition && { label: L.edition ?? 'Edition', value: wm.edition },
             wm.translation && { label: L.translation ?? 'Translation', value: wm.translation },
