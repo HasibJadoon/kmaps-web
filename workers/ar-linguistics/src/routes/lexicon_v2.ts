@@ -457,333 +457,8 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     return ok({ root_norm, canonical, sources });
   }));
 
-  router.get('/al/lex/v2/entry/:source_slug/:root_norm', (req, env, params) => cached(req, async () => {
-    const slug = params.source_slug ?? '';
-    const requested = (params.root_norm ?? '').trim();
-    if (!slug || !requested) return badRequest('slug + root_norm required');
-
-    const entry = await findEntry(env.DB_AL, slug, requested);
-    const root_norm: string = entry?.root_norm ?? requested;
-    if (!entry) return notFound('entry not found');
-
-    // every read below needs only the entry's key, so they go out together: one round of D1 latency, not nine
-    const all = (stmt: D1PreparedStatement) => stmt.all().then((r) => r.results ?? []);
-    const canonicalSelect =
-      `SELECT id, root_text, root_letters, root_type, weak_pattern,
-              frequency_quran, frequency_hadith, meaning_core_en
-         FROM ar_ling_roots`;
-    const [sections, blocks, links, tags, quran_refs, sources_of_entry, canonical, profile] = await Promise.all([
-      all(env.DB_AL.prepare(
-        `SELECT id, section_seq, heading_ar, heading_norm, heading_bare,
-                section_type, text_ar, text_en, page_no, source_native_section_id,
-                lane_itype
-         FROM ar_ling_lexicon_entry_section
-         WHERE source_slug = ? AND root_norm = ?
-         ORDER BY section_seq`
-      ).bind(slug, root_norm)),
-      all(env.DB_AL.prepare(
-        `SELECT id, section_id, book_page_id, parent_block_id, block_path,
-                block_seq, depth, block_type, lang, title_ar,
-                text_plain, text_html, data_json,
-                origin, origin_ref, printed_page
-         FROM ar_ling_lexicon_block
-         WHERE source_slug = ? AND root_norm = ?
-           AND origin <> 'derived'
-         ORDER BY block_seq`
-      ).bind(slug, root_norm)),
-      all(env.DB_AL.prepare(
-        `SELECT id, from_block_id, link_kind, to_root_norm, to_surah,
-                to_ayah, to_ayah_to, to_block_id, to_url, label, weight,
-                position_offset
-         FROM ar_ling_lexicon_block_link
-         WHERE source_slug = ?
-           AND from_block_id IN (
-             SELECT id FROM ar_ling_lexicon_block
-             WHERE source_slug = ? AND root_norm = ? AND origin <> 'derived'
-           )`
-      ).bind(slug, slug, root_norm)),
-      all(env.DB_AL.prepare(
-        `SELECT block_id, tag, source, weight
-         FROM ar_ling_lexicon_block_tag
-         WHERE block_id IN (
-           SELECT id FROM ar_ling_lexicon_block
-           WHERE source_slug = ? AND root_norm = ? AND origin <> 'derived'
-         )`
-      ).bind(slug, root_norm)),
-      all(env.DB_AL.prepare(
-        `SELECT id, block_id, section_id, surah, ayah, raw_ref, context_snippet
-         FROM ar_ling_lexicon_quran_ref
-         WHERE source_slug = ? AND root_norm = ?
-         ORDER BY surah, ayah`
-      ).bind(slug, root_norm)),
-      all(env.DB_AL.prepare(
-        `SELECT id, source_kind, source_native_id, source_url
-         FROM ar_ling_lexicon_entry_source
-         WHERE source_slug = ? AND root_entry_id = ?`
-      ).bind(slug, entry.id)),
-      (async () =>
-        (entry.root_id
-          ? await env.DB_AL.prepare(`${canonicalSelect} WHERE id = ? LIMIT 1`).bind(entry.root_id).first()
-          : null)
-        ?? await env.DB_AL.prepare(
-             `${canonicalSelect} WHERE root_normalized = ? OR root_text = ? LIMIT 1`
-           ).bind(root_norm, root_norm).first())(),
-      new SourcesRepo(env.DB_AL).profileBySlug(slug),
-    ]) as [any[], any[], any[], any[], any[], any[], any, Awaited<ReturnType<SourcesRepo['profileBySlug']>>];
-
-    const PROSE_BLOCKS = new Set(['definition', 'entry_header']);
-    const isStub = (s: any) => {
-        const body = (s.text_ar ?? s.text_en ?? '').trim();
-        return body === '' || body === (s.heading_ar ?? '').trim();
-    };
-    const looseProse = blocks.filter((b: any) =>
-      PROSE_BLOCKS.has(b.block_type) && !b.section_id && (b.text_plain ?? '').trim());
-
-    let sections_source: 'sections' | 'blocks' | 'block_tree' = 'sections';
-    let effectiveSections = sections;
-
-    const LEAF_BLOCKS = new Set(['definition', 'poetry_quote', 'hadith_quote', 'quran_quote']);
-
-    const squash = (s: string | null | undefined) => (s ?? '').replace(/[\s:]+/gu, '');
-    if (sections.length && !sections.every(isStub)) {
-      const built: any[] = [];
-      let covered = true;
-      for (const s of sections) {
-        const leaves = blocks
-
-          .filter((b: any) => b.section_id === s.id && LEAF_BLOCKS.has(b.block_type)
-                              && (b.origin === 'book_native' || b.origin === 'derived_segmentation')
-                              && (b.title_ar ?? '').trim() && (b.text_plain ?? '').trim())
-          .sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
-
-        if (!leaves.length
-            || squash(leaves.map((b: any) => b.text_plain).join('')) !== squash((s as any).text_ar)) {
-          covered = false;
-          break;
-        }
-        for (const b of leaves) {
-          built.push({
-            id: b.id,
-            section_seq: built.length + 1,
-            heading_ar: b.title_ar,
-            heading_norm: null,
-            heading_bare: null,
-            section_type: b.block_type,
-            text_ar: b.text_plain,
-            text_en: null,
-            page_no: b.printed_page ?? s.page_no ?? null,
-            source_native_section_id: null,
-            parent_section_id: s.id,
-          });
-        }
-      }
-
-      const bareHeading = (s: any) => {
-        const h = squash(s.heading_ar);
-        return !h || h === squash(entry?.root_text) || h === squash(entry?.root_norm);
-      };
-      if (covered && built.length
-          && (built.length > sections.length || sections.every(bareHeading))) {
-        sections_source = 'block_tree';
-        effectiveSections = built;
-      }
-    }
-
-    if (sections_source === 'sections' && !sections.length) {
-
-      const withText = blocks.filter((b: any) => LEAF_BLOCKS.has(b.block_type)
-                                                 && (b.text_plain ?? '').trim());
-      const preferred = withText.some((b: any) => b.origin === 'derived_segmentation')
-        ? 'derived_segmentation' : 'book_native';
-      const leaves = withText
-        .filter((b: any) => b.origin === preferred)
-        .sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
-      if (leaves.length) {
-
-        const isArabic = (t: string) => /\p{Script=Arabic}/u.test(t);
-        sections_source = 'block_tree';
-        effectiveSections = leaves.map((b: any, i: number) => {
-          const text = b.text_plain as string;
-          return {
-            id: b.id,
-            section_seq: i + 1,
-            heading_ar: b.title_ar ?? null,
-            heading_norm: null,
-            heading_bare: null,
-            section_type: b.block_type,
-            text_ar: isArabic(text) ? text : null,
-            text_en: isArabic(text) ? null : text,
-            page_no: b.printed_page ?? null,
-            source_native_section_id: null,
-            parent_section_id: null,
-          };
-        });
-      }
-    }
-
-    // Prose blocks that carry no section: senses whose entry header the source
-    // tables never listed are grouped under that header; a root-level
-    // cross-reference ("See art. …") or an author's note stands alone.
-    const blockById = new Map<string, any>((blocks as any[]).map((b: any) => [b.id, b]));
-    const looseSection = (group: any[], seq: number) => {
-      const first = group[0];
-      let data: any = null;
-      try { data = JSON.parse(first.data_json ?? '{}'); } catch { data = null; }
-      const parent = first.parent_block_id ? blockById.get(first.parent_block_id) : null;
-      const header = parent?.block_type === 'entry_header' ? parent : null;
-      let hdata: any = null;
-      try { hdata = header ? JSON.parse(header.data_json ?? '{}') : null; } catch { hdata = null; }
-      const kind = typeof data?.entry_kind === 'string' ? data.entry_kind : null;
-      const itype = hdata?.itype != null && /^\d+$/.test(String(hdata.itype)) ? String(hdata.itype) : null;
-      const texts = group.map((b: any) => String(b.text_plain ?? '').trim()).filter(Boolean);
-      return {
-        id: header?.id ?? first.id,
-        section_seq: seq,
-
-        heading_ar: data?.lemma ?? header?.title_ar ?? first.title_ar ?? null,
-        heading_norm: null,
-        heading_bare: null,
-        section_type: data?.form ? `form_${data.form}` : (itype ? `form_${itype}` : (kind ?? 'definition')),
-
-        text_ar: null,
-        text_en: texts.join('\n'),
-        paragraphs: texts,
-        block_ids: group.map((b: any) => b.id),
-        page_no: first.printed_page ?? header?.printed_page ?? null,
-        source_native_section_id: null,
-        _seq: first.block_seq ?? 0,
-      };
-    };
-    const looseGroups = (): any[][] => {
-      const groups = new Map<string, any[]>();
-      for (const b of looseProse as any[]) {
-        if (b.block_type !== 'definition') continue;
-        const parent = b.parent_block_id ? blockById.get(b.parent_block_id) : null;
-        const key = parent?.block_type === 'entry_header' ? parent.id : b.id;
-        const list = groups.get(key);
-        if (list) list.push(b); else groups.set(key, [b]);
-      }
-      return [...groups.values()].map(g => g.sort((a, b) => (a.block_seq ?? 0) - (b.block_seq ?? 0)));
-    };
-
-    const attachedProse = new Map<string, any[]>();
-    if (sections.length && sections.every(isStub)) {
-      for (const b of blocks as any[]) {
-        if (b.block_type !== 'definition' || !b.section_id) continue;
-        if (!String(b.text_plain ?? '').trim()) continue;
-        const list = attachedProse.get(b.section_id);
-        if (list) list.push(b); else attachedProse.set(b.section_id, [b]);
-      }
-    }
-    if (sections_source === 'sections' && attachedProse.size) {
-      sections_source = 'blocks';
-      // One stored block per sense: the block rows ARE the paragraphs.
-      const items: any[] = sections
-        .filter((s: any) => attachedProse.has(s.id))
-        .map((s: any) => {
-          const bs = attachedProse.get(s.id)!
-            .sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
-          return {
-            id: s.id,
-            section_seq: 0,
-            heading_ar: s.heading_ar,
-            heading_norm: s.heading_norm ?? null,
-            heading_bare: s.heading_bare ?? null,
-            section_type: s.lane_itype ? `form_${s.lane_itype}` : (s.section_type ?? 'definition'),
-            text_ar: null,
-            text_en: bs.map((b: any) => b.text_plain).join('\n'),
-            paragraphs: bs.map((b: any) => String(b.text_plain ?? '').trim()).filter(Boolean),
-            block_ids: bs.map((b: any) => b.id),
-            page_no: bs[0]?.printed_page ?? s.page_no ?? null,
-            source_native_section_id: null,
-            _seq: bs[0]?.block_seq ?? 0,
-          };
-        });
-      for (const g of looseGroups()) items.push(looseSection(g, 0));
-      items.sort((a, b) => a._seq - b._seq);
-      effectiveSections = items.map((s, i) => { const { _seq, ...rest } = s; return { ...rest, section_seq: i + 1 }; });
-    }
-
-    if (sections_source === 'sections' && sections.length && sections.every(isStub) && looseProse.length) {
-      sections_source = 'blocks';
-      effectiveSections = looseGroups().map((g, i) => {
-        const { _seq, ...rest } = looseSection(g, i + 1);
-        return rest;
-      });
-    }
-
-    // composer_key = 'stored_blocks': the display profile declares that this
-    // source's blocks are its printed paragraphs — every section is served from
-    // its stored leaf blocks, never re-split from text_ar.
-    if (profile?.composer_key === 'stored_blocks' && sections_source === 'sections') {
-      const bySection = new Map<string, any[]>();
-      for (const b of blocks as any[]) {
-        if (!b.section_id || !LEAF_BLOCKS.has(b.block_type) || b.origin !== 'book_native') continue;
-        if (!String(b.text_plain ?? '').trim()) continue;
-        const list = bySection.get(b.section_id);
-        if (list) list.push(b); else bySection.set(b.section_id, [b]);
-      }
-      if (bySection.size) {
-        sections_source = 'blocks';
-        effectiveSections = effectiveSections.map((s: any) => {
-          const bs = (bySection.get(s.id) ?? []).sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
-          if (!bs.length) return s;
-          return {
-            ...s,
-            paragraphs: bs.map((b: any) => String(b.text_plain ?? '').trim()).filter(Boolean),
-            block_ids: bs.map((b: any) => b.id),
-            page_no: s.page_no ?? bs[0]?.printed_page ?? null,
-          };
-        });
-      }
-    }
-
-    const sectionsWithBody = effectiveSections.map((s: any) => {
-      const lang = s.text_ar ? 'ar' : (s.text_en ? 'en' : null);
-      const { paragraphs: stored, ...rest } = s;
-      // Rows that already carry their paragraphs are served as stored.
-      if (Array.isArray(stored) && stored.length) {
-        return { ...rest, lang, body: sectionBodyFromStoredParagraphs(stored) };
-      }
-
-      const split = sections_source !== 'blocks' && lang !== 'en';
-      return { ...rest, lang, body: computeSectionBody(s.text_ar ?? s.text_en, split) };
-    });
-
-    const footnotes = collectFootnotes(blocks);
-
-    const footnote_binding = bindFootnoteMarks(sectionsWithBody, footnotes);
-
-    const sarf_families = await resolveSarfFamilies(env, blocks);
-
-    const sourceRow = await new SourcesRepo(env.DB_AL).bySlug(slug);
-    return ok({
-      meta: sourceRow ? v2RouteMeta(sourceRow) : { slug },
-      entry,
-      canonical,
-      sections: sectionsWithBody,
-
-      sections_source,
-      blocks,
-      sarf_families,
-      links,
-      tags,
-      quran_refs,
-      footnotes,
-
-      footnote_binding,
-      sources_of_entry,
-      stats: {
-        sections: sectionsWithBody.length,
-        blocks: blocks.length,
-        links: links.length,
-        tags: tags.length,
-        quran_refs: quran_refs.length,
-        footnotes: footnotes.length,
-        sarf_families: sarf_families.length,
-      },
-    });
-  }));
+  router.get('/al/lex/v2/entry/:source_slug/:root_norm', (req, env, params) => cached(req, () =>
+    lexEntryResponse(env, params.source_slug ?? '', params.root_norm ?? '')));
 
   async function enrichRowsWithMeta(env: ArLinguisticsEnv, rows: any[]) {
     if (!rows.length) return [];
@@ -873,3 +548,333 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
     return badRequest('unknown mode');
   });
 }
+
+/** A dictionary's article on a root (GET /al/lex/v2/entry/:source/:root), as a Response — shared with the one
+ *  reader's entry route (routes/reader.ts), which reads the same article and writes it out as reader markdown. */
+export async function lexEntryResponse(env: ArLinguisticsEnv, source_slug: string, root_norm_in: string): Promise<Response> {
+  const slug = source_slug;
+  const requested = (root_norm_in ?? '').trim();
+  if (!slug || !requested) return badRequest('slug + root_norm required');
+
+  const entry = await findEntry(env.DB_AL, slug, requested);
+  const root_norm: string = entry?.root_norm ?? requested;
+  if (!entry) return notFound('entry not found');
+
+  // every read below needs only the entry's key, so they go out together: one round of D1 latency, not nine
+  const all = (stmt: D1PreparedStatement) => stmt.all().then((r) => r.results ?? []);
+  const canonicalSelect =
+    `SELECT id, root_text, root_letters, root_type, weak_pattern,
+            frequency_quran, frequency_hadith, meaning_core_en
+       FROM ar_ling_roots`;
+  const [sections, blocks, links, tags, quran_refs, sources_of_entry, canonical, profile] = await Promise.all([
+    all(env.DB_AL.prepare(
+      `SELECT id, section_seq, heading_ar, heading_norm, heading_bare,
+              section_type, text_ar, text_en, page_no, source_native_section_id,
+              lane_itype
+       FROM ar_ling_lexicon_entry_section
+       WHERE source_slug = ? AND root_norm = ?
+       ORDER BY section_seq`
+    ).bind(slug, root_norm)),
+    all(env.DB_AL.prepare(
+      `SELECT id, section_id, book_page_id, parent_block_id, block_path,
+              block_seq, depth, block_type, lang, title_ar,
+              text_plain, text_html, data_json,
+              origin, origin_ref, printed_page
+       FROM ar_ling_lexicon_block
+       WHERE source_slug = ? AND root_norm = ?
+         AND origin <> 'derived'
+       ORDER BY block_seq`
+    ).bind(slug, root_norm)),
+    all(env.DB_AL.prepare(
+      `SELECT id, from_block_id, link_kind, to_root_norm, to_surah,
+              to_ayah, to_ayah_to, to_block_id, to_url, label, weight,
+              position_offset
+       FROM ar_ling_lexicon_block_link
+       WHERE source_slug = ?
+         AND from_block_id IN (
+           SELECT id FROM ar_ling_lexicon_block
+           WHERE source_slug = ? AND root_norm = ? AND origin <> 'derived'
+         )`
+    ).bind(slug, slug, root_norm)),
+    all(env.DB_AL.prepare(
+      `SELECT block_id, tag, source, weight
+       FROM ar_ling_lexicon_block_tag
+       WHERE block_id IN (
+         SELECT id FROM ar_ling_lexicon_block
+         WHERE source_slug = ? AND root_norm = ? AND origin <> 'derived'
+       )`
+    ).bind(slug, root_norm)),
+    all(env.DB_AL.prepare(
+      `SELECT id, block_id, section_id, surah, ayah, raw_ref, context_snippet
+       FROM ar_ling_lexicon_quran_ref
+       WHERE source_slug = ? AND root_norm = ?
+       ORDER BY surah, ayah`
+    ).bind(slug, root_norm)),
+    all(env.DB_AL.prepare(
+      `SELECT id, source_kind, source_native_id, source_url
+       FROM ar_ling_lexicon_entry_source
+       WHERE source_slug = ? AND root_entry_id = ?`
+    ).bind(slug, entry.id)),
+    (async () =>
+      (entry.root_id
+        ? await env.DB_AL.prepare(`${canonicalSelect} WHERE id = ? LIMIT 1`).bind(entry.root_id).first()
+        : null)
+      ?? await env.DB_AL.prepare(
+           `${canonicalSelect} WHERE root_normalized = ? OR root_text = ? LIMIT 1`
+         ).bind(root_norm, root_norm).first())(),
+    new SourcesRepo(env.DB_AL).profileBySlug(slug),
+  ]) as [any[], any[], any[], any[], any[], any[], any, Awaited<ReturnType<SourcesRepo['profileBySlug']>>];
+
+  const PROSE_BLOCKS = new Set(['definition', 'entry_header']);
+  const isStub = (s: any) => {
+      const body = (s.text_ar ?? s.text_en ?? '').trim();
+      return body === '' || body === (s.heading_ar ?? '').trim();
+  };
+  const looseProse = blocks.filter((b: any) =>
+    PROSE_BLOCKS.has(b.block_type) && !b.section_id && (b.text_plain ?? '').trim());
+
+  let sections_source: 'sections' | 'blocks' | 'block_tree' = 'sections';
+  let effectiveSections = sections;
+
+  const LEAF_BLOCKS = new Set(['definition', 'poetry_quote', 'hadith_quote', 'quran_quote']);
+
+  const squash = (s: string | null | undefined) => (s ?? '').replace(/[\s:]+/gu, '');
+  if (sections.length && !sections.every(isStub)) {
+    const built: any[] = [];
+    let covered = true;
+    for (const s of sections) {
+      const leaves = blocks
+
+        .filter((b: any) => b.section_id === s.id && LEAF_BLOCKS.has(b.block_type)
+                            && (b.origin === 'book_native' || b.origin === 'derived_segmentation')
+                            && (b.title_ar ?? '').trim() && (b.text_plain ?? '').trim())
+        .sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
+
+      if (!leaves.length
+          || squash(leaves.map((b: any) => b.text_plain).join('')) !== squash((s as any).text_ar)) {
+        covered = false;
+        break;
+      }
+      for (const b of leaves) {
+        built.push({
+          id: b.id,
+          section_seq: built.length + 1,
+          heading_ar: b.title_ar,
+          heading_norm: null,
+          heading_bare: null,
+          section_type: b.block_type,
+          text_ar: b.text_plain,
+          text_en: null,
+          page_no: b.printed_page ?? s.page_no ?? null,
+          source_native_section_id: null,
+          parent_section_id: s.id,
+        });
+      }
+    }
+
+    const bareHeading = (s: any) => {
+      const h = squash(s.heading_ar);
+      return !h || h === squash(entry?.root_text) || h === squash(entry?.root_norm);
+    };
+    if (covered && built.length
+        && (built.length > sections.length || sections.every(bareHeading))) {
+      sections_source = 'block_tree';
+      effectiveSections = built;
+    }
+  }
+
+  if (sections_source === 'sections' && !sections.length) {
+
+    const withText = blocks.filter((b: any) => LEAF_BLOCKS.has(b.block_type)
+                                               && (b.text_plain ?? '').trim());
+    const preferred = withText.some((b: any) => b.origin === 'derived_segmentation')
+      ? 'derived_segmentation' : 'book_native';
+    const leaves = withText
+      .filter((b: any) => b.origin === preferred)
+      .sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
+    if (leaves.length) {
+
+      const isArabic = (t: string) => /\p{Script=Arabic}/u.test(t);
+      sections_source = 'block_tree';
+      effectiveSections = leaves.map((b: any, i: number) => {
+        const text = b.text_plain as string;
+        return {
+          id: b.id,
+          section_seq: i + 1,
+          heading_ar: b.title_ar ?? null,
+          heading_norm: null,
+          heading_bare: null,
+          section_type: b.block_type,
+          text_ar: isArabic(text) ? text : null,
+          text_en: isArabic(text) ? null : text,
+          page_no: b.printed_page ?? null,
+          source_native_section_id: null,
+          parent_section_id: null,
+        };
+      });
+    }
+  }
+
+  // Prose blocks that carry no section: senses whose entry header the source
+  // tables never listed are grouped under that header; a root-level
+  // cross-reference ("See art. …") or an author's note stands alone.
+  const blockById = new Map<string, any>((blocks as any[]).map((b: any) => [b.id, b]));
+  const looseSection = (group: any[], seq: number) => {
+    const first = group[0];
+    let data: any = null;
+    try { data = JSON.parse(first.data_json ?? '{}'); } catch { data = null; }
+    const parent = first.parent_block_id ? blockById.get(first.parent_block_id) : null;
+    const header = parent?.block_type === 'entry_header' ? parent : null;
+    let hdata: any = null;
+    try { hdata = header ? JSON.parse(header.data_json ?? '{}') : null; } catch { hdata = null; }
+    const kind = typeof data?.entry_kind === 'string' ? data.entry_kind : null;
+    const itype = hdata?.itype != null && /^\d+$/.test(String(hdata.itype)) ? String(hdata.itype) : null;
+    const texts = group.map((b: any) => String(b.text_plain ?? '').trim()).filter(Boolean);
+    return {
+      id: header?.id ?? first.id,
+      section_seq: seq,
+
+      heading_ar: data?.lemma ?? header?.title_ar ?? first.title_ar ?? null,
+      heading_norm: null,
+      heading_bare: null,
+      section_type: data?.form ? `form_${data.form}` : (itype ? `form_${itype}` : (kind ?? 'definition')),
+
+      text_ar: null,
+      text_en: texts.join('\n'),
+      paragraphs: texts,
+      block_ids: group.map((b: any) => b.id),
+      page_no: first.printed_page ?? header?.printed_page ?? null,
+      source_native_section_id: null,
+      _seq: first.block_seq ?? 0,
+    };
+  };
+  const looseGroups = (): any[][] => {
+    const groups = new Map<string, any[]>();
+    for (const b of looseProse as any[]) {
+      if (b.block_type !== 'definition') continue;
+      const parent = b.parent_block_id ? blockById.get(b.parent_block_id) : null;
+      const key = parent?.block_type === 'entry_header' ? parent.id : b.id;
+      const list = groups.get(key);
+      if (list) list.push(b); else groups.set(key, [b]);
+    }
+    return [...groups.values()].map(g => g.sort((a, b) => (a.block_seq ?? 0) - (b.block_seq ?? 0)));
+  };
+
+  const attachedProse = new Map<string, any[]>();
+  if (sections.length && sections.every(isStub)) {
+    for (const b of blocks as any[]) {
+      if (b.block_type !== 'definition' || !b.section_id) continue;
+      if (!String(b.text_plain ?? '').trim()) continue;
+      const list = attachedProse.get(b.section_id);
+      if (list) list.push(b); else attachedProse.set(b.section_id, [b]);
+    }
+  }
+  if (sections_source === 'sections' && attachedProse.size) {
+    sections_source = 'blocks';
+    // One stored block per sense: the block rows ARE the paragraphs.
+    const items: any[] = sections
+      .filter((s: any) => attachedProse.has(s.id))
+      .map((s: any) => {
+        const bs = attachedProse.get(s.id)!
+          .sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
+        return {
+          id: s.id,
+          section_seq: 0,
+          heading_ar: s.heading_ar,
+          heading_norm: s.heading_norm ?? null,
+          heading_bare: s.heading_bare ?? null,
+          section_type: s.lane_itype ? `form_${s.lane_itype}` : (s.section_type ?? 'definition'),
+          text_ar: null,
+          text_en: bs.map((b: any) => b.text_plain).join('\n'),
+          paragraphs: bs.map((b: any) => String(b.text_plain ?? '').trim()).filter(Boolean),
+          block_ids: bs.map((b: any) => b.id),
+          page_no: bs[0]?.printed_page ?? s.page_no ?? null,
+          source_native_section_id: null,
+          _seq: bs[0]?.block_seq ?? 0,
+        };
+      });
+    for (const g of looseGroups()) items.push(looseSection(g, 0));
+    items.sort((a, b) => a._seq - b._seq);
+    effectiveSections = items.map((s, i) => { const { _seq, ...rest } = s; return { ...rest, section_seq: i + 1 }; });
+  }
+
+  if (sections_source === 'sections' && sections.length && sections.every(isStub) && looseProse.length) {
+    sections_source = 'blocks';
+    effectiveSections = looseGroups().map((g, i) => {
+      const { _seq, ...rest } = looseSection(g, i + 1);
+      return rest;
+    });
+  }
+
+  // composer_key = 'stored_blocks': the display profile declares that this
+  // source's blocks are its printed paragraphs — every section is served from
+  // its stored leaf blocks, never re-split from text_ar.
+  if (profile?.composer_key === 'stored_blocks' && sections_source === 'sections') {
+    const bySection = new Map<string, any[]>();
+    for (const b of blocks as any[]) {
+      if (!b.section_id || !LEAF_BLOCKS.has(b.block_type) || b.origin !== 'book_native') continue;
+      if (!String(b.text_plain ?? '').trim()) continue;
+      const list = bySection.get(b.section_id);
+      if (list) list.push(b); else bySection.set(b.section_id, [b]);
+    }
+    if (bySection.size) {
+      sections_source = 'blocks';
+      effectiveSections = effectiveSections.map((s: any) => {
+        const bs = (bySection.get(s.id) ?? []).sort((a: any, b: any) => (a.block_seq ?? 0) - (b.block_seq ?? 0));
+        if (!bs.length) return s;
+        return {
+          ...s,
+          paragraphs: bs.map((b: any) => String(b.text_plain ?? '').trim()).filter(Boolean),
+          block_ids: bs.map((b: any) => b.id),
+          page_no: s.page_no ?? bs[0]?.printed_page ?? null,
+        };
+      });
+    }
+  }
+
+  const sectionsWithBody = effectiveSections.map((s: any) => {
+    const lang = s.text_ar ? 'ar' : (s.text_en ? 'en' : null);
+    const { paragraphs: stored, ...rest } = s;
+    // Rows that already carry their paragraphs are served as stored.
+    if (Array.isArray(stored) && stored.length) {
+      return { ...rest, lang, body: sectionBodyFromStoredParagraphs(stored) };
+    }
+
+    const split = sections_source !== 'blocks' && lang !== 'en';
+    return { ...rest, lang, body: computeSectionBody(s.text_ar ?? s.text_en, split) };
+  });
+
+  const footnotes = collectFootnotes(blocks);
+
+  const footnote_binding = bindFootnoteMarks(sectionsWithBody, footnotes);
+
+  const sarf_families = await resolveSarfFamilies(env, blocks);
+
+  const sourceRow = await new SourcesRepo(env.DB_AL).bySlug(slug);
+  return ok({
+    meta: sourceRow ? v2RouteMeta(sourceRow) : { slug },
+    entry,
+    canonical,
+    sections: sectionsWithBody,
+
+    sections_source,
+    blocks,
+    sarf_families,
+    links,
+    tags,
+    quran_refs,
+    footnotes,
+
+    footnote_binding,
+    sources_of_entry,
+    stats: {
+      sections: sectionsWithBody.length,
+      blocks: blocks.length,
+      links: links.length,
+      tags: tags.length,
+      quran_refs: quran_refs.length,
+      footnotes: footnotes.length,
+      sarf_families: sarf_families.length,
+    },
+  });
+  }
