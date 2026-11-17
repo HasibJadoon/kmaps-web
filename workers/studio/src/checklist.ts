@@ -4,6 +4,8 @@
 ///   steps         [{key, label, hint?, opens?}] — e.g. Read · Notes & questions · Build · Shoot
 ///   cadence_days  one episode every N days (optional), or
 ///   weekday       one episode a week, aimed at this weekday (0 Sunday … 6 Saturday)
+///   weekdays      several fixed recording days a week, e.g. [1, 4] = Monday and Thursday (owner 2026-11-17:
+///                 "weekly 4 episodes" — two Qurʾān, two Worldview); wins over cadence_days
 ///   tz            the owner's time zone, for "today" and the labels
 ///   open_url      a link template for a step that opens something, e.g.
 ///                 "com.kmaps.app://wv/unit/{unit}"
@@ -32,6 +34,8 @@ export interface StepDef {
 }
 export interface SeriesPlan {
   steps: StepDef[]; cadenceDays: number | null; weekday: number | null; tz: string; openUrl: string | null;
+  /// Fixed recording weekdays (0 Sunday … 6 Saturday), when the series records on set days.
+  weekdays: number[] | null;
 }
 
 export interface Step {
@@ -101,10 +105,15 @@ export function seriesPlan(seriesMeta: string | null): SeriesPlan {
   const cadence = meta['cadence_days'];
   const weekday = meta['weekday'];
   const wd = typeof weekday === 'number' && weekday >= 0 && weekday <= 6 ? weekday : null;
+  const wds = Array.isArray(meta['weekdays'])
+    ? [...new Set((meta['weekdays'] as unknown[]).filter((d): d is number => typeof d === 'number' && d >= 0 && d <= 6))].sort()
+    : [];
   return {
     steps,
-    cadenceDays: wd !== null ? 7 : (typeof cadence === 'number' && cadence > 0 ? cadence : null),
-    weekday: wd,
+    // set recording days space episodes ~7/n days apart (the streak's gap); one weekday = weekly
+    cadenceDays: wds.length ? Math.ceil(7 / wds.length) : wd !== null ? 7 : (typeof cadence === 'number' && cadence > 0 ? cadence : null),
+    weekday: wds.length ? null : wd,
+    weekdays: wds.length ? wds : null,
     tz: typeof meta['tz'] === 'string' ? meta['tz'] : 'UTC',
     openUrl: typeof meta['open_url'] === 'string' ? meta['open_url'] : null,
   };
@@ -184,7 +193,14 @@ export function checklists(plan: SeriesPlan, episodes: PlanEpisode[], now: Date)
 
   const lastFinish = rows.map((r) => r.finished_on).filter((d): d is string => !!d).sort().pop() ?? null;
   let cursor: string | null = null;
-  if (plan.weekday !== null) {
+  if (plan.weekdays?.length) {
+    // the next set recording day whose first planned step is still today or later, after the last finished episode
+    const lead = -Math.min(0, ...plan.steps.map((st) => st.offset ?? 0));
+    const earliest = addDays(today, lead);
+    const afterLast = lastFinish ? addDays(lastFinish, 1) : earliest;
+    const from = afterLast > earliest ? afterLast : earliest;
+    cursor = plan.weekdays.map((w) => nextWeekday(from, w)).sort()[0]!;
+  } else if (plan.weekday !== null) {
     // the next aim day after the last finished episode, never before today
     const after = lastFinish && addDays(lastFinish, 1) > today ? addDays(lastFinish, 1) : today;
     cursor = nextWeekday(after, plan.weekday);

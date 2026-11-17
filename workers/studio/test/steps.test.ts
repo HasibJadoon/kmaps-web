@@ -72,3 +72,22 @@ test('labels read as a day', () => {
   assert.equal(dayLabel('2026-11-20'), 'Fri 20 Nov');
   assert.equal(addDays('2026-11-30', 3), '2026-12-03');
 });
+
+test('set recording weekdays: the active episode is aimed at the next set day, its prep the day before', async () => {
+  const { seriesPlan, checklists } = await import('../src/checklist');
+  const plan = seriesPlan(JSON.stringify({
+    steps: [{ key: 'read', label: 'Day 1', offset: -1 }, { key: 'record', label: 'Day 2', offset: 0 }],
+    weekdays: [1, 4], tz: 'UTC',
+  }));
+  assert.deepEqual(plan.weekdays, [1, 4]);
+  assert.equal(plan.cadenceDays, 4);
+  // Tue 17 Nov 2026: earliest aim with a day-1 prep today is Wed 18 → next set day Thu 19
+  const c = checklists(plan, [{ id: 'a', session_no: 1, meta_json: null }, { id: 'b', session_no: 2, meta_json: null }], new Date('2026-11-17T09:00:00Z'));
+  assert.equal(c.get('a')!.target_on, '2026-11-19');
+  assert.equal(c.get('a')!.steps[0]!.planned_on, '2026-11-18');
+  assert.equal(c.get('b')!.state, 'queued');
+  // after a recording on Thu 19, the next is aimed at Mon 23
+  const done = JSON.stringify({ steps_done: { read: '2026-11-18T08:00:00Z', record: '2026-11-19T20:00:00Z' } });
+  const c2 = checklists(plan, [{ id: 'a', session_no: 1, meta_json: done }, { id: 'b', session_no: 2, meta_json: null }], new Date('2026-11-20T09:00:00Z'));
+  assert.equal(c2.get('b')!.target_on, '2026-11-23');
+});
