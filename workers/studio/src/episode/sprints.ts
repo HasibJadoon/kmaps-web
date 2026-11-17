@@ -21,9 +21,32 @@ export interface SprintCard {
   logged: { done: number; of: number };
   last_logged: string | null;
   studying: boolean;
+  /// Every passage of the series is recorded (a finished sūra / arc): shown as a small done tile.
+  done: boolean;
+  /// Every passage of the series as a tile (P01 … P20; Liberalism by reading part), for the phone's grid.
+  tiles: SprintTile[];
 }
 
-export function sprintCard(ctx: EpisodeCtx, seriesMeta: Record<string, unknown>): SprintCard {
+export interface SprintTile { id: string; label: string; title: string; group: string | null; state: 'now' | 'done' | 'active' | 'queued' }
+
+/// The series' passages in order, each a tile: the one in hand lit, recorded ones done. A Liberalism part is grouped
+/// under its reading ("06 · Locke").
+export function sprintTiles(order: Array<{ id: string; session_no: number | null; title: string; state: string | null }>, activeId: string): SprintTile[] {
+  return order.filter((e) => !e.id.endsWith(':slides') && e.state)
+    .sort((a, b) => (a.session_no ?? 0) - (b.session_no ?? 0) || a.id.localeCompare(b.id, 'en', { numeric: true }))
+    .map((e) => {
+      const tail = e.id.split(':').pop() ?? e.id;
+      const part = tail.match(/^R(\d+)\.(\d+)$/);
+      const label = part ? `${part[1]}.${part[2]}` : /^R\d/.test(tail) ? tail.slice(1) : tail;
+      const t = splitTitle(e.title).en;
+      const group = /^R\d/.test(tail) ? `${(part?.[1] ?? tail.slice(1))} · ${t.split(' · ')[0]}` : null;
+      const state = e.id === activeId ? 'now' : e.state === 'done' ? 'done' : e.state === 'active' ? 'active' : 'queued';
+      return { id: e.id, label, title: t, group, state };
+    });
+}
+
+export function sprintCard(ctx: EpisodeCtx, seriesMeta: Record<string, unknown>,
+  order: Array<{ id: string; session_no: number | null; title: string; state: string | null }> = []): SprintCard {
   const t = splitTitle(ctx.title);
   const steps = stepViews(ctx);
   const have = steps.reduce((n, s) => n + s.prepared.have, 0), total = steps.reduce((n, s) => n + s.prepared.total, 0);
@@ -37,15 +60,29 @@ export function sprintCard(ctx: EpisodeCtx, seriesMeta: Record<string, unknown>)
     now: now ? { title: now.title, day: now.day, cue: now.cue, when: now.when, color: now.color, icon: now.icon } : null,
     ready: total ? Math.round((have / total) * 100) : 0,
     logged: { done: steps.filter((s) => s.state === 'done').length, of: steps.length },
-    last_logged: last, studying: false,
+    last_logged: last, studying: false, done: false, tiles: sprintTiles(order, ctx.id),
   };
 }
 
-/// Order the cards — due today first, then the most recently worked on — and mark the first as the one in hand.
+/// Mark the one in hand (a step due today, then the most recent log) as being studied, and order the cards by domain —
+/// Worldview, then the Qurʾān (owner 2026-11-17: "1 – WV, 2 – Qurʾān").
 export function rankSprints(cards: SprintCard[]): SprintCard[] {
   const today = (c: SprintCard) => (c.now?.when === 'today' ? 1 : 0);
-  const out = [...cards].sort((a, b) => today(b) - today(a) || (b.last_logged ?? '').localeCompare(a.last_logged ?? '')
-    || (a.series ?? '').localeCompare(b.series ?? ''));
-  if (out[0]?.now) out[0] = { ...out[0], studying: true };
-  return out;
+  const hand = [...cards].sort((a, b) => today(b) - today(a) || (b.last_logged ?? '').localeCompare(a.last_logged ?? ''))[0];
+  const domain = (c: SprintCard) => { const d = (c.path[0] ?? '').toLowerCase(); return d.startsWith('world') ? 0 : d.startsWith('qur') ? 1 : 2; };
+  return [...cards].sort((a, b) => domain(a) - domain(b) || (a.series ?? '').localeCompare(b.series ?? ''))
+    .map((c) => (c === hand && c.now ? { ...c, studying: true } : c));
+}
+
+/// A finished series (every passage recorded): a done tile on its domain's grid; it still opens its passages.
+export function doneCard(ser: { id: string; title: string }, seriesTitle: string | null, seriesMeta: Record<string, unknown>,
+  order: Array<{ id: string; session_no: number | null; title: string; state: string | null }>): SprintCard {
+  const path = Array.isArray(seriesMeta['path']) ? (seriesMeta['path'] as unknown[]).map(str).filter((x): x is string => !!x) : [];
+  const t = splitTitle(ser.title);
+  const tiles = sprintTiles(order, '');
+  return {
+    episode_id: tiles[tiles.length - 1]?.id ?? ser.id, series: seriesTitle, accent: str(seriesMeta['accent']), path,
+    title_en: t.en, title_ar: t.ar, number: null, subtitle: `${tiles.length} passages`, now: null, ready: 100,
+    logged: { done: tiles.length, of: tiles.length }, last_logged: null, studying: false, done: true, tiles,
+  };
 }

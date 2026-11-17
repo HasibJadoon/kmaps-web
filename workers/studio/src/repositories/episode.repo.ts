@@ -631,17 +631,17 @@ export class EpisodeRepo {
 
   /// A series' planner and every episode's checklist in it — the desk's reward counts the finished ones.
   async seriesChecklists(seriesRef: string, now = new Date()): Promise<{ plan: SeriesPlan; title: string | null;
-    all: Map<string, Checklist>; order: Array<{ id: string; session_no: number | null }>; meta: Record<string, unknown> } | null> {
+    all: Map<string, Checklist>; order: Array<{ id: string; session_no: number | null; title: string }>; meta: Record<string, unknown> } | null> {
     const series = await query<{ title: string; meta_json: string | null }>(
       this.db, `SELECT title, meta_json FROM st_episodes WHERE id = ?`, [seriesRef]);
     const row = series[0];
     if (!row) return null;
     const plan = seriesPlan(row.meta_json);
     if (!plan.steps.length) return null;
-    const eps = await query<PlanEpisode>(
-      this.db, `SELECT id, session_no, meta_json FROM st_episodes WHERE series_ref = ?`, [seriesRef]);
+    const eps = await query<PlanEpisode & { title: string }>(
+      this.db, `SELECT id, session_no, title, meta_json FROM st_episodes WHERE series_ref = ?`, [seriesRef]);
     const short = metaObject(row.meta_json)['short'];
-    const order = eps.map((e) => ({ id: e.id, session_no: e.session_no ?? null }));
+    const order = eps.map((e) => ({ id: e.id, session_no: e.session_no ?? null, title: e.title }));
     return { plan, title: typeof short === 'string' ? short : row.title, all: checklists(plan, eps, now), order,
       meta: metaObject(row.meta_json) };
   }

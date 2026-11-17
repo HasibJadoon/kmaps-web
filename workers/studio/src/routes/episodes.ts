@@ -12,7 +12,7 @@ import { NEEDS_TEXT, RESOURCE_KEYS, resource } from '../episode/resources';
 import { PARTS, publishView, type Part } from '../episode/publish';
 import { loadReading } from '../episode/reading';
 import { splitTitle } from '../episode/text';
-import { rankSprints, sprintCard, type SprintCard } from '../episode/sprints';
+import { doneCard, rankSprints, sprintCard, type SprintCard } from '../episode/sprints';
 import type { EpisodeCtx } from '../episode/context';
 import { isSchemaRecord, readJsonBody } from '../../../shared/src/validate';
 import type { StudioEnv } from '../env';
@@ -294,8 +294,12 @@ export function episodeRoutes(router: Router<StudioEnv>) {
       if (await deny(env, req, user, ser, 'read')) continue;
       const series = await repo.seriesChecklists(ser.id, now);
       if (!series) continue;
+      const order = series.order.map((e) => ({ ...e, state: series.all.get(e.id)?.state ?? null }));
       const active = [...series.all.entries()].find(([, c]) => c.state === 'active');
-      if (!active) continue;
+      if (!active) {
+        if (series.all.size && [...series.all.values()].every((c) => c.state === 'done')) cards.push(doneCard(ser, series.title, series.meta, order));
+        continue;
+      }
       const [id, checklist] = active;
       const ep = await repo.findEpisode(id);
       if (!ep) continue;
@@ -304,7 +308,7 @@ export function episodeRoutes(router: Router<StudioEnv>) {
       cards.push(sprintCard({
         id, title: ep.title, session_no: ep.session_no, series_title: series.title, meta, plan: series.plan, checklist,
         siblings: [...series.all.values()], series_order: [], participants: [], sections: [], slides: null, reading: null, now,
-      }, series.meta));
+      }, series.meta, order));
     }
     return ok({ cards: rankSprints(cards) });
   });

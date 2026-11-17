@@ -148,9 +148,29 @@ test('sprint cards: the one due today and worked on last is the one in hand', as
   assert.equal(a.now?.title, 'Think');
   assert.equal(a.logged.done, 1);
   assert.equal(a.subtitle, 'Ghāfir · 40:4–5');
-  const b = { ...a, episode_id: 'EP:liberalism:R01.01', series: 'Liberalism', now: { ...a.now!, when: 'tomorrow' }, last_logged: null };
-  const ranked = rankSprints([b, a]);
-  assert.equal(ranked[0]!.episode_id, 'EP:ghafir:P02');
-  assert.equal(ranked[0]!.studying, true);
-  assert.equal(ranked[1]!.studying, false);
+  const b = { ...a, episode_id: 'EP:liberalism:R01.01', series: 'Liberalism', path: ['Worldview', 'Liberalism'],
+    now: { ...a.now!, when: 'tomorrow' }, last_logged: null };
+  const ranked = rankSprints([a, b]);
+  assert.deepEqual(ranked.map((c) => c.series), ['Liberalism', 'Ghāfir']);   // WV first, then the Qurʾān
+  assert.equal(ranked[1]!.studying, true);
+  assert.equal(ranked[0]!.studying, false);
+  const { sprintTiles } = await import('../src/episode/sprints');
+  const tiles = sprintTiles([
+    { id: 'EP:liberalism:R06.02', session_no: 7, title: 'Liberalism · 06.2 — Locke · Chapter V 2.1–3.4', state: 'queued' },
+    { id: 'EP:liberalism:R06.01', session_no: 6, title: 'Liberalism · 06.1 — Locke · Chapter V 1.1', state: 'active' },
+    { id: 'EP:liberalism:R00', session_no: 0, title: 'Liberalism · 00 — Gray, Liberalism', state: 'done' },
+    { id: 'EP:ghafir:P01:slides', session_no: 1, title: 'slides', state: 'queued' },
+  ], 'EP:liberalism:R06.01');
+  assert.deepEqual(tiles.map((t) => [t.label, t.state, t.group]), [
+    ['00', 'done', '00 · Gray, Liberalism'], ['06.01', 'now', '06 · Locke'], ['06.02', 'queued', '06 · Locke']]);
+});
+
+test('a finished series is a done card that still opens its passages', async () => {
+  const { doneCard } = await import('../src/episode/sprints');
+  const c = doneCard({ id: 'SER:dozawiya:dukhan', title: 'الدخان — Ad-Dukhān' }, 'Ad-Dukhān', { path: ['Qurʾān', 'Ḥawāmīm', 'Ad-Dukhān'] },
+    [{ id: 'EP:dukhan:P01', session_no: 1, title: 'x — One', state: 'done' }, { id: 'EP:dukhan:P02', session_no: 2, title: 'x — Two', state: 'done' }]);
+  assert.equal(c.done, true);
+  assert.equal(c.title_ar, 'الدخان');
+  assert.deepEqual(c.tiles.map((t) => t.state), ['done', 'done']);
+  assert.equal(c.subtitle, '2 passages');
 });
