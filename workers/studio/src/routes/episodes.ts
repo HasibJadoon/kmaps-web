@@ -1,6 +1,6 @@
 import type { Router } from '../../../shared/src/router';
 import {
-  ok, created, noContent, notFound, badRequest, unauthorized, forbidden, err,
+  ok, created, noContent, notFound, badRequest, conflict, unauthorized, forbidden, err,
 } from '../../../shared/src/response';
 import Anthropic from '@anthropic-ai/sdk';
 import { brainstorm, cardPayload, TutorError, type PassageBrief } from '../tutor';
@@ -216,6 +216,7 @@ export function episodeRoutes(router: Router<StudioEnv>) {
 
     const res = await repo.setStep(id, key, body['done']);
     if (res === 'no_step') return badRequest(`step ${key} is not on this series' checklist`);
+    if (res === 'queued') return conflict('This episode waits its turn: finish and record the active one first');
     return ok(await repo.findAggregate(id));
   });
 

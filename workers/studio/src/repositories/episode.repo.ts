@@ -631,11 +631,15 @@ export class EpisodeRepo {
 
   /// Tick or untick one step. Returns null when the episode or the step is
   /// unknown, so the route can say which.
-  async setStep(id: string, key: string, done: boolean): Promise<EpisodeRow | null | 'no_step'> {
+  /// 'queued' — the episode waits its turn: one episode is in hand at a time, and a missed day never moves the plan
+  /// on to the next one; it is ticked only once the one before it is recorded (owner 2026-11-17).
+  async setStep(id: string, key: string, done: boolean): Promise<EpisodeRow | null | 'no_step' | 'queued'> {
     const row = await this.findEpisode(id);
     if (!row) return null;
-    const steps = (await this.checklistFor([row])).get(id)?.steps ?? [];
+    const plan = (await this.checklistFor([row])).get(id);
+    const steps = plan?.steps ?? [];
     if (!steps.some((s) => s.key === key)) return 'no_step';
+    if (done && plan?.state === 'queued') return 'queued';
     const meta = metaObject(row.meta_json);
     const prev = meta['steps_done'];
     const map: Record<string, unknown> =

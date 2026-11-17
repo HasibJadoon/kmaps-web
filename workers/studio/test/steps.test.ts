@@ -32,7 +32,7 @@ test('the Read step opens the episode\'s own reading', () => {
   assert.equal(episodeSteps(plan, null)[0]!.open, undefined);
 });
 
-test('nothing finished: the first is up next, due in 3 days, then every 3 days', () => {
+test('nothing finished: the first is active, aimed from today; the rest are queued, with no date', () => {
   const now = new Date('2026-11-17T01:00:00Z'); // 12:00 in Sydney
   const map = checklists(plan, [
     { id: 'b', session_no: 1, meta_json: null },
@@ -41,9 +41,11 @@ test('nothing finished: the first is up next, due in 3 days, then every 3 days',
   ], now);
   assert.equal(map.get('a')!.up_next, true);
   assert.equal(map.get('a')!.done, 1);
-  assert.equal(map.get('a')!.target_on, '2026-11-20');
-  assert.equal(map.get('b')!.target_on, '2026-11-23');
-  assert.equal(map.get('c')!.target_on, '2026-11-26');
+  assert.equal(map.get('a')!.target_on, '2026-11-17'); // no step offsets: it can be aimed at today
+  assert.equal(map.get('a')!.state, 'active');
+  assert.equal(map.get('b')!.target_on, null);
+  assert.equal(map.get('b')!.state, 'queued');
+  assert.equal(map.get('c')!.target_on, null);
   assert.equal(map.get('b')!.up_next, false);
 });
 

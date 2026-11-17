@@ -8,8 +8,9 @@ import { addDays, checklists, dayIn, dayLabel, type PlanEpisode, type SeriesPlan
 
 export interface ActivityCard {
   id: string;
-  /// 'step' — a step ticked that day; 'aim' — the day an unfinished episode is aimed at.
-  kind: 'step' | 'aim';
+  /// 'step' — a step ticked that day; 'plan' — a session planned for that day;
+  /// 'aim' — the day an unfinished episode is aimed at (series without planned days).
+  kind: 'step' | 'plan' | 'aim';
   title: string;
   sub: string;
   series: string;
@@ -38,7 +39,7 @@ export interface Activity {
   next: string;
   today: string;
   weeks: ActivityWeek[];
-  count: { steps: number; aims: number };
+  count: { steps: number; planned: number };
 }
 
 export interface ActivitySeries {
@@ -65,10 +66,13 @@ export function mondayOf(day: string): string {
   return addDays(day, -((d.getUTCDay() + 6) % 7));
 }
 
-/// "Liberalism · 06 — Locke, Second Treatise (1689)" → "06 · Locke, Second Treatise (1689)".
-function shortTitle(title: string): string {
+/// A card's short title: "Liberalism · 06 — Locke, Second Treatise (1689)" → "06 · Locke, Second Treatise (1689)";
+/// "الجدال في آيات الله — The Charge and Its Genealogy" (session 2) → "02 · The Charge and Its Genealogy".
+function shortTitle(title: string, sessionNo: number | null): string {
   const m = title.match(/·\s*(\d+)\s*—\s*(.+)$/);
-  return m ? `${m[1]} · ${m[2]}` : title;
+  if (m) return `${m[1]} · ${m[2]}`;
+  const tail = title.includes(' — ') ? title.split(' — ').pop()! : title;
+  return sessionNo !== null ? `${String(sessionNo).padStart(2, '0')} · ${tail}` : tail;
 }
 
 function weekLabel(start: string): string {
@@ -84,9 +88,9 @@ export function cardsByDay(series: ActivitySeries[], now: Date): Map<string, Act
   const out = new Map<string, ActivityCard[]>();
   const push = (day: string, c: ActivityCard) => { const b = out.get(day) ?? []; b.push(c); out.set(day, b); };
   for (const s of series) {
-    const titles = new Map(s.episodes.map((e) => [e.id, e.title]));
+    const titles = new Map(s.episodes.map((e) => [e.id, shortTitle(e.title, e.session_no)]));
     for (const [id, c] of checklists(s.plan, s.episodes, now)) {
-      const title = shortTitle(titles.get(id) ?? id);
+      const title = titles.get(id) ?? id;
       for (const st of c.steps) {
         if (!st.done || !st.done_at) continue;
         push(dayIn(s.plan.tz, new Date(st.done_at)), {
@@ -95,10 +99,22 @@ export function cardsByDay(series: ActivitySeries[], now: Date): Map<string, Act
         });
       }
       if (c.target_on && !c.finished_on) {
-        push(c.target_on, {
-          id: `${id}:aim`, kind: 'aim', title, sub: `${c.done} of ${c.total}${c.up_next ? ' · up next' : ''}`,
-          series: s.title, accent: s.accent, done: false, episode_id: id,
-        });
+        const planned = c.steps.filter((st) => st.planned_on);
+        if (planned.length) {
+          // a session per planned step, on its day (Mon · Wed · Fri · the Saturday shoot)
+          for (const st of planned) {
+            if (st.done) continue;
+            push(st.planned_on!, {
+              id: `${id}:${st.key}:plan`, kind: 'plan', title: st.label, sub: title, series: s.title,
+              accent: s.accent, done: false, episode_id: id,
+            });
+          }
+        } else {
+          push(c.target_on, {
+            id: `${id}:aim`, kind: 'aim', title, sub: `${c.done} of ${c.total}${c.up_next ? ' · up next' : ''}`,
+            series: s.title, accent: s.accent, done: false, episode_id: id,
+          });
+        }
       }
     }
   }
@@ -131,18 +147,18 @@ export function buildActivity(
     next = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7);
     inRange = (d) => d.startsWith(key);
   }
-  let steps = 0, aims = 0;
+  let steps = 0, planned = 0;
   const weeks = starts.map((start) => ({
     start, number: isoWeek(start), label: weekLabel(start),
     days: Array.from({ length: 7 }, (_, i) => {
       const date = addDays(start, i);
       const dayCards = (cards.get(date) ?? []).sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'step' ? -1 : 1));
-      if (inRange(date)) for (const c of dayCards) { if (c.kind === 'step') steps++; else aims++; }
+      if (inRange(date)) for (const c of dayCards) { if (c.kind === 'step') steps++; else planned++; }
       return {
         date, day: Number(date.slice(8)), label: dayLabel(date), in_range: inRange(date),
         today: date === today, cards: dayCards,
       };
     }),
   }));
-  return { mode, key: mode === 'week' ? starts[0]! : key, label, prev, next, today, weeks, count: { steps, aims } };
+  return { mode, key: mode === 'week' ? starts[0]! : key, label, prev, next, today, weeks, count: { steps, planned } };
 }
