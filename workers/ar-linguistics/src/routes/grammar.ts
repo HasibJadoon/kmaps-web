@@ -305,81 +305,9 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
 
   router.get('/al/gram/pages/:slug', (req, env, params) => cached(req, async () => {
     const url = new URL(req.url);
-    const slug = params.slug;
-    const bab = url.searchParams.get('bab');
     const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit') ?? '20', 10) || 20));
-    const offset = (page - 1) * limit;
-
-    let where = bab ? 'source_slug = ? AND bab_id = ?' : 'source_slug = ?';
-    let binds: unknown[] = bab ? [slug, bab] : [slug];
-    let windowed = false;
-
-    // A heading that begins half way down a page owns no page of its own: the
-    // chunk belongs to whichever heading opened that page. Roughly a fifth of
-    // the corpus's أبواب are like that, and asking for one used to answer "no
-    // pages" — which is false. The book does not stop there; the reader simply
-    // has to start where the heading starts. So when a باب has no chunks, the
-    // window from its own first page to the next heading's is served instead.
-    if (bab) {
-      const own = await env.DB_AL.prepare(
-        `SELECT COUNT(*) AS n FROM ar_ling_gram_chunk WHERE source_slug = ? AND bab_id = ?`,
-      ).bind(slug, bab).first<{ n: number }>();
-
-      if (!own?.n) {
-        const here = await env.DB_AL.prepare(
-          `SELECT matn_order, volume_no, page_start, page_extent FROM ar_ling_gram_bab WHERE id = ?`,
-        ).bind(bab).first<{ matn_order: number; volume_no: number | null;
-                           page_start: number | null; page_extent: number | null }>();
-
-        if (here?.page_start) {
-          const next = await env.DB_AL.prepare(
-            `SELECT volume_no, page_start FROM ar_ling_gram_bab
-              WHERE source_slug = ? AND matn_order > ? AND page_start IS NOT NULL
-              ORDER BY matn_order LIMIT 1`,
-          ).bind(slug, here.matn_order).first<{ volume_no: number | null; page_start: number | null }>();
-
-          // A book with volumes restarts its page numbers, so the comparison is
-          // on the pair, not on the page.
-          const from = (here.volume_no ?? 1) * 100000 + here.page_start;
-          // Several headings can share one page — a book that lists أتى، أجر،
-          // ألا one after another on ص٢٦١ gives them all the same page_start —
-          // so a window that ends where the next one begins would be empty.
-          // The page a heading opens on always belongs to it.
-          // جمهرة's index counts how many pages each باب runs to. Where we have
-          // that number it beats guessing from the next heading — several
-          // headings share a page, and the next one may open on this very page.
-          const measured = here.page_extent ? from + Math.ceil(here.page_extent) : 0;
-          const nextStart = next?.page_start
-            ? (next.volume_no ?? 1) * 100000 + next.page_start
-            : Number.MAX_SAFE_INTEGER;
-          const to = Math.max(measured || nextStart, from + 1);
-          where = `source_slug = ?
-                   AND (COALESCE(volume_no, 1) * 100000 + COALESCE(page_no, 0)) >= ?
-                   AND (COALESCE(volume_no, 1) * 100000 + COALESCE(page_no, 0)) < ?`;
-          binds = [slug, from, to];
-          windowed = true;
-        }
-      }
-    }
-
-    const total = await env.DB_AL.prepare(
-      `SELECT COUNT(*) AS n FROM ar_ling_gram_chunk WHERE ${where}`,
-    ).bind(...binds).first<{ n: number }>();
-
-    const rows = (await env.DB_AL.prepare(
-      `SELECT id, bab_id, volume_no, part_label, page_no, seq, text_ar, footnotes_ar
-         FROM ar_ling_gram_chunk WHERE ${where}
-        ORDER BY seq LIMIT ? OFFSET ?`,
-    ).bind(...binds, limit, offset).all<Record<string, unknown>>()).results ?? [];
-
-    return ok({
-      pages: rows, page, limit, total: total?.n ?? 0,
-      has_more: offset + rows.length < (total?.n ?? 0),
-      // True when the chapter had no pages of its own and the reader is being
-      // shown the stretch of book that begins at its heading.
-      windowed,
-    });
+    return ok(await gramWindow(env, params.slug, url.searchParams.get('bab'), page, limit));
   }));
 
   router.get('/al/gram/search', async (req, env) => {
@@ -578,4 +506,82 @@ export function grammarRoutes(router: Router<ArLinguisticsEnv>): void {
       masail: rows,
     });
   }, { browser: 60, edge: 600 }));
+}
+
+/** A window of a grammar book's pages: the book from `page` (of `limit` pages each), or one باب's own pages — or,
+ *  for a heading that owns no page, the stretch of book from its heading to the next. Shared by the pages route and
+ *  the one reader's book route (routes/reader.ts). */
+export async function gramWindow(env: ArLinguisticsEnv, slug: string, bab: string | null, page: number, limit: number) {
+  const offset = (page - 1) * limit;
+    let where = bab ? 'source_slug = ? AND bab_id = ?' : 'source_slug = ?';
+  let binds: unknown[] = bab ? [slug, bab] : [slug];
+  let windowed = false;
+
+  // A heading that begins half way down a page owns no page of its own: the
+  // chunk belongs to whichever heading opened that page. Roughly a fifth of
+  // the corpus's أبواب are like that, and asking for one used to answer "no
+  // pages" — which is false. The book does not stop there; the reader simply
+  // has to start where the heading starts. So when a باب has no chunks, the
+  // window from its own first page to the next heading's is served instead.
+  if (bab) {
+    const own = await env.DB_AL.prepare(
+      `SELECT COUNT(*) AS n FROM ar_ling_gram_chunk WHERE source_slug = ? AND bab_id = ?`,
+    ).bind(slug, bab).first<{ n: number }>();
+
+    if (!own?.n) {
+      const here = await env.DB_AL.prepare(
+        `SELECT matn_order, volume_no, page_start, page_extent FROM ar_ling_gram_bab WHERE id = ?`,
+      ).bind(bab).first<{ matn_order: number; volume_no: number | null;
+                         page_start: number | null; page_extent: number | null }>();
+
+      if (here?.page_start) {
+        const next = await env.DB_AL.prepare(
+          `SELECT volume_no, page_start FROM ar_ling_gram_bab
+            WHERE source_slug = ? AND matn_order > ? AND page_start IS NOT NULL
+            ORDER BY matn_order LIMIT 1`,
+        ).bind(slug, here.matn_order).first<{ volume_no: number | null; page_start: number | null }>();
+
+        // A book with volumes restarts its page numbers, so the comparison is
+        // on the pair, not on the page.
+        const from = (here.volume_no ?? 1) * 100000 + here.page_start;
+        // Several headings can share one page — a book that lists أتى، أجر،
+        // ألا one after another on ص٢٦١ gives them all the same page_start —
+        // so a window that ends where the next one begins would be empty.
+        // The page a heading opens on always belongs to it.
+        // جمهرة's index counts how many pages each باب runs to. Where we have
+        // that number it beats guessing from the next heading — several
+        // headings share a page, and the next one may open on this very page.
+        const measured = here.page_extent ? from + Math.ceil(here.page_extent) : 0;
+        const nextStart = next?.page_start
+          ? (next.volume_no ?? 1) * 100000 + next.page_start
+          : Number.MAX_SAFE_INTEGER;
+        const to = Math.max(measured || nextStart, from + 1);
+        where = `source_slug = ?
+                 AND (COALESCE(volume_no, 1) * 100000 + COALESCE(page_no, 0)) >= ?
+                 AND (COALESCE(volume_no, 1) * 100000 + COALESCE(page_no, 0)) < ?`;
+        binds = [slug, from, to];
+        windowed = true;
+      }
+    }
+  }
+
+  const total = await env.DB_AL.prepare(
+    `SELECT COUNT(*) AS n FROM ar_ling_gram_chunk WHERE ${where}`,
+  ).bind(...binds).first<{ n: number }>();
+
+  const rows = (await env.DB_AL.prepare(
+    `SELECT id, bab_id, volume_no, part_label, page_no, seq, text_ar, footnotes_ar
+       FROM ar_ling_gram_chunk WHERE ${where}
+      ORDER BY seq LIMIT ? OFFSET ?`,
+  ).bind(...binds, limit, offset).all<Record<string, unknown>>()).results ?? [];
+
+  return {
+    pages: rows as Array<{ id: string; bab_id: string | null; volume_no: number | null; part_label: string | null;
+      page_no: number | null; seq: number; text_ar: string | null; footnotes_ar: string | null }>,
+    page, limit, total: total?.n ?? 0,
+    has_more: offset + rows.length < (total?.n ?? 0),
+    // True when the chapter had no pages of its own and the reader is being
+    // shown the stretch of book that begins at its heading.
+    windowed,
+  };
 }

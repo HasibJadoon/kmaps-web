@@ -7,6 +7,7 @@ import { ok } from '../../shared/src/response';
 import type { ArLinguisticsEnv } from './env';
 
 import { rootRoutes } from './routes/roots';
+import { alReaderRoutes } from './routes/reader';
 import { lookupRoutes } from './routes/lookup';
 import { lemmaRoutes } from './routes/lemmas';
 import { morphologyRoutes } from './routes/morphology';
@@ -57,6 +58,7 @@ router.get('/al/health', async (_req, env) =>
 );
 
 rootRoutes(router);
+alReaderRoutes(router);
 lookupRoutes(router);
 lemmaRoutes(router);
 morphologyRoutes(router);
