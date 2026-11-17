@@ -631,7 +631,7 @@ export class EpisodeRepo {
 
   /// A series' planner and every episode's checklist in it — the desk's reward counts the finished ones.
   async seriesChecklists(seriesRef: string, now = new Date()): Promise<{ plan: SeriesPlan; title: string | null;
-    all: Map<string, Checklist> } | null> {
+    all: Map<string, Checklist>; order: Array<{ id: string; session_no: number | null }>; meta: Record<string, unknown> } | null> {
     const series = await query<{ title: string; meta_json: string | null }>(
       this.db, `SELECT title, meta_json FROM st_episodes WHERE id = ?`, [seriesRef]);
     const row = series[0];
@@ -641,7 +641,9 @@ export class EpisodeRepo {
     const eps = await query<PlanEpisode>(
       this.db, `SELECT id, session_no, meta_json FROM st_episodes WHERE series_ref = ?`, [seriesRef]);
     const short = metaObject(row.meta_json)['short'];
-    return { plan, title: typeof short === 'string' ? short : row.title, all: checklists(plan, eps, now) };
+    const order = eps.map((e) => ({ id: e.id, session_no: e.session_no ?? null }));
+    return { plan, title: typeof short === 'string' ? short : row.title, all: checklists(plan, eps, now), order,
+      meta: metaObject(row.meta_json) };
   }
 
   /// The deck a planner episode is shown with: its sibling `<id>:slides` episode's meta `deck`.
@@ -670,6 +672,20 @@ export class EpisodeRepo {
     if (done) map[key] = new Date().toISOString();
     else delete map[key];
     meta['steps_done'] = map;
+    return this.patchEpisode(id, { meta_json: JSON.stringify(meta) });
+  }
+
+  /// Log or take back one part going out to YouTube (`short` · `long`): meta `published[part]` = {at, url?}.
+  async setPublished(id: string, part: 'short' | 'long', done: boolean, url: string | null): Promise<EpisodeRow | null> {
+    const row = await this.findEpisode(id);
+    if (!row) return null;
+    const meta = metaObject(row.meta_json);
+    const prev = meta['published'];
+    const map: Record<string, unknown> =
+      prev && typeof prev === 'object' && !Array.isArray(prev) ? { ...(prev as Record<string, unknown>) } : {};
+    if (done) map[part] = { at: new Date().toISOString(), url };
+    else delete map[part];
+    meta['published'] = map;
     return this.patchEpisode(id, { meta_json: JSON.stringify(meta) });
   }
 

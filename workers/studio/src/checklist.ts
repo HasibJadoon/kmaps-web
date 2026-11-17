@@ -26,6 +26,9 @@ export interface StepDef {
   /// The if-then cue ("After Fajr"), the prayer it follows and the minutes after it (for the phone's reminder), and
   /// the minutes of the step's focus timer — all from the series row.
   cue: string | null; cuePrayer: string | null; cueAfterMin: number | null; minutes: number | null;
+  /// Who does the step (Hasib · Ali · both) and which phase screen it opens (read · think · brainstorm · prepare ·
+  /// record · review; the key itself when absent).
+  who: string | null; phase: string | null;
 }
 export interface SeriesPlan {
   steps: StepDef[]; cadenceDays: number | null; weekday: number | null; tz: string; openUrl: string | null;
@@ -90,6 +93,8 @@ export function seriesPlan(seriesMeta: string | null): SeriesPlan {
         cuePrayer: typeof r['cue_prayer'] === 'string' ? r['cue_prayer'] : null,
         cueAfterMin: typeof r['cue_after_min'] === 'number' ? r['cue_after_min'] : null,
         minutes: typeof r['minutes'] === 'number' ? r['minutes'] : null,
+        who: typeof r['who'] === 'string' ? r['who'] : null,
+        phase: typeof r['phase'] === 'string' ? r['phase'] : null,
       });
     }
   }
