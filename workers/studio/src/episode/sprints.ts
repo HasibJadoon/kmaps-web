@@ -6,6 +6,7 @@ import type { EpisodeCtx } from './context';
 import { shortCite } from './focus';
 import { stepViews } from './steps';
 import { splitTitle, str } from './text';
+import { angleOf, groupLabel, placeOf } from './curriculum';
 
 export interface SprintCard {
   episode_id: string;
@@ -23,30 +24,33 @@ export interface SprintCard {
   studying: boolean;
   /// Every passage of the series is recorded (a finished sūra / arc): shown as a small done tile.
   done: boolean;
+  /// Round · cluster · angle, when the series is a curriculum.
+  place?: ReturnType<typeof placeOf>;
   /// Every passage of the series as a tile (P01 … P20; Liberalism by reading part), for the phone's grid.
   tiles: SprintTile[];
 }
 
-export interface SprintTile { id: string; label: string; title: string; group: string | null; state: 'now' | 'done' | 'active' | 'queued' }
+export interface SprintTile { id: string; label: string; title: string; group: string | null; state: 'now' | 'done' | 'active' | 'queued'; angle_color: string | null }
+type TileRow = { id: string; session_no: number | null; title: string; state: string | null; round?: number | null; cluster?: number | null; angle?: string | null; toc?: string | null };
 
 /// The series' passages in order, each a tile: the one in hand lit, recorded ones done. A Liberalism part is grouped
 /// under its reading ("06 · Locke").
-export function sprintTiles(order: Array<{ id: string; session_no: number | null; title: string; state: string | null }>, activeId: string): SprintTile[] {
+export function sprintTiles(order: TileRow[], activeId: string, seriesMeta: Record<string, unknown> = {}): SprintTile[] {
   return order.filter((e) => !e.id.endsWith(':slides') && e.state)
     .sort((a, b) => (a.session_no ?? 0) - (b.session_no ?? 0) || a.id.localeCompare(b.id, 'en', { numeric: true }))
     .map((e) => {
       const tail = e.id.split(':').pop() ?? e.id;
       const part = tail.match(/^R(\d+)\.(\d+)$/);
-      const label = part ? `${part[1]}.${part[2]}` : /^R\d/.test(tail) ? tail.slice(1) : tail;
-      const t = splitTitle(e.title).en;
-      const group = /^R\d/.test(tail) ? `${(part?.[1] ?? tail.slice(1))} · ${t.split(' · ')[0]}` : null;
+      const lc = tail.match(/^L\d(\d\d)\.(\d+)$/);
+      const label = lc ? `${lc[1]}.${lc[2]}` : part ? `${part[1]}.${part[2]}` : /^R\d/.test(tail) ? tail.slice(1) : tail;
+      const t = e.toc ?? splitTitle(e.title).en;   // the contents line the builder writes, when there is one
+      const group = groupLabel(e, seriesMeta) ?? (/^R\d/.test(tail) ? `${(part?.[1] ?? tail.slice(1))} · ${t.split(' · ')[0]}` : null);
       const state = e.id === activeId ? 'now' : e.state === 'done' ? 'done' : e.state === 'active' ? 'active' : 'queued';
-      return { id: e.id, label, title: t, group, state };
+      return { id: e.id, label, title: t, group, state, angle_color: angleOf(seriesMeta, e.angle)?.color ?? null };
     });
 }
 
-export function sprintCard(ctx: EpisodeCtx, seriesMeta: Record<string, unknown>,
-  order: Array<{ id: string; session_no: number | null; title: string; state: string | null }> = []): SprintCard {
+export function sprintCard(ctx: EpisodeCtx, seriesMeta: Record<string, unknown>, order: TileRow[] = []): SprintCard {
   const t = splitTitle(ctx.title);
   const steps = stepViews(ctx);
   const have = steps.reduce((n, s) => n + s.prepared.have, 0), total = steps.reduce((n, s) => n + s.prepared.total, 0);
@@ -60,7 +64,8 @@ export function sprintCard(ctx: EpisodeCtx, seriesMeta: Record<string, unknown>,
     now: now ? { title: now.title, day: now.day, cue: now.cue, when: now.when, color: now.color, icon: now.icon } : null,
     ready: total ? Math.round((have / total) * 100) : 0,
     logged: { done: steps.filter((s) => s.state === 'done').length, of: steps.length },
-    last_logged: last, studying: false, done: false, tiles: sprintTiles(order, ctx.id),
+    last_logged: last, studying: false, done: false, tiles: sprintTiles(order, ctx.id, seriesMeta),
+    place: placeOf(ctx.meta, seriesMeta),
   };
 }
 
@@ -76,10 +81,10 @@ export function rankSprints(cards: SprintCard[]): SprintCard[] {
 
 /// A finished series (every passage recorded): a done tile on its domain's grid; it still opens its passages.
 export function doneCard(ser: { id: string; title: string }, seriesTitle: string | null, seriesMeta: Record<string, unknown>,
-  order: Array<{ id: string; session_no: number | null; title: string; state: string | null }>): SprintCard {
+  order: TileRow[]): SprintCard {
   const path = Array.isArray(seriesMeta['path']) ? (seriesMeta['path'] as unknown[]).map(str).filter((x): x is string => !!x) : [];
   const t = splitTitle(ser.title);
-  const tiles = sprintTiles(order, '');
+  const tiles = sprintTiles(order, '', seriesMeta);
   return {
     episode_id: tiles[tiles.length - 1]?.id ?? ser.id, series: seriesTitle, accent: str(seriesMeta['accent']), path,
     title_en: t.en, title_ar: t.ar, number: null, subtitle: `${tiles.length} passages`, now: null, ready: 100,

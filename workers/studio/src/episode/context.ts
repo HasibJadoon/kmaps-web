@@ -21,7 +21,10 @@ export interface EpisodeCtx {
   /// Every checklist of the series, for what has been produced so far.
   siblings: Checklist[];
   /// Every episode of the series with its number and planner state, for the episode tiles.
-  series_order: Array<{ id: string; session_no: number | null; state: Checklist['state'] | null }>;
+  series_order: Array<{ id: string; session_no: number | null; state: Checklist['state'] | null; source_ref?: string | null;
+    round?: number | null; cluster?: number | null; angle?: string | null; toc?: string | null }>;
+  /// The series row's meta: the curriculum's labels (rounds, clusters, angles), the guides and the depth lists.
+  series_meta?: Record<string, unknown>;
   participants: Participant[];
   sections: Section[];
   slides: { title: string; deck: string } | null;

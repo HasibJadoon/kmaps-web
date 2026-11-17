@@ -174,3 +174,27 @@ test('a finished series is a done card that still opens its passages', async () 
   assert.deepEqual(c.tiles.map((t) => t.state), ['done', 'done']);
   assert.equal(c.subtitle, '2 passages');
 });
+
+test('curriculum: the chip, the grid headings, the angle colour and the depth meter come from series meta', async () => {
+  const { placeOf, groupLabel, depthOf } = await import('../src/episode/curriculum');
+  const { sprintTiles } = await import('../src/episode/sprints');
+  const sm = {
+    rounds: [{ n: 1, label: 'Basic' }], clusters: [{ n: 2, label: 'Liberty & the self' }],
+    angles: { favour: { label: 'Favour', color: '#5bbf95' }, critic: { label: 'Critic', color: '#e5484d' } },
+    depth: { '2': ['src-lbr-mill-on-liberty', 'src-lbr-cat-berlin-two-concepts'] },
+    guides: { '2': [{ who: 'Gray', line: 'Toleration, not one ideal of the good life.' }] },
+  };
+  assert.deepEqual(placeOf({ round: 1, cluster: 2, angle: 'favour' }, sm), {
+    round: { n: 1, label: 'Basic' }, cluster: { n: 2, label: 'Liberty & the self' }, angle: { key: 'favour', label: 'Favour', color: '#5bbf95' } });
+  assert.equal(placeOf({}, sm), null);
+  assert.equal(groupLabel({ round: 1, cluster: 2 }, sm), 'Round 1 · Basic › Liberty & the self');
+  const order = [
+    { id: 'EP:liberalism:L102.01', session_no: 1, title: 'x — Mill', state: 'done', source_ref: 'src-lbr-mill-on-liberty', round: 1, cluster: 2, angle: 'favour' },
+    { id: 'EP:liberalism:L102.02', session_no: 2, title: 'x — Burke', state: 'active', source_ref: 'src-lbr-burke-reflections', round: 1, cluster: 2, angle: 'critic' },
+  ];
+  assert.deepEqual(depthOf({ cluster: 2 }, sm, order), { cluster: 'Liberty & the self', covered: 1, of: 2, pct: 50,
+    guides: [{ who: 'Gray', line: 'Toleration, not one ideal of the good life.' }] });
+  const tiles = sprintTiles(order, 'EP:liberalism:L102.02', sm);
+  assert.deepEqual(tiles.map((t) => [t.label, t.group, t.angle_color]), [
+    ['02.01', 'Round 1 · Basic › Liberty & the self', '#5bbf95'], ['02.02', 'Round 1 · Basic › Liberty & the self', '#e5484d']]);
+});

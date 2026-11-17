@@ -9,17 +9,20 @@ import { publishTiles } from './publish';
 import { resourceTiles } from './resources';
 import { stepViews, type StepView } from './steps';
 import { daysBetween, obj, splitTitle, strings } from './text';
+import { angleOf, depthOf, groupLabel, placeOf } from './curriculum';
 
-export function backlog(ctx: EpisodeCtx) {
+export function backlog(ctx: EpisodeCtx, seriesMeta: Record<string, unknown> = ctx.series_meta ?? {}) {
   const eps = ctx.series_order.filter((e) => !e.id.endsWith(':slides') && e.state)
     .sort((a, b) => (a.session_no ?? 0) - (b.session_no ?? 0) || a.id.localeCompare(b.id, 'en', { numeric: true }));
   const at = Math.max(0, eps.findIndex((e) => e.id === ctx.id));
   const start = Math.floor(at / 20) * 20;
   const tiles = eps.slice(start, start + 20).map((e) => {
     const tail = e.id.split(':').pop() ?? e.id;
-    const label = /^R\d/.test(tail) ? tail.slice(1) : tail;
+    const lc = tail.match(/^L\d(\d\d)\.(\d+)$/);   // L{round}{cluster}.{part} → "02.03" (the round is the heading)
+    const label = lc ? `${lc[1]}.${lc[2]}` : /^R\d/.test(tail) ? tail.slice(1) : tail;
     const state = e.id === ctx.id ? 'now' : e.state === 'done' ? 'done' : e.state === 'active' ? 'active' : 'queued';
-    return { id: e.id, label, state };
+    return { id: e.id, label, state, group: groupLabel(e, seriesMeta), angle_color: angleOf(seriesMeta, e.angle)?.color ?? null,
+      title: e.toc ?? null };
   });
   return { title: ctx.series_title, total: eps.length, tiles };
 }
@@ -51,14 +54,17 @@ export function buildHub(ctx: EpisodeCtx, seriesMeta: Record<string, unknown> = 
   const path = strings(seriesMeta['path']);
   return {
     id: ctx.id, title: ctx.title, title_en: t.en, title_ar: t.ar, number: ctx.session_no, series: ctx.series_title,
-    subtitle: [ctx.series_title, cite].filter(Boolean).join(' · ') || null,
+    // the series and the cite, unless the cite is the title again (a guide episode)
+    subtitle: cite && t.en.includes(cite) ? ctx.series_title : [ctx.series_title, cite].filter(Boolean).join(' · ') || null,
     path: path.length ? path : [ctx.series_title].filter(Boolean),
     state: ctx.checklist.state,
     days: Math.max(1, ...steps.map((s) => s.day)),
     steps, now: nowOf(steps),
     ready: { have, total, pct: total ? Math.round((have / total) * 100) : 0 },
     logged: { done: steps.filter((s) => s.state === 'done').length, of: steps.length },
-    backlog: backlog(ctx),
+    backlog: backlog(ctx, seriesMeta),
+    place: placeOf(ctx.meta, seriesMeta),
+    depth: depthOf(ctx.meta, seriesMeta, ctx.series_order),
     resources: resourceTiles(ctx),
     publish: { tiles: publishTiles(ctx), produced: produced(ctx) },
     room: typeof obj(ctx.meta)['room'] === 'string' ? ctx.meta['room'] : null,

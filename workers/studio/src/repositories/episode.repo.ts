@@ -631,17 +631,24 @@ export class EpisodeRepo {
 
   /// A series' planner and every episode's checklist in it — the desk's reward counts the finished ones.
   async seriesChecklists(seriesRef: string, now = new Date()): Promise<{ plan: SeriesPlan; title: string | null;
-    all: Map<string, Checklist>; order: Array<{ id: string; session_no: number | null; title: string }>; meta: Record<string, unknown> } | null> {
+    all: Map<string, Checklist>; order: Array<{ id: string; session_no: number | null; title: string; source_ref: string | null;
+      round: number | null; cluster: number | null; angle: string | null; toc: string | null }>; meta: Record<string, unknown> } | null> {
     const series = await query<{ title: string; meta_json: string | null }>(
       this.db, `SELECT title, meta_json FROM st_episodes WHERE id = ?`, [seriesRef]);
     const row = series[0];
     if (!row) return null;
     const plan = seriesPlan(row.meta_json);
     if (!plan.steps.length) return null;
-    const eps = await query<PlanEpisode & { title: string }>(
-      this.db, `SELECT id, session_no, title, meta_json FROM st_episodes WHERE series_ref = ?`, [seriesRef]);
+    const eps = await query<PlanEpisode & { title: string; source_ref: string | null }>(
+      this.db, `SELECT id, session_no, title, source_ref, meta_json FROM st_episodes WHERE series_ref = ?`, [seriesRef]);
     const short = metaObject(row.meta_json)['short'];
-    const order = eps.map((e) => ({ id: e.id, session_no: e.session_no ?? null, title: e.title }));
+    const order = eps.map((e) => {
+      const m = metaObject(e.meta_json);
+      const n = (k: string) => (typeof m[k] === 'number' ? m[k] as number : null);
+      return { id: e.id, session_no: e.session_no ?? null, title: e.title, source_ref: e.source_ref ?? null,
+        round: n('round'), cluster: n('cluster'), angle: typeof m['angle'] === 'string' ? m['angle'] as string : null,
+        toc: typeof m['toc'] === 'string' ? m['toc'] as string : null };
+    });
     return { plan, title: typeof short === 'string' ? short : row.title, all: checklists(plan, eps, now), order,
       meta: metaObject(row.meta_json) };
   }

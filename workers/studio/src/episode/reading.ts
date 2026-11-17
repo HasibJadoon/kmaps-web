@@ -5,6 +5,8 @@
 import type { StudioEnv } from '../env';
 import type { Reading } from './context';
 
+const GREEK = /[\u0370-\u03FF\u1F00-\u1FFF]/;
+
 export async function loadReading(env: StudioEnv, meta: Record<string, unknown>): Promise<Reading | null> {
   const unit = typeof meta['read_unit'] === 'string' ? meta['read_unit'] : null;
   if (!unit) return null;
@@ -31,6 +33,8 @@ export async function loadReading(env: StudioEnv, meta: Record<string, unknown>)
   const passages = u.passages
     .filter((p) => (p.kind ?? 'passage') === 'passage' && (!only || only.has(p.id)))
     .map((p) => ({ id: p.id, cite: p.cite ?? null, en: p.en ?? null, text: (p.lines ?? []).map((l) => l.t ?? '').filter(Boolean).join('\n') }))
+    // a Greek passage (the Greek Arc's Plato and Aristotle) is read in its English (owner 2026-11-17: "I need all English")
+    .map((p) => (GREEK.test(p.text) && p.en ? { ...p, text: p.en, en: null } : p))
     .filter((p) => p.text);
   if (!passages.length) return null;
   return { kind: 'wv', title: [u.work, u.title].filter(Boolean).join(' — ') || null, passages };

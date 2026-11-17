@@ -750,6 +750,7 @@ async function episodeCtx(env: StudioEnv, req: Request, id: string, withText: bo
       id, title: episode.title, session_no: episode.session_no, series_title: series.title, meta,
       plan: series.plan, checklist, siblings: [...series.all.values()],
       series_order: series.order.map((e) => ({ ...e, state: series.all.get(e.id)?.state ?? null })),
+      series_meta: series.meta,
       participants: agg.participants.map((p) => ({ id: p.id, display_name: p.display_name, color: p.color, role: p.role, seq: p.seq })),
       sections: agg.sections.map((s) => ({ heading: s.heading, type: s.type,
         points: s.points.map((pt) => ({ text: pt.text, speaker_ref: pt.speaker_ref })) })),
