@@ -688,6 +688,25 @@ export class EpisodeRepo {
     return this.patchEpisode(id, { meta_json: JSON.stringify(meta) });
   }
 
+  /// Add time studied on one step's screen (the app sends it as the screen closes): meta `study[key]` += seconds.
+  /// Each send is held to 1 s … 2 h, so a forgotten open screen can't count a whole night. Null when the episode is
+  /// unknown; 'no_step' when the step is not on its series' plan.
+  async addStudy(id: string, key: string, seconds: number): Promise<EpisodeRow | null | 'no_step'> {
+    const row = await this.findEpisode(id);
+    if (!row) return null;
+    const steps = (await this.checklistFor([row])).get(id)?.steps ?? [];
+    if (!steps.some((s) => s.key === key)) return 'no_step';
+    const meta = metaObject(row.meta_json);
+    const prev = meta['study'];
+    const map: Record<string, unknown> =
+      prev && typeof prev === 'object' && !Array.isArray(prev) ? { ...(prev as Record<string, unknown>) } : {};
+    const had = typeof map[key] === 'number' ? (map[key] as number) : 0;
+    map[key] = had + Math.round(Math.min(7200, Math.max(1, seconds)));
+    meta['study'] = map;
+    meta['study_at'] = new Date().toISOString();
+    return this.patchEpisode(id, { meta_json: JSON.stringify(meta) });
+  }
+
   /// Log or take back one part going out to YouTube (`short` · `long`): meta `published[part]` = {at, url?}.
   async setPublished(id: string, part: 'short' | 'long', done: boolean, url: string | null): Promise<EpisodeRow | null> {
     const row = await this.findEpisode(id);

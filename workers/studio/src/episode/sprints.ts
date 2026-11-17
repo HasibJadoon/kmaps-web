@@ -4,7 +4,7 @@
 
 import type { EpisodeCtx } from './context';
 import { shortCite } from './focus';
-import { stepViews } from './steps';
+import { minutesLabel, stepViews } from './steps';
 import { splitTitle, str } from './text';
 import { angleOf, groupLabel, placeOf } from './curriculum';
 
@@ -20,6 +20,8 @@ export interface SprintCard {
   now: { title: string; day: number; cue: string | null; when: string | null; color: string; icon: string } | null;
   ready: number;
   logged: { done: number; of: number };
+  /// Minutes studied on the episode so far, against the minutes its steps plan.
+  studied: { minutes: number; of: number; label: string };
   last_logged: string | null;
   studying: boolean;
   /// Every passage of the series is recorded (a finished sūra / arc): shown as a small done tile.
@@ -55,7 +57,10 @@ export function sprintCard(ctx: EpisodeCtx, seriesMeta: Record<string, unknown>,
   const steps = stepViews(ctx);
   const have = steps.reduce((n, s) => n + s.prepared.have, 0), total = steps.reduce((n, s) => n + s.prepared.total, 0);
   const now = steps.find((s) => s.state === 'now');
-  const last = ctx.checklist.steps.map((s) => s.done_at ?? '').filter(Boolean).sort().pop() ?? null;
+  // the latest touch: a tick from before, or study time
+  const studyAt = typeof ctx.meta['study_at'] === 'string' ? ctx.meta['study_at'] as string : '';
+  const last = [...ctx.checklist.steps.map((s) => s.done_at ?? ''), studyAt].filter(Boolean).sort().pop() ?? null;
+  const planned = ctx.plan.steps.reduce((n, d) => n + (d.minutes ?? 0), 0);
   const path = Array.isArray(seriesMeta['path']) ? (seriesMeta['path'] as unknown[]).map(str).filter((x): x is string => !!x) : [];
   return {
     episode_id: ctx.id, series: ctx.series_title, accent: str(seriesMeta['accent']), path,
@@ -64,6 +69,7 @@ export function sprintCard(ctx: EpisodeCtx, seriesMeta: Record<string, unknown>,
     now: now ? { title: now.title, day: now.day, cue: now.cue, when: now.when, color: now.color, icon: now.icon } : null,
     ready: total ? Math.round((have / total) * 100) : 0,
     logged: { done: steps.filter((s) => s.state === 'done').length, of: steps.length },
+    studied: { minutes: Math.round(ctx.checklist.studied / 60), of: planned, label: minutesLabel(ctx.checklist.studied) },
     last_logged: last, studying: false, done: false, tiles: sprintTiles(order, ctx.id, seriesMeta),
     place: placeOf(ctx.meta, seriesMeta),
   };
@@ -88,6 +94,7 @@ export function doneCard(ser: { id: string; title: string }, seriesTitle: string
   return {
     episode_id: tiles[tiles.length - 1]?.id ?? ser.id, series: seriesTitle, accent: str(seriesMeta['accent']), path,
     title_en: t.en, title_ar: t.ar, number: null, subtitle: `${tiles.length} passages`, now: null, ready: 100,
-    logged: { done: tiles.length, of: tiles.length }, last_logged: null, studying: false, done: true, tiles,
+    logged: { done: tiles.length, of: tiles.length }, studied: { minutes: 0, of: 0, label: '0 min' },
+    last_logged: null, studying: false, done: true, tiles,
   };
 }

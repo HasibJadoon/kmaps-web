@@ -9,7 +9,9 @@
 ///   tz            the owner's time zone, for "today" and the labels
 ///   open_url      a link template for a step that opens something, e.g.
 ///                 "com.kmaps.app://wv/unit/{unit}"
-/// Each episode keeps its ticks in its own meta (`steps_done`: key → ISO time),
+/// Each episode keeps its study time in its own meta (`study`: step key → seconds, owner 2026-11-17: "no log, capture
+/// study time, the user just studies") and is finished when its Episode is published (`published.long.at`). Ticks
+/// from before (`steps_done`: key → ISO time) still finish an episode whose every step was ticked.
 /// and a step with `opens: "read_unit"` takes its target from the episode's
 /// meta `read_unit`.
 ///
@@ -44,6 +46,8 @@ export interface Step {
   hint: string | null;
   done: boolean;
   done_at: string | null;
+  /// Seconds studied on this step's screen, captured by the app.
+  studied: number;
   /// What this step opens, when it opens something (the reading).
   open?: { unit: string; url: string | null };
   /// What the step's button does (notes, shoot …), from the series row.
@@ -66,6 +70,8 @@ export interface Checklist {
   state: 'active' | 'queued' | 'done';
   finished_on: string | null;
   finished_label: string | null;
+  /// Seconds studied on all the steps.
+  studied: number;
 }
 
 export interface PlanEpisode { id: string; session_no: number | null; meta_json: string | null }
@@ -124,11 +130,15 @@ export function episodeSteps(plan: SeriesPlan, episodeMeta: string | null): Step
   const doneRaw = meta['steps_done'];
   const done = doneRaw && typeof doneRaw === 'object' && !Array.isArray(doneRaw)
     ? doneRaw as Record<string, unknown> : {};
+  const studyRaw = meta['study'];
+  const study = studyRaw && typeof studyRaw === 'object' && !Array.isArray(studyRaw) ? studyRaw as Record<string, unknown> : {};
   return plan.steps.map((d) => {
     const at = done[d.key];
+    const secs = study[d.key];
     const step: Step = {
       key: d.key, label: d.label, hint: d.hint,
       done: typeof at === 'string', done_at: typeof at === 'string' ? at : null,
+      studied: typeof secs === 'number' && secs > 0 ? Math.round(secs) : 0,
       action: d.action, planned_on: null, planned_label: null,
     };
     const target = d.opens ? meta[d.opens] : undefined;
@@ -184,10 +194,9 @@ export function checklists(plan: SeriesPlan, episodes: PlanEpisode[], now: Date)
   const rows = ordered.map((e) => {
     const steps = episodeSteps(plan, e.meta_json);
     const done = steps.filter((s) => s.done).length;
-    const finished = done === steps.length;
-    const last = finished
-      ? steps.map((s) => s.done_at ?? '').sort().pop() ?? null
-      : null;
+    // finished: its Episode is published; or, from before study time, every step was ticked
+    const pub = publishedAt(e.meta_json);
+    const last = pub ?? (done === steps.length ? steps.map((s) => s.done_at ?? '').sort().pop() ?? null : null);
     return { e, steps, done, finished_on: last ? dayIn(plan.tz, new Date(last)) : null };
   });
 
@@ -233,9 +242,18 @@ export function checklists(plan: SeriesPlan, episodes: PlanEpisode[], now: Date)
       target_on: target, target_label: target ? dayLabel(target) : null,
       up_next: upNext, state: !unfinished ? 'done' : upNext ? 'active' : 'queued', finished_on: r.finished_on,
       finished_label: r.finished_on ? dayLabel(r.finished_on) : null,
+      studied: r.steps.reduce((n, st) => n + st.studied, 0),
     });
   }
   return out;
+}
+
+/// When the episode's long one went out (meta `published.long.at`), or null.
+export function publishedAt(episodeMeta: string | null): string | null {
+  const p = metaObject(episodeMeta)['published'];
+  const long = p && typeof p === 'object' ? (p as Record<string, unknown>)['long'] : null;
+  const at = long && typeof long === 'object' ? (long as Record<string, unknown>)['at'] : null;
+  return typeof at === 'string' && at ? at : null;
 }
 
 function s0(v: number | null | undefined): number | null { return typeof v === 'number' ? v : null; }

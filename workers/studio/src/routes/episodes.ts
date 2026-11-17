@@ -11,6 +11,7 @@ import { focusOf } from '../episode/focus';
 import { NEEDS_TEXT, RESOURCE_KEYS, resource } from '../episode/resources';
 import { PARTS, publishView, type Part } from '../episode/publish';
 import { loadReading } from '../episode/reading';
+import { groupTranslations, type QrTranslationRow } from '../episode/translations';
 import { splitTitle } from '../episode/text';
 import { doneCard, rankSprints, sprintCard, type SprintCard } from '../episode/sprints';
 import type { EpisodeCtx } from '../episode/context';
@@ -230,6 +231,26 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     return ok(await repo.findAggregate(id));
   });
 
+  /// Time studied on a step's screen — the app sends it when the screen closes (owner 2026-11-17: "no log, capture
+  /// study time, the user just studies"). Body {"seconds": n}. Any episode can be studied, queued ones too.
+  router.post('/st/episodes/:id/study/:key', async (req, env, { id, key }) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const body = await readJsonBody(req);
+    const secs = isSchemaRecord(body) ? body['seconds'] : null;
+    if (typeof secs !== 'number' || !Number.isFinite(secs) || secs <= 0) return badRequest('Body must be {"seconds": n > 0}');
+    const repo = new EpisodeRepo(env.DB_ST);
+    const episode = await repo.findEpisode(id);
+    if (!episode) return notFound(`episode ${id}`);
+    const gate = await deny(env, req, user, episode, 'write');
+    if (gate) return gate;
+    const res = await repo.addStudy(id, key, secs);
+    if (res === 'no_step') return badRequest(`step ${key} is not on this series' plan`);
+    if (!res) return notFound(`episode ${id}`);
+    const got = await episodeCtx(env, req, id, false);
+    return 'error' in got ? got.error : ok(buildHub(got.ctx, got.seriesMeta));
+  });
+
   router.post('/st/episodes', async (req, env) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
@@ -325,6 +346,18 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     if (!step) return notFound(`step ${key} on episode ${id}`);
     const phase = phaseFor(step.phase);
     return ok({ id, title: splitTitle(got.ctx.title).en, step, focus: focusOf(got.ctx), ...phase.build(got.ctx) });
+  });
+
+  /// Every translation of one āyah ("40:3"), grouped by language — the phase screens' tap-an-āyah sheet.
+  router.get('/st/ayah/:key/translations', async (req, env, { key }) => {
+    if (!actorRef(req)) return unauthorized('Authenticated user required');
+    const m = String(key).match(/^(\d{1,3}):(\d{1,3})$/);
+    if (!m || Number(m[1]) < 1 || Number(m[1]) > 114) return badRequest('āyah key must look like 40:3');
+    const res = await env.QR.fetch(`https://km-quran/qr/translations?surah=${m[1]}&ayah=${m[2]}&named=1`).catch(() => null);
+    const body = res && res.ok ? await res.json<{ data?: QrTranslationRow[] }>().catch(() => null) : null;
+    if (!body?.data) return err('upstream', 'Could not read the translations', 502);
+    const groups = groupTranslations(body.data);
+    return ok({ key, cite: `${m[1]}:${m[2]}`, total: groups.reduce((n, g) => n + g.items.length, 0), groups });
   });
 
   router.get('/st/episodes/:id/resource/:key', async (req, env, { id, key }) => {

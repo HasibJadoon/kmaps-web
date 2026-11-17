@@ -7,7 +7,7 @@ import type { EpisodeCtx } from './context';
 import { shortCite } from './focus';
 import { publishTiles } from './publish';
 import { resourceTiles } from './resources';
-import { stepViews, type StepView } from './steps';
+import { minutesLabel, stepViews, type StepView } from './steps';
 import { daysBetween, obj, splitTitle, strings } from './text';
 import { angleOf, depthOf, groupLabel, placeOf } from './curriculum';
 
@@ -62,6 +62,13 @@ export function buildHub(ctx: EpisodeCtx, seriesMeta: Record<string, unknown> = 
     steps, now: nowOf(steps),
     ready: { have, total, pct: total ? Math.round((have / total) * 100) : 0 },
     logged: { done: steps.filter((s) => s.state === 'done').length, of: steps.length },
+    studied: { minutes: Math.round(ctx.checklist.studied / 60), label: minutesLabel(ctx.checklist.studied) },
+    // the line under the ring
+    caption: ctx.checklist.state === 'done'
+      ? `Published${ctx.checklist.finished_label ? ` ${ctx.checklist.finished_label}` : ''} · ${minutesLabel(ctx.checklist.studied)} studied`
+      : ctx.checklist.state === 'queued'
+        ? 'Waits its turn · tap a step to open it'
+        : `${minutesLabel(ctx.checklist.studied)} studied · finished when the Episode is published · tap a step to open it`,
     backlog: backlog(ctx, seriesMeta),
     place: placeOf(ctx.meta, seriesMeta),
     depth: depthOf(ctx.meta, seriesMeta, ctx.series_order),

@@ -11,7 +11,7 @@ export function translationRoutes(router: Router<QuranEnv>) {
     const surah = parseIntParam(url.searchParams.get('surah') ?? '');
     const ayah  = parseIntParam(url.searchParams.get('ayah')  ?? '');
     if (!surah || !ayah) return badRequest('surah and ayah params required');
-    return ok(await new TranslationRepo(env.DB_QR).byAyah(surah, ayah));
+    return ok(await new TranslationRepo(env.DB_QR).byAyah(surah, ayah, url.searchParams.get('named') === '1'));
   });
 
 }

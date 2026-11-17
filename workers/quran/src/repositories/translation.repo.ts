@@ -15,6 +15,12 @@ export interface Translation {
   ayah: number;
   source_id: string;
   text: string;
+  /// who made it, from qr_translation_source (null when the source row is missing)
+  translator?: string | null;
+  edition?: string | null;
+  language?: string | null;
+  slug?: string | null;
+  is_default?: number | null;
 }
 
 export class TranslationRepo {
@@ -38,12 +44,26 @@ export class TranslationRepo {
     );
   }
 
-  byAyah(surahId: number, ayahNum: number): Promise<Translation[]> {
+  /// `named` adds who made each one (from qr_translation_source) and orders them default first, then by language
+  /// and translator; without it the rows are as before (a different URL, so a different cache entry).
+  byAyah(surahId: number, ayahNum: number, named = false): Promise<Translation[]> {
+    if (!named) {
+      return query<Translation>(
+        this.db,
+        `SELECT t.id, t.surah, t.ayah, t.source_id, t.translation_text AS text
+         FROM qr_translation t
+         WHERE t.surah = ? AND t.ayah = ?`,
+        [surahId, ayahNum],
+      );
+    }
     return query<Translation>(
       this.db,
-      `SELECT t.id, t.surah, t.ayah, t.source_id, t.translation_text AS text
+      `SELECT t.id, t.surah, t.ayah, t.source_id, t.translation_text AS text,
+              s.translator_name AS translator, s.edition, s.language, s.source_code AS slug, s.is_default
        FROM qr_translation t
-       WHERE t.surah = ? AND t.ayah = ?`,
+       LEFT JOIN qr_translation_source s ON s.id = t.source_id
+       WHERE t.surah = ? AND t.ayah = ?
+       ORDER BY COALESCE(s.is_default, 0) DESC, s.language, s.translator_name`,
       [surahId, ayahNum],
     );
   }

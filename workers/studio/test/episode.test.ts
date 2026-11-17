@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { seriesPlan, checklists } from '../src/checklist';
 import type { EpisodeCtx } from '../src/episode/context';
 import { buildHub } from '../src/episode/hub';
+import { groupTranslations } from '../src/episode/translations';
 import { stepViews } from '../src/episode/steps';
 import { phaseFor, PHASES } from '../src/episode/phases';
 import { publishView } from '../src/episode/publish';
 import { resource, resourceTiles } from '../src/episode/resources';
-import { focusOf } from '../src/episode/focus';
+import { focusOf, guideOf, paragraphsOf } from '../src/episode/focus';
 import { bidiLine, splitTitle } from '../src/episode/text';
 
 const steps = [
@@ -106,7 +107,7 @@ test('the selected text and the resources', () => {
   const c = ctx('EP:ghafir:P02', p2meta);
   const f = focusOf(c);
   assert.equal(f.cite, 'Ghafir 40:4–5');
-  assert.equal(f.blocks[0]!.en, 'Only the disbelievers dispute.');
+  assert.equal(f.blocks[0]!.en, null);   // Arabic only: every translation is one tap away
   assert.equal(f.concept, '⁧جِدال⁩ — arguing with no authority');
   assert.equal((resource(c, 'questions') as { questions: string[] }).questions[0], 'Who disputes?');
   assert.equal(resource(c, 'slides'), null);
@@ -121,7 +122,7 @@ test('publish: the short asks, the long answers, chapters from the run sheet', (
   assert.equal(lg!.title, 'Is every religious debate wrong?');
   assert.deepEqual(lg!.chapters.map((c) => c.at), ['00:00', '02:00', '06:00']);
   assert.match(lg!.description, /We read Ibn ʿĀshūr and al-Ṭabarī\./);
-  assert.equal(lg!.ready, false);
+  assert.equal(lg!.ready, true);   // nothing is logged by hand: both can go out any time
   assert.equal(v.playlist, 'Do Zāwiya · Ghāfir');
 });
 
@@ -197,4 +198,71 @@ test('curriculum: the chip, the grid headings, the angle colour and the depth me
   const tiles = sprintTiles(order, 'EP:liberalism:L102.02', sm);
   assert.deepEqual(tiles.map((t) => [t.label, t.group, t.angle_color]), [
     ['02.01', 'Round 1 · Basic › Liberty & the self', '#5bbf95'], ['02.02', 'Round 1 · Basic › Liberty & the self', '#e5484d']]);
+});
+
+test('āyah translations: English (default first), then Urdu; no transliteration or Roman Urdu; markup and brackets cleaned', () => {
+  const g = groupTranslations([
+    { source_id: 'QR:TRANS:EN_TRANSLIT', text: 'Ghafiri aththanbi', language: 'en', slug: 'EN_TRANSLIT', translator: 'Transliteration' },
+    { source_id: 'QR:TRANS:UR_MAUDUDI', text: 'گناہ معاف کرنے والا', language: 'ur', translator: 'Maududi' },
+    { source_id: 'QR:TRANS:EN_ASAD', text: 'forgiving <sup>1</sup>sins', language: 'en', translator: 'Muhammad Asad' },
+    { source_id: 'QR:TRANS:EN_HALEEM', text: 'Forgiver of sins', language: 'en', translator: 'Abdel Haleem', is_default: 1 },
+    { source_id: 'QR:TRANS:EN_IA_GEORGE_SALE', text: 'the forgiver of sin', language: 'en', translator: null },
+    { source_id: 'QR:TRANS:EN_EMPTY', text: '  ', language: 'en', translator: 'Nobody' },
+    { source_id: 'QR:TRANS:UR_MAUDUDI_ROMAN', text: 'Gunaah maaf karne wala', language: 'ur-roman', translator: 'Maududi' },
+    { source_id: 'QR:TRANS:EN_IA_AL_MUNTAKHAB', text: 'Who gives up claim', language: 'en', translator: '[Al-Muntakhab]' },
+  ]);
+  assert.deepEqual(g.map((x) => x.key), ['en', 'ur']);
+  assert.deepEqual(g[0]!.items.map((i) => i.translator), ['Abdel Haleem', 'Al-Muntakhab', 'George Sale', 'Muhammad Asad']);
+  assert.equal(g[0]!.items[0]!.default, true);
+  assert.equal(g[0]!.items[3]!.text, 'forgiving sins');
+  assert.equal(g[1]!.label, 'Urdu'); assert.equal(g[1]!.rtl, true); assert.equal(g[1]!.items.length, 1);
+});
+
+test('study time, not logs: the step in hand is the first not studied for its minutes; publishing finishes', () => {
+  const p = seriesPlan(JSON.stringify({ steps: steps.map((st) => ({ ...st, minutes: st.minutes ?? 10 })), cadence_days: 2, tz: 'Australia/Sydney' }));
+  const studied = { read: 25 * 60, think: 4 * 60 };   // Read studied its 25 min; Think 4 of 10
+  const list = [
+    { id: 'EP:x:1', session_no: 1, meta_json: JSON.stringify({ study: { read: 600 }, published: { long: { at } } }) },
+    { id: 'EP:x:2', session_no: 2, meta_json: JSON.stringify({ study: studied, study_at: at }) },
+    { id: 'EP:x:3', session_no: 3, meta_json: null },
+  ];
+  const cl = checklists(p, list, now);
+  assert.equal(cl.get('EP:x:1')!.state, 'done');        // published → finished, no ticks needed
+  assert.equal(cl.get('EP:x:2')!.state, 'active');
+  assert.equal(cl.get('EP:x:3')!.state, 'queued');
+  assert.equal(cl.get('EP:x:2')!.studied, 29 * 60);
+  const c = { ...ctx('EP:ghafir:P02', {}), plan: p, checklist: cl.get('EP:x:2')! };
+  const v = stepViews(c);
+  assert.deepEqual(v.map((s) => [s.key, s.state, s.badge]).slice(0, 3),
+    [['read', 'later', '25 min'], ['think', 'now', '4 min'], ['brainstorm', 'later', `${v[2]!.prepared.pct}%`]]);
+  const hub = buildHub(c);
+  assert.equal(hub.studied.label, '29 min');
+  assert.match(hub.caption, /^29 min studied · finished when the Episode is published/);
+  const done = buildHub({ ...c, checklist: cl.get('EP:x:1')! });
+  assert.ok(done.steps.every((s) => s.state === 'done'));
+  assert.match(done.caption, /^Published /);
+});
+
+test('a guide note is set out for reading: paragraphs, who is who, a timeline, sources as named links', () => {
+  const note = "Long ago the elders asked for a king. Samuel warned them. The king was never the last word. Prophets stood up to kings. In c. 1000 BC David ruled.\n\n"
+    + "Key players: Samuel — prophet who warned Israel; Nathan — prophet who confronted David\n\n"
+    + "Events: c. 1050–1000 BC — The people ask for a king; Samuel anoints Saul.; 586 BC — Babylon destroys the Temple.\n\n"
+    + "Sources: Britannica: Crucifixion (about AD 32; other articles say 30) — https://www.britannica.com/topic/crucifixion; Bible (KJV) 1 Kings 21 — https://www.biblegateway.com/passage/?search=1+Kings+21";
+  const g = guideOf(note)!;
+  assert.equal(g.paragraphs.length, 2);
+  assert.match(g.paragraphs[1]!, /c\. 1000 BC David ruled\.$/);   // "c." is not a sentence end
+  assert.deepEqual(g.players[1], { name: 'Nathan', line: 'prophet who confronted David' });
+  assert.deepEqual(g.events[0], { when: 'c. 1050–1000 BC', what: 'The people ask for a king; Samuel anoints Saul.' });
+  assert.deepEqual(g.sources.map((x) => x.title), ['Britannica: Crucifixion (about AD 32; other articles say 30)', 'Bible (KJV) 1 Kings 21']);
+  assert.equal(g.sources[1]!.url, 'https://www.biblegateway.com/passage/?search=1+Kings+21');
+  assert.equal(guideOf('Just plain prose, no parts.'), null);
+  assert.equal(paragraphsOf('One. Two. Three. Four.').length, 2);
+});
+
+test('a guide with a Doc opens in the essay reader instead of being set inline', () => {
+  const c = ctx('EP:ghafir:P02', { read_label: 'The Bible, Israel’s kings and Rome', read_note: 'Story.\n\nKey players: A — b', read_doc: 'wv-liberalism-guide-01' });
+  const f = focusOf({ ...c, reading: null });
+  assert.equal(f.doc?.url, 'com.kmaps.app://essay/wv-liberalism-guide-01');
+  assert.equal(f.guide, null);
+  assert.equal(f.note, null);
 });

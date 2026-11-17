@@ -1,6 +1,7 @@
 /// Publish — the episode goes out to YouTube her way: a short that asks (Day 1) and the full episode that answers
 /// (Day 2). Titles are the question itself; the description says what struck us, who we read, what comes next;
-/// the long one's chapters come from the run sheet.
+/// the long one's chapters come from the run sheet. Both can go out any time (nothing is logged by hand); publishing
+/// the Episode finishes the episode and opens the next.
 
 import type { EpisodeCtx } from './context';
 import { runSheet } from './phases/runsheet';
@@ -17,9 +18,6 @@ function published(meta: Record<string, unknown>, part: Part): { at: string; url
   return typeof p['at'] === 'string' ? { at: p['at'], url: typeof p['url'] === 'string' ? p['url'] : null } : null;
 }
 
-function stepDone(ctx: EpisodeCtx, phase: string): boolean {
-  return ctx.checklist.steps.some((s) => (s.key === phase || (phase === 'record' && s.key === 'shoot')) && s.done);
-}
 
 export function publishView(ctx: EpisodeCtx) {
   const m = ctx.meta;
@@ -35,10 +33,10 @@ export function publishView(ctx: EpisodeCtx) {
     playlist: series ? `Do Zāwiya · ${series}` : 'Do Zāwiya',
     parts: [
       { part: 'short' as Part, title: sh?.hook ?? null, description: [sh?.open_question, 'Tomorrow we dig in.', series ? `Do Zāwiya · ${series}` : null]
-          .filter(Boolean).join('\n\n'), chapters: [], ready: stepDone(ctx, 'prepare'), published: published(m, 'short') },
+          .filter(Boolean).join('\n\n'), chapters: [], ready: true, published: published(m, 'short') },
       { part: 'long' as Part, title: longTitle, description: longDesc,
         chapters: rs.segments.map((s) => ({ at: s.start, title: s.label })),
-        ready: stepDone(ctx, 'record'), published: published(m, 'long') },
+        ready: true, published: published(m, 'long') },
     ],
   };
 }
