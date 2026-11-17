@@ -141,3 +141,16 @@ test('step views carry the cue for the phone reminder', () => {
   assert.equal(think.cue_on, '2026-11-17');
   assert.equal(v.find((s) => s.key === 'record')!.when, 'tomorrow');
 });
+
+test('sprint cards: the one due today and worked on last is the one in hand', async () => {
+  const { sprintCard, rankSprints } = await import('../src/episode/sprints');
+  const a = sprintCard(ctx('EP:ghafir:P02', p2meta), { path: ['Qurʾān', 'Ḥawāmīm', 'Ghāfir'], accent: '#D8B657' });
+  assert.equal(a.now?.title, 'Think');
+  assert.equal(a.logged.done, 1);
+  assert.equal(a.subtitle, 'Ghāfir · 40:4–5');
+  const b = { ...a, episode_id: 'EP:liberalism:R01.01', series: 'Liberalism', now: { ...a.now!, when: 'tomorrow' }, last_logged: null };
+  const ranked = rankSprints([b, a]);
+  assert.equal(ranked[0]!.episode_id, 'EP:ghafir:P02');
+  assert.equal(ranked[0]!.studying, true);
+  assert.equal(ranked[1]!.studying, false);
+});

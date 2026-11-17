@@ -12,6 +12,7 @@ import { NEEDS_TEXT, RESOURCE_KEYS, resource } from '../episode/resources';
 import { PARTS, publishView, type Part } from '../episode/publish';
 import { loadReading } from '../episode/reading';
 import { splitTitle } from '../episode/text';
+import { rankSprints, sprintCard, type SprintCard } from '../episode/sprints';
 import type { EpisodeCtx } from '../episode/context';
 import { isSchemaRecord, readJsonBody } from '../../../shared/src/validate';
 import type { StudioEnv } from '../env';
@@ -282,6 +283,32 @@ export function episodeRoutes(router: Router<StudioEnv>) {
   /// One Do Zāwiya episode as the room's sprint picture: `/hub` is the ring and the tiles only; each step
   /// (`/phase/:key`) and each resource (`/resource/:key`) is its own screen with its own data; `/publish` is what
   /// goes out to YouTube. See src/episode/.
+  /// The phone's sprint cards: one per planner series, its episode in hand, the one being studied first.
+  router.get('/st/sprints', async (req, env) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const repo = new EpisodeRepo(env.DB_ST);
+    const now = new Date();
+    const cards: SprintCard[] = [];
+    for (const ser of await repo.plannerSeries()) {
+      if (await deny(env, req, user, ser, 'read')) continue;
+      const series = await repo.seriesChecklists(ser.id, now);
+      if (!series) continue;
+      const active = [...series.all.entries()].find(([, c]) => c.state === 'active');
+      if (!active) continue;
+      const [id, checklist] = active;
+      const ep = await repo.findEpisode(id);
+      if (!ep) continue;
+      let meta: Record<string, unknown> = {};
+      try { meta = JSON.parse(ep.meta_json ?? '{}') ?? {}; } catch { /* keep {} */ }
+      cards.push(sprintCard({
+        id, title: ep.title, session_no: ep.session_no, series_title: series.title, meta, plan: series.plan, checklist,
+        siblings: [...series.all.values()], series_order: [], participants: [], sections: [], slides: null, reading: null, now,
+      }, series.meta));
+    }
+    return ok({ cards: rankSprints(cards) });
+  });
+
   router.get('/st/episodes/:id/hub', async (req, env, { id }) => {
     const got = await episodeCtx(env, req, id, false);
     return 'error' in got ? got.error : ok(buildHub(got.ctx, got.seriesMeta));

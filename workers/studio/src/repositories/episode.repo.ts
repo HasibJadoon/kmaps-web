@@ -646,6 +646,12 @@ export class EpisodeRepo {
       meta: metaObject(row.meta_json) };
   }
 
+  /// Every series run on the simple planner (its meta names `steps`), for the phone's sprint cards.
+  async plannerSeries(): Promise<Array<{ id: string; title: string; core_user_ref: string; core_ws_ref: string | null; meta_json: string | null }>> {
+    return query(this.db, `SELECT id, title, core_user_ref, core_ws_ref, meta_json FROM st_episodes
+      WHERE format = 'series' AND json_extract(meta_json, '$.steps') IS NOT NULL ORDER BY id`, []);
+  }
+
   /// The deck a planner episode is shown with: its sibling `<id>:slides` episode's meta `deck`.
   async slidesFor(id: string): Promise<{ title: string; deck: string } | null> {
     const rows = await query<{ title: string; meta_json: string | null }>(
