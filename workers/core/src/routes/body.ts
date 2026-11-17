@@ -8,6 +8,7 @@ import { prayersBlock, bodyPrayerRoutes, fardLoggedCount } from './body-prayer';
 import { modeFromRow, profileMode } from './body-mode';
 import { childDashboard, childMealsPage } from './body-child';
 import { bodyRoutineRoutes, routineBlock } from './body-routine';
+import { bodyFocusRoutes, focusView } from './body-focus';
 
 // ── The personal dashboard (migration 071): weight toward a goal, one meal a day, exercise, the five prayers ─────
 //   GET  /core/body/dashboard        everything the screen draws, shaped here — the app only renders it
@@ -109,6 +110,7 @@ function makeMealOut(env: CoreEnv, labels: Label[]) {
 export function bodyRoutes(router: Router<CoreEnv>) {
   bodyPrayerRoutes(router);
   bodyRoutineRoutes(router);     // the routine's ticks and timed moves (routes/body-routine.ts, migration 081)
+  bodyFocusRoutes(router, imageLink);   // the focus routine: Today · Week · Month, the walk (routes/body-focus.ts)
   router.get('/core/body/dashboard', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
@@ -122,6 +124,8 @@ export function bodyRoutes(router: Router<CoreEnv>) {
     const modeRow = profile ? await queryOne<{ extra_json: string | null }>(env.DB_CORE,
       `SELECT extra_json FROM core_app_label WHERE scope = 'body_mode' AND key = ?`, [profile.plan]) : null;
     const mode = modeFromRow(modeRow);
+    // the focus routine (owner 2026-11-17): two goals, the walk, today's meal — the Today view
+    if (profile && mode?.focus) return ok(await focusView(env, me, 'today', null, (id) => imageLink(env, id)));
     if (profile && mode) {
       const childLabels = await query<Label>(env.DB_CORE, `SELECT scope, key, parent, label, label_ar, detail, icon, color, sort, extra_json
         FROM core_app_label WHERE scope IN (?, 'body_plate') ORDER BY scope, sort`, [`body_ui_${mode.words ?? 'child'}`]);

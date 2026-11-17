@@ -26,6 +26,11 @@ service = "km-core-worker"
 binding = "QR"
 service = "km-quran-worker"
 
+# ─── Service binding — WV owns the corpus; an episode's desk shows its selected passages ─
+[[services]]
+binding = "WV"
+service = "km-worldview-worker"
+
 # ANTHROPIC_API_KEY is a secret: wrangler secret put ANTHROPIC_API_KEY --config workers/studio/wrangler.toml
 
 # ─── Durable Object — live episode sessions ───────────────────────────────────

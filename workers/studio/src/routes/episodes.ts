@@ -4,6 +4,7 @@ import {
 } from '../../../shared/src/response';
 import Anthropic from '@anthropic-ai/sdk';
 import { brainstorm, cardPayload, TutorError, type PassageBrief } from '../tutor';
+import { buildDesk, type DeskReading } from '../desk';
 import { isSchemaRecord, readJsonBody } from '../../../shared/src/validate';
 import type { StudioEnv } from '../env';
 import {
@@ -268,6 +269,37 @@ export function episodeRoutes(router: Router<StudioEnv>) {
       host.core_user_ref = user;
     }
     return created(aggregate);
+  });
+
+  /// One planner episode's desk: the one thing to do now, the concept and the selected text, both people's points,
+  /// the questions and the deck — all on one page (see desk.ts).
+  router.get('/st/episodes/:id/desk', async (req, env, { id }) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const repo = new EpisodeRepo(env.DB_ST);
+    const episode = await repo.findEpisode(id);
+    if (!episode) return notFound(`episode ${id}`);
+    const gate = await deny(env, req, user, episode, 'read');
+    if (gate) return gate;
+    if (!episode.series_ref) return badRequest('This episode is not on a series planner');
+    const now = new Date();
+    const [agg, series, slides] = await Promise.all([
+      repo.findAggregate(id), repo.seriesChecklists(episode.series_ref, now), repo.slidesFor(id),
+    ]);
+    const checklist = series?.all.get(id);
+    if (!agg || !series || !checklist) return badRequest('This episode is not on a series planner');
+    let meta: Record<string, unknown> = {};
+    try { meta = JSON.parse(episode.meta_json ?? '{}') ?? {}; } catch { /* keep {} */ }
+    const reading = await deskReading(env, meta);
+    return ok(buildDesk({
+      id, title: episode.title, session_no: episode.session_no, series_title: series.title, meta,
+      plan: series.plan, checklist, siblings: [...series.all.values()],
+      participants: agg.participants.map((p) => ({ id: p.id, display_name: p.display_name, color: p.color,
+        role: p.role, seq: p.seq })),
+      sections: agg.sections.map((s) => ({ heading: s.heading, type: s.type,
+        points: s.points.map((pt) => ({ text: pt.text, speaker_ref: pt.speaker_ref })) })),
+      reading, slides, now,
+    }));
   });
 
   router.get('/st/episodes/:id', async (req, env, { id }) => {
@@ -635,4 +667,41 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     const deleted = await new EpisodeRepo(env.DB_ST).deletePoint(id);
     return deleted ? noContent() : notFound(`talking point ${id}`);
   });
+}
+
+/// The selected text of a planner episode: a Qurʾān passage ("40/4-5", from QR over the service binding) or a
+/// Worldview unit cut to the episode's passages (meta `read_passages`, from WV). Null when it cannot be read — the
+/// desk then shows the plan's own note of what to read.
+async function deskReading(env: StudioEnv, meta: Record<string, unknown>): Promise<DeskReading | null> {
+  const unit = typeof meta['read_unit'] === 'string' ? meta['read_unit'] : null;
+  if (!unit) return null;
+  const qr = unit.match(/^(\d+)\/(\d+)(?:-(\d+))?$/);
+  if (qr) {
+    const surah = Number(qr[1]), from = Number(qr[2]), to = Number(qr[3] ?? qr[2]);
+    // the same āyāt + default English the app's āyah sheet reads
+    const res = await env.QR.fetch(`https://km-quran/qr/ayah-range/${surah}/${from}/${to}`).catch(() => null);
+    type Range = { surahEn?: string | null; ayat?: Array<{ ayah: number; ar: string | null; en: string | null }> };
+    const body = res && res.ok ? await res.json<{ data?: Range }>().catch(() => null) : null;
+    const ayat = body?.data?.ayat ?? [];
+    if (!ayat.length) return null;
+    return { kind: 'qr', surah, surah_name: body?.data?.surahEn ?? null, from, to, translation: null,
+      ayahs: ayat.map((a) => ({ ayah: a.ayah, text: a.ar ?? '', en: a.en ?? null })) };
+  }
+  if (!env.WV) return null;
+  const res = await env.WV.fetch(`https://km-worldview/wv/corpus/units/${encodeURIComponent(unit)}?lean=1`)
+    .catch(() => null);
+  type Passage = { id: string; kind?: string; cite?: string | null; lines?: Array<{ t?: string }> | null; en?: string | null };
+  const body = res && res.ok
+    ? await res.json<{ data?: { title?: string; work?: string; passages?: Passage[] } }>().catch(() => null) : null;
+  const u = body?.data;
+  if (!u?.passages) return null;
+  const only = Array.isArray(meta['read_passages'])
+    ? new Set((meta['read_passages'] as unknown[]).filter((x): x is string => typeof x === 'string')) : null;
+  const passages = u.passages
+    .filter((p) => (p.kind ?? 'passage') === 'passage' && (!only || only.has(p.id)))
+    .map((p) => ({ id: p.id, cite: p.cite ?? null, en: p.en ?? null,
+      text: (p.lines ?? []).map((l) => l.t ?? '').filter(Boolean).join('\n') }))
+    .filter((p) => p.text);
+  if (!passages.length) return null;
+  return { kind: 'wv', title: [u.work, u.title].filter(Boolean).join(' — ') || null, passages };
 }

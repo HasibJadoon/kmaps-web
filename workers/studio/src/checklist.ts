@@ -23,6 +23,9 @@
 export interface StepDef {
   key: string; label: string; hint: string | null; opens: string | null;
   offset: number | null; action: string | null;
+  /// The if-then cue ("After Fajr"), the prayer it follows and the minutes after it (for the phone's reminder), and
+  /// the minutes of the step's focus timer — all from the series row.
+  cue: string | null; cuePrayer: string | null; cueAfterMin: number | null; minutes: number | null;
 }
 export interface SeriesPlan {
   steps: StepDef[]; cadenceDays: number | null; weekday: number | null; tz: string; openUrl: string | null;
@@ -83,6 +86,10 @@ export function seriesPlan(seriesMeta: string | null): SeriesPlan {
         opens: typeof r['opens'] === 'string' ? r['opens'] : null,
         offset: typeof r['offset'] === 'number' ? r['offset'] : null,
         action: typeof r['action'] === 'string' ? r['action'] : null,
+        cue: typeof r['cue'] === 'string' ? r['cue'] : null,
+        cuePrayer: typeof r['cue_prayer'] === 'string' ? r['cue_prayer'] : null,
+        cueAfterMin: typeof r['cue_after_min'] === 'number' ? r['cue_after_min'] : null,
+        minutes: typeof r['minutes'] === 'number' ? r['minutes'] : null,
       });
     }
   }

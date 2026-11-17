@@ -132,7 +132,7 @@ async function context(env: CoreEnv, me: string): Promise<Ctx> {
     query<Row>(env.DB_CORE, `SELECT on_date, prayer, status, started_at, ended_at, minutes, rakat, rakat_json, khushu, tags_json, note, prayed_at
                              FROM core_body_prayer WHERE owner_ref = ? AND on_date >= ?`, [me, from]),
   ]);
-  const since = String((words.ui.reckoning as Record<string, unknown> | undefined)?.since ?? cal);
+  const since = String(mode?.reckon_since ?? (words.ui.reckoning as Record<string, unknown> | undefined)?.since ?? cal);
   return { me, tz, now, words, times, rows: new Map(rowList.map((r) => [`${r.on_date}|${r.prayer}`, r])), since, pday: prayerDayOf(now, tz, times), mode };
 }
 
@@ -408,6 +408,8 @@ export function bodyPrayerRoutes(router: Router<CoreEnv>) {
     const kind = c.words.spec[prayer]?.kind ?? 'fard';
     if (qadaAsked && kind === 'nafl') return err('bad_request', 'Voluntary prayers are not made up');
     const shown = prayer === 'dhuhr' && isFriday(date) ? 'jumuah' : prayer;
+    // the one-tap rating (bad · good · best → 2 · 4 · 5), kept in the khushūʿ score; optional
+    const rating = Number.isInteger(b.khushu) && (b.khushu as number) >= 1 && (b.khushu as number) <= 5 ? b.khushu as number : null;
     const { win, r, state } = stateOf(c, date, shown);
     if (logged(r)) return err('conflict', 'This prayer is already logged — a logged prayer is final', 409);
     if (r?.started_at) return out(env, ctx.userId, { started_at: r.started_at });
@@ -483,20 +485,22 @@ export function bodyPrayerRoutes(router: Router<CoreEnv>) {
     const kind = c.words.spec[prayer]?.kind ?? 'fard';
     if (qadaAsked && kind === 'nafl') return err('bad_request', 'Voluntary prayers are not made up');
     const shown = prayer === 'dhuhr' && isFriday(date) ? 'jumuah' : prayer;
+    // the one-tap rating (bad · good · best → 2 · 4 · 5), kept in the khushūʿ score; optional
+    const rating = Number.isInteger(b.khushu) && (b.khushu as number) >= 1 && (b.khushu as number) <= 5 ? b.khushu as number : null;
     const { win, r, state } = stateOf(c, date, shown);
     if (logged(r)) return err('conflict', 'This prayer is already logged — a logged prayer is final', 409);
     if (r?.started_at) {
       // a running session closed without details
       const start = Date.parse(r.started_at);
-      await execute(env.DB_CORE, `UPDATE core_body_prayer SET ended_at = ?, minutes = ?, prayed_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
-          WHERE owner_ref = ? AND on_date = ? AND prayer = ? AND prayed_at IS NULL`,
-        [new Date().toISOString(), r1((Date.now() - start) / 60_000), ctx.userId, date, r.prayer]);
+      await execute(env.DB_CORE, `UPDATE core_body_prayer SET ended_at = ?, minutes = ?, khushu = COALESCE(?, khushu),
+          prayed_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE owner_ref = ? AND on_date = ? AND prayer = ? AND prayed_at IS NULL`,
+        [new Date().toISOString(), r1((Date.now() - start) / 60_000), rating, ctx.userId, date, r.prayer]);
     } else {
       if (kind === 'fard' && state === 'not_yet') return err('conflict', 'Its time has not come in yet', 409);
       const late = !!win && Date.now() > Date.parse(win.ends_at);
       const status = kind === 'fard' && (qadaAsked || late) ? 'qada' : 'on_time';
-      await execute(env.DB_CORE, `INSERT INTO core_body_prayer (owner_ref, on_date, prayer, status, prayed_at)
-          VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))`, [ctx.userId, date, prayer, status]);
+      await execute(env.DB_CORE, `INSERT INTO core_body_prayer (owner_ref, on_date, prayer, status, khushu, prayed_at)
+          VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))`, [ctx.userId, date, prayer, status, rating]);
     }
     const rows = await query<{ prayer: string }>(env.DB_CORE, `SELECT prayer FROM core_body_prayer WHERE owner_ref = ? AND on_date = ? AND prayed_at IS NOT NULL`, [ctx.userId, date]);
     return out(env, ctx.userId, { date, prayed: rows.map((x) => x.prayer) });
@@ -514,4 +518,39 @@ export function bodyPrayerRoutes(router: Router<CoreEnv>) {
     else await execute(env.DB_CORE, `INSERT OR IGNORE INTO core_body_friday_done (owner_ref, on_date, item_key) VALUES (?, ?, ?)`, [ctx.userId, c.pday, key]);
     return ok({ prayers: await prayersBlock(env, ctx.userId, c) });
   });
+}
+
+
+// ── The focus routine's prayers (body-focus.ts): each day's five, with their state and the one-tap rating ───────────
+
+export type FocusPrayer = {
+  key: string; label: string; label_ar: string | null; state: string; status: string | null; prayed: boolean;
+  /** best · good · bad from the khushūʿ score (5 · 3–4 · 1–2); prayed when it was logged without one */
+  rating: 'best' | 'good' | 'bad' | 'prayed' | null; starts_at: string | null; ends_at: string | null; time_label: string;
+};
+
+const ratingOf = (k: number | null | undefined): FocusPrayer['rating'] =>
+  k == null ? 'prayed' : k >= 5 ? 'best' : k >= 3 ? 'good' : 'bad';
+
+export async function focusPrayers(env: CoreEnv, me: string, from: string, to: string) {
+  const c = await context(env, me);
+  const days = new Map<string, FocusPrayer[]>();
+  for (let d = from; d <= to; d = addDays(d, 1)) {
+    days.set(d, fiveOf(d).map((k) => {
+      const { win, r, state } = stateOf(c, d, k);
+      const w = c.words.prayer[k] ?? { label: k, label_ar: null };
+      return {
+        key: k, label: w.label, label_ar: w.label_ar ?? null, state, status: logged(r) ? r!.status : null, prayed: logged(r),
+        rating: logged(r) ? ratingOf(r!.khushu) : null,
+        starts_at: win?.starts_at ?? null, ends_at: win?.ends_at ?? null,
+        time_label: hhmm(win?.starts_at, c.tz),
+      };
+    }));
+  }
+  const full = (day: string) => FARD.every((s) => logged(rowOf(c, day, s)));
+  // the dates the phone should send sun times for (as the prayers block asks): a week back to tomorrow
+  const missing = Array.from({ length: 9 }, (_, i) => addDays(c.pday, i - 7)).filter((x) => x >= c.since && !c.times.has(x));
+  const reck = (c.words.ui.reckoning ?? {}) as Record<string, unknown>;
+  return { pday: c.pday, tz: c.tz, now: c.now, since: c.since, days, full_days: streak(c.pday, full),
+           times_missing: missing, reckoning: { method: String(reck.method ?? 'mwl'), asr: String(reck.asr ?? 'hanafi') } };
 }

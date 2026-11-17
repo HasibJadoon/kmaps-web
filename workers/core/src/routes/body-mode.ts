@@ -24,6 +24,13 @@ export type Mode = {
   strength_days?: number;
   /** prayer-screen words (body_prayer_ui keys) never sent to this plan */
   hide_words?: string[];
+  /** the focus routine (owner 2026-11-17): two goals — weight and the five prayers — a daily walk, today's meal;
+   *  the dashboard answers with the focus view (body-focus.ts) */
+  focus?: boolean;
+  /** this plan's own first judged day for missed prayers (a fresh start), over body_prayer_ui reckoning.since */
+  reckon_since?: string;
+  /** the daily walk: its cue ("After ʿAṣr"), the prayer it follows, minutes after it, and its length */
+  walk?: { cue: string; prayer: string; after_min: number; minutes: number };
 };
 
 const json = <T>(s: string | null | undefined, fb: T): T => { try { return s ? JSON.parse(s) as T : fb; } catch { return fb; } };

@@ -13,6 +13,9 @@ export interface StudioEnv {
   /// QR, for the passage a brainstorm is about.
   QR: Fetcher;
 
+  /// WV, for the selected text of a Worldview reading on a planner episode's desk.
+  WV?: Fetcher;
+
   /// Secret. The brainstorm tutor's Claude API key.
   ANTHROPIC_API_KEY: string;
 }

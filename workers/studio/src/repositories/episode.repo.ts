@@ -1,4 +1,4 @@
-import { checklists, seriesPlan, type Checklist, type PlanEpisode } from '../checklist';
+import { checklists, seriesPlan, type Checklist, type PlanEpisode, type SeriesPlan } from '../checklist';
 import { query, queryOne, execute } from '../../../shared/src/db';
 import { chapters, sceneFacts, type Chapter, type SceneFacts } from '../running-order';
 import { typedId } from '../../../shared/src/ulid';
@@ -627,6 +627,29 @@ export class EpisodeRepo {
       }
     }
     return out;
+  }
+
+  /// A series' planner and every episode's checklist in it — the desk's reward counts the finished ones.
+  async seriesChecklists(seriesRef: string, now = new Date()): Promise<{ plan: SeriesPlan; title: string | null;
+    all: Map<string, Checklist> } | null> {
+    const series = await query<{ title: string; meta_json: string | null }>(
+      this.db, `SELECT title, meta_json FROM st_episodes WHERE id = ?`, [seriesRef]);
+    const row = series[0];
+    if (!row) return null;
+    const plan = seriesPlan(row.meta_json);
+    if (!plan.steps.length) return null;
+    const eps = await query<PlanEpisode>(
+      this.db, `SELECT id, session_no, meta_json FROM st_episodes WHERE series_ref = ?`, [seriesRef]);
+    const short = metaObject(row.meta_json)['short'];
+    return { plan, title: typeof short === 'string' ? short : row.title, all: checklists(plan, eps, now) };
+  }
+
+  /// The deck a planner episode is shown with: its sibling `<id>:slides` episode's meta `deck`.
+  async slidesFor(id: string): Promise<{ title: string; deck: string } | null> {
+    const rows = await query<{ title: string; meta_json: string | null }>(
+      this.db, `SELECT title, meta_json FROM st_episodes WHERE id = ?`, [`${id}:slides`]);
+    const deck = rows[0] ? metaObject(rows[0].meta_json)['deck'] : null;
+    return rows[0] && typeof deck === 'string' && deck ? { title: rows[0].title, deck } : null;
   }
 
   /// Tick or untick one step. Returns null when the episode or the step is

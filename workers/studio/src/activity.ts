@@ -69,7 +69,7 @@ export function mondayOf(day: string): string {
 /// A card's short title: "Liberalism · 06 — Locke, Second Treatise (1689)" → "06 · Locke, Second Treatise (1689)";
 /// "الجدال في آيات الله — The Charge and Its Genealogy" (session 2) → "02 · The Charge and Its Genealogy".
 function shortTitle(title: string, sessionNo: number | null): string {
-  const m = title.match(/·\s*(\d+)\s*—\s*(.+)$/);
+  const m = title.match(/·\s*(\d+(?:\.\d+)?)\s*—\s*(.+)$/);
   if (m) return `${m[1]} · ${m[2]}`;
   const tail = title.includes(' — ') ? title.split(' — ').pop()! : title;
   return sessionNo !== null ? `${String(sessionNo).padStart(2, '0')} · ${tail}` : tail;
