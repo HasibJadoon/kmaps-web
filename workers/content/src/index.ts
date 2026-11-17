@@ -7,6 +7,7 @@ import type { ContentEnv } from './env';
 import { documentRoutes } from './routes/documents';
 import { deckRoutes } from './routes/decks';
 import { essayRoutes } from './routes/essays';
+import { readerRoutes } from './routes/reader';
 import { studyRoutes } from './routes/studies';
 import { streamRoutes } from './routes/streams';
 import { hubRoutes } from './routes/hubs';
@@ -35,6 +36,7 @@ router.get('/cm/health', async (_req, env) =>
 documentRoutes(router);
 deckRoutes(router);
 essayRoutes(router);
+readerRoutes(router);
 studyRoutes(router);
 streamRoutes(router);
 hubRoutes(router);

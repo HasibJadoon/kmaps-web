@@ -8,7 +8,7 @@ import { stepViews } from '../src/episode/steps';
 import { phaseFor, PHASES } from '../src/episode/phases';
 import { publishView } from '../src/episode/publish';
 import { resource, resourceTiles } from '../src/episode/resources';
-import { focusOf, guideOf, paragraphsOf } from '../src/episode/focus';
+import { focusOf } from '../src/episode/focus';
 import { bidiLine, splitTitle } from '../src/episode/text';
 
 const steps = [
@@ -243,27 +243,10 @@ test('study time, not logs: the step in hand is the first not studied for its mi
   assert.match(done.caption, /^Published /);
 });
 
-test('a guide note is set out for reading: paragraphs, who is who, a timeline, sources as named links', () => {
-  const note = "Long ago the elders asked for a king. Samuel warned them. The king was never the last word. Prophets stood up to kings. In c. 1000 BC David ruled.\n\n"
-    + "Key players: Samuel — prophet who warned Israel; Nathan — prophet who confronted David\n\n"
-    + "Events: c. 1050–1000 BC — The people ask for a king; Samuel anoints Saul.; 586 BC — Babylon destroys the Temple.\n\n"
-    + "Sources: Britannica: Crucifixion (about AD 32; other articles say 30) — https://www.britannica.com/topic/crucifixion; Bible (KJV) 1 Kings 21 — https://www.biblegateway.com/passage/?search=1+Kings+21";
-  const g = guideOf(note)!;
-  assert.equal(g.paragraphs.length, 2);
-  assert.match(g.paragraphs[1]!, /c\. 1000 BC David ruled\.$/);   // "c." is not a sentence end
-  assert.deepEqual(g.players[1], { name: 'Nathan', line: 'prophet who confronted David' });
-  assert.deepEqual(g.events[0], { when: 'c. 1050–1000 BC', what: 'The people ask for a king; Samuel anoints Saul.' });
-  assert.deepEqual(g.sources.map((x) => x.title), ['Britannica: Crucifixion (about AD 32; other articles say 30)', 'Bible (KJV) 1 Kings 21']);
-  assert.equal(g.sources[1]!.url, 'https://www.biblegateway.com/passage/?search=1+Kings+21');
-  assert.equal(guideOf('Just plain prose, no parts.'), null);
-  assert.equal(paragraphsOf('One. Two. Three. Four.').length, 2);
-});
-
 test('a guide with a Doc opens in the essay reader instead of being set inline', () => {
   const c = ctx('EP:ghafir:P02', { read_label: 'The Bible, Israel’s kings and Rome', read_note: 'Story.\n\nKey players: A — b', read_doc: 'wv-liberalism-guide-01' });
   const f = focusOf({ ...c, reading: null });
   assert.equal(f.doc?.url, 'com.kmaps.app://essay/wv-liberalism-guide-01');
-  assert.equal(f.guide, null);
   assert.equal(f.note, null);
 });
 

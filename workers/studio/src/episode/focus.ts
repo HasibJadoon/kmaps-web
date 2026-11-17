@@ -6,15 +6,6 @@ import type { EpisodeCtx } from './context';
 import { line, obj, splitTitle, str } from './text';
 
 export interface FocusBlock { id: string; n: number | null; cite: string | null; text: string; en: string | null }
-/// A guide text set out for reading: short paragraphs, who is who, a timeline, and its sources as named links.
-export interface Guide {
-  paragraphs: string[];
-  players: Array<{ name: string; line: string }>;
-  events: Array<{ when: string; what: string }>;
-  sources: Array<{ title: string; url: string | null }>;
-  /// The headings the screen writes over each part.
-  heads: { players: string; events: string; sources: string };
-}
 export interface Focus {
   cite: string | null;
   rtl: boolean;
@@ -23,8 +14,6 @@ export interface Focus {
   translation: string | null;
   /// When the text is not in the app: what to read, in the plan's own words.
   note: string | null;
-  /// The same note set out for reading (owner 2026-11-17: "fix this aesthetic of the reading view"), when it is a guide.
-  guide: Guide | null;
   /// The reading as a Doc, opened in the app's essay reader (com.kmaps.app://essay/<slug>) — when the episode has one.
   doc: { slug: string; url: string; title: string | null; kicker: string } | null;
   open_url: string | null;
@@ -42,7 +31,7 @@ export function focusOf(ctx: EpisodeCtx): Focus {
   // every episode's reading as a Doc in the essay reader (owner 2026-11-17: "all episodes the same")
   const slug = str(ctx.meta['read_doc']);
   const doc = slug ? { slug, url: `com.kmaps.app://essay/${encodeURIComponent(slug)}`, title: null as string | null, kicker: 'Read in the reader' } : null;
-  const base = { concept: concept(ctx.meta), open_url: open?.url ?? null, translation: null, note: null, guide: null, doc };
+  const base = { concept: concept(ctx.meta), open_url: open?.url ?? null, translation: null, note: null, doc };
   if (r?.kind === 'qr') {
     const span = r.from === r.to ? `${r.surah}:${r.from}` : `${r.surah}:${r.from}–${r.to}`;
     const qcite = r.surah_name ? `${r.surah_name} ${span}` : span;
@@ -61,71 +50,9 @@ export function focusOf(ctx: EpisodeCtx): Focus {
   const note = line(ctx.meta['read_note']) ?? line(card['read']);
   const cite = str(ctx.meta['read_label']);
   // a guide written as a Doc (owner 2026-11-17: "Doc style, the reader already there") opens in the essay reader
-  if (doc) return { ...base, cite, rtl: false, blocks: [], note: null, guide: null, doc: { ...doc, title: cite ?? splitTitle(ctx.title).en } };
-  const guide = note ? guideOf(note) : null;
-  return { ...base, cite, rtl: false, blocks: [], note: guide ? null : note, guide };
-}
-
-/// Sentences, kept whole across "c. 1050", "St.", "AD 30" and the like: a break is a full stop (or ? !), maybe a closing
-/// quote or bracket, then a space and a capital letter.
-export function sentences(text: string): string[] {
-  return text.split(/(?<=[.!?]['’")\]]?)\s+(?=[A-Z‘'"(])/).map((x) => x.trim()).filter(Boolean)
-    .reduce<string[]>((out, x) => {
-      // "c." / "St." / "ch." / "v." ending a piece is an abbreviation, not a sentence end
-      if (out.length && /\b(c|ca|St|ch|v|vv|cf|Dr|Mr|Mrs|vol|no|pp?)\.$/i.test(out[out.length - 1]!)) out[out.length - 1] += ` ${x}`;
-      else out.push(x);
-      return out;
-    }, []);
-}
-
-/// A long block cut into reading paragraphs of about three sentences (≤ ~420 characters).
-export function paragraphsOf(text: string): string[] {
-  const out: string[] = [];
-  let cur = '';
-  for (const s of sentences(text)) {
-    if (cur && (cur.length + s.length > 420 || sentences(cur).length >= 3)) { out.push(cur); cur = s; }
-    else cur = cur ? `${cur} ${s}` : s;
-  }
-  if (cur) out.push(cur);
-  return out;
-}
-
-/// The guide note the curriculum writes — its story, then "Key players: name — line; …", "Events: when — what.; …" and
-/// "Sources: title — url; …" — as parts to set out. Null when the note has none of those parts (plain prose stays a note).
-export function guideOf(note: string): Guide | null {
-  const g: Guide = { paragraphs: [], players: [], events: [], sources: [], heads: { players: 'Who’s who', events: 'Timeline', sources: 'Sources' } };
-  let structured = false;
-  const dash = /\s+[—–-]\s+/;
-  for (const part of note.split(/\n{2,}/).map((x) => x.trim()).filter(Boolean)) {
-    const head = part.match(/^(Key players|Players|Events|Timeline|Sources):\s*/i);
-    if (!head) { g.paragraphs.push(...paragraphsOf(part)); continue; }
-    structured = true;
-    const body = part.slice(head[0].length);
-    const kind = head[1]!.toLowerCase();
-    if (kind.includes('player')) {
-      for (const x of body.split(/;\s+/)) {
-        const [name, ...rest] = x.split(dash);
-        if (name?.trim()) g.players.push({ name: name.trim(), line: rest.join(' — ').trim() });
-      }
-    } else if (kind === 'events' || kind === 'timeline') {
-      // each event ends with a full stop before the "; " that joins them (an event's own text may hold a ";")
-      for (const x of body.split(/(?<=\.)\s*;\s+/)) {
-        const m = x.match(/^(.+?)\s+[—–]\s+(.+)$/);
-        if (m) g.events.push({ when: m[1]!.trim(), what: m[2]!.trim() });
-        else if (x.trim()) g.events.push({ when: '', what: x.trim() });
-      }
-    } else {
-      // a source is "title — url", joined by "; " — anchored on each url, since a title may hold its own ";"
-      let rest = body;
-      for (const m of body.matchAll(/(.+?)\s+[—–]\s+(https?:\/\/[^\s;]+?)[.,]?(?=;\s|;?$)/gs)) {
-        g.sources.push({ title: m[1]!.replace(/^[;\s]+/, '').trim(), url: m[2]! });
-        rest = rest.replace(m[0], '');
-      }
-      // titles with no url (catalogue-only books)
-      for (const x of rest.split(/;\s+/).map((y) => y.trim()).filter((y) => y && y !== ';')) g.sources.push({ title: x.replace(/;$/, ''), url: null });
-    }
-  }
-  return structured ? g : null;
+  // every reading is a Doc in the app's one reader (owner 2026-11-18: "one universal reader, no more silos")
+  if (doc) return { ...base, cite, rtl: false, blocks: [], note: null, doc: { ...doc, title: cite ?? splitTitle(ctx.title).en } };
+  return { ...base, cite, rtl: false, blocks: [], note };
 }
 
 /// The short cite a step names ("40:4–5", "Locke · ch. V").

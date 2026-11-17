@@ -81,7 +81,7 @@ export const SHARED_STATES = ['published', 'active'];
  * once it is shared (published or active), and only its author before then. A document someone
  * may not read answers 404, so its existence is not given away.
  */
-async function ensureDocument(
+export async function ensureDocument(
   repo: DocumentRepo, docId: string, req: Request, mode: 'read' | 'write',
 ): Promise<Response | null> {
   const user = actorRef(req);
