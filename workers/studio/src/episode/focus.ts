@@ -3,7 +3,7 @@
 /// 2-day part — with the one concept to master.
 
 import type { EpisodeCtx } from './context';
-import { line, obj, str } from './text';
+import { line, obj, splitTitle, str } from './text';
 
 export interface FocusBlock { id: string; n: number | null; cite: string | null; text: string; en: string | null }
 /// A guide text set out for reading: short paragraphs, who is who, a timeline, and its sources as named links.
@@ -39,27 +39,29 @@ export function concept(meta: Record<string, unknown>): string | null {
 export function focusOf(ctx: EpisodeCtx): Focus {
   const open = ctx.checklist.steps.find((s) => s.open)?.open ?? null;
   const r = ctx.reading;
-  const base = { concept: concept(ctx.meta), open_url: open?.url ?? null, translation: null, note: null, guide: null, doc: null };
+  // every episode's reading as a Doc in the essay reader (owner 2026-11-17: "all episodes the same")
+  const slug = str(ctx.meta['read_doc']);
+  const doc = slug ? { slug, url: `com.kmaps.app://essay/${encodeURIComponent(slug)}`, title: null as string | null, kicker: 'Read in the reader' } : null;
+  const base = { concept: concept(ctx.meta), open_url: open?.url ?? null, translation: null, note: null, guide: null, doc };
   if (r?.kind === 'qr') {
     const span = r.from === r.to ? `${r.surah}:${r.from}` : `${r.surah}:${r.from}–${r.to}`;
-    return { ...base, cite: r.surah_name ? `${r.surah_name} ${span}` : span, rtl: true, translation: r.translation,
+    const qcite = r.surah_name ? `${r.surah_name} ${span}` : span;
+    return { ...base, doc: doc && { ...doc, title: splitTitle(ctx.title).en || qcite }, cite: qcite, rtl: true, translation: r.translation,
       blocks: r.ayahs.map((a) => ({ id: `${r.surah}:${a.ayah}`, n: a.ayah, cite: null, text: a.text, en: null })) };
   }
   if (r?.kind === 'wv') {
     const first = r.passages[0]?.cite ?? null, last = r.passages[r.passages.length - 1]?.cite ?? null;
     const span = first && last && first !== last ? `${first}–${last}` : first;
-    return { ...base, cite: [r.title, span].filter(Boolean).join(' · ') || null, rtl: false,
+    const wcite = [r.title, span].filter(Boolean).join(' · ') || null;
+    if (doc) return { ...base, doc: { ...doc, title: str(ctx.meta['read_label']) ?? wcite }, cite: wcite, rtl: false, blocks: [] };
+    return { ...base, cite: wcite, rtl: false,
       blocks: r.passages.map((p) => ({ id: p.id, n: null, cite: p.cite, text: p.text, en: p.en })) };
   }
   const card = obj(ctx.meta['card']);
   const note = line(ctx.meta['read_note']) ?? line(card['read']);
   const cite = str(ctx.meta['read_label']);
   // a guide written as a Doc (owner 2026-11-17: "Doc style, the reader already there") opens in the essay reader
-  const slug = str(ctx.meta['read_doc']);
-  if (slug) {
-    return { ...base, cite, rtl: false, blocks: [], note: null, guide: null,
-      doc: { slug, url: `com.kmaps.app://essay/${encodeURIComponent(slug)}`, title: cite, kicker: 'Read in the reader' } };
-  }
+  if (doc) return { ...base, cite, rtl: false, blocks: [], note: null, guide: null, doc: { ...doc, title: cite ?? splitTitle(ctx.title).en } };
   const guide = note ? guideOf(note) : null;
   return { ...base, cite, rtl: false, blocks: [], note: guide ? null : note, guide };
 }

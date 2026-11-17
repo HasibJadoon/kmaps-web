@@ -266,3 +266,10 @@ test('a guide with a Doc opens in the essay reader instead of being set inline',
   assert.equal(f.guide, null);
   assert.equal(f.note, null);
 });
+
+test('every episode with a Doc links it; a Qurʾān passage keeps its āyāt inline too', () => {
+  const f = focusOf(ctx('EP:ghafir:P02', { ...p2meta, read_doc: 'st-ep-ghafir-p02' }));
+  assert.equal(f.doc?.url, 'com.kmaps.app://essay/st-ep-ghafir-p02');
+  assert.equal(f.blocks.length, 2);
+  assert.equal(f.doc?.title, 'The Charge and Its Genealogy');
+});
