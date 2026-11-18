@@ -55,6 +55,28 @@ export const RELATION: Record<string, string> = {
 
 const parse = <T>(s: string | null | undefined, d: T): T => { try { return s ? JSON.parse(s) as T : d; } catch { return d; } };
 const norm = (r: string) => decodeURIComponent(r).trim();
+
+interface TabirRow {
+  id: string; expression_ar: string; expression_en: string | null; source_slug: string | null; lemma_ar: string | null;
+  primary_lemma_id: string | null; explanation_md: string | null; qr_refs_json: string | null; surah: number | null;
+  ayah: number | null; type_key: string | null; type_en: string | null; type_ar: string | null; source_en: string | null;
+}
+
+/// One expression as the root's page shows it: its verses from qr_refs_json ("44:3"), else its own sūra:āyah; the
+/// explanation without the pipeline's "[kmaps, status=…]" tag; its book by the name the pages use.
+export function expressionOut(r: TabirRow) {
+  const refs = parse<unknown[]>(r.qr_refs_json, []).filter((x): x is string => typeof x === 'string' && /^\d+:\d+(-\d+)?$/.test(x.trim()))
+    .map((x) => x.trim());
+  if (!refs.length && r.surah && r.ayah) refs.push(`${r.surah}:${r.ayah}`);
+  const explanation = (r.explanation_md ?? '').replace(/^\s*\[[^\]]*\]\s*/, '').trim() || null;
+  return {
+    id: r.id, ar: r.expression_ar, en: r.expression_en ?? null,
+    typeKey: r.type_key ?? null, typeName: r.type_en ?? r.type_key ?? null, typeNameAr: r.type_ar ?? null,
+    sourceSlug: r.source_slug ?? null,
+    source: r.source_slug ? (SOURCES[r.source_slug]?.en ?? r.source_en ?? r.source_slug) : null,
+    lemma: r.lemma_ar ?? null, lemmaId: r.primary_lemma_id ?? null, refs, explanation,
+  };
+}
 export const cite = (r: { source_slug: string; page: string | null; marker: string | null; found_under?: string | null }, root: string) => {
   const s = SOURCES[r.source_slug]?.en ?? r.source_slug;
   const under = r.found_under && r.found_under !== root ? `, s.v. ${r.found_under}` : `, s.v. ${root}`;
@@ -270,6 +292,23 @@ export function arcRoutes(router: Router<ArLinguisticsEnv>) {
     ]);
     return ok(deepRoot(root, asl, hand));
   });
+  // Every expression of a root (التعابير) — idioms, fixed phrases, sayings, collocations, Qurʾānic expressions — by the
+  // root's letters, all of them, for the root's page. Not expressionsByRoot() (joins by lemma, LIMIT 12) nor idiomItems()
+  // (only verse-bearing idioms).
+  router.get('/al/root/expressions/:root', async (_req, env, params) => {
+    const root = norm(params.root ?? '');
+    if (!root) return badRequest('root required');
+    const rows = await query<TabirRow>(env.DB_AL,
+      `SELECT t.id, t.expression_ar, t.expression_en, t.source_slug, t.lemma_ar, t.primary_lemma_id, t.explanation_md,
+              t.qr_refs_json, t.surah, t.ayah, k.type_key, k.name_en AS type_en, k.name_ar AS type_ar, s.title_en AS source_en
+         FROM ar_ling_root_lemma_tabir t
+         LEFT JOIN ar_ling_root_lemma_tabir_kind k ON k.id = t.expression_type_id
+         LEFT JOIN ar_ling_source s ON s.slug = t.source_slug
+        WHERE t.root_ar = ? AND t.status IN ('live', 'needs_review')
+        ORDER BY k.type_key = 'quranic_expression' DESC, t.qr_refs_json IS NULL, t.id`, [root]).catch(softFail([] as TabirRow[]));
+    return ok({ root, expressions: rows.map(expressionOut) });
+  });
+
   router.get('/al/arc/root/:root', async (_req, env, params) => {
     const root = norm(params.root ?? '');
     if (!root) return badRequest('root required');

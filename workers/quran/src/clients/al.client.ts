@@ -119,6 +119,11 @@ export class AlClient {
     return callService(this.fetcher, `/al/root/deep/${encodeURIComponent(root)}`);
   }
 
+  /** Every expression of a root (التعابير), by its letters — for the root's page. */
+  rootExpressions(root: string): Promise<{ ok: true; data: { root: string; expressions: RootExpression[] } }> {
+    return callService(this.fetcher, `/al/root/expressions/${encodeURIComponent(root)}`);
+  }
+
   /** `refresh` rebuilds AL's kept answer too — a refresh at the top reaches the language data under it. */
   resolveLemmas(ids: string[], opts: { refresh?: boolean } = {}): Promise<{ ok: true; data: Record<string, ResolvedLemma> }> {
     return callService(
@@ -163,4 +168,11 @@ export interface GramTermLabel {
 
 export function createAlClient(env: QuranEnv): AlClient | null {
   return env.AR_LINGUISTICS ? new AlClient(env.AR_LINGUISTICS) : null;
+}
+
+/** One expression of a root, as AL's /al/root/expressions serves it. */
+export interface RootExpression {
+  id: string; ar: string; en: string | null; typeKey: string | null; typeName: string | null; typeNameAr: string | null;
+  sourceSlug: string | null; source: string | null; lemma: string | null; lemmaId: string | null; refs: string[];
+  explanation: string | null;
 }

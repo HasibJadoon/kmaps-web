@@ -26,6 +26,15 @@ const lemmaTile = (l: Any) => {
   return `::word[${strip(l.lemma)}${cap ? ` | ${cap}` : ''}](com.kmaps.app://reader/qr/reader/lemma/${encodeURIComponent(l.id)})`;
 };
 
+/// A root's expressions for the reader's ```expressions block: each with its type, book, verses (each a link to the
+/// āyah) and explanation — the reader draws them as tiles that open in place.
+const expressionsBlock = (xs: Any[]) => ['```expressions', JSON.stringify(xs.map((x) => ({
+  ar: strip(x.ar), en: strip(x.en) || null, type: strip(x.typeName) || null, typeKey: x.typeKey ?? null,
+  source: strip(x.source) || null, explanation: strip(x.explanation) || null,
+  refs: (Array.isArray(x.refs) ? x.refs : []).map((r: string) => ({ label: r,
+    url: `com.kmaps.app://quran/${r.replace(':', '/')}` })),
+}))), '```'].join('\n');
+
 function constructionsMd(cs: Any[]): string[] {
   const out: string[] = [];
   for (const c of cs) {
@@ -110,6 +119,8 @@ export function rootReaderDoc(page: Any, dictionaries: Array<{ slug: string; tit
   for (const l of page.layers ?? []) md.push(`- ${strip(l.en ?? l.title ?? '')}${l.ar ? ` — ${strip(l.ar)}` : ''}`);
   // the words as small tiles, six a row (owner, 2026-11-18): the word, and a tiny caption of its count and form
   if (page.lemmas?.length) md.push('## :character.book.closed: Its words · الكلمات {#words}', ...page.lemmas.map(lemmaTile));
+  // every expression of the root, after its words; nothing when it has none
+  if (page.expressions?.length) md.push('## :quote.bubble: Its expressions · التعابير {#expressions}', expressionsBlock(page.expressions));
 
   const root = strip(page.root);
   return {

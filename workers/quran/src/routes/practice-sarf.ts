@@ -940,10 +940,12 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
   if (!uid) return null;
   const gids = rows.map((r) => r.gid_lemma);
   const al = createAlClient(env);
-  const [D, deep] = await Promise.all([
+  const [D, deep, expressions] = await Promise.all([
     core(env, { roots: [root], uidOf: new Map([[root, uid]]), gids, rootOfGid: new Map(gids.map((g) => [g, root])) }, refresh),
     // the root, deeper — AL's: its aṣl by every book, its core, its meaning's layers, its stages
     al ? al.rootDeep(root).then((r) => r.data).catch(() => null) : Promise.resolve(null),
+    // every expression of the root (التعابير), all of them
+    al ? al.rootExpressions(root).then((r) => r.data.expressions ?? []).catch(() => []) : Promise.resolve([]),
   ]);
   const K = await kitOf(env, D);
   // a word's form: its derivation as AL names it (اسم الفاعل، مصدر، بابُ نَصَرَ …), else its verb's form family, else — for a
@@ -990,6 +992,9 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
       members: parseJson<NearMember[]>(n.members_json, []).map((m) => ({ ar: m.ar, en: m.en, lemmaId: m.lemmaId ?? null })) })),
     // the root's own opposites only: one tied to a lemma or a word is on that lemma's page
     opposites: (D.opposites.get(root) ?? []).filter((o) => !o.lemmaId && !o.forWord).map((o) => ({ root, ...K.oppositeView(o) })),
+    // every expression of the root — idioms, phrases, sayings, collocations, the Qurʾān's own — each with its type, book,
+    // verses and explanation (AL's ar_ling_root_lemma_tabir, by the root's letters)
+    expressions,
   };
 }
 

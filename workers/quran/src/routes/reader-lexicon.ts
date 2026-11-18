@@ -8,8 +8,13 @@ import { lemmaReaderDoc, rootReaderDoc } from '../reader-lexicon';
 // The lexicon's root and lemma pages in the app's one reader (owner, 2026-11-18): the same data the Forms & words
 // pages read (/qr/lexicon/root, /qr/lexicon/lemma), written out as reader documents; a root page also names every
 // dictionary that files the root (the AL worker's overview, keyed as each book files it), each a door into its entry.
+/// The reader pages' shape: bump it when what they carry changes.
+const READER_V = '2026-11-18b';
+
 export function readerLexiconRoutes(router: Router<QuranEnv>) {
-  router.get('/qr/reader/root/:root', (req, env, params) => cached(req, async () => {
+  // the page's shape is part of the cache key, so a new shape is never served from an older answer
+  const shaped = (req: Request) => { const u = new URL(req.url); u.searchParams.set('v', READER_V); return new Request(u.toString(), req); };
+  router.get('/qr/reader/root/:root', (req, env, params) => cached(shaped(req), async () => {
     const root = decodeURIComponent(params.root ?? '').trim();
     const page = await lexiconRoot(env, root, false);
     if (!page) return notFound(`root ${root}`);
@@ -27,7 +32,7 @@ export function readerLexiconRoutes(router: Router<QuranEnv>) {
     return ok(rootReaderDoc(page, books));
   }, { browser: 60, edge: 3600 }));
 
-  router.get('/qr/reader/lemma/:id', (req, env, params) => cached(req, async () => {
+  router.get('/qr/reader/lemma/:id', (req, env, params) => cached(shaped(req), async () => {
     const id = decodeURIComponent(params.id ?? '').trim();
     const page = await lexiconLemma(env, id, false);
     return page ? ok(lemmaReaderDoc(page)) : notFound(`lemma ${id}`);
