@@ -1,3 +1,4 @@
+import { cached } from '../../../shared/src/cache';
 import type { Router } from '../../../shared/src/router';
 import { notFound, ok } from '../../../shared/src/response';
 import type { ContentEnv } from '../env';
@@ -19,7 +20,11 @@ export function deckRoutes(router: Router<ContentEnv>) {
           return ((await res.json()) as { data?: { roots?: Array<{ id: string; root: string }> } }).data?.roots ?? [];
         }
       : undefined;
-    return ok(
+    // The list and every search, kept at the edge for a day under the decks' version (their latest change and count):
+    // a deck published or edited changes the key, so nothing stale is served; the version is the one query asked.
+    const keyed = new URL(req.url);
+    keyed.searchParams.set('v', await repo.version());
+    return cached(new Request(keyed.toString(), req), async () => ok(
       await repo.list({
         domain: url.searchParams.get('domain') ?? undefined,
         subdomain: url.searchParams.get('subdomain') ?? undefined,
@@ -27,7 +32,7 @@ export function deckRoutes(router: Router<ContentEnv>) {
         root: url.searchParams.get('root') ?? undefined,
         in: url.searchParams.get('in') ?? undefined,
       }, rootsOf),
-    );
+    ), { browser: 300, edge: 86400 });
   });
 
   // Declared before /cm/decks/:slug so the literal wins over the parameter.

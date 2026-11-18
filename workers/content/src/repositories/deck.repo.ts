@@ -176,6 +176,13 @@ export class DeckRepo {
   /** `q` keeps only the decks a search finds — by title, Arabic title, folder, root, word, meaning or Latin name. */
   /** `root` keeps only the decks about that AL root (its ar_ling_roots.id), so a root's page can list them. */
   /** `in` keeps only the decks filed in that folder (a collection id) or anywhere beneath it — a folder's own search. */
+  /** The decks' version — their latest change and how many there are — for keying what is kept of the list. */
+  async version(): Promise<string> {
+    const r = await queryOne<{ at: string | null; n: number }>(this.db,
+      `SELECT MAX(updated_at) AS at, COUNT(*) AS n FROM cm_documents WHERE doc_type = 'deck'`, []);
+    return `${r?.at ?? '0'}.${r?.n ?? 0}`;
+  }
+
   /** `rootsOf` reads a search as roots — AL's root table (/al/lookup/roots); null when AL can't answer. */
   async list(filters: { domain?: string; subdomain?: string; q?: string; root?: string; in?: string } = {},
              rootsOf?: (q: string) => Promise<Array<{ id: string; root: string }> | null>): Promise<DeckSummary[]> {
