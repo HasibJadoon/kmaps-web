@@ -1,4 +1,4 @@
-import { fold, matches } from '../lib/deck-search';
+import { fold, latinRoots, matches } from '../lib/deck-search';
 import { query, queryOne } from '../../../shared/src/db';
 import type {
   Deck, DeckCollection, DeckFolder, DeckSlide, DeckSummary, DeckTheme, DeckVerseRef,
@@ -213,9 +213,24 @@ export class DeckRepo {
       };
       const own = [row.title, row.title_ar, row.slug, ...(meta.collection?.path ?? []).flatMap((n) => [n.title, n.title_ar]),
                    ...(Array.isArray(meta.search) ? meta.search : [])];
-      return [{ row, summary, own }];
+      return [{ row, summary, own, search: (Array.isArray(meta.search) ? meta.search : []).filter((x): x is string => typeof x === 'string') }];
     });
     if (!q) return kept.map((k) => k.summary);
+
+    // A root — نزل, spelled out ن ز ل, marks or not, or in Latin letters (nzl, jdl, ghfr): the decks about exactly that
+    // root — filed under it (the folder's Arabic title) or naming it among their search words — and only those; not every
+    // deck with a word of it somewhere on a slide. No deck about it: the search goes on as for any word.
+    const folded = fold(q);
+    const roots = /^[\u0621-\u064A]{2,4}$/.test(folded) && /^[\u0621-\u0652\u0670\s]+$/.test(q) ? [folded] : latinRoots(q);
+    if (roots.length) {
+      const want = new Set(roots);
+      const about = kept.filter((k) => {
+        const c = k.summary.collection;
+        const names = [c?.title_ar, ...(c?.path ?? []).map((n) => n.title_ar), ...k.search];
+        return names.some((t) => !!t && want.has(fold(t)));
+      });
+      if (about.length) return about.map((k) => k.summary);
+    }
 
     // A search reads the decks themselves too: any English or Arabic word on a slide finds its deck. Decks found by
     // their title, folder, root or word come first; then the decks found only by what their slides say.
