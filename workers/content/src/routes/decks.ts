@@ -8,6 +8,9 @@ import { DeckRepo } from '../repositories/deck.repo';
 // document; the renderer on each client switches on slide.layout and shapes
 // nothing itself. See docs/deck-contract.md.
 
+/// The list's shape: bump it when what a deck summary carries changes, so no older answer is served from the edge.
+const LIST_SHAPE = '2026-11-18-term';
+
 export function deckRoutes(router: Router<ContentEnv>) {
   router.get('/cm/decks', async (req, env) => {
     const url = new URL(req.url);
@@ -24,6 +27,7 @@ export function deckRoutes(router: Router<ContentEnv>) {
     // a deck published or edited changes the key, so nothing stale is served; the version is the one query asked.
     const keyed = new URL(req.url);
     keyed.searchParams.set('v', await repo.version());
+    keyed.searchParams.set('shape', LIST_SHAPE);
     return cached(new Request(keyed.toString(), req), async () => ok(
       await repo.list({
         domain: url.searchParams.get('domain') ?? undefined,

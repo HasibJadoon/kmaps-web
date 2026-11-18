@@ -1,7 +1,7 @@
 import { fold, matches } from '../lib/deck-search';
 import { query, queryOne } from '../../../shared/src/db';
 import type {
-  Deck, DeckCollection, DeckFolder, DeckSlide, DeckSummary, DeckTheme, DeckVerseRef,
+  Deck, DeckCollection, DeckFolder, DeckSlide, DeckSummary, DeckTerm, DeckTheme, DeckVerseRef,
 } from '../schemas/deck.schema';
 import { asDeckLayout } from '../schemas/deck.schema';
 
@@ -176,6 +176,48 @@ export class DeckRepo {
   /** `q` keeps only the decks a search finds — by title, Arabic title, folder, root, word, meaning or Latin name. */
   /** `root` keeps only the decks about that AL root (its ar_ling_roots.id), so a root's page can list them. */
   /** `in` keeps only the decks filed in that folder (a collection id) or anywhere beneath it — a folder's own search. */
+  /**
+   * Each deck that tells a key term gets its `term`: the essay whose term_key is the last part of the deck's id (a
+   * term's essay, story and study decks share it), the word from the study deck (meta.word) or else the essay's Arabic
+   * title (an expression), its first root's letters (from the root folders the decks are filed in), and the essay as a
+   * reader link. One query for the essays.
+   */
+  private async withTerms(decks: DeckSummary[], metas: DeckMeta[]): Promise<void> {
+    const essays = await query<{ slug: string | null; doc_id: string; title_ar: string | null; meta_json: string | null }>(this.db,
+      `SELECT slug, doc_id, title_ar, meta_json FROM cm_documents
+        WHERE doc_type = 'essay' AND json_extract(meta_json, '$.term_key') IS NOT NULL`, []).catch(() => []);
+    if (!essays.length) return;
+    const byKey = new Map(essays.map((e) => {
+      const m = parseJson<{ term_key?: string; term_en?: string; root_uids?: string[] }>(e.meta_json, {});
+      return [m.term_key ?? '', { e, m }] as const;
+    }));
+    const keyOf = (docId: string) => docId.split(':').pop() ?? '';
+    // a key's word, from its study deck; a root id's letters, from the root folders decks are filed in
+    const wordOf = new Map<string, string>();
+    const rootAr = new Map<string, string>();
+    decks.forEach((d, i) => {
+      const w = (metas[i] as { word?: unknown }).word;
+      if (typeof w === 'string' && w) wordOf.set(keyOf(d.doc_id), w);
+      const raw = (metas[i] as { collection?: { root_uid?: unknown; title_ar?: unknown; path?: unknown[] } }).collection;
+      for (const n of [raw, ...(Array.isArray(raw?.path) ? raw.path : [])] as Array<{ root_uid?: unknown; title_ar?: unknown } | undefined>) {
+        if (typeof n?.root_uid === 'string' && typeof n.title_ar === 'string') rootAr.set(n.root_uid, n.title_ar);
+      }
+    });
+    for (const d of decks) {
+      const key = keyOf(d.doc_id);
+      const hit = byKey.get(key);
+      if (!key || !hit) continue;
+      const slug = hit.e.slug ?? hit.e.doc_id;
+      const firstRoot = hit.m.root_uids?.[0] ?? d.root_uids?.[0];
+      const term: DeckTerm = {
+        key, ar: wordOf.get(key) ?? hit.e.title_ar ?? d.title_ar ?? d.title, en: hit.m.term_en ?? null,
+        root_ar: (firstRoot && rootAr.get(firstRoot)) ?? null,
+        reader: `com.kmaps.app://essay/${encodeURIComponent(slug)}`,
+      };
+      d.term = term;
+    }
+  }
+
   /** The decks' version — their latest change and how many there are — for keying what is kept of the list. */
   async version(): Promise<string> {
     const r = await queryOne<{ at: string | null; n: number }>(this.db,
@@ -224,6 +266,7 @@ export class DeckRepo {
                    ...(Array.isArray(meta.search) ? meta.search : [])];
       return [{ row, summary, own }];
     });
+    await this.withTerms(kept.map((k) => k.summary), kept.map((k) => parseJson<DeckMeta>(k.row.meta_json, {})));
     if (!q) return kept.map((k) => k.summary);
 
     // A root, however it is typed — read by AL from the root table (/al/lookup/roots): the root in Arabic, a word of

@@ -150,4 +150,18 @@ export interface DeckSummary {
   collection: DeckCollection | null;
   /** The AL roots (ar_ling_roots.id) the deck is about — the link to each root. */
   root_uids: string[];
+  /** The key term the deck tells, when it is one: its word or expression, its root, and its essay in the reader. */
+  term?: DeckTerm | null;
+}
+
+/** A key term — the unit the library shows as a word: an essay (term_key) with its story and study decks. */
+export interface DeckTerm {
+  key: string;
+  /** The word (the study deck's) or, for an expression, the essay's Arabic title. */
+  ar: string;
+  en: string | null;
+  /** The term's first root, in Arabic, for grouping under a root heading. */
+  root_ar: string | null;
+  /** Its essay, opened in the one reader. */
+  reader: string;
 }
