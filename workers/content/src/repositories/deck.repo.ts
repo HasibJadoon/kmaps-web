@@ -67,6 +67,20 @@ function direction(meta: DeckMeta, language: string): 'rtl' | 'ltr' {
   return language === 'ar' || language === 'ur' || language === 'fa' ? 'rtl' : 'ltr';
 }
 
+/// The deck's folder in full contract shape. A seeded deck may leave out `path` or `terms`; the clients decode every
+/// field, so one short row would stop the whole list loading — fill them in here instead.
+function collectionOf(meta: DeckMeta): DeckCollection | null {
+  const c = meta.collection;
+  if (!c || typeof c.collection_id !== 'string' || !c.collection_id) return null;
+  const node = (n: Partial<DeckCollection>) => ({ collection_id: String(n.collection_id ?? ''), title: String(n.title ?? ''),
+    title_ar: typeof n.title_ar === 'string' ? n.title_ar : null });
+  return {
+    ...node(c),
+    path: (Array.isArray(c.path) ? c.path : []).filter((n) => n && typeof n.collection_id === 'string' && n.collection_id).map(node),
+    terms: Array.isArray(c.terms) ? c.terms.filter((t): t is string => typeof t === 'string') : [],
+  };
+}
+
 function toSlide(row: BlockRow, refs: RefRow[]): DeckSlide {
   const attrs = parseJson<Record<string, unknown>>(row.attrs_json, {});
   return {
@@ -173,7 +187,7 @@ export class DeckRepo {
         duration_min: meta.duration_min ?? null,
         theme: meta.theme ?? {},
         updated_at: row.updated_at,
-        collection: meta.collection ?? null,
+        collection: collectionOf(meta),
         root_uids: rootUids,
       }];
     });
@@ -266,7 +280,7 @@ export class DeckRepo {
       videos: strings(meta.videos),
       theme: meta.theme ?? {},
       slides,
-      collection: meta.collection ?? null,
+      collection: collectionOf(meta),
       xref_gateway: meta.xref_gateway ?? null,
       motion: typeof meta.motion?.speed === 'number' ? { speed: meta.motion.speed } : null,
       autoplay: meta.autoplay === true,
