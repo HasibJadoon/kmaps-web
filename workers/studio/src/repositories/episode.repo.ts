@@ -653,10 +653,12 @@ export class EpisodeRepo {
       meta: metaObject(row.meta_json) };
   }
 
-  /// Every series run on the simple planner (its meta names `steps`), for the phone's sprint cards.
+  /// Every series run on the simple planner (its meta names `steps`), for the phone's sprint cards. A paused series
+  /// (meta `paused: true`, e.g. Liberalism while the Bible runs — owner 2026-11-18) keeps its episodes but no card.
   async plannerSeries(): Promise<Array<{ id: string; title: string; core_user_ref: string; core_ws_ref: string | null; meta_json: string | null }>> {
     return query(this.db, `SELECT id, title, core_user_ref, core_ws_ref, meta_json FROM st_episodes
-      WHERE format = 'series' AND json_extract(meta_json, '$.steps') IS NOT NULL ORDER BY id`, []);
+      WHERE format = 'series' AND json_extract(meta_json, '$.steps') IS NOT NULL
+        AND COALESCE(json_extract(meta_json, '$.paused'), 0) = 0 ORDER BY id`, []);
   }
 
   /// The deck a planner episode is shown with: its sibling `<id>:slides` episode's meta `deck`.
