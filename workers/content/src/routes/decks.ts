@@ -17,6 +17,7 @@ export function deckRoutes(router: Router<ContentEnv>) {
         subdomain: url.searchParams.get('subdomain') ?? undefined,
         q: url.searchParams.get('q') ?? undefined,
         root: url.searchParams.get('root') ?? undefined,
+        in: url.searchParams.get('in') ?? undefined,
       }),
     );
   });

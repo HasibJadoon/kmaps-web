@@ -155,7 +155,8 @@ export class DeckRepo {
 
   /** `q` keeps only the decks a search finds — by title, Arabic title, folder, root, word, meaning or Latin name. */
   /** `root` keeps only the decks about that AL root (its ar_ling_roots.id), so a root's page can list them. */
-  async list(filters: { domain?: string; subdomain?: string; q?: string; root?: string } = {}): Promise<DeckSummary[]> {
+  /** `in` keeps only the decks filed in that folder (a collection id) or anywhere beneath it — a folder's own search. */
+  async list(filters: { domain?: string; subdomain?: string; q?: string; root?: string; in?: string } = {}): Promise<DeckSummary[]> {
     const where = [`doc_type = 'deck'`];
     const params: unknown[] = [];
     if (filters.domain) { where.push('domain = ?'); params.push(filters.domain); }
@@ -172,6 +173,8 @@ export class DeckRepo {
       const meta = parseJson<DeckMeta>(row.meta_json, {});
       const rootUids = Array.isArray(meta.root_uids) ? meta.root_uids : [];
       if (filters.root && !rootUids.includes(filters.root)) return [];
+      const folder = collectionOf(meta);
+      if (filters.in && folder?.collection_id !== filters.in && !folder?.path.some((n) => n.collection_id === filters.in)) return [];
       if (q && !matches([row.title, row.title_ar, row.slug, ...(meta.collection?.path ?? []).flatMap((n) => [n.title, n.title_ar]),
                          ...(Array.isArray(meta.search) ? meta.search : [])], q)) return [];
       return [{
@@ -187,7 +190,7 @@ export class DeckRepo {
         duration_min: meta.duration_min ?? null,
         theme: meta.theme ?? {},
         updated_at: row.updated_at,
-        collection: collectionOf(meta),
+        collection: folder,
         root_uids: rootUids,
       }];
     });
