@@ -5,9 +5,7 @@
 
 import type { EpisodeCtx } from './context';
 import { runSheet } from './phases/runsheet';
-import { short } from './phases/prepare';
-import { sources } from './phases/think';
-import { chain } from './phases/review';
+import { chain, short, sources } from './phases/parts';
 import { line, obj, splitTitle } from './text';
 
 export type Part = 'short' | 'long';

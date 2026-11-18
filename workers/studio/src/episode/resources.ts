@@ -5,6 +5,7 @@ import type { EpisodeCtx } from './context';
 import { concept, focusOf } from './focus';
 import { people } from './people';
 import { line, str } from './text';
+import { deckOf } from './template';
 
 export interface ResourceTile { key: string; title: string; icon: string; n: number }
 
@@ -30,7 +31,7 @@ export function resourceTiles(ctx: EpisodeCtx): ResourceTile[] {
   if (pts) out.push({ key: 'points', title: 'Points', icon: 'text.bubble', n: pts });
   const q = questions(ctx).length;
   if (q) out.push({ key: 'questions', title: 'Questions', icon: 'questionmark.bubble', n: q });
-  if (ctx.slides) out.push({ key: 'slides', title: 'Slides', icon: 'rectangle.on.rectangle', n: 1 });
+  if (deckOf(ctx)) out.push({ key: 'slides', title: 'Slides', icon: 'rectangle.on.rectangle', n: 1 });
   return out;
 }
 
@@ -43,7 +44,7 @@ export function resource(ctx: EpisodeCtx, key: string): Record<string, unknown> 
     case 'concept': return { concept: concept(ctx.meta), cite: focusOf(ctx).cite };
     case 'points': return { people: people(ctx) };
     case 'questions': return { questions: questions(ctx) };
-    case 'slides': return ctx.slides ? { title: ctx.slides.title, url: `com.kmaps.app://deck/${ctx.slides.deck}` } : null;
+    case 'slides': { const d = deckOf(ctx); return d ? { title: ctx.slides?.title ?? 'The episode’s slides', url: d.url } : null; }
     default: return null;
   }
 }

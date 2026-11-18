@@ -9,15 +9,14 @@ import { phaseFor, PHASES } from '../src/episode/phases';
 import { publishView } from '../src/episode/publish';
 import { resource, resourceTiles } from '../src/episode/resources';
 import { focusOf } from '../src/episode/focus';
+import { episodeTemplate, TEMPLATE } from '../src/episode/template';
 import { bidiLine, splitTitle } from '../src/episode/text';
 
 const steps = [
-  { key: 'read', label: 'Day 1 · Read', opens: 'read_unit', offset: -1, action: 'notes', who: 'Hasib', cue: 'After Fajr', cue_prayer: 'fajr', cue_after_min: 20, minutes: 25 },
-  { key: 'think', label: 'Day 1 · Think', offset: -1, action: 'think', who: 'Hasib', cue: 'After Fajr' },
-  { key: 'brainstorm', label: 'Day 1 · Brainstorm', offset: -1, action: 'brainstorm', who: 'Ali', cue: 'After ʿAṣr', cue_prayer: 'asr', cue_after_min: 20 },
-  { key: 'prepare', label: 'Day 1 · Prepare', offset: -1, action: 'prepare', who: 'Both', cue: 'After Maghrib' },
+  { key: 'read', label: 'Day 1 · Read', opens: 'read_unit', offset: -1, action: 'notes', who: 'Hasib', cue: 'After Fajr', cue_prayer: 'fajr', cue_after_min: 20 },
+  { key: 'research', label: 'Day 1 · Research', offset: -1, action: 'research', who: 'Hasib', cue: 'After ʿAṣr' },
+  { key: 'episode', label: 'Day 1 · Episode', offset: -1, action: 'episode', who: 'Both', cue: 'After Maghrib' },
   { key: 'record', label: 'Day 2 · Record', offset: 0, action: 'shoot', who: 'Both', cue: 'After ʿIshāʾ', cue_prayer: 'isha', cue_after_min: 20 },
-  { key: 'review', label: 'Day 2 · Review', offset: 0, action: 'review', who: 'Hasib', cue: 'After recording' },
 ];
 const plan = seriesPlan(JSON.stringify({ steps, cadence_days: 2, tz: 'Australia/Sydney', open_url: 'com.kmaps.app://quran/{unit}' }));
 const at = '2026-10-30T08:00:00Z';
@@ -34,6 +33,7 @@ const p2meta = {
   hook: 'Is every religious debate wrong?', objections: ['But they look like winners.'], run_sheet: runSheet,
   short: { hook: 'Who gets to argue?', open_question: 'What is the authority they lack?' },
   chain: { open_question: 'What is the authority?', promise: 'Tomorrow: 40:35.', next: 'Ghāfir 40:6' },
+  deck: { slug: 'st-ep-ghafir-p02', sections: { promise: 0, read: 2, close: 17 } },
   steps_done: { read: at },
 };
 const eps = [
@@ -60,47 +60,60 @@ function ctx(id: string, meta: Record<string, unknown>): EpisodeCtx {
   };
 }
 
-test('hub: six steps over two days, logged state, Claude-prepared %, tiles and publish — no text', () => {
+test('hub: four steps over two days (Read · Research · Episode · Record), Claude-prepared %, tiles and publish — no text', () => {
   const hub = buildHub(ctx('EP:ghafir:P02', p2meta), { path: ['Qurʾān', 'Ḥawāmīm', 'Ghāfir'] });
-  assert.deepEqual(hub.steps.map((s) => [s.key, s.day, s.state]), [
-    ['read', 1, 'done'], ['think', 1, 'now'], ['brainstorm', 1, 'later'], ['prepare', 1, 'later'], ['record', 2, 'later'], ['review', 2, 'later'],
+  assert.deepEqual(hub.steps.map((s) => [s.key, s.title, s.day, s.state]), [
+    ['read', 'Read', 1, 'done'], ['research', 'Research', 1, 'now'], ['episode', 'Episode', 1, 'later'], ['record', 'Record', 2, 'later'],
   ]);
   assert.equal(hub.days, 2);
-  assert.deepEqual(hub.steps.find((s) => s.key === 'think')!.prepared, { have: 5, total: 5, pct: 100 });
-  assert.equal(hub.steps.find((s) => s.key === 'prepare')!.prepared.have, 4);   // 3 run-sheet lines + the short
-  assert.equal(hub.steps.find((s) => s.key === 'brainstorm')!.who, 'Ali');
-  assert.equal(hub.now?.key, 'think');
+  assert.deepEqual(hub.steps.find((s) => s.key === 'research')!.prepared, { have: 5, total: 5, pct: 100 });
+  assert.deepEqual(hub.steps.find((s) => s.key === 'episode')!.prepared, { have: 7, total: 7, pct: 100 });   // the ready list
+  assert.equal(hub.now?.key, 'research');
   assert.equal(hub.title_en, 'The Charge and Its Genealogy');
   assert.equal(hub.subtitle, 'Ghāfir · 40:4–5');
   assert.deepEqual(hub.path, ['Qurʾān', 'Ḥawāmīm', 'Ghāfir']);
   assert.deepEqual(hub.backlog.tiles.map((t) => [t.label, t.state]), [['P01', 'done'], ['P02', 'now'], ['P03', 'queued']]);
-  assert.deepEqual(hub.resources.map((r) => [r.key, r.n]), [['text', 2], ['concept', 1], ['points', 2], ['questions', 1]]);
+  assert.deepEqual(hub.resources.map((r) => [r.key, r.n]), [['text', 2], ['concept', 1], ['points', 2], ['questions', 1], ['slides', 1]]);
   assert.deepEqual(hub.publish.tiles.map((t) => t.done), [false, false]);
   assert.equal(hub.publish.produced.total, 1);
   assert.ok(!('focus' in hub) && !('people' in hub) && !('questions' in hub));
 });
 
-test('legacy step keys still open their phase (shoot → record)', () => {
+test('older step keys fold into the four (think → Research, brainstorm/prepare/review → Episode, shoot → Record)', () => {
   assert.equal(phaseFor('shoot').key, 'record');
   assert.equal(phaseFor('notes').key, 'read');
+  assert.equal(phaseFor('think').key, 'research');
+  assert.equal(phaseFor('brainstorm').key, 'episode');
+  assert.equal(phaseFor('prepare').key, 'episode');
+  assert.equal(phaseFor('review').key, 'episode');
+  assert.deepEqual(Object.keys(PHASES), ['read', 'research', 'episode', 'record']);
   assert.equal(phaseFor('anything').key, 'anything');
 });
 
-test('each phase builds only its own data', () => {
+test('each phase builds only its own data; the episode is guidelines, never script lines', () => {
   const c = ctx('EP:ghafir:P02', p2meta);
-  const think = PHASES.think!.build(c) as Record<string, unknown>;
-  assert.equal((think['sources'] as unknown[]).length, 2);
-  assert.equal((think['host_points'] as { name: string }).name, 'Hasib');
-  const bs = PHASES.brainstorm!.build(c) as Record<string, unknown>;
-  assert.equal(bs['hook'], 'Is every religious debate wrong?');
-  assert.equal((bs['partner_points'] as { name: string }).name, 'Ali');
-  const prep = PHASES.prepare!.build(c) as { segments: Array<{ start: string; label: string }>; total_minutes: number };
-  assert.deepEqual(prep.segments.map((s) => [s.start, s.label]), [['00:00', 'Hook'], ['02:00', 'Read'], ['06:00', 'Close']]);
-  assert.equal(prep.total_minutes, 7);
-  const rev = PHASES.review!.build(c) as { chain: { next: string } };
-  assert.equal(rev.chain.next, 'Ghāfir 40:6');
-  assert.deepEqual(PHASES.review!.prepared(c), [3, 3]);
-  assert.deepEqual(PHASES.think!.prepared(ctx('EP:ghafir:P03', { read_unit: '40/6' })), [0, 5]);
+  const res = PHASES.research!.build(c) as Record<string, unknown>;
+  assert.equal((res['sources'] as unknown[]).length, 2);
+  assert.equal(res['struck'], 'Only one side is said to argue.');
+  const ep = PHASES.episode!.build(c) as { objections: string[]; partner: string; total_minutes: number; deck_url: string;
+    segments: Array<Record<string, unknown>>; ready: Array<{ ok: boolean }>; after: { next: string } };
+  assert.equal(ep.objections[0], 'But they look like winners.');
+  assert.equal(ep.partner, 'Ali');
+  assert.equal(ep.total_minutes, 27);
+  assert.ok(ep.segments.every((s) => !('line' in s)));
+  const seg = (k: string) => ep.segments.find((s) => s['segment'] === k)!;
+  assert.equal(seg('promise')['pointer'], 'Is every religious debate wrong?');
+  assert.equal(seg('read')['pointer'], '40:4–5');
+  assert.equal(seg('stand')['pointer'], 'Why the past tense in 40:5?');
+  assert.equal(seg('read')['slides'], 'com.kmaps.app://deck/st-ep-ghafir-p02?slide=2');
+  assert.equal(seg('idea')['slides'], null);   // no slide index for it yet
+  assert.equal(ep.deck_url, 'com.kmaps.app://deck/st-ep-ghafir-p02');
+  assert.equal(ep.after.next, 'Ghāfir 40:6');
+  assert.ok(ep.ready.every((r) => r.ok));
+  const rec = PHASES.record!.build(c) as { segments: unknown[]; deck_url: string };
+  assert.equal(rec.segments.length, 9);
+  assert.equal(rec.deck_url, 'com.kmaps.app://deck/st-ep-ghafir-p02');
+  assert.deepEqual(PHASES.research!.prepared(ctx('EP:ghafir:P03', { read_unit: '40/6' })), [0, 5]);
 });
 
 test('the selected text and the resources', () => {
@@ -110,7 +123,7 @@ test('the selected text and the resources', () => {
   assert.equal(f.blocks[0]!.en, null);   // Arabic only: every translation is one tap away
   assert.equal(f.concept, '⁧جِدال⁩ — arguing with no authority');
   assert.equal((resource(c, 'questions') as { questions: string[] }).questions[0], 'Who disputes?');
-  assert.equal(resource(c, 'slides'), null);
+  assert.deepEqual(resource(c, 'slides'), { title: 'The episode’s slides', url: 'com.kmaps.app://deck/st-ep-ghafir-p02' });
   assert.equal(resourceTiles(ctx('EP:ghafir:P03', { read_unit: '40/6' }))[0]!.n, 1);
 });
 
@@ -136,17 +149,17 @@ test('Arabic runs inside English keep their order; titles split', () => {
 
 test('step views carry the cue for the phone reminder', () => {
   const v = stepViews(ctx('EP:ghafir:P02', p2meta));
-  const think = v.find((s) => s.key === 'think')!;
-  assert.equal(think.cue, 'After Fajr');
-  assert.equal(think.when, 'today');
-  assert.equal(think.cue_on, '2026-11-17');
+  const res = v.find((s) => s.key === 'research')!;
+  assert.equal(res.cue, 'After ʿAṣr');
+  assert.equal(res.when, 'today');
+  assert.equal(res.cue_on, '2026-11-17');
   assert.equal(v.find((s) => s.key === 'record')!.when, 'tomorrow');
 });
 
 test('sprint cards: the one due today and worked on last is the one in hand', async () => {
   const { sprintCard, rankSprints } = await import('../src/episode/sprints');
   const a = sprintCard(ctx('EP:ghafir:P02', p2meta), { path: ['Qurʾān', 'Ḥawāmīm', 'Ghāfir'], accent: '#D8B657' });
-  assert.equal(a.now?.title, 'Think');
+  assert.equal(a.now?.title, 'Research');
   assert.equal(a.logged.done, 1);
   assert.equal(a.subtitle, 'Ghāfir · 40:4–5');
   const b = { ...a, episode_id: 'EP:liberalism:R01.01', series: 'Liberalism', path: ['Worldview', 'Liberalism'],
@@ -218,9 +231,9 @@ test('āyah translations: English (default first), then Urdu; no transliteration
   assert.equal(g[1]!.label, 'Urdu'); assert.equal(g[1]!.rtl, true); assert.equal(g[1]!.items.length, 1);
 });
 
-test('study time, not logs: the step in hand is the first not studied for its minutes; publishing finishes', () => {
-  const p = seriesPlan(JSON.stringify({ steps: steps.map((st) => ({ ...st, minutes: st.minutes ?? 10 })), cadence_days: 2, tz: 'Australia/Sydney' }));
-  const studied = { read: 25 * 60, think: 4 * 60 };   // Read studied its 25 min; Think 4 of 10
+test('study time, not logs: no planned minutes — a step counts once any time is spent on it; publishing finishes', () => {
+  const p = seriesPlan(JSON.stringify({ steps, cadence_days: 2, tz: 'Australia/Sydney' }));
+  const studied = { read: 25 * 60, research: 4 * 60 };   // Read and Research both touched → Episode is in hand
   const list = [
     { id: 'EP:x:1', session_no: 1, meta_json: JSON.stringify({ study: { read: 600 }, published: { long: { at } } }) },
     { id: 'EP:x:2', session_no: 2, meta_json: JSON.stringify({ study: studied, study_at: at }) },
@@ -233,8 +246,8 @@ test('study time, not logs: the step in hand is the first not studied for its mi
   assert.equal(cl.get('EP:x:2')!.studied, 29 * 60);
   const c = { ...ctx('EP:ghafir:P02', {}), plan: p, checklist: cl.get('EP:x:2')! };
   const v = stepViews(c);
-  assert.deepEqual(v.map((s) => [s.key, s.state, s.badge]).slice(0, 3),
-    [['read', 'later', '25 min'], ['think', 'now', '4 min'], ['brainstorm', 'later', `${v[2]!.prepared.pct}%`]]);
+  assert.deepEqual(v.map((s) => [s.key, s.state, s.badge]),
+    [['read', 'later', '25 min'], ['research', 'later', '4 min'], ['episode', 'now', `${v[2]!.prepared.pct}%`], ['record', 'later', `${v[3]!.prepared.pct}%`]]);
   const hub = buildHub(c);
   assert.equal(hub.studied.label, '29 min');
   assert.match(hub.caption, /^29 min studied · finished when the Episode is published/);
@@ -255,4 +268,24 @@ test('every episode with a Doc links it; a Qurʾān passage keeps its āyāt inl
   assert.equal(f.doc?.url, 'com.kmaps.app://essay/st-ep-ghafir-p02');
   assert.equal(f.blocks.length, 2);
   assert.equal(f.doc?.title, 'The Charge and Its Genealogy');
+});
+
+test('the episode template: Jessica’s nine sections for two people, guidelines with pointers, the same for the Bible', () => {
+  const t = episodeTemplate(ctx('EP:ghafir:P02', p2meta));
+  assert.deepEqual(t.segments.map((s) => s.segment),
+    ['promise', 'read', 'idea', 'been_here', 'parallel', 'heart', 'pushback', 'stand', 'close']);
+  assert.deepEqual(t.segments.slice(0, 3).map((s) => [s.start, s.label]), [['00:00', 'The promise'], ['02:00', 'Read'], ['06:00', 'The big idea']]);
+  assert.ok(t.segments.every((s) => s.does && s.who));
+  const bible = episodeTemplate(ctx('EP:bible:GEN.01', { read_label: 'Genesis 1–2' }));
+  const caught = episodeTemplate(ctx('EP:bible:GEN.01', { read_label: 'Genesis 1–2', caught: ['Genesis 1:26–27', '2:7'] }));
+  assert.equal(caught.segments.find((s) => s.segment === 'read')!.pointer, 'Genesis 1:26–27 · 2:7');   // only what caught us
+  const theme = episodeTemplate(ctx('EP:bible:GEN.01', { theme: 'Two creation stories', caught: ['Genesis 2:4'] }));
+  assert.equal(theme.segments.find((s) => s.segment === 'read')!.pointer, 'Theme: Two creation stories — Genesis 2:4');
+  assert.deepEqual(bible.segments.map((s) => s.segment), t.segments.map((s) => s.segment));   // one template for both
+  assert.equal(bible.segments.find((s) => s.segment === 'read')!.pointer, 'Genesis 1–2');
+  assert.ok(bible.segments.filter((s) => s.segment !== 'read').every((s) => s.pointer === null && s.slides === null));
+  assert.equal(bible.before, null);
+  assert.equal(bible.after, null);
+  assert.equal(bible.deck_url, null);
+  assert.ok(bible.ready.every((c) => !c.ok));
 });

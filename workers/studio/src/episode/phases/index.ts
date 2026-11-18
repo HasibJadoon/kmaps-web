@@ -1,13 +1,13 @@
-/// Every step of an episode is one phase: its own look, its own "how much has Claude prepared", its own screen data.
+/// Four steps (owner 2026-11-18: "Read → Research → Episode → Record" — Review folded into Episode, as Jessica does
+/// no separate review). Every step of an episode is one phase: its own look, its own "how much has Claude prepared",
+/// its own screen data.
 /// A phase reads only the episode meta keys it owns (plus the selected text, which every screen shows).
 
 import type { EpisodeCtx } from '../context';
 import { read } from './read';
-import { think } from './think';
-import { brainstorm } from './brainstorm';
-import { prepare } from './prepare';
+import { research } from './research';
+import { episode } from './episode';
 import { record } from './record';
-import { review } from './review';
 
 export interface Phase {
   key: string;
@@ -20,8 +20,12 @@ export interface Phase {
   build(ctx: EpisodeCtx): Record<string, unknown>;
 }
 
-export const PHASES: Record<string, Phase> = { read, think, brainstorm, prepare, record, review };
-const ALIASES: Record<string, string> = { shoot: 'record', notes: 'read', talk: 'prepare', learn: 'review' };
+export const PHASES: Record<string, Phase> = { read, research, episode, record };
+// older step keys fold into the four
+const ALIASES: Record<string, string> = {
+  shoot: 'record', notes: 'read', think: 'research',
+  talk: 'episode', learn: 'episode', brainstorm: 'episode', prepare: 'episode', review: 'episode',
+};
 
 const plain: Phase = { key: 'step', title: 'Step', icon: 'circle', color: '#9aa0a6', prepared: () => [0, 0], build: () => ({}) };
 
