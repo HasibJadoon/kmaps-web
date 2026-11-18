@@ -9,6 +9,9 @@ export interface ContentEnv {
   /** km-studio-worker: the episodes a study feeds, for the passage log. */
   STUDIO?: Fetcher;
 
+  /** km-ar-linguistics-worker: deck search finds by root through its root table (/al/lookup/roots). */
+  AR_LINGUISTICS?: Fetcher;
+
   /** One live room per study: presence, focus and change notices (study-room.ts). */
   STUDY_ROOM?: DurableObjectNamespace;
 

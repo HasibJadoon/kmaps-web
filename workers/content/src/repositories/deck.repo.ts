@@ -176,7 +176,9 @@ export class DeckRepo {
   /** `q` keeps only the decks a search finds — by title, Arabic title, folder, root, word, meaning or Latin name. */
   /** `root` keeps only the decks about that AL root (its ar_ling_roots.id), so a root's page can list them. */
   /** `in` keeps only the decks filed in that folder (a collection id) or anywhere beneath it — a folder's own search. */
-  async list(filters: { domain?: string; subdomain?: string; q?: string; root?: string; in?: string } = {}): Promise<DeckSummary[]> {
+  /** `rootsOf` reads a search as roots (AL's root table: جدل, ج د ل, jdl, a word of the root); null when AL can't answer. */
+  async list(filters: { domain?: string; subdomain?: string; q?: string; root?: string; in?: string } = {},
+             rootsOf?: (q: string) => Promise<Array<{ id: string; root: string }> | null>): Promise<DeckSummary[]> {
     const where = [`doc_type = 'deck'`];
     const params: unknown[] = [];
     if (filters.domain) { where.push('domain = ?'); params.push(filters.domain); }
@@ -217,14 +219,19 @@ export class DeckRepo {
     });
     if (!q) return kept.map((k) => k.summary);
 
-    // A root — نزل, spelled out ن ز ل, marks or not, or in Latin letters (nzl, jdl, ghfr): the decks about exactly that
-    // root — filed under it (the folder's Arabic title) or naming it among their search words — and only those; not every
-    // deck with a word of it somewhere on a slide. No deck about it: the search goes on as for any word.
+    // A root, however it is typed — نزل, ن ز ل, jdl, ʿqb, a word of it (يجادلون, jidal) — read through AL's root table:
+    // the decks about exactly those roots (by the deck's root ids, its folder's Arabic title or its search words) and
+    // only those, not every deck with a word of it on a slide. Without AL, the root as typed (Arabic or Latin letters).
+    // No deck about any of them: the search goes on as for any word, English included.
     const folded = fold(q);
-    const roots = /^[\u0621-\u064A]{2,4}$/.test(folded) && /^[\u0621-\u0652\u0670\s]+$/.test(q) ? [folded] : latinRoots(q);
+    const fromAl = rootsOf ? await rootsOf(q).catch(() => null) : null;
+    const roots = fromAl ?? (/^[\u0621-\u064A]{2,4}$/.test(folded) && /^[\u0621-\u0652\u0670\s]+$/.test(q)
+      ? [{ id: '', root: folded }] : latinRoots(q).map((r) => ({ id: '', root: r })));
     if (roots.length) {
-      const want = new Set(roots);
+      const ids = new Set(roots.map((r) => r.id).filter(Boolean));
+      const want = new Set(roots.map((r) => fold(r.root)));
       const about = kept.filter((k) => {
+        if (k.summary.root_uids?.some((u) => ids.has(u))) return true;
         const c = k.summary.collection;
         const names = [c?.title_ar, ...(c?.path ?? []).map((n) => n.title_ar), ...k.search];
         return names.some((t) => !!t && want.has(fold(t)));

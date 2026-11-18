@@ -26,6 +26,11 @@ service = "km-core-worker"
 binding = "STUDIO"
 service = "km-studio-worker"
 
+# Deck search finds by root through AL's root table (/al/lookup/roots): جدل, ج د ل, jdl, a word of the root.
+[[services]]
+binding = "AR_LINGUISTICS"
+service = "km-ar-linguistics-worker"
+
 # One live room per study — the passage page shared by its people (study-room.ts).
 [[durable_objects.bindings]]
 name = "STUDY_ROOM"

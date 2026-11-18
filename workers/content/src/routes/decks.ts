@@ -11,6 +11,14 @@ export function deckRoutes(router: Router<ContentEnv>) {
   router.get('/cm/decks', async (req, env) => {
     const url = new URL(req.url);
     const repo = new DeckRepo(env.DB_CM);
+    // a search finds by root first, through AL's root table: the roots the words can mean
+    const rootsOf = env.AR_LINGUISTICS
+      ? async (q: string) => {
+          const res = await env.AR_LINGUISTICS!.fetch(`https://al/al/lookup/roots?q=${encodeURIComponent(q)}`).catch(() => null);
+          if (!res?.ok) return null;
+          return ((await res.json()) as { data?: { roots?: Array<{ id: string; root: string }> } }).data?.roots ?? [];
+        }
+      : undefined;
     return ok(
       await repo.list({
         domain: url.searchParams.get('domain') ?? undefined,
@@ -18,7 +26,7 @@ export function deckRoutes(router: Router<ContentEnv>) {
         q: url.searchParams.get('q') ?? undefined,
         root: url.searchParams.get('root') ?? undefined,
         in: url.searchParams.get('in') ?? undefined,
-      }),
+      }, rootsOf),
     );
   });
 
