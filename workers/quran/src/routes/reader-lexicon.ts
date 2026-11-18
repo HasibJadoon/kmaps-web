@@ -16,19 +16,21 @@ export function readerLexiconRoutes(router: Router<QuranEnv>) {
   const shaped = (req: Request) => { const u = new URL(req.url); u.searchParams.set('v', READER_V); return new Request(u.toString(), req); };
   router.get('/qr/reader/root/:root', (req, env, params) => cached(shaped(req), async () => {
     const root = decodeURIComponent(params.root ?? '').trim();
-    const page = await lexiconRoot(env, root, false);
-    if (!page) return notFound(`root ${root}`);
     type Overview = { sources: Array<{ source_slug: string; title_ar?: string; title_short_ar?: string; author?: string;
       author_death_ah?: number | null; sections?: number; root_norm?: string; found_under?: string; isUnbuilt?: boolean }> };
-    let books: Array<{ slug: string; title: string; key: string; author?: string | null; death?: number | null }> = [];
-    if (env.AR_LINGUISTICS) {
+    type Book = { slug: string; title: string; key: string; author?: string | null; death?: number | null };
+    // the page and the dictionaries that file the root are independent: fetched together, not one after the other
+    const booksOf = async (): Promise<Book[]> => {
+      if (!env.AR_LINGUISTICS) return [];
       const r = await env.AR_LINGUISTICS.fetch(`https://al/al/lex/v2/roots/${encodeURIComponent(root)}`).catch(() => null);
       const d = r?.ok ? ((await r.json()) as { data: Overview }).data : null;
-      books = (d?.sources ?? []).filter((s) => (s.sections ?? 1) > 0).map((s) => ({
+      return (d?.sources ?? []).filter((s) => (s.sections ?? 1) > 0).map((s) => ({
         slug: s.source_slug, title: s.title_short_ar ?? s.title_ar ?? s.source_slug, key: s.found_under ?? s.root_norm ?? root,
         author: s.author ?? null, death: s.author_death_ah ?? null,
       }));
-    }
+    };
+    const [page, books] = await Promise.all([lexiconRoot(env, root, false), booksOf()]);
+    if (!page) return notFound(`root ${root}`);
     return ok(rootReaderDoc(page, books));
   }, { browser: 60, edge: 3600 }));
 

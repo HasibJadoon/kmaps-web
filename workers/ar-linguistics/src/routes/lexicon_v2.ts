@@ -407,24 +407,32 @@ export function lexiconV2Routes(router: Router<ArLinguisticsEnv>) {
        FROM ar_ling_roots WHERE root_text = ? LIMIT 1`
     ).bind(root_norm).first()) ?? null;
 
-    const snippetRows = (await env.DB_AL.prepare(
-      `SELECT source_slug, text_plain FROM (
-         SELECT source_slug, text_plain,
-                ROW_NUMBER() OVER (
-                  PARTITION BY source_slug
-                  ORDER BY CASE block_type WHEN 'definition' THEN 0 ELSE 1 END,
-                           block_seq
-                ) AS rn
-         FROM ar_ling_lexicon_block b
-         WHERE EXISTS (SELECT 1 FROM json_each(?) j
-                        WHERE json_extract(j.value, '$.s') = b.source_slug
-                          AND json_extract(j.value, '$.k') = b.root_norm)
-           AND origin <> 'derived'
-           AND text_plain IS NOT NULL
-           AND length(trim(text_plain)) > 25
-           AND block_type NOT IN ('root_header', 'chapter_header', 'header')
-       ) WHERE rn = 1`
-    ).bind(pairs).all()).results ?? [];
+    // Each source's first real block, by its (source, key) pair. The pairs go in as a VALUES list so D1 uses
+    // idx_albk_source_root: a json_each() EXISTS here scanned all of ar_ling_lexicon_block (3.3M rows read, ~1.7 s
+    // for جدل) where the VALUES form reads ~700 rows in a few ms. D1 binds at most 100 values: 45 pairs a statement.
+    const pairList = [...new Map(entries.map((e: any) => [`${e.source_slug}\u0000${e.root_norm}`, [e.source_slug, e.root_norm]])).values()]
+      .filter(([s, k]) => typeof s === 'string' && typeof k === 'string') as [string, string][];
+    const snippetRows: any[] = [];
+    for (let at = 0; at < pairList.length; at += 45) {
+      const part = pairList.slice(at, at + 45);
+      const rows = (await env.DB_AL.prepare(
+        `SELECT source_slug, text_plain FROM (
+           SELECT source_slug, text_plain,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY source_slug
+                    ORDER BY CASE block_type WHEN 'definition' THEN 0 ELSE 1 END,
+                             block_seq
+                  ) AS rn
+           FROM ar_ling_lexicon_block b
+           WHERE (b.source_slug, b.root_norm) IN (VALUES ${part.map(() => '(?, ?)').join(', ')})
+             AND origin <> 'derived'
+             AND text_plain IS NOT NULL
+             AND length(trim(text_plain)) > 25
+             AND block_type NOT IN ('root_header', 'chapter_header', 'header')
+         ) WHERE rn = 1`
+      ).bind(...part.flat()).all()).results ?? [];
+      snippetRows.push(...rows);
+    }
     const snippetBySlug = new Map(
       snippetRows.map((r: any) => [
         r.source_slug as string,
