@@ -19,18 +19,28 @@ import { line, obj } from './text';
 
 export interface TemplateSegment { segment: string; label: string; minutes: number; who: string; does: string }
 
+/// Written for two people (owner: "the template should be best for 2 people"): every section names who opens and
+/// who answers, so the episode is a conversation — Ali asks and pushes, Hasib has done the research — not two
+/// lectures in turn.
 export const TEMPLATE: TemplateSegment[] = [
   { segment: 'promise', label: 'The promise', minutes: 2, who: 'Ali → Hasib',
     does: 'Ali asks the one question the short asked. Hasib: we promised research — here it is.' },
-  { segment: 'read', label: 'Read', minutes: 4, who: 'Hasib',
-    does: 'The verses in plain English, as she reads them — for a long passage or a theme, only the ones that caught us — and how the idea builds up through them.' },
-  { segment: 'idea', label: 'The big idea', minutes: 5, who: 'Hasib', does: 'One idea, one example from elsewhere, something of our own.' },
-  { segment: 'been_here', label: 'Been here before', minutes: 2, who: 'Both', does: 'Tie it to something we read in an earlier episode.' },
-  { segment: 'parallel', label: 'One parallel', minutes: 3, who: 'Hasib', does: 'One parallel, and the best answer to the objection it raises.' },
-  { segment: 'heart', label: 'The heart', minutes: 4, who: 'Both', does: 'One takeaway, said simply.' },
-  { segment: 'pushback', label: 'Ali pushes back', minutes: 3, who: 'Ali', does: 'His honest objection. It may stay open.' },
-  { segment: 'stand', label: 'Where we stand', minutes: 2, who: 'Both', does: 'Honest about what we know, what we believe and what we don’t know.' },
-  { segment: 'close', label: 'Close', minutes: 2, who: 'Both', does: 'Back to where we began; sum up; ask for corrections; the same sign-off.' },
+  { segment: 'read', label: 'Read', minutes: 4, who: 'Hasib · Ali',
+    does: 'Hasib reads the verses (the Qurʾān in Arabic); Ali reads them in plain English. A long passage or a theme: only the verses that caught us.' },
+  { segment: 'idea', label: 'The big idea', minutes: 5, who: 'Hasib ⇄ Ali',
+    does: 'Hasib gives the one big idea; Ali asks for an example and for something of our own.' },
+  { segment: 'been_here', label: 'Been here before', minutes: 2, who: 'Ali → Hasib',
+    does: 'Ali: haven’t we been here before? Hasib ties it to an earlier episode.' },
+  { segment: 'parallel', label: 'One parallel', minutes: 3, who: 'Hasib ⇄ Ali',
+    does: 'Hasib brings one parallel; Ali raises the obvious objection; Hasib gives the best answer.' },
+  { segment: 'heart', label: 'The heart', minutes: 4, who: 'Both',
+    does: 'Each says the one thing to keep, in a sentence.' },
+  { segment: 'pushback', label: 'Ali pushes back', minutes: 3, who: 'Ali ⇄ Hasib',
+    does: 'Ali’s honest objection; Hasib answers what he can. It may stay open.' },
+  { segment: 'stand', label: 'Where we stand', minutes: 2, who: 'Both',
+    does: 'Each says honestly what he thinks, what he believes and what he doesn’t know.' },
+  { segment: 'close', label: 'Close', minutes: 2, who: 'Hasib → Both',
+    does: 'Hasib goes back to the opening question and names the next one; both sign off the same way.' },
 ];
 
 function templateOf(seriesMeta: Record<string, unknown>): TemplateSegment[] {
