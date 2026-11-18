@@ -1,6 +1,6 @@
 // The app's one reader (owner, 2026-11-18: "one universal reader — the same for the lexicons"): a root's page and a
 // lemma's page served as ReaderDocuments — head + reader markdown (kmaps-ios KMReader: `##` bands with `:icon:`, `>`
-// panels, `|` tables, numbered steps, `::door[label | sub](url)` cards, `- ` bullets whose links open the dictionaries).
+// panels, `|` tables, numbered steps, `::door[label | sub](url)` cards, `::word[word](url)` tiles, `- ` bullets whose links open the dictionaries).
 
 export interface ReaderAddress { title: string; module: string; path: string }
 export interface ReaderDocument {
@@ -19,8 +19,8 @@ const lexLink = (s: Src) => `com.kmaps.app://lexicon/reader/${encodeURIComponent
 export const cites = (ss: Src[] | null | undefined): string =>
   (ss ?? []).map((s) => `[${s.book}${s.page ? ` ${s.page}` : ''}](${lexLink(s)})`).join(' · ');
 const withCites = (line: string, ss?: Src[] | null) => (ss?.length ? `${line} — ${cites(ss)}` : line);
-const lemmaDoor = (l: Any) =>
-  `::door[${strip(l.lemma)} | ${[l.form, l.pattern, l.count != null ? `${l.count}× in the Qurʾān` : null].filter(Boolean).map(strip).join(' · ')}](com.kmaps.app://reader/qr/reader/lemma/${encodeURIComponent(l.id)})`;
+
+const lemmaTile = (l: Any) => `::word[${strip(l.lemma)}](com.kmaps.app://reader/qr/reader/lemma/${encodeURIComponent(l.id)})`;
 
 function constructionsMd(cs: Any[]): string[] {
   const out: string[] = [];
@@ -104,7 +104,8 @@ export function rootReaderDoc(page: Any, dictionaries: Array<{ slug: string; tit
   }
   if (page.opposites?.length) md.push('## :arrow.left.arrow.right: Opposites · الأضداد {#opposites}', ...opposites(page.opposites));
   for (const l of page.layers ?? []) md.push(`- ${strip(l.en ?? l.title ?? '')}${l.ar ? ` — ${strip(l.ar)}` : ''}`);
-  if (page.lemmas?.length) md.push('## :character.book.closed: Its words · الكلمات {#words}', ...page.lemmas.map(lemmaDoor));
+  // the words as small tiles, only the word on each (owner, 2026-11-18: "6 cards, tiny, word only"); its page has the rest
+  if (page.lemmas?.length) md.push('## :character.book.closed: Its words · الكلمات {#words}', ...page.lemmas.map(lemmaTile));
 
   const root = strip(page.root);
   return {
