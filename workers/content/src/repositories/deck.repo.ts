@@ -1,4 +1,4 @@
-import { matches } from '../lib/deck-search';
+import { fold, matches } from '../lib/deck-search';
 import { query, queryOne } from '../../../shared/src/db';
 import type {
   Deck, DeckCollection, DeckFolder, DeckSlide, DeckSummary, DeckTheme, DeckVerseRef,
@@ -150,6 +150,26 @@ function toVerseRef(row: RefRow): DeckVerseRef {
   };
 }
 
+/// What each deck's slides say, per deck version (cm_documents.updated_at), kept for the life of the isolate.
+const SLIDE_TEXT = new Map<string, { at: string | null; text: string }>();
+
+/// Keys that hold no words a reader sees: layout names, icons, colours, links, audio.
+const NOT_WORDS = new Set(['layout', 'kind', 'icon', 'tone', 'color', 'colour', 'url', 'audio', 'image', 'video', 'id',
+  'ref', 'slug', 'theme', 'motion', 'focus', 'style', 'variant', 'align', 'anchor']);
+
+/// Every word in a slide's attributes, from any depth — English, Arabic, notes and graphic labels alike.
+function wordsOf(value: unknown, out: string[], key = ''): void {
+  if (NOT_WORDS.has(key)) return;
+  if (typeof value === 'string') {
+    const v = value.trim();
+    if (v && !/^(https?:|com\.kmaps|#[0-9a-f]{3,8}$)/i.test(v) && !/^[A-Z]{2,}:[^\s]+$/.test(v)) out.push(v);
+  } else if (Array.isArray(value)) {
+    for (const v of value) wordsOf(v, out);
+  } else if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) wordsOf(v, out, k);
+  }
+}
+
 export class DeckRepo {
   constructor(private readonly db: D1Database) {}
 
@@ -169,15 +189,13 @@ export class DeckRepo {
     );
 
     const q = filters.q?.trim();
-    return rows.flatMap((row) => {
+    const kept = rows.flatMap((row) => {
       const meta = parseJson<DeckMeta>(row.meta_json, {});
       const rootUids = Array.isArray(meta.root_uids) ? meta.root_uids : [];
       if (filters.root && !rootUids.includes(filters.root)) return [];
       const folder = collectionOf(meta);
       if (filters.in && folder?.collection_id !== filters.in && !folder?.path.some((n) => n.collection_id === filters.in)) return [];
-      if (q && !matches([row.title, row.title_ar, row.slug, ...(meta.collection?.path ?? []).flatMap((n) => [n.title, n.title_ar]),
-                         ...(Array.isArray(meta.search) ? meta.search : [])], q)) return [];
-      return [{
+      const summary: DeckSummary = {
         doc_id: row.doc_id,
         slug: row.slug ?? row.doc_id,
         title: row.title,
@@ -192,8 +210,52 @@ export class DeckRepo {
         updated_at: row.updated_at,
         collection: folder,
         root_uids: rootUids,
-      }];
+      };
+      const own = [row.title, row.title_ar, row.slug, ...(meta.collection?.path ?? []).flatMap((n) => [n.title, n.title_ar]),
+                   ...(Array.isArray(meta.search) ? meta.search : [])];
+      return [{ row, summary, own }];
     });
+    if (!q) return kept.map((k) => k.summary);
+
+    // A search reads the decks themselves too: any English or Arabic word on a slide finds its deck. Decks found by
+    // their title, folder, root or word come first; then the decks found only by what their slides say.
+    const byOwn = kept.filter((k) => matches(k.own, q));
+    const rest = kept.filter((k) => !byOwn.includes(k));
+    // On the slides the words count only together, as a phrase: "let us make" must not find every slide with "us" on it.
+    const slides = await this.slideText(rest.map((k) => k.row));
+    const phrase = fold(q);
+    const bySlides = phrase ? rest.filter((k) => slides.get(k.row.doc_id)?.includes(phrase)) : [];
+    return [...byOwn, ...bySlides].map((k) => k.summary);
+  }
+
+  /** Every word a deck's slides show (English and Arabic, notes included), folded for matching, read once per deck version and kept. */
+  private async slideText(rows: DocRow[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    const missing: DocRow[] = [];
+    for (const r of rows) {
+      const hit = SLIDE_TEXT.get(r.doc_id);
+      if (hit && hit.at === r.updated_at) out.set(r.doc_id, hit.text); else missing.push(r);
+    }
+    for (let i = 0; i < missing.length; i += 90) {
+      const part = missing.slice(i, i + 90);
+      const blocks = await query<{ doc_id: string; attrs_json: string | null }>(
+        this.db,
+        `SELECT doc_id, attrs_json FROM cm_blocks WHERE block_type = 'slide' AND doc_id IN (${part.map(() => '?').join(',')})`,
+        part.map((r) => r.doc_id),
+      );
+      const words = new Map<string, string[]>();
+      for (const b of blocks) {
+        const list = words.get(b.doc_id) ?? [];
+        wordsOf(parseJson<unknown>(b.attrs_json, null), list);
+        words.set(b.doc_id, list);
+      }
+      for (const r of part) {
+        const text = fold((words.get(r.doc_id) ?? []).join(' '));
+        SLIDE_TEXT.set(r.doc_id, { at: r.updated_at, text });
+        out.set(r.doc_id, text);
+      }
+    }
+    return out;
   }
 
   /**
