@@ -1,4 +1,4 @@
-import { fold, latinRoots, matches } from '../lib/deck-search';
+import { fold, matches } from '../lib/deck-search';
 import { query, queryOne } from '../../../shared/src/db';
 import type {
   Deck, DeckCollection, DeckFolder, DeckSlide, DeckSummary, DeckTheme, DeckVerseRef,
@@ -176,7 +176,7 @@ export class DeckRepo {
   /** `q` keeps only the decks a search finds — by title, Arabic title, folder, root, word, meaning or Latin name. */
   /** `root` keeps only the decks about that AL root (its ar_ling_roots.id), so a root's page can list them. */
   /** `in` keeps only the decks filed in that folder (a collection id) or anywhere beneath it — a folder's own search. */
-  /** `rootsOf` reads a search as roots (AL's root table: جدل, ج د ل, jdl, a word of the root); null when AL can't answer. */
+  /** `rootsOf` reads a search as roots — AL's root table (/al/lookup/roots); null when AL can't answer. */
   async list(filters: { domain?: string; subdomain?: string; q?: string; root?: string; in?: string } = {},
              rootsOf?: (q: string) => Promise<Array<{ id: string; root: string }> | null>): Promise<DeckSummary[]> {
     const where = [`doc_type = 'deck'`];
@@ -215,27 +215,18 @@ export class DeckRepo {
       };
       const own = [row.title, row.title_ar, row.slug, ...(meta.collection?.path ?? []).flatMap((n) => [n.title, n.title_ar]),
                    ...(Array.isArray(meta.search) ? meta.search : [])];
-      return [{ row, summary, own, search: (Array.isArray(meta.search) ? meta.search : []).filter((x): x is string => typeof x === 'string') }];
+      return [{ row, summary, own }];
     });
     if (!q) return kept.map((k) => k.summary);
 
-    // A root, however it is typed — نزل, ن ز ل, jdl, ʿqb, a word of it (يجادلون, jidal) — read through AL's root table:
-    // the decks about exactly those roots (by the deck's root ids, its folder's Arabic title or its search words) and
-    // only those, not every deck with a word of it on a slide. Without AL, the root as typed (Arabic or Latin letters).
-    // No deck about any of them: the search goes on as for any word, English included.
-    const folded = fold(q);
-    const fromAl = rootsOf ? await rootsOf(q).catch(() => null) : null;
-    const roots = fromAl ?? (/^[\u0621-\u064A]{2,4}$/.test(folded) && /^[\u0621-\u0652\u0670\s]+$/.test(q)
-      ? [{ id: '', root: folded }] : latinRoots(q).map((r) => ({ id: '', root: r })));
-    if (roots.length) {
-      const ids = new Set(roots.map((r) => r.id).filter(Boolean));
-      const want = new Set(roots.map((r) => fold(r.root)));
-      const about = kept.filter((k) => {
-        if (k.summary.root_uids?.some((u) => ids.has(u))) return true;
-        const c = k.summary.collection;
-        const names = [c?.title_ar, ...(c?.path ?? []).map((n) => n.title_ar), ...k.search];
-        return names.some((t) => !!t && want.has(fold(t)));
-      });
+    // A root, however it is typed — read by AL from the root table (/al/lookup/roots): the root in Arabic, a word of
+    // it, its Latin spelling. The decks about exactly those roots, by the root-table ids they carry (root_uids), and
+    // only those; not every deck with a word of it on a slide. No deck about them, or AL can't answer: the search goes
+    // on as for any word, English included.
+    const roots = rootsOf ? await rootsOf(q).catch(() => null) : null;
+    if (roots?.length) {
+      const ids = new Set(roots.map((r) => r.id));
+      const about = kept.filter((k) => k.summary.root_uids?.some((u) => ids.has(u)));
       if (about.length) return about.map((k) => k.summary);
     }
 

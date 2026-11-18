@@ -1,18 +1,20 @@
-// A root typed in Latin letters, every way: the Arabic roots it can stand for (matched against root_normalized).
+// A Latin query's keys for the root table: its consonants as the table's simple_lat is compared, tried in turn.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { latinVariants } from '../src/routes/lookup';
+import { latinKeys, latinSkeleton } from '../src/routes/lookup';
 
-test('Latin spellings reach their roots', () => {
-  const has = (q: string, root: string) => assert.ok(latinVariants(q).includes(root), `${q} → ${root}: ${latinVariants(q).slice(0, 10)}`);
-  has('jdl', 'جدل'); has('Jdl', 'جدل'); has('j d l', 'جدل'); has('jidal', 'جدل');
-  has('nzl', 'نزل'); has('tanzil', 'نزل'); has('munazzal', 'نزل');
-  has('ʿqb', 'عقب'); has('aqb', 'عقب'); has("'qb", 'عقب');
-  has('alh', 'اله'); has('ghfr', 'غفر'); has('shdd', 'شدد'); has('dhnb', 'ذنب'); has('syr', 'صير');
+test('a Latin spelling reads as the root table writes it: consonants only', () => {
+  for (const q of ['jdl', 'Jdl', 'j d l', 'j-d-l', 'jidal', 'jadala']) assert.equal(latinSkeleton(q), 'jdl', q);
+  assert.equal(latinSkeleton('ʿqb'), 'qb');     // the table writes عقب as 'qb'
+  assert.equal(latinSkeleton('aqb'), 'qb');
+  assert.equal(latinSkeleton('ghafara'), 'ghfr');
+  assert.equal(latinSkeleton('ḥamd'), 'hmd');
 });
 
-test('not a spelling: Arabic, digits, or letters with no Arabic reading', () => {
-  assert.deepEqual(latinVariants('جدل'), []);
-  assert.deepEqual(latinVariants('40:35'), []);
-  assert.deepEqual(latinVariants('p'), []);
+test('keys in turn: as typed, a doubled letter as one, then the first letter off', () => {
+  assert.deepEqual(latinKeys('jdl'), [['jdl']]);
+  assert.deepEqual(latinKeys('tanzil'), [['tnzl'], ['nzl']]);
+  assert.deepEqual(latinKeys('munazzal'), [['mnzzl'], ['mnzl'], ['nzzl', 'nzl']]);
+  assert.deepEqual(latinKeys('جدل'), []);
+  assert.deepEqual(latinKeys('40:35'), []);
 });

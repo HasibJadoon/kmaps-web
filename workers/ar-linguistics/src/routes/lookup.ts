@@ -1,6 +1,7 @@
 import type { Router } from '../../../shared/src/router';
 import { ok, badRequest } from '../../../shared/src/response';
 import { query } from '../../../shared/src/db';
+import { cached } from '../../../shared/src/cache';
 import type { ArLinguisticsEnv } from '../env';
 
 /// Tap a word while reading and get its root back. This is the one endpoint the
@@ -84,57 +85,85 @@ export function lookupRoutes(router: Router<ArLinguisticsEnv>) {
   });
 
   /// Any query → the roots it can mean (see resolveRoots): GET /al/lookup/roots?q=jdl
-  router.get('/al/lookup/roots', async (req, env) => {
+  router.get('/al/lookup/roots', (req, env) => cached(req, async () => {
     const q = (new URL(req.url).searchParams.get('q') ?? '').trim();
     if (!q) return badRequest('q param required');
     return ok({ q, roots: await resolveRoots(env.DB_AL, q) });
-  });
+  }, { browser: 3600, edge: 86400 }));
 }
 
 // ── Any query → its roots (the deck search, and anything else that finds by root) ──────────────────────────────────
 //
-// A root however it is typed: جدل · ج د ل · جَدَلَ; a word of it (جادلهم → its lemma → جدل); its Latin letters — jdl,
-// ʿqb, ghfr, a word's consonants (jidal → جدل), a leading vowel standing for ا ع ء (alh → اله, aqb → عقب); the root
-// table's own buckwalter / simple_lat; or, for the few roots that carry one, its English core meaning.
+// Read from the root table, not from a letter map in code: a root typed in Arabic (جدل · ج د ل), a word of it (through
+// the lemma table: يجادلون → جدل), or in Latin letters — matched against the table's own Latin spellings (simple_lat,
+// buckwalter) by their consonants: vowels and ʿ/ʾ marks dropped on both sides, so jdl, jidal, Jdl, j-d-l all reach
+// simple_lat 'jdl', and aqb / ʿqb reach 'qb' (the table writes عقب so). Tried in turn, the first that finds a root
+// winning: the consonants as typed, a doubled letter as one (munazzal), the first letter off (tanzil → nzl). Or, for
+// the few roots that carry one, the English core meaning.
 
-const DIGRAPHS: Record<string, string[]> = { sh: ['ش'], kh: ['خ'], gh: ['غ'], th: ['ث'], dh: ['ذ', 'ظ'] };
-const SINGLE: Record<string, string[]> = {
-  b: ['ب'], t: ['ت', 'ط'], j: ['ج'], d: ['د', 'ض'], r: ['ر'], z: ['ز', 'ظ'], s: ['س', 'ص'], f: ['ف'], q: ['ق'], k: ['ك'],
-  l: ['ل'], m: ['م'], n: ['ن'], h: ['ه', 'ح'], w: ['و'], y: ['ي'], g: ['غ', 'ج'], x: ['خ'], c: ['ع'],
-  'ʿ': ['ع'], '‘': ['ع'], '`': ['ع'], "'": ['ع', 'ء'], 'ʾ': ['ء'], '’': ['ء', 'ع'], 'ḥ': ['ح'], 'ṣ': ['ص'], 'ḍ': ['ض'],
-  'ṭ': ['ط'], 'ẓ': ['ظ'], 'š': ['ش'], 'ḫ': ['خ'], 'ġ': ['غ'], 'ṯ': ['ث'], 'ḏ': ['ذ'],
-};
-const VOWEL = /[aeiouāīūâîûáíú]/;
-
-/** Every Arabic root a Latin spelling can stand for (2–4 letters). A doubled letter is read both ways: a shadda
- *  (munazzal → نزل) or a root's own doubled letter (shdd → شدد). */
-export function latinVariants(query: string): string[] {
-  const q = query.trim().toLowerCase().replace(/[\s\-.·]/g, '');
-  const once = q.replace(/(.)\1+/g, '$1');
-  return [...new Set([...spellings(q), ...(once !== q ? spellings(once) : [])])];
+/** A Latin spelling's consonants, as the root table's simple_lat is compared: lowercase, accents and vowels off. */
+export function latinSkeleton(s: string): string {
+  return s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[aeiou\s\-.·'`ʿʾ‘’]/g, '');
 }
 
-function spellings(q: string): string[] {
-  if (!q || q.length > 14 || /[؀-ۿ0-9]/.test(q)) return [];
-  let out: string[] = [''];
-  for (let i = 0; i < q.length;) {
-    const ch = q[i]!;
-    if (VOWEL.test(ch)) {
-      // a word's first vowel may be the root's first letter (alh, aqb, ilm); a vowel inside is only a vowel
-      if (i === 0) out = out.flatMap((o) => [o, o + 'ا', o + 'ع', o + 'ء']);
-      i += 1;
-      continue;
-    }
-    const two = DIGRAPHS[q.slice(i, i + 2)];
-    const opts = two ?? SINGLE[ch];
-    if (!opts) return [];
-    out = out.flatMap((o) => opts.map((a) => o + a));
-    if (out.length > 128) return [];
-    i += two ? 2 : 1;
+/** The keys to try for a Latin query, in turn: as typed, doubled letters as one, then the first letter off. */
+export function latinKeys(q: string): string[][] {
+  const skel = latinSkeleton(q);
+  if (!/^[a-z]{2,8}$/.test(skel)) return [];
+  const once = skel.replace(/(.)\1+/g, '$1');
+  const tiers: string[][] = [[skel], once !== skel ? [once] : []];
+  if (skel.length >= 4) tiers.push([...new Set([skel.slice(1), once.slice(1)])].filter((k) => k.length >= 2));
+  return tiers.filter((t) => t.length);
+}
+
+// ── The root table, kept for a day ────────────────────────────────────────────────────────────────────────────────
+// Every root's id, letters and Latin spellings, read once and kept for a day: in this worker's memory, and in the edge
+// cache so a fresh worker doesn't read the table again. Arabic roots are looked up by root_normalized, Latin queries
+// by simple_lat's consonants (latinSkeleton) and by buckwalter, all in memory.
+
+interface RootRow { id: string; root: string; norm: string; lat: string | null; bw: string | null; n: number; en: string | null }
+interface RootIndex { at: number; byNorm: Map<string, RootRow[]>; byLat: Map<string, RootRow[]>; bySkel: Map<string, RootRow[]>;
+  byBw: Map<string, RootRow[]>; withMeaning: RootRow[] }
+
+const DAY = 86_400_000;
+const INDEX_KEY = 'https://al.internal/lookup/root-index/v1';
+let INDEX: RootIndex | null = null;
+
+function indexOf(rows: RootRow[]): RootIndex {
+  const add = (m: Map<string, RootRow[]>, k: string | null | undefined, r: RootRow) => {
+    if (!k) return;
+    const list = m.get(k);
+    if (list) list.push(r); else m.set(k, [r]);
+  };
+  const ix: RootIndex = { at: Date.now(), byNorm: new Map(), byLat: new Map(), bySkel: new Map(), byBw: new Map(), withMeaning: [] };
+  for (const r of rows.sort((a, b) => b.n - a.n)) {
+    add(ix.byNorm, r.norm, r);
+    add(ix.byLat, r.lat, r);
+    add(ix.bySkel, r.lat ? latinSkeleton(r.lat) : null, r);
+    add(ix.byBw, r.bw, r);
+    if (r.en) ix.withMeaning.push(r);
   }
-  // a word's prefix letter dropped too (tanzil → نزل, masir → صير): ت م ي ن ا
-  const withPrefixOff = out.flatMap((o) => (/^[تمينا]/.test(o) && o.length >= 4 ? [o, o.slice(1)] : [o]));
-  return [...new Set(withPrefixOff.filter((r) => r.length >= 2 && r.length <= 4))];
+  return ix;
+}
+
+async function rootIndex(db: D1Database): Promise<RootIndex> {
+  if (INDEX && Date.now() - INDEX.at < DAY) return INDEX;
+  const cache = (globalThis as unknown as { caches?: { default: Cache } }).caches?.default;
+  const hit = cache ? await cache.match(INDEX_KEY).catch(() => undefined) : undefined;
+  let rows: RootRow[] | null = hit ? await hit.json<RootRow[]>().catch(() => null) : null;
+  if (!rows) {
+    rows = await query<RootRow>(db,
+      `SELECT id, root_text AS root, root_normalized AS norm, simple_lat AS lat, buckwalter AS bw,
+              COALESCE(frequency_quran, 0) AS n, meaning_core_en AS en
+         FROM ar_ling_roots WHERE root_normalized IS NOT NULL`);
+    if (cache) {
+      await cache.put(INDEX_KEY, new Response(JSON.stringify(rows), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, s-maxage=86400' },
+      })).catch(() => undefined);
+    }
+  }
+  INDEX = indexOf(rows);
+  return INDEX;
 }
 
 /// A word's stems with its clitics off: the prefixes /al/lookup strips, one verb or participle prefix, and the common
@@ -157,35 +186,29 @@ export interface ResolvedRoot { id: string; root: string }
 export async function resolveRoots(db: D1Database, q: string): Promise<ResolvedRoot[]> {
   const text = q.trim();
   if (!text) return [];
+  const ix = await rootIndex(db);
   const found = new Map<string, string>();
-  const take = (rows: Array<{ id: string; root_text: string }>) => { for (const r of rows) found.set(r.id, r.root_text); };
-  const inList = (n: number) => Array.from({ length: n }, () => '?').join(',');
+  const take = (rows: Array<{ id: string; root: string }> | undefined) => { for (const r of rows ?? []) found.set(r.id, r.root); };
   if (/[ء-ي]/.test(text)) {
-    const f = fold(text);
-    const all = stems(f);
-    const asRoot = all.filter((s) => s.length >= 2 && s.length <= 4);
-    if (asRoot.length) {
-      take(await query<{ id: string; root_text: string }>(db,
-        `SELECT id, root_text FROM ar_ling_roots WHERE root_normalized IN (${inList(asRoot.length)})`, asRoot));
-    }
+    const all = stems(fold(text));
+    for (const s of all) if (s.length >= 2 && s.length <= 4) take(ix.byNorm.get(s));
     // and the word's own root, through its lemma — always, since the root table holds a few stray stems (جادل)
     if (all.length) {
-      take(await query<{ id: string; root_text: string }>(db,
-        `SELECT DISTINCT r.id, r.root_text FROM ar_ling_root_lemma l JOIN ar_ling_roots r ON r.id = l.root_id
-          WHERE l.lemma_text_bare IN (${inList(all.length)}) AND l.root_id IS NOT NULL AND l.id NOT LIKE 'LEM:LEX:%'
+      take(await query<{ id: string; root: string }>(db,
+        `SELECT DISTINCT r.id, r.root_text AS root FROM ar_ling_root_lemma l JOIN ar_ling_roots r ON r.id = l.root_id
+          WHERE l.lemma_text_bare IN (${all.map(() => '?').join(',')}) AND l.root_id IS NOT NULL AND l.id NOT LIKE 'LEM:LEX:%'
             AND COALESCE(l.record_status, 'live') <> 'merged' LIMIT 12`, all));
     }
   } else {
-    const plain = text.toLowerCase().replace(/[\s\-.·]/g, '');
-    const vs = latinVariants(text);
-    take(await query<{ id: string; root_text: string }>(db,
-      `SELECT id, root_text FROM ar_ling_roots
-        WHERE simple_lat = ? OR buckwalter = ?${vs.length ? ` OR root_normalized IN (${inList(vs.length)})` : ''}
-        ORDER BY COALESCE(frequency_quran, 0) DESC LIMIT 24`, [plain, text.trim(), ...vs]));
-    if (!found.size && plain.length >= 4) {
-      take(await query<{ id: string; root_text: string }>(db,
-        `SELECT id, root_text FROM ar_ling_roots WHERE meaning_core_en LIKE ? LIMIT 12`, [`%${plain}%`]));
+    // the table's own spelling as typed (simple_lat, buckwalter), then its consonants, tier by tier
+    take(ix.byLat.get(text.toLowerCase().replace(/[\s\-.·]/g, '')));
+    take(ix.byBw.get(text.replace(/[\s\-.·]/g, '')));
+    for (const keys of found.size ? [] : latinKeys(text)) {
+      for (const k of keys) take(ix.bySkel.get(k)?.slice(0, 12));
+      if (found.size) break;
     }
+    const plain = text.toLowerCase();
+    if (!found.size && plain.length >= 4) take(ix.withMeaning.filter((r) => r.en!.toLowerCase().includes(plain)).slice(0, 12));
   }
   return [...found].map(([id, root]) => ({ id, root }));
 }
