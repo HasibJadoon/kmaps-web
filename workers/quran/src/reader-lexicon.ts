@@ -20,7 +20,11 @@ export const cites = (ss: Src[] | null | undefined): string =>
   (ss ?? []).map((s) => `[${s.book}${s.page ? ` ${s.page}` : ''}](${lexLink(s)})`).join(' · ');
 const withCites = (line: string, ss?: Src[] | null) => (ss?.length ? `${line} — ${cites(ss)}` : line);
 
-const lemmaTile = (l: Any) => `::word[${strip(l.lemma)}](com.kmaps.app://reader/qr/reader/lemma/${encodeURIComponent(l.id)})`;
+/// A word as a small tile: the word, and under it a tiny caption — how often the Qurʾān uses it, and its form.
+const lemmaTile = (l: Any) => {
+  const cap = [l.count ? `${l.count}×` : null, strip(l.form) || null].filter(Boolean).join(' · ');
+  return `::word[${strip(l.lemma)}${cap ? ` | ${cap}` : ''}](com.kmaps.app://reader/qr/reader/lemma/${encodeURIComponent(l.id)})`;
+};
 
 function constructionsMd(cs: Any[]): string[] {
   const out: string[] = [];
@@ -104,7 +108,7 @@ export function rootReaderDoc(page: Any, dictionaries: Array<{ slug: string; tit
   }
   if (page.opposites?.length) md.push('## :arrow.left.arrow.right: Opposites · الأضداد {#opposites}', ...opposites(page.opposites));
   for (const l of page.layers ?? []) md.push(`- ${strip(l.en ?? l.title ?? '')}${l.ar ? ` — ${strip(l.ar)}` : ''}`);
-  // the words as small tiles, only the word on each (owner, 2026-11-18: "6 cards, tiny, word only"); its page has the rest
+  // the words as small tiles, six a row (owner, 2026-11-18): the word, and a tiny caption of its count and form
   if (page.lemmas?.length) md.push('## :character.book.closed: Its words · الكلمات {#words}', ...page.lemmas.map(lemmaTile));
 
   const root = strip(page.root);
