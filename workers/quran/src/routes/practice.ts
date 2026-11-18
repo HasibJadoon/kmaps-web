@@ -32,7 +32,7 @@ import { softFail } from '../../../shared/src/soft-fail';
 
 /** Bump when the الصرف sheet's JSON changes shape or wording rules, so the edge cache starts afresh. */
 const SARF_SHEET_V = '2026-10-16a'
-const LEX_PAGE_V = '2026-11-18a';
+const LEX_PAGE_V = '2026-11-18b';
 
 // ── Qurʾān drills ─────────────────────────────────────────────────────────────
 // The Qurʾān drilled as the Arabic side is (DrillKit shapes): each āyah a line heard in

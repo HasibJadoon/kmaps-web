@@ -1,8 +1,9 @@
 import { query } from '../../../shared/src/db';
 import type { QuranEnv } from '../env';
-import { createAlClient, type AlSarfSheet, type ResolvedLemma } from '../clients/al.client';
+import { createAlClient, type AlSarfSheet, type ResolvedLemma, type RootExpression } from '../clients/al.client';
 import { withCard, shuffle, parseJson, rangeOf, interleave, quranRef, type Drill, type Scope } from './practice-kit';
 import { softFail } from '../../../shared/src/soft-fail';
+import { FAMILIES, familyEn, formFamilyOf, type FormFamily } from '../lib/form-family';
 
 // ── الصرف: the passage's words, their forms, prepositions, family and meanings in the Qurʾān ──────
 //
@@ -967,6 +968,31 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
   const extra: Record<string, ResolvedLemma> = al && moreWords.length
     ? await al.resolveLemmas(moreWords.map((w) => w.id), { refresh }).then((r) => r.data as Record<string, ResolvedLemma>).catch(() => ({}))
     : {};
+  // each expression's verb-form family (owner, 2026-11-18: "group by form — Form I to X, the family's GT name in
+  // Arabic"): AL's own verb form for its word when AL has one, else the word's shape against the root's letters
+  // (lib/form-family); the families the root's own words show settle فِعَال.
+  const famNames = new Map((await query<{ id: string; name_ar: string }>(env.DB_QR,
+    `SELECT id, name_ar FROM ar_ling_gram_term WHERE id LIKE 'GT:form_family:form_%'`).catch(softFail([] as { id: string; name_ar: string }[])))
+    .map((g) => [g.id.replace('GT:form_family:form_', ''), g.name_ar]));
+  const byName = new Map([...famNames].map(([k, v]) => [v, k as FormFamily]));
+  const knownForm = (vf: string | null | undefined): FormFamily | null => {
+    const k = (vf ?? '').toLowerCase();
+    return (FAMILIES as string[]).includes(k) ? (k as FormFamily) : null;
+  };
+  const rootHas = new Set<FormFamily>();
+  for (const q of quranWords) {
+    const f = knownForm(D.lemmaOf(q.id)?.verb_form) ?? (q.form ? byName.get(q.form) : undefined) ?? formFamilyOf(q.lemma, root);
+    if (f !== 'i') rootHas.add(f);
+  }
+  const familyOfExpression = (x: { lemma: string | null; lemmaId: string | null; ar: string }): FormFamily => {
+    const id = x.lemmaId ? (x.lemmaId.startsWith('AL:') ? x.lemmaId : `AL:${x.lemmaId}`) : null;
+    return knownForm(id ? D.lemmaOf(id)?.verb_form : null) ?? formFamilyOf(x.lemma ?? '', root, rootHas);
+  };
+  const familyExpressions = (expressions as RootExpression[]).map((x) => {
+    const family = familyOfExpression(x);
+    return { ...x, family, familyName: famNames.get(family) ?? null, familyEn: familyEn(family) };
+  });
+
   return {
     asl: deep?.asl ?? null, core: deep?.core ?? null, layers: deep?.layers ?? [], stages: deep?.stages ?? [],
     sections: sectionsOf(K), lex: K.lex,
@@ -993,8 +1019,8 @@ async function lexiconRootRaw(env: QuranEnv, root: string, refresh: boolean) {
     // the root's own opposites only: one tied to a lemma or a word is on that lemma's page
     opposites: (D.opposites.get(root) ?? []).filter((o) => !o.lemmaId && !o.forWord).map((o) => ({ root, ...K.oppositeView(o) })),
     // every expression of the root — idioms, phrases, sayings, collocations, the Qurʾān's own — each with its type, book,
-    // verses and explanation (AL's ar_ling_root_lemma_tabir, by the root's letters)
-    expressions,
+    // verses, explanation and verb-form family (AL's ar_ling_root_lemma_tabir, by the root's letters)
+    expressions: familyExpressions,
   };
 }
 

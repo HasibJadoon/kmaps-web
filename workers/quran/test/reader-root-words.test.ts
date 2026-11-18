@@ -17,14 +17,15 @@ test("a root's words are word-only tiles that open each word's page", () => {
   assert.ok(!doc.body.includes('expressions'), 'no expressions section when the root has none');
 });
 
-test("a root's expressions follow its words, all of them, each verse a link to the āyah", () => {
-  const xs = Array.from({ length: 13 }, (_, i) => ({ ar: `تعبير ${i}`, en: `saying ${i}`, typeName: 'Idiom', typeKey: 'idiom',
-    source: 'Lane', explanation: null, refs: i === 0 ? ['40:35', '40:56'] : [] }));
+test("a root's expressions follow its words, grouped by family I → X, all of them, each verse a link to the āyah", () => {
+  const x = (ar: string, family: string, refs: string[] = []) => ({ ar, en: `${ar} en`, typeName: 'Idiom', source: 'Lane', explanation: null,
+    refs, family, familyName: { i: 'مُجَرَّد', ii: 'تَفْعِيل', iii: 'مُفَاعَلَة', vii: 'اِنْفِعَال' }[family], familyEn: `Form ${family.toUpperCase()}` });
+  const xs = [x('أ', 'iii', ['40:35', '40:56']), x('ب', 'i'), x('ج', 'vii'), x('د', 'ii'), x('ه', 'i'), x('و', 'iii')];
   const doc = rootReaderDoc({ root: 'جدل', lemmas: [{ id: 'L1', lemma: 'جِدَال', count: 2 }], expressions: xs }, []);
   const body = doc.body;
   assert.ok(body.indexOf('{#words}') < body.indexOf('{#expressions}'));
-  const json = body.split('```expressions\n')[1]!.split('\n```')[0]!;
-  const items = JSON.parse(json);
-  assert.equal(items.length, 13);
-  assert.deepEqual(items[0].refs, [{ label: '40:35', url: 'com.kmaps.app://quran/40/35' }, { label: '40:56', url: 'com.kmaps.app://quran/40/56' }]);
+  const groups = JSON.parse(body.split('```expressions\n')[1]!.split('\n```')[0]!);
+  assert.deepEqual(groups.map((g: any) => [g.family, g.name, g.items.length]),
+    [['i', 'مُجَرَّد', 2], ['ii', 'تَفْعِيل', 1], ['iii', 'مُفَاعَلَة', 2], ['vii', 'اِنْفِعَال', 1]]);
+  assert.deepEqual(groups[2].items[0].refs, [{ label: '40:35', url: 'com.kmaps.app://quran/40/35' }, { label: '40:56', url: 'com.kmaps.app://quran/40/56' }]);
 });

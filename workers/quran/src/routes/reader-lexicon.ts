@@ -9,7 +9,7 @@ import { lemmaReaderDoc, rootReaderDoc } from '../reader-lexicon';
 // pages read (/qr/lexicon/root, /qr/lexicon/lemma), written out as reader documents; a root page also names every
 // dictionary that files the root (the AL worker's overview, keyed as each book files it), each a door into its entry.
 /// The reader pages' shape: bump it when what they carry changes.
-const READER_V = '2026-11-18b';
+const READER_V = '2026-11-18c';
 
 export function readerLexiconRoutes(router: Router<QuranEnv>) {
   // the page's shape is part of the cache key, so a new shape is never served from an older answer

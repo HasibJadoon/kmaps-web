@@ -26,14 +26,21 @@ const lemmaTile = (l: Any) => {
   return `::word[${strip(l.lemma)}${cap ? ` | ${cap}` : ''}](com.kmaps.app://reader/qr/reader/lemma/${encodeURIComponent(l.id)})`;
 };
 
-/// A root's expressions for the reader's ```expressions block: each with its type, book, verses (each a link to the
-/// āyah) and explanation — the reader draws them as tiles that open in place.
-const expressionsBlock = (xs: Any[]) => ['```expressions', JSON.stringify(xs.map((x) => ({
-  ar: strip(x.ar), en: strip(x.en) || null, type: strip(x.typeName) || null, typeKey: x.typeKey ?? null,
-  source: strip(x.source) || null, explanation: strip(x.explanation) || null,
-  refs: (Array.isArray(x.refs) ? x.refs : []).map((r: string) => ({ label: r,
-    url: `com.kmaps.app://quran/${r.replace(':', '/')}` })),
-}))), '```'].join('\n');
+/// A root's expressions for the reader's ```expressions block, grouped by verb-form family (Form I … X, in that order):
+/// each group headed by the family's GT name in Arabic and "Form N", then its expressions as plain rows — each with
+/// its book, verses (each a link to the āyah) and explanation for when it is opened.
+const FAMILY_ORDER = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
+const expressionsBlock = (xs: Any[]) => {
+  const groups = FAMILY_ORDER.map((f) => ({ f, items: xs.filter((x) => (x.family ?? 'i') === f) })).filter((g) => g.items.length);
+  return ['```expressions', JSON.stringify(groups.map(({ f, items }) => ({
+    family: f, name: strip(items[0].familyName) || null, en: strip(items[0].familyEn) || `Form ${f.toUpperCase()}`,
+    items: items.map((x) => ({
+      ar: strip(x.ar), en: strip(x.en) || null, type: strip(x.typeName) || null,
+      source: strip(x.source) || null, explanation: strip(x.explanation) || null,
+      refs: (Array.isArray(x.refs) ? x.refs : []).map((r: string) => ({ label: r, url: `com.kmaps.app://quran/${r.replace(':', '/')}` })),
+    })),
+  }))), '```'].join('\n');
+};
 
 function constructionsMd(cs: Any[]): string[] {
   const out: string[] = [];
