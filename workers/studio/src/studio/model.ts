@@ -44,15 +44,26 @@ export function peopleOf(reg: Registry, b: EpisodeBundle) {
     .map((p) => ({ ref: p.person_ref, name: label(reg, `person.${personKey(p.person_ref)}`), role: p.role_key, role_label: label(reg, `role.${p.role_key}`) }));
 }
 
+/// A boundary as people read it: QR:40:1-5 → 40:1–5, QR:40:all → 40, QR:40:intro:1-7 → 40 intro 1–7, WV:bible:GEN.1-2 → GEN.1–2.
+export function boundaryLabel(ref: string | null | undefined): string | null {
+  if (!ref) return null;
+  const q = ref.match(/^QR:(\d+):(.+)$/);
+  if (q) return q[2] === 'all' ? q[1] : `${q[1]}:${q[2].replace(/^intro:/, 'intro ').replace(/(\d+)-(\d+)$/, (_, a, b) => (a === b ? a : `${a}–${b}`))}`;
+  return ref.split(':').pop()!.replace(/(\d)-(\d)/g, '$1–$2');
+}
+
 /// One episode as a card: what lists, boards and the Now screen show.
 export function card(reg: Registry, b: EpisodeBundle) {
   const s = reg.series.find((x) => x.id === b.ep.series_ref);
   const st = stageNow(reg, b);
   return {
-    id: b.ep.id, no: b.ep.no, kind: b.ep.kind, title_en: b.ep.title_en, title_ar: b.ep.title_ar, boundary: b.ep.boundary_ref,
+    id: b.ep.id, no: b.ep.no, kind: b.ep.kind, title_en: b.ep.title_en, title_ar: b.ep.title_ar, boundary: boundaryLabel(b.ep.boundary_ref),
+    boundary_ref: b.ep.boundary_ref,
     series: s ? { id: s.id, label: label(reg, s.label_key) } : null,
     arc: b.ep.arc_key ? label(reg, reg.arcs.find((a) => a.series_ref === b.ep.series_ref && a.key === b.ep.arc_key)?.label_key) : null,
-    stage: st ? { key: st.key, label: st.label, icon: st.icon, tone: st.tone } : null,
+    // a stage still in hand reads as the work being done ("To publish"); a finished episode as its last stage ("Published")
+    stage: st ? { key: st.key, label: (st.state === 'current' ? reg.labels[`stage.${st.key}.now`] : null) ?? st.label, icon: st.icon, tone: st.tone,
+                  state: st.state } : null,
     people: peopleOf(reg, b).filter((p) => p.role !== 'manager').map((p) => p.name),
     updated_at: b.ep.updated_at,
   };
@@ -117,7 +128,7 @@ export function relatedOf(reg: Registry, b: EpisodeBundle, all: EpisodeBundle[])
     let g = groups.find((y) => y.key === o.ep.series_ref);
     if (!g) { g = { key: o.ep.series_ref, label: label(reg, s?.label_key), icon: 'icon.group.films', items: [] }; groups.push(g); }
     const yt = o.publications.find((p) => p.part_key === 'long' && p.url)?.url ?? null;
-    g.items.push({ title: `${o.ep.title_en} · ${o.ep.boundary_ref?.replace(/^QR:/, '')}`, url: yt ?? `com.kmaps.app://studio/episode/${o.ep.id}`, local_path: null });
+    g.items.push({ title: `${o.ep.title_en} · ${boundaryLabel(o.ep.boundary_ref)}`, url: yt ?? `com.kmaps.app://studio/episode/${o.ep.id}`, local_path: null });
   }
   return groups;
 }
@@ -130,7 +141,7 @@ export function episodePage(reg: Registry, b: EpisodeBundle, platform: string, a
   for (const r of b.resources.slice().sort((x, y) => x.seq - y.seq)) {
     let g = groups.find((x) => x.key === r.group_key);
     if (!g) { g = { key: r.group_key, label: label(reg, `group.${r.group_key}`), icon: `icon.group.${r.group_key}`, items: [] }; groups.push(g); }
-    g.items.push({ title: r.label_override ?? r.ref ?? r.url ?? '', url: r.url, local_path: r.local_path });
+    g.items.push({ title: ltrLines(r.label_override ?? r.ref ?? r.url ?? ''), url: r.url, local_path: r.local_path });
   }
   // group order is data (token order.resource_groups); groups it does not name come after, as written
   const order = (reg.tokens.find((t) => t.key === 'order.resource_groups')?.value ?? '').split(',').map((x) => x.trim());
@@ -237,6 +248,12 @@ export function ayatOfHeading(h: string, surah: number): number[] {
   return Array.from({ length: Math.max(0, z - a + 1) }, (_, i) => a + i);
 }
 
+/// English-primary text with Arabic inside: a line that holds Latin AND Arabic letters is marked left-to-right (U+200E), so a
+/// line that happens to begin with an Arabic word is not laid out right-to-left. Pure-Arabic lines stay as they are.
+export function ltrLines(s: string): string {
+  return s.split('\n').map((l) => (/[A-Za-z]/.test(l) && /[\u0600-\u06FF]/.test(l) && !l.startsWith('\u200E') ? '\u200E' + l : l)).join('\n');
+}
+
 /// Study: one column per mufassir (the episode's tafsīr scripts), one row per āyah of the boundary, plus the
 /// introductions; a mufassir with nothing on an āyah gets an explicit silent cell.
 export function studyPage(reg: Registry, b: EpisodeBundle, docs: Array<{ title: string; body: string }>, platform: string) {
@@ -248,9 +265,9 @@ export function studyPage(reg: Registry, b: EpisodeBundle, docs: Array<{ title: 
     for (const chunk of d.body.split(/\n(?=## )/)) {
       const head = chunk.match(/^## (.+)/);
       if (!head) continue;
-      parts.push({ heading: head[1].trim(), ayat: ayatOfHeading(head[1], surah), text: chunk.replace(/^## .+\n?/, '').trim() });
+      parts.push({ heading: ltrLines(head[1].trim()), ayat: ayatOfHeading(head[1], surah), text: ltrLines(chunk.replace(/^## .+\n?/, '').trim()) });
     }
-    return { title: d.title, parts };
+    return { title: ltrLines(d.title), parts };
   });
   const rows = [];
   for (let a = from; a <= to; a++) {

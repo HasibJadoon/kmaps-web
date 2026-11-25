@@ -45,3 +45,13 @@ test('the stage is derived, never stored', () => {
   // a later stage holding does not skip an earlier one that does not
   assert.equal(stageOf(STAGES, facts({ publications: ['long'] })), 'planned');
 });
+
+test('the room turns a take into D1 rows: one take, one marker per scene shown', async () => {
+  const { takeStatements, tc } = await import('../src/studio/room.do');
+  assert.equal(tc(3_723_456), '1:02:03.456');
+  const st = takeStatements('EP:dz-qr:002', 3, { markAt: 10_000, log: [
+    { scene: 0, beat: 0, id: 'open', t: 10_000 }, { scene: 1, beat: 2, id: 'read', t: 25_500 }] }, 70_000, 2);
+  assert.equal(st.id, 'EP:dz-qr:002:take:3');
+  assert.deepEqual(st.take.args.slice(0, 3), ['EP:dz-qr:002:take:3', 'EP:dz-qr:002', 3]);
+  assert.deepEqual(st.markers.map((m) => m.args.slice(1)), [[0, 'open', 0, '0:00:00.000', '0:00:15.500'], [1, 'read', 2, '0:00:15.500', '0:01:00.000']]);
+});

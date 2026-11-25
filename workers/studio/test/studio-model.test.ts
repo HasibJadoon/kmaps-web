@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { card, episodePage, manifest, nowPage, pipelinePage, seriesPage, stageNow } from '../src/studio/model';
+import { card, episodePage, ltrLines, manifest, nowPage, pipelinePage, seriesPage, stageNow } from '../src/studio/model';
 import type { EpisodeBundle, Registry } from '../src/studio/types';
 
 // the registry and the first six episodes exactly as studio.py wrote them to the local D1
@@ -24,6 +24,9 @@ test('stages are derived from rows: 001 published, 002 at Ready to film', () => 
   assert.equal(stageNow(reg, ep('EP:dz-qr:002'))?.key, 'ready');
   assert.equal(stageNow(reg, ep('EP:dz-wv:001'))?.key, 'research');
   assert.equal(card(reg, ep('EP:dz-qr:002')).stage?.label, 'Ready to film');
+  assert.equal(card(reg, ep('EP:bh-films:008')).stage?.label, 'To publish');     // in hand, not yet out
+  assert.equal(card(reg, ep('EP:bh-films:001')).stage?.label, 'Published');
+  assert.equal(card(reg, ep('EP:dz-qr:002')).boundary, '40:1–5');
   assert.deepEqual(card(reg, ep('EP:dz-qr:002')).people, ['Hasib', 'Ali']);
   assert.deepEqual(card(reg, ep('EP:dz-wv:001')).people, ['Hasib', 'Ali']);   // the manager row is not a host tag
 });
@@ -41,7 +44,7 @@ test('the manifest carries the look, the words and the navigation, all from rows
 test('the episode page follows VIEW:episode in order and hides sections whose rule does not hold', () => {
   const p = episodePage(reg, ep('EP:dz-qr:002'), 'ipad', eps);
   const related = p.sections.find((s) => s.key === 'related')!.data as Array<{ label: string; items: Array<{ title: string; url: string }> }>;
-  assert.deepEqual(related.map((g) => [g.label, g.items.map((i) => i.title)]), [['Passage by Passage', ['The Forgiver · 40:1-3', 'The Charge · 40:4-5']]]);
+  assert.deepEqual(related.map((g) => [g.label, g.items.map((i) => i.title)]), [['Passage by Passage', ['The Forgiver · 40:1–3', 'The Charge · 40:4–5']]]);
   assert.ok(related[0]!.items[0]!.url.startsWith('https://youtu.be/'));
   assert.deepEqual(p.sections.map((s) => s.key), ['header', 'people', 'stages', 'study', 'related', 'scenes', 'slides', 'checks']);
   const study = p.sections.find((s) => s.key === 'study')!.data as Array<{ label: string; items: unknown[] }>;
@@ -93,4 +96,10 @@ test('study: one column per mufassir, rows per āyah, silent cells explicit; run
   assert.equal(s.items.length, 1);
   assert.equal(s.room, 'studio/episodes/EP:dz-qr:002/room');
   assert.deepEqual(s.people.map((x) => x.name), ['Hasib', 'Ali']);
+});
+
+test('ltrLines marks English lines that start with Arabic, leaves Arabic lines alone', () => {
+  assert.equal(ltrLines('علي told me\nقال الله'), '\u200Eعلي told me\nقال الله');
+  assert.equal(ltrLines('\u200Ealready'), '\u200Ealready');
+  assert.equal(ltrLines('plain English'), 'plain English');
 });

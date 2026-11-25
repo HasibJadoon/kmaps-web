@@ -19,6 +19,9 @@ export interface StudioEnv {
   /** km-content-worker: an episode's scenes and study docs, for the Studio read API (routes/studio.ts). */
   CONTENT?: Fetcher;
 
+  /** One live room per episode (studio/room.do.ts). */
+  EPISODE_ROOM?: DurableObjectNamespace;
+
   /// Secret. The brainstorm tutor's Claude API key.
   ANTHROPIC_API_KEY: string;
 }

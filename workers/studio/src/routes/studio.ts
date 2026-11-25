@@ -8,6 +8,7 @@
 ///   GET /st/studio/episodes/:id/run                     Recording: the scenes for the presenter (via CONTENT)
 ///   GET /st/studio/episodes/:id/study                   Study: mufassirūn side by side per āyah (via CONTENT)
 ///   GET /st/studio/episodes/:id/takes                   the live room's takes and markers
+///   WS  /st/studio/episodes/:id/room                    the episode's live room (studio/room.do.ts)
 import type { Router } from '../../../shared/src/router';
 import { actorRef } from '../../../shared/src/auth';
 import { notFound, ok, unauthorized } from '../../../shared/src/response';
@@ -95,6 +96,18 @@ export function studioRoutes(router: Router<StudioEnv>) {
       return r.ok ? { title: s.title, body: ((await r.json()) as { data: { body: string } }).data.body } : null;
     }))).filter((d): d is { title: string; body: string } => !!d) : [];
     return ok(studyPage(reg, b, docs, o.platform));
+  });
+
+  // The episode's live room (any number of devices; solo episodes use it for takes too).
+  router.get('/st/studio/episodes/:id/room', async (req, env, { id }) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    if (req.headers.get('Upgrade')?.toLowerCase() !== 'websocket' || !env.EPISODE_ROOM) return notFound('room');
+    const eid = await resolveId(env.DB_ST, id);
+    if (!(await env.DB_ST.prepare(`SELECT 1 FROM st_episode WHERE id = ?`).bind(eid).first())) return notFound(`episode ${id}`);
+    const headers = new Headers(req.headers);
+    headers.set('X-KM-Episode-Id', eid);
+    return env.EPISODE_ROOM.get(env.EPISODE_ROOM.idFromName(eid)).fetch(new Request(req.url, { headers }));
   });
 
   // Takes: what the live room recorded, with markers (Claude and the Mac's marker export read this).

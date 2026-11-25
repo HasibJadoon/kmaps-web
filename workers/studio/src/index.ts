@@ -41,3 +41,4 @@ export default {
 } satisfies ExportedHandler<StudioEnv>;
 
 export { EpisodeSession } from './session.do';
+export { EpisodeRoom } from './studio/room.do';

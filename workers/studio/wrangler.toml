@@ -46,3 +46,12 @@ class_name = "EpisodeSession"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["EpisodeSession"]
+
+# ─── Durable Object — the one Studio's episode room (scene sync, takes saved to st_take) ───
+[[durable_objects.bindings]]
+name = "EPISODE_ROOM"
+class_name = "EpisodeRoom"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["EpisodeRoom"]
