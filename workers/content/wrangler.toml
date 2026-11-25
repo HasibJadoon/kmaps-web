@@ -39,3 +39,12 @@ class_name = "StudyRoom"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["StudyRoom"]
+
+# One live room per read-along episode read by two people (doc meta.people = 2): readalong-room.ts.
+[[durable_objects.bindings]]
+name = "READALONG_ROOM"
+class_name = "ReadAlongRoom"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["ReadAlongRoom"]

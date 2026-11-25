@@ -15,5 +15,8 @@ export interface ContentEnv {
   /** One live room per study: presence, focus and change notices (study-room.ts). */
   STUDY_ROOM?: DurableObjectNamespace;
 
+  /** One live room per two-person read-along episode: same scene on every iPad, the take's flash and markers (readalong-room.ts). */
+  READALONG_ROOM?: DurableObjectNamespace;
+
   JWT_SECRET?: string;
 }

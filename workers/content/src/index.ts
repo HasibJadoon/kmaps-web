@@ -19,6 +19,7 @@ import { cmCaptureRoutes } from './routes/captures';
 import { highlightRoutes } from './routes/highlights';
 import { cmSourceRoutes } from './routes/sources';
 import { cmTemplateRoutes } from './routes/templates';
+import { readAlongRoutes } from './routes/readalong';
 
 const router = new Router<ContentEnv>();
 
@@ -48,6 +49,7 @@ cmCommentRoutes(router);
 highlightRoutes(router);
 cmSourceRoutes(router);
 cmTemplateRoutes(router);
+readAlongRoutes(router);
 
 router.post('/cm/internal/rows', async (req, env) => {
   const body = await req.json<RowsRequest>().catch(() => null);
@@ -66,3 +68,4 @@ export default {
 } satisfies ExportedHandler<ContentEnv>;
 
 export { StudyRoom } from './study-room';
+export { ReadAlongRoom } from './readalong-room';
