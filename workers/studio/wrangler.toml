@@ -31,6 +31,11 @@ service = "km-quran-worker"
 binding = "WV"
 service = "km-worldview-worker"
 
+# ─── Service binding — CM owns the episode's material (scenes, study docs); the Studio's read API reads it ──
+[[services]]
+binding = "CONTENT"
+service = "km-content-worker"
+
 # ANTHROPIC_API_KEY is a secret: wrangler secret put ANTHROPIC_API_KEY --config workers/studio/wrangler.toml
 
 # ─── Durable Object — live episode sessions ───────────────────────────────────

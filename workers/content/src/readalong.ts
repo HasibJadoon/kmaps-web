@@ -121,6 +121,16 @@ export function shapeEpisode(series: SeriesRow, cfg: ReadAlongConfig, episodes: 
     ...blocks.slice().sort((x, y) => x.seq_order - y.seq_order).map((b) => shapeScene(b, cfg)),
     titleCard('close'),
   ];
+  // everything that belongs to the episode (doc meta.resources: its own study docs and slides, then what already exists
+  // for these āyāt), grouped in the order written; each item a link the app opens where it is tapped
+  const groups: Array<{ title: string; items: Array<{ title: string; link: string }> }> = [];
+  for (const r of parse<{ resources?: Array<{ group?: string; title?: string; link?: string }> }>(ep.meta_json, {}).resources ?? []) {
+    if (!r.link || !r.title) continue;
+    const name = r.group ?? '';
+    let g = groups.find((x) => x.title === name);
+    if (!g) { g = { title: name, items: [] }; groups.push(g); }
+    g.items.push({ title: r.title, link: r.link });
+  }
   return {
     series: { id: series.collection_id, title: series.title, stream: cfg.stream ?? null, name_en: series.title, name_ar: series.title_ar },
     episode: { id: ep.doc_id, no, title: cover.title ?? ep.title, people: peopleOf(ep),
@@ -130,7 +140,9 @@ export function shapeEpisode(series: SeriesRow, cfg: ReadAlongConfig, episodes: 
     chrome: { chip: fill(L.chip, v), label: fill(L.label, v), book: fill(L.book, v) },
     picker: { title: fill(L.picker_title, v), hint: fill(L.picker_hint, v), start: fill(L.picker_start, v), range: fill(L.range, v) },
     labels: { hear: fill(L.hear, v), scenes: fill(L.scenes, v),
-              together: fill(L.together ?? '', v), mark: fill(L.mark ?? '', v), cut: fill(L.cut ?? '', v) },
+              together: fill(L.together ?? '', v), mark: fill(L.mark ?? '', v), cut: fill(L.cut ?? '', v),
+              resources: fill(L.resources ?? '', v) },
+    resources: groups,
     scenes,
   };
 }

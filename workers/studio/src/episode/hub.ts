@@ -10,6 +10,7 @@ import { resourceTiles } from './resources';
 import { minutesLabel, stepViews, type StepView } from './steps';
 import { daysBetween, obj, splitTitle, strings } from './text';
 import { angleOf, depthOf, groupLabel, placeOf } from './curriculum';
+import { tileLabel, tileStyle } from './sprints';
 
 export function backlog(ctx: EpisodeCtx, seriesMeta: Record<string, unknown> = ctx.series_meta ?? {}) {
   const eps = ctx.series_order.filter((e) => !e.id.endsWith(':slides') && e.state)
@@ -17,14 +18,12 @@ export function backlog(ctx: EpisodeCtx, seriesMeta: Record<string, unknown> = c
   const at = Math.max(0, eps.findIndex((e) => e.id === ctx.id));
   const start = Math.floor(at / 20) * 20;
   const tiles = eps.slice(start, start + 20).map((e) => {
-    const tail = e.id.split(':').pop() ?? e.id;
-    const lc = tail.match(/^L\d(\d\d)\.(\d+)$/);   // L{round}{cluster}.{part} → "02.03" (the round is the heading)
-    const label = lc ? `${lc[1]}.${lc[2]}` : /^R\d/.test(tail) ? tail.slice(1) : tail;
+    const label = tileLabel(e, seriesMeta);
     const state = e.id === ctx.id ? 'now' : e.state === 'done' ? 'done' : e.state === 'active' ? 'active' : 'queued';
     return { id: e.id, label, state, group: groupLabel(e, seriesMeta), angle_color: angleOf(seriesMeta, e.angle)?.color ?? null,
       title: e.toc ?? null };
   });
-  return { title: ctx.series_title, total: eps.length, tiles };
+  return { title: ctx.series_title, total: eps.length, tiles, unit: tileStyle(seriesMeta).unit };
 }
 
 /// Episodes produced in the series, and the run of them each finished within a cadence (+1 day) of the one before.

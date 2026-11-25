@@ -373,6 +373,22 @@ export function episodeRoutes(router: Router<StudioEnv>) {
     return 'error' in got ? got.error : ok({ id, ...publishView(got.ctx) });
   });
 
+  /// Tick one item of the Before-filming list (or take it back): {"done": true|false}.
+  router.patch('/st/episodes/:id/prep/:item', async (req, env, { id, item }) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const body = await readJsonBody(req);
+    if (!isSchemaRecord(body) || typeof body['done'] !== 'boolean') return badRequest('Body must be {"done": true|false}');
+    const repo = new EpisodeRepo(env.DB_ST);
+    const episode = await repo.findEpisode(id);
+    if (!episode) return notFound(`episode ${id}`);
+    const gate = await deny(env, req, user, episode, 'write');
+    if (gate) return gate;
+    const row = await repo.setPrep(id, item, body['done']);
+    if (row === 'no_item') return badRequest(`${item} is not on this episode's list`);
+    return row ? ok({ ok: true }) : notFound(`episode ${id}`);
+  });
+
   /// Log one part as out on YouTube (or take it back): {"done": true, "url"?: "https://youtu.be/…"}.
   router.patch('/st/episodes/:id/publish/:part', async (req, env, { id, part }) => {
     const user = actorRef(req);

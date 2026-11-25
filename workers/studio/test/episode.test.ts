@@ -289,3 +289,32 @@ test('the episode template: Jessica’s nine sections for two people, guidelines
   assert.equal(bible.deck_url, null);
   assert.ok(bible.ready.every((c) => !c.ok));
 });
+
+test('an episode sprint carries its Before-filming list and its resources', () => {
+  const c = ctx('EP:ghafir:P02', {
+    read_unit: '40/1-5',
+    prep: [{ id: 'tafsir', title: 'Read your tafsīr scripts', who: 'Both', link: 'com.kmaps.app://essay/a' },
+           { id: 'cards', title: 'Rehearse your cards', who: 'Hasib' }, { title: 'no id' }],
+    prep_done: { tafsir: '2026-11-26T08:00:00Z' },
+    resources: [{ group: 'Study', title: 'Key points', link: 'com.kmaps.app://essay/k' },
+                { group: 'Slides', title: 'P1 text', link: 'com.kmaps.app://deck/p1' },
+                { group: 'Study', title: 'Lexicon', link: 'com.kmaps.app://essay/l' }],
+  });
+  const tiles = resourceTiles(c);
+  assert.deepEqual(tiles.slice(0, 3).map((t) => [t.key, t.n]), [['checklist', 2], ['library', 3], ['text', 5]]);
+  const list = resource(c, 'checklist') as any;
+  assert.equal(list.done, 1);
+  assert.deepEqual(list.items.map((i: any) => [i.id, !!i.done, i.link]), [['tafsir', true, 'com.kmaps.app://essay/a'], ['cards', false, null]]);
+  const lib = resource(c, 'library') as any;
+  assert.deepEqual(lib.groups.map((g: any) => [g.title, g.items.length]), [['Study', 2], ['Slides', 1]]);
+  assert.equal(resource(ctx('EP:ghafir:P03', { read_unit: '40/6' }), 'checklist'), null);
+});
+
+test('an episode series names its tiles EP 01…, others keep their passage labels', async () => {
+  const { tileLabel, tileStyle } = await import('../src/episode/sprints');
+  const z = { tiles: { unit: 'Episodes', label: 'EP {n}', list: true } };
+  assert.equal(tileLabel({ id: 'EP:ghafir:P02', session_no: 2 }, z), 'EP 02');
+  assert.equal(tileLabel({ id: 'EP:ghafir:P02', session_no: 2 }, {}), 'P02');
+  assert.deepEqual(tileStyle(z), { unit: 'Episodes', label: 'EP {n}', list: true });
+  assert.deepEqual(tileStyle({}), { unit: null, label: null, list: false });
+});

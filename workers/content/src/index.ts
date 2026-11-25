@@ -20,6 +20,7 @@ import { highlightRoutes } from './routes/highlights';
 import { cmSourceRoutes } from './routes/sources';
 import { cmTemplateRoutes } from './routes/templates';
 import { readAlongRoutes } from './routes/readalong';
+import { sceneRoutes } from './routes/scenes';
 
 const router = new Router<ContentEnv>();
 
@@ -50,6 +51,7 @@ highlightRoutes(router);
 cmSourceRoutes(router);
 cmTemplateRoutes(router);
 readAlongRoutes(router);
+sceneRoutes(router);
 
 router.post('/cm/internal/rows', async (req, env) => {
   const body = await req.json<RowsRequest>().catch(() => null);

@@ -30,6 +30,26 @@ export interface SprintCard {
   place?: ReturnType<typeof placeOf>;
   /// Every passage of the series as a tile (P01 … P20; Liberalism by reading part), for the phone's grid.
   tiles: SprintTile[];
+  /// What the tiles are, from the series (meta.tiles.unit): "Episodes" for an episode series (Do Zāwiya), else passages.
+  unit?: string | null;
+  /// Shown as a list of rows (number + title) rather than a grid (meta.tiles.list).
+  list?: boolean;
+}
+
+/// How a series names its tiles (series meta.tiles {unit, label, list}): Do Zāwiya Ghāfir → "Episodes", "EP {n}", a list.
+export function tileStyle(seriesMeta: Record<string, unknown> = {}): { unit: string | null; label: string | null; list: boolean } {
+  const t = (seriesMeta['tiles'] && typeof seriesMeta['tiles'] === 'object' ? seriesMeta['tiles'] : {}) as Record<string, unknown>;
+  return { unit: str(t['unit']) ?? null, label: str(t['label']) ?? null, list: t['list'] === true };
+}
+
+/// One tile's label: the series' own format with the episode number ("EP 01"), else from its id (P01, 06.03, …).
+export function tileLabel(e: { id: string; session_no: number | null }, seriesMeta: Record<string, unknown> = {}): string {
+  const fmt = tileStyle(seriesMeta).label;
+  if (fmt && e.session_no != null) return fmt.replace('{n}', String(e.session_no).padStart(2, '0'));
+  const tail = e.id.split(':').pop() ?? e.id;
+  const part = tail.match(/^R(\d+)\.(\d+)$/);
+  const lc = tail.match(/^L\d(\d\d)\.(\d+)$/);
+  return lc ? `${lc[1]}.${lc[2]}` : part ? `${part[1]}.${part[2]}` : /^R\d/.test(tail) ? tail.slice(1) : tail;
 }
 
 export interface SprintTile { id: string; label: string; title: string; group: string | null; state: 'now' | 'done' | 'active' | 'queued'; angle_color: string | null }
@@ -43,8 +63,7 @@ export function sprintTiles(order: TileRow[], activeId: string, seriesMeta: Reco
     .map((e) => {
       const tail = e.id.split(':').pop() ?? e.id;
       const part = tail.match(/^R(\d+)\.(\d+)$/);
-      const lc = tail.match(/^L\d(\d\d)\.(\d+)$/);
-      const label = lc ? `${lc[1]}.${lc[2]}` : part ? `${part[1]}.${part[2]}` : /^R\d/.test(tail) ? tail.slice(1) : tail;
+      const label = tileLabel(e, seriesMeta);
       const t = e.toc ?? splitTitle(e.title).en;   // the contents line the builder writes, when there is one
       const group = groupLabel(e, seriesMeta) ?? (/^R\d/.test(tail) ? `${(part?.[1] ?? tail.slice(1))} · ${t.split(' · ')[0]}` : null);
       const state = e.id === activeId ? 'now' : e.state === 'done' ? 'done' : e.state === 'active' ? 'active' : 'queued';
@@ -71,7 +90,7 @@ export function sprintCard(ctx: EpisodeCtx, seriesMeta: Record<string, unknown>,
     logged: { done: steps.filter((s) => s.state === 'done').length, of: steps.length },
     studied: { minutes: Math.round(ctx.checklist.studied / 60), of: planned, label: minutesLabel(ctx.checklist.studied) },
     last_logged: last, studying: false, done: false, tiles: sprintTiles(order, ctx.id, seriesMeta),
-    place: placeOf(ctx.meta, seriesMeta),
+    place: placeOf(ctx.meta, seriesMeta), unit: tileStyle(seriesMeta).unit, list: tileStyle(seriesMeta).list,
   };
 }
 
@@ -93,8 +112,8 @@ export function doneCard(ser: { id: string; title: string }, seriesTitle: string
   const tiles = sprintTiles(order, '', seriesMeta);
   return {
     episode_id: tiles[tiles.length - 1]?.id ?? ser.id, series: seriesTitle, accent: str(seriesMeta['accent']), path,
-    title_en: t.en, title_ar: t.ar, number: null, subtitle: `${tiles.length} passages`, now: null, ready: 100,
+    title_en: t.en, title_ar: t.ar, number: null, subtitle: `${tiles.length} ${(tileStyle(seriesMeta).unit ?? 'passages').toLowerCase()}`, now: null, ready: 100,
     logged: { done: tiles.length, of: tiles.length }, studied: { minutes: 0, of: 0, label: '0 min' },
-    last_logged: null, studying: false, done: true, tiles,
+    last_logged: null, studying: false, done: true, tiles, unit: tileStyle(seriesMeta).unit, list: tileStyle(seriesMeta).list,
   };
 }

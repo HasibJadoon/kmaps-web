@@ -710,6 +710,21 @@ export class EpisodeRepo {
   }
 
   /// Log or take back one part going out to YouTube (`short` · `long`): meta `published[part]` = {at, url?}.
+  /// Tick (or untick) one item of the episode's Before-filming list: meta.prep_done[item] = when.
+  async setPrep(id: string, item: string, done: boolean): Promise<EpisodeRow | null | 'no_item'> {
+    const row = await this.findEpisode(id);
+    if (!row) return null;
+    const meta = metaObject(row.meta_json);
+    const items = Array.isArray(meta['prep']) ? (meta['prep'] as Array<Record<string, unknown>>) : [];
+    if (!items.some((x) => x && x['id'] === item)) return 'no_item';
+    const prev = meta['prep_done'];
+    const map: Record<string, unknown> = prev && typeof prev === 'object' && !Array.isArray(prev) ? { ...(prev as Record<string, unknown>) } : {};
+    if (done) map[item] = new Date().toISOString();
+    else delete map[item];
+    meta['prep_done'] = map;
+    return this.patchEpisode(id, { meta_json: JSON.stringify(meta) });
+  }
+
   async setPublished(id: string, part: 'short' | 'long', done: boolean, url: string | null): Promise<EpisodeRow | null> {
     const row = await this.findEpisode(id);
     if (!row) return null;

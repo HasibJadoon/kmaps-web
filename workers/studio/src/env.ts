@@ -16,6 +16,9 @@ export interface StudioEnv {
   /// WV, for the selected text of a Worldview reading on a planner episode's desk.
   WV?: Fetcher;
 
+  /** km-content-worker: an episode's scenes and study docs, for the Studio read API (routes/studio.ts). */
+  CONTENT?: Fetcher;
+
   /// Secret. The brainstorm tutor's Claude API key.
   ANTHROPIC_API_KEY: string;
 }

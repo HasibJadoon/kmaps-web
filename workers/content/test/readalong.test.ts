@@ -101,3 +101,17 @@ test('the room turns a take into markers from the mark', () => {
     ['read', '0:00:15.500', '0:01:00.000'],
   ]);
 });
+
+test('the episode carries its resources, grouped in the order written', () => {
+  const s = JSON.parse(JSON.stringify(quran));
+  const eps = s.episodes.map(({ blocks, ...e }: any) => e);
+  const m = JSON.parse(eps[0].meta_json);
+  m.resources = [{ group: 'Study', title: 'Key points', link: 'com.kmaps.app://essay/a' },
+                 { group: 'Slides', title: 'Deck', link: 'com.kmaps.app://deck/b' },
+                 { group: 'Study', title: 'Lexicon', link: 'com.kmaps.app://essay/c' },
+                 { group: 'Study', title: 'no link' }];
+  eps[0].meta_json = JSON.stringify(m);
+  const p = shapeEpisode(s, cfgOf(s), eps, eps[0], s.episodes[0].blocks) as any;
+  assert.deepEqual(p.resources.map((g: any) => [g.title, g.items.map((i: any) => i.title)]), [['Study', ['Key points', 'Lexicon']], ['Slides', ['Deck']]]);
+  assert.deepEqual((shape(tahrir) as any).resources, []);
+});

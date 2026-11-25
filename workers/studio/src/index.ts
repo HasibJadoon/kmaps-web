@@ -11,6 +11,7 @@ import { homeRoutes } from './routes/home';
 import { overlayRoutes } from './routes/overlay';
 import { storyRoutes } from './routes/stories';
 import { activityRoutes } from './routes/activity';
+import { studioRoutes } from './routes/studio';
 
 const router = new Router<StudioEnv>();
 
@@ -33,6 +34,7 @@ homeRoutes(router);
 overlayRoutes(router);
 storyRoutes(router);
 activityRoutes(router);
+studioRoutes(router);
 
 export default {
   fetch: (request: Request, env: StudioEnv) => router.handle(request, env),
