@@ -67,6 +67,8 @@ export function card(reg: Registry, b: EpisodeBundle) {
     people: peopleOf(reg, b).filter((p) => p.role !== 'manager').map((p) => p.name),
     updated_at: b.ep.updated_at,
     domain: s ? domainOf(reg, s.domain_key) : null,
+    // to watch it at once from a tile: its poster (YouTube's, or its cover file), its link, its latest cut on disk
+    ...watchOf(reg, b),
     // the sprint in small: one dot per stage (done · current · ahead), and how many of its checks have passed
     steps: stagesOf(reg, b).map((x) => x.state),
     checks: { pass: b.checks.filter((x) => x.result === 'pass').length, total: reg.checks.filter((k) => k.workflow_ref === s?.workflow_ref).length },
@@ -76,7 +78,23 @@ export function card(reg: Registry, b: EpisodeBundle) {
 /// A YouTube link's poster picture (so a published film shows as its thumbnail in both apps), else null.
 export function youtubeThumb(url: string | null | undefined): string | null {
   const m = (url ?? '').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([\w-]{6,})/);
-  return m ? `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg` : null;
+  return m ? `https://i.ytimg.com/vi/${m[1]}/hq720.jpg` : null;
+}
+
+/// What a tile needs to show and play an episode: `thumb` (a web picture), `cover` (its cover file), `watch` (where it
+/// is published), `cut` (its newest delivered or edited film file). Each is null when the episode has none.
+export function watchOf(reg: Registry, b: EpisodeBundle) {
+  const pub = b.publications.find((p) => p.part_key === 'long' && p.url) ?? b.publications.find((p) => p.url);
+  const yt = b.resources.find((r) => youtubeThumb(r.url));
+  const watch = pub?.url ?? yt?.url ?? null;
+  const local = (g: string, rx: RegExp) => b.resources.filter((r) => r.group_key === g && r.local_path && rx.test(r.local_path))
+    .sort((x, y) => (y.local_path ?? '').localeCompare(x.local_path ?? '', undefined, { numeric: true }))[0]?.local_path ?? null;
+  const film = /\.(mp4|mov|m4v)$/i, pic = /\.(jpe?g|png)$/i;
+  // the long's cover, not the Short's (whose file carries an S after the code: GHF01S_cover)
+  const covers = b.resources.filter((r) => r.group_key === 'thumb' && r.local_path && pic.test(r.local_path)).map((r) => r.local_path as string);
+  const cover = covers.find((c) => !/S_(cover|thumb)\./i.test(c)) ?? covers[0] ?? null;
+  return { thumb: youtubeThumb(watch), watch, cover: fullPath(reg, b, cover),
+    cut: fullPath(reg, b, local('delivery', film) ?? local('cut', film) ?? local('short', film)) };
 }
 
 /// A domain as the apps show it: its name in English and Arabic (labels domain.<K>, domain.<K>.ar) and its tint token.
