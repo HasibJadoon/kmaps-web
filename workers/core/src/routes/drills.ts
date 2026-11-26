@@ -11,6 +11,11 @@ import { softFail } from '../../../shared/src/soft-fail';
 //        (no work and no āyāt: `concepts` whole concepts, least met by this learner first)
 //        the live authored drills of a lesson (its work, and for the Qurʾān its āyāt), each as dealt with its gid —
 //        a lesson deals them among its own
+//   GET /core/cyb/drills/bank
+//        the Drill Bank to browse (owner 2026-11-26: "Banks its own view"): every live drill by stream → group → lesson
+//        (work), with how many this learner has done — read only; drills are done in their lesson or path
+//   GET /core/cyb/drills/bank/work?work=…&offset=…
+//        one lesson's drills to browse: prompt, choices, answer, explanation, its āyah or line, and whether done
 //   GET /core/cyb/drills/audit
 //        every AGR:DRL rule run over the bank: how many drills break it (0 expected) — a drill goes live only clean
 
@@ -45,6 +50,28 @@ export function withCard(r: Pick<DrillRow, 'gid' | 'skill' | 'work_ref' | 'paylo
     extra: { drill: d, ...(r.work_ref ? { group: { workId: r.work_ref } } : {}) },
   };
   return { ...d, gid: r.gid, skill: r.skill, srs };
+}
+
+
+// ── The Drill Bank's names, shaped here (the app only shows them) ─────────────────────────────────────────────────
+const STREAMS: Record<string, string> = { QR: 'Qurʾān', AR: 'Arabic', WV: 'Worldview' };
+const GROUPS: Record<string, string> = {
+  'QR:SURAH': 'By sūra', 'QR:TAFSIR': 'Tafsīr · Ibn ʿĀshūr', 'AR:reading': 'Reading', 'AR:scene': 'Scenes',
+  'AR:ARDT': 'Arabic texts', 'GT:balagha_maani': 'Balāgha · al-maʿānī', 'GT:balagha_bayan': 'Balāgha · al-bayān',
+  'GT:balagha_badi': 'Balāgha · al-badīʿ', 'GT:harf_maani': 'Meanings of the particles', 'GT:idafa_kind': 'Kinds of iḍāfa',
+  'GT:irab_role': 'Iʿrāb roles', 'GT:inflection_class': 'Inflection classes', 'GT:sentence_role': 'Sentence roles',
+  'GT:sigha_maani': 'Meanings of the forms', 'GT:phonotactic': 'Sound patterns', 'GT:pos': 'Parts of speech',
+};
+/** A work's group: its first two parts (QR:SURAH, GT:balagha_maani, AR:scene). */
+function groupOf(work: string): string { return work.split(':').slice(0, 2).join(':'); }
+const pretty = (s: string) => s.replace(/[_-]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
+/** A work's own name, from its reference: Sūra 40 · Scene 7 · Moon light · the term's slug. */
+function workLabel(work: string): string {
+  const parts = work.split(':');
+  if (parts[0] === 'QR' && parts[1] === 'SURAH') return `Sūra ${parts[2]}`;
+  if (parts[0] === 'QR' && parts[1] === 'TAFSIR') return pretty(parts.slice(2).join(' '));
+  if (parts[0] === 'AR' && parts[1] === 'scene') return `Scene ${parts[parts.length - 1]}`;
+  return pretty(parts.slice(2).join(' ') || work);
 }
 
 export function drillBankRoutes(router: Router<CoreEnv>) {
@@ -121,6 +148,64 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
       `SELECT gid, domain, skill, work_ref, intro_ayah, payload_json FROM cyb_drill WHERE ${where.join(' AND ')}
         ORDER BY ${order} LIMIT ${limit}`, [...args, ...lessonArgs]);
     return ok({ drills: rows.map((r) => withCard(r)), ...(lesson ? { lesson } : {}) });
+  });
+
+
+  router.get('/core/cyb/drills/bank', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const rows = await query<{ domain: string; work_ref: string; n: number; mine: number }>(env.DB_CORE,
+      `SELECT d.domain, d.work_ref, COUNT(*) AS n,
+              SUM(EXISTS (SELECT 1 FROM core_srs_card c WHERE c.drill_gid = d.gid AND c.user_ref = ?)) AS mine
+         FROM cyb_drill d WHERE d.status = 'live' AND d.work_ref IS NOT NULL
+        GROUP BY d.domain, d.work_ref`, [ctx.userId]);
+    const streams = new Map<string, { key: string; label: string; count: number; mine: number;
+      groups: Map<string, { key: string; label: string; count: number; mine: number; works: Array<{ work: string; label: string; count: number; mine: number }> }> }>();
+    for (const r of rows) {
+      const s = streams.get(r.domain) ?? { key: r.domain, label: STREAMS[r.domain] ?? r.domain, count: 0, mine: 0, groups: new Map() };
+      streams.set(r.domain, s);
+      const gk = groupOf(r.work_ref);
+      const g = s.groups.get(gk) ?? { key: gk, label: GROUPS[gk] ?? pretty(gk.split(':').pop() ?? gk), count: 0, mine: 0, works: [] };
+      s.groups.set(gk, g);
+      g.works.push({ work: r.work_ref, label: workLabel(r.work_ref), count: r.n, mine: r.mine ?? 0 });
+      g.count += r.n; g.mine += r.mine ?? 0; s.count += r.n; s.mine += r.mine ?? 0;
+    }
+    const num = (w: string) => Number(w.split(':').pop()) || 0;
+    const out = [...streams.values()].sort((a, b) => b.count - a.count).map((s) => ({
+      key: s.key, label: s.label, count: s.count, mine: s.mine,
+      groups: [...s.groups.values()].sort((a, b) => b.count - a.count).map((g) => ({
+        ...g, works: g.works.sort((a, b) => (num(a.work) - num(b.work)) || a.label.localeCompare(b.label)),
+      })),
+    }));
+    return ok({ streams: out });
+  });
+
+  router.get('/core/cyb/drills/bank/work', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const u = new URL(req.url);
+    const work = u.searchParams.get('work');
+    if (!work) return ok({ drills: [], total: 0 });
+    const offset = Math.max(0, Number(u.searchParams.get('offset')) || 0);
+    const [rows, count] = await Promise.all([
+      query<{ gid: string; kind: string | null; skill: string | null; intro_surah: number | null; intro_ayah: number | null; payload_json: string; mine: number }>(env.DB_CORE,
+        `SELECT d.gid, d.kind, d.skill, d.intro_surah, d.intro_ayah, d.payload_json,
+                EXISTS (SELECT 1 FROM core_srs_card c WHERE c.drill_gid = d.gid AND c.user_ref = ?) AS mine
+           FROM cyb_drill d WHERE d.status = 'live' AND d.work_ref = ?
+          ORDER BY d.intro_ayah, d.gid LIMIT 100 OFFSET ?`, [ctx.userId, work, offset]),
+      query<{ n: number }>(env.DB_CORE, `SELECT COUNT(*) AS n FROM cyb_drill WHERE status = 'live' AND work_ref = ?`, [work]),
+    ]);
+    const str = (v: unknown) => (typeof v === 'string' ? v : Array.isArray(v) ? (v as unknown[]).map(String).join(' ') : null);
+    const drills = rows.map((r) => {
+      const d = JSON.parse(r.payload_json) as Record<string, unknown>;
+      const opts = Array.isArray(d.options) ? (d.options as unknown[]).map((o) => (typeof o === 'string' ? o : str((o as Record<string, unknown>)?.text) ?? JSON.stringify(o))) : [];
+      return {
+        gid: r.gid, kind: r.kind, skill: r.skill, surah: r.intro_surah, ayah: r.intro_ayah, done: !!r.mine,
+        instruction: str(d.instruction), prompt: str(d.prompt), options: opts, answer: str(d.answer),
+        explanation: str(d.explanation), ref: str(d.ref),
+      };
+    });
+    return ok({ work, label: workLabel(work), total: count[0]?.n ?? 0, drills });
   });
 
   router.get('/core/cyb/drills/audit', async (req, env) => {
