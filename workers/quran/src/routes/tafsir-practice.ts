@@ -789,3 +789,17 @@ export function tafsirClassRoutes(router: Router<QuranEnv>) {
     return ok({ drills: out });
   });
 }
+
+// The Qurʾān home's Tafsīr room: its cards (qr_198), each a key the app opens — the commentaries, the practice.
+export function tafsirRoomRoutes(router: Router<QuranEnv>) {
+  router.get('/qr/tafsir-practice/room', async (_req, env) => {
+    const rows = await query<{ scope: string; key: string; label: string; label_ar: string | null; detail: string | null; icon: string | null; color: string | null }>(env.DB_QR,
+      `SELECT scope, key, label, label_ar, detail, icon, color FROM qr_study_label WHERE scope IN ('tafsir_room', 'tafsir_room_head') ORDER BY sort`);
+    const head = rows.find((r) => r.scope === 'tafsir_room_head');
+    return ok({
+      title: head?.label ?? 'Tafsīr', titleAr: head?.label_ar ?? null, line: head?.detail ?? null,
+      cards: rows.filter((r) => r.scope === 'tafsir_room')
+        .map((r) => ({ key: r.key, title: r.label, titleAr: r.label_ar, detail: r.detail, icon: r.icon, color: r.color })),
+    });
+  });
+}
