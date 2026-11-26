@@ -78,7 +78,7 @@ export function card(reg: Registry, b: EpisodeBundle) {
 /// A YouTube link's poster picture (so a published film shows as its thumbnail in both apps), else null.
 export function youtubeThumb(url: string | null | undefined): string | null {
   const m = (url ?? '').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([\w-]{6,})/);
-  return m ? `https://i.ytimg.com/vi/${m[1]}/hq720.jpg` : null;
+  return m ? `https://i.ytimg.com/vi/${m[1]}/mqdefault.jpg` : null;
 }
 
 /// What a tile needs to show and play an episode: `thumb` (a web picture), `cover` (its cover file), `watch` (where it
