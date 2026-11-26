@@ -56,10 +56,11 @@ export function withCard(r: Pick<DrillRow, 'gid' | 'skill' | 'work_ref' | 'paylo
 
 // ── The Drill Bank's names, shaped here (the app only shows them) ─────────────────────────────────────────────────
 const STREAMS: Record<string, string> = { QR: 'Qurʾān', TF: 'Tafsīr', AR: 'Arabic', WV: 'Worldview' };
-/** The review streams, always all four and in this order; each says how its review is filtered (module, step). */
+/** The review streams, always all four and in this order (owner 2026-11-27: Arabic, Tafsīr, Qurʾān, WV); each says how
+ *  its review is filtered (module, step). */
 const REVIEW_STREAMS: Array<{ key: string; module: string; step: string | null }> = [
-  { key: 'QR', module: 'QR', step: 'quran_stream' }, { key: 'TF', module: 'QR', step: 'tafsir_stream' },
-  { key: 'AR', module: 'AR', step: null }, { key: 'WV', module: 'WV', step: null },
+  { key: 'AR', module: 'AR', step: null }, { key: 'TF', module: 'QR', step: 'tafsir_stream' },
+  { key: 'QR', module: 'QR', step: 'quran_stream' }, { key: 'WV', module: 'WV', step: null },
 ];
 const STREAM_LOOK: Record<string, { color: string; icon: string; labelAr: string }> = {
   QR: { color: '#D8B657', icon: 'book.closed.fill', labelAr: 'القُرْآن' },
@@ -177,15 +178,20 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
   router.get('/core/cyb/drills/bank', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    // each tab asks for its own part (owner 2026-11-27: lazy): 'review' — the four streams' counts only; 'bank' — the tree;
-    // none — both, as older apps ask
-    const part = new URL(req.url).searchParams.get('part');
-    const wantBank = part !== 'review', wantReview = part !== 'bank';
+    // each screen asks for its own part (owner 2026-11-27: lazy): 'review' — the four streams' review counts only;
+    // 'streams' — the bank's four streams, totals only; 'bank' — the tree, of one stream when ?stream= names it;
+    // none — everything, as older apps ask
+    const sp = new URL(req.url).searchParams;
+    const part = sp.get('part');
+    const only = sp.get('stream')?.toUpperCase() || null;
+    const wantBank = part !== 'review', wantReview = part !== 'bank' && part !== 'streams', wantGroups = part !== 'streams';
+    const streamWhere = only === 'TF' ? ` AND d.work_ref LIKE 'QR:TAFSIR%'`
+      : only === 'QR' ? ` AND d.domain = 'QR' AND d.work_ref NOT LIKE 'QR:TAFSIR%'` : only ? ` AND d.domain = ?` : '';
     const rows = !wantBank ? [] : await query<{ domain: string; work_ref: string; n: number; mine: number }>(env.DB_CORE,
       `SELECT d.domain, d.work_ref, COUNT(*) AS n,
               SUM(EXISTS (SELECT 1 FROM core_srs_card c WHERE c.drill_gid = d.gid AND c.user_ref = ?)) AS mine
-         FROM cyb_drill d WHERE d.status = 'live' AND d.work_ref IS NOT NULL
-        GROUP BY d.domain, d.work_ref`, [ctx.userId]);
+         FROM cyb_drill d WHERE d.status = 'live' AND d.work_ref IS NOT NULL${streamWhere}
+        GROUP BY d.domain, d.work_ref`, only && only !== 'TF' && only !== 'QR' ? [ctx.userId, only] : [ctx.userId]);
     const streams = new Map<string, { key: string; label: string; count: number; mine: number;
       groups: Map<string, { key: string; label: string; count: number; mine: number; works: Array<{ work: string; label: string; count: number; mine: number }> }> }>();
     for (const r of rows) {
@@ -200,11 +206,11 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
     }
     const num = (w: string) => Number(w.split(':').pop()) || 0;
     // the same four streams as review, in the same order, an empty one shown too (owner 2026-11-27: "based on 4")
-    if (wantBank) for (const { key } of REVIEW_STREAMS) if (!streams.has(key)) streams.set(key, { key, label: STREAMS[key] ?? key, count: 0, mine: 0, groups: new Map() });
+    if (wantBank) for (const { key } of REVIEW_STREAMS) if ((!only || only === key) && !streams.has(key)) streams.set(key, { key, label: STREAMS[key] ?? key, count: 0, mine: 0, groups: new Map() });
     const rank = (k: string) => { const i = REVIEW_STREAMS.findIndex((x) => x.key === k); return i < 0 ? 99 : i; };
     const out = [...streams.values()].sort((a, b) => rank(a.key) - rank(b.key) || b.count - a.count).map((s) => ({
       key: s.key, label: s.label, count: s.count, mine: s.mine, ...(STREAM_LOOK[s.key] ?? { color: '#D8B657', icon: 'square.stack.3d.up.fill', labelAr: null }),
-      groups: [...s.groups.values()].sort((a, b) => b.count - a.count).map((g) => ({
+      groups: !wantGroups ? [] : [...s.groups.values()].sort((a, b) => b.count - a.count).map((g) => ({
         ...g, icon: groupIcon(g.key), works: g.works.sort((a, b) => (num(a.work) - num(b.work)) || a.label.localeCompare(b.label)),
       })),
     }));
@@ -237,7 +243,7 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
       review: 'Review', bank: 'Bank', due: '{n} due', none_due: 'Nothing due', queued: '{n} in your queue',
       review_now: 'Review now', review_all: 'Everything due, mixed', together: 'Review together',
       together_detail: 'One asks, one answers', bank_lead: 'Every drill, by stream and lesson. Done in its path, then it comes back here for review.',
-      done: '{n} done', drills: '{n} drills', lessons: '{n} lessons', open_path: 'Open in the Path',
+      done: '{n} done', drills: '{n} drills', streams_lead: 'Pick a stream to see its lessons.', lessons: '{n} lessons', open_path: 'Open in the Path',
     };
     return ok({ streams: out, review: wantReview ? review : null, words });
   });
