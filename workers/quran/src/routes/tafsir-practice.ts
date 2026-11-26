@@ -535,10 +535,11 @@ async function introDrills(req: Request, env: QuranEnv, surah: number): Promise<
     { headers: { Authorization: auth } }))
     .catch((e) => { console.warn('[tafsir-practice] core drills unavailable', e); return null; });
   if (!res?.ok) return null;
-  const body = (await res.json().catch(() => null)) as { drills?: IntroCard[] } | null;
+  // core answers in the standard envelope ({ ok, data: { drills } })
+  const body = (await res.json().catch(() => null)) as { data?: { drills?: IntroCard[] }; drills?: IntroCard[] } | null;
   const marker = `:${surah}:intro:`;
   // core cannot filter on ayah 0; the intro's drills are the ones that quote the intro's own sentences
-  return (body?.drills ?? []).filter((d) => (d.sentence_ids ?? []).some((s) => s.includes(marker)));
+  return (body?.data?.drills ?? body?.drills ?? []).filter((d) => (d.sentence_ids ?? []).some((s) => s.includes(marker)));
 }
 
 type AudioRow = { id: string; object_key: string; duration_sec: number | null };
