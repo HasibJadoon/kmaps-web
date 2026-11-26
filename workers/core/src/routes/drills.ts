@@ -17,6 +17,7 @@ import { SrsRepo, TAFSIR_CARD } from '../repositories/srs.repo';
 //        (work), with how many this learner has done — read only; drills are done in their lesson or path
 //   GET /core/cyb/drills/bank/work?work=…&offset=…
 //        one lesson's drills to browse: prompt, choices, answer, explanation, its āyah or line, and whether done
+//   GET /core/cyb/drills/one?gid=…   (one drill as the player gets it — the bank's preview)
 //   GET /core/cyb/drills/audit
 //        every AGR:DRL rule run over the bank: how many drills break it (0 expected) — a drill goes live only clean
 
@@ -302,6 +303,16 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
       };
     });
     return ok({ work, label: workLabel(work), total: count[0]?.n ?? 0, drills });
+  });
+
+  router.get('/core/cyb/drills/one', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const gid = new URL(req.url).searchParams.get('gid');
+    if (!gid) return ok({ drill: null });
+    const rows = await query<DrillRow>(env.DB_CORE,
+      `SELECT gid, domain, skill, work_ref, intro_ayah, payload_json FROM cyb_drill WHERE gid = ? LIMIT 1`, [gid]);
+    return ok({ drill: rows[0] ? withCard(rows[0]) : null });
   });
 
   router.get('/core/cyb/drills/audit', async (req, env) => {
