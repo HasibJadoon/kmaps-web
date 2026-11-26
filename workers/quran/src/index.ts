@@ -42,7 +42,7 @@ import { practiceClassRoutes } from './routes/practice-class';
 import { drillSourceRoutes } from './routes/drill-source';
 import { practiceGrammarRoutes } from './routes/practice-grammar';
 import { translationChoiceRoutes } from './routes/translation-choices';
-import { tafsirPracticeRoutes, tafsirCoreRoutes, tafsirReadingRoutes, tafsirIntroRoutes, tafsirPathRoutes } from './routes/tafsir-practice';
+import { tafsirPracticeRoutes, tafsirCoreRoutes, tafsirReadingRoutes, tafsirIntroRoutes, tafsirPathRoutes, tafsirClassRoutes } from './routes/tafsir-practice';
 import { mushafFontRoutes } from './routes/mushaf-fonts';
 import { intakePipelineRoutes } from '../../shared/src/intake-pipeline';
 
@@ -93,6 +93,7 @@ tafsirCoreRoutes(router);
 tafsirReadingRoutes(router);
 tafsirIntroRoutes(router);
 tafsirPathRoutes(router);
+tafsirClassRoutes(router);
 pageRoutes(router);
 mushafRoutes(router);
 tafsirRoutes(router);

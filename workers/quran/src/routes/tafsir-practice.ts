@@ -585,20 +585,18 @@ export function tafsirPathRoutes(router: Router<QuranEnv>) {
       `SELECT source_slug, surah, COUNT(DISTINCT seq || ':' || COALESCE(passage_id, '')) AS n
          FROM qr_tafsir_practice_attempt WHERE user_ref = ? GROUP BY source_slug, surah`, [user]);
     const srcs = await sources(env, [...new Set(cut.map((c) => c.source_slug))]);
-    // each sūra's drills (the intro's, from the bank), so the path can open them directly
-    const drillsBy = new Map<number, number | null>();
-    for (const sn of [...new Set(cut.map((c) => c.surah))]) drillsBy.set(sn, (await introDrills(req, env, sn))?.length ?? null);
+    // only the sūras the bank holds path drills for — asked one drill each, the drills themselves load on the sūra's page
+    const hasDrills = new Map<number, boolean>();
+    await Promise.all([...new Set(cut.map((c) => c.surah))].map(async (sn) => hasDrills.set(sn, await hasPathDrills(req, env, sn))));
     return ok({
       title: 'Tafsīr', titleAr: 'التفسير',
       line: 'Read a mufassir sentence by sentence, put it into English, and drill what you missed.',
-      items: cut.map((c) => {
+      items: cut.filter((c) => hasDrills.get(c.surah)).map((c) => {
         const n = tried.find((t) => t.source_slug === c.source_slug && t.surah === c.surah)?.n ?? 0;
         const src = sourceOut(c.source_slug, srcs.get(c.source_slug));
         return { surah: c.surah, nameEn: c.name_en, nameAr: c.name_ar, meaning: c.meaning, source: src,
                  sentences: c.sentences, passages: c.passages, tried: n,
-                 line: `${c.passages} passages · ${c.sentences} sentences · ${n} translated`,
-                 drills: drillsBy.get(c.surah) ?? null,
-                 drillLine: drillsBy.get(c.surah) ? `Drills · ${drillsBy.get(c.surah)} on the intro` : null };
+                 line: `${c.passages} passages · ${c.sentences} sentences · ${n} translated` };
       }),
     });
   });
@@ -652,5 +650,142 @@ export function tafsirIntroRoutes(router: Router<QuranEnv>) {
     if (!user) return unauthorized('Authenticated user required');
     const surah = Number(new URL(req.url).searchParams.get('surah')) || 40;
     return ok({ drills: (await introDrills(req, env, surah)) ?? [] });
+  });
+}
+
+// ── Tafsīr as a class path (owner 2026-11-27): Apps ▸ Path ▸ Tafsīr ▸ sūra ▸ passage ▸ its path, drawn like a Qurʾān
+// passage's class. The passages are the ones the bank holds drills for (a drill's sentence ids name its passage:
+// TS:<book>:<surah>:<range|intro>:r<cut>:<n>); the steps are qr_study_label 'tafsir_class_node' rows (qr_197), each
+// dealing the drill kinds it names; the drills come from the bank whole (km_core cyb_drill), never built here.
+
+type BankDrill = { gid: string; kind?: string; sentence_ids?: string[]; [k: string]: unknown };
+type StepRow = { key: string; label: string; label_ar: string | null; detail: string | null; icon: string | null;
+                 color: string | null; extra_json: string | null; sort: number };
+
+/** Whether the bank holds any path drill for a sūra's tafsīr: one drill asked, nothing more. */
+async function hasPathDrills(req: Request, env: QuranEnv, surah: number): Promise<boolean> {
+  const auth = req.headers.get('Authorization');
+  if (!env.CORE || !auth) return false;
+  const res = await env.CORE.fetch(new Request(
+    `https://domain.internal/core/cyb/drills?domain=QR&work=${encodeURIComponent(INTRO_WORK(surah))}&limit=1`,
+    { headers: { Authorization: auth } })).catch(() => null);
+  if (!res?.ok) return false;
+  const body = (await res.json().catch(() => null)) as { data?: { drills?: unknown[] } } | null;
+  return (body?.data?.drills?.length ?? 0) > 0;
+}
+
+/** Every live bank drill of a sūra's tafsīr, as core deals it. Null when core cannot be asked. */
+async function bankDrills(req: Request, env: QuranEnv, surah: number): Promise<BankDrill[] | null> {
+  const auth = req.headers.get('Authorization');
+  if (!env.CORE || !auth) return null;
+  const res = await env.CORE.fetch(new Request(
+    `https://domain.internal/core/cyb/drills?domain=QR&work=${encodeURIComponent(INTRO_WORK(surah))}&limit=500`,
+    { headers: { Authorization: auth } }))
+    .catch((e) => { console.warn('[tafsir-class] core drills unavailable', e); return null; });
+  if (!res?.ok) return null;
+  const body = (await res.json().catch(() => null)) as { data?: { drills?: BankDrill[] }; drills?: BankDrill[] } | null;
+  return body?.data?.drills ?? body?.drills ?? [];
+}
+
+/** The passage a drill belongs to: 'intro' or an āyah range ('23-27'), read from its first sentence id. */
+const passageKeyOf = (d: BankDrill, surah: number): string | null => {
+  const m = new RegExp(`^TS:[^:]+:${surah}:([^:]+):r\\d+:`).exec(d.sentence_ids?.[0] ?? '');
+  return m ? m[1] : null;
+};
+
+const stepsOf = async (env: QuranEnv) => {
+  const rows = await query<StepRow>(env.DB_QR,
+    `SELECT key, label, label_ar, detail, icon, color, extra_json, sort FROM qr_study_label WHERE scope = 'tafsir_class_node' ORDER BY sort`);
+  return rows.map((r) => {
+    const x = (() => { try { return JSON.parse(r.extra_json ?? '{}') as { step?: number; kinds?: string[]; rest?: boolean }; } catch { return {}; } })();
+    return { ...r, step: x.step ?? null, kinds: new Set(x.kinds ?? []), rest: x.rest === true };
+  });
+};
+
+/** Which step a drill falls to: the one naming its kind, else the step marked rest. */
+const stepFor = (kind: string | undefined, steps: Awaited<ReturnType<typeof stepsOf>>) =>
+  steps.find((s) => s.kinds.has(kind ?? '')) ?? steps.find((s) => s.rest) ?? null;
+
+const classWords = async (env: QuranEnv) => {
+  const rows = await query<{ key: string; label: string; label_ar: string | null; detail: string | null; icon: string | null; color: string | null }>(env.DB_QR,
+    `SELECT key, label, label_ar, detail, icon, color FROM qr_study_label WHERE scope = 'tafsir_class'`);
+  return new Map(rows.map((r) => [r.key, r]));
+};
+
+export function tafsirClassRoutes(router: Router<QuranEnv>) {
+  // a sūra's tafsīr passages that have drills, in reading order: the intro first, then by āyah
+  router.get('/qr/tafsir-practice/class/passages', async (req, env) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const surah = Number(new URL(req.url).searchParams.get('surah')) || 40;
+    const [drills, words, src] = await Promise.all([bankDrills(req, env, surah), classWords(env), sources(env, ['ibn_ashur'])]);
+    const by = new Map<string, number>();
+    for (const d of drills ?? []) { const k = passageKeyOf(d, surah); if (k) by.set(k, (by.get(k) ?? 0) + 1); }
+    const ids = [...by.keys()].filter((k) => k !== 'intro').map((k) => `QR:SP:${surah}:${k}`);
+    const titles = ids.length ? await query<{ id: string; title_en: string | null; title_ar: string | null }>(env.DB_QR,
+      `SELECT id, title_en, title_ar FROM qr_surah_study_passage WHERE id IN (${ids.map(() => '?').join(',')})`, ids) : [];
+    const titleOf = new Map(titles.map((t) => [t.id, t]));
+    const intro = words.get('intro');
+    const from = (k: string) => (k === 'intro' ? 0 : Number(k.split('-')[0]) || 0);
+    const passages = [...by.entries()].sort((a, b) => from(a[0]) - from(b[0])).map(([k, n], i) => {
+      const t = titleOf.get(`QR:SP:${surah}:${k}`);
+      return {
+        key: k, number: i + 1, surah,
+        range: k === 'intro' ? null : `${surah}:${k.replace('-', '–')}`,
+        title: k === 'intro' ? (intro?.label ?? 'Introduction') : (t?.title_en ?? `${surah}:${k.replace('-', '–')}`),
+        titleAr: k === 'intro' ? (intro?.label_ar ?? null) : (t?.title_ar ?? null),
+        drills: n, line: `${n} drill${n === 1 ? '' : 's'}`,
+      };
+    });
+    return ok({ surah, source: sourceOut('ibn_ashur', src.get('ibn_ashur')), passages, available: drills !== null });
+  });
+
+  // a passage's path: its banner, a node per step it has drills for, and its full round
+  router.get('/qr/tafsir-practice/class', async (req, env) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const sp = new URL(req.url).searchParams;
+    const surah = Number(sp.get('surah')) || 40, passage = sp.get('passage') ?? 'intro';
+    const [drills, steps, words] = await Promise.all([bankDrills(req, env, surah), stepsOf(env), classWords(env)]);
+    const mine = (drills ?? []).filter((d) => passageKeyOf(d, surah) === passage);
+    const count = new Map<string, number>();
+    for (const d of mine) { const s = stepFor(d.kind, steps); if (s) count.set(s.key, (count.get(s.key) ?? 0) + 1); }
+    const t = passage === 'intro' ? null : (await query<{ title_en: string | null; title_ar: string | null }>(env.DB_QR,
+      `SELECT title_en, title_ar FROM qr_surah_study_passage WHERE id = ?`, [`QR:SP:${surah}:${passage}`]))[0];
+    const intro = words.get('intro'), round = words.get('round');
+    const live = steps.filter((s) => (count.get(s.key) ?? 0) > 0);
+    const nodes = live.map((s, i) => ({
+      key: s.key, kind: 'step', step: i + 1, title: s.label, titleAr: s.label_ar ?? '', tagline: s.detail ?? '',
+      icon: s.icon ?? 'circle', color: s.color ?? '', drills: count.get(s.key)!, sprint: count.get(s.key)!, sprints: 1, pass: null,
+      detail: `${count.get(s.key)} drill${count.get(s.key) === 1 ? '' : 's'}`,
+    }));
+    return ok({
+      surah, passage,
+      banner: {
+        eyebrow: passage === 'intro' ? (intro?.label ?? 'Introduction').toUpperCase() : `PASSAGE ${surah}:${passage.replace('-', '–')}`,
+        title: passage === 'intro' ? (intro?.detail ?? 'Introduction') : (t?.title_en ?? `${surah}:${passage}`),
+        titleAr: passage === 'intro' ? (intro?.label_ar ?? null) : (t?.title_ar ?? null),
+      },
+      nodes,
+      round: live.length > 1 && round ? {
+        title: round.label, titleAr: round.label_ar, icon: round.icon, color: round.color,
+        styles: live.map((s) => ({ id: s.key, title: s.label, titleAr: s.label_ar, icon: s.icon, color: s.color, count: count.get(s.key) })),
+      } : null,
+      total: mine.length, available: drills !== null,
+    });
+  });
+
+  // a step's drills (or the whole round's, no step named), from the bank, in the order core deals them
+  router.get('/qr/tafsir-practice/class/drills', async (req, env) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const sp = new URL(req.url).searchParams;
+    const surah = Number(sp.get('surah')) || 40, passage = sp.get('passage') ?? 'intro', step = sp.get('step');
+    const [drills, steps] = await Promise.all([bankDrills(req, env, surah), stepsOf(env)]);
+    const mine = (drills ?? []).filter((d) => passageKeyOf(d, surah) === passage);
+    const out = step ? mine.filter((d) => stepFor(d.kind, steps)?.key === step)
+      // the round: every step once, in the steps' order
+      : steps.flatMap((s) => mine.filter((d) => stepFor(d.kind, steps)?.key === s.key));
+    return ok({ drills: out });
   });
 }
