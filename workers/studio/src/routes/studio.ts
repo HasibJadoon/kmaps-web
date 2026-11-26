@@ -14,7 +14,7 @@
 ///   WS  /st/studio/episodes/:id/room                    the episode's live room (studio/room.do.ts)
 import type { Router } from '../../../shared/src/router';
 import { actorRef } from '../../../shared/src/auth';
-import { notFound, ok, unauthorized } from '../../../shared/src/response';
+import { badRequest, notFound, ok, unauthorized } from '../../../shared/src/response';
 import type { StudioEnv } from '../env';
 import { loadEpisodes, loadRegistry, resolveId } from '../studio/load';
 import { domainPage, episodePage, manifest, reactPage, nowPage, pipelinePage, runPage, sceneParams, seriesPage, studyPage } from '../studio/model';
@@ -137,6 +137,21 @@ export function studioRoutes(router: Router<StudioEnv>) {
     const headers = new Headers(req.headers);
     headers.set('X-KM-Episode-Id', eid);
     return env.EPISODE_ROOM.get(env.EPISODE_ROOM.idFromName(eid)).fetch(new Request(req.url, { headers }));
+  });
+
+  // A take the Mac or iPad recorded outside the live room (the reaction): its times and where its files went.
+  router.post('/st/studio/episodes/:id/takes', async (req, env, { id }) => {
+    if (!actorRef(req)) return unauthorized('Authenticated user required');
+    const eid = await resolveId(env.DB_ST, id);
+    if (!(await env.DB_ST.prepare(`SELECT 1 FROM st_episode WHERE id = ?`).bind(eid).first())) return notFound(`episode ${id}`);
+    const b = (await req.json().catch(() => ({}))) as { mark_at?: string; cut_at?: string; kind?: string; folder?: string; files?: string[]; timeline?: string; note?: string };
+    if (!b.mark_at) return badRequest('mark_at is required');
+    const n = await env.DB_ST.prepare(`SELECT COALESCE(MAX(take_no), 0) + 1 AS n FROM st_take WHERE episode_ref = ?`).bind(eid).first<{ n: number }>();
+    const tid = `TAKE:${eid}:${n?.n ?? 1}:${Date.now().toString(36)}`;
+    await env.DB_ST.prepare(`INSERT INTO st_take (id, episode_ref, take_no, mark_at, cut_at, devices_json, status) VALUES (?, ?, ?, ?, ?, ?, 'kept')`)
+      .bind(tid, eid, n?.n ?? 1, b.mark_at, b.cut_at ?? null,
+        JSON.stringify({ kind: b.kind ?? 'reaction', folder: b.folder ?? null, files: b.files ?? [], timeline: b.timeline ?? null, note: b.note ?? null })).run();
+    return ok({ id: tid, take_no: n?.n ?? 1 });
   });
 
   // Takes: what the live room recorded, with markers (Claude and the Mac's marker export read this).
