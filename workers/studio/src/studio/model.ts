@@ -49,6 +49,7 @@ export function boundaryLabel(ref: string | null | undefined): string | null {
   if (!ref) return null;
   const q = ref.match(/^QR:(\d+):(.+)$/);
   if (q) return q[2] === 'all' ? q[1] : `${q[1]}:${q[2].replace(/^intro:/, 'intro ').replace(/(\d+)-(\d+)$/, (_, a, b) => (a === b ? a : `${a}–${b}`))}`;
+  if (/^(SRC|AR):/.test(ref)) return null;                 // a source (an Arabic video) has no range to show
   return ref.split(':').pop()!.replace(/(\d)-(\d)/g, '$1–$2');
 }
 
@@ -95,6 +96,44 @@ export function watchOf(reg: Registry, b: EpisodeBundle) {
   const cover = covers.find((c) => !/S_(cover|thumb)\./i.test(c)) ?? covers[0] ?? null;
   return { thumb: youtubeThumb(watch), watch, cover: fullPath(reg, b, cover),
     cut: fullPath(reg, b, local('delivery', film) ?? local('cut', film) ?? local('short', film)) };
+}
+
+/// Arabic letters without their marks and the punctuation around them, to find a word in its line.
+const bare = (s: string) => s.replace(/[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '').replace(/[^\u0621-\u064A\u0671-\u06D3]/g, '');
+
+/// The reaction view (VIEW:react): an Arabic video (km_arabic, its timed scenes, lines and words). Each scene's hardest
+/// words (ar_scene_vocab, as the arabic worker serves them) become its word cards, timed to the moment the word is said.
+/// Nothing is made here: the cards are the scene's own read words.
+const TIER: Record<string, number> = { hard: 0, good: 1, easy: 2 };
+export function reactPage(reg: Registry, b: EpisodeBundle,
+  script: { video_id?: string | null; video_url?: string | null; title_ar?: string | null; title_en?: string | null; audio?: { play_url: string } | null;
+            scenes?: Array<{ scene_no: number; title_ar?: string | null; title_en?: string | null; start?: number | null; end?: number | null;
+                             vocab?: Array<{ word: string | null; line: number | null; gloss: string | null; lemma: string | null; tier: string | null }>;
+                             lines?: Array<{ speaker?: string | null; ar?: string | null; en?: string | null; start?: number | null; end?: number | null; words?: number[][] | null }> }> } | null,
+  platform: string, perScene = 3) {
+  const scenes = (script?.scenes ?? []).map((sc) => {
+    const picks = (sc.vocab ?? []).map((v, i) => ({ v, i }))
+      .sort((x, y) => ((TIER[x.v.tier ?? ''] ?? 3) - (TIER[y.v.tier ?? ''] ?? 3)) || x.i - y.i).slice(0, perScene).map((p) => p.v);
+    const cards = picks.map((v) => {
+      const line = (sc.lines ?? [])[v.line ?? -1];
+      const word = v.word ?? '';
+      const toks = (line?.ar ?? '').split(/\s+/);
+      const i = toks.findIndex((x) => bare(x).includes(bare(word)) && bare(word).length > 0);
+      const at = (i >= 0 ? line?.words?.[i]?.[0] : null) ?? line?.start ?? sc.start ?? 0;
+      return { word, lemma: v.lemma ?? null, gloss: v.gloss ?? null, at, line: v.line ?? null };
+    }).sort((x, y) => (x.at as number) - (y.at as number));
+    return { no: sc.scene_no, title_ar: sc.title_ar ?? null, title_en: sc.title_en ?? null, start: sc.start ?? null, end: sc.end ?? null,
+      lines: (sc.lines ?? []).map((l) => ({ speaker: l.speaker ?? null, ar: l.ar ?? null, en: l.en ?? null, start: l.start ?? null, end: l.end ?? null,
+        // when each word of `ar` (split on spaces) is said, so the line can come word by word
+        words: (l.words ?? []).map((w) => w?.[0] ?? null) })),
+      cards };
+  });
+  const data = {
+    reaction: { episode: card(reg, b), video_id: script?.video_id ?? null, video_url: script?.video_url ?? null,
+      title_ar: script?.title_ar ?? null, audio: script?.audio?.play_url ?? null, scenes,
+      room: `studio/episodes/${b.ep.id}/room`, footage: prompterOf(reg, b).footage },
+  };
+  return { view: 'VIEW:react', id: b.ep.id, sections: fill(sectionsOf(reg, 'VIEW:react', platform), data) };
 }
 
 /// A domain as the apps show it: its name in English and Arabic (labels domain.<K>, domain.<K>.ar) and its tint token.
@@ -251,7 +290,12 @@ export function episodePage(reg: Registry, b: EpisodeBundle, platform: string, a
     stages: stagesOf(reg, b),
     resources: groups,
     related: relatedOf(reg, b, all),
-    scenes: b.ep.scenes_ref ? { ref: b.ep.scenes_ref, run: `studio/episodes/${b.ep.id}/run`, prompter: `studio/episodes/${b.ep.id}/prompter` } : null,
+    // an Arabic video's scenes (scenes_ref AR:ARTX:…) open the reaction view; a scene doc opens the presenter
+    scenes: b.ep.scenes_ref
+      ? (b.ep.scenes_ref.startsWith('AR:')
+        ? { ref: b.ep.scenes_ref, run: `studio/episodes/${b.ep.id}/react`, prompter: null, kind: 'react' }
+        : { ref: b.ep.scenes_ref, run: `studio/episodes/${b.ep.id}/run`, prompter: `studio/episodes/${b.ep.id}/prompter`, kind: 'run' })
+      : null,
     slides: b.ep.slides_ref ? { ref: b.ep.slides_ref, url: `com.kmaps.app://doc/${b.ep.slides_ref}` } : null,
     checks,
     folder: folderOf(reg, b),

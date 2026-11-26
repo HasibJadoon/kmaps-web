@@ -7,6 +7,7 @@
 ///   GET /st/studio/series/:id                           arcs → episodes (Shorts under their long)
 ///   GET /st/studio/episodes/:id                         the one episode page (old ids resolve through st_id_alias)
 ///   GET /st/studio/episodes/:id/run                     Recording: the scenes for the presenter (via CONTENT)
+///   GET /st/studio/episodes/:id/react                   a reaction: the Arabic video's scenes and word cards
 ///   GET /st/studio/episodes/:id/prompter                the same scenes for the optional prompter + camera
 ///   GET /st/studio/episodes/:id/study                   Study: mufassirūn side by side per āyah (via CONTENT)
 ///   GET /st/studio/episodes/:id/takes                   the live room's takes and markers
@@ -16,7 +17,7 @@ import { actorRef } from '../../../shared/src/auth';
 import { notFound, ok, unauthorized } from '../../../shared/src/response';
 import type { StudioEnv } from '../env';
 import { loadEpisodes, loadRegistry, resolveId } from '../studio/load';
-import { domainPage, episodePage, manifest, nowPage, pipelinePage, runPage, sceneParams, seriesPage, studyPage } from '../studio/model';
+import { domainPage, episodePage, manifest, reactPage, nowPage, pipelinePage, runPage, sceneParams, seriesPage, studyPage } from '../studio/model';
 
 const opts = (req: Request) => {
   const sp = new URL(req.url).searchParams;
@@ -92,6 +93,21 @@ export function studioRoutes(router: Router<StudioEnv>) {
     return ok(runPage(reg, b, scenes, o.platform, view));
   };
   router.get('/st/studio/episodes/:id/run', scenePage('VIEW:run'));
+
+  // A reaction: the Arabic video's scenes with their words (ARABIC /ar/text/units/:id/script).
+  router.get('/st/studio/episodes/:id/react', async (req, env, { id }) => {
+    if (!actorRef(req)) return unauthorized('Authenticated user required');
+    const o = opts(req);
+    const eid = await resolveId(env.DB_ST, id);
+    const [reg, eps] = await Promise.all([loadRegistry(env.DB_ST, o.locale), loadEpisodes(env.DB_ST, eid)]);
+    const b = eps[0];
+    if (!b) return notFound(`episode ${id}`);
+    const unit = (b.ep.scenes_ref ?? '').replace(/^AR:/, '');
+    if (!unit || !env.ARABIC) return ok(reactPage(reg, b, null, o.platform));
+    const sr = await env.ARABIC.fetch(new Request(`https://arabic/ar/text/units/${encodeURIComponent(unit)}/script?vocab=1`, { headers: req.headers }));  // ?vocab=1: the shape with words (the arabic worker caches by URL)
+    const script = sr.ok ? ((await sr.json()) as { data: Parameters<typeof reactPage>[2] }).data : null;
+    return ok(reactPage(reg, b, script, o.platform));
+  });
   router.get('/st/studio/episodes/:id/prompter', scenePage('VIEW:prompter'));
 
   // Study: the five mufassirūn side by side per āyah, from the episode's tafsīr scripts (km_content essays).
