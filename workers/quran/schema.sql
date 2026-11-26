@@ -5255,3 +5255,96 @@ CREATE INDEX idx_qr_intake_pipeline_stage ON qr_intake_pipeline(stage);
 CREATE TABLE qr_intake_stage (
   key TEXT PRIMARY KEY, label TEXT NOT NULL, label_ar TEXT, detail TEXT, icon TEXT, color TEXT, sort INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS qr_tafsir_practice_attempt (
+  id            TEXT PRIMARY KEY,                       -- TPA:<source_slug>:<surah>:<from>-<to>:<seq>:<n>
+  user_ref      TEXT NOT NULL,                          -- CORE:<ulid> (km_core user)
+  session_id    TEXT,                                   -- km_core core_study_session.id
+  passage_id    TEXT,                                   -- qr_surah_study_passage.id
+  surah         INTEGER NOT NULL,
+  ayah_from     INTEGER NOT NULL,
+  ayah_to       INTEGER NOT NULL,
+  source_slug   TEXT NOT NULL,                          -- ibn_ashur | razi | alusi | …
+  block_id      TEXT,                                   -- qr_tafsir_book_display_block.id the sentence is cut from
+  page          TEXT,                                   -- the book's page
+  seq           INTEGER NOT NULL,                       -- sentence order within the passage's text of this book
+  text_ar       TEXT NOT NULL,                          -- the sentence, verbatim
+  my_en         TEXT NOT NULL,                          -- the owner's translation, as written
+  model_en      TEXT,                                   -- the corrected translation
+  verdict       TEXT NOT NULL CHECK (verdict IN ('right','mostly','partly','wrong')),
+  issues_json   TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(issues_json)),  -- [{weak_id, kind, point, note}]
+  context_note  TEXT,                                   -- why the scholar says it (one line)
+  try_n         INTEGER NOT NULL DEFAULT 1,             -- 1st, 2nd … try at the same sentence
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_qr_tpa_user_passage ON qr_tafsir_practice_attempt (user_ref, passage_id, source_slug, seq);
+
+CREATE TABLE IF NOT EXISTS qr_tafsir_practice_weak (
+  id            TEXT PRIMARY KEY,                       -- TPW:<kind>:<key>
+  user_ref      TEXT NOT NULL,
+  kind          TEXT NOT NULL CHECK (kind IN ('word','phrase','grammar','vowel','style')),
+  key           TEXT NOT NULL,                          -- the word/phrase as written, or a short grammar slug
+  label_ar      TEXT,                                   -- the Arabic shown on a drill (vocalised)
+  label_en      TEXT NOT NULL,                          -- what it means / the rule, in plain English
+  root_id       TEXT,                                   -- km_arabic_linguistic ar_ling_roots.id (words)
+  root          TEXT,                                   -- the root, joined (فرق)
+  gram_term_id  TEXT,                                   -- ar_ling_gram_term id (grammar), when known
+  contrast_ar   TEXT,                                   -- the near-miss it was confused with (آخِر for آخَر)
+  example_ar    TEXT,                                   -- the sentence it was missed in
+  first_attempt TEXT,                                   -- qr_tafsir_practice_attempt.id
+  miss_n        INTEGER NOT NULL DEFAULT 1,
+  hit_n         INTEGER NOT NULL DEFAULT 0,             -- later sentences where it came up and was right
+  last_miss_at  TEXT,
+  last_hit_at   TEXT,
+  status        TEXT NOT NULL DEFAULT 'weak' CHECK (status IN ('weak','improving','known','drilled')),
+  drill_id      TEXT,                                   -- km_core cyb_drill id once authored
+  note_md       TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (user_ref, kind, key)
+);
+CREATE INDEX IF NOT EXISTS idx_qr_tpw_user_status ON qr_tafsir_practice_weak (user_ref, status, miss_n);
+ALTER TABLE qr_tafsir_practice_attempt ADD COLUMN tafsir_points_json TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE qr_tafsir_practice_weak ADD COLUMN lesson_doc_id TEXT;
+ALTER TABLE qr_tafsir_practice_weak ADD COLUMN corpus_query TEXT;
+ALTER TABLE qr_tafsir_practice_weak ADD COLUMN corpus_n INTEGER;
+ALTER TABLE qr_tafsir_practice_weak ADD COLUMN is_rule INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE qr_tafsir_practice_weak ADD COLUMN priority INTEGER NOT NULL DEFAULT 2;
+CREATE TABLE IF NOT EXISTS qr_tafsir_lang_core (
+  id            TEXT PRIMARY KEY,                    -- TLC:<kind>:<key>
+  kind          TEXT NOT NULL CHECK (kind IN ('formula','word','phrase','term','rule')),
+  key           TEXT NOT NULL,                       -- bare Arabic (or a rule slug)
+  label_ar      TEXT,                                -- vocalised, as shown
+  label_en      TEXT NOT NULL,                       -- what it means
+  how_en        TEXT,                                -- how to put it into English
+  corpus_query  TEXT,                                -- the bare form counted (single word: with clitic forms; phrase: exact)
+  corpus_n      INTEGER,                             -- tafsīr blocks holding it (all books)
+  books_n       INTEGER,                             -- how many tafsīr books use it
+  by_book_json  TEXT CHECK (by_book_json IS NULL OR json_valid(by_book_json)),   -- {source_slug: n}
+  tier          INTEGER NOT NULL DEFAULT 2 CHECK (tier IN (1,2,3)),
+  gram_term_id  TEXT,                                -- km_arabic_linguistic ar_ling_gram_term id
+  root_id       TEXT,                                -- km_arabic_linguistic ar_ling_roots id
+  lesson_doc_id TEXT,                                -- km_content deck/doc that teaches it
+  example_ar    TEXT,
+  example_ref   TEXT,                                -- qr_tafsir_book_display_block.id
+  note_md       TEXT,
+  computed_at   TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (kind, key)
+);
+CREATE INDEX IF NOT EXISTS idx_qr_tlc_tier ON qr_tafsir_lang_core (tier, corpus_n DESC);
+ALTER TABLE qr_tafsir_practice_weak ADD COLUMN core_id TEXT;   -- → qr_tafsir_lang_core.id
+CREATE TABLE IF NOT EXISTS qr_tafsir_lang_core_progress (
+  user_ref      TEXT NOT NULL,
+  core_id       TEXT NOT NULL,                      -- qr_tafsir_lang_core.id
+  seen_n        INTEGER NOT NULL DEFAULT 0,
+  hit_n         INTEGER NOT NULL DEFAULT 0,
+  miss_n        INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'learning' CHECK (status IN ('learning','weak','known')),
+  first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_seen_at  TEXT,
+  last_attempt  TEXT,                               -- qr_tafsir_practice_attempt.id
+  PRIMARY KEY (user_ref, core_id)
+);
+ALTER TABLE qr_tafsir_lang_core ADD COLUMN state TEXT NOT NULL DEFAULT 'candidate' CHECK (state IN ('candidate','active'));
+ALTER TABLE qr_tafsir_practice_attempt ADD COLUMN model_ur TEXT;
+ALTER TABLE qr_tafsir_practice_attempt ADD COLUMN model_en_literal TEXT;
