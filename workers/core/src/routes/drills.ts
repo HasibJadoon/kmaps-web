@@ -4,6 +4,7 @@ import { requireAuth } from '../../../shared/src/auth';
 import { query } from '../../../shared/src/db';
 import type { CoreEnv } from '../env';
 import { softFail } from '../../../shared/src/soft-fail';
+import { SrsRepo } from '../repositories/srs.repo';
 
 // ── The authored drill bank (core 052) ──────────────────────────────────────────────────────────────────────────
 //
@@ -55,6 +56,22 @@ export function withCard(r: Pick<DrillRow, 'gid' | 'skill' | 'work_ref' | 'paylo
 
 // ── The Drill Bank's names, shaped here (the app only shows them) ─────────────────────────────────────────────────
 const STREAMS: Record<string, string> = { QR: 'Qurʾān', AR: 'Arabic', WV: 'Worldview' };
+const STREAM_LOOK: Record<string, { color: string; icon: string; labelAr: string }> = {
+  QR: { color: '#D8B657', icon: 'book.closed.fill', labelAr: 'القُرْآن' },
+  AR: { color: '#5DA9E9', icon: 'character.book.closed.fill', labelAr: 'العَرَبِيَّة' },
+  WV: { color: '#9C89B8', icon: 'globe.europe.africa.fill', labelAr: 'الرُّؤْيَة' },
+};
+/** A group's symbol: its kind of lesson. */
+function groupIcon(g: string): string {
+  if (g === 'QR:SURAH') return 'text.book.closed.fill';
+  if (g === 'QR:TAFSIR') return 'books.vertical.fill';
+  if (g.startsWith('GT:balagha')) return 'sparkles';
+  if (g === 'AR:reading') return 'text.bubble.fill';
+  if (g === 'AR:scene') return 'film.fill';
+  if (g === 'GT:harf_maani') return 'link';
+  if (g === 'GT:irab_role' || g === 'GT:sentence_role') return 'list.bullet.indent';
+  return 'textformat.abc';
+}
 const GROUPS: Record<string, string> = {
   'QR:SURAH': 'By sūra', 'QR:TAFSIR': 'Tafsīr · Ibn ʿĀshūr', 'AR:reading': 'Reading', 'AR:scene': 'Scenes',
   'AR:ARDT': 'Arabic texts', 'GT:balagha_maani': 'Balāgha · al-maʿānī', 'GT:balagha_bayan': 'Balāgha · al-bayān',
@@ -172,12 +189,37 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
     }
     const num = (w: string) => Number(w.split(':').pop()) || 0;
     const out = [...streams.values()].sort((a, b) => b.count - a.count).map((s) => ({
-      key: s.key, label: s.label, count: s.count, mine: s.mine,
+      key: s.key, label: s.label, count: s.count, mine: s.mine, ...(STREAM_LOOK[s.key] ?? { color: '#D8B657', icon: 'square.stack.3d.up.fill', labelAr: null }),
       groups: [...s.groups.values()].sort((a, b) => b.count - a.count).map((g) => ({
-        ...g, works: g.works.sort((a, b) => (num(a.work) - num(b.work)) || a.label.localeCompare(b.label)),
+        ...g, icon: groupIcon(g.key), works: g.works.sort((a, b) => (num(a.work) - num(b.work)) || a.label.localeCompare(b.label)),
       })),
     }));
-    return ok({ streams: out });
+    // the Review side of the hub: what is due now and what is in the learner's queue, per stream (drills only)
+    const [due, queued] = await Promise.all([
+      new SrsRepo(env.DB_CORE).dueCounts(ctx.userId).catch(softFail([] as Array<{ module: string; n: number }>)),
+      query<{ module: string; n: number }>(env.DB_CORE,
+        `SELECT module, COUNT(*) AS n FROM core_srs_card
+          WHERE user_ref = ? AND suspended = 0 AND card_state <> 'new' AND is_drill = 1 GROUP BY module`, [ctx.userId]).catch(softFail([] as Array<{ module: string; n: number }>)),
+    ]);
+    const by = (rows: Array<{ module: string; n: number }>) => {
+      const m: Record<string, number> = {};
+      for (const r of rows) m[String(r.module).toUpperCase()] = (m[String(r.module).toUpperCase()] ?? 0) + (Number(r.n) || 0);
+      return m;
+    };
+    const dueBy = by(due), queuedBy = by(queued);
+    const review = {
+      due: Object.values(dueBy).reduce((a, b) => a + b, 0), queued: Object.values(queuedBy).reduce((a, b) => a + b, 0),
+      streams: Object.keys({ ...queuedBy, ...dueBy }).sort().map((k) => ({ key: k, label: STREAMS[k] ?? k, due: dueBy[k] ?? 0, queued: queuedBy[k] ?? 0,
+        ...(STREAM_LOOK[k] ?? { color: '#D8B657', icon: 'square.stack.3d.up.fill', labelAr: null }) })),
+    };
+    // the hub's words (the app only shows them)
+    const words = {
+      review: 'Review', bank: 'Bank', due: '{n} due', none_due: 'Nothing due', queued: '{n} in your queue',
+      review_now: 'Review now', review_all: 'Everything due, mixed', together: 'Review together',
+      together_detail: 'One asks, one answers', bank_lead: 'Every drill, by stream and lesson. Done in its path, then it comes back here for review.',
+      done: '{n} done', drills: '{n} drills', lessons: '{n} lessons', open_path: 'Open in the Path',
+    };
+    return ok({ streams: out, review, words });
   });
 
   router.get('/core/cyb/drills/bank/work', async (req, env) => {
