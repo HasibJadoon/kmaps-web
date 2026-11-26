@@ -126,6 +126,9 @@ export type CardInsert = {
   root_norm?: string | null; intro_surah?: number | null; intro_ayah?: number | null;
 };
 
+/** A card of the Tafsīr stream: filed from a tafsīr drill of the bank (work QR:TAFSIR:<book>:<sūra>). */
+export const TAFSIR_CARD = `(work_ref LIKE 'QR:TAFSIR%' OR drill_gid IN (SELECT gid FROM cyb_drill WHERE work_ref LIKE 'QR:TAFSIR%'))`;
+
 export class SrsRepo {
   constructor(private db: D1Database) {}
 
@@ -246,6 +249,9 @@ export class SrsRepo {
         sentence_structure: `card_kind IN ('nahw','irab','structure')`,
         tafsir: `card_kind IN ('balagha','expression','furuq')`,
         worldview: `module = 'WV'`,
+        // the Drill Bank's review streams (owner 2026-11-27): Tafsīr apart from the Qurʾān, told by its bank drills
+        tafsir_stream: TAFSIR_CARD,
+        quran_stream: `module = 'QR' AND NOT ${TAFSIR_CARD}`,
       };
       const clause = STEP_SQL[opts.step];
       if (clause) where += ` AND ${clause}`;

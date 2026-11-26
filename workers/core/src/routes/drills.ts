@@ -4,7 +4,7 @@ import { requireAuth } from '../../../shared/src/auth';
 import { query } from '../../../shared/src/db';
 import type { CoreEnv } from '../env';
 import { softFail } from '../../../shared/src/soft-fail';
-import { SrsRepo } from '../repositories/srs.repo';
+import { SrsRepo, TAFSIR_CARD } from '../repositories/srs.repo';
 
 // ── The authored drill bank (core 052) ──────────────────────────────────────────────────────────────────────────
 //
@@ -55,11 +55,17 @@ export function withCard(r: Pick<DrillRow, 'gid' | 'skill' | 'work_ref' | 'paylo
 
 
 // ── The Drill Bank's names, shaped here (the app only shows them) ─────────────────────────────────────────────────
-const STREAMS: Record<string, string> = { QR: 'Qurʾān', AR: 'Arabic', WV: 'Worldview' };
+const STREAMS: Record<string, string> = { QR: 'Qurʾān', TF: 'Tafsīr', AR: 'Arabic', WV: 'Worldview' };
+/** The review streams, always all four and in this order; each says how its review is filtered (module, step). */
+const REVIEW_STREAMS: Array<{ key: string; module: string; step: string | null }> = [
+  { key: 'QR', module: 'QR', step: 'quran_stream' }, { key: 'TF', module: 'QR', step: 'tafsir_stream' },
+  { key: 'AR', module: 'AR', step: null }, { key: 'WV', module: 'WV', step: null },
+];
 const STREAM_LOOK: Record<string, { color: string; icon: string; labelAr: string }> = {
   QR: { color: '#D8B657', icon: 'book.closed.fill', labelAr: 'القُرْآن' },
   AR: { color: '#5DA9E9', icon: 'character.book.closed.fill', labelAr: 'العَرَبِيَّة' },
   WV: { color: '#9C89B8', icon: 'globe.europe.africa.fill', labelAr: 'الرُّؤْيَة' },
+  TF: { color: '#E8A87C', icon: 'text.quote', labelAr: 'التَّفْسِير' },
 };
 /** A group's symbol: its kind of lesson. */
 function groupIcon(g: string): string {
@@ -179,8 +185,9 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
     const streams = new Map<string, { key: string; label: string; count: number; mine: number;
       groups: Map<string, { key: string; label: string; count: number; mine: number; works: Array<{ work: string; label: string; count: number; mine: number }> }> }>();
     for (const r of rows) {
-      const s = streams.get(r.domain) ?? { key: r.domain, label: STREAMS[r.domain] ?? r.domain, count: 0, mine: 0, groups: new Map() };
-      streams.set(r.domain, s);
+      const sk = r.work_ref.startsWith('QR:TAFSIR') ? 'TF' : r.domain;
+      const s = streams.get(sk) ?? { key: sk, label: STREAMS[sk] ?? sk, count: 0, mine: 0, groups: new Map() };
+      streams.set(sk, s);
       const gk = groupOf(r.work_ref);
       const g = s.groups.get(gk) ?? { key: gk, label: GROUPS[gk] ?? pretty(gk.split(':').pop() ?? gk), count: 0, mine: 0, works: [] };
       s.groups.set(gk, g);
@@ -195,11 +202,17 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
       })),
     }));
     // the Review side of the hub: what is due now and what is in the learner's queue, per stream (drills only)
+    // a card's stream: Tafsīr when it was filed from a tafsīr drill, else its module
+    const streamOf = `CASE WHEN module = 'QR' AND ${TAFSIR_CARD} THEN 'TF' ELSE module END`;
     const [due, queued] = await Promise.all([
-      new SrsRepo(env.DB_CORE).dueCounts(ctx.userId).catch(softFail([] as Array<{ module: string; n: number }>)),
       query<{ module: string; n: number }>(env.DB_CORE,
-        `SELECT module, COUNT(*) AS n FROM core_srs_card
-          WHERE user_ref = ? AND suspended = 0 AND card_state <> 'new' AND is_drill = 1 GROUP BY module`, [ctx.userId]).catch(softFail([] as Array<{ module: string; n: number }>)),
+        `SELECT ${streamOf} AS module, COUNT(*) AS n FROM core_srs_card
+          WHERE user_ref = ? AND suspended = 0 AND leech = 0 AND card_state <> 'new' AND is_drill = 1
+            AND (next_review_at IS NULL OR next_review_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+          GROUP BY 1`, [ctx.userId]).catch(softFail([] as Array<{ module: string; n: number }>)),
+      query<{ module: string; n: number }>(env.DB_CORE,
+        `SELECT ${streamOf} AS module, COUNT(*) AS n FROM core_srs_card
+          WHERE user_ref = ? AND suspended = 0 AND card_state <> 'new' AND is_drill = 1 GROUP BY 1`, [ctx.userId]).catch(softFail([] as Array<{ module: string; n: number }>)),
     ]);
     const by = (rows: Array<{ module: string; n: number }>) => {
       const m: Record<string, number> = {};
@@ -209,8 +222,8 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
     const dueBy = by(due), queuedBy = by(queued);
     const review = {
       due: Object.values(dueBy).reduce((a, b) => a + b, 0), queued: Object.values(queuedBy).reduce((a, b) => a + b, 0),
-      streams: Object.keys({ ...queuedBy, ...dueBy }).sort().map((k) => ({ key: k, label: STREAMS[k] ?? k, due: dueBy[k] ?? 0, queued: queuedBy[k] ?? 0,
-        ...(STREAM_LOOK[k] ?? { color: '#D8B657', icon: 'square.stack.3d.up.fill', labelAr: null }) })),
+      streams: REVIEW_STREAMS.map(({ key: k, module, step }) => ({ key: k, label: STREAMS[k] ?? k, due: dueBy[k] ?? 0, queued: queuedBy[k] ?? 0,
+        module, step, ...(STREAM_LOOK[k] ?? { color: '#D8B657', icon: 'square.stack.3d.up.fill', labelAr: null }) })),
     };
     // the hub's words (the app only shows them)
     const words = {
