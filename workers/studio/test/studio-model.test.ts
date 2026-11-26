@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { card, episodePage, ltrLines, manifest, nowPage, pipelinePage, seriesPage, stageNow } from '../src/studio/model';
+import { card, domainDoors, domainPage, episodePage, ltrLines, prompterOf, manifest, nowPage, pipelinePage, seriesPage, stageNow } from '../src/studio/model';
 import type { EpisodeBundle, Registry } from '../src/studio/types';
 
 // the registry and the first six episodes exactly as studio.py wrote them to the local D1
@@ -102,4 +102,24 @@ test('ltrLines marks English lines that start with Arabic, leaves Arabic lines a
   assert.equal(ltrLines('علي told me\nقال الله'), '\u200Eعلي told me\nقال الله');
   assert.equal(ltrLines('\u200Ealready'), '\u200Ealready');
   assert.equal(ltrLines('plain English'), 'plain English');
+});
+
+test('prompterOf: prompter.* labels without prefix; footage = layout root + episode folder + footage rule dir', () => {
+  const reg = { labels: { 'prompter.speed': 'Speed', 'presenter.next': 'Next' },
+    layouts: [{ id: 'FL:x', scope: 'series', owner_ref: 'SER:x', root_path: 'icloud:K/EPS', episode_pattern: null, subfolders_json: '[]',
+      asset_rules_json: '{"footage":"02_FOOTAGE/*"}' }] } as unknown as Parameters<typeof prompterOf>[0];
+  const b = (folder: string | null) => ({ ep: { series_ref: 'SER:x', folder_path: folder } }) as unknown as Parameters<typeof prompterOf>[1];
+  assert.deepEqual(prompterOf(reg, b('EP02 · T')), { labels: { speed: 'Speed' }, footage: 'icloud:K/EPS/EP02 · T/02_FOOTAGE' });
+  assert.equal(prompterOf(reg, b(null)).footage, null);
+});
+
+test('dashboard doors: one per domain, counts add up; a card carries its domain and one step per stage', () => {
+  const doors = domainDoors(reg, eps);
+  assert.equal(doors.length, reg.domains.length);
+  for (const d of doors) assert.equal(d.total, d.published + d.doing);
+  const c = card(reg, ep('EP:dz-qr:002'));
+  assert.equal(c.domain?.key, 'QR');
+  assert.deepEqual(c.steps.slice(0, 4), ['done', 'done', 'done', 'current']);
+  const page = domainPage(reg, 'QR', eps, 'ipad') as { view: string };
+  assert.equal(page.view, 'VIEW:domain');
 });

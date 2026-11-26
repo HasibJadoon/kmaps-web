@@ -12,6 +12,8 @@ export interface Registry {
   views: Array<{ id: string; label_key: string }>;
   series: Array<{ id: string; show_ref: string; domain_key: string; label_key: string; subtitle_key: string | null; workflow_ref: string; boundary_kind: string; manager_ref: string | null; cover_ref: string | null; seq: number; status: string }>;
   arcs: Array<{ series_ref: string; key: string; label_key: string; seq: number }>;
+  /** Each series' production folder (iCloud or local), its subfolders and which files mean what. */
+  layouts?: Array<{ id: string; scope: string; owner_ref: string; root_path: string; episode_pattern: string | null; subfolders_json: string; asset_rules_json: string }>;
 }
 
 export interface EpisodeRow {
@@ -24,7 +26,7 @@ export interface EpisodeBundle {
   ep: EpisodeRow;
   people: Array<{ person_ref: string; role_key: string; seq: number }>;
   resources: Array<{ group_key: string; seq: number; ref: string | null; url: string | null; label_override: string | null; local_path: string | null }>;
-  checks: Array<{ check_key: string; result: string; note: string | null; reported_at: string }>;
+  checks: Array<{ check_key: string; result: string; note: string | null; evidence_ref?: string | null; reported_at: string }>;
   publications: Array<{ id: string; part_key: string; platform_key: string; url: string | null; published_at: string | null; chapters_json: string }>;
   takes: Array<{ id: string; take_no: number; mark_at: string; cut_at: string | null; status: string; markers: number }>;
 }

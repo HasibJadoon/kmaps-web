@@ -3,9 +3,11 @@
 ///   GET /st/studio?platform=ios|ipad|mac&locale=en      manifest: look, words, navigation, series (ETag = registry version)
 ///   GET /st/studio/now                                  next to film · in production · recently published
 ///   GET /st/studio/pipeline                             every episode in its stage's column
+///   GET /st/studio/domains/:key                         one domain: its series as tiles, what is in production
 ///   GET /st/studio/series/:id                           arcs → episodes (Shorts under their long)
 ///   GET /st/studio/episodes/:id                         the one episode page (old ids resolve through st_id_alias)
 ///   GET /st/studio/episodes/:id/run                     Recording: the scenes for the presenter (via CONTENT)
+///   GET /st/studio/episodes/:id/prompter                the same scenes for the optional prompter + camera
 ///   GET /st/studio/episodes/:id/study                   Study: mufassirūn side by side per āyah (via CONTENT)
 ///   GET /st/studio/episodes/:id/takes                   the live room's takes and markers
 ///   WS  /st/studio/episodes/:id/room                    the episode's live room (studio/room.do.ts)
@@ -14,7 +16,7 @@ import { actorRef } from '../../../shared/src/auth';
 import { notFound, ok, unauthorized } from '../../../shared/src/response';
 import type { StudioEnv } from '../env';
 import { loadEpisodes, loadRegistry, resolveId } from '../studio/load';
-import { episodePage, manifest, nowPage, pipelinePage, runPage, sceneParams, seriesPage, studyPage } from '../studio/model';
+import { domainPage, episodePage, manifest, nowPage, pipelinePage, runPage, sceneParams, seriesPage, studyPage } from '../studio/model';
 
 const opts = (req: Request) => {
   const sp = new URL(req.url).searchParams;
@@ -46,6 +48,14 @@ export function studioRoutes(router: Router<StudioEnv>) {
     return ok(pipelinePage(reg, eps, o.platform));
   });
 
+  router.get('/st/studio/domains/:key', async (req, env, { key }) => {
+    if (!actorRef(req)) return unauthorized('Authenticated user required');
+    const o = opts(req);
+    const [reg, eps] = await Promise.all([loadRegistry(env.DB_ST, o.locale), loadEpisodes(env.DB_ST)]);
+    if (!reg.domains.some((d) => d.key === key)) return notFound(`domain ${key}`);
+    return ok(domainPage(reg, key, eps, o.platform));
+  });
+
   router.get('/st/studio/series/:id', async (req, env, { id }) => {
     if (!actorRef(req)) return unauthorized('Authenticated user required');
     const o = opts(req);
@@ -65,7 +75,8 @@ export function studioRoutes(router: Router<StudioEnv>) {
   });
 
   // Recording: the episode's scenes (from its scene doc in km_content, over CONTENT), for the presenter screen.
-  router.get('/st/studio/episodes/:id/run', async (req, env, { id }) => {
+  // The prompter (optional, opened beside Record): the same scenes, drawn as one scrolling script over the camera.
+  const scenePage = (view: 'VIEW:run' | 'VIEW:prompter') => async (req: Request, env: StudioEnv, { id }: Record<string, string>) => {
     if (!actorRef(req)) return unauthorized('Authenticated user required');
     const o = opts(req);
     const eid = await resolveId(env.DB_ST, id);
@@ -78,8 +89,10 @@ export function studioRoutes(router: Router<StudioEnv>) {
       const r = await env.CONTENT.fetch(new Request(`https://content/cm/scenes/${encodeURIComponent(b.ep.scenes_ref)}?${qs}`, { headers: req.headers }));
       if (r.ok) scenes = ((await r.json()) as { data: { scenes: Array<Record<string, unknown>> } }).data;
     }
-    return ok(runPage(reg, b, scenes, o.platform));
-  });
+    return ok(runPage(reg, b, scenes, o.platform, view));
+  };
+  router.get('/st/studio/episodes/:id/run', scenePage('VIEW:run'));
+  router.get('/st/studio/episodes/:id/prompter', scenePage('VIEW:prompter'));
 
   // Study: the five mufassirūn side by side per āyah, from the episode's tafsīr scripts (km_content essays).
   router.get('/st/studio/episodes/:id/study', async (req, env, { id }) => {

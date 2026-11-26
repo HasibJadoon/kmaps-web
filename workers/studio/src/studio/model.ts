@@ -66,7 +66,74 @@ export function card(reg: Registry, b: EpisodeBundle) {
                   state: st.state } : null,
     people: peopleOf(reg, b).filter((p) => p.role !== 'manager').map((p) => p.name),
     updated_at: b.ep.updated_at,
+    domain: s ? domainOf(reg, s.domain_key) : null,
+    // the sprint in small: one dot per stage (done · current · ahead), and how many of its checks have passed
+    steps: stagesOf(reg, b).map((x) => x.state),
+    checks: { pass: b.checks.filter((x) => x.result === 'pass').length, total: reg.checks.filter((k) => k.workflow_ref === s?.workflow_ref).length },
   };
+}
+
+/// A domain as the apps show it: its name in English and Arabic (labels domain.<K>, domain.<K>.ar) and its tint token.
+export function domainOf(reg: Registry, key: string) {
+  const d = reg.domains.find((x) => x.key === key);
+  return { key, label: label(reg, d?.label_key ?? `domain.${key}`), label_ar: reg.labels[`domain.${key}.ar`] ?? null, accent: d?.accent_token ?? null, motif: d?.motif ?? null };
+}
+
+/// A series with its numbers: episodes, how many are published, how many in each stage of its workflow.
+export function seriesStats(reg: Registry, all: EpisodeBundle[]) {
+  return seriesList(reg).map((s) => {
+    const eps = all.filter((b) => b.ep.series_ref === s.id && b.ep.status === 'active' && b.ep.kind === 'long');
+    const wf = reg.series.find((x) => x.id === s.id)?.workflow_ref;
+    const defs = reg.stages.filter((x) => x.workflow_ref === wf).sort((a, b) => a.seq - b.seq);
+    const done = eps.filter((b) => stagesOf(reg, b).every((x) => x.state === 'done')).length;
+    const stages = defs.map((d) => ({ key: d.key, label: label(reg, d.label_key), tone: d.tone_token,
+      count: eps.filter((b) => stageNow(reg, b)?.key === d.key && !stagesOf(reg, b).every((x) => x.state === 'done')).length }));
+    return { ...s, label_ar: reg.labels[`${reg.series.find((x) => x.id === s.id)?.label_key}.ar`] ?? null, total: eps.length, published: done, stages };
+  });
+}
+
+/// The dashboard's doors: each domain with its series, its counts and the episode to pick up next.
+export function domainDoors(reg: Registry, all: EpisodeBundle[]) {
+  const stats = seriesStats(reg, all);
+  return reg.domains.slice().sort((a, b) => a.seq - b.seq).map((d) => {
+    const mine = stats.filter((s) => s.domain.key === d.key);
+    const eps = all.filter((b) => b.ep.status === 'active' && b.ep.kind === 'long' && mine.some((s) => s.id === b.ep.series_ref));
+    const open = eps.filter((b) => !stagesOf(reg, b).every((x) => x.state === 'done')).sort((a, b) => stageIndex(reg, b) - stageIndex(reg, a) || a.ep.no - b.ep.no);
+    return { ...domainOf(reg, d.key), path: `studio/domains/${d.key}`, series: mine.length, total: eps.length,
+      published: eps.length - open.length, doing: open.length, next: open[0] ? card(reg, open[0]) : null,
+      stages: stageFlow(reg, eps), series_list: mine.map((s) => ({ id: s.id, label: s.label, total: s.total, published: s.published, path: `studio/series/${s.id}` })) };
+  });
+}
+
+/// Episodes by the stage they stand in, across workflows: stages that share a key are one step (planned, cut,
+/// published …), in the order they first appear by seq; a finished episode counts under its last stage.
+export function stageFlow(reg: Registry, eps: EpisodeBundle[]) {
+  const order: Array<{ key: string; label: string | null; label_ar: string | null; icon: string | null; tone: string | null; seq: number; last: boolean }> = [];
+  for (const st of reg.stages.slice().sort((a, b) => a.seq - b.seq)) {
+    const isLast = !reg.stages.some((x) => x.workflow_ref === st.workflow_ref && x.seq > st.seq);
+    const had = order.find((o) => o.key === st.key);
+    if (had) { had.last = had.last && isLast; continue; }
+    order.push({ key: st.key, label: label(reg, st.label_key), label_ar: reg.labels[`${st.label_key}.ar`] ?? null, icon: st.icon_token, tone: st.tone_token, seq: st.seq, last: isLast });
+  }
+  // the closing stage (published) always comes last
+  order.sort((a, b) => Number(a.last) - Number(b.last) || a.seq - b.seq);
+  const total = Math.max(eps.length, 1);
+  const count = (keys: string[]) => eps.filter((b) => keys.includes(stageNow(reg, b)?.key ?? '')).length;
+  // the dashboard's phases are data (token flow.phases = "plan:planned;prep:research,scenes;…"): each phase gathers
+  // the stages it names, under label flow.<phase> and icon icon.flow.<phase>. No token → one step per stage.
+  const phases = (reg.tokens.find((t) => t.key === 'flow.phases')?.value ?? '').split(';').map((x) => x.trim()).filter(Boolean)
+    .map((x) => { const [k, v] = x.split(':'); return { key: k.trim(), stages: (v ?? '').split(',').map((y) => y.trim()).filter(Boolean) }; });
+  if (phases.length) {
+    return phases.map((ph) => {
+      const n = count(ph.stages);
+      return { key: ph.key, label: label(reg, `flow.${ph.key}`), label_ar: reg.labels[`flow.${ph.key}.ar`] ?? null, icon: `icon.flow.${ph.key}`,
+        tone: order.find((o) => ph.stages.includes(o.key))?.tone ?? null, count: n, pct: Math.round((n / total) * 100) };
+    });
+  }
+  return order.map((o) => {
+    const n = count([o.key]);
+    return { key: o.key, label: o.label, label_ar: o.label_ar, icon: o.icon, tone: o.tone, count: n, pct: Math.round((n / total) * 100) };
+  });
 }
 
 /// A view's sections in order, for this platform, those whose `when` rule holds for the episode (if any).
@@ -151,7 +218,8 @@ export function episodePage(reg: Registry, b: EpisodeBundle, platform: string, a
     const got = b.checks.find((x) => x.check_key === k.key);
     const result = got?.result ?? null;
     return { key: k.key, stage: k.stage_key, label: label(reg, k.label_key), result, result_label: result ? label(reg, `check.${result}`) : null,
-      icon: result ? `icon.check.${result}` : null, note: got?.note ?? null };
+      icon: result ? `icon.check.${result}` : null, note: got?.note ?? null,
+      who: reg.labels[`${k.label_key}.who`] ?? null, url: got?.evidence_ref ?? null };
   });
   const data: Record<string, unknown> = {
     header: { ...c, folder: b.ep.folder_path },
@@ -159,9 +227,10 @@ export function episodePage(reg: Registry, b: EpisodeBundle, platform: string, a
     stages: stagesOf(reg, b),
     resources: groups,
     related: relatedOf(reg, b, all),
-    scenes: b.ep.scenes_ref ? { ref: b.ep.scenes_ref, run: `studio/episodes/${b.ep.id}/run` } : null,
+    scenes: b.ep.scenes_ref ? { ref: b.ep.scenes_ref, run: `studio/episodes/${b.ep.id}/run`, prompter: `studio/episodes/${b.ep.id}/prompter` } : null,
     slides: b.ep.slides_ref ? { ref: b.ep.slides_ref, url: `com.kmaps.app://doc/${b.ep.slides_ref}` } : null,
     checks,
+    folder: folderOf(reg, b),
     takes: b.takes,
     publications: b.publications.map((p) => ({ part: p.part_key, part_label: label(reg, `part.${p.part_key}`), url: p.url, published_at: p.published_at,
       chapters: parse(p.chapters_json, []) })),
@@ -187,7 +256,15 @@ export function nowPage(reg: Registry, all: EpisodeBundle[], platform: string) {
   const doing = unfinished.filter((b) => b !== next).sort((a, b) => stageIndex(reg, b) - stageIndex(reg, a));
   const published = live.filter((b) => stageIndex(reg, b) >= total(b))
     .sort((a, b) => (b.publications[0]?.published_at ?? '').localeCompare(a.publications[0]?.published_at ?? '')).slice(0, 6);
-  const data = { next: next ? card(reg, next) : null, doing: doing.map((b) => card(reg, b)), published: published.map((b) => card(reg, b)) };
+  const pubAll = live.length - unfinished.length;
+  const data = { next: next ? card(reg, next) : null, doing: doing.map((b) => card(reg, b)), published: published.map((b) => card(reg, b)),
+    domains: domainDoors(reg, all),
+    flow: stageFlow(reg, live),
+    totals: [
+      { key: 'series', label: label(reg, 'total.series'), value: reg.series.filter((s) => s.status === 'active').length },
+      { key: 'doing', label: label(reg, 'total.doing'), value: unfinished.length },
+      { key: 'published', label: label(reg, 'total.published'), value: pubAll },
+    ] };
   return { view: 'VIEW:now', sections: fill(sectionsOf(reg, 'VIEW:now', platform), data) };
 }
 
@@ -209,8 +286,32 @@ export function pipelinePage(reg: Registry, all: EpisodeBundle[], platform: stri
 }
 
 /// A series: its header, then each arc's episodes in order, Shorts under their long.
+/// The episode's production folder as its layout describes it (st_folder_layout): each subfolder in order with the
+/// indexed files that live in it (resources that carry a local path). Null when the episode has no folder yet.
+export function folderOf(reg: Registry, b: EpisodeBundle) {
+  const lays = (reg.layouts ?? []).filter((l) => l.owner_ref === b.ep.series_ref);
+  const lay = lays.find((l) => l.root_path.startsWith('icloud:')) ?? lays[0];
+  if (!lay || !b.ep.folder_path) return null;
+  const base = `${lay.root_path}/${b.ep.folder_path}`;
+  const subs = parse<string[]>(lay.subfolders_json, []);
+  const files = b.resources.filter((r) => r.local_path);
+  return { root: lay.root_path, path: base, subfolders: subs.map((name) => ({
+    name, path: `${base}/${name}`,
+    files: files.filter((f) => (f.local_path ?? '').includes(`/${name}/`)).map((f) => ({ title: ltrLines(f.label_override ?? (f.local_path ?? '').split('/').pop() ?? ''), local_path: f.local_path })),
+  })) };
+}
+
+/// One domain: its header, its series as tiles, and what is in production in it.
+export function domainPage(reg: Registry, key: string, all: EpisodeBundle[], platform: string) {
+  const series = seriesStats(reg, all).filter((s) => s.domain.key === key).map((s) => ({ ...s, path: `studio/series/${s.id}` }));
+  const door = domainDoors(reg, all).find((d) => d.key === key) ?? null;
+  const doing = all.filter((b) => b.ep.status === 'active' && b.ep.kind === 'long' && series.some((s) => s.id === b.ep.series_ref)
+    && !stagesOf(reg, b).every((x) => x.state === 'done')).sort((a, b) => stageIndex(reg, b) - stageIndex(reg, a)).map((b) => card(reg, b));
+  return { view: 'VIEW:domain', id: key, sections: fill(sectionsOf(reg, 'VIEW:domain', platform), { header: door, series, doing }) };
+}
+
 export function seriesPage(reg: Registry, seriesId: string, all: EpisodeBundle[], platform: string) {
-  const s = seriesList(reg).find((x) => x.id === seriesId) ?? null;
+  const s = seriesStats(reg, all).find((x) => x.id === seriesId) ?? null;
   const eps = all.filter((b) => b.ep.series_ref === seriesId && b.ep.status === 'active');
   const arcs = reg.arcs.filter((a) => a.series_ref === seriesId).sort((a, b) => a.seq - b.seq).map((a) => ({
     key: a.key, label: label(reg, a.label_key),
@@ -223,13 +324,29 @@ export function seriesPage(reg: Registry, seriesId: string, all: EpisodeBundle[]
 
 /// Recording (the presenter): the episode's scenes from its scene doc, numbered, current + next shown by the app.
 /// `scenes` is the content worker's /cm/scenes payload; the app needs nothing else to run a take.
-export function runPage(reg: Registry, b: EpisodeBundle, scenes: { scenes?: Array<Record<string, unknown>> } | null, platform: string) {
+export function runPage(reg: Registry, b: EpisodeBundle, scenes: { scenes?: Array<Record<string, unknown>> } | null, platform: string, view = 'VIEW:run') {
   const data = {
     scenes: { episode: card(reg, b), people: peopleOf(reg, b).filter((p) => p.role !== 'manager'), items: scenes?.scenes ?? [],
       next_label: label(reg, 'presenter.next'), scene_label: label(reg, 'presenter.scene'),
-      room: `studio/episodes/${b.ep.id}/room` },
+      room: `studio/episodes/${b.ep.id}/room`, prompter: prompterOf(reg, b) },
   };
-  return { view: 'VIEW:run', id: b.ep.id, sections: fill(sectionsOf(reg, 'VIEW:run', platform), data) };
+  return { view, id: b.ep.id, sections: fill(sectionsOf(reg, view, platform), data) };
+}
+
+/// The optional prompter: its words (labels prompter.*) and where a take recorded on the Mac goes — the episode's
+/// footage folder from its series' layout (root + folder_path + the folder the `footage` asset rule names). No folder
+/// yet → footage is null and the Mac keeps the take in Movies; iOS always saves to Photos.
+export function prompterOf(reg: Registry, b: EpisodeBundle) {
+  const labels = Object.fromEntries(Object.entries(reg.labels).filter(([k]) => k.startsWith('prompter.')).map(([k, v]) => [k.slice(9), v]));
+  const lay = (reg.layouts ?? []).find((l) => l.owner_ref === b.ep.series_ref && l.root_path.startsWith('icloud:'));
+  let footage: string | null = null;
+  if (lay && b.ep.folder_path) {
+    let rules: Record<string, string> = {};
+    try { rules = JSON.parse(lay.asset_rules_json || '{}'); } catch { /* no rules */ }
+    const dir = (rules.footage ?? '').split('/')[0];
+    if (dir) footage = `${lay.root_path}/${b.ep.folder_path}/${dir}`;
+  }
+  return { labels, footage };
 }
 
 /// The words and face the scene shaper needs, from the registry (labels presenter.*, token face.<series>).

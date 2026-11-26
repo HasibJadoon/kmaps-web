@@ -8,7 +8,7 @@ const all = <T>(res: D1Result<unknown>): T[] => (res.results ?? []) as T[];
 
 export async function loadRegistry(db: D1Database, locale = 'en'): Promise<Registry> {
   const q = (sql: string, ...b: unknown[]) => db.prepare(sql).bind(...b);
-  const [labels, tokens, domains, shows, stages, checks, sections, views, series, arcs, meta] = await db.batch([
+  const [labels, tokens, domains, shows, stages, checks, sections, views, series, arcs, meta, layouts] = await db.batch([
     q(`SELECT key, text FROM st_label WHERE locale = ?`, locale),
     q(`SELECT key, kind, value FROM st_token`),
     q(`SELECT key, label_key, accent_token, motif, seq FROM st_domain WHERE active = 1 ORDER BY seq`),
@@ -20,12 +20,13 @@ export async function loadRegistry(db: D1Database, locale = 'en'): Promise<Regis
     q(`SELECT * FROM st_series ORDER BY seq`),
     q(`SELECT * FROM st_arc ORDER BY series_ref, seq`),
     q(`SELECT value FROM st_meta WHERE key = 'registry_version'`),
+    q(`SELECT * FROM st_folder_layout ORDER BY id`),
   ]);
   return {
     version: (all<{ value: string }>(meta)[0]?.value) ?? '0',
     labels: Object.fromEntries(all<{ key: string; text: string }>(labels).map((l) => [l.key, l.text])),
     tokens: all(tokens), domains: all(domains), shows: all(shows), stages: all(stages), checks: all(checks),
-    sections: all(sections), views: all(views), series: all(series), arcs: all(arcs),
+    sections: all(sections), views: all(views), series: all(series), arcs: all(arcs), layouts: all(layouts),
   };
 }
 
@@ -37,7 +38,7 @@ export async function loadEpisodes(db: D1Database, only?: string): Promise<Episo
     q(`SELECT * FROM st_episode${only ? ' WHERE id = ?' : ''} ORDER BY series_ref, no`),
     q(`SELECT episode_ref, person_ref, role_key, seq FROM st_episode_person${w}`),
     q(`SELECT episode_ref, group_key, seq, ref, url, label_override, local_path FROM st_episode_resource${w}`),
-    q(`SELECT episode_ref, check_key, result, note, reported_at FROM st_episode_check${w}`),
+    q(`SELECT episode_ref, check_key, result, note, evidence_ref, reported_at FROM st_episode_check${w}`),
     q(`SELECT * FROM st_publication${w}`),
     q(`SELECT t.id, t.episode_ref, t.take_no, t.mark_at, t.cut_at, t.status,
               (SELECT COUNT(*) FROM st_take_marker m WHERE m.take_ref = t.id) AS markers
