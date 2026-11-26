@@ -73,6 +73,12 @@ export function card(reg: Registry, b: EpisodeBundle) {
   };
 }
 
+/// A YouTube link's poster picture (so a published film shows as its thumbnail in both apps), else null.
+export function youtubeThumb(url: string | null | undefined): string | null {
+  const m = (url ?? '').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([\w-]{6,})/);
+  return m ? `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg` : null;
+}
+
 /// A domain as the apps show it: its name in English and Arabic (labels domain.<K>, domain.<K>.ar) and its tint token.
 export function domainOf(reg: Registry, key: string) {
   const d = reg.domains.find((x) => x.key === key);
@@ -186,7 +192,7 @@ export function rangeOf(ref: string | null | undefined): { surah: number; from: 
 export function relatedOf(reg: Registry, b: EpisodeBundle, all: EpisodeBundle[]) {
   const r = rangeOf(b.ep.boundary_ref);
   if (!r) return [];
-  const groups: Array<{ key: string; label: string | null; icon: string; items: Array<{ title: string; url: string | null; local_path: string | null }> }> = [];
+  const groups: Array<{ key: string; label: string | null; icon: string; items: Array<{ title: string; url: string | null; local_path: string | null; thumb?: string | null }> }> = [];
   for (const o of all) {
     if (o.ep.series_ref === b.ep.series_ref || o.ep.status !== 'active') continue;
     const x = rangeOf(o.ep.boundary_ref);
@@ -204,11 +210,11 @@ export function episodePage(reg: Registry, b: EpisodeBundle, platform: string, a
   const facts = factsOf(reg, b);
   const c = card(reg, b);
   const wf = reg.series.find((s) => s.id === b.ep.series_ref)?.workflow_ref;
-  const groups: Array<{ key: string; label: string | null; icon: string; items: Array<{ title: string; url: string | null; local_path: string | null }> }> = [];
+  const groups: Array<{ key: string; label: string | null; icon: string; items: Array<{ title: string; url: string | null; local_path: string | null; thumb?: string | null }> }> = [];
   for (const r of b.resources.slice().sort((x, y) => x.seq - y.seq)) {
     let g = groups.find((x) => x.key === r.group_key);
     if (!g) { g = { key: r.group_key, label: label(reg, `group.${r.group_key}`), icon: `icon.group.${r.group_key}`, items: [] }; groups.push(g); }
-    g.items.push({ title: ltrLines(r.label_override ?? r.ref ?? r.url ?? ''), url: r.url, local_path: r.local_path });
+    g.items.push({ title: ltrLines(r.label_override ?? r.ref ?? r.url ?? ''), url: r.url, local_path: r.local_path, thumb: youtubeThumb(r.url) });
   }
   // group order is data (token order.resource_groups); groups it does not name come after, as written
   const order = (reg.tokens.find((t) => t.key === 'order.resource_groups')?.value ?? '').split(',').map((x) => x.trim());
