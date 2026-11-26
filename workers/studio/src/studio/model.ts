@@ -214,7 +214,7 @@ export function episodePage(reg: Registry, b: EpisodeBundle, platform: string, a
   for (const r of b.resources.slice().sort((x, y) => x.seq - y.seq)) {
     let g = groups.find((x) => x.key === r.group_key);
     if (!g) { g = { key: r.group_key, label: label(reg, `group.${r.group_key}`), icon: `icon.group.${r.group_key}`, items: [] }; groups.push(g); }
-    g.items.push({ title: ltrLines(r.label_override ?? r.ref ?? r.url ?? ''), url: r.url, local_path: r.local_path, thumb: youtubeThumb(r.url) });
+    g.items.push({ title: ltrLines(r.label_override ?? r.ref ?? r.url ?? ''), url: r.url, local_path: fullPath(reg, b, r.local_path), thumb: youtubeThumb(r.url) });
   }
   // group order is data (token order.resource_groups); groups it does not name come after, as written
   const order = (reg.tokens.find((t) => t.key === 'order.resource_groups')?.value ?? '').split(',').map((x) => x.trim());
@@ -292,6 +292,16 @@ export function pipelinePage(reg: Registry, all: EpisodeBundle[], platform: stri
 }
 
 /// A series: its header, then each arc's episodes in order, Shorts under their long.
+/// An indexed file's whole path: the indexer stores it relative to the series' folder root (st_folder_layout), so the
+/// root (`icloud:…` / `home:…`) goes in front; a path that already carries a root, or is absolute, stays as it is.
+export function fullPath(reg: Registry, b: EpisodeBundle, p: string | null | undefined): string | null {
+  if (!p) return null;
+  if (/^(icloud:|home:|\/)/.test(p)) return p;
+  const lays = (reg.layouts ?? []).filter((l) => l.owner_ref === b.ep.series_ref);
+  const lay = lays.find((l) => l.root_path.startsWith('icloud:')) ?? lays[0];
+  return lay ? `${lay.root_path}/${p}` : p;
+}
+
 /// The episode's production folder as its layout describes it (st_folder_layout): each subfolder in order with the
 /// indexed files that live in it (resources that carry a local path). Null when the episode has no folder yet.
 export function folderOf(reg: Registry, b: EpisodeBundle) {
@@ -303,7 +313,7 @@ export function folderOf(reg: Registry, b: EpisodeBundle) {
   const files = b.resources.filter((r) => r.local_path);
   return { root: lay.root_path, path: base, subfolders: subs.map((name) => ({
     name, path: `${base}/${name}`,
-    files: files.filter((f) => (f.local_path ?? '').includes(`/${name}/`)).map((f) => ({ title: ltrLines(f.label_override ?? (f.local_path ?? '').split('/').pop() ?? ''), local_path: f.local_path })),
+    files: files.filter((f) => (f.local_path ?? '').includes(`/${name}/`)).map((f) => ({ title: ltrLines(f.label_override ?? (f.local_path ?? '').split('/').pop() ?? ''), local_path: fullPath(reg, b, f.local_path) })),
   })) };
 }
 

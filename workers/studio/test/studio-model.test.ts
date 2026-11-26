@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { card, domainDoors, domainPage, episodePage, ltrLines, prompterOf, manifest, nowPage, pipelinePage, seriesPage, stageNow } from '../src/studio/model';
+import { card, fullPath, domainDoors, domainPage, episodePage, ltrLines, prompterOf, manifest, nowPage, pipelinePage, seriesPage, stageNow } from '../src/studio/model';
 import type { EpisodeBundle, Registry } from '../src/studio/types';
 
 // the registry and the first six episodes exactly as studio.py wrote them to the local D1
@@ -122,4 +122,12 @@ test('dashboard doors: one per domain, counts add up; a card carries its domain 
   assert.deepEqual(c.steps.slice(0, 4), ['done', 'done', 'done', 'current']);
   const page = domainPage(reg, 'QR', eps, 'ipad') as { view: string };
   assert.equal(page.view, 'VIEW:domain');
+});
+
+test('fullPath: an indexed file gets its series folder root in front; rooted paths stay', () => {
+  const r = { layouts: [{ id: 'FL:x', scope: 'series', owner_ref: 'SER:x', root_path: 'icloud:K/Films', episode_pattern: null, subfolders_json: '[]', asset_rules_json: '{}' }] } as unknown as Registry;
+  const b = { ep: { series_ref: 'SER:x' } } as unknown as EpisodeBundle;
+  assert.equal(fullPath(r, b, 'GHF09/3_THUMBNAILS/t.jpg'), 'icloud:K/Films/GHF09/3_THUMBNAILS/t.jpg');
+  assert.equal(fullPath(r, b, 'icloud:a/b.jpg'), 'icloud:a/b.jpg');
+  assert.equal(fullPath(r, b, null), null);
 });
