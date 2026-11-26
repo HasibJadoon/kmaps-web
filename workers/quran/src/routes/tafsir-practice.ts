@@ -166,6 +166,27 @@ export function tafsirPracticeRoutes(router: Router<QuranEnv>) {
         key,
       };
     });
+    // a learner who has not practised this sūra yet still gets a starting passage: the first study passage whose
+    // tafsīr sentences are cut, with nothing done — so the screen opens on it instead of on nothing
+    if (!passages.length && !passage && Number.isInteger(surah) && surah > 0) {
+      const start = await query<{ passage_id: string; source_slug: string; ayah_from: number; ayah_to: number }>(env.DB_QR,
+        `SELECT s.passage_id, s.source_slug, p.ayah_from, p.ayah_to
+           FROM qr_tafsir_sentence s JOIN qr_surah_study_passage p ON p.id = s.passage_id
+          WHERE s.surah = ? AND s.status <> 'superseded'
+          GROUP BY s.passage_id, s.source_slug ORDER BY p.ayah_from, s.source_slug LIMIT 1`, [surah]);
+      const f = start[0];
+      if (f) {
+        const src = await sources(env, [f.source_slug]);
+        const counts = Object.fromEntries(Object.keys(VERDICTS).map((v) => [v, 0]));
+        passages.push({
+          passageId: f.passage_id, surah, ayahFrom: f.ayah_from, ayahTo: f.ayah_to,
+          range: f.ayah_from === f.ayah_to ? `${surah}:${f.ayah_from}` : `${surah}:${f.ayah_from}–${f.ayah_to}`,
+          source: sourceOut(f.source_slug, src.get(f.source_slug)),
+          sentences: 0, counts, verdicts: Object.keys(VERDICTS).map((v) => ({ ...verdictOf(v), n: 0 })),
+          goodShare: 0, weakOpen: 0, lastAt: null, line: 'Not started yet', key: `${f.passage_id}|${f.source_slug}`,
+        } as (typeof passages)[number]);
+      }
+    }
     return ok({ passages });
   });
 
@@ -404,7 +425,8 @@ export function tafsirReadingRoutes(router: Router<QuranEnv>) {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
     const p = await passageOf(env, new URL(req.url).searchParams.get('passage') ?? '');
-    if (!p) return ok({ passage: null });
+    // no passage named: the same shape, empty, so a client reads it as "nothing here yet", never as a failure
+    if (!p) return ok({ passage: null, ayat: [], books: [], drills: { state: 'later', title: 'Drills', titleAr: 'تدريبات', note: '' } });
     const slots = READING_BOOKS.map(() => '?').join(',');
     const [ayat, counts, done, srcs] = await Promise.all([
       query<{ ayah: number; text: string }>(env.DB_QR,
