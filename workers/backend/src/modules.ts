@@ -44,7 +44,7 @@ export const MODULE_MAP: Record<ModuleKey, ModuleConfig> = {
     binding: 'QURAN',
     publicGet: true,
     // practice skills, rounds, the class path and its sprints, the listen gate, the stage's words
-    privateGetPaths: [/^qr\/practice(\/|\?|$)/, /^qr\/drill(\/|\?|$)/, /^qr\/intake-pipeline(\/|\?|$)/],
+    privateGetPaths: [/^qr\/practice(\/|\?|$)/, /^qr\/drill(\/|\?|$)/, /^qr\/tafsir-practice(\/|\?|$)/, /^qr\/intake-pipeline(\/|\?|$)/],
     adminWrites: true,
     learnerWritePaths: [/^qr\/practice(\/|\?|$)/],
   },
