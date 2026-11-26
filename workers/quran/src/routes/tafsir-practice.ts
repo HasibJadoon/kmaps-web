@@ -585,6 +585,9 @@ export function tafsirPathRoutes(router: Router<QuranEnv>) {
       `SELECT source_slug, surah, COUNT(DISTINCT seq || ':' || COALESCE(passage_id, '')) AS n
          FROM qr_tafsir_practice_attempt WHERE user_ref = ? GROUP BY source_slug, surah`, [user]);
     const srcs = await sources(env, [...new Set(cut.map((c) => c.source_slug))]);
+    // each sūra's drills (the intro's, from the bank), so the path can open them directly
+    const drillsBy = new Map<number, number | null>();
+    for (const sn of [...new Set(cut.map((c) => c.surah))]) drillsBy.set(sn, (await introDrills(req, env, sn))?.length ?? null);
     return ok({
       title: 'Tafsīr', titleAr: 'التفسير',
       line: 'Read a mufassir sentence by sentence, put it into English, and drill what you missed.',
@@ -593,7 +596,9 @@ export function tafsirPathRoutes(router: Router<QuranEnv>) {
         const src = sourceOut(c.source_slug, srcs.get(c.source_slug));
         return { surah: c.surah, nameEn: c.name_en, nameAr: c.name_ar, meaning: c.meaning, source: src,
                  sentences: c.sentences, passages: c.passages, tried: n,
-                 line: `${c.passages} passages · ${c.sentences} sentences · ${n} translated` };
+                 line: `${c.passages} passages · ${c.sentences} sentences · ${n} translated`,
+                 drills: drillsBy.get(c.surah) ?? null,
+                 drillLine: drillsBy.get(c.surah) ? `Drills · ${drillsBy.get(c.surah)} on the intro` : null };
       }),
     });
   });
