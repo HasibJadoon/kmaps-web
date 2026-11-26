@@ -216,9 +216,7 @@ export function drillClassRoutes(router: Router<CoreEnv>) {
     const u = new URL(req.url);
     const module = u.searchParams.get('module');
     const prefix = u.searchParams.get('prefix') ?? '';
-    // anything learnt and not yet filed reaches review behind the response — the list never waits for it
-    const filing = fileLearnt(env, ctx.userId).catch(() => 0);
-    if (env.ctx) env.ctx.waitUntil(filing); else await filing;
+    // listing only reads: nothing is filed to review here (owner, 2026-11-26)
     const rows = await query<ClassRow & { open: number }>(env.DB_CORE,
       `SELECT c.*, c.open_n AS open
          FROM core_drill_class c
