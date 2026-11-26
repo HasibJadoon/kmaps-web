@@ -20,6 +20,33 @@ import { SrsRepo, TAFSIR_CARD } from '../repositories/srs.repo';
 //   GET /core/cyb/drills/audit
 //        every AGR:DRL rule run over the bank: how many drills break it (0 expected) — a drill goes live only clean
 
+/** A drill kind as a reader names it: ss_why → "Sentence: why", translation_compare → "Translation compare". */
+const KIND_HEAD: Record<string, string> = { ss: 'Sentence', lex: 'Lexicon', gt: 'Grammar', tf: 'Tafsīr', ns: 'Near-synonyms', irab: 'Iʿrāb' };
+export function kindLabel(kind: string | null): string | null {
+  if (!kind) return null;
+  const [head, ...rest] = kind.split('_');
+  const words = rest.join(' ');
+  if (KIND_HEAD[head]) return words ? `${KIND_HEAD[head]}: ${words}` : KIND_HEAD[head];
+  const all = kind.replace(/_/g, ' ');
+  return all.charAt(0).toUpperCase() + all.slice(1);
+}
+
+/**
+ * A bank drill's prompt cut for the sheet, so no screen mixes scripts in one paragraph: the āyah it quotes
+ * (﴿…﴾) and its reference, then what is asked about it; the explanation cut into its numbered points.
+ * A prompt that quotes no āyah keeps only `ask` (the whole prompt).
+ */
+export function bankFace(prompt: string | null, explanation: string | null) {
+  let ayahText: string | null = null, ayahRef: string | null = null, ask: string | null = prompt;
+  const m = prompt?.match(/^\s*(﴿[^﴾]*﴾)\s*(?:\(([^)]*)\)|([\d:–-]+))?\s*(?:[—–-]\s*)?([\s\S]*)$/);
+  if (m) { ayahText = m[1]; ayahRef = (m[2] ?? m[3] ?? null)?.trim() || null; ask = m[4].trim() || null; }
+  if (ask && /^[a-z]/.test(ask)) ask = ask.charAt(0).toUpperCase() + ask.slice(1);
+  const points = explanation && /(^|\s)1\s+\S/.test(explanation)
+    ? explanation.split(/\s+(?=\d\s+[A-Z\u0600-\u06FF])/).map((x) => x.replace(/^\d\s+/, '').trim()).filter(Boolean)
+    : null;
+  return { ayahText, ayahRef, ask, points: points && points.length > 1 ? points : null };
+}
+
 interface DrillRow { gid: string; domain: string | null; skill: string | null; work_ref: string | null; intro_ayah: number | null; payload_json: string }
 interface RuleRow { id: string; rule_md: string; severity: string; check_sql: string | null; expected: number }
 
@@ -267,10 +294,11 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
     const drills = rows.map((r) => {
       const d = JSON.parse(r.payload_json) as Record<string, unknown>;
       const opts = Array.isArray(d.options) ? (d.options as unknown[]).map((o) => (typeof o === 'string' ? o : str((o as Record<string, unknown>)?.text) ?? JSON.stringify(o))) : [];
+      const face = bankFace(str(d.prompt), str(d.explanation));
       return {
-        gid: r.gid, kind: r.kind, skill: r.skill, surah: r.intro_surah, ayah: r.intro_ayah, done: !!r.mine,
+        gid: r.gid, kind: r.kind, kindLabel: kindLabel(r.kind), skill: r.skill, surah: r.intro_surah, ayah: r.intro_ayah, done: !!r.mine,
         instruction: str(d.instruction), prompt: str(d.prompt), options: opts, answer: str(d.answer),
-        explanation: str(d.explanation), ref: str(d.ref),
+        explanation: str(d.explanation), ref: str(d.ref), ...face,
       };
     });
     return ok({ work, label: workLabel(work), total: count[0]?.n ?? 0, drills });
