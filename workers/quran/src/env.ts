@@ -6,6 +6,7 @@ export interface QuranEnv {
   ARABIC?: Fetcher;
   WORLDVIEW?: Fetcher;
   CONTENT?: Fetcher;
+  CORE?: Fetcher;
 
   DEP_GRAPHS_BUCKET: R2Bucket;
 

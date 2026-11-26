@@ -135,9 +135,23 @@ export function textRoutes(router: Router<ArabicEnv>) {
       return { ar: clean(ar), en: clean(en.join(' | ')) };
     };
 
+    // the words each scene was read for (ar_scene_vocab): the word, its line, gloss, lemma and how hard it is
+    const vocabRows = await query<{ scene_no: number; vocab_json: string | null }>(env.DB_AR,
+      `SELECT scene_no, vocab_json FROM ar_scene_vocab WHERE unit_id = ?`, [row.id]).catch(() => []);
+    type Word = { word: string | null; line: number | null; gloss: string | null; lemma: string | null; tier: string | null };
+    const vocabOf = new Map<number, Word[]>(vocabRows.map((v): [number, Word[]] => {
+      try {
+        return [v.scene_no, (JSON.parse(v.vocab_json ?? '[]') as Array<Record<string, unknown>>)
+          .map((w) => ({ word: clean(w.word), line: typeof w.line === 'number' ? w.line : null, gloss: clean(w.gloss), lemma: clean(w.lemma), tier: clean(w.tier) }))
+          .filter((w) => w.word)];
+      } catch { return [v.scene_no, []]; }
+    }));
+
     const scenes = (Array.isArray(doc.scenes) ? doc.scenes : []).map((raw, i) => {
       const s = raw as Record<string, unknown>;
+      const no = typeof s.scene_no === 'number' ? s.scene_no : i + 1;
       return {
+        vocab: vocabOf.get(no) ?? [],
         scene_no: typeof s.scene_no === 'number' ? s.scene_no : i + 1,
         title_ar: clean(s.title_ar),
         title_en: clean(s.title_en),

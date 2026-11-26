@@ -19,7 +19,6 @@ import {
 } from '../srs/fsrs';
 import type { FSRSParameters } from 'ts-fsrs';
 import { storedOf } from '../srs/stored-params';
-import { fileLearnt } from './drill-class';
 import { answerCard } from '../srs/answer';
 import { parseJson as parseJsonOr } from '../../../shared/src/collections';
 import {
@@ -873,6 +872,10 @@ export function srsRoutes(router: Router<CoreEnv>) {
     if (!drill || typeof drill !== 'object' || drill.id == null) {
       return err('drill_required', 'Review holds drills only: send the drill to file (extra.drill with its id).', 422);
     }
+    // and only a drill the person has answered (owner, 2026-11-26): no answer, no card
+    if (!isRating(body?.['rating'])) {
+      return err('answer_required', 'A card is filed only for a drill the learner has answered: send its rating (1–4).', 422);
+    }
 
     const repo = new SrsRepo(env.DB_CORE);
     const deckId = str(body?.['deck_id']) ?? (await repo.defaultDeck(ctx.userId)).id;
@@ -908,7 +911,11 @@ export function srsRoutes(router: Router<CoreEnv>) {
       if (spread.length) await repo.linkSurahs(card.id, spread, introSurah);
     }
 
-    return created(cardToApi(card, buildParams(storedOf(await repo.params(ctx.userId)))));
+    // the answer moves the new card at once, by the one rule: a miss stays in the bank, a pass goes to review
+    const params0 = buildParams(storedOf(await repo.params(ctx.userId)));
+    const g = await gradeOrBank(repo, card, ctx.userId, body!['rating'] as 1 | 2 | 3 | 4, cleanSecs(body?.['duration_secs']),
+                                str(body?.['op_id']) ?? null, { params: params0 });
+    return created(cardToApi(g.card, params0));
   });
 
   router.get('/core/srs/cards/:id', async (req, env, { id }) => {
@@ -1001,10 +1008,7 @@ export function srsRoutes(router: Router<CoreEnv>) {
     const to = Number(url.searchParams.get('to') ?? '0');
     const step = url.searchParams.get('step') ?? undefined;
     const kind = url.searchParams.get('kind') ?? undefined;
-    // a learnt class drill not yet filed is filed behind the response (a sprint already files its items as it ends;
-    // this catches what a died filing left), so the queue never waits for it
-    const filing = fileLearnt(env, ctx.userId).catch(() => 0);
-    if (env.ctx) env.ctx.waitUntil(filing); else await filing;
+    // review only reads: a drill reaches the queue when the person answers it (owner, 2026-11-26) — no auto-filing here
     const domain = url.searchParams.get('domain') ?? undefined;
     const deck = url.searchParams.get('deck') ?? undefined;
     const ahead = Number(url.searchParams.get('ahead') ?? '0');

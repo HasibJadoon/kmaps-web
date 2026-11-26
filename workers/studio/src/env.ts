@@ -9,6 +9,8 @@ export interface StudioEnv {
   OVERLAY: R2Bucket;
 
   CORE: Fetcher;
+  /** km-arabic-worker: an Arabic video's timed scenes, for the reaction view. */
+  ARABIC?: Fetcher;
 
   /// QR, for the passage a brainstorm is about.
   QR: Fetcher;
