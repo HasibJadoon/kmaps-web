@@ -6,7 +6,6 @@ import { ok } from '../../shared/src/response';
 import type { ArabicEnv } from './env';
 
 import { audioRoutes } from './routes/audio';
-import { sprintRoutes } from './routes/sprint';
 import { vendorAudioRoutes } from './routes/vendor-audio';
 import { textRoutes } from './routes/text';
 import { bookcaseRoutes } from './routes/bookcase';
@@ -53,7 +52,6 @@ router.get('/ar/health', async (_req, env) =>
 
 // Literal-prefix routes first: the router is first-match-wins, and a
 // ':id' pattern registered earlier would swallow them.
-sprintRoutes(router);
 audioRoutes(router);
 vendorAudioRoutes(router);
 acquisitionRoutes(router);

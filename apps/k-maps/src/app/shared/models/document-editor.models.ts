@@ -1,6 +1,6 @@
 export interface DocumentEditorScope {
   domain: 'quran' | 'arabic' | 'worldview' | 'classical_theology' |
-          'jewish_wv' | 'christian_wv' | 'history' | 'planner' | 'workspace' | 'other';
+          'jewish_wv' | 'christian_wv' | 'history' | 'workspace' | 'other';
   surah?: number;
   source_id?: string;
   source_unit_id?: string;
