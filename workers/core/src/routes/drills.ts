@@ -177,7 +177,11 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
   router.get('/core/cyb/drills/bank', async (req, env) => {
     const ctx = await requireAuth(req, env.JWT_SECRET);
     if (ctx instanceof Response) return ctx;
-    const rows = await query<{ domain: string; work_ref: string; n: number; mine: number }>(env.DB_CORE,
+    // each tab asks for its own part (owner 2026-11-27: lazy): 'review' — the four streams' counts only; 'bank' — the tree;
+    // none — both, as older apps ask
+    const part = new URL(req.url).searchParams.get('part');
+    const wantBank = part !== 'review', wantReview = part !== 'bank';
+    const rows = !wantBank ? [] : await query<{ domain: string; work_ref: string; n: number; mine: number }>(env.DB_CORE,
       `SELECT d.domain, d.work_ref, COUNT(*) AS n,
               SUM(EXISTS (SELECT 1 FROM core_srs_card c WHERE c.drill_gid = d.gid AND c.user_ref = ?)) AS mine
          FROM cyb_drill d WHERE d.status = 'live' AND d.work_ref IS NOT NULL
@@ -195,7 +199,10 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
       g.count += r.n; g.mine += r.mine ?? 0; s.count += r.n; s.mine += r.mine ?? 0;
     }
     const num = (w: string) => Number(w.split(':').pop()) || 0;
-    const out = [...streams.values()].sort((a, b) => b.count - a.count).map((s) => ({
+    // the same four streams as review, in the same order, an empty one shown too (owner 2026-11-27: "based on 4")
+    if (wantBank) for (const { key } of REVIEW_STREAMS) if (!streams.has(key)) streams.set(key, { key, label: STREAMS[key] ?? key, count: 0, mine: 0, groups: new Map() });
+    const rank = (k: string) => { const i = REVIEW_STREAMS.findIndex((x) => x.key === k); return i < 0 ? 99 : i; };
+    const out = [...streams.values()].sort((a, b) => rank(a.key) - rank(b.key) || b.count - a.count).map((s) => ({
       key: s.key, label: s.label, count: s.count, mine: s.mine, ...(STREAM_LOOK[s.key] ?? { color: '#D8B657', icon: 'square.stack.3d.up.fill', labelAr: null }),
       groups: [...s.groups.values()].sort((a, b) => b.count - a.count).map((g) => ({
         ...g, icon: groupIcon(g.key), works: g.works.sort((a, b) => (num(a.work) - num(b.work)) || a.label.localeCompare(b.label)),
@@ -204,7 +211,7 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
     // the Review side of the hub: what is due now and what is in the learner's queue, per stream (drills only)
     // a card's stream: Tafsīr when it was filed from a tafsīr drill, else its module
     const streamOf = `CASE WHEN module = 'QR' AND ${TAFSIR_CARD} THEN 'TF' ELSE module END`;
-    const [due, queued] = await Promise.all([
+    const [due, queued] = !wantReview ? [[], []] as Array<Array<{ module: string; n: number }>> : await Promise.all([
       query<{ module: string; n: number }>(env.DB_CORE,
         `SELECT ${streamOf} AS module, COUNT(*) AS n FROM core_srs_card
           WHERE user_ref = ? AND suspended = 0 AND leech = 0 AND card_state <> 'new' AND is_drill = 1
@@ -232,7 +239,7 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
       together_detail: 'One asks, one answers', bank_lead: 'Every drill, by stream and lesson. Done in its path, then it comes back here for review.',
       done: '{n} done', drills: '{n} drills', lessons: '{n} lessons', open_path: 'Open in the Path',
     };
-    return ok({ streams: out, review, words });
+    return ok({ streams: out, review: wantReview ? review : null, words });
   });
 
   router.get('/core/cyb/drills/bank/work', async (req, env) => {
