@@ -68,6 +68,31 @@ function bankDrill(r: BankRow) {
   };
 }
 
+/** The emphasis palette (cyb_drill_theme), read once per isolate. */
+let themeCache: Promise<Record<string, { color: string; label: string; labelAr: string | null }>> | null = null;
+function themes(db: D1Database) {
+  themeCache ??= query<{ key: string; label_en: string; label_ar: string | null; color: string }>(db,
+    `SELECT key, label_en, label_ar, color FROM cyb_drill_theme ORDER BY sort`)
+    .then((rows) => Object.fromEntries(rows.map((r) => [r.key, { color: r.color, label: r.label_en, labelAr: r.label_ar }])))
+    .catch(() => { themeCache = null; return {}; });
+  return themeCache;
+}
+
+/** A drill's emphasis (≤ 2 words: {text, theme?}) with each theme's colour and label added from the palette, so the
+ *  app only paints. A theme the palette lacks is dropped to plain emphasis (bold, no colour). */
+export async function paintEmphasis<T extends Record<string, unknown>>(db: D1Database, drills: T[]): Promise<T[]> {
+  if (!drills.some((d) => Array.isArray(d.emphasis))) return drills;
+  const pal = await themes(db);
+  return drills.map((d) => {
+    if (!Array.isArray(d.emphasis)) return d;
+    const emphasis = (d.emphasis as { text: string; theme?: string; asked?: boolean }[]).map((e) => {
+      const t = e.theme ? pal[e.theme] : undefined;
+      return t ? { ...e, color: t.color, label: t.label, labelAr: t.labelAr } : { text: e.text, asked: e.asked };
+    });
+    return { ...d, emphasis };
+  });
+}
+
 interface DrillRow { gid: string; domain: string | null; skill: string | null; work_ref: string | null; intro_ayah: number | null; payload_json: string }
 interface RuleRow { id: string; rule_md: string; severity: string; check_sql: string | null; expected: number }
 
@@ -219,7 +244,7 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
     const rows = await query<DrillRow>(env.DB_CORE,
       `SELECT gid, domain, skill, work_ref, intro_ayah, payload_json FROM cyb_drill WHERE ${where.join(' AND ')}
         ORDER BY ${order} LIMIT ${limit}`, [...args, ...lessonArgs]);
-    return ok({ drills: rows.map((r) => withCard(r)), ...(lesson ? { lesson } : {}) });
+    return ok({ drills: await paintEmphasis(env.DB_CORE, rows.map((r) => withCard(r))), ...(lesson ? { lesson } : {}) });
   });
 
 
@@ -344,7 +369,7 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
     if (!gid) return ok({ drill: null });
     const rows = await query<DrillRow>(env.DB_CORE,
       `SELECT gid, domain, skill, work_ref, intro_ayah, payload_json FROM cyb_drill WHERE gid = ? LIMIT 1`, [gid]);
-    return ok({ drill: rows[0] ? withCard(rows[0]) : null });
+    return ok({ drill: rows[0] ? (await paintEmphasis(env.DB_CORE, [withCard(rows[0])]))[0] : null });
   });
 
   router.get('/core/cyb/drills/audit', async (req, env) => {

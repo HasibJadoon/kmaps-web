@@ -2346,3 +2346,12 @@ CREATE TABLE IF NOT EXISTS core_body_routine_session (
   seconds    INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_core_body_routine_session_owner ON core_body_routine_session (owner_ref, on_date);
+
+CREATE TABLE IF NOT EXISTS cyb_drill_theme (
+  key TEXT PRIMARY KEY,
+  label_en TEXT NOT NULL,
+  label_ar TEXT,
+  color TEXT NOT NULL,
+  detail TEXT,
+  sort INTEGER NOT NULL DEFAULT 0
+);
