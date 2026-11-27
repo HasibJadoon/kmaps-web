@@ -674,12 +674,30 @@ async function hasPathDrills(req: Request, env: QuranEnv, surah: number): Promis
   return (body?.data?.drills?.length ?? 0) > 0;
 }
 
-/** Every live bank drill of a sūra's tafsīr, as core deals it. Null when core cannot be asked. */
-async function bankDrills(req: Request, env: QuranEnv, surah: number): Promise<BankDrill[] | null> {
+/** The scholar a tafsīr path request names (?source=), one of the books the app reads; Ibn ʿĀshūr when none. */
+const scholarOf = (sp: URLSearchParams) => {
+  const s = sp.get('source') ?? 'ibn_ashur';
+  return READING_BOOKS.includes(s) ? s : 'ibn_ashur';
+};
+
+/** How many live bank drills a scholar's tafsīr of a sūra has (core's lesson count). Null when core cannot be asked. */
+async function bankCount(req: Request, env: QuranEnv, surah: number, slug: string): Promise<number | null> {
   const auth = req.headers.get('Authorization');
   if (!env.CORE || !auth) return null;
   const res = await env.CORE.fetch(new Request(
-    `https://domain.internal/core/cyb/drills?domain=QR&work=${encodeURIComponent(INTRO_WORK(surah))}&limit=500`,
+    `https://domain.internal/core/cyb/drills?domain=QR&work=${encodeURIComponent(`QR:TAFSIR:${slug}:${surah}`)}&limit=1`,
+    { headers: { Authorization: auth } })).catch(() => null);
+  if (!res?.ok) return null;
+  const body = (await res.json().catch(() => null)) as { data?: { lesson?: { total?: number } } } | null;
+  return body?.data?.lesson?.total ?? 0;
+}
+
+/** Every live bank drill of a scholar's tafsīr of a sūra, as core deals it. Null when core cannot be asked. */
+async function bankDrills(req: Request, env: QuranEnv, surah: number, slug = 'ibn_ashur'): Promise<BankDrill[] | null> {
+  const auth = req.headers.get('Authorization');
+  if (!env.CORE || !auth) return null;
+  const res = await env.CORE.fetch(new Request(
+    `https://domain.internal/core/cyb/drills?domain=QR&work=${encodeURIComponent(`QR:TAFSIR:${slug}:${surah}`)}&limit=500`,
     { headers: { Authorization: auth } }))
     .catch((e) => { console.warn('[tafsir-class] core drills unavailable', e); return null; });
   if (!res?.ok) return null;
@@ -713,12 +731,30 @@ const classWords = async (env: QuranEnv) => {
 };
 
 export function tafsirClassRoutes(router: Router<QuranEnv>) {
+  // a sūra's scholars: every tafsīr book the app reads, with how many path drills each has for the sūra (0: not yet)
+  router.get('/qr/tafsir-practice/class/scholars', async (req, env) => {
+    const user = actorRef(req);
+    if (!user) return unauthorized('Authenticated user required');
+    const surah = Number(new URL(req.url).searchParams.get('surah')) || 40;
+    const [src, counts] = await Promise.all([
+      sources(env, READING_BOOKS),
+      Promise.all(READING_BOOKS.map((slug) => bankCount(req, env, surah, slug))),
+    ]);
+    const scholars = READING_BOOKS.map((slug, i) => {
+      const n = counts[i] ?? 0;
+      return { ...sourceOut(slug, src.get(slug)), drills: n, open: n > 0,
+               line: n > 0 ? `${n} drill${n === 1 ? '' : 's'}` : 'No drills yet' };
+    }).sort((a, b) => Number(b.open) - Number(a.open));
+    return ok({ surah, scholars });
+  });
+
   // a sūra's tafsīr passages that have drills, in reading order: the intro first, then by āyah
   router.get('/qr/tafsir-practice/class/passages', async (req, env) => {
     const user = actorRef(req);
     if (!user) return unauthorized('Authenticated user required');
-    const surah = Number(new URL(req.url).searchParams.get('surah')) || 40;
-    const [drills, words, src] = await Promise.all([bankDrills(req, env, surah), classWords(env), sources(env, ['ibn_ashur'])]);
+    const qs = new URL(req.url).searchParams;
+    const surah = Number(qs.get('surah')) || 40, slug = scholarOf(qs);
+    const [drills, words, src] = await Promise.all([bankDrills(req, env, surah, slug), classWords(env), sources(env, [slug])]);
     const by = new Map<string, number>();
     for (const d of drills ?? []) { const k = passageKeyOf(d, surah); if (k) by.set(k, (by.get(k) ?? 0) + 1); }
     const ids = [...by.keys()].filter((k) => k !== 'intro').map((k) => `QR:SP:${surah}:${k}`);
@@ -737,7 +773,7 @@ export function tafsirClassRoutes(router: Router<QuranEnv>) {
         drills: n, line: `${n} drill${n === 1 ? '' : 's'}`,
       };
     });
-    return ok({ surah, source: sourceOut('ibn_ashur', src.get('ibn_ashur')), passages, available: drills !== null });
+    return ok({ surah, source: sourceOut(slug, src.get(slug)), passages, available: drills !== null });
   });
 
   // a passage's path: its banner, a node per step it has drills for, and its full round
@@ -746,7 +782,7 @@ export function tafsirClassRoutes(router: Router<QuranEnv>) {
     if (!user) return unauthorized('Authenticated user required');
     const sp = new URL(req.url).searchParams;
     const surah = Number(sp.get('surah')) || 40, passage = sp.get('passage') ?? 'intro';
-    const [drills, steps, words] = await Promise.all([bankDrills(req, env, surah), stepsOf(env), classWords(env)]);
+    const [drills, steps, words] = await Promise.all([bankDrills(req, env, surah, scholarOf(sp)), stepsOf(env), classWords(env)]);
     const mine = (drills ?? []).filter((d) => passageKeyOf(d, surah) === passage);
     const count = new Map<string, number>();
     for (const d of mine) { const s = stepFor(d.kind, steps); if (s) count.set(s.key, (count.get(s.key) ?? 0) + 1); }
@@ -781,7 +817,7 @@ export function tafsirClassRoutes(router: Router<QuranEnv>) {
     if (!user) return unauthorized('Authenticated user required');
     const sp = new URL(req.url).searchParams;
     const surah = Number(sp.get('surah')) || 40, passage = sp.get('passage') ?? 'intro', step = sp.get('step');
-    const [drills, steps] = await Promise.all([bankDrills(req, env, surah), stepsOf(env)]);
+    const [drills, steps] = await Promise.all([bankDrills(req, env, surah, scholarOf(sp)), stepsOf(env)]);
     const mine = (drills ?? []).filter((d) => passageKeyOf(d, surah) === passage);
     const out = step ? mine.filter((d) => stepFor(d.kind, steps)?.key === step)
       // the round: every step once, in the steps' order
