@@ -277,8 +277,8 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
       g.works.push({ work: r.work_ref, label: workLabel(r.work_ref), count: r.n, mine: r.mine ?? 0 });
       g.count += r.n; g.mine += r.mine ?? 0; s.count += r.n; s.mine += r.mine ?? 0;
     }
-    // Tafsīr is walked Sūra → scholar → drills (owner 2026-11-27), as its path is: a group per sūra, a lesson per
-    // scholar in it; the sūra's and the scholars' names from the Qurʾān worker
+    // the Bank's Tafsīr: scholar → sūra → drills (owner 2026-11-27: "scholar then surah, drill bank that's better") —
+    // a group per scholar, a lesson per sūra in it; the scholars' and sūras' names from the Qurʾān worker
     const tf = streams.get('TF');
     if (tf && wantGroups && env.QURAN) {
       const auth = req.headers.get('Authorization') ?? '';
@@ -297,10 +297,10 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
       for (const w of works) {
         const [, , slug, n] = w.work.split(':');
         const i = byNum.get(Number(n));
-        const key = `QR:TAFSIR:S${n}`;
-        const g = regrouped.get(key) ?? { key, label: i?.name ?? `Sūra ${n}`, count: 0, mine: 0, works: [] };
+        const key = `QR:TAFSIR:${slug}`;
+        const g = regrouped.get(key) ?? { key, label: i?.scholars.get(slug) ?? pretty(slug), count: 0, mine: 0, works: [] };
         regrouped.set(key, g);
-        g.works.push({ ...w, label: i?.scholars.get(slug) ?? pretty(slug) });
+        g.works.push({ ...w, label: `${n} · ${i?.name ?? `Sūra ${n}`}` });
         g.count += w.count; g.mine += w.mine;
       }
       tf.groups = regrouped;
