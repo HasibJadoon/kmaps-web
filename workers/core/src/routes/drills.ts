@@ -68,14 +68,18 @@ function bankDrill(r: BankRow) {
   };
 }
 
-/** The emphasis palette (cyb_drill_theme), read once per isolate. */
-let themeCache: Promise<Record<string, { color: string; label: string; labelAr: string | null }>> | null = null;
-function themes(db: D1Database) {
-  themeCache ??= query<{ key: string; label_en: string; label_ar: string | null; color: string }>(db,
-    `SELECT key, label_en, label_ar, color FROM cyb_drill_theme ORDER BY sort`)
-    .then((rows) => Object.fromEntries(rows.map((r) => [r.key, { color: r.color, label: r.label_en, labelAr: r.label_ar }])))
-    .catch(() => { themeCache = null; return {}; });
-  return themeCache;
+/** The emphasis palette (cyb_drill_theme), kept per isolate as plain data — never a shared Promise: a Worker may not
+ *  await I/O begun by another request (it hangs), so each request reads it itself until one has filled the cache. */
+type Palette = Record<string, { color: string; label: string; labelAr: string | null }>;
+let themeCache: { at: number; pal: Palette } | null = null;
+async function themes(db: D1Database): Promise<Palette> {
+  if (themeCache && Date.now() - themeCache.at < 10 * 60_000) return themeCache.pal;
+  const rows = await query<{ key: string; label_en: string; label_ar: string | null; color: string }>(db,
+    `SELECT key, label_en, label_ar, color FROM cyb_drill_theme ORDER BY sort`).catch(() => null);
+  if (!rows) return themeCache?.pal ?? {};
+  const pal = Object.fromEntries(rows.map((r) => [r.key, { color: r.color, label: r.label_en, labelAr: r.label_ar }]));
+  themeCache = { at: Date.now(), pal };
+  return pal;
 }
 
 /** A drill's emphasis (≤ 2 words: {text, theme?}) with each theme's colour and label added from the palette, so the
