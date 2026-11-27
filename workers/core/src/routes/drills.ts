@@ -277,6 +277,34 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
       g.works.push({ work: r.work_ref, label: workLabel(r.work_ref), count: r.n, mine: r.mine ?? 0 });
       g.count += r.n; g.mine += r.mine ?? 0; s.count += r.n; s.mine += r.mine ?? 0;
     }
+    // Tafsīr is walked Sūra → scholar → drills (owner 2026-11-27), as its path is: a group per sūra, a lesson per
+    // scholar in it; the sūra's and the scholars' names from the Qurʾān worker
+    const tf = streams.get('TF');
+    if (tf && wantGroups && env.QURAN) {
+      const auth = req.headers.get('Authorization') ?? '';
+      const works = [...tf.groups.values()].flatMap((g) => g.works);
+      const surahs = [...new Set(works.map((w) => Number(w.work.split(':')[3]) || 0).filter((n) => n > 0))];
+      const ask = (path: string) => env.QURAN!.fetch(new Request(`https://domain.internal${path}`, { headers: { Authorization: auth } }))
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null) as Promise<{ data?: Record<string, unknown> } | null>;
+      const info = await Promise.all(surahs.map(async (n) => {
+        const [sura, sch] = await Promise.all([ask(`/qr/surahs/${n}`), ask(`/qr/tafsir-practice/class/scholars?surah=${n}`)]);
+        const d = (sura?.data ?? {}) as { name_transliteration?: string; name_en?: string };
+        const scholars = ((sch?.data as { scholars?: Array<{ slug: string; authorEn?: string | null }> } | undefined)?.scholars ?? []);
+        return [n, { name: d.name_transliteration ?? d.name_en ?? `Sūra ${n}`, scholars: new Map(scholars.map((x) => [x.slug, x.authorEn ?? x.slug])) }] as const;
+      }));
+      const byNum = new Map(info);
+      const regrouped = new Map<string, { key: string; label: string; count: number; mine: number; works: Array<{ work: string; label: string; count: number; mine: number }> }>();
+      for (const w of works) {
+        const [, , slug, n] = w.work.split(':');
+        const i = byNum.get(Number(n));
+        const key = `QR:TAFSIR:S${n}`;
+        const g = regrouped.get(key) ?? { key, label: i?.name ?? `Sūra ${n}`, count: 0, mine: 0, works: [] };
+        regrouped.set(key, g);
+        g.works.push({ ...w, label: i?.scholars.get(slug) ?? pretty(slug) });
+        g.count += w.count; g.mine += w.mine;
+      }
+      tf.groups = regrouped;
+    }
     const num = (w: string) => Number(w.split(':').pop()) || 0;
     // the same four streams as review, in the same order, an empty one shown too (owner 2026-11-27: "based on 4")
     if (wantBank) for (const { key } of REVIEW_STREAMS) if ((!only || only === key) && !streams.has(key)) streams.set(key, { key, label: STREAMS[key] ?? key, count: 0, mine: 0, groups: new Map() });
