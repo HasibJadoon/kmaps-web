@@ -257,6 +257,9 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
     const sp = new URL(req.url).searchParams;
     const part = sp.get('part');
     const only = sp.get('stream')?.toUpperCase() || null;
+    // the Tafsīr stream either way (owner 2026-11-27: "each scholar then by sūra, or both options"): by=scholar (default)
+    // a group per scholar, a lesson per sūra; by=surah a group per sūra, a lesson per scholar
+    const bySurah = sp.get('by') === 'surah';
     const wantBank = part !== 'review', wantReview = part !== 'bank' && part !== 'streams', wantGroups = part !== 'streams';
     const streamWhere = only === 'TF' ? ` AND d.work_ref LIKE 'QR:TAFSIR%'`
       : only === 'QR' ? ` AND d.domain = 'QR' AND d.work_ref NOT LIKE 'QR:TAFSIR%'` : only ? ` AND d.domain = ?` : '';
@@ -297,10 +300,11 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
       for (const w of works) {
         const [, , slug, n] = w.work.split(':');
         const i = byNum.get(Number(n));
-        const key = `QR:TAFSIR:${slug}`;
-        const g = regrouped.get(key) ?? { key, label: i?.scholars.get(slug) ?? pretty(slug), count: 0, mine: 0, works: [] };
+        const scholar = i?.scholars.get(slug) ?? pretty(slug), sura = `${n} · ${i?.name ?? `Sūra ${n}`}`;
+        const key = bySurah ? `QR:TAFSIR:S${n}` : `QR:TAFSIR:${slug}`;
+        const g = regrouped.get(key) ?? { key, label: bySurah ? sura : scholar, count: 0, mine: 0, works: [] };
         regrouped.set(key, g);
-        g.works.push({ ...w, label: `${n} · ${i?.name ?? `Sūra ${n}`}` });
+        g.works.push({ ...w, label: bySurah ? scholar : sura });
         g.count += w.count; g.mine += w.mine;
       }
       tf.groups = regrouped;
@@ -344,7 +348,7 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
       review: 'Review', bank: 'Bank', due: '{n} due', none_due: 'Nothing due', queued: '{n} in your queue',
       review_now: 'Review now', review_all: 'Everything due, mixed', together: 'Review together',
       together_detail: 'One asks, one answers', bank_lead: 'Every drill, by stream and lesson. Done in its path, then it comes back here for review.',
-      done: '{n} done', drills: '{n} drills', streams_lead: 'Pick a stream to see its lessons.', lessons: '{n} lessons', open_path: 'Open in the Path',
+      done: '{n} done', drills: '{n} drills', streams_lead: 'Pick a stream to see its lessons.', by_scholar: 'By scholar', by_surah: 'By sūra', lessons: '{n} lessons', open_path: 'Open in the Path',
     };
     return ok({ streams: out, review: wantReview ? review : null, words });
   });
