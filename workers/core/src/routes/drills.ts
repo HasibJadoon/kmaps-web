@@ -287,7 +287,9 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
       const auth = req.headers.get('Authorization') ?? '';
       const works = [...tf.groups.values()].flatMap((g) => g.works);
       const surahs = [...new Set(works.map((w) => Number(w.work.split(':')[3]) || 0).filter((n) => n > 0))];
-      const ask = (path: string) => env.QURAN!.fetch(new Request(`https://domain.internal${path}`, { headers: { Authorization: auth } }))
+      // QR knows the caller by the gateway's X-KM-User-Id, not the token
+      const ask = (path: string) => env.QURAN!.fetch(new Request(`https://domain.internal${path}`,
+        { headers: { Authorization: auth, 'X-KM-User-Id': ctx.userId } }))
         .then((r) => (r.ok ? r.json() : null)).catch(() => null) as Promise<{ data?: Record<string, unknown> } | null>;
       const info = await Promise.all(surahs.map(async (n) => {
         const [sura, sch] = await Promise.all([ask(`/qr/surahs/${n}`), ask(`/qr/tafsir-practice/class/scholars?surah=${n}`)]);
