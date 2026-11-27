@@ -17,6 +17,7 @@ import { SrsRepo, TAFSIR_CARD } from '../repositories/srs.repo';
 //        (work), with how many this learner has done — read only; drills are done in their lesson or path
 //   GET /core/cyb/drills/bank/work?work=…&offset=…
 //        one lesson's drills to browse: prompt, choices, answer, explanation, its āyah or line, and whether done
+//   GET /core/cyb/drills/bank/search?q=…&offset=…   (root, word, any text, id — the vowel marks ignored)
 //   GET /core/cyb/drills/one?gid=…   (one drill as the player gets it — the bank's preview)
 //   GET /core/cyb/drills/audit
 //        every AGR:DRL rule run over the bank: how many drills break it (0 expected) — a drill goes live only clean
@@ -46,6 +47,25 @@ export function bankFace(prompt: string | null, explanation: string | null) {
     ? explanation.split(/\s+(?=\d\s+[A-Z\u0600-\u06FF])/).map((x) => x.replace(/^\d\s+/, '').trim()).filter(Boolean)
     : null;
   return { ayahText, ayahRef, ask, points: points && points.length > 1 ? points : null };
+}
+
+/** The Arabic vowel marks, shadda, sukūn, dagger alif and taṭwīl — a search ignores them on both sides. */
+const MARKS = ['\u064B', '\u064C', '\u064D', '\u064E', '\u064F', '\u0650', '\u0651', '\u0652', '\u0670', '\u0640'];
+const stripMarks = (s: string) => s.replace(/[\u064B-\u0652\u0670\u0640]/g, '');
+
+interface BankRow { gid: string; kind: string | null; skill: string | null; work_ref?: string | null; intro_surah: number | null; intro_ayah: number | null; payload_json: string; mine: number }
+/** One bank drill as the bank's lists and sheet read it. */
+function bankDrill(r: BankRow) {
+  const str = (v: unknown) => (typeof v === 'string' ? v : Array.isArray(v) ? (v as unknown[]).map(String).join(' ') : null);
+  const d = JSON.parse(r.payload_json) as Record<string, unknown>;
+  const opts = Array.isArray(d.options) ? (d.options as unknown[]).map((o) => (typeof o === 'string' ? o : str((o as Record<string, unknown>)?.text) ?? JSON.stringify(o))) : [];
+  const face = bankFace(str(d.prompt), str(d.explanation));
+  const links = (d.links ?? {}) as Record<string, unknown>;
+  return {
+    gid: r.gid, kind: r.kind, kindLabel: kindLabel(r.kind), skill: r.skill, surah: r.intro_surah, ayah: r.intro_ayah, done: !!r.mine,
+    instruction: str(d.instruction), prompt: str(d.prompt), options: opts, answer: str(d.answer),
+    explanation: str(d.explanation), ref: str(d.ref), root: str(links.root), ...face,
+  };
 }
 
 interface DrillRow { gid: string; domain: string | null; skill: string | null; work_ref: string | null; intro_ayah: number | null; payload_json: string }
@@ -284,25 +304,37 @@ export function drillBankRoutes(router: Router<CoreEnv>) {
     if (!work) return ok({ drills: [], total: 0 });
     const offset = Math.max(0, Number(u.searchParams.get('offset')) || 0);
     const [rows, count] = await Promise.all([
-      query<{ gid: string; kind: string | null; skill: string | null; intro_surah: number | null; intro_ayah: number | null; payload_json: string; mine: number }>(env.DB_CORE,
+      query<BankRow>(env.DB_CORE,
         `SELECT d.gid, d.kind, d.skill, d.intro_surah, d.intro_ayah, d.payload_json,
                 EXISTS (SELECT 1 FROM core_srs_card c WHERE c.drill_gid = d.gid AND c.user_ref = ?) AS mine
            FROM cyb_drill d WHERE d.status = 'live' AND d.work_ref = ?
           ORDER BY d.intro_ayah, d.gid LIMIT 100 OFFSET ?`, [ctx.userId, work, offset]),
       query<{ n: number }>(env.DB_CORE, `SELECT COUNT(*) AS n FROM cyb_drill WHERE status = 'live' AND work_ref = ?`, [work]),
     ]);
-    const str = (v: unknown) => (typeof v === 'string' ? v : Array.isArray(v) ? (v as unknown[]).map(String).join(' ') : null);
-    const drills = rows.map((r) => {
-      const d = JSON.parse(r.payload_json) as Record<string, unknown>;
-      const opts = Array.isArray(d.options) ? (d.options as unknown[]).map((o) => (typeof o === 'string' ? o : str((o as Record<string, unknown>)?.text) ?? JSON.stringify(o))) : [];
-      const face = bankFace(str(d.prompt), str(d.explanation));
-      return {
-        gid: r.gid, kind: r.kind, kindLabel: kindLabel(r.kind), skill: r.skill, surah: r.intro_surah, ayah: r.intro_ayah, done: !!r.mine,
-        instruction: str(d.instruction), prompt: str(d.prompt), options: opts, answer: str(d.answer),
-        explanation: str(d.explanation), ref: str(d.ref), ...face,
-      };
-    });
-    return ok({ work, label: workLabel(work), total: count[0]?.n ?? 0, drills });
+    return ok({ work, label: workLabel(work), total: count[0]?.n ?? 0, drills: rows.map(bankDrill) });
+  });
+
+  router.get('/core/cyb/drills/bank/search', async (req, env) => {
+    const ctx = await requireAuth(req, env.JWT_SECRET);
+    if (ctx instanceof Response) return ctx;
+    const u = new URL(req.url);
+    const q = stripMarks((u.searchParams.get('q') ?? '').trim());
+    if (q.length < 2) return ok({ q, total: 0, drills: [] });
+    const offset = Math.max(0, Number(u.searchParams.get('offset')) || 0);
+    let bare = 'payload_json';
+    for (const m of MARKS) bare = `replace(${bare}, '${m}', '')`;
+    const where = `d.status = 'live' AND (json_extract(d.payload_json, '$.links.root') = ? OR d.gid LIKE ? OR ${bare.replace(/payload_json/, 'd.payload_json')} LIKE ?)`;
+    const args = [q, `%${q}%`, `%${q}%`];
+    const [rows, count] = await Promise.all([
+      query<BankRow>(env.DB_CORE,
+        `SELECT d.gid, d.kind, d.skill, d.work_ref, d.intro_surah, d.intro_ayah, d.payload_json,
+                EXISTS (SELECT 1 FROM core_srs_card c WHERE c.drill_gid = d.gid AND c.user_ref = ?) AS mine
+           FROM cyb_drill d WHERE ${where}
+          ORDER BY (json_extract(d.payload_json, '$.links.root') = ?) DESC, d.work_ref, d.intro_ayah, d.gid LIMIT 100 OFFSET ?`,
+        [ctx.userId, ...args, q, offset]),
+      query<{ n: number }>(env.DB_CORE, `SELECT COUNT(*) AS n FROM cyb_drill d WHERE ${where}`, args),
+    ]);
+    return ok({ q, total: count[0]?.n ?? 0, drills: rows.map((r) => ({ ...bankDrill(r), work: r.work_ref, workLabel: r.work_ref ? workLabel(r.work_ref) : null })) });
   });
 
   router.get('/core/cyb/drills/one', async (req, env) => {
